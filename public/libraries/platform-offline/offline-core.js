@@ -960,15 +960,21 @@
       const queued = await queue.blob(identity, file.id).catch(() => null);
       if (queued) return blobResponse(queued, request.headers.get('range'));
       if (request.headers.has('range')) return config.fetch(request).catch((error) => { throw netError(error); });
-      const variant = url.searchParams.has('variant');
-      if (variant) { const hit = await media.cached(identity, url).catch(() => null); if (hit) return hit; }
+      // Only an answer the server marked immutable (a rendition, a markup thumbnail with its revision) is served
+      // from the device first. A logo, an avatar or an original can change under the same URL: network first.
+      const hit = await media.cached(identity, url).catch(() => null);
+      if (hit && hit.headers.get('X-FM-Fixed') === '1') return hit;
+      const network = config.fetch(request);
       let response;
-      try { response = await config.fetch(request); } catch (error) {
+      try { response = hit ? await race(network, net.lastFailed ? limits.readTimeoutAfterFailureMs : limits.readTimeoutMs) : await network; } catch (error) {
         if (wasAborted(request, error)) throw error;
         net.fail();
-        const hit = variant ? null : await media.cached(identity, url).catch(() => null);
         if (hit) return hit;
         throw netError(error);
+      }
+      if (!response) {                                           // slow: the saved copy now, the newer one when it comes
+        waitUntil(network.then((late) => { net.ok(); return late.status === 200 && late.type !== 'opaque' ? media.store(identity, url, late, {}) : null; }).catch(() => {}));
+        return hit;
       }
       net.ok();
       // A file that announces itself as too large is not copied at all; one of unknown length is read only up to the limit.
@@ -1002,7 +1008,10 @@
       const key = media.urlKey(url);
       const now = config.now();
       const cache = await root.caches.open(MEDIA_CACHE);
-      await cache.put(media.cacheKey(identity, url), new Response(blob, { status: 200, headers: { 'Content-Type': response.headers.get('content-type') || blob.type || 'application/octet-stream', 'Cache-Control': 'private, max-age=31536000, immutable' } }));
+      const fixed = (options && options.fixed) || /immutable/i.test(response.headers.get('cache-control') || '');
+      const headers = { 'Content-Type': response.headers.get('content-type') || blob.type || 'application/octet-stream', 'Cache-Control': fixed ? 'private, max-age=31536000, immutable' : 'private, no-cache' };
+      if (fixed) headers['X-FM-Fixed'] = '1';
+      await cache.put(media.cacheKey(identity, url), new Response(blob, { status: 200, headers }));
       const keep = (options && options.keep) || (await pins.has(identity, 'media', key)) ? 1 : 0;
       await db.put('media', { k: [identity.user, identity.org, key], size: blob.size, usedAt: now, keep, thumb });
       media.written += blob.size;
@@ -1013,7 +1022,7 @@
 
     /** Puts a file under a media URL, for example the small copy made when a photo is taken. */
     put(identity, target, blob) {
-      return media.store(identity, new URL(target, ORIGIN), new Response(blob, { headers: { 'Content-Type': blob.type || 'application/octet-stream' } }), {});
+      return media.store(identity, new URL(target, ORIGIN), new Response(blob, { headers: { 'Content-Type': blob.type || 'application/octet-stream' } }), { fixed: true });
     },
 
     async remove(key) {

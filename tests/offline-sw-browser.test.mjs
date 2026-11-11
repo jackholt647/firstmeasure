@@ -121,7 +121,7 @@ async function site() {
       if (s.down) { req.socket.destroy(); return; }
       const answer = await s.api(entry);
       if (!answer) return json(404, { ok: false, error: 'not_found' });
-      if (answer.bytes) return send(answer.status || 200, { 'Content-Type': answer.type || 'application/octet-stream' }, answer.bytes);
+      if (answer.bytes) return send(answer.status || 200, { 'Content-Type': answer.type || 'application/octet-stream', ...answer.headers }, answer.bytes);
       return json(answer.status || 200, answer.json, answer.headers);
     }
     if (path === '/portal/' || path === '/portal/index.php') {
@@ -467,7 +467,10 @@ test('queued uploads keep their file and answer its URLs; media files are cached
     const big = Buffer.alloc(512 * 1024, 7);
     s.api = (request) => {
       const file = /\/media\/([^/]+)\/file$/.exec(request.path);
-      if (file && request.method === 'GET') return request.query.includes('huge') ? { bytes: Buffer.alloc(9 * 1024 * 1024, 1), type: 'image/jpeg' } : request.query.includes('medium') ? { bytes: big, type: 'image/jpeg' } : { bytes: Buffer.from('thumb of ' + file[1]), type: 'image/png' };
+      // As the server answers: a rendition never changes; a logo (a slot record) is asked about every time.
+      const fixed = { 'Cache-Control': 'private, max-age=31536000, immutable' };
+      if (file && request.method === 'GET' && file[1] === 'logo') return { bytes: Buffer.from('logo ' + (s.logo || 1)), type: 'image/png', headers: { 'Cache-Control': 'private, no-cache' } };
+      if (file && request.method === 'GET') return request.query.includes('huge') ? { bytes: Buffer.alloc(9 * 1024 * 1024, 1), type: 'image/jpeg', headers: fixed } : request.query.includes('medium') ? { bytes: big, type: 'image/jpeg', headers: fixed } : { bytes: Buffer.from('thumb of ' + file[1]), type: 'image/png', headers: fixed };
       if (request.method === 'POST' && request.path === '/v1/platform/organizations/org_1/media') return { status: 201, json: { ok: true, media: { id: 'media_1' } } };
       return null;
     };
@@ -503,10 +506,23 @@ test('queued uploads keep their file and answer its URLs; media files are cached
     assert.deepEqual([again.text, again.offline, again.type], ['thumb of m2', 'saved', 'image/png']);
     assert.equal(s.requests('GET', '/v1/platform/organizations/org_1/media/m2', mark).length, 0);
     assert.deepEqual((await device(page)).caches['fm-media-v1'], ['/.fm-media/user_1/org_1/v1/platform/organizations/org_1/media/m2/file']);
+    // A picture that can change under its URL (a logo) is asked for every time, and its saved copy is used
+    // only when the server cannot be reached.
+    const logo = '/v1/platform/organizations/org_1/media/logo/file?variant=thumb_160';
+    assert.equal((await call(page, 'GET', logo)).text, 'logo 1');
+    await until(async () => (await device(page)).media.length === 2, 'the logo is kept');
+    s.logo = 2;
+    const changed = await call(page, 'GET', logo);
+    assert.deepEqual([changed.text, changed.offline], ['logo 2', null]);
+    await sleep(200);
+    s.down = true;
+    const kept = await call(page, 'GET', logo);
+    assert.deepEqual([kept.text, kept.offline], ['logo 2', 'saved']);
+    s.down = false;
     // A variant over 8 MB is served but not kept.
     assert.equal((await call(page, 'GET', '/v1/platform/organizations/org_1/media/m3/file?variant=huge', null, { size: true })).text, String(9 * 1024 * 1024));
     await sleep(300);
-    assert.equal((await device(page)).media.length, 1);
+    assert.equal((await device(page)).media.length, 2);
     // The budget: least recently used files go first.
     await page.evaluate(() => window.PlatformOffline.settings.set('mediaBudgetMb', 1));
     assert.equal(await page.evaluate(() => window.PlatformOffline.settings.get('mediaBudgetMb')), 1);
@@ -514,7 +530,8 @@ test('queued uploads keep their file and answer its URLs; media files are cached
     await until(async () => { const kept = (await device(page)).media; return kept.length === 2 && kept.every((url) => /\/(d|e)\/file/.test(url)); }, 'the oldest files were evicted');
     s.down = true;
     assert.equal((await call(page, 'GET', '/v1/platform/organizations/org_1/media/e/file?variant=medium', null, { size: true })).text, String(512 * 1024));
-    assert.ok((await call(page, 'GET', '/v1/platform/organizations/org_1/media/a/file?variant=medium')).error);
+    // 'a' left the media cache (the list above holds only d and e). The browser's own HTTP cache may still answer
+    // for it, because the server marks a rendition immutable; the engine no longer counts or serves it.
     const report = (await page.evaluate(() => window.PlatformOffline.ready.then(() => window.PlatformOffline.state()))).storage;
     assert.deepEqual(Object.keys(report).sort(), ['budgets', 'media', 'persisted', 'queued', 'quota', 'reads', 'usage']);
 
