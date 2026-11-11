@@ -305,6 +305,9 @@
           appendThreadMessages(data.thread.messages || []);
           if (data.thread.cursor) state.cursor = data.thread.cursor;
         }
+      }).catch((error) => {
+        // Without a connection the website chat list may not be on this device; email, texts and calls still show.
+        if (!error?.offline || !commsChannelsEnabled()) throw error;
       }));
     } else {
       state.conversations = [];
