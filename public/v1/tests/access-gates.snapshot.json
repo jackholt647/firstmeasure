@@ -1,9 +1,9 @@
 {
   "summary": {
     "routes": {
-      "total": 1989,
+      "total": 1990,
       "by_kind": {
-        "any:login_only": 170,
+        "any:login_only": 171,
         "any:login_only+handler_checks": 387,
         "any:permission": 710,
         "app(contact.media|portal.crew_receipts|portal.photos_feed|portal.receipts|portal.viewer|project.crew_materials|project.photos):login_only+handler_checks": 1,
@@ -555,6 +555,7 @@
     "GET /v1/internal/crm": {"file":"internal/crm/api.ts","gates":[{"app":"any","csrf":false}],"kind":"any:login_only"},
     "GET /v1/internal/crm/": {"file":"internal/crm/api.ts","gates":[{"app":"any","csrf":false}],"kind":"any:login_only"},
     "GET /v1/internal/crm/referrals/acquisition/campaigns": {"file":"internal/crm/api.ts","gates":[{"app":"any","csrf":false}],"kind":"any:login_only"},
+    "GET /v1/internal/crm/referrals/acquisition/export": {"file":"internal/crm/api.ts","gates":[{"app":"any","csrf":false}],"kind":"any:login_only"},
     "GET /v1/internal/crm/referrals/acquisition/landing-pages": {"file":"internal/crm/api.ts","gates":[{"app":"any","csrf":false}],"kind":"any:login_only"},
     "GET /v1/internal/crm/referrals/acquisition/report": {"file":"internal/crm/api.ts","gates":[{"app":"any","csrf":false}],"kind":"any:login_only"},
     "GET /v1/internal/crm/referrals/logos/:fileName": {"file":"internal/crm/api.ts","kind":"no_platform_session"},
