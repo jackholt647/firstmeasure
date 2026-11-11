@@ -1657,12 +1657,12 @@
   }
 
   /* Roof pitch (1M8-255): rise over 12 (6/12), or degrees (26.6°) for projects that write pitch in degrees (metric
-     projects without a setting do). Set from the project when the estimate renders; the 3D labels use it too. */
+     projects always do). Set from the project when the estimate renders; the 3D labels use it too. */
   let instantPitchNotation = 'rise_12';
   function instantPitchNotationFor(project){
+    if ((project?.measurement_system || project?.manifest?.measurement_system) === 'metric') return 'degrees'; // FM-397
     const value = project?.pitch_notation || project?.manifest?.pitch_notation;
-    if (value === 'degrees' || value === 'rise_12') return value;
-    return (project?.measurement_system || project?.manifest?.measurement_system) === 'metric' ? 'degrees' : 'rise_12';
+    return value === 'degrees' ? 'degrees' : 'rise_12';
   }
   function instantPitchText(rise, digits = 1){
     if (instantPitchNotation !== 'degrees') return `${rise}/12`;
