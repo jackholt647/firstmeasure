@@ -176,6 +176,17 @@
     return Object.fromEntries(ids.map((id) => [id, names[id] || id]));
   }
 
+  /** A person's name as the checklists answer already has it (who completed an item, who a list is assigned to), else ''. */
+  function nameOf(payload, user) {
+    for (const checklist of list(payload && payload.checklists)) {
+      const assigned = isObject(checklist && checklist.assigned_user_names) ? text(checklist.assigned_user_names[user]) : '';
+      if (assigned && assigned !== user) return assigned;
+      const done = list(checklist && checklist.items).find((item) => item && text(item.completed_by_user_id) === user && text(item.completed_by_name));
+      if (done) return text(done.completed_by_name);
+    }
+    return '';
+  }
+
   /** Ids for a new checklist and its items, when the page sent none. */
   function withIds(body) {
     if (!isObject(body)) return undefined;
@@ -191,7 +202,7 @@
   function explain(ctx, answer) {
     if (answer.code === 'checklist_attachments_required') return FMOffline.label('fail_checklist_evidence', 'Not saved: this item needs its photo or file before it can be completed.', '');
     if (answer.code === 'checklist_items_open') return FMOffline.label('fail_checklist_open', 'Not signed: an item on this checklist was reopened or added. Finish every item, then sign again.', '');
-    if (answer.code === 'checklist_complete_forbidden' || answer.code === 'checklist_assignment_required') return FMOffline.label('fail_checklist_assignment', 'Not saved: this checklist is no longer assigned to you.', '');
+    if (answer.code === 'checklist_complete_forbidden') return FMOffline.label('fail_checklist_assignment', 'Not saved: this checklist is no longer assigned to you.', '');
     return null;
   }
 
@@ -248,8 +259,9 @@
         match: 'PATCH ' + LISTS + '/:checklist/items/:item',
         when: async (ctx) => {
           if (!isObject(ctx.body) || !Object.keys(ctx.body).length || Object.keys(ctx.body).some((field) => !ITEM_FIELDS.includes(field))) return false;
-          const item = itemIn(checklistIn(await known(ctx), ctx.params.checklist), ctx.params.item);
-          if (!item) return false;
+          const checklist = checklistIn(await known(ctx), ctx.params.checklist), item = itemIn(checklist, ctx.params.item);
+          // An item this device does not have, or a checklist the server said this person may not complete.
+          if (!item || checklist.can_complete === false) return false;
           const next = changedItem(item, ctx.body, ctx);
           if (next.item_type === 'rating' && next.rating === 'bad' && !next.note) return false;
           return !(next.completed && unmetEvidence(next).length);
@@ -272,7 +284,9 @@
           match: 'GET ' + LISTS, when: (m) => m.project === ctx.params.project,
           apply: (json) => {
             if (!itemIn(checklistIn(json, ctx.params.checklist), ctx.params.item)) return json;
-            const next = withItem(json, ctx.params.checklist, ctx.params.item, (item) => Object.assign(changedItem(item, ctx.body, ctx), { revision: item.revision, completed_by_name: item.completed_by_name }));
+            // The list names who completed an item: this person, by the name the answer already has for them.
+            const named = (item, next) => (!next.completed ? '' : next.completed_by_user_id === item.completed_by_user_id ? text(item.completed_by_name) : nameOf(json, ctx.user));
+            const next = withItem(json, ctx.params.checklist, ctx.params.item, (item) => { const changed = changedItem(item, ctx.body, ctx); return Object.assign(changed, { revision: item.revision, completed_by_name: named(item, changed) }); });
             // A reopened item takes the sign-off with it, as on the server.
             return withChecklist(next, ctx.params.checklist, (checklist) => (checklist.crew_signature && list(checklist.items).some((item) => item && !item.completed) ? Object.assign({}, checklist, { crew_signature: null }) : checklist));
           }

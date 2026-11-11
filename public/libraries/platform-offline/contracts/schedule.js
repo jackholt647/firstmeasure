@@ -179,7 +179,13 @@
   /** A delete stands in for every change to the event still on the device. */
   const replacesAll = async (ctx, id) => (await earlier(ctx, id)).map((entry) => entry.id);
 
-  const detail = (event) => [text(event.title), text(event.start_at).slice(0, 16).replace('T', ' ')].filter(Boolean).join(' · ');
+  /** When an event starts, in the device's own time and words (the tray shows it beside the title). */
+  function startOf(event) {
+    const at = Date.parse(event.start_at);
+    if (!Number.isFinite(at)) return '';
+    try { return new Date(at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (_) { return text(event.start_at).slice(0, 16).replace('T', ' '); }
+  }
+  const detail = (event) => [text(event.title), startOf(event)].filter(Boolean).join(' · ');
 
   // -------------------------------------------------------------------------------------------------------------
   // A project's events

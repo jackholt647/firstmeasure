@@ -1383,8 +1383,9 @@ downloads.
   checked by both is not sent again. The same field changed differently
   (two notes) asks the person.
 - **What is not queued** is refused at once with `offline_unavailable`
-  instead of failing later: an item the device does not have, a bad rating
-  without its note, a change to an item's settings, a sign-off while an item
+  instead of failing later: an item the device does not have, an item of a
+  checklist the server said this person may not complete (`can_complete`),
+  a bad rating without its note, a change to an item's settings, a sign-off while an item
   is open, and completing an item that asks for evidence the device does
   not see on it.
 - **The seam for item photos.** Evidence is an upload
