@@ -5,10 +5,10 @@ import { fileURLToPath } from "node:url";
 import { ZodError, z } from "zod";
 
 import { requirePlatformAuth } from "../../platform/auth.js";
-import { PlatformError, forbidden } from "../../platform/errors.js";
+import { PlatformError, conflict, forbidden } from "../../platform/errors.js";
 import { readInternalUser } from "../storage.js";
-import { acquisitionCampaignReport, attachReferralOrganization, writeAcquisitionExport, ensureReferralDatabase, getReferralPartner, listAcquisitionCampaigns, listReferralPartners, referralRewardReport, referralRows, saveAcquisitionCampaign, saveReferralPartner, saveReferralPartnerLogo, searchReferralOrganizations, updateReferralRewardStatus } from "./referrals.js";
-import { ZipStream } from "./zip-stream.js";
+import { acquisitionCampaignReport, attachReferralOrganization, ensureReferralDatabase, getReferralPartner, listAcquisitionCampaigns, listReferralPartners, referralRewardReport, referralRows, saveAcquisitionCampaign, saveReferralPartner, saveReferralPartnerLogo, searchReferralOrganizations, updateReferralRewardStatus } from "./referrals.js";
+import { acquisitionExportRunning, acquisitionExportStream } from "./acquisition-export.js";
 
 
 const asObject = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -152,13 +152,15 @@ export const registerCrmApi: FastifyPluginAsync = async (app) => {
   });
 
   // Every campaign's data for all time as a zip of CSVs (Customers > Export Acquisition Data).
-  // It is streamed as it is read: production holds hundreds of thousands of rows.
+  // It is streamed as it is read: production holds hundreds of thousands of rows. It is built on a
+  // worker thread, so its long synchronous reads never hold this one (acquisition-export.ts).
   app.get("/referrals/acquisition/export", async (request, reply) => {
     await requireReferralStaff(request);
-    const zip = new ZipStream();
-    writeAcquisitionExport(asObject(request.query), zip).catch((error) => {
+    if (acquisitionExportRunning()) {
+      throw conflict("acquisition_export_running", "An acquisition export is already being prepared. Try again when it has downloaded.");
+    }
+    const output = acquisitionExportStream(asObject(request.query), (error) => {
       request.log.error({ err: error }, "acquisition export failed");
-      zip.output.destroy(error instanceof Error ? error : new Error(String(error)));
     });
     const day = new Date().toISOString().slice(0, 10);
     return reply
@@ -166,7 +168,7 @@ export const registerCrmApi: FastifyPluginAsync = async (app) => {
       .header("content-disposition", `attachment; filename="acquisition-data-all-campaigns-${day}.zip"`)
       .header("cache-control", "no-store")
       .header("x-accel-buffering", "no")
-      .send(zip.output);
+      .send(output);
   });
 
   app.get("/referrals/acquisition/landing-pages", async (request) => {

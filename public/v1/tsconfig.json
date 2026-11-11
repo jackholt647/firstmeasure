@@ -22,6 +22,7 @@
     "equipment/**/*.ts",
     "domains/**/*.ts",
     "firstmeasure/**/*.ts",
+    "internal/crm/acquisition-export-thread.ts",
     "lead-intake/**/*.ts",
     "materials/**/*.ts",
     "messaging/**/*.ts",
