@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { isMainThread } from "node:worker_threads";
 
 import { badRequest, notFound } from "../../platform/errors.js";
 import { listOrganizations, patchOrganization, readGlobal, readOrganization } from "../../platform/storage.js";
@@ -549,11 +550,24 @@ const EXPORT_EVENT_COLUMNS = Object.keys(rawEventRow({}));
  * Every acquisition campaign's data since its first view, as one zip of CSVs (Customers > Export
  * Acquisition Data): the Campaigns tab's datasets for all campaigns and all time, without its
  * 5,000-row caps. Rows are read a page at a time and streamed, so memory holds only a small summary
- * of each view (for the totals) whatever the table size, and other requests run between pages.
+ * of each view (for the totals) whatever the table size. The reads are synchronous: call it on a
+ * worker thread (acquisition-export.ts), never on an HTTP thread.
  */
 export async function writeAcquisitionExport(input: JsonObject, zip: ZipStream) {
+  if (isMainThread) throw new Error("The acquisition export blocks its thread while it reads; run it on a worker thread (acquisition-export.ts).");
   const timezoneOffsetMinutes = normalizeTimezoneOffset(input.timezone_offset_minutes ?? input.timezone_offset ?? input.tz_offset);
   const now = new Date();
+
+  // The first file starts at once: a response that stays silent while campaigns and spend are
+  // worked out can be closed by the proxies in front (FM-393).
+  const views: JsonObject[] = [];
+  const attributions = await exportCsv(zip, "attributions", EXPORT_ATTRIBUTION_COLUMNS);
+  for await (const page of acquisitionExportPages("attributions")) {
+    for (const entry of page) views.push(acquisitionSummaryRow(entry));
+    await attributions.rows(page.map(rawAttributionRow));
+  }
+  await attributions.close();
+
   const campaignRows = listAcquisitionCampaigns();
   const orgIds = acquisitionRows(`
     SELECT DISTINCT ra.referred_org_id FROM referral_attributions ra
@@ -562,14 +576,6 @@ export async function writeAcquisitionExport(input: JsonObject, zip: ZipStream) 
   `).map((entry) => String(entry.referred_org_id));
   const orgSpend = await spendForOrganizations(orgIds, { start: new Date(0), end: now });
   const spendByOrg = new Map(orgSpend.organizations.map((entry) => [entry.org_id, entry]));
-
-  const views: JsonObject[] = [];
-  const attributions = await exportCsv(zip, "attributions", EXPORT_ATTRIBUTION_COLUMNS);
-  for await (const page of acquisitionExportPages("attributions")) {
-    for (const entry of page) views.push(acquisitionSummaryRow(entry));
-    await attributions.rows(page.map(rawAttributionRow));
-  }
-  await attributions.close();
 
   const signupFile = await exportCsv(zip, "signups", EXPORT_SIGNUP_COLUMNS);
   for await (const page of acquisitionExportPages("attributions", "AND ra.status = 'signup_completed'")) {
