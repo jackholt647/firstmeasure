@@ -583,7 +583,9 @@ window.createWallFaceDraft=function(host){
    [f.points,...(f.holes||[])].forEach((ring,index)=>{for(const point of ring)items.push({point,owner,ring:soft?null:'s:'+f.id+':'+index,fixed,soft});});for(const point of f.retainedPoints||[])items.push({point,owner,ring:null,fixed,soft});}
   for(const [key,d]of Object.entries(all())){if(!weldDraft(d))continue;const pl=plane([world(d,{x:0,y:0}),world(d,{x:1,y:0}),world(d,{x:0,y:1})]),owner=pl?'d:'+key:null,byId=new Map(d.sketch.nodes.map(n=>[n.id,n])),seen=new Set();
    const curved=(d.sketch.edges||[]).some(e=>e.curveId),still=n=>!!(d.chimney||n.curveSample||n.curveCenter||n.curveControl)||(d.sketch.edges||[]).some(e=>e.curveId&&(e.a===n.id||e.b===n.id));
-   if(pl)owners.set(owner,{plane:pl,fixed:!!d.chimney||curved,exact:true});
+   // A drawing made from a generated wall stands where that wall stands (no frame of its own): its plane is one
+   // others join, never one that moves.
+   if(pl)owners.set(owner,{plane:pl,fixed:!!d.chimney||curved||!d.frame,exact:true});
    for(const f of d.faces||[]){if(deleted(d,f))continue;[f.points,...(f.holes||[])].forEach((ring,index)=>{for(const p of ring){const n=byId.get(p.nodeId);if(!n)continue;seen.add(n.id);items.push({point:world(d,n),owner,ring:'d:'+key+':'+f.id+':'+index,fixed:!!f.feature||still(n),grid:true});}});}
    for(const n of d.sketch.nodes)if(!seen.has(n.id))items.push({point:world(d,n),owner,ring:null,fixed:still(n),grid:true});}
   for(const point of [...(edits.$loose?.points||[]),...(edits.$loose?.edges||[]).flat()])items.push({point,owner:null,ring:null,fixed:false});
@@ -609,6 +611,9 @@ window.createWallFaceDraft=function(host){
     // An upright drawing stays upright: it takes the plane's line on the ground.
     if(!d.frame){const l=Math.hypot(pl.n.x,pl.n.y);if(l<.999)continue;const o=world(d,{x:0,y:0}),h=pl.n.x*o.x+pl.n.y*o.y+pl.n.z*o.z-pl.k,n={x:pl.n.x/l,y:pl.n.y/l,z:0};pl={n,k:n.x*(o.x-pl.n.x*h)+n.y*(o.y-pl.n.y*h)};}
     const old=copy(d.faces),places=d.sketch.nodes.map(n=>onto(pl,world(d,n)));
+    // Already there (an upright drawing on the upright line of a plane that leans by a hair): leave it untouched,
+    // or every edit would rewrite it.
+    if(d.sketch.nodes.every((n,i)=>{const q=world(d,n),t=places[i];return Math.hypot(q.x-t.x,q.y-t.y,q.z-t.z)<=1e-9;}))continue;
     if(d.frame){const s=d.frame.n.x*pl.n.x+d.frame.n.y*pl.n.y+d.frame.n.z*pl.n.z<0?-1:1,n={x:pl.n.x*s,y:pl.n.y*s,z:pl.n.z*s},t=d.frame.u.x*n.x+d.frame.u.y*n.y+d.frame.u.z*n.z,raw={x:d.frame.u.x-n.x*t,y:d.frame.u.y-n.y*t,z:d.frame.u.z-n.z*t},l=Math.hypot(raw.x,raw.y,raw.z),u={x:raw.x/l,y:raw.y/l,z:raw.z/l};
      d.frame={...d.frame,origin:onto(pl,d.frame.origin),u,v:{x:n.y*u.z-n.z*u.y,y:n.z*u.x-n.x*u.z,z:n.x*u.y-n.y*u.x},n};d.sketch.nodes.forEach((node,i)=>{const local=W.inFrame(d.frame,places[i]);node.x=local.x;node.y=local.y;});
     }else{const o=onto(pl,{x:d.origin.x,y:d.origin.y,z:0}),t=d.u.x*pl.n.x+d.u.y*pl.n.y,ux=d.u.x-pl.n.x*t,uy=d.u.y-pl.n.y*t,l=Math.hypot(ux,uy);d.origin={...d.origin,x:o.x,y:o.y};d.u={...d.u,x:ux/l,y:uy/l};d.sketch.nodes.forEach((node,i)=>{const q=places[i];node.x=(q.x-d.origin.x)*d.u.x+(q.y-d.origin.y)*d.u.y;node.y=q.z;});}
@@ -933,10 +938,13 @@ function perf_snap(d,e,raw=null){
   for(const e of graph.edges.filter(e=>e.curve)){if(!curveGroups.has(e.id))curveGroups.set(e.id,{id:e.id,surfaceId:e.surfaceId,pairs:[]});curveGroups.get(e.id).pairs.push([node(e.a),node(e.b)]);}
   for(const d of Object.values(all()))for(const e of draftSegments(d).filter(e=>e.curveId)){const id=draftKey(d)+':'+e.curveId;if(!curveGroups.has(id))curveGroups.set(id,{id,draftKey:draftKey(d),edgeId:e.id,edgeIds:[],pairs:[]});const group=curveGroups.get(id);if(!group.edgeIds.includes(e.id))group.edgeIds.push(e.id);group.pairs.push([world(d,e.start),world(d,e.end)]);}
   const base=host.state()?.wallEdits?.$base||host.state()?.base,baseSegments=[];if(base&&base.visible!==false){const sketch=S.read(base),nodes=new Map(sketch.nodes.map(n=>[n.id,n]));baseSegments.push(...S.curveEdges(sketch).map(e=>[e.start,e.end]).filter(pair=>pair.every(Boolean)));points.push(...sketch.nodes);segments.push(...baseSegments);}
-  for(const d of Object.values(all()))if(visibleDraft(d)){segments.push(...draftSegments(d).map(e=>[world(d,e.start),world(d,e.end)]));points.push(...draftNodes(d).map(n=>world(d,n)));}
+  // A drawing's lines are what its sketch holds: deleting one removes it from the sketch. A record of a line
+  // deleted earlier at the same place must not hide a line drawn there since (it was drawn, and could not be
+  // picked). Those records mask the wire of faces, the base and generated walls only.
+  const drawnFrom=segments.length;for(const d of Object.values(all()))if(visibleDraft(d)){segments.push(...draftSegments(d).map(e=>[world(d,e.start),world(d,e.end)]));points.push(...draftNodes(d).map(n=>world(d,n)));}const drawnTo=segments.length;
   const topology=undraftedWallTopology();points.push(...[...new Set(topology.faces.flatMap(f=>f.pointIndices))].map(i=>topology.points[i]));segments.push(...topology.connections.map(e=>[topology.points[e.startIdx],topology.points[e.endIdx]]));
-  const pointIndex=W.pointRangeIndex(points),lines=new Map();for(const [a,b] of segments){const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z,l2=dx*dx+dy*dy+dz*dz;if(l2<1e-12)continue;const ts=[0,1];for(const p of pointIndex.segment(a,b)){const t=((p.x-a.x)*dx+(p.y-a.y)*dy+(p.z-a.z)*dz)/l2;if(t>1e-6&&t<1-1e-6&&Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy,p.z-a.z-t*dz)<1e-5)ts.push(t);}ts.sort((a,b)=>a-b);const at=t=>({x:a.x+dx*t,y:a.y+dy*t,z:a.z+dz*t});for(let i=1;i<ts.length;i++)if(ts[i]-ts[i-1]>1e-6){const pair=[at(ts[i-1]),at(ts[i])];lines.set(W.edgeKey(...pair),pair);}}
-  filterDeletedSceneLines(lines);
+  const pointIndex=W.pointRangeIndex(points),lines=new Map(),drawn=new Map();for(const [index,[a,b]] of segments.entries()){const into=index>=drawnFrom&&index<drawnTo?drawn:lines;const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z,l2=dx*dx+dy*dy+dz*dz;if(l2<1e-12)continue;const ts=[0,1];for(const p of pointIndex.segment(a,b)){const t=((p.x-a.x)*dx+(p.y-a.y)*dy+(p.z-a.z)*dz)/l2;if(t>1e-6&&t<1-1e-6&&Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy,p.z-a.z-t*dz)<1e-5)ts.push(t);}ts.sort((a,b)=>a-b);const at=t=>({x:a.x+dx*t,y:a.y+dy*t,z:a.z+dz*t});for(let i=1;i<ts.length;i++)if(ts[i]-ts[i-1]>1e-6){const pair=[at(ts[i-1]),at(ts[i])];into.set(W.edgeKey(...pair),pair);}}
+  filterDeletedSceneLines(lines);for(const [key,pair]of drawn)lines.set(key,pair);
   return {points,lines,baseSegments,curveGroups};
  }
  function curvePairs(graph){

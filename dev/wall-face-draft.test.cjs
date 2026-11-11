@@ -4427,3 +4427,13 @@ test('point weld: stacked corners across faces, loose points, deleted faces and 
  // A sixteenth of an inch leaves the 2 mm twins alone.
  const fine=model();fine.pointWeldInches=.0625;const g=fixture({state:fine,walls:[],selected:null});g.editor.weldPoints();assert.ok(new Set(spots(fine)).size>2);
 });
+test('a line drawn where another line was deleted earlier can be clicked: an old deletion record does not hide it',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),f=drawDraftLines([0,1],[[4,1]]),pair=[{x:0,y:0,z:1},{x:4,y:0,z:1}];
+ const pick=()=>{f.editor.clear();const hit=f.e(2,1),picked=f.editor.pickLine3D(hit);if(picked===true)f.listeners.pointerup(hit);return f.editor.selectionSnapshot().lineSelection.length;};
+ assert.equal(pick(),1,'the divider is a line of the drawing');
+ // Deleting a face line records where it was. The record outlived the line, and a line drawn there later was
+ // drawn but could never be selected or deleted.
+ f.state.wallEdits.$removedSurfaceEdges=[W.edgeKey(...pair),W.edgeKey({x:0,y:0,z:1},{x:2.5,y:0,z:1})];
+ assert.equal(pick(),1,'the drawing still holds the line, so it is still selectable');
+ f.editor.key({key:'Delete'});assert.ok(!f.d().sketch.edges.some(e=>e.userConnection),'and it can be deleted: '+f.message());
+});
