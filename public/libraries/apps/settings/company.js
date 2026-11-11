@@ -13579,9 +13579,17 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         const units = $('#csMeasurementSystem', paneCompany), language = $('#csReportLanguage', paneCompany);
         if (units) units.value = state.report_preferences?.measurement_system || window.PlatformLanguage?.companyContext?.().measurement_system || (window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'metric_measurements') ? 'metric' : 'imperial');
         if (language) language.value = state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale || 'en-US';
-        // Roof pitch (1M8-255): the saved choice, else degrees for metric companies and rise over 12 otherwise.
+        // Roof pitch (1M8-255): the saved choice for imperial companies, rise over 12 by default. Metric is always
+        // degrees (FM-397), so the choice is locked there; switching to metric switches it to degrees.
         const pitchNotation = $('#csPitchNotation', paneCompany);
-        if (pitchNotation) pitchNotation.value = state.report_preferences?.pitch_notation || ((units?.value || state.report_preferences?.measurement_system) === 'metric' ? 'degrees' : 'rise_12');
+        const lockPitchToUnits = (imperialChoice) => {
+          if (!pitchNotation) return;
+          const metric = units?.value === 'metric';
+          pitchNotation.value = metric ? 'degrees' : imperialChoice;
+          pitchNotation.disabled = metric;
+        };
+        lockPitchToUnits(state.report_preferences?.pitch_notation === 'degrees' ? 'degrees' : 'rise_12');
+        if (units) units.onchange = () => lockPitchToUnits('rise_12');
         // FM-324: never write over a text field the person is typing in; a load
         // or save that answers late would wipe what they typed since.
         const writeText = (input, value) => { if (input && input.getRootNode?.().activeElement !== input) input.value = value; };
@@ -15206,7 +15214,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         state.company_phone = String(csCompanyPhone?.value || '').trim();
         state.company_business_address = readBusinessAddressInputs();
         state.company_address = formatOrganizationBusinessAddress(state.company_business_address);
-        if ($('#csMeasurementSystem', paneCompany)) state.report_preferences = { measurement_system: $('#csMeasurementSystem', paneCompany).value, report_language: $('#csReportLanguage', paneCompany).value, pitch_notation: $('#csPitchNotation', paneCompany)?.value || ($('#csMeasurementSystem', paneCompany).value === 'metric' ? 'degrees' : 'rise_12') };
+        if ($('#csMeasurementSystem', paneCompany)) state.report_preferences = { measurement_system: $('#csMeasurementSystem', paneCompany).value, report_language: $('#csReportLanguage', paneCompany).value, pitch_notation: $('#csMeasurementSystem', paneCompany).value === 'metric' ? 'degrees' : ($('#csPitchNotation', paneCompany)?.value || 'rise_12') };
         const ret = await saveOrg({
           report_preferences: state.report_preferences,
           name: toSaveName,
