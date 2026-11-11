@@ -7,7 +7,8 @@ import { ZodError, z } from "zod";
 import { requirePlatformAuth } from "../../platform/auth.js";
 import { PlatformError, forbidden } from "../../platform/errors.js";
 import { readInternalUser } from "../storage.js";
-import { acquisitionCampaignReport, attachReferralOrganization, ensureReferralDatabase, getReferralPartner, listAcquisitionCampaigns, listReferralPartners, referralRewardReport, referralRows, saveAcquisitionCampaign, saveReferralPartner, saveReferralPartnerLogo, searchReferralOrganizations, updateReferralRewardStatus } from "./referrals.js";
+import { acquisitionCampaignReport, attachReferralOrganization, writeAcquisitionExport, ensureReferralDatabase, getReferralPartner, listAcquisitionCampaigns, listReferralPartners, referralRewardReport, referralRows, saveAcquisitionCampaign, saveReferralPartner, saveReferralPartnerLogo, searchReferralOrganizations, updateReferralRewardStatus } from "./referrals.js";
+import { ZipStream } from "./zip-stream.js";
 
 
 const asObject = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -148,6 +149,24 @@ export const registerCrmApi: FastifyPluginAsync = async (app) => {
   app.post("/referrals/acquisition/report", async (request) => {
     await requireReferralStaff(request);
     return acquisitionCampaignReport(asObject(request.body));
+  });
+
+  // Every campaign's data for all time as a zip of CSVs (Customers > Export Acquisition Data).
+  // It is streamed as it is read: production holds hundreds of thousands of rows.
+  app.get("/referrals/acquisition/export", async (request, reply) => {
+    await requireReferralStaff(request);
+    const zip = new ZipStream();
+    writeAcquisitionExport(asObject(request.query), zip).catch((error) => {
+      request.log.error({ err: error }, "acquisition export failed");
+      zip.output.destroy(error instanceof Error ? error : new Error(String(error)));
+    });
+    const day = new Date().toISOString().slice(0, 10);
+    return reply
+      .header("content-type", "application/zip")
+      .header("content-disposition", `attachment; filename="acquisition-data-all-campaigns-${day}.zip"`)
+      .header("cache-control", "no-store")
+      .header("x-accel-buffering", "no")
+      .send(zip.output);
   });
 
   app.get("/referrals/acquisition/landing-pages", async (request) => {
