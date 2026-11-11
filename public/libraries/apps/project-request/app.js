@@ -3116,8 +3116,13 @@ window.PlatformCommerce.onReady(async function(){
       const icons = naturalWidth(short) > room;
       if (hasShort && tabs.closest('[data-window-mobile=true]')) {
         // A phone gives every tab an equal column with its label under the icon: short labels once a full one is cut off.
+        // Measured in fractional pixels: the ellipsis shows for any overflow, which rounded scrollWidth misses (FM-371).
         tabs.classList.remove('r-header-short');
-        short = [...tabs.querySelectorAll('.pv-tab-label')].some(label => label.scrollWidth > label.clientWidth + 1);
+        const range = document.createRange();
+        short = [...tabs.querySelectorAll('.pv-tab-label')].some(label => {
+          range.selectNodeContents(label);
+          return range.getBoundingClientRect().width > label.getBoundingClientRect().width + 0.01;
+        });
       }
       tabs.classList.toggle('r-header-short', short);
       tabs.classList.toggle('r-header-icons', icons);

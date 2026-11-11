@@ -303,7 +303,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261111-offline'), versionedBundle('project-request/app.js', '20261110-fm382-schedule-offer')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261111-offline'), versionedBundle('project-request/app.js', '20261111-fm371-phone-short-labels')]
     },
     {
       id: 'firstmeasure.order',
