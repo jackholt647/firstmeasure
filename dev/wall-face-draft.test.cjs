@@ -558,9 +558,39 @@ test('deleting a drafted host corner removes only its incident region, not the n
 
 test('an extruded recess rim remains structural when its supporting wall uses a hole ring',()=>{
  const f=fixture({globals:renderGlobals()});f.editor.doubleClick(f.e(1,1),f.w);for(const [x,y]of [[3,1],[3,3],[1,3],[1,1]]){f.editor.key({key:'n'});f.editor.down(f.e(x,y));f.listeners.pointerup(f.e(x,y));}f.editor.clear();
- let rendered=[];f.editor.draw3D({add:o=>rendered.push(o)},p=>p);assert.ok(rendered.some(o=>o.material.color==='#6ce4ed'),'A flat internal drawing is initially nonstructural');
+ let rendered=[];f.editor.draw3D({add:o=>rendered.push(o)},p=>p);assert.equal(rendered.filter(o=>o.material.color==='#6ce4ed').length,0,'A closed drawing inside a wall is a region: its rim bounds it and the hole around it (FM-385)');
  const opening=f.d().faces.find(face=>face.opening);opening.solidId='extruded-cap';
  rendered=[];f.editor.draw3D({add:o=>rendered.push(o)},p=>p);assert.equal(rendered.filter(o=>o.material.color==='#6ce4ed').length,0,'The remaining wall depends on all four recess corners and rim edges even without a return face');
+});
+// FM-385: orange marks a line or point on the outline of a face. Each region of
+// a draft counts with its own rings, as a solid does; the draft's union, which
+// snapping reads, fills sticker holes and drops the edges between regions.
+function wallColours(f,pass='draw3D'){
+ f.editor.clear?.();const objects=[];f.editor[pass]({add:o=>objects.push(o)},p=>p);
+ return objects.filter(o=>['#e7ad52','#6ce4ed'].includes(o.material?.color)).map(o=>({point:o.material.size===8,orange:o.material.color==='#e7ad52',at:(o.geometry?.points||[]).map(p=>+p.x.toFixed(3)+','+ +p.z.toFixed(3)).join(' ')}));
+}
+function drawDraftLines(start,points){const f=fixture({globals:renderGlobals()});f.editor.doubleClick(f.e(...start),f.w);for(const p of points){f.editor.key({key:'n'});f.editor.down(f.e(...p));f.listeners.pointerup(f.e(...p));}f.editor.clear();return f;}
+test('a sticker inside a wall\'s draft draws its edges and corners orange in 3D, 2D and the move overlay',()=>{
+ const f=stickerFixture('window',[2,2]),sticker=f.d().faces.find(x=>x.feature);assert.ok(sticker,f.message());
+ assert.ok(f.d().faces.some(x=>!x.feature&&x.holes?.length),'the wall keeps the sticker as a hole');
+ const drawn=wallColours(f);assert.equal(drawn.filter(o=>o.point).length,8,JSON.stringify(drawn));assert.equal(drawn.filter(o=>!o.point).length,8,JSON.stringify(drawn));
+ assert.deepEqual(drawn.filter(o=>!o.orange),[],'wall and sticker outlines are both structural');
+ const svg=[];f.editor.draw2D(null,(tag,a)=>{if(tag==='circle')svg.push(a['data-wall-point-color']);if(tag==='line'&&['#e7ad52','#6ce4ed'].includes(a.stroke))svg.push(a.stroke);},1);
+ assert.equal(svg.length,16);assert.ok(svg.every(c=>c==='#e7ad52'),JSON.stringify(svg));
+ const g=stickerFixture('window',[2,2],{redrawOverlay:()=>{},drawsOverlay:true});g.editor.key({key:'m'});g.listeners.pointermove({...g.e(1.8,2.1),buttons:0});
+ const overlay=wallColours({editor:{drawOverlay:g.editor.drawOverlay}},'drawOverlay');assert.equal(overlay.length,16,JSON.stringify(overlay));assert.deepEqual(overlay.filter(o=>!o.orange),[],'the sliding sticker stays structural');
+});
+test('an edge between two regions of one draft is orange; a collinear point on it and a loose line stay blue',()=>{
+ const split=wallColours(drawDraftLines([0,1],[[4,1]]));
+ assert.ok(split.some(o=>!o.point&&o.at==='0,1 4,1'&&o.orange),JSON.stringify(split));
+ for(const at of ['0,1','4,1'])assert.ok(split.some(o=>o.point&&o.at===at&&o.orange),at+' is a corner of both regions');
+ assert.deepEqual(split.filter(o=>!o.orange),[]);
+ const f=drawDraftLines([0,1],[[4,1]]);f.editor.doubleClick(f.e(2,1),f.w);const mid=wallColours(f);
+ assert.ok(mid.some(o=>o.point&&o.at==='2,1'&&!o.orange),'a point midway along a straight edge is not a corner: '+JSON.stringify(mid));
+ assert.equal(mid.filter(o=>!o.orange).length,1);
+ const loose=wallColours(drawDraftLines([1,1],[[2,2]]));
+ assert.deepEqual(loose.filter(o=>!o.orange).map(o=>o.at).sort(),['1,1','1,1 2,2','2,2'],'a loose sketch line is not on any outline');
+ assert.equal(loose.filter(o=>o.orange).length,8,'the wall outline stays structural');
 });
 
 test('Q placement uses the opposite corner snap rather than only the cursor location',()=>{
