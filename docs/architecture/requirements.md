@@ -92,7 +92,8 @@ What a project requires is `requiredWork(sets, context)` over its artifacts.
   `PUT projects/:projectId/scope/manual`.
 - **From the organization's measurement defaults.** A project with a
   measurement report and no signed document can generate straight from the
-  report: Settings › Reports › Default materials and labor holds material rules
+  report: Settings › Reports › Default materials and labor (shown only with the
+  Materials app, `platform.materials`) holds material rules
   (roof measurements added together, a waste allowance, a package and a price
   book product) and the roofing work the job includes, each half switched on or
   off on its own (`materials/measurement-defaults.ts`; unsaved, an organization
