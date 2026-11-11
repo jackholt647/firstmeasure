@@ -258,3 +258,12 @@ test('B turns the selected base face into a regular face and leaves the rest of 
  // A point or a line is not a face.
  f.editor.restoreSelection({});f.key('b');assert.equal(f.state.base.faces.length,2);
 });
+test('Delete on a point that holds the base outline changes nothing and commits nothing; a straight boundary point is deleted',()=>{
+ const f=fixture(true),shape=()=>JSON.stringify(f.state.base.faces.map(face=>face.points.map(p=>[p.x,p.y,p.z].join()).sort())),before=shape(),changes=f.changes();
+ f.click(0,0);assert.equal(f.key('Delete'),true);
+ assert.equal(shape(),before);assert.equal(f.changes(),changes,'no commit, so no wall is re-fitted to the base');
+ // A point added along the boundary lies straight on it: it can go again.
+ f.editor.restoreSelection({});f.state.base.faces[0].points.splice(1,0,{x:50,y:0,z:0});delete f.state.base.sketch;
+ f.click(50,0);assert.equal(f.key('Delete'),true);
+ assert.equal(shape(),before);assert.ok(f.changes()>changes);
+});

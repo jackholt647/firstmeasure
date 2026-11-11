@@ -627,10 +627,11 @@ function perf_snap(d,e,raw=null){
   const groups=Object.entries(draftSelection).filter(([,ids])=>ids.length),baseKeys=new Set(selectedBasePoints);
   const changed=transaction(()=>{
    removeSolidPoints(solidPoints,solidEdges);for(const [key,ids]of groups){const d=all()[key];if(d)removeDraftPoints(d,ids);}
-   if(baseKeys.size){const base=copy(host.state().wallEdits.$base||host.state().base),old=base.sketch;const originalFaces=base.faces,selected=p=>baseKeys.has(W.vertexKey(p))||!!p.id&&originalFaces.some(f=>{if(!G.contains(f,p))return false;const plane=G.plane(f.points);return baseKeys.has(W.vertexKey({...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}));});
-    base.faces=base.faces.flatMap(f=>{if(!f.points.some(selected))return [f];const points=f.points.filter((p,i)=>{if(!selected(p))return true;const a=f.points[(i+f.points.length-1)%f.points.length],b=f.points[(i+1)%f.points.length];return Math.abs((p.x-a.x)*(b.y-p.y)-(p.y-a.y)*(b.x-p.x))>1e-7;});if(points.some(selected))return [];return points.length>=3?[{...f,points}]:[];});
-    delete base.sketch;S.ensure(base);for(const n of old?.nodes||[])if(!selected(n)&&base.sketch.outlines.some(points=>G.contains({points},n)))S.add(base,n,.0001);
-    for(const e of old?.edges||[]){if(e.fixed)continue;const a=old.nodes.find(n=>n.id===e.a),b=old.nodes.find(n=>n.id===e.b);if(!a||!b||selected(a)||selected(b))continue;const u=base.sketch.nodes.find(n=>Math.hypot(n.x-a.x,n.y-a.y)<.0001),v=base.sketch.nodes.find(n=>Math.hypot(n.x-b.x,n.y-b.y)<.0001);if(u&&v&&!base.sketch.edges.some(e=>[e.a,e.b].includes(u.id)&&[e.a,e.b].includes(v.id)))base.sketch.edges.push({id:'e'+(++base.sketch.next),a:u.id,b:v.id,fixed:false});}
+   // Base points follow the base's own rule (BaseSketchGeometry.remove): a point lying straight along the
+   // outline goes and its two edges join; a point that holds the outline stays, and the base face with it.
+   if(baseKeys.size){const base=copy(host.state().wallEdits.$base||host.state().base);S.ensure(base);
+    const removed=S.remove(base,base.sketch.nodes.filter(n=>baseKeys.has(W.vertexKey(n))).map(n=>n.id),[]);
+    if(!removed){if(!solidPoints.length&&!solidEdges.length&&!groups.length)throw Error('That point holds the outline of the base and stays.');return;}
     host.state().wallEdits.$base=base;
    }
   });if(!changed)return false;draftSelection={};selectedBasePoints=[];picked=[];solidPoints=[];solidEdges=[];host.redraw();return true;

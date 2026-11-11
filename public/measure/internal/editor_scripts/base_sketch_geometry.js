@@ -81,14 +81,28 @@ function fold(base,a,b){
   if(planes.length>1)return true;planes.length=0;}
  return false;
 }
+// A boundary point that lies straight along one edge carries nothing: it can
+// go, and its two boundary edges become one. A point where the boundary turns,
+// or where a curve or a third boundary edge meets it, holds the outline.
+function straightBoundaryPoint(s,n){
+ const own=s.edges.filter(e=>e.fixed&&(e.a===n.id||e.b===n.id));if(own.length!==2||own.some(e=>e.curveId))return null;
+ const [a,b]=own.map(e=>s.nodes.find(m=>m.id===(e.a===n.id?e.b:e.a)));if(!a||!b||a===b)return null;
+ const d={x:b.x-a.x,y:b.y-a.y,z:b.z-a.z},l2=d.x*d.x+d.y*d.y+d.z*d.z;if(l2<1e-12)return null;const t=((n.x-a.x)*d.x+(n.y-a.y)*d.y+(n.z-a.z)*d.z)/l2;
+ return t>0&&t<1&&Math.hypot(n.x-a.x-d.x*t,n.y-a.y-d.y*t,n.z-a.z-d.z*t)<=1e-4?{a,b,edges:own}:null;
+}
+// Returns how many points and lines were removed; 0 means nothing changed.
 function remove(base,pointIds,lineIds){
- const s=ensure(base),deleted=new Set(s.nodes.filter(n=>pointIds.includes(n.id)&&!n.fixed).map(n=>n.id));
+ const s=ensure(base),straight=new Map(s.nodes.filter(n=>pointIds.includes(n.id)&&n.fixed).map(n=>[n.id,straightBoundaryPoint(s,n)]).filter(([,v])=>v)),deleted=new Set(s.nodes.filter(n=>pointIds.includes(n.id)&&(!n.fixed||straight.has(n.id))).map(n=>n.id));
+ const counted=deleted.size+s.edges.filter(e=>!e.fixed&&(lineIds.includes(e.id)||deleted.has(e.a)||deleted.has(e.b))).length;if(!counted)return 0;
  if(!(base.origin||base.frame||base.constructionPlane)){const doomed=s.edges.filter(e=>!e.fixed&&(lineIds.includes(e.id)||deleted.has(e.a)||deleted.has(e.b)));
   if(s.edges.some(e=>e.holeCut&&lineIds.includes(e.id)))throw Error('That line divides the base around an enclosed region. Remove the region outline instead.');
   if(curveEdges({...s,edges:doomed}).some(e=>e.start&&e.end&&fold(base,e.start,e.end)))throw Error('That line is the fold between base faces on different planes. Make the faces coplanar before removing it.');
  }
- s.nodes=s.nodes.filter(n=>!deleted.has(n.id));s.edges=s.edges.filter(e=>e.fixed||(!lineIds.includes(e.id)&&!deleted.has(e.a)&&!deleted.has(e.b)));
- resolve(base);
+ // Join the boundary across each removed straight point (a run of them joins end to end).
+ for(const [id,{edges}]of straight){const ends=edges.map(e=>e.a===id?e.b:e.a),live=s.edges.filter(e=>e.fixed&&(e.a===id||e.b===id));if(live.length!==2)continue;const [u,v]=live.map(e=>e.a===id?e.b:e.a);s.edges=s.edges.filter(e=>!live.includes(e));if(u!==v&&!s.edges.some(e=>!e.curveId&&[e.a,e.b].includes(u)&&[e.a,e.b].includes(v)))s.edges.push({id:'e'+(++s.next),a:u,b:v,fixed:true});}
+ s.nodes=s.nodes.filter(n=>!deleted.has(n.id));s.edges=s.edges.filter(e=>e.fixed?!deleted.has(e.a)&&!deleted.has(e.b):(!lineIds.includes(e.id)&&!deleted.has(e.a)&&!deleted.has(e.b)));
+ for(const f of base.faces)f.points=f.points.filter(p=>!deleted.has(p.nodeId));
+ resolve(base);return counted;
 }
 // Publish changed curve definitions and synchronize only persistent controls.
 // Evaluated face loops are rebuilt from those definitions by resolve().

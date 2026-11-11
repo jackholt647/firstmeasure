@@ -116,3 +116,18 @@ test('rounded spline boundaries restore analytic sketch edges at creation and re
  const loaded=JSON.parse(JSON.stringify(base));delete loaded.sketch;const rebuilt=S.ensure(loaded);assert.equal(rebuilt.nodes.length,5);assert.equal(rebuilt.curves[0].controls.length,3);assert.equal(rebuilt.edges.filter(e=>e.curveId).length,2);
  const corrupt={nodes:rebuilt.nodes,edges:[{...rebuilt.edges.find(e=>e.curveId),curveId:'missing'}],curves:[]};assert.throws(()=>S.curveEdges(corrupt),/analytic definition/);
 });
+test('a boundary point lying straight along one edge is removed and its edges join; a corner stays',()=>{
+ const S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js'),p=(x,y,z=0)=>({x,y,z});
+ const base={faces:[{id:'f',points:[p(0,0),p(2,0),p(4,0),p(4,3),p(0,3)]}]};S.ensure(base);
+ const id=q=>base.sketch.nodes.find(n=>Math.hypot(n.x-q.x,n.y-q.y)<1e-9).id,mid=id(p(2,0)),corner=id(p(4,0));
+ assert.ok(base.sketch.nodes.find(n=>n.id===mid).fixed);
+ assert.equal(S.remove(base,[corner],[]),0,'a corner holds the outline');assert.equal(base.faces[0].points.length,5);assert.equal(base.sketch.nodes.length,5);
+ assert.equal(S.remove(base,[mid],[]),1);
+ assert.equal(base.faces.length,1);assert.equal(base.faces[0].points.length,4);assert.ok(!base.faces[0].points.some(q=>Math.hypot(q.x-2,q.y)<1e-9));
+ assert.equal(base.sketch.nodes.length,4);assert.ok(base.sketch.edges.every(e=>e.fixed));assert.equal(base.sketch.edges.length,4);
+ assert.ok(base.sketch.edges.some(e=>[e.a,e.b].includes(id(p(0,0)))&&[e.a,e.b].includes(corner)),'the two edges became one');
+ // A divider ending on such a point goes with it, and the boundary still joins.
+ const split={faces:[{id:'a',points:[p(0,0),p(2,0),p(2,3),p(0,3)]},{id:'b',points:[p(2,0),p(4,0),p(4,3),p(2,3)]}]};S.ensure(split);
+ const at=q=>split.sketch.nodes.find(n=>Math.hypot(n.x-q.x,n.y-q.y)<1e-9).id;
+ assert.ok(S.remove(split,[at(p(2,0))],[])>=2);assert.equal(split.faces.length,1);assert.equal(split.sketch.nodes.length,5);
+});
