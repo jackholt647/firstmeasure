@@ -554,11 +554,16 @@ never conflict.
 
 ## Identity and privacy
 
-- The page tells the worker who is signed in (`identity` message from
-  `window.__APP`: user, organization). Nothing is saved or queued before
-  that, and each page's requests are kept under the identity that page
-  declared. The last identity declared is the person "signed in on this
-  device", whose shell an offline navigation gets.
+- The worker knows whose page a portal page is from the answer to its
+  navigation (`X-FirstMate-Identity`, or the owner of the stored shell it
+  served), so the page's first requests are already saved and answered as
+  theirs; the page then says the same itself (`identity` message from
+  `window.__APP`: user, organization). A page that is nobody's saves and
+  queues nothing, and each page's requests are kept under its own identity.
+  The last identity a page declared is the person "signed in on this
+  device", whose shell an offline navigation gets. (Found on dev: without
+  the navigation step the reads a page makes while it boots were neither
+  saved nor answered offline.)
 - **Sign-out** is the navigation to `/portal/logout.php`, which the worker
   sees (every sign-out link and script goes there; `logout.php` itself needs
   no code), or `PlatformOffline.signedOut()`. It removes that person's

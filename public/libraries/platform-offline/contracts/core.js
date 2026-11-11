@@ -24,8 +24,8 @@ FMOffline.contracts.add({
     '/v1/agents/**',
     // Offline's own endpoints: the asset manifest is the kill switch and must be the server's.
     '/v1/platform/offline/**',
-    // Public, key-authenticated and development tooling.
-    '/v1/config-library/**',
+    // Development tooling. (The config library's public reads, /v1/config-library/read/..., are saved: the app
+    // reads its terminology and tab defaults from them at start.)
     '/v1/development/**'
   ]
 });

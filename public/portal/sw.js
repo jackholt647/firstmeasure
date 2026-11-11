@@ -50,7 +50,8 @@ function start() {
     manifests: {},                            // release -> { release, files: { path: sha }, shells, external }
     files: {},                                // release -> Set of paths
     code: { release: null, status: 'none', progress: 0 },
-    copy: null
+    copy: null,
+    arriving: null                            // { who, at }: the identity of a page that is being created
   };
 
   const boot = (async () => {
@@ -75,8 +76,31 @@ function start() {
   FM.events.on('net', () => FM.events.emit('state', { online: FM.net.online() }));
 
   const setName = (release) => SET_PREFIX + release;
-  const identityOf = (clientId) => { const client = clientId && S.clients[clientId]; return client && client.user ? { user: client.user, org: client.org } : null; };
   const saveClients = () => FM.meta.set('clients', S.clients).catch(() => {});
+  const ARRIVING_MS = 30000;
+  function identityOf(clientId) {
+    const client = clientId && S.clients[clientId];
+    if (client && client.user) return { user: client.user, org: client.org };
+    // A browser that does not name the page a navigation creates: that page's first requests take the identity
+    // its navigation answered with.
+    if (clientId && !client && S.arriving && Date.now() - S.arriving.at < ARRIVING_MS) {
+      S.clients[clientId] = { user: S.arriving.who.user, org: S.arriving.who.org };
+      saveClients();
+      return S.arriving.who;
+    }
+    return null;
+  }
+  /**
+   * Whose page a navigation is, known from its answer (X-FirstMate-Identity, or the stored shell's owner), so
+   * the page's first requests are already saved and answered as theirs. The page's own identity message
+   * follows and says the same.
+   */
+  function noteClient(clientId, who) {
+    if (!who || !who.user || !who.org) return;
+    if (!clientId) { S.arriving = { who: { user: who.user, org: who.org }, at: Date.now() }; return; }
+    S.clients[clientId] = Object.assign({}, S.clients[clientId], { user: who.user, org: who.org });
+    saveClients();
+  }
 
   async function loadManifest(release) {
     if (!S.manifests[release]) {
@@ -153,6 +177,7 @@ function start() {
       let failure = null;
       try { response = await FM.util.race(network, FM.net.lastFailed ? NAVIGATION_WAIT_AFTER_FAILURE_MS : NAVIGATION_WAIT_MS); } catch (error) { failure = error; }
       if (response) {
+        if (response.status === 200) noteClient(event.resultingClientId, parseIdentity(response.headers.get('x-firstmate-identity')));
         if (response.status === 200 && S.sets.active && !RENDER_PARAMS.some((name) => url.searchParams.has(name))) {
           const copy = response.clone();
           event.waitUntil(caches.open(setName(S.sets.active)).then((cache) => keepShell(cache, S.sets.active, shell, copy)).catch(() => {}));
@@ -182,6 +207,7 @@ function start() {
   }
 
   function markOffline(clientId, release) {
+    noteClient(clientId, S.identity);        // a stored shell is only ever served to its owner
     if (!clientId) return;
     S.clients[clientId] = Object.assign({}, S.clients[clientId], { offline: release });
     saveClients();
