@@ -123,6 +123,43 @@ function conformBase(source,cap,sides,base){
  // Each point slides by its own offset, so distinct nearby points stay distinct.
  for(const f of [cap,...sides])for(const p of [f.points,...(f.holes||[])].flat()){const c=changes.find(c=>Math.hypot(p.x-c.from.x,p.y-c.from.y,p.z-c.from.z)<=K.CONTACT);if(!c)continue;if(!w.x&&!w.y){p.z=c.z;continue;}const {dx,dy,k}=c.plane,t=(dx*p.x+dy*p.y+k-p.z)/(w.z-dx*w.x-dy*w.y);p.x+=t*w.x;p.y+=t*w.y;p.z+=t*w.z;}
 }
+// A return runs along the wall it starts on. Walls are square only to within
+// survey and edit rounding, so a return swept along the face normal leaves the
+// adjoining wall's plane by microns per metre, stops counting as part of it
+// and is built as a separate wall beside it. Slide each swept corner within
+// the cap plane onto that wall.
+function alignReturns(face,cap,sides,scene){
+ const n=W.normal(face.points);if(!n||face.curvedSurface)return;
+ const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}),dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z,near=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)<=K.CONTACT;
+ const onRing=(p,f)=>[f.points,...(f.holes||[])].some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],d=sub(b,a),l2=dot(d,d),t=l2?Math.max(0,Math.min(1,dot(sub(p,a),d)/l2)):0;return near(p,{x:a.x+d.x*t,y:a.y+d.y*t,z:a.z+d.z*t});}));
+ const walls=scene.filter(f=>!f.deleted&&!f.feature&&!f.curvedSurface).map(f=>({f,m:W.normal(f.points)})).filter(w=>w.m),moves=[];
+ for(let i=0;i<face.points.length;i++){const p=face.points[i],q=cap.points[i],length=Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z);if(length<=K.CONTACT)continue;
+  for(const {f,m}of walls){const off=dot(sub(q,f.points[0]),m),u=sub(m,{x:n.x*dot(m,n),y:n.y*dot(m,n),z:n.z*dot(m,n)}),size=dot(u,u);
+   if(Math.abs(off)<=1e-9||Math.abs(off)>length*.002||size<.25||Math.abs(dot(sub(p,f.points[0]),m))>K.CONTACT||!onRing(p,f))continue;
+   moves.push({from:{...q},to:{x:q.x-u.x*off/size,y:q.y-u.y*off/size,z:q.z-u.z*off/size}});break;
+  }
+ }
+ for(const g of [cap,...sides])for(const p of [g.points,...(g.holes||[])].flat()){const move=moves.find(m=>near(p,m.from));if(move)Object.assign(p,move.to);}
+}
+// Where there is no base under a wall, its foot is the line its neighbours
+// stand on. A cap pushed in along a wall whose foot rises keeps to that foot,
+// rather than hanging below it and leaving a wedge of return under the wall.
+function conformFooting(face,cap,sides,scene,base){
+ const n=W.normal(face.points);if(!n||face.curvedSurface||Math.abs(n.z)>K.CONTACT)return;
+ const plan=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),near=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)<=K.CONTACT;
+ // Past the end of the wall its foot continues on the same line.
+ const foot=(f,p,beyond=false)=>{let z=null,past=null,gap=Infinity;for(let i=0;i<f.points.length;i++){const a=f.points[i],b=f.points[(i+1)%f.points.length],dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1e-10)continue;const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;if(Math.hypot(a.x+dx*t-p.x,a.y+dy*t-p.y)>1e-4)continue;const h=a.z+(b.z-a.z)*t,out=Math.max(-t,t-1,0)*Math.sqrt(l2);if(out>1e-6){if(out<gap-1e-6||Math.abs(out-gap)<=1e-6&&h<past){gap=out;past=h;}continue;}if(z===null||h<z)z=h;}return z===null&&beyond?past:z;};
+ const walls=scene.filter(f=>!f.deleted&&!f.feature&&!f.curvedSurface).map(f=>({f,m:W.normal(f.points)})).filter(w=>w.m&&Math.abs(w.m.z)<.02),changes=[];
+ for(let i=0;i<face.points.length;i++){const p=face.points[i],q=cap.points[i];if(plan(p,q)<=K.CONTACT||face.points.some(o=>plan(o,p)<=K.CONTACT&&o.z<p.z-K.CONTACT))continue;
+  if(base?.faces?.some(f=>{const plane=G.plane(f.points);return plane&&G.contains(f,p)&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002;}))continue;
+  const top=Math.max(...cap.points.filter(o=>plan(o,q)<=K.CONTACT).map(o=>o.z));
+  for(const {f,m}of walls){if([p,q].some(o=>Math.abs((o.x-f.points[0].x)*m.x+(o.y-f.points[0].y)*m.y+(o.z-f.points[0].z)*m.z)>K.CONTACT))continue;
+   const from=foot(f,p),along=foot(f,{x:p.x+(q.x-p.x)*.001,y:p.y+(q.y-p.y)*.001}),to=along===null?null:foot(f,q,true);if(from===null||to===null||Math.abs(from-p.z)>1e-4||Math.abs(to-q.z)<=1e-9||to>=top-.02)continue;
+   changes.push({from:{...q},z:to});break;
+  }
+ }
+ for(const g of [cap,...sides])for(const p of [g.points,...(g.holes||[])].flat()){const c=changes.find(c=>near(p,c.from));if(c)p.z=c.z;}
+}
 function extrusionTrim(scene,sources,caps,keepStatic){
  const selected=new Set(sources.map(f=>f.id)),faces=[...scene.filter(f=>!selected.has(f.id)),...caps];
  const moved=W.followTrim([...scene.filter(f=>!selected.has(f.id)),...sources],{faces,moves:[],affected:[]},[...selected],keepStatic);
@@ -148,7 +185,7 @@ function createExtrusion(input){
   // everything except an intentionally open door threshold (a recess gets its
   // ceiling). None returns along the ground: the base update moves the base.
   const supports=start.supports||scene,patch=supports.some(f=>W.coplanarContact(face,f)&&face.points.some((p,i)=>W.sharedIntervals(p,face.points[(i+1)%face.points.length],[f]).length)),hosted=face.supportedExtrusion||face.feature||patch;
-  let shape=W.extrude(face,amount,{facets:true,completeBoundary:!hosted,hostedPatch:patch&&!face.feature&&!face.supportedExtrusion,direction:start.direction,supports,ground:start.base?.faces});if(hosted)shape.cap.supportedExtrusion=true;conformBase(face,shape.cap,shape.sides,start.base);shape.sides=planarExtrusionReturns(shape.sides);const fitMoves=fit?fit(shape.cap,shape.sides):null;const base=start.base?B.extrudeWall(start.base,face,shape.cap):null;shape=W.roofExtrusion(face,amount,shape,start.roof,{direction:start.direction});
+  let shape=W.extrude(face,amount,{facets:true,completeBoundary:!hosted,hostedPatch:patch&&!face.feature&&!face.supportedExtrusion,direction:start.direction,supports,ground:start.base?.faces});if(hosted)shape.cap.supportedExtrusion=true;conformBase(face,shape.cap,shape.sides,start.base);alignReturns(face,shape.cap,shape.sides,scene);conformFooting(face,shape.cap,shape.sides,scene,start.base);shape.sides=planarExtrusionReturns(shape.sides);const fitMoves=fit?fit(shape.cap,shape.sides):null;const base=start.base?B.extrudeWall(start.base,face,shape.cap):null;shape=W.roofExtrusion(face,amount,shape,start.roof,{direction:start.direction});
   const trim=extrusionTrim(scene,[face],[shape.cap],start.keepTrimStatic),trimmed=W.trimExtrusion(shape.sides,scene.filter(f=>!trim.ids.has(f.id)));trimmed.replacements.push(...trim.replacements);trimmed.sides=K.compactSurfaces(trimmed.sides);K.attachBoundaryCurves(trimmed.replacements.flatMap(r=>r.pieces),[shape.cap,...trimmed.sides]);
   const result=validateResult({cap:shape.cap,sides:trimmed.sides,replacements:trimmed.replacements,base,amount,fitMoves});
   if(!fit){previousAmount=amount;previous=copy(result);}return result;
