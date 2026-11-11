@@ -4389,3 +4389,14 @@ test('deleting a line takes its loose copies a few millimetres away with it, and
  f.editor.restoreSelection({lineSelection:[{pair:edge}]});f.editor.key({key:'Delete'});
  assert.ok(!state.wallEdits.$surfaces[0].deleted);assert.equal(near(null,4),1,'the wall edge is still there');
 });
+test('C between points up a wall that stands over the base makes a wall line, not a base line',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ const base={faces:[{id:'base-1',points:[p(0,0,0),p(4,0,0),p(4,3,0),p(0,3,0)]}]},top=p(4,0,2.9),foot=p(4,0,0);
+ const state={base,wallEdits:{$loose:{points:[top,foot],edges:[]}}},f=fixture({state,walls:[],selected:null,globals:renderGlobals()});
+ f.editor.restoreSelection({solidPoints:[top,foot].map(W.vertexKey)});assert.equal(f.editor.key({key:'c'}),true,f.message());
+ const stored=state.wallEdits.$base||state.base;
+ assert.ok(!(stored.sketch?.nodes||[]).some(n=>n.z>1),'no point up the wall entered the base sketch');assert.ok(!(stored.sketch?.edges||[]).some(e=>e.userConnection));
+ const wire=W.surfaceWire(state.wallEdits),at=new Map(wire.nodes.map(n=>[n.id,n]));
+ const drafts=Object.values(state.wallEdits.$drafts||{}).flatMap(d=>d.sketch.edges.length);
+ assert.ok(wire.edges.some(e=>Math.abs(at.get(e.a).z-at.get(e.b).z)>2.8)||drafts.some(n=>n>0),'the line exists where wall tools can select it');
+});

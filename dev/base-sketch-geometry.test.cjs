@@ -131,3 +131,16 @@ test('a boundary point lying straight along one edge is removed and its edges jo
  const at=q=>split.sketch.nodes.find(n=>Math.hypot(n.x-q.x,n.y-q.y)<1e-9).id;
  assert.ok(S.remove(split,[at(p(2,0))],[])>=2);assert.equal(split.faces.length,1);assert.equal(split.sketch.nodes.length,5);
 });
+test('base wire with an end off the base is removed; lines on the base stay',()=>{
+ const S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js'),p=(x,y,z=0)=>({x,y,z});
+ const base={faces:[{id:'f',points:[p(0,0),p(4,0),p(4,3),p(0,3)]}]};S.ensure(base);
+ const a=S.add(base,p(1,1)),b=S.add(base,p(3,2));S.connect(base,[a,b]);
+ assert.equal(S.onBase(base,p(1,1)),true);assert.equal(S.onBase(base,p(4,0)),true);assert.equal(S.onBase(base,p(1,1,2.8)),false,'over the base is not on it');assert.equal(S.onBase(base,p(9,9)),false);
+ assert.equal(S.removeStrayWire(base),false,'nothing to repair');
+ // What a connect between wall points used to leave behind: nodes up a wall, joined to each other and to the base.
+ const s=base.sketch,top={...p(4,0,2.9),id:'p90',fixed:false,userDraftPoint:true},top2={...p(4.001,0,2.89),id:'p91',fixed:false,userDraftPoint:true},corner=s.nodes.find(n=>n.x===4&&n.y===0).id;
+ s.nodes.push(top,top2);s.edges.push({id:'e90',a:'p90',b:corner,fixed:false,userConnection:true},{id:'e91',a:'p90',b:'p91',fixed:false,userConnection:true});
+ const nodes=s.nodes.length,edges=s.edges.length;
+ assert.equal(S.removeStrayWire(base),true);assert.equal(base.sketch.nodes.length,nodes-2);assert.equal(base.sketch.edges.length,edges-2);
+ assert.ok(base.sketch.edges.some(e=>[e.a,e.b].includes(a)&&[e.a,e.b].includes(b)),'the line drawn on the base is kept');assert.equal(base.faces.length,1);assert.equal(S.removeStrayWire(base),false);
+});

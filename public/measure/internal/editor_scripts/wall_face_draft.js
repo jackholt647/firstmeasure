@@ -268,7 +268,10 @@ window.createWallFaceDraft=function(host){
   // Two points define a line, not a plane. Resolve their base owner before
   // falling back to free-standing wire geometry.
   const base=host.state().wallEdits.$base||host.state().base;
-  if(base&&points.every(p=>base.faces.some(f=>{const fr=W.faceFrame(f);return fr&&Math.abs(W.inFrame(fr,p).z)<.002&&G.contains(f,p);})))return transaction(()=>{const next=copy(base),ids=points.map(p=>S.add(next,p,.001));for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++)S.connect(next,[ids[i],ids[j]]);host.state().wallEdits.$base=next;});
+  // On the base means on a base face's plane, not merely above or below it: a point up a wall that stands over
+  // the base is not a base point (the frame test here read a height that is always zero, so every point over
+  // the base counted, and wall lines were written into the base sketch where no wall tool can reach them).
+  if(base&&points.every(p=>S.onBase(base,p)))return transaction(()=>{const next=copy(base),ids=points.map(p=>S.add(next,p,.001));for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++)S.connect(next,[ids[i],ids[j]]);host.state().wallEdits.$base=next;});
   const d=current();if(d){const ids=points.map(p=>d.sketch.nodes.find(n=>distance3(world(d,n),p)<=window.ExteriorGeometry.CONTACT)?.id);if(ids.every(Boolean))return transaction(()=>{for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++)S.connect(d,[ids[i],ids[j]]);});}
   const fit=selectionPlane(points);if(fit?.frame){const prior=workingPlane;workingPlane={frame:fit.frame,selection:points,seed:[],display:'hidden'};try{return planeEdit(null,pairs);}finally{workingPlane=prior;}}
   return transaction(()=>{const edits=host.state().wallEdits,loose=edits.$loose||={points:[],edges:[]};for(const p of points)if(!loose.points.some(q=>W.vertexKey(q)===W.vertexKey(p)))loose.points.push(copy(p));for(const pair of pairs){if(!loose.edges.some(e=>W.edgeKey(...e)===W.edgeKey(...pair)))loose.edges.push(copy(pair));edits.$removedSurfaceEdges=(edits.$removedSurfaceEdges||[]).filter(id=>id!==W.edgeKey(...pair));}});

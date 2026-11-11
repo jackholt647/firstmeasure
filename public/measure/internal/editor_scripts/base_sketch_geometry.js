@@ -90,6 +90,15 @@ function straightBoundaryPoint(s,n){
  const d={x:b.x-a.x,y:b.y-a.y,z:b.z-a.z},l2=d.x*d.x+d.y*d.y+d.z*d.z;if(l2<1e-12)return null;const t=((n.x-a.x)*d.x+(n.y-a.y)*d.y+(n.z-a.z)*d.z)/l2;
  return t>0&&t<1&&Math.hypot(n.x-a.x-d.x*t,n.y-a.y-d.y*t,n.z-a.z-d.z*t)<=1e-4?{a,b,edges:own}:null;
 }
+// A base sketch holds what lies on the base. onBase: on the plane of a base face and within or on its outline.
+function onBase(base,p){return (base?.faces||[]).some(f=>{const pl=G.plane(f.points);return onPlane(p,pl,.002)&&(G.contains(f,p)||onRing(p,f.points,.002));});}
+// Lines that were connected between points up a wall were stored in the base sketch, drawn there and
+// selectable nowhere. Remove user lines with an end off the base, and the user points left with no line.
+function removeStrayWire(base){
+ if(!base?.sketch||base.origin||base.frame||base.constructionPlane||!base.faces?.length)return false;const s=base.sketch,off=new Set(s.nodes.filter(n=>!n.fixed&&!n.curveSample&&!n.curveCenter&&!n.curveControl&&!onBase(base,n)).map(n=>n.id));if(!off.size)return false;
+ const edges=s.edges.filter(e=>e.fixed||e.curveId||!(off.has(e.a)||off.has(e.b)));if(edges.length===s.edges.length&&![...off].some(id=>!s.edges.some(e=>e.a===id||e.b===id)))return false;
+ s.edges=edges;s.nodes=s.nodes.filter(n=>!off.has(n.id)||s.edges.some(e=>e.a===n.id||e.b===n.id));resolve(base);return true;
+}
 // Returns how many points and lines were removed; 0 means nothing changed.
 function remove(base,pointIds,lineIds){
  const s=ensure(base),straight=new Map(s.nodes.filter(n=>pointIds.includes(n.id)&&n.fixed).map(n=>[n.id,straightBoundaryPoint(s,n)]).filter(([,v])=>v)),deleted=new Set(s.nodes.filter(n=>pointIds.includes(n.id)&&(!n.fixed||straight.has(n.id))).map(n=>n.id));
@@ -395,6 +404,6 @@ function upgrade(base){
   return parts.length?parts:[e];});
  before.faces=[...before.faces,...recorded];rebind(before,base);return true;
 }
-const api={nodeLines,updateCurves,syncSurfaceBoundaries,isCurveSample,curveSampleTest,curveEdges,compactCurves,addCurve,read,ensure,rebind,upgrade,add,connect,remove,move,setHeights,resolve};
+const api={onBase,removeStrayWire,nodeLines,updateCurves,syncSurfaceBoundaries,isCurveSample,curveSampleTest,curveEdges,compactCurves,addCurve,read,ensure,rebind,upgrade,add,connect,remove,move,setHeights,resolve};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.BaseSketchGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);
