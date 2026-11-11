@@ -2074,12 +2074,12 @@ window.PlatformCommerce.onReady(function(){
   }
 
   /* Roof pitch (1M8-255) in the notation the report was ordered with: rise over 12 (6/12), or degrees (26.6°) for
-     roofers outside the US; reports without one use degrees when metric (as ReportUnits does for the PDF). The row
+     roofers outside the US; metric reports always use degrees (as ReportUnits does for the PDF). The row
      keeps the rise so the CSV can carry both. */
   function summaryPitchNotation(){
     const manifest = reportOrderManifest();
-    if (manifest.pitch_notation === 'degrees' || manifest.pitch_notation === 'rise_12') return manifest.pitch_notation;
-    return manifest.measurement_system === 'metric' ? 'degrees' : 'rise_12';
+    if (manifest.measurement_system === 'metric') return 'degrees'; // FM-397: metric reports always use degrees.
+    return manifest.pitch_notation === 'degrees' ? 'degrees' : 'rise_12';
   }
   function summaryPitchDegrees(rise){
     return Math.atan(Math.abs(Number(rise)) / 12) * 180 / Math.PI;

@@ -29,6 +29,7 @@ export async function companyLocalization(orgId: string, branchId = "default") {
     locale: saved.locale || legacy.report_language || profile.locale,
     measurement_system: saved.measurement_system || legacy.measurement_system || (metric ? "metric" : profile.measurement_system)
   } : { locale: "en-US", measurement_system: metric ? "metric" : "imperial" };
-  company.pitch_notation = saved.pitch_notation || legacy.pitch_notation || (company.measurement_system === "metric" ? "degrees" : "rise_12");
+  // FM-397: metric always writes pitch in degrees, whatever was saved while the company was imperial.
+  company.pitch_notation = company.measurement_system === "metric" ? "degrees" : saved.pitch_notation || legacy.pitch_notation || "rise_12";
   return { enabled, company, context: resolveContext(company) };
 }
