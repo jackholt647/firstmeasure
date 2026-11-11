@@ -78,13 +78,25 @@
       throw error;
     }
     const body = jsonBody(options.body);
-    const res = await fetch(requestUrl, {
-      ...options,
-      body,
-      cache: options.cache || 'no-store',
-      credentials: options.credentials || 'include',
-      headers: requestHeaders(options, body)
-    });
+    let res;
+    try {
+      res = await fetch(requestUrl, {
+        ...options,
+        body,
+        cache: options.cache || 'no-store',
+        credentials: options.credentials || 'include',
+        headers: requestHeaders(options, body)
+      });
+    } catch (cause) {
+      if (cause?.name === 'AbortError') throw cause;
+      // No answer at all. Payments, charges and money figures are never kept on the device
+      // (docs/architecture/offline.md), so say that in plain words instead of "Failed to fetch".
+      const error = new Error(window.PlatformLanguage?.text?.('shared', 'offline_payments_need_connection', 'Payments and money figures need a connection. They are not kept on this device.') ?? 'Payments and money figures need a connection. They are not kept on this device.');
+      error.status = 0;
+      error.offline = true;
+      error.cause = cause;
+      throw error;
+    }
     const text = await res.text();
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch(e) {}

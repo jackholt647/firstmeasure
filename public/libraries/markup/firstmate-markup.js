@@ -367,7 +367,8 @@
       name: cleanText(photo.uploaded_by_name || meta.uploaded_by_name || meta.actor_name || meta.user_name || meta.name || meta.uploaded_by_email || photo.uploaded_by || ''),
       email: cleanText(photo.uploaded_by_email || meta.uploaded_by_email || meta.actor_email || meta.user_email || ''),
       avatar: cleanText(photo.uploaded_by_avatar || meta.uploaded_by_avatar || meta.avatar || meta.avatar_url || meta.photo_url || meta.profile_photo_url || meta.image_url || ''),
-      at: cleanText(photo.uploaded_at || photo.created_at || meta.uploaded_at || meta.created_at || photo.updated_at)
+      // When the photo was taken, where the upload said so (a photo may have waited on the device before it arrived).
+      at: cleanText(photo.taken_at || meta.taken_at || photo.uploaded_at || photo.created_at || meta.uploaded_at || meta.created_at || photo.updated_at)
     };
   }
   function normalizeItems(data = {}){

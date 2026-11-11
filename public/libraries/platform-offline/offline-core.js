@@ -40,6 +40,7 @@
     mergeRepeats: 3,
     scopesAtOnce: 3,
     rereadLimit: 25,
+    namedIdMinLength: 8,          // a shorter id could be part of any text: never taken as naming a record
     prefetchAtOnce: 4,
     autoPins: 10,
     touchMs: 3600000,
@@ -55,7 +56,9 @@
     identity: () => meta.get('identity', null),
     csrf: async () => '',
     estimate: async () => (root.navigator && root.navigator.storage && root.navigator.storage.estimate ? root.navigator.storage.estimate() : {}),
-    online: () => !(root.navigator && root.navigator.onLine === false)
+    online: () => !(root.navigator && root.navigator.onLine === false),
+    // True for an entry something else will send (the native app's uploader): replay leaves it and its scope waits.
+    external: () => false
   };
   function configure(options) {
     for (const [name, value] of Object.entries(options || {})) {
@@ -409,7 +412,7 @@
     return query;
   }
 
-  /** The contract ctx (see the doc): { method, url, params, query, body, headers, user, org, now, id, response, saved(url) }. */
+  /** The contract ctx (see the doc): { method, url, params, query, body, headers, user, org, now, id, response, base, saved(url), find(pattern), queued(record) }. */
   function makeCtx(parts) {
     const url = new URL(parts.url, ORIGIN);
     return {
@@ -424,7 +427,17 @@
       now: parts.now,
       id: parts.id || '',
       response: parts.response === undefined ? null : parts.response,
-      saved: (target) => reads.peek(parts.identity, target, parts.before === undefined ? Infinity : parts.before)
+      // A queued `patch`: the record as it was when the change was made (what conflict.pick gave), else null.
+      base: parts.base === undefined ? null : parts.base,
+      saved: (target) => reads.peek(parts.identity, target, parts.before === undefined ? Infinity : parts.before),
+      // Every saved GET of a route, as the person would see it: [{ url, query, params, json }]. For a record that
+      // is only known from lists (a to-do), whatever their filters were.
+      find: (pattern) => reads.find(parts.identity, pattern, parts.before === undefined ? Infinity : parts.before),
+      // Earlier changes still on the device that name a record, oldest first: [{ id, contract, write, kind, scope, state }].
+      // A change to a record made on this device takes the scope of the change that made it.
+      queued: async (record) => (await queue.list(parts.identity))
+        .filter((entry) => (parts.before === undefined || entry.seq < parts.before) && (entry.records || []).includes(String(record)))
+        .map((entry) => ({ id: entry.id, contract: entry.contract, write: entry.write, kind: entry.kind, scope: entry.scope, state: entry.state }))
     };
   }
 
@@ -475,23 +488,37 @@
 
     row: (identity, key) => db.get('responses', [identity.user, identity.org, key]),
 
-    /** The saved answer as a response (with the queue's effects), or null. */
+    /**
+     * The saved answer as a response (with the queue's effects), or null. A read nothing was saved for is
+     * answered from a queued change that seeds it: a record made on this device exists nowhere else yet.
+     */
     async respond(identity, key, info) {
       const row = await reads.row(identity, key);
-      if (!row) return null;
+      const effects = await queue.effects(identity, info);
+      if (!row) {
+        const made = await seeded(effects);
+        return made === undefined ? null : jsonResponse(200, made, { 'X-FM-Offline': 'queued' });
+      }
       const now = config.now();
       if (now - row.usedAt > limits.touchMs) db.put('responses', Object.assign({}, row, { usedAt: now })).catch(() => {});
       let body = row.body;
-      const effects = await queue.effects(identity, info);
       if (effects.length) { try { body = JSON.stringify(await applyEffects(effects, JSON.parse(row.body))); } catch (_) { body = row.body; } }
       return new Response(body, { status: row.status, headers: { 'Content-Type': row.type, 'Cache-Control': 'no-store', 'X-FM-Offline': 'saved', 'X-FM-Saved-At': new Date(row.savedAt).toISOString() } });
     },
 
-    /** A network answer with the queue's effects applied; the same response when nothing applies. */
+    /**
+     * A network answer with the queue's effects applied; the same response when nothing applies. A 404 for a
+     * record whose create still waits on this device is answered from that change's seed.
+     */
     async overlay(identity, info, response) {
-      if (!response.ok || !isJson(response)) return response;
+      const missing = response.status === 404;
+      if (!missing && (!response.ok || !isJson(response))) return response;
       const effects = await queue.effects(identity, info);
       if (!effects.length) return response;
+      if (missing) {
+        const made = await seeded(effects);
+        return made === undefined ? response : jsonResponse(200, made, { 'X-FM-Offline': 'queued' });
+      }
       let json;
       try { json = await applyEffects(effects, await response.clone().json()); } catch (_) { return response; }
       const headers = new Headers(response.headers);
@@ -505,8 +532,27 @@
       const url = new URL(target, ORIGIN);
       const key = readKey('GET', url);
       const row = await reads.row(identity, key);
-      if (!row) return null;
-      try { return await applyEffects(await queue.effects(identity, readInfo('GET', url, key), before), JSON.parse(row.body)); } catch (_) { return null; }
+      try {
+        const effects = await queue.effects(identity, readInfo('GET', url, key), before);
+        if (!row) { const made = await seeded(effects); return made === undefined ? null : made; }
+        return await applyEffects(effects, JSON.parse(row.body));
+      } catch (_) { return null; }
+    },
+
+    /** Saved GET answers whose route matches `pattern`, with the queue's effects: [{ url, query, params, json }]. */
+    async find(identity, pattern, before) {
+      const compiled = compile(pattern);
+      const out = [];
+      for (const key of await db.keys('responses', [identity.user, identity.org])) {
+        const name = String(key[2]);
+        if (!name.startsWith('GET ')) continue;
+        const url = new URL(name.slice(4), ORIGIN);
+        const params = compiled.match('GET', url.pathname);
+        if (!params) continue;
+        const json = await reads.peek(identity, url.pathname + url.search, before);
+        if (json) out.push({ url: url.pathname + url.search, query: queryOf(url), params, json });
+      }
+      return out;
     },
 
     /** Reads a saved GET or declared POST read again and stores the answer. Used after a change synced. */
@@ -554,9 +600,23 @@
   async function applyEffects(effects, json) {
     let value = json;
     for (const effect of effects) {
+      if (typeof effect.apply !== 'function') continue;
       try { const next = await effect.apply(value); if (next !== undefined) value = next; } catch (_) { /* one contract's mistake never breaks a read */ }
     }
     return value;
+  }
+
+  /**
+   * The answer of a read nothing was saved for, from the first queued change that seeds it (`seed` on an
+   * effect), with the later changes applied; undefined when no change seeds it.
+   */
+  async function seeded(effects) {
+    const at = effects.findIndex((effect) => effect.seed !== undefined);
+    if (at < 0) return undefined;
+    let value;
+    try { value = typeof effects[at].seed === 'function' ? await effects[at].seed() : copy(effects[at].seed); } catch (_) { return undefined; }
+    if (value === undefined || value === null) return undefined;
+    return applyEffects(effects.slice(at + 1), value);
   }
 
   /**
@@ -619,6 +679,16 @@
       return (await queue.list(identity)).some((entry) => entry.scope === scope && (entry.state === 'waiting' || entry.state === 'delegated' || holds(entry)));
     },
 
+    /**
+     * True while a change of another scope that this one has to follow (`after`: it makes a record this one
+     * names) is still on the device, in any state: sent, it is gone; failed, it waits for the person, and so
+     * does this. `known` is the ids on the device where the caller already has them.
+     */
+    async follows(entry, known) {
+      for (const id of entry.after || []) if (known ? known.has(id) : await queue.get(id)) return true;
+      return false;
+    },
+
     /** What a page may know about an entry. */
     public(entry) {
       return { id: entry.id, contract: entry.contract, write: entry.write, kind: entry.kind, scope: entry.scope, label: entry.label, records: entry.records, state: entry.state, attempts: entry.attempts, error: entry.error, conflict: entry.conflict, createdAt: entry.createdAt, nextAt: entry.nextAt, user: entry.user, org: entry.org };
@@ -640,7 +710,7 @@
 
     /** The contract ctx an entry was queued with. */
     async ctx(entry) {
-      return makeCtx({ method: entry.method, url: entry.url, params: entry.params, parsed: await queue.parsed(entry), headers: entry.headers, identity: { user: entry.user, org: entry.org }, now: entry.createdAt, id: entry.id, response: entry.response, before: entry.seq });
+      return makeCtx({ method: entry.method, url: entry.url, params: entry.params, parsed: await queue.parsed(entry), headers: entry.headers, identity: { user: entry.user, org: entry.org }, now: entry.createdAt, id: entry.id, response: entry.response, base: entry.base ? entry.base.doc : null, before: entry.seq });
     },
 
     /** The entry's effects on reads, computed once: [{ patterns, when, apply }]. */
@@ -650,7 +720,7 @@
           const found = contracts.write(entry.contract, entry.write);
           if (!found || typeof found.write.effects !== 'function') return [];
           const list = await found.write.effects(await queue.ctx(entry));
-          return (list || []).filter((effect) => effect && effect.match && typeof effect.apply === 'function').map((effect) => ({ patterns: compileAll(effect.match), when: effect.when, apply: effect.apply }));
+          return (list || []).filter((effect) => effect && effect.match && (typeof effect.apply === 'function' || effect.seed !== undefined)).map((effect) => ({ patterns: compileAll(effect.match), when: effect.when, apply: effect.apply, seed: effect.seed }));
         })().catch(() => []));
       }
       return queueCache.derived.get(entry.id);
@@ -758,6 +828,32 @@
   /** A failed or parked `create` holds the rest of its scope: later entries need the record. */
   function holds(entry) { return entry.kind === 'create' && (entry.state === 'failed' || entry.state === 'parked'); }
 
+  /** The records a change makes: a `create` and an `upload` make the records they name. */
+  function makes(entry) { return entry.kind === 'create' || entry.kind === 'upload' ? (entry.records || []) : []; }
+
+  /** Where a change names other records: its URL and the text of its body, never its files. */
+  function namedIn(url, parsed) {
+    const parts = [String(url)];
+    if (parsed.type === 'json' || parsed.type === 'text') parts.push(String(parsed.text || ''));
+    else if (parsed.type === 'form') for (const [, value] of parsed.fields) if (typeof value === 'string') parts.push(value);
+    return parts.join('\n');
+  }
+
+  /**
+   * Scopes are sent side by side, so order between them is by what a change names: the ids of the changes of
+   * other scopes, still on the device, that make a record this change's URL or body names (a photo paired with a
+   * project made on this device, a new contact linked to a project). It is sent after them. Every entry on the
+   * device is older than a change being made now, so the order has no circle.
+   */
+  async function makersNamed(identity, scope, text) {
+    const out = [];
+    for (const entry of await queue.list(identity)) {
+      if (entry.scope === scope) continue;
+      if (makes(entry).some((id) => id.length >= limits.namedIdMinLength && text.includes(id))) out.push(entry.id);
+    }
+    return out;
+  }
+
   function nextSeq() { lastSeq = Math.max(config.now() * 1000, lastSeq + 1); return lastSeq; }
 
   /** Headers kept with an entry: everything the app sent except what is set again when it is sent. */
@@ -772,7 +868,7 @@
   }
 
   /** Stores the change. Answers the page with respond(ctx), or with the reason it could not be kept. */
-  async function enqueue(identity, found, ctx, parsed, scope) {
+  async function enqueue(identity, found, ctx, parsed, scope, after) {
     const { contract, write } = found;
     let entry = null;
     try {
@@ -800,13 +896,13 @@
       let base = null;
       if (write.kind === 'patch' && write.conflict) {
         const saved = await ctx.saved(await write.conflict.current(ctx));
-        if (saved) { const picked = await write.conflict.pick(saved); if (picked && picked.doc) base = { doc: picked.doc, revision: picked.revision === undefined ? null : picked.revision }; }
+        if (saved) { const picked = await write.conflict.pick(saved, ctx); if (picked && picked.doc) base = { doc: picked.doc, revision: picked.revision === undefined ? null : picked.revision }; }
       }
       entry = {
         id: ctx.id, key: ctx.id, keyBody: null, seq: nextSeq(), user: identity.user, org: identity.org,
         contract: contract.id, write: write.id, kind: write.kind, scope,
         method: ctx.method, url: ctx.url, params: ctx.params, headers: storedHeaders(ctx.headers, parsed), body,
-        label: write.label ? await write.label(ctx) : null, records, response: ctx.response, media, base,
+        label: write.label ? await write.label(ctx) : null, records, response: ctx.response, media, base, after: after || [],
         state: 'waiting', attempts: 0, serverErrors: 0, nextAt: 0, error: null, conflict: null, choices: null, createdAt: ctx.now
       };
       for (const blob of blobs) await db.put('blobs', blob);
@@ -888,14 +984,16 @@
         outgoing = () => new Request(request.url, { method: request.method, headers, body: sent.body, credentials: request.credentials, cache: 'no-store', signal: request.signal });
       } else outgoing = () => new Request(request, { headers });
     } catch (_) { return passThrough(request); }
-    // Sent now unless the device is known to be offline or earlier changes of this scope still wait.
-    if (config.online() && !(await queue.busy(identity, scope))) {
+    // Sent now unless the device is known to be offline, earlier changes of this scope still wait, or it names a
+    // record that a change of another scope, still waiting here, makes.
+    const after = await makersNamed(identity, scope, namedIn(ctx.url, parsed)).catch(() => []);
+    if (config.online() && !after.length && !(await queue.busy(identity, scope))) {
       let response = null;
       try { response = await config.fetch(outgoing()); } catch (error) { if (wasAborted(request, error)) throw error; }
       if (response) { net.ok(); return response; }
       net.fail();
     }
-    return enqueue(identity, found, ctx, parsed, scope);
+    return enqueue(identity, found, ctx, parsed, scope, after);
   }
 
   /** A parsed body as fetch sends it. */
@@ -958,7 +1056,11 @@
     async handle(request, url, identity, file, options) {
       const waitUntil = (options && options.waitUntil) || (() => {});
       const queued = await queue.blob(identity, file.id).catch(() => null);
-      if (queued) return blobResponse(queued, request.headers.get('range'));
+      if (queued) {
+        // A grid of waiting photos shows the small copies made when they were queued, not twenty full-size files.
+        const small = media.isThumb(url) && !request.headers.has('range') ? await media.cached(identity, url).catch(() => null) : null;
+        return small || blobResponse(queued, request.headers.get('range'));
+      }
       if (request.headers.has('range')) return config.fetch(request).catch((error) => { throw netError(error); });
       // Only an answer the server marked immutable (a rendition, a markup thumbnail with its revision) is served
       // from the device first. A logo, an avatar or an original can change under the same URL: network first.
@@ -1020,9 +1122,13 @@
     },
     written: 0,
 
-    /** Puts a file under a media URL, for example the small copy made when a photo is taken. */
-    put(identity, target, blob) {
-      return media.store(identity, new URL(target, ORIGIN), new Response(blob, { headers: { 'Content-Type': blob.type || 'application/octet-stream' } }), { fixed: true });
+    /**
+     * Puts a file under a media URL, for example the small copy made when a photo is taken. It is served from the
+     * device first, like a rendition; `options.fixed: false` keeps it only for when the server cannot be reached
+     * (an original, which the server may replace).
+     */
+    put(identity, target, blob, options) {
+      return media.store(identity, new URL(target, ORIGIN), new Response(blob, { headers: { 'Content-Type': blob.type || 'application/octet-stream' } }), { fixed: !(options && options.fixed === false) });
     },
 
     async remove(key) {
@@ -1109,7 +1215,30 @@
       const urls = new Set();
       const readKeys = new Set();
       const mediaKeys = new Set();
+      // A declared POST read ({ url, body }): sent only when a contract declares it as a read, saved under that read's key.
+      const fetchPost = async (target) => {
+        const url = new URL(target.url, ORIGIN);
+        if (url.origin !== ORIGIN || contracts.denied('POST', url.pathname)) return null;
+        const text = JSON.stringify(target.body === undefined ? {} : target.body);
+        const parsed = { type: 'json', text, value: JSON.parse(text) };
+        for (const found of contracts.reads('POST', url.pathname)) {
+          const readCtx = makeCtx({ method: 'POST', url: url.href, params: found.params, parsed, headers: {}, identity, now: config.now() });
+          if (found.read.when && !(await found.read.when(readCtx))) continue;
+          const key = readKey('POST', url, found.read.id + ' ' + stable(found.read.key ? await found.read.key(readCtx) : readCtx.body));
+          const headers = { accept: 'application/json', 'content-type': 'application/json', 'x-fm-offline-replay': '1' };
+          const token = await config.csrf();
+          if (token) headers['x-platform-csrf'] = token;
+          const response = await config.fetch(url.href, { method: 'POST', credentials: 'include', cache: 'no-store', headers, body: text });
+          if (!reads.savable(response)) return null;
+          readKeys.add(key);
+          const json = await readJson(response);
+          await reads.store(identity, key, response, { boot: true, req: { text, contentType: 'application/json', fields: null } });
+          return json;
+        }
+        return null;
+      };
       const fetchOne = async (target) => {
+        if (target && typeof target === 'object') return fetchPost(target);
         const url = new URL(target, ORIGIN);
         if (url.origin !== ORIGIN || contracts.denied('GET', url.pathname)) return null;
         const response = await config.fetch(url.href, { credentials: 'include', headers: { accept: 'application/json', 'x-fm-offline-replay': '1' } });
@@ -1289,12 +1418,23 @@
     // The person asked, or the connection came back: what waits in backoff is due now.
     if (options.force) for (const entry of entries) if (entry.state === 'waiting' && entry.nextAt > now) { entry.nextAt = 0; await db.put('outbox', entry); }
     if (!entries.some((entry) => entry.state === 'waiting' && entry.nextAt <= now)) return { sent: 0, blocked: null };
-    const run = { identity, stop: false, sent: 0, token: null, blocked: null };
-    const scopes = new Map();
-    for (const entry of entries) { if (!scopes.has(entry.scope)) scopes.set(entry.scope, []); scopes.get(entry.scope).push(entry); }
+    const run = { identity, stop: false, sent: 0, token: null, blocked: null, held: false };
     replay.active = true;
     await state.emit(identity).catch(() => {});
-    try { await pool([...scopes.values()], limits.scopesAtOnce, (list) => runScope(run, list)); } finally {
+    try {
+      // One pass sends every scope in its order. A change held behind another scope's (queue.follows) goes in a
+      // further pass, as long as the pass before it sent something.
+      for (let list = entries; ;) {
+        const scopes = new Map();
+        for (const entry of list) { if (!scopes.has(entry.scope)) scopes.set(entry.scope, []); scopes.get(entry.scope).push(entry); }
+        const sentBefore = run.sent;
+        run.held = false;
+        await pool([...scopes.values()], limits.scopesAtOnce, (items) => runScope(run, items));
+        if (!run.held || run.stop || run.sent === sentBefore) break;
+        queue.invalidate();
+        list = await queue.list(identity);
+      }
+    } finally {
       replay.active = false;
       if (run.sent) await meta.set('lastSync:' + ownerKey(identity), config.now()).catch(() => {});
       await queue.changed(identity).catch(() => {});
@@ -1307,6 +1447,8 @@
       if (run.stop) return;
       if (entry.state === 'delegated') return;                       // the host is uploading it; the scope keeps its order
       if (entry.state !== 'waiting') { if (holds(entry)) return; continue; }
+      if (await queue.follows(entry)) { run.held = true; return; }   // names a record another scope's change still has to make
+      if (config.external(queue.public(entry))) return;              // about to be handed to the host: never sent from here
       if (entry.nextAt > config.now()) return;
       const outcome = await sendEntry(run, entry).catch(() => 'later');
       if (outcome === 'done') continue;
@@ -1352,7 +1494,7 @@
     if (current.status === 401) { await pause(run, 'sign-in'); return { outcome: 'stop' }; }
     if (current.status >= 500) return { outcome: await serverError(entry, current.status, '') };
     if (!current.ok) return { outcome: await fail(entry, current.status, errorCode(await readJson(current)), 'The record could not be read') };
-    const picked = await rule.pick(await current.json());
+    const picked = await rule.pick(await current.json(), ctx);
     const theirs = (picked && picked.doc) || {};
     const revision = picked ? picked.revision : undefined;
     const fields = [].concat(rule.fields ? await rule.fields(ctx) : Object.keys(isObject(ctx.body) ? ctx.body : {}));
@@ -1406,6 +1548,25 @@
       return later(entry, backoff(entry.attempts));
     }
     if (status >= 500) return serverError(entry, status, code);
+    // A refusal that means the server already has this change (a create whose first answer was lost) is done.
+    const found = contracts.write(entry.contract, entry.write);
+    // A refusal that asks for the same change in another form (a publication action whose own key the server
+    // will not take twice): the contract gives the body to send, once per attempt, under a new key.
+    if (found && typeof found.write.resend === 'function' && !flags.resent) {
+      let next;
+      try { next = await found.write.resend(await queue.ctx(entry), { status, code, body }); } catch (_) { next = undefined; }
+      if (next !== undefined && next !== null) {
+        flags.resent = true;
+        Object.assign(entry, { body: { type: 'json', text: JSON.stringify(next) }, key: newId() });
+        await queue.save(entry);
+        return 'again';
+      }
+    }
+    if (found && typeof found.write.duplicate === 'function') {
+      let done = false;
+      try { done = !!(await found.write.duplicate(await queue.ctx(entry), { status, code, body })); } catch (_) { done = false; }
+      if (done) return succeed(run, entry, 200, null);
+    }
     return fail(entry, status, code, body && (body.message || (body.error && body.error.message)));
   }
 

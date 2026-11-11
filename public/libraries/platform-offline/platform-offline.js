@@ -4,7 +4,8 @@
  *
  * Loaded first by the portal pages. It registers the service worker (top-level page only), tells it who is
  * signed in, keeps the offline state every frame can read, and, in the top-level page, sends queued changes
- * under the Web Lock `fm-offline-replay`. It shows nothing and never reloads the page.
+ * under the Web Lock `fm-offline-replay`. It never reloads the page. What people see of offline (the indicator,
+ * the sync tray, conflicts, device settings) is offline-ui.js, which this file loads once the worker is in use.
  */
 (function () {
   'use strict';
@@ -40,7 +41,7 @@
 
   const current = {
     supported, controlled: false, online: navigator.onLine !== false,
-    pending: 0, failed: 0, conflicts: 0, syncing: false, blocked: null, lastSyncAt: null,
+    pending: 0, failed: 0, conflicts: 0, syncing: false, blocked: null, lastSyncAt: null, savedPage: false,
     code: { release: null, status: 'none', progress: 0 },
     storage: null
   };
@@ -63,6 +64,7 @@
     const before = JSON.stringify(current);
     if (typeof detail.online === 'boolean') workerOnline = detail.online;
     if (typeof detail.syncing === 'boolean') current.syncing = detail.syncing;
+    if (typeof detail.savedPage === 'boolean') current.savedPage = detail.savedPage;
     if (detail.code) current.code = detail.code;
     if (detail.storage) current.storage = Object.assign({}, detail.storage, { persisted });
     const queue = detail.queue;
@@ -152,8 +154,16 @@
     const result = await ask('identity', { user: identity.user, org: identity.org, csrfCookie: sessionCookie + '_csrf', top, copy: copy() });
     engineVersion = result.engine || '';
     if (result.settings) settings = Object.assign({}, settings, result.settings);
-    apply(result.state);
+    // `offline` names the set this page was opened from when the worker served it from the device.
+    apply(Object.assign({}, result.state, { savedPage: !!result.offline }));
     return result;
+  }
+
+  /** What people see (offline-ui.js, `window.PlatformOfflineUI`), loaded once per frame when the worker is in use. */
+  let ui = null;
+  function loadUi() {
+    if (!ui) { ui = runScript('offline-ui.js'); ui.catch((error) => { ui = null; console.warn('[offline] the offline UI could not be loaded', error); }); }
+    return ui;
   }
 
   // ---------------------------------------------------------------------------------------------------------
@@ -236,6 +246,17 @@
     return run;
   }
 
+  /**
+   * The native app uploads queued files itself, also after the app is closed (native-uploads.js). The phone bridge
+   * loads at the end of the page, so this waits for the page; an ordinary browser never loads the file.
+   */
+  function startNativeUploads() {
+    const phone = window.PhoneFeatures;
+    if (!top || !supported || !identity.user || !phone || !phone.ready || !phone.offlineUploads) return;
+    Promise.resolve(phone.ready).then(() => (phone.offlineUploads.available() && !window.PlatformOfflineNativeUploads ? loadEngine().then(() => runScript('native-uploads.js')) : null))
+      .catch((error) => console.warn('[offline] native uploads not started', error));
+  }
+
   let askedToPersist = false;
   function onQueued() {
     // Ask the browser to keep the site's storage once something is waiting to be sent.
@@ -266,6 +287,7 @@
     } else if (!navigator.serviceWorker.controller && !(await navigator.serviceWorker.getRegistration(SCOPE).catch(() => null))) return snapshot();
     await controller();
     await hello();
+    loadUi().catch(() => {});
     if (top) {
       ask('check', { manifest }).then((code) => apply({ code })).catch(() => {});
       setInterval(() => { checkForUpdate().catch(() => {}); }, CHECK_EVERY_MS);
@@ -280,6 +302,7 @@
         checkForUpdate().catch(() => {});
       });
       window.addEventListener('load', () => { const words = copy(); if (words) ask('identity', { user: identity.user, org: identity.org, csrfCookie: sessionCookie + '_csrf', top, copy: words }).catch(() => {}); }, { once: true });
+      if (document.readyState === 'complete') startNativeUploads(); else window.addEventListener('load', startNativeUploads, { once: true });
     }
     return snapshot();
   }
@@ -290,7 +313,7 @@
   window.PlatformOffline = {
     /** Resolves with state() once the worker knows who is signed in (at once where offline is not available). */
     ready,
-    /** { supported, controlled, online, pending, failed, conflicts, syncing, blocked, lastSyncAt, code, storage } */
+    /** { supported, controlled, online, pending, failed, conflicts, syncing, blocked, lastSyncAt, savedPage, code, storage } */
     state: snapshot,
     /** 'state' | 'queued' | 'synced' | 'failed' | 'conflict' | 'discarded' | 'code'. Returns a function that stops listening. */
     on(event, handler) {
@@ -322,6 +345,35 @@
       set(name, value) { settings = Object.assign({}, settings, { [name]: value }); return ask('setting', { name, value }); }
     },
     /** Removes this person's shells and saved reads from the device. Their queued changes stay. */
-    signedOut: () => ask('signedOut')
+    signedOut: () => ask('signedOut'),
+    /**
+     * The same removal for someone who stays signed in (device settings): saved reads, media and shells go, queued
+     * changes stay, and the page says again who it is so it keeps saving and queueing. Resolves with state().
+     */
+    async removeSaved() {
+      await ask('signedOut');
+      await hello();
+      if (top && navigator.onLine !== false) checkForUpdate().catch(() => {});   // stores this person's shell again
+      return snapshot();
+    },
+    /** Measures storage again (state().storage is otherwise measured when the page loads). Resolves with state(). */
+    measure: () => ask('state').then((state) => { apply(state); return snapshot(); }),
+    media: {
+      /**
+       * Keeps a file under a media URL on this device (the small copy of a queued photo), through the engine in the
+       * top-level page; a frame asks its top-level page. `fixed: false`: only for when the server cannot be reached.
+       * Resolves false where nothing could keep it.
+       */
+      put(url, blob, options) {
+        // (A frame's file is another window's Blob, so it is told by what it can do.)
+        if (!supported || !identity.user || !blob || typeof blob.size !== 'number' || typeof blob.slice !== 'function') return Promise.resolve(false);
+        if (top) return ready.then(() => loadEngine()).then((FM) => FM.media.put(identity, String(url), blob, options));
+        try { const upper = window.top.PlatformOffline; if (upper && upper !== window.PlatformOffline && upper.media) return upper.media.put(url, blob, options); } catch (_) { /* another origin above */ }
+        return Promise.resolve(false);
+      }
+    },
+    /** The engine in this page (top-level page only): what replays the queue here, and what native-uploads.js drives. */
+    engine: () => (top && supported ? loadEngine() : Promise.reject(new Error('The offline engine runs in the top-level page'))),
+    csrfCookie: sessionCookie + '_csrf'
   };
 })();

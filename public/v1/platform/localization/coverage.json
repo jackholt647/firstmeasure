@@ -1,7 +1,7 @@
 {
-  "files": 297,
-  "namespaces": 117,
-  "messages": 17059,
+  "files": 311,
+  "namespaces": 119,
+  "messages": 17250,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -300,7 +300,7 @@
     {
       "file": "public/libraries/apps/firstmeasure/order/app.js",
       "namespace": "firstmeasure",
-      "references": 65,
+      "references": 64,
       "candidates": 2,
       "edits": 1
     },
@@ -399,8 +399,8 @@
       "file": "public/libraries/apps/measurements/roof-viewer.js",
       "namespace": "measurements",
       "references": 3,
-      "candidates": 71,
-      "edits": 32
+      "candidates": 72,
+      "edits": 33
     },
     {
       "file": "public/libraries/apps/money/project.js",
@@ -636,7 +636,7 @@
     {
       "file": "public/libraries/apps/photos/project.js",
       "namespace": "photos",
-      "references": 33,
+      "references": 36,
       "candidates": 0,
       "edits": 0
     },
@@ -664,7 +664,7 @@
     {
       "file": "public/libraries/apps/project-request/app.js",
       "namespace": "project-request",
-      "references": 409,
+      "references": 408,
       "candidates": 2,
       "edits": 4
     },
@@ -1642,6 +1642,104 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/platform-offline/contracts/contacts.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 3,
+      "edits": 3
+    },
+    {
+      "file": "public/libraries/platform-offline/contracts/core.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-offline/contracts/documents.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-offline/contracts/index.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-offline/contracts/media.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 3,
+      "edits": 3
+    },
+    {
+      "file": "public/libraries/platform-offline/contracts/notes.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 1,
+      "edits": 1
+    },
+    {
+      "file": "public/libraries/platform-offline/contracts/portal.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-offline/contracts/projects.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 3,
+      "edits": 3
+    },
+    {
+      "file": "public/libraries/platform-offline/contracts/schedule.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 2,
+      "edits": 2
+    },
+    {
+      "file": "public/libraries/platform-offline/contracts/todos.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 2,
+      "edits": 2
+    },
+    {
+      "file": "public/libraries/platform-offline/native-uploads.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-offline/offline-core.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 1,
+      "edits": 1
+    },
+    {
+      "file": "public/libraries/platform-offline/offline-ui.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-offline/platform-offline.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
       "file": "public/libraries/platform-qr/platform-qr.js",
       "namespace": "platform-qr",
       "references": 0,
@@ -1812,7 +1910,7 @@
     {
       "file": "public/libraries/project-notes/project-notes.js",
       "namespace": "project-notes",
-      "references": 24,
+      "references": 25,
       "candidates": 46,
       "edits": 25
     },

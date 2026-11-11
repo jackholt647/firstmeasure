@@ -136,6 +136,26 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, channel };
   });
 
+  // The project's channel, read only: nothing is created or joined (the POST above does that).
+  app.get("/organizations/:orgId/channels/project/:projectId", async (request) => {
+    const ctx = await auth(request, getParam(request.params, "orgId"));
+    const channel = await service.findProjectChannel(ctx, getParam(request.params, "projectId"));
+    if (!channel) throw new PlatformError("channel_not_found", 404, "This project has no channel for you yet.");
+    return { ok: true, channel };
+  });
+
+  // A message addressed by project: the channel is found or made, then the message is posted to it. A note
+  // written on a device before the project's channel exists is sent here (docs/architecture/offline.md);
+  // `client_msg_id` makes a repeat the same message.
+  app.post("/organizations/:orgId/channels/project/:projectId/messages", async (request, reply) => {
+    const ctx = await auth(request, getParam(request.params, "orgId"), { csrf: true });
+    const body = postMessageSchema.parse(request.body ?? {});
+    const channel = await service.ensureProjectChannel(ctx, getParam(request.params, "projectId"));
+    const result = await service.postMessage(ctx, String(channel.id), body);
+    reply.code(result.deduplicated ? 200 : 201);
+    return { ok: true, ...result, channel };
+  });
+
   app.get("/organizations/:orgId/channels/discover", async (request) => {
     const ctx = await auth(request, getParam(request.params,"orgId"));
     return {ok:true,channels:await service.discoverChannels(ctx)};

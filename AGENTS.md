@@ -606,11 +606,18 @@ offline with `offline_unavailable` and is never reported as saved. Records
 created offline use ids made on the device, and queued changes are replayed
 with their idempotency key. Saved data and the queue belong to one person in
 one organization. Online behaviour must not change, the realtime stream is
-never intercepted, and no page reloads by itself. Run
+never intercepted, and no page reloads by itself. What people see of offline
+is `platform-offline/offline-ui.js` (one indicator, one tray): an app marks a
+waiting record with `PlatformOfflineUI.waitingBadge({ record })` and opens the
+tray with `PlatformOfflineUI.open()`, and never draws its own offline banner
+or sync list. Run
 `tests/offline-core.test.mjs`, `tests/offline-sw-browser.test.mjs`,
+`tests/offline-ui-browser.test.mjs`, `tests/offline-photos.test.mjs`,
+`tests/offline-photos-browser.test.mjs`,
+`tests/offline-native-uploads.test.mjs`,
 `tests/offline-idempotency.test.ts`, `tests/offline-assets.test.ts`,
-`tests/offline-routes.test.ts` and `tests/offline-contracts.test.ts` for
-changes here.
+`tests/offline-routes.test.ts`, `tests/offline-photos.test.ts` and
+`tests/offline-contracts.test.ts` for changes here.
 
 ## Realtime: one stream per page
 

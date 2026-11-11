@@ -124,6 +124,18 @@
   // --- channels-backed store ------------------------------------------------
 
   const stores = new Map(); // projectId -> { channelId, notes, loaded, loading, lastOp, unsubscribe }
+  // Offline (docs/architecture/offline.md): when notes written without a connection, or a project made on this
+  // device, reach the server, the open lists are read again so they show what the server has.
+  try {
+    window.PlatformOffline?.on?.('synced', (change) => {
+      if (change?.contract !== 'notes' && change?.contract !== 'projects') return;
+      for (const entry of stores.values()) {
+        if (!entry.loaded) continue;
+        window.clearTimeout(entry.refreshTimer);
+        entry.refreshTimer = window.setTimeout(() => { refreshEntry(entry).then(() => announce(entry.projectId)).catch(() => {}); }, 600);
+      }
+    });
+  } catch (error) {}
   const orgId = () => clean(window.__APP?.userOrgId || window.__APP?.orgId || window.Portal?.currentUser?.orgId);
   const channels = () => window.ChannelsAPI || null;
 
@@ -184,8 +196,21 @@
     });
   }
 
+  /* Offline (docs/architecture/offline.md). A project made on this device has no channel on the server yet:
+   * its notes are kept under a local channel id until the project is sent, so that id is never remembered. */
+  const localChannel = (channelId) => !!channels()?.isLocalChannel?.(channelId);
+  const postNote = (entry, body) => localChannel(entry.channelId)
+    ? channels().messages.postToProject(orgId(), entry.projectId, body)
+    : channels().messages.post(orgId(), entry.channelId, body);
+  /** What to say when a request failed: in plain words when the reason is that there is no connection. */
+  function failureText(error, fallback){
+    if (channels()?.unreachable?.(error)) return (globalThis.PlatformLanguage?.text("project-notes","offline_needs_connection","This needs a connection. It is not saved on this device.") ?? "This needs a connection. It is not saved on this device.");
+    return error?.message || fallback || '';
+  }
+  const waitingBadge = (noteId) => { try { return window.PlatformOfflineUI?.waitingBadge?.({ record: noteId }) || null; } catch (e) { return null; } };
+
   async function ensureChannel(entry){
-    if (entry.channelId) return entry.channelId;
+    if (entry.channelId && !localChannel(entry.channelId)) return entry.channelId;
     const api = channels();
     const oid = orgId();
     if (!api || !oid) throw new Error('Channels API unavailable');
@@ -286,7 +311,7 @@
       const oid = orgId();
       if (!api || !oid) return;
       await ensureChannel(entry);
-      const posted = await api.messages.post(oid, entry.channelId, {
+      const posted = await postNote(entry, {
         text: note.text,
         project_note:true, pin:options.pin === true,
         client_msg_id: note.id,
@@ -994,6 +1019,8 @@
       for(const thread of replyThreads.values()){const root=container.querySelector(`.pn-card[data-project-note-id="${CSS.escape(thread.id)}"]`);if(root && thread.open){root.append(thread.node);syncReplyThread(thread);void loadReplyThread(thread);}}
       container.querySelectorAll('.pn-card').forEach(node=>{const content=node.querySelector('.pn-card-content'),more=node.querySelector('.pn-more');if(content && more)more.hidden=content.hidden || (!content.classList.contains('expanded') && content.scrollHeight<=content.clientHeight);});
       for(const note of rows){const host=container.querySelector(`[data-note-audience="${CSS.escape(note.id)}"]`);if(!host || editSession?.id===note.id)continue;audienceChooser(host,note,{readOnly:!note.can_edit || !!note.deleted_at,onApply:async selected=>{await channels().messages.updateVisibility(orgId(),note.id,selected);if(disposed)return;await refresh();announce(entry.projectId);}});}
+      // A note that still waits on this device says so beside its author.
+      for(const note of rows){if(!window.PlatformOffline?.isPending?.(note.id))continue;const card=container.querySelector(`.pn-card[data-project-note-id="${CSS.escape(note.id)}"]`),slot=card?.querySelector('.pn-author') || card,badge=slot && !slot.querySelector('[data-pn-waiting]') ? waitingBadge(note.id) : null;if(badge){badge.setAttribute('data-pn-waiting','');slot.append(badge);}}
       window.FirstMateAudioNotes?.hydrate?.(container);history.scrollTop=scroll;restoreReplyFocus();
     }
     async function refresh(){adoptProject();if(entry.projectId){await refreshEntry(entry);await refreshAuthors();if(!allAuthorsSelected && selectedAuthors.size)await loadAuthorNotes();}render();}
@@ -1027,16 +1054,16 @@
     filterMenu.onkeydown=event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeFilter();filterButton.focus();}};
     document.addEventListener('pointerdown',event=>{if(!filterMenu.contains(event.target) && !filterButton.contains(event.target))closeFilter();},{capture:true,signal:lifetime.signal});
     // Starts after the author filter menu exists: refresh() renders synchronously for a project not saved yet.
-    const ready=Promise.all([refresh(),directoryReady]).then(()=>render()).catch(error=>say(error.message));
+    const ready=Promise.all([refresh(),directoryReady]).then(()=>render()).catch(error=>say(failureText(error)));
 
     async function submit(pin=false){
       if(busy || disposed || capturing || uploading || text._polishApi?.polishing)return;const body=clean(text.value);if(!body && !prepared.length && !gifDraft)return;
       busy=true;text.contentEditable='false';closeEmoji();window.FirstMatePickerWidgets?.closeFor?.(gifButton);audience.close();form.querySelectorAll('button,input,textarea').forEach(node=>node.disabled=true);say();
       try{await ensureSavedProject();await ensureChannel(entry);const visibility=audience.payload(),metadata=Object.assign({},...prepared.map(item=>item.kind==='audio' ? {audio_note:item.metadata} : item.metadata || {}),gifDraft ? {giphy:gifDraft} : {});
-        const posted=await channels().messages.post(orgId(),entry.channelId,{text:body || prepared.map(item=>item.text || '').filter(Boolean).join('\n'),project_note:true,pin,...visibility,mention_users:mentions?.selectedMentions?.() || [],client_msg_id:form.dataset.operationId || (form.dataset.operationId=id()),attachment_ids:prepared.map(item=>item.attachment?.id).filter(Boolean),metadata});
+        const posted=await postNote(entry,{text:body || prepared.map(item=>item.text || '').filter(Boolean).join('\n'),project_note:true,pin,...visibility,mention_users:mentions?.selectedMentions?.() || [],client_msg_id:form.dataset.operationId || (form.dataset.operationId=id()),attachment_ids:prepared.map(item=>item.attachment?.id).filter(Boolean),metadata});
         try{options.onPosted?.(posted.message);}catch{}
         if(disposed)return;text.value='';prepared=[];gifDraft=null;paintGif();delete form.dataset.operationId;uploadBox.replaceChildren();mentions?.setSelectedMentions?.([]);await refresh();announce(entry.projectId);
-      }catch(error){say(error.message || 'Could not save the note. Your draft has been kept.');}
+      }catch(error){say(failureText(error,'Could not save the note. Your draft has been kept.'));}
       finally{busy=false;if(!disposed){text.contentEditable='true';form.querySelectorAll('button,input,textarea').forEach(node=>node.disabled=false);syncSendState();}}
     }
     form.onsubmit=event=>{event.preventDefault();void submit();};form.querySelector('[data-pin-send]').onclick=()=>submit(true);text.oninput=()=>{delete form.dataset.operationId;syncSendState();};

@@ -95,10 +95,35 @@
     return encoded ? `?${encoded}` : '';
   }
 
+  /*
+   * Offline (docs/architecture/offline.md). A project's channel is found or made with a POST, which a device
+   * without a connection cannot send. The channel is then taken from what the device holds: the read-only
+   * lookup by project (saved, or made for a project that was created on this device), else the channel list.
+   * With neither, the failure of the request that was tried is thrown, as before.
+   */
+  const LOCAL_CHANNEL = 'chan_local_';
+  const isLocalChannel = (channelId) => cleanText(channelId).startsWith(LOCAL_CHANNEL);
+  const unreachable = (error) => !Number(error?.status || 0) || cleanText(error?.data?.error) === 'offline_unavailable';
+  async function projectChannelOnDevice(orgId, projectId, error){
+    if (!unreachable(error)) throw error;
+    try {
+      const found = await request(orgPath(orgId, `/channels/project/${enc(projectId)}`));
+      if (found?.channel?.id) return { ...found, offline: true };
+    } catch (e) {}
+    try {
+      const listed = await request(orgPath(orgId, '/channels'));
+      const channel = (listed?.channels || []).find((item) => cleanText(item?.project_id) === cleanText(projectId));
+      if (channel?.id) return { ok: true, channel, offline: true };
+    } catch (e) {}
+    throw error;
+  }
+
   const api = {
     configure,
     baseUrl,
     request,
+    unreachable,
+    isLocalChannel,
 
     directory: {
       list: (orgId) => request(orgPath(orgId, '/directory'))
@@ -116,7 +141,8 @@
       archive: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}/archive`), { method: 'POST' }),
       unarchive: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}/unarchive`), { method: 'POST' }),
       ensurePhoto: (orgId, mediaId) => request(orgPath(orgId, `/channels/photo/${enc(mediaId)}`), { method: 'POST' }),
-      ensureProject: (orgId, projectId) => request(orgPath(orgId, `/channels/project/${enc(projectId)}`), { method: 'POST' }),
+      ensureProject: (orgId, projectId) => request(orgPath(orgId, `/channels/project/${enc(projectId)}`), { method: 'POST' })
+        .catch((error) => projectChannelOnDevice(orgId, projectId, error)),
       addMembers: (orgId, channelId, userIds) => request(orgPath(orgId, `/channels/${enc(channelId)}/members`), { method: 'POST', body: { user_ids: userIds } }),
       removeMember: (orgId, channelId, userId) => request(orgPath(orgId, `/channels/${enc(channelId)}/members/${enc(userId)}`), { method: 'DELETE' }),
       setNotifyLevel: (orgId, channelId, userId, level) => request(orgPath(orgId, `/channels/${enc(channelId)}/members/${enc(userId)}`), { method: 'PATCH', body: { notify_level: level } })
@@ -127,6 +153,9 @@
       updateVisibility: (orgId, messageId, input) => request(orgPath(orgId, `/messages/${enc(messageId)}/visibility`), { method:'PATCH', body:input }),
       list: (orgId, channelId, params = {}) => request(orgPath(orgId, `/channels/${enc(channelId)}/messages${queryString(params)}`)),
       post: (orgId, channelId, input) => request(orgPath(orgId, `/channels/${enc(channelId)}/messages`), { method: 'POST', body: input }),
+      // A message addressed by project: the server finds or makes the channel. For a project whose channel
+      // the device does not know yet (the project was created without a connection).
+      postToProject: (orgId, projectId, input) => request(orgPath(orgId, `/channels/project/${enc(projectId)}/messages`), { method: 'POST', body: input }),
       get: (orgId, messageId) => request(orgPath(orgId, `/messages/${enc(messageId)}`)),
       edit: (orgId, messageId, input) => request(orgPath(orgId, `/messages/${enc(messageId)}`), { method: 'PATCH', body: input }),
       remove: (orgId, messageId) => request(orgPath(orgId, `/messages/${enc(messageId)}`), { method: 'DELETE' }),

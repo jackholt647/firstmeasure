@@ -264,9 +264,20 @@ Every same-origin `GET` under `/v1/` that answers JSON is saved, unless a
 contract's deny list names it (`FMOffline.contracts.deny`: auth, the realtime
 stream and poll, payments checkout and processor data, session replay,
 assistant streams). A read made with `POST` is saved only when a contract
-declares it (`reads`: `portal-action` read actions, publication
-`data/read`, `data/list`, `widgets/resolve`), keyed by the body fields the
-contract names.
+declares it (`reads`: `portal-action` read actions, the FirstMeasure order
+list, publication `data/read`, `data/list`, `widgets/resolve`, assignable
+subjects, feed sources, a project's requirements, a document's resolve),
+keyed by the body fields the contract names. Each such route was read in the
+server to change nothing; `tests/offline-contracts.test.ts` keeps the list
+and fails on a route outside it. Portal actions that write when they are
+read (`portal_bonus_upfront_match_status`, `portal_customer_referral_status`)
+and `auth_status` are not declared.
+
+- **The session read** (`GET /v1/platform/auth/session`) is on the deny list
+  and is never saved. Without a connection `PlatformAPI.auth.session()`
+  falls back to the person's saved profile (`GET /v1/platform/me`, the same
+  fields), so a page that runs from the device shows the apps and
+  permissions they last had. Any HTTP answer is still final.
 
 - **Whose read it is.** A request is saved, answered or queued under the
   identity its own page declared (the worker keeps identity per client id).
@@ -325,6 +336,10 @@ contract names.
   falls back to the cache. On the Postgres store a markup thumbnail is not
   rendered (the plain thumbnail is served in its place), so it is always
   `no-cache` there.
+  `FMOffline.media.put(identity, url, blob, { fixed })` keeps a file the
+  device made under a media URL (the small copy of a queued photo): served
+  from the device first like a rendition, or with `fixed: false` only when
+  the server cannot be reached.
 - **Pinned projects.** `PlatformOffline.pinProject(org, project)` runs every
   contract's `prefetch` for that project (the project, its lists, its
   documents, its thumbnails) and repeats it when the connection returns and
@@ -364,7 +379,11 @@ FMOffline.contracts.add({
     respond: (ctx) => ({ ok: true, message: { /* what the route would answer */ } }),
     effects: (ctx) => [{ match: 'GET /v1/channels/organizations/:org/channels/:channel/messages',
                          when: (m) => m.channel === ctx.params.channel,
-                         apply: (json) => ({ ...json, messages: [...json.messages, ctx.response.message] }) }],
+                         apply: (json) => ({ ...json, messages: [...json.messages, ctx.response.message] }) },
+                       // a read nothing was saved for: what a record made on this device answers
+                       { match: 'GET /v1/things/:id', when: (m) => m.id === ctx.body.id, seed: () => ({ ok: true, thing: ctx.response.thing }) }],
+    // optional: a refusal that means the server already has this change (answer is { status, code, body })
+    duplicate: (ctx, answer) => answer.status === 409 && answer.code === 'thing_exists',
     // kind 'upload' only, optional: which media ids the form's files stand for
     media: (ctx) => [{ id: ctx.body.id, field: 'file' }],
     // kind 'patch' only:
@@ -375,13 +394,42 @@ FMOffline.contracts.add({
 ```
 
 `ctx` is `{ method, url, params, query, body, headers, user, org, now, id,
-response, saved(url) }`: `url` is the path and query, `body` is the parsed
-JSON or the form fields (files as `{ name, type, size, blob }`), `headers`
-has lower-case names, `id` is the entry's idempotency key, `response` is what
-`respond` returned, `saved(url)` resolves the saved answer of a `GET` as the
-person would see it (earlier queued changes applied) or `null`. Contract
-functions are pure and may be async; they run in the worker, and in the
-top-level page when it replays.
+response, base, saved(url), find(pattern), queued(record) }`: `url` is the
+path and query, `body` is the parsed JSON or the form fields (files as
+`{ name, type, size, blob }`), `headers` has lower-case names, `id` is the
+entry's idempotency key, `response` is what `respond` returned, `saved(url)`
+resolves the saved answer of a `GET` as the person would see it (earlier
+queued changes applied) or `null`. Contract functions are pure and may be
+async; they run in the worker, and in the top-level page when it replays.
+
+- `base` is, for a queued `patch`, the record as it was when the change was
+  made (what `conflict.pick` gave), else `null`. An effect uses it to merge
+  the change over a newer answer instead of replacing whole lists.
+- `find(pattern)` resolves every saved `GET` of a route as
+  `[{ url, query, params, json }]`, for a record that is only known from
+  lists, whatever their filters were (a to-do).
+- `queued(record)` resolves the earlier changes still on the device that name
+  a record, as `[{ id, contract, write, kind, scope, state }]`. A change to a
+  record that was made on this device takes the scope of the change that
+  made it, so it is sent after it.
+- **Seeds.** An effect may carry `seed` (a value or a function) instead of, or
+  beside, `apply`. A read that has no saved answer is then answered from the
+  first queued change that seeds it, with later changes applied on top
+  (`X-FM-Offline: queued`). The same happens when the server answers `404`
+  while that change still waits. This is how a project made without a
+  connection opens: nothing was ever saved for its reads. A seeded answer is
+  never stored as a saved read.
+- **Duplicates.** `duplicate(ctx, answer)` names the refusal that means the
+  server already has the change (`project_exists`, `contact_exists` for an
+  id the device made: the first try arrived and its answer was lost). The
+  entry is then done, as after a 2xx, and `synced` has `response: null`.
+- **POST reads of a pinned project.** A `prefetch` entry may name a read made
+  with `POST` as `{ url, body }`. It is sent only when a contract declares
+  that route and body as a read, with the CSRF token, and saved under that
+  read's key. In the worker the token comes from the Cookie Store API; where
+  that is missing these reads are saved when the tab is first opened instead.
+- `conflict.pick(json, ctx)` also gets `ctx`, for a record that is one item
+  of a larger answer (one event of a project).
 
 - **Patterns** are `[METHOD ]/path`: `:name` and `*` match one segment, `**`
   any number. A `deny` pattern without a method covers every method;
@@ -447,11 +495,32 @@ through by the worker.
 | 409 `offline_identity_mismatch` | parked; never sent under another identity |
 | 409 `idempotency_in_progress` | retried after 2 s |
 | 409 on a `patch` entry | three-way merge (below); unresolved → `conflict` |
+| a refusal the contract names as a duplicate (`duplicate`) | done: the server already has it |
+| a refusal the contract answers with another body (`resend`) | sent again once under a new key |
 | other 4xx | `failed`, waits for the person (retry or discard) |
 | 5xx | retried like no answer, eight times, then `failed` |
 
 A failed `create` holds the rest of its scope (later entries need the record);
 other failures do not.
+
+**Order between scopes.** Scopes are sent side by side, so a change that
+depends on another scope's change is ordered by what it names, with nothing
+for a contract to declare. When a change is made, the engine looks for the
+`create` and `upload` entries of other scopes still on the device whose
+record ids (`records`) appear in the change's URL or in the text of its
+body, and stores their entry ids as `after`. Such a change is queued even
+with a connection, and it is not sent while any entry in `after` is still
+on the device, in any state: once that entry is sent, the held change goes
+in a further pass of the same run; if it failed, both wait for the person;
+if it is discarded, the held change is sent and the server answers for it.
+Examples: a photo paired with a project made on the device (`media.assign`
+in `user:<id>`, the project in `project:<id>`), a new contact linked to a
+project (`contact.create` in `contact:<id>`, the link in `project:<id>`).
+For this to work a record a contract makes on the device must be in that
+write's `records`, and its id must be at least 8 characters (a shorter id
+is never taken as naming a record). `after` only ever names older entries,
+so the order has no circle. The native uploader keeps the same rule
+(`native-uploads.js`).
 
 - **The lock** is held for one run: until no entry is due. Entries in
   backoff wait for a later run and the lock is free in between, so another
@@ -487,7 +556,10 @@ other failures do not.
 - **Native hand-off.** `FMOffline.queue.delegate(id, info)` marks an entry
   `delegated`; its scope waits. `FMOffline.replay.report(id, response)`
   applies the host's answer (a `Response`, or `null` for none) by the table
-  above.
+  above. `FMOffline.configure({ external: (entry) => boolean })` names
+  waiting entries something else will send (the app's uploader, before it
+  has marked them): replay never sends one, and its scope waits. See
+  [Native hand-off](#native-hand-off).
 
 ### Overlays
 
@@ -521,36 +593,182 @@ never conflict.
 
 ## Photos and files
 
-- A queued upload keeps its file in the `blobs` store (IndexedDB) and its
-  record id is made on the device (`media.upload` sends `id` unless it
-  replaces a slot), so the queued photo, its place in the project's photo
-  list and its later upload are the same record.
-- While it waits, the worker answers that media id's file requests (any
-  variant, and `Range` requests) from the stored file, so the app's ordinary
-  thumbnail URLs work. The contract's `media(ctx)` names the id; by default
-  an `upload`'s first file stands for its first record.
-- When it is uploaded the original is deleted from the device; a 640 px copy
-  made at capture goes into the media cache under the thumbnail URLs
-  (`FMOffline.media.put(identity, url, blob)`).
-- Capture time is sent as `metadata.taken_at`, set when the photo was taken,
-  not when it was uploaded.
-- Free space is checked before a file is queued (`navigator.storage`): the
-  browser must report room for the files plus 10 MB. With less the write is
-  answered `507 { ok: false, error: "offline_storage_full" }` and nothing is
-  queued. A change without a file is always queued.
-- **Camera roll.** Capture never writes to the camera roll. The device
-  setting `saveToCameraRoll` (off by default) saves a copy through the native
-  bridge (`photoLibrarySave`); a browser cannot, so the setting is shown only
-  in the app.
-- **Native hand-off.** Where the bridge reports `offlineUploads`, the page
-  hands a queued upload to the host (`offlineUploads.enqueue`: the stored
-  file or a native camera token, URL, form fields, headers, idempotency
-  key). The host keeps the file in private app storage and uploads it with
-  the WebView's session cookies in the background (WorkManager on Android, a
-  background `URLSession` on iOS), also after the app is closed. The entry
-  stays in the queue as `delegated` until the host reports the answer
-  (`offlineUploads.status`), so the queue remains the one record of what is
-  waiting.
+A photo taken or chosen without a connection is kept in the device's private storage (the `blobs` store; in the
+app, also the host's private folder), shown in the project at once, uploaded when a connection returns, and then
+removed from the device. A small copy stays in the rolling media cache. The contract is
+`contracts/media.js`; the page side is `media.upload` and `projectMedia.uploadMedia` in `platform-api.js`, the
+project Photos tab (`apps/photos/project.js`), the Feed (`apps/photos/feed.js`) and the camera
+(`camera-capture/camera-capture.js`).
+
+### What is queued
+
+| Change | Route | Kind | Scope |
+|---|---|---|---|
+| a project's photo or video | `POST .../media` (owner `project`, slot `photos`, with the id the device made) | `upload` | `project:<id>` |
+| a photo with no project yet (the Feed camera) | the same route, owner `organization`, slot `photos` | `upload` | `user:<id>` |
+| the project's photo list: add, trash, restore, remove | `POST .../projects/:project/photos` | `patch` | `project:<id>` |
+| pairing photos with a project | `POST .../media/assign` | `action` | `user:<id>` |
+
+- A project photo is two entries, the upload and then the list save. Both are in the project's scope, so they
+  follow the project's own create when that still waits. A photo with no project and its pairing are in the
+  person's scope, so the pairing follows the upload. Pairing with a project that itself still waits to be created
+  is refused by the server (404) and waits for the person to send it again.
+- **Not queued**, answered `offline_unavailable`:
+  - an upload that replaces a slot (a logo, an avatar): the server names it by its slot;
+  - every other upload (contact media, note and message attachments, documents, receipts, FirstMeasure order
+    reference photos): each is followed by a write of its own app in another scope, which would have to wait
+    behind the file. Add them to that app's contract together with that write;
+  - renaming and tagging (`PATCH .../media/:id`). The route replaces the whole name or tag list with the device's
+    copy and has no revision, so a replay hours later would undo a newer edit; and the request names only the
+    media id, so the scope of a photo that still waits cannot be told from it and the change could be sent
+    before its upload. Both need a connection.
+  - A video, a PDF or another file in a project's `photos` slot is queued like a photo, within the limits below.
+
+### Ids and the time a photo was taken
+
+- `media.upload` sends an `id` it makes (`media_` and 16 hex digits, the server's own format) unless the upload
+  replaces a slot. The id belongs to the file and its owner: the same file sent again to the same owner (a
+  retry) carries the same id and the server replaces the record instead of adding one; the same file sent to
+  another owner gets another id, because the server refuses an id that another owner holds (`409
+  media_id_taken`). A caller's own `id` is sent as given.
+- A picture or video carries `metadata.taken_at`: the camera's shot time, or the file's own time
+  (`lastModified`) for a chosen file. `metadata.uploaded_at` is when the app sent it to be uploaded and the
+  record's `created_at` is when it arrived. The server stores `taken_at` as sent; the project's photo list entry
+  carries it too.
+- Lists sort and show by `taken_at` where there is one (the gallery and the Feed through `photoTakenAt` in
+  `feed.js`, the viewer through `uploader()` in `firstmate-markup.js`), so a photo that waited is listed under
+  the day it was taken, and so is an older picture chosen from the device today. A Feed post's time and the
+  five-minute grouping of posts still follow `uploaded_at`.
+
+### While a photo waits
+
+- The worker answers the record the route would answer for a new upload (`respond`): the same fields, with the
+  variants the server will make. The worker reads the picture's size to know them (thumbnails only for a
+  picture of 1024 px or more); where it cannot decode the file it takes a photo to be large.
+- The worker answers that media id's file URLs (any variant, and `Range` requests) from the stored file. A
+  thumbnail URL is answered from the small copy (below) once it is there, so a grid of waiting photos does not
+  decode full-size files.
+- Its effects put the record into the media lists (`GET .../media`, by the read's own filters) and the Feed's
+  catalog, and the list save's effects put the photo into the project (`GET .../projects/:id` and the project
+  in `GET .../projects`), so a page opened later without a connection shows it.
+- `PlatformOffline.isPending(<media id>)` is true while the upload or the list save that added it waits. A
+  gallery tile of such a photo has a slot (`data-offline-wait="<media id>"`) that is filled with
+  `PlatformOfflineUI.waitingBadge({ record })`, or with a plain mark where the offline UI is not loaded.
+
+### The list save is merged when it is sent
+
+The page sends the whole photo list as it has it. Sent hours later as it was, that copy would undo what someone
+else did to another photo meanwhile. So the list save is a `patch`: when it is sent, the list is merged photo by
+photo with the server's list as it is then (`merge3`, by photo identity). What only this change touched is
+applied, what only the server changed is kept, a photo is removed only when this change removed it and nobody
+changed it since, and the same field of the same photo changed on both sides is a conflict in the sync list. A
+save the server already has is not sent again. Each list save reads the project once before it is sent
+([backlog](../optimization-backlog.md#each-waiting-photo-reads-the-project-again-before-its-list-save-is-sent)).
+
+A replayed list save (`X-FM-Offline-Replay: 1`) never adds a photo whose media record does not exist
+(`mergeProjectPhotos`, `uploadedOnly`): an upload that was refused or discarded on the device does not leave an
+entry without a file.
+
+### After it is uploaded
+
+- The entry and its file are removed from the device.
+- **The small copy.** When an upload is queued, the page makes a JPEG of at most 640 px on its longer side
+  (`PlatformAPI.media.smallImageCopy`, drawn with the picture's EXIF orientation) and keeps it under the
+  thumbnail URLs browser code asks for, `thumb_320` and `thumb_640`
+  (`PlatformOffline.media.put(url, blob)`, which is `FMOffline.media.put` in the top-level page; a frame asks
+  its top-level page). After the upload those URLs are answered from the device, so the picture is not
+  downloaded again. The copy is a media cache file like any other: least recently used copies go when the
+  budget (`mediaBudgetMb`) is reached.
+- A picture the server makes no thumbnails for (under 1024 px, a GIF, an SVG) is shown from its original, so
+  the file itself is kept (up to 8 MB) under `variant=original`, with `fixed: false`: asked from the server
+  when there is a connection, answered from the device when there is not.
+- A video has no small copy.
+
+### In the apps
+
+- **Photos tab.** A photo added without a connection replaces its placeholder with the record under its own
+  id, drawn from the stored file. When the upload arrives the record takes the server's values and the tile
+  keeps its picture: nothing is drawn again unless the tile would ask for a different file. There is no
+  "local preview" that never uploads: a refused upload is removed and the person is told why. Deleting a
+  waiting photo discards its upload and its list save (`PlatformOffline.discard`) instead of moving a record
+  the server never had to the trash; an upload discarded from the sync list leaves the gallery and the list.
+  The whole-project save that follows an upload is skipped while its photos wait.
+- **Camera.** An entry is `pending`, `uploading`, `waiting` (kept on the device: a cloud mark, no Retry),
+  `done` or `failed`. The queue is the one record of a waiting photo; its tile follows the queue's `synced`,
+  `failed` and `discarded` events. Retry is shown only for a refused photo: `PlatformOffline.retry` for one the
+  queue holds, a new upload of the same file (the same id) for one that never got there. Done does not wait
+  for uploads while there is no connection.
+- **Feed.** The phone camera's photos wait with no project and are listed under Unassigned; the "Add to a
+  project?" step works with their ids, and its pairing waits behind them.
+
+### Free space
+
+Free space is checked before a file is queued (`navigator.storage`): the browser must report room for the files
+plus 10 MB. With less the write is answered `507 { ok: false, error: "offline_storage_full" }` and nothing is
+queued; `media.upload` then rejects with `code: 'offline_storage_full'` and words a person can act on (connect so
+the waiting photos can upload, or lower the picture storage in the offline settings). A change without a file is
+always queued.
+
+### Limits
+
+- One file has to fit in what the browser still allows the site, less 10 MB (`state().storage`: `quota` and
+  `usage`). There is no limit on how many wait; each waiting project photo is two entries.
+- The server takes an upload of at most 128 MB (`fileSize` in `src/app.ts`; NGINX allows 256 MB), and the app's
+  host takes a file of at most 150 MB and 2,000 jobs. So the largest photo or video that can wait and then
+  arrive is 128 MB.
+- A failed upload starts again from the beginning. A large video on a slow connection may not finish in the
+  time the system gives the app in the background (about ten minutes at a time on Android) and then needs the
+  app open.
+- In the app a waiting file is on the device twice until it is uploaded: in the web view's store, which shows
+  it, and in the host's folder, which uploads it.
+
+### Camera roll
+
+Capture never writes to the camera roll. The device setting `saveToCameraRoll` (off by default) is passed to
+the host as `saveToPhotos` when an upload is handed over, where the app reports `photoLibrarySave`; the host
+then saves one add-only copy when it creates the job. A browser cannot write to the camera roll, so there the
+setting does nothing and is shown only in the app.
+
+### Native hand-off
+
+Where the bridge reports `offlineUploads`, `platform-offline.js` loads `native-uploads.js` in the top-level page
+(`window.PlatformOfflineNativeUploads`) and the app's host sends queued uploads: it keeps each file in private
+app storage and uploads it with the web view's session cookies in the background (WorkManager on Android, a
+background `URLSession` on iOS), also after the app is closed. The queue stays the one record of what waits.
+
+1. A waiting `upload` entry of the signed-in person is marked `delegated`
+   (`FMOffline.queue.delegate`), before anything is handed over.
+2. Its file goes to the host (`offlineUploads.putBlob`), or the host takes a native camera capture by its token
+   (`PlatformOfflineNativeUploads.useCameraToken(mediaId, capture)`; no platform app uses the native camera for
+   photos today, the photo apps use the web camera).
+3. `offlineUploads.enqueue` gets the entry's URL, text fields, file field, the entry's idempotency key, the
+   identity headers, the CSRF cookie's name and `saveToPhotos`. The job's id is the entry's id.
+4. `offlineUploads.status` is polled every five seconds while entries are delegated and the page is visible,
+   and when the app returns to the front, a change is queued or the connection returns.
+5. The host's answer is applied with `FMOffline.replay.report`, then acknowledged (`offlineUploads.ack`).
+
+| The host says | What happens |
+|---|---|
+| `done` (2xx) | the answer is reported (the entry is removed, `synced`), then acknowledged |
+| `needs_sign_in` | the queue pauses for a sign-in once (reported as a 401); the host queues the job again by itself |
+| `failed` with a 4xx | reported: the entry is `failed` and waits for the person. Retry queues the same job again with the entry's new key; Discard cancels it |
+| `failed`, `retries_exhausted` (5xx, 408, 425, 429, 3xx) | reported as that answer: one server error, tried again after the queue's backoff |
+| `failed`, `redirected` (no status) | reported as no answer, tried again after the backoff |
+| `failed`, `file_missing` | the job is cancelled and the stored file is handed over again |
+| `failed`, `untrusted_url`; or the host cannot take the file or the request (`file_too_large`, `queue_full`, ...) | the entry goes back to `waiting` and this page sends it itself |
+| no such job | handed over again (the page was closed before the job was queued, or the app's data was cleared) |
+
+- **Never both.** The page's replay does not send an upload the host will take
+  (`FMOffline.configure({ external })`), and never a delegated one. An entry left to the page is sent by the
+  page only.
+- **Order.** An upload is handed over when nothing before it in its scope has to reach the server first: it
+  waits behind the project's own create, not behind an earlier photo's list save, so all the photos of a
+  project can be with the host at once. The list saves are sent by the page when it is open again.
+- **Closing the page between steps.** Every step can be repeated. At the next start the host's status decides:
+  no job means the file is handed over again, a finished job is reported and acknowledged, an answer whose
+  entry is already gone is acknowledged.
+- A job that has not arrived is never cancelled because its entry is missing. It is cancelled only when the
+  person discards the entry. An upload already in flight may still arrive.
 
 ## Identity and privacy
 
@@ -565,8 +783,9 @@ never conflict.
   the navigation step the reads a page makes while it boots were neither
   saved nor answered offline.)
 - **Sign-out** is the navigation to `/portal/logout.php`, which the worker
-  sees (every sign-out link and script goes there; `logout.php` itself needs
-  no code), or `PlatformOffline.signedOut()`. It removes that person's
+  sees (`logout.php` itself needs no code), or `PlatformOffline.signedOut()`,
+  which the account switcher calls because its sign-outs go to the login
+  page directly. It removes that person's
   shells, saved reads, media files and pinned downloads from the device, in
   every organization, also when the server cannot be reached. The list of
   pinned projects stays and is downloaded again after sign-in. Queued
@@ -608,9 +827,18 @@ never conflict.
   its receipt is the first answer. Without its receipt (the first try
   answered 5xx after the project was written) it is refused with
   `409 project_exists` before any contact is created a second time.
+- `GET /v1/channels/organizations/:org/channels/project/:projectId` answers
+  the project's channel for a member of it and creates nothing
+  (`404 channel_not_found` otherwise; the `POST` on the same address still
+  makes and joins it). `POST .../channels/project/:projectId/messages` finds
+  or makes the channel and posts the message to it, with the same body and
+  `client_msg_id` rule as the post by channel, and also answers `channel`.
 - A photo's display rendition is encoded at the quality the app asked for:
   browser code sends `compression.quality` as a fraction (`0.88`), which is
   read as 88, not as a percentage rounded up to the lowest quality allowed.
+- The media upload takes the record id a device made, keeps
+  `metadata.taken_at`, and a replayed photo list save never adds a photo
+  whose upload did not arrive: see [Photos and files](#photos-and-files).
 
 ### Receipts in detail
 
@@ -681,7 +909,7 @@ engine update with every platform release.
 ```js
 PlatformOffline.ready                        // resolves with state()
 PlatformOffline.state()                      // { supported, controlled, online, pending, failed, conflicts, syncing, blocked,
-                                             //   lastSyncAt, code: { release, status, progress }, storage }
+                                             //   lastSyncAt, savedPage, code: { release, status, progress }, storage }
 PlatformOffline.on(event, handler)           // 'state' | 'queued' | 'synced' | 'failed' | 'conflict' | 'discarded' | 'code'
 PlatformOffline.pending({ scope, record })   // queue entries
 PlatformOffline.isPending(recordId)
@@ -689,7 +917,9 @@ PlatformOffline.retry(id); PlatformOffline.discard(id); PlatformOffline.resolve(
 PlatformOffline.syncNow(); PlatformOffline.checkForUpdate()
 PlatformOffline.pinProject(org, project); PlatformOffline.unpinProject(org, project); PlatformOffline.pinned()
 PlatformOffline.settings.get(name); PlatformOffline.settings.set(name, value)
-PlatformOffline.signedOut()
+PlatformOffline.signedOut(); PlatformOffline.removeSaved(); PlatformOffline.measure()
+PlatformOffline.media.put(url, blob, { fixed })   // keeps a file under a media URL on this device
+PlatformOffline.engine()                          // top-level page only: resolves FMOffline as this page runs it
 ```
 
 - **`state()`** is a copy, kept current in every frame. `online` is false
@@ -719,9 +949,156 @@ PlatformOffline.signedOut()
   answer at once. `syncNow()` resolves `{ sent, blocked }`.
 - **Settings** are per device: `saveToCameraRoll` (false), `autoPinRecent`
   (true), `readsBudgetMb` (150), `mediaBudgetMb` (300).
+- `savedPage` is true on a page the worker served from the device (its
+  stored shell), for that page's lifetime.
+- `removeSaved()` is the removal of `signedOut()` for someone who stays
+  signed in (device settings): saved reads, media and shells go, queued
+  changes stay, the page says again who it is, and the shell is stored
+  again at once when there is a connection. `measure()` measures
+  `state().storage` again. Both resolve with `state()`.
 - `pinProject(org, project, { auto: true })` marks a project as recently
   opened; `pinned()` resolves `[{ org, project, auto, at, refreshedAt, reads,
   media }]`.
+- `media.put` resolves `true` when the file was kept and `false` where
+  nothing could keep it (no worker, nobody signed in). It runs the engine in
+  the top-level page, and a frame asks its top-level page, so it does not
+  depend on which version of the worker is active. `engine()` is what
+  `native-uploads.js` drives; `PlatformOffline.csrfCookie` is the name of the
+  readable CSRF cookie.
+
+## What people see
+
+`offline-ui.js` (`window.PlatformOfflineUI`) is everything a person sees of
+offline. `platform-offline.js` loads it in the page and in each frame once the
+worker is in use; where the worker is not in use none of it exists. It only
+reads `PlatformOffline`. Apps do not draw their own offline banners, sync
+lists or "saved" marks: they call the functions below. Nothing in it loads a
+page except two buttons a person presses (Load the latest, Sign in).
+
+### The indicator
+
+One pill, hidden while everything is normal. It says the most pressing thing:
+
+| It says | When |
+|---|---|
+| "2 changes were not sent and need you." (red) | entries are `failed`, `parked` or in `conflict` |
+| "Sign in again to send 3 waiting changes." (amber) | the queue is `blocked: 'sign-in'` with entries waiting |
+| "Offline. Changes are saved on this device and sent when you reconnect." | `online` is false; with entries waiting it gives their count; on a page opened from the device it says "You are seeing what was saved on this device." |
+| "Sending 3 changes…" | online with entries waiting |
+| "All changes sent." | for four seconds after the server took the last one; never after a discard |
+| "Back online. This page is the copy saved on this device." | online again on a page that was opened from the device (`state().savedPage`); the tray offers Load the latest |
+| "Saving FirstMate on this device so it opens without a connection: 42%" | the first code set is downloading; a later release's set downloads without a word |
+| "FirstMate is saved on this device. It now opens without a connection." | for four seconds after that first download |
+
+Each has a full sentence, a short form ("Offline · 3 waiting") and a compact
+form ("Offline · 3"); the room decides which shows. It is one element that
+moves to wherever the chrome is:
+
+| Layout | Where |
+|---|---|
+| Top bar on (`platform.top_bar`) | in the top bar, left of the search field: the full sentence with 540px of room, else the short form (also when an app uses the left of the top bar). Showing it never moves another control. |
+| Top bar off | in the sidebar, above the account button; a compact sidebar keeps the icon |
+| Phone layout | in the phone bar, beside the page's heading, compact |
+| A project window | in the window's own header, after the project title (the window covers the page's chrome); on a phone the icon and a count |
+| `/portal/mobile/` | first in the header's actions |
+| A page with none of these | bottom left of the page |
+
+Pressing it opens the tray. Screen readers hear a change of situation once
+(not each step of a download). While the indicator says Offline and the
+browser says it is online again, the top page makes one small read
+(`/v1/platform/ping`) every 15 seconds and on the browser's `online` event,
+because the engine learns that the connection is back only from a request it
+answers for (offline's own endpoints are not among them).
+
+### The tray
+
+A panel under the indicator; in a narrow window a sheet from the bottom. It is
+drawn by the top page, above the project window and guides and below toasts,
+dialogs and the Refresh pill. It has the same sentence as the indicator, when
+everything was last sent, and the entries of the queue in two groups, **Not
+sent** and **Waiting to be sent**, each with its contract label (`label.key`
+is read from the `platform-offline` language namespace, or `namespace/key`;
+`label.title` is the fallback), when it was made and its state. A waiting
+entry needs nothing from the person. A failed one says why and offers Retry
+and Discard; Discard asks first and says the change was never sent and will be
+lost. **Send now** is `syncNow()`. While entries wait in a browser that did
+not grant persistent storage, and not in the app, a warning says the browser
+may clear them (Safari after seven days without a visit). Escape closes it and
+the focus goes back to where it was.
+
+### Conflicts
+
+An entry in `conflict` offers Review: each field both sides changed, with the
+value before, **Yours** and **The server's** side by side (stacked where the
+panel is narrow), as a person reads them: text, numbers, dates, yes and no,
+lists as names. The person picks per field (the two values are one radio
+group) or with Keep all of mine / Keep all of the server's; Send my choices is
+`resolve(id, choices)` and works only when every field is chosen. The values
+are marked `data-fmr-ignore`, since a field an app masks in session replay
+would otherwise be recorded here as text.
+
+### Projects
+
+In the project window's header, after the title, a round button says whether
+the project is on the device: not saved, saving, or saved with the time; its
+panel offers Keep on this device, Remove from this device, and for a project
+kept because it was opened recently (`auto`) says so and offers Always keep.
+It uses `pinProject`, `unpinProject` and `pinned()`. In My Projects (tiles,
+list and stage cards) a small mark follows the name of each project that is on
+the device, only while offline.
+
+### This device
+
+Settings > Offline (shown where the worker is in use), and the same page
+behind the phone button in the tray: space used by the app itself, saved
+data, pictures and waiting changes against what the browser allows; the two
+limits (`readsBudgetMb`: 50, 150, 500; `mediaBudgetMb`: 100, 300, 1024) as
+Less, Standard and More; Keep recently opened projects (`autoPinRecent`);
+Also save photos to the camera roll (`saveToCameraRoll`), only where the
+native bridge supports `photoLibrarySave`; and Remove saved data from this
+device, which asks first, lets go of every kept project (they would be
+downloaded again otherwise), calls `removeSaved()` and keeps waiting changes.
+
+### Signing out
+
+While changes wait, signing out asks first: they stay on this device and are
+sent the next time the same person signs in here. Links to `logout.php` are
+caught in every frame; the account switcher (Sign out, Sign out of all
+accounts) and the end of an impersonated session call
+`PlatformOfflineUI.confirmSignOut()`. The account switcher's sign-outs go to
+the login page without visiting `logout.php`, so they call
+`PlatformOffline.signedOut()` themselves.
+
+### What other code calls
+
+```js
+PlatformOfflineUI.waitingBadge({ record, compact })   // an element for a record: hidden unless a change naming it waits, failed or is in conflict
+PlatformOfflineUI.open({ record, entry, view })        // opens the tray: at a record's or an entry's change, or view: 'device'
+PlatformOfflineUI.confirmSignOut()                     // resolves true when signing out may go ahead
+PlatformOfflineUI.mountSettings(element)               // draws this device's settings; returns a function that stops updating
+```
+
+`waitingBadge` returns a `span` that keeps itself current and needs no
+cleanup: "Waiting to send" (information only), "Not sent" or "Needs your
+choice" (these two open the tray at that change when pressed). `compact` keeps
+the icon. Call both with `window.PlatformOfflineUI?.…`, since the library is
+absent where offline is not in use. The event `fm:offline-ui:ready` on the
+window says it has loaded.
+
+### Words
+
+Every string is in the `STRINGS` table of `offline-ui.js` and read through
+`PlatformLanguage` in the `platform-offline` namespace; the test compares the
+table with the catalog source. To add or change text: put the key in
+`public/v1/platform/localization/catalog-source.json` under
+`platform-offline` (a message that takes values is
+`{ "message": "…", "format": "icu" }`), run `npm run localization:build` in
+`public/v1`, and keep only what belongs to the namespace: the block in the
+catalog source, the new `catalogs/platform-offline.<hash>.json` and the
+namespace's lines in `catalogs/manifest.json` (the build also rewrites
+whatever else has drifted on the branch). A reworded message gets a new key
+once the old one has shipped, because the catalog's English wins over the
+fallback in the code.
 
 ## Adding offline support to an app
 
@@ -736,11 +1113,127 @@ PlatformOffline.signedOut()
 4. Add the contract file to `contracts/index.js` and a case to the contract
    test.
 
+## What works offline
+
+The contracts are in `contracts/`: `portal.js` (start-up and lists),
+`projects.js`, `notes.js`, `todos.js`, `contacts.js`, `schedule.js`,
+`documents.js`. "Reads" means: shown as it was last seen, or as downloaded for
+a pinned project. A project that is opened is pinned automatically
+(`project-windows.js`, `mobile.js`), so its tabs are on the device even if
+they were never clicked.
+
+| App | Reads | Adds | Edits | Not offline, and why |
+|---|---|---|---|---|
+| Start-up, sidebar, top bar | everything a start reads; the person's apps and permissions come from their saved profile (`GET /me`) when the session read cannot be reached | | | the account switcher's list and sign-in (always the server's); the bonus offer and referral status (reading them writes) |
+| My Projects | the project list; for an account that only orders reports, its FirstMeasure orders | a project (`Portal.ProjectStore`, id made on the device); a lead with `project_id` (`PlatformAPI.leads.create`) | a project's own fields, merged per field | ordering a report (it charges, and FirstMeasure measures); order thumbnails unless the browser still holds them; an order list that carries a refresh cursor |
+| Project: Overview | the project, report widgets, data sets, measurement schema, custom fields, assignable people | | contact fields and address through the project and its contacts | the map (Google), report orders |
+| Project: Notes tray | notes, pins, authors | a note (text) | | replies, attachments, editing, pinning and deleting a note; notes of a project whose channel is not on the device (see below) |
+| Project: To Do tray, top bar To Do, to-do widget | the lists | a to-do added by hand | complete, reopen, claim, cancel; title, description, due date, priority, who it is assigned to | follow-ups (the server makes them and their outcomes) |
+| Contacts | the list, a contact, a contact's projects | a contact | a contact's fields (`expected_revision`, merged per field); which contacts a project has | merging, importing, duplicate suggestions |
+| Schedule (project tab and Scheduling) | events, calendar, resources, settings | an event on a project | an event's fields (`expected_event_revision`, merged per field) | events that belong to no project, deleting, recurring series; whether the assignee is free (the server checks when the event is sent) |
+| Documents | the list, a document, its preview and editor view, workflow, sent versions | | | creating, editing, sending, signing, PDF: see "Documents" below |
+| Operations (materials and labor) | the ledger, requirements and coverage, suppliers, price book | | | changing or generating lists, orders (the server prices and computes) |
+| Financials | | | | everything: payments data is never kept on a device. The tab says so |
+| Comms, Messages tray, Channels | what was last shown | | | sending (no contract yet); calls |
+| Checklists, Activity, Feed | what was last shown | | | completing checklist items, comments and reactions (no contract yet) |
+| Photos | see the photos contract (`media.js`) | | | |
+
+How each kind of change is sent:
+
+- **Scopes.** A project made on the device is `project:<id>`; its notes,
+  contacts, events and to-dos take that scope and are sent after it. A
+  contact is `contact:<id>`. A to-do on a project the server already has is
+  `todo:<id>` (so a to-do the server refuses holds nothing else), and a
+  change to a to-do takes the scope of the change that made it.
+- **Already there.** `project_exists` and `contact_exists` for an id the
+  device made mean the first try arrived: the entry is done. A manual to-do
+  and a note repeat safely by themselves (the server answers with the record
+  it has). An event save is an upsert.
+- **To-do ids.** The server derives a manual to-do's plan and id from the
+  page's id (`work/service.ts` `stableId`), and `todos.js` derives the same,
+  so completing a to-do that was made offline addresses the right record.
+  A change in that derivation must be made in both places; the contract test
+  compares them.
+- **Notes.** A note goes to the project's channel. The channel of a project
+  is made by a `POST`, which cannot be sent without a connection, so the
+  page then finds the channel on the device: `GET
+  /v1/channels/organizations/:org/channels/project/:project` (read-only;
+  saved for pinned projects), else the channel list, which names project
+  channels that have messages. A project made on the device has no channel
+  yet: its notes are kept under `chan_local_<project>` and sent with `POST
+  .../channels/project/:project/messages`, where the server makes the
+  channel and posts. A note the server refuses does not hold the project's
+  other changes.
+- **Published actions.** The to-do widget changes a to-do with
+  `actions/invoke`, which carries its own `idempotencyKey`. The queued action
+  is sent with the key it was made with, so the server runs it once and
+  answers a repeat with the first result. `action_outcome_uncertain` means
+  the server started the action under that key and does not know how it
+  ended; the key is then refused for good. A contract may say such an action
+  can be repeated (`resend`: setting a to-do's status or fields twice changes
+  nothing more); it is then sent again once under a new key. Any other
+  action fails and waits for the person. Only the two to-do actions are
+  queued; every other published action needs a connection.
+- **Edits.** A project edit sends only the top-level fields the page changed
+  (`Portal.ProjectStore` compares with what it first read). The queued edit
+  keeps the project as it was, and on replay each field is merged three ways
+  and sent with `expected_revision`; lists whose items have ids merge by id.
+  While it waits, the same merge is shown over newer answers (`ctx.base`), so
+  a reload does not put an old whole list over a newer one, and the page's
+  next edit again sends only what changed. A to-do edit has no revision to
+  check: it is merged per field against the to-do as it is when it is sent.
+- **What a pinned project downloads** is listed in `projects.js`
+  (`projectReads`, `branchReads`), `notes.js`, `contacts.js`, `schedule.js`
+  and `documents.js`. The addresses and bodies there must stay the ones the
+  apps ask with: a read that is asked differently is saved the first time
+  the tab is opened, not by the pin.
+
+### Documents
+
+Documents can be read offline; they cannot be made or changed. What is
+missing before that is safe:
+
+1. **Create replaces.** `POST .../projects/:project/documents` accepts an
+   `id`, but a repeat with the same id replaces the document (status back to
+   draft, overrides and outputs emptied) instead of answering "already
+   there". The route must refuse an existing id (`document_exists`, which
+   the store already has) before a device may name a document. The browser
+   does not send an id today.
+2. **The server makes what the page shows.** The preview and the editor
+   render what `POST .../documents/:id/resolve` returns: line rows, totals,
+   account figures and widget data are computed there and never stored.
+   After an offline change to a document's data the saved resolve is stale,
+   and a document made on the device has none. The enrichment
+   (`enrichLineItemParams`, pricing, `deriveAccountParams`) would have to
+   run on the device too.
+3. **Some documents are only the server's to make**: invoices, change orders
+   and completion certificates get their numbers and amounts at create, and
+   a template with a program runs in the module sandbox.
+4. **Edits merge all or nothing.** The editor saves its whole list of
+   overrides, whose items have no ids, so two people's edits cannot be
+   merged per item: one side's list wins or the person is asked.
+5. **Steps and outputs do things.** `workflow/state` can make further
+   documents, and `outputs/:key` records signatures and payments; neither
+   may be answered by a device.
+6. **History** (`saveDocumentInstance`) would record one revision at the
+   time of the sync for everything done offline.
+
 ## Not built yet
 
+- Offline document creation and editing (above).
+- Order thumbnails and report images (`/v1/firstmeasure/projects/:id/thumbnail`,
+  `/artifacts/*`) are not kept by the worker; My Projects shows them only
+  while the browser's own cache has them.
+- A read the server answers with `404` is not saved, so an app sees "no
+  connection" where it saw "does not exist" online (for example a branch
+  record that was never made).
+- Sending messages, checklist items, feed comments, events without a
+  project and deletes have no contract.
 - A change feed for refreshing pinned projects without re-reading them
   ([backlog](../optimization-backlog.md#pinned-offline-projects-are-refreshed-by-reading-everything-again)).
 - Resumable uploads for very large files (a failed upload starts again).
+- Renaming and tagging a photo without a connection, and queueing the uploads
+  of other apps (see [What is queued](#what-is-queued)).
 - Offline sign-in (a person must have signed in on the device while online).
 - Re-reading a declared `POST` read after a sync sends its text fields
   URL-encoded, also when the app sent them as a multipart form.
@@ -750,6 +1243,9 @@ PlatformOffline.signedOut()
 
 `tests/offline-core.test.mjs` (the engine case by case, with a Map for the
 store and a scripted server: `node --test tests/offline-core.test.mjs`),
+`tests/offline-ui-browser.test.mjs` (the real `offline-ui.js` in headless
+Chrome against a fake `PlatformOffline`: every indicator state, the tray, a
+conflict, the badge, the project control, device settings and sign-out),
 `tests/offline-sw-browser.test.mjs` (the real worker, engine and page API in
 headless Chrome against a local server that can drop every connection:
 `node --test tests/offline-sw-browser.test.mjs`, with `public/v1/node_modules`
@@ -760,4 +1256,22 @@ installed and `CHROME_PATH` where Chrome is elsewhere),
 `public/v1/tests/offline-routes.test.ts` (media caching, the lead route and
 the receipts hook through the real app),
 `public/v1/tests/media-quality.test.ts`,
-`public/v1/tests/offline-contracts.test.ts`.
+`public/v1/tests/offline-contracts.test.ts` (every contract file in
+`contracts/index.js` against the real app: each `match` is a registered
+route, each write has `respond`, `scope` and `label`, each `POST` read is on
+the checked list; then every write is made with the server unreachable, its
+answer compared key by key with the real route's, and the queue replayed
+against the real routes, including a lost first answer and an edit the server
+also changed).
+
+Photos: `tests/offline-photos.test.mjs` (the media contract case by case, with
+the real engine), `tests/offline-photos-browser.test.mjs` (the real worker,
+engine, contract and `platform-api.js` in headless Chrome with real
+pictures: queued, shown, closed and reopened, sent once, the small copy and
+its eviction, a small picture, an online retry, a photo stored on its side,
+a device short on space),
+`tests/offline-native-uploads.test.mjs` (`native-uploads.js` against a
+stand-in for the app's host: the answer table, order, and closing the page
+between steps), `public/v1/tests/offline-photos.test.ts` (the device's id,
+`taken_at`, a repeat that replaces, the photo list and pairing repeated, a
+replayed list that names a photo which never arrived).

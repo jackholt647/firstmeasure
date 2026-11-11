@@ -2016,6 +2016,8 @@ session_write_close();
     </style>
     <script>
     async function stopImpersonating() {
+        // Changes still waiting on this device stay here when the session ends; the person is asked first (offline-ui.js).
+        if (window.PlatformOfflineUI?.confirmSignOut && !(await window.PlatformOfflineUI.confirmSignOut())) return;
         try {
             const fd = new FormData();
             fd.append('action', 'admin_stop_impersonation');

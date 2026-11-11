@@ -3606,6 +3606,7 @@
     const on = (group, key) => flags?.has?.(group, key) === true || flags?.value?.(group, key, false) === true;
     return on('platform', 'my_settings') || on('platform', 'left_column_settings') || on('apps', 'channels') || on('apps', 'notifications')
       || on('apps', 'comms') || on('mobile', 'app_download')
+      || window.PlatformOffline?.state?.().controlled === true   // this device's offline settings
       || (on('apps', 'assistant') && ['use_assistant', 'view_projects', 'manage_projects'].some((key) => hasPerm(key)));
   }
 

@@ -84,7 +84,8 @@ function addTestContract(FM) {
         }
       },
       { id: 'media.upload', match: 'POST /v1/platform/organizations/:org/media', kind: 'upload', scope: (ctx) => `project:${ctx.body.project_id}`, records: (ctx) => [ctx.body.id], respond: (ctx) => ({ ok: true, media: { id: ctx.body.id, waiting: true } }) },
-      { id: 'actions.save', match: 'POST /v1/platform/portal-action', kind: 'action', when: (ctx) => ctx.body.action === 'save_thing', scope: () => 'actions', respond: () => ({ success: true, queued: true }) }
+      { id: 'actions.save', match: 'POST /v1/platform/portal-action', kind: 'action', when: (ctx) => ctx.body.action === 'save_thing', scope: () => 'actions', respond: () => ({ success: true, queued: true }) },
+      { id: 'links.add', match: 'POST /v1/links', kind: 'action', scope: (ctx) => `link:${ctx.body.from}`, respond: () => ({ ok: true }) }
     ]
   });
 }
@@ -611,6 +612,58 @@ test('a failed create holds the rest of its scope; other scopes go on', async ()
   eq(t.server.sent('POST /v1/').slice(-3).map((post) => post.path), ['/v1/projects/p1/notes', '/v1/notes/n1/star', '/v1/notes/n1/star']);
 });
 
+test('a change that names a record another scope\'s waiting change makes is sent after it', async () => {
+  const t = engine();
+  t.server.down = true;
+  const queuedId = (answer) => answer.response.headers.get('x-fm-offline-queued');
+  const create = queuedId(await t.json(...note('note-made-here', 'x')));                                         // scope project:p1 makes the note
+  await t.json('POST', '/v1/links', { json: { from: 'contact-7', note: 'note-made-here' } });                    // scope link:contact-7 names it
+  await t.json('POST', '/v1/links', { json: { from: 'contact-8', note: 'a-note-the-server-has' } });             // names nothing made here
+  eq((await t.entries()).map((entry) => entry.after), [[], [create], []]);
+  t.server.down = false;
+  let valid = false;
+  t.server.on('POST /v1/projects/p1/notes', async () => { await sleep(30); return valid ? { json: { ok: true } } : { status: 400, json: { ok: false, error: 'invalid_note' } }; });
+  t.server.on('POST /v1/links', () => ({ json: { ok: true } }));
+  const sentPaths = () => t.server.sent('POST /v1/').map((post) => (post.body && post.body.from ? `link:${post.body.from}` : post.path));
+
+  // The create fails: the link that names its note waits with it; the other scope goes on.
+  assert.equal((await t.FM.replay.run()).sent, 1);
+  eq(sentPaths(), ['/v1/projects/p1/notes', 'link:contact-8']);
+  eq((await t.entries()).map((entry) => entry.state), ['failed', 'waiting']);
+
+  // A change made with a connection that names the waiting record is queued behind it, not sent ahead of it.
+  const online = await t.json('POST', '/v1/links', { json: { from: 'contact-9', note: 'note-made-here' } });
+  assert.ok(queuedId(online));
+  assert.equal(t.server.sent('POST /v1/links').length, 1);
+  // One that names nothing made here is sent at once.
+  assert.equal(queuedId(await t.json('POST', '/v1/links', { json: { from: 'contact-10', note: 'a-note-the-server-has' } })), null);
+
+  // Once the create is sent, what was held goes in the same run, after it.
+  valid = true;
+  await t.FM.queue.retry(create);
+  assert.equal((await t.FM.replay.run()).sent, 3);
+  eq(sentPaths().slice(-3), ['/v1/projects/p1/notes', 'link:contact-7', 'link:contact-9']);
+  eq(await t.entries(), []);
+
+  // A short id is never taken as naming a record: it could be part of any text.
+  t.server.down = true;
+  await t.json(...note('n1', 'x'));
+  await t.json('POST', '/v1/links', { json: { from: 'contact-11', note: 'n1' } });
+  eq((await t.entries()).map((entry) => entry.after), [[], []]);
+});
+
+test('discarding the change that makes a record lets what names it go (and the server answers for it)', async () => {
+  const t = engine();
+  t.server.down = true;
+  const create = (await t.json(...note('note-made-here', 'x'))).response.headers.get('x-fm-offline-queued');
+  await t.json('POST', '/v1/links', { json: { from: 'contact-7', note: 'note-made-here' } });
+  t.server.down = false;
+  t.server.on('POST /v1/links', () => ({ status: 404, json: { ok: false, error: 'note_not_found' } }));
+  await t.FM.queue.discard(create);
+  assert.equal((await t.FM.replay.run()).sent, 0);
+  eq((await t.entries()).map((entry) => [entry.write, entry.state, entry.error.code]), [['links.add', 'failed', 'note_not_found']]);
+});
+
 test('replay.run does nothing without a signed-in person, and one run at a time', async () => {
   const t = engine({ identity: { user: '', org: '' } });
   eq({ ...(await t.FM.replay.run()) }, { sent: 0, blocked: null });
@@ -837,6 +890,28 @@ test('a delegated upload waits for the host\'s answer and keeps its scope in ord
   assert.equal((await t.FM.replay.run()).sent, 1);
 });
 
+test('an entry something else will send (configure external) is never sent by replay, and its scope waits', async () => {
+  const t = engine();
+  t.server.down = true;
+  const id = (await t.json('POST', '/v1/platform/organizations/org_1/media', { body: photoForm('media_1') })).response.headers.get('x-fm-offline-queued');
+  await t.json('POST', '/v1/notes/n1/star', { json: { project_id: 'p1' } });
+  await t.json('POST', '/v1/notes/n2/star', { json: { project_id: 'p2' } });
+  t.server.down = false;
+  t.server.on('POST /v1/notes/', () => ({ json: { ok: true } }));
+  t.server.on('POST /v1/platform/organizations/org_1/media', () => ({ status: 201, json: { ok: true, media: { id: 'media_1' } } }));
+  // The native app's uploader takes waiting uploads: what the hook is asked about is the public entry.
+  const asked = [];
+  t.FM.configure({ external: (entry) => { asked.push([entry.id, entry.kind, entry.state]); return entry.kind === 'upload'; } });
+  assert.equal((await t.FM.replay.run()).sent, 1, 'only the other project\'s change is sent');
+  eq(t.server.sent('POST').map((request) => request.path), ['/v1/notes/n2/star']);
+  eq(asked.find((item) => item[0] === id), [id, 'upload', 'waiting']);
+  eq((await t.entries()).map((entry) => [entry.kind, entry.state]), [['upload', 'waiting'], ['action', 'waiting']], 'the upload was not touched and the change behind it waits');
+  // Left to the page after all (the host cannot take it): replay sends it and what waited behind it.
+  t.FM.configure({ external: () => false });
+  assert.equal((await t.FM.replay.run()).sent, 2);
+  eq(t.server.sent('POST').map((request) => request.path), ['/v1/notes/n2/star', '/v1/platform/organizations/org_1/media', '/v1/notes/n1/star']);
+});
+
 // ---------------------------------------------------------------------------------------------------------------
 // Identity, budgets, pins
 // ---------------------------------------------------------------------------------------------------------------
@@ -908,4 +983,172 @@ test('state and storage report what is on the device', async () => {
   eq([report.quota, report.usage], [10 ** 12, 0]);
   const state = t.of('state').at(-1);
   eq([state.online, state.syncing, state.queue.pending, [...state.queue.records].sort().join()], [false, false, 2, 'media_1,n1']);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Records made on the device: seeds, a create the server already has, and POST reads of a pinned project
+// ---------------------------------------------------------------------------------------------------------------
+
+/** TEST ONLY: a record that is created with a device-made id, then renamed. */
+function addThingsContract(FM) {
+  FM.contracts.add({
+    id: 'things',
+    reads: [{ id: 'things.search', match: 'POST /v1/things/search', when: (ctx) => !!ctx.body.project, key: (ctx) => ({ project: ctx.body.project }) }],
+    prefetch: [(ctx) => [{ url: '/v1/things/search', body: { project: ctx.project, nonce: 'not-in-the-key' } }, { url: '/v1/things/search', body: { other: true } }, { url: '/v1/things/delete-all', body: {} }]],
+    writes: [
+      {
+        id: 'things.create', match: 'POST /v1/things', kind: 'create', scope: (ctx) => `thing:${ctx.body.id}`, records: (ctx) => [ctx.body.id],
+        label: (ctx) => ({ title: 'Thing', detail: ctx.body.name }),
+        respond: (ctx) => ({ ok: true, thing: { id: ctx.body.id, name: ctx.body.name, revision: 0 } }),
+        duplicate: (ctx, answer) => answer.status === 409 && answer.code === 'thing_exists',
+        effects: (ctx) => [
+          { match: 'GET /v1/things/:id', when: (m) => m.id === ctx.body.id, seed: () => ({ ok: true, thing: ctx.response.thing }) },
+          { match: 'GET /v1/things', apply: (json) => ({ ...json, things: [...json.things, ctx.response.thing] }) }
+        ]
+      },
+      {
+        id: 'things.rename', match: 'POST /v1/things/:id/rename', kind: 'action', scope: (ctx) => `thing:${ctx.params.id}`, records: (ctx) => [ctx.params.id],
+        label: () => ({ title: 'Rename' }),
+        respond: async (ctx) => ({ ok: true, was: ((await ctx.saved(`/v1/things/${ctx.params.id}`)) || { thing: {} }).thing.name || null }),
+        effects: (ctx) => [{ match: 'GET /v1/things/:id', when: (m) => m.id === ctx.params.id, apply: (json) => ({ ...json, thing: { ...json.thing, name: ctx.body.name } }) }]
+      }
+    ]
+  });
+}
+
+test('a record made on the device answers its own reads from the queued create, also when the server says 404', async () => {
+  const t = engine();
+  addThingsContract(t.FM);
+  t.server.down = true;
+  await t.json('POST', '/v1/things', { json: { id: 't1', name: 'First' } });
+  const made = await t.json('GET', '/v1/things/t1');
+  assert.equal(made.response.status, 200);
+  assert.equal(made.response.headers.get('x-fm-offline'), 'queued');
+  eq(made.data, { ok: true, thing: { id: 't1', name: 'First', revision: 0 } });
+  await assert.rejects(t.request('GET', '/v1/things/t2'), /Failed to fetch/, 'another record is not seeded');
+  // A later change sees the seeded record (ctx.saved) and is applied on top of it.
+  const renamed = await t.json('POST', '/v1/things/t1/rename', { json: { name: 'Second' } });
+  eq(renamed.data, { ok: true, was: 'First' });
+  assert.equal((await t.json('GET', '/v1/things/t1')).data.thing.name, 'Second');
+  // Back online with the create still waiting: the server does not know the record yet.
+  t.server.down = false;
+  t.server.on('GET /v1/things/t1', () => ({ status: 404, json: { ok: false, error: 'not_found' } }));
+  const early = await t.json('GET', '/v1/things/t1');
+  assert.equal(early.response.status, 200);
+  assert.equal(early.data.thing.name, 'Second');
+  assert.equal((await t.FM.db.list('responses')).length, 0, 'a seeded answer is never stored as a saved read');
+  // Once it is sent, reads are the server's again.
+  t.server.on('POST /v1/things', () => ({ json: { ok: true } }));
+  t.server.on('GET /v1/things/t1', () => ({ json: { ok: true, thing: { id: 't1', name: 'Second', revision: 2 } } }));
+  assert.equal((await t.FM.replay.run()).sent, 2);
+  const real = await t.json('GET', '/v1/things/t1');
+  assert.equal(real.response.headers.get('x-fm-offline'), null);
+  assert.equal(real.data.thing.revision, 2);
+});
+
+test('a create the server already has is done: the refusal a contract names as a duplicate removes the entry', async () => {
+  const t = engine();
+  addThingsContract(t.FM);
+  t.server.down = true;
+  await t.json('POST', '/v1/things', { json: { id: 't1', name: 'First' } });
+  await t.json('POST', '/v1/things/t1/rename', { json: { name: 'Second' } });
+  await t.json('POST', '/v1/things', { json: { id: 't9', name: 'Other' } });
+  t.server.down = false;
+  // The first try reached the server and its answer was lost; the repeat is refused as already there.
+  t.server.on('POST /v1/things', (request) => (request.body.id === 't1' ? { status: 409, json: { ok: false, error: 'thing_exists' } } : { status: 409, json: { ok: false, error: 'thing_locked' } }));
+  t.server.on('POST /v1/things/t1/rename', () => ({ json: { ok: true } }));
+  assert.equal((await t.FM.replay.run()).sent, 2, 'the duplicate create counts as sent, and the rename behind it goes on');
+  const synced = t.of('synced').find((entry) => entry.write === 'things.create');
+  eq([synced.status, synced.response], [200, null]);
+  eq((await t.entries()).map((entry) => [entry.write, entry.state, entry.error.code]), [['things.create', 'failed', 'thing_locked']], 'any other 409 still fails');
+});
+
+test('a pinned project also downloads the POST reads its contracts name, and only declared reads are ever sent', async () => {
+  const t = engine();
+  addThingsContract(t.FM);
+  t.server.on('GET /v1/', () => ({ json: { notes: [] } }));
+  t.server.on('POST /v1/things/search', (request) => ({ json: { found: [request.body.project] } }));
+  await t.FM.pins.pin(ME, 'p7');
+  const posts = t.server.sent('POST /v1/things');
+  eq(posts.map((post) => [post.path, post.body.project, post.headers['x-platform-csrf'], post.headers['x-fm-offline-replay']]), [['/v1/things/search', 'p7', 'csrf-1', '1']]);
+  assert.equal((await t.FM.pins.list(ME))[0].reads, 3, 'the project, its notes list and the search');
+  t.server.down = true;
+  const saved = await t.json('POST', '/v1/things/search', { json: { project: 'p7' } });
+  assert.equal(saved.response.headers.get('x-fm-offline'), 'saved');
+  eq(saved.data, { found: ['p7'] });
+});
+
+/** TEST ONLY: an action that carries its own key in the body, as a publication action does. */
+function addActionContract(FM, safeToRepeat) {
+  FM.contracts.add({
+    id: 'actions',
+    writes: [{
+      id: 'act', match: 'POST /v1/actions/invoke', kind: 'action', scope: (ctx) => `thing:${ctx.body.target}`, records: (ctx) => [ctx.body.target],
+      label: () => ({ title: 'Action' }),
+      respond: () => ({ receipt: { status: 'succeeded' } }),
+      ...(safeToRepeat ? { resend: (ctx, answer) => (answer.status === 409 && answer.code === 'action_outcome_uncertain' ? { ...ctx.body, idempotencyKey: ctx.body.idempotencyKey + '-again' } : null) } : {})
+    }]
+  });
+}
+
+test('an action whose own key the server will not take twice is sent again once, in the form its contract gives', async () => {
+  const t = engine();
+  addActionContract(t.FM, true);
+  t.server.down = true;
+  await t.json('POST', '/v1/actions/invoke', { json: { action: 'set', target: 't1', input: { done: true }, idempotencyKey: 'k1' } });
+  t.server.down = false;
+  // The server started the action under k1 once and does not know how it ended: that key is refused for good.
+  t.server.on('POST /v1/actions/invoke', (request) => (request.body.idempotencyKey === 'k1' ? { status: 409, json: { error: 'action_outcome_uncertain' } } : { json: { receipt: { status: 'succeeded' } } }));
+  assert.equal((await t.FM.replay.run()).sent, 1);
+  const posts = t.server.sent('POST /v1/actions/invoke');
+  eq(posts.map((post) => post.body.idempotencyKey), ['k1', 'k1-again']);
+  assert.notEqual(posts[0].headers['idempotency-key'], posts[1].headers['idempotency-key'], 'a new body goes under a new key');
+  eq(await t.entries(), []);
+  // Refused again in its new form: it waits for the person, it is not sent in a loop.
+  t.server.down = true;
+  await t.json('POST', '/v1/actions/invoke', { json: { action: 'set', target: 't2', input: {}, idempotencyKey: 'k2' } });
+  t.server.down = false;
+  t.server.on('POST /v1/actions/invoke', () => ({ status: 409, json: { error: 'action_outcome_uncertain' } }));
+  await t.FM.replay.run();
+  eq((await t.entries()).map((entry) => [entry.state, entry.error.code]), [['failed', 'action_outcome_uncertain']]);
+  assert.equal(t.server.sent('POST /v1/actions/invoke').length, 4);
+});
+
+test('without a contract that says an action may be repeated, an uncertain outcome waits for the person', async () => {
+  const t = engine();
+  addActionContract(t.FM, false);
+  t.server.down = true;
+  await t.json('POST', '/v1/actions/invoke', { json: { action: 'charge', target: 't1', input: {}, idempotencyKey: 'k1' } });
+  t.server.down = false;
+  t.server.on('POST /v1/actions/invoke', () => ({ status: 409, json: { error: 'action_outcome_uncertain' } }));
+  await t.FM.replay.run();
+  eq((await t.entries()).map((entry) => [entry.state, entry.error.status, entry.error.code]), [['failed', 409, 'action_outcome_uncertain']]);
+  assert.equal(t.server.sent('POST /v1/actions/invoke').length, 1, 'sent once, with the key it was made with');
+  assert.equal(t.server.sent('POST /v1/actions/invoke')[0].body.idempotencyKey, 'k1');
+});
+
+test('a patch\'s effects can merge over a newer answer with the record as it was (ctx.base), and find and queued see the device', async () => {
+  const t = engine();
+  t.FM.contracts.add({
+    id: 'lists',
+    writes: [{
+      id: 'list.patch', match: 'PATCH /v1/lists/:id', kind: 'patch', scope: (ctx) => `list:${ctx.params.id}`, records: (ctx) => [ctx.params.id],
+      label: () => ({ title: 'List' }),
+      respond: async (ctx) => ({ ok: true, found: (await ctx.find('GET /v1/lists/:id')).map((read) => read.params.id), earlier: (await ctx.queued(ctx.params.id)).map((entry) => entry.write) }),
+      effects: (ctx) => [{ match: 'GET /v1/lists/:id', when: (m) => m.id === ctx.params.id, apply: (json) => ({ ...json, list: { ...json.list, items: t.FM.merge3(ctx.base.items, ctx.body.items, json.list.items).value } }) }],
+      conflict: { current: (ctx) => `/v1/lists/${ctx.params.id}`, pick: (json, ctx) => ({ doc: json.list, revision: json.list.revision, asked: ctx.params.id }), send: (ctx, merged, revision) => ({ ...merged, expected_revision: revision }) }
+    }]
+  });
+  let items = [{ id: 'a', n: 1 }, { id: 'b', n: 1 }];
+  t.server.on('GET /v1/lists/l1', () => ({ json: { list: { id: 'l1', revision: 1, items } } }));
+  await t.json('GET', '/v1/lists/l1');
+  t.server.down = true;
+  const first = await t.json('PATCH', '/v1/lists/l1', { json: { items: [{ id: 'a', n: 2 }, { id: 'b', n: 1 }] } });
+  eq(first.data, { ok: true, found: ['l1'], earlier: [] });
+  eq((await t.json('PATCH', '/v1/lists/l1', { json: { items: [{ id: 'a', n: 3 }, { id: 'b', n: 1 }] } })).data.earlier, ['list.patch'], 'the second change sees the first');
+  await t.FM.queue.discard((await t.entries())[1].id);
+  // The server gained an item meanwhile: the waiting change is shown over it, not instead of it.
+  t.server.down = false;
+  items = [{ id: 'a', n: 1 }, { id: 'b', n: 1 }, { id: 'c', n: 9 }];
+  eq((await t.json('GET', '/v1/lists/l1')).data.list.items, [{ id: 'a', n: 2 }, { id: 'b', n: 1 }, { id: 'c', n: 9 }]);
 });

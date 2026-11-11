@@ -1431,7 +1431,9 @@
       { id:'materials', allowed:canMaterials, icon:'fas fa-boxes-stacked', title:(globalThis.PlatformLanguage?.text("settings","materials_settings_section","Materials") ?? "Materials"), subtitle:(globalThis.PlatformLanguage?.text("settings","materials_settings_section_subtitle","Price book, suppliers, calculations and resource categories for materials.") ?? "Price book, suppliers, calculations and resource categories for materials."), tabId:'csTabMaterials', paneId:'csPaneMaterials' },
       { id:'forms', allowed:canForms, icon:'fas fa-clipboard-list', term:'leads.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_1399dd735044f0","Forms and Leads") ?? "Forms and Leads"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3f2edc28d5ce68","Configure lead capture forms and inbound lead sources.") ?? "Configure lead capture forms and inbound lead sources."), tabId:'csTabForms', paneId:'csPaneForms' },
       { id:'billing', allowed:canBilling || canPlatformBilling, icon:'fas fa-credit-card', term:'billing.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_15b15ae2348691","Manage plan billing, balance, and automatic top-ups.") ?? "Manage plan billing, balance, and automatic top-ups."), tabId:'csTabBilling', paneId:'csPaneBilling' },
-      { id:'app_download', allowed:appFlag('mobile','app_download'), icon:'fas fa-mobile-alt', title:(globalThis.PlatformLanguage?.text("settings","m_547bfda0c7f70d","App download") ?? "App download"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_18f3026e47ac02","FirstMeasure on your phone.") ?? "FirstMeasure on your phone."), tabId:'csTabAppDownload', paneId:'csPaneAppDownload' }
+      { id:'app_download', allowed:appFlag('mobile','app_download'), icon:'fas fa-mobile-alt', title:(globalThis.PlatformLanguage?.text("settings","m_547bfda0c7f70d","App download") ?? "App download"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_18f3026e47ac02","FirstMeasure on your phone.") ?? "FirstMeasure on your phone."), tabId:'csTabAppDownload', paneId:'csPaneAppDownload' },
+      // Offline (docs/architecture/offline.md): this device's saved data. Shown where the offline worker is in use; the page is drawn by platform-offline/offline-ui.js.
+      { id:'offline', allowed:!!window.PlatformOfflineUI?.mountSettings, icon:'fas fa-cloud-arrow-down', title:(globalThis.PlatformLanguage?.text("platform-offline","set_section_title","Offline") ?? "Offline"), subtitle:(globalThis.PlatformLanguage?.text("platform-offline","set_section_subtitle","Saved data and waiting changes on this device.") ?? "Saved data and waiting changes on this device."), tabId:'csTabOffline', paneId:'csPaneOffline' }
     ];
     const availableSettingsSections = settingsSections.filter((section) => section.allowed);
     const sectionFor = (id) => availableSettingsSections.find((section) => section.id === id) || null;
@@ -11998,6 +12000,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       if (which === 'my_settings' && canMySettings) renderMySettings();
       if (which === 'notifications') renderNotificationSettings();
       if (which === 'app_download') window.FirstMeasureAppDownload?.mount($('#csPaneAppDownload',panel), {orgId:currentOrgId()});
+      if (which === 'offline') mountOfflineSettings();
       if (which === 'money' && canPayments) renderMoneySettings();
       if (which === 'calls' && canCallWorkflows) renderCallsSettings();
       if (which === 'contacts' && canContacts) renderContactsSettings();
@@ -12027,6 +12030,13 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       scheduleSettingsSubtabsSync();
     }
     panel.querySelectorAll('[data-settings-section]').forEach((button) => button.addEventListener('click', () => setSubTab(button.dataset.settingsSection)));
+    // The Offline page is this device's settings, drawn and kept current by the offline UI (platform-offline/offline-ui.js).
+    let stopOfflineSettings = null;
+    function mountOfflineSettings(){
+      stopOfflineSettings?.();
+      stopOfflineSettings = window.PlatformOfflineUI?.mountSettings?.($('#csPaneOffline',panel)) || null;
+    }
+
     async function renderNotificationSettings(){
       if (!paneNotifications) return;
       paneNotifications.__notificationResize?.disconnect();
@@ -15328,6 +15338,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       if (canReports) renderReports();
       if (canMySettings && activeTab === 'my_settings') renderMySettings();
       if (activeTab === 'app_download') window.FirstMeasureAppDownload?.mount($('#csPaneAppDownload',panel), {orgId:currentOrgId()});
+      if (activeTab === 'offline') mountOfflineSettings();
       if (canPayments && activeTab === 'money') renderMoneySettings();
       if (canDocuments && activeTab === 'documents') renderDocumentSettings();
       if (canCallWorkflows && activeTab === 'calls') renderCallsSettings();
