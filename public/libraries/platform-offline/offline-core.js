@@ -971,8 +971,11 @@
         quiet: !!(typeof write.quiet === 'function' ? await write.quiet(ctx) : write.quiet),
         state: 'waiting', attempts: 0, serverErrors: 0, nextAt: 0, error: null, conflict: null, choices: null, createdAt: ctx.now
       };
+      // Asked before the entry is stored, so `ctx.queued` names only what was on the device before it.
+      const stale = await replacedBy(write, ctx);
       for (const blob of blobs) await db.put('blobs', blob);
       await db.put('outbox', entry);
+      for (const id of stale) await queue.discard(id).catch(() => {});
     } catch (error) {
       if (entry) await db.delPrefix('blobs', [entry.id]).catch(() => {});
       const full = error && (error.name === 'QuotaExceededError' || /quota/i.test(String(error.message)));
@@ -1056,10 +1059,29 @@
     if (config.online() && !after.length && !(await queue.busy(identity, scope))) {
       let response = null;
       try { response = await config.fetch(outgoing()); } catch (error) { if (wasAborted(request, error)) throw error; }
-      if (response) { net.ok(); return response; }
+      if (response) {
+        net.ok();
+        if (response.status >= 200 && response.status < 300) await replaced(write, ctx);
+        return response;
+      }
       net.fail();
     }
     return enqueue(identity, found, ctx, parsed, scope, after);
+  }
+
+  /**
+   * A change the server took, or that is now queued, may stand in for earlier ones still on the device
+   * (`replaces(ctx)` on a write: the ids of those entries, from `ctx.queued(record)`): a save that carries the
+   * whole record after the save the server refused, a delete after every change to what it deletes. They are
+   * discarded, so a refused change the person has since corrected does not wait for them, and its effects no
+   * longer show over the newer answer.
+   */
+  async function replacedBy(write, ctx) {
+    if (typeof write.replaces !== 'function') return [];
+    try { return [].concat((await write.replaces(ctx)) || []).filter((id) => id && id !== ctx.id).map(String); } catch (_) { return []; }
+  }
+  async function replaced(write, ctx) {
+    for (const id of await replacedBy(write, ctx)) await queue.discard(id).catch(() => {});
   }
 
   /** A parsed body as fetch sends it. */
@@ -1648,7 +1670,8 @@
       return { outcome: 'skip' };
     }
     if (!Object.keys(merged).length) return { outcome: await succeed(run, entry, 200, null) };   // the server already has it
-    const text = JSON.stringify(await rule.send(ctx, merged, revision));
+    // `theirs` is the server's document as it is now, for a route that replaces the whole record.
+    const text = JSON.stringify(await rule.send(ctx, merged, revision, theirs));
     // A body the server has not seen needs its own key: a key answers only for the body it was first sent with.
     if (entry.keyBody !== text) { Object.assign(entry, { key: newId(), keyBody: text }); await queue.save(entry); }
     return { body: text, contentType: 'application/json', merged: true };
@@ -1700,7 +1723,13 @@
       try { done = !!(await found.write.duplicate(await queue.ctx(entry), { status, code, body })); } catch (_) { done = false; }
       if (done) return succeed(run, entry, 200, null);
     }
-    return fail(entry, status, code, body && (body.message || (body.error && body.error.message)));
+    // What the refusal means to the person, where the contract can say it better than the server's sentence
+    // (`explain(ctx, answer)` on a write: a label, as FMOffline.label makes it). The tray shows it as the reason.
+    let label = null;
+    if (found && typeof found.write.explain === 'function') {
+      try { label = (await found.write.explain(await queue.ctx(entry), { status, code, body })) || null; } catch (_) { label = null; }
+    }
+    return fail(entry, status, code, body && (body.message || (body.error && body.error.message)), label);
   }
 
   async function succeed(run, entry, status, answer) {
@@ -1755,8 +1784,8 @@
     return later(entry, backoff(entry.serverErrors));
   }
 
-  async function fail(entry, status, code, message) {
-    Object.assign(entry, { state: 'failed', error: { status, code: code || '', message: message ? String(message) : '' } });
+  async function fail(entry, status, code, message, label) {
+    Object.assign(entry, { state: 'failed', error: Object.assign({ status, code: code || '', message: message ? String(message) : '' }, label && typeof label === 'object' ? { label } : {}) });
     await queue.save(entry);
     events.emit('failed', queue.public(entry));
     return 'skip';

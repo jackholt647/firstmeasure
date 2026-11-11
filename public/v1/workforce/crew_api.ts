@@ -3007,11 +3007,15 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     }
     const body = requestBody(request);
     const typed = request as unknown as { ip?: string; headers?: Record<string, unknown> };
+    // A sign-off made without a connection arrives later: `signed_at` stays the time the server recorded it, and
+    // the time the device says it was signed is kept beside it as evidence (never a time still to come).
+    const deviceSignedAt = Date.parse(cleanText(asObject(body.signature ?? body).device_signed_at));
     const signature = normalizePortalSignature(body.signature ?? body, {
       ip: cleanText(typed.ip),
       user_agent: cleanText(typed.headers?.["user-agent"]),
       captured_at: new Date().toISOString(),
-      source: "crew_app"
+      source: "crew_app",
+      ...(Number.isFinite(deviceSignedAt) && deviceSignedAt <= Date.now() + 5 * 60000 ? { device_signed_at: new Date(deviceSignedAt).toISOString() } : {})
     });
     const signed = (await signProjectChecklist(orgId, projectId, checklist.id, signature, actor.ctx.userId));
     return { ok: true, checklist: signed };
