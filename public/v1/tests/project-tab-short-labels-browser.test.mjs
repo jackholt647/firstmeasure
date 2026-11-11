@@ -16,7 +16,7 @@ const terminology = await file('libraries/platform-terminology/platform-terminol
 const chrome = () => chromium.launch({executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true});
 const TABS = [['map', 'Overview', 'fa-map-location-dot'], ['measurements', 'Reports', 'fa-ruler-combined'], ['photos', 'Photos', 'fa-images'], ['docs', 'Documents', 'fa-folder-open', 'Docs'], ['materials', 'Operations', 'fa-clipboard-list', 'Ops'], ['money', 'Financials', 'fa-dollar-sign', 'Finance'], ['comms', 'Comms', 'fa-comments']];
 
-async function header(page, {mobile}){
+async function header(page, {mobile, tabs = TABS}){
   await page.setContent('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}</style><div class="fm-entity-window r-overlay window-managed"><header class="r-modal-header r-window-bar fm-shell-header" data-header-rows="2" data-window-mobile="' + mobile + '"><div class="r-window-identity fm-shell-identity"><span>12 Main St</span></div><div class="r-tabbar fm-shell-tabs" id="rProjectViewerTabs"></div><div class="r-window-bar-actions"><div class="fm-window-controls"><button data-window-action="close">x</button></div></div></header></div>');
   await page.evaluate(() => { window.Portal = {}; });
   await page.addScriptTag({content: await file('portal/scripts/project_viewer.js')});
@@ -27,7 +27,7 @@ async function header(page, {mobile}){
     Portal.ProjectViewer.renderTabs(document.getElementById('rProjectViewerTabs'), tabs.map(([id, label, icon, shortLabel], index) => ({id, label, icon, shortLabel, active: index === 0})), {tabClass: 'r-tab'});
     window.observeProjectHeaderFit = new Function(`${fit}; return observeProjectHeaderFit;`)();
     window.observeProjectHeaderFit(document.querySelector('.r-overlay'));
-  }, [fit, TABS]);
+  }, [fit, tabs]);
 }
 // The fit runs in the frame after a resize is observed: let a few frames pass first.
 const state = page => page.evaluate(() => new Promise(done => {
@@ -101,6 +101,28 @@ test('on a phone a tab whose full label is cut off under its icon switches the s
     // A phone wide enough for every full label keeps them.
     await page.setViewportSize({width: 900, height: 740});
     assert.equal((await state(page)).short, false);
+  } finally { await browser.close(); }
+});
+
+// Jack's phone (FM-371, 11/11): seven tabs where "Documents" was cut off by less than a pixel, which the
+// strip still draws with an ellipsis. A full label that shows cut off never stays while it has a short one.
+test('on a phone a full label cut off by a fraction of a pixel still switches the strip to short labels', async () => {
+  const tabs = [['photos', 'Photos', 'fa-images'], ['docs', 'Documents', 'fa-folder-open', 'Docs'], ['materials', 'Operations', 'fa-clipboard-list', 'Ops'], ['customer_portal', 'Portal', 'fa-link'], ['schedule', 'Schedule', 'fa-calendar-days'], ['money', 'Financials', 'fa-dollar-sign', 'Finance'], ['checklists', 'Checklists', 'fa-list-check']];
+  const browser = await chrome();
+  try {
+    const page = await browser.newPage({viewport: {width: 400, height: 900}, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true});
+    await header(page, {mobile: true, tabs});
+    const failures = [];
+    for (let width = 380; width <= 480; width += 1) {
+      await page.setViewportSize({width, height: 900});
+      const result = await state(page);
+      const cut = await page.evaluate(() => [...document.querySelectorAll('#rProjectViewerTabs .pv-tab-label:has(.pv-tab-short)')].filter(label => {
+        const long = label.querySelector('.pv-tab-long');
+        return long.getClientRects().length && long.getBoundingClientRect().width > label.getBoundingClientRect().width + 0.01;
+      }).map(label => label.querySelector('.pv-tab-long').textContent));
+      if (cut.length) failures.push(`${width}: ${cut.join(', ')} cut off (short ${result.short})`);
+    }
+    assert.deepEqual(failures, []);
   } finally { await browser.close(); }
 });
 
