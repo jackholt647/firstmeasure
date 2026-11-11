@@ -663,7 +663,7 @@ test("checklists: items checked, noted and added, a checklist added and signed o
   const realList = await real("POST", lists, blank("Reference", { signature_required: true, items: [{ title: "Tarps down" }, { title: "Drip edge", item_type: "rating" }, { title: "Magnet sweep" }, { title: "Gutters clear" }] }));
   assert.equal(realList.status, 201, JSON.stringify(realList.json));
   const ref = realList.json.checklist.id;
-  const [tarps, drip, magnet, gutters] = (await serverList(ref)).items as Json[];
+  const [tarps, drip, magnet, gutters] = (await serverList(ref)).items as [Json, Json, Json, Json];
   const realRow = await serverList(ref);
   const realCheck = await real("PATCH", `${lists}/${ref}/items/${gutters.id}`, { completed: true });
   assert.equal(realCheck.status, 200, JSON.stringify(realCheck.json));
@@ -693,7 +693,7 @@ test("checklists: items checked, noted and added, a checklist added and signed o
   assert.deepEqual(keyDifference(row, realRow), NONE, "the checklist as the list shows it");
   assert.deepEqual(keyDifference(row.items[0], realRow.items[0]), NONE, "an item as the list shows it");
   assert.deepEqual([row.total_items, row.completed_items, row.items.map((item: Json) => [item.title, item.sort_order, item.completed])], [2, 0, [["Walk the roof", 10, false], ["Photos taken", 20, false]]]);
-  const [walk, photos] = row.items as Json[];
+  const [walk, photos] = row.items as [Json, Json];
   // Checking an item of it, and items of the checklist the server has.
   const checked = await d.ask("PATCH", `${lists}/${mine}/items/${walk.id}`, { completed: true });
   assert.ok(checked.queued);
@@ -792,14 +792,14 @@ test("checklists: items checked, noted and added, a checklist added and signed o
 // Messages: read without a connection, never sent without one (contracts/messages.js)
 // ---------------------------------------------------------------------------------------------------------------
 
-test("messages: nothing that sends is a contract, and recordings and payments are never kept", () => {
+test("messages: nothing that sends is a contract, and recordings and payments are never kept", async () => {
   const messages = loaded.raw.find((contract) => contract.id === "messages");
   assert.ok(messages, "contracts/messages.js is listed in contracts/index.js");
   assert.equal((messages.writes || []).length, 0, "sending, reacting, editing and deleting need a connection: the messages contract queues nothing");
   // The only queued message is a project note (notes.js), and only when the body says it is one.
   const posts = loaded.FM.contracts.writes("POST", "/v1/channels/organizations/o1/channels/c1/messages");
   assert.equal(posts.map((found: Json) => `${found.contract.id}/${found.write.id}`).join(), "notes/note.post");
-  assert.equal(!!posts[0].write.when({ body: { text: "hello", client_msg_id: "c_1" } }), false, "an ordinary message is not a note");
+  assert.equal(!!(await posts[0].write.when({ body: { text: "hello", client_msg_id: "c_1" } })), false, "an ordinary message is not a note");
   for (const [method, target, route] of [
     ["PATCH", "/v1/channels/organizations/o1/messages/m1", "/v1/channels/organizations/:org/messages/:message"],
     ["DELETE", "/v1/channels/organizations/o1/messages/m1", "/v1/channels/organizations/:org/messages/:message"],
@@ -1243,7 +1243,7 @@ test("photo edits and the uploads of other apps answer offline as their routes w
   const queued = await d.FM.queue.list(d.identity);
   for (const entry of queued) {
     assert.ok(entry.label && entry.label.key && entry.label.title, `${entry.contract}/${entry.write} has a label`);
-    assert.match(entry.scope, /^(project|contact|media|attachment):/, `${entry.write} scope`);
+    assert.match(entry.scope, /^(project|contact|media|attachment|checklist):/, `${entry.write} scope`);
   }
   assert.equal(queued.length - before, 10);
 

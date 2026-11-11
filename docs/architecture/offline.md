@@ -772,8 +772,8 @@ is answered from the stored file) and a repeat replaces the same record:
   of a note is added to the project's photos by the server when the file arrives, not before.
 - **A picture the server would refuse** (a contact's picture that is not a JPEG, PNG, WebP or GIF under 10 MB)
   is not kept to be refused later.
-- **Checklist evidence is the file only.** Completing the item needs a connection (no contract yet), so an item
-  that requires a photo can have its photo taken offline and is completed when back online.
+- **Checklist evidence is queued in the checklist's scope**, so an item that requires a photo can have its photo
+  taken and be completed offline; the completion (`contracts/checklists.js`) is sent after the upload.
 - **The server** checks each device-made id (below, "Server"): an id that belongs to something else is refused
   (`media_id_taken`, `attachment_id_taken`), never overwritten.
 - These browser files and their server routes go out in one release. A page that names a note's attachment while
@@ -1487,14 +1487,13 @@ downloads.
   a bad rating without its note, a change to an item's settings, a sign-off while an item
   is open, and completing an item that asks for evidence the device does
   not see on it.
-- **The seam for item photos.** Evidence is an upload
-  (`POST .../items/:item/attachments`) and belongs with the other uploads.
-  A contract that queues it takes its scope from
-  `FMOffline.checklists.scopeOf(ctx, checklistId)`, names the item in
+- **Item photos and files.** Evidence is an upload
+  (`POST .../items/:item/attachments`) and is queued by `checklist.evidence`
+  in `contracts/media.js` (see "Uploads of other apps"). It takes its scope
+  from `FMOffline.checklists.scopeOf(ctx, checklistId)`, names the item in
   `records`, and adds the attachment to the item's `metadata.attachments`
-  in its effects with `FMOffline.checklists.withItem`. Completing the item
-  then passes the evidence check on the device and is sent after the
-  upload.
+  in its effects. Completing the item then passes the evidence check on
+  the device and is sent after the upload.
 - **The sign-off's time.** `signed_at` is when the server recorded it. The
   time on the device goes with it (`device_signed_at`, added in `prepare`)
   and is kept in the signature's evidence.
@@ -1730,8 +1729,7 @@ revision, as they are online). The times are those of the sync.
 - Schedule: recurring series and their occurrences; a waiting mark on an
   event in the schedule views (the tray lists it); the roster warnings and
   equipment checks of a waiting event.
-- Checklists: item photos and files (the seam is described under
-  "Checklists"), renaming or deleting a checklist, its settings and
+- Checklists: renaming or deleting a checklist, its settings and
   assignment, deleting an item.
 - A change feed for refreshing pinned projects without re-reading them
   ([backlog](../optimization-backlog.md#pinned-offline-projects-are-refreshed-by-reading-everything-again)).

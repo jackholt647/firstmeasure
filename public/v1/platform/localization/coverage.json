@@ -1,7 +1,7 @@
 {
-  "files": 313,
+  "files": 314,
   "namespaces": 119,
-  "messages": 17256,
+  "messages": 17298,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -678,7 +678,7 @@
     {
       "file": "public/libraries/apps/projects/map-view.js",
       "namespace": "projects",
-      "references": 38,
+      "references": 37,
       "candidates": 0,
       "edits": 0
     },
@@ -1642,6 +1642,13 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/platform-offline/contracts/checklists.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
       "file": "public/libraries/platform-offline/contracts/contacts.js",
       "namespace": "platform-offline",
       "references": 0,
@@ -1673,8 +1680,8 @@
       "file": "public/libraries/platform-offline/contracts/media.js",
       "namespace": "platform-offline",
       "references": 0,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 9,
+      "edits": 9
     },
     {
       "file": "public/libraries/platform-offline/contracts/messages.js",

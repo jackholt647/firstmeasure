@@ -20169,7 +20169,11 @@
     "no_organizations": "Choose at least one organization.",
     "sandbox_app_state": "An app's state is on, offered or off.",
     "checklist_exists": "This checklist already exists.",
-    "checklist_item_exists": "This checklist item already exists."
+    "checklist_item_exists": "This checklist item already exists.",
+    "invalid_attachment_id": "An attachment id is att_ and 16 to 64 lowercase letters, digits or hyphens.",
+    "invalid_media_id": "A media id is media_ and 16 hexadecimal digits.",
+    "upload_ids_required": "A device names both the attachment and its media, or neither.",
+    "attachment_id_taken": "This attachment id is already in use."
   },
   "notifications": {
     "document_greeting": {
@@ -21690,7 +21694,16 @@
     "m_2cf343aee670c7": "Schedule event",
     "m_9d2ab780aa1fbd": "Schedule change",
     "m_16fe02df6543be": "New to-do",
-    "m_bac89e96d4e3f8": "To-do change"
+    "m_bac89e96d4e3f8": "To-do change",
+    "m_1d8655e967c464": "Proposal",
+    "m_4c17910c74a05e": "Change Order",
+    "m_51ac44c5f2e0fc": "Roof Report",
+    "m_d7e9bec617183b": "Customer Report",
+    "m_f8f58e81f3e5f9": "Instant Report",
+    "m_e2f688300156b9": "Weather Report",
+    "m_ab3df34a8730df": "Receipt",
+    "m_db97f048cd99aa": "Required",
+    "m_9c9b98b1f4e8c9": "Document"
   },
   "camera-capture": {
     "waiting_upload": "Saved on this device. Uploads when you are back online."

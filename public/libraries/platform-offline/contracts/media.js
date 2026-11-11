@@ -563,12 +563,13 @@
         match: 'POST ' + WORKFORCE + '/crew/projects/:project/checklists/:checklist/items/:item/attachments',
         when: (ctx) => !!namedFile(ctx, 'media_id'),
         kind: 'upload',
-        scope: (ctx) => 'project:' + ctx.params.project,
+        // The checklist's own scope (contracts/checklists.js), so completing the item is sent after its photo.
+        scope: (ctx) => (FMOffline.checklists ? FMOffline.checklists.scopeOf(ctx, ctx.params.checklist) : 'project:' + ctx.params.project),
         label: (ctx) => {
           const found = namedFile(ctx, 'media_id');
           return evidenceOf(ctx, found).kind === 'photo' ? FMOffline.label('sync_checklist_photo', 'Checklist photo', text(found.file.name)) : FMOffline.label('sync_checklist_file', 'Checklist file', text(found.file.name));
         },
-        records: (ctx) => [namedFile(ctx, 'media_id').id],
+        records: (ctx) => [namedFile(ctx, 'media_id').id, ctx.params.item],
         media: (ctx) => { const found = namedFile(ctx, 'media_id'); return [{ id: found.id, field: found.field }]; },
         respond: async (ctx) => {
           const found = namedFile(ctx, 'media_id');

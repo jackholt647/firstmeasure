@@ -545,7 +545,7 @@ test('checklist evidence added without a connection is on its item at once and a
   eq([queued.data.ok, queued.data.item.id, queued.data.item.title, queued.data.item.metadata.required_attachments, queued.data.item.metadata.attachments], [true, 'item_1', 'Photograph the deck', [{ id: 'req_1', kind: 'photo' }], [{ ...queued.data.attachment, attached_by_user_id: 'user_1', attached_at: '2026-11-11T15:00:00.000Z' }]]);
   const pdf = await t.json('POST', `${CHECKLISTS}/cl_1/items/item_2/attachments`, { body: formOf({ media_id: 'media_6666666666666666' }, new File(['pdf'], 'permit.pdf', { type: 'application/pdf' })) });
   eq([pdf.data.attachment.kind, pdf.data.attachment.requirement_id], ['document', '']);
-  eq((await t.entries()).map((entry) => [entry.write, entry.kind, entry.scope, entry.records, entry.label.key]), [['checklist.evidence', 'upload', 'project:p1', ['media_5555555555555555'], 'sync_checklist_photo'], ['checklist.evidence', 'upload', 'project:p1', ['media_6666666666666666'], 'sync_checklist_file']]);
+  eq((await t.entries()).map((entry) => [entry.write, entry.kind, entry.scope, entry.records, entry.label.key]), [['checklist.evidence', 'upload', 'project:p1', ['media_5555555555555555', 'item_1'], 'sync_checklist_photo'], ['checklist.evidence', 'upload', 'project:p1', ['media_6666666666666666', 'item_2'], 'sync_checklist_file']]);
   // The checklist as any later load reads it; a photo is also one of the project's photos, as the route makes it.
   const shown = (await t.json('GET', CHECKLISTS)).data.checklists[0].items.map((item) => (item.metadata.attachments || []).map((attachment) => attachment.media_id));
   eq(shown, [['media_5555555555555555'], ['media_6666666666666666']]);
