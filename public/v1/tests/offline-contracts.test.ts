@@ -795,11 +795,16 @@ test("checklists: items checked, noted and added, a checklist added and signed o
 test("messages: nothing that sends is a contract, and recordings and payments are never kept", async () => {
   const messages = loaded.raw.find((contract) => contract.id === "messages");
   assert.ok(messages, "contracts/messages.js is listed in contracts/index.js");
-  assert.equal((messages.writes || []).length, 0, "sending, reacting, editing and deleting need a connection: the messages contract queues nothing");
-  // The only queued message is a project note (notes.js), and only when the body says it is one.
+  assert.equal((messages.writes || []).map((write: Json) => write.id).join(), "message.post", "only a plain message is queued; replying, reacting, editing and deleting need a connection");
+  // A post is a project note (notes.js) when the body says so, else a plain message; a reply or one with files is neither.
   const posts = loaded.FM.contracts.writes("POST", "/v1/channels/organizations/o1/channels/c1/messages");
-  assert.equal(posts.map((found: Json) => `${found.contract.id}/${found.write.id}`).join(), "notes/note.post");
-  assert.equal(!!(await posts[0].write.when({ body: { text: "hello", client_msg_id: "c_1" } })), false, "an ordinary message is not a note");
+  assert.equal(posts.map((found: Json) => `${found.contract.id}/${found.write.id}`).join(), "notes/note.post,messages/message.post");
+  const asked = (body: Json) => ({ body, params: { channel: "c1" } });
+  assert.equal(!!(await posts[0].write.when(asked({ text: "hello", client_msg_id: "c_1" }))), false, "an ordinary message is not a note");
+  assert.equal(!!posts[1].write.when(asked({ text: "hello", client_msg_id: "c_1", attachment_ids: [] })), true);
+  assert.equal(!!posts[1].write.when(asked({ text: "hello", client_msg_id: "c_1", project_note: true })), false, "a note is not a plain message");
+  assert.equal(!!posts[1].write.when(asked({ text: "hello", client_msg_id: "c_1", parent_id: "m1" })), false, "a reply is not queued");
+  assert.equal(!!posts[1].write.when(asked({ text: "hello", client_msg_id: "c_1", attachment_ids: ["att_1"] })), false, "a message with a file is not queued");
   for (const [method, target, route] of [
     ["PATCH", "/v1/channels/organizations/o1/messages/m1", "/v1/channels/organizations/:org/messages/:message"],
     ["DELETE", "/v1/channels/organizations/o1/messages/m1", "/v1/channels/organizations/:org/messages/:message"],
@@ -878,10 +883,19 @@ test("messages: a kept project and a start download what the apps read, and it a
   // What is not on the device fails as a read that got no answer (the apps say it is not saved here).
   await assert.rejects(d.ask("GET", `${channels}/channels/${general.id}/messages?before=1&limit=60`));
 
-  // Sending, reacting, editing and deleting are refused, never queued and never reported as done.
+  // A plain message is queued: answered as the route would, shown in its conversation, and marked as waiting.
+  const sentId = `c_${rid()}`;
+  const sent = await d.ask("POST", `${channels}/channels/${channel}/messages`, { text: "Sent without a connection", client_msg_id: sentId, mention_users: [], attachment_ids: [] });
+  assert.ok(sent.queued, "the message is queued");
+  assert.deepEqual([sent.data.ok, sent.data.message.id, sent.data.message.text, sent.data.message.channel_id, sent.data.deduplicated], [true, sentId, "Sent without a connection", channel, false]);
+  const shownOffline = await d.ask("GET", `${channels}/channels/${channel}/messages?limit=60`);
+  assert.equal(shownOffline.data.messages[shownOffline.data.messages.length - 1].id, sentId, "the newest page shows it last");
+  const sentEntry = (await d.FM.queue.list(d.identity)).find((entry: Json) => entry.write === "message.post");
+  assert.deepEqual([sentEntry.scope, sentEntry.records.join(), sentEntry.label.key], [`channel:${channel}`, sentId, "sync_message_new"]);
+
+  // Replying, reacting, editing and deleting are refused, never queued and never reported as done.
   const before = (await d.entries()).length;
   for (const [method, target, body] of [
-    ["POST", `${channels}/channels/${channel}/messages`, { text: "Sent offline?", client_msg_id: `c_${rid()}`, mention_users: [], attachment_ids: [] }],
     ["POST", `${channels}/channels/${channel}/messages`, { text: "A reply offline?", parent_id: root, client_msg_id: `c_${rid()}` }],
     ["PUT", `${channels}/messages/${root}/reactions`, { emoji: "+1", on: true }],
     ["PATCH", `${channels}/messages/${root}`, { text: "Edited offline?" }],
@@ -896,9 +910,18 @@ test("messages: a kept project and a start download what the apps read, and it a
   }
   assert.equal((await d.entries()).length, before, "nothing was queued");
 
-  // ---- the connection is back: the server never saw any of it ----
+  // ---- the connection is back: the queued message arrives once; the server never saw the refused ones ----
   d.net.down = false;
+  await d.FM.replay.run();
+  assert.equal((await d.FM.queue.list(d.identity)).some((entry: Json) => entry.write === "message.post"), false, "the message was sent");
   const after = await real("GET", `${channels}/channels/${channel}/messages?limit=60`);
+  const arrived = after.json.messages.filter((message: Json) => message.text === "Sent without a connection");
+  assert.equal(arrived.length, 1);
+  // The same message sent again (its first answer was lost) is the one the server already has.
+  const again = await real("POST", `${channels}/channels/${channel}/messages`, { text: "Sent without a connection", client_msg_id: sentId, mention_users: [], attachment_ids: [] });
+  assert.deepEqual([again.json.deduplicated, again.json.message.id], [true, arrived[0].id]);
+  // The answer the device made has the keys of the route's own.
+  assert.deepEqual(Object.keys(sent.data.message).filter((key) => !(key in again.json.message)), [], "no key the route does not answer with");
   assert.equal(after.json.messages.some((message: Json) => /offline\?/.test(String(message.text))), false);
   assert.equal(after.json.messages.find((message: Json) => message.id === root).text, "Message 64");
   await d.FM.pins.unpin(d.identity, project);

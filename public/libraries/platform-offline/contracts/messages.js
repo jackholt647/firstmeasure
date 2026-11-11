@@ -12,9 +12,11 @@
  *   - at start-up: the channel list, the directory, the message list of the top bar and the newest page of the
  *     channels a person is in. These are ordinary saved reads, within the saved-reads budget.
  *
- * There are no writes here on purpose. Sending a message, a text or an email, reacting, editing and deleting
- * need a connection: a message that arrives hours late, out of order with the answers to it, is worse than one
- * the person sends again. The apps say so and keep the text. (A project note is queued: contracts/notes.js.)
+ * One write: a plain channel message (text, no files, not a reply) written without a connection is queued,
+ * shown in its conversation marked as not sent, and sent when the connection returns; the server tells a repeat
+ * by the message's `client_msg_id`. Replies, messages with files or a voice note, a text or an email, reacting,
+ * editing and deleting need a connection: the apps say so and keep the text. (A project note is queued by
+ * contracts/notes.js.)
  *
  * Attachments are media files: kept as they are shown (thumbnails always, other variants up to the limit),
  * never downloaded ahead. Call recordings and voicemail audio are never kept on a device.
@@ -65,6 +67,38 @@
     ];
   }
 
+  const isObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+  const newestPage = (ctx, channel) => `${channels(ctx)}/channels/${enc(channel)}/messages?limit=${PAGE}`;
+
+  /** A message this device can keep: text the page wrote, with its own id; not a note, a reply, or one with files or a voice note. */
+  function plainMessage(ctx) {
+    const body = ctx.body;
+    return isObject(body) && body.project_note !== true && !!text(body.client_msg_id) && !!text(body.text) && !body.parent_id
+      && !list(body.attachment_ids).length && !(isObject(body.metadata) && body.metadata.audio_note)
+      && !text(ctx.params && ctx.params.channel).startsWith('chan_local_');
+  }
+
+  /** The message the post route answers with, as far as the device can know it. It cannot be edited until it is sent. */
+  async function madeMessage(ctx) {
+    const body = ctx.body, channel = ctx.params.channel;
+    const at = new Date(ctx.now).toISOString();
+    const me = (await ctx.saved('/v1/platform/me')) || {};
+    const page = (await ctx.saved(newestPage(ctx, channel))) || {};
+    const last = list(page.messages).reduce((most, message) => Math.max(most, Number(message && message.seq) || 0), 0);
+    return {
+      id: text(body.client_msg_id), channel_id: channel, seq: last + 1, parent_id: null, kind: 'message',
+      author: { id: ctx.user, name: text(me.user && me.user.name) || text(me.identity && me.identity.name), email: text(me.identity && me.identity.email) || text(me.user && me.user.email), avatar: text(me.user && me.user.avatar) },
+      created_at: at, edited_at: null, deleted_at: null, deleted_by: null, deleted_by_user: null,
+      pinned_at: null, reply_count: 0, last_reply_at: null,
+      audience: list(body.audience), tags: list(body.tags),
+      can_edit: false, can_delete: false, can_restore: false, is_saved: false,
+      language_code: 'und', language_confidence: 0, translation: { available: false },
+      text: text(body.text), mention_users: list(body.mention_users),
+      metadata: Object.assign({ mention_broadcasts: [] }, isObject(body.metadata) ? body.metadata : {}),
+      reactions: [], attachments: [], reply_participants: [], thread_muted: false
+    };
+  }
+
   /** The channels a person is in, newest message first. */
   function mine(json) {
     return list(json && json.channels)
@@ -74,6 +108,25 @@
 
   FMOffline.contracts.add({
     id: 'messages',
+    writes: [
+      {
+        id: 'message.post',
+        match: 'POST /v1/channels/organizations/:org/channels/:channel/messages',
+        when: plainMessage,
+        // Nothing that is queued depends on a message, so one the server refuses holds nothing else back.
+        kind: 'action',
+        scope: (ctx) => 'channel:' + ctx.params.channel,
+        records: (ctx) => [text(ctx.body.client_msg_id)],
+        label: (ctx) => FMOffline.label('sync_message_new', 'Message', text(ctx.body.text).slice(0, 80)),
+        respond: async (ctx) => ({ ok: true, message: await madeMessage(ctx), deduplicated: false }),
+        // The newest page of the conversation, however it is asked for (a `before` page holds older messages only).
+        effects: (ctx) => [{
+          match: 'GET /v1/channels/organizations/:org/channels/:channel/messages',
+          when: (m, read) => m.channel === ctx.params.channel && !read.query.before && text(read.query.view) !== 'notes',
+          apply: (json) => (json && Array.isArray(json.messages) ? Object.assign({}, json, { messages: [...json.messages.filter((item) => item && item.id !== ctx.response.message.id), ctx.response.message] }) : json)
+        }]
+      }
+    ],
     deny: [
       // Call recordings, voicemail audio and transcripts: never kept on a device, never answered from one.
       '/v1/comms/organizations/:org/calls/:call/artifacts',

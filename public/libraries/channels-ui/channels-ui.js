@@ -1599,7 +1599,13 @@
     const panel = el('div', 'fm-ch-panel');
     panel.style.display = 'none';
 
-    listWrap.append(list, typingBar, composer);
+    // Offline (docs/architecture/offline.md, "Messages"): one line above the composer while there is no connection.
+    const offlineBar = el('div', 'fm-ch-offline-bar');
+    offlineBar.setAttribute('role', 'status');
+    offlineBar.hidden = true;
+    offlineBar.style.cssText = 'padding:4px 16px;font-size:12px;line-height:1.4;color:#b54708;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+    offlineBar.innerHTML = `<i class="fas fa-cloud-arrow-up" aria-hidden="true" style="margin-right:6px"></i>${esc((globalThis.PlatformLanguage?.text?.("shared","offline_messages_send_later","You're offline. Messages will send when you reconnect.") ?? "You're offline. Messages will send when you reconnect."))}`;
+    listWrap.append(list, typingBar, offlineBar, composer);
     bodyWrap.append(listWrap, panel);
     main.append(header);
     if (options.tabsTarget instanceof HTMLElement) options.tabsTarget.append(tabsBar); else main.append(tabsBar);
@@ -1782,6 +1788,24 @@
         return false;
       }
     }
+
+    const offlineApi = () => root.PlatformOffline || null;
+    const paintOfflineBar = () => { let online = true; try { online = offlineApi()?.state?.()?.online !== false; } catch (_) {} offlineBar.hidden = online; };
+    let offlineRefreshTimer = 0;
+    const stopOfflineWatch = [];
+    try {
+      const watch = offlineApi()?.on;
+      if (watch) {
+        stopOfflineWatch.push(watch('state', paintOfflineBar));
+        // A message written without a connection reached the server: the list is read again and shows the server's.
+        stopOfflineWatch.push(watch('synced', (change) => {
+          if (change?.contract !== 'messages' || state.destroyed) return;
+          clearTimeout(offlineRefreshTimer);
+          offlineRefreshTimer = setTimeout(() => { void refreshActiveMessages(); }, 600);
+        }));
+      }
+      Promise.resolve(offlineApi()?.ready).then(paintOfflineBar).catch(() => {});
+    } catch (_) {}
 
     async function refreshActiveMessages(){
       if (!state.activeChannelId || state.view !== 'channel') return;
@@ -4070,6 +4094,13 @@
       const edited = head.querySelector('.fm-ch-msg-edited');
       if (edited) body.append(edited);
       content.append(head, body);
+      // Written without a connection and still on this device.
+      let waitingToSend = false; try { waitingToSend = !!root.PlatformOffline?.isPending?.(message.id); } catch (_) {}
+      if (waitingToSend) {
+        const waiting = el('div', 'fm-ch-msg-waiting', `<i class="fas fa-clock" aria-hidden="true"></i> ${esc((globalThis.PlatformLanguage?.text?.("shared","offline_message_not_sent","Not sent · waiting for connection") ?? "Not sent · waiting for connection"))}`);
+        waiting.style.cssText = 'margin-top:2px;font-size:11.5px;color:#b54708';
+        content.append(waiting);
+      }
       const gifCard=gifMessageCard(message.metadata?.giphy || message.metadata?.forwarded?.giphy);
       if(gifCard)content.append(gifCard);
       if (!message.text) body.hidden = true;
@@ -6210,9 +6241,9 @@
 
     // --- errors -----------------------------------------------------------------------------
 
-    /** A send that got no answer: nothing is queued (sending needs a connection) and the text stays in the box. */
+    /** A send that got no answer and is not queued (a reply, or one with files): the text stays in the box. */
     function sendFailure(error){
-      return api.unreachable?.(error) ? Object.assign(new Error((globalThis.PlatformLanguage?.text?.("shared","offline_send_needs_connection","Sending needs a connection. Your message is still here; send it when you are back online.") ?? "Sending needs a connection. Your message is still here; send it when you are back online.")), { offline:true }) : error;
+      return api.unreachable?.(error) ? Object.assign(new Error((globalThis.PlatformLanguage?.text?.("shared","offline_message_needs_connection","Not sent. Replies and attachments need a connection.") ?? "Not sent. Replies and attachments need a connection.")), { offline:true }) : error;
     }
 
     function showError(error){
@@ -6324,6 +6355,8 @@
         if (state.huddle?.id) api.huddles.leave(orgId, state.huddle.id).catch(() => {});
         removeHuddleRouteHandler?.();
         state.destroyed = true;
+        clearTimeout(offlineRefreshTimer);
+        stopOfflineWatch.forEach((stop) => { try { stop?.(); } catch (_) {} });
         if(state.huddle?.id) (isHuddleAdmin()?api.huddles.end(orgId,state.huddle.id):api.huddles.leave(orgId,state.huddle.id)).catch(()=>{});
         if(!state.huddleRecording && !state.huddleRecordingUploads)root.removeEventListener("beforeunload",protectRecording);
         mobileMedia?.removeEventListener?.('change', onMobileMediaChange);
