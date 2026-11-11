@@ -4360,3 +4360,18 @@ test('orange is load-bearing: corners that meet within microns count, and a stic
  // With the region deleted the wall has a real hole, and its rim is load-bearing.
  const hole=W.loadBearingIndex([around,side]);assert.equal(hole.point(p(1,0,1)),true);assert.equal(hole.edge(p(1,0,1),p(2,0,1)),true);
 });
+test('markers stacked within a few millimetres show one colour: orange if any of them holds a face, on walls and base alike',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ const front={id:'front',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(0,0,3)],holes:[]},baseFace={points:[p(0,0,0),p(4,0,0),p(4,3,0),p(0,3,0)],holes:[]};
+ const index=W.loadBearingIndex([front,baseFace]);
+ // Edits leave twins of a corner 1 to 8 mm away. They are picked with it, so they are drawn like it.
+ for(const d of [0,.0014,.0028,.008])assert.equal(index.marker(p(4+d,0,0)),true,'twin '+d+' m from the corner');
+ assert.equal(index.point(p(4.0028,0,0)),false,'the exact test still tells the twin from the corner');
+ assert.equal(index.marker(p(2,0,0)),false,'a point straight along the wall foot and the base edge is safe');assert.equal(index.marker(p(3.97,0,0)),false,'3 cm from the corner is a point of its own');
+ // A base corner under no wall, and a wall corner over no base, are both load-bearing in the one index.
+ assert.equal(index.marker(p(0,3,0)),true);assert.equal(index.marker(p(0,0,3)),true);
+ // Drawn through the editor: a loose point 2 mm from a wall corner is orange, one in the open is blue.
+ const state={wallEdits:{$surfaces:[front],$loose:{points:[p(4.002,0,3),p(2,0,1.5)],edges:[]}}},f=fixture({state,walls:[],selected:null,globals:renderGlobals()});
+ const drawn=[];f.editor.draw3D({add:o=>drawn.push(o)},q=>q);const colourAt=q=>drawn.filter(o=>o.material?.size===8&&Math.hypot(o.geometry.points[0].x-q.x,o.geometry.points[0].z-q.z)<1e-6).map(o=>o.material.color);
+ assert.deepEqual(colourAt(p(4.002,0,3)),['#e7ad52']);assert.deepEqual(colourAt(p(2,0,1.5)),['#6ce4ed']);
+});

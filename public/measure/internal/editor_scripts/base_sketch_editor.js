@@ -169,9 +169,9 @@ window.createBaseSketchEditor=function(host){
  // The same rule as the walls (WallSolidGeometry.loadBearingIndex): gold is a corner or line of the outline of
  // the base once faces in one plane are taken together, so a fold between two planes is gold and a line that
  // only divides one plane is cyan.
- function bearingIndex(){const W=window.WallSolidGeometry;try{return W?.loadBearingIndex?W.loadBearingIndex(current().faces.map(f=>({points:f.points,holes:f.holes||[]}))):null;}catch(e){return null;}}
+ function bearingIndex(){const W=window.WallSolidGeometry;try{return W?.loadBearingIndex?W.loadBearingIndex([...current().faces.map(f=>({points:f.points,holes:f.holes||[]})),...(window.ExteriorLoadBearing?.walls?.()||[])]):null;}catch(e){return null;}}
  function bearingEdge(index,e){const a=e.start||node(e.a),b=e.end||node(e.b);return index&&!e.curveId&&a&&b?index.edge(a,b):!!e.fixed;}
- function bearingPoints(index=bearingIndex()){const s=sketch(),edges=new Map();if(index)return new Set(s.nodes.filter(n=>index.point(n)||n.fixed&&s.edges.some(e=>e.curveId&&(e.a===n.id||e.b===n.id))).map(n=>n.id));for(const e of s.edges)for(const id of [e.a,e.b])edges.set(id,[...(edges.get(id)||[]),e]);
+ function bearingPoints(index=bearingIndex()){const s=sketch(),edges=new Map();if(index)return new Set(s.nodes.filter(n=>index.marker(n)||n.fixed&&s.edges.some(e=>e.curveId&&(e.a===n.id||e.b===n.id))).map(n=>n.id));for(const e of s.edges)for(const id of [e.a,e.b])edges.set(id,[...(edges.get(id)||[]),e]);
   return new Set(s.nodes.filter(n=>{if(!n.fixed)return false;const own=edges.get(n.id)||[];if(own.length!==2||own.some(e=>e.curveId))return true;const [a,b]=own.map(e=>node(e.a===n.id?e.b:e.a));if(!a||!b)return true;
    const u={x:a.x-n.x,y:a.y-n.y,z:a.z-n.z},v={x:b.x-n.x,y:b.y-n.y,z:b.z-n.z},c={x:u.y*v.z-u.z*v.y,y:u.z*v.x-u.x*v.z,z:u.x*v.y-u.y*v.x};
    return u.x*v.x+u.y*v.y+u.z*v.z>=0||Math.hypot(c.x,c.y,c.z)>1e-6*Math.max(1,Math.hypot(u.x,u.y,u.z)*Math.hypot(v.x,v.y,v.z));}).map(n=>n.id));}

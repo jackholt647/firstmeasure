@@ -1271,7 +1271,9 @@ function structuralIndex(faces){
 // outline, because without that outline it is no longer that thing.
 function loadBearingFaces(faces){
  const live=faces.filter(f=>!f.deleted&&!f.drafted),own=f=>!!(f.feature||f.trim||f.chimney||f.curvedSurface||f.curves?.length),result=live.filter(own),groups=[];
- for(const f of live.filter(f=>!own(f)).flatMap(f=>K.normalizeFaces(f))){
+ // A face the kernel cannot normalise (a base face a hair off its plane) still has an outline.
+ const whole=f=>{try{return K.normalizeFaces(f);}catch(e){return [f];}};
+ for(const f of live.filter(f=>!own(f)).flatMap(whole)){
   const n=normal(f.points);if(!n){result.push(f);continue;}
   const kind=JSON.stringify([f.material??null,f.finishColor??null]);
   const group=groups.find(g=>g.kind===kind&&Math.abs(dot(g.n,n))>.99999&&rings(f).every(r=>r.every(p=>Math.abs(dot(sub(p,g.origin),g.n))<=LOAD_CONTACT)));
@@ -1289,14 +1291,22 @@ function loadBearingFaces(faces){
 // Surveyed, moved and re-soffited geometry meets within tens of microns, not
 // exactly. A marker that near a corner is that corner.
 const LOAD_CONTACT=1e-4;
+// Edits leave points a few millimetres apart that look like one point and are
+// picked together. A marker is drawn for what the hand can reach: within this
+// distance of a load-bearing corner it is orange, so blue stays safe to delete.
+const MARKER_REACH=.01;
 function loadBearingIndex(faces){
- const cells=new Map(),cell=v=>Math.floor(v/LOAD_CONTACT),segments=[],edgeCache=new Map(),pointCache=new Map();
+ const cells=new Map(),cell=v=>Math.floor(v/LOAD_CONTACT),segments=[],edgeCache=new Map(),pointCache=new Map(),near=new Map(),reach=v=>Math.floor(v/MARKER_REACH),markerCache=new Map();
  for(const f of loadBearingFaces(faces))for(const r of rings(f))for(let i=0;i<r.length;i++){
   const p=r[i],q=r[(i+1)%r.length],a=sub(r[(i+r.length-1)%r.length],p),b=sub(q,p),c=cross(a,b);
-  if(dot(a,b)>=0||Math.hypot(c.x,c.y,c.z)>1e-6*Math.max(1,Math.hypot(a.x,a.y,a.z)*Math.hypot(b.x,b.y,b.z))){const key=cell(p.x)+','+cell(p.y)+','+cell(p.z);if(!cells.has(key))cells.set(key,[]);cells.get(key).push(p);}
+  if(dot(a,b)>=0||Math.hypot(c.x,c.y,c.z)>1e-6*Math.max(1,Math.hypot(a.x,a.y,a.z)*Math.hypot(b.x,b.y,b.z))){const key=cell(p.x)+','+cell(p.y)+','+cell(p.z);if(!cells.has(key))cells.set(key,[]);cells.get(key).push(p);const wide=reach(p.x)+','+reach(p.y)+','+reach(p.z);if(!near.has(wide))near.set(wide,[]);near.get(wide).push(p);}
   segments.push({c:p,d:q,minX:Math.min(p.x,q.x),maxX:Math.max(p.x,q.x),minY:Math.min(p.y,q.y),maxY:Math.max(p.y,q.y),minZ:Math.min(p.z,q.z),maxZ:Math.max(p.z,q.z)});
  }
- return {point:p=>{
+ return {marker:p=>{
+  const key=vertexKey(p);if(markerCache.has(key))return markerCache.get(key);let yes=false;const x=reach(p.x),y=reach(p.y),z=reach(p.z);
+  for(let i=-1;i<=1&&!yes;i++)for(let j=-1;j<=1&&!yes;j++)for(let k=-1;k<=1&&!yes;k++)yes=(near.get((x+i)+','+(y+j)+','+(z+k))||[]).some(q=>Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<=MARKER_REACH);
+  markerCache.set(key,yes);return yes;
+ },point:p=>{
   const key=vertexKey(p);if(pointCache.has(key))return pointCache.get(key);let yes=false;const x=cell(p.x),y=cell(p.y),z=cell(p.z);
   for(let i=-1;i<=1&&!yes;i++)for(let j=-1;j<=1&&!yes;j++)for(let k=-1;k<=1&&!yes;k++)yes=(cells.get((x+i)+','+(y+j)+','+(z+k))||[]).some(q=>Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<=LOAD_CONTACT);
   pointCache.set(key,yes);return yes;
