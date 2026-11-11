@@ -67,7 +67,7 @@
     versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
     versionedBundle('../proposals-api/proposals-api.js', '20261019-forward-cert'),
     versionedBundle('payroll/my-pay.js', '20261019-people-gaps-v1'),
-    versionedBundle('crew/app.js', '20261101-prod-sync')
+    versionedBundle('crew/app.js', '20261111-offline-checklists')
   ];
   const crewSignatureBundles = [...fieldApprovalBundles];
   const salesBundles = [
@@ -303,7 +303,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261111-offline'), versionedBundle('project-request/app.js', '20261111-fm371-phone-short-labels')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261111-offline'), versionedBundle('project-request/app.js', '20261110-fm382-schedule-offer')]
     },
     {
       id: 'firstmeasure.order',
@@ -376,7 +376,7 @@
       requiresContext: ['project'],
       bundles: [
         versionedBundle('../crew-api/crew-api.js', '20261101-prod-sync'),
-        versionedBundle('checklists/app.js', '20261101-prod-sync')
+        versionedBundle('checklists/app.js', '20261111-offline-checklists')
       ]
     },
     {
