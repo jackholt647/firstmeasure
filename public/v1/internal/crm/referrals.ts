@@ -7,6 +7,7 @@ import { badRequest, notFound } from "../../platform/errors.js";
 import { listOrganizations, patchOrganization, readGlobal, readOrganization } from "../../platform/storage.js";
 const asObject = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 import { isFirstMeasurePostgresEnabled, queryPostgres } from "../../src/database/postgres.js";
+import type { ZipStream } from "./zip-stream.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -411,34 +412,16 @@ export async function acquisitionCampaignReport(input: JsonObject) {
 
   const daily = buildDailyTrend(range, viewsInRange, signupsInRange, orgSpend.ledger, timezoneOffsetMinutes);
   const hourly = buildHourlyTrend(viewsInRange, signupsInRange, orgSpend.ledger, timezoneOffsetMinutes);
-  const sources = breakdown(attributionRows.filter((entry) => inRange(String(entry.created_at ?? ""), range)), acquisitionSourceLabel);
-  const landingPages = breakdown(attributionRows.filter((entry) => inRange(String(entry.created_at ?? ""), range)), (entry) => String(asObject(entry.metadata).landing_page || asObject(entry.metadata).landing_page_path || entry.landing_variant || "unknown"));
-  const browsers = breakdown(attributionRows.filter((entry) => inRange(String(entry.created_at ?? ""), range)), (entry) => browserFamily(String(asObject(entry.metadata).browser_user_agent || asObject(entry.metadata).user_agent || "")));
-  const countries = breakdown(attributionRows.filter((entry) => inRange(String(entry.created_at ?? ""), range)), (entry) => String(asObject(entry.metadata).cf_ipcountry || asObject(entry.metadata).x_vercel_ip_country || asObject(entry.metadata).x_appengine_country || "unknown"));
-  const cities = breakdown(attributionRows.filter((entry) => inRange(String(entry.created_at ?? ""), range)), (entry) => String(asObject(entry.metadata).x_vercel_ip_city || asObject(entry.metadata).cf_city || asObject(entry.metadata).x_appengine_city || "unknown"));
-  const devices = breakdown(attributionRows.filter((entry) => inRange(String(entry.created_at ?? ""), range)), (entry) => deviceClass(asObject(entry.metadata)));
-  const timezones = breakdown(attributionRows.filter((entry) => inRange(String(entry.created_at ?? ""), range)), (entry) => String(asObject(entry.metadata).timezone || asObject(entry.metadata).cf_timezone || "unknown"));
-  const languages = breakdown(attributionRows.filter((entry) => inRange(String(entry.created_at ?? ""), range)), (entry) => String(asObject(entry.metadata).browser_language || asObject(entry.metadata).accept_language || "unknown").split(",")[0] || "unknown");
+  const sources = breakdown(viewsInRange, ACQUISITION_DIMENSIONS.sources);
+  const landingPages = breakdown(viewsInRange, ACQUISITION_DIMENSIONS.landing_pages);
+  const browsers = breakdown(viewsInRange, ACQUISITION_DIMENSIONS.browsers);
+  const countries = breakdown(viewsInRange, ACQUISITION_DIMENSIONS.countries);
+  const cities = breakdown(viewsInRange, ACQUISITION_DIMENSIONS.cities);
+  const devices = breakdown(viewsInRange, ACQUISITION_DIMENSIONS.devices);
+  const timezones = breakdown(viewsInRange, ACQUISITION_DIMENSIONS.timezones);
+  const languages = breakdown(viewsInRange, ACQUISITION_DIMENSIONS.languages);
   const bonusOffers = bonusOfferBreakdown(campaignRows, viewsInRange, signupsInRange, spendByOrg);
-  const campaignBreakdown = campaignRows.map((campaign) => {
-    const id = String(campaign.id ?? "");
-    const campaignViews = viewsInRange.filter((entry) => String(entry.partner_id ?? "") === id);
-    const viewCount = campaignViews.length;
-    const uniqueVisitors = uniqueVisitorCountForRows(campaignViews);
-    const signupRows = signupsInRange.filter((entry) => String(entry.partner_id ?? "") === id);
-    const spend = signupRows.reduce((sum, entry) => sum + Number(spendByOrg.get(String(entry.referred_org_id ?? ""))?.spend ?? 0), 0);
-    return {
-      id,
-      name: String(campaign.display_name ?? ""),
-      code: String(asObject(campaign.primary_code).code ?? ""),
-      landing_page: String(asObject(campaign.metadata).landing_page || asObject(asObject(campaign.primary_code).metadata).landing_page || ""),
-      views: viewCount,
-      unique_visitors: uniqueVisitors,
-      signups: signupRows.length,
-      spend,
-      conversion_rate: uniqueVisitors ? signupRows.length / uniqueVisitors : 0
-    };
-  }).sort((a, b) => b.spend - a.spend || b.signups - a.signups || b.views - a.views);
+  const campaignBreakdown = campaignReportStats(campaignRows, viewsInRange, signupsInRange, spendByOrg);
   const campaignBreakdownById = new Map(campaignBreakdown.map((entry) => [entry.id, entry]));
   const reportCampaignRows = campaignRows.map((campaign) => {
     const stats = campaignBreakdownById.get(String(campaign.id ?? ""));
@@ -519,6 +502,214 @@ export async function acquisitionCampaignReport(input: JsonObject) {
       spend_ledger: orgSpend.ledger.slice(-5000).reverse()
     }
   };
+}
+
+/** How the report breaks views down; the export uses the same labels. */
+const ACQUISITION_DIMENSIONS = {
+  sources: acquisitionSourceLabel,
+  landing_pages: (entry: JsonObject) => String(asObject(entry.metadata).landing_page || asObject(entry.metadata).landing_page_path || entry.landing_variant || "unknown"),
+  browsers: (entry: JsonObject) => browserFamily(String(asObject(entry.metadata).browser_user_agent || asObject(entry.metadata).user_agent || "")),
+  countries: (entry: JsonObject) => String(asObject(entry.metadata).cf_ipcountry || asObject(entry.metadata).x_vercel_ip_country || asObject(entry.metadata).x_appengine_country || "unknown"),
+  cities: (entry: JsonObject) => String(asObject(entry.metadata).x_vercel_ip_city || asObject(entry.metadata).cf_city || asObject(entry.metadata).x_appengine_city || "unknown"),
+  devices: (entry: JsonObject) => deviceClass(asObject(entry.metadata)),
+  timezones: (entry: JsonObject) => String(asObject(entry.metadata).timezone || asObject(entry.metadata).cf_timezone || "unknown"),
+  languages: (entry: JsonObject) => String(asObject(entry.metadata).browser_language || asObject(entry.metadata).accept_language || "unknown").split(",")[0] || "unknown"
+} satisfies Record<string, (entry: JsonObject) => string>;
+
+function campaignReportStats(campaignRows: JsonObject[], views: JsonObject[], signups: JsonObject[], spendByOrg: Map<unknown, JsonObject>) {
+  return campaignRows.map((campaign) => {
+    const id = String(campaign.id ?? "");
+    const campaignViews = views.filter((entry) => String(entry.partner_id ?? "") === id);
+    const viewCount = campaignViews.length;
+    const uniqueVisitors = uniqueVisitorCountForRows(campaignViews);
+    const signupRows = signups.filter((entry) => String(entry.partner_id ?? "") === id);
+    const spend = signupRows.reduce((sum, entry) => sum + Number(spendByOrg.get(String(entry.referred_org_id ?? ""))?.spend ?? 0), 0);
+    return {
+      id,
+      name: String(campaign.display_name ?? ""),
+      code: String(asObject(campaign.primary_code).code ?? ""),
+      landing_page: String(asObject(campaign.metadata).landing_page || asObject(asObject(campaign.primary_code).metadata).landing_page || ""),
+      views: viewCount,
+      unique_visitors: uniqueVisitors,
+      signups: signupRows.length,
+      spend,
+      conversion_rate: uniqueVisitors ? signupRows.length / uniqueVisitors : 0
+    };
+  }).sort((a, b) => b.spend - a.spend || b.signups - a.signups || b.views - a.views);
+}
+
+const EXPORT_PAGE_ROWS = 250;
+// Each CSV in the export is split into parts below this size, so no zip entry needs ZIP64.
+const EXPORT_PART_BYTES = 1024 ** 3;
+const EXPORT_ATTRIBUTION_COLUMNS = Object.keys(rawAttributionRow({}));
+const EXPORT_SIGNUP_COLUMNS = [...EXPORT_ATTRIBUTION_COLUMNS.filter((key) => key !== "metadata"), "spend", "orders", "metadata"];
+const EXPORT_EVENT_COLUMNS = Object.keys(rawEventRow({}));
+
+/**
+ * Every acquisition campaign's data since its first view, as one zip of CSVs (Customers > Export
+ * Acquisition Data): the Campaigns tab's datasets for all campaigns and all time, without its
+ * 5,000-row caps. Rows are read a page at a time and streamed, so memory holds only a small summary
+ * of each view (for the totals) whatever the table size, and other requests run between pages.
+ */
+export async function writeAcquisitionExport(input: JsonObject, zip: ZipStream) {
+  const timezoneOffsetMinutes = normalizeTimezoneOffset(input.timezone_offset_minutes ?? input.timezone_offset ?? input.tz_offset);
+  const now = new Date();
+  const campaignRows = listAcquisitionCampaigns();
+  const orgIds = acquisitionRows(`
+    SELECT DISTINCT ra.referred_org_id FROM referral_attributions ra
+    JOIN referral_partners rp ON rp.id = ra.partner_id
+    WHERE rp.type = 'acquisition_campaign' AND ra.status = 'signup_completed' AND ra.referred_org_id != ''
+  `).map((entry) => String(entry.referred_org_id));
+  const orgSpend = await spendForOrganizations(orgIds, { start: new Date(0), end: now });
+  const spendByOrg = new Map(orgSpend.organizations.map((entry) => [entry.org_id, entry]));
+
+  const views: JsonObject[] = [];
+  const attributions = await exportCsv(zip, "attributions", EXPORT_ATTRIBUTION_COLUMNS);
+  for await (const page of acquisitionExportPages("attributions")) {
+    for (const entry of page) views.push(acquisitionSummaryRow(entry));
+    await attributions.rows(page.map(rawAttributionRow));
+  }
+  await attributions.close();
+
+  const signupFile = await exportCsv(zip, "signups", EXPORT_SIGNUP_COLUMNS);
+  for await (const page of acquisitionExportPages("attributions", "AND ra.status = 'signup_completed'")) {
+    await signupFile.rows(page.map((entry) => rawSignupRow(entry, spendByOrg)));
+  }
+  await signupFile.close();
+
+  const events = await exportCsv(zip, "events", EXPORT_EVENT_COLUMNS);
+  for await (const page of acquisitionExportPages("events")) await events.rows(page.map(rawEventRow));
+  await events.close();
+
+  await exportRows(zip, "spend_ledger", orgSpend.ledger, ["org_id", "ts", "amount", "reason"]);
+
+  const signups = views.filter((entry) => String(entry.status ?? "") === "signup_completed");
+  const times = [
+    ...views.map((entry) => Date.parse(String(entry.created_at ?? ""))),
+    ...signups.map((entry) => Date.parse(String(entry.signup_completed_at || entry.updated_at || entry.created_at || ""))),
+    ...orgSpend.ledger.map((entry) => Date.parse(String(entry.ts ?? "")))
+  ].filter(Number.isFinite);
+  const range = { start: new Date(times.length ? times.reduce((min, time) => Math.min(min, time)) : now.getTime()), end: now };
+  const stats = new Map(campaignReportStats(campaignRows, views, signups, spendByOrg).map((entry) => [entry.id, entry]));
+  await exportRows(zip, "campaigns", campaignRows.map((campaign) => {
+    const { metadata, ...fields } = rawCampaignRow(campaign);
+    const totals = stats.get(fields.id);
+    return {
+      ...fields,
+      views: totals?.views ?? 0,
+      unique_visitors: totals?.unique_visitors ?? 0,
+      signups: totals?.signups ?? 0,
+      spend: totals?.spend ?? 0,
+      conversion_rate: totals?.conversion_rate ?? 0,
+      metadata
+    };
+  }));
+  await exportRows(zip, "daily", buildDailyTrend(range, views, signups, orgSpend.ledger, timezoneOffsetMinutes));
+  await exportRows(zip, "hourly", buildHourlyTrend(views, signups, orgSpend.ledger, timezoneOffsetMinutes));
+  const breakdowns: JsonObject[] = [];
+  for (const dimension of Object.keys(ACQUISITION_DIMENSIONS)) {
+    for (const entry of breakdown(views, (view) => String(asObject(view.labels)[dimension] ?? ""))) breakdowns.push({ dimension, ...entry });
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  await exportRows(zip, "breakdowns", breakdowns);
+  await exportRows(zip, "bonus_offers", bonusOfferBreakdown(campaignRows, views, signups, spendByOrg));
+  await zip.finish();
+}
+
+/** What the totals need of a view, small enough to keep one per row of a large table. */
+function acquisitionSummaryRow(entry: JsonObject): JsonObject {
+  const metadata = asObject(entry.metadata);
+  const bonus: JsonObject = {};
+  for (const key of ["acquisition_bonus_token", "acquisition_bonus_set_id", "acquisition_bonus_label", "campaign_id"]) {
+    if (metadata[key] != null && metadata[key] !== "") bonus[key] = String(metadata[key]);
+  }
+  return {
+    id: String(entry.id ?? ""),
+    partner_id: String(entry.partner_id ?? ""),
+    campaign_name: String(entry.campaign_name ?? ""),
+    referred_org_id: String(entry.referred_org_id ?? ""),
+    status: String(entry.status ?? ""),
+    created_at: String(entry.created_at ?? ""),
+    updated_at: String(entry.updated_at ?? ""),
+    signup_completed_at: String(entry.signup_completed_at ?? ""),
+    visitor_key: uniqueViewKey(entry),
+    labels: Object.fromEntries(Object.entries(ACQUISITION_DIMENSIONS).map(([dimension, label]) => [dimension, label(entry)])),
+    metadata: bonus
+  };
+}
+
+const EXPORT_PAGE_SQL = {
+  attributions: `
+    SELECT ra.rowid AS export_rowid, ra.id, ra.partner_id, ra.code_id, ra.referral_code, ra.referred_org_id, ra.referred_email,
+      ra.status, ra.source, ra.metadata_json, ra.signup_completed_at, ra.created_at, ra.updated_at,
+      rp.display_name AS campaign_name, rc.campaign_type, rc.landing_variant
+    FROM referral_attributions ra
+    JOIN referral_partners rp ON rp.id = ra.partner_id AND rp.type = 'acquisition_campaign'
+    LEFT JOIN referral_codes rc ON rc.id = ra.code_id
+    WHERE ra.rowid > :after`,
+  events: `
+    SELECT re.rowid AS export_rowid, re.*, rp.display_name AS campaign_name
+    FROM referral_events re
+    JOIN referral_partners rp ON rp.id = re.partner_id AND rp.type = 'acquisition_campaign'
+    WHERE re.rowid > :after`
+};
+
+/** Pages through a table in the order rows were written, one short read per page so writers are never held up. */
+async function* acquisitionExportPages(table: keyof typeof EXPORT_PAGE_SQL, filter = "") {
+  const order = table === "attributions" ? "ra.rowid" : "re.rowid";
+  const sql = `${EXPORT_PAGE_SQL[table]} ${filter} ORDER BY ${order} LIMIT ${EXPORT_PAGE_ROWS}`;
+  let after = 0;
+  for (;;) {
+    const page = acquisitionRows(sql, { after });
+    if (!page.length) return;
+    after = Number(page[page.length - 1]?.export_rowid);
+    yield page;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+}
+
+/** Like `rows`, but a failed read fails the export instead of leaving a file short. */
+function acquisitionRows(sql: string, params: JsonObject = {}) {
+  return withReferralDb((db) => db.prepare(sql).all(sqliteParams(sql, params) as any).map((entry) => normalizeRow(entry as JsonObject)));
+}
+
+async function exportCsv(zip: ZipStream, name: string, columns: string[]) {
+  const header = columns.map(exportCsvCell).join(",") + "\r\n";
+  let part = 1;
+  let file = await zip.entry(`${name}.csv`);
+  await file.write(header);
+  return {
+    async rows(list: JsonObject[]) {
+      if (!list.length) return;
+      if (file.bytes() >= EXPORT_PART_BYTES) {
+        await file.close();
+        part += 1;
+        file = await zip.entry(`${name}-part-${part}.csv`);
+        await file.write(header);
+      }
+      await file.write(list.map((entry) => columns.map((column) => exportCsvCell(entry[column])).join(",") + "\r\n").join(""));
+    },
+    close: () => file.close()
+  };
+}
+
+/** Writes rows whose columns are whatever keys they have, `first` leading and `metadata` last. */
+async function exportRows(zip: ZipStream, name: string, list: JsonObject[], first: string[] = []) {
+  const seen = new Set<string>();
+  for (const entry of list) for (const key of Object.keys(entry)) seen.add(key);
+  const columns = [...first.filter((key) => seen.has(key)), ...[...seen].filter((key) => !first.includes(key) && key !== "metadata")];
+  if (seen.has("metadata")) columns.push("metadata");
+  const file = await exportCsv(zip, name, columns);
+  for (let index = 0; index < list.length; index += 1000) await file.rows(list.slice(index, index + 1000));
+  await file.close();
+}
+
+function exportCsvCell(value: unknown) {
+  if (value == null) return "";
+  let text = typeof value === "object" ? JSON.stringify(value) : String(value);
+  // Visitors write UTM values and referrers; keep a spreadsheet from reading them as formulas.
+  if (typeof value === "string" && /^[=+\-@\t\r]/.test(text) && !/^-?\d+(\.\d+)?$/.test(text)) text = `'${text}`;
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 function browserFamily(userAgent: string) {
@@ -2315,6 +2506,8 @@ function uniqueVisitorCountForRows(entries: JsonObject[]) {
 }
 
 function uniqueViewKey(entry: JsonObject) {
+  // The export keeps the key it worked out for each view instead of the view's metadata.
+  if (typeof entry.visitor_key === "string") return entry.visitor_key;
   const metadata = asObject(entry.metadata);
   const ip = normalizeVisitorIp(firstNonBlank(
     metadata.landing_client_ip,
