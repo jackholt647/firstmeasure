@@ -8,6 +8,9 @@
   let attachment = null, pending = null;
   const subscriptions = new Set();
   const destinations = new Map();
+  // Entries an app hides for this organization (its feature is off): asked at search time, for every caller.
+  const exclusions = new Set();
+  const excluded = entry => [...exclusions].some(hide => { try { return hide(entry) === true; } catch { return false; } });
   const sourceEntries = () => root.FirstMateSettingsIndex?.entries || [];
   const textOf = (element, labelOnly=false) => {
     if (!element) return '';
@@ -120,7 +123,7 @@
     // Missing view metadata can be resolved only when the same label has one known destination.
     const routes=new Map(), exactRoutes=new Map(), pages=new Map();
     for(const entry of entries){
-      if(!entry.view)continue;
+      if(!entry.view||excluded(entry))continue;
       const key=entry.section+'|'+labelKey(localized(entry).title);
       if(!routes.has(key))routes.set(key,new Set());routes.get(key).add(entry.view);
       const exactKey=entry.section+'|'+normalize(localized(entry).title);
@@ -130,6 +133,7 @@
     for(const original of entries){
       if(allowed&&!allowed.has(original.section))continue;
       if(attachment&&!attachment.sections.has(original.section))continue;
+      if(excluded(original))continue;
       const item=localized(original), title=normalize(item.title), score=relevance(item,tokens);
       if(!Number.isFinite(score))continue;
       if(!item.view&&item.kind!=='section'){
@@ -203,5 +207,6 @@
   }
   root.FirstMateSettingsSearch={get catalog(){return sourceEntries();},search,open,extract,attach,normalize,
     registerDestination(section,resolve){destinations.set(section,resolve);notify();return()=>{if(destinations.get(section)===resolve)destinations.delete(section);};},
+    registerExclusion(hide){exclusions.add(hide);notify();return()=>{exclusions.delete(hide);notify();};},
     subscribe(fn){subscriptions.add(fn);return()=>subscriptions.delete(fn);}};
 })(window);
