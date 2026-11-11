@@ -831,6 +831,10 @@ routes in `files`, and a declared file is kept like a picture:
   and declared file routes are accepted, 40 a project). Without a connection
   it fetches the device's copy and shows it in the frame from memory, or
   says the report is not saved on this device.
+  The summary's "Open" links open a new tab, which is not the worker's to
+  answer either: without a connection they show the report in the window's
+  own report tab, and a file with no tab (the XML model) is saved from the
+  device's copy.
 - The same holds for any app that shows a file in a frame or opens it in a
   new tab: declare the route, name the file for the kept project, and show
   the copy from memory when offline.
@@ -1290,8 +1294,6 @@ missing before that is safe:
 ## Not built yet
 
 - Offline document creation and editing (above).
-- A report opened in a new tab (the "Open" links) needs a connection: only
-  the report shown inside the project window is read from the device.
 - A read the server answers with `404` is not saved, so an app sees "no
   connection" where it saw "does not exist" online (for example a branch
   record that was never made).
