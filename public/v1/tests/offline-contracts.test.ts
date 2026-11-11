@@ -784,3 +784,119 @@ test("checklists: items checked, noted and added, a checklist added and signed o
   assert.deepEqual(await d.entries(), []);
   assert.equal((await serverList(ref)).items.find((item: Json) => item.id === drip.id).note, "From the roof");
 });
+
+// ---------------------------------------------------------------------------------------------------------------
+// Messages: read without a connection, never sent without one (contracts/messages.js)
+// ---------------------------------------------------------------------------------------------------------------
+
+test("messages: nothing that sends is a contract, and recordings and payments are never kept", () => {
+  const messages = loaded.raw.find((contract) => contract.id === "messages");
+  assert.ok(messages, "contracts/messages.js is listed in contracts/index.js");
+  assert.equal((messages.writes || []).length, 0, "sending, reacting, editing and deleting need a connection: the messages contract queues nothing");
+  // The only queued message is a project note (notes.js), and only when the body says it is one.
+  const posts = loaded.FM.contracts.writes("POST", "/v1/channels/organizations/o1/channels/c1/messages");
+  assert.equal(posts.map((found: Json) => `${found.contract.id}/${found.write.id}`).join(), "notes/note.post");
+  assert.equal(!!posts[0].write.when({ body: { text: "hello", client_msg_id: "c_1" } }), false, "an ordinary message is not a note");
+  for (const [method, target, route] of [
+    ["PATCH", "/v1/channels/organizations/o1/messages/m1", "/v1/channels/organizations/:org/messages/:message"],
+    ["DELETE", "/v1/channels/organizations/o1/messages/m1", "/v1/channels/organizations/:org/messages/:message"],
+    ["PUT", "/v1/channels/organizations/o1/messages/m1/reactions", "/v1/channels/organizations/:org/messages/:message/reactions"],
+    ["POST", "/v1/channels/organizations/o1/messages/m1/pin", "/v1/channels/organizations/:org/messages/:message/pin"],
+    ["POST", "/v1/comms/organizations/o1/conversations/c1/reply", "/v1/comms/organizations/:org/conversations/:conversation/reply"],
+    ["POST", "/v1/comms/organizations/o1/projects/p1/sms/send", "/v1/comms/organizations/:org/projects/:project/sms/send"],
+    ["POST", "/v1/comms/organizations/o1/projects/p1/email/send", "/v1/comms/organizations/:org/projects/:project/email/send"],
+    ["POST", "/v1/messaging/organizations/o1/sms/groups/g1/messages", "/v1/messaging/organizations/:org/sms/groups/:group/messages"],
+    ["POST", "/v1/chat/organizations/o1/chat/conversations/c1/messages", "/v1/chat/organizations/:org/chat/conversations/:conversation/messages"]
+  ] as const) {
+    assert.equal(loaded.FM.contracts.writes(method, target).length, 0, `${method} ${target} has no contract`);
+    assert.ok(registered(`${method} ${route}`), `${method} ${route} is a route the server registers`);
+  }
+  for (const target of [
+    "/v1/comms/organizations/o1/calls/call1/artifacts", "/v1/comms/organizations/o1/calls/call1/artifacts/a1/media",
+    "/v1/payments/organizations/o1/anything", "/v1/platform-billing/organizations/o1/anything", "/v1/session-replay/chunks"
+  ]) assert.equal(loaded.FM.contracts.denied("GET", target), true, `${target} is never saved or answered from the device`);
+  assert.ok(registered("GET /v1/comms/organizations/:org/calls/:call/artifacts/:artifact/media"), "the recording route the deny list names exists");
+});
+
+test("messages: a kept project and a start download what the apps read, and it all reads with the server unreachable", async () => {
+  const me = await owner();
+  const d = device(me);
+  const org = `/v1/platform/organizations/${me.orgId}`;
+  const channels = `/v1/channels/organizations/${me.orgId}`;
+  const real = async (method: string, target: string, payload?: unknown) => { const response = await me.raw(method, target, payload); return { status: response.statusCode, json: response.json() as Json }; };
+  const rid = () => `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+
+  const project = `project_${rid()}`;
+  assert.equal((await real("PUT", `${org}/projects/${project}`, { data: { id: project, title: "Messages offline", address: "3 Signal Street" }, metadata: { kind: "platform_project", workflow_state: "", measurement_keys: [] }, create_only: true })).status, 200);
+  const made = await real("POST", `${channels}/channels/project/${project}`);
+  assert.equal(made.status, 200, JSON.stringify(made.json));
+  const channel = String(made.json.channel.id);
+  // More than one page of messages (the list opens with 60), one of them with a reply.
+  let root = "";
+  for (let i = 1; i <= 65; i++) {
+    const posted = await real("POST", `${channels}/channels/${channel}/messages`, { text: `Message ${i}`, client_msg_id: `c_${rid()}`, mention_users: [], attachment_ids: [] });
+    assert.equal(posted.status, 201, JSON.stringify(posted.json));
+    if (i === 64) root = String(posted.json.message.id);
+  }
+  assert.equal((await real("POST", `${channels}/channels/${channel}/messages`, { text: "A reply", parent_id: root, client_msg_id: `c_${rid()}`, mention_users: [], attachment_ids: [] })).status, 201);
+  const general = (await real("GET", `${channels}/channels`)).json.channels.find((item: Json) => item.type === "public");
+  assert.ok(general, "the organization has a public channel");
+  assert.equal((await real("POST", `${channels}/channels/${general.id}/messages`, { text: "Hello everyone", client_msg_id: `c_${rid()}`, mention_users: [], attachment_ids: [] })).status, 201);
+
+  // ---- with a connection: the project is kept, and a page of this person loads ----
+  d.net.sent.length = 0;
+  const pin = await d.FM.pins.pin(d.identity, project);
+  assert.ok(pin && pin.reads > 0, "the project is kept");
+  const started = await d.FM.startup.run(d.identity, { force: true });
+  assert.ok(started.reads >= 4, JSON.stringify(started));
+  assert.deepEqual(d.net.sent.filter((line) => !line.startsWith("GET ") && !/\/(data\/read|data\/list|widgets\/resolve|requirements|resolve|portal-action)$/.test(line)), [], "downloading ahead only reads");
+  assert.deepEqual(d.net.sent.filter((line) => /\/payments\/|\/artifacts|\/media\/[^/]+\/file/.test(line)), [], "no payments data, recording or attachment is downloaded ahead");
+
+  // ---- no connection ----
+  d.net.down = true;
+  const newest = await d.ask("GET", `${channels}/channels/${channel}/messages?limit=60`);
+  assert.equal(newest.from, "saved");
+  assert.equal(newest.data.messages.length, 60);
+  assert.equal(newest.data.channel.id, channel);
+  const oldest = Math.min(...newest.data.messages.map((message: Json) => Number(message.seq)));
+  const older = await d.ask("GET", `${channels}/channels/${channel}/messages?before=${oldest}&limit=60`);       // as loadOlder asks
+  assert.equal(older.from, "saved", "the page before the newest is on the device");
+  assert.ok(older.data.messages.length >= 5 && older.data.messages.every((message: Json) => Number(message.seq) < oldest));
+  const thread = await d.ask("GET", `${channels}/messages/${root}/thread`);
+  assert.equal(thread.from, "saved");
+  assert.equal(thread.data.replies.length, 1);
+  for (const target of [`${channels}/channels/project/${project}`, `${channels}/channels/${channel}`, `${channels}/channels/${channel}/pins`, `${channels}/channels`, `${channels}/directory`, `${channels}/inbox`, `${channels}/collaboration-preferences`]) {
+    assert.equal((await d.ask("GET", target)).from, "saved", target);
+  }
+  // A channel that was never opened on this device: its newest page came with the start.
+  const hello = await d.ask("GET", `${channels}/channels/${general.id}/messages?limit=60`);
+  assert.equal(hello.from, "saved");
+  assert.ok(hello.data.messages.some((message: Json) => message.text === "Hello everyone"));
+  // What is not on the device fails as a read that got no answer (the apps say it is not saved here).
+  await assert.rejects(d.ask("GET", `${channels}/channels/${general.id}/messages?before=1&limit=60`));
+
+  // Sending, reacting, editing and deleting are refused, never queued and never reported as done.
+  const before = (await d.entries()).length;
+  for (const [method, target, body] of [
+    ["POST", `${channels}/channels/${channel}/messages`, { text: "Sent offline?", client_msg_id: `c_${rid()}`, mention_users: [], attachment_ids: [] }],
+    ["POST", `${channels}/channels/${channel}/messages`, { text: "A reply offline?", parent_id: root, client_msg_id: `c_${rid()}` }],
+    ["PUT", `${channels}/messages/${root}/reactions`, { emoji: "+1", on: true }],
+    ["PATCH", `${channels}/messages/${root}`, { text: "Edited offline?" }],
+    ["DELETE", `${channels}/messages/${root}`, undefined],
+    ["POST", `/v1/comms/organizations/${me.orgId}/projects/${project}/sms/send`, { message: "Text offline?" }],
+    ["POST", `/v1/comms/organizations/${me.orgId}/projects/${project}/email/send`, { subject: "Offline?", body: "Hello" }]
+  ] as const) {
+    const answer = await d.ask(method, target, body);
+    assert.equal(answer.status, 503, `${method} ${target}`);
+    assert.equal(answer.data.error, "offline_unavailable");
+    assert.equal(answer.queued, null);
+  }
+  assert.equal((await d.entries()).length, before, "nothing was queued");
+
+  // ---- the connection is back: the server never saw any of it ----
+  d.net.down = false;
+  const after = await real("GET", `${channels}/channels/${channel}/messages?limit=60`);
+  assert.equal(after.json.messages.some((message: Json) => /offline\?/.test(String(message.text))), false);
+  assert.equal(after.json.messages.find((message: Json) => message.id === root).text, "Message 64");
+  await d.FM.pins.unpin(d.identity, project);
+});

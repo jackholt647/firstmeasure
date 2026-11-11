@@ -407,6 +407,7 @@ FMOffline.contracts.add({
   boot: [],                                   // GET patterns of boot reads, never evicted
   reads: [ /* POST reads: { id, match, when(ctx), key(ctx) } */ ],
   prefetch: [ /* (ctx:{org,project,user}) => urls, or { url, each(json, ctx) => urls } */ ],
+  startup: [ /* the same entries, with no project: downloaded when a page of the person loads */ ],
   writes: [{
     id: 'notes.post',
     match: 'POST /v1/channels/organizations/:org/channels/:channel/messages',
@@ -494,6 +495,21 @@ async; they run in the worker, and in the top-level page when it replays.
   `entry.error.label` beside the server's own `message`, and the tray shows
   it as the reason (with the detail in brackets) in place of "The server
   refused this change".
+- **A read that names more reads.** What `each` returns may again be
+  `{ url, each }`: that read is fetched and its `each` followed, three deep
+  (`limits.prefetchDepth`). A channel's newest page of messages names the
+  page before it this way, with the address the list itself asks for when it
+  is scrolled up.
+- **Start-up reads.** `startup` takes the same entries as `prefetch`; `ctx`
+  has no project. `FMOffline.startup.run(identity)` downloads them when a
+  page of the person loads (the worker's `identity` message) and after each
+  refresh of the kept projects, at most every ten minutes
+  (`limits.startupEveryMs`; `{ force: true }` skips the wait). The answers
+  are ordinary saved reads: within the budget, least recently used first,
+  unless a `boot` pattern names them. A media file or declared file is never
+  downloaded this way, a denied route is never asked for, and a run that got
+  no answer at all is tried again at the next page load. Sign-out forgets
+  when it last ran.
 
 - **Patterns** are `[METHOD ]/path`: `:name` and `*` match one segment, `**`
   any number. A `deny` pattern without a method covers every method;
@@ -1223,7 +1239,7 @@ fallback in the code.
 ## What works offline
 
 The contracts are in `contracts/`: `portal.js` (start-up and lists),
-`projects.js`, `notes.js`, `todos.js`, `contacts.js`, `schedule.js`,
+`projects.js`, `notes.js`, `messages.js`, `todos.js`, `contacts.js`, `schedule.js`,
 `checklists.js`, `documents.js`. "Reads" means: shown as it was last seen, or as downloaded for
 a pinned project. A project that is opened is pinned automatically
 (`project-windows.js`, `mobile.js`), so its tabs are on the device even if
@@ -1241,7 +1257,8 @@ they were never clicked.
 | Documents | the list, a document, its preview and editor view, workflow, sent versions | | | creating, editing, sending, signing, PDF: see "Documents" below |
 | Operations (materials and labor) | the ledger, requirements and coverage, suppliers, price book | | | changing or generating lists, orders (the server prices and computes) |
 | Financials | | | | everything: payments data is never kept on a device. The tab says so |
-| Comms, Messages tray, Channels | what was last shown | | | sending (no contract yet); calls |
+| Channels, the project's Messages tray, the top bar's message list | the channel list, the directory, the top bar's list and the newest 60 messages of the 25 channels with the newest messages (downloaded at start-up); for a kept project its newest 120 messages, the threads of the newest ten that have replies, and pins; anything else as last shown | | | sending, replying, reacting, editing, deleting, pinning, marking read: see "Messages" below. Unreads, Activity, Threads and Later are as last shown |
+| Communications (inbox, texts, email threads, call log) and the project's Comms tab | the inbox and its settings (start-up); for a kept project its email threads, texts, portal chat and calls; anything else as last shown | | | sending a text, an email or a chat reply; calls; call recordings and voicemail audio, which are never kept on a device; the website chat inbox unless it was opened (reading it shows visitors the person as present) |
 | Checklists (project tab and the assignee's checklist tab) | every checklist of the project with its items, also for a project that was only pinned | an item; a checklist, blank or with items | check, uncheck, rate, note and rename an item (merged per field under the item's revision); the sign-off of a finished checklist | item photos and files, and completing an item that asks for one the device does not have; renaming or deleting a checklist, its settings and assignment; deleting an item; sending, voice, the document. See "Checklists" below |
 | Activity, Feed | what was last shown | | | comments and reactions (no contract yet) |
 | Photos | see the photos contract (`media.js`) | | | |
@@ -1404,6 +1421,54 @@ downloads.
   added blank. The create is queued with whatever items the page sends, so
   a picker that reads templates the device has needs nothing more here.
 
+### Messages
+
+Messages can be read offline; they are never sent from the queue
+(`contracts/messages.js`, which has no `writes` on purpose). A message that
+arrives hours late lands out of order with the answers to it, so a send that
+got no answer is refused in words and its text stays in the box. A project
+note is the exception and is queued (`notes.js`).
+
+- **What is downloaded.** At start-up (`startup`): the channel list, the
+  directory, collaboration preferences, sidebar sections, the top bar's
+  message list, the newest page (60) and the draft of each of the 25 channels
+  with the newest messages that the person is in, and the Communications
+  inbox and settings. For a kept project (`prefetch`): its channel, the
+  newest page and the page before it (120 messages), the threads of the ten
+  newest messages that have replies, pins, the draft, and its Comms tab
+  (email threads and each thread, texts, portal chat, its calls). The
+  addresses are the ones the apps ask with (`?limit=60`, then
+  `?before=<oldest seq>&limit=60`); changing a page size in `channels-ui.js`
+  must be changed in the contract too.
+- **Older messages.** A page that is not on the device shows one line at
+  the top of the list, "Older messages are not saved on this device."
+  (`loadOlder` in `channels-ui.js`).
+- **Attachments** are media files: kept as they are shown (thumbnails
+  always, other variants up to 8 MB), never downloaded ahead. Channel
+  attachments are asked for without a `variant` and answered `no-cache`, so
+  they come from the network when there is one and from the device when not.
+- **Never on a device:** call recordings, voicemail audio and transcripts
+  (`/calls/:call/artifacts/**` is on the deny list), huddles, who is typing,
+  and everything under payments.
+- **Reads that also write on the server** are only made ahead where the page
+  makes the same read by itself at start-up or on a timer: the channel list
+  (makes the general channel and the assistant conversation when missing),
+  scheduled messages (delivers what is due) and the Communications inbox
+  (reopens a closed thread that got a new message). The website chat inbox
+  and a website chat conversation are not downloaded ahead: reading them
+  marks the person present and the conversation read.
+- **Words.** `ChannelsAPI`, `CommsAPI` and the chat app's request turn "no
+  answer" and `offline_unavailable` into a sentence a person can act on,
+  with `error.offline = true` and no `status` (`unreachable(error)`): a read
+  says "This is not saved on this device. Connect to the internet to see
+  it.", a send "Sending needs a connection. Your message is still here; send
+  it when you are back online.", any other change "This needs a connection.
+  Nothing was saved." The keys are in the `shared` namespace. A list that
+  was still loading shows the sentence in place of its spinner, and the
+  project's Messages tray says the project's messages are not saved on this
+  device when its channel is not there. Marking read, typing and draft saves
+  fail silently, as they did.
+
 ### Documents
 
 Documents can be read offline; they cannot be made or changed. What is
@@ -1440,7 +1505,14 @@ missing before that is safe:
 - A read the server answers with `404` is not saved, so an app sees "no
   connection" where it saw "does not exist" online (for example a branch
   record that was never made).
-- Sending messages and feed comments have no contract.
+- Sending messages, texts and emails is online-only by decision (see
+  "Messages"). Messages older than the two newest pages of a kept project,
+  channels beyond the 25 with the newest messages, message search, and the
+  Unreads, Activity, Threads and Later views are on the device only as last
+  shown. A message that arrives while the device is offline is seen at the
+  next refresh; there is no notice that the saved list is old beyond the
+  offline indicator.
+- Feed comments have no contract.
 - Schedule: recurring series and their occurrences; a waiting mark on an
   event in the schedule views (the tray lists it); the roster warnings and
   equipment checks of a waiting event.
@@ -1489,6 +1561,15 @@ against the real routes, including a lost first answer and an edit the server
 also changed; events with no project, moves, deletes, the warning the
 device gives and a blocked double booking; checklists added, checked, noted
 and signed off, merged with another person's changes).
+
+Messages: `tests/offline-core.test.mjs` (a read that names more reads,
+start-up reads, their budget and sign-out) and
+`public/v1/tests/offline-contracts.test.ts` ("messages:" cases: nothing that
+sends has a contract and each such route exists, recordings and payments are
+denied; then, against the real app, a kept project and a start download what
+the apps ask for, all of it reads with the server unreachable, and a send,
+reply, reaction, edit, delete, text and email are refused and never reach the
+server).
 
 Photos: `tests/offline-photos.test.mjs` (the media contract case by case, with
 the real engine), `tests/offline-photos-browser.test.mjs` (the real worker,
