@@ -3802,6 +3802,7 @@
         if (st.destroyed) return;
         if (el.root.classList.contains('preview-hidden')) { st.lastResolved = resolved; return; }
         renderPreview(resolved);
+        noteOfflineView(resolved);
       } catch (error) {
         if (!st.destroyed) { console.warn('FMDocWorkflow preview could not be resolved', error); renderPreviewUnavailable(); }
       } finally {
@@ -3809,6 +3810,24 @@
         el.preview?.classList.remove('loading');
         if (st.previewStale && !st.destroyed) { st.previewStale = false; schedulePreview(); }
       }
+    }
+    /**
+     * A view made without a connection (docs/architecture/offline.md, "Documents"): the last calculated document
+     * with the person's changes. Says so above the page; the figures that wait are marked by the renderer.
+     */
+    function noteOfflineView(resolved){
+      el.preview?.querySelector('[data-fmdw-offline-note]')?.remove();
+      const offline = obj(obj(resolved).offline);
+      if (offline.pending !== true || !el.previewStage) return;
+      const english = offline.made === true
+        ? 'This document was made without a connection. Lines, totals and account figures appear when you reconnect.'
+        : 'You are seeing this document as it was last calculated, with your changes. Figures with a dotted underline update when you reconnect.';
+      const note = document.createElement('div');
+      note.setAttribute('data-fmdw-offline-note', '');
+      note.setAttribute('role', 'status');
+      note.style.cssText = 'box-sizing:border-box;margin:8px 12px 0;padding:8px 10px;border-radius:8px;background:#fffbeb;color:#92400e;border:1px solid #fcd34d;font:500 12px/1.4 system-ui,sans-serif';
+      note.textContent = globalThis.PlatformLanguage?.text?.('shared', offline.made === true ? 'offline_document_made_note' : 'offline_document_view_note', english) ?? english;
+      el.previewStage.before(note);
     }
     function renderPreviewUnavailable(){
       if (!el.previewStage) return;
