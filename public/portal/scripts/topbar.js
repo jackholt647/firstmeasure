@@ -675,7 +675,20 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
     });
   }
 
-  async function loadMessagesInbox(){
+  // One inbox read at a time: a burst of channel events (after a reconnect the stream replays what was missed)
+  // asks once more when the read in flight ends, instead of once per event.
+  let inboxLoading = null, inboxAgain = false;
+  function loadMessagesInbox(){
+    if (inboxLoading) { inboxAgain = true; return inboxLoading; }
+    const run = loadMessagesInboxNow().finally(() => {
+      if (inboxLoading === run) inboxLoading = null;
+      if (inboxAgain) { inboxAgain = false; loadMessagesInbox().catch(() => null); }
+    });
+    inboxLoading = run;
+    return run;
+  }
+
+  async function loadMessagesInboxNow(){
     if (!window.ChannelsAPI?.readState?.inbox || !orgId() || !messagesAllowed()) return;
     const generation = messagesGeneration;
     try {
