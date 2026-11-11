@@ -107,6 +107,10 @@
   // ---------------------------------------------------------------------------
 
   const RENDERER_CSS = `
+/* A view made without a connection: a figure the server has yet to work out, and a value typed on the device. */
+.fmdoc-root [data-fm-offline="stale"] { text-decoration: underline dotted #b45309; text-underline-offset: 2px; color: #92400e; }
+.fmdoc-root [data-fm-offline="pending"] { background: rgba(180, 83, 9, 0.12); border-radius: 2px; }
+.fmdoc-root .fmdoc-widget[data-fm-offline="stale"] { text-decoration: none; color: inherit; outline: 1px dashed #b45309; outline-offset: 2px; }
 @font-face { font-family: "Montserrat"; src: local("Montserrat Thin"), local("Montserrat-Thin"), url("/fonts/Montserrat-Thin.ttf") format("truetype"); font-weight: 100; font-display: swap; }
 @font-face { font-family: "Montserrat"; src: local("Montserrat ExtraLight"), local("Montserrat-ExtraLight"), url("/fonts/Montserrat-ExtraLight.ttf") format("truetype"); font-weight: 200; font-display: swap; }
 @font-face { font-family: "Montserrat"; src: local("Montserrat Light"), local("Montserrat-Light"), url("/fonts/Montserrat-Light.ttf") format("truetype"); font-weight: 300; font-display: swap; }
@@ -1264,10 +1268,25 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
         // A traced resolution (FMDocModel resolveBindings trace) says where a
         // bound value comes from; only editors read this.
         if (isObject(run.binding) && run.binding.kind) runEl.setAttribute("data-binding-kind", String(run.binding.kind));
+        markOffline(runEl, run.offline);
         blockEl.appendChild(runEl);
       });
       elm.appendChild(blockEl);
     }
+  }
+
+  /**
+   * A view made without a connection (docs/architecture/offline.md, "Documents") marks what the server has yet
+   * to work out: "stale" for a figure it computes from data that changed on the device, "pending" for a value
+   * typed there. The server never sets these, so a sent document and its PDF never carry them.
+   */
+  function markOffline(elm, state) {
+    if (state !== "stale" && state !== "pending") return;
+    const language = typeof globalThis !== "undefined" ? globalThis.PlatformLanguage : null;
+    const english = state === "stale" ? "Updates when you reconnect" : "Saved on this device. The document recalculates when you reconnect.";
+    const key = state === "stale" ? "offline_document_value_stale" : "offline_document_value_pending";
+    elm.setAttribute("data-fm-offline", state);
+    elm.setAttribute("title", (language && language.text && language.text("shared", key, english)) || english);
   }
 
   function renderTextNode(elm, node, rctx) {
@@ -2081,6 +2100,7 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
         break;
       case "widget":
         mountWidget(elm, node, rctx);
+        markOffline(elm, node.offline);
         break;
       case "markup_overlay": {
         // Reuses the markup system's normalized 0..1 items. Items may arrive
