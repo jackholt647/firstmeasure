@@ -694,3 +694,58 @@ invalidate on writes to users, groups, departments, branches and connections.
 
 **Why it can wait.** With the projected read the cost is a few milliseconds even for the staff organization; the
 largest customer organizations are smaller.
+
+## Pinned offline projects are refreshed by reading everything again
+
+**Today.** A project made available offline is kept current by running every contract's `prefetch` for it again
+(the project, its lists, its documents, its thumbnails) when the connection returns and every 15 minutes while a page
+is open ([offline](architecture/offline.md#saved-reads)). With the ten most recently opened projects pinned
+automatically, that is a few hundred requests per device per refresh, almost all of which answer what the device
+already has. The server has no way to say "nothing changed since".
+
+**Where the change goes.** A change feed per organization (the project change history and the platform event stream
+already record most writes): the device sends the last position it saw and re-reads only the reads a change touched.
+Until then, conditional requests (`ETag` on the larger reads) would at least make an unchanged read cheap.
+
+**Why it can wait.** The reads are the ones a person opening the project makes anyway, the refresh runs only for
+people who pinned projects, and offline is on development only.
+
+## The offline asset manifest hashes every file once per release in every process
+
+**Today.** `offlineAssetSet` in `platform/offline/assets.ts` walks the served release's browser files (547 files,
+40 MB) and reads and hashes each one the first time `GET /v1/platform/offline/assets` is asked after a release,
+in every Node process of every web node, about a third of a second each time. The answer is then kept in memory for
+that release. A checkout without a release link stats every listed file on every request.
+
+**Where the change goes.** Write the list when the release is built (a release is built once and never changes) and
+have the route read that file; the walk stays as the fallback for a checkout.
+
+**Why it can wait.** It runs once per release per process, off the request path of everything but the first
+manifest check, and yields between files.
+
+## Offline idempotency receipts are pruned by whichever web process sees a keyed request
+
+**Today.** `pruneOfflineIdempotency` in `platform/offline/idempotency.ts` deletes up to 500 expired receipts by
+`expires_at` when a request with an offline key arrives, at most every ten minutes in each web process. Every
+process does this separately, a quiet period prunes nothing, and a burst larger than the batches can keep up with
+leaves expired rows in the table until later (they are never used: an expired receipt is ignored and replaced). A
+claim whose process died stays as a `running` row for 30 days.
+
+**Where the change goes.** One scheduled job on the platform worker that deletes by `expires_at` until none are
+left, or a table partitioned by day that drops whole partitions.
+
+**Why it can wait.** A receipt is a few hundred bytes plus its answer (at most 1 MB, usually under 2 KB), only
+queued offline changes make them, and offline is on development only.
+
+## After a queued change is sent, at most 25 saved reads are read again
+
+**Today.** When the server accepts a queued change, `offline-core.js` reads again the saved answers that change
+affected, so the device holds the server's version. It stops at 25 reads per change (`limits.rereadLimit`); a
+change that touches more (a contract whose effects match many saved lists) leaves the rest as they were until the
+app next reads them with a connection, which replaces them then.
+
+**Where the change goes.** The change feed that will refresh pinned projects (above): the server names what
+changed, and the device re-reads exactly that.
+
+**Why it can wait.** A saved read is only ever used when the server cannot be reached, a read made online always
+replaces it, and today's contracts touch a handful of reads each.

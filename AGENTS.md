@@ -594,6 +594,24 @@ step count. Run `tests/setup-steps.test.ts`, `tests/setup-steps-browser.test.mjs
 `tests/guided-experiences-flow-browser.test.mjs`, `tests/guided-tab-tours.test.ts` and
 `tests/guided-tab-tours-browser.test.ts` for changes here.
 
+## Offline
+
+Read [offline](docs/architecture/offline.md) before changing the service
+worker (`public/portal/sw.js`), `public/libraries/platform-offline/`,
+`public/v1/platform/offline/`, an offline contract, or native file storage and
+background upload. The service worker is the one interception point: do not
+wrap `fetch` in an app or add another cache. A write works offline only
+through a contract in `platform-offline/contracts/`; anything else fails
+offline with `offline_unavailable` and is never reported as saved. Records
+created offline use ids made on the device, and queued changes are replayed
+with their idempotency key. Saved data and the queue belong to one person in
+one organization. Online behaviour must not change, the realtime stream is
+never intercepted, and no page reloads by itself. Run
+`tests/offline-core.test.mjs`, `tests/offline-sw-browser.test.mjs`,
+`tests/offline-idempotency.test.ts`, `tests/offline-assets.test.ts`,
+`tests/offline-routes.test.ts` and `tests/offline-contracts.test.ts` for
+changes here.
+
 ## Realtime: one stream per page
 
 Read [realtime](docs/architecture/realtime.md) before adding anything that

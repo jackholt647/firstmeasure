@@ -17,6 +17,7 @@ export const AREAS = [
   [[`${V1}payments/`, `${V1}payment-browser/`, `${LIB}payments-api/`, `${LIB}payments-setup/`, `${LIB}payment-intake/`], ["v1:npm:test:payments"]],
   [[`${V1}contacts/`, `${V1}leads/`, `${V1}projects/`, `${V1}lead-intake/`], ["v1:tests/contacts-store.test.ts", "v1:tests/contact-merge.test.ts", "v1:tests/lead-receive.test.ts", "v1:tests/new-leads.test.ts", "v1:tests/project-entry.test.ts"]],
   [[`${V1}platform/publication/`], ["v1:npm:test:publication"]],
+  [[`${V1}platform/offline/`, `${LIB}platform-offline/`, "public/portal/sw.js", "public/portal/offline-shell.php"], ["v1:tests/offline-idempotency.test.ts", "v1:tests/offline-assets.test.ts", "v1:tests/offline-routes.test.ts", "root:tests/offline-core.test.mjs", "root:tests/offline-sw-browser.test.mjs"]],
   [[`${V1}platform/publication/measurement-schemas.ts`], ["v1:tests/publication-measurement-schemas.test.ts"]],
   [[`${V1}crm/`, `${LIB}apps/crm/`], ["v1:tests/crm-views.test.ts", "v1:tests/crm-rescission.test.ts"]],
   [[`${V1}labor/completion.ts`, `${V1}closeout/`], ["v1:tests/labor-completion.test.ts"]],

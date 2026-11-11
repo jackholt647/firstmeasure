@@ -385,7 +385,7 @@ const contactProjectSummaryCache = new Map<string, ContactProjectSummaryCacheEnt
 
 
 import { deleteIdentity, deleteOrganization, findIdentityByIdentifier, identityEmailExists, withIdentityRegistrationLock } from "./storage.js";
-import { mediaVariantEntry } from "./media_variants.js";
+import { mediaFileCaching, mediaVariantEntry } from "./media_variants.js";
 
 import { formatSignupPhone } from "./identity_phone.js";
 
@@ -1829,17 +1829,27 @@ app.get("/auth/google/config", async () => ({
       throw forbidden("receipt_media_forbidden", "This receipt media is not available to this user.");
     }
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
-    const file = await readMediaFile(
-      orgId,
-      mediaId,
-      String(query.variant || "original")
-    );
+    const variant = String(query.variant || "original");
+    // How the browser may keep this file (mediaFileCaching; docs/architecture/offline.md#saved-reads). Receipts are never kept.
+    // Decided after every access check above, so a 304 is only ever sent to someone who may read the file.
+    const caching = isReceiptMedia(metadata) ? null : mediaFileCaching(metadata, variant, cleanText(query.v));
+    if (caching && requestHasEtag(request, caching.etag)) {
+      reply.header("ETag", caching.etag);
+      reply.header("Cache-Control", caching.cacheControl);
+      return reply.code(304).send();
+    }
+    const file = await readMediaFile(orgId, mediaId, variant);
     if (isReceiptMedia(metadata)) {
       reply.header("Content-Type", file.contentType || "application/octet-stream");
       reply.header("Content-Disposition", `attachment; filename="${String(file.fileName).replace(/[\r\n"\\/]+/g, "_")}"`);
       reply.header("X-Content-Type-Options", "nosniff");
       reply.header("Cache-Control", "private, no-store");
       return reply.send(file.bytes);
+    }
+    // Only once the file is in hand: an error answer must never be kept for a year.
+    if (caching) {
+      reply.header("ETag", caching.etag);
+      reply.header("Cache-Control", caching.cacheControl);
     }
     return sendInlineMediaFile(request, reply, file);
   });
@@ -2848,9 +2858,22 @@ app.get("/auth/google/config", async () => ({
     const body = objectBodySchema.parse(request.body ?? {});
     const branchId = cleanText(body.branch_id) || cleanText(ctx.branchId) || "default";
     (await import("../workforce/branch-guards.js")).assertBranchManageable(ctx, branchId);
+    // A lead made without a connection names its project on the device (docs/architecture/offline.md#rules), so the
+    // queued lead and what is added to it before it is sent are the same record. The id is used exactly as sent.
+    const projectId = cleanText(body.project_id);
+    if (projectId) {
+      if (!/^[a-z0-9][a-z0-9_-]{7,79}$/.test(projectId)) throw badRequest("invalid_project_id", "A project id is 8 to 80 lowercase letters, digits, underscores or hyphens.");
+      // Sent again without its receipt (the first try failed after the project was written), it is refused here, before any contact is created a second time.
+      const taken = await readDocument(orgId, "projects", projectId).then(() => true, (error: unknown) => {
+        if (error instanceof PlatformError && error.statusCode === 404) return false;
+        throw error;
+      });
+      if (taken) throw conflict("project_exists", "A project with this id already exists.");
+    }
     // Only lead fields are read; a lead always creates a new project.
     const created = await (await import("../leads/receive.js")).receiveLead(orgId, {
       branch_id: branchId,
+      ...(projectId ? { project_id: projectId } : {}),
       source: { kind: cleanText(body.source_kind || body.source) || "manual_lead", provider: cleanText(body.provider) },
       contacts: (Array.isArray(body.contacts) ? body.contacts : body.customer ? [body.customer] : []) as never,
       address: cleanText(body.address), title: cleanText(body.title), summary: cleanText(body.summary)

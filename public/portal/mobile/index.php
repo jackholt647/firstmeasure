@@ -16,6 +16,10 @@ $userId = $_SESSION['platform_user_id'] ?? ($_SESSION['user_id'] ?? null);
 $userBranchId = $_SESSION['platform_branch_id'] ?? ($_SESSION['branch_id'] ?? 'default');
 $ver = time();
 
+// What the offline service worker needs to keep this page as the person's shell (docs/architecture/offline.md).
+require_once __DIR__ . '/../offline-shell.php';
+portalOfflineShellHeaders($userId ?? '', $userOrgId ?? '');
+
 session_write_close();
 ?>
 <!DOCTYPE html>
@@ -173,6 +177,7 @@ session_write_close();
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="../../libraries/platform-offline/platform-offline.js?v=<?= $ver ?>"></script>
   <script src="../../libraries/platform-api/platform-api.js?v=<?= $ver ?>"></script>
   <script src="../../libraries/platform-scheduling/platform-scheduling.js?v=<?= $ver ?>"></script>
   <script src="mobile.js?v=<?= $ver ?>"></script>

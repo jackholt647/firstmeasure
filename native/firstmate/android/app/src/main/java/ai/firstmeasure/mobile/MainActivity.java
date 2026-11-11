@@ -2,6 +2,9 @@ package ai.firstmeasure.mobile;
 
 import android.app.AlertDialog;
 import android.content.*;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.os.Build;
 import android.net.Uri;
 import android.os.Bundle;
@@ -42,6 +45,21 @@ public class MainActivity extends ComponentActivity {
     });
     private final OriginPolicy policy = new OriginPolicy(BuildConfig.PORTAL_ORIGIN);
     private final ExecutorService io = Executors.newSingleThreadExecutor();
+    // Offline uploads touch files; they run in order on their own thread so a long download cannot hold them up.
+    private final ExecutorService offlineIo = Executors.newSingleThreadExecutor();
+    private OfflineUploads uploads;
+    private FrameLayout cameraHost;
+    private View offlineScreen;
+    private TextView offlineMessage;
+    private String failedUrl;
+    private boolean loadFailed,networkValidated;
+    private long lastAutomaticRetry;
+    private ConnectivityManager.NetworkCallback networkCallback;
+    private Runnable photosGranted,photosDenied;
+    private final ActivityResultLauncher<String> photosPermission=registerForActivityResult(new ActivityResultContracts.RequestPermission(),granted->{
+        Runnable next=granted?photosGranted:photosDenied;photosGranted=null;photosDenied=null;
+        if(next!=null)next.run();
+    });
     private ValueCallback<Uri[]> fileCallback;
     private Uri cameraUri;
     private PermissionRequest audioRequest;
@@ -84,6 +102,7 @@ public class MainActivity extends ComponentActivity {
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         PushMessagingService.createChannels(this);
+        uploads=OfflineUploads.get(this);
         pendingNotificationId = getIntent().getStringExtra("notification_id");
         android.content.SharedPreferences auth=getPreferences(MODE_PRIVATE);
         if(auth.getLong("auth_expires",0)>System.currentTimeMillis()){authState=auth.getString("auth_state",null);authVerifier=auth.getString("auth_verifier",null);}
@@ -92,7 +111,7 @@ public class MainActivity extends ComponentActivity {
             androidx.core.graphics.Insets i=insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
             view.setPadding(i.left,i.top,i.right,i.bottom); return insets;
         });
-        FrameLayout cameraHost=new FrameLayout(this);cameraHost.setBackgroundColor(android.graphics.Color.WHITE);root.addView(cameraHost,new LinearLayout.LayoutParams(-1,0,1));
+        cameraHost=new FrameLayout(this);cameraHost.setBackgroundColor(android.graphics.Color.WHITE);root.addView(cameraHost,new LinearLayout.LayoutParams(-1,0,1));
         nativeCamera=new NativeCameraController(this,cameraHost);
         web=new WebView(this); web.setId(View.generateViewId());web.setBackgroundColor(android.graphics.Color.TRANSPARENT);cameraHost.addView(web,new FrameLayout.LayoutParams(-1,-1));
         WebSettings settings=web.getSettings(); settings.setJavaScriptEnabled(true); settings.setDomStorageEnabled(true);
@@ -110,17 +129,22 @@ public class MainActivity extends ComponentActivity {
             handle(message.getData(),reply);
         });
         web.setWebViewClient(new WebViewClient(){
-            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon){nativeCameraSession="";nativeCamera.close();}
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon){loadFailed=false;nativeCameraSession="";nativeCamera.close();}
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){
                 if(!request.isForMainFrame()) return !"https".equals(request.getUrl().getScheme());
                 return navigate(request.getUrl().toString());
             }
-            @Override public void onPageFinished(WebView view,String url){ CookieManager.getInstance().flush(); deliverPendingNotification(); }
+            @Override public void onPageFinished(WebView view,String url){
+                CookieManager.getInstance().flush(); deliverPendingNotification();
+                // The error page finishes loading too; only a real page takes the native screen away.
+                if(!loadFailed)hideOffline();
+                if(policy.trusted(url))offlineIo.execute(uploads::sessionChanged);
+            }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error){
-                if(request.isForMainFrame()) showError("Unable to connect. Check your connection and try again.");
+                if(request.isForMainFrame()){loadFailed=true;showOffline(request.getUrl().toString(),R.string.offline_no_connection);}
             }
             @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response){
-                if(request.isForMainFrame() && response.getStatusCode()>=500) showError("FirstMate is temporarily unavailable. Please try again.");
+                if(request.isForMainFrame() && response.getStatusCode()>=500){loadFailed=true;showOffline(request.getUrl().toString(),R.string.offline_unavailable);}
             }
         });
         web.setWebChromeClient(new WebChromeClient(){
@@ -166,6 +190,8 @@ public class MainActivity extends ComponentActivity {
         if(saved==null || web.restoreState(saved)==null) web.loadUrl(BuildConfig.PORTAL_ORIGIN+"/portal/");
         acceptAuthReturn(getIntent());
         pruneFiles();
+        watchNetwork();
+        offlineIo.execute(uploads::start);
     }
     private boolean navigate(String url){ if(policy.trusted(url))return false;external(url);return true; }
     private void external(String url){
@@ -191,8 +217,9 @@ public class MainActivity extends ComponentActivity {
             JSONObject call=new JSONObject(raw);id=call.getString("id");
             if(id.length()>64||call.getInt("version")!=1)throw new Exception("Unsupported bridge version");
             JSONObject payload=call.optJSONObject("payload");if(payload==null)payload=new JSONObject();
-            if(raw.length()>32768&&!call.getString("method").equals("saveFile"))throw new Exception("Request too large");
             String method=call.getString("method");
+            // A file chunk is 256 KB of data in base64; everything else but saveFile is small.
+            if(raw.length()>(method.equals("saveFile")?23*1024*1024:method.equals("offlineUploads.put")?400*1024:32768))throw new Exception("Request too large");
             if(method.startsWith("camera")&&!method.equals("cameraOpen")&&!method.equals("cameraRead")&&!method.equals("cameraRelease")&&!method.equals("cameraDiagnostics")&&!payload.optString("session").equals(nativeCameraSession)){respond(reply,id,null,"camera_closed");return;}
             switch(call.getString("method")){
                 case "cameraOpen": {
@@ -220,7 +247,7 @@ public class MainActivity extends ComponentActivity {
                     getPreferences(MODE_PRIVATE).edit().putString("auth_state",authState).putString("auth_verifier",authVerifier).putLong("auth_expires",System.currentTimeMillis()+600000).apply();
                     String challenge=android.util.Base64.encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(authVerifier.getBytes(java.nio.charset.StandardCharsets.UTF_8)),android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|android.util.Base64.NO_PADDING);
                     startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(BuildConfig.PORTAL_ORIGIN+"/v1/mobile/auth/browser?challenge="+challenge+"&state="+authState)));respond(reply,id,true,null);break;
-                case "info": respond(reply,id,new JSONObject().put("bridgeVersion",1).put("platform","android").put("version",BuildConfig.VERSION_NAME).put("environment",BuildConfig.FLAVOR).put("capabilities",new org.json.JSONArray(List.of("files","camera","liveCamera","nativeCameraZoom","physicalCameraZoom","share","download","haptic","settings","push"))),null);break;
+                case "info": respond(reply,id,new JSONObject().put("bridgeVersion",1).put("platform","android").put("version",BuildConfig.VERSION_NAME).put("environment",BuildConfig.FLAVOR).put("capabilities",new org.json.JSONArray(List.of("files","camera","liveCamera","nativeCameraZoom","physicalCameraZoom","share","download","haptic","settings","push","offlineUploads","photoLibrarySave","offlineShell"))),null);break;
                 case "pushStatus": respond(reply,id,new JSONObject().put("available",pushAvailable()).put("granted",pushPermissionGranted()),null);break;
                 case "pushRegister":
                     if (!pushAvailable()) { respond(reply,id,null,"push_unavailable"); break; }
@@ -245,9 +272,94 @@ public class MainActivity extends ComponentActivity {
                     try(OutputStream output=new FileOutputStream(export)){output.write(bytes);}
                     Uri exported=FileProvider.getUriForFile(this,BuildConfig.APPLICATION_ID+".files",export);
                     startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType(payload.optString("mime","application/octet-stream")).putExtra(Intent.EXTRA_STREAM,exported).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),"Save or share"));respond(reply,id,true,null);break;
+                case "offlineUploads.put": case "offlineUploads.status": case "offlineUploads.ack": case "offlineUploads.cancel":offline(method,payload,id,reply,false);break;
+                case "offlineUploads.enqueue": {
+                    final String requestId=id;final JSONObject job=payload;
+                    // A camera-roll copy may need the storage permission first (Android 9 and older); the upload is queued either way.
+                    if(job.optBoolean("saveToPhotos"))withPhotosPermission(()->offline("offlineUploads.enqueue",job,requestId,reply,true),()->offline("offlineUploads.enqueue",job,requestId,reply,false));
+                    else offline("offlineUploads.enqueue",job,requestId,reply,false);
+                    break;
+                }
+                case "photoLibrarySave": {
+                    final String requestId=id;final JSONObject source=payload;
+                    withPhotosPermission(()->offline("photoLibrarySave",source,requestId,reply,true),()->respond(reply,requestId,null,"photos_permission_denied"));
+                    break;
+                }
                 default:respond(reply,id,null,"unsupported");
             }
         }catch(Exception e){respond(reply,id,null,"invalid_request");}
+    }
+    private void offline(String method,JSONObject payload,String id,JavaScriptReplyProxy reply,boolean photosAllowed){
+        offlineIo.execute(()->{
+            Object result=null;String error=null;
+            try{
+                switch(method){
+                    case "offlineUploads.put":result=uploads.store.put(payload.getString("id"),payload.optLong("offset",-1),java.util.Base64.getDecoder().decode(payload.optString("data")),payload.optBoolean("done"));break;
+                    case "offlineUploads.enqueue":result=uploads.enqueue(payload,photosAllowed);break;
+                    case "offlineUploads.status":result=uploads.store.status(ids(payload,false));break;
+                    case "offlineUploads.ack":result=new JSONObject().put("acked",uploads.store.ack(ids(payload,true)));break;
+                    case "offlineUploads.cancel":result=new JSONObject().put("cancelled",uploads.store.cancel(payload.getString("id")));break;
+                    default:result=uploads.saveToPhotos(payload);
+                }
+            }catch(OfflineUploadRules.Rejected e){error=e.code;}
+            catch(IllegalStateException|IOException e){error="storage_failed";}
+            catch(Exception e){error="invalid_request";}
+            final Object value=result;final String code=error;
+            runOnUiThread(()->respond(reply,id,value,code));
+        });
+    }
+    private static List<String> ids(JSONObject payload,boolean required) throws Exception {
+        org.json.JSONArray list=payload.optJSONArray("ids");
+        if(list==null){if(required||(payload.has("ids")&&!payload.isNull("ids")))throw new OfflineUploadRules.Rejected("invalid_request");return null;}
+        if(list.length()>500)throw new OfflineUploadRules.Rejected("invalid_request");
+        List<String> out=new ArrayList<>();for(int i=0;i<list.length();i++)out.add(OfflineUploadRules.id(list.opt(i)));return out;
+    }
+    private void withPhotosPermission(Runnable granted,Runnable denied){
+        if(Build.VERSION.SDK_INT>=29||androidx.core.content.ContextCompat.checkSelfPermission(this,android.Manifest.permission.WRITE_EXTERNAL_STORAGE)==android.content.pm.PackageManager.PERMISSION_GRANTED){granted.run();return;}
+        if(photosGranted!=null||photosDenied!=null){denied.run();return;}
+        photosGranted=granted;photosDenied=denied;photosPermission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE);
+    }
+    /** Takes the place of the browser error page. Nothing the WebView stored is touched. */
+    private void showOffline(String url,int message){
+        if(isFinishing()||cameraHost==null)return;
+        failedUrl=url;
+        if(offlineScreen==null){
+            LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setGravity(Gravity.CENTER);box.setBackgroundColor(android.graphics.Color.WHITE);box.setClickable(true);box.setFocusable(true);
+            int space=(int)(32*getResources().getDisplayMetrics().density);box.setPadding(space,space,space,space);
+            offlineMessage=new TextView(this);offlineMessage.setGravity(Gravity.CENTER);offlineMessage.setTextSize(17);offlineMessage.setTextColor(0xFF1F2933);
+            Button retry=new Button(this);retry.setText(R.string.offline_retry);retry.setOnClickListener(view->retryLoad());
+            LinearLayout.LayoutParams below=new LinearLayout.LayoutParams(-2,-2);below.topMargin=space/2;
+            box.addView(offlineMessage,new LinearLayout.LayoutParams(-1,-2));box.addView(retry,below);
+            cameraHost.addView(box,new FrameLayout.LayoutParams(-1,-1));offlineScreen=box;
+        }
+        offlineMessage.setText(message);offlineScreen.setVisibility(View.VISIBLE);offlineScreen.bringToFront();
+    }
+    private void hideOffline(){if(offlineScreen!=null)offlineScreen.setVisibility(View.GONE);}
+    private boolean offlineShown(){return offlineScreen!=null&&offlineScreen.getVisibility()==View.VISIBLE;}
+    private void retryLoad(){
+        // Only a portal page is loaded again as it was; a failed sign-in exchange or download starts from the portal.
+        boolean portal=false;
+        try{String path=failedUrl==null?null:Uri.parse(failedUrl).getPath();portal=path!=null&&path.startsWith("/portal/")&&policy.trusted(failedUrl);}catch(Exception ignored){}
+        web.loadUrl(portal?failedUrl:BuildConfig.PORTAL_ORIGIN+"/portal/");
+    }
+    /** Loads again by itself when a connection returns while the native screen is up. */
+    private void watchNetwork(){
+        try{
+            ConnectivityManager manager=getSystemService(ConnectivityManager.class);
+            networkCallback=new ConnectivityManager.NetworkCallback(){
+                @Override public void onAvailable(Network network){runOnUiThread(()->networkReturned());}
+                @Override public void onLost(Network network){networkValidated=false;}
+                @Override public void onCapabilitiesChanged(Network network,NetworkCapabilities capabilities){
+                    boolean validated=capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),returned=validated&&!networkValidated;
+                    networkValidated=validated;if(returned)runOnUiThread(()->networkReturned());
+                }
+            };
+            manager.registerDefaultNetworkCallback(networkCallback);
+        }catch(Exception e){networkCallback=null;}
+    }
+    private void networkReturned(){
+        if(isFinishing()||web==null||!offlineShown()||System.currentTimeMillis()-lastAutomaticRetry<3000)return;
+        lastAutomaticRetry=System.currentTimeMillis();retryLoad();
     }
     private void respond(JavaScriptReplyProxy reply,String id,Object value,String error){
         if(reply==null)return;
@@ -325,6 +437,11 @@ public class MainActivity extends ComponentActivity {
     private void showMessage(String message){if(!isFinishing())Toast.makeText(this,message,Toast.LENGTH_LONG).show();}
     @Override protected void onSaveInstanceState(Bundle out){super.onSaveInstanceState(out);web.saveState(out);}
     @Override protected void onPause(){super.onPause();if(nativeCamera!=null)nativeCamera.stopRecording();if(web!=null)web.onPause();CookieManager.getInstance().flush();}
-    @Override protected void onResume(){super.onResume();if(web!=null)web.onResume();}
-    @Override protected void onDestroy(){completePicker(null);if(nativeCamera!=null)nativeCamera.destroy();if(web!=null){web.stopLoading();web.destroy();}io.shutdownNow();super.onDestroy();}
+    @Override protected void onResume(){super.onResume();if(web!=null)web.onResume();if(uploads!=null)offlineIo.execute(uploads::sessionChanged);}
+    @Override protected void onDestroy(){
+        completePicker(null);if(nativeCamera!=null)nativeCamera.destroy();if(web!=null){web.stopLoading();web.destroy();}io.shutdownNow();
+        if(networkCallback!=null)try{getSystemService(ConnectivityManager.class).unregisterNetworkCallback(networkCallback);}catch(Exception ignored){}
+        // Queued file writes finish; the uploads themselves belong to WorkManager, not to this activity.
+        offlineIo.shutdown();super.onDestroy();
+    }
 }

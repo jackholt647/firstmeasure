@@ -70,6 +70,10 @@ READERS = (
     'public/v1/internal/api.ts',
     'public/v1/internal/crm/api.ts',
     'public/v1/internal/data_agent.ts',
+    # The offline asset manifest lists and hashes browser files (some under portal/), but always
+    # through /opt/firstmeasure/current, the release being served, and again when that link moves.
+    # It keeps nothing from the release Node started in, so it adds nothing to NODE_READS.
+    'public/v1/platform/offline/assets.ts',
 )
 READ_PATTERN = re.compile(rb'path\.(?:join|resolve)\([^\n]*[\'"](?:\.\./)*(?:measure|portal)\b'
                           rb'|rootFolderName:\s*[\'"]measure'
