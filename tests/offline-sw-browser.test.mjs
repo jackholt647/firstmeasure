@@ -33,6 +33,7 @@ FMOffline.contracts.add({
   id: 'test',
   reads: [{ id: 'actions', match: 'POST /v1/platform/portal-action', when: (ctx) => ctx.body.action === 'list_notes', key: (ctx) => ({ action: ctx.body.action, project: ctx.body.project_id }) }],
   prefetch: [(ctx) => ['/v1/projects/' + ctx.project, '/v1/projects/' + ctx.project + '/notes']],
+  files: ['GET /v1/reports/:order/pdf', 'GET /v1/reports/:order/artifacts/*'],
   writes: [
     {
       id: 'notes.post', match: 'POST /v1/projects/:project/notes', kind: 'create',
@@ -684,6 +685,56 @@ test('a first visit: what the page read before the worker took charge is on the 
     ]);
     assert.equal(offline[3].json.error, 'offline_unavailable');
     s.down = false;
+  });
+});
+
+test('files a contract declares are kept like pictures; a page names the files of a kept project, and a part of one is cut from the copy', async () => {
+  await withBrowser(async (s, context) => {
+    const pdf = Buffer.from('%PDF-1.7 ' + 'report '.repeat(400));
+    const summary = Buffer.from('%PDF-1.7 ' + 'summary '.repeat(300));
+    let asked = 0;
+    s.api = (request) => {
+      if (request.path === '/v1/projects/p1') return { json: { project: { id: 'p1' } } };
+      if (request.path === '/v1/projects/p1/notes') return { json: { notes: [] } };
+      if (request.path === '/v1/reports/o1/pdf') { asked++; return { bytes: pdf, type: 'application/pdf', headers: { ETag: '"r1"' } }; }
+      if (request.path === '/v1/reports/o1/artifacts/Summary.pdf') return { bytes: summary, type: 'application/pdf' };
+      if (request.path === '/v1/reports/o1/other.pdf') return { bytes: pdf, type: 'application/pdf' };
+      return null;
+    };
+    const page = await openPortal(context, s);
+    await check(page);
+    await until(async () => (await state(page)).code.status === 'ready', 'the set is ready');
+
+    // A file the page fetches itself is kept, and the same answer is not written a second time.
+    const first = await call(page, 'GET', '/v1/reports/o1/pdf?slot=main', null, { size: true });
+    assert.deepEqual([first.status, first.text, first.offline], [200, String(pdf.length), null]);
+    await until(async () => (await device(page)).media.length === 1, 'the report is kept');
+    await call(page, 'GET', '/v1/reports/o1/pdf?slot=main', null, { size: true });
+    assert.equal(asked, 2, 'with a connection the server is asked each time');
+
+    // The page names the files of a project: nothing is kept for a project that is not kept on the device.
+    const names = ['/v1/reports/o1/pdf?slot=main', s.origin + '/v1/reports/o1/artifacts/Summary.pdf', '/v1/reports/o1/other.pdf', '/v1/projects/p1', 'https://elsewhere.test/v1/reports/o1/pdf'];
+    assert.equal(await page.evaluate((urls) => window.PlatformOffline.keepFiles('org_1', 'p1', urls), names), false);
+    await page.evaluate(() => window.PlatformOffline.pinProject('org_1', 'p1'));
+    // Only media files and declared routes of this site count: two of the five.
+    assert.equal(await page.evaluate((urls) => window.PlatformOffline.keepFiles('org_1', 'p1', urls), names), 2);
+    await until(async () => (await device(page)).media.length === 2, 'the summary the page never fetched is kept');
+
+    // Without a connection: the whole file, and a part of it (a PDF viewer asks in parts), from the device's copy.
+    s.down = true;
+    const whole = await call(page, 'GET', '/v1/reports/o1/artifacts/Summary.pdf', null, { size: true });
+    assert.deepEqual([whole.status, whole.text, whole.type], [200, String(summary.length), 'application/pdf']);
+    const part = await call(page, 'GET', '/v1/reports/o1/pdf?slot=main', null, { headers: { Range: 'bytes=0-7' } });
+    assert.deepEqual([part.status, part.text, part.offline], [206, '%PDF-1.7', 'saved']);
+    const missing = await call(page, 'GET', '/v1/reports/o1/other.pdf', null, { size: true });
+    assert.ok(missing.error, 'a file that is not declared is not kept');
+    s.down = false;
+
+    // A kept project is refreshed with its named files; letting it go lets them be evicted like any other picture.
+    const kept = await page.evaluate(() => window.PlatformOffline.pinned());
+    assert.deepEqual(kept.map((pin) => [pin.project, pin.media]), [['p1', 2]]);
+    await page.evaluate(() => window.PlatformOffline.unpinProject('org_1', 'p1'));
+    assert.deepEqual(await page.evaluate(() => window.PlatformOffline.pinned()), []);
   });
 });
 

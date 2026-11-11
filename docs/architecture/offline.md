@@ -806,6 +806,35 @@ background `URLSession` on iOS), also after the app is closed. The queue stays t
 - A job that has not arrived is never cancelled because its entry is missing. It is cancelled only when the
   person discards the entry. An upload already in flight may still arrive.
 
+## Report files
+
+A FirstMeasure order's report PDFs, its model file and its picture are files,
+not JSON, so they are not saved reads. `contracts/reports.js` declares their
+routes in `files`, and a declared file is kept like a picture:
+
+- **`files` in a contract** is a list of `GET` routes. A request for one from
+  a page is answered by the network when there is one, and the answer is
+  kept (up to 40 MB a file, within the picture budget, least recently used
+  first); without a connection the device's copy answers, also for a part of
+  the file (`Range`, as a PDF viewer asks). An answer the device already has
+  (same `ETag`, or same date and length) is not written again.
+- **The order's picture** (`/thumbnail`) is an image in a page, so it is kept
+  this way as it is shown: My Projects shows its tiles without a connection
+  for the orders a person has looked at.
+- **A report shown in a frame is not a request the worker sees**: a frame's
+  own page belongs to the worker only when its address is under `/portal/`.
+  So the Measurements app (`apps/measurements/project.js`) does two things.
+  With a connection it names the project's report files
+  (`PlatformOffline.keepFiles(org, project, urls)`), and the worker downloads
+  them for a project that is kept on the device, again at every refresh, and
+  lets them go with the project (`FMOffline.pins.files`; only media files
+  and declared file routes are accepted, 40 a project). Without a connection
+  it fetches the device's copy and shows it in the frame from memory, or
+  says the report is not saved on this device.
+- The same holds for any app that shows a file in a frame or opens it in a
+  new tab: declare the route, name the file for the kept project, and show
+  the copy from memory when offline.
+
 ## Identity and privacy
 
 - The worker knows whose page a portal page is from the answer to its
@@ -954,6 +983,7 @@ PlatformOffline.isPending(recordId)
 PlatformOffline.retry(id); PlatformOffline.discard(id); PlatformOffline.resolve(id, choices)
 PlatformOffline.syncNow(); PlatformOffline.checkForUpdate()
 PlatformOffline.pinProject(org, project); PlatformOffline.unpinProject(org, project); PlatformOffline.pinned()
+PlatformOffline.keepFiles(org, project, urls)   // files of a kept project that only the page knows (report PDFs)
 PlatformOffline.settings.get(name); PlatformOffline.settings.set(name, value)
 PlatformOffline.signedOut(); PlatformOffline.removeSaved(); PlatformOffline.measure()
 PlatformOffline.media.put(url, blob, { fixed })   // keeps a file under a media URL on this device
@@ -1260,9 +1290,8 @@ missing before that is safe:
 ## Not built yet
 
 - Offline document creation and editing (above).
-- Order thumbnails and report images (`/v1/firstmeasure/projects/:id/thumbnail`,
-  `/artifacts/*`) are not kept by the worker; My Projects shows them only
-  while the browser's own cache has them.
+- A report opened in a new tab (the "Open" links) needs a connection: only
+  the report shown inside the project window is read from the device.
 - A read the server answers with `404` is not saved, so an app sees "no
   connection" where it saw "does not exist" online (for example a branch
   record that was never made).

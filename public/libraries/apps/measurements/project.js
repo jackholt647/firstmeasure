@@ -1497,6 +1497,46 @@ window.PlatformCommerce.onReady(function(){
     reorderCurrentReportOrder(reportOrderReorderType());
   }
 
+  // Offline (docs/architecture/offline.md, "Report files"). A report is shown in a frame, and a frame's own page
+  // is not the offline worker's to answer, so: with a connection the files of a project that is kept on this
+  // device are named for the worker to keep with it; without one the device's copy is fetched and shown from memory.
+  let reportFilesKeptFor = '';
+  function keepReportFilesOnDevice(assets){
+    const offline = window.PlatformOffline;
+    const project = String(activeBaseProject?.id || '').trim();
+    if (!offline?.keepFiles || !project) return;
+    let state = null;
+    try { state = offline.state?.(); } catch (_) { state = null; }
+    if (!state?.controlled || state.online === false) return;
+    const urls = [assets?.reportUrl, assets?.summaryUrl, assets?.xmlUrl].map((value) => String(value || '').trim()).filter(Boolean);
+    const key = `${project}|${urls.join('|')}`;
+    if (!urls.length || key === reportFilesKeptFor) return;
+    reportFilesKeptFor = key;
+    // (false: the project is not kept on this device yet; the next render asks again.)
+    Promise.resolve(offline.keepFiles(projectOrgId(), project, urls)).then((kept) => { if (kept === false && reportFilesKeptFor === key) reportFilesKeptFor = ''; }, () => { if (reportFilesKeptFor === key) reportFilesKeptFor = ''; });
+  }
+  function reportShownFromDevice(){
+    try { const state = window.PlatformOffline?.state?.(); return !!state && state.controlled === true && state.online === false; } catch (_) { return false; }
+  }
+  async function showReportFileFromDevice(marker, url){
+    const frame = document.querySelector(`iframe[data-report-from-device="${marker}"]`);
+    if (!frame) return;
+    try {
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('not on this device');
+      const file = await response.blob();
+      // (A stored file may have lost its type; a report shown here is a PDF.)
+      const objectUrl = URL.createObjectURL(/pdf/i.test(file.type) ? file : new Blob([file], { type: 'application/pdf' }));
+      frame.addEventListener('load', () => setTimeout(() => URL.revokeObjectURL(objectUrl), 60000), { once: true });
+      frame.src = `${objectUrl}#view=Fit`;
+    } catch (_) {
+      const note = document.createElement('div');
+      note.className = 'r-report-debug-disabled';
+      note.innerHTML = `<div class="r-report-debug-card"><i class="fas fa-cloud-arrow-down"></i><h3>${(globalThis.PlatformLanguage?.htmlText("measurements","offline_report_not_saved_title","Not saved on this device") ?? "Not saved on this device")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("measurements","offline_report_not_saved_body","This report was not saved on this device. Connect to the internet to open it.") ?? "This report was not saved on this device. Connect to the internet to open it.")}</p></div>`;
+      (frame.closest('.r-report-frame') || frame).replaceWith(note);
+    }
+  }
+
   function reportFrameHtml(url){
     const safeUrl = escapeHtml(url || '');
     if (pdfPreviewDisabled) {
@@ -1509,6 +1549,15 @@ window.PlatformCommerce.onReady(function(){
             ${String(url ? `<a href="${safeUrl}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_39f4f4e9015b56"," Open PDF") ?? " Open PDF")}</a>` : '')}
           </div>
         </div>`;
+    }
+    if (url && reportShownFromDevice()) {
+      const marker = `rf${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+      setTimeout(() => { showReportFileFromDevice(marker, url); }, 0);
+      return `
+      <div class="r-report-frame">
+        <iframe class="r-report-iframe" data-report-from-device="${marker}"></iframe>
+      </div>
+    `;
     }
     return `
       <div class="r-report-frame">
@@ -4153,6 +4202,7 @@ window.PlatformCommerce.onReady(function(){
         instant.innerHTML = pendingReportHtml('instant');
       }
     }
+    if (!terminalWithoutReport) keepReportFilesOnDevice(cachedAssets);
     if (standard) {
       standard.innerHTML = !terminalWithoutReport && cachedAssets?.reportUrl
         ? `${reportExpediteRefundNoticeHtml()}${reportFrameHtml(cachedAssets.reportUrl)}`

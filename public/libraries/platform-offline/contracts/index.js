@@ -13,5 +13,6 @@ self.FM_OFFLINE_CONTRACTS = [
   'contacts.js',
   'schedule.js',
   'documents.js',
-  'media.js'
+  'media.js',
+  'reports.js'
 ];

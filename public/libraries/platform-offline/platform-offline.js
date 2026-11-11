@@ -412,6 +412,12 @@
     /** Keeps a project on the device. options.auto marks it as recently opened (the ten newest are kept). */
     pinProject: (org, project, options) => ask('pin', { org, project, auto: !!(options && options.auto) }, 10 * 60000),
     unpinProject: (org, project) => ask('unpin', { org, project }),
+    /**
+     * Names files that belong with a project kept on this device and that only the page knows (an order's report
+     * PDFs). Each must be a media file or a route a contract declares in `files`. Resolves the number of files the
+     * project now names, or false when the project is not kept here.
+     */
+    keepFiles: (org, project, urls) => ask('pinFiles', { org, project, urls: [].concat(urls || []).map(String) }, 5 * 60000),
     pinned: () => ask('pinned'),
     settings: {
       get: (name) => settings[name],

@@ -32,6 +32,8 @@
     readTimeoutAfterFailureMs: 1500,
     maxReadBytes: 20 * MB,
     maxMediaBytes: 8 * MB,
+    maxFileBytes: 40 * MB,        // a file a contract declares (a report PDF)
+    pinFiles: 40,                 // files a page may name for one kept project
     fileReserveBytes: 10 * MB,
     backoffMs: [2000, 5000, 15000, 60000],
     backoffMaxMs: 300000,
@@ -308,13 +310,14 @@
   // Contracts
   // ---------------------------------------------------------------------------------------------------------
 
-  const registry = { contracts: new Map(), extraDeny: [], deny: [], writes: [], reads: [], boot: [], prefetch: [] };
+  const registry = { contracts: new Map(), extraDeny: [], deny: [], writes: [], reads: [], boot: [], prefetch: [], files: [] };
 
   function rebuildRegistry() {
     registry.deny = registry.extraDeny.slice(); registry.writes = []; registry.reads = []; registry.boot = []; registry.prefetch = [];
     for (const contract of registry.contracts.values()) {
       registry.deny.push(...compileAll(contract.deny));
       registry.boot.push(...compileAll(contract.boot));
+      registry.files.push(...compileAll(contract.files));
       for (const write of contract.writes || []) registry.writes.push({ contract, write, patterns: compileAll(write.match) });
       for (const read of contract.reads || []) registry.reads.push({ contract, read, patterns: compileAll(read.match) });
       for (const item of contract.prefetch || []) registry.prefetch.push({ contract, item });
@@ -1110,20 +1113,36 @@
   const touched = new Map();
 
   const media = {
-    match(pathname) { const found = MEDIA_PATH.exec(pathname); return found ? { id: decode(found[1]) } : null; },
+    /**
+     * A file kept like a picture: a media file ({ id }), or a route a contract declares in `files` (a report PDF,
+     * an order's picture: { id: '', declared: true }). Such an answer is not JSON, so it is not a saved read.
+     */
+    match(pathname) {
+      const found = MEDIA_PATH.exec(pathname);
+      if (found) return { id: decode(found[1]) };
+      return matchAny(registry.files, 'GET', pathname) ? { id: '', declared: true } : null;
+    },
     isThumb: (url) => /^thumb/i.test(url.searchParams.get('variant') || ''),
     urlKey: (url) => url.pathname + url.search,
     cacheKey: (identity, url) => `${ORIGIN}/.fm-media/${encodeURIComponent(identity.user)}/${encodeURIComponent(identity.org)}${url.pathname}${url.search}`,
 
     async handle(request, url, identity, file, options) {
       const waitUntil = (options && options.waitUntil) || (() => {});
-      const queued = await queue.blob(identity, file.id).catch(() => null);
+      const queued = file.id ? await queue.blob(identity, file.id).catch(() => null) : null;
       if (queued) {
         // A grid of waiting photos shows the small copies made when they were queued, not twenty full-size files.
         const small = media.isThumb(url) && !request.headers.has('range') ? await media.cached(identity, url).catch(() => null) : null;
         return small || blobResponse(queued, request.headers.get('range'));
       }
-      if (request.headers.has('range')) return config.fetch(request).catch((error) => { throw netError(error); });
+      if (request.headers.has('range')) {
+        // A part of a file (a PDF viewer, a video): the network's, or cut from the device's copy when it cannot be reached.
+        try { return await config.fetch(request); } catch (error) {
+          if (wasAborted(request, error)) throw error;
+          const copy = await media.cached(identity, url).catch(() => null);
+          if (!copy) throw netError(error);
+          return blobResponse({ blob: await copy.blob(), type: copy.headers.get('content-type') || '' }, request.headers.get('range'), 'saved');
+        }
+      }
       // Only an answer the server marked immutable (a rendition, a markup thumbnail with its revision) is served
       // from the device first. A logo, an avatar or an original can change under the same URL: network first.
       const hit = await media.cached(identity, url).catch(() => null);
@@ -1142,8 +1161,11 @@
       }
       net.ok();
       // A file that announces itself as too large is not copied at all; one of unknown length is read only up to the limit.
-      const tooLarge = !media.isThumb(url) && Number(response.headers.get('content-length')) > limits.maxMediaBytes;
-      if (response.status === 200 && response.type !== 'opaque' && !tooLarge) waitUntil(media.store(identity, url, response.clone(), {}).catch(() => {}));
+      const limit = file.declared ? limits.maxFileBytes : limits.maxMediaBytes;
+      const tooLarge = !media.isThumb(url) && Number(response.headers.get('content-length')) > limit;
+      // An answer the device already has (the same ETag or date and length) is not written a second time.
+      const same = hit && mediaTag(response) && hit.headers.get('X-FM-Tag') === mediaTag(response);
+      if (response.status === 200 && response.type !== 'opaque' && !tooLarge && !same) waitUntil(media.store(identity, url, response.clone(), { limit }).catch(() => {}));
       return response;
     },
 
@@ -1167,7 +1189,7 @@
     async store(identity, url, response, options) {
       if (!root.caches) return false;
       const thumb = media.isThumb(url);
-      const blob = await bodyUpTo(response, thumb ? Infinity : limits.maxMediaBytes);
+      const blob = await bodyUpTo(response, thumb ? Infinity : (options && options.limit) || limits.maxMediaBytes);
       if (!blob) return false;
       const key = media.urlKey(url);
       const now = config.now();
@@ -1175,6 +1197,7 @@
       const fixed = (options && options.fixed) || /immutable/i.test(response.headers.get('cache-control') || '');
       const headers = { 'Content-Type': response.headers.get('content-type') || blob.type || 'application/octet-stream', 'Cache-Control': fixed ? 'private, max-age=31536000, immutable' : 'private, no-cache' };
       if (fixed) headers['X-FM-Fixed'] = '1';
+      if (mediaTag(response)) headers['X-FM-Tag'] = mediaTag(response);
       await cache.put(media.cacheKey(identity, url), new Response(blob, { status: 200, headers }));
       const keep = (options && options.keep) || (await pins.has(identity, 'media', key)) ? 1 : 0;
       await db.put('media', { k: [identity.user, identity.org, key], size: blob.size, usedAt: now, keep, thumb });
@@ -1208,8 +1231,16 @@
     }
   };
 
-  function blobResponse(row, range) {
-    const headers = { 'Content-Type': row.type || 'application/octet-stream', 'Cache-Control': 'no-store', 'X-FM-Offline': 'queued', 'Accept-Ranges': 'bytes' };
+  /** What tells one answer of a file from the next: its ETag, else its date and length. '' when it says neither. */
+  function mediaTag(response) {
+    const etag = response.headers.get('etag');
+    if (etag) return etag;
+    const modified = response.headers.get('last-modified'), length = response.headers.get('content-length');
+    return modified && length ? modified + ' ' + length : '';
+  }
+
+  function blobResponse(row, range, from) {
+    const headers = { 'Content-Type': row.type || 'application/octet-stream', 'Cache-Control': 'no-store', 'X-FM-Offline': from || 'queued', 'Accept-Ranges': 'bytes' };
     const found = /^bytes=(\d*)-(\d*)$/.exec(range || '');
     if (!found || (!found[1] && !found[2])) return new Response(row.blob, { status: 200, headers });
     const size = row.blob.size;
@@ -1227,7 +1258,7 @@
   const pinCache = new Map();
 
   const pins = {
-    /** { [project]: { at, auto, reads: [keys], media: [urlKeys], refreshedAt } } for one person. */
+    /** { [project]: { at, auto, reads: [keys], media: [urlKeys], files: [urls a page named], refreshedAt } } for one person. */
     async load(identity) {
       const owner = ownerKey(identity);
       if (!pinCache.has(owner)) pinCache.set(owner, await meta.get('pins:' + owner, {}));
@@ -1258,6 +1289,42 @@
       }
       await pins.prefetch(identity, project).catch(() => {});
       return (await pins.list(identity)).find((pin) => pin.project === String(project)) || null;
+    },
+
+    /**
+     * Files that belong with a kept project and that only the page knows (an order's report PDFs: the order is
+     * not named by the project's own reads). Each must be a media file or a route a contract declares in `files`.
+     * They are downloaded now and again whenever the project is refreshed, and let go with it. Resolves the
+     * number of files the project now names, or false when the project is not kept on this device.
+     */
+    async files(identity, project, urls) {
+      const all = Object.assign({}, await pins.load(identity));
+      const pin = all[project];
+      if (!pin) return false;
+      const wanted = [];
+      for (const target of [].concat(urls || [])) {
+        let url;
+        try { url = new URL(String(target), ORIGIN); } catch (_) { continue; }
+        if (url.origin !== ORIGIN || contracts.denied('GET', url.pathname) || !media.match(url.pathname)) continue;
+        wanted.push(url.pathname + url.search);
+      }
+      const files = [...new Set([...(pin.files || []), ...wanted])].slice(-limits.pinFiles);
+      const fresh = files.filter((file) => !(pin.media || []).includes(file));
+      all[project] = Object.assign({}, pin, { files });
+      await pins.save(identity, all);
+      const kept = [];
+      await pool(fresh, limits.prefetchAtOnce, async (file) => {
+        try {
+          const url = new URL(file, ORIGIN);
+          const response = await config.fetch(url.href, { credentials: 'include', headers: { 'x-fm-offline-replay': '1' } });
+          if (response.status === 200 && await media.store(identity, url, response, { keep: true, limit: media.match(url.pathname).declared ? limits.maxFileBytes : limits.maxMediaBytes })) kept.push(media.urlKey(url));
+        } catch (_) { /* no answer: the next refresh fetches it */ }
+      });
+      if (kept.length) {
+        const now = Object.assign({}, await pins.load(identity));
+        if (now[project]) { now[project] = Object.assign({}, now[project], { media: [...new Set([...(now[project].media || []), ...kept])] }); await pins.save(identity, now); }
+      }
+      return files.length;
     },
 
     async unpin(identity, project) {
@@ -1305,7 +1372,7 @@
         if (url.origin !== ORIGIN || contracts.denied('GET', url.pathname)) return null;
         const response = await config.fetch(url.href, { credentials: 'include', headers: { accept: 'application/json', 'x-fm-offline-replay': '1' } });
         if (media.match(url.pathname)) {
-          if (response.status === 200) { mediaKeys.add(media.urlKey(url)); await media.store(identity, url, response, { keep: true }); }
+          if (response.status === 200) { mediaKeys.add(media.urlKey(url)); await media.store(identity, url, response, { keep: true, limit: media.match(url.pathname).declared ? limits.maxFileBytes : limits.maxMediaBytes }); }
           return null;
         }
         if (!reads.savable(response)) return null;
@@ -1322,6 +1389,7 @@
           for (const target of [].concat((typeof item.url === 'function' ? await item.url(ctx) : item.url) || [])) each.push({ target, item });
         } catch (_) { /* one contract's mistake never stops the others */ }
       }
+      for (const file of ((await pins.load(identity))[project] || {}).files || []) urls.add(file);      // what a page named (pins.files)
       let failed = 0;
       await pool(each, limits.prefetchAtOnce, async ({ target, item }) => {
         try { const json = await fetchOne(target); if (json && item.each) for (const next of [].concat((await item.each(json, ctx)) || [])) urls.add(next); } catch (_) { failed++; }
@@ -1346,7 +1414,7 @@
       for (const row of await db.list('meta')) {
         if (typeof row.k !== 'string' || !row.k.startsWith('pins:' + user + '|')) continue;
         const value = {};
-        for (const [project, pin] of Object.entries(row.v || {})) value[project] = Object.assign({}, pin, { reads: [], media: [], refreshedAt: null });
+        for (const [project, pin] of Object.entries(row.v || {})) value[project] = Object.assign({}, pin, { reads: [], media: [], files: [], refreshedAt: null });
         await meta.set(row.k, value);
       }
     }
