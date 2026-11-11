@@ -109,7 +109,7 @@ test('a project photo taken without a connection is queued with the record the r
 
   const [entry] = await t.entries();
   eq([entry.contract, entry.write, entry.kind, entry.scope, entry.records, entry.state], ['media', 'media.upload', 'upload', 'project:p1', ['media_00112233aabbccdd'], 'waiting']);
-  eq(entry.label, { title: 'Photo', detail: 'Roof front.jpg' });
+  eq(entry.label, { key: 'sync_photo_new', title: 'Photo', detail: 'Roof front.jpg' });
   eq(entry.media, [{ id: 'media_00112233aabbccdd', blob: 0 }]);
   // The grid's thumbnail URL and the viewer's file URL are answered from the stored file.
   for (const variant of ['?variant=thumb_320', '?variant=original']) {
@@ -136,7 +136,7 @@ test('only project photos and photos with no project are queued; a slot upload, 
   // A video, a small GIF: no thumbnails are promised.
   const video = await t.json('POST', `${ORG}/media`, { body: photoForm('media_video', {}, new File(['video-bytes'], 'walk.mp4', { type: 'video/mp4' })) });
   eq([video.data.media.kind, Object.keys(video.data.media.variants)], ['video', ['original']]);
-  eq((await t.entries()).at(-1).label, { title: 'Video', detail: 'walk.mp4' });
+  eq((await t.entries()).at(-1).label, { key: 'sync_video_new', title: 'Video', detail: 'walk.mp4' });
   const gif = await t.json('POST', `${ORG}/media`, { body: photoForm('media_gif', {}, new File(['gif'], 'a.gif', { type: 'image/gif' })) });
   eq(Object.keys(gif.data.media.variants), ['original']);
 });

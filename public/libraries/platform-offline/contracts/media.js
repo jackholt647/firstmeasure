@@ -243,7 +243,7 @@
         when: (ctx) => !!uploadOf(ctx),
         kind: 'upload',
         scope: (ctx) => { const upload = uploadOf(ctx); return upload.project ? 'project:' + upload.project : 'user:' + ctx.user; },
-        label: (ctx) => { const upload = uploadOf(ctx); return { title: /^video\//i.test(upload.file.type || '') ? 'Video' : 'Photo', detail: text(upload.file.name) }; },
+        label: (ctx) => { const upload = uploadOf(ctx); const video = /^video\//i.test(upload.file.type || ''); return { key: video ? 'sync_video_new' : 'sync_photo_new', title: video ? 'Video' : 'Photo', detail: text(upload.file.name) }; },
         records: (ctx) => [uploadOf(ctx).id],
         media: (ctx) => { const upload = uploadOf(ctx); return [{ id: upload.id, field: upload.field }]; },
         respond: async (ctx) => ({ ok: true, media: await mediaRecord(ctx, uploadOf(ctx)) }),
@@ -270,7 +270,7 @@
         // removed it.
         kind: 'patch',
         scope: (ctx) => 'project:' + ctx.params.project,
-        label: (ctx) => { const count = list(ctx.body.photos).length; return { title: 'Project photos', detail: list(ctx.body.remove).length ? 'Photos removed' : count + (count === 1 ? ' photo' : ' photos') }; },
+        label: (ctx) => (list(ctx.body.remove).length ? { key: 'sync_project_photos_removed', title: 'Photos removed from the project', detail: '' } : { key: 'sync_project_photos', title: 'Project photos', detail: '' }),
         // The photos this save adds or removes: what an app asks about with isPending.
         records: async (ctx) => {
           const saved = await ctx.saved(projectUrl(ctx));
@@ -309,7 +309,7 @@
         kind: 'action',
         // Behind this person's own waiting photos, which are what the phone camera pairs.
         scope: (ctx) => 'user:' + ctx.user,
-        label: (ctx) => { const count = list(ctx.body.media_ids).length; return { title: 'Add to project', detail: count + (count === 1 ? ' photo' : ' photos') }; },
+        label: () => ({ key: 'sync_photo_assign', title: 'Photos added to a project', detail: '' }),
         records: (ctx) => list(ctx.body.media_ids).map(text).filter(Boolean),
         respond: async (ctx) => {
           const project = text(ctx.body.project_id);
