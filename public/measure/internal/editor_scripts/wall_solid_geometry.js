@@ -1302,7 +1302,9 @@ function loadBearingIndex(faces){
   if(dot(a,b)>=0||Math.hypot(c.x,c.y,c.z)>1e-6*Math.max(1,Math.hypot(a.x,a.y,a.z)*Math.hypot(b.x,b.y,b.z))){const key=cell(p.x)+','+cell(p.y)+','+cell(p.z);if(!cells.has(key))cells.set(key,[]);cells.get(key).push(p);const wide=reach(p.x)+','+reach(p.y)+','+reach(p.z);if(!near.has(wide))near.set(wide,[]);near.get(wide).push(p);}
   segments.push({c:p,d:q,minX:Math.min(p.x,q.x),maxX:Math.max(p.x,q.x),minY:Math.min(p.y,q.y),maxY:Math.max(p.y,q.y),minZ:Math.min(p.z,q.z),maxZ:Math.max(p.z,q.z)});
  }
- return {marker:p=>{
+ // Two lines whose ends lie within reach of each other are one line to the eye and to a click.
+ const twin=(a,b,c,d)=>{const near=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=MARKER_REACH;return near(a,c)&&near(b,d)||near(a,d)&&near(b,c);};
+ return {twin,marker:p=>{
   const key=vertexKey(p);if(markerCache.has(key))return markerCache.get(key);let yes=false;const x=reach(p.x),y=reach(p.y),z=reach(p.z);
   for(let i=-1;i<=1&&!yes;i++)for(let j=-1;j<=1&&!yes;j++)for(let k=-1;k<=1&&!yes;k++)yes=(near.get((x+i)+','+(y+j)+','+(z+k))||[]).some(q=>Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<=MARKER_REACH);
   markerCache.set(key,yes);return yes;

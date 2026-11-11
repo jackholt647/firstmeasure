@@ -4375,3 +4375,17 @@ test('markers stacked within a few millimetres show one colour: orange if any of
  const drawn=[];f.editor.draw3D({add:o=>drawn.push(o)},q=>q);const colourAt=q=>drawn.filter(o=>o.material?.size===8&&Math.hypot(o.geometry.points[0].x-q.x,o.geometry.points[0].z-q.z)<1e-6).map(o=>o.material.color);
  assert.deepEqual(colourAt(p(4.002,0,3)),['#e7ad52']);assert.deepEqual(colourAt(p(2,0,1.5)),['#6ce4ed']);
 });
+test('deleting a line takes its loose copies a few millimetres away with it, and leaves a copy that holds a face',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ const wall={id:'wall',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(0,0,3)],holes:[]};
+ // Three copies of one loose line in the open, and one loose line 2 mm off the wall's end.
+ const a=[p(6,0,0),p(6,0,3)],b=[p(6.001,.0014,.002),p(6,0,3)],c=[p(6.001,.0014,.002),p(6.0005,0,2.993)],edge=[p(4.002,0,0),p(4.001,0,3)];
+ const state={wallEdits:{$surfaces:[wall],$loose:{points:[...a,...b,...c,...edge],edges:[a,b,c,edge]}}},f=fixture({state,walls:[],selected:null,globals:renderGlobals()});
+ const lines=()=>{const g=W.surfaceWire(state.wallEdits),at=new Map(g.nodes.map(n=>[n.id,n]));return g.edges.map(e=>[at.get(e.a),at.get(e.b)]);},near=(q,x)=>lines().filter(([s,t])=>Math.abs(s.x-x)<.01&&Math.abs(t.x-x)<.01&&Math.abs(s.z-t.z)>2).length;
+ assert.equal(near(null,6),3);
+ f.editor.restoreSelection({lineSelection:[{pair:a}]});assert.equal(f.editor.key({key:'Delete'}),true,f.message());
+ assert.equal(near(null,6),0,'one Delete removes the line and both copies under it');assert.equal(f.history.length,1);
+ // The loose line beside the wall's end goes; the wall's own edge, which holds the wall, stays.
+ f.editor.restoreSelection({lineSelection:[{pair:edge}]});f.editor.key({key:'Delete'});
+ assert.ok(!state.wallEdits.$surfaces[0].deleted);assert.equal(near(null,4),1,'the wall edge is still there');
+});

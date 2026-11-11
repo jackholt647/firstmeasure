@@ -1716,6 +1716,11 @@ function perf_previewLineMove(e){
  }
  function deleteLines3D(selectedSegments=selectedDeleteSegments()){
   selectedSegments=removeDivisionSegments(selectedSegments);if(!selectedSegments.length)return;
+  // Edits leave copies of a line a few millimetres apart; one is drawn over the others and Delete seemed to do
+  // nothing while it took them one at a time. Take the copies that hold no face with the selected line. A copy
+  // that does hold a face stays, and shows as the orange line it is.
+  {const index=W.loadBearingIndex([...colourFaces(),...baseColourFaces()]),graph=wire(),at=new Map(graph.nodes.map(n=>[n.id,n])),pool=[...graph.edges.filter(e=>!e.curve).map(e=>[at.get(e.a),at.get(e.b)]),...Object.values(all()).filter(visibleDraft).flatMap(d=>draftSegments(d).filter(e=>!e.curveId).map(e=>[world(d,e.start),world(d,e.end)]))].filter(pair=>pair[0]&&pair[1]);
+   const have=new Set(selectedSegments.map(pair=>W.edgeKey(...pair)));for(const pair of pool){const key=W.edgeKey(...pair);if(have.has(key)||index.edge(...pair)||!selectedSegments.some(s=>index.twin(...s,...pair)))continue;have.add(key);selectedSegments=[...selectedSegments,pair];}}
   const previousWalls=renderWalls;renderWalls ||= host.walls();
   try{for(const w of renderWalls)ensure(w);}finally{renderWalls=previousWalls;}
   const segments=selectedSegments,faces=[],refs=new Map();
