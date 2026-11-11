@@ -12659,6 +12659,9 @@ async function reopenRejectedProjectForReorder(
 
       queued_at: nowSql,
 
+      // The reorder's first claim starts the drafting timer again (FM-386).
+      started_at: null,
+
       rejected_at: null,
 
       completed_at: null,
