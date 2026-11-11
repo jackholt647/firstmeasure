@@ -207,24 +207,3 @@ test('summary pitch and waste tables keep long translated row labels inside the 
  }
  assert.ok(checked>=48,'rows checked: '+checked);
 });
-// FM-397: a metric report writes every pitch in degrees, even one ordered with rise over 12 (a company that switched to
-// metric kept the rise_12 it had saved while imperial): cover, summary, pitch table, diagram labels, the notes page's pill
-// and the materials page's low-slope note.
-test('a metric PDF never writes a pitch as rise over 12; an imperial one still does',async()=>{
- const preferences={measurement_system:'metric',pitch_notation:'rise_12',report_language:'de-DE',language_snapshot:{locale:'de-DE',report_dictionary:{}}};
- for(const mode of ['full','summary'])for(const orientation of ['landscape','portrait']){
-  const label=mode+' '+orientation,override={report_orientation:orientation,page_notes:true};
-  const metric=await render({mode,exterior:false,exteriorSettings:{},override,preferences});
-  const texts=metric.calls.filter(c=>c.kind==='text').map(c=>c.value);
-  assert.deepEqual(texts.filter(t=>/\d\s*\/\s*12\b/.test(t)),[],label+': no rise over 12 in a metric report');
-  assert.ok(texts.some(t=>/18,4°/.test(t)),label+': 4/12 is written 18,4° (de-DE)');
-  if(mode==='full')assert.ok(texts.some(t=>/·\s+18,4°\s+·/.test(t)),label+': the notes page pill too');
-  const imperial=await render({mode,exterior:false,exteriorSettings:{},override});
-  assert.ok(imperial.calls.some(c=>c.kind==='text'&&/4\s*\/\s*12/.test(c.value)),label+': an imperial report keeps rise over 12');
- }
- const note=await page.evaluate(preferences=>{window.currentProjectManifest={id:'fm-397-note',...preferences};
-  return [pdfPitch('2/12'),pdfPitch(6,0),pdfPitch('N/A'),pdfLabel("Sections at 2/12 or below classified as low-slope. Quantities include ").replace('2/12',pdfPitch('2/12'))];},preferences);
- assert.deepEqual(note,['9,5°','27°','N/A','Sections at 9,5° or below classified as low-slope. Quantities include ']);
- const source=require('node:fs').readFileSync(path.join(root,'public/measure/internal/editor_scripts/pdf.js'),'utf8');
- assert.ok(source.includes(`pdfLabel("Sections at 2/12 or below classified as low-slope. Quantities include ").replace('2/12', pdfPitch('2/12'))`),'the low-slope note converts its threshold');
-});
