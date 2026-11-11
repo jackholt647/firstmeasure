@@ -358,6 +358,32 @@ and `auth_status` are not declared.
 There is no change feed yet: a refresh re-reads the pinned set
 (see [the backlog](../optimization-backlog.md#pinned-offline-projects-are-refreshed-by-reading-everything-again)).
 
+### The first load on a device
+
+A page that loads before the worker controls it (the first visit on a device,
+or a hard reload) makes its start-up reads where the worker cannot see them,
+so none of that load would be saved, and the portal would not start without a
+connection until it had been opened a second time. (Found on dev with a
+reports-only account: one visit, then no connection, gave "Billing settings
+could not be loaded".)
+
+- On such a load `platform-offline.js`, which the portal pages load first,
+  notes the `/v1/` requests the page makes with `fetch` and `XMLHttpRequest`:
+  method, URL, and for a `POST` its text or its form's text fields (up to
+  64 KB, 300 requests). It changes nothing about a request. Routes under
+  `auth`, `payments`, `payment-browser` and `platform-billing` are never
+  noted. When the worker is in charge and knows who is signed in, the page
+  has its own functions back and the list goes to the worker once (`warm`).
+- `FMOffline.reads.warm(identity, requests)` asks again for what is a read
+  and is not on the device yet: a `GET` that is not on the deny list and is
+  not a media file, and a `POST` that a contract declares as a read (the same
+  `when` and `key` as a page's own request, so the saved answer is the one
+  that request gets). Any other `POST` is a change and is never sent again.
+  Four at a time; an answer is saved by the rules of any other read.
+- This is the only place a page's `fetch` is touched, and only to take
+  notes, on a load the worker does not control. Apps still never wrap
+  `fetch`: the worker stays the one place requests are answered.
+
 ## Queued changes
 
 ### Contracts

@@ -36,6 +36,77 @@
   }
 
   // ---------------------------------------------------------------------------------------------------------
+  // The first load on a device
+  // ---------------------------------------------------------------------------------------------------------
+
+  // A page loaded before the worker controls it (the first visit on a device, or a hard reload) makes its first
+  // reads where the worker cannot see them, so none of them is saved, and the portal would not start without a
+  // connection until it had been opened a second time. Until the worker is in charge this notes which /v1/
+  // requests the page makes. It changes nothing about them. The worker is then asked for the same reads again
+  // (`warm`): it sends a GET that is not on the deny list and a POST a contract declares as a read, nothing else.
+  const EARLY_LIMIT = 300;
+  const EARLY_BODY_LIMIT = 65536;
+  const early = [];
+  let noting = supported && !!identity.user && !navigator.serviceWorker.controller;
+  let stopNoting = () => { noting = false; };
+
+  function note(method, target, body, contentType) {
+    if (early.length >= EARLY_LIMIT) return;
+    const url = new URL(String(target), location.href);
+    if (url.origin !== location.origin || !url.pathname.startsWith('/v1/')) return;
+    if (/\/(auth|payments|payment-browser|platform-billing)(\/|$)/.test(url.pathname)) return;      // never noted, never asked again
+    const path = url.pathname + url.search;
+    const verb = String(method || 'GET').toUpperCase();
+    if (verb === 'GET') { early.push({ method: 'GET', url: path }); return; }
+    if (verb !== 'POST') return;
+    if (typeof body === 'string') { if (body.length <= EARLY_BODY_LIMIT) early.push({ method: 'POST', url: path, body, contentType: String(contentType || '') }); return; }
+    const pairs = (typeof URLSearchParams !== 'undefined' && body instanceof URLSearchParams) || (typeof FormData !== 'undefined' && body instanceof FormData) ? [...body.entries()] : null;
+    if (pairs && pairs.every((pair) => typeof pair[1] === 'string')) early.push({ method: 'POST', url: path, fields: pairs });
+  }
+
+  if (noting) {
+    const pageFetch = window.fetch;
+    const open = XMLHttpRequest.prototype.open, setHeader = XMLHttpRequest.prototype.setRequestHeader, send = XMLHttpRequest.prototype.send;
+    const notes = new WeakMap();
+    const fetchNoting = function (input, init) {
+      if (noting) {
+        try {
+          const request = typeof Request !== 'undefined' && input instanceof Request ? input : null;
+          const headers = new Headers((init && init.headers) || (request ? request.headers : undefined));
+          // (A Request's own body cannot be read without using it up, so only a body given beside it is noted.)
+          note((init && init.method) || (request ? request.method : 'GET'), request ? request.url : input, init ? init.body : undefined, headers.get('content-type'));
+        } catch (_) { /* noting never gets in a request's way */ }
+      }
+      return pageFetch.apply(this, arguments);
+    };
+    const openNoting = function (method, url) { if (noting) { try { notes.set(this, { method, url, type: '' }); } catch (_) { /* as above */ } } return open.apply(this, arguments); };
+    const headerNoting = function (name, value) { if (noting) { const kept = notes.get(this); if (kept && /^content-type$/i.test(String(name))) kept.type = String(value); } return setHeader.apply(this, arguments); };
+    const sendNoting = function (body) { if (noting) { try { const kept = notes.get(this); if (kept) note(kept.method, kept.url, body, kept.type); } catch (_) { /* as above */ } } return send.apply(this, arguments); };
+    window.fetch = fetchNoting;
+    XMLHttpRequest.prototype.open = openNoting;
+    XMLHttpRequest.prototype.setRequestHeader = headerNoting;
+    XMLHttpRequest.prototype.send = sendNoting;
+    // Afterwards the page has its own functions back, unless something else has wrapped them since (then these
+    // stay in the chain and only pass the call on).
+    stopNoting = () => {
+      noting = false;
+      if (window.fetch === fetchNoting) window.fetch = pageFetch;
+      if (XMLHttpRequest.prototype.open === openNoting) XMLHttpRequest.prototype.open = open;
+      if (XMLHttpRequest.prototype.setRequestHeader === headerNoting) XMLHttpRequest.prototype.setRequestHeader = setHeader;
+      if (XMLHttpRequest.prototype.send === sendNoting) XMLHttpRequest.prototype.send = send;
+    };
+    setTimeout(() => { if (noting) { stopNoting(); early.length = 0; } }, 120000);     // a worker that never took charge
+  }
+
+  /** The worker is in charge and knows who is signed in: it asks for the noted reads again and saves them. */
+  function warmEarlyReads() {
+    if (!noting) return;
+    stopNoting();
+    const requests = early.splice(0);
+    if (requests.length && navigator.onLine !== false) ask('warm', { requests }, 180000).catch(() => {});
+  }
+
+  // ---------------------------------------------------------------------------------------------------------
   // State and events
   // ---------------------------------------------------------------------------------------------------------
 
@@ -287,6 +358,7 @@
     } else if (!navigator.serviceWorker.controller && !(await navigator.serviceWorker.getRegistration(SCOPE).catch(() => null))) return snapshot();
     await controller();
     await hello();
+    warmEarlyReads();
     loadUi().catch(() => {});
     if (top) {
       ask('check', { manifest }).then((code) => apply({ code })).catch(() => {});
@@ -307,7 +379,8 @@
     return snapshot();
   }
 
-  const ready = start().catch((error) => { console.warn('[offline] not started', error); return snapshot(); });
+  const ready = start().catch((error) => { console.warn('[offline] not started', error); return snapshot(); })
+    .then((state) => { if (noting) { stopNoting(); early.length = 0; } return state; });      // offline is not in use on this page
   const afterChange = (result) => { if (top) replayNow(); else if (channel) channel.postMessage({ fm: 'offline', type: 'sync-request' }); return result; };
 
   window.PlatformOffline = {

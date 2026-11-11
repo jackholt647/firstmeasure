@@ -42,6 +42,7 @@
     rereadLimit: 25,
     namedIdMinLength: 8,          // a shorter id could be part of any text: never taken as naming a record
     prefetchAtOnce: 4,
+    warmLimit: 300,               // reads of one first page load that are asked for again (reads.warm)
     autoPins: 10,
     touchMs: 3600000,
     budgetCheckBytes: MB
@@ -553,6 +554,64 @@
         if (json) out.push({ url: url.pathname + url.search, query: queryOf(url), params, json });
       }
       return out;
+    },
+
+    /**
+     * Asks again for the reads a page made before the worker could see them, and saves the answers. A page's first
+     * load on a device runs before the worker is in charge, so without this nothing of that load is on the device
+     * and the portal would not start without a connection until it had been opened a second time.
+     * `requests` is [{ method, url, body, contentType, fields }] as the page noted them: a GET of a route that is not
+     * denied, or a POST a contract declares as a read (body: its text; fields: a form's text fields). Anything
+     * else, and anything already saved, is left alone. Resolves { asked, saved }.
+     */
+    async warm(identity, requests) {
+      const seen = new Set();
+      const jobs = [];
+      const fresh = async (key) => { if (seen.has(key)) return false; seen.add(key); return !(await reads.row(identity, key)); };
+      for (const item of [].concat(requests || []).slice(0, limits.warmLimit)) {
+        let url;
+        try { url = new URL(String(item && item.url), ORIGIN); } catch (_) { continue; }
+        const method = String((item && item.method) || 'GET').toUpperCase();
+        if (url.origin !== ORIGIN || !url.pathname.startsWith('/v1/') || contracts.denied(method, url.pathname)) continue;
+        if (method === 'GET') {
+          if (media.match(url.pathname)) continue;                  // pictures are kept when they are shown
+          const key = readKey('GET', url);
+          jobs.push(async () => {
+            if (!(await fresh(key))) return false;
+            const response = await config.fetch(url.href, { credentials: 'include', cache: 'no-store', headers: { accept: 'application/json', 'x-fm-offline-replay': '1' } });
+            if (!reads.savable(response)) return false;
+            await reads.store(identity, key, response, { boot: contracts.boot('GET', url.pathname) });
+            return true;
+          });
+        } else if (method === 'POST' && (typeof item.body === 'string' || Array.isArray(item.fields))) {
+          const declared = contracts.reads('POST', url.pathname);
+          if (!declared.length) continue;                            // only a declared read is ever sent again
+          jobs.push(async () => {
+            const form = Array.isArray(item.fields);
+            const text = form ? new URLSearchParams(item.fields.filter((pair) => Array.isArray(pair) && typeof pair[1] === 'string')).toString() : item.body;
+            const contentType = form ? 'application/x-www-form-urlencoded' : String(item.contentType || 'application/json');
+            const parsed = await readBody(new Request(url.href, { method: 'POST', headers: { 'content-type': contentType }, body: text }));
+            for (const found of declared) {
+              const readCtx = makeCtx({ method: 'POST', url: url.href, params: found.params, parsed, headers: {}, identity, now: config.now() });
+              if (found.read.when && !(await found.read.when(readCtx))) continue;
+              const key = readKey('POST', url, found.read.id + ' ' + stable(found.read.key ? await found.read.key(readCtx) : readCtx.body));
+              if (!(await fresh(key))) return false;
+              const headers = { accept: 'application/json', 'content-type': contentType, 'x-fm-offline-replay': '1' };
+              const token = await config.csrf();
+              if (token) headers['x-platform-csrf'] = token;
+              const response = await config.fetch(url.href, { method: 'POST', credentials: 'include', cache: 'no-store', headers, body: text });
+              if (!reads.savable(response)) return false;
+              const strings = parsed.type === 'form' ? parsed.fields.filter(([, value]) => typeof value === 'string') : null;
+              await reads.store(identity, key, response, { boot: contracts.boot('POST', url.pathname), req: { text: parsed.text == null ? null : parsed.text, contentType: parsed.type === 'json' ? 'application/json' : parsed.contentType || null, fields: strings } });
+              return true;
+            }
+            return false;
+          });
+        }
+      }
+      let saved = 0;
+      await pool(jobs, limits.prefetchAtOnce, async (job) => { try { if (await job()) saved++; } catch (_) { /* no answer: the next visit saves it */ } });
+      return { asked: jobs.length, saved };
     },
 
     /** Reads a saved GET or declared POST read again and stores the answer. Used after a change synced. */
