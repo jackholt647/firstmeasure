@@ -8,8 +8,16 @@ function pdfUnit(kind, legacy) { return window.ReportUnits?.current().metric ? w
 function pdfMaterialKind(unit) { return ({SQ:'sq',SF:'sf',LF:'ft',FT:'ft',GAL:'gallon'})[String(unit).toUpperCase()]; }
 function pdfMaterialUnit(unit) { const kind=pdfMaterialKind(unit); return kind ? pdfUnit(kind,unit) : unit; }
 function pdfMaterialAmount(n,unit,legacy) { const kind=pdfMaterialKind(unit); return kind ? pdfMeasure(n,kind,legacy,false) : legacy; }
-/** A roof pitch in the project's notation (1M8-255): 6/12, or 26.6° for degree projects; other text is unchanged. */
-function pdfPitch(pitch, digits = 1) { return window.ReportUnits?.current?.()?.pitch?.(pitch, digits) ?? pitch; }
+/** A roof pitch in the project's notation (1M8-255): 6/12, or 26.6° for degree projects; other text is unchanged.
+    A metric report always writes degrees (FM-397), whatever notation it was ordered with. */
+function pdfPitchInDegrees() { const units = window.ReportUnits?.current?.(); return !!(units?.metric || units?.pitchNotation === 'degrees'); }
+function pdfPitch(pitch, digits = 1) {
+    const units = window.ReportUnits?.current?.();
+    if (!units?.metric) return units?.pitch?.(pitch, digits) ?? pitch;
+    const rise = typeof pitch === 'number' ? pitch : Number(String(pitch ?? '').trim().match(/^(-?\d+(?:[.,]\d+)?)\s*(?:\/\s*12)?$/)?.[1]?.replace(',', '.'));
+    if (pitch == null || !Number.isFinite(rise)) return pitch;
+    return (Math.atan(Math.abs(rise) / 12) * 180 / Math.PI).toLocaleString(units.language || 'en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits }) + '°';
+}
 function pdfLabel(text, values = {}) { return window.ReportUnits?.current().label(text, values) ?? text.replace(/\{(\w+)\}/g, (all, key) => Object.hasOwn(values, key) ? String(values[key]) : all); }
 // A line type's name in the report language. Look the name up itself: passed as a {value} it stays English (FM-390).
 function pdfLineTypeLabel(typeId) { return pdfLabel(formatLineType(typeId)); }
@@ -6104,7 +6112,7 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
     // Always show these
     statRows.push([pdfLabel("Roof Area"), pdfMeasure(totalSq * 100, 'sf', Math.round(totalSq * 100) + " sq ft")]);
     statRows.push([pdfLabel("Facets"), facetCount.toString()]);
-    statRows.push([pdfLabel("Pitch"), domPitch ? (window.ReportUnits?.current?.()?.pitchNotation === 'degrees' ? pdfPitch(domPitch) : domPitch.replace(/\//g, " / ")) : pdfLabel("N/A")]);
+    statRows.push([pdfLabel("Pitch"), domPitch ? (pdfPitchInDegrees() ? pdfPitch(domPitch) : domPitch.replace(/\//g, " / ")) : pdfLabel("N/A")]);
 
     // Counts — only if non-zero
     if (skyCount > 0)  statRows.push([pdfLabel("Skylights"), skyCount.toString()]);
@@ -7483,7 +7491,7 @@ async function drawNotesPage(doc, state, outlineImg, imgRatio, x, startY, availW
         const val = squaresData[p];
         if (typeof val === 'number' && val > maxArea) { maxArea = val; domPitch = p; }
     });
-    const pillText = pdfLabel("{value1}  ·  {value2}  ·  {value3} facets", {value1: pdfMeasure(withWaste, 'sq', `${withWaste} sq`), value2: domPitch, value3: state.manualTotalFacets});
+    const pillText = pdfLabel("{value1}  ·  {value2}  ·  {value3} facets", {value1: pdfMeasure(withWaste, 'sq', `${withWaste} sq`), value2: pdfPitch(domPitch), value3: state.manualTotalFacets});
     doc.setFont("Montserrat", "bold");
     doc.setFontSize(7.5);
     const pillW = doc.getTextWidth(pillText) + 10, pillH = 7, pillR = 3;
@@ -8110,7 +8118,7 @@ function drawFlatMaterialTable(doc, flatEst, x, y, w, manualWastePct, pageContex
     doc.setFontSize(6);
     doc.setTextColor(130);
     doc.text(
-        pdfLabel("Sections at 2/12 or below classified as low-slope. Quantities include ") + manualWastePct + pdfLabel("% waste where applicable. Numbers are estimates only."),
+        pdfLabel("Sections at 2/12 or below classified as low-slope. Quantities include ").replace('2/12', pdfPitch('2/12')) + manualWastePct + pdfLabel("% waste where applicable. Numbers are estimates only."),
         contentLeft, cursorY
     );
 
