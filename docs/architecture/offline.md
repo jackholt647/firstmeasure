@@ -663,7 +663,7 @@ Bridge version stays 1; new abilities are capabilities checked before use.
 
 | Capability | Methods | Host work |
 |---|---|---|
-| `offlineUploads` | `offlineUploads.enqueue`, `.status`, `.cancel`, `.put` (chunked file transfer from the page) | durable private store, background uploader, results kept until read |
+| `offlineUploads` | `offlineUploads.put` (chunked file transfer from the page), `.enqueue`, `.status`, `.ack`, `.cancel`; the exact contract is in `native/firstmate/README.md`, "Offline" | durable private store, background uploader, results kept until read |
 | `photoLibrarySave` | `photoLibrarySave` | add-only save to the camera roll |
 | `offlineShell` | - | service workers enabled for the portal origin (iOS: App-Bound Domains), a native "no connection yet" screen with retry in place of the browser error page |
 

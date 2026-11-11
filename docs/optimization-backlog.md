@@ -736,3 +736,16 @@ left, or a table partitioned by day that drops whole partitions.
 
 **Why it can wait.** A receipt is a few hundred bytes plus its answer (at most 1 MB, usually under 2 KB), only
 queued offline changes make them, and offline is on development only.
+
+## After a queued change is sent, at most 25 saved reads are read again
+
+**Today.** When the server accepts a queued change, `offline-core.js` reads again the saved answers that change
+affected, so the device holds the server's version. It stops at 25 reads per change (`limits.rereadLimit`); a
+change that touches more (a contract whose effects match many saved lists) leaves the rest as they were until the
+app next reads them with a connection, which replaces them then.
+
+**Where the change goes.** The change feed that will refresh pinned projects (above): the server names what
+changed, and the device re-reads exactly that.
+
+**Why it can wait.** A saved read is only ever used when the server cannot be reached, a read made online always
+replaces it, and today's contracts touch a handful of reads each.

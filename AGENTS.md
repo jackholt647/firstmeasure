@@ -608,8 +608,9 @@ with their idempotency key. Saved data and the queue belong to one person in
 one organization. Online behaviour must not change, the realtime stream is
 never intercepted, and no page reloads by itself. Run
 `tests/offline-core.test.mjs`, `tests/offline-sw-browser.test.mjs`,
-`tests/offline-idempotency.test.ts`, `tests/offline-assets.test.ts` and
-`tests/offline-contracts.test.ts` for changes here.
+`tests/offline-idempotency.test.ts`, `tests/offline-assets.test.ts`,
+`tests/offline-routes.test.ts` and `tests/offline-contracts.test.ts` for
+changes here.
 
 ## Realtime: one stream per page
 
