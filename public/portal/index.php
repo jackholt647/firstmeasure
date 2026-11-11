@@ -58,6 +58,10 @@ if (!empty($_SESSION['first_login'])) {
     $showOnboarding = true;
 }
 
+// What the offline service worker needs to keep this page as the person's shell (docs/architecture/offline.md).
+require_once __DIR__ . '/offline-shell.php';
+portalOfflineShellHeaders($_SESSION['platform_user_id'] ?? '', $userOrgId ?? '');
+
 session_write_close();
 
 ?>
@@ -1832,6 +1836,8 @@ session_write_close();
       window.__themeContrast = { contrastTextFor, readableOnWhite, hexToRgbCSV };
     })();
   </script>
+  <!-- Offline (docs/architecture/offline.md): the first library on the page, once window.__APP says who is signed in. -->
+  <script src="../libraries/platform-offline/platform-offline.js?v=<?= portalAssetVersion('../libraries/platform-offline/platform-offline.js') ?>"></script>
     <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-W7MP6MZNMZ"></script>
 <script>
