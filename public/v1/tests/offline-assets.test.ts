@@ -239,12 +239,12 @@ test("the kill switch: the host setting, the flag for an organization, and Off f
 
   const on = await signedIn("offline-on");
   const off = await signedIn("offline-off");
-  // A platform feature: the organization is on the platform (expanded access) and has the flag.
+  // The organization's own switch, with or without expanded access.
   await enableExpandedPlatformFixture(on.orgId, { [OFFLINE_FLAG]: true });
   await enableExpandedPlatformFixture(off.orgId, { [OFFLINE_FLAG]: false });
   const reportsOnly = await signedIn("offline-reports-only");
   await (await import("../platform/capabilities.js")).saveCapabilityValues(reportsOnly.orgId, { [OFFLINE_FLAG]: true });
-  assert.equal(await enabled(reportsOnly.headers), false, "like every platform feature, it needs expanded access");
+  assert.equal(await enabled(reportsOnly.headers), true, "offline does not need expanded access: an account that only orders reports gets it too");
 
   // The organization's flag decides for its people. Nobody in particular keeps what the device has.
   assert.deepEqual([await enabled(on.headers), await enabled(off.headers), await enabled()], [true, false, true]);

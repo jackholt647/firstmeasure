@@ -6,7 +6,8 @@
  * - the `platform.offline` flag (docs/architecture/feature-flags.md): an
  *   organization switch, so the flag console sets it for one organization, by
  *   percentage, or Off for everyone, and a change is read within 15 seconds
- *   with no release. Like every platform feature it needs expanded access.
+ *   with no release. It does not need expanded access (`firstMeasureCapabilities`
+ *   in platform/capabilities.ts): offline is how the app runs, not an app.
  */
 import type { FastifyRequest } from "fastify";
 import { effectiveCapabilities } from "../capabilities.js";
