@@ -6,7 +6,7 @@ import { readDocument } from "../platform/storage.js";
 
 /**
  * How roof pitch is written (1M8-255): rise over a 12 run (6/12, the US convention) or degrees (26.6°, how roofers
- * outside the US write it). Metric always means degrees (FM-397); the company setting chooses for imperial reports.
+ * outside the US write it). A company setting beside the measurement system; without one, metric means degrees.
  */
 export const PITCH_NOTATIONS = ["rise_12", "degrees"] as const;
 export type PitchNotation = typeof PITCH_NOTATIONS[number];
@@ -24,8 +24,7 @@ export type ReportPreferences = { measurement_system: "imperial" | "metric"; rep
 export function normalizeReportPreferences(input: Record<string, unknown> = {}): ReportPreferences {
   const value = reportPreferencesSchema.parse(input);
   const measurement_system = value.measurement_system ?? "imperial";
-  const pitch_notation = measurement_system === "metric" ? "degrees" : value.pitch_notation ?? defaultPitchNotation(measurement_system);
-  return { measurement_system, report_language: value.report_language ?? "en-US", pitch_notation };
+  return { measurement_system, report_language: value.report_language ?? "en-US", pitch_notation: value.pitch_notation ?? defaultPitchNotation(measurement_system) };
 }
 
 /** Resolve once when ordering. Existing projects never inherit later company changes. */

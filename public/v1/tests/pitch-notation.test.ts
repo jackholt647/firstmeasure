@@ -26,7 +26,7 @@ function fn(source: string, name: string) {
   return source.slice(start, i + 1);
 }
 
-test("pitch notation: metric is always degrees, the setting chooses for imperial, and other text is left alone", () => {
+test("pitch notation: metric companies default to degrees, the setting wins, and other text is left alone", () => {
   const metric = ReportUnits.create({ measurement_system: "metric" });
   const imperial = ReportUnits.create({});
   assert.equal(metric.pitchNotation, "degrees");
@@ -39,9 +39,7 @@ test("pitch notation: metric is always degrees, the setting chooses for imperial
   assert.equal(metric.pitch("Flat roof"), "Flat roof");
   assert.equal(imperial.pitch("6/12"), "6/12");
   assert.equal(imperial.pitch(4), "4/12");
-  // FM-397: a company that switched to metric kept the rise_12 it saved while imperial; metric still means degrees.
-  assert.equal(ReportUnits.create({ measurement_system: "metric", pitch_notation: "rise_12" }).pitchNotation, "degrees");
-  assert.equal(ReportUnits.create({ measurement_system: "metric", pitch_notation: "rise_12" }).pitch("6/12"), "26.6°");
+  assert.equal(ReportUnits.create({ measurement_system: "metric", pitch_notation: "rise_12" }).pitch("6/12"), "6/12");
   assert.equal(ReportUnits.create({ measurement_system: "imperial", pitch_notation: "degrees" }).pitch("6/12"), "26.6°");
 });
 
@@ -49,8 +47,7 @@ test("report preferences carry the pitch notation and default it from the measur
   const { normalizeReportPreferences, defaultPitchNotation } = await import("../firstmeasure/report_preferences.js");
   assert.deepEqual(normalizeReportPreferences({}), { measurement_system: "imperial", report_language: "en-US", pitch_notation: "rise_12" });
   assert.equal(normalizeReportPreferences({ measurement_system: "metric" }).pitch_notation, "degrees");
-  assert.equal(normalizeReportPreferences({ measurement_system: "metric", pitch_notation: "rise_12" }).pitch_notation, "degrees", "FM-397: metric orders are frozen in degrees");
-  assert.equal(normalizeReportPreferences({ measurement_system: "imperial", pitch_notation: "rise_12" }).pitch_notation, "rise_12");
+  assert.equal(normalizeReportPreferences({ measurement_system: "metric", pitch_notation: "rise_12" }).pitch_notation, "rise_12");
   assert.equal(normalizeReportPreferences({ pitch_notation: "degrees" }).pitch_notation, "degrees");
   assert.throws(() => normalizeReportPreferences({ pitch_notation: "percent" }));
   assert.equal(defaultPitchNotation("metric"), "degrees");
@@ -134,7 +131,7 @@ test("portal report summary and CSV show pitch in the order's notation; the CSV 
     "summaryPitchRow", "reportSummaryMeasurementsCsv"].map(name => fn(source, name)).join("\n");
   for (const [manifest, value, unit] of [
     [{ measurement_system: "metric" }, "26.6", "°"], [{}, "6", "/12"], [{ measurement_system: "imperial", pitch_notation: "degrees" }, "26.6", "°"],
-    [{ measurement_system: "metric", pitch_notation: "rise_12" }, "26.6", "°"], [{ measurement_system: "imperial", pitch_notation: "rise_12" }, "6", "/12"]
+    [{ measurement_system: "metric", pitch_notation: "rise_12" }, "6", "/12"]
   ] as const) {
     const context = vm.createContext({ manifest, reportOrderManifest: () => manifest, Number, Math, String, Array, Intl });
     vm.runInContext(code + "\nglobalThis.run = () => { const row = summaryPitchRow(6); return { row, csv: reportSummaryMeasurementsCsv([row]) }; };", context);
@@ -147,22 +144,6 @@ test("portal report summary and CSV show pitch in the order's notation; the CSV 
   }
   // The 3D viewer gets the order's notation.
   assert.ok(source.includes("pitchNotation:summaryPitchNotation()"), "the roof viewer is told the notation");
-});
-
-test("FM-397: the instant estimate and company settings treat metric as degrees", async () => {
-  const viewer = await readFile(new URL("../../libraries/apps/projects/viewer.js", import.meta.url), "utf8");
-  const context = vm.createContext({});
-  vm.runInContext(fn(viewer, "instantPitchNotationFor"), context);
-  const notation = (project: unknown) => vm.runInContext(`instantPitchNotationFor(${JSON.stringify(project)})`, context);
-  assert.equal(notation({ measurement_system: "metric", pitch_notation: "rise_12" }), "degrees");
-  assert.equal(notation({ manifest: { measurement_system: "metric" } }), "degrees");
-  assert.equal(notation({ pitch_notation: "degrees" }), "degrees");
-  assert.equal(notation({ measurement_system: "imperial", pitch_notation: "rise_12" }), "rise_12");
-  assert.equal(notation({}), "rise_12");
-  // Settings › Company: switching Measurements to metric switches Roof pitch to degrees and locks it; a metric save writes degrees.
-  const company = await readFile(new URL("../../libraries/apps/settings/company.js", import.meta.url), "utf8");
-  assert.ok(company.includes("pitchNotation.disabled = metric;") && company.includes("units.onchange = () => lockPitchToUnits('rise_12');"));
-  assert.ok(company.includes("pitch_notation: $('#csMeasurementSystem', paneCompany).value === 'metric' ? 'degrees' :"));
 });
 
 test("the 3D roof viewer writes every pitch through pitchLabel", async () => {

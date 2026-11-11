@@ -8,11 +8,11 @@
       millimeters:'millimetres', millimeter:'millimetre', "square footage":'area' }
   };
   /* Roof pitch (1M8-255): stored as rise over a 12 run; written as `6/12` or, for roofers outside the US, in degrees.
-     Metric reports always use degrees (FM-397: rise over 12 is an inch notation, and a company that switched to metric
-     kept the rise_12 it had saved while imperial); an imperial project keeps the notation it was ordered with. */
+     A project keeps the notation it was ordered with; metric projects without one use degrees. */
   function pitchNotation(preferences = {}) {
-    if (preferences.measurement_system === 'metric') return 'degrees';
-    return preferences.pitch_notation === 'degrees' ? 'degrees' : 'rise_12';
+    const value = preferences.pitch_notation;
+    if (value === 'degrees' || value === 'rise_12') return value;
+    return preferences.measurement_system === 'metric' ? 'degrees' : 'rise_12';
   }
   /** The rise in a pitch written as 6, 6.5, "6/12" or "6 / 12"; null for anything else (N/A, "Flat", edited text). */
   function pitchRise(input) {
