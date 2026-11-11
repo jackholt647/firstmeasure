@@ -972,6 +972,38 @@
     return { document: doc, applied, skipped };
   }
 
+  /**
+   * Override items have ids, so two people's edits to different items of one
+   * document merge item by item (docs/architecture/offline.md, "Documents").
+   * A set names what it sets, so two sets of one thing are one item:
+   * "doc:<prop>", "node:<node id>:<prop>", "page:<page id>:<prop>". Any other
+   * op (insert, remove, move) is its own item, named by its content. The id is
+   * derived, so an override saved before ids existed gets the same id on every
+   * device; an id an op already has is kept.
+   */
+  function overrideItemId(op) {
+    if (!isObject(op)) return "";
+    if (op.op === "doc.set") return "doc:" + String(op.prop || "");
+    if (op.op === "node.set") return "node:" + String(op.node_id || "") + ":" + String(op.prop || "");
+    if (op.op === "page.set") return "page:" + String(op.page_id || "") + ":" + String(op.prop || "");
+    const rest = Object.assign({}, op);
+    delete rest.id;
+    return "op:" + fingerprint(rest);
+  }
+
+  /** The override list with an id on every item (new objects; the list is not changed). */
+  function withOverrideIds(ops) {
+    const seen = new Map();
+    return (Array.isArray(ops) ? ops : []).filter(isObject).map((op) => {
+      let id = typeof op.id === "string" && op.id ? op.id : overrideItemId(op);
+      const count = (seen.get(id) || 0) + 1;
+      seen.set(id, count);
+      // The same thing named twice in one list (an uncollapsed log): later ones are told apart.
+      if (count > 1) { id = id + "~" + count; seen.set(id, 1); }
+      return op.id === id ? op : Object.assign({}, op, { id });
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // Expression engine
   //
@@ -2778,6 +2810,8 @@
 
     applyOverride,
     applyOverrides,
+    overrideItemId,
+    withOverrideIds,
 
     parseExpression,
     evaluate,

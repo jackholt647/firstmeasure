@@ -699,7 +699,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = createDocumentInstanceSchema.parse(request.body ?? {});
-    const result = await createDocumentInstance(orgId, getParam(request.params, "projectId"), body, ctx, { departmentPermission:"view_projects" });
+    const result = await createDocumentInstance(orgId, getParam(request.params, "projectId"), body, ctx, { departmentPermission:"view_projects", repeatSafe: true });
     reply.code(201);
     return { ok: true, document: result.document, missing_params: result.missing_params };
   });
@@ -720,7 +720,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = createDocumentInstanceSchema.parse(request.body ?? {});
-    const result = await createDocumentInstance(orgId, "", body, ctx, { departmentPermission:"view_projects" });
+    const result = await createDocumentInstance(orgId, "", body, ctx, { departmentPermission:"view_projects", repeatSafe: true });
     reply.code(201);
     return { ok: true, document: result.document, missing_params: result.missing_params };
   });

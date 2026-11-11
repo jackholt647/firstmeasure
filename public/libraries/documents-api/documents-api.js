@@ -81,13 +81,15 @@
       throw error;
     }
     const body = jsonBody(options.body);
-    // Offline (docs/architecture/offline.md): a document that was opened can be read without a connection;
-    // making, changing, sending, signing and PDF need the server. Say that in plain words, not "Failed to fetch".
+    // Offline (docs/architecture/offline.md, "Documents"): a document that is on the device can be read, and a
+    // draft can be made from a template that is on the device and edited. Everything else needs the server
+    // (sending, signing, PDF, invoices and other documents the server makes, steps that do something there).
+    // Say that in plain words, not "Failed to fetch".
     const needsConnection = (cause) => {
       const reading = ['GET', 'HEAD'].includes(cleanText(options.method || 'GET').toUpperCase()) || /\/resolve$/.test(String(path).split('?')[0]);
       const message = reading
         ? (window.PlatformLanguage?.text?.('shared', 'offline_document_not_saved', 'This document is not saved on this device. Connect to the internet to open it.') ?? 'This document is not saved on this device. Connect to the internet to open it.')
-        : (window.PlatformLanguage?.text?.('shared', 'offline_documents_need_connection', 'This needs a connection. Without one, documents can be read but not created, changed, sent or signed.') ?? 'This needs a connection. Without one, documents can be read but not created, changed, sent or signed.');
+        : (window.PlatformLanguage?.text?.('shared', 'offline_document_step_needs_connection', OFFLINE_NEEDS_CONNECTION) ?? OFFLINE_NEEDS_CONNECTION);
       const error = new Error(message);
       error.status = 0;
       error.offline = true;
@@ -120,6 +122,18 @@
       throw error;
     }
     return data;
+  }
+
+  const OFFLINE_NEEDS_CONNECTION = 'This needs a connection. Without one you can make a document from a template saved on this device and edit drafts. Sending, signing, PDFs, invoices, change orders and steps that act on the server wait until you reconnect.';
+
+  /** A document id made here (the server's own format), so a document made without a connection is the same record when it is sent. */
+  function newDocumentId(){
+    const bytes = new Uint8Array(10);
+    (root.crypto || root.msCrypto).getRandomValues(bytes);
+    return 'doc_' + [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+  function withDocumentId(body){
+    return body && typeof body === 'object' && !(body instanceof FormData) && !cleanText(body.id) ? { id: newDocumentId(), ...body } : body;
   }
 
   function query(params = {}){
@@ -162,12 +176,12 @@
     saveTypes(orgId, types, assignments){ return request(`/organizations/${enc(orgId)}/document-types`, { method: "PUT", body: { types, assignments } }); },
     pinTemplates(orgId, templateIds){ return request(`/organizations/${enc(orgId)}/settings/pinned-templates`, { method: "PUT", body: { template_ids: templateIds } }); },
     listForProject(orgId, projectId, filters = {}){ return request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/documents${query(filters)}`); },
-    createForProject(orgId, projectId, body = {}){ return request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/documents`, { method: 'POST', body }); },
+    createForProject(orgId, projectId, body = {}){ return request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/documents`, { method: 'POST', body: withDocumentId(body) }); },
     // Standalone documents (doc-first flows): no project yet; attach later via
     // patch(orgId, documentId, { project_id }). listStandalone powers the
     // My Projects "Drafts" view.
     listStandalone(orgId){ return request(`/organizations/${enc(orgId)}/documents`); },
-    createStandalone(orgId, body = {}){ return request(`/organizations/${enc(orgId)}/documents`, { method: 'POST', body }); },
+    createStandalone(orgId, body = {}){ return request(`/organizations/${enc(orgId)}/documents`, { method: 'POST', body: withDocumentId(body) }); },
     get(orgId, documentId){ return request(documentPath(orgId, documentId)); },
     patch(orgId, documentId, patch = {}){ return request(documentPath(orgId, documentId), { method: 'PATCH', body: patch }); },
     archive(orgId, documentId){ return request(documentPath(orgId, documentId), { method: 'DELETE' }); },
@@ -176,7 +190,16 @@
     // ({ writes: [{ path, text }] }) and/or one text override
     // ({ text: { node_id, blocks|null, base } }); returns the document and a
     // traced resolution.
-    editAsSent(orgId, documentId, body = {}){ return request(documentPath(orgId, documentId, '/as-sent'), { method: 'POST', body }); },
+    // Without a connection the edit waits on the device and its answer has no resolved view: the resolve read
+    // gives the last resolved one with the edit applied (the offline documents contract).
+    async editAsSent(orgId, documentId, body = {}){
+      const saved = await request(documentPath(orgId, documentId, '/as-sent'), { method: 'POST', body });
+      if (saved && !saved.resolved_definition) {
+        const view = await request(documentPath(orgId, documentId, '/resolve'), { method: 'POST', body: { trace: true } });
+        return { ...view, ...saved };
+      }
+      return saved;
+    },
     issue(orgId, documentId, body = {}){ return request(documentPath(orgId, documentId, '/issue'), { method: 'POST', body }); },
     send(orgId, documentId, body = {}){ return request(documentPath(orgId, documentId, '/send'), { method: 'POST', body }); },
     snapshots(orgId, documentId){ return request(documentPath(orgId, documentId, '/snapshots')); },

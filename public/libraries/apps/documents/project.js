@@ -732,6 +732,29 @@
   }
 
   /** Collapse consecutive same-target set ops so the override log stays lean. */
+  /**
+   * A view made without a connection (docs/architecture/offline.md, "Documents"): the last resolved document
+   * with the person's changes, where what the server computes is marked. Says so above the page.
+   */
+  function offlineViewNote(resolved){
+    const offline = objectValue(objectValue(resolved).offline);
+    if (offline.pending !== true) return null;
+    const english = offline.made === true
+      ? 'This document was made without a connection. Lines, totals and account figures appear when you reconnect.'
+      : 'You are seeing this document as it was last calculated, with your changes. Figures with a dotted underline update when you reconnect.';
+    const note = document.createElement('div');
+    note.setAttribute('data-fmdx-offline-note', '');
+    note.setAttribute('role', 'status');
+    note.style.cssText = 'box-sizing:border-box;margin:8px auto;max-width:min(760px,calc(100% - 16px));padding:8px 12px;border-radius:8px;background:#fffbeb;color:#92400e;border:1px solid #fcd34d;font:500 13px/1.4 system-ui,sans-serif;display:flex;gap:8px;align-items:flex-start;position:relative;z-index:2';
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-cloud-arrow-up';
+    icon.style.marginTop = '2px';
+    const text = document.createElement('span');
+    text.textContent = globalThis.PlatformLanguage?.text?.('shared', offline.made === true ? 'offline_document_made_note' : 'offline_document_view_note', english) ?? english;
+    note.append(icon, text);
+    return note;
+  }
+
   function collapseOps(ops){
     const out = [];
     for (const op of arrayValue(ops)) {
@@ -2904,6 +2927,7 @@
       state.workflowTouched = false;
       state.workflowWrites = { params: {}, outputs: {} };
       state.cardTotalCents = null;
+      state.cardTotalWaits = false;
       renderDocScreen();
       // Attach the instance's workflow when the caller didn't hand one over
       // (silent — reveals the [Workflow | Editor] toggle when found).
@@ -3334,6 +3358,10 @@
      *  true when a total was captured. */
     function captureResolvedTotal(payload){
       const computed = objectValue(objectValue(objectValue(payload).resolved_definition).computed_values);
+      // A view made without a connection for a document the server has not priced yet carries no total: the
+      // top bar waits for it too, instead of showing this page's own estimate of the lines.
+      state.cardTotalWaits = objectValue(objectValue(payload).offline).pending === true && !Object.keys(computed).length;
+      if (state.cardTotalWaits) { updateDocCardTotal(); return false; }
       for (const key of ['total_cents', 'contract_total_cents', 'subtotal_cents']) {
         const value = Number(computed[key]);
         if (computed[key] !== null && computed[key] !== undefined && Number.isFinite(value)) {
@@ -3353,6 +3381,13 @@
     function updateDocCardTotal(){
       const el = root.querySelector('[data-fmdx-editor-screen] [data-card-total]');
       if (!el) return;
+      if (state.cardTotalWaits) {
+        const waits = 'Updates when you reconnect';
+        el.textContent = '…';
+        el.title = globalThis.PlatformLanguage?.text?.('shared', 'offline_document_value_stale', waits) ?? waits;
+        return;
+      }
+      el.removeAttribute('title');
       const total = docCardTotalCents();
       el.textContent = total ? moneyFromCents(total) : '—';
     }
@@ -3536,6 +3571,7 @@
       state.working = null;
       state.resolved = null;
       state.cardTotalCents = null;
+      state.cardTotalWaits = false;
       state.workflowTouched = false;
       state.baseOverrides = arrayValue(state.doc.overrides).map((op) => clone(op));
       state.pendingOps = [];
@@ -4116,6 +4152,8 @@
         ${options.onClose ? '<button type="button" class="fmdx-viewer-close" data-viewer-close title="Close" aria-label="Close"><i class="fas fa-xmark"></i></button>' : ''}`;
       const scroll = host.querySelector('[data-viewer-scroll]');
       const stage = host.querySelector('[data-viewer-stage]');
+      const viewNote = offlineViewNote(options.resolved);
+      if (viewNote) scroll.prepend(viewNote);
       const fitButton = host.querySelector('[data-viewer-fit]');
       const widthButton = host.querySelector('[data-viewer-width]');
       const dims = window.FMDocModel?.paperDimensions?.(objectValue(renderOptions.document)) || { w_pt: 612, h_pt: 792 };
@@ -4194,6 +4232,9 @@
         return;
       }
       canvas.innerHTML = '';
+      canvas.parentElement?.querySelector(':scope > [data-fmdx-offline-note]')?.remove();
+      const editorNote = offlineViewNote(state.resolved);
+      if (editorNote) canvas.before(editorNote);
       const workingDefinition = objectValue(state.working).definition || state.resolved.resolved_definition;
       const fromTemplate = objectValue(state.working).fromTemplate === true;
       try {
@@ -4918,6 +4959,7 @@
         doc,
         onClose: close,
         initialZoom: 'page',
+        resolved,
         renderOptions: {
           document: resolved.resolved_definition,
           theme: resolved.theme,

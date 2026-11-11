@@ -4,7 +4,7 @@ import { documentTags } from "./tags.js";
 import { companyDocumentLanguage } from "../platform/localization/documents.js";
 import { serverLanguage } from "../platform/localization/server.js";
 import { resolveContext, type LanguageSnapshot } from "../platform/localization/core.js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { badRequest, conflict, forbidden, notFound } from "../platform/errors.js";
 import {
@@ -635,7 +635,45 @@ async function resolveWorkflowForCreate(orgId: string, input: JsonObject, templa
   };
 }
 
-export async function createDocumentInstance(orgId: string, projectId: string, input: JsonObject, ctx: PlatformAuthContext, options: { createOnly?: boolean; departmentPermission?: string } = {}): Promise<{ document: JsonObject; missing_params: string[] }> {
+/** JSON with object keys in order, so the same request written differently is the same text. */
+function stableText(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableText).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.keys(value as JsonObject).filter(key => (value as JsonObject)[key] !== undefined).sort().map(key => `${JSON.stringify(key)}:${stableText((value as JsonObject)[key])}`).join(",")}}`;
+  return value === undefined ? "null" : JSON.stringify(value);
+}
+
+/** What a create asked for: the same person sending the same request again is the same create. */
+function createRequestFingerprint(projectId: string, input: JsonObject) {
+  return createHash("sha256").update(stableText({ project_id: projectId, input })).digest("hex");
+}
+
+/**
+ * A create that names its own id (a device made it: docs/architecture/offline.md, "Documents") can arrive twice,
+ * when the first try was written and its answer was lost. The same person asking for the same thing gets the
+ * document that is there; anything else is refused, never replaced.
+ */
+function repeatedDocumentCreate(existing: JsonObject, fingerprint: string, ctx: PlatformAuthContext, options: { departmentPermission?: string }) {
+  const id = cleanText(existing.id);
+  if (cleanText(existing.created_by_user_id) !== ctx.userId || !cleanText(existing.create_fingerprint) || cleanText(existing.create_fingerprint) !== fingerprint) {
+    throw conflict("document_exists", "A document with this id already exists.", { document_id: id });
+  }
+  requireDocumentDepartmentAccess(ctx, existing, options.departmentPermission);
+  const paramDefs = Object.fromEntries(Object.entries(asObject(existing.param_defs)).filter(([, definition]) => asObject(definition).disabled !== true));
+  return { document: existing, missing_params: FMDocModel.missingRequiredParams(paramDefs, asObject(existing.params)) };
+}
+
+/**
+ * options.repeatSafe (the two create routes): a create that names an id that exists is answered as above
+ * instead of replacing the document. Callers inside the server that name an id keep their own rule
+ * (createOnly, or replace).
+ */
+export async function createDocumentInstance(orgId: string, projectId: string, input: JsonObject, ctx: PlatformAuthContext, options: { createOnly?: boolean; departmentPermission?: string; repeatSafe?: boolean } = {}): Promise<{ document: JsonObject; missing_params: string[] }> {
+  const namedId = options.repeatSafe === true && cleanText(input.id) ? documentInstanceId(input) : "";
+  const fingerprint = namedId ? createRequestFingerprint(projectId, input) : "";
+  if (namedId) {
+    const existing = await readDocumentInstance(orgId, namedId).catch(() => null);
+    if (existing) return repeatedDocumentCreate(existing, fingerprint, ctx, options);
+  }
   await ensureDefaultDocumentAssets(orgId).catch(() => null);
   // A template made only when asked for (a scope's own, the Operations scope of work) is copied on first use.
   if (cleanText(input.template_id)) await ensureLibraryTemplate(orgId, cleanText(input.template_id)).catch(() => null);
@@ -705,7 +743,8 @@ export async function createDocumentInstance(orgId: string, projectId: string, i
     created_by_user_id: ctx.userId,
     updated_by_user_id: ctx.userId,
     created_at: now,
-    updated_at: now
+    updated_at: now,
+    ...(fingerprint ? { create_fingerprint: fingerprint } : {})
   };
   requireDocumentDepartmentAccess(ctx, data, options.departmentPermission);
   const program = asObject(definition.program);
@@ -722,7 +761,14 @@ export async function createDocumentInstance(orgId: string, projectId: string, i
     await modules.evaluateModuleInstance(publication, instance.id, { expectedRevision: instance.revision });
     renderedModule = { id: instance.id, publication };
   }
-  const document = await saveDocumentInstance(orgId, id, data, options);
+  let document: JsonObject;
+  try {
+    // A named id is written only if it is still free: two tries of one create at the same moment make one document.
+    document = await saveDocumentInstance(orgId, id, data, { createOnly: options.createOnly === true || Boolean(namedId) });
+  } catch (error) {
+    if (!namedId || (error as { code?: string })?.code !== "document_exists") throw error;
+    return repeatedDocumentCreate(await readDocumentInstance(orgId, namedId), fingerprint, ctx, options);
+  }
   // Published to the work engine, so a scope can move on when a document (a proposal, say) is made for the project.
   await recordDocumentEvent(orgId, document, "document.created", { project_id: projectId }, ctx);
   await syncProjectSignatureRequirements(orgId, projectId).catch(() => null);
@@ -849,7 +895,8 @@ async function patchDocumentInstanceLocked(orgId: string, documentId: string, pa
     ...attach,
     title: Object.prototype.hasOwnProperty.call(patch, "title") ? cleanText(patch.title) || cleanText(current.title) : current.title,
     params: Object.prototype.hasOwnProperty.call(patch, "params") ? { ...asObject(current.params), ...asObject(patch.params) } : current.params,
-    overrides: Object.prototype.hasOwnProperty.call(patch, "overrides") ? asArray(patch.overrides).map(asObject) : current.overrides,
+    // Every override item has an id, so edits to different items merge (FMDocModel.withOverrideIds).
+    overrides: Object.prototype.hasOwnProperty.call(patch, "overrides") ? FMDocModel.withOverrideIds(asArray(patch.overrides).map(asObject)) : current.overrides,
     theme_ref: Object.prototype.hasOwnProperty.call(patch, "theme_ref") ? (patch.theme_ref === null ? null : asObject(patch.theme_ref)) : current.theme_ref,
     theme_overrides: Object.prototype.hasOwnProperty.call(patch, "theme_overrides") ? asObject(patch.theme_overrides) : current.theme_overrides,
     contact_ids: Object.prototype.hasOwnProperty.call(patch, "contact_ids") ? asArray(patch.contact_ids).map(cleanText).filter(Boolean) : current.contact_ids,
