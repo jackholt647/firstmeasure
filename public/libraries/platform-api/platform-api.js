@@ -2749,6 +2749,8 @@
           uploaded_by_email: cleanText(APP.userEmail || root.Portal?.cfg?.userEmail || ''),
           uploaded_by_user_id: cleanText(APP.userId || APP.user_id || root.Portal?.currentUser?.id || ''),
           uploaded_at: new Date().toISOString(),
+          // When it was taken, as the record has it: the project's list entry sorts and shows by it too.
+          ...(cleanText(upload?.media?.metadata?.taken_at) ? { taken_at: cleanText(upload.media.metadata.taken_at) } : {}),
           ...(options.referenceMetadata || {})
         }
       });

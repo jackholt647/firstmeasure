@@ -1609,8 +1609,13 @@
     if (projectPhotosList().length && window.activePhotoIndex >= projectPhotosList().length) window.activePhotoIndex = projectPhotosList().length - 1;
     window.photoViewerOpen = hadPhotos ? window.photoViewerOpen : false;
     renderPhotoGallery();
-    window.queueAutosaveNotice?.();
-    window.persistActiveBaseProject?.();
+    // Photos that wait on this device have their list save in the queue already. The whole-project save that
+    // follows an upload needs the server, so it is left for the next change made with a connection.
+    const allWaiting = added.length > 0 && added.every((photo) => Portal.PhotoFeed?.isWaitingMedia?.(photo) === true);
+    if (!allWaiting) {
+      window.queueAutosaveNotice?.();
+      window.persistActiveBaseProject?.();
+    }
     return added;
   }
 

@@ -336,8 +336,18 @@
     /** Removes this person's shells and saved reads from the device. Their queued changes stay. */
     signedOut: () => ask('signedOut'),
     media: {
-      /** Keeps a file under a media URL on this device (the small copy of a queued photo). `fixed: false`: only for when the server cannot be reached. */
-      put: (url, blob, options) => ready.then(() => ask('mediaPut', { url: String(url), blob, fixed: !(options && options.fixed === false) }))
+      /**
+       * Keeps a file under a media URL on this device (the small copy of a queued photo), through the engine in the
+       * top-level page; a frame asks its top-level page. `fixed: false`: only for when the server cannot be reached.
+       * Resolves false where nothing could keep it.
+       */
+      put(url, blob, options) {
+        // (A frame's file is another window's Blob, so it is told by what it can do.)
+        if (!supported || !identity.user || !blob || typeof blob.size !== 'number' || typeof blob.slice !== 'function') return Promise.resolve(false);
+        if (top) return ready.then(() => loadEngine()).then((FM) => FM.media.put(identity, String(url), blob, options));
+        try { const upper = window.top.PlatformOffline; if (upper && upper !== window.PlatformOffline && upper.media) return upper.media.put(url, blob, options); } catch (_) { /* another origin above */ }
+        return Promise.resolve(false);
+      }
     },
     /** The engine in this page (top-level page only): what replays the queue here, and what native-uploads.js drives. */
     engine: () => (top && supported ? loadEngine() : Promise.reject(new Error('The offline engine runs in the top-level page'))),

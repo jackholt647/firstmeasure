@@ -758,11 +758,17 @@
     return badge;
   }
   function fillOfflineWaits(root){
-    root?.querySelectorAll?.('[data-offline-wait]:empty').forEach((slot) => {
+    // A slot is filled once; one that got the plain mark before the offline UI had loaded gets the UI's own later.
+    root?.querySelectorAll?.('[data-offline-wait]:empty, [data-offline-wait][data-offline-wait-plain]').forEach((slot) => {
       const id = slot.dataset.offlineWait;
       let badge = null;
       try { badge = window.PlatformOfflineUI?.waitingBadge?.({ record:id }) || null; } catch (_) { badge = null; }
-      slot.append(badge instanceof Node ? badge : plainWaitingBadge(id));
+      if (badge instanceof Node) { slot.removeAttribute('data-offline-wait-plain'); slot.replaceChildren(badge); return; }
+      if (slot.firstChild) return;
+      slot.setAttribute('data-offline-wait-plain', '');
+      slot.append(plainWaitingBadge(id));
+      // The offline UI loads after the page's own apps: look again once it has had time to.
+      [1000, 4000].forEach((delay) => setTimeout(() => { if (slot.isConnected && window.PlatformOfflineUI?.waitingBadge) fillOfflineWaits(slot.parentElement); }, delay));
     });
   }
   const offlineWaitRoots = new WeakSet();
