@@ -31,7 +31,7 @@
   const channelsLibBundles = [
     ...widgetBundles, bookingBundle, priorityFieldsBundle,
     versionedBundle('../platform-realtime/platform-realtime.js', '20261026-live-layer'),
-    versionedBundle('../channels-api/channels-api.js', '20261012-shared-polish-v1'),
+    versionedBundle('../channels-api/channels-api.js', '20261111-offline'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
     versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
@@ -42,7 +42,7 @@
     versionedBundle('photos/feed.js', '20261027-viewer-2'),
     versionedBundle('../markup/firstmate-markup.js', '20261027-viewer-2'),
     versionedBundle('../channels-ui/channels-ui.js', '20261026-consolidated'),
-    versionedBundle('../project-notes/project-notes.js', '20261027-viewer-2'),
+    versionedBundle('../project-notes/project-notes.js', '20261111-offline'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-notes-separation-v1'),
     versionedBundle('../project-trays/project-trays.js', '20261110-keyboard-over-window')
   ];
@@ -53,7 +53,7 @@
     versionedBundle('../payment-intake/payment-intake.js', '20261026-ach-link-wait'),
     // Same version string as crewBundles so the runtime's URL dedupe keeps a
     // single load; the field checkout resolves provider tokenization here.
-    versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'),
+    versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
     versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
     versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
     versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261103-measure-sections'),
@@ -64,7 +64,7 @@
     ...fieldApprovalBundles,
     versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'),
     versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'),
-    versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'),
+    versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
     versionedBundle('../proposals-api/proposals-api.js', '20261019-forward-cert'),
     versionedBundle('payroll/my-pay.js', '20261019-people-gaps-v1'),
     versionedBundle('crew/app.js', '20261101-prod-sync')
@@ -130,7 +130,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../channels-ui/channels-ui.js', '20261026-consolidated'), versionedBundle('photos/feed.js', '20261027-viewer-2')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../channels-ui/channels-ui.js', '20261026-consolidated'), versionedBundle('photos/feed.js', '20261027-viewer-2')]
     },
     {
       id: 'portal.receipts',
@@ -141,7 +141,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'receipts',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('photos/feed.js', '20261027-viewer-2'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261027-viewer-2'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
     },
     {
       // DEPRECATED (2026-08): legacy proposals surface — hidden by its bundle
@@ -207,7 +207,7 @@
       // generator moves into the workflow runtime at legacy teardown.
       dependencies: ['pricebook.bridge', 'project.proposal'],
       bundles: [
-        versionedBundle('../documents-api/documents-api.js', '20261022-document-history'),
+        versionedBundle('../documents-api/documents-api.js', '20261111-offline'),
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
@@ -236,7 +236,7 @@
         studioDocument: { history:'push' }
       },
       bundles: [
-        versionedBundle('../documents-api/documents-api.js', '20261022-document-history'),
+        versionedBundle('../documents-api/documents-api.js', '20261111-offline'),
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
@@ -282,7 +282,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261026-materials-settings-agent'), versionedBundle('materials/project.js', '20261102-order-or-status')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261111-offline'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261026-materials-settings-agent'), versionedBundle('materials/project.js', '20261102-order-or-status')]
     },
     {
       id: 'project.money',
@@ -294,7 +294,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261022-document-history'), versionedBundle('photos/feed.js', '20261027-viewer-2'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261103-metrics-one-row')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261027-viewer-2'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261103-metrics-one-row')]
     },
     {
       id: 'project.request',
@@ -303,7 +303,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261110-fm382-schedule-offer')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261111-offline'), versionedBundle('project-request/app.js', '20261110-fm382-schedule-offer')]
     },
     {
       id: 'firstmeasure.order',
@@ -447,7 +447,7 @@
       portalTabId: 'invoices',
       order: 51,
       bundles: [
-        versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'),
+        versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
         versionedBundle('invoices/app.js', '20260803-invoices-tab')
       ]
     },
@@ -468,7 +468,7 @@
       },
       bundles: [
         versionedBundle('../financials-api/financials-api.js', '20260715-financial-read-model'),
-        versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'),
+        versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
         versionedBundle('financials/app.js', '20260930-app-groups-v1')
       ]
     },
@@ -537,7 +537,7 @@
       order: 44,
       bundles: [
         versionedBundle('../platform-realtime/platform-realtime.js', '20261026-live-layer'),
-        versionedBundle('../channels-api/channels-api.js', '20261012-shared-polish-v1'),
+        versionedBundle('../channels-api/channels-api.js', '20261111-offline'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
         versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'),
@@ -546,7 +546,7 @@
         versionedBundle('photos/feed.js', '20261027-viewer-2'),
     versionedBundle('../markup/firstmate-markup.js', '20261027-viewer-2'),
     versionedBundle('../channels-ui/channels-ui.js', '20261026-consolidated'),
-    versionedBundle('../project-notes/project-notes.js', '20261027-viewer-2'),
+    versionedBundle('../project-notes/project-notes.js', '20261111-offline'),
         versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
         versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('channels/app.js', '20260930-native-sharing-v2')
       ]
