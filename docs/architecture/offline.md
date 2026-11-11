@@ -228,7 +228,7 @@ requested under several of them.
 
 | Request | With a connection | Without |
 |---|---|---|
-| Navigation to a shell (`/portal/`, `/portal/index.php`, `/portal/mobile/`, with any query) | network; the answer replaces the stored shell when it is a 200 for the release of the active set (`X-FirstMate-Release` header) | the stored shell, when someone is signed in on this device; otherwise the built-in "connect once" page |
+| Navigation to a shell (`/portal/`, `/portal/index.php`, with any query) | network; the answer replaces the stored shell when it is a 200 for the release of the active set (`X-FirstMate-Release` header) | the stored shell, when someone is signed in on this device; otherwise the built-in "connect once" page |
 | File in the set | network, falling back to the set if the request fails | the set first, then the network |
 | Listed external file (fonts, icon CSS) | cache, refreshed in the background | cache |
 | Anything else | not answered by the worker | - |
@@ -1251,6 +1251,12 @@ missing before that is safe:
 - Re-reading a declared `POST` read after a sync sends its text fields
   URL-encoded, also when the app sent them as a multipart form.
 - The measure editor (`/measure/internal`) and pages outside `/portal/`.
+- `/portal/mobile/` is not stored as a shell (the manifest's `shells` is
+  `/portal/` only, which is what the app and phone browsers open): with a
+  connection it saves, queues and shows the indicator like any portal page,
+  but it does not open without one. Listing it would fetch a second page for
+  every person at every release; store it on first visit instead when it is
+  needed.
 
 ## Tests
 
