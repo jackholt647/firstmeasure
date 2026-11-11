@@ -42,5 +42,6 @@ All currently reachable broad categories use the shared title/subtitle, sidebar 
 - [x] Forms and Leads — website form kinds and Lead Import
 - [x] Billing
 - [x] App download — store links and organization-gated development builds
+- [x] Offline — this device's saved data, limits and waiting changes (drawn by `platform-offline/offline-ui.js`; shown where the offline worker is in use)
 
 The layout contract test is `public/v1/tests/settings-layout-contract.test.mjs`. Update the inventory and contract deliberately when a category or nested view is added.

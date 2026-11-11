@@ -783,8 +783,9 @@ background `URLSession` on iOS), also after the app is closed. The queue stays t
   the navigation step the reads a page makes while it boots were neither
   saved nor answered offline.)
 - **Sign-out** is the navigation to `/portal/logout.php`, which the worker
-  sees (every sign-out link and script goes there; `logout.php` itself needs
-  no code), or `PlatformOffline.signedOut()`. It removes that person's
+  sees (`logout.php` itself needs no code), or `PlatformOffline.signedOut()`,
+  which the account switcher calls because its sign-outs go to the login
+  page directly. It removes that person's
   shells, saved reads, media files and pinned downloads from the device, in
   every organization, also when the server cannot be reached. The list of
   pinned projects stays and is downloaded again after sign-in. Queued
@@ -908,7 +909,7 @@ engine update with every platform release.
 ```js
 PlatformOffline.ready                        // resolves with state()
 PlatformOffline.state()                      // { supported, controlled, online, pending, failed, conflicts, syncing, blocked,
-                                             //   lastSyncAt, code: { release, status, progress }, storage }
+                                             //   lastSyncAt, savedPage, code: { release, status, progress }, storage }
 PlatformOffline.on(event, handler)           // 'state' | 'queued' | 'synced' | 'failed' | 'conflict' | 'discarded' | 'code'
 PlatformOffline.pending({ scope, record })   // queue entries
 PlatformOffline.isPending(recordId)
@@ -916,7 +917,7 @@ PlatformOffline.retry(id); PlatformOffline.discard(id); PlatformOffline.resolve(
 PlatformOffline.syncNow(); PlatformOffline.checkForUpdate()
 PlatformOffline.pinProject(org, project); PlatformOffline.unpinProject(org, project); PlatformOffline.pinned()
 PlatformOffline.settings.get(name); PlatformOffline.settings.set(name, value)
-PlatformOffline.signedOut()
+PlatformOffline.signedOut(); PlatformOffline.removeSaved(); PlatformOffline.measure()
 PlatformOffline.media.put(url, blob, { fixed })   // keeps a file under a media URL on this device
 PlatformOffline.engine()                          // top-level page only: resolves FMOffline as this page runs it
 ```
@@ -948,6 +949,13 @@ PlatformOffline.engine()                          // top-level page only: resolv
   answer at once. `syncNow()` resolves `{ sent, blocked }`.
 - **Settings** are per device: `saveToCameraRoll` (false), `autoPinRecent`
   (true), `readsBudgetMb` (150), `mediaBudgetMb` (300).
+- `savedPage` is true on a page the worker served from the device (its
+  stored shell), for that page's lifetime.
+- `removeSaved()` is the removal of `signedOut()` for someone who stays
+  signed in (device settings): saved reads, media and shells go, queued
+  changes stay, the page says again who it is, and the shell is stored
+  again at once when there is a connection. `measure()` measures
+  `state().storage` again. Both resolve with `state()`.
 - `pinProject(org, project, { auto: true })` marks a project as recently
   opened; `pinned()` resolves `[{ org, project, auto, at, refreshedAt, reads,
   media }]`.
@@ -957,6 +965,140 @@ PlatformOffline.engine()                          // top-level page only: resolv
   depend on which version of the worker is active. `engine()` is what
   `native-uploads.js` drives; `PlatformOffline.csrfCookie` is the name of the
   readable CSRF cookie.
+
+## What people see
+
+`offline-ui.js` (`window.PlatformOfflineUI`) is everything a person sees of
+offline. `platform-offline.js` loads it in the page and in each frame once the
+worker is in use; where the worker is not in use none of it exists. It only
+reads `PlatformOffline`. Apps do not draw their own offline banners, sync
+lists or "saved" marks: they call the functions below. Nothing in it loads a
+page except two buttons a person presses (Load the latest, Sign in).
+
+### The indicator
+
+One pill, hidden while everything is normal. It says the most pressing thing:
+
+| It says | When |
+|---|---|
+| "2 changes were not sent and need you." (red) | entries are `failed`, `parked` or in `conflict` |
+| "Sign in again to send 3 waiting changes." (amber) | the queue is `blocked: 'sign-in'` with entries waiting |
+| "Offline. Changes are saved on this device and sent when you reconnect." | `online` is false; with entries waiting it gives their count; on a page opened from the device it says "You are seeing what was saved on this device." |
+| "Sending 3 changes…" | online with entries waiting |
+| "All changes sent." | for four seconds after the server took the last one; never after a discard |
+| "Back online. This page is the copy saved on this device." | online again on a page that was opened from the device (`state().savedPage`); the tray offers Load the latest |
+| "Saving FirstMate on this device so it opens without a connection: 42%" | the first code set is downloading; a later release's set downloads without a word |
+| "FirstMate is saved on this device. It now opens without a connection." | for four seconds after that first download |
+
+Each has a full sentence, a short form ("Offline · 3 waiting") and a compact
+form ("Offline · 3"); the room decides which shows. It is one element that
+moves to wherever the chrome is:
+
+| Layout | Where |
+|---|---|
+| Top bar on (`platform.top_bar`) | in the top bar, left of the search field: the full sentence with 540px of room, else the short form (also when an app uses the left of the top bar). Showing it never moves another control. |
+| Top bar off | in the sidebar, above the account button; a compact sidebar keeps the icon |
+| Phone layout | in the phone bar, beside the page's heading, compact |
+| A project window | in the window's own header, after the project title (the window covers the page's chrome); on a phone the icon and a count |
+| `/portal/mobile/` | first in the header's actions |
+| A page with none of these | bottom left of the page |
+
+Pressing it opens the tray. Screen readers hear a change of situation once
+(not each step of a download). While the indicator says Offline and the
+browser says it is online again, the top page makes one small read
+(`/v1/platform/ping`) every 15 seconds and on the browser's `online` event,
+because the engine learns that the connection is back only from a request it
+answers for (offline's own endpoints are not among them).
+
+### The tray
+
+A panel under the indicator; in a narrow window a sheet from the bottom. It is
+drawn by the top page, above the project window and guides and below toasts,
+dialogs and the Refresh pill. It has the same sentence as the indicator, when
+everything was last sent, and the entries of the queue in two groups, **Not
+sent** and **Waiting to be sent**, each with its contract label (`label.key`
+is read from the `platform-offline` language namespace, or `namespace/key`;
+`label.title` is the fallback), when it was made and its state. A waiting
+entry needs nothing from the person. A failed one says why and offers Retry
+and Discard; Discard asks first and says the change was never sent and will be
+lost. **Send now** is `syncNow()`. While entries wait in a browser that did
+not grant persistent storage, and not in the app, a warning says the browser
+may clear them (Safari after seven days without a visit). Escape closes it and
+the focus goes back to where it was.
+
+### Conflicts
+
+An entry in `conflict` offers Review: each field both sides changed, with the
+value before, **Yours** and **The server's** side by side (stacked where the
+panel is narrow), as a person reads them: text, numbers, dates, yes and no,
+lists as names. The person picks per field (the two values are one radio
+group) or with Keep all of mine / Keep all of the server's; Send my choices is
+`resolve(id, choices)` and works only when every field is chosen. The values
+are marked `data-fmr-ignore`, since a field an app masks in session replay
+would otherwise be recorded here as text.
+
+### Projects
+
+In the project window's header, after the title, a round button says whether
+the project is on the device: not saved, saving, or saved with the time; its
+panel offers Keep on this device, Remove from this device, and for a project
+kept because it was opened recently (`auto`) says so and offers Always keep.
+It uses `pinProject`, `unpinProject` and `pinned()`. In My Projects (tiles,
+list and stage cards) a small mark follows the name of each project that is on
+the device, only while offline.
+
+### This device
+
+Settings > Offline (shown where the worker is in use), and the same page
+behind the phone button in the tray: space used by the app itself, saved
+data, pictures and waiting changes against what the browser allows; the two
+limits (`readsBudgetMb`: 50, 150, 500; `mediaBudgetMb`: 100, 300, 1024) as
+Less, Standard and More; Keep recently opened projects (`autoPinRecent`);
+Also save photos to the camera roll (`saveToCameraRoll`), only where the
+native bridge supports `photoLibrarySave`; and Remove saved data from this
+device, which asks first, lets go of every kept project (they would be
+downloaded again otherwise), calls `removeSaved()` and keeps waiting changes.
+
+### Signing out
+
+While changes wait, signing out asks first: they stay on this device and are
+sent the next time the same person signs in here. Links to `logout.php` are
+caught in every frame; the account switcher (Sign out, Sign out of all
+accounts) and the end of an impersonated session call
+`PlatformOfflineUI.confirmSignOut()`. The account switcher's sign-outs go to
+the login page without visiting `logout.php`, so they call
+`PlatformOffline.signedOut()` themselves.
+
+### What other code calls
+
+```js
+PlatformOfflineUI.waitingBadge({ record, compact })   // an element for a record: hidden unless a change naming it waits, failed or is in conflict
+PlatformOfflineUI.open({ record, entry, view })        // opens the tray: at a record's or an entry's change, or view: 'device'
+PlatformOfflineUI.confirmSignOut()                     // resolves true when signing out may go ahead
+PlatformOfflineUI.mountSettings(element)               // draws this device's settings; returns a function that stops updating
+```
+
+`waitingBadge` returns a `span` that keeps itself current and needs no
+cleanup: "Waiting to send" (information only), "Not sent" or "Needs your
+choice" (these two open the tray at that change when pressed). `compact` keeps
+the icon. Call both with `window.PlatformOfflineUI?.…`, since the library is
+absent where offline is not in use. The event `fm:offline-ui:ready` on the
+window says it has loaded.
+
+### Words
+
+Every string is in the `STRINGS` table of `offline-ui.js` and read through
+`PlatformLanguage` in the `platform-offline` namespace; the test compares the
+table with the catalog source. To add or change text: put the key in
+`public/v1/platform/localization/catalog-source.json` under
+`platform-offline` (a message that takes values is
+`{ "message": "…", "format": "icu" }`), run `npm run localization:build` in
+`public/v1`, and keep only what belongs to the namespace: the block in the
+catalog source, the new `catalogs/platform-offline.<hash>.json` and the
+namespace's lines in `catalogs/manifest.json` (the build also rewrites
+whatever else has drifted on the branch). A reworded message gets a new key
+once the old one has shipped, because the catalog's English wins over the
+fallback in the code.
 
 ## Adding offline support to an app
 
@@ -1101,6 +1243,9 @@ missing before that is safe:
 
 `tests/offline-core.test.mjs` (the engine case by case, with a Map for the
 store and a scripted server: `node --test tests/offline-core.test.mjs`),
+`tests/offline-ui-browser.test.mjs` (the real `offline-ui.js` in headless
+Chrome against a fake `PlatformOffline`: every indicator state, the tray, a
+conflict, the badge, the project control, device settings and sign-out),
 `tests/offline-sw-browser.test.mjs` (the real worker, engine and page API in
 headless Chrome against a local server that can drop every connection:
 `node --test tests/offline-sw-browser.test.mjs`, with `public/v1/node_modules`
