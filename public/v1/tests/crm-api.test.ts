@@ -463,6 +463,26 @@ test("Export Acquisition Data downloads every campaign's rows and totals as one 
   assert.ok(daily.length >= 1);
   assert.ok(daily.reduce((sum, row) => sum + Number(row.views), 0) >= 2);
   assert.equal(parseCsv(files.get("hourly.csv") || "").length, 24);
+
+  // Production's referrals database is larger than the compatibility host's page cache: built on
+  // the HTTP thread, the export's synchronous reads held it past the cluster watchdog's 30 s
+  // heartbeat deadline and the worker was killed mid-request ("Undici Socket Error").
+  const referrals = await import("../internal/crm/referrals.js");
+  const { ZipStream } = await import("../internal/crm/zip-stream.js");
+  await assert.rejects(referrals.writeAcquisitionExport({}, new ZipStream()), /worker thread/);
+  // Nothing imports the thread's entry, so the build only compiles it because tsconfig names it.
+  const tsconfig = JSON.parse(await readFile(path.join(import.meta.dirname, "..", "tsconfig.json"), "utf8"));
+  assert.ok(tsconfig.include.includes("internal/crm/acquisition-export-thread.ts"));
+  // One export at a time per process: each holds a few hundred MB while it is built.
+  const both = await Promise.all([
+    callAs(staffCaller, "GET", "/v1/internal/crm/referrals/acquisition/export"),
+    callAs(staffCaller, "GET", "/v1/internal/crm/referrals/acquisition/export")
+  ]);
+  assert.deepEqual(both.map((entry: any) => entry.statusCode).sort(), [200, 409]);
+  assert.equal(both.find((entry: any) => entry.statusCode === 409)?.json().error, "acquisition_export_running");
+  assert.ok(unzip(both.find((entry: any) => entry.statusCode === 200)?.rawPayload).has("attributions.csv"));
+  const again = await callAs(staffCaller, "GET", "/v1/internal/crm/referrals/acquisition/export");
+  assert.equal(again.statusCode, 200, "the next export runs once the last one finished");
 });
 
 test("Acquisition lookup resolves cloned landing pages when template campaign data is stale", async () => {
