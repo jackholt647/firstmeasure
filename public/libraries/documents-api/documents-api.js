@@ -81,16 +81,37 @@
       throw error;
     }
     const body = jsonBody(options.body);
-    const res = await fetch(requestUrl, {
-      ...options,
-      body,
-      cache: options.cache || 'no-store',
-      credentials: options.credentials || 'include',
-      headers: requestHeaders(options, body)
-    });
+    // Offline (docs/architecture/offline.md): a document that was opened can be read without a connection;
+    // making, changing, sending, signing and PDF need the server. Say that in plain words, not "Failed to fetch".
+    const needsConnection = (cause) => {
+      const reading = ['GET', 'HEAD'].includes(cleanText(options.method || 'GET').toUpperCase()) || /\/resolve$/.test(String(path).split('?')[0]);
+      const message = reading
+        ? (window.PlatformLanguage?.text?.('shared', 'offline_document_not_saved', 'This document is not saved on this device. Connect to the internet to open it.') ?? 'This document is not saved on this device. Connect to the internet to open it.')
+        : (window.PlatformLanguage?.text?.('shared', 'offline_documents_need_connection', 'This needs a connection. Without one, documents can be read but not created, changed, sent or signed.') ?? 'This needs a connection. Without one, documents can be read but not created, changed, sent or signed.');
+      const error = new Error(message);
+      error.status = 0;
+      error.offline = true;
+      error.cause = cause;
+      return error;
+    };
+    let res;
+    try {
+      res = await fetch(requestUrl, {
+        ...options,
+        body,
+        cache: options.cache || 'no-store',
+        credentials: options.credentials || 'include',
+        headers: requestHeaders(options, body)
+      });
+    } catch (cause) {
+      if (cause?.name === 'AbortError') throw cause;
+      throw needsConnection(cause);
+    }
     const text = await res.text();
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch(e) {}
+    // The service worker's own answer for a change it cannot queue.
+    if (res.status === 503 && data?.error === 'offline_unavailable') throw needsConnection(null);
     if (!res.ok || data?.ok === false) {
       const error = new Error(cleanText(data?.message || data?.error) || `Documents API request failed (${res.status})`);
       error.status = res.status;
