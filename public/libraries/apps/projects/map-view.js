@@ -590,15 +590,10 @@
     const status = state.root?.querySelector('.pm-status');
     if (!status) return;
     const card = status.querySelector('.pm-status-card');
-    const visible = visibleItems();
+    // FM-392: projects without a location say so on their own rows and in the tray, so the map gets no card for it.
     if (state.mapsFailed) {
       status.hidden = false;
       card.innerHTML = `<i class="fas fa-map" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_af2632c7a0ecb8","The map could not be loaded. The list still shows every project.") ?? "The map could not be loaded. The list still shows every project.")}</span>`;
-      return;
-    }
-    if (visible.length && !visible.some((item) => item.point) && !state.geocodeRunning && !state.geocodeQueue.length) {
-      status.hidden = false;
-      card.innerHTML = `<i class="fas fa-location-crosshairs" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_637e00d5e1780c","None of these projects has a location yet.") ?? "None of these projects has a location yet.")}</span>`;
       return;
     }
     status.hidden = true;

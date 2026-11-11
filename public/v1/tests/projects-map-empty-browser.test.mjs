@@ -108,3 +108,16 @@ test('on a phone the empty sheet is short and a long list is capped and scrolls 
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
+
+// FM-392: projects without a location already say "No location" on their rows and in the tray, so no card covers the map.
+test('on a phone, projects without a location get no card over the map', async () => {
+  const { browser, page, errors } = await setup(390);
+  try {
+    const items = ['p1', 'p2'].map((id) => ({ id, title:'New Project', line1:'New project', groupId:'lead', groupTitle:'Lead', color:'#f59e0b' }));
+    await draw(page, { items, groups:[{ id:'lead', title:'Lead', color:'#f59e0b' }] });
+    await page.locator('.pm-tray-sub').getByText('0 on the map · 2 without a location').waitFor();
+    assert.equal(await page.locator('.pm-status').isHidden(), true);
+    assert.doesNotMatch(await page.locator('#host').innerText(), /has a location yet/);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
