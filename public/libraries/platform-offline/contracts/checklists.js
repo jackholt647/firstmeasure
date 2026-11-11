@@ -62,7 +62,10 @@
   function withItem(json, checklistId, itemId, change) {
     return withChecklist(json, checklistId, (checklist) => {
       const items = list(checklist.items);
-      return Object.assign({}, checklist, { items: items.some((item) => item && text(item.id) === itemId) ? items.map((item) => (item && text(item.id) === itemId ? change(item) : item)) : items.concat([change(null)]) });
+      if (items.some((item) => item && text(item.id) === itemId)) return Object.assign({}, checklist, { items: items.map((item) => (item && text(item.id) === itemId ? change(item) : item)) });
+      // A new item goes where the server lists it: by `sort_order`, then by when it was made.
+      const order = (item) => [Number(item && item.sort_order) || 0, text(item && item.created_at)];
+      return Object.assign({}, checklist, { items: items.concat([change(null)]).map((item, index) => ({ item, index })).sort((a, b) => order(a.item)[0] - order(b.item)[0] || (order(a.item)[1] < order(b.item)[1] ? -1 : order(a.item)[1] > order(b.item)[1] ? 1 : a.index - b.index)).map((entry) => entry.item) });
     });
   }
   const counted = (checklist) => Object.assign({}, checklist, { total_items: list(checklist.items).length, completed_items: list(checklist.items).filter((item) => item && item.completed).length });
@@ -261,7 +264,9 @@
         },
         respond: async (ctx) => {
           const checklist = checklistIn(await known(ctx), ctx.params.checklist);
-          return { ok: true, item: changedItem(itemIn(checklist, ctx.params.item), ctx.body, ctx), can_edit: !!(checklist && checklist.can_edit) };
+          const item = changedItem(itemIn(checklist, ctx.params.item), ctx.body, ctx);
+          delete item.completed_by_name;                                  // the list adds the name; the route's item has none
+          return { ok: true, item, can_edit: !!(checklist && checklist.can_edit) };
         },
         effects: (ctx) => [{
           match: 'GET ' + LISTS, when: (m) => m.project === ctx.params.project,

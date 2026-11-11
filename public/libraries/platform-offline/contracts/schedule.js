@@ -28,6 +28,7 @@
   const isObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
   const text = (value) => String(value == null ? '' : value).trim();
   const list = (value) => (Array.isArray(value) ? value : []);
+  const has = (object, field) => isObject(object) && Object.prototype.hasOwnProperty.call(object, field);
   const iso = (ctx) => new Date(ctx.now).toISOString();
   const projectUrl = (ctx) => `/v1/platform/organizations/${enc(ctx.org)}/projects/${enc(ctx.params.project)}`;
   const calendarUrl = (ctx, id) => `/v1/platform/organizations/${enc(ctx.org)}/calendar_events${id ? '/' + enc(id) : ''}`;
@@ -149,7 +150,7 @@
       for (const [key, assignee] of assigneesOf(theirs)) {
         const own = mine.get(key);
         if (!own || (own.unit_id && assignee.unit_id && own.unit_id !== assignee.unit_id)) continue;
-        if (!found.has(key)) found.set(key, { event_id: id, assignee: Object.assign({ kind: own.kind, id: own.id, name: own.name || assignee.name }, own.unit_id ? { unit_id: own.unit_id } : {}), reason: 'overlap', capacity: 1, offline: true, conflicts: [] });
+        if (!found.has(key)) found.set(key, { event_id: id, assignee: Object.assign({ kind: own.kind, id: own.id, name: own.name || assignee.name }, own.unit_id ? { unit_id: own.unit_id } : {}), reason: 'overlap', capacity: 1, mode: 'warn', offline: true, conflicts: [] });
         found.get(key).conflicts.push({ event_id: otherId, project_id: other.project_id, project_title: other.project_title, title: text(theirs.title), start_at: text(theirs.start_at), end_at: text(theirs.end_at) });
       }
     }
@@ -225,9 +226,10 @@
   async function calendarSaved(ctx) {
     const id = ctx.params.event, at = iso(ctx);
     const stored = await calendarDocument(ctx, id);
-    const data = Object.assign(fieldsOf(eventOf(ctx.body)), { event_revision: (Number(stored && stored.data && stored.data.event_revision) || 0) + 1 });
+    // The document's data is the event as the page sent it (its `id` with it, where the page put one there).
+    const data = Object.assign(has(ctx.body.data, 'id') ? { id: ctx.body.data.id } : {}, fieldsOf(eventOf(ctx.body)), { event_revision: (Number(stored && stored.data && stored.data.event_revision) || 0) + 1 });
     const document = Object.assign({}, stored, {
-      id, organization_id: ctx.org, collection: 'calendar_events', data,
+      schema_version: 1, id, organization_id: ctx.org, collection: 'calendar_events', data,
       metadata: isObject(ctx.body.metadata) ? ctx.body.metadata : {}, revision: (Number(stored && stored.revision) || 0) + 1,
       created_at: (stored && stored.created_at) || at, updated_at: at
     });
@@ -318,6 +320,8 @@
           { match: 'GET ' + ORG + '/projects/:project', when: (m) => m.project === ctx.params.project, apply: (json) => (json && json.document ? Object.assign({}, json, { document: withoutEvent(json.document, ctx.params.event) }) : json) },
           { match: 'GET ' + ORG + '/projects', apply: (json) => (json && Array.isArray(json.documents) && json.documents.some((item) => item && item.id === ctx.params.project) ? Object.assign({}, json, { documents: json.documents.map((item) => (item && item.id === ctx.params.project ? withoutEvent(item, ctx.params.event) : item)) }) : json) }
         ],
+        // Gone already (a repeat, an event that never arrived, a project that was deleted): that is what was asked for.
+        duplicate: (ctx, answer) => answer.status === 404,
         replaces: (ctx) => replacesAll(ctx, ctx.params.event)
       },
       {
@@ -363,12 +367,13 @@
             const data = Object.assign(fieldsOf(theirs || {}), merged);
             for (const name of Object.keys(data)) if (data[name] === null && !(name in ctx.body.data)) delete data[name];
             delete data.event_revision;
+            if (has(ctx.body.data, 'id')) data.id = ctx.body.data.id; else if (theirs && has(theirs, 'id')) data.id = theirs.id;
             return { data: Object.assign(data, revision ? { expected_event_revision: revision } : {}), metadata: isObject(ctx.body.metadata) ? ctx.body.metadata : {} };
           }
         }
       },
       {
-        // Deleting a calendar event. The route answers a repeat, or an event that never arrived, with `deleted: false`.
+        // Deleting a calendar event. The route answers a repeat, or an event that never arrived, with 404.
         id: 'calendar.delete',
         match: 'DELETE ' + CAL + '/:event',
         when: async (ctx) => { const document = await calendarDocument(ctx, ctx.params.event); return !recurring(document && document.data); },
@@ -376,10 +381,13 @@
         scope: calendarScope,
         records: (ctx) => [ctx.params.event],
         label: async (ctx) => { const document = await calendarDocument(ctx, ctx.params.event); return FMOffline.label('sync_event_delete', 'Event deleted', detail((document && document.data) || {})); },
-        respond: () => ({ ok: true, deleted: true }),
+        // The route answers with the document it removed, or `false` when there was none.
+        respond: async (ctx) => { const document = await calendarDocument(ctx, ctx.params.event); return { ok: true, deleted: document ? bare(document) : false }; },
         effects: (ctx) => [
           { match: 'GET ' + CAL, apply: (json) => (json && Array.isArray(json.documents) ? Object.assign({}, json, { documents: json.documents.filter((item) => item && text(item.id) !== ctx.params.event) }) : json) }
         ],
+        // Gone already (a repeat, an event that never arrived, a project that was deleted): that is what was asked for.
+        duplicate: (ctx, answer) => answer.status === 404,
         replaces: (ctx) => replacesAll(ctx, ctx.params.event)
       }
     ]
