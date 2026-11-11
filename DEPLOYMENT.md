@@ -1111,7 +1111,7 @@ sudo bash /opt/firstmeasure/releases/COMMIT_SHA/deploy/digitalocean/activate-rel
 
 These arguments are placeholders. Installation refuses a dirty Git checkout and requires its HEAD to match the release ID. Non-Git source bundles exclude credentials, dependencies, builds, and runtime storage. Installation runs dependency installation, type checking, build, and dependency pruning into a new directory without activation.
 
-Activation switches `current`, restarts the selected service, and checks readiness. Failure triggers an attempt to restore the previous symlink and restart it. Verify recovery actually succeeds: this is not a database or fleet-wide transaction. Worker readiness uses its ready log message. Web/compatibility verification must use the actual listener; the default loopback port 3101 check may not suit every compatibility configuration.
+Activation switches `current`, restarts the selected service, and checks readiness. Compatibility (`firstmeasure-legacy`) is not restarted when its running cluster primary can [replace its workers one at a time](#compatibility-rolling-replace-instead-of-a-restart). Failure triggers an attempt to restore the previous symlink and restart it. Verify recovery actually succeeds: this is not a database or fleet-wide transaction. Worker readiness uses its ready log message. Web/compatibility verification must use the actual listener; the default loopback port 3101 check may not suit every compatibility configuration.
 
 Stage web releases first. Drain/withdraw one node, activate it, verify readiness and application behavior, confirm load-balancer reentry, then continue. Keep sufficient healthy capacity. Do not restart all six together. Worker changes must allow jobs to finish or safely relinquish leases. Compatibility changes can briefly interrupt internal/PHP features while web nodes remain available.
 
@@ -1154,7 +1154,8 @@ output (server, dependencies, configuration, changed files) in the plan and the 
 2. Copy `release-node-fingerprint.py` and `switch-release-files.py` to `/root/fm-fastpath/` on all eight hosts
    and run `switch-release-files.py --check NEW OLD` on each. It compares the new release with the directory
    each running Node service actually started in (`/proc/<pid>/cwd`, which can be older than `current` after
-   an earlier fast path). Any refusal: full procedure for the whole release, nothing switched.
+   an earlier fast path; for a cluster, its workers', which a rolling replace starts in a newer release than
+   the primary's). Any refusal: full procedure for the whole release, nothing switched.
 3. Switch with `switch-release-files.py NEW OLD`: compatibility first (it serves `/measure/internal/` to every
    web node), then the web nodes one at a time, then the worker. No load balancer withdrawal, no job wait,
    no gate. Each host switches `current`, reloads PHP-FPM, then checks that no Node service restarted, that
@@ -1176,6 +1177,39 @@ directory a running Node started in (`readlink /proc/<MainPID>/cwd`), and treat 
 restart (the next full release, a reboot) as starting `current`. Tests: `tests/release-fast-path.test.mjs`,
 `tests/release-node-readers.test.mjs` (the second fails on canonical when server code starts reading another
 file under those folders).
+
+## Compatibility: rolling replace instead of a restart
+
+Since FM-389 (2026-11-11). Compatibility is one 2 vCPU host whose `firstmeasure-legacy` runs a cluster primary
+and two HTTP workers, and serves every `/v1/internal/legacy-action` the web nodes forward. Restarting it stops
+both workers at once; requests pile up, the new workers start cold into the backlog, exhaust the database pool
+and stall past the cluster watchdog, which SIGKILLs them (FM-335's first run rolled back; FM-380 had 203 500s
+and 3 kills). That is why full runs wait at the compatibility gate.
+
+**How it works.** SIGHUP to the primary (`systemctl kill --kill-whom=main --signal=SIGHUP firstmeasure-legacy`;
+`systemctl reload` once the host's unit has the repository's `ExecReload`) replaces the workers one at a time from the
+release `current` points at now: the primary forks a worker from that directory (real path, with its
+`release.env`), which opens its database connections and runs readiness once before it listens; when it is
+ready the primary retires an old worker (it stops getting new connections, answers what is still on its
+kept-alive connections with `Connection: close`, then exits) and waits for it to exit before the next. If a new
+worker fails to start, the replace stops, the remaining workers keep the release they run and the slot is
+refilled from it. The primary itself keeps running the code it started with, and the systemd main PID does
+not change. Logs: `v1 HTTP cluster rolling replace started|complete|failed`, `v1 HTTP worker slot N replaced`.
+
+**When activation uses it.** `activate-release.sh <id> firstmeasure-legacy.service` sends the SIGHUP, waits for
+`rolling replace complete: release=<id>`, checks readiness answers with the new `release_id`, then reloads
+PHP-FPM; it prints `(rolling replace)`. It restarts instead, as before, printing `(restart)`, when the running
+primary's `dist/src/server.js` (`/proc/<MainPID>/cwd`) lacks rolling replace (the first release with FM-389)
+or differs from the new release's (a change to the primary), when the service is not a running cluster, or
+with `FIRSTMEASURE_LEGACY_ACTIVATION=restart`. A failed replace switches `current` back and replaces the
+workers back the same way; a restart is the last resort. The release a primary started in must stay installed
+(`readlink /proc/<MainPID>/cwd`), like any directory a running Node started in.
+
+**The gate stays for now.** Lower or remove the compatibility gate only after a production release
+activated with `(rolling replace)` shows no watchdog kills and no 500 burst (`release.sh`'s 20 s check, the
+journal's `HTTP worker .* exited|missed`, `rates.py`), and record that here. Tests:
+`public/v1/tests/server-rolling-replace.test.mjs`, `public/v1/tests/server-cluster-drain.test.mjs`,
+`tests/release-legacy-rolling-activation.test.mjs`.
 
 ## Production fixes future releases must preserve
 

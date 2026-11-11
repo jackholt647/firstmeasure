@@ -5,7 +5,7 @@
 
 Only for a release whose Node side is identical to the release Node is running
 (release-node-fingerprint.py compare, run here against the directory each Node
-service actually started in). Switches /opt/firstmeasure/current and gracefully
+service's serving processes actually started in: a cluster's workers, FM-389). Switches /opt/firstmeasure/current and gracefully
 reloads PHP-FPM where it runs (web, compatibility); Node services keep running and
 keep their RELEASE_ID. Then checks the Node services did not restart and are ready,
 that NGINX serves every changed static file with the new release's bytes, and that
@@ -59,6 +59,16 @@ def started_in(pid):
     """The release directory a Node process started in (its cwd is <release>/public/v1, a real path)."""
     cwd = Path(os.readlink(PROC / pid / 'cwd'))
     return cwd.parent.parent if cwd.parts[-2:] == ('public', 'v1') else cwd
+
+
+def serving(pid):
+    """The processes that answer requests: a cluster primary's workers, which a rolling replace (FM-389) starts in a
+    newer release than the one the primary started in; a process without workers serves itself."""
+    try:
+        children = (PROC / pid / 'task' / pid / 'children').read_text().split()
+    except OSError:
+        children = []
+    return children or [pid]
 
 
 def get(path, timeout=15, base=None):
@@ -120,13 +130,13 @@ def main(new_id, expected_id, check=False):
     static = set()
     os.nice(10)  # hashing two trees; compatibility has 2 vCPU
     for service, pid in nodes.items():
-        running = started_in(pid)
-        result = fingerprint.compare(running, new)
-        say(service=service, pid=pid, started_in=running.name, node_same=result['fast_path'], server_same=result['server']['running'] == result['server']['new'],
-            changed=result['changed'], changed_node=result['changed_node'][:10])
-        if not result['fast_path']:
-            say(refused='Node side differs from the release this Node started in: use the full procedure (activate-release.sh)'); return 3
-        static.update(result['changed_static'])
+        for running in sorted({started_in(process) for process in serving(pid)}):
+            result = fingerprint.compare(running, new)
+            say(service=service, pid=pid, started_in=running.name, node_same=result['fast_path'], server_same=result['server']['running'] == result['server']['new'],
+                changed=result['changed'], changed_node=result['changed_node'][:10])
+            if not result['fast_path']:
+                say(refused='Node side differs from the release this Node started in: use the full procedure (activate-release.sh)'); return 3
+            static.update(result['changed_static'])
     if check:
         say(check='fast path possible', new=new_id, current=expected_id, php=php); return 0
     before = time.time()

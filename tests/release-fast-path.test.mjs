@@ -132,7 +132,7 @@ test('archives give the same answer as release directories', () => {
 
 // switch-release-files.py against a fake host: releases under a temp root, a fake systemctl, a fake /proc
 // and a local HTTP server standing in for NGINX in front of `current`.
-function fakeHost({ nodeDir = A, serveWrong = false, restartOnReload = false } = {}) {
+function fakeHost({ nodeDir = A, workerDir = null, serveWrong = false, restartOnReload = false } = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fm388-host-'));
   const app = path.join(tmp, 'opt');
   const changes = { 'public/measure/internal/editor_scripts/wall_mode.js': 'wall(2);\n', 'public/measure/internal/backend_login.php': '<?php echo "login 2";\n' };
@@ -141,6 +141,13 @@ function fakeHost({ nodeDir = A, serveWrong = false, restartOnReload = false } =
   fs.symlinkSync(path.join(app, 'releases', A), path.join(app, 'current'));
   fs.mkdirSync(path.join(tmp, 'proc', '4242'), { recursive: true });
   fs.symlinkSync(path.join(app, 'releases', nodeDir, 'public/v1'), path.join(tmp, 'proc', '4242', 'cwd'));
+  if (workerDir) {
+    // A cluster primary whose worker a rolling replace (FM-389) started in another release.
+    fs.mkdirSync(path.join(tmp, 'proc', '4242', 'task', '4242'), { recursive: true });
+    fs.writeFileSync(path.join(tmp, 'proc', '4242', 'task', '4242', 'children'), '4343 ');
+    fs.mkdirSync(path.join(tmp, 'proc', '4343'), { recursive: true });
+    fs.symlinkSync(path.join(app, 'releases', workerDir, 'public/v1'), path.join(tmp, 'proc', '4343', 'cwd'));
+  }
   const log = path.join(tmp, 'systemctl.log');
   const systemctl = path.join(tmp, 'systemctl');
   fs.writeFileSync(systemctl, `#!/usr/bin/env bash
@@ -225,6 +232,26 @@ test('switch: compares with the directory Node started in, not with current', as
     assert.equal(host.current(), B);
     assert.equal(done.lines[0].started_in, B);
   } finally { host.close(); }
+});
+
+test('switch: compares with the release the cluster workers run, not the primary (FM-389 rolling replace)', async () => {
+  // The primary started in A; a rolling replace moved its workers to B, whose server differs from A's.
+  const replaced = await fakeHost({ nodeDir: A, workerDir: B });
+  try {
+    write(path.join(replaced.app, 'releases', B), { 'public/v1/dist/src/server.js': '// server 2\n' });
+    const done = await replaced.run(B, A);
+    assert.equal(done.status, 0, done.out);
+    assert.equal(replaced.current(), B);
+    assert.deepEqual(done.lines.filter(line => line.started_in).map(line => line.started_in), [B]);
+  } finally { replaced.close(); }
+  // The other way round: the workers still run A, so switching to B would serve code Node does not run.
+  const stale = await fakeHost({ nodeDir: B, workerDir: A });
+  try {
+    write(path.join(stale.app, 'releases', B), { 'public/v1/dist/src/server.js': '// server 2\n' });
+    const refused = await stale.run(B, A);
+    assert.equal(refused.status, 3, refused.out);
+    assert.equal(stale.current(), A);
+  } finally { stale.close(); }
 });
 
 test('switch: a stale served file or a Node restart switches back', async () => {
