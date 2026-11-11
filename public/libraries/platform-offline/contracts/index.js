@@ -5,5 +5,12 @@
  * case to public/v1/tests/offline-contracts.test.ts.
  */
 self.FM_OFFLINE_CONTRACTS = [
-  'core.js'
+  'core.js',
+  'portal.js',
+  'projects.js',
+  'notes.js',
+  'todos.js',
+  'contacts.js',
+  'schedule.js',
+  'documents.js'
 ];
