@@ -280,9 +280,10 @@ function start() {
   // Sets: one release's files, downloaded whole, then made active
   // -------------------------------------------------------------------------------------------------------
 
-  let checking = null;
+  // One check at a time, in the order they were asked: a later manifest is never answered by an earlier check.
+  let checking = Promise.resolve();
   function checkForUpdate(given) {
-    if (!checking) checking = runCheck(given).catch(() => S.code).finally(() => { checking = null; });
+    checking = checking.then(() => runCheck(given)).catch(() => S.code);
     return checking;
   }
 
@@ -398,6 +399,7 @@ function start() {
 
   /** Deletes sets other than the active one, the previous one and any a page still runs from. */
   async function pruneSets() {
+    await sweepClients().catch(() => {});
     const keep = new Set([S.sets.active, S.sets.previous, ...Object.values(S.clients).map((client) => client.offline)].filter(Boolean).map(setName));
     for (const name of await caches.keys()) {
       if (!name.startsWith(SET_PREFIX) || keep.has(name)) continue;
@@ -524,7 +526,8 @@ function start() {
 
   // Background Sync (where the browser has it): send the queue without a page, under the same lock a page uses.
   self.addEventListener('sync', (event) => {
-    if (event.tag !== 'fm-offline-replay') return;
+    // Without the Cookie Store API the worker cannot read the CSRF token; a page sends the queue instead.
+    if (event.tag !== 'fm-offline-replay' || !self.cookieStore) return;
     const run = async () => {
       await boot;
       const result = await FM.replay.run();

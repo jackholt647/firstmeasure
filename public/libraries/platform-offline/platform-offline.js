@@ -86,7 +86,7 @@
         if (message.type === 'state') { apply(detail); return; }
         if (message.type === 'code') { apply({ code: detail }); emit('code', detail); return; }
         if (message.type === 'settings') { settings = Object.assign({}, settings, detail); return; }
-        if (message.type === 'sync-request') { if (top) replayNow({ resume: true }); return; }
+        if (message.type === 'sync-request') { if (top) replayNow({ resume: true, force: true }); return; }
         if (!QUEUE_EVENTS.includes(message.type) || !detail || detail.user !== identity.user || detail.org !== identity.org) return;
         if (message.type === 'queued') onQueued();
         emit(message.type, detail);
@@ -94,7 +94,7 @@
     }
   } catch (_) { channel = null; }
 
-  window.addEventListener('online', () => { apply({}); if (top) { replayNow(); ask('refreshPins').catch(() => {}); } });
+  window.addEventListener('online', () => { apply({}); if (top) { replayNow({ force: true }); ask('refreshPins').catch(() => {}); } });
   window.addEventListener('offline', () => apply({}));
 
   // ---------------------------------------------------------------------------------------------------------
@@ -220,17 +220,20 @@
   /** One run: holds the lock until no entry is due, then lets go. Entries in backoff wait for a later run. */
   function replayNow(options) {
     if (!top || !supported || !identity.user) return Promise.resolve({ sent: 0 });
-    if (replaying) return replaying;
+    const asked = !!(options && (options.force || options.resume));
+    if (replaying && !asked) return replaying;
     const work = async () => {
       let FM = await loadEngine();
       if (engineVersion && FM.version !== engineVersion) { engine = null; FM = await loadEngine(); if (FM.version !== engineVersion) return { sent: 0 }; }
       return FM.replay.run(options);
     };
-    const locked = navigator.locks && navigator.locks.request
+    const locked = () => (navigator.locks && navigator.locks.request
       ? navigator.locks.request(LOCK, { ifAvailable: true }, (lock) => (lock ? work() : { sent: 0, busy: true }))
-      : work();
-    replaying = Promise.resolve(locked).catch(() => ({ sent: 0 })).finally(() => { replaying = null; });
-    return replaying;
+      : work());
+    // A sync the person asked for runs after the one already on its way, never instead of it.
+    const run = (replaying ? replaying.then(locked) : Promise.resolve().then(locked)).catch(() => ({ sent: 0 })).finally(() => { if (replaying === run) replaying = null; });
+    replaying = run;
+    return run;
   }
 
   let askedToPersist = false;
@@ -303,9 +306,9 @@
     discard: (id) => ask('discard', { entry: id }),
     /** Settles a conflict: choices is { '<path>': 'mine' | 'theirs' } for every path the conflict lists. */
     resolve: (id, choices) => ask('resolve', { entry: id, choices }).then(afterChange),
-    /** Sends what waits now; also lifts a sign-in pause. */
+    /** Sends what waits now, also what is in backoff, and lifts a sign-in pause. */
     syncNow() {
-      if (top) return replayNow({ resume: true });
+      if (top) return replayNow({ resume: true, force: true });
       if (channel) channel.postMessage({ fm: 'offline', type: 'sync-request' });
       return Promise.resolve({ sent: 0 });
     },

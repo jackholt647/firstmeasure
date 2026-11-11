@@ -226,6 +226,23 @@
   function netError(error) { try { error.fmNetwork = true; } catch (_) { /* a frozen error */ } return error; }
   const wasAborted = (request, error) => !!(request && request.signal && request.signal.aborted) || !!(error && error.name === 'AbortError');
 
+  /** A response body as a Blob, or null when it is larger than `max` bytes. Never holds more than `max` in memory. */
+  async function bodyUpTo(response, max) {
+    const type = response.headers.get('content-type') || '';
+    if (!response.body || !response.body.getReader) { const whole = await response.blob(); return whole.size > max ? null : whole; }
+    const reader = response.body.getReader();
+    const chunks = [];
+    let size = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > max) { try { await reader.cancel(); } catch (_) { /* already closed */ } return null; }
+      chunks.push(value);
+    }
+    return new Blob(chunks, { type });
+  }
+
   /** The promise's value, or null when `ms` pass first (the promise keeps going). */
   function race(promise, ms) {
     return new Promise((resolve, reject) => {
@@ -440,16 +457,18 @@
     key: readKey,
     written: 0,
 
-    savable: (response) => response.status === 200 && isJson(response) && !response.headers.get('x-fm-offline'),
+    /** A JSON 200 from the server, and not one that announces itself as larger than a saved read may be. */
+    savable: (response) => response.status === 200 && isJson(response) && !response.headers.get('x-fm-offline') && !(Number(response.headers.get('content-length')) > limits.maxReadBytes),
 
     /** Stores a JSON answer. `response` is consumed: pass a clone. */
     async store(identity, key, response, info) {
-      const body = await response.text();
-      if (body.length > limits.maxReadBytes) return false;
+      const blob = await bodyUpTo(response, limits.maxReadBytes);
+      if (!blob) return false;
+      const body = await blob.text();
       const now = config.now();
       const keep = (info && info.boot) || (await pins.has(identity, 'reads', key)) ? 1 : 0;
-      await db.put('responses', { k: [identity.user, identity.org, key], status: 200, type: response.headers.get('content-type') || 'application/json', body, size: body.length, savedAt: now, usedAt: now, keep, req: (info && info.req) || null });
-      reads.written += body.length;
+      await db.put('responses', { k: [identity.user, identity.org, key], status: 200, type: response.headers.get('content-type') || 'application/json', body, size: blob.size, savedAt: now, usedAt: now, keep, req: (info && info.req) || null });
+      reads.written += blob.size;
       if (reads.written >= limits.budgetCheckBytes) { reads.written = 0; await reads.enforce(); }
       return true;
     },
@@ -492,22 +511,21 @@
 
     /** Reads a saved GET or declared POST read again and stores the answer. Used after a change synced. */
     async refresh(identity, key) {
-      const row = await reads.row(identity, key);
       const space = key.indexOf(' ');
       const method = key.slice(0, space);
-      const rest = key.slice(space + 1);
-      const target = method === 'GET' ? rest : rest.slice(0, rest.indexOf(' ') < 0 ? rest.length : rest.indexOf(' '));
+      const url = new URL(key.slice(space + 1).split(' ')[0], ORIGIN);          // "METHOD path?query[ extra]"
+      const row = await reads.row(identity, key);
       const init = { method, credentials: 'include', cache: 'no-store', headers: { accept: 'application/json', 'x-fm-offline-replay': '1' } };
       if (method !== 'GET') {
         if (!row || !row.req) return false;
         const token = await config.csrf();
         if (token) init.headers['x-platform-csrf'] = token;
-        if (row.req.fields) init.body = new URLSearchParams(row.req.fields).toString(), init.headers['content-type'] = 'application/x-www-form-urlencoded';
-        else if (row.req.text != null) init.body = row.req.text, init.headers['content-type'] = row.req.contentType || 'application/json';
+        if (row.req.fields) { init.body = new URLSearchParams(row.req.fields).toString(); init.headers['content-type'] = 'application/x-www-form-urlencoded'; }
+        else if (row.req.text != null) { init.body = row.req.text; init.headers['content-type'] = row.req.contentType || 'application/json'; }
       }
-      const response = await config.fetch(new URL(target, ORIGIN).href, init);
+      const response = await config.fetch(url.href, init);
       if (!reads.savable(response)) return false;
-      return reads.store(identity, key, response, { boot: row ? row.keep === 1 && !(await pins.has(identity, 'reads', key)) : false, req: row ? row.req : null });
+      return reads.store(identity, key, response, { boot: contracts.boot(method, url.pathname), req: row ? row.req : null });
     },
 
     /** Removes least recently used reads until the budget holds. Pinned and boot reads stay. */
@@ -953,7 +971,9 @@
         throw netError(error);
       }
       net.ok();
-      if (response.status === 200 && response.type !== 'opaque') waitUntil(media.store(identity, url, response.clone(), {}).catch(() => {}));
+      // A file that announces itself as too large is not copied at all; one of unknown length is read only up to the limit.
+      const tooLarge = !media.isThumb(url) && Number(response.headers.get('content-length')) > limits.maxMediaBytes;
+      if (response.status === 200 && response.type !== 'opaque' && !tooLarge) waitUntil(media.store(identity, url, response.clone(), {}).catch(() => {}));
       return response;
     },
 
@@ -976,9 +996,9 @@
     /** Keeps a file answer. Thumbnails always; other variants when they are 8 MB or smaller. `response` is consumed. */
     async store(identity, url, response, options) {
       if (!root.caches) return false;
-      const blob = await response.blob();
       const thumb = media.isThumb(url);
-      if (!thumb && blob.size > limits.maxMediaBytes) return false;
+      const blob = await bodyUpTo(response, thumb ? Infinity : limits.maxMediaBytes);
+      if (!blob) return false;
       const key = media.urlKey(url);
       const now = config.now();
       const cache = await root.caches.open(MEDIA_CACHE);
@@ -1222,10 +1242,16 @@
     /**
      * Sends what waits for the signed-in person: oldest first within a scope, three scopes at a time. One run
      * ends when no entry is due; entries in backoff wait for a later run. Resolves { sent, blocked }.
+     * options.resume lifts a sign-in pause first; options.force sends entries that wait in backoff now.
      */
     run(options) {
-      if (!replay.running) replay.running = runOnce(options || {}).finally(() => { replay.running = null; });
-      return replay.running;
+      const asked = !!(options && (options.force || options.resume));
+      if (replay.running && !asked) return replay.running;
+      // A run that was asked for (sync now, signed in again) is never answered by one already on its way.
+      const run = (replay.running ? replay.running.catch(() => {}).then(() => runOnce(options || {})) : runOnce(options || {}))
+        .finally(() => { if (replay.running === run) replay.running = null; });
+      replay.running = run;
+      return run;
     },
 
     /** The native host's answer for a delegated upload (a Response), or null when it got none. */
@@ -1251,6 +1277,8 @@
     queue.invalidate();
     const entries = await queue.list(identity);
     const now = config.now();
+    // The person asked, or the connection came back: what waits in backoff is due now.
+    if (options.force) for (const entry of entries) if (entry.state === 'waiting' && entry.nextAt > now) { entry.nextAt = 0; await db.put('outbox', entry); }
     if (!entries.some((entry) => entry.state === 'waiting' && entry.nextAt <= now)) return { sent: 0, blocked: null };
     const run = { identity, stop: false, sent: 0, token: null, blocked: null };
     const scopes = new Map();
