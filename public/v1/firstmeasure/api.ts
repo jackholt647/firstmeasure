@@ -84,7 +84,8 @@ import {
 
 } from "./qa_shifts.js";
 
-import { FirstMeasureError, badRequest, conflict } from "./errors.js";
+import { FirstMeasureError, badRequest, conflict, notFound } from "./errors.js";
+import { QUEUE_EMPTY_CODE, QUEUE_EMPTY_MESSAGE, admitClaimAttempt } from "./claim-rate-limit.js";
 
 import { buildReportExpediteOptions, isExpeditedReportExpediteKey, normalizeReportExpediteKey, reportExpeditePriorityLevel, REPORT_EXPEDITE_1_3_KEY, REPORT_EXPEDITE_STANDARD_KEY, REPORT_EXPEDITE_UNDER_1_KEY } from "./expedite.js";
 
@@ -3877,6 +3878,10 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   app.post("/queue/claim-next", async (request) => {
 
+    // Flood protection (FM-387): counted before any queue or database work; refused like an empty queue.
+
+    if (!(await admitClaimAttempt(request))) throw notFound(QUEUE_EMPTY_CODE, QUEUE_EMPTY_MESSAGE);
+
     const input = queueClaimNextSchema.parse(request.body ?? {});
 
     await touchPortalUserActivity(input.actor.email);
@@ -3900,6 +3905,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
   app.post("/queue/claim-next/compat", async (request) => {
+
+    if (!(await admitClaimAttempt(request))) throw notFound(QUEUE_EMPTY_CODE, QUEUE_EMPTY_MESSAGE);
 
     const input = asRecord(request.body);
 
