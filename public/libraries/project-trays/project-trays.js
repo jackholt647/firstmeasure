@@ -93,7 +93,12 @@
     if (key==='agent') return root.PlatformAssistant.mountProject(node,{orgId:oid,projectId:pid,...options.agentOptions,...(draft?{ensureProject:options.ensureProject}:{})});
     if (key==='activity') return mountActivity(node,oid,pid,getProject);
     if (key==='messages') {
-      const data=await root.ChannelsAPI.channels.ensureProject(oid,pid);
+      // Without a connection the channel comes from the device (ChannelsAPI); where it is not there, say so plainly.
+      const data=await root.ChannelsAPI.channels.ensureProject(oid,pid).catch(error=>{
+        if(!root.ChannelsAPI.unreachable?.(error))throw error;
+        const words="This project's messages are not saved on this device. Connect to the internet to see them.";
+        throw new Error(globalThis.PlatformLanguage?.text?.('shared','offline_project_messages_not_on_device',words) ?? words);
+      });
       return root.FirstMateChannels.create(node,{orgId:oid,context:{channelId:data.channel.id},mode:'embedded',features:{resources:false}});
     }
     return definition.mount?.(node,{getProject,projectId:pid,orgId:oid});

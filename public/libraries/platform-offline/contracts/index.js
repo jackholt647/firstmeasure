@@ -9,6 +9,7 @@ self.FM_OFFLINE_CONTRACTS = [
   'portal.js',
   'projects.js',
   'notes.js',
+  'messages.js',
   'todos.js',
   'contacts.js',
   'schedule.js',
