@@ -713,7 +713,8 @@
         const path = binding.path;
         const order = inputSpans().indexOf(span);
         closePop();
-        const ok = await run(() => opts.writeInputs([{ path, text }]));
+        // `parsed` is the value as it is stored: the server works it out itself; a change kept on the device uses it.
+        const ok = await run(() => opts.writeInputs([{ path, text, parsed: parsed.value }]));
         if (ok && moveBy) {
           const spans = inputSpans();
           const next = spans[order + moveBy];

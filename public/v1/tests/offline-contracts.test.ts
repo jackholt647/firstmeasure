@@ -63,6 +63,8 @@ function loadContracts() {
   const context = vm.createContext({ URL, URLSearchParams, Request, Response, Headers, Blob, File, FormData, AbortController, TextEncoder, TextDecoder, crypto: webcrypto, console, setTimeout, clearTimeout, navigator: { onLine: true }, location: { origin: ORIGIN } });
   (context as any).self = context;
   vm.runInContext(readFileSync(path.join(LIBRARY, "offline-core.js"), "utf8"), context, { filename: "offline-core.js" });
+  // The documents contract works with the document model, which the worker loads beside it (contracts/documents.js).
+  vm.runInContext(readFileSync(path.resolve(LIBRARY, "../doc-model/firstmate-doc-model.js"), "utf8"), context, { filename: "firstmate-doc-model.js" });
   const FM = (context as any).FMOffline;
   const raw: Json[] = [];
   const add = FM.contracts.add;
@@ -398,7 +400,7 @@ test("each write answers offline as its route would, and reaches the server once
   // Every queued change has a title for the sync tray and a scope of its record.
   for (const entry of await d.FM.queue.list(d.identity)) {
     assert.ok(entry.label && entry.label.key && entry.label.title, `${entry.contract}/${entry.write} has a label`);
-    assert.match(entry.scope, /^(project|contact|todo|channel):/, `${entry.write} scope`);
+    assert.match(entry.scope, /^(project|contact|todo|channel|document):/, `${entry.write} scope`);
   }
   assert.equal((await d.entries()).length, 12);
 
@@ -508,4 +510,200 @@ test("the to-do widget's published actions are queued with their own key and run
   // The same key again is the first answer, not a second run.
   const repeat = await real("POST", `${publication}/actions/invoke`, body);
   assert.deepEqual([repeat.status, repeat.json.receipt.replayed], [200, true]);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Documents: made from a template that is on the device, edited, and merged with the server's copy part by part
+// ---------------------------------------------------------------------------------------------------------------
+
+test("a document is made and edited without a connection, exists once after the sync, and merges part by part", async () => {
+  const { randomUUID } = await import("node:crypto");
+  const { enableExpandedPlatformFixture } = await import("./helpers/platform-fixture.js");
+  const { FMDocModel } = await import("../documents/schemas.js");
+  const me = await owner();
+  await enableExpandedPlatformFixture(me.orgId, { "platform.documents": true, "documents.templates_studio": true, "documents.designer_profile": true });
+  const d = device(me);
+  const docs = `/v1/documents/organizations/${me.orgId}`;
+  const org = `/v1/platform/organizations/${me.orgId}`;
+  const real = async (method: string, target: string, payload?: unknown) => { const response = await me.raw(method, target, payload); return { status: response.statusCode, json: response.json() as Json }; };
+  const newId = () => `doc_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
+  const TEMPLATE = "tpl_instant_roofing_detailed", WORKFLOW = "wfl_instant_roofing_detailed";
+  const lines = () => [{ id: "line_a", name: "Tear off", quantity: 2, unit: "sq", unit_price: 100 }, { id: "line_b", name: "Shingles", quantity: 3, unit: "sq", unit_price: 50 }];
+  /** Every text run of a resolved definition. */
+  const runs = (definition: Json) => { const found: Json[] = []; FMDocModel.walkNodes(definition, (node: Json) => { for (const block of node.props?.blocks || []) for (const run of block.runs || []) found.push(run); }); return found; };
+  const shown = (definition: Json, dataPath: string) => runs(definition).filter((run) => run.binding?.path === dataPath);
+  const waiting = async () => (await d.entries()).filter((entry: string) => entry.includes("documents/"));
+  const sync = async () => { await d.FM.replay.run({ force: true }); for (let round = 0; round < 3 && (await d.entries()).some((entry: string) => entry.startsWith("waiting")); round++) await d.FM.replay.run({ force: true }); };
+
+  const project = `project_${Date.now().toString(36)}_docs0001`;
+  assert.equal((await real("PUT", `${org}/projects/${project}`, { data: { id: project, title: "Whitfield residence", address: "68 Northfield Rd" }, metadata: { kind: "platform_project", workflow_state: "", measurement_keys: [] }, create_only: true })).status, 200);
+
+  // What a kept project downloads for documents is on the device: types, templates and their published versions, steps.
+  for (const target of [`${docs}/catalog`, `${docs}/templates`, `${docs}/templates/${TEMPLATE}/versions/1`, `${docs}/workflows/${WORKFLOW}`, `${org}/projects/${project}`, org, `${docs}/projects/${project}/documents`]) {
+    assert.equal((await d.ask("GET", target)).status, 200, target);
+  }
+
+  // ---- the real route, with an id the device made ----
+  const refBody = { id: newId(), document_type: "proposal", template_id: TEMPLATE, title: "Reference", params: { scope_items: lines() } };
+  const ref = await d.ask("POST", `${docs}/projects/${project}/documents`, refBody);
+  assert.deepEqual([ref.status, ref.queued, ref.data.document.id], [201, null, refBody.id], JSON.stringify(ref.data).slice(0, 300));
+  const refUrl = `${docs}/documents/${refBody.id}`;
+  // The same request again is the first one's answer; another document under that id is refused, never a replacement.
+  const repeated = await real("POST", `${docs}/projects/${project}/documents`, refBody);
+  assert.deepEqual([repeated.status, repeated.json.document.id, repeated.json.document.revision, repeated.json.missing_params], [201, refBody.id, ref.data.document.revision, ref.data.missing_params]);
+  const taken = await real("POST", `${docs}/projects/${project}/documents`, { ...refBody, title: "Another document" });
+  assert.deepEqual([taken.status, taken.json.error], [409, "document_exists"]);
+  assert.equal((await real("GET", refUrl)).json.document.title, "Reference", "nothing was replaced");
+  assert.equal((await real("GET", `${docs}/projects/${project}/documents`)).json.documents.filter((item: Json) => item.id === refBody.id).length, 1);
+  const refWorkflow = await real("GET", `${refUrl}/workflow`);
+  const refResolved = await real("POST", `${refUrl}/resolve`, {});
+  assert.deepEqual([refWorkflow.status, refResolved.status], [200, 200]);
+
+  // ---- no connection: a document from a template that is on the device ----
+  d.net.down = true;
+  const id = newId();
+  const body = { ...refBody, id, title: "Made offline" };
+  const url = `${docs}/documents/${id}`;
+  const made = await d.ask("POST", `${docs}/projects/${project}/documents`, body);
+  assert.ok(made.queued, JSON.stringify(made.data));
+  assert.deepEqual(keyDifference(made.data, ref.data), NONE);
+  // `create_fingerprint` is the server's note of what was asked for.
+  assert.deepEqual(keyDifference(made.data.document, ref.data.document, ["create_fingerprint"]), NONE);
+  for (const key of ["params", "param_defs", "template_ref", "workflow_ref", "workflow_state", "theme_ref", "theme_overrides", "tags", "department_ids", "department_access", "branch_id", "status", "contact_ids", "project_id", "document_type"]) {
+    assert.deepEqual(made.data.document[key], ref.data.document[key], `the device makes the same ${key} as the route`);
+  }
+  assert.deepEqual([made.data.document.title, made.data.missing_params], ["Made offline", ref.data.missing_params]);
+  // How a customer is shown the document is filled in by the server (its defaults matter when it is sent, which needs a connection).
+  assert.deepEqual(Object.keys(made.data.document.metadata), Object.keys(ref.data.document.metadata));
+  // It answers its own reads and is in the project's list, once.
+  const seeded = await d.ask("GET", url);
+  assert.deepEqual([seeded.status, seeded.from, seeded.data.document.id], [200, "queued", id]);
+  assert.equal((await d.ask("GET", `${docs}/projects/${project}/documents`)).data.documents.filter((item: Json) => item.id === id).length, 1);
+  const steps = await d.ask("GET", `${url}/workflow`);
+  assert.deepEqual(keyDifference(steps.data, refWorkflow.json), NONE);
+  assert.deepEqual([steps.data.state.current_step, steps.data.workflow.steps.length], [refWorkflow.json.state.current_step, refWorkflow.json.workflow.steps.length]);
+  assert.deepEqual((await d.ask("GET", `${url}/snapshots`)).data.snapshots, []);
+  // What the page renders: the template resolved on the device. What only the server computes is marked.
+  const view = await d.ask("POST", `${url}/resolve`, {});
+  assert.deepEqual([view.status, view.from], [200, "queued"]);
+  assert.deepEqual(keyDifference(view.data, refResolved.json), { missing: [], extra: ["offline"] });
+  assert.deepEqual([view.data.offline.made, view.data.offline.pending], [true, true]);
+  assert.equal(view.data.resolved_definition.pages.length, refResolved.json.resolved_definition.pages.length, "the same pages as the server makes");
+  assert.equal(view.data.scope.project.title, "Whitfield residence");
+  const tracedView = await d.ask("POST", `${url}/resolve`, { trace: true });
+  const madeTotals = shown(tracedView.data.resolved_definition, "computed.total_cents");
+  assert.ok(madeTotals.length && madeTotals.every((run) => run.offline === "stale"), "the total waits for the server");
+
+  // ---- edits without a connection ----
+  const renamed = await d.ask("PATCH", url, { title: "Renamed offline" });
+  assert.ok(renamed.queued);
+  assert.deepEqual(keyDifference(renamed.data.document, ref.data.document, ["create_fingerprint"]), NONE);
+  assert.deepEqual([renamed.data.document.title, renamed.data.document.params.scope_items.length], ["Renamed offline", 2]);
+  const template = (await d.ask("GET", `${docs}/templates/${TEMPLATE}/versions/1`)).data.version.definition;
+  const textNodes: string[] = [];
+  FMDocModel.walkNodes(template, (node: Json) => { if (node.type === "text" && node.id && (node.props?.blocks || []).length) textNodes.push(String(node.id)); });
+  assert.ok(textNodes.length >= 2, "the template has text to edit");
+  const blocks = (text: string) => [{ runs: [{ text }] }];
+  const retyped = await d.ask("PATCH", url, { overrides: [{ op: "node.set", node_id: textNodes[0], prop: "props.blocks", value: blocks("Typed without a connection") }] });
+  assert.ok(retyped.queued);
+  assert.equal(retyped.data.document.overrides[0].id, `node:${textNodes[0]}:props.blocks`, "an override item has an id");
+  assert.ok(JSON.stringify((await d.ask("POST", `${url}/resolve`, {})).data.resolved_definition).includes("Typed without a connection"), "the page shows the edit");
+  assert.equal((await d.ask("GET", url)).data.document.title, "Renamed offline", "a reload shows the document as the person left it");
+  assert.deepEqual(await waiting(), ["waiting documents/document.create", "waiting documents/document.patch", "waiting documents/document.patch"]);
+  for (const entry of await d.FM.queue.list(d.identity)) {
+    assert.ok(entry.label && entry.label.key && entry.label.title, `${entry.write} has a label`);
+    assert.equal(entry.scope, `document:${id}`);
+  }
+  // What needs the server says so and is never queued.
+  const serverOnly: Array<[string, string, Json]> = [
+    ["POST", `${url}/send`, {}], ["POST", `${url}/pdf`, {}], ["POST", `${url}/issue`, {}], ["POST", `${url}/workflow/state`, { current_step: "x" }], ["POST", `${url}/outputs/signature`, { value: "x" }],
+    ["PATCH", url, { status: "void" }], ["PATCH", url, { template_ref: { template_id: TEMPLATE } }],
+    ["POST", `${docs}/projects/${project}/documents`, { id: newId(), document_type: "invoice", template_id: "tpl_invoice_default" }],
+    ["POST", `${docs}/projects/${project}/documents`, { id: newId(), document_type: "proposal" }],
+    ["POST", `${docs}/projects/${project}/documents`, { id: newId(), document_type: "proposal", template_id: "tpl_not_on_this_device" }]
+  ];
+  for (const [method, target, payload] of serverOnly) {
+    assert.equal((await d.ask(method, target, payload)).data.error, "offline_unavailable", `${method} ${target} ${JSON.stringify(payload)}`);
+  }
+
+  // ---- the connection returns ----
+  d.net.down = false;
+  await sync();
+  assert.deepEqual(await d.entries(), [], "everything was sent");
+  const server = (await real("GET", url)).json.document;
+  assert.deepEqual([server.title, server.overrides.map((op: Json) => op.id), server.params.scope_items.map((line: Json) => line.id)], ["Renamed offline", [`node:${textNodes[0]}:props.blocks`], ["line_a", "line_b"]]);
+  assert.equal((await real("GET", `${docs}/projects/${project}/documents`)).json.documents.filter((item: Json) => item.id === id).length, 1, "the document exists once");
+  const history = (await real("GET", `${url}/revisions`)).json.revisions.map((row: Json) => Number(row.seq)).sort((a: number, b: number) => a - b);
+  assert.deepEqual(history, history.map((_: number, index: number) => history[0] + index), "one revision trail");
+  // Edits one person makes close together are one revision (document history); what matters is one unbroken trail.
+  assert.ok(history.length >= 1 && server.revision >= 3, `the create and each edit were saved: ${history.length} revisions, store revision ${server.revision}`);
+  const afterSync = await d.ask("POST", `${url}/resolve`, {});
+  assert.deepEqual([afterSync.from, afterSync.data.offline], [null, undefined], "the server's resolve replaces the device's view");
+
+  // ---- the create's answer was lost: sent again it is the same document; a different one under the id is done, not a replacement ----
+  d.net.down = true;
+  assert.ok((await d.ask("POST", `${docs}/projects/${project}/documents`, body)).queued);
+  d.net.down = false;
+  await sync();
+  d.net.down = true;
+  assert.ok((await d.ask("POST", `${docs}/projects/${project}/documents`, { ...body, title: "A different document" })).queued);
+  d.net.down = false;
+  await sync();
+  assert.deepEqual(await d.entries(), []);
+  const kept = (await real("GET", url)).json.document;
+  assert.deepEqual([kept.title, kept.revision, kept.overrides.length], ["Renamed offline", server.revision, 1], "the repeats changed nothing");
+
+  // ---- edits made offline while the server's copy changed: different parts merge ----
+  for (const read of [{}, { trace: true }]) assert.equal((await d.ask("POST", `${refUrl}/resolve`, read)).status, 200);
+  assert.equal((await d.ask("GET", refUrl)).status, 200);
+  d.net.down = true;
+  assert.ok((await d.ask("PATCH", refUrl, { params: { tax_percent: 5 } })).queued);
+  assert.ok((await d.ask("PATCH", refUrl, { overrides: [{ op: "node.set", node_id: textNodes[0], prop: "props.blocks", value: blocks("From the device") }] })).queued);
+  const typedQuantity = await d.ask("POST", `${refUrl}/as-sent`, { writes: [{ path: "params.scope_items.1.quantity", text: "7 sq", parsed: 7 }] });
+  assert.deepEqual([!!typedQuantity.queued, typedQuantity.data.document.params.scope_items[1].quantity, typedQuantity.data.document.params.tax_percent], [true, 7, 5]);
+  // The page shows the last resolved view with the typed value, and marks what follows from it.
+  const pendingView = await d.ask("POST", `${refUrl}/resolve`, { trace: true });
+  assert.equal(pendingView.from, "saved");
+  const quantityRuns = shown(pendingView.data.resolved_definition, "params.scope_items.1.quantity");
+  assert.ok(quantityRuns.length && quantityRuns.every((run) => /^7\b/.test(String(run.text))), `the typed quantity is shown: ${quantityRuns.map((run) => run.text)}`);
+  const staleTotals = shown(pendingView.data.resolved_definition, "computed.total_cents");
+  assert.ok(staleTotals.length && staleTotals.every((run) => run.offline === "stale"), "the total is marked, not recomputed");
+  assert.ok(JSON.stringify(pendingView.data.resolved_definition).includes("From the device"));
+  const untouched = shown(pendingView.data.resolved_definition, "params.scope_items.0.quantity");
+  assert.ok(untouched.length && untouched.every((run) => !run.offline && run.binding.kind === "input"), "other values stay as the server resolved them");
+  d.net.down = false;
+  // Meanwhile on the server: another value, another text, and a line added above the one edited on the device.
+  const current = (await real("GET", refUrl)).json.document;
+  assert.equal((await real("PATCH", refUrl, { params: { structure: "Garage", scope_items: [{ id: "line_new", name: "Permit", quantity: 1, unit: "ea", unit_price: 75 }, { ...current.params.scope_items[0], quantity: 9 }, current.params.scope_items[1]] } })).status, 200);
+  assert.equal((await real("PATCH", refUrl, { overrides: [{ op: "node.set", node_id: textNodes[1], prop: "props.blocks", value: blocks("From the server") }] })).status, 200);
+  await sync();
+  assert.deepEqual(await d.entries(), [], "different parts merge without asking");
+  const merged = (await real("GET", refUrl)).json.document;
+  assert.deepEqual([merged.params.tax_percent, merged.params.structure], [5, "Garage"], "both data changes are kept");
+  assert.deepEqual(merged.params.scope_items.map((line: Json) => [line.id, line.quantity]), [["line_new", 1], ["line_a", 9], ["line_b", 7]], "the typed quantity lands on its own line, wherever that line is now");
+  assert.deepEqual(merged.overrides.map((op: Json) => op.id).sort(), [`node:${textNodes[0]}:props.blocks`, `node:${textNodes[1]}:props.blocks`].sort(), "both people's text edits are kept");
+
+  // ---- the same part changed on both sides asks ----
+  for (const read of [{}, { trace: true }]) await d.ask("POST", `${refUrl}/resolve`, read);
+  await d.ask("GET", refUrl);
+  d.net.down = true;
+  await d.ask("PATCH", refUrl, { title: "Named on the device" });
+  await d.ask("POST", `${refUrl}/as-sent`, { writes: [{ path: "params.scope_items.2.quantity", text: "8", parsed: 8 }] });
+  await d.ask("PATCH", refUrl, { overrides: [...merged.overrides.filter((op: Json) => op.node_id !== textNodes[0]), { op: "node.set", node_id: textNodes[0], prop: "props.blocks", value: blocks("Device again") }] });
+  d.net.down = false;
+  assert.equal((await real("PATCH", refUrl, { title: "Named on the server" })).status, 200);
+  const serverTyped = await real("POST", `${refUrl}/as-sent`, { writes: [{ path: "params.scope_items.2.quantity", text: "11" }] });
+  assert.equal(serverTyped.status, 200, JSON.stringify(serverTyped.json).slice(0, 300));
+  await sync();
+  assert.deepEqual(await d.entries(), ["conflict documents/document.patch", "conflict documents/document.as_sent"], "the override list still merges; the title and the quantity ask");
+  const [titleConflict, quantityConflict] = await d.FM.queue.list(d.identity);
+  assert.deepEqual([...titleConflict.conflict.fields].map((field: Json) => [field.path, field.mine, field.theirs]), [["title", "Named on the device", "Named on the server"]]);
+  assert.deepEqual([...quantityConflict.conflict.fields].map((field: Json) => [field.path, field.mine, field.theirs]), [["scope_items.#line_b.quantity.value", 8, 11]]);
+  await d.FM.queue.resolve(titleConflict.id, { title: "theirs" });
+  await d.FM.queue.resolve(quantityConflict.id, { "scope_items.#line_b.quantity.value": "mine" });
+  await sync();
+  assert.deepEqual(await d.entries(), []);
+  const settled = (await real("GET", refUrl)).json.document;
+  assert.deepEqual([settled.title, settled.params.scope_items[2].quantity], ["Named on the server", 8]);
+  assert.ok(JSON.stringify(settled.overrides).includes("Device again") && JSON.stringify(settled.overrides).includes("From the server"));
 });
