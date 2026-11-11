@@ -21393,7 +21393,7 @@
       "message": "{count, plural, one {Offline. # change is saved on this device and will be sent when you reconnect.} other {Offline. # changes are saved on this device and will be sent when you reconnect.}}",
       "format": "icu"
     },
-    "ind_offline_saved_long": "Offline. You are seeing what was saved on this device. Changes are sent when you reconnect.",
+    "ind_offline_saved_long": "Offline. You are seeing what was saved on this device.",
     "ind_offline_short": "Offline",
     "ind_offline_waiting_short": {
       "message": "Offline · {count} waiting",
@@ -21609,6 +21609,7 @@
     "set_choice_less": "Less",
     "set_choice_standard": "Standard",
     "set_choice_more": "More",
-    "set_choice_current": "Current"
+    "set_choice_current": "Current",
+    "tray_offline_note": "Changes you make are saved on this device and sent when you reconnect."
   }
 }

@@ -120,8 +120,10 @@ const projectPage = () => `<!doctype html><html lang="en" class="project-window-
 </body></html>`;
 
 async function site() {
+  const seen = { probes: 0 };
   const server = http.createServer((request, response) => {
     const url = new URL(request.url, 'http://x');
+    if (url.pathname === '/v1/platform/offline/assets') { seen.probes++; response.writeHead(200, { 'Content-Type': 'application/json' }); response.end('{"enabled":true}'); return; }
     const send = (type, body) => { response.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' }); response.end(body); };
     if (url.pathname === '/libraries/platform-offline/offline-ui.js') return send('text/javascript; charset=utf-8', readFileSync(UI_FILE));
     if (url.pathname === '/portal/logout.php') return send('text/html; charset=utf-8', '<!doctype html><title>signed out</title><p id="out">signed out</p>');
@@ -131,7 +133,7 @@ async function site() {
     response.writeHead(404); response.end('not found');
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  return { origin: 'http://127.0.0.1:' + server.address().port, close: () => new Promise((resolve) => server.close(resolve)) };
+  return { origin: 'http://127.0.0.1:' + server.address().port, seen, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
 let browser, web;
@@ -172,7 +174,10 @@ test('the indicator is hidden while everything is normal and says each situation
   await shot('ind-offline');
 
   await tab.evaluate(() => window.fake.set({ online: false, savedPage: true }));
-  assert.match(await pillText(tab), /You are seeing what was saved on this device/);
+  assert.equal(await pillText(tab), 'Offline. You are seeing what was saved on this device.');
+  await tab.locator('.fmo-pill').click();
+  assert.match(await tab.locator('.fmo-tray .fmo-status').innerText(), /Changes you make are saved on this device and sent when you reconnect\./);
+  await tab.keyboard.press('Escape');
 
   await tab.evaluate((list) => window.fake.entries(list), [entry('a'), entry('b'), entry('c')]);
   assert.match(await pillText(tab), /^Offline\. 3 changes are saved on this device and will be sent when you reconnect\.$/);
@@ -220,6 +225,22 @@ test('the indicator is hidden while everything is normal and says each situation
 
   assert.equal(await tab.locator('.fmo-pill').count(), 1, 'one element that changes, not a stack');
   assert.equal(navigations(), 0, 'nothing loaded a page');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('when the browser says the connection is back, one small read lets the engine notice', async () => {
+  const { tab, context, errors } = await open();
+  const before = web.seen.probes;
+  // Online as far as anyone knows: nothing is asked.
+  await tab.evaluate(() => window.dispatchEvent(new Event('online')));
+  await sleep(1200);
+  assert.equal(web.seen.probes, before);
+  // The engine still says offline (its last request got no answer) while the browser is online again.
+  await tab.evaluate(() => { window.fake.set({ online: false }); window.dispatchEvent(new Event('online')); });
+  await tab.waitForFunction(() => true, null, { timeout: 1000 });
+  for (let i = 0; i < 30 && web.seen.probes === before; i++) await sleep(100);
+  assert.equal(web.seen.probes, before + 1, 'one read through the worker');
   assert.deepEqual(errors, []);
   await context.close();
 });

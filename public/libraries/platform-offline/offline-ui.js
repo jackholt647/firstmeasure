@@ -39,7 +39,7 @@
 
     ind_offline_long: 'Offline. Changes are saved on this device and sent when you reconnect.',
     ind_offline_waiting_long: '{count, plural, one {Offline. # change is saved on this device and will be sent when you reconnect.} other {Offline. # changes are saved on this device and will be sent when you reconnect.}}',
-    ind_offline_saved_long: 'Offline. You are seeing what was saved on this device. Changes are sent when you reconnect.',
+    ind_offline_saved_long: 'Offline. You are seeing what was saved on this device.',
     ind_offline_short: 'Offline',
     ind_offline_waiting_short: 'Offline · {count} waiting',
     ind_offline_waiting_compact: 'Offline · {count}',
@@ -76,6 +76,7 @@
     tray_storage_warning_title: 'This browser may clear waiting changes',
     tray_storage_warning: 'This browser has not promised to keep what FirstMate saves. It can clear it when the device runs low on space, and Safari clears a site\'s storage after seven days without a visit. Changes still waiting here would be lost, so connect and send them soon. The FirstMate app does not have this limit.',
     tray_saved_copy: 'This page is the copy saved on this device. Load the latest when you are ready.',
+    tray_offline_note: 'Changes you make are saved on this device and sent when you reconnect.',
     tray_load_latest: 'Load the latest',
 
     entry_waiting: 'Waiting',
@@ -596,6 +597,18 @@
   window.addEventListener('fm:language:updated', changed);
   try { const language = window.PlatformLanguage; if (language && language.ensure) Promise.resolve(language.ensure([NS])).then(changed, () => {}); } catch (_) { /* no catalog: English */ }
 
+  /**
+   * The engine learns that the connection is back from the next request that gets an answer. When the browser
+   * says it is online again and nothing else asks, the top page asks: one small read through the worker, only
+   * while the indicator still says Offline.
+   */
+  function probe() {
+    if (!isTop || state.online || navigator.onLine === false || document.hidden || !state.controlled) return;
+    fetch('/v1/platform/offline/assets', { cache: 'no-store', credentials: 'same-origin' }).catch(() => {});
+  }
+  window.addEventListener('online', () => setTimeout(probe, 800));
+  setInterval(probe, 15000);
+
   // ---------------------------------------------------------------------------------------------------------
   // The indicator
   // ---------------------------------------------------------------------------------------------------------
@@ -874,6 +887,7 @@
     const tone = now ? now.tone : 'good';
     const block = h('div', { class: 'fmo-status', 'data-tone': tone }, icon(document, now ? now.icon : 'sent'));
     const words = h('div', { style: 'min-width:0;flex:1' }, h('p', { text: now ? now.long : T('tray_none') }));
+    if (now && now.mode === 'offline' && !now.count && state.savedPage) words.append(h('small', { text: T('tray_offline_note') }));
     if (state.lastSyncAt) words.append(h('small', { text: T('tray_last_sent', { when: when(state.lastSyncAt) }) }));
     if (now && now.mode === 'download') words.append(h('div', { class: 'fmo-progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(now.progress) }, h('span', { style: 'width:' + now.progress + '%' })));
     const actions = h('div', { class: 'fmo-actions' });
@@ -1365,8 +1379,11 @@
     };
     const row = (labelKey, helpKey, control, inline) => e('div', { class: 'fmo-set-row' + (inline ? ' inline' : '') }, e('div', null, e('strong', { text: T(labelKey) }), e('small', { text: T(helpKey) })), control);
 
+    let shown = false;
     function draw() {
-      if (!root.isConnected) return;
+      // The page that held these settings was drawn again without them: stop following the queue.
+      if (!root.isConnected) { if (shown) listeners.delete(draw); return; }
+      shown = true;
       const key = doc.activeElement && root.contains(doc.activeElement) ? doc.activeElement.dataset.fk : null;
       const s = PO.state();
       const storage = s.storage || {};
