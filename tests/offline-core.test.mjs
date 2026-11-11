@@ -1206,3 +1206,90 @@ test('a patch\'s effects can merge over a newer answer with the record as it was
   items = [{ id: 'a', n: 1 }, { id: 'b', n: 1 }, { id: 'c', n: 9 }];
   eq((await t.json('GET', '/v1/lists/l1')).data.list.items, [{ id: 'a', n: 2 }, { id: 'b', n: 1 }, { id: 'c', n: 9 }]);
 });
+
+// ---------------------------------------------------------------------------------------------------------------
+// Reads that name more reads, and start-up reads (messages: a channel's newest page names the page before it)
+// ---------------------------------------------------------------------------------------------------------------
+
+/** TEST ONLY: a room list whose rooms each have pages of lines; the newest page names the page before it. */
+function addRoomsContract(FM) {
+  const page = (room) => ({ url: `/v1/rooms/${room}/lines?limit=2`, each: (json) => (json.lines.length ? [`/v1/rooms/${room}/lines?before=${json.lines[0].seq}&limit=2`] : []) });
+  FM.contracts.add({
+    id: 'rooms',
+    boot: ['GET /v1/rooms'],
+    prefetch: [{ url: (ctx) => `/v1/projects/${ctx.project}/room`, each: (json) => [page(json.room), `/v1/rooms/${json.room}/pins`] }],
+    startup: [
+      () => ['/v1/people', '/v1/media/m1/file?variant=thumb_320', '/v1/payments/cards'],
+      { url: '/v1/rooms', each: (json) => json.rooms.map((room) => `/v1/rooms/${room}/lines?limit=2`) }
+    ]
+  });
+}
+
+function roomsServer() {
+  const server = fakeServer();
+  server.on('GET /v1/projects/p1/room', () => ({ json: { ok: true, room: 'r1' } }));
+  server.on('GET /v1/rooms', () => ({ json: { ok: true, rooms: ['r1', 'r2'] } }));
+  server.on('GET /v1/people', () => ({ json: { ok: true, people: ['Ada'] } }));
+  server.on('GET /v1/payments/cards', () => ({ json: { ok: true, cards: ['never kept'] } }));
+  server.on('GET /v1/media/m1/file', () => ({ body: 'picture', headers: { 'Content-Type': 'image/jpeg' } }));
+  for (const room of ['r1', 'r2']) {
+    server.on(`GET /v1/rooms/${room}/pins`, () => ({ json: { ok: true, pins: [] } }));
+    server.on(`GET /v1/rooms/${room}/lines`, (entry) => ({ json: { ok: true, lines: entry.query.includes('before=3') ? [{ seq: 1 }, { seq: 2 }] : [{ seq: 3 }, { seq: 4 }] } }));
+  }
+  return server;
+}
+
+test('a prefetch read may name further reads that are followed too: a kept project holds the page before its newest', async () => {
+  const t = engine({ server: roomsServer() });
+  addRoomsContract(t.FM);
+  const pin = await t.FM.pins.pin(ME, 'p1');
+  assert.equal(pin.reads, 4, 'the room, its newest page, the page before it and its pins');
+  t.server.down = true;
+  eq((await t.json('GET', '/v1/rooms/r1/lines?limit=2')).data.lines, [{ seq: 3 }, { seq: 4 }]);
+  const older = await t.json('GET', '/v1/rooms/r1/lines?before=3&limit=2');
+  assert.equal(older.response.headers.get('x-fm-offline'), 'saved');
+  eq(older.data.lines, [{ seq: 1 }, { seq: 2 }]);
+  // Kept with the project: not evicted with a budget of nothing.
+  await t.FM.settings.set('readsBudgetMb', 0);
+  await t.FM.reads.enforce();
+  eq((await t.json('GET', '/v1/rooms/r1/lines?before=3&limit=2')).data.lines, [{ seq: 1 }, { seq: 2 }]);
+});
+
+test('start-up reads are downloaded for the person, at most every ten minutes, as ordinary saved reads', async () => {
+  const t = engine({ server: roomsServer() });
+  addRoomsContract(t.FM);
+  eq(await t.FM.startup.run(null), null);
+  const first = await t.FM.startup.run(ME);
+  eq(first, { skipped: false, reads: 4, failed: 0 });                       // people, the rooms, a page of each room
+  assert.equal(t.server.sent('GET /v1/payments').length, 0, 'a denied route is never asked for');
+  assert.equal(t.server.sent('GET /v1/media').length, 0, 'pictures are kept as they are shown, not ahead');
+  // Again within ten minutes: nothing is asked.
+  const asked = t.server.log.length;
+  eq((await t.FM.startup.run(ME)).skipped, true);
+  assert.equal(t.server.log.length, asked);
+  t.clock.now += 11 * 60000;
+  eq((await t.FM.startup.run(ME)).skipped, false);
+  // Without a connection each is answered from the device, for this person only.
+  t.server.down = true;
+  eq((await t.json('GET', '/v1/rooms/r2/lines?limit=2')).data.lines, [{ seq: 3 }, { seq: 4 }]);
+  eq((await t.json('GET', '/v1/people')).data.people, ['Ada']);
+  await assert.rejects(t.request('GET', '/v1/people', {}, { user: 'user_2', org: 'org_1' }));
+  // Ordinary saved reads: over the budget they go, least recently used first; a boot read (the room list) stays.
+  await t.FM.settings.set('readsBudgetMb', 0);
+  await t.FM.reads.enforce();
+  await assert.rejects(t.request('GET', '/v1/rooms/r2/lines?limit=2'));
+  eq((await t.json('GET', '/v1/rooms')).data.rooms, ['r1', 'r2']);
+});
+
+test('start-up reads that got no answer are tried again at the next page load, and are forgotten at sign-out', async () => {
+  const t = engine({ server: roomsServer() });
+  addRoomsContract(t.FM);
+  t.server.down = true;
+  const none = await t.FM.startup.run(ME);
+  assert.equal(none.reads, 0);
+  assert.ok(none.failed > 0);
+  t.server.down = false;
+  eq((await t.FM.startup.run(ME)).reads, 4);
+  await t.FM.identity.signOut(ME.user);
+  eq((await t.FM.startup.run(ME)).skipped, false, 'after a sign-out the next sign-in downloads again');
+});
