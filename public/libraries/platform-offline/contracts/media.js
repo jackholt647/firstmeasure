@@ -2,13 +2,19 @@
  *
  * Photos and videos without a connection (docs/architecture/offline.md, "Photos and files").
  *
- *   media.upload   POST .../media                       a photo or video of a project, or one with no project yet
- *   photos.save    POST .../projects/:project/photos    the project's photo list (add, trash, restore, remove)
- *   media.assign   POST .../media/assign                pairing photos that have no project with one
+ *   media.upload        POST .../media                       a photo or video of a project, one with no project yet,
+ *                                                            or a contact's picture, media and documents
+ *   photos.save         POST .../projects/:project/photos    the project's photo list (add, trash, restore, remove)
+ *   media.assign        POST .../media/assign                pairing photos that have no project with one
+ *   media.update        PATCH .../media/:media               a name or tags, merged per field and per tag when sent
+ *   documents.upload    POST .../projects/:project/documents a file added to a project's documents list
+ *   checklist.evidence  POST /v1/workforce/.../attachments   a photo or file added to a checklist item
  *
  * A project photo is two changes in the scope `project:<id>`: the upload, then the list save, so both follow the
  * project's own create when that is still waiting. A photo with no project is in the person's scope `user:<id>`,
- * and so is its pairing. Renaming and tagging (PATCH .../media/:id) are not queued: see the doc.
+ * and so is its pairing. A rename or a tag is in the photo's own scope `media:<id>` and is sent after the photo's
+ * upload when that still waits (the engine orders it by the id its URL names). The file of a note is in notes.js.
+ * Slot pictures (a logo, an avatar) and receipts need a connection: the doc says why.
  */
 (function () {
   'use strict';

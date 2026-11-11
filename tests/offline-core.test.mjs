@@ -1246,3 +1246,25 @@ test('a patch of a record the device only knows from a list takes its base from 
   await t.FM.replay.run();
   eq((await t.entries()).filter((entry) => entry.state === 'conflict').map((entry) => entry.conflict.fields.map((field) => [field.path, field.base, field.mine, field.theirs])), [[['name', 'Uno', 'Eins', 'Un']]]);
 });
+
+test('ctx.queued gives what an earlier change answered the page, so a change can carry on the record it made', async () => {
+  const t = engine();
+  t.FM.contracts.add({
+    id: 'files',
+    writes: [
+      { id: 'file.add', match: 'POST /v1/files', kind: 'create', scope: (ctx) => `file:${ctx.body.id}`, records: (ctx) => [ctx.body.id], label: () => ({ title: 'File' }), respond: (ctx) => ({ ok: true, file: { id: ctx.body.id, name: ctx.body.name } }) },
+      {
+        id: 'post.add', match: 'POST /v1/posts', kind: 'action', scope: () => 'posts', label: () => ({ title: 'Post' }),
+        respond: async (ctx) => ({ ok: true, files: (await Promise.all(ctx.body.file_ids.map((id) => ctx.queued(id)))).flat().filter((entry) => entry.write === 'file.add').map((entry) => entry.response.file) })
+      }
+    ]
+  });
+  t.server.down = true;
+  await t.json('POST', '/v1/files', { json: { id: 'file_aaaa1111', name: 'plan.pdf' } });
+  const post = await t.json('POST', '/v1/posts', { json: { text: 'See the plan', file_ids: ['file_aaaa1111', 'file_unknown1'] } });
+  eq(post.data, { ok: true, files: [{ id: 'file_aaaa1111', name: 'plan.pdf' }] });
+  // The copy is the contract's own: changing it does not change what the queue keeps.
+  const [first] = await t.entries();
+  eq(first.response, { ok: true, file: { id: 'file_aaaa1111', name: 'plan.pdf' } });
+  eq((await t.entries())[1].after, [first.id], 'and the post, which names the file, is sent after it');
+});
