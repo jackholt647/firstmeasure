@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+import Security
 
 /// A request the bridge refuses; `code` is what the page receives.
 struct OfflineUploadRejected: Error, Equatable {
