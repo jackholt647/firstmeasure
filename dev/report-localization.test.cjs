@@ -103,3 +103,17 @@ test('project preview formats each report range using its own units',()=>{
  assert.equal(c.formatRoofingSquareRange(10,{measurement_system:'metric',report_language:'en-GB'}),'74.32 to 92.9 m²');
  assert.equal(c.formatRoofingSquareRange(10,{measurement_system:'imperial'}),'8 to 10 Squares');
 });
+
+test('line type names on the cover and layer pages are translated (FM-390)',()=>{
+ const dir='public/libraries/platform-language/catalogs',bundles=fs.readdirSync(dir).filter(f=>/^reports\.\w+\.json$/.test(f)).map(f=>JSON.parse(fs.readFileSync(`${dir}/${f}`,'utf8')).namespaces.reports);
+ const reports=bundles.sort((a,b)=>Object.keys(b['en-US']).length-Object.keys(a['en-US']).length)[0],message=e=>typeof e==='string'?e:e.message;
+ const report_dictionary={};for(const [key,entry] of Object.entries(reports['en-US']))if(reports['fr-FR']?.[key])report_dictionary[message(entry)]=message(reports['fr-FR'][key]);
+ const c=context({report_language:'fr-FR',language_snapshot:{locale:'fr-FR',report_dictionary}});vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/pdf.js','utf8'),c);
+ const types=vm.runInContext('PDF_FALLBACK_LINE_TYPES',c);
+ for(const {id,label} of Object.values(types)){assert.ok(report_dictionary[label],`${label} has a French report translation`);assert.equal(c.pdfLineTypeLabel(id),report_dictionary[label]);}
+ assert.equal(c.pdfLineTypeLabel('eave'),'Égout');assert.equal(c.pdfLineTypeLabel('head_wall'),'Solin de mur en amont');
+ c.currentProjectManifest={};assert.equal(c.pdfLineTypeLabel('eave'),'Eave');
+ // Every printed line type name goes through pdfLineTypeLabel: formatLineType alone is the English name.
+ const uses=fs.readFileSync('public/measure/internal/editor_scripts/pdf.js','utf8').split('\n').filter(l=>l.includes('formatLineType(')&&!/function (formatLineType|pdfLineTypeLabel)\(/.test(l));
+ assert.deepEqual(uses,[]);
+});
