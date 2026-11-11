@@ -41,7 +41,7 @@
     versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent'),
     versionedBundle('photos/feed.js', '20261111-offline-uploads'),
     versionedBundle('../markup/firstmate-markup.js', '20261111-offline-photos'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261111-offline-messages'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261111-offline-send'),
     versionedBundle('../project-notes/project-notes.js', '20261111-offline-uploads'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-notes-separation-v1'),
     versionedBundle('../project-trays/project-trays.js', '20261111-offline-messages')
@@ -130,7 +130,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../channels-ui/channels-ui.js', '20261111-offline-messages'), versionedBundle('photos/feed.js', '20261111-offline-uploads')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../channels-ui/channels-ui.js', '20261111-offline-send'), versionedBundle('photos/feed.js', '20261111-offline-uploads')]
     },
     {
       id: 'portal.receipts',
@@ -545,7 +545,7 @@
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent'),
         versionedBundle('photos/feed.js', '20261111-offline-uploads'),
     versionedBundle('../markup/firstmate-markup.js', '20261111-offline-photos'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261111-offline-messages'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261111-offline-send'),
     versionedBundle('../project-notes/project-notes.js', '20261111-offline-uploads'),
         versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
         versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('channels/app.js', '20260930-native-sharing-v2')

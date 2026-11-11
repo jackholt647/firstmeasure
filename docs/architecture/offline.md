@@ -1504,11 +1504,15 @@ downloads.
 
 ### Messages
 
-Messages can be read offline; they are never sent from the queue
-(`contracts/messages.js`, which has no `writes` on purpose). A message that
-arrives hours late lands out of order with the answers to it, so a send that
-got no answer is refused in words and its text stays in the box. A project
-note is the exception and is queued (`notes.js`).
+Messages can be read offline, and a plain channel message (text, not a
+reply, no files or voice note) written offline is queued
+(`contracts/messages.js`, `message.post`, scope `channel:<id>`): it shows in
+its conversation with "Not sent · waiting for connection", a line above the
+composer says messages will send on reconnect, and the server tells a repeat
+by `client_msg_id`. When it is sent the open list is read again. A reply, a
+message with files, a text, an email, reacting, editing and deleting need a
+connection: the send is refused in words and its text stays in the box. A
+project note is queued by `notes.js`.
 
 - **What is downloaded.** At start-up (`startup`): the channel list, the
   directory, collaboration preferences, sidebar sections, the top bar's
@@ -1718,7 +1722,7 @@ revision, as they are online). The times are those of the sync.
 - A read the server answers with `404` is not saved, so an app sees "no
   connection" where it saw "does not exist" online (for example a branch
   record that was never made).
-- Sending messages, texts and emails is online-only by decision (see
+- Replies, messages with files, texts and emails are online-only (see
   "Messages"). Messages older than the two newest pages of a kept project,
   channels beyond the 25 with the newest messages, message search, and the
   Unreads, Activity, Threads and Later views are on the device only as last

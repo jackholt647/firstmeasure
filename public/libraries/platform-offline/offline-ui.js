@@ -300,21 +300,26 @@
 .fmo-slot[data-host=mobile]{flex:0 0 auto;margin-left:8px}
 .fmo-slot[data-host=shell]{flex:0 0 auto;margin-right:6px}
 .fmo-slot[data-host=project]{flex:0 0 auto;gap:6px;margin-left:2px}
-.fmo-slot[data-host=project] .fmo-pill{min-height:26px;padding:3px 10px}
+.fmo-slot[data-host=project] .fmo-pill{min-height:24px;padding:2px 9px}
+.fmo-slot[data-host=project][data-size=tiny] .fmo-pill{min-width:24px;min-height:24px;padding:2px 8px}
+.fmo-slot[data-host=project][data-size=tiny] .fmo-pill:has(.fmo-t:empty){width:24px;padding:0}
+.fmo-slot[data-host=project] .fmo-pill .fmo-ico{font-size:11px}
 .fmo-slot[data-host=float]{position:fixed;left:12px;bottom:12px;z-index:${Z - 1}}
-.fmo-pill{appearance:none;display:inline-flex;align-items:center;gap:7px;max-width:100%;min-height:30px;box-sizing:border-box;margin:0;padding:5px 12px;border:0;border-radius:999px;background:#111827;color:#fff;font-size:inherit;font-weight:inherit;line-height:inherit;text-align:left;cursor:pointer;white-space:nowrap;box-shadow:0 1px 2px rgba(15,23,42,.18);--fmo-cut:#111827}
+.fmo-pill{appearance:none;display:inline-flex;align-items:center;gap:7px;max-width:100%;min-height:30px;box-sizing:border-box;margin:0;padding:5px 12px;border:1px solid rgba(15,23,42,.12);border-radius:999px;background:#fff;color:#344054;font-size:inherit;font-weight:inherit;line-height:inherit;text-align:left;cursor:pointer;white-space:nowrap;--fmo-cut:#fff}
 .fmo-pill[hidden]{display:none!important}
-.fmo-pill:hover{background:#1f2937;--fmo-cut:#1f2937}
+.fmo-pill:hover{background:#f9fafb;border-color:rgba(15,23,42,.24);--fmo-cut:#f9fafb}
+.fmo-pill[data-mode=offline]{background:#fffaeb;border-color:#fedf89;color:#b54708;--fmo-cut:#fffaeb}
+.fmo-pill[data-mode=offline]:hover{background:#fef0c7;--fmo-cut:#fef0c7}
 .fmo-pill:focus-visible,.fmo-tray button:focus-visible,.fmo-tray a:focus-visible,.fmo-proj:focus-visible,.fmo-badge:focus-visible,.fmo-dialog button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
-.fmo-pill[data-tone=attention]{background:#b42318;--fmo-cut:#b42318}
-.fmo-pill[data-tone=attention]:hover{background:#912018;--fmo-cut:#912018}
-.fmo-pill[data-tone=signin]{background:#b54708;--fmo-cut:#b54708}
-.fmo-pill[data-tone=good] .fmo-ico{color:#6ce9a6}
+.fmo-pill[data-tone=attention]{background:#fef3f2;border-color:#fecdca;color:#b42318;--fmo-cut:#fef3f2}
+.fmo-pill[data-tone=attention]:hover{background:#fee4e2;--fmo-cut:#fee4e2}
+.fmo-pill[data-tone=signin]{background:#fffaeb;border-color:#fedf89;color:#b54708;--fmo-cut:#fffaeb}
+.fmo-pill[data-tone=good] .fmo-ico{color:#079455}
 .fmo-pill .fmo-ico{font-size:12px}
 .fmo-pill .fmo-text{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .fmo-pill .fmo-l,.fmo-pill .fmo-c,.fmo-pill .fmo-t{display:none}
-.fmo-pill .fmo-bar{flex:none;width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.28);overflow:hidden}
-.fmo-pill .fmo-bar>span{display:block;height:100%;background:#fff;border-radius:2px}
+.fmo-pill .fmo-bar{flex:none;width:36px;height:4px;border-radius:2px;background:rgba(15,23,42,.12);overflow:hidden}
+.fmo-pill .fmo-bar>span{display:block;height:100%;background:currentColor;border-radius:2px}
 .fmo-slot[data-size=compact] .fmo-pill{min-height:28px;padding:4px 10px;gap:6px}
 .fmo-slot[data-size=compact] .fmo-s,.fmo-slot[data-size=compact] .fmo-bar{display:none}
 .fmo-slot[data-size=compact] .fmo-c{display:inline}
@@ -340,7 +345,7 @@
 .fmo-mark{display:inline-flex;align-items:center;margin-left:6px;color:#475467;font-size:11px;vertical-align:baseline}
 
 /* "Available offline" in the project window. */
-.fmo-proj{appearance:none;flex:none;display:inline-grid;place-items:center;width:26px;height:26px;margin:0;padding:0;border:1px solid rgba(15,23,42,.10);border-radius:999px;background:#fff;color:#667085;font-size:12px;cursor:pointer}
+.fmo-proj{appearance:none;flex:none;display:inline-grid;place-items:center;width:24px;height:24px;margin:0;padding:0;border:1px solid rgba(15,23,42,.12);border-radius:999px;background:#fff;color:#667085;font-size:11px;cursor:pointer}
 .fmo-proj[hidden]{display:none!important}
 .fmo-proj:hover{color:#101828;border-color:rgba(15,23,42,.24)}
 .fmo-proj[data-state=saved]{color:#067647;border-color:#abefc6;background:#ecfdf3}

@@ -15612,6 +15612,9 @@
     "offline_document_value_pending": "Saved on this device. The document recalculates when you reconnect.",
     "offline_change_needs_connection": "This needs a connection. Nothing was saved.",
     "offline_not_on_device": "This is not saved on this device. Connect to the internet to see it.",
+    "offline_messages_send_later": "You're offline. Messages will send when you reconnect.",
+    "offline_message_not_sent": "Not sent · waiting for connection",
+    "offline_message_needs_connection": "Not sent. Replies and attachments need a connection.",
     "offline_send_needs_connection": "Sending needs a connection. Your message is still here; send it when you are back online.",
     "offline_older_messages_not_on_device": "Older messages are not saved on this device.",
     "offline_project_messages_not_on_device": "This project's messages are not saved on this device. Connect to the internet to see them."
@@ -21680,6 +21683,7 @@
     "sync_project_document": "Project document",
     "sync_checklist_photo": "Checklist photo",
     "sync_checklist_file": "Checklist file",
+    "sync_message_new": "Message",
     "sync_note_file": "Note attachment",
     "m_9ed0a85dcdfd8e": "New contact",
     "m_206bfa6edd9098": "Contact change",
