@@ -3795,7 +3795,8 @@
         .pf-wrap[data-pf-page="feed"] .pf-selection-actions [data-selection-assign]{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
         .pf-wrap[data-pf-page="feed"] .pf-selection-actions:has([data-selection-assign]) [data-selection-download]{width:44px;padding:0;font-size:0}
         .pf-wrap[data-pf-page="feed"] .pf-selection-actions:has([data-selection-assign]) [data-selection-download] i{font-size:15px}
-        .pf-feed-camera-host>.fmc-bar{left:0;right:0;bottom:env(safe-area-inset-bottom,0px)}
+        .main-panels:has(>.pf-feed-camera-host.active){padding-bottom:0}
+        .pf-feed-camera-host>.fmc-bar{left:0;right:0;bottom:max(12px,env(safe-area-inset-bottom,0px))}
         .pf-feed-camera-host>.fmc-shell{position:fixed;top:var(--pf-feed-camera-top,0px);left:0;right:0;bottom:0}
         .pf-feed-camera-host.fmc-host .pf-wrap>[data-photo-feed-dynamic]>.pf-scroll{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
         .pf-feed-camera-host:not(.pf-feed-camera-again)>.fmc-bar{animation:pfFeedBarIn .28s ease both}
