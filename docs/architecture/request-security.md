@@ -237,6 +237,23 @@ that may read the project.
   error messages, stack traces) is returned only to staff with debug access
   (full admins, or the `firstmeasure_debugger` permission).
 
+## Rate limits
+
+Limits that protect a shared resource from one caller key on the verified
+principal (or, for anonymous public routes, the visitor address), never on a
+body field. **Claiming the next project** (FM-387,
+`firstmeasure/claim-rate-limit.ts`): every claim path (`claim_next_for_me` and
+`execute_hot_swap` legacy actions, `POST /queue/claim-next`,
+`POST /queue/claim-next/compat`) calls `admitClaimAttempt(request)` before any
+queue or database work. More than 10 attempts in 5 seconds blocks the person
+for 5 seconds; a block starting within 60 seconds of the previous one's end
+lasts 60 seconds. Refused attempts get the empty-queue answer and are logged
+once per block (`claim_rate_limit` with the email). The count is one row per
+person in the unlogged PostgreSQL table `firstmeasure_claim_rate_limits`, so
+it holds across workers and hosts; the system principal (our in-process call
+from the legacy action) is not counted again. Queue status polling is not
+limited.
+
 ## Fetching URLs
 
 Anything that fetches a URL a person or a record supplied uses
