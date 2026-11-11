@@ -610,7 +610,9 @@ never intercepted, and no page reloads by itself. What people see of offline
 is `platform-offline/offline-ui.js` (one indicator, one tray): an app marks a
 waiting record with `PlatformOfflineUI.waitingBadge({ record })` and opens the
 tray with `PlatformOfflineUI.open()`, and never draws its own offline banner
-or sync list. Run
+or sync list. A document made or edited offline is still saved by
+`saveDocumentInstance` when it syncs, and the page never shows a total the
+device computed: it shows the server's last figures, marked. Run
 `tests/offline-core.test.mjs`, `tests/offline-sw-browser.test.mjs`,
 `tests/offline-ui-browser.test.mjs`, `tests/offline-photos.test.mjs`,
 `tests/offline-photos-browser.test.mjs`,

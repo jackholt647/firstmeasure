@@ -1200,7 +1200,7 @@ fallback in the code.
 
 The contracts are in `contracts/`: `portal.js` (start-up and lists),
 `projects.js`, `notes.js`, `todos.js`, `contacts.js`, `schedule.js`,
-`documents.js`. "Reads" means: shown as it was last seen, or as downloaded for
+`documents.js` (which also loads the document model into the worker). "Reads" means: shown as it was last seen, or as downloaded for
 a pinned project. A project that is opened is pinned automatically
 (`project-windows.js`, `mobile.js`), so its tabs are on the device even if
 they were never clicked.
@@ -1214,7 +1214,7 @@ they were never clicked.
 | Project: To Do tray, top bar To Do, to-do widget | the lists | a to-do added by hand | complete, reopen, claim, cancel; title, description, due date, priority, who it is assigned to | follow-ups (the server makes them and their outcomes) |
 | Contacts | the list, a contact, a contact's projects | a contact | a contact's fields (`expected_revision`, merged per field); which contacts a project has | merging, importing, duplicate suggestions |
 | Schedule (project tab and Scheduling) | events, calendar, resources, settings | an event on a project | an event's fields (`expected_event_revision`, merged per field) | events that belong to no project, deleting, recurring series; whether the assignee is free (the server checks when the event is sent) |
-| Documents | the list, a document, its preview and editor view, workflow, sent versions | | | creating, editing, sending, signing, PDF: see "Documents" below |
+| Documents | the list, a document, its preview and editor views, workflow, sent versions | a document from a template that is on the device | a draft's title, data, layout, theme and contacts; values and text typed into it as sent (merged per part) | invoices, change orders and other documents the server makes; sending, signing, PDF, outputs and workflow steps: see "Documents" below |
 | Operations (materials and labor) | the ledger, requirements and coverage, suppliers, price book | | | changing or generating lists, orders (the server prices and computes) |
 | Financials | | | | everything: payments data is never kept on a device. The tab says so |
 | Comms, Messages tray, Channels | what was last shown | | | sending (no contract yet); calls |
@@ -1273,37 +1273,164 @@ How each kind of change is sent:
 
 ### Documents
 
-Documents can be read offline; they cannot be made or changed. What is
-missing before that is safe:
+A draft can be made from a template and edited without a connection. The
+contract is `contracts/documents.js`; the page side is `documents-api.js`,
+the documents app (`apps/documents/project.js`), the as-sent editor and the
+document renderer.
 
-1. **Create replaces.** `POST .../projects/:project/documents` accepts an
-   `id`, but a repeat with the same id replaces the document (status back to
-   draft, overrides and outputs emptied) instead of answering "already
-   there". The route must refuse an existing id (`document_exists`, which
-   the store already has) before a device may name a document. The browser
-   does not send an id today.
-2. **The server makes what the page shows.** The preview and the editor
-   render what `POST .../documents/:id/resolve` returns: line rows, totals,
-   account figures and widget data are computed there and never stored.
-   After an offline change to a document's data the saved resolve is stale,
-   and a document made on the device has none. The enrichment
-   (`enrichLineItemParams`, pricing, `deriveAccountParams`) would have to
-   run on the device too.
-3. **Some documents are only the server's to make**: invoices, change orders
-   and completion certificates get their numbers and amounts at create, and
-   a template with a program runs in the module sandbox.
-4. **Edits merge all or nothing.** The editor saves its whole list of
-   overrides, whose items have no ids, so two people's edits cannot be
-   merged per item: one side's list wins or the person is asked.
-5. **Steps and outputs do things.** `workflow/state` can make further
-   documents, and `outputs/:key` records signatures and payments; neither
-   may be answered by a device.
-6. **History** (`saveDocumentInstance`) would record one revision at the
-   time of the sync for everything done offline.
+| Change | Route | Kind | Scope |
+|---|---|---|---|
+| a new document, in a project or with none | `POST .../projects/:project/documents`, `POST .../documents`, with the id the page made | `create` | `document:<id>` |
+| title, data (`params`), layout overrides, theme, contacts, tags | `PATCH .../documents/:id` | `patch` | `document:<id>` |
+| a value or a node's text typed into the document as sent | `POST .../documents/:id/as-sent` | `patch` | `document:<id>` |
+
+A document in a project that was itself made on the device is sent after
+that project (its address names it).
+
+**Needs a connection, and says so** (`offline_unavailable`; `documents-api.js`
+turns it into one plain sentence): invoices, change orders, completion
+certificates and payment receipts (their numbers and amounts are worked out
+when they are made); a template with custom behavior (it runs in the
+server's sandbox); a create that names no template (the server picks one);
+sending, presenting, signing, PDF, snapshots, voiding; outputs
+(`outputs/:key` records signatures and payments); workflow step state
+(`workflow/state` can make further documents); changing a document's
+template, workflow, project or status; and editing a document that is no
+longer a draft.
+
+#### The document model in the worker
+
+The contract works with `FMDocModel` (parameter defaults, overrides, binding
+resolution, fingerprints), so `documents.js` loads
+`/libraries/doc-model/firstmate-doc-model.js` with `importScripts` when it
+runs in the worker. If that file cannot be loaded the worker still installs:
+every document write then behaves as if it had no contract and reads keep
+working. The top-level page already has the model (it replays the queue).
+
+#### Making a document
+
+- **The id is the page's.** `DocumentsAPI.documents.createForProject` and
+  `createStandalone` send `id: doc_<20 hex>` (the server's own format) when
+  the caller gives none, with or without a connection.
+- **The create is safe to repeat** (`createDocumentInstance`,
+  `options.repeatSafe`, set by the two routes). A create that names an id
+  that exists is answered with the document that is there when the same
+  person sent the same request (the document keeps a hash of it,
+  `create_fingerprint`), and refused with `409 document_exists` otherwise;
+  it is never replaced. Two tries at the same moment make one document (the
+  write is create-only). The contract names `document_exists` as a
+  duplicate, so either answer ends the entry. Callers inside the server that
+  name an id keep their own rule.
+- **What must be on the device**: the catalog (types and themes), the
+  template list, the template's published version and, when the template or
+  type names one, its workflow. A kept project downloads the published
+  version of every active template (40 at most) and every workflow the
+  catalog lists
+  ([backlog](../optimization-backlog.md#a-kept-project-downloads-every-document-template-and-resolves-each-document-twice)).
+  Anything missing means the create is not queued.
+- **The answer** (`madeDocument`) is the document the route would make, as
+  far as a device can: parameter defaults with `{{...}}` filled from the
+  project, its primary contact and the organization, the template's and
+  type's field definitions (a payment schedule is marked off where payments
+  are off), the workflow and its first step, theme, tags and title. The
+  contract test compares it with the real route's document key by key and,
+  for the fields above, value by value. Three things are the server's alone
+  and arrive with the sync: `create_fingerprint`, signature fields inferred
+  from the layout (`output_defs`), and the defaults for how a customer is
+  shown the document (`metadata.customer_presentation`).
+- **Its reads are seeded**: the document, its place in the project's list,
+  its workflow, empty sent versions and events, and the resolved view below.
+
+#### Editing
+
+- **A patch** is merged three ways when it is sent (`expected_revision`):
+  `title`, `theme_ref`, `theme_overrides`, `contact_ids` and `tags` as whole
+  values, `params` by key and, inside a key, by object key and by row id
+  (line items have ids), `overrides` by item id.
+- **Override items have ids.** `FMDocModel.withOverrideIds` names a set by
+  what it sets (`doc:<prop>`, `node:<node id>:<prop>`, `page:<page id>:<prop>`)
+  and any other op by its content (`op:<fingerprint>`). The server gives
+  every saved item its id (`patchDocumentInstance`); the contract adds them
+  before a patch is sent and when it reads a document saved before ids
+  existed. The id is derived, so it is the same everywhere and old documents
+  load unchanged. Two people editing different nodes both keep their edit;
+  the same node's text changed on both sides asks.
+- **A value typed into the document as sent** names its data by position
+  (`params.scope_items.1.quantity`). When it is sent the row is found again
+  by its id, so a line another person added or removed above it does not
+  move the edit to another line, and the write goes to the row's place as it
+  is then. What is compared is that one value; for a typed amount or unit
+  price, the line's price fields (the server stores an amount as a price). A
+  row that is gone, or the same value changed on both sides, asks. Rows
+  without ids are trusted only while their list has the length it had. The
+  as-sent editor also sends `parsed`, the value as it is stored; the server
+  ignores it and the device uses it to apply plain values and to recognise
+  a value the server already has.
+- **A node's text** typed as sent is one override item and merges like one.
+
+#### What the page shows
+
+The preview and the editors render what `POST .../resolve` returns, and line
+rows, totals, account figures and widget data are computed there and never
+stored. So while a change waits, the resolve read is answered by
+`deviceResolve`:
+
+1. the template's published version from the device, with the document's
+   overrides as the person left them;
+2. the scope the server last resolved with, with the stored data laid over
+   it: plain values take the stored one, rows are matched by id, the rows
+   the server projects from line lists show the plain fields (quantity,
+   name, description, unit) of the line they come from, and everything the
+   server added (cents, totals, `account`) stays as it last was;
+3. `FMDocModel.resolveBindings` over that, the same call the server makes.
+
+Each text run then says what it is: `offline: "stale"` on a value only the
+server computes (`computed.*`, an expression, a line amount) when data
+changed on the device, and `offline: "pending"` on a typed value the device
+does not store itself (a typed amount, shown as typed). Widgets carry
+`offline: "stale"` the same way and show their last data. The renderer draws
+a stale figure with a dotted underline and the title "Updates when you
+reconnect"; the preview and the editor say above the page that it is the
+last calculated copy with the person's changes, and the as-sent editor says
+so in its status line. Nothing on the page is a total the device made up.
+The answer carries `offline: { pending, made, data, layout, writes }`; the
+server never sends it, and after the sync its resolve is read again and
+replaces the view.
+
+A document made on the device has no resolve to start from: its scope is its
+own data, the project and its primary contact, and the organization's name.
+Its line rows and totals are the server's to make, so they are empty or
+marked until the sync, and the note above the page says that.
+
+Whether a value can be typed into follows the server's last traced resolve
+where there is one; on a document made on the device only plain stored
+values are inputs (a line's quantity, name, description, unit; not its
+amount).
+
+However many changes wait, the view is resolved once per read, by the newest
+one; earlier ones only add what changed. Without the template on the device
+the last resolved copy is shown as it was, with `offline.whole`.
+
+#### History
+
+Each change is sent as its own request, in order, through
+`saveDocumentInstance`: a document made and edited offline has one revision
+trail, written when it syncs (edits one person makes close together are one
+revision, as they are online). The times are those of the sync.
+
+#### Limits
+
+- The device does not price lines or compute totals, tax, payment schedules
+  or account figures.
+- Workflow steps that only change data are queued as a patch; a step that
+  records an output or moves the step state needs a connection, so a
+  workflow can be filled in but not advanced on the server until then.
+- A layout edit made in the editor is saved as the whole override list, as
+  online; it merges by item when it is sent.
+- An edit to a document whose record is not on the device is not queued.
 
 ## Not built yet
 
-- Offline document creation and editing (above).
 - A read the server answers with `404` is not saved, so an app sees "no
   connection" where it saw "does not exist" online (for example a branch
   record that was never made).
@@ -1348,7 +1475,7 @@ route, each write has `respond`, `scope` and `label`, each `POST` read is on
 the checked list; then every write is made with the server unreachable, its
 answer compared key by key with the real route's, and the queue replayed
 against the real routes, including a lost first answer and an edit the server
-also changed).
+also changed; and a document made from a template, edited, synced once, its create repeated, then merged with the server's copy part by part).
 
 Photos: `tests/offline-photos.test.mjs` (the media contract case by case, with
 the real engine), `tests/offline-photos-browser.test.mjs` (the real worker,

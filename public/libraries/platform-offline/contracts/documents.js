@@ -804,7 +804,4 @@
       }
     ]
   });
-
-  // What the contract test compares with the server's own rules.
-  FMOffline.documents = { deviceResolve, overlayPlain, locate, lineRowPath, RESOLUTION_ONLY, SERVER_MADE_TYPES };
 })();

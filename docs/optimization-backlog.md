@@ -710,6 +710,21 @@ Until then, conditional requests (`ETag` on the larger reads) would at least mak
 **Why it can wait.** The reads are the ones a person opening the project makes anyway, the refresh runs only for
 people who pinned projects, and offline is on development only.
 
+## A kept project downloads every document template and resolves each document twice
+
+**Today.** So that a document can be made and edited without a connection, each project kept on a device downloads
+the published version of every active document template (40 at most), every document workflow the catalog lists, and
+two resolves of each of its documents: the plain one the preview and editor ask for and the traced one "Edit
+manually" asks for ([offline](architecture/offline.md#documents)). Templates and workflows are the same for every
+project of an organization, and they are fetched again for each kept project at every refresh.
+
+**Where the change goes.** Keep organization-wide reads once per person instead of once per kept project (a prefetch
+entry that is not tied to a project), and let one saved resolve answer both forms: a traced resolve renders the same
+page, so the plain one can be served from it.
+
+**Why it can wait.** A template version is a small JSON read, a project has a handful of documents, and offline is on
+development only.
+
 ## The offline asset manifest hashes every file once per release in every process
 
 **Today.** `offlineAssetSet` in `platform/offline/assets.ts` walks the served release's browser files (547 files,
