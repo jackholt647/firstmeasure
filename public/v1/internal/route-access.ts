@@ -140,6 +140,7 @@ registerRouteAccessTable({
   "POST /v1/internal/crm/referrals/acquisition/landing-pages/clone": any,
   "GET /v1/internal/crm/referrals/acquisition/report": any,
   "POST /v1/internal/crm/referrals/acquisition/report": any,
+  "GET /v1/internal/crm/referrals/acquisition/export": any,
   "GET /v1/internal/crm/referrals/logos/:fileName": { public: "referral partner logos shown on public landing pages" },
   "GET /v1/internal/crm/referrals/organizations/search": any,
   "GET /v1/internal/crm/referrals/partners": any,

@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
+import { inflateRawSync } from "node:zlib";
 import { staffFixture } from "./helpers/security-fixture.js";
 
 
@@ -352,6 +353,118 @@ test("Acquisition campaigns balance bonus offer assignments and carry them to si
   assert.ok(report.bonus_offers.some((row: any) => row.token === firstView.bonus_offer.token && row.signups === 1));
 });
 
+/** The files in a zip, read through its central directory. */
+function unzip(archive: Buffer) {
+  const end = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  assert.ok(end >= 0, "zip end record");
+  const files = new Map<string, string>();
+  let at = archive.readUInt32LE(end + 16);
+  for (let index = 0; index < archive.readUInt16LE(end + 10); index += 1) {
+    assert.equal(archive.readUInt32LE(at), 0x02014b50);
+    const compressed = archive.readUInt32LE(at + 20);
+    const nameLength = archive.readUInt16LE(at + 28);
+    const extraLength = archive.readUInt16LE(at + 30) + archive.readUInt16LE(at + 32);
+    const name = archive.subarray(at + 46, at + 46 + nameLength).toString("utf8");
+    const local = archive.readUInt32LE(at + 42);
+    const dataStart = local + 30 + archive.readUInt16LE(local + 26) + archive.readUInt16LE(local + 28);
+    files.set(name, inflateRawSync(archive.subarray(dataStart, dataStart + compressed)).toString("utf8"));
+    at += 46 + nameLength + extraLength;
+  }
+  return files;
+}
+
+/** CSV rows as objects keyed by the header (quoted cells, doubled quotes). */
+function parseCsv(text: string) {
+  const records: string[][] = [];
+  let record: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (quoted) {
+      if (char === '"' && text[index + 1] === '"') { cell += '"'; index += 1; }
+      else if (char === '"') quoted = false;
+      else cell += char;
+    } else if (char === '"') quoted = true;
+    else if (char === ",") { record.push(cell); cell = ""; }
+    else if (char === "\n") { record.push(cell.replace(/\r$/, "")); records.push(record); record = []; cell = ""; }
+    else cell += char;
+  }
+  if (cell || record.length) { record.push(cell); records.push(record); }
+  const [header = [], ...body] = records;
+  return body.map((values) => Object.fromEntries(header.map((key, index) => [key, values[index] ?? ""])));
+}
+
+test("Export Acquisition Data downloads every campaign's rows and totals as one zip (FM-393)", async () => {
+  const suffix = Math.random().toString(36).slice(2, 10);
+  const campaignCode = `EXPORT-${suffix}`.toUpperCase();
+  const landingPage = `/portal/landing/variants/export-${suffix}/`;
+  const saved = await staffInject("POST", "/v1/internal/crm/referrals/acquisition/campaigns", {
+    display_name: `Export ${suffix}`,
+    code: campaignCode,
+    campaign_type: "facebook",
+    landing_page: landingPage
+  });
+  const campaignId = String(saved.campaign.id);
+  const track = (ip: string, extra: Record<string, unknown> = {}) => inject("POST", "/v1/platform/acquisition/public/track", {
+    cid: campaignCode,
+    landing_page: landingPage,
+    page_url: `https://app.1m8.ai${landingPage}?cid=${campaignCode}`,
+    client_ip: ip,
+    browser_user_agent: "node-test",
+    ...extra
+  });
+  const first = await track("203.0.113.60");
+  // A visitor controls UTM values; the CSV must not hand a spreadsheet a formula.
+  const second = await track("203.0.113.61", { utm_source: "=HYPERLINK(\"https://evil.test\")" });
+  const registered = await inject("POST", "/v1/platform/auth/legacy-action", {
+    action: "register",
+    name: "Export Owner",
+    company: `Export Co ${suffix}`,
+    phone: nextTestPhone(),
+    email: `export-${suffix}@example.test`,
+    password: "secret123",
+    acquisition_code: campaignCode,
+    acquisition_attribution_id: first.acquisition_attribution_id
+  });
+  assert.ok(registered.organization?.id || registered.membership?.organization_id);
+
+  const response = await callAs(staffCaller, "GET", "/v1/internal/crm/referrals/acquisition/export?timezone_offset_minutes=300");
+  assert.equal(response.statusCode, 200, response.body);
+  assert.equal(response.headers["content-type"], "application/zip");
+  assert.match(String(response.headers["content-disposition"]), /attachment; filename="acquisition-data-all-campaigns-\d{4}-\d{2}-\d{2}\.zip"/);
+  const files = unzip(response.rawPayload);
+  for (const name of ["attributions.csv", "signups.csv", "events.csv", "spend_ledger.csv", "campaigns.csv", "daily.csv", "hourly.csv", "breakdowns.csv", "bonus_offers.csv"]) {
+    assert.ok(files.has(name), `${name} in ${[...files.keys()].join(", ")}`);
+  }
+
+  const attributions = parseCsv(files.get("attributions.csv") || "").filter((row) => row.campaign_id === campaignId);
+  assert.deepEqual(attributions.map((row) => row.attribution_id).sort(), [first.acquisition_attribution_id, second.acquisition_attribution_id].sort());
+  assert.ok(attributions.every((row) => row.landing_page === landingPage));
+  assert.equal(attributions.find((row) => row.attribution_id === second.acquisition_attribution_id)?.utm_source, "'=HYPERLINK(\"https://evil.test\")");
+  assert.equal(JSON.parse(attributions[0]?.metadata || "{}").landing_page, landingPage, "each row keeps its full metadata");
+
+  const signups = parseCsv(files.get("signups.csv") || "").filter((row) => row.campaign_id === campaignId);
+  assert.deepEqual(signups.map((row) => row.attribution_id), [first.acquisition_attribution_id]);
+  assert.equal(signups[0]?.email, `export-${suffix}@example.test`);
+
+  // The totals are the Campaigns tab's report over all time.
+  const report = await staffInject("GET", `/v1/internal/crm/referrals/acquisition/report?campaign_id=${encodeURIComponent(campaignId)}&start_date=2000-01-01&end_date=2099-12-31`);
+  const campaign = parseCsv(files.get("campaigns.csv") || "").find((row) => row.id === campaignId);
+  assert.ok(campaign);
+  assert.equal(campaign.code, campaignCode);
+  assert.equal(Number(campaign.views), report.summary.views);
+  assert.equal(Number(campaign.views), 2);
+  assert.equal(Number(campaign.unique_visitors), report.summary.unique_visitors);
+  assert.equal(Number(campaign.signups), 1);
+  const landing = parseCsv(files.get("breakdowns.csv") || "").find((row) => row.dimension === "landing_pages" && row.label === landingPage);
+  assert.equal(Number(landing?.count), 2);
+  const daily = parseCsv(files.get("daily.csv") || "");
+  assert.ok(daily.length >= 1);
+  assert.ok(daily.reduce((sum, row) => sum + Number(row.views), 0) >= 2);
+  assert.equal(parseCsv(files.get("hourly.csv") || "").length, 24);
+});
+
 test("Acquisition lookup resolves cloned landing pages when template campaign data is stale", async () => {
   const suffix = Math.random().toString(36).slice(2, 10);
   const campaignCode = `META619A-${suffix}`.toUpperCase();
@@ -427,6 +540,7 @@ test("Referral routes refuse anonymous and non-staff callers and serve FirstMate
     ["POST", "/v1/internal/crm/referrals/acquisition/campaigns", { display_name: "Sneaky Campaign", code: "SNEAKY" }],
     ["GET", "/v1/internal/crm/referrals/acquisition/report"],
     ["POST", "/v1/internal/crm/referrals/acquisition/report", {}],
+    ["GET", "/v1/internal/crm/referrals/acquisition/export"],
     ["GET", "/v1/internal/crm/referrals/acquisition/landing-pages"],
     ["POST", "/v1/internal/crm/referrals/acquisition/landing-pages/clone", { slug: "sneaky" }],
     ["GET", "/v1/internal/crm/referrals/rewards"],
