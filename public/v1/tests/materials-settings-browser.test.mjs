@@ -371,7 +371,7 @@ test('sub-tabs follow the organization features and the person; with none allowe
     await stub(onlyCategories, server.address().port, { flags: ['platform.materials'], off: ['materials.resource_categories'], supplierTools: 'none', assistant: false });
     assert.deepEqual(await onlyCategories.evaluate(() => window.FirstMateMaterialsSettings.sections({ surface: 'settings' })), [], 'no Settings section when nothing is allowed');
     // FM-394: the settings belong to the Materials app. A FirstMeasure organization without it (every customer today) has
-    // no Materials section, though Calculations stays in Settings › Reports and the price book is on.
+    // no Materials section, though the price book is on (nor Reports › Default materials and labor: the next test).
     const noApp = await browser.newPage({ viewport: { width: 1500, height: 900 } });
     await stub(noApp, server.address().port, { flags: ['platform.pricebook', 'apps.firstmeasure', 'apps.assistant'], off: ['platform.materials'], supplierTools: 'none', assistant: false });
     assert.deepEqual(await noApp.evaluate(() => window.FirstMateMaterialsSettings.sections({ surface: 'settings' })), [], 'no Settings › Materials without the Materials app');
@@ -384,5 +384,64 @@ test('sub-tabs follow the organization features and the person; with none allowe
     assert.equal(await denied.locator('[data-mt-materials-settings]').count(), 0);
     assert.deepEqual(await denied.evaluate(() => window.FirstMateMaterialsSettings.sections({ categories: {} })), []);
     assert.equal(await denied.evaluate(() => window.FirstMateMaterialsSettings.mountInline(document.getElementById('settingsPane'), { orgId: 'org' })), null);
+  } finally { await browser.close(); server.close(); }
+});
+
+// FM-394: Calculations is also Settings › Reports › Default materials and labor (company.js). It belongs to the Materials
+// app too: without platform.materials (every customer today) the Reports pane has no such sub-tab and settings search
+// finds none of it. This runs company.js's own Reports pane code and the real settings search over the shipped index.
+const companySource = (await readFile(new URL('libraries/apps/settings/company.js', publicRoot), 'utf8')).replaceAll('\r\n', '\n');
+const reportDefaultsGate = companySource.match(/\n\s*(const canReportDefaults = [^\n]+)/)?.[1];
+const reportsPane = companySource.slice(companySource.indexOf('    // **** Reports pane ----'), companySource.indexOf('    // **** Billing pane ----'));
+
+test('Settings › Reports shows Default materials and labor, and search finds it, only with the Materials app', async () => {
+  assert.ok(reportDefaultsGate, 'company.js declares canReportDefaults');
+  assert.match(reportsPane, /\$\{canReportDefaults \? `[\s\S]*data-rp-subtab="defaults"[\s\S]*` : ''\}/, 'the sub-tab renders only behind canReportDefaults');
+  const server = await serve();
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const open = async (materials) => {
+    const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto(`http://127.0.0.1:${server.address().port}/`);
+    await page.evaluate((materials) => {
+      const flags = ['apps.firstmeasure', 'platform.pricebook', ...(materials ? ['platform.materials'] : [])];
+      window.Portal = { util: { hasPerm: () => true }, navigation: { navigate(){} },
+        appFlags: { current: () => ({}), has: (group, flag) => flags.includes(`${group}.${flag}`), value: (group, flag, fallback) => flags.includes(`${group}.${flag}`) || fallback } };
+      window.FirstMateMeasurementDefaults = { mount(host){ host.textContent = 'Calculations editor'; } };
+    }, materials);
+    for (const file of ['settings/search-index.js', 'settings/search.js', 'materials/settings.js']) await page.addScriptTag({ url: `/libraries/apps/${file}?v=test` });
+    await page.evaluate(({ gate, pane, materials }) => {
+      document.getElementById('settingsPane').innerHTML = '<div id="paneReports"></div>';
+      const appFlag = (group, flag) => group === 'apps' ? flag === 'firstmeasure' : group === 'platform' && (flag === 'pricebook' || (materials && flag === 'materials'));
+      const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      new Function('canReports', 'appFlag', 'paneReports', 'escapeHtml', 'settingsText', 'currentOrgId', 'showToast', `${gate}\n${pane}`)(
+        true, appFlag, document.getElementById('paneReports'), escapeHtml, (key, fallback) => fallback, () => 'org', () => {});
+    }, { gate: reportDefaultsGate, pane: reportsPane, materials });
+    return { page, errors };
+  };
+  // What settings search offers in Reports for this text, from the generated index (the Calculations editor's own
+  // controls included), for the Settings sidebar and the top bar alike.
+  const found = (page, query) => page.evaluate((query) => window.FirstMateSettingsSearch.search(query, { sections: ['reports'] })
+    .filter((item) => item.view === 'defaults' || item.source === 'libraries/apps/settings/measurement-defaults.js'
+      || [item.title, item.destinationTitle, ...(item.matchLabels || [])].some((label) => /default (materials|labor)/i.test(label)))
+    .map((item) => item.destinationTitle || item.title), query);
+  try {
+    const off = await open(false);
+    assert.equal(await off.page.locator('[data-rp-subtab]').count(), 0, 'no Report settings / Default materials and labor tabs');
+    assert.equal(await off.page.locator('[data-rp-subpane="defaults"]').count(), 0);
+    assert.equal(await off.page.getByText('Default materials and labor').count(), 0);
+    assert.equal(await off.page.locator('[data-rp-subpane="report"] #rpToggles').count(), 1, 'the report settings are still there');
+    for (const query of ['Default materials and labor', 'Default materials', 'Default labor']) assert.deepEqual(await found(off.page, query), [], `search "${query}" finds nothing`);
+    assert.ok((await off.page.evaluate(() => window.FirstMateSettingsSearch.search('Customer info', { sections: ['reports'] }))).length > 0, 'other report settings are still found');
+    assert.deepEqual(off.errors, []);
+
+    const on = await open(true);
+    assert.deepEqual(await on.page.locator('[data-rp-subtab]').evaluateAll((tabs) => tabs.map((tab) => tab.dataset.rpSubtab)), ['report', 'defaults']);
+    await on.page.locator('[data-rp-subtab="defaults"]').click();
+    assert.equal(await on.page.locator('[data-rp-subpane="defaults"]').innerText(), 'Calculations editor');
+    assert.equal(await on.page.locator('[data-rp-subpane="report"]').isHidden(), true);
+    assert.ok((await found(on.page, 'Default materials and labor')).length > 0, 'search finds it with the Materials app');
+    assert.deepEqual(on.errors, []);
   } finally { await browser.close(); server.close(); }
 });

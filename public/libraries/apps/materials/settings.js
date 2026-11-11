@@ -534,5 +534,11 @@
     };
   }
 
+  // Settings search: the Calculations editor (Reports › Default materials and labor) is found only where it is shown,
+  // with the Materials app (company.js canReportDefaults, FM-394).
+  const DEFAULTS_SOURCE = 'libraries/apps/settings/measurement-defaults.js';
+  root.FirstMateSettingsSearch?.registerExclusion?.((entry) => !flag('platform', 'materials')
+    && (entry.source === DEFAULTS_SOURCE || (entry.section === 'reports' && entry.view === 'defaults')));
+
   root.FirstMateMaterialsSettings = { sections, open, close, mountInline, isOpen:() => !!current };
 })(window);

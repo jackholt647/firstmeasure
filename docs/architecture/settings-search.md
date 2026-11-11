@@ -56,3 +56,9 @@ known page name labels a nested destination, so different tabs remain distinct.
 A settings owner can registerDestination(section, resolveView) with its existing
 route resolver. People uses its own viewFor resolver so aliases and fallback
 routes are grouped without a second routing table.
+
+An app that hides part of a section while its feature is off calls
+registerExclusion(entry => boolean): search skips matching index entries for
+every caller (the Settings sidebar and the top bar). Materials hides Reports ›
+Default materials and labor and the Calculations editor's controls without
+`platform.materials` (FM-394).

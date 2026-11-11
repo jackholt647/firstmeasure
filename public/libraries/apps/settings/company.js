@@ -1373,6 +1373,8 @@
     const canPayroll = (canCompany || hasPerm('manage_payroll')) && appFlag('apps', 'payroll') && appBelongsInSettings('portal.payroll');
     const reportsEnabled = appFlag('apps', 'firstmeasure');
     const canReports = hasPerm('manage_report_settings') && reportsEnabled;
+    // Reports › Default materials and labor is the Materials app's Calculations editor: only with platform.materials (FM-394).
+    const canReportDefaults = canReports && appFlag('platform', 'materials');
     const canBilling = hasPerm('manage_billing') && appFlag('apps', 'billing');
     const leadFlags = leadImportFlagState();
     const canForms = canCompany && (leadFlags.forms || leadFlags.email);
@@ -13239,12 +13241,12 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     }
     // **** Reports pane ----
     if (canReports && paneReports) {
-      paneReports.innerHTML = `
+      paneReports.innerHTML = `${canReportDefaults ? `
         <div class="rp-subtabs" role="tablist" aria-label="${escapeHtml(settingsText("rp_subtabs", "Report settings"))}" style="display:flex;gap:6px;margin:0 0 12px">
           <button type="button" class="cs-btn" role="tab" data-rp-subtab="report" aria-selected="true">${escapeHtml(settingsText("rp_subtab_report_settings", "Report settings"))}</button>
           <button type="button" class="cs-btn ghost" role="tab" data-rp-subtab="defaults" aria-selected="false">${escapeHtml(settingsText("rp_subtab_defaults", "Default materials and labor"))}</button>
         </div>
-        <div data-rp-subpane="defaults" hidden></div>
+        <div data-rp-subpane="defaults" hidden></div>` : ''}
         <div class="rp-wrap rp-layout" data-rp-subpane="report">
           <div class="rp-card">
             <header class="rp-head">
@@ -13264,7 +13266,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       let defaultsRequested = false;
       const defaultsPane = paneReports.querySelector('[data-rp-subpane="defaults"]');
       const openDefaults = () => {
-        if (defaultsRequested) return;
+        if (defaultsRequested || !defaultsPane) return;
         defaultsRequested = true;
         const start = () => window.FirstMateMeasurementDefaults.mount(defaultsPane, { orgId:() => currentOrgId(), toast:typeof showToast === 'function' ? showToast : null });
         if (window.FirstMateMeasurementDefaults) { start(); return; }
