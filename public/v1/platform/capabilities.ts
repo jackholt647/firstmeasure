@@ -160,6 +160,8 @@ const firstMeasureCapabilities = new Set([
   "mobile.app_download", "mobile.developer_downloads",
   "platform.expanded_access", "apps.projects", "apps.project_map", "apps.firstmeasure", "apps.billing", "apps.referrals",
   "platform.left_column_settings",
+  // Offline is how the app runs, not an app: an account that only orders reports gets it too (docs/architecture/offline.md).
+  "platform.offline",
   "platform.sidebar_footer_layout", "platform.cobrand_sidebar_logo",
   "platform.new_button_mode", "platform.new_button_items",
   "platform.storage_limits", "platform.free_storage_gb", "platform.purchasable_storage",

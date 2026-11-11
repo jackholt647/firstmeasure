@@ -172,8 +172,9 @@ hashes) answers
     (`capability_defaults/platform` in the config library) and is off until
     that entry names it: development's entry gets `"platform.offline": true`
     once this is released there (`tools/config-library/cli.mjs`: `get`, add
-    the value, `put`), production's does not name it. Like every platform
-    feature it needs expanded access.
+    the value, `put`), production's does not name it. It does not
+    need expanded access: offline is how the app runs, not an app, so an
+    account that only orders reports gets it too.
 
   The route is public; when the request carries a session, `enabled` is that
   person's organization's flag. A request without a session (a device whose
