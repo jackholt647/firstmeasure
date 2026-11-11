@@ -550,6 +550,9 @@
           <button class="btn-secondary" id="customersExportCreditsBtn" title="All customer credit transactions, including test organizations. Unknown historical paid/bonus splits are left blank.">
             <i class="fas fa-file-download"></i> Export Credit Ledger
           </button>
+          <button class="btn-secondary" id="customersExportAcquisitionBtn" style="display:none;" title="Every campaign and landing page, all time: one zip of CSVs with each landing view, signup, event and spend entry, and campaign, daily, hourly, source and bonus offer totals.">
+            <i class="fas fa-file-download"></i> Export Acquisition Data
+          </button>
           <button class="btn-secondary" id="customersPairingBtn" style="display:none;">
             <i class="fas fa-link"></i> Pair Leads
           </button>
@@ -2885,6 +2888,25 @@
     finally{button.disabled=false;button.innerHTML=label;}
   }
 
+  // The Campaigns tab's script owns the acquisition endpoints and who may use them.
+  function syncAcquisitionExportButton(){
+    const button = document.getElementById('customersExportAcquisitionBtn');
+    if (button) button.style.display = window.AcquisitionCampaigns?.canAccess?.() ? '' : 'none';
+  }
+
+  async function exportAcquisitionData(){
+    const button = document.getElementById('customersExportAcquisitionBtn');
+    const label = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing acquisition data…';
+    try {
+      await window.AcquisitionCampaigns.exportAllData(bytes => {
+        button.textContent = `Downloading acquisition data… ${(bytes / 1048576).toFixed(1)} MB`;
+      });
+    } catch (error) { alert(error?.message || 'Could not export the acquisition data.'); }
+    finally { button.disabled = false; button.innerHTML = label; }
+  }
+
   async function exportUsersTsv(){
     const exportBtn = document.getElementById('customersExportUsersBtn');
     const originalLabel = exportBtn?.innerHTML || '';
@@ -3069,6 +3091,7 @@
     document.getElementById('customersRefreshBtn').onclick = () => loadCustomers();
     document.getElementById('customersExportUsersBtn').onclick = () => exportUsersTsv();
     document.getElementById('customersExportCreditsBtn').onclick = () => exportCreditLedger();
+    document.getElementById('customersExportAcquisitionBtn').onclick = () => exportAcquisitionData();
     document.getElementById('customerPageSize').value = String(customerPageSize);
     document.getElementById('customerPageSize').onchange = async e => {
       const value = parseInt(e.target.value || '200', 10);
@@ -3255,7 +3278,7 @@
       wireUI();
       window.Customers = this;
     },
-    async onShow(){ await loadCustomers(); },
+    async onShow(){ syncAcquisitionExportButton(); await loadCustomers(); },
     openOrgDetail(orgId){ openOrgDetail(orgId); },
     impersonateUser(email, name, userId, orgId){ impersonateUser(email, name, userId, orgId); }
   };

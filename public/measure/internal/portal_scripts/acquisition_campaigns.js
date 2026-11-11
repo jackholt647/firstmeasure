@@ -1499,7 +1499,39 @@
     document.getElementById('acqManagerPairLandingInput')?.addEventListener('change', renderLandingManagerTable);
   }
 
+  // Every campaign's data for all time, built by the server as one zip of CSVs: the Campaigns tab's
+  // report caps each dataset at 5,000 rows, far fewer than production has.
+  async function exportAllData(onProgress){
+    const params = new URLSearchParams({ timezone_offset_minutes: String(new Date().getTimezoneOffset()) });
+    const res = await fetch(base() + '/export?' + params.toString(), { credentials: 'include', cache: 'no-store' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || data.error || `Export failed (${res.status})`);
+    }
+    const chunks = [];
+    let received = 0;
+    const reader = res.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      if (onProgress) onProgress(received);
+    }
+    const named = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '');
+    const url = URL.createObjectURL(new Blob(chunks, { type: 'application/zip' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = named ? named[1] : `acquisition-data-all-campaigns-${new Date().toISOString().slice(0, 10)}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   const AcquisitionCampaigns = {
+    canAccess,
+    exportAllData,
     init(){
       if (state.loaded || !canAccess()) return;
       defaultDates();
