@@ -84,7 +84,8 @@ function addTestContract(FM) {
         }
       },
       { id: 'media.upload', match: 'POST /v1/platform/organizations/:org/media', kind: 'upload', scope: (ctx) => `project:${ctx.body.project_id}`, records: (ctx) => [ctx.body.id], respond: (ctx) => ({ ok: true, media: { id: ctx.body.id, waiting: true } }) },
-      { id: 'actions.save', match: 'POST /v1/platform/portal-action', kind: 'action', when: (ctx) => ctx.body.action === 'save_thing', scope: () => 'actions', respond: () => ({ success: true, queued: true }) }
+      { id: 'actions.save', match: 'POST /v1/platform/portal-action', kind: 'action', when: (ctx) => ctx.body.action === 'save_thing', scope: () => 'actions', respond: () => ({ success: true, queued: true }) },
+      { id: 'links.add', match: 'POST /v1/links', kind: 'action', scope: (ctx) => `link:${ctx.body.from}`, respond: () => ({ ok: true }) }
     ]
   });
 }
@@ -609,6 +610,58 @@ test('a failed create holds the rest of its scope; other scopes go on', async ()
   await t.FM.queue.retry(create);
   assert.equal((await t.FM.replay.run()).sent, 3);
   eq(t.server.sent('POST /v1/').slice(-3).map((post) => post.path), ['/v1/projects/p1/notes', '/v1/notes/n1/star', '/v1/notes/n1/star']);
+});
+
+test('a change that names a record another scope\'s waiting change makes is sent after it', async () => {
+  const t = engine();
+  t.server.down = true;
+  const queuedId = (answer) => answer.response.headers.get('x-fm-offline-queued');
+  const create = queuedId(await t.json(...note('note-made-here', 'x')));                                         // scope project:p1 makes the note
+  await t.json('POST', '/v1/links', { json: { from: 'contact-7', note: 'note-made-here' } });                    // scope link:contact-7 names it
+  await t.json('POST', '/v1/links', { json: { from: 'contact-8', note: 'a-note-the-server-has' } });             // names nothing made here
+  eq((await t.entries()).map((entry) => entry.after), [[], [create], []]);
+  t.server.down = false;
+  let valid = false;
+  t.server.on('POST /v1/projects/p1/notes', async () => { await sleep(30); return valid ? { json: { ok: true } } : { status: 400, json: { ok: false, error: 'invalid_note' } }; });
+  t.server.on('POST /v1/links', () => ({ json: { ok: true } }));
+  const sentPaths = () => t.server.sent('POST /v1/').map((post) => (post.body && post.body.from ? `link:${post.body.from}` : post.path));
+
+  // The create fails: the link that names its note waits with it; the other scope goes on.
+  assert.equal((await t.FM.replay.run()).sent, 1);
+  eq(sentPaths(), ['/v1/projects/p1/notes', 'link:contact-8']);
+  eq((await t.entries()).map((entry) => entry.state), ['failed', 'waiting']);
+
+  // A change made with a connection that names the waiting record is queued behind it, not sent ahead of it.
+  const online = await t.json('POST', '/v1/links', { json: { from: 'contact-9', note: 'note-made-here' } });
+  assert.ok(queuedId(online));
+  assert.equal(t.server.sent('POST /v1/links').length, 1);
+  // One that names nothing made here is sent at once.
+  assert.equal(queuedId(await t.json('POST', '/v1/links', { json: { from: 'contact-10', note: 'a-note-the-server-has' } })), null);
+
+  // Once the create is sent, what was held goes in the same run, after it.
+  valid = true;
+  await t.FM.queue.retry(create);
+  assert.equal((await t.FM.replay.run()).sent, 3);
+  eq(sentPaths().slice(-3), ['/v1/projects/p1/notes', 'link:contact-7', 'link:contact-9']);
+  eq(await t.entries(), []);
+
+  // A short id is never taken as naming a record: it could be part of any text.
+  t.server.down = true;
+  await t.json(...note('n1', 'x'));
+  await t.json('POST', '/v1/links', { json: { from: 'contact-11', note: 'n1' } });
+  eq((await t.entries()).map((entry) => entry.after), [[], []]);
+});
+
+test('discarding the change that makes a record lets what names it go (and the server answers for it)', async () => {
+  const t = engine();
+  t.server.down = true;
+  const create = (await t.json(...note('note-made-here', 'x'))).response.headers.get('x-fm-offline-queued');
+  await t.json('POST', '/v1/links', { json: { from: 'contact-7', note: 'note-made-here' } });
+  t.server.down = false;
+  t.server.on('POST /v1/links', () => ({ status: 404, json: { ok: false, error: 'note_not_found' } }));
+  await t.FM.queue.discard(create);
+  assert.equal((await t.FM.replay.run()).sent, 0);
+  eq((await t.entries()).map((entry) => [entry.write, entry.state, entry.error.code]), [['links.add', 'failed', 'note_not_found']]);
 });
 
 test('replay.run does nothing without a signed-in person, and one run at a time', async () => {

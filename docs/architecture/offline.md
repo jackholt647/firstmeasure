@@ -503,6 +503,25 @@ through by the worker.
 A failed `create` holds the rest of its scope (later entries need the record);
 other failures do not.
 
+**Order between scopes.** Scopes are sent side by side, so a change that
+depends on another scope's change is ordered by what it names, with nothing
+for a contract to declare. When a change is made, the engine looks for the
+`create` and `upload` entries of other scopes still on the device whose
+record ids (`records`) appear in the change's URL or in the text of its
+body, and stores their entry ids as `after`. Such a change is queued even
+with a connection, and it is not sent while any entry in `after` is still
+on the device, in any state: once that entry is sent, the held change goes
+in a further pass of the same run; if it failed, both wait for the person;
+if it is discarded, the held change is sent and the server answers for it.
+Examples: a photo paired with a project made on the device (`media.assign`
+in `user:<id>`, the project in `project:<id>`), a new contact linked to a
+project (`contact.create` in `contact:<id>`, the link in `project:<id>`).
+For this to work a record a contract makes on the device must be in that
+write's `records`, and its id must be at least 8 characters (a shorter id
+is never taken as naming a record). `after` only ever names older entries,
+so the order has no circle. The native uploader keeps the same rule
+(`native-uploads.js`).
+
 - **The lock** is held for one run: until no entry is due. Entries in
   backoff wait for a later run and the lock is free in between, so another
   tab can take over when this one closes. A browser without Web Locks runs

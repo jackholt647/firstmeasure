@@ -40,6 +40,7 @@
     mergeRepeats: 3,
     scopesAtOnce: 3,
     rereadLimit: 25,
+    namedIdMinLength: 8,          // a shorter id could be part of any text: never taken as naming a record
     prefetchAtOnce: 4,
     autoPins: 10,
     touchMs: 3600000,
@@ -678,6 +679,16 @@
       return (await queue.list(identity)).some((entry) => entry.scope === scope && (entry.state === 'waiting' || entry.state === 'delegated' || holds(entry)));
     },
 
+    /**
+     * True while a change of another scope that this one has to follow (`after`: it makes a record this one
+     * names) is still on the device, in any state: sent, it is gone; failed, it waits for the person, and so
+     * does this. `known` is the ids on the device where the caller already has them.
+     */
+    async follows(entry, known) {
+      for (const id of entry.after || []) if (known ? known.has(id) : await queue.get(id)) return true;
+      return false;
+    },
+
     /** What a page may know about an entry. */
     public(entry) {
       return { id: entry.id, contract: entry.contract, write: entry.write, kind: entry.kind, scope: entry.scope, label: entry.label, records: entry.records, state: entry.state, attempts: entry.attempts, error: entry.error, conflict: entry.conflict, createdAt: entry.createdAt, nextAt: entry.nextAt, user: entry.user, org: entry.org };
@@ -817,6 +828,32 @@
   /** A failed or parked `create` holds the rest of its scope: later entries need the record. */
   function holds(entry) { return entry.kind === 'create' && (entry.state === 'failed' || entry.state === 'parked'); }
 
+  /** The records a change makes: a `create` and an `upload` make the records they name. */
+  function makes(entry) { return entry.kind === 'create' || entry.kind === 'upload' ? (entry.records || []) : []; }
+
+  /** Where a change names other records: its URL and the text of its body, never its files. */
+  function namedIn(url, parsed) {
+    const parts = [String(url)];
+    if (parsed.type === 'json' || parsed.type === 'text') parts.push(String(parsed.text || ''));
+    else if (parsed.type === 'form') for (const [, value] of parsed.fields) if (typeof value === 'string') parts.push(value);
+    return parts.join('\n');
+  }
+
+  /**
+   * Scopes are sent side by side, so order between them is by what a change names: the ids of the changes of
+   * other scopes, still on the device, that make a record this change's URL or body names (a photo paired with a
+   * project made on this device, a new contact linked to a project). It is sent after them. Every entry on the
+   * device is older than a change being made now, so the order has no circle.
+   */
+  async function makersNamed(identity, scope, text) {
+    const out = [];
+    for (const entry of await queue.list(identity)) {
+      if (entry.scope === scope) continue;
+      if (makes(entry).some((id) => id.length >= limits.namedIdMinLength && text.includes(id))) out.push(entry.id);
+    }
+    return out;
+  }
+
   function nextSeq() { lastSeq = Math.max(config.now() * 1000, lastSeq + 1); return lastSeq; }
 
   /** Headers kept with an entry: everything the app sent except what is set again when it is sent. */
@@ -831,7 +868,7 @@
   }
 
   /** Stores the change. Answers the page with respond(ctx), or with the reason it could not be kept. */
-  async function enqueue(identity, found, ctx, parsed, scope) {
+  async function enqueue(identity, found, ctx, parsed, scope, after) {
     const { contract, write } = found;
     let entry = null;
     try {
@@ -865,7 +902,7 @@
         id: ctx.id, key: ctx.id, keyBody: null, seq: nextSeq(), user: identity.user, org: identity.org,
         contract: contract.id, write: write.id, kind: write.kind, scope,
         method: ctx.method, url: ctx.url, params: ctx.params, headers: storedHeaders(ctx.headers, parsed), body,
-        label: write.label ? await write.label(ctx) : null, records, response: ctx.response, media, base,
+        label: write.label ? await write.label(ctx) : null, records, response: ctx.response, media, base, after: after || [],
         state: 'waiting', attempts: 0, serverErrors: 0, nextAt: 0, error: null, conflict: null, choices: null, createdAt: ctx.now
       };
       for (const blob of blobs) await db.put('blobs', blob);
@@ -947,14 +984,16 @@
         outgoing = () => new Request(request.url, { method: request.method, headers, body: sent.body, credentials: request.credentials, cache: 'no-store', signal: request.signal });
       } else outgoing = () => new Request(request, { headers });
     } catch (_) { return passThrough(request); }
-    // Sent now unless the device is known to be offline or earlier changes of this scope still wait.
-    if (config.online() && !(await queue.busy(identity, scope))) {
+    // Sent now unless the device is known to be offline, earlier changes of this scope still wait, or it names a
+    // record that a change of another scope, still waiting here, makes.
+    const after = await makersNamed(identity, scope, namedIn(ctx.url, parsed)).catch(() => []);
+    if (config.online() && !after.length && !(await queue.busy(identity, scope))) {
       let response = null;
       try { response = await config.fetch(outgoing()); } catch (error) { if (wasAborted(request, error)) throw error; }
       if (response) { net.ok(); return response; }
       net.fail();
     }
-    return enqueue(identity, found, ctx, parsed, scope);
+    return enqueue(identity, found, ctx, parsed, scope, after);
   }
 
   /** A parsed body as fetch sends it. */
@@ -1379,12 +1418,23 @@
     // The person asked, or the connection came back: what waits in backoff is due now.
     if (options.force) for (const entry of entries) if (entry.state === 'waiting' && entry.nextAt > now) { entry.nextAt = 0; await db.put('outbox', entry); }
     if (!entries.some((entry) => entry.state === 'waiting' && entry.nextAt <= now)) return { sent: 0, blocked: null };
-    const run = { identity, stop: false, sent: 0, token: null, blocked: null };
-    const scopes = new Map();
-    for (const entry of entries) { if (!scopes.has(entry.scope)) scopes.set(entry.scope, []); scopes.get(entry.scope).push(entry); }
+    const run = { identity, stop: false, sent: 0, token: null, blocked: null, held: false };
     replay.active = true;
     await state.emit(identity).catch(() => {});
-    try { await pool([...scopes.values()], limits.scopesAtOnce, (list) => runScope(run, list)); } finally {
+    try {
+      // One pass sends every scope in its order. A change held behind another scope's (queue.follows) goes in a
+      // further pass, as long as the pass before it sent something.
+      for (let list = entries; ;) {
+        const scopes = new Map();
+        for (const entry of list) { if (!scopes.has(entry.scope)) scopes.set(entry.scope, []); scopes.get(entry.scope).push(entry); }
+        const sentBefore = run.sent;
+        run.held = false;
+        await pool([...scopes.values()], limits.scopesAtOnce, (items) => runScope(run, items));
+        if (!run.held || run.stop || run.sent === sentBefore) break;
+        queue.invalidate();
+        list = await queue.list(identity);
+      }
+    } finally {
       replay.active = false;
       if (run.sent) await meta.set('lastSync:' + ownerKey(identity), config.now()).catch(() => {});
       await queue.changed(identity).catch(() => {});
@@ -1397,6 +1447,7 @@
       if (run.stop) return;
       if (entry.state === 'delegated') return;                       // the host is uploading it; the scope keeps its order
       if (entry.state !== 'waiting') { if (holds(entry)) return; continue; }
+      if (await queue.follows(entry)) { run.held = true; return; }   // names a record another scope's change still has to make
       if (config.external(queue.public(entry))) return;              // about to be handed to the host: never sent from here
       if (entry.nextAt > config.now()) return;
       const outcome = await sendEntry(run, entry).catch(() => 'later');

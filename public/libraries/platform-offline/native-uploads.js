@@ -190,10 +190,14 @@
     const scopes = new Map();
     for (const entry of entries) { if (!scopes.has(entry.scope)) scopes.set(entry.scope, []); scopes.get(entry.scope).push(entry); }
     const now = Date.now();
+    // A change that names a record another scope's change still has to make goes after it (the engine's queue.follows).
+    const onDevice = new Set(entries.map((entry) => entry.id));
+    const follows = (entry) => (entry.after || []).some((id) => onDevice.has(id));
     for (const list of scopes.values()) {
       for (const entry of list) {
         const held = entry.kind === 'create' && (entry.state === 'failed' || entry.state === 'parked');
         if (entry.kind === 'upload') {
+          if (follows(entry)) break;
           if (entry.state === 'waiting' && !leftToPage.has(entry.id) && entry.nextAt <= now && (tryAgainAt.get(entry.id) || 0) <= now) out.push(entry);
           continue;
         }
