@@ -445,6 +445,12 @@ async; they run in the worker, and in the top-level page when it replays.
   first file stands for `records(ctx)[0]`. Without `conflict.fields`, the
   body's keys; `conflict.mine(ctx, base)` may build the person's document
   when the body is not a plain set of fields.
+- `quiet` (a boolean or `quiet(ctx)`) marks the second half of a change a
+  person made once, like a photo's place in the project's list behind its
+  upload. A quiet entry is sent like any other; it is left out of the number
+  people are told (`state().shown`) and of the tray's waiting list while a
+  change that is not quiet waits, and shows like any other when it is the
+  only thing waiting, fails or conflicts.
 - A contract function that throws while a request is handled makes that
   request behave as if there were no contract. An effect that throws is
   skipped; it never breaks a read.
@@ -932,7 +938,8 @@ PlatformOffline.engine()                          // top-level page only: resolv
   when the browser says so or the last request got no answer. `pending`
   counts entries that will be sent without the person (`waiting`,
   `delegated`), `failed` those waiting for them (`failed`, `parked`),
-  `conflicts` those waiting on a choice. `blocked` is `'sign-in'` while the
+  `conflicts` those waiting on a choice. `shown` is `pending` as people are
+  told it (quiet entries left out, see contracts); logic uses `pending`. `blocked` is `'sign-in'` while the
   queue is paused, else `null`. `code.status` is `none`, `downloading`,
   `ready` or `disabled`; while a newer set downloads, `code.release` is still
   the active one and `code.next` names the new one.

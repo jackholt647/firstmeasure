@@ -85,7 +85,7 @@ function addTestContract(FM) {
       },
       { id: 'media.upload', match: 'POST /v1/platform/organizations/:org/media', kind: 'upload', scope: (ctx) => `project:${ctx.body.project_id}`, records: (ctx) => [ctx.body.id], respond: (ctx) => ({ ok: true, media: { id: ctx.body.id, waiting: true } }) },
       { id: 'actions.save', match: 'POST /v1/platform/portal-action', kind: 'action', when: (ctx) => ctx.body.action === 'save_thing', scope: () => 'actions', respond: () => ({ success: true, queued: true }) },
-      { id: 'links.add', match: 'POST /v1/links', kind: 'action', scope: (ctx) => `link:${ctx.body.from}`, respond: () => ({ ok: true }) }
+      { id: 'links.add', match: 'POST /v1/links', kind: 'action', scope: (ctx) => `link:${ctx.body.from}`, quiet: (ctx) => ctx.body.quiet === true, respond: () => ({ ok: true }) }
     ]
   });
 }
@@ -650,6 +650,24 @@ test('a change that names a record another scope\'s waiting change makes is sent
   await t.json(...note('n1', 'x'));
   await t.json('POST', '/v1/links', { json: { from: 'contact-11', note: 'n1' } });
   eq((await t.entries()).map((entry) => entry.after), [[], []]);
+});
+
+test('a quiet change is sent like any other but is not counted for people while another change waits', async () => {
+  const t = engine();
+  t.server.down = true;
+  await t.json('POST', '/v1/links', { json: { from: 'contact-1', note: 'x', quiet: true } });
+  let told = await t.FM.state.queue(ME);
+  eq([told.pending, told.shown], [1, 1], 'alone, it is what waits');
+  await t.json(...note('n1', 'x'));
+  told = await t.FM.state.queue(ME);
+  eq([told.pending, told.shown], [2, 1]);
+  eq((await t.FM.queue.list(ME)).map((entry) => t.FM.queue.public(entry).quiet), [true, false]);
+  t.server.down = false;
+  t.server.on('POST /v1/links', () => ({ json: { ok: true } }));
+  t.server.on('POST /v1/projects/p1/notes', () => ({ json: { ok: true } }));
+  assert.equal((await t.FM.replay.run()).sent, 2);
+  told = await t.FM.state.queue(ME);
+  eq([told.pending, told.shown], [0, 0]);
 });
 
 test('discarding the change that makes a record lets what names it go (and the server answers for it)', async () => {

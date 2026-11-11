@@ -531,7 +531,8 @@
   function situation(s) {
     if (!s || !s.supported || (!s.controlled && !waitingCount(s))) return null;
     const attention = (s.failed || 0) + (s.conflicts || 0);
-    const count = s.pending || 0;
+    // `shown` leaves out the second half of a change a person made once (a photo's upload and its list entry).
+    const count = s.shown == null ? (s.pending || 0) : s.shown;
     if (attention) return { mode: 'attention', tone: 'attention', icon: 'attention', count: attention, long: T('ind_attention_long', { count: attention }), short: T('ind_attention_short', { count: attention }), compact: String(attention), tiny: String(attention) };
     if (s.blocked === 'sign-in' && count) return { mode: 'signin', tone: 'signin', icon: 'signin', count, long: T('ind_signin_long', { count }), short: T('ind_signin_short'), compact: T('ind_signin_compact') };
     if (!s.online) {
@@ -951,7 +952,8 @@
       body.append(h('div', { class: 'fmo-warn', role: 'note' }, h('strong', { text: T('tray_storage_warning_title') }), T('tray_storage_warning')));
     }
     const needs = entries.filter((entry) => entry.state === 'failed' || entry.state === 'parked' || entry.state === 'conflict');
-    const waits = entries.filter((entry) => !needs.includes(entry));
+    const waiting = entries.filter((entry) => !needs.includes(entry));
+    const waits = waiting.some((entry) => !entry.quiet) ? waiting.filter((entry) => !entry.quiet) : waiting;
     if (needs.length) body.append(h('h3', { class: 'fmo-group', text: T('tray_attention_heading') }), h('ul', { class: 'fmo-list' }, ...needs.map(entryRow)));
     if (waits.length) body.append(h('h3', { class: 'fmo-group', text: T('tray_waiting_heading') }), h('ul', { class: 'fmo-list' }, ...waits.map(entryRow)));
     return body;
@@ -965,7 +967,7 @@
       view.sending = false; state = PO.state();
       await loadEntries(); renderTray();
     } } });
-    return h('footer', { class: 'fmo-foot' }, h('span', { class: 'fmo-grow', text: T('set_waiting', { count: state.pending || 0 }) }), send);
+    return h('footer', { class: 'fmo-foot' }, h('span', { class: 'fmo-grow', text: T('set_waiting', { count: state.shown == null ? (state.pending || 0) : state.shown }) }), send);
   }
 
   // --- conflicts ---

@@ -691,7 +691,7 @@
 
     /** What a page may know about an entry. */
     public(entry) {
-      return { id: entry.id, contract: entry.contract, write: entry.write, kind: entry.kind, scope: entry.scope, label: entry.label, records: entry.records, state: entry.state, attempts: entry.attempts, error: entry.error, conflict: entry.conflict, createdAt: entry.createdAt, nextAt: entry.nextAt, user: entry.user, org: entry.org };
+      return { id: entry.id, contract: entry.contract, write: entry.write, kind: entry.kind, scope: entry.scope, label: entry.label, records: entry.records, quiet: !!entry.quiet, state: entry.state, attempts: entry.attempts, error: entry.error, conflict: entry.conflict, createdAt: entry.createdAt, nextAt: entry.nextAt, user: entry.user, org: entry.org };
     },
 
     /** The entry's body as the engine parses a request body, files loaded from the blobs store. */
@@ -903,6 +903,9 @@
         contract: contract.id, write: write.id, kind: write.kind, scope,
         method: ctx.method, url: ctx.url, params: ctx.params, headers: storedHeaders(ctx.headers, parsed), body,
         label: write.label ? await write.label(ctx) : null, records, response: ctx.response, media, base, after: after || [],
+        // The second half of another change (a photo's place in the project's list, behind its upload): sent like
+        // any other, but not counted or listed for people while a change that is not quiet waits.
+        quiet: !!(typeof write.quiet === 'function' ? await write.quiet(ctx) : write.quiet),
         state: 'waiting', attempts: 0, serverErrors: 0, nextAt: 0, error: null, conflict: null, choices: null, createdAt: ctx.now
       };
       for (const blob of blobs) await db.put('blobs', blob);
@@ -1642,13 +1645,16 @@
   const state = {
     /** The queue as one person sees it. */
     async queue(identity) {
-      if (!identity || !identity.user) return { user: '', org: '', pending: 0, failed: 0, conflicts: 0, blocked: null, lastSyncAt: null, records: [] };
+      if (!identity || !identity.user) return { user: '', org: '', pending: 0, shown: 0, failed: 0, conflicts: 0, blocked: null, lastSyncAt: null, records: [] };
       const list = await queue.list(identity);
       const count = (...states) => list.filter((entry) => states.includes(entry.state)).length;
       const pauseRow = await meta.get('pause:' + ownerKey(identity), null);
+      const pending = count('waiting', 'delegated');
+      // `shown` is the number a person is told: quiet changes are left out unless only quiet ones wait.
+      const loud = list.filter((entry) => (entry.state === 'waiting' || entry.state === 'delegated') && !entry.quiet).length;
       return {
         user: identity.user, org: identity.org,
-        pending: count('waiting', 'delegated'), failed: count('failed', 'parked'), conflicts: count('conflict'),
+        pending, shown: loud || pending, failed: count('failed', 'parked'), conflicts: count('conflict'),
         blocked: pauseRow ? pauseRow.reason : null,
         lastSyncAt: await meta.get('lastSync:' + ownerKey(identity), null),
         records: [...new Set(list.flatMap((entry) => entry.records || []))]
