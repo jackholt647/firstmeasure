@@ -930,6 +930,10 @@ test('sign-out removes a person\'s saved reads and keeps their queued changes', 
   assert.equal(await t.FM.identity.get(), null);
   assert.equal((await t.entries()).length, 1, 'the queue stays for when they sign in again');
   await assert.rejects(t.request('GET', '/v1/projects/p1'), /Failed to fetch/);
+  // Signing out of every remembered account asks who has anything here.
+  eq(await t.FM.identity.users(), ['user_2']);
+  await t.FM.identity.signOut('user_2');
+  eq(await t.FM.identity.users(), []);
 });
 
 test('saved reads keep to their budget, least recently used first; boot reads and pinned projects stay', async () => {

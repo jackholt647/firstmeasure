@@ -97,8 +97,8 @@
   }
 
   /** These sign-outs never visit logout.php, so the offline worker hears it here: saved data leaves the device, waiting changes stay. */
-  async function offlineSignedOut() {
-    try { await Promise.race([window.PlatformOffline?.signedOut?.(), new Promise((resolve) => setTimeout(resolve, 3000))]); } catch (_) { /* offline is not in use */ }
+  async function offlineSignedOut(options) {
+    try { await Promise.race([window.PlatformOffline?.signedOut?.(options), new Promise((resolve) => setTimeout(resolve, 3000))]); } catch (_) { /* offline is not in use */ }
   }
 
   class AccountSwitcher {
@@ -364,7 +364,7 @@
       if (!(await confirmOfflineSignOut((globalThis.PlatformLanguage?.text("account-switcher","m_094189125cc8c4","Sign out of every remembered account on this device?") ?? "Sign out of every remembered account on this device?")))) return;
       try {
         await this.request('/auth/accounts/logout-all', { method: 'POST', body: '{}' });
-        await offlineSignedOut();
+        await offlineSignedOut({ all: true });   // every remembered account's saved data leaves the device
         try { localStorage.removeItem(cacheKey); } catch (_) {}
         this.reloadForAccount(true);
       } catch (error) {

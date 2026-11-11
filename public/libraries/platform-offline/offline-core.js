@@ -1699,6 +1699,15 @@
   const identity = {
     get: () => meta.get('identity', null),
     set: (value) => meta.set('identity', value),
+    /** Everyone who has saved reads, media or kept projects on this device. */
+    async users() {
+      const users = new Set();
+      for (const key of await db.keys('responses')) users.add(String(key[0]));
+      for (const key of await db.keys('media')) users.add(String(key[0]));
+      for (const row of await db.list('meta')) if (typeof row.k === 'string' && row.k.startsWith('pins:')) users.add(row.k.slice(5).split('|')[0]);
+      users.delete('');
+      return [...users];
+    },
     /** Removes a person's saved reads, media and pinned downloads. Their queued changes stay. */
     async signOut(user) {
       if (!user) return;

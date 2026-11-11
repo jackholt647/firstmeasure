@@ -75,8 +75,12 @@ contract, or how the native hosts store files and upload in the background.
 The service worker loads the engine and contracts with `importScripts`, and
 the registration uses `updateViaCache: 'none'` so a changed engine or contract
 file is picked up at the next update check. `contracts/index.js` sets
-`self.FM_OFFLINE_CONTRACTS`, the contract file names in load order; a contract
-file that fails to load is skipped and the rest still work.
+`self.FM_OFFLINE_CONTRACTS`, the contract file names in load order. The
+engine and every listed contract are part of the worker: when one cannot be
+loaded the worker script throws, so the install fails and the browser keeps
+the worker it had (or none) and tries again at its next update check. (Found
+on dev: a worker that installed without its engine stayed that way for good,
+because no later update check saw a changed file.)
 
 Only the top-level page registers the worker and replays the queue; project
 window frames use the same `PlatformOffline` and the same worker. The
@@ -787,7 +791,9 @@ background `URLSession` on iOS), also after the app is closed. The queue stays t
   which the account switcher calls because its sign-outs go to the login
   page directly. It removes that person's
   shells, saved reads, media files and pinned downloads from the device, in
-  every organization, also when the server cannot be reached. The list of
+  every organization, also when the server cannot be reached.
+  `PlatformOffline.signedOut({ all: true })` (Sign out of all accounts) does
+  the same for everyone who has saved data or a shell on the device. The list of
   pinned projects stays and is downloaded again after sign-in. Queued
   changes stay and are sent only after the same person signs in again; the
   sign-out flow warns when changes are waiting.

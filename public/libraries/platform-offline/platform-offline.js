@@ -345,7 +345,7 @@
       set(name, value) { settings = Object.assign({}, settings, { [name]: value }); return ask('setting', { name, value }); }
     },
     /** Removes this person's shells and saved reads from the device. Their queued changes stay. */
-    signedOut: () => ask('signedOut'),
+    signedOut: (options) => ask('signedOut', { all: !!(options && options.all) }),
     /**
      * The same removal for someone who stays signed in (device settings): saved reads, media and shells go, queued
      * changes stay, and the page says again who it is so it keeps saving and queueing. Resolves with state().

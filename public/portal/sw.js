@@ -24,20 +24,19 @@ const NAVIGATION_WAIT_MS = 8000;
 const NAVIGATION_WAIT_AFTER_FAILURE_MS = 3500;
 const DOWNLOADS_AT_ONCE = 6;
 
-let FM = null;
-try { importScripts(LIBRARY + 'offline-core.js'); FM = self.FMOffline || null; } catch (_) { FM = null; }
-if (FM) {
-  try { importScripts(LIBRARY + 'contracts/index.js'); } catch (_) { /* no list: nothing is queued, reads are still saved */ }
-  for (const file of self.FM_OFFLINE_CONTRACTS || []) {
-    try { importScripts(LIBRARY + 'contracts/' + file); } catch (error) { console.warn('[offline] contract not loaded:', file, error); }
-  }
-}
+// The engine and the contracts are part of the worker. When one cannot be loaded this script throws, so the
+// install fails and the browser keeps the worker it had (or none) and tries again at its next update check. A
+// worker installed without them would stay that way for good: no later check would see a changed file.
+importScripts(LIBRARY + 'offline-core.js');
+const FM = self.FMOffline;
+if (!FM) throw new Error('The offline engine did not load');
+importScripts(LIBRARY + 'contracts/index.js');
+for (const file of self.FM_OFFLINE_CONTRACTS || []) importScripts(LIBRARY + 'contracts/' + file);
 
 // A new worker takes over at once; pages keep running and are never reloaded.
 self.addEventListener('install', () => { self.skipWaiting(); });
 self.addEventListener('activate', (event) => { event.waitUntil(self.clients.claim()); });
 
-// Without the engine the worker is inert: no fetch handler, every request is the browser's.
 if (FM) start();
 
 function start() {
@@ -479,6 +478,22 @@ function start() {
     return true;
   }
 
+  /** Signing out of every remembered account: the same removal for everyone who has saved data or a shell here. */
+  async function signOutEveryone() {
+    const users = new Set(await FM.identity.users());
+    for (const name of await caches.keys()) {
+      if (!name.startsWith(SET_PREFIX)) continue;
+      for (const request of await (await caches.open(name)).keys()) {
+        const pathname = new URL(request.url).pathname;
+        if (pathname.startsWith(SHELL_PREFIX)) users.add(decodeURIComponent(pathname.slice(SHELL_PREFIX.length).split('/')[0]));
+      }
+    }
+    if (S.identity && S.identity.user) users.add(S.identity.user);
+    for (const client of Object.values(S.clients)) if (client && client.user) users.add(client.user);
+    for (const user of users) if (user) await signOut({ user });
+    return true;
+  }
+
   /** Forgets pages that are gone. */
   async function sweepClients() {
     const open = new Set((await self.clients.matchAll({ type: 'window', includeUncontrolled: true })).map((client) => client.id));
@@ -545,7 +560,7 @@ function start() {
       case 'refreshPins': return FM.pins.refresh(who());
       case 'settings': return FM.settings.all();
       case 'setting': return FM.settings.set(String(message.name), message.value);
-      case 'signedOut': return signOut(identityOf(clientId) || S.identity);
+      case 'signedOut': return message.all ? signOutEveryone() : signOut(identityOf(clientId) || S.identity);
       default: throw new Error('Unknown offline message: ' + message.type);
     }
   }
