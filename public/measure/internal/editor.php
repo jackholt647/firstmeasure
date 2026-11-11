@@ -2029,7 +2029,8 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
                 for (const entry of history) {
                     if (!entry || typeof entry !== 'object') continue;
                     const event = String(entry.event || entry.type || '').toLowerCase();
-                    if (event !== 'project_reopened_for_edits') continue;
+                    // A customer reorder of a rejected project reopens the same id: claims from before it belong to the earlier order (FM-386).
+                    if (event !== 'project_reopened_for_edits' && event !== 'reordered_rejected_project') continue;
                     const ms = window.firstMeasureParseClaimTimestamp(entry.ts || entry.at || entry.created_at);
                     if (ms !== null && (latest === null || ms > latest)) latest = ms;
                 }
