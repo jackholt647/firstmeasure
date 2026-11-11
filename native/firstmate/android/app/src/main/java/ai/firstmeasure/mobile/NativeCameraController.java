@@ -55,10 +55,11 @@ final class NativeCameraController {
     private boolean videoMode;
 
     private int generation;
-    private final Map<String,File> files = new HashMap<>();
+    // Captures and their tokens are kept on disk: see CaptureStore.
+    private final CaptureStore captures;
 
     NativeCameraController(ComponentActivity activity, FrameLayout host) {
-        this.activity=activity;main=ContextCompat.getMainExecutor(activity);
+        this.activity=activity;main=ContextCompat.getMainExecutor(activity);captures=OfflineUploads.get(activity).captures;
         preview=new PreviewView(activity);
         preview.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);
         preview.setScaleType(PreviewView.ScaleType.FILL_CENTER);
@@ -270,12 +271,8 @@ final class NativeCameraController {
             },main);
         }catch(Exception e){reply.complete(null,"camera_unavailable");}
     }
-    private File output(String extension) throws IOException {File dir=new File(activity.getCacheDir(),"native-camera");dir.mkdirs();return File.createTempFile("capture-",extension,dir);}
-    private JSONObject saved(File file,String mime,long duration) throws Exception {
-        if(file.length()>150L*1024*1024){file.delete();throw new IOException("File too large");}
-        String token=UUID.randomUUID().toString();files.put(token,file);
-        return new JSONObject().put("token",token).put("name",file.getName()).put("mime",mime).put("size",file.length()).put("duration",duration);
-    }
+    private File output(String extension) throws IOException {return captures.newFile(extension);}
+    private JSONObject saved(File file,String mime,long duration) throws Exception {return captures.add(file,mime,duration);}
     void photo(Reply reply){
         if(photos==null){reply.complete(null,"camera_closed");return;}
         try{File file=output(".jpg");photos.takePicture(new ImageCapture.OutputFileOptions.Builder(file).build(),main,new ImageCapture.OnImageSavedCallback(){
@@ -301,12 +298,13 @@ final class NativeCameraController {
     void stopRecording(){if(recording!=null)recording.stop();}
     void pause(boolean paused){if(recording!=null){if(paused)recording.pause();else recording.resume();}}
     JSONObject read(String token,int offset) throws Exception {
-        File f=files.get(token);if(f==null||offset<0||offset>f.length())throw new IOException("Unknown capture");
+        File f=captures.file(token);if(f==null||offset<0||offset>f.length())throw new IOException("Unknown capture");
         byte[] bytes=new byte[(int)Math.min(256*1024,f.length()-offset)];
         try(RandomAccessFile input=new RandomAccessFile(f,"r")){input.seek(offset);input.readFully(bytes);}
         return new JSONObject().put("data",android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP));
     }
-    void release(String token){File f=files.remove(token);if(f!=null)f.delete();}
+    void release(String token){captures.release(token);}
     void close(){generation++;bindingEpoch++;if(firstFrame!=null&&!firstFrame.isDone())firstFrame.completeExceptionally(new Exception("Camera closed"));stopRecording();if(provider!=null)provider.unbindAll();camera=null;photos=null;videos=null;preview.setVisibility(View.GONE);}
-    void destroy(){close();for(File f:files.values())f.delete();files.clear();}
+    // Captures outlive the activity: the page releases them, an upload takes them, or they expire after 30 days.
+    void destroy(){close();}
 }

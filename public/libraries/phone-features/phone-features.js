@@ -13,7 +13,7 @@
     const bridge=transport();if(!bridge)return Promise.reject(Object.assign(new Error('This feature requires the mobile app.'),{code:'unsupported'}));
     const id=String(++sequence);
     return new Promise((resolve,reject)=>{
-      const timer=setTimeout(()=>{pending.delete(id);reject(Object.assign(new Error('The phone action timed out.'),{code:'timeout'}));},method==='cameraRecord'?180000:method==='cameraOpen'?120000:30000);
+      const timer=setTimeout(()=>{pending.delete(id);reject(Object.assign(new Error('The phone action timed out.'),{code:'timeout'}));},method==='cameraRecord'?180000:method==='cameraOpen'||method==='offlineUploads.enqueue'||method==='photoLibrarySave'?120000:30000);
       pending.set(id,{resolve,reject,timer});
       try{bridge.postMessage(JSON.stringify({version:1,id,method,payload}));}catch(error){clearTimeout(timer);pending.delete(id);reject(error);}
     });
@@ -76,7 +76,60 @@
       }finally{await request('cameraRelease',{token:capture.token}).catch(()=>{});}
     }
   });
-  root.PhoneFeatures=Object.freeze({version:1,ready,isNative:()=>!!transport(),info:()=>info,pickFiles,capturePhoto:()=>pickFiles({source:'camera'}),share,download,saveFile,camera,
+  // Offline (native/firstmate/README.md, "Offline"): the host keeps a file in private app storage and uploads
+  // it in the background, also after the app is closed. Every ability is a capability checked before use.
+  const supports=name=>Array.isArray(info?.capabilities)&&info.capabilities.includes(name);
+  async function native(capability,method,payload){
+    await ready;
+    if(!supports(capability))throw Object.assign(new Error('This feature requires a newer version of the mobile app.'),{code:'unsupported'});
+    return request(method,payload);
+  }
+  const CHUNK=256*1024,MAX_UPLOAD=150*1024*1024;
+  function base64(bytes){let text='';for(let i=0;i<bytes.length;i+=0x8000)text+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));return btoa(text);}
+  function uploadUrl(url){
+    const parsed=new URL(url,location.href);
+    if(parsed.origin!==location.origin||!parsed.pathname.startsWith('/v1/'))throw Object.assign(new Error('Uploads must go to this application.'),{code:'untrusted_url'});
+    return parsed.href;
+  }
+  const offlineUploads=Object.freeze({
+    chunkSize:CHUNK,
+    available:()=>supports('offlineUploads'),
+    // One step of a transfer. Without data it only asks what the host holds: { size, done, accepted }.
+    put:(id,offset=0,data='',done=false)=>native('offlineUploads','offlineUploads.put',{id,offset,data,done}),
+    // Hands a whole Blob to the host in 256 KB steps, continuing a transfer that was cut short.
+    async putBlob(id,blob,{onProgress}={}){
+      if(!(blob instanceof Blob)||blob.size<1)throw Object.assign(new Error('Choose a file to upload.'),{code:'invalid_file'});
+      if(blob.size>MAX_UPLOAD)throw Object.assign(new Error('Choose a file smaller than 150 MB.'),{code:'file_too_large'});
+      const resume=state=>!state.done&&state.size<=blob.size?state.size:0;
+      let state=await offlineUploads.put(id,0),resynced=false;
+      if(state.done&&state.size===blob.size)return state;
+      let offset=resume(state);
+      for(;;){
+        const end=Math.min(offset+CHUNK,blob.size);
+        const data=end>offset?base64(new Uint8Array(await blob.slice(offset,end).arrayBuffer())):'';
+        state=await offlineUploads.put(id,offset,data,end===blob.size);
+        if(state.accepted){
+          onProgress?.(end,blob.size);
+          if(end<blob.size){offset=end;continue;}
+          if(!state.done||state.size!==blob.size)throw Object.assign(new Error('The file could not be handed to the app.'),{code:'put_out_of_sync'});
+          return state;
+        }
+        // The host holds something else than expected (another page wrote, or it was cleared): follow it once.
+        if(resynced)throw Object.assign(new Error('The file could not be handed to the app.'),{code:'put_out_of_sync'});
+        resynced=true;offset=resume(state);
+      }
+    },
+    async enqueue(job){
+      if(!job||typeof job!=='object')throw Object.assign(new Error('Invalid upload.'),{code:'invalid_request'});
+      return native('offlineUploads','offlineUploads.enqueue',{...job,url:uploadUrl(job.url)});
+    },
+    status:ids=>native('offlineUploads','offlineUploads.status',ids?{ids:Array.from(ids)}:{}),
+    ack:ids=>native('offlineUploads','offlineUploads.ack',{ids:Array.from(ids||[])}),
+    cancel:id=>native('offlineUploads','offlineUploads.cancel',{id})
+  });
+  // An add-only copy in the camera roll. Nothing is saved there unless a page calls this (or enqueues with saveToPhotos).
+  const saveToPhotoLibrary=(source={})=>native('photoLibrarySave','photoLibrarySave',source.cameraToken?{cameraToken:source.cameraToken}:{put:source.put,contentType:source.contentType,fileName:source.fileName});
+  root.PhoneFeatures=Object.freeze({version:1,ready,isNative:()=>!!transport(),info:()=>info,supports,offlineUploads,saveToPhotoLibrary,pickFiles,capturePhoto:()=>pickFiles({source:'camera'}),share,download,saveFile,camera,
     haptic:()=>transport()?request('haptic'):Promise.resolve(),openSettings:()=>request('settings'),authenticate:()=>request('authenticate'),
     pushStatus:()=>request('pushStatus'),pushRegister:()=>request('pushRegister'),pushUnregister:()=>request('pushUnregister')});
 })(window);

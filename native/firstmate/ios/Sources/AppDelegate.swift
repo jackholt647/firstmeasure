@@ -15,10 +15,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         window.rootViewController = PortalController()
         window.makeKeyAndVisible()
         self.window = window
+        // Continue uploads that were waiting; the web view (and its cookies) exists from here on.
+        OfflineUploader.shared.start()
         if let notification = options?[.remoteNotification] as? [String: Any], let id = notification["notification_id"] as? String {
             (window.rootViewController as? PortalController)?.openNotification(id)
         }
         return true
+    }
+    /// The system relaunched the app in the background because uploads finished while it was closed.
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
+        OfflineUploader.shared.handleEvents(completion: completionHandler)
     }
     func registerPush(_ callback: @escaping (String?) -> Void) {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { [weak self] granted, _ in

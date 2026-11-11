@@ -4,6 +4,7 @@ import AuthenticationServices
 import CryptoKit
 import Security
 import UserNotifications
+import Network
 
 final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKDownloadDelegate, ASWebAuthenticationPresentationContextProviding {
     private let policy = OriginPolicy(Bundle.main.object(forInfoDictionaryKey: "PortalOrigin") as? String ?? "https://dev.1m8.ai")
@@ -14,6 +15,10 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
     private var downloadIDs: [String: String] = [:]
     private var authentication: ASWebAuthenticationSession?
     private var pendingNotificationId: String?
+    private let offlineScreen = OfflineScreen()
+    private let pathMonitor = NWPathMonitor()
+    private var failedURL: URL?
+    private var lastAutomaticRetry = Date.distantPast
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor { view.window! }
     private func nonce() -> String { var bytes = [UInt8](repeating: 0, count: 32); precondition(SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess); return encoded(Data(bytes)) }
     private func encoded(_ data: Data) -> String { data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "") }
@@ -24,6 +29,11 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.allowsInlineMediaPlayback = true
+        // App-Bound Domains (WKAppBoundDomains in Info.plist). WebKit runs a service worker in the web view of an app
+        // only for those domains and only in a web view limited to them; the offline code of the portal is a service
+        // worker. With the key present, this is also what keeps the bridge (script messages, evaluateJavaScript)
+        // and the cookie store working. Top-level navigation was already limited to the portal origin.
+        configuration.limitsNavigationsToAppBoundDomains = true
         configuration.userContentController.add(WeakMessageHandler(self), name: "firstmeasure")
         // The bridge is installed globally by WebKit, but every call validates its actual frame origin.
         web = WKWebView(frame: .zero, configuration: configuration)
@@ -33,12 +43,16 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
         web.translatesAutoresizingMaskIntoConstraints = false
         web.accessibilityIdentifier = "firstmeasure.portal"
         progress.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(web); view.addSubview(progress)
+        offlineScreen.translatesAutoresizingMaskIntoConstraints = false
+        offlineScreen.onRetry = { [weak self] in self?.retryLoad() }
+        view.addSubview(web); view.addSubview(progress); view.addSubview(offlineScreen)
         NSLayoutConstraint.activate([
             web.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             web.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
             web.leadingAnchor.constraint(equalTo: view.leadingAnchor), web.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            progress.topAnchor.constraint(equalTo: web.topAnchor), progress.leadingAnchor.constraint(equalTo: view.leadingAnchor), progress.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+            progress.topAnchor.constraint(equalTo: web.topAnchor), progress.leadingAnchor.constraint(equalTo: view.leadingAnchor), progress.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            offlineScreen.topAnchor.constraint(equalTo: web.topAnchor), offlineScreen.bottomAnchor.constraint(equalTo: web.bottomAnchor),
+            offlineScreen.leadingAnchor.constraint(equalTo: web.leadingAnchor), offlineScreen.trailingAnchor.constraint(equalTo: web.trailingAnchor)
         ])
         observation = web.observe(\.estimatedProgress, options: [.new]) { [weak self] web, _ in
             self?.progress.progress = Float(web.estimatedProgress); self?.progress.isHidden = web.estimatedProgress >= 1
@@ -48,9 +62,23 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
             for file in files where ((try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)?.timeIntervalSinceNow ?? 0) < -86400 { try? FileManager.default.removeItem(at: file) }
         }
         loadPortal()
+        // Load again by itself when a connection returns while the native screen is up.
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            guard path.status == .satisfied else { return }
+            DispatchQueue.main.async { self?.networkReturned() }
+        }
+        pathMonitor.start(queue: DispatchQueue(label: "ai.firstmeasure.mobile.network"))
+        NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { _ in
+            OfflineUploader.shared.sessionChanged()
+        }
     }
     private func loadPortal() { web.load(URLRequest(url: policy.origin.appendingPathComponent("portal/"))) }
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { deliverPendingNotification() }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        deliverPendingNotification()
+        // Someone may have signed in: uploads that waited for a session go again.
+        OfflineUploader.shared.sessionChanged()
+    }
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) { offlineScreen.isHidden = true }
     func openNotification(_ id: String) { pendingNotificationId = id; deliverPendingNotification() }
     private func deliverPendingNotification() {
         guard let id = pendingNotificationId, let web, policy.trusted(web.url),
@@ -78,7 +106,26 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
             decisionHandler(.download)
         } else { decisionHandler(.allow) }
     }
-    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { connectionError(error) }
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { loadFailed(error) }
+    /// The page could not be fetched at all (no connection, server unreachable): the native screen takes the place
+    /// of a blank web view. Other failures (a download taking over, a refused navigation) leave the page as it is.
+    /// Nothing the web view stored is touched.
+    private func loadFailed(_ error: Error) {
+        let failure = error as NSError
+        guard failure.domain == NSURLErrorDomain, failure.code != NSURLErrorCancelled else { return }
+        failedURL = failure.userInfo[NSURLErrorFailingURLErrorKey] as? URL
+        offlineScreen.isHidden = false
+        view.bringSubviewToFront(offlineScreen)
+    }
+    private func retryLoad() {
+        // Only a portal page is loaded again as it was; a failed sign-in exchange starts from the portal.
+        if let url = failedURL, policy.trusted(url), url.path.hasPrefix("/portal/") { web.load(URLRequest(url: url)) } else { loadPortal() }
+    }
+    private func networkReturned() {
+        guard isViewLoaded, !offlineScreen.isHidden, Date().timeIntervalSince(lastAutomaticRetry) > 3 else { return }
+        lastAutomaticRetry = Date()
+        retryLoad()
+    }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { connectionError(error) }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { webView.reload() }
     private func connectionError(_ error: Error) {
@@ -99,8 +146,10 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
               let id = call["id"] as? String, id.count <= 64 else { return }
         guard call["version"] as? Int == 1 else { reply(id, error: "unsupported_version"); return }
         let payload = call["payload"] as? [String: Any] ?? [:]
-        guard raw.utf8.count <= 32768 || call["method"] as? String == "saveFile" else { reply(id, error: "request_too_large"); return }
-        switch call["method"] as? String {
+        let method = call["method"] as? String
+        // A file chunk is 256 KB of data in base64; everything else but saveFile is small.
+        guard raw.utf8.count <= 32768 || method == "saveFile" || (method == "offlineUploads.put" && raw.utf8.count <= 400 * 1024) else { reply(id, error: "request_too_large"); return }
+        switch method {
         case "authenticate":
             let verifier = nonce(), state = nonce(), challenge = encoded(Data(SHA256.hash(data: Data(verifier.utf8))))
             let scheme = Bundle.main.bundleIdentifier!
@@ -118,7 +167,7 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
             }
             authentication?.presentationContextProvider = self
             if authentication?.start() == true { reply(id, result: true) } else { reply(id, error: "authentication_unavailable") }
-        case "info": reply(id, result: ["bridgeVersion": 1, "platform": "ios", "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0", "environment": Bundle.main.object(forInfoDictionaryKey: "AppEnvironment") as? String ?? "development", "capabilities": ["files", "camera", "liveCamera", "share", "download", "haptic", "settings", "push"]])
+        case "info": reply(id, result: ["bridgeVersion": 1, "platform": "ios", "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0", "environment": Bundle.main.object(forInfoDictionaryKey: "AppEnvironment") as? String ?? "development", "capabilities": ["files", "camera", "liveCamera", "share", "download", "haptic", "settings", "push", "offlineUploads", "photoLibrarySave", "offlineShell"]])
         case "pushStatus":
             UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
                 DispatchQueue.main.async { self?.reply(id, result: ["available": true, "granted": settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional]) }
@@ -151,6 +200,10 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
             let name = URL(fileURLWithPath: payload["name"] as? String ?? "download").lastPathComponent
             let file = phoneDirectory().appendingPathComponent(UUID().uuidString + "-" + String(name.suffix(120)))
             do { try bytes.write(to: file, options: .atomic); share([file]); reply(id, result: true) } catch { reply(id, error: "save_failed") }
+        case "offlineUploads.put", "offlineUploads.enqueue", "offlineUploads.status", "offlineUploads.ack", "offlineUploads.cancel", "photoLibrarySave":
+            OfflineUploader.shared.perform(method ?? "", payload: payload) { [weak self] result, error in
+                if let error { self?.reply(id, error: error) } else { self?.reply(id, result: result ?? NSNull()) }
+            }
         default: reply(id, error: "unsupported")
         }
     }

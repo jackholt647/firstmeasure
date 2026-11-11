@@ -1,0 +1,4 @@
+/* Text the native host shows by itself. Everything else is the portal's and is translated there.
+   Add a <language>.lproj copy of this file to translate it. */
+"offline.no_connection" = "No connection yet. Connect once to set this device up for offline use.";
+"offline.retry" = "Retry";

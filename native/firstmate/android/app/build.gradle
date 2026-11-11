@@ -10,8 +10,8 @@ android {
         applicationId 'ai.firstmeasure.mobile'
         minSdk 26
         targetSdk 36
-        versionCode 8
-        versionName '1.0.7'
+        versionCode 9
+        versionName '1.0.8'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     buildFeatures { buildConfig true }
@@ -31,7 +31,11 @@ android {
     }
     buildTypes { release { minifyEnabled false } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
-    testOptions { animationsDisabled true }
+    testOptions {
+        animationsDisabled true
+        // The JDK drops an Origin header unless told otherwise; Android's own HTTP stack sends it.
+        unitTests.all { systemProperty 'sun.net.http.allowRestrictedHeaders', 'true' }
+    }
 }
 dependencies {
     implementation 'androidx.camera:camera-camera2:1.5.3'
@@ -43,7 +47,11 @@ dependencies {
     implementation 'androidx.webkit:webkit:1.14.0'
     implementation 'androidx.activity:activity:1.10.1'
     implementation 'androidx.core:core:1.16.0'
+    // Background uploads that continue after the app is closed.
+    implementation 'androidx.work:work-runtime:2.10.3'
     testImplementation 'junit:junit:4.13.2'
+    // android.jar only has stubs of org.json; JVM tests of the upload store need the real one.
+    testImplementation 'org.json:json:20250517'
     androidTestImplementation 'androidx.test:runner:1.6.2'
     androidTestImplementation 'androidx.test:rules:1.6.1'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
