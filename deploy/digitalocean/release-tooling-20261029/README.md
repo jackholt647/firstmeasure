@@ -34,3 +34,32 @@ Every role keeps `3d1fdb12`. Republish it (`4e370cd7…`) to the channel before 
 ## Records
 
 Each release has a `deploy/digitalocean/production-hotfix-*.md` record on `production-live`.
+
+## Fast path: releases that don't change Node (FM-388, November 11)
+
+The scripts above are the October recipe. Runs since November take theirs from the previous run's folder
+(`/srv/agents/work/fm-<issue>-prodrun-scripts/` on fm-agents-1: `release.sh`, `web_rollout.sh`,
+`web_activate.py`, `worker_activate.py`, `compat_gate.sh`), which restart Node everywhere and wait at the
+compatibility gate. A release whose Node side is identical to the running one skips all of that:
+`fastpath/` switches `current` and reloads PHP-FPM on each host. The procedure, and why comparing only the
+built server is not enough, is in DEPLOYMENT.md on canonical, "Production run fast path (no Node change)".
+
+From the run's folder on fm-agents-1 (after `release.sh fetch`):
+
+    F=<this checkout>/deploy/digitalocean/release-tooling-20261029/fastpath
+    export NEW=<full release id> OLD=<full rollback target id>
+    bash $F/fastpath.sh decide        # exit 0: fast path; exit 3: full procedure (lists the Node files)
+    bash release.sh install; bash release.sh publish   # the run's own copies, as for a full release
+    bash $F/fastpath.sh web-install   # web_install.py on the six nodes; never web_rollout.sh (restarts Node)
+    bash $F/fastpath.sh tools         # copies the two host scripts to /root/fm-fastpath on all 8 hosts
+    bash $F/fastpath.sh check         # every host must say "fast path possible"; else full procedure
+    bash $F/fastpath.sh switch        # compat, web x6, worker; prints ACTIVATED=HH:MM:SS
+    bash $F/fastpath.sh verify        # current on 8 hosts, readiness 10/10, served sha256 over HTTPS
+    ACTIVATED=HH:MM:SS bash $F/fastpath.sh watch   # after 10+ minutes: 5xx vs the 30 min before
+    bash $F/fastpath.sh rollback      # same switch back; then republish the channel with the old archive
+
+`release-node-fingerprint.py` and `switch-release-files.py` here are copies; the driver uses canonical's
+`deploy/digitalocean/` (`/srv/agents/work/firstmeasure`) when it has them. `served.py` checks the changed
+static files over HTTPS; `rates.py` is the runs' 5xx counter (optional day argument after midnight).
+Readiness keeps reporting the release Node started in after a fast path: prove the switch with `current`
+and the served files, not with `release_id`.
