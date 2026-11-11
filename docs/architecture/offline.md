@@ -74,7 +74,17 @@ contract, or how the native hosts store files and upload in the background.
 
 The service worker loads the engine and contracts with `importScripts`, and
 the registration uses `updateViaCache: 'none'` so a changed engine or contract
-file is picked up at the next update check.
+file is picked up at the next update check. `contracts/index.js` sets
+`self.FM_OFFLINE_CONTRACTS`, the contract file names in load order; a contract
+file that fails to load is skipped and the rest still work.
+
+Only the top-level page registers the worker and replays the queue; project
+window frames use the same `PlatformOffline` and the same worker. The
+top-level page loads the engine and the contracts itself, when it first
+replays, with `fetch(..., { cache: 'no-cache' })` so it runs the server's
+current copy (the set's copy without a connection). The worker reports the
+engine's `FMOffline.version`; a page whose copy differs loads it again and
+does not replay until they match.
 
 ## Code on the device
 
@@ -100,9 +110,18 @@ hashes) answers
   catalog manifest no longer names, the call effects WASM and
   `/measure/internal`). The list is computed once per release per process and
   answered with an `ETag`.
+- `external` entries are whole URLs. One that ends with `*` is a prefix:
+  files under it (the icon fonts an external stylesheet loads) are cached
+  when first used. External files are best effort and never hold a set back.
 - `enabled: false` is the kill switch (`OFFLINE_ENABLED=0`, or the
-  `platform.offline` flag): the service worker removes its caches and
-  unregisters, and pages stop registering it.
+  `platform.offline` flag): the service worker removes its caches (`fm-*`)
+  and saved reads and unregisters, and pages stop registering it. Queued
+  changes are never removed by it. The top-level page reads the manifest
+  itself on every load and check: it registers the worker only when the
+  manifest names a release, and on `enabled: false` it unregisters the worker
+  and deletes the caches from the page, so the switch works even when the
+  worker cannot run. When the manifest cannot be reached an installed worker
+  stays as it is.
 
 ### Sets
 
@@ -126,6 +145,21 @@ active set as it is and is resumed at the next check. Requests match set
 entries by path only: `?v=` values are ignored, because the same file is
 requested under several of them.
 
+- The page fetches the manifest and hands it to the worker with the check;
+  the worker fetches it itself when it is given none. Checks run one after
+  another, so a later manifest is never answered by an earlier check.
+- Each stored file carries the sha256 of its bytes. Resuming skips every file
+  the new cache already holds with the listed hash; three network failures
+  in a row end the attempt until the next check.
+- A shell belongs to one person: the worker stores a page as a shell only
+  when it is a 200 HTML answer with `X-FirstMate-Identity` (whose page it is)
+  and, where `X-FirstMate-Release` is sent, the set's release. A login
+  redirect or an error page never qualifies, so a set does not become active
+  without a signed-in session. At a check of the active set the worker
+  fetches any shell the person signed in now does not have yet.
+- Sets a page still runs from (offline mode, below) are kept beside the
+  active and the previous one.
+
 ### Serving
 
 | Request | With a connection | Without |
@@ -136,13 +170,33 @@ requested under several of them.
 | Anything else | not answered by the worker | - |
 
 A navigation waits for the network 8 seconds (3.5 seconds when the last
-request failed) before the stored shell is used. A page that was served from
-the set is in **offline mode** for its lifetime: its files come from the set
-without waiting for the network.
+request failed) before the stored shell is used; with nothing stored it keeps
+waiting for the network. Any HTTP answer is an answer: a 503 from the server
+is shown, not replaced. A page that was served from the set is in **offline
+mode** for its lifetime: its files come from the set without waiting for the
+network. Which pages are in offline mode is kept in the `meta` store by
+client id, so it survives the worker being stopped; a frame opened by such a
+page (a project window) is served from the same set.
 
-`index.php` sends `X-FirstMate-Release` and loads `platform-offline.js`
-before other libraries. The shell is the server-rendered page as that person
-last received it, so its user data, feature gates and script list are theirs.
+`index.php` and `mobile/index.php` send two headers (`portal/offline-shell.php`)
+and load `platform-offline.js` first, right after `window.__APP`:
+
+- `X-FirstMate-Release`: the release the page was rendered from, the name the
+  manifest reports. While a release is being switched a page still rendered
+  by the previous release names that one. Not sent from a local checkout.
+- `X-FirstMate-Identity`: `<user id>/<organization id>`, each URL-encoded.
+
+The shell is the server-rendered page as that person last received it, so its
+user data, feature gates and script list are theirs. There is one shell per
+path and person: PHP renders the same page for `?projectWindow=`, `?tab=` and
+every query the browser code reads. A navigation whose query changes what PHP
+renders (`project`, `projectTab`, `photoScope`, `onboarding`, `paid`,
+`tutorial`) is served but does not replace the shell.
+
+The built-in "connect once" page (status 503) uses the language keys
+`platform-offline.connect_once_title`, `_body` and `_retry`, which the page
+sends the worker once the catalog is loaded; its button is the only reload,
+and a person presses it.
 
 ## Saved reads
 
@@ -154,26 +208,48 @@ declares it (`reads`: `portal-action` read actions, publication
 `data/read`, `data/list`, `widgets/resolve`), keyed by the body fields the
 contract names.
 
+- **Whose read it is.** A request is saved, answered or queued under the
+  identity its own page declared (the worker keeps identity per client id).
+  A request from a page that has not said who is signed in is not answered
+  by the worker at all.
 - **Network first.** The saved answer is used only when the request fails or
   does not answer within 8 seconds (1.5 seconds when the last request
   failed); the network answer still updates the saved copy when it arrives.
-  An answer served from the device has `X-FM-Offline: saved` and
-  `X-FM-Saved-At`.
+  Any answer restores the long wait. An answer served from the device has
+  `X-FM-Offline: saved` and `X-FM-Saved-At`. Only a 200 JSON answer of at
+  most 20 MB is saved; requests with `Accept: text/event-stream` or a `Range`
+  header are not answered.
+- **Key.** `METHOD path?query`: the origin is dropped, cache-buster
+  parameters (`_`, `_t`, `_ts`, `_cb`, `cb`, `cachebust`, `cache_bust`,
+  `nocache`) are removed, and the rest are sorted by name, values of one name
+  keeping their order. A declared `POST` read adds the read's id and the
+  contract's `key(ctx)` as JSON with sorted keys.
 - **Store.** IndexedDB database `fm-offline-v1`, store `responses`, key
   `[user, org, key]`, with size and last-used time. Default budget 150 MB,
-  least recently used first; a pinned project's reads and the boot reads are
-  never evicted.
+  least recently used first; a pinned project's reads and the boot reads
+  (routes a contract lists under `boot`) are never evicted. The budget is
+  checked after each megabyte written and eviction stops at 90% of it; last
+  use is recorded at most once an hour per read.
 - **Media files** (`/media/:id/file?variant=`) are kept in the cache
   `fm-media-v1` and served from it first (a variant never changes; a markup
-  variant carries its revision). Thumbnails are always kept; larger variants
-  only up to 8 MB each. Default budget 300 MB, least recently used first,
-  pinned projects exempt. The server sends `Cache-Control: private,
+  variant carries its revision). A request without `variant` goes to the
+  network first. Thumbnails (a variant that starts with `thumb`) are always
+  kept; other variants only up to 8 MB each: a file that announces a larger
+  length is not copied, and one of unknown length is read only up to the
+  limit. Files are kept per person (cache key `/.fm-media/<user>/<org>/...`,
+  index in the `media` store). Default budget 300 MB, least recently used
+  first, pinned projects exempt. The server sends `Cache-Control: private,
   max-age=31536000, immutable` for a variant.
 - **Pinned projects.** `PlatformOffline.pinProject(org, project)` runs every
   contract's `prefetch` for that project (the project, its lists, its
   documents, its thumbnails) and repeats it when the connection returns and
   every 15 minutes while a page is open. The ten most recently opened
-  projects are pinned automatically (setting `autoPinRecent`).
+  projects are pinned automatically (setting `autoPinRecent`): the app calls
+  `pinProject(org, project, { auto: true })` when a project is opened, and
+  the oldest automatic pins beyond ten are let go. A pin the person made is
+  never dropped for them. A read that cannot be fetched during a refresh
+  stays pinned from the last time.
+- **Budgets** are the device settings `readsBudgetMb` and `mediaBudgetMb`.
 
 There is no change feed yet: a refresh re-reads the pinned set
 (see the optimization backlog).
@@ -187,12 +263,14 @@ A contract file registers what an app can do offline:
 ```js
 FMOffline.contracts.add({
   id: 'project.notes',
-  deny: [],                                   // GET patterns never saved
+  deny: [],                                   // routes the worker never saves, answers or queues
+  boot: [],                                   // GET patterns of boot reads, never evicted
   reads: [ /* POST reads: { id, match, when(ctx), key(ctx) } */ ],
-  prefetch: [ /* (ctx:{org,project,user}) => urls, or { url, each(json) => urls } */ ],
+  prefetch: [ /* (ctx:{org,project,user}) => urls, or { url, each(json, ctx) => urls } */ ],
   writes: [{
     id: 'notes.post',
     match: 'POST /v1/channels/organizations/:org/channels/:channel/messages',
+    when: (ctx) => true,                      // optional: for routes that carry several actions
     kind: 'create',                           // create | action | patch | upload | delete
     scope: (ctx) => `project:${ctx.body.project_id}`,   // entries of one scope replay in order
     label: (ctx) => ({ title: 'Note', detail: ctx.body.text.slice(0, 80) }),
@@ -202,6 +280,8 @@ FMOffline.contracts.add({
     effects: (ctx) => [{ match: 'GET /v1/channels/organizations/:org/channels/:channel/messages',
                          when: (m) => m.channel === ctx.params.channel,
                          apply: (json) => ({ ...json, messages: [...json.messages, ctx.response.message] }) }],
+    // kind 'upload' only, optional: which media ids the form's files stand for
+    media: (ctx) => [{ id: ctx.body.id, field: 'file' }],
     // kind 'patch' only:
     conflict: { current: (ctx) => url, pick: (json) => ({ doc, revision }),
                 fields: (ctx) => ['title', 'address'], send: (ctx, merged, revision) => body }
@@ -210,10 +290,27 @@ FMOffline.contracts.add({
 ```
 
 `ctx` is `{ method, url, params, query, body, headers, user, org, now, id,
-response, saved(url) }`: `body` is the parsed JSON or the form fields (files
-as `{ name, type, size, blob }`), `id` is the entry's idempotency key,
-`response` is what `respond` returned, `saved(url)` reads a saved answer.
-Contract functions are pure and may be async; they run in the worker.
+response, saved(url) }`: `url` is the path and query, `body` is the parsed
+JSON or the form fields (files as `{ name, type, size, blob }`), `headers`
+has lower-case names, `id` is the entry's idempotency key, `response` is what
+`respond` returned, `saved(url)` resolves the saved answer of a `GET` as the
+person would see it (earlier queued changes applied) or `null`. Contract
+functions are pure and may be async; they run in the worker, and in the
+top-level page when it replays.
+
+- **Patterns** are `[METHOD ]/path`: `:name` and `*` match one segment, `**`
+  any number. A `deny` pattern without a method covers every method;
+  `FMOffline.contracts.deny(...patterns)` adds some outside a contract.
+- The first write whose route and `when(ctx)` match is used, then the first
+  read. An effect's `when(m, read)` gets the read's route parameters and
+  `read = { method, path, url, query, body, key }`.
+- Without `scope` the scope is `default`. Without `media`, an `upload`'s
+  first file stands for `records(ctx)[0]`. Without `conflict.fields`, the
+  body's keys; `conflict.mine(ctx, base)` may build the person's document
+  when the body is not a plain set of fields.
+- A contract function that throws while a request is handled makes that
+  request behave as if there were no contract. An effect that throws is
+  skipped; it never breaks a read.
 
 A contract's routes are checked against the server's registered routes by
 `tests/offline-contracts.test.ts`.
@@ -233,6 +330,19 @@ For a request that matches a write contract the service worker
 
 A write that matches no contract and fails on the network is answered
 `503 { ok: false, error: "offline_unavailable" }`.
+
+- "Known to be offline" is `navigator.onLine === false`. A scope has entries
+  waiting while one of its entries is `waiting` or `delegated`, or is a
+  failed or parked `create`.
+- An `Idempotency-Key` the app sent is kept when it starts with `fmo1-`.
+- An entry keeps the request's headers except cookies, the CSRF token and
+  the multipart boundary; those are set again when it is sent.
+- An entry is `waiting`, `delegated`, `failed`, `parked` or `conflict`.
+- A change that cannot be stored is answered `507 offline_storage_full`
+  (no room) or `503 offline_unavailable`; an answer the worker made itself
+  has `X-FM-Offline` (`saved`, `queued`, `set`, `shell`, `unavailable`,
+  `storage-full`, `connect-once`).
+- A page aborting its request is never a reason to queue it.
 
 ### Replay
 
@@ -258,6 +368,42 @@ through by the worker.
 A failed `create` holds the rest of its scope (later entries need the record);
 other failures do not.
 
+- **The lock** is held for one run: until no entry is due. Entries in
+  backoff wait for a later run and the lock is free in between, so another
+  tab can take over when this one closes. A browser without Web Locks runs
+  without one; the idempotency keys keep that safe.
+- **No answer stops the run**: what was not already on its way is not sent
+  into a dead connection. `PlatformOffline.syncNow()` and the browser's
+  `online` event send entries that wait in backoff at once; `syncNow()` also
+  lifts a sign-in pause. A sync that was asked for runs after one already on
+  its way, never instead of it.
+- **CSRF.** The token is never stored with an entry. A page reads the
+  readable cookie when a run starts, and again for the one retry after
+  `csrf_required`. For Background Sync the page tells the worker the cookie's
+  name with its identity and the worker reads it with the Cookie Store API;
+  where that API is missing the worker does not replay and the queue waits
+  for a page.
+- **Keys.** An entry is sent under the key it was queued with. Three cases
+  get a new `fmo1-` key, because the server keeps the first answer for a key
+  and a body: a merged `patch` body the server has not seen, a retry by the
+  person after a 4xx, a parked entry when it is sent again, and a 401 or
+  `csrf_required` that came back as a stored answer
+  (`Idempotency-Replayed`). In each the first request did not run. The
+  server should not store 401 or `csrf_required` answers as receipts.
+- **Sign-in pause and parked entries** are lifted when a page of the same
+  person loads (its identity message): PHP rendered it, so they are signed
+  in.
+- **Re-reads.** After a 2xx the saved reads the entry's effects match are
+  read again, at most 25 per entry; the rest are refreshed the next time
+  they are read online.
+- A `patch` whose merge leaves nothing to change (the first send arrived but
+  its answer was lost) is removed without a request; `synced` then has
+  `response: null`. After three repeated merges a 409 waits like no answer.
+- **Native hand-off.** `FMOffline.queue.delegate(id, info)` marks an entry
+  `delegated`; its scope waits. `FMOffline.replay.report(id, response)`
+  applies the host's answer (a `Response`, or `null` for none) by the table
+  above.
+
 ### Overlays
 
 While an entry is waiting, failed or in conflict, its `effects` are applied to
@@ -276,20 +422,37 @@ times). A conflict waits in the sync tray, where the person keeps theirs or
 the server's value per field. Additive changes (`create`, `action`, `upload`)
 never conflict.
 
+- `merge3` returns `{ value, conflicts: [{ path, base, mine, theirs }] }`.
+  Paths look like `title`, `address.city` and `items.#12.qty` (`#12` is the
+  item with id 12); two different reorders of one list conflict at
+  `items.#order`. Until it is settled a conflict's `value` is mine.
+- `PlatformOffline.resolve(id, choices)` takes `{ '<path>': 'mine' |
+  'theirs' }` for every path the conflict lists; the entry is then merged
+  with the server's document as it is at that moment and sent.
+- `base` is what `conflict.pick` returns for `ctx.saved(conflict.current)`
+  when the change is made, so a second offline edit of a record starts from
+  the first. Where the record was never saved there is no base: the person's
+  values are sent with the server's current revision.
+
 ## Photos and files
 
 - A queued upload keeps its file in the `blobs` store (IndexedDB) and its
   record id is made on the device (`media.upload` sends `id` unless it
   replaces a slot), so the queued photo, its place in the project's photo
   list and its later upload are the same record.
-- While it waits, the worker answers that media id's file requests from the
-  stored file, so the app's ordinary thumbnail URLs work.
+- While it waits, the worker answers that media id's file requests (any
+  variant, and `Range` requests) from the stored file, so the app's ordinary
+  thumbnail URLs work. The contract's `media(ctx)` names the id; by default
+  an `upload`'s first file stands for its first record.
 - When it is uploaded the original is deleted from the device; a 640 px copy
-  made at capture goes into the media cache under the thumbnail URLs.
+  made at capture goes into the media cache under the thumbnail URLs
+  (`FMOffline.media.put(identity, url, blob)`).
 - Capture time is sent as `metadata.taken_at`, set when the photo was taken,
   not when it was uploaded.
-- Free space is checked before a file is queued (`navigator.storage`); with
-  too little the write fails with `offline_storage_full`.
+- Free space is checked before a file is queued (`navigator.storage`): the
+  browser must report room for the files plus 10 MB. With less the write is
+  answered `507 { ok: false, error: "offline_storage_full" }` and nothing is
+  queued. A change without a file is always queued.
 - **Camera roll.** Capture never writes to the camera roll. The device
   setting `saveToCameraRoll` (off by default) saves a copy through the native
   bridge (`photoLibrarySave`); a browser cannot, so the setting is shown only
@@ -308,13 +471,21 @@ never conflict.
 
 - The page tells the worker who is signed in (`identity` message from
   `window.__APP`: user, organization). Nothing is saved or queued before
-  that.
-- **Sign-out** (`logout.php`, or `PlatformOffline.signedOut()`) removes that
-  person's shells and saved reads from the device. Queued changes stay and
-  are sent only after the same person signs in again; the sign-out flow warns
-  when changes are waiting.
+  that, and each page's requests are kept under the identity that page
+  declared. The last identity declared is the person "signed in on this
+  device", whose shell an offline navigation gets.
+- **Sign-out** is the navigation to `/portal/logout.php`, which the worker
+  sees (every sign-out link and script goes there; `logout.php` itself needs
+  no code), or `PlatformOffline.signedOut()`. It removes that person's
+  shells, saved reads, media files and pinned downloads from the device, in
+  every organization, also when the server cannot be reached. The list of
+  pinned projects stays and is downloaded again after sign-in. Queued
+  changes stay and are sent only after the same person signs in again; the
+  sign-out flow warns when changes are waiting.
 - Replayed requests carry the identity they were queued under and the server
-  refuses a mismatch (`offline_identity_mismatch`); the header grants nothing.
+  refuses a mismatch (`offline_identity_mismatch`); the header grants
+  nothing. A run sends only the entries of the person it runs for; another
+  person's entries are not sent, shown or counted.
 - The device's own storage encryption protects the data at rest; the engine
   adds none.
 - Storage is requested to be persistent (`navigator.storage.persist()`) when
@@ -358,9 +529,9 @@ engine update with every platform release.
 
 ```js
 PlatformOffline.ready                        // resolves with state()
-PlatformOffline.state()                      // { supported, controlled, online, pending, failed, conflicts, syncing,
+PlatformOffline.state()                      // { supported, controlled, online, pending, failed, conflicts, syncing, blocked,
                                              //   lastSyncAt, code: { release, status, progress }, storage }
-PlatformOffline.on(event, handler)           // 'state' | 'queued' | 'synced' | 'failed' | 'conflict' | 'code'
+PlatformOffline.on(event, handler)           // 'state' | 'queued' | 'synced' | 'failed' | 'conflict' | 'discarded' | 'code'
 PlatformOffline.pending({ scope, record })   // queue entries
 PlatformOffline.isPending(recordId)
 PlatformOffline.retry(id); PlatformOffline.discard(id); PlatformOffline.resolve(id, choices)
@@ -369,6 +540,37 @@ PlatformOffline.pinProject(org, project); PlatformOffline.unpinProject(org, proj
 PlatformOffline.settings.get(name); PlatformOffline.settings.set(name, value)
 PlatformOffline.signedOut()
 ```
+
+- **`state()`** is a copy, kept current in every frame. `online` is false
+  when the browser says so or the last request got no answer. `pending`
+  counts entries that will be sent without the person (`waiting`,
+  `delegated`), `failed` those waiting for them (`failed`, `parked`),
+  `conflicts` those waiting on a choice. `blocked` is `'sign-in'` while the
+  queue is paused, else `null`. `code.status` is `none`, `downloading`,
+  `ready` or `disabled`; while a newer set downloads, `code.release` is still
+  the active one and `code.next` names the new one.
+- **`state().storage`** is in bytes: `{ quota, usage, persisted, reads,
+  media, queued, budgets: { reads, media } }`. `quota` and `usage` are the
+  browser's estimate for the whole site, `persisted` whether it granted
+  persistent storage, `reads`, `media` and `queued` what saved reads, cached
+  media files and waiting changes (their bodies and files) take. It is
+  measured when a page loads.
+- **Events.** `on` returns a function that stops listening. `queued`,
+  `failed`, `conflict` and `discarded` carry the entry; `synced` adds
+  `status` and `response`, the server's real answer; `conflict` adds
+  `fields`; `code` carries `state().code`. A page hears only the events of
+  the person signed in on it.
+- **Entries** (`pending()`, a promise, and the events) are `{ id, contract,
+  write, kind, scope, label, records, state, attempts, error: { status, code,
+  message }, conflict: { revision, fields }, createdAt, nextAt }`.
+- `retry`, `discard`, `resolve`, the pin calls, `settings.set`, `signedOut`
+  and `checkForUpdate` return promises; `settings.get` and `isPending`
+  answer at once. `syncNow()` resolves `{ sent, blocked }`.
+- **Settings** are per device: `saveToCameraRoll` (false), `autoPinRecent`
+  (true), `readsBudgetMb` (150), `mediaBudgetMb` (300).
+- `pinProject(org, project, { auto: true })` marks a project as recently
+  opened; `pinned()` resolves `[{ org, project, auto, at, refreshedAt, reads,
+  media }]`.
 
 ## Adding offline support to an app
 
@@ -388,11 +590,18 @@ PlatformOffline.signedOut()
 - A change feed for refreshing pinned projects without re-reading them.
 - Resumable uploads for very large files (a failed upload starts again).
 - Offline sign-in (a person must have signed in on the device while online).
+- Re-reading a declared `POST` read after a sync sends its text fields
+  URL-encoded, also when the app sent them as a multipart form.
 - The measure editor (`/measure/internal`) and pages outside `/portal/`.
 
 ## Tests
 
-`tests/offline-core.test.mjs`, `tests/offline-sw-browser.test.mjs` (root),
+`tests/offline-core.test.mjs` (the engine case by case, with a Map for the
+store and a scripted server: `node --test tests/offline-core.test.mjs`),
+`tests/offline-sw-browser.test.mjs` (the real worker, engine and page API in
+headless Chrome against a local server that can drop every connection:
+`node --test tests/offline-sw-browser.test.mjs`, with `public/v1/node_modules`
+installed and `CHROME_PATH` where Chrome is elsewhere),
 `public/v1/tests/offline-idempotency.test.ts`,
 `public/v1/tests/offline-assets.test.ts`,
 `public/v1/tests/offline-contracts.test.ts`.
