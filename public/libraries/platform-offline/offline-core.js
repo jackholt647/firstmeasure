@@ -55,7 +55,9 @@
     identity: () => meta.get('identity', null),
     csrf: async () => '',
     estimate: async () => (root.navigator && root.navigator.storage && root.navigator.storage.estimate ? root.navigator.storage.estimate() : {}),
-    online: () => !(root.navigator && root.navigator.onLine === false)
+    online: () => !(root.navigator && root.navigator.onLine === false),
+    // True for an entry something else will send (the native app's uploader): replay leaves it and its scope waits.
+    external: () => false
   };
   function configure(options) {
     for (const [name, value] of Object.entries(options || {})) {
@@ -958,7 +960,11 @@
     async handle(request, url, identity, file, options) {
       const waitUntil = (options && options.waitUntil) || (() => {});
       const queued = await queue.blob(identity, file.id).catch(() => null);
-      if (queued) return blobResponse(queued, request.headers.get('range'));
+      if (queued) {
+        // A grid of waiting photos shows the small copies made when they were queued, not twenty full-size files.
+        const small = media.isThumb(url) && !request.headers.has('range') ? await media.cached(identity, url).catch(() => null) : null;
+        return small || blobResponse(queued, request.headers.get('range'));
+      }
       if (request.headers.has('range')) return config.fetch(request).catch((error) => { throw netError(error); });
       // Only an answer the server marked immutable (a rendition, a markup thumbnail with its revision) is served
       // from the device first. A logo, an avatar or an original can change under the same URL: network first.
@@ -1020,9 +1026,13 @@
     },
     written: 0,
 
-    /** Puts a file under a media URL, for example the small copy made when a photo is taken. */
-    put(identity, target, blob) {
-      return media.store(identity, new URL(target, ORIGIN), new Response(blob, { headers: { 'Content-Type': blob.type || 'application/octet-stream' } }), { fixed: true });
+    /**
+     * Puts a file under a media URL, for example the small copy made when a photo is taken. It is served from the
+     * device first, like a rendition; `options.fixed: false` keeps it only for when the server cannot be reached
+     * (an original, which the server may replace).
+     */
+    put(identity, target, blob, options) {
+      return media.store(identity, new URL(target, ORIGIN), new Response(blob, { headers: { 'Content-Type': blob.type || 'application/octet-stream' } }), { fixed: !(options && options.fixed === false) });
     },
 
     async remove(key) {
@@ -1307,6 +1317,7 @@
       if (run.stop) return;
       if (entry.state === 'delegated') return;                       // the host is uploading it; the scope keeps its order
       if (entry.state !== 'waiting') { if (holds(entry)) return; continue; }
+      if (config.external(queue.public(entry))) return;              // about to be handed to the host: never sent from here
       if (entry.nextAt > config.now()) return;
       const outcome = await sendEntry(run, entry).catch(() => 'later');
       if (outcome === 'done') continue;

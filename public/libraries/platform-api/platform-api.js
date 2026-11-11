@@ -114,6 +114,7 @@
       credentials: options.credentials || 'include',
       headers: requestHeaders(options, body)
     });
+    if (typeof options.onResponse === 'function') { try { options.onResponse(res); } catch (_) {} }
     const text = await res.text();
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch(e) {}
@@ -1320,7 +1321,108 @@
     }
   };
 
+  // ---- Photos that may wait on the device (docs/architecture/offline.md, "Photos and files") ----
+  // An upload that does not replace a slot names its own record ("media_" + 16 hex, the server's format), so the
+  // same file sent again to the same owner replaces the record instead of adding a second one, and a photo queued
+  // without a connection is the same record in the grid, in the project's photo list and on the server.
+  const uploadIds = new WeakMap();
+  function newMediaId(){
+    const bytes = new Uint8Array(8);
+    if (root.crypto?.getRandomValues) root.crypto.getRandomValues(bytes); else bytes.forEach((_, index) => { bytes[index] = Math.floor(Math.random() * 256); });
+    return `media_${[...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+  }
+  function uploadIdFor(file, owner){
+    if (!file || typeof file !== 'object') return newMediaId();
+    if (!uploadIds.has(file)) uploadIds.set(file, new Map());
+    const ids = uploadIds.get(file);
+    if (!ids.has(owner)) ids.set(owner, newMediaId());
+    return ids.get(owner);
+  }
+  // When a photo was taken: what the caller knows (the camera's shot time), else the file's own time.
+  function takenAtFor(file, given){
+    const now = Date.now();
+    const time = given != null && given !== '' ? new Date(given).getTime() : Number(file?.lastModified);
+    return new Date(Number.isFinite(time) && time > 0 && time <= now + 86400000 ? time : now).toISOString();
+  }
+  const OFFLINE_THUMBNAIL_EDGE = 640;
+  const OFFLINE_THUMBNAIL_VARIANTS = ['thumb_320', 'thumb_640'];
+  const SERVER_THUMBNAIL_MIN_EDGE = 1024;
+  const OFFLINE_ORIGINAL_MAX_BYTES = 8 * 1024 * 1024;
+  // A JPEG copy of a picture, at most `edge` pixels on its longer side, drawn the way the picture is shown (EXIF
+  // orientation applied). Resolves { blob, width, height } with the picture's own size, or null when this browser
+  // cannot decode the file.
+  async function smallImageCopy(file, edge = OFFLINE_THUMBNAIL_EDGE){
+    let source = null, release = () => {};
+    try {
+      if (typeof root.createImageBitmap === 'function') {
+        try { source = await root.createImageBitmap(file, { imageOrientation: 'from-image' }); release = () => source.close?.(); } catch (_) { source = null; }
+      }
+      if (!source) {
+        const objectUrl = URL.createObjectURL(file);
+        release = () => URL.revokeObjectURL(objectUrl);
+        source = await new Promise((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = () => reject(new Error('undecodable')); image.src = objectUrl; });
+      }
+      const width = source.naturalWidth || source.width, height = source.naturalHeight || source.height;
+      if (!width || !height) return null;
+      const scale = Math.min(1, edge / Math.max(width, height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(source, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+      return blob ? { blob, width, height } : null;
+    } catch (_) {
+      return null;
+    } finally {
+      release();
+    }
+  }
+  // A queued photo's original leaves the device once it is uploaded. This keeps a small copy under the thumbnail
+  // URLs the grid and the feed ask for, so the picture stays on the device without being downloaded again. A
+  // picture the server makes no thumbnails for (small, GIF, SVG) is shown from its original, so that is kept.
+  async function keepOfflineCopy(orgId, record, file){
+    const put = root.PlatformOffline?.media?.put;
+    const id = cleanText(record?.id);
+    const type = cleanText(file?.type).toLowerCase();
+    if (typeof put !== 'function' || !id || !type.startsWith('image/')) return [];
+    const target = (variant) => { const parsed = new URL(media.fileUrl(orgId, id, variant), location.href); return parsed.pathname + parsed.search; };
+    const keepOriginal = () => (file.size <= OFFLINE_ORIGINAL_MAX_BYTES ? [put(target('original'), file, { fixed: false })] : []);
+    try {
+      let puts;
+      if (type === 'image/svg+xml' || type === 'image/gif') puts = keepOriginal();
+      else {
+        const copy = await smallImageCopy(file);
+        if (!copy) return [];
+        puts = Math.max(copy.width, copy.height) >= SERVER_THUMBNAIL_MIN_EDGE
+          ? OFFLINE_THUMBNAIL_VARIANTS.map((variant) => put(target(variant), copy.blob))
+          : keepOriginal();
+      }
+      return await Promise.all(puts.map((pending) => Promise.resolve(pending).catch(() => false)));
+    } catch (_) {
+      return [];
+    }
+  }
+  // What a person can do about an upload the device could not keep.
+  function offlineUploadError(error){
+    const code = cleanText(error?.data?.error || error?.data?.code);
+    if (code === 'offline_storage_full') {
+      error.code = code;
+      error.message = root.PlatformLanguage?.text?.('platform-api', 'offline_storage_full', 'This device is out of space, so this was not saved. Connect to the internet so the photos that are waiting can upload, or lower the picture storage in the offline settings.')
+        ?? 'This device is out of space, so this was not saved. Connect to the internet so the photos that are waiting can upload, or lower the picture storage in the offline settings.';
+    } else if (code === 'offline_unavailable') {
+      error.code = code;
+      error.message = root.PlatformLanguage?.text?.('platform-api', 'offline_upload_unavailable', 'There is no connection, and this file cannot wait on this device. Try again when you are back online.')
+        ?? 'There is no connection, and this file cannot wait on this device. Try again when you are back online.';
+    }
+    return error;
+  }
+
   const media = {
+    newId: newMediaId,
+    smallImageCopy,
     list(orgId, options = {}){
       const params = new URLSearchParams();
       const projectId = options.projectId || options.project_id;
@@ -1345,7 +1447,14 @@
         if (value === undefined || value === null || value === '') return;
         fd.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
       };
-      appendText('id', options.id);
+      // A slot upload (a logo, an avatar) is named by its slot on the server; every other upload names itself.
+      const replacesSlot = [true, 'true', 1, '1'].includes(options.replaceSlot ?? options.replace_slot);
+      const owner = [options.ownerType || options.owner_type, options.ownerId || options.owner_id, options.slot].map(cleanText).join('|');
+      const visual = /^(image|video)\//i.test(cleanText(file?.type));
+      const metadata = !replacesSlot && visual
+        ? { ...(options.metadata || {}), taken_at: cleanText(options.metadata?.taken_at) || takenAtFor(file, options.takenAt ?? options.taken_at) }
+        : options.metadata;
+      appendText('id', cleanText(options.id) || (replacesSlot ? '' : uploadIdFor(file, owner)));
       appendText('owner_type', options.ownerType || options.owner_type);
       appendText('owner_id', options.ownerId || options.owner_id);
       appendText('slot', options.slot);
@@ -1355,9 +1464,19 @@
       appendText('thumbnails', options.thumbnails);
       appendText('compression', options.compression);
       appendText('markup', options.markup);
-      appendText('metadata', options.metadata);
+      appendText('metadata', metadata);
       appendText('processing', options.processing);
-      return request(orgPath(orgId, '/media'), { method: 'POST', body: fd });
+      // Without a connection the offline worker keeps a photo and answers as the server would; `queued` then
+      // names the waiting change (PlatformOffline.pending, retry, discard).
+      let queued = '';
+      return request(orgPath(orgId, '/media'), { method: 'POST', body: fd, onResponse: (response) => { queued = cleanText(response.headers.get('X-FM-Offline-Queued')); } })
+        .then((result) => {
+          if (queued && result && typeof result === 'object') {
+            result.queued = queued;
+            result.offlineCopy = keepOfflineCopy(orgId, result.media || result, file);
+          }
+          return result;
+        }, (error) => { throw offlineUploadError(error); });
     },
     /*
      * Build a storable document field reference from a media upload response.
@@ -2616,7 +2735,8 @@
           ...(options.mediaMetadata || options.metadata || {})
         },
         processing: options.processing,
-        fileField: options.fileField
+        fileField: options.fileField,
+        takenAt: options.takenAt
       });
       const reference = media.referenceFromUpload(upload, {
         owner: { collection: 'projects', id: projectId, field: 'photos' },
@@ -2653,7 +2773,8 @@
         source: options.source || (type === 'video' ? 'project_video_upload' : 'project_photo_upload'),
         ...(options.documentMetadata || {})
       });
-      return { ok: true, upload, media: upload.media, reference, photo, document: saved.document };
+      // `queued`: the photo is on this device and uploads when there is a connection (the waiting change's id).
+      return { ok: true, upload, media: upload.media, reference, photo, document: saved?.document, queued: upload.queued || '' };
     },
     async uploadPhoto(orgId, projectId, project, file, options = {}) {
       return projectMedia.uploadMedia(orgId, projectId, project, file, options);

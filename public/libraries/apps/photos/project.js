@@ -1501,7 +1501,21 @@
     return false;
   }
 
-  // options.rethrow: a failed upload is removed and thrown (the camera shows Retry) instead of kept as a local preview.
+  // Why a photo was not added, in words a person can act on (the device is out of space, or the server refused it).
+  function uploadFailureToast(error, file){
+    const full = error?.code === 'offline_storage_full';
+    showToast(
+      full
+        ? (globalThis.PlatformLanguage?.text("photos","offline_device_full_title","This device is out of space") ?? "This device is out of space")
+        : (globalThis.PlatformLanguage?.text("photos","upload_failed_title","Photo not added") ?? "Photo not added"),
+      [file?.name, error?.message || (globalThis.PlatformLanguage?.text("photos","upload_failed_body","It could not be uploaded. Try again.") ?? "It could not be uploaded. Try again.")].filter(Boolean).join(': '),
+      false
+    );
+  }
+
+  // Without a connection a photo waits on this device (the offline queue) and is in the gallery at once, marked as
+  // waiting; it uploads by itself later. options.rethrow: a refused upload is removed and thrown (the camera shows
+  // Retry); otherwise the person is told why it was not added. Nothing is kept as a preview that never uploads.
   async function addPhotoFiles(fileList, options = {}){
     const files = [...(fileList || [])].filter(isAcceptedProjectMediaFile);
     if (!files.length) return [];
@@ -1540,6 +1554,7 @@
           const photo = result?.photo;
           if (photo) {
             const normalizedPhoto = library.normalizePhotos([photo], firstMeasurePhotoOptions())[0] || photo;
+            if (result.queued) Portal.PhotoFeed?.markWaitingMedia?.(projectPhotoId(normalizedPhoto));
             replaceUploadPlaceholder(placeholder.id, normalizedPhoto);
             const current = projectPhotosList();
             const pending = current.filter((entry) => entry?.uploading);
@@ -1577,11 +1592,10 @@
             renderPhotoGallery();
             throw error;
           }
-          console.warn('Project photo upload failed; using local preview photo instead.', error);
-          const local = normalizePhoto(file, projectPhotosList().length + added.length);
-          replaceUploadPlaceholder(placeholder.id, local);
-          added.push(local);
+          console.warn('Project photo upload failed.', error);
+          removeUploadPlaceholder(placeholder.id);
           renderPhotoGallery();
+          uploadFailureToast(error, file);
         }
       }
     } else {
@@ -1599,6 +1613,59 @@
     window.persistActiveBaseProject?.();
     return added;
   }
+
+  // ---- Photos that waited on this device (docs/architecture/offline.md, "Photos and files") ----
+  // The photo is already in the gallery under its own id, shown from the file the device holds. When its upload
+  // arrives the record takes the server's values; the tile keeps its picture, so nothing flashes or doubles.
+  function tileSource(photo){
+    const variants = photo?.variants;
+    const hasThumb = !variants || (Array.isArray(variants) ? variants.includes('thumb_320') : Object.prototype.hasOwnProperty.call(variants, 'thumb_320'));
+    return hasThumb ? 'thumb_320' : 'original';
+  }
+  function applyUploadedMedia(mediaRecord){
+    const id = String(mediaRecord?.id || '').trim();
+    const photos = projectPhotosList();
+    const current = photos.find((photo) => projectPhotoId(photo) === id);
+    if (!id || !current) return;
+    const next = {
+      ...current,
+      variants: Object.keys(mediaRecord.variants || {}),
+      size_bytes: Number(mediaRecord.size_bytes || current.size_bytes || 0),
+      updated_at: mediaRecord.updated_at || current.updated_at,
+      metadata: { ...(current.metadata || {}), ...(mediaRecord.metadata || {}), ...(mediaRecord.variants?.thumb_320 ? { thumbnail_variant:'thumb_320' } : {}) }
+    };
+    if (!mediaRecord.variants?.thumb_320) delete next.metadata.thumbnail_variant;
+    setProjectPhotosList(photos.map((photo) => photo === current ? next : photo));
+    const project = activeProject();
+    if (project) project.photos = projectPhotosList().filter((photo) => !photo?.uploading).map(serializablePhoto);
+    // Drawn again only when the tile would ask for a different file (a small picture has no thumbnails).
+    if (state.active && tileSource(next) !== tileSource(current)) renderPhotoGallery();
+  }
+  // A waiting upload was thrown away (from the sync list): the photo leaves the gallery and the project's list.
+  async function dropDiscardedMedia(id){
+    const photos = projectPhotosList();
+    if (!id || Portal.PhotoFeed?.isDiscardingMedia?.(id) || !photos.some((photo) => projectPhotoId(photo) === id)) return;
+    const project = activeProject();
+    const projectId = activeProjectId(project);
+    const orgId = firstMeasurePhotoOptions().orgId;
+    const before = { ...(project || {}), photos: photos.filter((photo) => !photo?.uploading).map(serializablePhoto) };
+    setProjectPhotosList(photos.filter((photo) => projectPhotoId(photo) !== id));
+    if (project) project.photos = projectPhotosList().filter((photo) => !photo?.uploading).map(serializablePhoto);
+    if (state.active) renderPhotoGallery();
+    await Portal.PhotoFeed?.discardWaitingMedia?.(id);
+    if (orgId && projectId) await projectPhotoLibrary()?.removePhoto?.(orgId, projectId, before, id, { source:'photo_upload_discarded' }).catch((error) => console.warn('The discarded photo could not be taken out of the project list.', error));
+  }
+  window.PlatformOffline?.on?.('synced', (entry) => {
+    if (entry?.contract !== 'media') return;
+    if (entry.write === 'media.upload' && entry.response?.media) applyUploadedMedia(entry.response.media);
+    // The list as the server now has it is what later whole-project saves start from.
+    if (entry.write === 'photos.save' && Array.isArray(entry.response?.photos) && entry.response.project_id === activeProjectId()) {
+      window.PlatformAPI?.projects?.advanceBaseline?.(entry.response.project_id, { photos:entry.response.photos, thumbnail_photo_id:entry.response.thumbnail_photo_id, thumbnail_photo:entry.response.thumbnail_photo });
+    }
+  });
+  window.PlatformOffline?.on?.('discarded', (entry) => {
+    if (entry?.contract === 'media' && entry.write === 'media.upload') dropDiscardedMedia(String((entry.records || [])[0] || '').trim());
+  });
 
   async function loadOwnedProjectMedia(){
     const project = activeProject();

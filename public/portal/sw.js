@@ -546,6 +546,8 @@ function start() {
       case 'settings': return FM.settings.all();
       case 'setting': return FM.settings.set(String(message.name), message.value);
       case 'signedOut': return signOut(identityOf(clientId) || S.identity);
+      // A page hands over a small copy of a picture it queued, to stand in for the server's thumbnails.
+      case 'mediaPut': return message.blob && typeof message.url === 'string' ? FM.media.put(who(), message.url, message.blob, { fixed: message.fixed !== false }) : false;
       default: throw new Error('Unknown offline message: ' + message.type);
     }
   }

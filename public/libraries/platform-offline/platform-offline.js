@@ -236,6 +236,17 @@
     return run;
   }
 
+  /**
+   * The native app uploads queued files itself, also after the app is closed (native-uploads.js). The phone bridge
+   * loads at the end of the page, so this waits for the page; an ordinary browser never loads the file.
+   */
+  function startNativeUploads() {
+    const phone = window.PhoneFeatures;
+    if (!top || !supported || !identity.user || !phone || !phone.ready || !phone.offlineUploads) return;
+    Promise.resolve(phone.ready).then(() => (phone.offlineUploads.available() && !window.PlatformOfflineNativeUploads ? loadEngine().then(() => runScript('native-uploads.js')) : null))
+      .catch((error) => console.warn('[offline] native uploads not started', error));
+  }
+
   let askedToPersist = false;
   function onQueued() {
     // Ask the browser to keep the site's storage once something is waiting to be sent.
@@ -280,6 +291,7 @@
         checkForUpdate().catch(() => {});
       });
       window.addEventListener('load', () => { const words = copy(); if (words) ask('identity', { user: identity.user, org: identity.org, csrfCookie: sessionCookie + '_csrf', top, copy: words }).catch(() => {}); }, { once: true });
+      if (document.readyState === 'complete') startNativeUploads(); else window.addEventListener('load', startNativeUploads, { once: true });
     }
     return snapshot();
   }
@@ -322,6 +334,13 @@
       set(name, value) { settings = Object.assign({}, settings, { [name]: value }); return ask('setting', { name, value }); }
     },
     /** Removes this person's shells and saved reads from the device. Their queued changes stay. */
-    signedOut: () => ask('signedOut')
+    signedOut: () => ask('signedOut'),
+    media: {
+      /** Keeps a file under a media URL on this device (the small copy of a queued photo). `fixed: false`: only for when the server cannot be reached. */
+      put: (url, blob, options) => ready.then(() => ask('mediaPut', { url: String(url), blob, fixed: !(options && options.fixed === false) }))
+    },
+    /** The engine in this page (top-level page only): what replays the queue here, and what native-uploads.js drives. */
+    engine: () => (top && supported ? loadEngine() : Promise.reject(new Error('The offline engine runs in the top-level page'))),
+    csrfCookie: sessionCookie + '_csrf'
   };
 })();

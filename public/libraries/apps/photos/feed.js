@@ -719,9 +719,92 @@
     const meta = photo.metadata && typeof photo.metadata === 'object' ? photo.metadata : {};
     return cleanText(photo.uploaded_at || photo.created_at || meta.uploaded_at || meta.created_at || photo.updated_at || meta.updated_at || new Date(0).toISOString());
   }
-  function uploader(photo = {}){
-    return window.FirstMateMarkup?.uploader?.(photo) || { name: '', email: '', at: photoUploadedAt(photo) };
+  // When the photo was taken (metadata.taken_at, sent with the upload); the upload time for older photos. A photo
+  // that waited on the device without a connection is listed under the day it was taken, not the day it arrived.
+  function photoTakenAt(photo = {}){
+    const meta = photo.metadata && typeof photo.metadata === 'object' ? photo.metadata : {};
+    return cleanText(photo.taken_at || meta.taken_at) || photoUploadedAt(photo);
   }
+  function uploader(photo = {}){
+    return window.FirstMateMarkup?.uploader?.(photo) || { name: '', email: '', at: photoTakenAt(photo) };
+  }
+  // ── Photos waiting on this device (docs/architecture/offline.md, "Photos and files") ──
+  // A photo taken without a connection is in the grid at once, from the file the device holds. Its tile carries a
+  // slot for the offline UI's mark (PlatformOfflineUI.waitingBadge shows itself only while that record waits).
+  const offlineWaiting = new Set();
+  function offlineMediaId(photo = {}){
+    return cleanText(photo?.media_id || photo?.id);
+  }
+  function isWaitingMedia(photoOrId){
+    const id = typeof photoOrId === 'string' ? cleanText(photoOrId) : offlineMediaId(photoOrId);
+    return !!id && (window.PlatformOffline?.isPending?.(id) === true || offlineWaiting.has(id));
+  }
+  function offlineWaitSlotHtml(photo){
+    const id = offlineMediaId(photo);
+    return id && isWaitingMedia(id) ? `<span class="pf-offline-wait" data-offline-wait="${escapeHtml(id)}"></span>` : '';
+  }
+  // Where the offline UI is not loaded, a plain mark so a waiting photo is never shown as if it were uploaded.
+  function plainWaitingBadge(id){
+    const badge = document.createElement('span');
+    const label = feedText('offline_waiting_upload','Waiting to upload');
+    badge.className = 'pf-offline-wait-chip';
+    badge.title = label;
+    badge.setAttribute('role', 'img');
+    badge.setAttribute('aria-label', label);
+    badge.innerHTML = '<i class="fas fa-cloud-arrow-up" aria-hidden="true"></i>';
+    const sync = () => { badge.hidden = !isWaitingMedia(id); };
+    const stop = window.PlatformOffline?.on?.('state', () => { if (!badge.isConnected) { stop?.(); return; } sync(); });
+    sync();
+    return badge;
+  }
+  function fillOfflineWaits(root){
+    root?.querySelectorAll?.('[data-offline-wait]:empty').forEach((slot) => {
+      const id = slot.dataset.offlineWait;
+      let badge = null;
+      try { badge = window.PlatformOfflineUI?.waitingBadge?.({ record:id }) || null; } catch (_) { badge = null; }
+      slot.append(badge instanceof Node ? badge : plainWaitingBadge(id));
+    });
+  }
+  const offlineWaitRoots = new WeakSet();
+  // Galleries draw themselves again often; the slots of each new drawing are filled as they appear.
+  function watchOfflineWaits(root){
+    if (!root || offlineWaitRoots.has(root) || typeof MutationObserver !== 'function') { fillOfflineWaits(root); return; }
+    offlineWaitRoots.add(root);
+    let queued = false;
+    new MutationObserver(() => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; fillOfflineWaits(root); });
+    }).observe(root, { childList:true, subtree:true });
+    fillOfflineWaits(root);
+  }
+  // The waiting changes that exist only for this photo: its upload, and the list save that added it.
+  const discardingHere = new Set();
+  async function discardWaitingMedia(mediaId){
+    const offline = window.PlatformOffline;
+    const id = cleanText(mediaId);
+    offlineWaiting.delete(id);
+    if (!id || typeof offline?.pending !== 'function') return 0;
+    // The page that takes a photo back updates its own gallery; it does not also react to the queue's event.
+    discardingHere.add(id);
+    setTimeout(() => discardingHere.delete(id), 10000);
+    const entries = (await offline.pending({ record:id }).catch(() => [])) || [];
+    let discarded = 0;
+    for (const entry of entries) {
+      if (!(entry.records || []).every((record) => cleanText(record) === id)) continue;
+      if (await offline.discard(entry.id).catch(() => false)) discarded += 1;
+    }
+    return discarded;
+  }
+  window.PlatformOffline?.on?.('synced', (entry) => { (entry?.records || []).forEach((record) => offlineWaiting.delete(cleanText(record))); });
+  window.PlatformOffline?.on?.('discarded', (entry) => {
+    (entry?.records || []).forEach((record) => offlineWaiting.delete(cleanText(record)));
+    // A photo with no project that was thrown away from the sync list leaves the Unassigned group.
+    if (entry?.contract === 'media' && entry.write === 'media.upload' && state.loaded && state.root?.isConnected && (state.unassigned || []).some((item) => (entry.records || []).includes(item.mediaId))) {
+      state.unassigned = state.unassigned.filter((item) => !(entry.records || []).includes(item.mediaId));
+      render();
+    }
+  });
   function userModalsEnabled(){
     const appFlags = window.Portal?.appFlags;
     const current = window.Portal?.appFlags?.current?.();
@@ -1123,7 +1206,7 @@
     return projects.flatMap((project) => normalizePhotos(project)
       .filter((photo) => options.includeReceipts === true || !isReceiptMedia(photo))
       .map((photo, index) => {
-      const uploadedAt = photoUploadedAt(photo);
+      const uploadedAt = photoTakenAt(photo);
       return {
         id: `${project.id || 'project'}::${photo.media_id || photo.id || photo.src || index}`,
         project,
@@ -1764,6 +1847,8 @@
       .pf-feed-card{min-width:0;border:1px solid #eaecf0;border-radius:13px;background:#fff;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.04)}.pf-feed-card .pf-thumb,.pf-document-preview{display:block;width:100%;aspect-ratio:16/11;border:0;border-bottom:1px solid #f2f4f7;border-radius:0;background:#f2f4f7;position:relative;overflow:hidden;cursor:pointer}.pf-feed-card .pf-thumb img,.pf-feed-card .pf-thumb video,.pf-document-preview>img{width:100%;height:100%;object-fit:cover;display:block}.pf-feed-card-body{padding:11px 12px 13px;min-width:0}.pf-feed-card-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}.pf-kind{display:flex;align-items:center;gap:6px;color:#475467;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.045em}.pf-feed-card-heading time{color:#98a2b3;font-size:10px;white-space:nowrap}.pf-feed-project{display:block;max-width:100%;border:0;background:transparent;color:#101828;padding:0;font:inherit;font-size:13px;font-weight:1000;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pf-feed-project:hover{color:var(--primary-readable,var(--primary,#d93025));text-decoration:underline}.pf-feed-subtitle{display:block;color:#667085;font-size:11px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pf-paired-activity{display:flex;align-items:flex-start;gap:6px;margin-top:9px;padding-top:8px;border-top:1px solid #f2f4f7;color:#475467;font-size:10px;line-height:1.35}.pf-paired-activity i{color:var(--primary-readable,var(--primary,#d93025));margin-top:1px}.pf-document-preview{color:#475467}.pf-document-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;background:color-mix(in srgb,var(--feed-doc-color) 7%,#fff);color:var(--feed-doc-color)}.pf-document-icon i{font-size:36px}.pf-document-icon small{font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em}.pf-document-badge{position:absolute;left:9px;bottom:9px;border-radius:999px;background:var(--feed-doc-color);color:#fff;padding:5px 8px;font-size:9px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em}.pf-document-title{display:block;color:#101828;font-size:13px;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pf-feed-activity{grid-column:1/-1;display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:11px;border:1px solid #eaecf0;border-radius:13px;background:#fff;padding:11px 12px;box-shadow:0 1px 2px rgba(16,24,40,.03)}.pf-feed-activity-icon{width:42px;height:42px;border-radius:12px;background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary-readable,var(--primary,#d93025));display:flex;align-items:center;justify-content:center}.pf-feed-activity-copy{min-width:0}.pf-feed-activity-copy strong{display:block;color:#101828;font-size:12px}.pf-feed-activity-copy>span{display:block;color:#667085;font-size:11px;margin-top:3px}.pf-feed-notice{margin:0 0 12px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;color:#667085;padding:9px 11px;font-size:11px;font-weight:900}.pf-feed-notice i{margin-right:6px}
       .pf-wrap[data-density="compact"] .pf-feed-card-body{padding:8px 9px 10px}.pf-wrap[data-density="compact"] .pf-paired-activity{display:none}.pf-wrap[data-density="list"] .pf-feed-card{display:grid;grid-template-columns:132px minmax(0,1fr);min-height:98px}.pf-wrap[data-density="list"] .pf-feed-card .pf-thumb,.pf-wrap[data-density="list"] .pf-document-preview{height:100%;min-height:98px;aspect-ratio:auto;border:0;border-right:1px solid #f2f4f7}.pf-wrap[data-density="list"] .pf-feed-card-body{display:flex;flex-direction:column;justify-content:center}.pf-wrap[data-density="list"] .pf-feed-card-heading{margin-bottom:5px}.pf-wrap[data-density="list"] .pf-paired-activity{margin-top:6px;padding-top:6px}
+      .pf-offline-wait{position:absolute;left:6px;bottom:6px;z-index:3;display:flex;pointer-events:none}.pf-offline-wait:empty{display:none}
+      .pf-offline-wait-chip{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:rgba(16,24,40,.72);color:#fff;font-size:11px;box-shadow:0 2px 6px rgba(16,24,40,.25)}.pf-offline-wait-chip[hidden]{display:none}
       .pf-thumb{position:relative;aspect-ratio:1;border:2px solid transparent;border-radius:7px;overflow:hidden;background:#f2f4f7;padding:0;cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease;user-select:none;-webkit-user-drag:none}.pf-thumb::before{content:'';position:absolute;left:50%;top:50%;z-index:1;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:999px;border:3px solid rgba(148,163,184,.32);border-top-color:var(--primary,#d93025);animation:pfSpin .8s linear infinite}.pf-thumb.loaded::before,.pf-thumb.error::before,.pf-thumb.video-placeholder::before{display:none}.pf-thumb.error::after{content:'\\f03e';font-family:'Font Awesome 6 Free';font-weight:900;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#98a2b3;font-size:22px}.pf-thumb img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .18s ease,transform .18s ease;user-select:none;-webkit-user-drag:none;pointer-events:none}.pf-thumb.loaded img{opacity:1}.pf-thumb:hover img{transform:scale(1.04)}.pf-video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#101828;color:#fff;font-size:28px}.pf-video-badge{position:absolute;right:8px;bottom:8px;z-index:2;width:30px;height:30px;border-radius:999px;background:rgba(15,23,42,.78);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;box-shadow:0 8px 16px rgba(15,23,42,.16);pointer-events:none}.pf-wrap.selection-mode .pf-thumb{transform:scale(.96)}.pf-wrap.selection-mode .pf-thumb:hover img{transform:scale(1)}.pf-thumb.selected{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.18)}.pf-thumb.selected img{transform:scale(.95)}.pf-select{position:absolute;top:7px;left:7px;z-index:3;width:24px;height:24px;border-radius:8px;border:1px solid rgba(255,255,255,.76);background:rgba(15,23,42,.56);color:#fff;display:flex;align-items:center;justify-content:center;opacity:0;cursor:pointer;backdrop-filter:blur(10px)}.pf-thumb:hover .pf-select,.pf-wrap.selection-mode .pf-select{opacity:1}.pf-select i{font-size:12px;opacity:0}.pf-thumb.selected .pf-select{background:var(--primary,#d93025);border-color:var(--primary,#d93025)}.pf-thumb.selected .pf-select i{opacity:1}.pf-thumb-meta{position:absolute;left:0;right:0;bottom:0;padding:18px 7px 7px;background:linear-gradient(transparent,rgba(0,0,0,.68));color:#fff;font-size:11px;text-align:left;opacity:0;transition:.16s ease}.pf-thumb:hover .pf-thumb-meta{opacity:1}@keyframes pfSpin{to{transform:rotate(360deg)}}
       .pf-thumb video{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .18s ease,transform .18s ease;user-select:none;-webkit-user-drag:none;pointer-events:none}.pf-thumb.loaded video{opacity:1}.pf-thumb:hover video{transform:scale(1.04)}.pf-wrap.selection-mode .pf-thumb:hover video{transform:scale(1)}.pf-thumb.selected video{transform:scale(.95)}.pf-thumb.uploading::after{content:'Uploading';position:absolute;left:8px;top:8px;z-index:3;border-radius:999px;background:rgba(15,23,42,.72);color:#fff;padding:5px 8px;font-size:10px;font-weight:1000}
       .pf-empty{margin:56px auto;max-width:420px;text-align:center;color:#667085}.pf-empty i{font-size:34px;color:#98a2b3;margin-bottom:12px}.pf-empty strong{display:block;color:#344054;margin-bottom:5px}
@@ -2172,7 +2257,7 @@
       projectId: '',
       projectTitle: '',
       projectAddress: '',
-      uploadedAt: normalized.uploaded_at || normalized.created_at || '',
+      uploadedAt: cleanText(normalized.taken_at || normalized.metadata?.taken_at) || normalized.uploaded_at || normalized.created_at || '',
       photo: {
         ...normalized,
         id,
@@ -2513,7 +2598,7 @@
             const extraClass = cleanText(typeof options.tileClass === 'function' ? options.tileClass(item) : options.tileClass);
             // options.renderTileBadge(item): extra markup on the tile (e.g. the project's cover badge).
             const badge = typeof options.renderTileBadge === 'function' ? (options.renderTileBadge(item) || '') : '';
-            return `<button type="button" class="pf-thumb${extraClass ? ` ${escapeHtml(extraClass)}` : ''}${selected ? ' selected' : ''}${item.photo?.uploading ? ' uploading' : ''}${['audio','document'].includes(galleryMediaType(item.photo)) || (isVideoMedia(item.photo) && !photoThumb(item) && !photoOriginal(item)) ? ' loaded video-placeholder' : ''}" data-photo-feed-id="${escapeHtml(item.id)}"${selectionEnabled ? ` aria-pressed="${selected ? 'true' : 'false'}"` : ''}>${selectionEnabled ? `<span class="pf-select" data-photo-select="${escapeHtml(item.id)}"><i class="fas fa-check"></i></span>` : ''}${thumbnail}${badge}<span class="pf-thumb-meta">${meta}</span></button>`;
+            return `<button type="button" class="pf-thumb${extraClass ? ` ${escapeHtml(extraClass)}` : ''}${selected ? ' selected' : ''}${item.photo?.uploading ? ' uploading' : ''}${['audio','document'].includes(galleryMediaType(item.photo)) || (isVideoMedia(item.photo) && !photoThumb(item) && !photoOriginal(item)) ? ' loaded video-placeholder' : ''}" data-photo-feed-id="${escapeHtml(item.id)}"${selectionEnabled ? ` aria-pressed="${selected ? 'true' : 'false'}"` : ''}>${selectionEnabled ? `<span class="pf-select" data-photo-select="${escapeHtml(item.id)}"><i class="fas fa-check"></i></span>` : ''}${thumbnail}${badge}${offlineWaitSlotHtml(item.photo)}<span class="pf-thumb-meta">${meta}</span></button>`;
           }).join('')}
         </div>
       </section>
@@ -3299,7 +3384,7 @@
       .filter((photo) => !isPhotoTrashed(photo))
       .map((photo) => {
         const mediaId = firstText(photo.media_id, photo.id);
-        const uploadedAt = photoUploadedAt(photo);
+        const uploadedAt = photoTakenAt(photo);
         const item = { id:`unassigned::${mediaId}`, unassigned:true, mediaId, project:{}, projectId:'', projectTitle:feedText('feed_unassigned_title','Unassigned'), projectAddress:'', projectSubtitle:'', photo, uploadedAt, dateKey:dateKey(uploadedAt), batchKey:unassignedBatchKey(photo), departmentIds:departments.get(mediaId) || [], search:'' };
         return { ...item, search:searchableText(item) };
       })
@@ -3315,7 +3400,7 @@
   }
   function unassignedTileHtml(item, index){
     const selected = state.selected.has(item.id);
-    return `<button type="button" class="pf-thumb${selected ? ' selected' : ''}" data-photo-feed-id="${escapeHtml(item.id)}" aria-pressed="${selected ? 'true' : 'false'}" aria-label="${escapeHtml(feedText('feed_unassigned_open','Open unassigned photo {number}',{number:index + 1}))}"><span class="pf-select" data-photo-select="${escapeHtml(item.id)}"><i class="fas fa-check"></i></span>${mediaThumbHtml(item)}</button>`;
+    return `<button type="button" class="pf-thumb${selected ? ' selected' : ''}" data-photo-feed-id="${escapeHtml(item.id)}" aria-pressed="${selected ? 'true' : 'false'}" aria-label="${escapeHtml(feedText('feed_unassigned_open','Open unassigned photo {number}',{number:index + 1}))}"><span class="pf-select" data-photo-select="${escapeHtml(item.id)}"><i class="fas fa-check"></i></span>${mediaThumbHtml(item)}${offlineWaitSlotHtml(item.photo)}</button>`;
   }
   function unassignedGroupHtml(){
     const items = visibleUnassigned();
@@ -3694,6 +3779,8 @@
     });
     const item = result?.media || result;
     if (!cleanText(item?.id)) throw new Error(feedText('feed_camera_not_uploaded','This photo was not uploaded.'));
+    // Without a connection the photo waits on this device; it is already listed under Unassigned.
+    if (result?.queued) offlineWaiting.add(cleanText(item.id));
     return item;
   }
   async function cameraMediaIds(entries, say){
@@ -3702,7 +3789,8 @@
       say(feedText('feed_camera_finishing','Finishing uploads ({done} of {total})…',{done:entries.length - left, total:entries.length}));
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
-    return entries.filter((entry) => entry.status === 'done').map((entry) => cleanText(entry.result?.id || entry.result?.media_id)).filter(Boolean);
+    // A photo that waits on the device (no connection) has its id already; pairing it waits behind its upload.
+    return entries.filter((entry) => entry.status === 'done' || entry.status === 'waiting').map((entry) => cleanText(entry.result?.id || entry.result?.media_id)).filter(Boolean);
   }
   function feedCameraNextStep(entries, step){
     step.setTitle(feedText('feed_camera_step_title','Add to a project?'));
@@ -3724,7 +3812,7 @@
     state.cameraBatchId = '';
     if (!entries.length) return;
     if (outcome?.kind === 'assigned') { afterAssigned(outcome); return; }
-    const saved = entries.filter((entry) => entry.status === 'done').length;
+    const saved = entries.filter((entry) => entry.status === 'done' || entry.status === 'waiting').length;
     if (saved) showToast?.(feedText('feed_camera_saved_title','Saved to Unassigned'), feedText('feed_camera_saved','{photos} saved. Add them to a project from the Unassigned group.',{photos:photoCountText(saved)}), true);
     refreshFeed();
   }
@@ -4452,6 +4540,8 @@
     for (const { project, items: projectItems } of byProject.values()) {
       const targets = new Set(projectItems.map((item) => photoIdentity(item.photo)).filter(Boolean));
       const sourcePhotos = projectPhotosRaw(project).length ? projectPhotosRaw(project) : normalizePhotos(project);
+      // A photo that never left this device: deleting it takes back its upload. Nothing goes to the trash.
+      const waiting = action === 'restore' ? new Set() : new Set(sourcePhotos.filter((photo) => targets.has(photoIdentity(photo)) && isWaitingMedia(photo)).map((photo) => photoIdentity(photo)));
       const nextPhotos = [];
       sourcePhotos.forEach((photo) => {
         const isTarget = targets.has(photoIdentity(photo));
@@ -4460,10 +4550,13 @@
           return;
         }
         affectedPhotos += 1;
+        if (waiting.has(photoIdentity(photo))) return;
         affectedBytes += photoSizeBytes(photo);
         if (action === 'hard_delete') return;
         nextPhotos.push(withTrashState(photo, action === 'trash'));
       });
+      for (const id of waiting) await discardWaitingMedia(offlineMediaId(sourcePhotos.find((entry) => photoIdentity(entry) === id)));
+      // The list is saved without it too, in case the list save that added it had already reached the server.
       await saveProjectPhotos(project, nextPhotos, { source: `photo_${action}` });
       updated.push(replaceStateProject(project, nextPhotos));
       if (typeof options.onProjectPhotosChanged === 'function') options.onProjectPhotosChanged(nextPhotos, updated.at(-1));
@@ -4713,6 +4806,7 @@
     injectUnassignedStyles();
     state.observer?.disconnect?.();
     state.root = panel;
+    watchOfflineWaits(panel);
     state.unassigned = [];
     state.unassignedAll = false;
     state.canAssignMedia = false;
@@ -4755,6 +4849,7 @@
   function mountProjectGallery(panel, options = {}){
     if (!panel) return;
     injectStyles();
+    watchOfflineWaits(panel);
     const project = options.project && typeof options.project === 'object' ? options.project : {};
     const photos = Array.isArray(options.photos) ? options.photos : (Array.isArray(project.photos) ? project.photos : []);
     const scopedProject = { ...project, photos };
@@ -5048,8 +5143,10 @@
       }
     };
     const selectedLocalItems = () => filtered().filter((item) => local.selected.has(item.id));
-    const refreshLocalAfterMutation = (items, action) => {
+    const refreshLocalAfterMutation = (items, action, waiting = new Set()) => {
       const ids = new Set(items.map((item) => item.id));
+      // A waiting photo that was deleted is gone, not in the trash.
+      if (waiting.size) local.items = local.items.filter((item) => !waiting.has(item.id));
       if (action === 'hard_delete') local.items = local.items.filter((item) => !ids.has(item.id));
       else {
         local.items = local.items.map((item) => ids.has(item.id)
@@ -5062,10 +5159,14 @@
       const items = selectedLocalItems();
       if (!items.length) return;
       const mutationOptions = { onProjectPhotosChanged: options.onProjectPhotosChanged };
-      if (action === 'trash') await trashItems(items, mutationOptions);
-      if (action === 'restore') await restoreItems(items, mutationOptions);
-      if (action === 'hard_delete') await hardDeleteItems(items, mutationOptions);
-      refreshLocalAfterMutation(items, action);
+      const waiting = action === 'restore' ? new Set() : new Set(items.filter((item) => isWaitingMedia(item.photo)).map((item) => item.id));
+      let result = null;
+      if (action === 'trash') result = await trashItems(items, mutationOptions);
+      if (action === 'restore') result = await restoreItems(items, mutationOptions);
+      if (action === 'hard_delete') result = await hardDeleteItems(items, mutationOptions);
+      // Nothing changed (the person chose Cancel): the gallery stays as it is.
+      if (result && !result.count) return;
+      refreshLocalAfterMutation(items, action, waiting);
       renderLocal();
     };
     const openLocalViewerAt = (index, routeOptions = {}) => {
@@ -5524,7 +5625,13 @@
     openProjectMediaPicker,
     mountProjectMediaPicker,
     mountProjectGallery,
-    refreshProjectGallery: mountProjectGallery
+    refreshProjectGallery: mountProjectGallery,
+    // Photos waiting on this device (offline): the project tab marks its own uploads and asks about them here.
+    photoTakenAt,
+    isWaitingMedia,
+    markWaitingMedia: (id) => { if (cleanText(id)) offlineWaiting.add(cleanText(id)); },
+    isDiscardingMedia: (id) => discardingHere.has(cleanText(id)),
+    discardWaitingMedia
   };
   loadBranchProjectConfig().then(rebuildProjectDisplayLabels).catch(() => null);
   window.Portal?.appFlags?.load?.().then(refreshRegistration).catch(refreshRegistration);
