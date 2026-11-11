@@ -4284,3 +4284,20 @@ test('a chimney piece of a drafted wall belongs to that draft, not an undeletabl
  g.editor.beginFace(g.e(.5,2),cut);g.listeners.pointerup(g.e(.5,2));assert.match(g.message(),/1 face selected/);
  g.editor.key({key:'Delete'});assert.equal(g.history.length,1,g.message());assert.equal(separate.wallEdits.$drafts[cut.id].deletedFaces.length,1);assert.equal(separate.wallEdits.$drafts['wall-x'].deletedFaces,undefined);
 });
+test('Resoffit brings a gable into line with the wing wall beside it and keeps every soffit line selectable',()=>{
+ // The gable is generated a short return behind the wing wall and behind the
+ // part held out to a lower roof, each a few millimetres from one foot away.
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/gable-wing-inline-roof.json'),'24'),f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}});
+ const lines=()=>f.editor.soffitEdges(),insets=id=>lines().filter(c=>c.source.id===id).map(c=>c.inset),near=(a,b)=>Math.abs(a-b)<.002;
+ const apply=(ids,depth)=>{f.editor.restoreSelection({lineSelection:lines().filter(c=>ids.includes(c.source.id)).map(c=>({pair:c.pair}))});assert.equal(f.editor.resoffit(depth),true,f.message());for(const face of r.state.wallEdits.$surfaces.filter(f=>!f.deleted))K.validateFace(face);};
+ // The rake beside the lower roof is generated at two depths, and the lower
+ // roof's back wall runs on past the roof. Both are soffit lines.
+ assert.equal(insets('R2.0').length,2);assert.equal(insets('R16.0').length,1);
+ const before=new Set(lines().map(c=>c.source.id));
+ apply(['R3.0'],.3048);
+ assert.ok(insets('R3.0').every(v=>near(v,.3048)));assert.ok(insets('R2.0').length===2&&insets('R2.0').every(v=>near(v,.3048)));
+ assert.ok(insets('R14.0').every(v=>Math.abs(v-.6096)<.03));
+ // Two rakes of one gable are one wall; the unselected rake stays a soffit line.
+ apply(['R4.0'],.3048);assert.ok(near(insets('R5.0')[0],.3048));apply(['R13.0'],.3048);assert.ok(near(insets('R11.0')[0],.3048));
+ assert.deepEqual([...before].filter(id=>!lines().some(c=>c.source.id===id)),[]);
+});
