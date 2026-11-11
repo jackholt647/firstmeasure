@@ -2,13 +2,19 @@
  *
  * Photos and videos without a connection (docs/architecture/offline.md, "Photos and files").
  *
- *   media.upload   POST .../media                       a photo or video of a project, or one with no project yet
- *   photos.save    POST .../projects/:project/photos    the project's photo list (add, trash, restore, remove)
- *   media.assign   POST .../media/assign                pairing photos that have no project with one
+ *   media.upload        POST .../media                       a photo or video of a project, one with no project yet,
+ *                                                            or a contact's picture, media and documents
+ *   photos.save         POST .../projects/:project/photos    the project's photo list (add, trash, restore, remove)
+ *   media.assign        POST .../media/assign                pairing photos that have no project with one
+ *   media.update        PATCH .../media/:media               a name or tags, merged per field and per tag when sent
+ *   documents.upload    POST .../projects/:project/documents a file added to a project's documents list
+ *   checklist.evidence  POST /v1/workforce/.../attachments   a photo or file added to a checklist item
  *
  * A project photo is two changes in the scope `project:<id>`: the upload, then the list save, so both follow the
  * project's own create when that is still waiting. A photo with no project is in the person's scope `user:<id>`,
- * and so is its pairing. Renaming and tagging (PATCH .../media/:id) are not queued: see the doc.
+ * and so is its pairing. A rename or a tag is in the photo's own scope `media:<id>` and is sent after the photo's
+ * upload when that still waits (the engine orders it by the id its URL names). The file of a note is in notes.js.
+ * Slot pictures (a logo, an avatar) and receipts need a connection: the doc says why.
  */
 (function () {
   'use strict';
@@ -40,13 +46,22 @@
     if (!field || !id || truthy(body.replace_slot != null ? body.replace_slot : body.replaceSlot)) return null;
     const ownerType = cleanId(body.owner_type || body.ownerType) || 'organization';
     const slot = cleanId(body.slot) || 'media';
-    // Only a project's photos and photos with no project yet: other uploads are followed by writes of their own
-    // app (a note, a contact, a document) that would have to wait behind them.
-    if (slot !== 'photos' || (ownerType !== 'project' && ownerType !== 'organization')) return null;
+    const owner = cleanId(body.owner_id || body.ownerId);
     const metadata = obj(parse(body.metadata, {}));
-    const project = ownerType === 'project' ? cleanId(body.owner_id || body.ownerId) : '';
+    // A contact's picture (slot `profile`), media and documents. The contact's own save follows in the contact's
+    // scope (contacts.js). The public branding slots are never a contact's.
+    if (ownerType === 'contact') {
+      if (!owner || slot === 'logo' || cleanId(body.scope) === 'branding' || cleanId(body.collection) === 'branding') return null;
+      // A picture the server would refuse is not kept to be refused later (contacts/photo-import.ts: validateContactPhoto).
+      if (slot === 'profile' && (!/^image\/(jpeg|png|webp|gif)$/i.test(text(body[field].type)) || body[field].size > 10 * 1024 * 1024)) return null;
+      return { id, field, file: body[field], ownerType, slot, project: '', contact: owner, metadata, body };
+    }
+    // Otherwise only a project's photos and photos with no project yet: the uploads of other apps go to routes of
+    // their own, with contracts of their own below.
+    if (slot !== 'photos' || (ownerType !== 'project' && ownerType !== 'organization')) return null;
+    const project = ownerType === 'project' ? owner : '';
     if (ownerType === 'project' && !project) return null;
-    return { id, field, file: body[field], ownerType, slot, project, metadata, body };
+    return { id, field, file: body[field], ownerType, slot, project, contact: '', metadata, body };
   }
 
   /** Width and height of a picture, where the context can decode one (a worker can; a test may not). */
@@ -93,7 +108,7 @@
 
   /** The record the route answers for a new upload (platform/storage.ts: storeMediaUpload). */
   async function mediaRecord(ctx, upload) {
-    const { id, file, ownerType, slot, project, body } = upload;
+    const { id, file, ownerType, slot, project, contact, body } = upload;
     const type = text(file.type || 'application/octet-stream').toLowerCase();
     const kind = type.startsWith('image/') ? 'image' : type.startsWith('video/') ? 'video' : type === 'application/pdf' ? 'pdf' : 'file';
     const name = cleanName(file.name);
@@ -128,7 +143,7 @@
     return {
       schema_version: 1, id, organization_id: ctx.org,
       scope: text(body.scope || body.collection || ownerType), collection: text(body.collection),
-      owner: { type: ownerType, id: project || cleanId(ctx.org), slot },
+      owner: { type: ownerType, id: project || contact || cleanId(ctx.org), slot },
       kind, content_type: type, file_name: name, size_bytes: file.size,
       width: size ? size.width : null, height: size ? size.height : null,
       variants,
@@ -146,7 +161,10 @@
   /** A media list read (GET .../media) this record belongs in, by the read's own filters. */
   function listShows(read, record) {
     const query = obj(read.query);
-    if (text(query.contact_id) || text(query.tags) || text(query.tag)) return false;
+    if (text(query.tags) || text(query.tag)) return false;
+    // A contact's own list shows that contact's files and nothing else.
+    const contact = obj(record.owner).type === 'contact' ? text(obj(record.owner).id) : '';
+    if (text(query.contact_id)) return text(query.contact_id) === contact;
     const project = text(query.project_id || query.projectId);
     if (project && project !== mediaProject(record)) return false;
     if (truthy(query.unassigned) && !isUnassigned(record)) return false;
@@ -219,11 +237,185 @@
     ];
   }
 
+  // ---------------------------------------------------------------------------------------------------------
+  // Renaming and tagging
+  // ---------------------------------------------------------------------------------------------------------
+
+  const CATALOG = '/v1/channels/organizations/:org/feed/catalog';
+  /** The server's tag rule (platform/storage.ts: normalizeMediaTags). */
+  const cleanTags = (value) => [...new Set((Array.isArray(value) ? value : String(value == null ? '' : value).split(','))
+    .map((tag) => String(tag == null ? '' : tag).trim().replace(/^#+/, '').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '').replace(/^[_-]+|[_-]+$/g, '').slice(0, 64)).filter(Boolean))].slice(0, 50);
+  /** The name the server keeps for a requested one (platform/storage.ts: renameMedia). */
+  const cleanLabel = (value) => String(value == null ? '' : value).replace(/[\r\n\t]+/g, ' ').replace(/[\\/:*?"<>|]+/g, '-').replace(/\.{2,}/g, '.').replace(/^[.\-\s]+/, '').trim().slice(0, 160);
+  const has = (body, key) => Object.prototype.hasOwnProperty.call(obj(body), key);
+  const nameKey = (body) => ['name', 'file_name', 'label'].find((key) => has(body, key));
+  const tagsOf = (media) => cleanTags(list(obj(media).tags).length ? media.tags : obj(obj(media).metadata).tags);
+  /** A photo's name as people see it: what it was renamed to, else its file name. */
+  const nameOf = (media) => text(obj(media).label || obj(obj(media).metadata).label || obj(media).file_name);
+  // Tags are kept as a set while two copies are merged, so a tag added here and another added in the office both stay.
+  const tagSet = (tags) => Object.fromEntries(cleanTags(tags).map((tag) => [tag, true]));
+  const mergeDoc = (media) => ({ name: nameOf(media), tags: tagSet(tagsOf(media)) });
+
+  /** What the rename and tag route leaves of a record (platform/storage.ts: renameMedia, updateMediaTags). */
+  function editedRecord(media, change, now) {
+    let next = Object.assign({}, media);
+    if (change.name !== undefined) {
+      const requested = cleanLabel(change.name);
+      const previous = text(media.file_name);
+      const ext = (/\.([a-z0-9]{1,8})$/i.exec(previous) || [])[1] || '';
+      const fileName = ext && !new RegExp('\\.' + ext + '$', 'i').test(requested) ? requested + '.' + ext : requested;
+      const stem = fileName.replace(/\.[a-z0-9]{1,8}$/i, '') || requested;
+      const variants = {};
+      for (const [key, value] of Object.entries(obj(media.variants))) {
+        const entry = obj(value);
+        const own = (/\.([a-z0-9]{1,8})$/i.exec(text(entry.file_name)) || [])[1] || ext;
+        variants[key] = text(entry.file_name) ? Object.assign({}, entry, { file_name: own ? stem + '.' + own : stem }) : value;
+      }
+      next = Object.assign(next, { file_name: fileName, label: requested, variants, metadata: Object.assign({}, obj(next.metadata), { file_name: fileName, label: requested }) });
+      if (Array.isArray(media.renditions)) next.renditions = media.renditions.map((item) => (variants[obj(item).variant] ? Object.assign({}, item, { file_name: variants[item.variant].file_name }) : item));
+    }
+    if (change.tags !== undefined) {
+      const tags = cleanTags(change.tags);
+      next = Object.assign(next, { tags, metadata: Object.assign({}, obj(next.metadata), { tags }) });
+    }
+    next.updated_at = now;
+    return next;
+  }
+
+  /** The change a rename or tag request makes: { name?, tags? }. */
+  function editOf(ctx) {
+    const body = obj(ctx.body);
+    const key = nameKey(body);
+    const change = {};
+    if (key && cleanLabel(body[key])) change.name = cleanLabel(body[key]);
+    if (has(body, 'tags')) change.tags = cleanTags(body.tags);
+    return change;
+  }
+
+  /**
+   * A media record as this device knows it, with the changes queued before this one: its own read, else the
+   * lists that show it (a photo is mostly known from a project's media list or the Feed's catalog).
+   */
+  async function knownMedia(ctx, id) {
+    const own = obj(obj(await ctx.saved(path(ctx.org, '/media/' + encodeURIComponent(id)))).media);
+    if (text(own.id) === id) return own;
+    for (const read of await ctx.find('GET ' + ORG + '/media')) {
+      const found = list(obj(read.json).media).find((item) => text(obj(item).id) === id);
+      if (found) return found;
+    }
+    const catalog = obj(await ctx.saved('/v1/channels/organizations/' + encodeURIComponent(ctx.org) + '/feed/catalog'));
+    return list(catalog.media).concat(list(catalog.unassigned_media)).find((item) => text(obj(item).id) === id) || null;
+  }
+
+  /** `change(record)` on that record wherever a read lists it. */
+  function mediaRecordEffects(org, id, change) {
+    const inList = (items) => items.map((item) => (text(obj(item).id) === id ? change(obj(item)) : item));
+    return [
+      { match: 'GET ' + ORG + '/media/:media', when: (m) => m.org === org && m.media === id, apply: (json) => (text(obj(obj(json).media).id) === id ? Object.assign({}, json, { media: change(json.media) }) : json) },
+      { match: 'GET ' + ORG + '/media', when: (m) => m.org === org, apply: (json) => (Array.isArray(obj(json).media) ? Object.assign({}, json, { media: inList(json.media) }) : json) },
+      { match: 'GET ' + CATALOG, when: (m) => m.org === org, apply: (json) => {
+        const catalog = obj(json);
+        const next = Object.assign({}, json);
+        for (const key of ['media', 'unassigned_media']) if (Array.isArray(catalog[key])) next[key] = inList(catalog[key]);
+        return next;
+      } }
+    ];
+  }
+
+  // ---------------------------------------------------------------------------------------------------------
+  // Uploads of other apps: a file added to a project's documents list, checklist evidence
+  // ---------------------------------------------------------------------------------------------------------
+
+  const WORKFORCE = '/v1/workforce/organizations/:org';
+  const first = (...values) => { for (const value of values) { const found = text(value); if (found) return found; } return ''; };
+
+  /** The form's file and the media id the device made for it (sent as `name`), or null. */
+  function namedFile(ctx, name) {
+    const body = obj(ctx.body);
+    const field = Object.keys(body).find((key) => body[key] && typeof body[key] === 'object' && body[key].blob);
+    const id = text(body[name]);
+    return field && /^media_[a-f0-9]{16}$/.test(id) ? { id, field, file: body[field], body } : null;
+  }
+  /** The record's own read and the media lists that show it. */
+  const recordEffects = (ctx, record) => [
+    { match: 'GET ' + ORG + '/media/:media', when: (m) => m.org === ctx.org && m.media === record.id, seed: () => ({ ok: true, media: record }) },
+    { match: 'GET ' + ORG + '/media', when: (m, read) => m.org === ctx.org && listShows(read, record), apply: (json) => (Array.isArray(obj(json).media) ? Object.assign({}, json, { media: upsertById(json.media, record) }) : json) }
+  ];
+
+  /** The server's document types (platform/api.ts: documentTypeMeta). */
+  function documentType(value) {
+    const type = text(value || 'document').toLowerCase().replace(/[\s-]+/g, '_');
+    if (type === 'proposal') return { type, label: 'Proposal', icon: 'fa-file-signature', color: '#2563eb' };
+    if (type === 'change_order' || type === 'changeorder') return { type: 'change_order', label: 'Change Order', icon: 'fa-file-contract', color: '#7c3aed' };
+    if (type === 'roof_report' || type === 'report' || type === 'measurement_report') return { type: 'roof_report', label: 'Roof Report', icon: 'fa-ruler-combined', color: '#059669' };
+    if (type === 'customer_report' || type === 'summary') return { type: 'customer_report', label: 'Customer Report', icon: 'fa-file-lines', color: '#0891b2' };
+    if (type === 'instant_report') return { type, label: 'Instant Report', icon: 'fa-bolt', color: '#ca8a04' };
+    if (type === 'weather_report') return { type, label: 'Weather Report', icon: 'fa-cloud-sun-rain', color: '#0d9488' };
+    if (type === 'receipt') return { type, label: 'Receipt', icon: 'fa-receipt', color: '#0f766e' };
+    if (type === 'required') return { type, label: 'Required', icon: 'fa-clipboard-check', color: '#dc2626' };
+    return { type: type || 'document', label: 'Document', icon: 'fa-file-lines', color: '#64748b' };
+  }
+
+  /** The media record the documents route stores (platform/api.ts: POST .../projects/:project/documents). */
+  async function documentMedia(ctx, found) {
+    const meta = obj(parse(found.body.metadata, {}));
+    const record = await mediaRecord(ctx, {
+      id: found.id, file: found.file, ownerType: 'project', slot: 'documents', project: ctx.params.project, contact: '',
+      metadata: Object.assign({}, meta, { field: 'documents', document_collection: 'projects', document_id: ctx.params.project, source: text(meta.source) || 'project_document_upload', uploaded_at: iso(ctx.now) }),
+      // The route makes no thumbnails or smaller copy of a document unless the form asks.
+      body: { scope: 'documents', collection: 'projects', thumbnails: has(found.body, 'thumbnails') ? found.body.thumbnails : 'false', compression: has(found.body, 'compression') ? found.body.compression : 'false' }
+    });
+    delete record.metadata.project_id;
+    return record;
+  }
+
+  /** The entry of a project's documents list for an uploaded file (documentReferenceFromMedia, normalizeProjectDocumentReference). */
+  function documentReference(media, meta) {
+    const stored = obj(media.metadata);
+    const title = first(meta.title, meta.label, media.file_name, 'Document');
+    const type = documentType(first(meta.document_type, meta.type, 'document'));
+    return {
+      id: media.id, document_id: media.id, media_id: media.id, kind: 'media_reference', title, label: title,
+      document_type: type.type, source: first(meta.source, 'project_document_upload'),
+      file_name: text(media.file_name), content_type: text(media.content_type), mime_type: text(media.content_type), size_bytes: Number(media.size_bytes || 0) || 0,
+      variant: 'original', uploaded_at: first(stored.uploaded_at, media.created_at), updated_at: first(media.updated_at, media.created_at), metadata: stored,
+      type: type.type, type_label: type.label, icon: type.icon, color: type.color, url: '', special: false, required: false, interactive: true, markup: {}
+    };
+  }
+  const documentsUrl = (ctx) => path(ctx.org, '/projects/' + encodeURIComponent(ctx.params.project) + '/documents');
+
+  const checklistsUrl = (ctx) => '/v1/workforce/organizations/' + encodeURIComponent(ctx.org) + '/crew/projects/' + encodeURIComponent(ctx.params.project) + '/checklists';
+  const evidenceKind = (type) => (type.startsWith('image/') ? 'photo' : type.startsWith('video/') ? 'video' : type.startsWith('audio/') ? 'audio' : 'document');
+  /** What the evidence route stores on the item (workforce/crew_api.ts, crew_storage.ts: addProjectChecklistItemAttachment). */
+  function evidenceOf(ctx, found) {
+    const type = text(found.file.type || 'application/octet-stream').toLowerCase();
+    return { media_id: found.id, file_name: cleanName(found.file.name), content_type: type, size_bytes: found.file.size, kind: evidenceKind(type), requirement_id: text(found.body.requirement_id) };
+  }
+  const withEvidence = (item, attachment, ctx) => {
+    const metadata = obj(obj(item).metadata);
+    const stored = Object.assign({}, attachment, { attached_by_user_id: ctx.user, attached_at: iso(ctx.now) });
+    return Object.assign({}, item, { metadata: Object.assign({}, metadata, { attachments: list(metadata.attachments).filter((entry) => text(obj(entry).media_id) !== attachment.media_id).concat([stored]) }), updated_at: iso(ctx.now) });
+  };
+  async function evidenceMedia(ctx, found) {
+    const attachment = evidenceOf(ctx, found);
+    const visual = attachment.kind === 'photo' || attachment.kind === 'video';
+    return mediaRecord(ctx, {
+      id: found.id, file: found.file, ownerType: 'project', slot: visual ? 'photos' : 'checklist_evidence', project: ctx.params.project, contact: '',
+      metadata: { source: 'checklist_evidence', field: visual ? 'photos' : 'checklist_evidence', document_collection: 'projects', document_id: ctx.params.project, project_id: ctx.params.project, checklist_id: ctx.params.checklist, checklist_item_id: ctx.params.item, requirement_id: attachment.requirement_id, media_type: attachment.kind },
+      body: { scope: 'projects' }
+    });
+  }
+
   FMOffline.contracts.add({
     id: 'media',
 
     // A pinned project: its photo list and media records, and the thumbnail its grid shows for each.
     prefetch: [
+      // The files of each of its contacts, as the contact window lists them.
+      {
+        url: (ctx) => path(ctx.org, '/projects/' + encodeURIComponent(ctx.project)),
+        each: (json, ctx) => list(obj(documentOf(json).data).contacts).map((entry) => text(obj(entry).contact_id || obj(entry).id)).filter(Boolean).map((id) => path(ctx.org, '/media?contact_id=' + encodeURIComponent(id)))
+      },
       {
         url: (ctx) => path(ctx.org, '/projects/' + encodeURIComponent(ctx.project)),
         each: (json, ctx) => list(obj(documentOf(json).data).photos).map(obj).filter((photo) => text(photo.media_id) && !/^video/i.test(text(photo.media_type || photo.mime_type || photo.content_type)))
@@ -242,8 +434,15 @@
         match: 'POST ' + ORG + '/media',
         when: (ctx) => !!uploadOf(ctx),
         kind: 'upload',
-        scope: (ctx) => { const upload = uploadOf(ctx); return upload.project ? 'project:' + upload.project : 'user:' + ctx.user; },
-        label: (ctx) => { const upload = uploadOf(ctx); const video = /^video\//i.test(upload.file.type || ''); return { key: video ? 'sync_video_new' : 'sync_photo_new', title: video ? 'Video' : 'Photo', detail: text(upload.file.name) }; },
+        scope: (ctx) => { const upload = uploadOf(ctx); return upload.project ? 'project:' + upload.project : upload.contact ? 'contact:' + upload.contact : 'user:' + ctx.user; },
+        label: (ctx) => {
+          const upload = uploadOf(ctx);
+          const type = text(upload.file.type).toLowerCase();
+          if (upload.contact && upload.slot === 'profile') return FMOffline.label('sync_contact_picture', 'Contact picture', '');
+          if (upload.contact && !/^(image|video)\//.test(type)) return FMOffline.label('sync_contact_file', 'Contact file', text(upload.file.name));
+          const video = type.startsWith('video/');
+          return { key: video ? 'sync_video_new' : 'sync_photo_new', title: video ? 'Video' : 'Photo', detail: text(upload.file.name) };
+        },
         records: (ctx) => [uploadOf(ctx).id],
         media: (ctx) => { const upload = uploadOf(ctx); return [{ id: upload.id, field: upload.field }]; },
         respond: async (ctx) => ({ ok: true, media: await mediaRecord(ctx, uploadOf(ctx)) }),
@@ -251,6 +450,8 @@
           const record = obj(obj(ctx.response).media);
           if (!record.id) return [];
           return [
+            // The record's own read, which the server cannot answer yet: what a rename or a tag made meanwhile starts from.
+            { match: 'GET ' + ORG + '/media/:media', when: (m) => m.org === ctx.org && m.media === record.id, seed: () => ({ ok: true, media: record }) },
             { match: 'GET ' + ORG + '/media', when: (m, read) => m.org === ctx.org && listShows(read, record), apply: (json) => (Array.isArray(obj(json).media) ? Object.assign({}, json, { media: upsertById(json.media, record) }) : json) },
             // The Photos Feed reads one catalog: project media in `media`, photos with no project in `unassigned_media`.
             { match: 'GET /v1/channels/organizations/:org/feed/catalog', when: (m) => m.org === ctx.org, apply: (json) => {
@@ -309,6 +510,117 @@
           mine: (ctx, base) => ({ photos: withIds(applyList(base ? base.photos : [], ctx.body.photos, ctx.body.remove)) }),
           // The merged list, and of the photos this change removed only those the merge agreed to drop.
           send: (ctx, merged) => { const kept = new Set(list(merged.photos).map(photoId)); return { photos: list(merged.photos), remove: list(ctx.body.remove).map(text).filter((id) => id && !kept.has(id)) }; }
+        }
+      },
+
+      {
+        // A file added to a project's documents list. The route stores the file and writes the list in one
+        // request; the whole-project save the Docs tab makes afterwards is the project's own contract.
+        id: 'documents.upload',
+        match: 'POST ' + ORG + '/projects/:project/documents',
+        when: (ctx) => !!namedFile(ctx, 'id'),
+        kind: 'upload',
+        scope: (ctx) => 'project:' + ctx.params.project,
+        label: (ctx) => FMOffline.label('sync_project_document', 'Project document', text(namedFile(ctx, 'id').file.name)),
+        records: (ctx) => [namedFile(ctx, 'id').id],
+        media: (ctx) => { const found = namedFile(ctx, 'id'); return [{ id: found.id, field: found.field }]; },
+        respond: async (ctx) => {
+          const found = namedFile(ctx, 'id');
+          const media = await documentMedia(ctx, found);
+          const document = documentReference(media, obj(parse(found.body.metadata, {})));
+          const saved = obj(await ctx.saved(documentsUrl(ctx)));
+          const project = documentOf(await ctx.saved(projectUrl(ctx)));
+          const before = Array.isArray(saved.uploaded_documents) ? saved.uploaded_documents : list(obj(project.data).documents);
+          return {
+            ok: true, document, media, project_id: ctx.params.project,
+            documents: upsertById(Array.isArray(saved.documents) ? saved.documents : before, document),
+            special_documents: list(saved.special_documents), uploaded_documents: upsertById(before, document)
+          };
+        },
+        effects: (ctx) => {
+          const answer = obj(ctx.response);
+          const document = obj(answer.document);
+          const record = obj(answer.media);
+          if (!document.id || !record.id) return [];
+          const project = ctx.params.project;
+          const inProject = (item) => { const data = obj(obj(item).data); return Object.assign({}, item, { data: Object.assign({}, data, { documents: upsertById(data.documents, document) }) }); };
+          return recordEffects(ctx, record).concat([
+            { match: 'GET ' + ORG + '/projects/:project/documents', when: (m) => m.org === ctx.org && m.project === project, apply: (json) => {
+              const next = Object.assign({}, json);
+              for (const key of ['documents', 'uploaded_documents']) if (Array.isArray(obj(json)[key])) next[key] = upsertById(json[key], document);
+              return next;
+            } },
+            { match: 'GET ' + ORG + '/projects/:project', when: (m) => m.org === ctx.org && m.project === project, apply: (json) => (obj(json).document ? Object.assign({}, json, { document: inProject(json.document) }) : json) },
+            { match: 'GET ' + ORG + '/projects', when: (m) => m.org === ctx.org, apply: (json) => (Array.isArray(obj(json).documents) ? Object.assign({}, json, { documents: json.documents.map((item) => (text(obj(item).id) === project ? inProject(item) : item)) }) : json) }
+          ]);
+        }
+      },
+
+      {
+        // A photo or file added to a checklist item. The route stores the file and puts it on the item in one
+        // request. Completing the item is not queued (see the doc).
+        id: 'checklist.evidence',
+        match: 'POST ' + WORKFORCE + '/crew/projects/:project/checklists/:checklist/items/:item/attachments',
+        when: (ctx) => !!namedFile(ctx, 'media_id'),
+        kind: 'upload',
+        scope: (ctx) => 'project:' + ctx.params.project,
+        label: (ctx) => {
+          const found = namedFile(ctx, 'media_id');
+          return evidenceOf(ctx, found).kind === 'photo' ? FMOffline.label('sync_checklist_photo', 'Checklist photo', text(found.file.name)) : FMOffline.label('sync_checklist_file', 'Checklist file', text(found.file.name));
+        },
+        records: (ctx) => [namedFile(ctx, 'media_id').id],
+        media: (ctx) => { const found = namedFile(ctx, 'media_id'); return [{ id: found.id, field: found.field }]; },
+        respond: async (ctx) => {
+          const found = namedFile(ctx, 'media_id');
+          const attachment = evidenceOf(ctx, found);
+          const lists = list(obj(await ctx.saved(checklistsUrl(ctx))).checklists);
+          const item = lists.flatMap((checklist) => list(obj(checklist).items)).find((entry) => text(obj(entry).id) === ctx.params.item) || { id: ctx.params.item, checklist_id: ctx.params.checklist, project_id: ctx.params.project, metadata: {} };
+          // (The list read adds who completed the item by name; the route's own answer does not carry it.)
+          const answered = withEvidence(item, attachment, ctx);
+          delete answered.completed_by_name;
+          return { ok: true, attachment, item: answered };
+        },
+        effects: async (ctx) => {
+          const found = namedFile(ctx, 'media_id');
+          const attachment = obj(obj(ctx.response).attachment);
+          if (!found || !attachment.media_id) return [];
+          const record = await evidenceMedia(ctx, found);
+          return recordEffects(ctx, record).concat([
+            { match: 'GET ' + WORKFORCE + '/crew/projects/:project/checklists', when: (m) => m.org === ctx.org && m.project === ctx.params.project, apply: (json) => {
+              if (!Array.isArray(obj(json).checklists)) return json;
+              return Object.assign({}, json, { checklists: json.checklists.map((checklist) => (Array.isArray(obj(checklist).items) ? Object.assign({}, checklist, { items: checklist.items.map((item) => (text(obj(item).id) === ctx.params.item ? withEvidence(item, attachment, ctx) : item)) }) : checklist)) });
+            } }
+          ]);
+        }
+      },
+
+      {
+        id: 'media.update',
+        match: 'PATCH ' + ORG + '/media/:media',
+        when: (ctx) => { const change = editOf(ctx); return change.name !== undefined || change.tags !== undefined; },
+        // A `patch`: the route replaces the whole name or tag list and has no revision, so when it is sent the name
+        // and each tag are merged with the record as the server has it then.
+        kind: 'patch',
+        // One photo's edits in order. A photo whose upload still waits is named in the URL, so the engine sends
+        // this after that upload (`after`), whatever scope the upload is in.
+        scope: (ctx) => 'media:' + ctx.params.media,
+        label: (ctx) => {
+          const change = editOf(ctx);
+          return change.name !== undefined ? FMOffline.label('sync_photo_renamed', 'Photo renamed', change.name) : FMOffline.label('sync_photo_tagged', 'Photo tags', change.tags.map((tag) => '#' + tag).join(' '));
+        },
+        records: (ctx) => [ctx.params.media],
+        // The whole record with the change, as the route answers. A record this device never read is answered
+        // with what the change itself says (the apps read the name and the tags from it).
+        respond: async (ctx) => ({ ok: true, media: editedRecord((await knownMedia(ctx, ctx.params.media)) || { id: ctx.params.media, organization_id: ctx.org, metadata: {} }, editOf(ctx), iso(ctx.now)) }),
+        effects: (ctx) => { const change = editOf(ctx); const now = iso(ctx.now); return mediaRecordEffects(ctx.org, ctx.params.media, (record) => editedRecord(record, change, now)); },
+        conflict: {
+          current: (ctx) => path(ctx.org, '/media/' + encodeURIComponent(ctx.params.media)),
+          pick: (json) => { const media = obj(obj(json).media); return { doc: mergeDoc(media), revision: text(media.updated_at) }; },
+          // The record as the lists show it, where its own read was never saved.
+          base: async (ctx) => { const media = await knownMedia(ctx, ctx.params.media); return media ? { doc: mergeDoc(media), revision: text(media.updated_at) } : null; },
+          fields: (ctx) => Object.keys(editOf(ctx)),
+          mine: (ctx, base) => { const change = editOf(ctx); return Object.assign({}, base || {}, change.name !== undefined ? { name: change.name } : {}, change.tags !== undefined ? { tags: tagSet(change.tags) } : {}); },
+          send: (ctx, merged) => Object.assign({}, merged.name != null ? { name: merged.name } : {}, merged.tags != null ? { tags: Object.keys(obj(merged.tags)) } : {})
         }
       },
 

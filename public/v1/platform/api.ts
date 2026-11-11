@@ -2927,6 +2927,18 @@ app.get("/auth/google/config", async () => ({
     const project = await readDocument(orgId, "projects", projectId);
     const upload = await parseMediaUploadRequest(request);
     const bodyMeta = asObject(upload.metadata);
+    // An id the device made (docs/architecture/offline.md, "Uploads of other apps"): sent again, it replaces this
+    // project's same document. It never replaces anything else.
+    if (cleanText(upload.id)) {
+      const taken = await readMediaMetadata(orgId, cleanText(upload.id)).catch((error: unknown) => {
+        if (error instanceof PlatformError && error.statusCode === 404) return null;
+        throw error;
+      });
+      const takenOwner = asObject(taken?.owner);
+      if (taken && (cleanText(takenOwner.type) !== "project" || cleanText(takenOwner.id) !== projectId || cleanText(takenOwner.slot) !== "documents")) {
+        throw conflict("media_id_taken", "This media id is already in use.");
+      }
+    }
     const media = await storeMediaUpload(orgId, {
       ...upload,
       ownerType: "project",

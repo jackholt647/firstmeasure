@@ -1059,6 +1059,14 @@
     const root=projectMountRoot(context,'checklists');
     let destroyed=false;
     let data=null;
+    // Evidence kept on this device until it uploads carries the offline UI's mark (docs/architecture/offline.md).
+    const markWaitingEvidence=()=>root?.querySelectorAll?.('[data-offline-record]:not([data-offline-marked])').forEach((node)=>{
+      node.setAttribute('data-offline-marked','');
+      let badge=null;
+      try{badge=window.PlatformOfflineUI?.waitingBadge?.({record:node.dataset.offlineRecord,compact:true})||null;}catch(_){badge=null;}
+      if(badge)node.append(badge);
+    });
+    if(root&&typeof MutationObserver==='function')new MutationObserver(markWaitingEvidence).observe(root,{childList:true,subtree:true});
     const noteState={}; // itemId -> note and evidence interaction state
     const checklists=()=>arr(data?.checklists);
     const state=(id)=>noteState[id]||(noteState[id]={open:false,draft:null,pendingRating:'',hint:false,focus:false,evidenceHint:false,uploading:''});
@@ -1139,7 +1147,7 @@
       const evidenceHtml=requirements.length?`<div class="crew-cl-evidence ${drawer.evidenceHint?'hint':''}" data-cl-evidence>
         ${requirements.map((requirement)=>`<div class="crew-cl-requirement ${String(requirement.met?'met':'missing')}"><i class="fas ${String(requirement.met?'fa-check':requirement.icon)}"></i><div class="crew-cl-requirement-copy"><strong>${String(esc(requirement.label))}</strong><span>${((v3,v4,v5) => globalThis.PlatformLanguage?.htmlText("crew","m_c35ccba2063e20",`${v3}/${v4} attached${v5}`,{v3,v4,v5}) ?? `${v3}/${v4} attached${v5}`)(requirement.matches.length,requirement.minimum,requirement.met?' · Ready':'')}</span></div>${String(canComplete?(requirement.recordOnly?`<button class="crew-cl-upload crew-cl-record" type="button" data-cl-evidence-record="${esc(requirement.key)}" ${drawer.uploading?'disabled':''}><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/record.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/record.svg) center/contain no-repeat"></span>${(globalThis.PlatformLanguage?.htmlText("crew","m_e05fb49213187a","Record") ?? "Record")}</button>`:`<button class="crew-cl-upload" type="button" data-cl-evidence-add="${esc(requirement.key)}" ${drawer.uploading?'disabled':''}><i class="fas ${drawer.uploading===requirement.key?'fa-spinner fa-spin':'fa-arrow-up-from-bracket'}"></i>${drawer.uploading===requirement.key?'Uploading':'Add'}</button><input type="file" hidden multiple data-cl-evidence-input="${esc(requirement.key)}" accept="${esc(requirement.accept)}">`):'')}</div>${String(canComplete&&requirement.recordOnly?`<div class="crew-cl-evidence-recorder" data-cl-evidence-recorder="${esc(requirement.key)}"></div>`:'')}`).join('')}
         ${drawer.evidenceHint&&requirements.some((entry)=>!entry.met)?`<div class="crew-cl-evidence-hint"><i class="fas fa-circle-exclamation"></i>${(globalThis.PlatformLanguage?.htmlText("crew","m_b84b57a4a1d9f6"," Add the required files before completing this item.") ?? " Add the required files before completing this item.")}</div>`:''}
-        ${attachmentRows.length?`<div class="crew-cl-evidence-files">${attachmentRows.map((attachment)=>`<span class="crew-cl-evidence-file"><i class="fas fa-paperclip"></i><span>${esc(first(attachment.file_name,attachment.kind,'Attachment'))}</span></span>`).join('')}</div>`:''}
+        ${attachmentRows.length?`<div class="crew-cl-evidence-files">${attachmentRows.map((attachment)=>`<span class="crew-cl-evidence-file" data-offline-record="${esc(attachment.media_id)}"><i class="fas fa-paperclip"></i><span>${esc(first(attachment.file_name,attachment.kind,'Attachment'))}</span></span>`).join('')}</div>`:''}
       </div>`:'';
       return `<div class="${classes}" data-cl-item="${esc(checklist.id)}::${esc(item.id)}"><div class="crew-cl-main">${check}<div class="crew-cl-item-copy"><strong>${esc(first(item.title,item.label,'Checklist item'))}</strong>${itemSubtitle(item)?`<span>${esc(itemSubtitle(item))}</span>`:''}</div>${control}${noteButton}${actions}</div>${evidenceHtml}${noteLine}${drawerHtml}</div>`;
     };

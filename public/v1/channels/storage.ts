@@ -1277,6 +1277,11 @@ export async function listReactionsForMessages(messageIds: string[]) {
 // --- attachments ---------------------------------------------------------------
 
 export async function createAttachmentRecord(input: {
+  /**
+   * An id the uploading device made (the route checks its form and that it is free); else one is made here.
+   * Not `id`: a caller that copies an attachment passes the whole row, and the copy must get an id of its own.
+   */
+  device_made_id?: string;
   organization_id: string;
   channel_id?: string | null;
   media_id: string;
@@ -1287,7 +1292,7 @@ export async function createAttachmentRecord(input: {
 }) {
   return (await getChannelsDatabase().transaction(async () => {
   const db = getChannelsDatabase();
-  const id = `att_${randomUUID()}`;
+  const id = cleanText(input.device_made_id) || `att_${randomUUID()}`;
   (await db.prepare(`
     INSERT INTO message_attachments (id, organization_id, channel_id, message_id, media_id, file_name, content_type, size_bytes, uploaded_by, created_at)
     VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)

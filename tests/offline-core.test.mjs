@@ -1396,3 +1396,65 @@ test('start-up reads that got no answer are tried again at the next page load, a
   await t.FM.identity.signOut(ME.user);
   eq((await t.FM.startup.run(ME)).skipped, false, 'after a sign-out the next sign-in downloads again');
 });
+
+test('a patch of a record the device only knows from a list takes its base from the contract (conflict.base)', async () => {
+  const t = engine();
+  t.FM.contracts.add({
+    id: 'things',
+    writes: [{
+      id: 'thing.patch', match: 'PATCH /v1/things/:id', kind: 'patch', scope: (ctx) => `thing:${ctx.params.id}`, records: (ctx) => [ctx.params.id],
+      label: () => ({ title: 'Thing' }),
+      respond: (ctx) => ({ ok: true, thing: { id: ctx.params.id, ...ctx.body } }),
+      conflict: {
+        current: (ctx) => `/v1/things/${ctx.params.id}`,
+        pick: (json) => ({ doc: json.thing, revision: json.thing.revision }),
+        // The thing's own read was never made: the list that showed it has it.
+        base: async (ctx) => { const thing = ((await ctx.saved('/v1/things')) || { things: [] }).things.find((item) => item.id === ctx.params.id); return thing ? { doc: thing, revision: thing.revision } : null; },
+        send: (ctx, merged) => merged
+      }
+    }]
+  });
+  let thing = { id: 't1', revision: 1, name: 'One', colour: 'red' };
+  t.server.on('GET /v1/things', () => ({ json: { things: [thing] } }));
+  t.server.on('GET /v1/things/t1', () => ({ json: { thing } }));
+  t.server.on('PATCH /v1/things/t1', (request) => { thing = { ...thing, ...request.body }; return { json: { ok: true, thing } }; });
+  await t.json('GET', '/v1/things');
+  t.server.down = true;
+  await t.json('PATCH', '/v1/things/t1', { json: { name: 'Uno' } });
+  await t.json('PATCH', '/v1/things/t2', { json: { name: 'Dos' } });
+  eq((await t.entries()).map((entry) => entry.base), [{ doc: { id: 't1', revision: 1, name: 'One', colour: 'red' }, revision: 1 }, null], 'a record no list has keeps no base');
+  // The server changed another field and then the same one: the first merges, the second asks.
+  thing = { ...thing, revision: 2, colour: 'blue' };
+  t.server.down = false;
+  await t.FM.replay.run();
+  eq([t.server.sent('PATCH /v1/things/t1').at(-1).body, thing.colour], [{ name: 'Uno' }, 'blue']);
+  await t.json('GET', '/v1/things');
+  t.server.down = true;
+  await t.json('PATCH', '/v1/things/t1', { json: { name: 'Eins' } });
+  thing = { ...thing, name: 'Un' };
+  t.server.down = false;
+  await t.FM.replay.run();
+  eq((await t.entries()).filter((entry) => entry.state === 'conflict').map((entry) => entry.conflict.fields.map((field) => [field.path, field.base, field.mine, field.theirs])), [[['name', 'Uno', 'Eins', 'Un']]]);
+});
+
+test('ctx.queued gives what an earlier change answered the page, so a change can carry on the record it made', async () => {
+  const t = engine();
+  t.FM.contracts.add({
+    id: 'files',
+    writes: [
+      { id: 'file.add', match: 'POST /v1/files', kind: 'create', scope: (ctx) => `file:${ctx.body.id}`, records: (ctx) => [ctx.body.id], label: () => ({ title: 'File' }), respond: (ctx) => ({ ok: true, file: { id: ctx.body.id, name: ctx.body.name } }) },
+      {
+        id: 'post.add', match: 'POST /v1/posts', kind: 'action', scope: () => 'posts', label: () => ({ title: 'Post' }),
+        respond: async (ctx) => ({ ok: true, files: (await Promise.all(ctx.body.file_ids.map((id) => ctx.queued(id)))).flat().filter((entry) => entry.write === 'file.add').map((entry) => entry.response.file) })
+      }
+    ]
+  });
+  t.server.down = true;
+  await t.json('POST', '/v1/files', { json: { id: 'file_aaaa1111', name: 'plan.pdf' } });
+  const post = await t.json('POST', '/v1/posts', { json: { text: 'See the plan', file_ids: ['file_aaaa1111', 'file_unknown1'] } });
+  eq(post.data, { ok: true, files: [{ id: 'file_aaaa1111', name: 'plan.pdf' }] });
+  // The copy is the contract's own: changing it does not change what the queue keeps.
+  const [first] = await t.entries();
+  eq(first.response, { ok: true, file: { id: 'file_aaaa1111', name: 'plan.pdf' } });
+  eq((await t.entries())[1].after, [first.id], 'and the post, which names the file, is sent after it');
+});

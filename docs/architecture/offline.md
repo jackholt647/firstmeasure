@@ -433,7 +433,9 @@ FMOffline.contracts.add({
     media: (ctx) => [{ id: ctx.body.id, field: 'file' }],
     // kind 'patch' only:
     conflict: { current: (ctx) => url, pick: (json) => ({ doc, revision }),
-                fields: (ctx) => ['title', 'address'], send: (ctx, merged, revision, theirs) => body }
+                fields: (ctx) => ['title', 'address'], send: (ctx, merged, revision, theirs) => body,
+                // optional: the record as it is now, where its own read was never saved
+                base: (ctx) => ({ doc, revision }) }
   }]
 });
 ```
@@ -454,9 +456,11 @@ async; they run in the worker, and in the top-level page when it replays.
   `[{ url, query, params, json }]`, for a record that is only known from
   lists, whatever their filters were (a to-do).
 - `queued(record)` resolves the earlier changes still on the device that name
-  a record, as `[{ id, contract, write, kind, scope, state }]`. A change to a
-  record that was made on this device takes the scope of the change that
-  made it, so it is sent after it.
+  a record, as `[{ id, contract, write, kind, scope, state, response }]`. A
+  change to a record that was made on this device takes the scope of the
+  change that made it, so it is sent after it. `response` is what that change
+  answered the page: the record it made, for a change that carries it on (a
+  note shows the attachment its waiting upload answered).
 - **Seeds.** An effect may carry `seed` (a value or a function) instead of, or
   beside, `apply`. A read that has no saved answer is then answered from the
   first queued change that seeds it, with later changes applied on top
@@ -676,6 +680,11 @@ never conflict.
   when the change is made, so a second offline edit of a record starts from
   the first. Where the record was never saved there is no base: the person's
   values are sent with the server's current revision.
+- `conflict.base(ctx)` is asked when that read was never saved: it resolves
+  `{ doc, revision }` from what the device does hold. A photo is mostly known
+  from lists (a project's media, the Feed's catalog), not from its own read,
+  so its rename starts from the list's copy and a change the server also made
+  to the same field is still noticed.
 
 ## Photos and files
 
@@ -694,21 +703,81 @@ project Photos tab (`apps/photos/project.js`), the Feed (`apps/photos/feed.js`) 
 | a photo with no project yet (the Feed camera) | the same route, owner `organization`, slot `photos` | `upload` | `user:<id>` |
 | the project's photo list: add, trash, restore, remove | `POST .../projects/:project/photos` | `patch` | `project:<id>` |
 | pairing photos with a project | `POST .../media/assign` | `action` | `user:<id>` |
+| a photo's or file's name and tags | `PATCH .../media/:id` | `patch` | `media:<id>` |
+| a contact's picture, media and documents | `POST .../media` (owner `contact`) | `upload` | `contact:<id>` |
+| a file added to a project's documents list | `POST .../projects/:project/documents` | `upload` | `project:<id>` |
+| a photo or file added to a checklist item | `POST /v1/workforce/.../checklists/:checklist/items/:item/attachments` | `upload` | `project:<id>` |
+| a note's file (`notes.js`) | `POST /v1/channels/.../uploads` | `upload` | `attachment:<id>` |
 
 - A project photo is two entries, the upload and then the list save. Both are in the project's scope, so they
   follow the project's own create when that still waits. A photo with no project and its pairing are in the
   person's scope, so the pairing follows the upload. Pairing with a project that itself still waits to be created
   is refused by the server (404) and waits for the person to send it again.
-- **Not queued**, answered `offline_unavailable`:
-  - an upload that replaces a slot (a logo, an avatar): the server names it by its slot;
-  - every other upload (contact media, note and message attachments, documents, receipts, FirstMeasure order
-    reference photos): each is followed by a write of its own app in another scope, which would have to wait
-    behind the file. Add them to that app's contract together with that write;
-  - renaming and tagging (`PATCH .../media/:id`). The route replaces the whole name or tag list with the device's
-    copy and has no revision, so a replay hours later would undo a newer edit; and the request names only the
-    media id, so the scope of a photo that still waits cannot be told from it and the change could be sent
-    before its upload. Both need a connection.
-  - A video, a PDF or another file in a project's `photos` slot is queued like a photo, within the limits below.
+- A video, a PDF or another file in a project's `photos` slot is queued like a photo, within the limits below.
+- **Not queued**, answered `offline_unavailable` and shown as "needs a connection":
+  - **an upload that replaces a slot** (a company logo, a person's avatar: `org_upload_logo_my` and
+    `org_users_upload_avatar_my` through `portal-action`, where the server sets `replace_slot`). A slot holds one
+    picture under one id, so a replay hours later would put the old picture over one chosen since, and there is
+    no revision to tell which is newer. A contact's picture is not such a slot: each upload makes its own
+    record and the contact names the one it shows, so it is queued;
+  - **receipts** (`/v1/payments/.../receipts`). Every route under `/v1/payments` is on the worker's deny list:
+    payments data is never kept on a device, so the lists that show a receipt (the money summary, the receipt
+    lists) are not saved either and a waiting receipt would have nowhere to be shown after a reload. The route
+    also reads the receipt on the server (its total, the expense summary it answers) and tells a retry by the
+    page's own `Idempotency-Key`, which is the one header the queue uses for its key. `payments-api.js` says
+    "Payments and money figures need a connection. They are not kept on this device.";
+  - **voice notes and audio evidence that is transcribed** (the server transcribes while it stores), **replies**,
+    and a note's file on a project made on this device (its channel does not exist yet);
+  - **the uploads of apps without a contract**: message attachments in Channels, feed posts, equipment, document
+    templates and the document media library, training, the web editor, SMS pictures, FirstMeasure order
+    reference photos.
+
+### Renaming and tagging
+
+`PATCH .../media/:id` replaces the whole name or the whole tag list and has no revision. So the change is a
+`patch` in the scope `media:<id>` and is merged when it is sent:
+
+- **The record it starts from** is the photo as the device shows it, with the changes queued before this one
+  (`knownMedia`: its own read, else the media lists and the Feed's catalog that show it). Two offline edits of one
+  photo therefore start one from the other and never conflict with each other.
+- **When it is sent** the record is read again and merged per field: a name only this change set is sent, a name
+  the server also changed is a conflict in the sync list, and a change the server already has is not sent again.
+  **Tags merge tag by tag**: a tag added here and another added in the office both stay, and a tag taken off
+  here stays off. Tags never conflict.
+- **A photo that still waits to upload** is renamed and tagged like any other. The upload's effects answer the
+  record's own read (`seed`), and the request's URL names the photo, so the engine sends the edit after that
+  upload, whatever scope the upload is in (`after`). Throwing the upload away throws its edits away with it
+  (`feed.js`).
+- **While it waits** the change is applied to every read that lists the record (`GET .../media/:id`,
+  `GET .../media`, the Feed's catalog), so every gallery shows the new name and tags on any later load, with the
+  waiting mark on the tile. Deleting a photo that only has an edit waiting moves it to the trash like any other;
+  only a photo whose upload itself still waits is taken back instead (`uploadsWaiting` in `feed.js`).
+
+### Uploads of other apps
+
+Each of these names its file on the device, so the file is shown from the device while it waits (its media URL
+is answered from the stored file) and a repeat replaces the same record:
+
+| Upload | Id the device makes | What follows it | Where it shows while it waits |
+|---|---|---|---|
+| a contact's picture (slot `profile`), media and documents (`contacts/modal.js`) | the media id (`media.upload`) | for the picture, the contact's own save (`contact.patch` or `contact.create`), in the same scope and so after it | the picture tile, the contact's gallery and Docs list (`GET .../media?contact_id=`) |
+| a file in a project's documents list (`projectDocuments.upload`) | the media id, sent as `id` | nothing: the route stores the file and writes the list in one request (the Docs tab's whole-project save is the project's own contract) | the Docs tab (`GET .../projects/:id/documents`), the project's `documents` |
+| checklist evidence (`CrewAPI.projects.attachChecklistEvidence`) | the media id, sent as `media_id` | nothing: the route puts the file on the item in one request | the item's evidence in the Checklists tab and the crew app (`GET .../crew/projects/:id/checklists`); a photo is also among the project's media |
+| a note's file (`ChannelsAPI.uploads.send` with `deviceIds`) | the attachment id and the media id, sent as `attachment_id` and `media_id` | the note (`note.post`), which names the attachment | the composer and the note in the Notes tray |
+
+- **A note and its file.** The file is in a scope of its own (`attachment:<id>`) and the note names the
+  attachment in its body, so the engine holds the note until the file has arrived (`after`): a file the server
+  refuses waits for the person together with its note, instead of the note arriving without it. A note whose
+  file the device does not hold (it was uploaded with a connection that then dropped) is not queued. The photo
+  of a note is added to the project's photos by the server when the file arrives, not before.
+- **A picture the server would refuse** (a contact's picture that is not a JPEG, PNG, WebP or GIF under 10 MB)
+  is not kept to be refused later.
+- **Checklist evidence is the file only.** Completing the item needs a connection (no contract yet), so an item
+  that requires a photo can have its photo taken offline and is completed when back online.
+- **The server** checks each device-made id (below, "Server"): an id that belongs to something else is refused
+  (`media_id_taken`, `attachment_id_taken`), never overwritten.
+- These browser files and their server routes go out in one release. A page that names a note's attachment while
+  the server still names it itself would send the note without its file.
 
 ### Ids and the time a photo was taken
 
@@ -960,6 +1029,19 @@ routes in `files`, and a declared file is kept like a picture:
 - The media upload takes the record id a device made, keeps
   `metadata.taken_at`, and a replayed photo list save never adds a photo
   whose upload did not arrive: see [Photos and files](#photos-and-files).
+- Three more upload routes take ids a device made, each checked before
+  anything is stored (see "Uploads of other apps"):
+  - `POST /v1/channels/.../uploads`: `attachment_id` (`att_` and 16 to 64
+    lowercase letters, digits or hyphens) with `media_id` (`media_` and 16 hex
+    digits), both or neither. The same person's same upload again answers the
+    attachment it made; another person's id, or one that names other media,
+    is `409 attachment_id_taken` or `media_id_taken`.
+  - `POST /v1/workforce/.../checklists/:checklist/items/:item/attachments`:
+    `media_id`. Only the same item's evidence may be stored again under it;
+    the item keeps one attachment per media id.
+  - `POST .../projects/:project/documents`: `id`, as before, now refused
+    (`409 media_id_taken`) when it names anything but this project's own
+    document.
 
 ### Receipts in detail
 
@@ -1250,18 +1332,18 @@ they were never clicked.
 | Start-up, sidebar, top bar | everything a start reads; the person's apps and permissions come from their saved profile (`GET /me`) when the session read cannot be reached | | | the account switcher's list and sign-in (always the server's); the bonus offer and referral status (reading them writes) |
 | My Projects | the project list; for an account that only orders reports, its FirstMeasure orders | a project (`Portal.ProjectStore`, id made on the device); a lead with `project_id` (`PlatformAPI.leads.create`) | a project's own fields, merged per field | ordering a report (it charges, and FirstMeasure measures); order thumbnails unless the browser still holds them; an order list that carries a refresh cursor |
 | Project: Overview | the project, report widgets, data sets, measurement schema, custom fields, assignable people | | contact fields and address through the project and its contacts | the map (Google), report orders |
-| Project: Notes tray | notes, pins, authors | a note (text) | | replies, attachments, editing, pinning and deleting a note; notes of a project whose channel is not on the device (see below) |
+| Project: Notes tray | notes, pins, authors | a note, with pictures and files | | replies, voice notes, editing, pinning and deleting a note; a file on a project made on this device; notes of a project whose channel is not on the device (see below) |
 | Project: To Do tray, top bar To Do, to-do widget | the lists | a to-do added by hand | complete, reopen, claim, cancel; title, description, due date, priority, who it is assigned to | follow-ups (the server makes them and their outcomes) |
-| Contacts | the list, a contact, a contact's projects | a contact | a contact's fields (`expected_revision`, merged per field); which contacts a project has | merging, importing, duplicate suggestions |
+| Contacts | the list, a contact, a contact's projects, a contact's media and documents (for the contacts of a kept project) | a contact; a contact's picture, media and documents | a contact's fields (`expected_revision`, merged per field); which contacts a project has | merging, importing, duplicate suggestions; opening a contact's document in a new tab |
 | Schedule (project tab and Scheduling) | events, calendar, resources, settings | an event on a project; an event that belongs to no project | an event's fields, its time (a move) and its status (`expected_event_revision`, merged per field); deleting an event | recurring series and their occurrences; unlocking a locked item; re-placing an event's children and checking equipment (the server does both when the save is sent). See "Schedule events" below |
-| Documents | the list, a document, its preview and editor views, workflow, sent versions | a document from a template that is on the device | a draft's title, data, layout, theme and contacts; values and text typed into it as sent (merged per part) | invoices, change orders and other documents the server makes; sending, signing, PDF, outputs and workflow steps: see "Documents" below |
+| Documents | the list, a document, its preview and editor views, workflow, sent versions | a document from a template that is on the device; a file added to the project's documents list | a draft's title, data, layout, theme and contacts; values and text typed into it as sent (merged per part) | invoices, change orders and other documents the server makes; sending, signing, PDF, outputs and workflow steps: see "Documents" below; removing a file from the list |
 | Operations (materials and labor) | the ledger, requirements and coverage, suppliers, price book | | | changing or generating lists, orders (the server prices and computes) |
-| Financials | | | | everything: payments data is never kept on a device. The tab says so |
+| Financials | | | | everything, receipts included: payments data is never kept on a device. The tab says so |
 | Channels, the project's Messages tray, the top bar's message list | the channel list, the directory, the top bar's list and the newest 60 messages of the 25 channels with the newest messages (downloaded at start-up); for a kept project its newest 120 messages, the threads of the newest ten that have replies, and pins; anything else as last shown | | | sending, replying, reacting, editing, deleting, pinning, marking read: see "Messages" below. Unreads, Activity, Threads and Later are as last shown |
 | Communications (inbox, texts, email threads, call log) and the project's Comms tab | the inbox and its settings (start-up); for a kept project its email threads, texts, portal chat and calls; anything else as last shown | | | sending a text, an email or a chat reply; calls; call recordings and voicemail audio, which are never kept on a device; the website chat inbox unless it was opened (reading it shows visitors the person as present) |
-| Checklists (project tab and the assignee's checklist tab) | every checklist of the project with its items, also for a project that was only pinned | an item; a checklist, blank or with items | check, uncheck, rate, note and rename an item (merged per field under the item's revision); the sign-off of a finished checklist | item photos and files, and completing an item that asks for one the device does not have; renaming or deleting a checklist, its settings and assignment; deleting an item; sending, voice, the document. See "Checklists" below |
+| Checklists (project tab and the assignee's checklist tab) | every checklist of the project with its items, also for a project that was only pinned | an item; a checklist, blank or with items; a photo or file on an item | check, uncheck, rate, note and rename an item (merged per field under the item's revision); the sign-off of a finished checklist | renaming or deleting a checklist, its settings and assignment; deleting an item; sending, voice explanations, the document. See "Checklists" below |
 | Activity, Feed | what was last shown | | | comments and reactions (no contract yet) |
-| Photos | see the photos contract (`media.js`) | | | |
+| Photos | see [Photos and files](#photos-and-files) | photos and videos | name and tags, also of a photo still waiting to upload | markup, comments |
 
 How each kind of change is sent:
 
@@ -1654,8 +1736,13 @@ revision, as they are online). The times are those of the sync.
 - A change feed for refreshing pinned projects without re-reading them
   ([backlog](../optimization-backlog.md#pinned-offline-projects-are-refreshed-by-reading-everything-again)).
 - Resumable uploads for very large files (a failed upload starts again).
-- Renaming and tagging a photo without a connection, and queueing the uploads
-  of other apps (see [What is queued](#what-is-queued)).
+- Uploads that are still online-only, and why: see
+  [What is queued](#what-is-queued) (slot pictures, receipts, voice notes,
+  apps without a contract).
+- A contact's or a project's document opened in a new tab is not the
+  worker's to answer (as for reports): show the device's copy in the page.
+- Each rename or tag in the Photos tab is followed by the tab's whole-project
+  save, so the sync list counts two changes for one.
 - Offline sign-in (a person must have signed in on the device while online).
 - Re-reading a declared `POST` read after a sync sends its text fields
   URL-encoded, also when the app sent them as a multipart form.
@@ -1708,7 +1795,8 @@ a template, edited, synced once, its create repeated, then merged with the
 server's copy part by part).
 
 Photos: `tests/offline-photos.test.mjs` (the media contract case by case, with
-the real engine), `tests/offline-photos-browser.test.mjs` (the real worker,
+the real engine: photos, renaming and tagging, a contact's files, project
+documents, checklist evidence, a note's file), `tests/offline-photos-browser.test.mjs` (the real worker,
 engine, contract and `platform-api.js` in headless Chrome with real
 pictures: queued, shown, closed and reopened, sent once, the small copy and
 its eviction, a small picture, an online retry, a photo stored on its side,
