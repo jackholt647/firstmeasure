@@ -24,7 +24,7 @@ async function feedPage(browser,options,{unassigned=[]}={}){
   await page.route(ORIGIN+'/**',async route=>{
     const url=new URL(route.request().url());
     if(url.pathname.startsWith('/media/'))return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="600" height="450"><rect width="600" height="450" fill="#87a5b8"/><path d="M0 330L160 190L300 300L420 220L600 340V450H0Z" fill="#4b6577"/></svg>'});
-    return route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;font-family:Arial,sans-serif;--primary:#16a34a"><div id="mainPanels" style="height:100vh;padding:0 12px;box-sizing:border-box"><main id="feed" style="height:100%"></main></div></body></html>'});
+    return route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;font-family:Arial,sans-serif;--primary:#16a34a"><style>.main-panels{height:100vh;padding:0 12px 12px;box-sizing:border-box}</style><div id="mainPanels" class="main-panels"><main id="feed" class="fm-tabpanel active" style="height:100%"></main></div></body></html>'});
   });
   await page.goto(ORIGIN+'/');
   await page.evaluate(({unassigned})=>{
@@ -77,7 +77,11 @@ test('phone Feed camera: a shot uploads unpaired, Done asks for a project, picki
     const {page,errors}=await feedPage(browser,PHONE);
     await page.waitForSelector('#feed>.fmc-bar');
     const bar=await rect(page,'#feed>.fmc-bar');
-    assert.ok(bar.x>=12&&bar.x+bar.width<=378&&bar.height<=48&&bar.y+bar.height>=830,'a slim bar along the bottom of the Feed: '+JSON.stringify(bar));
+    assert.ok(bar.x>=12&&bar.x+bar.width<=378&&bar.height<=48,'a slim bar along the bottom of the Feed: '+JSON.stringify(bar));
+    // The portal pads its panels on phones; the Feed has no tab bar under it, so it runs to the bottom of the
+    // screen and the bar floats 12px above it, as far as from the sides (FM-391).
+    assert.equal(bar.y+bar.height,844-12,'the bar sits 12px above the bottom of the screen, not above an empty band');
+    assert.equal((await rect(page,'#feed')).height,844,'the Feed reaches the bottom of the screen');
     assert.equal(await page.locator('[data-feed-unassigned]').count(),0,'no Unassigned group while there is nothing unpaired');
     await shot(page,'phone-feed');
     await page.locator('#feed>.fmc-bar').click();
