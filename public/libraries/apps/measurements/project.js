@@ -1537,6 +1537,41 @@ window.PlatformCommerce.onReady(function(){
     }
   }
 
+  // Without a connection a report cannot open in a new tab either (that tab's page is not the offline worker's to
+  // answer). The summary's Open then shows the device's copy in this window's own report tab; a file that has no
+  // tab here (the XML model) is saved from the device's copy.
+  let offlineReportLinksBound = false;
+  function bindOfflineReportLinks(){
+    if (offlineReportLinksBound) return;
+    offlineReportLinksBound = true;
+    document.addEventListener('click', (event) => {
+      const link = event.target?.closest?.('a.r-report-summary-link[href]');
+      if (!link || !reportShownFromDevice()) return;
+      event.preventDefault();
+      const same = (a, b) => { try { const x = new URL(a, location.href), y = new URL(b, location.href); return x.pathname + x.search === y.pathname + y.search; } catch (_) { return false; } };
+      const assets = primeMeasurementAssetCacheFromKnownUrls(activeMeasurementProjectId()) || {};
+      if (assets.reportUrl && same(link.href, assets.reportUrl)) { setActiveMeasurementTab('standard', { user: true }); return; }
+      if (assets.summaryUrl && same(link.href, assets.summaryUrl)) { setActiveMeasurementTab('customer', { user: true }); return; }
+      saveReportFileFromDevice(link);
+    }, true);
+  }
+  async function saveReportFileFromDevice(link){
+    try {
+      const response = await fetch(link.href, { credentials: 'include' });
+      if (!response.ok) throw new Error('not on this device');
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = decodeURIComponent(new URL(link.href, location.href).pathname.split('/').pop() || 'file');
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    } catch (_) {
+      link.insertAdjacentText('afterend', ` ${(globalThis.PlatformLanguage?.text("measurements","offline_report_not_saved_title","Not saved on this device") ?? "Not saved on this device")}`);
+    }
+  }
+
   function reportFrameHtml(url){
     const safeUrl = escapeHtml(url || '');
     if (pdfPreviewDisabled) {
@@ -4203,6 +4238,7 @@ window.PlatformCommerce.onReady(function(){
       }
     }
     if (!terminalWithoutReport) keepReportFilesOnDevice(cachedAssets);
+    bindOfflineReportLinks();
     if (standard) {
       standard.innerHTML = !terminalWithoutReport && cachedAssets?.reportUrl
         ? `${reportExpediteRefundNoticeHtml()}${reportFrameHtml(cachedAssets.reportUrl)}`

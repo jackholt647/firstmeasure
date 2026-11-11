@@ -1398,7 +1398,9 @@
       const all = Object.assign({}, await pins.load(identity));
       if (all[project]) {
         // A read that could not be fetched this time stays pinned from the last time.
-        all[project] = Object.assign({}, all[project], { reads: [...new Set([...(failed ? all[project].reads || [] : []), ...readKeys])], media: [...new Set([...(failed ? all[project].media || [] : []), ...mediaKeys])], refreshedAt: failed ? all[project].refreshedAt || null : config.now() });
+        // (A file a page named while this ran is the pin's too: it was fetched by pins.files, not here.)
+        const named = (all[project].media || []).filter((key) => (all[project].files || []).includes(key));
+        all[project] = Object.assign({}, all[project], { reads: [...new Set([...(failed ? all[project].reads || [] : []), ...readKeys])], media: [...new Set([...(failed ? all[project].media || [] : []), ...named, ...mediaKeys])], refreshedAt: failed ? all[project].refreshedAt || null : config.now() });
         await pins.save(identity, all);
       }
       return { reads: readKeys.size, media: mediaKeys.size, failed };
