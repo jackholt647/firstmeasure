@@ -5,5 +5,6 @@
  * case to public/v1/tests/offline-contracts.test.ts.
  */
 self.FM_OFFLINE_CONTRACTS = [
-  'core.js'
+  'core.js',
+  'media.js'
 ];

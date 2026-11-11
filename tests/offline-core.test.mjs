@@ -837,6 +837,28 @@ test('a delegated upload waits for the host\'s answer and keeps its scope in ord
   assert.equal((await t.FM.replay.run()).sent, 1);
 });
 
+test('an entry something else will send (configure external) is never sent by replay, and its scope waits', async () => {
+  const t = engine();
+  t.server.down = true;
+  const id = (await t.json('POST', '/v1/platform/organizations/org_1/media', { body: photoForm('media_1') })).response.headers.get('x-fm-offline-queued');
+  await t.json('POST', '/v1/notes/n1/star', { json: { project_id: 'p1' } });
+  await t.json('POST', '/v1/notes/n2/star', { json: { project_id: 'p2' } });
+  t.server.down = false;
+  t.server.on('POST /v1/notes/', () => ({ json: { ok: true } }));
+  t.server.on('POST /v1/platform/organizations/org_1/media', () => ({ status: 201, json: { ok: true, media: { id: 'media_1' } } }));
+  // The native app's uploader takes waiting uploads: what the hook is asked about is the public entry.
+  const asked = [];
+  t.FM.configure({ external: (entry) => { asked.push([entry.id, entry.kind, entry.state]); return entry.kind === 'upload'; } });
+  assert.equal((await t.FM.replay.run()).sent, 1, 'only the other project\'s change is sent');
+  eq(t.server.sent('POST').map((request) => request.path), ['/v1/notes/n2/star']);
+  eq(asked.find((item) => item[0] === id), [id, 'upload', 'waiting']);
+  eq((await t.entries()).map((entry) => [entry.kind, entry.state]), [['upload', 'waiting'], ['action', 'waiting']], 'the upload was not touched and the change behind it waits');
+  // Left to the page after all (the host cannot take it): replay sends it and what waited behind it.
+  t.FM.configure({ external: () => false });
+  assert.equal((await t.FM.replay.run()).sent, 2);
+  eq(t.server.sent('POST').map((request) => request.path), ['/v1/notes/n2/star', '/v1/platform/organizations/org_1/media', '/v1/notes/n1/star']);
+});
+
 // ---------------------------------------------------------------------------------------------------------------
 // Identity, budgets, pins
 // ---------------------------------------------------------------------------------------------------------------

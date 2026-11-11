@@ -325,6 +325,10 @@ contract names.
   falls back to the cache. On the Postgres store a markup thumbnail is not
   rendered (the plain thumbnail is served in its place), so it is always
   `no-cache` there.
+  `FMOffline.media.put(identity, url, blob, { fixed })` keeps a file the
+  device made under a media URL (the small copy of a queued photo): served
+  from the device first like a rendition, or with `fixed: false` only when
+  the server cannot be reached.
 - **Pinned projects.** `PlatformOffline.pinProject(org, project)` runs every
   contract's `prefetch` for that project (the project, its lists, its
   documents, its thumbnails) and repeats it when the connection returns and
@@ -487,7 +491,10 @@ other failures do not.
 - **Native hand-off.** `FMOffline.queue.delegate(id, info)` marks an entry
   `delegated`; its scope waits. `FMOffline.replay.report(id, response)`
   applies the host's answer (a `Response`, or `null` for none) by the table
-  above.
+  above. `FMOffline.configure({ external: (entry) => boolean })` names
+  waiting entries something else will send (the app's uploader, before it
+  has marked them): replay never sends one, and its scope waits. See
+  [Native hand-off](#native-hand-off).
 
 ### Overlays
 
@@ -521,36 +528,182 @@ never conflict.
 
 ## Photos and files
 
-- A queued upload keeps its file in the `blobs` store (IndexedDB) and its
-  record id is made on the device (`media.upload` sends `id` unless it
-  replaces a slot), so the queued photo, its place in the project's photo
-  list and its later upload are the same record.
-- While it waits, the worker answers that media id's file requests (any
-  variant, and `Range` requests) from the stored file, so the app's ordinary
-  thumbnail URLs work. The contract's `media(ctx)` names the id; by default
-  an `upload`'s first file stands for its first record.
-- When it is uploaded the original is deleted from the device; a 640 px copy
-  made at capture goes into the media cache under the thumbnail URLs
-  (`FMOffline.media.put(identity, url, blob)`).
-- Capture time is sent as `metadata.taken_at`, set when the photo was taken,
-  not when it was uploaded.
-- Free space is checked before a file is queued (`navigator.storage`): the
-  browser must report room for the files plus 10 MB. With less the write is
-  answered `507 { ok: false, error: "offline_storage_full" }` and nothing is
-  queued. A change without a file is always queued.
-- **Camera roll.** Capture never writes to the camera roll. The device
-  setting `saveToCameraRoll` (off by default) saves a copy through the native
-  bridge (`photoLibrarySave`); a browser cannot, so the setting is shown only
-  in the app.
-- **Native hand-off.** Where the bridge reports `offlineUploads`, the page
-  hands a queued upload to the host (`offlineUploads.enqueue`: the stored
-  file or a native camera token, URL, form fields, headers, idempotency
-  key). The host keeps the file in private app storage and uploads it with
-  the WebView's session cookies in the background (WorkManager on Android, a
-  background `URLSession` on iOS), also after the app is closed. The entry
-  stays in the queue as `delegated` until the host reports the answer
-  (`offlineUploads.status`), so the queue remains the one record of what is
-  waiting.
+A photo taken or chosen without a connection is kept in the device's private storage (the `blobs` store; in the
+app, also the host's private folder), shown in the project at once, uploaded when a connection returns, and then
+removed from the device. A small copy stays in the rolling media cache. The contract is
+`contracts/media.js`; the page side is `media.upload` and `projectMedia.uploadMedia` in `platform-api.js`, the
+project Photos tab (`apps/photos/project.js`), the Feed (`apps/photos/feed.js`) and the camera
+(`camera-capture/camera-capture.js`).
+
+### What is queued
+
+| Change | Route | Kind | Scope |
+|---|---|---|---|
+| a project's photo or video | `POST .../media` (owner `project`, slot `photos`, with the id the device made) | `upload` | `project:<id>` |
+| a photo with no project yet (the Feed camera) | the same route, owner `organization`, slot `photos` | `upload` | `user:<id>` |
+| the project's photo list: add, trash, restore, remove | `POST .../projects/:project/photos` | `patch` | `project:<id>` |
+| pairing photos with a project | `POST .../media/assign` | `action` | `user:<id>` |
+
+- A project photo is two entries, the upload and then the list save. Both are in the project's scope, so they
+  follow the project's own create when that still waits. A photo with no project and its pairing are in the
+  person's scope, so the pairing follows the upload. Pairing with a project that itself still waits to be created
+  is refused by the server (404) and waits for the person to send it again.
+- **Not queued**, answered `offline_unavailable`:
+  - an upload that replaces a slot (a logo, an avatar): the server names it by its slot;
+  - every other upload (contact media, note and message attachments, documents, receipts, FirstMeasure order
+    reference photos): each is followed by a write of its own app in another scope, which would have to wait
+    behind the file. Add them to that app's contract together with that write;
+  - renaming and tagging (`PATCH .../media/:id`). The route replaces the whole name or tag list with the device's
+    copy and has no revision, so a replay hours later would undo a newer edit; and the request names only the
+    media id, so the scope of a photo that still waits cannot be told from it and the change could be sent
+    before its upload. Both need a connection.
+  - A video, a PDF or another file in a project's `photos` slot is queued like a photo, within the limits below.
+
+### Ids and the time a photo was taken
+
+- `media.upload` sends an `id` it makes (`media_` and 16 hex digits, the server's own format) unless the upload
+  replaces a slot. The id belongs to the file and its owner: the same file sent again to the same owner (a
+  retry) carries the same id and the server replaces the record instead of adding one; the same file sent to
+  another owner gets another id, because the server refuses an id that another owner holds (`409
+  media_id_taken`). A caller's own `id` is sent as given.
+- A picture or video carries `metadata.taken_at`: the camera's shot time, or the file's own time
+  (`lastModified`) for a chosen file. `metadata.uploaded_at` is when the app sent it to be uploaded and the
+  record's `created_at` is when it arrived. The server stores `taken_at` as sent; the project's photo list entry
+  carries it too.
+- Lists sort and show by `taken_at` where there is one (the gallery and the Feed through `photoTakenAt` in
+  `feed.js`, the viewer through `uploader()` in `firstmate-markup.js`), so a photo that waited is listed under
+  the day it was taken, and so is an older picture chosen from the device today. A Feed post's time and the
+  five-minute grouping of posts still follow `uploaded_at`.
+
+### While a photo waits
+
+- The worker answers the record the route would answer for a new upload (`respond`): the same fields, with the
+  variants the server will make. The worker reads the picture's size to know them (thumbnails only for a
+  picture of 1024 px or more); where it cannot decode the file it takes a photo to be large.
+- The worker answers that media id's file URLs (any variant, and `Range` requests) from the stored file. A
+  thumbnail URL is answered from the small copy (below) once it is there, so a grid of waiting photos does not
+  decode full-size files.
+- Its effects put the record into the media lists (`GET .../media`, by the read's own filters) and the Feed's
+  catalog, and the list save's effects put the photo into the project (`GET .../projects/:id` and the project
+  in `GET .../projects`), so a page opened later without a connection shows it.
+- `PlatformOffline.isPending(<media id>)` is true while the upload or the list save that added it waits. A
+  gallery tile of such a photo has a slot (`data-offline-wait="<media id>"`) that is filled with
+  `PlatformOfflineUI.waitingBadge({ record })`, or with a plain mark where the offline UI is not loaded.
+
+### The list save is merged when it is sent
+
+The page sends the whole photo list as it has it. Sent hours later as it was, that copy would undo what someone
+else did to another photo meanwhile. So the list save is a `patch`: when it is sent, the list is merged photo by
+photo with the server's list as it is then (`merge3`, by photo identity). What only this change touched is
+applied, what only the server changed is kept, a photo is removed only when this change removed it and nobody
+changed it since, and the same field of the same photo changed on both sides is a conflict in the sync list. A
+save the server already has is not sent again. Each list save reads the project once before it is sent
+([backlog](../optimization-backlog.md#each-waiting-photo-reads-the-project-again-before-its-list-save-is-sent)).
+
+A replayed list save (`X-FM-Offline-Replay: 1`) never adds a photo whose media record does not exist
+(`mergeProjectPhotos`, `uploadedOnly`): an upload that was refused or discarded on the device does not leave an
+entry without a file.
+
+### After it is uploaded
+
+- The entry and its file are removed from the device.
+- **The small copy.** When an upload is queued, the page makes a JPEG of at most 640 px on its longer side
+  (`PlatformAPI.media.smallImageCopy`, drawn with the picture's EXIF orientation) and keeps it under the
+  thumbnail URLs browser code asks for, `thumb_320` and `thumb_640`
+  (`PlatformOffline.media.put(url, blob)`, which is `FMOffline.media.put` in the top-level page; a frame asks
+  its top-level page). After the upload those URLs are answered from the device, so the picture is not
+  downloaded again. The copy is a media cache file like any other: least recently used copies go when the
+  budget (`mediaBudgetMb`) is reached.
+- A picture the server makes no thumbnails for (under 1024 px, a GIF, an SVG) is shown from its original, so
+  the file itself is kept (up to 8 MB) under `variant=original`, with `fixed: false`: asked from the server
+  when there is a connection, answered from the device when there is not.
+- A video has no small copy.
+
+### In the apps
+
+- **Photos tab.** A photo added without a connection replaces its placeholder with the record under its own
+  id, drawn from the stored file. When the upload arrives the record takes the server's values and the tile
+  keeps its picture: nothing is drawn again unless the tile would ask for a different file. There is no
+  "local preview" that never uploads: a refused upload is removed and the person is told why. Deleting a
+  waiting photo discards its upload and its list save (`PlatformOffline.discard`) instead of moving a record
+  the server never had to the trash; an upload discarded from the sync list leaves the gallery and the list.
+  The whole-project save that follows an upload is skipped while its photos wait.
+- **Camera.** An entry is `pending`, `uploading`, `waiting` (kept on the device: a cloud mark, no Retry),
+  `done` or `failed`. The queue is the one record of a waiting photo; its tile follows the queue's `synced`,
+  `failed` and `discarded` events. Retry is shown only for a refused photo: `PlatformOffline.retry` for one the
+  queue holds, a new upload of the same file (the same id) for one that never got there. Done does not wait
+  for uploads while there is no connection.
+- **Feed.** The phone camera's photos wait with no project and are listed under Unassigned; the "Add to a
+  project?" step works with their ids, and its pairing waits behind them.
+
+### Free space
+
+Free space is checked before a file is queued (`navigator.storage`): the browser must report room for the files
+plus 10 MB. With less the write is answered `507 { ok: false, error: "offline_storage_full" }` and nothing is
+queued; `media.upload` then rejects with `code: 'offline_storage_full'` and words a person can act on (connect so
+the waiting photos can upload, or lower the picture storage in the offline settings). A change without a file is
+always queued.
+
+### Limits
+
+- One file has to fit in what the browser still allows the site, less 10 MB (`state().storage`: `quota` and
+  `usage`). There is no limit on how many wait; each waiting project photo is two entries.
+- The server takes an upload of at most 128 MB (`fileSize` in `src/app.ts`; NGINX allows 256 MB), and the app's
+  host takes a file of at most 150 MB and 2,000 jobs. So the largest photo or video that can wait and then
+  arrive is 128 MB.
+- A failed upload starts again from the beginning. A large video on a slow connection may not finish in the
+  time the system gives the app in the background (about ten minutes at a time on Android) and then needs the
+  app open.
+- In the app a waiting file is on the device twice until it is uploaded: in the web view's store, which shows
+  it, and in the host's folder, which uploads it.
+
+### Camera roll
+
+Capture never writes to the camera roll. The device setting `saveToCameraRoll` (off by default) is passed to
+the host as `saveToPhotos` when an upload is handed over, where the app reports `photoLibrarySave`; the host
+then saves one add-only copy when it creates the job. A browser cannot write to the camera roll, so there the
+setting does nothing and is shown only in the app.
+
+### Native hand-off
+
+Where the bridge reports `offlineUploads`, `platform-offline.js` loads `native-uploads.js` in the top-level page
+(`window.PlatformOfflineNativeUploads`) and the app's host sends queued uploads: it keeps each file in private
+app storage and uploads it with the web view's session cookies in the background (WorkManager on Android, a
+background `URLSession` on iOS), also after the app is closed. The queue stays the one record of what waits.
+
+1. A waiting `upload` entry of the signed-in person is marked `delegated`
+   (`FMOffline.queue.delegate`), before anything is handed over.
+2. Its file goes to the host (`offlineUploads.putBlob`), or the host takes a native camera capture by its token
+   (`PlatformOfflineNativeUploads.useCameraToken(mediaId, capture)`; no platform app uses the native camera for
+   photos today, the photo apps use the web camera).
+3. `offlineUploads.enqueue` gets the entry's URL, text fields, file field, the entry's idempotency key, the
+   identity headers, the CSRF cookie's name and `saveToPhotos`. The job's id is the entry's id.
+4. `offlineUploads.status` is polled every five seconds while entries are delegated and the page is visible,
+   and when the app returns to the front, a change is queued or the connection returns.
+5. The host's answer is applied with `FMOffline.replay.report`, then acknowledged (`offlineUploads.ack`).
+
+| The host says | What happens |
+|---|---|
+| `done` (2xx) | the answer is reported (the entry is removed, `synced`), then acknowledged |
+| `needs_sign_in` | the queue pauses for a sign-in once (reported as a 401); the host queues the job again by itself |
+| `failed` with a 4xx | reported: the entry is `failed` and waits for the person. Retry queues the same job again with the entry's new key; Discard cancels it |
+| `failed`, `retries_exhausted` (5xx, 408, 425, 429, 3xx) | reported as that answer: one server error, tried again after the queue's backoff |
+| `failed`, `redirected` (no status) | reported as no answer, tried again after the backoff |
+| `failed`, `file_missing` | the job is cancelled and the stored file is handed over again |
+| `failed`, `untrusted_url`; or the host cannot take the file or the request (`file_too_large`, `queue_full`, ...) | the entry goes back to `waiting` and this page sends it itself |
+| no such job | handed over again (the page was closed before the job was queued, or the app's data was cleared) |
+
+- **Never both.** The page's replay does not send an upload the host will take
+  (`FMOffline.configure({ external })`), and never a delegated one. An entry left to the page is sent by the
+  page only.
+- **Order.** An upload is handed over when nothing before it in its scope has to reach the server first: it
+  waits behind the project's own create, not behind an earlier photo's list save, so all the photos of a
+  project can be with the host at once. The list saves are sent by the page when it is open again.
+- **Closing the page between steps.** Every step can be repeated. At the next start the host's status decides:
+  no job means the file is handed over again, a finished job is reported and acknowledged, an answer whose
+  entry is already gone is acknowledged.
+- A job that has not arrived is never cancelled because its entry is missing. It is cancelled only when the
+  person discards the entry. An upload already in flight may still arrive.
 
 ## Identity and privacy
 
@@ -611,6 +764,9 @@ never conflict.
 - A photo's display rendition is encoded at the quality the app asked for:
   browser code sends `compression.quality` as a fraction (`0.88`), which is
   read as 88, not as a percentage rounded up to the lowest quality allowed.
+- The media upload takes the record id a device made, keeps
+  `metadata.taken_at`, and a replayed photo list save never adds a photo
+  whose upload did not arrive: see [Photos and files](#photos-and-files).
 
 ### Receipts in detail
 
@@ -690,6 +846,8 @@ PlatformOffline.syncNow(); PlatformOffline.checkForUpdate()
 PlatformOffline.pinProject(org, project); PlatformOffline.unpinProject(org, project); PlatformOffline.pinned()
 PlatformOffline.settings.get(name); PlatformOffline.settings.set(name, value)
 PlatformOffline.signedOut()
+PlatformOffline.media.put(url, blob, { fixed })   // keeps a file under a media URL on this device
+PlatformOffline.engine()                          // top-level page only: resolves FMOffline as this page runs it
 ```
 
 - **`state()`** is a copy, kept current in every frame. `online` is false
@@ -722,6 +880,12 @@ PlatformOffline.signedOut()
 - `pinProject(org, project, { auto: true })` marks a project as recently
   opened; `pinned()` resolves `[{ org, project, auto, at, refreshedAt, reads,
   media }]`.
+- `media.put` resolves `true` when the file was kept and `false` where
+  nothing could keep it (no worker, nobody signed in). It runs the engine in
+  the top-level page, and a frame asks its top-level page, so it does not
+  depend on which version of the worker is active. `engine()` is what
+  `native-uploads.js` drives; `PlatformOffline.csrfCookie` is the name of the
+  readable CSRF cookie.
 
 ## Adding offline support to an app
 
@@ -741,6 +905,8 @@ PlatformOffline.signedOut()
 - A change feed for refreshing pinned projects without re-reading them
   ([backlog](../optimization-backlog.md#pinned-offline-projects-are-refreshed-by-reading-everything-again)).
 - Resumable uploads for very large files (a failed upload starts again).
+- Renaming and tagging a photo without a connection, and queueing the uploads
+  of other apps (see [What is queued](#what-is-queued)).
 - Offline sign-in (a person must have signed in on the device while online).
 - Re-reading a declared `POST` read after a sync sends its text fields
   URL-encoded, also when the app sent them as a multipart form.
@@ -761,3 +927,15 @@ installed and `CHROME_PATH` where Chrome is elsewhere),
 the receipts hook through the real app),
 `public/v1/tests/media-quality.test.ts`,
 `public/v1/tests/offline-contracts.test.ts`.
+
+Photos: `tests/offline-photos.test.mjs` (the media contract case by case, with
+the real engine), `tests/offline-photos-browser.test.mjs` (the real worker,
+engine, contract and `platform-api.js` in headless Chrome with real
+pictures: queued, shown, closed and reopened, sent once, the small copy and
+its eviction, a small picture, an online retry, a photo stored on its side,
+a device short on space),
+`tests/offline-native-uploads.test.mjs` (`native-uploads.js` against a
+stand-in for the app's host: the answer table, order, and closing the page
+between steps), `public/v1/tests/offline-photos.test.ts` (the device's id,
+`taken_at`, a repeat that replaces, the photo list and pairing repeated, a
+replayed list that names a photo which never arrived).

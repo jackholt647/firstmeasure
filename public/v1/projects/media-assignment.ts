@@ -184,12 +184,21 @@ async function leftThisProject(orgId: string, projectId: string, photo: Obj) {
   return clean(obj(media.metadata).paired_from) === PAIRED_FROM && mediaProjectId(media) !== projectId;
 }
 
+/** True when a photo names a media record that does not exist (its upload never arrived). */
+async function uploadMissing(orgId: string, photo: Obj) {
+  const mediaId = clean(photo.media_id);
+  if (!mediaId) return false;
+  return await readMediaMetadata(orgId, mediaId).then(() => false, (error) => error instanceof PlatformError && error.statusCode === 404);
+}
+
 /**
  * The photo list a write leaves: the writer's photos in its order (each replaces the stored photo with its identity),
  * then every stored photo it did not mention, except those in `remove`. `changed` says whether that differs from
- * what the writer sent.
+ * what the writer sent. `options.uploadedOnly` (a list save that waited on a device, docs/architecture/offline.md):
+ * a photo it would add is left out when its upload has not arrived, so a photo that failed or was discarded on the
+ * device never becomes an entry without a file.
  */
-export async function mergeProjectPhotos(orgId: string, projectId: string, storedValue: unknown, incomingValue: unknown, removeValue: Iterable<unknown> = []) {
+export async function mergeProjectPhotos(orgId: string, projectId: string, storedValue: unknown, incomingValue: unknown, removeValue: Iterable<unknown> = [], options: { uploadedOnly?: boolean } = {}) {
   const stored = (Array.isArray(storedValue) ? storedValue : []).map(obj);
   const incoming = (Array.isArray(incomingValue) ? incomingValue : []).map(obj);
   const remove = new Set([...removeValue].map(clean).filter(Boolean));
@@ -200,6 +209,7 @@ export async function mergeProjectPhotos(orgId: string, projectId: string, store
     const id = identity(photo);
     if (id && (seen.has(id) || remove.has(id))) continue;
     if (id && !storedIds.has(id) && await leftThisProject(orgId, projectId, photo)) continue;
+    if (options.uploadedOnly && id && !storedIds.has(id) && await uploadMissing(orgId, photo)) continue;
     if (id) seen.add(id);
     photos.push(photo);
   }
@@ -231,13 +241,13 @@ export async function withPreservedPhotos(orgId: string, projectId: string, curr
  * conditional write of the photo list and the thumbnail fields only. `photos` are the photos as the caller has them
  * now; `remove` the ones it took out. Photos another writer added since its copy are kept.
  */
-export async function saveProjectPhotoList(ctx: PlatformAuthContext, projectIdValue: unknown, photosValue: unknown, removeValue: unknown) {
+export async function saveProjectPhotoList(ctx: PlatformAuthContext, projectIdValue: unknown, photosValue: unknown, removeValue: unknown, options: { uploadedOnly?: boolean } = {}) {
   const { data: project } = await readProjectForMedia(ctx, projectIdValue, "manage_projects");
   const projectId = clean(project.id);
   const remove = Array.isArray(removeValue) ? removeValue : [];
   const written = obj(await updateProjectData(ctx.orgId, projectId, async (data) => {
     if (data.deleted_at || data.trashed_at || data.in_trash) throw notFound("project_not_found", "This project is not available.");
-    const merged = await mergeProjectPhotos(ctx.orgId, projectId, data.photos, photosValue, remove);
+    const merged = await mergeProjectPhotos(ctx.orgId, projectId, data.photos, photosValue, remove, options);
     const next = withDerivedThumbnail(data, merged.photos);
     const same = ["photos", "thumbnail_photo_id", "thumbnail_photo"].every((key) => JSON.stringify(next[key] ?? null) === JSON.stringify(data[key] ?? null));
     return same ? null : { ...next, updated_at: new Date().toISOString() };
@@ -454,6 +464,8 @@ export function registerMediaAssignmentRoutes(app: FastifyInstance) {
   app.post("/organizations/:orgId/projects/:projectId/photos", async (request) => {
     const ctx = await auth(request);
     const body = photoListBody.parse(request.body ?? {});
-    return { ok: true, ...(await saveProjectPhotoList(ctx, clean(obj(request.params).projectId), body.photos, body.remove)) };
+    // A save that waited on a device is sent after its photos' uploads; one of those may have failed or been discarded.
+    const replayed = clean(obj(request.headers)["x-fm-offline-replay"]) === "1";
+    return { ok: true, ...(await saveProjectPhotoList(ctx, clean(obj(request.params).projectId), body.photos, body.remove, { uploadedOnly: replayed })) };
   });
 }

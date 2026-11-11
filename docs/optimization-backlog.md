@@ -749,3 +749,20 @@ changed, and the device re-reads exactly that.
 
 **Why it can wait.** A saved read is only ever used when the server cannot be reached, a read made online always
 replaces it, and today's contracts touch a handful of reads each.
+
+## Each waiting photo reads the project again before its list save is sent
+
+**Today.** A photo added without a connection queues two changes: its upload and the project's photo list save
+([offline](architecture/offline.md#the-list-save-is-merged-when-it-is-sent)). The page sends the whole list each
+time, so twenty photos taken on a roof queue twenty list saves; when they are sent, each one reads the project
+document, merges the list photo by photo and posts the whole list again. That is one project read and one growing
+list per photo.
+
+**Where the change goes.** One list save per run of uploads: the photos route could take only the photos a change
+adds or alters and append them (it replaces the list in the writer's order today, which decides the cover when a
+project has none), or the queue could fold consecutive list saves of one project into the last one before sending.
+Either must leave the stored list exactly as the per-photo saves do.
+
+**Why it can wait.** The reads are small beside the uploads they follow (a project document against a photo of
+several megabytes), they happen in the background, and the merge is what keeps another person's change to a photo
+from being undone.

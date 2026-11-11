@@ -26,7 +26,13 @@
  * that project's media through PlatformAPI.media (the project upload pipeline's own owner/slot/metadata).
  * With neither (the Feed's unpaired photos), photos are only collected and handed to onDone/next.
  *
- * An entry is { id, file, thumbnail, status: 'pending'|'uploading'|'done'|'failed', error, result }.
+ * Without a connection (docs/architecture/offline.md): `upload` still resolves, because the offline queue
+ * keeps the photo on the device and sends it later. The entry is then 'waiting' (a cloud mark, no Retry) and
+ * the queue is the one record of it: its tile follows the queue's events, and Retry appears only when the
+ * server refused the photo, where it asks the queue to send it again. Done never waits for uploads while
+ * there is no connection.
+ *
+ * An entry is { id, file, thumbnail, status: 'pending'|'uploading'|'waiting'|'done'|'failed', error, result, queued }.
  *
  * "What next": when the person taps Done and `next` is given, the camera stops and shows a step panel
  * over the viewport. `next(entries, step)` renders into `step.body` (step.setTitle(text) sets its
@@ -99,6 +105,7 @@
 .fmc-busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(16,24,40,.45)}
 .fmc-busy i{width:20px;height:20px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:fmcSpin .8s linear infinite}
 .fmc-ok{position:absolute;right:4px;bottom:4px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:#12b76a;color:#fff;font-size:9px;animation:fmcPop .3s ease-out}
+.fmc-wait{position:absolute;right:4px;bottom:4px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:rgba(16,24,40,.78);color:#fff;font-size:9px;animation:fmcPop .3s ease-out}
 .fmc-retry{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:0;background:rgba(153,43,38,.78);color:#fff;font:inherit;font-size:10px;font-weight:700;cursor:pointer}
 .fmc-retry i{font-size:14px}
 .fmc-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:center}
@@ -141,6 +148,19 @@
       });
     };
   }
+
+  // The offline queue's entry for the upload behind a result (a media record, a photo, or an upload answer), or
+  // null when the photo went straight to the server. Never waits on a page the offline worker does not control.
+  const recordId = (result) => String(result?.media?.id || result?.media_id || result?.id || '').trim();
+  async function waitingUpload(result){
+    const offline = root.PlatformOffline;
+    const id = recordId(result);
+    if (!id || typeof offline?.pending !== 'function' || offline.state?.().controlled !== true) return null;
+    if (typeof result?.queued === 'string' && result.queued) return { id: result.queued, state: 'waiting' };
+    const entries = await Promise.race([offline.pending({ record: id }).catch(() => []), new Promise((resolve) => setTimeout(() => resolve([]), 2000))]);
+    return (entries || []).find((entry) => entry.kind === 'upload') || null;
+  }
+  const isOffline = () => root.navigator?.onLine === false || root.PlatformOffline?.state?.().online === false;
 
   // One camera session UI: viewport, controls, strip, uploads. `shell` is created here; the caller places it.
   function createSession(options = {}){
@@ -270,14 +290,39 @@
         strip.scrollTo?.({ left: strip.scrollWidth, behavior: 'smooth' });
       }
       tile.classList.toggle('failed', entry.status === 'failed');
-      tile.querySelector('.fmc-busy')?.remove(); tile.querySelector('.fmc-ok')?.remove(); tile.querySelector('.fmc-retry')?.remove();
+      tile.querySelector('.fmc-busy')?.remove(); tile.querySelector('.fmc-ok')?.remove(); tile.querySelector('.fmc-wait')?.remove(); tile.querySelector('.fmc-retry')?.remove();
       if (entry.status === 'pending' || entry.status === 'uploading') tile.insertAdjacentHTML('beforeend', `<span class="fmc-busy" role="status" aria-label="${esc(T('uploading', 'Uploading'))}"><i></i></span>`);
       if (entry.status === 'done' && upload) tile.insertAdjacentHTML('beforeend', '<span class="fmc-ok" aria-hidden="true"><i class="fas fa-check"></i></span>');
+      if (entry.status === 'waiting') tile.insertAdjacentHTML('beforeend', `<span class="fmc-wait" role="img" aria-label="${esc(T('waiting_upload', 'Saved on this device. Uploads when you are back online.'))}" title="${esc(T('waiting_upload', 'Saved on this device. Uploads when you are back online.'))}"><i class="fas fa-cloud-arrow-up" aria-hidden="true"></i></span>`);
       if (entry.status === 'failed') {
         tile.insertAdjacentHTML('beforeend', `<button type="button" class="fmc-retry" title="${esc(entry.error || '')}" aria-label="${esc(T('retry_upload', 'Upload failed. Retry'))}"><i class="fas fa-rotate-right" aria-hidden="true"></i>${esc(T('retry', 'Retry'))}</button>`);
-        tile.querySelector('.fmc-retry').onclick = () => send(entry);
+        tile.querySelector('.fmc-retry').onclick = () => retry(entry);
       }
     }
+    // A photo the queue holds is sent again by the queue; one that never got there is uploaded again from here
+    // (the same file under the same record id, so the server replaces it rather than adding a second).
+    function retry(entry){
+      if (!entry.queued || !root.PlatformOffline?.retry) return send(entry);
+      entry.status = 'waiting'; entry.error = ''; renderTile(entry);
+      return root.PlatformOffline.retry(entry.queued).catch(() => { entry.queued = ''; return send(entry); });
+    }
+    // The queue's news about this session's waiting photos.
+    const queueEntry = (detail) => entries.find((entry) => entry.queued && entry.queued === detail?.id);
+    const stopQueueEvents = [
+      root.PlatformOffline?.on?.('synced', (detail) => { const entry = queueEntry(detail); if (!entry) return; entry.status = 'done'; entry.queued = ''; renderTile(entry); }),
+      root.PlatformOffline?.on?.('failed', (detail) => {
+        const entry = queueEntry(detail);
+        if (!entry) return;
+        entry.status = 'failed'; entry.error = detail?.error?.message || T('upload_failed', 'Upload failed'); renderTile(entry);
+        say(T('upload_failed_retry', 'A photo did not upload. Tap it to retry.'), true);
+      }),
+      root.PlatformOffline?.on?.('discarded', (detail) => {
+        const entry = queueEntry(detail);
+        if (!entry) return;
+        entries = entries.filter((item) => item !== entry); sessionEntries = sessionEntries.filter((item) => item !== entry);
+        strip.querySelector(`[data-fmc-entry="${entry.id}"]`)?.remove(); syncControls();
+      })
+    ];
     function send(entry){
       if (!upload) { entry.status = 'done'; renderTile(entry); return Promise.resolve(); }
       entry.status = 'pending'; entry.error = ''; renderTile(entry);
@@ -285,10 +330,16 @@
         // A photo just taken may still be encoding; the queue keeps the order they were taken in.
         if (!(await entry.ready)) return;
         entry.status = 'uploading'; renderTile(entry);
-        try { entry.result = await upload(entry.file, entry); entry.status = 'done'; }
-        catch (error) { entry.status = 'failed'; entry.error = error?.message || T('upload_failed', 'Upload failed'); say(T('upload_failed_retry', 'A photo did not upload. Tap it to retry.'), true); }
+        try {
+          entry.result = await upload(entry.file, entry);
+          const waiting = await waitingUpload(entry.result);
+          entry.queued = waiting ? waiting.id : '';
+          entry.status = waiting ? 'waiting' : 'done';
+        }
+        catch (error) { entry.status = 'failed'; entry.error = error?.message || T('upload_failed', 'Upload failed'); say(error?.code === 'offline_storage_full' ? entry.error : T('upload_failed_retry', 'A photo did not upload. Tap it to retry.'), true); }
         renderTile(entry);
-        if (!entries.some((item) => item.status === 'failed')) say('');
+        if (entry.status === 'waiting') say(T('waiting_upload', 'Saved on this device. Uploads when you are back online.'));
+        else if (!entries.some((item) => item.status === 'failed')) say('');
       });
       return queue;
     }
@@ -373,7 +424,8 @@
         if (nextResult === false) { void start(); return; }
       }
       closing = true;
-      await queue.catch(() => null);
+      // Without a connection the photos are kept on this device as they are taken; Done does not wait for them.
+      if (!isOffline()) await queue.catch(() => null);
       hide();
       sessionEntries = [];
       syncControls();
@@ -411,7 +463,7 @@
       shell, show, finish,
       get active(){ return active; },
       entries: () => entries.slice(),
-      destroy(){ hide(); step?.remove(); shell.remove(); }
+      destroy(){ hide(); step?.remove(); shell.remove(); stopQueueEvents.forEach((stop) => stop?.()); }
     };
   }
 
@@ -470,5 +522,5 @@
     };
   }
 
-  root.FirstMateCamera = { mount, open, version: '20261111-fm374-shutter' };
+  root.FirstMateCamera = { mount, open, version: '20261111-offline-queue' };
 })(window);
