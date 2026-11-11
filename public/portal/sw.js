@@ -558,6 +558,7 @@ function start() {
       case 'resolve': return FM.queue.resolve(String(message.entry), message.choices || {});
       case 'pin': return FM.pins.pin({ user: who().user, org: String(message.org || who().org) }, String(message.project), { auto: !!message.auto });
       case 'unpin': return FM.pins.unpin({ user: who().user, org: String(message.org || who().org) }, String(message.project));
+      case 'pinFiles': return FM.pins.files({ user: who().user, org: String(message.org || who().org) }, String(message.project), Array.isArray(message.urls) ? message.urls.slice(0, 40) : []);
       case 'pinned': return FM.pins.list(who());
       case 'refreshPins': return FM.pins.refresh(who());
       case 'settings': return FM.settings.all();

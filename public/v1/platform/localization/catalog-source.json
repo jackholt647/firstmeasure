@@ -5048,7 +5048,9 @@
     "m_c1b810cb6841fe": "Reading material lists…",
     "m_df13f4ec78c9b6": "No roof, siding, trim or door products with a color were found on this project’s material lists.",
     "main_pitch_degrees": "Main pitch (degrees)",
-    "m_906d58f5ce0ae8": "Use the roof, siding, trim and door products on this project’s material lists"
+    "m_906d58f5ce0ae8": "Use the roof, siding, trim and door products on this project’s material lists",
+    "offline_report_not_saved_title": "Not saved on this device",
+    "offline_report_not_saved_body": "This report was not saved on this device. Connect to the internet to open it."
   },
   "money": {
     "m_487adb3f2ba511": "Loading money...",
