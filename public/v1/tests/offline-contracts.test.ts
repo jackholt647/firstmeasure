@@ -592,7 +592,7 @@ test("a document is made and edited without a connection, exists once after the 
   assert.equal(view.data.scope.project.title, "Whitfield residence");
   const tracedView = await d.ask("POST", `${url}/resolve`, { trace: true });
   const madeTotals = shown(tracedView.data.resolved_definition, "computed.total_cents");
-  assert.ok(madeTotals.length && madeTotals.every((run) => run.offline === "stale"), "the total waits for the server");
+  assert.ok(madeTotals.length && madeTotals.every((run) => run.offline === "stale" && run.text === "…"), `the total waits for the server and no number stands in for it: ${madeTotals.map((run) => run.text)}`);
 
   // ---- edits without a connection ----
   const renamed = await d.ask("PATCH", url, { title: "Renamed offline" });
@@ -667,7 +667,8 @@ test("a document is made and edited without a connection, exists once after the 
   const quantityRuns = shown(pendingView.data.resolved_definition, "params.scope_items.1.quantity");
   assert.ok(quantityRuns.length && quantityRuns.every((run) => /^7\b/.test(String(run.text))), `the typed quantity is shown: ${quantityRuns.map((run) => run.text)}`);
   const staleTotals = shown(pendingView.data.resolved_definition, "computed.total_cents");
-  assert.ok(staleTotals.length && staleTotals.every((run) => run.offline === "stale"), "the total is marked, not recomputed");
+  const lastTotal = shown((await real("POST", `${refUrl}/resolve`, { trace: true })).json.resolved_definition, "computed.total_cents")[0]!.text;
+  assert.ok(staleTotals.length && staleTotals.every((run) => run.offline === "stale" && run.text === lastTotal), "the total is the server's last one, marked, not recomputed");
   assert.ok(JSON.stringify(pendingView.data.resolved_definition).includes("From the device"));
   const untouched = shown(pendingView.data.resolved_definition, "params.scope_items.0.quantity");
   assert.ok(untouched.length && untouched.every((run) => !run.offline && run.binding.kind === "input"), "other values stay as the server resolved them");

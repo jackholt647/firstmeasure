@@ -52,6 +52,8 @@
   const PRICE_LEAVES = new Set(['amount_cents', 'unit_price_cents']);
   const PRICE_FIELDS = ['unit_price', 'unitPrice', 'base_price', 'basePrice', 'amount', 'total', 'total_price', 'totalPrice', 'amount_cents'];
   const DEVICE_ID = /^doc_[a-z0-9]{16,40}$/;
+  /** What stands in for a figure only the server can work out, until it has. */
+  const WAITING_FIGURE = '…';
 
   // ---------------------------------------------------------------------------------------------------------
   // What a pinned project downloads
@@ -225,13 +227,17 @@
     return 'input';
   }
 
+  /** A value as the document formats it where the value is shown. */
+  function formatted(value, binding) {
+    if (binding.format && !list(binding.format_args).length) {
+      try { const shown = model().interpolate(`{{value | ${binding.format}}}`, { value }); if (shown != null && shown !== '') return String(shown); } catch (_) { /* shown plainly */ }
+    }
+    return String(value == null ? '' : value);
+  }
+
   /** The text of a value typed while offline, as the document would format it. */
   function typedDisplay(write, binding) {
-    const M = model();
-    if (has(write, 'parsed') && binding.format && !list(binding.format_args).length) {
-      try { const shown = M.interpolate(`{{value | ${binding.format}}}`, { value: write.parsed }); if (shown != null && shown !== '') return String(shown); } catch (_) { /* shown as typed */ }
-    }
-    return String(write.text == null ? '' : write.text);
+    return has(write, 'parsed') && binding.format && !list(binding.format_args).length ? formatted(write.parsed, binding) : String(write.text == null ? '' : write.text);
   }
 
   /**
@@ -270,6 +276,10 @@
     const kinds = isObject(last) && isObject(last.resolved_definition) ? tracedKinds(last.resolved_definition) : new Map();
     const typed = new Map(offline.writes.filter((write) => isObject(write) && write.path).map((write) => [String(write.path), write]));
     const follows = offline.data || offline.made;
+    const lastScope = isObject(last) && isObject(last.scope) ? last.scope : null;
+    const lastComputed = isObject(last) && isObject(last.resolved_definition) && isObject(last.resolved_definition.computed_values) ? last.resolved_definition.computed_values : null;
+    // The figures a page reads off the answer (a document card's total) are the server's last ones too.
+    if (follows && isObject(resolved.computed_values)) resolved.computed_values = lastComputed ? clone(lastComputed) : {};
 
     const markRuns = (node) => {
       if (!node || typeof node !== 'object') return;
@@ -281,7 +291,16 @@
         const write = binding.path ? typed.get(binding.path) : null;
         const stored = binding.path ? at({ params: document.params }, segments(binding.path)) : undefined;
         if (write && (stored === undefined || isObject(stored) || PRICE_LEAVES.has(String(segments(binding.path).pop())))) { run.text = typedDisplay(write, binding); run.offline = 'pending'; }
-        else if (follows && (binding.kind === 'derived' || binding.kind === 'calculated')) run.offline = 'stale';
+        else if (follows && (binding.kind === 'derived' || binding.kind === 'calculated')) {
+          run.offline = 'stale';
+          const path = binding.path ? segments(binding.path) : null;
+          // What is shown is the server's last figure, never one the device worked out: a computed value is the
+          // last one the server gave, and a figure it never worked out for this document (the document was made
+          // here, or its line was added here) is a placeholder.
+          if (!lastScope) run.text = WAITING_FIGURE;
+          else if (path && path[0] === 'computed') { const value = at({ computed: lastComputed || {} }, path); run.text = value === undefined || value === null ? WAITING_FIGURE : formatted(value, binding); }
+          else if (path && at(lastScope, path) === undefined) run.text = WAITING_FIGURE;
+        }
         if (!traced) { delete run.binding; }
       }
       for (const [key, child] of Object.entries(node)) if (key !== 'runs' && child && typeof child === 'object') markRuns(child);
@@ -503,18 +522,19 @@
   }
 
   /** What every saved read of a document shows while a change to it waits. `change(document)` applies it. */
-  function documentEffects(ctx, id, change) {
+  function documentEffects(ctx, id, change, home) {
     const mine = (m) => m.document === id;
     const changed = (json) => (json && isObject(json.document) ? Object.assign({}, json, { document: change(json.document) }) : json);
     const inAnyList = (json) => {
       const found = json && Array.isArray(json.documents) ? json.documents.find((item) => item && item.id === id) : null;
       return found ? inList(json, change(found), false) : json;
     };
-    return [
-      { match: 'GET ' + DOCUMENTS + '/documents/:document', when: mine, apply: changed },
-      { match: 'GET ' + DOCUMENTS + '/projects/:project/documents', apply: inAnyList },
-      { match: 'GET ' + DOCUMENTS + '/documents', apply: inAnyList }
-    ];
+    // Only the list the document is in: its project's, or the one of documents with no project. (`home` is
+    // undefined when the device does not know; then every saved list is looked through.)
+    const lists = [];
+    if (home !== '') lists.push({ match: 'GET ' + DOCUMENTS + '/projects/:project/documents', when: (m) => home === undefined || m.project === home, apply: inAnyList });
+    if (!home) lists.push({ match: 'GET ' + DOCUMENTS + '/documents', apply: inAnyList });
+    return [{ match: 'GET ' + DOCUMENTS + '/documents/:document', when: mine, apply: changed }, ...lists];
   }
 
   /** True when no later change to this document waits: that one makes the resolved view, earlier ones only say what changed. */
@@ -536,7 +556,9 @@
    * resolve answers apart (the read's key), so there is one effect for each. However many changes wait, the
    * view is resolved once per read, by the newest.
    */
-  function resolveEffects(ctx, id, change, hint) {
+  async function resolveEffects(ctx, id, change, hint) {
+    const known = await ctx.saved(documentUrl(ctx, id));
+    const home = known && isObject(known.document) ? text(known.document.project_id) : undefined;
     const forBody = (trace) => ({
       match: 'POST ' + DOCUMENTS + '/documents/:document/resolve',
       when: (m, read) => m.document === id && (isObject(read.body) && read.body.trace === true) === trace,
@@ -548,7 +570,7 @@
         return current ? deviceResolve(ctx, current, json, { trace }, hint) : json;
       }
     });
-    return [...documentEffects(ctx, id, change), forBody(true), forBody(false)];
+    return [...documentEffects(ctx, id, change, home), forBody(true), forBody(false)];
   }
 
   // ---------------------------------------------------------------------------------------------------------
