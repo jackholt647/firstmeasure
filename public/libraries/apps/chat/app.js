@@ -78,24 +78,41 @@
   }
   async function api(path, options = {}){
     const method = String(options.method || 'GET').toUpperCase();
-    const res = await fetch(`${apiBase()}${path}`, {
-      credentials: 'include',
-      cache: 'no-store',
-      ...options,
-      headers: {
-        Accept: 'application/json',
-        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(method !== 'GET' ? { 'X-Platform-CSRF': csrfToken() } : {}),
-        ...(options.headers || {})
-      }
-    });
+    // No connection (docs/architecture/offline.md): a read is not on the device, a message is never queued, a change was not made.
+    const noConnection = () => Object.assign(new Error(method === 'GET' ? (globalThis.PlatformLanguage?.text?.("shared","offline_not_on_device","This is not saved on this device. Connect to the internet to see it.") ?? "This is not saved on this device. Connect to the internet to see it.") : /\/messages$/.test(path) ? (globalThis.PlatformLanguage?.text?.("shared","offline_send_needs_connection","Sending needs a connection. Your message is still here; send it when you are back online.") ?? "Sending needs a connection. Your message is still here; send it when you are back online.") : (globalThis.PlatformLanguage?.text?.("shared","offline_change_needs_connection","This needs a connection. Nothing was saved.") ?? "This needs a connection. Nothing was saved.")), { offline:true, code:'offline_unavailable' });
+    let res;
+    try {
+      res = await fetch(`${apiBase()}${path}`, {
+        credentials: 'include',
+        cache: 'no-store',
+        ...options,
+        headers: {
+          Accept: 'application/json',
+          ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(method !== 'GET' ? { 'X-Platform-CSRF': csrfToken() } : {}),
+          ...(options.headers || {})
+        }
+      });
+    } catch (failure) {
+      if (failure?.name === 'AbortError') throw failure;
+      throw noConnection();
+    }
     const json = await res.json().catch(() => ({}));
     if (!res.ok || json.ok === false) {
+      if (json.error === 'offline_unavailable') throw noConnection();
       const error = new Error(json.message || 'Chat request failed.');
       error.code = json.error || '';
       throw error;
     }
     return json;
+  }
+  /** A conversation that could not be opened says why where it would have been, instead of loading for good. */
+  function threadUnavailable(id, error){
+    if (state.activeId !== id) return;
+    const col = $('.fmchat-thread-col', state.root);
+    if (!col || !col.querySelector('.fmchat-blank .fa-spin')) return;
+    col.innerHTML = `<div class="fmchat-blank"><div class="fmchat-blank-inner"><p>${esc(error?.message || '')}</p></div></div>`;
+    mobileBack(col);
   }
 
   const timeAgo = (iso) => {
@@ -401,6 +418,7 @@
       maybeAutoSuggest();
     } catch (error) {
       Portal.ui?.showToast?.((globalThis.PlatformLanguage?.text("chat","m_6ee294b459127f","Chat") ?? "Chat"), error.message, false);
+      threadUnavailable(id, error);
     }
     if (!options.fromRoute) syncRoute('push');
   }
@@ -433,7 +451,8 @@
     try {
       const data = await commsApi().conversation(orgId(), id);
       state.commsDetail = data.conversation || null;
-      await commsApi().customer(orgId(),'conversation-workflow',{kind:'conversation',source_id:id,revision:Number(state.commsDetail?.revision||0),action:'read'});
+      // Marking it read needs a connection; without one the conversation still opens from the device.
+      await commsApi().customer(orgId(),'conversation-workflow',{kind:'conversation',source_id:id,revision:Number(state.commsDetail?.revision||0),action:'read'}).catch((error)=>{if(!commsApi().unreachable?.(error))throw error;});
       const readRow=state.commsRows.find(row=>row.id===id);if(readRow)readRow.unread_count=0;
       if (state.commsDetail && !state.commsDetail.project_title) {
         const row = state.commsRows.find((entry) => String(entry.id) === String(id));
@@ -444,6 +463,7 @@
       renderContext();
     } catch (error) {
       Portal.ui?.showToast?.((globalThis.PlatformLanguage?.text("chat","m_643fa01aa77d59","Communications") ?? "Communications"), error.message, false);
+      threadUnavailable(id, error);
     }
     if (!options.fromRoute) syncRoute('push');
   }
