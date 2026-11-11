@@ -135,6 +135,8 @@
       const channel = (listed?.channels || []).find((item) => cleanText(item?.project_id) === cleanText(projectId));
       if (channel?.id) return { ok: true, channel, offline: true };
     } catch (e) {}
+    // The channel is not on this device: that, not the request that could not be sent, is what a person is told.
+    if (error?.offline) error.message = noConnectionText('GET');
     throw error;
   }
 
