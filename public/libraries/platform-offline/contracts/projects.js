@@ -191,7 +191,7 @@
         kind: 'create',
         scope: (ctx) => 'project:' + ctx.params.project,
         records: (ctx) => [ctx.params.project],
-        label: (ctx) => ({ key: 'sync_project_new', title: 'New project', detail: titleOf(ctx.body.data) }),
+        label: (ctx) => (FMOffline.label('sync_project_new', 'New project', titleOf(ctx.body.data))),
         respond: (ctx) => ({ ok: true, document: madeDocument(ctx) }),
         // The first try reached the server and its answer was lost: the project is there, with what was sent.
         duplicate: (ctx, answer) => answer.status === 409 && answer.code === 'project_exists',
@@ -211,7 +211,7 @@
         kind: 'create',
         scope: (ctx) => 'project:' + ctx.body.project_id,
         records: (ctx) => [ctx.body.project_id],
-        label: (ctx) => ({ key: 'sync_lead_new', title: 'New lead', detail: text(ctx.body.title) || text(ctx.body.address) || text(ctx.body.customer && ctx.body.customer.name) || text(ctx.body.contacts && ctx.body.contacts[0] && ctx.body.contacts[0].name) }),
+        label: (ctx) => (FMOffline.label('sync_lead_new', 'New lead', text(ctx.body.title) || text(ctx.body.address) || text(ctx.body.customer && ctx.body.customer.name) || text(ctx.body.contacts && ctx.body.contacts[0] && ctx.body.contacts[0].name))),
         respond: (ctx) => {
           const at = new Date(ctx.now).toISOString();
           const people = (Array.isArray(ctx.body.contacts) ? ctx.body.contacts : ctx.body.customer ? [ctx.body.customer] : []).filter(isObject);
@@ -239,7 +239,7 @@
         records: (ctx) => [ctx.params.project],
         label: async (ctx) => {
           const saved = await ctx.saved(projectUrl(ctx, ctx.params.project));
-          return { key: 'sync_project_edit', title: 'Project change', detail: titleOf(Object.assign({}, saved && saved.document && saved.document.data, ctx.body.data)) };
+          return FMOffline.label('sync_project_edit', 'Project change', titleOf(Object.assign({}, saved && saved.document && saved.document.data, ctx.body.data)));
         },
         respond: async (ctx) => {
           const saved = await ctx.saved(projectUrl(ctx, ctx.params.project));

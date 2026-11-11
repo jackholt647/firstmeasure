@@ -889,6 +889,7 @@
 
   /** A failed or parked `create` holds the rest of its scope: later entries need the record. */
   function holds(entry) { return entry.kind === 'create' && (entry.state === 'failed' || entry.state === 'parked'); }
+  const PARKED_FOR_ANOTHER = 'Queued by another person';        // (what people read comes from the offline UI, by the entry's state)
 
   /** The records a change makes: a `create` and an `upload` make the records they name. */
   function makes(entry) { return entry.kind === 'create' || entry.kind === 'upload' ? (entry.records || []) : []; }
@@ -1668,7 +1669,7 @@
       return 'stop';
     }
     if (status === 409 && code === 'offline_identity_mismatch') {
-      Object.assign(entry, { state: 'parked', error: { status, code, message: 'Queued by another person' } });
+      Object.assign(entry, { state: 'parked', error: { status, code, message: PARKED_FOR_ANOTHER } });
       await queue.save(entry);
       events.emit('failed', queue.public(entry));
       return 'skip';
@@ -1856,6 +1857,8 @@
 
   root.FMOffline = {
     version: VERSION, origin: ORIGIN, limits, configure,
+    // How a contract names a waiting change for people: the language key (platform-offline catalog), its English, and what it is about.
+    label: (key, english, detail) => ({ key: String(key || ''), title: String(english || ''), detail: detail == null ? '' : String(detail) }),
     db, meta, events, net, contracts, api, reads, queue, replay, merge3, media, pins, state, storage, settings, identity,
     util: { compile, readKey, stable, same, newId, readBody, jsonResponse, race, pool, backoff }
   };
