@@ -42,6 +42,7 @@
     ind_offline_saved_long: 'Offline. You are seeing what was saved on this device. Changes are sent when you reconnect.',
     ind_offline_short: 'Offline',
     ind_offline_waiting_short: 'Offline · {count} waiting',
+    ind_offline_waiting_compact: 'Offline · {count}',
     ind_sending_long: '{count, plural, one {Sending # change…} other {Sending # changes…}}',
     ind_sending_short: 'Sending {count}…',
     ind_sent_long: 'All changes sent.',
@@ -73,7 +74,7 @@
     tray_sending: 'Sending…',
     tray_sign_in: 'Sign in',
     tray_storage_warning_title: 'This browser may clear waiting changes',
-    tray_storage_warning: 'This browser has not agreed to keep FirstMate\'s data. Safari can clear a site\'s storage after seven days without a visit, and changes still waiting here would be lost. Connect and send them soon. The FirstMate app does not have this limit.',
+    tray_storage_warning: 'This browser has not promised to keep what FirstMate saves. It can clear it when the device runs low on space, and Safari clears a site\'s storage after seven days without a visit. Changes still waiting here would be lost, so connect and send them soon. The FirstMate app does not have this limit.',
     tray_saved_copy: 'This page is the copy saved on this device. Load the latest when you are ready.',
     tray_load_latest: 'Load the latest',
 
@@ -159,10 +160,10 @@
     set_reads_help: 'How much project data to keep. The oldest is removed first. Projects you keep are never removed.',
     set_media_limit: 'Pictures',
     set_media_help: 'How many pictures to keep for viewing without a connection.',
-    set_less: 'Less ({size})',
-    set_standard: 'Standard ({size})',
-    set_more: 'More ({size})',
-    set_current: 'Current ({size})',
+    set_choice_less: 'Less',
+    set_choice_standard: 'Standard',
+    set_choice_more: 'More',
+    set_choice_current: 'Current',
     set_auto_pin: 'Keep recently opened projects',
     set_auto_pin_help: 'The ten projects you opened last are saved on this device automatically.',
     set_camera_roll: 'Also save photos to the camera roll',
@@ -289,7 +290,7 @@
 .fmo-sr{position:absolute!important;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
 /* The indicator: one slot that moves to wherever the chrome is, one pill inside it. */
-.fmo-slot{display:flex;align-items:center;min-width:0;font:600 12px/1.4 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+.fmo-slot{display:flex;align-items:center;min-width:0;font-size:12px;font-weight:600;line-height:1.4}
 .fmo-slot[hidden]{display:none!important}
 .fmo-slot[data-host=topbar]{flex:1 1 0;justify-content:flex-end;container:fmo-slot/inline-size}
 #platformTopbarAppLeft:not(:empty)~.fmo-slot[data-host=topbar]{flex:0 0 auto;container-type:normal}
@@ -298,8 +299,9 @@
 .fmo-slot[data-host=mobile]{flex:0 0 auto;margin-left:8px}
 .fmo-slot[data-host=shell]{flex:0 0 auto;margin-right:6px}
 .fmo-slot[data-host=project]{flex:0 0 auto;gap:6px;margin-left:2px}
+.fmo-slot[data-host=project] .fmo-pill{min-height:26px;padding:3px 10px}
 .fmo-slot[data-host=float]{position:fixed;left:12px;bottom:12px;z-index:${Z - 1}}
-.fmo-pill{appearance:none;display:inline-flex;align-items:center;gap:7px;max-width:100%;min-height:30px;box-sizing:border-box;margin:0;padding:5px 12px;border:0;border-radius:999px;background:#111827;color:#fff;font:inherit;text-align:left;cursor:pointer;white-space:nowrap;box-shadow:0 1px 2px rgba(15,23,42,.18);--fmo-cut:#111827}
+.fmo-pill{appearance:none;display:inline-flex;align-items:center;gap:7px;max-width:100%;min-height:30px;box-sizing:border-box;margin:0;padding:5px 12px;border:0;border-radius:999px;background:#111827;color:#fff;font-size:inherit;font-weight:inherit;line-height:inherit;text-align:left;cursor:pointer;white-space:nowrap;box-shadow:0 1px 2px rgba(15,23,42,.18);--fmo-cut:#111827}
 .fmo-pill[hidden]{display:none!important}
 .fmo-pill:hover{background:#1f2937;--fmo-cut:#1f2937}
 .fmo-pill:focus-visible,.fmo-tray button:focus-visible,.fmo-tray a:focus-visible,.fmo-proj:focus-visible,.fmo-badge:focus-visible,.fmo-dialog button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
@@ -309,17 +311,22 @@
 .fmo-pill[data-tone=good] .fmo-ico{color:#6ce9a6}
 .fmo-pill .fmo-ico{font-size:12px}
 .fmo-pill .fmo-text{min-width:0;overflow:hidden;text-overflow:ellipsis}
-.fmo-pill .fmo-l,.fmo-pill .fmo-c{display:none}
+.fmo-pill .fmo-l,.fmo-pill .fmo-c,.fmo-pill .fmo-t{display:none}
 .fmo-pill .fmo-bar{flex:none;width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.28);overflow:hidden}
 .fmo-pill .fmo-bar>span{display:block;height:100%;background:#fff;border-radius:2px}
 .fmo-slot[data-size=compact] .fmo-pill{min-height:28px;padding:4px 10px;gap:6px}
 .fmo-slot[data-size=compact] .fmo-s,.fmo-slot[data-size=compact] .fmo-bar{display:none}
 .fmo-slot[data-size=compact] .fmo-c{display:inline}
+.fmo-slot[data-size=tiny] .fmo-pill{min-width:28px;min-height:28px;padding:4px 9px;gap:5px;justify-content:center}
+.fmo-slot[data-size=tiny] .fmo-s,.fmo-slot[data-size=tiny] .fmo-bar,.fmo-slot[data-size=tiny] .fmo-t:empty{display:none}
+.fmo-slot[data-size=tiny] .fmo-t{display:inline}
+.fmo-slot[data-size=tiny] .fmo-pill:has(.fmo-t:empty){width:28px;padding:0}
+.fmo-slot[data-size=tiny] .fmo-pill:has(.fmo-t:empty) .fmo-text{display:none}
 @container fmo-slot (min-width:540px){.fmo-pill .fmo-s{display:none}.fmo-pill .fmo-l{display:inline}}
 @container fmo-slot (max-width:110px){.fmo-slot .fmo-pill{justify-content:center!important;width:32px!important;height:32px;min-height:0;padding:0;margin:0 auto;display:flex}.fmo-pill .fmo-text,.fmo-pill .fmo-bar{display:none}}
 
 /* The mark apps put on a waiting record. */
-.fmo-badge{display:inline-flex;align-items:center;gap:4px;max-width:100%;box-sizing:border-box;padding:2px 7px;border-radius:999px;border:1px solid rgba(15,23,42,.08);background:#f2f4f7;color:#475467;font:700 10.5px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;white-space:nowrap;vertical-align:middle;cursor:default}
+.fmo-badge{display:inline-flex;align-items:center;gap:4px;max-width:100%;box-sizing:border-box;padding:2px 7px;border-radius:999px;border:1px solid rgba(15,23,42,.08);background:#f2f4f7;color:#475467;font-size:10.5px;font-weight:700;line-height:1.5;white-space:nowrap;vertical-align:middle;cursor:default}
 .fmo-badge[hidden]{display:none!important}
 .fmo-badge .fmo-ico{font-size:9.5px}
 .fmo-badge>span{overflow:hidden;text-overflow:ellipsis}
@@ -339,13 +346,14 @@
 .fmo-proj[data-state=downloading]{color:#344054}
 
 /* The tray and the dialogs live in the top page, above everything but toasts and the Refresh pill. */
-.fmo-layer{position:fixed;inset:0;z-index:${Z};pointer-events:none;container:fmo-layer/size;font:500 13px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:#101828}
+.fmo-layer{position:fixed;inset:0;z-index:${Z};pointer-events:none;container:fmo-layer/size;font-size:13px;font-weight:500;line-height:1.45;color:#101828;text-align:left}
 .fmo-layer[hidden]{display:none!important}
 .fmo-scrim{position:absolute;inset:0;pointer-events:auto;background:transparent;transition:background-color .18s ease}
 .fmo-tray{position:absolute;pointer-events:auto;display:flex;flex-direction:column;box-sizing:border-box;width:min(400px,calc(100% - 24px));max-height:calc(100% - 24px);background:#fff;border:1px solid rgba(15,23,42,.10);border-radius:16px;box-shadow:0 24px 60px rgba(15,23,42,.18);overflow:hidden;container:fmo-tray/inline-size}
 .fmo-tray[data-view=conflict]{width:min(620px,calc(100% - 24px))}
 .fmo-tray *{box-sizing:border-box}
 .fmo-head{flex:none;display:flex;align-items:center;gap:8px;padding:11px 10px 11px 14px;border-bottom:1px solid rgba(15,23,42,.08)}
+.fmo-tray:focus,.fmo-pop:focus,.fmo-head h2:focus{outline:none}
 .fmo-head h2{flex:1;min-width:0;margin:0;font-size:13px;font-weight:800;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fmo-iconbtn{appearance:none;flex:none;display:inline-grid;place-items:center;width:30px;height:30px;margin:0;padding:0;border:0;border-radius:9px;background:transparent;color:#475467;font-size:13px;cursor:pointer}
 .fmo-iconbtn:hover{background:#f2f4f7;color:#101828}
@@ -360,7 +368,7 @@
 .fmo-status .fmo-progress{margin-top:8px;height:5px;border-radius:3px;background:#eaecf0;overflow:hidden}
 .fmo-status .fmo-progress>span{display:block;height:100%;background:#111827;border-radius:3px}
 .fmo-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.fmo-btn{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;margin:0;padding:6px 12px;border:1px solid rgba(15,23,42,.14);border-radius:10px;background:#fff;color:#344054;font:700 12px/1.3 inherit;font-family:inherit;cursor:pointer;white-space:nowrap}
+.fmo-btn{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;margin:0;padding:6px 12px;border:1px solid rgba(15,23,42,.14);border-radius:10px;background:#fff;color:#344054;font-size:12px;font-weight:700;line-height:1.3;cursor:pointer;white-space:nowrap}
 .fmo-btn:hover{background:#f9fafb;border-color:rgba(15,23,42,.24)}
 .fmo-btn[disabled]{opacity:.55;cursor:default}
 .fmo-btn.primary{background:var(--primary,#d93025);border-color:transparent;color:var(--on-primary,#fff)}
@@ -444,7 +452,7 @@
 @container fmo-layer (max-width:639px){.fmo-pop{left:12px!important;right:12px!important;width:auto}}
 
 /* Device settings (the Settings app's Offline page and the tray's "This device"). */
-.fmo-set{container:fmo-set/inline-size;font:500 13px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:#101828}
+.fmo-set{container:fmo-set/inline-size;font-size:13px;font-weight:500;line-height:1.45;color:#101828}
 .fmo-set *{box-sizing:border-box}
 .fmo-set-intro{margin:0 0 12px;font-size:12.5px;color:#667085}
 .fmo-set-group{margin:0 0 14px;padding:14px;border:1px solid var(--border,#dadce0);border-radius:var(--radius-lg,12px);background:#fff}
@@ -471,8 +479,11 @@
 .fmo-set-row strong{display:block;font-size:13px;font-weight:700}
 .fmo-set-row small{display:block;margin-top:2px;font-size:12px;color:#667085;font-weight:500}
 @container fmo-set (max-width:520px){.fmo-set-row{grid-template-columns:minmax(0,1fr)}.fmo-set-row.inline{grid-template-columns:minmax(0,1fr) auto}}
-.fmo-seg{display:inline-flex;flex-wrap:wrap;gap:6px}
-.fmo-seg label{position:relative;display:inline-flex;align-items:center;min-height:32px;padding:5px 11px;border:1px solid rgba(15,23,42,.14);border-radius:10px;background:#fff;color:#344054;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.fmo-seg{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px}
+.fmo-seg label{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:86px;min-height:40px;padding:5px 10px;border:1px solid rgba(15,23,42,.14);border-radius:10px;background:#fff;color:#344054;font-size:12px;cursor:pointer;white-space:nowrap}
+.fmo-seg label b{font-weight:700}
+.fmo-seg label small{margin:0;font-size:11px;font-weight:500;color:#667085}
+@container fmo-set (max-width:520px){.fmo-seg label{min-width:0}}
 .fmo-seg input{position:absolute;opacity:0;pointer-events:none}
 .fmo-seg label:has(input:checked){border-color:var(--primary,#d93025);box-shadow:inset 0 0 0 1px var(--primary,#d93025);color:#101828;background:rgba(var(--primary-rgb,217,48,37),.05)}
 .fmo-seg label:has(input:focus-visible){outline:2px solid var(--primary,#d93025);outline-offset:2px}
@@ -519,20 +530,20 @@
     if (!s || !s.supported || (!s.controlled && !waitingCount(s))) return null;
     const attention = (s.failed || 0) + (s.conflicts || 0);
     const count = s.pending || 0;
-    if (attention) return { mode: 'attention', tone: 'attention', icon: 'attention', count: attention, long: T('ind_attention_long', { count: attention }), short: T('ind_attention_short', { count: attention }), compact: String(attention) };
+    if (attention) return { mode: 'attention', tone: 'attention', icon: 'attention', count: attention, long: T('ind_attention_long', { count: attention }), short: T('ind_attention_short', { count: attention }), compact: String(attention), tiny: String(attention) };
     if (s.blocked === 'sign-in' && count) return { mode: 'signin', tone: 'signin', icon: 'signin', count, long: T('ind_signin_long', { count }), short: T('ind_signin_short'), compact: T('ind_signin_compact') };
     if (!s.online) {
-      if (count) return { mode: 'offline', tone: 'dark', icon: 'offline', count, long: T('ind_offline_waiting_long', { count }), short: T('ind_offline_waiting_short', { count }), compact: T('ind_offline_short') };
+      if (count) return { mode: 'offline', tone: 'dark', icon: 'offline', count, long: T('ind_offline_waiting_long', { count }), short: T('ind_offline_waiting_short', { count }), compact: T('ind_offline_waiting_compact', { count }), tiny: String(count) };
       return { mode: 'offline', tone: 'dark', icon: 'offline', count: 0, long: T(s.savedPage ? 'ind_offline_saved_long' : 'ind_offline_long'), short: T('ind_offline_short'), compact: T('ind_offline_short') };
     }
-    if (count) return { mode: 'sending', tone: 'dark', icon: 'sending', count, long: T('ind_sending_long', { count }), short: T('ind_sending_short', { count }), compact: String(count) };
+    if (count) return { mode: 'sending', tone: 'dark', icon: 'sending', count, long: T('ind_sending_long', { count }), short: T('ind_sending_short', { count }), compact: String(count), tiny: String(count) };
     if (Date.now() < sentUntil) return { mode: 'sent', tone: 'good', icon: 'sent', count: 0, long: T('ind_sent_long'), short: T('ind_sent_short'), compact: T('ind_sent_compact') };
     if (s.savedPage) return { mode: 'saved', tone: 'dark', icon: 'saved', count: 0, long: T('ind_saved_long'), short: T('ind_saved_short'), compact: T('ind_saved_short') };
     const code = s.code || {};
     // Only the first download is shown: a later release's set downloads quietly behind the one in use.
     if (code.status === 'downloading' && !code.release) {
       const percent = Math.max(0, Math.min(99, Math.round((code.progress || 0) * 100)));
-      return { mode: 'download', tone: 'dark', icon: 'download', count: 0, progress: percent, long: T('ind_download_long', { percent }), short: T('ind_download_short', { percent }), compact: T('ind_download_compact', { percent }) };
+      return { mode: 'download', tone: 'dark', icon: 'download', count: 0, progress: percent, long: T('ind_download_long', { percent }), short: T('ind_download_short', { percent }), compact: T('ind_download_compact', { percent }), tiny: T('ind_download_compact', { percent }) };
     }
     if (Date.now() < readyUntil) return { mode: 'ready', tone: 'good', icon: 'ready', count: 0, long: T('ind_ready_long'), short: T('ind_ready_short'), compact: T('ind_ready_short') };
     return null;
@@ -603,7 +614,7 @@
       if (!identity) return null;
       const trigger = identity.querySelector('#rProjectIdentityTrigger');
       const phone = !!identity.closest('[data-window-mobile=true]');
-      return { host: 'project', parent: identity, before: trigger ? trigger.nextSibling : null, size: phone ? 'compact' : 'short' };
+      return { host: 'project', parent: identity, before: trigger ? trigger.nextSibling : null, size: phone ? 'tiny' : 'short' };
     }
     const mobile = document.querySelector('.mobile-topbar');
     const logo = mobile && mobile.querySelector('.mob-logo');
@@ -635,12 +646,12 @@
     slot.hidden = !now && !slot.querySelector('.fmo-proj:not([hidden])');
     pill.hidden = !now;
     if (!now) { announced = ''; return; }
-    const key = [now.mode, now.long, now.short, now.compact, now.progress].join('|');
+    const key = [now.mode, now.long, now.short, now.compact, now.tiny, now.progress].join('|');
     if (pill.dataset.key !== key) {
       pill.dataset.key = key;
       pill.dataset.mode = now.mode;
       pill.dataset.tone = now.tone;
-      const text = h('span', { class: 'fmo-text' }, h('span', { class: 'fmo-l', text: now.long }), h('span', { class: 'fmo-s', text: now.short }), h('span', { class: 'fmo-c', text: now.compact }));
+      const text = h('span', { class: 'fmo-text' }, h('span', { class: 'fmo-l', text: now.long }), h('span', { class: 'fmo-s', text: now.short }), h('span', { class: 'fmo-c', text: now.compact }), h('span', { class: 'fmo-t', text: now.tiny || '' }));
       const bar = now.mode === 'download' ? h('span', { class: 'fmo-bar', 'aria-hidden': 'true' }, h('span', { style: 'width:' + now.progress + '%' })) : null;
       pill.replaceChildren(icon(document, now.icon), text, bar || '');
       pill.setAttribute('aria-label', now.long + ' ' + T('ind_open'));
@@ -688,12 +699,11 @@
     const rect = node.getBoundingClientRect();
     let left = rect.left, top = rect.top;
     try {
-      for (let win = node.ownerDocument.defaultView; win && win !== window; win = win.parent) {
+      for (let win = node.ownerDocument.defaultView; win && win !== win.parent; win = win.parent) {
         const frame = win.frameElement;
         if (!frame) break;
         const box = frame.getBoundingClientRect();
         left += box.left + frame.clientLeft; top += box.top + frame.clientTop;
-        if (win === win.parent) break;
       }
     } catch (_) { /* a frame we cannot see into */ }
     return { left, top, right: left + rect.width, bottom: top + rect.height, width: rect.width, height: rect.height };
@@ -938,8 +948,7 @@
       view.sending = false; state = PO.state();
       await loadEntries(); renderTray();
     } } });
-    const count = waitingCount(state);
-    return h('footer', { class: 'fmo-foot' }, h('span', { class: 'fmo-grow', text: T('set_waiting', { count }) }), send);
+    return h('footer', { class: 'fmo-foot' }, h('span', { class: 'fmo-grow', text: T('set_waiting', { count: state.pending || 0 }) }), send);
   }
 
   // --- conflicts ---
@@ -1064,7 +1073,7 @@
       build(panel);
       position(panel, rect);
       const again = key && [...panel.querySelectorAll('[data-fk]')].find((node) => node.dataset.fk === key);
-      if (again) again.focus({ preventScroll: true }); else if (key) panel.focus({ preventScroll: true });
+      if (again) again.focus({ preventScroll: true }); else if (key) (panel.querySelector('button:not([disabled])') || panel).focus({ preventScroll: true });
     };
     syncLayer();
     redraw();
@@ -1342,10 +1351,10 @@
       const group = e('div', { class: 'fmo-seg', role: 'radiogroup', 'aria-label': T(labelKey) });
       for (const value of list) {
         const at = values.indexOf(value);
-        const words = T(at === 0 ? 'set_less' : at === 1 ? 'set_standard' : at === 2 ? 'set_more' : 'set_current', { size: megabytes(value) });
+        const words = T(at === 0 ? 'set_choice_less' : at === 1 ? 'set_choice_standard' : at === 2 ? 'set_choice_more' : 'set_choice_current');
         const input = e('input', { type: 'radio', name: 'fmo-' + name, value: String(value), 'data-fk': name + ':' + value, on: { change: () => set(name, value) } });
         input.checked = value === current;
-        group.append(e('label', null, input, words));
+        group.append(e('label', null, input, e('b', { text: words }), e('small', { text: megabytes(value) })));
       }
       return group;
     };

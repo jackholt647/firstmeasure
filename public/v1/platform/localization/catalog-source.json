@@ -21456,7 +21456,7 @@
     "tray_sending": "Sending…",
     "tray_sign_in": "Sign in",
     "tray_storage_warning_title": "This browser may clear waiting changes",
-    "tray_storage_warning": "This browser has not agreed to keep FirstMate's data. Safari can clear a site's storage after seven days without a visit, and changes still waiting here would be lost. Connect and send them soon. The FirstMate app does not have this limit.",
+    "tray_storage_warning": "This browser has not promised to keep what FirstMate saves. It can clear it when the device runs low on space, and Safari clears a site's storage after seven days without a visit. Changes still waiting here would be lost, so connect and send them soon. The FirstMate app does not have this limit.",
     "tray_saved_copy": "This page is the copy saved on this device. Load the latest when you are ready.",
     "tray_load_latest": "Load the latest",
     "entry_waiting": "Waiting",
@@ -21572,22 +21572,6 @@
     "set_reads_help": "How much project data to keep. The oldest is removed first. Projects you keep are never removed.",
     "set_media_limit": "Pictures",
     "set_media_help": "How many pictures to keep for viewing without a connection.",
-    "set_less": {
-      "message": "Less ({size})",
-      "format": "icu"
-    },
-    "set_standard": {
-      "message": "Standard ({size})",
-      "format": "icu"
-    },
-    "set_more": {
-      "message": "More ({size})",
-      "format": "icu"
-    },
-    "set_current": {
-      "message": "Current ({size})",
-      "format": "icu"
-    },
     "set_auto_pin": "Keep recently opened projects",
     "set_auto_pin_help": "The ten projects you opened last are saved on this device automatically.",
     "set_camera_roll": "Also save photos to the camera roll",
@@ -21617,6 +21601,14 @@
     },
     "signout_stay": "Stay signed in",
     "signout_leave": "Sign out anyway",
-    "m_c893d038b2fe86": "Queued by another person"
+    "m_c893d038b2fe86": "Queued by another person",
+    "ind_offline_waiting_compact": {
+      "message": "Offline · {count}",
+      "format": "icu"
+    },
+    "set_choice_less": "Less",
+    "set_choice_standard": "Standard",
+    "set_choice_more": "More",
+    "set_choice_current": "Current"
   }
 }

@@ -261,7 +261,7 @@ test('the indicator sits where the chrome is and never over a control', async ()
   const phone = await open({ width: 390, height: 780 });
   await phone.tab.evaluate((list) => { window.fake.set({ online: false }); window.fake.entries(list); }, [entry('a')]);
   assert.equal(await phone.tab.evaluate(() => window.PlatformOfflineUI.state().host), 'mobile');
-  assert.equal(await pillText(phone.tab), 'Offline');
+  assert.equal(await pillText(phone.tab), 'Offline · 1', 'a phone bar has room for the word and the count');
   assert.deepEqual(await overlaps(phone.tab), []);
   assert.ok(await phone.tab.evaluate(() => document.querySelector('.fmo-pill').getBoundingClientRect().right <= document.querySelector('#mobNewReqBtn').getBoundingClientRect().left));
   await phone.shot('ind-phone');
@@ -323,6 +323,7 @@ test('the tray lists what waits, retries, discards after asking, and sends now',
   assert.deepEqual(await tab.evaluate(() => window.fake.calls.filter((call) => call[0] === 'discard')), [['discard', 'f2']]);
 
   assert.equal(await tray.locator('.fmo-foot .fmo-grow').innerText(), '1 change is waiting to be sent.');
+  assert.equal(await tray.locator('.fmo-status p').innerText(), 'Offline. 1 change is saved on this device and will be sent when you reconnect.');
   await tray.locator('.fmo-foot button', { hasText: 'Send now' }).click();
   await tab.waitForFunction(() => window.fake.calls.some((call) => call[0] === 'syncNow'));
 
@@ -350,7 +351,7 @@ test('the tray lists what waits, retries, discards after asking, and sends now',
 test('the tray warns when the browser may clear waiting changes, and not in the app', async () => {
   const browserTab = await open();
   await browserTab.tab.evaluate((list) => { window.fake.storage({ persisted: false }); window.fake.entries(list); window.PlatformOfflineUI.open(); }, [entry('w1')]);
-  assert.match(await browserTab.tab.locator('.fmo-warn').innerText(), /Safari can clear a site's storage after seven days without a visit[^]*The FirstMate app does not have this limit\./);
+  assert.match(await browserTab.tab.locator('.fmo-warn').innerText(), /Safari clears a site's storage after seven days without a visit[^]*would be lost[^]*The FirstMate app does not have this limit\./);
   await browserTab.shot('tray-storage-warning');
   await browserTab.tab.evaluate(() => window.fake.entries([]));
   assert.equal(await browserTab.tab.locator('.fmo-warn').count(), 0, 'nothing waits: no warning');
@@ -535,6 +536,14 @@ test('the project window offers "Available offline", and lists mark saved projec
   assert.equal(await frame.locator('.fmo-tray').count(), 0);
   await shot('project-window-tray');
   await tab.keyboard.press('Escape');
+  // On a phone the window's header has little room: the icon alone, with a count when changes wait.
+  await tab.frames()[1].evaluate(() => { document.querySelector('.r-window-bar').dataset.windowMobile = 'true'; window.dispatchEvent(new Event('resize')); });
+  await tab.waitForFunction(() => document.querySelector('#projectFrame').contentDocument.querySelector('.fmo-slot').dataset.size === 'tiny');
+  assert.equal(await frame.locator('.fmo-pill .fmo-text').evaluate((n) => n.getClientRects().length), 0);
+  assert.ok(await frame.locator('.fmo-pill').evaluate((n) => n.getBoundingClientRect().width <= 29));
+  await tab.frames()[1].evaluate(() => window.fake.entries([{ id: 'a', kind: 'create', label: { title: 'Note' }, records: ['r'], state: 'waiting', createdAt: Date.now() }]));
+  assert.equal(await frame.locator('.fmo-pill .fmo-t').innerText(), '1');
+  await tab.frames()[1].evaluate(() => { window.fake.entries([]); document.querySelector('.r-window-bar').dataset.windowMobile = 'false'; window.dispatchEvent(new Event('resize')); });
 
   // Lists in the page: no mark while online; offline, the projects on this device are marked.
   assert.equal(await tab.locator('#content .fmo-mark').count(), 0);
@@ -559,8 +568,9 @@ test('device settings show space, the two limits as choices, and remove saved da
   assert.match(await host.locator('.fmo-set-total').innerText(), /^48 MB used of about 10 GB this browser allows$/);
   assert.deepEqual(await host.locator('.fmo-legend li').evaluateAll((nodes) => nodes.map((n) => n.innerText.replace(/\s+/g, ' ').trim())), ['The app 37 MB', 'Saved data limit 150 MB 6 MB', 'Pictures limit 300 MB 2 MB', 'Waiting changes 3 MB']);
   assert.equal(await host.locator('.fmo-meter > span').count(), 4);
-  assert.deepEqual(await host.locator('.fmo-seg').first().locator('label').allInnerTexts(), ['Less (50 MB)', 'Standard (150 MB)', 'More (500 MB)']);
-  assert.deepEqual(await host.locator('.fmo-seg').nth(1).locator('label').allInnerTexts(), ['Less (100 MB)', 'Standard (300 MB)', 'More (1 GB)']);
+  const choices = (index) => host.locator('.fmo-seg').nth(index).locator('label').evaluateAll((nodes) => nodes.map((n) => n.querySelector('b').textContent + ' ' + n.querySelector('small').textContent));
+  assert.deepEqual(await choices(0), ['Less 50 MB', 'Standard 150 MB', 'More 500 MB']);
+  assert.deepEqual(await choices(1), ['Less 100 MB', 'Standard 300 MB', 'More 1 GB']);
   assert.equal(await host.locator('input[name="fmo-readsBudgetMb"]:checked').getAttribute('value'), '150');
   assert.equal(await host.locator('input[type=number]').count(), 0, 'no raw numbers to type');
   await shot('settings');

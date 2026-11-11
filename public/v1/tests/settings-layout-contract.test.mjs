@@ -14,7 +14,7 @@ const expectedSections = [
   'my_settings', 'notifications', 'company', 'money', 'calls', 'contacts', 'feedback', 'equipment',
   'live_chat', 'comms', 'assistant', 'channels', 'people', 'payroll', 'reports', 'documents',
   'configuration', 'scheduling', 'project_scopes', 'storage', 'sms',
-  'domains', 'app_flags', 'pricebook', 'proposals', 'forms', 'billing', 'app_download'
+  'domains', 'app_flags', 'pricebook', 'proposals', 'forms', 'billing', 'app_download', 'offline'
 ];
 
 test('settings categories are declared once and rendered by the shared shell', () => {
