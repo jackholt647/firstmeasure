@@ -347,6 +347,12 @@
     session(){
       return request('/auth/session').catch((error) => {
         if (isMissingRecord(error)) return { ok: false, authenticated: false, missing: true };
+        // No answer at all (no connection): the session read is never kept on the device, but the person's
+        // own profile is (GET /me carries the same fields). A page that runs from the device then shows the
+        // apps and permissions they last had (docs/architecture/offline.md). Any HTTP answer is still final.
+        if (!error?.status && window.PlatformOffline) {
+          return request('/me').then((saved) => ({ ...saved, offline: true })).catch(() => { throw error; });
+        }
         throw error;
       });
     },
