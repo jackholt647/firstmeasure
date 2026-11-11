@@ -771,9 +771,9 @@ moves to wherever the chrome is:
 Pressing it opens the tray. Screen readers hear a change of situation once
 (not each step of a download). While the indicator says Offline and the
 browser says it is online again, the top page makes one small read
-(`/v1/platform/offline/assets`) every 15 seconds and on the browser's
-`online` event, because the engine learns that the connection is back only
-from a request that is answered.
+(`/v1/platform/ping`) every 15 seconds and on the browser's `online` event,
+because the engine learns that the connection is back only from a request it
+answers for (offline's own endpoints are not among them).
 
 ### The tray
 

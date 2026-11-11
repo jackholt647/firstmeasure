@@ -599,12 +599,13 @@
 
   /**
    * The engine learns that the connection is back from the next request that gets an answer. When the browser
-   * says it is online again and nothing else asks, the top page asks: one small read through the worker, only
-   * while the indicator still says Offline.
+   * says it is online again and nothing else asks, the top page asks: one small read the worker answers for
+   * (the manifest route is not one: the worker leaves offline's own endpoints alone), only while the indicator
+   * still says Offline.
    */
   function probe() {
     if (!isTop || state.online || navigator.onLine === false || document.hidden || !state.controlled) return;
-    fetch('/v1/platform/offline/assets', { cache: 'no-store', credentials: 'same-origin' }).catch(() => {});
+    fetch('/v1/platform/ping', { cache: 'no-store', credentials: 'same-origin' }).catch(() => {});
   }
   window.addEventListener('online', () => setTimeout(probe, 800));
   setInterval(probe, 15000);

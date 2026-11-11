@@ -123,7 +123,7 @@ async function site() {
   const seen = { probes: 0 };
   const server = http.createServer((request, response) => {
     const url = new URL(request.url, 'http://x');
-    if (url.pathname === '/v1/platform/offline/assets') { seen.probes++; response.writeHead(200, { 'Content-Type': 'application/json' }); response.end('{"enabled":true}'); return; }
+    if (url.pathname === '/v1/platform/ping') { seen.probes++; response.writeHead(200, { 'Content-Type': 'application/json' }); response.end('{"ok":true}'); return; }
     const send = (type, body) => { response.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' }); response.end(body); };
     if (url.pathname === '/libraries/platform-offline/offline-ui.js') return send('text/javascript; charset=utf-8', readFileSync(UI_FILE));
     if (url.pathname === '/portal/logout.php') return send('text/html; charset=utf-8', '<!doctype html><title>signed out</title><p id="out">signed out</p>');
