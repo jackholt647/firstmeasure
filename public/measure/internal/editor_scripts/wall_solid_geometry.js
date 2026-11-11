@@ -1262,6 +1262,57 @@ function structuralIndex(faces){
   edgeCache.set(key,yes);return yes;
  }};
 }
+// Orange marks what a face depends on: a line or corner whose removal would
+// take a face away or change what it is. Blue is safe to delete.
+//
+// Plain faces that lie in one plane, touch and carry the same finish are one
+// face to this rule: a line between them only divides it, and deleting the
+// line merges the two. A sticker, trim, chimney or curved face keeps its own
+// outline, because without that outline it is no longer that thing.
+function loadBearingFaces(faces){
+ const live=faces.filter(f=>!f.deleted&&!f.drafted),own=f=>!!(f.feature||f.trim||f.chimney||f.curvedSurface||f.curves?.length),result=live.filter(own),groups=[];
+ for(const f of live.filter(f=>!own(f)).flatMap(f=>K.normalizeFaces(f))){
+  const n=normal(f.points);if(!n){result.push(f);continue;}
+  const kind=JSON.stringify([f.material??null,f.finishColor??null]);
+  const group=groups.find(g=>g.kind===kind&&Math.abs(dot(g.n,n))>.99999&&rings(f).every(r=>r.every(p=>Math.abs(dot(sub(p,g.origin),g.n))<=LOAD_CONTACT)));
+  if(group)group.faces.push(f);else groups.push({kind,n,origin:f.points[0],faces:[f]});
+ }
+ for(const g of groups){
+  if(g.faces.length===1){result.push(g.faces[0]);continue;}
+  const frame=faceFrame(g.faces[0]),local=f=>({points:f.points.map(p=>({...inFrame(frame,p),z:0})),holes:(f.holes||[]).map(r=>r.map(p=>({...inFrame(frame,p),z:0})))});
+  let merged=null;try{merged=frame&&K.union(g.faces.map(local));}catch(e){merged=null;}
+  if(!merged?.length){result.push(...g.faces);continue;}
+  result.push(...merged.map(r=>({points:r.points.map(p=>fromFrame(frame,p)),holes:(r.holes||[]).map(h=>h.map(p=>fromFrame(frame,p)))})));
+ }
+ return result;
+}
+// Surveyed, moved and re-soffited geometry meets within tens of microns, not
+// exactly. A marker that near a corner is that corner.
+const LOAD_CONTACT=1e-4;
+function loadBearingIndex(faces){
+ const cells=new Map(),cell=v=>Math.floor(v/LOAD_CONTACT),segments=[],edgeCache=new Map(),pointCache=new Map();
+ for(const f of loadBearingFaces(faces))for(const r of rings(f))for(let i=0;i<r.length;i++){
+  const p=r[i],q=r[(i+1)%r.length],a=sub(r[(i+r.length-1)%r.length],p),b=sub(q,p),c=cross(a,b);
+  if(dot(a,b)>=0||Math.hypot(c.x,c.y,c.z)>1e-6*Math.max(1,Math.hypot(a.x,a.y,a.z)*Math.hypot(b.x,b.y,b.z))){const key=cell(p.x)+','+cell(p.y)+','+cell(p.z);if(!cells.has(key))cells.set(key,[]);cells.get(key).push(p);}
+  segments.push({c:p,d:q,minX:Math.min(p.x,q.x),maxX:Math.max(p.x,q.x),minY:Math.min(p.y,q.y),maxY:Math.max(p.y,q.y),minZ:Math.min(p.z,q.z),maxZ:Math.max(p.z,q.z)});
+ }
+ return {point:p=>{
+  const key=vertexKey(p);if(pointCache.has(key))return pointCache.get(key);let yes=false;const x=cell(p.x),y=cell(p.y),z=cell(p.z);
+  for(let i=-1;i<=1&&!yes;i++)for(let j=-1;j<=1&&!yes;j++)for(let k=-1;k<=1&&!yes;k++)yes=(cells.get((x+i)+','+(y+j)+','+(z+k))||[]).some(q=>Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<=LOAD_CONTACT);
+  pointCache.set(key,yes);return yes;
+ },edge:(a,b)=>{
+  const key=edgeKey(a,b);if(edgeCache.has(key))return edgeCache.get(key);
+  const ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z,l2=ux*ux+uy*uy+uz*uz;let yes=false;
+  const minX=Math.min(a.x,b.x)-LOAD_CONTACT,maxX=Math.max(a.x,b.x)+LOAD_CONTACT,minY=Math.min(a.y,b.y)-LOAD_CONTACT,maxY=Math.max(a.y,b.y)+LOAD_CONTACT,minZ=Math.min(a.z,b.z)-LOAD_CONTACT,maxZ=Math.max(a.z,b.z)+LOAD_CONTACT;
+  if(l2>1e-12)for(const segment of segments){
+   if(segment.maxX<minX||segment.minX>maxX||segment.maxY<minY||segment.minY>maxY||segment.maxZ<minZ||segment.minZ>maxZ)continue;
+   const {c,d}=segment,tc=((c.x-a.x)*ux+(c.y-a.y)*uy+(c.z-a.z)*uz)/l2,td=((d.x-a.x)*ux+(d.y-a.y)*uy+(d.z-a.z)*uz)/l2;
+   if(Math.hypot(c.x-a.x-ux*tc,c.y-a.y-uy*tc,c.z-a.z-uz*tc)>LOAD_CONTACT||Math.hypot(d.x-a.x-ux*td,d.y-a.y-uy*td,d.z-a.z-uz*td)>LOAD_CONTACT)continue;
+   if((Math.min(1,Math.max(tc,td))-Math.max(0,Math.min(tc,td)))*Math.sqrt(l2)>LOAD_CONTACT){yes=true;break;}
+  }
+  edgeCache.set(key,yes);return yes;
+ }};
+}
 function structuralEdge(a,b,faces){return sharedIntervals(a,b,faces.filter(f=>!f.deleted&&!f.drafted).flatMap(f=>K.normalizeFaces(f))).length>0;}
 function deleteSurfaceElements(edits,pointIds=[],edgeIds=[]){const points=new Set(pointIds),edges=new Set(edgeIds);edits.$removedSurfacePoints=[...new Set([...(edits.$removedSurfacePoints||[]),...points])];edits.$removedSurfaceEdges=[...new Set([...(edits.$removedSurfaceEdges||[]),...edges])];
  for(const f of edits.$surfaces||[]){if(f.drafted)continue;if(!f.deleted)Object.assign(f,K.normalizeFace(f));const selected=rings(f).flat().filter(p=>points.has(vertexKey(p))),defines=selected.length>0&&K.pointRemovalChangesRegion(f,selected.map(K.pointKey));if(defines||rings(f).some(r=>r.some((p,i)=>edges.has(edgeKey(p,r[(i+1)%r.length])))))f.deleted=true;else if(selected.length){f.points=f.points.filter(p=>!points.has(vertexKey(p)));f.holes=(f.holes||[]).map(r=>r.filter(p=>!points.has(vertexKey(p))));}}
@@ -1526,5 +1577,5 @@ function flattenedCurveSamples(before,after){
   const keys=new Set([...ordinary].filter(key=>!carried.has(key)));for(const p of state.points){const key=vertexKey(p);if(samples.has(key))keys.add(key);}return keys;};
  const already=flat(before);return [...flat(after)].filter(key=>!already.has(key));
 }
-const api={flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={loadBearingFaces,loadBearingIndex,flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

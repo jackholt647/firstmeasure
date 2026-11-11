@@ -558,13 +558,14 @@ test('deleting a drafted host corner removes only its incident region, not the n
 
 test('an extruded recess rim remains structural when its supporting wall uses a hole ring',()=>{
  const f=fixture({globals:renderGlobals()});f.editor.doubleClick(f.e(1,1),f.w);for(const [x,y]of [[3,1],[3,3],[1,3],[1,1]]){f.editor.key({key:'n'});f.editor.down(f.e(x,y));f.listeners.pointerup(f.e(x,y));}f.editor.clear();
- let rendered=[];f.editor.draw3D({add:o=>rendered.push(o)},p=>p);assert.equal(rendered.filter(o=>o.material.color==='#6ce4ed').length,0,'A closed drawing inside a wall is a region: its rim bounds it and the hole around it (FM-385)');
+ let rendered=[];f.editor.draw3D({add:o=>rendered.push(o)},p=>p);assert.equal(rendered.filter(o=>o.material.color==='#6ce4ed').length,8,'A closed drawing inside a plain wall only divides it: deleting it merges the two regions, so its four lines and four corners are blue');
  const opening=f.d().faces.find(face=>face.opening);opening.solidId='extruded-cap';
  rendered=[];f.editor.draw3D({add:o=>rendered.push(o)},p=>p);assert.equal(rendered.filter(o=>o.material.color==='#6ce4ed').length,0,'The remaining wall depends on all four recess corners and rim edges even without a return face');
 });
-// FM-385: orange marks a line or point on the outline of a face. Each region of
-// a draft counts with its own rings, as a solid does; the draft's union, which
-// snapping reads, fills sticker holes and drops the edges between regions.
+// Orange marks a line or point a face depends on: removing it would take a face
+// away or change what it is (WallSolidGeometry.loadBearingFaces). Plain regions
+// in one plane are one face to this rule, so a line dividing them is blue; a
+// sticker keeps its own outline (FM-385), and so does the hole it sits in.
 function wallColours(f,pass='draw3D'){
  f.editor.clear?.();const objects=[];f.editor[pass]({add:o=>objects.push(o)},p=>p);
  return objects.filter(o=>['#e7ad52','#6ce4ed'].includes(o.material?.color)).map(o=>({point:o.material.size===8,orange:o.material.color==='#e7ad52',at:(o.geometry?.points||[]).map(p=>+p.x.toFixed(3)+','+ +p.z.toFixed(3)).join(' ')}));
@@ -580,14 +581,14 @@ test('a sticker inside a wall\'s draft draws its edges and corners orange in 3D,
  const g=stickerFixture('window',[2,2],{redrawOverlay:()=>{},drawsOverlay:true});g.editor.key({key:'m'});g.listeners.pointermove({...g.e(1.8,2.1),buttons:0});
  const overlay=wallColours({editor:{drawOverlay:g.editor.drawOverlay}},'drawOverlay');assert.equal(overlay.length,16,JSON.stringify(overlay));assert.deepEqual(overlay.filter(o=>!o.orange),[],'the sliding sticker stays structural');
 });
-test('an edge between two regions of one draft is orange; a collinear point on it and a loose line stay blue',()=>{
+test('a line dividing one plain wall into two regions is blue with its ends; a loose line stays blue',()=>{
+ // Deleting the divider merges the two regions back into the wall they came
+ // from: no face is lost, so nothing about it is load-bearing.
  const split=wallColours(drawDraftLines([0,1],[[4,1]]));
- assert.ok(split.some(o=>!o.point&&o.at==='0,1 4,1'&&o.orange),JSON.stringify(split));
- for(const at of ['0,1','4,1'])assert.ok(split.some(o=>o.point&&o.at===at&&o.orange),at+' is a corner of both regions');
- assert.deepEqual(split.filter(o=>!o.orange),[]);
+ assert.deepEqual(split.filter(o=>!o.orange).map(o=>o.at).sort(),['0,1','0,1 4,1','4,1'],JSON.stringify(split));
+ assert.equal(split.filter(o=>o.orange).length,8,'the wall outline stays load-bearing');
  const f=drawDraftLines([0,1],[[4,1]]);f.editor.doubleClick(f.e(2,1),f.w);const mid=wallColours(f);
- assert.ok(mid.some(o=>o.point&&o.at==='2,1'&&!o.orange),'a point midway along a straight edge is not a corner: '+JSON.stringify(mid));
- assert.equal(mid.filter(o=>!o.orange).length,1);
+ assert.deepEqual(mid.filter(o=>!o.orange).map(o=>o.at).sort(),['0,1','0,1 4,1','2,1','4,1'],JSON.stringify(mid));
  const loose=wallColours(drawDraftLines([1,1],[[2,2]]));
  assert.deepEqual(loose.filter(o=>!o.orange).map(o=>o.at).sort(),['1,1','1,1 2,2','2,2'],'a loose sketch line is not on any outline');
  assert.equal(loose.filter(o=>o.orange).length,8,'the wall outline stays structural');
@@ -2741,7 +2742,7 @@ test('a line move that closes an outline notch leaves a consumed mask matching i
  assert.equal(new Set(ring(mask.points)).size,mask.points.length);assert.ok(mask.points.every(p=>d.sketch.nodes.some(n=>n.id===p.nodeId)),'the mask still follows sketch nodes');
  // Shown again by any later edit, it triangulates.
  K.triangles(mask.points,mask.holes||[]);
- const lines=[];f.editor.draw3D({add:o=>{if(o.material?.color==='#6ce4ed'&&o.geometry?.points?.length===2)lines.push(o);}},p=>p);assert.equal(lines.length,0,'the closed tab leaves no loose wire');
+ const lines=[];f.editor.draw3D({add:o=>{if(o.material?.color==='#6ce4ed'&&o.geometry?.points?.length===2)lines.push(o);}},p=>p);assert.deepEqual(lines.map(o=>o.geometry.points.map(q=>q.x+','+q.z).sort().join(' ')),['0,1 4,1'],'the closed tab leaves no loose wire; the one blue line only divides plain faces in the same plane');
 });
 
 // Renz's and Joanne's training projects (Nov 4) hold masks like these: a
@@ -4340,4 +4341,22 @@ test('B turns a selected flat face into a base face, and refuses steep, holed or
  assert.ok(state.wallEdits.$base.faces.some(b=>b.id==='base-1'));
  // With nothing selected B is not handled here, and plane mode keeps B for Subtract.
  f.editor.restoreSelection({});assert.notEqual(f.editor.key({key:'b'}),true);
+});
+test('orange is load-bearing: corners that meet within microns count, and a sticker keeps its outline where a plain region does not',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ const front={id:'front',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(0,0,3)],holes:[]},side={id:'side',points:[p(4,0,0),p(4,2,0),p(4,2,3),p(4,0,3)],holes:[]};
+ const index=W.loadBearingIndex([front,side]);
+ // A wire point half a micron or 40 microns from the corner is that corner;
+ // rounding the two to different six-decimal keys used to leave it blue.
+ for(const d of [0,4e-7,-6e-7,4e-5])assert.equal(index.point(p(4+d,d,3)),true,'corner offset '+d);
+ assert.equal(index.point(p(4,0,1.5)),false,'a point partway up the fold between two walls is a corner of neither');
+ assert.equal(index.point(p(2,0,3)),false,'a point along a straight edge can go');assert.equal(index.point(p(2,0,1.5)),false);
+ assert.equal(index.edge(p(4+3e-5,0,0),p(4,3e-5,3)),true);assert.equal(index.edge(p(1,0,1),p(3,0,1)),false);
+ // A plain region drawn on the wall: same plane, same finish, so only a divider.
+ const region={id:'region',points:[p(1,0,1),p(2,0,1),p(2,0,2),p(1,0,2)],holes:[]},around={...front,holes:[region.points.slice().reverse()]};
+ const plain=W.loadBearingIndex([around,region,side]);assert.equal(plain.point(p(1,0,1)),false);assert.equal(plain.edge(p(1,0,1),p(2,0,1)),false);assert.equal(plain.point(p(0,0,3)),true);
+ // The same region as a sticker, or in another finish, is its own face.
+ for(const special of [{feature:{type:'window'}},{finishColor:'#445566'},{trim:true}]){const own=W.loadBearingIndex([around,{...region,...special},side]);assert.equal(own.point(p(1,0,1)),true,JSON.stringify(special));assert.equal(own.edge(p(1,0,1),p(2,0,1)),true,JSON.stringify(special));}
+ // With the region deleted the wall has a real hole, and its rim is load-bearing.
+ const hole=W.loadBearingIndex([around,side]);assert.equal(hole.point(p(1,0,1)),true);assert.equal(hole.edge(p(1,0,1),p(2,0,1)),true);
 });
