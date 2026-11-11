@@ -9433,6 +9433,8 @@ window.PlatformCommerce.onReady(async function(){
     // A person typing into the project's own fields (title, a contact, a custom field) is a write (FM-374).
     if (!activeBaseProject && options.edited === true && !viewingExistingProject) ensureDraftBaseProject({ allowEmpty:true });
     if (!activeBaseProject || !window.Portal.ProjectStore) return;
+    // Typing into the project's fields is data: the project is real from now on (PlatformAPI.projectContent).
+    if (options.edited === true && activeBaseProject.has_meaningful_activity !== true) activeBaseProject = { ...activeBaseProject, has_meaningful_activity:true, last_activity_at:new Date().toISOString() };
     syncProjectPhotosFromLibrary();
     // Without the Overview details form there are no edited values to read;
     // keep the stored contacts instead of saving an empty list.
@@ -9561,11 +9563,16 @@ window.PlatformCommerce.onReady(async function(){
     const loading = projectShellLoading || projectFormHydrating || projectRecordPending || !!activeBaseProject?.__projectShellLoading;
     // A window opened for an existing project whose record has not loaded must not start a new draft (1M8-234).
     if (!activeBaseProject && (loading || viewingExistingProject)) throw Error((globalThis.PlatformLanguage?.text("project-request","project_still_loading","The project is still loading. Try again in a moment.") ?? "The project is still loading. Try again in a moment."));
-    // A saved project with nothing queued is already on the server.
-    if (activeBaseProject && (loading || !store?.hasPendingSave?.(activeBaseProject))) return activeBaseProject;
-    const project = activeBaseProject || ensureDraftBaseProject({ allowEmpty:true });
-    if (!project || !store?.saveRemote) throw Error((globalThis.PlatformLanguage?.text("project-request","project_save_failed","Project could not be saved.") ?? "Project could not be saved."));
-    await store.saveRemote(project);
+    if (activeBaseProject && loading) return activeBaseProject;
+    if (!activeBaseProject) ensureDraftBaseProject({ allowEmpty:true });
+    if (!activeBaseProject || !store?.saveRemote) throw Error((globalThis.PlatformLanguage?.text("project-request","project_save_failed","Project could not be saved.") ?? "Project could not be saved."));
+    // A write is data, so the project is a real project from now on (PlatformAPI.projectContent), even when what is
+    // written lives in another store (a note, a to-do).
+    const marked = activeBaseProject.has_meaningful_activity === true;
+    if (!marked) activeBaseProject = { ...activeBaseProject, has_meaningful_activity:true, last_activity_at:new Date().toISOString() };
+    // A marked project with nothing queued is already on the server.
+    if (marked && !store.hasPendingSave?.(activeBaseProject)) return activeBaseProject;
+    await store.saveRemote(activeBaseProject);
     return activeBaseProject;
   }
 

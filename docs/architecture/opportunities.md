@@ -79,7 +79,18 @@ contact, a custom field) saves the draft too, the address once it is chosen.
 Opening and reading never call it, so an untouched new project is still not
 kept. A new app that writes asks this hook for its project; it never refuses
 a write because the project is unsaved, and never adds its own trigger.
-`tests/project-first-write-browser.test.mjs` covers it.
+The hook also marks the project (`has_meaningful_activity`), so data another
+store keeps (a note, a to-do) counts.
+
+**A project with data of any kind is a real project.** Whether a list shows
+a project is one rule, `PlatformAPI.projectContent` in `platform-api.js`,
+used by the projects viewer (stages, list, tiles, map) and the portal list:
+only a draft nothing was ever written to is left out. Things the platform
+makes by itself are not data (the generated or saved satellite image, the
+work plan a new scope starts, scope defaults). Add a new kind of data there,
+never per view. This replaced 1M8-206's "a draft stays a draft until it has
+an order, proposal or appointment". `tests/project-first-write-browser.test.mjs`
+and `tests/portal-regressions-20261021.test.mjs` cover it.
 
 ## New leads
 

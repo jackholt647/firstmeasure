@@ -2691,6 +2691,45 @@
     }
   };
 
+  // FM-374: the one rule for whether a project is real. A project with data of any kind in it is a real project wherever
+  // projects are listed or counted; only a draft nothing was ever written to is left out. Things the platform makes by
+  // itself are not data: the generated or saved satellite image, the work plan a new project's scope starts, scope
+  // defaults. Every write through the project window marks the project (has_meaningful_activity), so data another
+  // store keeps (notes, to-dos, custom field values) makes it real too. Add a new kind of data here, never per view.
+  const projectContent = {
+    // Workflow states that already mean someone did something with the project.
+    ACTIVE_WORKFLOWS: ['proposal_only', 'document_only', 'drafting_proposal', 'proposal_sent', 'newly_sold', 'measurement_ordered'],
+    // Lists on the project document whose entries are data someone added.
+    DATA_LISTS: ['proposals', 'proposal_ids', 'documents', 'document_ids', 'uploaded_documents', 'material_lists', 'material_list_ids', 'todos', 'action_items', 'contact_ids', 'pins'],
+    isGeneratedPhoto(photo = {}){
+      const ref = photo && typeof photo === 'object' ? photo : {};
+      const metadata = ref.metadata && typeof ref.metadata === 'object' ? ref.metadata : {};
+      return projectMedia.isSatelliteMedia(ref)
+        || firstText(ref.source, metadata.source) === projectMedia.SATELLITE_MEDIA_SOURCE
+        || ref.id === projectMedia.TOP_DOWN_THUMBNAIL_ID
+        || firstText(ref.designator, metadata.designator) === projectMedia.TOP_DOWN_THUMBNAIL_DESIGNATOR
+        || ref.is_top_down_thumbnail === true || metadata.is_top_down_thumbnail === true;
+    },
+    hasContent(project = {}){
+      const p = project && typeof project === 'object' ? project : {};
+      if (p.has_meaningful_activity === true || p.meaningful_activity === true) return true;
+      if (projectContent.ACTIVE_WORKFLOWS.includes(cleanText(p.workflow_state).toLowerCase())) return true;
+      if (measurementProjectId(p) || cleanText(p.proposal_id, p.active_proposal_id)) return true;
+      if (firstText(p.title, p.project_title, p.address, p.project_notes, p.notes, p.tech_notes,
+        p.customer_name, p.customer_email, p.customer_phone, p.primary_contact_name, p.primary_contact_email, p.primary_contact_phone)) return true;
+      if (projectContent.DATA_LISTS.some((key) => Array.isArray(p[key]) && p[key].length)) return true;
+      if ((Array.isArray(p.contacts) ? p.contacts : []).some((contact) => firstText(contact?.name, contact?.email, contact?.phone, contact?.address, contact?.default_address))) return true;
+      if ((Array.isArray(p.photos) ? p.photos : []).some((photo) => photo && !photo.uploading && !projectContent.isGeneratedPhoto(photo))) return true;
+      if ((Array.isArray(p.events) ? p.events : []).some((event) => event && !['cancelled', 'canceled', 'deleted'].includes(firstText(event.status, event.state).toLowerCase()))) return true;
+      const scope = p.scope && typeof p.scope === 'object' ? p.scope : {};
+      return (Array.isArray(scope.root_items) && scope.root_items.length > 0) || (Array.isArray(scope.pieces) && scope.pieces.length > 0);
+    },
+    // A draft nothing was written to: the only kind of project a list leaves out.
+    isEmptyDraft(project = {}){
+      return !projectContent.hasContent(project);
+    }
+  };
+
   const dashboard = (() => {
     const MODULE_ID = 'dashboard';
     const DEFAULT_STATS = [
@@ -3297,6 +3336,7 @@
     projectDocuments,
     projectDocumentMarkup,
     projectMedia,
+    projectContent,
     branchModules: {
       async list(orgId, branchId){
         const key = branchModuleListKey(orgId, branchId);

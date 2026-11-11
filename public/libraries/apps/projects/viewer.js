@@ -4961,26 +4961,13 @@
       return status !== 'cancelled' && status !== 'canceled' && status !== 'deleted';
     });
   }
-  function hasMeaningfulProjectActivity(p){
-    if (hasProjectProposals(p) || hasScheduledAppointment(p)) return true;
-    if (p?.has_meaningful_activity === true || p?.meaningful_activity === true) return true;
-    const workflow = String(p?.workflow_state || '').trim().toLowerCase();
-    if (['proposal_only', 'document_only', 'drafting_proposal', 'proposal_sent', 'newly_sold', 'measurement_ordered'].includes(workflow)) return true;
-    // Work plans are created automatically when a project starts a scope, so they are not activity.
-    const populatedArrays = ['photos', 'documents', 'document_ids', 'material_lists', 'material_list_ids', 'todos', 'action_items'];
-    if (populatedArrays.some((key) => Array.isArray(p?.[key]) && p[key].length)) return true;
-    const scope = p?.scope && typeof p.scope === 'object' ? p.scope : {};
-    if ((Array.isArray(scope.root_items) && scope.root_items.length) || (Array.isArray(scope.pieces) && scope.pieces.length)) return true;
-    return !!String(p?.project_notes || p?.notes || p?.tech_notes || '').trim();
-  }
+  // A project is left out of the lists only while nothing was ever written to it; any data makes it a real project.
+  // The rule is PlatformAPI.projectContent (FM-374), shared with the portal's project list. A project with an order,
+  // a proposal or an appointment is always shown.
   function isDraftProject(p){
-    const status = String(p?.status || p?.measurement_project?.status || p?.measurement?.status || p?.workflow_state || '').trim().toLowerCase();
-    if (hasMeasurementOrder(p) && ['queued', 'processing', 'in_progress', 'awaiting_review', 'awaiting_manager_review', 'pending_rejection'].includes(status)) return false;
-    // A project saved as a draft stays one until it has an order, a proposal or an appointment.
-    if (String(p?.workflow_state || '').trim().toLowerCase() === 'draft') {
-      return !hasMeasurementOrder(p) && !hasProjectProposals(p) && !hasScheduledAppointment(p);
-    }
-    return !hasMeasurementOrder(p) && !hasMeaningfulProjectActivity(p);
+    if (hasMeasurementOrder(p) || hasProjectProposals(p) || hasScheduledAppointment(p)) return false;
+    const content = window.PlatformAPI?.projectContent;
+    return !!content && content.isEmptyDraft(p);
   }
 
   function projectStatusGroup(p){

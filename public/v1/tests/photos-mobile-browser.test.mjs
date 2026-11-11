@@ -167,6 +167,32 @@ test('phone photo viewer: full screen, swipe to the next photo, details in a bot
   }finally{await browser.close();}
 });
 
+test('phone camera: the shutter never waits; quick shots all upload, in order, behind the camera (FM-374)',async()=>{
+  const browser=await launch();
+  try{
+    const {page,errors}=await pageFor(browser,PHONE,'<div id="host" style="position:fixed;inset:90px 0 0 0;background:#fff"></div>');
+    await page.addScriptTag({url:'/libraries/camera-capture/camera-capture.js'});
+    // Each upload takes a while, like a phone on a slow connection.
+    await page.evaluate(()=>{window.uploads=[];window.done=null;
+      window.cam=FirstMateCamera.mount(document.querySelector('#host'),{upload:async file=>{await new Promise(r=>setTimeout(r,400));window.uploads.push(file);return {ok:true};},onDone:entries=>{window.done=entries.map(e=>({status:e.status,file:!!e.file}));}});});
+    await page.locator('.fmc-bar').click();
+    await page.waitForSelector('.fmc-stage.live');
+    await page.waitForFunction(()=>document.querySelector('.fmc-stage video').videoWidth>0);
+    // Five taps in a row: the shutter is never disabled between them.
+    const disabled=await page.evaluate(()=>{const shutter=document.querySelector('[data-fmc-shutter]'),seen=[];for(let i=0;i<5;i++){shutter.click();seen.push(shutter.disabled);}return seen;});
+    assert.deepEqual(disabled,[false,false,false,false,false]);
+    assert.equal(await page.locator('.fmc-tile').count(),5,'every shot shows at once');
+    assert.ok(await page.evaluate(()=>window.uploads.length)<5,'uploads are still running behind the camera');
+    await page.waitForFunction(()=>document.querySelectorAll('.fmc-tile .fmc-ok').length===5,null,{timeout:10000});
+    const names=await page.evaluate(()=>window.uploads.map(f=>f.type+':'+(f.size>0)));
+    assert.deepEqual(names,Array(5).fill('image/jpeg:true'));
+    await page.locator('[data-fmc-back]').click();
+    await page.waitForFunction(()=>window.done);
+    assert.deepEqual(await page.evaluate(()=>window.done),Array(5).fill({status:'done',file:true}));
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
 test('phone camera: the bar expands into a live camera, a shot adds a thumbnail and an upload, Back collapses it',async()=>{
   const browser=await launch();
   try{

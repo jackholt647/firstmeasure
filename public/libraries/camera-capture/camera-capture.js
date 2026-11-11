@@ -282,6 +282,8 @@
       if (!upload) { entry.status = 'done'; renderTile(entry); return Promise.resolve(); }
       entry.status = 'pending'; entry.error = ''; renderTile(entry);
       queue = queue.then(async () => {
+        // A photo just taken may still be encoding; the queue keeps the order they were taken in.
+        if (!(await entry.ready)) return;
         entry.status = 'uploading'; renderTile(entry);
         try { entry.result = await upload(entry.file, entry); entry.status = 'done'; }
         catch (error) { entry.status = 'failed'; entry.error = error?.message || T('upload_failed', 'Upload failed'); say(T('upload_failed_retry', 'A photo did not upload. Tap it to retry.'), true); }
@@ -290,17 +292,29 @@
       });
       return queue;
     }
+    // file is a File, or a promise of one for a photo still encoding (capture): the entry shows at once and its file
+    // is filled in when ready (entry.ready resolves to it, or to null when encoding failed and the entry was dropped).
     function add(file, thumbnail){
-      const entry = { id: 'fmc' + (++sequence), file, thumbnail, status: 'pending', error: '', result: null };
+      const entry = { id: 'fmc' + (++sequence), file: null, thumbnail, status: 'pending', error: '', result: null };
+      entry.ready = Promise.resolve(file).then((ready) => {
+        entry.file = ready;
+        try { options.onCapture?.(entry); } catch (error) { console.warn('Camera onCapture failed', error); }
+        return ready;
+      }, () => {
+        entries = entries.filter((item) => item !== entry); sessionEntries = sessionEntries.filter((item) => item !== entry);
+        strip.querySelector(`[data-fmc-entry="${entry.id}"]`)?.remove(); syncControls();
+        say(T('capture_failed', 'That photo could not be taken. Try again.'));
+        return null;
+      });
       entries.push(entry); sessionEntries.push(entry);
       renderTile(entry); syncControls();
-      try { options.onCapture?.(entry); } catch (error) { console.warn('Camera onCapture failed', error); }
       void send(entry);
       return entry;
     }
-    async function capture(){
+    // The shutter never waits (FM-374): the frame is copied at once and encoded to JPEG behind the next shot, and
+    // uploads run one at a time in the background, so photos can be taken as fast as the person taps.
+    function capture(){
       if (!stream || !video.videoWidth) return;
-      shutter.disabled = true;
       const flash = $('.fmc-flash'); flash.classList.remove('fire'); void flash.offsetWidth; flash.classList.add('fire');
       navigator.vibrate?.(10);
       try {
@@ -310,14 +324,13 @@
         const thumb = document.createElement('canvas');
         thumb.width = 192; thumb.height = Math.max(1, Math.round(192 * canvas.height / canvas.width));
         thumb.getContext('2d').drawImage(canvas, 0, 0, thumb.width, thumb.height);
-        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
-        if (!blob) throw new Error('capture');
-        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-        add(new File([blob], `photo-${stamp}.jpg`, { type: 'image/jpeg', lastModified: Date.now() }), thumb.toDataURL('image/jpeg', 0.8));
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-'), takenAt = Date.now();
+        const file = new Promise((resolve, reject) => canvas.toBlob((blob) => blob
+          ? resolve(new File([blob], `photo-${stamp}.jpg`, { type: 'image/jpeg', lastModified: takenAt }))
+          : reject(new Error('capture')), 'image/jpeg', 0.92));
+        add(file, thumb.toDataURL('image/jpeg', 0.8));
       } catch (_) {
         say(T('capture_failed', 'That photo could not be taken. Try again.'));
-      } finally {
-        shutter.disabled = !stream;
       }
     }
     function choose(){ input.value = ''; input.click(); }
@@ -342,6 +355,8 @@
 
     async function finish(){
       if (closing) return;
+      // Photos still encoding are part of this session: hand them on with their files.
+      await Promise.all(sessionEntries.map((entry) => entry.ready));
       const taken = sessionEntries.slice();
       let nextResult;
       if (typeof options.next === 'function' && taken.length) {
@@ -455,5 +470,5 @@
     };
   }
 
-  root.FirstMateCamera = { mount, open, version: '20261026-mobile-trays' };
+  root.FirstMateCamera = { mount, open, version: '20261111-fm374-shutter' };
 })(window);
