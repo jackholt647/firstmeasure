@@ -35,6 +35,45 @@
   // needs only the editor's finishes, not its exterior kernel. Same URL as above, so the browser loads it once.
   let roofFinishesLibrary;
   function loadRoofFinishes(){return roofFinishesLibrary ||= (async()=>{if(!window.ExteriorFinishes)await script(new URL('../../../measure/internal/editor_scripts/exterior_finishes.js?v=20261022-viewer',scriptBase).href);return window.ExteriorFinishes?.roofTexture?window.ExteriorFinishes:null;})().catch(()=>{roofFinishesLibrary=null;return null;});}
+  // FM-405: model_data.xml written before FM-405 matched points by plan position alone (xml_generator.js), so where a
+  // lower roof meets an upper one in plan, the lower face's corner took the upper roof's height and the face rose into a
+  // wall-high sliver. A roof face is a plane: a vertex far off the plane its other vertices agree on (at the face's saved
+  // pitch) belongs on that plane. Returns the face's heights, or null when it is already a plane and stays as saved.
+  function facePlaneHeights(ring,pitch){
+    const n=ring.length,TOL=.5,FAR=2,off=(pl,p)=>pl[0]*p[0]+pl[1]*p[1]+pl[2]-p[2],rise=pl=>Math.hypot(pl[0],pl[1])*12;
+    if(n<3)return null;
+    // A plane stays as saved, unless it stands near upright though its saved pitch is a roof's (a triangle with one such corner).
+    const normal=newell(ring),c=ring.reduce((sum,p)=>sum.map((v,i)=>v+p[i]/n),[0,0,0]),fit=normal&&Math.abs(normal[2])>1e-6?[-normal[0]/normal[2],-normal[1]/normal[2],c[2]+(normal[0]*c[0]+normal[1]*c[1])/normal[2]]:null;
+    const upright=pitch!=null&&pitch<18&&(!fit||rise(fit)>24);
+    if(fit&&ring.every(p=>Math.abs(off(fit,p))<=TOL)&&!upright)return null;
+    // Only a broken face gets here. Its plane is one through three of its corners, or through two at its saved pitch.
+    if(n>24)return null;
+    const planes=[];
+    for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)for(let k=j+1;k<n;k++){const [a,b,c]=[ring[i],ring[j],ring[k]],d=(b[0]-a[0])*(c[1]-a[1])-(c[0]-a[0])*(b[1]-a[1]);if(Math.abs(d)<1e-6)continue;
+      const A=((b[2]-a[2])*(c[1]-a[1])-(c[2]-a[2])*(b[1]-a[1]))/d,B=((b[0]-a[0])*(c[2]-a[2])-(c[0]-a[0])*(b[2]-a[2]))/d;planes.push([A,B,a[2]-A*a[0]-B*a[1]]);}
+    if(pitch!=null){const s=pitch/12;for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){const [a,b]=[ring[i],ring[j]],run=Math.hypot(b[0]-a[0],b[1]-a[1]);if(run<1e-6)continue;
+      const u=[(b[0]-a[0])/run,(b[1]-a[1])/run],along=(b[2]-a[2])/run;if(Math.abs(along)>s)continue;const across=Math.sqrt(s*s-along*along);
+      for(const sign of [-1,1]){const A=along*u[0]-sign*across*u[1],B=along*u[1]+sign*across*u[0];planes.push([A,B,a[2]-A*a[0]-B*a[1]]);}}}
+    let best=null;
+    for(const pl of planes){if(pitch!=null&&Math.abs(rise(pl)-pitch)>1.5)continue;const r=ring.map(p=>Math.abs(off(pl,p))),inliers=r.filter(x=>x<=TOL).length,moved=r.reduce((sum,x)=>sum+(x>TOL?x:0),0);
+      if(!best||inliers>best.inliers||(inliers===best.inliers&&moved<best.moved))best={pl,r,inliers,moved};}
+    if(!best||best.inliers*2<=n||!best.r.some(x=>x>FAR))return null;
+    return ring.map((p,i)=>best.r[i]>TOL?best.pl[0]*p[0]+best.pl[1]*p[1]+best.pl[2]:p[2]);
+  }
+  // Give a face's corrected corners their own points, and its edges the corrected ends where every face on the edge agrees,
+  // so the face, its lines and their lengths all follow the corrected roof. Faces that fit their points keep them.
+  function separateLayers(points,lines,faces){
+    const byEnds=new Map([...lines].map(([id,line])=>[line.ids.slice().sort().join(','),id])),ends=new Map(),split=new Map();
+    for(const face of faces){
+      const heights=facePlaneHeights(face.points,face.pitch),ids=face.ids.map((id,i)=>{
+        if(!heights||Math.abs(heights[i]-face.points[i][2])<=.5)return id;
+        const xyz=[face.points[i][0],face.points[i][1],heights[i]],copies=split.get(id)||[];split.set(id,copies);
+        let copy=copies.find(other=>Math.abs(points.get(other)[2]-xyz[2])<=.25);if(!copy){copy=`${id}~${copies.length+1}`;copies.push(copy);points.set(copy,xyz);}return copy;});
+      if(heights)face.points=ids.map(id=>points.get(id));
+      ids.forEach((id,i)=>{const j=(i+1)%ids.length,line=byEnds.get([face.ids[i],face.ids[j]].sort().join(','));if(line)(ends.get(line)||ends.set(line,[]).get(line)).push(id+','+ids[j]);});
+    }
+    for(const [id,seen] of ends){const line=lines.get(id),pair=seen[0].split(',');if(seen.every(other=>new Set(other.split(',')).size===2&&other.split(',').every(p=>pair.includes(p))))line.ids=line.ids.map(end=>pair.find(p=>p===end||p.startsWith(end+'~')));}
+  }
   function parseModel(xml,edgeTypes=[]){
     const classified=new Map(edgeTypes.map(edge=>[String(edge.path),lineType(edge.type)]));
     const doc=new DOMParser().parseFromString(xml,'application/xml');
@@ -44,20 +83,21 @@
       const points=new Map(),lines=new Map(),faces=[],openings=[];
       for(const p of roof.querySelectorAll('POINT')){const xyz=(p.getAttribute('data')||'').split(',').map(Number);if(xyz.length===3&&xyz.every(Number.isFinite))points.set(p.getAttribute('id'),xyz);}
       for(const l of roof.querySelectorAll('LINE')){const ids=(l.getAttribute('path')||'').split(',').map(x=>x.trim());if(ids.length===2&&ids.every(id=>points.has(id)))lines.set(l.getAttribute('id'),{ids,type:classified.get(ids.slice().sort().join(',')) || lineType(l.getAttribute('type'))});}
-      function ring(polygon){
+      function ringIds(polygon){
         const edges=(polygon?.getAttribute('path')||'').split(',').map(id=>lines.get(id.trim()));
         if(edges.length<3||edges.some(e=>!e))return null;
         // Walk undirected boundary edges; stored directions need not agree.
         const pending=edges.slice(1),path=[...edges[0].ids];
         while(pending.length){const end=path[path.length-1],i=pending.findIndex(e=>e.ids.includes(end));if(i<0)break;const [e]=pending.splice(i,1);path.push(e.ids[0]===end?e.ids[1]:e.ids[0]);}
-        return !pending.length&&path[0]===path[path.length-1]?path.slice(0,-1).map(id=>points.get(id)):null;
+        return !pending.length&&path[0]===path[path.length-1]?path.slice(0,-1):null;
       }
+      const ring=polygon=>ringIds(polygon)?.map(id=>points.get(id))||null;
       // FACE ids are local to each ROOF. Penetrations describe voids, never roof surfaces.
       const records=[...roof.querySelectorAll('FACE')],byId=new Map(records.map(face=>[face.getAttribute('id'),face]));
       for(const face of records){
         const type=(face.getAttribute('type')||'ROOF').toUpperCase();
         if(type!=='ROOF')continue;
-        const boundary=ring(face.querySelector('POLYGON'));if(!boundary)continue;
+        const ids=ringIds(face.querySelector('POLYGON'));if(!ids)continue;const boundary=ids.map(id=>points.get(id));
         const holes=[];
         for(const id of (face.getAttribute('children')||'').split(',').map(id=>id.trim()).filter(Boolean)){
           const child=byId.get(id);
@@ -69,8 +109,9 @@
         }
         const pitchText=face.querySelector('POLYGON')?.getAttribute('pitch');
         const size=face.querySelector('POLYGON')?.getAttribute('size');
-        faces.push({points:boundary,holes,area:size!==null&&size!==undefined&&Number.isFinite(Number(size))?Math.max(0,Number(size)):null,pitch:pitchText!==null&&pitchText!==undefined&&Number.isFinite(Number(pitchText))?Math.max(0,Number(pitchText)):null});
+        faces.push({ids,points:boundary,holes,area:size!==null&&size!==undefined&&Number.isFinite(Number(size))?Math.max(0,Number(size)):null,pitch:pitchText!==null&&pitchText!==undefined&&Number.isFinite(Number(pitchText))?Math.max(0,Number(pitchText)):null});
       }
+      separateLayers(points,lines,faces);
       if(points.size)roofs.push({points,lines,faces,openings});
     }
     if(!roofs.length)throw new Error('No saved roof geometry is available for this report.');
@@ -889,5 +930,5 @@
     for(const name of ['pointerdown','wheel','keydown'])designPanel?.addEventListener(name,e=>e.stopPropagation());
     return {serialize(){return {texture:textureEnabled,lines:coloredLinesEnabled,key:keyVisible,keyTab,lights:lightsOn,pitch:pitchEnabled,area:areaEnabled,lengths:lengthsEnabled,layers:{...layers},category:selectedCategory,selectedType:selectedCategory?.startsWith('line:')?selectedCategory.slice(5):null};},setVisible(value){if(!value&&expanded)setExpanded(false);if(value)resize();},destroy(){if(expanded)setExpanded(false);disposed=true;applyLights();clearPreview?.();if(renderedKey){try{window.ExteriorRendered?.update(null,{enabled:false});}catch(_){}}if(ownsWallMode&&window.WallMode?.viewerShim)delete window.WallMode;unsubscribeMeasurements?.();controller.abort();observer.disconnect();controls?.dispose();objects.forEach(o=>o.dispose());texture?.dispose();renderer?.dispose();ownedUrls.forEach(URL.revokeObjectURL);root.replaceChildren();}};
   }
-  window.FirstMeasureRoofViewer={mount,parseModel,faceTextureUVs,faceLabelAnchor,exteriorFrame,exteriorOutwards,designWithWallDefault,finishUVs,reportFaceSqFt,reportFaceExactSqFt,reportSquares,reportRoofFeet,reportWallFeet,reportLineTotal,reportPitchSquares,reportTotalSquares,reportObstacleSize,isLowSlope};
+  window.FirstMeasureRoofViewer={mount,parseModel,facePlaneHeights,faceTextureUVs,faceLabelAnchor,exteriorFrame,exteriorOutwards,designWithWallDefault,finishUVs,reportFaceSqFt,reportFaceExactSqFt,reportSquares,reportRoofFeet,reportWallFeet,reportLineTotal,reportPitchSquares,reportTotalSquares,reportObstacleSize,isLowSlope};
 })();
