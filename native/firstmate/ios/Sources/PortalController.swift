@@ -19,6 +19,9 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
     private let pathMonitor = NWPathMonitor()
     private var failedURL: URL?
     private var lastAutomaticRetry = Date.distantPast
+    // Development tools (README "Development tools"): a shake opens the portal's dev tray and the page can capture the
+    // web view for an issue. Development builds only; production neither reports nor answers them.
+    private let devTools = (Bundle.main.object(forInfoDictionaryKey: "AppEnvironment") as? String ?? "development") == "development"
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor { view.window! }
     private func nonce() -> String { var bytes = [UInt8](repeating: 0, count: 32); precondition(SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess); return encoded(Data(bytes)) }
     private func encoded(_ data: Data) -> String { data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "") }
@@ -62,6 +65,8 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
             for file in files where ((try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)?.timeIntervalSinceNow ?? 0) < -86400 { try? FileManager.default.removeItem(at: file) }
         }
         loadPortal()
+        // The system shake gesture would otherwise offer Undo in a text field; in development a shake is the dev tray.
+        if devTools { UIApplication.shared.applicationSupportsShakeToEdit = false }
         // Load again by itself when a connection returns while the native screen is up.
         pathMonitor.pathUpdateHandler = { [weak self] path in
             guard path.status == .satisfied else { return }
@@ -70,6 +75,28 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
         pathMonitor.start(queue: DispatchQueue(label: "ai.firstmeasure.mobile.network"))
         NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { _ in
             OfflineUploader.shared.sessionChanged()
+        }
+    }
+    override var canBecomeFirstResponder: Bool { devTools }
+    override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); if devTools { becomeFirstResponder() } }
+    /** Development builds: the system shake gesture (the responder chain brings it here from the web view) opens the dev tray. */
+    override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
+        guard devTools, motion == .motionShake, offlineScreen.isHidden, policy.trusted(web.url) else { super.motionEnded(motion, with: event); return }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        web.evaluateJavaScript("window.dispatchEvent(new CustomEvent('fm:native:shake'))", completionHandler: nil)
+    }
+    /** Development builds: the web view as it is on screen, as a JPEG of at most 1600 px. */
+    private func screenshot(_ id: String) {
+        let configuration = WKSnapshotConfiguration()
+        configuration.afterScreenUpdates = true
+        web.takeSnapshot(with: configuration) { [weak self] image, _ in
+            guard let self, let image else { self?.reply(id, error: "screenshot_failed"); return }
+            let pixels = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+            let scale = min(1, 1600 / max(pixels.width, pixels.height))
+            let size = CGSize(width: (pixels.width * scale).rounded(), height: (pixels.height * scale).rounded())
+            let format = UIGraphicsImageRendererFormat(); format.scale = 1
+            let jpeg = UIGraphicsImageRenderer(size: size, format: format).jpegData(withCompressionQuality: 0.85) { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+            self.reply(id, result: ["mime": "image/jpeg", "width": Int(size.width), "height": Int(size.height), "data": jpeg.base64EncodedString()])
         }
     }
     private func loadPortal() { web.load(URLRequest(url: policy.origin.appendingPathComponent("portal/"))) }
@@ -167,7 +194,12 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
             }
             authentication?.presentationContextProvider = self
             if authentication?.start() == true { reply(id, result: true) } else { reply(id, error: "authentication_unavailable") }
-        case "info": reply(id, result: ["bridgeVersion": 1, "platform": "ios", "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0", "environment": Bundle.main.object(forInfoDictionaryKey: "AppEnvironment") as? String ?? "development", "capabilities": ["files", "camera", "liveCamera", "share", "download", "haptic", "settings", "push", "offlineUploads", "photoLibrarySave", "offlineShell"]])
+        case "info":
+            var capabilities = ["files", "camera", "liveCamera", "share", "download", "haptic", "settings", "push", "offlineUploads", "photoLibrarySave", "offlineShell"]
+            if devTools { capabilities += ["shake", "screenshot"] }
+            reply(id, result: ["bridgeVersion": 1, "platform": "ios", "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0", "environment": Bundle.main.object(forInfoDictionaryKey: "AppEnvironment") as? String ?? "development", "capabilities": capabilities])
+        case "screenshot":
+            if devTools { screenshot(id) } else { reply(id, error: "unsupported") }
         case "pushStatus":
             UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
                 DispatchQueue.main.async { self?.reply(id, result: ["available": true, "granted": settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional]) }

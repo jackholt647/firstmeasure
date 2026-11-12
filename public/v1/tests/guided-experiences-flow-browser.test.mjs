@@ -386,7 +386,7 @@ test('development: copy is editable in place, saves as you type, shows for every
   } finally { await browser.close(); }
 });
 
-test('development on a phone: the dev console is a tab on the right edge and an entry in the More sheet, and opens across the phone',async()=>{
+test('development on a phone: the dev console is an entry in the More sheet (no edge tab) and opens across the phone',async()=>{
   const browser=await launch(),srv=server();
   srv.state.progress[SETUP.id]='completed';srv.state.dev=true;
   try{
@@ -395,8 +395,7 @@ test('development on a phone: the dev console is a tab on the right edge and an 
     await tab.waitForSelector('#mobilePlatformMoreDevConsole');
     assert.equal(await tab.locator('#mobilePlatformMoreMenu > .ptb-more-item#mobilePlatformMoreDevConsole').count(),1,'an entry the shell files into its default (Development tools) group');
     assert.equal(await tab.locator('#mobilePlatformMoreDevConsole').innerText(),'Dev console');
-    const strip=await tab.locator('.fm-dc-strip').boundingBox();
-    assert.ok(Math.round(strip.width)===20&&Math.round(strip.x+strip.width)===390&&strip.height<200,'a small tab, clear of the top bar');
+    assert.equal(await tab.locator('.fm-dc-strip').isVisible(),false,'no edge tab: a shake opens the dev tray');
     await tab.locator('#mobilePlatformMoreMenu').evaluate(menu=>menu.classList.add('visible'));
     // This page has no shell styles, so the project frame covers the menu; press the entry directly.
     await tab.locator('#mobilePlatformMoreDevConsole').evaluate(button=>button.click());

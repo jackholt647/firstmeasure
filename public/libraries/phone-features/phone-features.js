@@ -129,7 +129,14 @@
   });
   // An add-only copy in the camera roll. Nothing is saved there unless a page calls this (or enqueues with saveToPhotos).
   const saveToPhotoLibrary=(source={})=>native('photoLibrarySave','photoLibrarySave',source.cameraToken?{cameraToken:source.cameraToken}:{put:source.put,contentType:source.contentType,fileName:source.fileName});
-  root.PhoneFeatures=Object.freeze({version:1,ready,isNative:()=>!!transport(),info:()=>info,supports,offlineUploads,saveToPhotoLibrary,pickFiles,capturePhoto:()=>pickFiles({source:'camera'}),share,download,saveFile,camera,
+  // Development builds (native/firstmate/README.md, "Development tools"): the web view as it is on screen, as a JPEG.
+  async function screenshot(){
+    const shot=await native('screenshot','screenshot',{});
+    if(!shot||typeof shot.data!=='string'||!/^image\/(jpeg|png)$/.test(shot.mime||''))throw Object.assign(new Error('The app did not return a screenshot.'),{code:'invalid_screenshot'});
+    const bytes=Uint8Array.from(atob(shot.data),c=>c.charCodeAt(0));
+    return new Blob([bytes],{type:shot.mime});
+  }
+  root.PhoneFeatures=Object.freeze({version:1,screenshot,ready,isNative:()=>!!transport(),info:()=>info,supports,offlineUploads,saveToPhotoLibrary,pickFiles,capturePhoto:()=>pickFiles({source:'camera'}),share,download,saveFile,camera,
     haptic:()=>transport()?request('haptic'):Promise.resolve(),openSettings:()=>request('settings'),authenticate:()=>request('authenticate'),
     pushStatus:()=>request('pushStatus'),pushRegister:()=>request('pushRegister'),pushUnregister:()=>request('pushUnregister')});
 })(window);

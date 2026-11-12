@@ -4,9 +4,10 @@ Development only. One tray on the right edge of every development page holds eve
 development control. On a desktop it never covers the app: the page is **docked** beside
 it, like Chrome's docked devtools (below). It opens and closes, folds to a 20 px strip
 down the right edge (which also takes its 20 px), its width is dragged from its left
-edge, and **Expand** widens it to 60% of the window. On a phone it covers the page as a
-full-width tray, and folds to a 20 px tab in the middle of the edge so it clears the top
-bar and search; the portal's ⋯ sheet also has a **Dev console** entry. It remembers open
+edge, and **Expand** widens it to 60% of the window. On a phone (640 px or narrower, or
+anywhere in the FirstMate app) it covers the page as a full-width tray and has no strip:
+a shake opens the **dev tray** (below), whose header opens the console, and the portal's
+⋯ sheet has **Dev tray** and **Dev console** entries. It remembers open
 or folded, expanded, the section and the width in this browser (`localStorage` key
 `fm-dev-console`; a convenience, read and written in `try`/`catch`).
 
@@ -44,6 +45,52 @@ whose document itself scrolls (the portal does not; marketing pages do) scrolls 
 `<body>` while docked, and its fixed layers scroll with it.
 
 Production never shows it: `/v1/signup-sandbox` answers 404 there and nothing is loaded.
+
+## Dev tray
+
+`quick-tray.js` (with `shake.js` and `tracker-client.js`): a phone's way to file Tracker
+issues fast. One quick, hard shake opens a tray over the bottom half of the page (56% of
+the height, at most 560 px); tapping above it, the chevron, dragging its header down or
+Esc closes it. From the top:
+
+- a small header: "Dev tray", who is signed in to Tracker, close, and a small button in the
+  top right that opens the full dev console;
+- the box for the next issue, most of the width, with **Go**. Go files it straight to
+  **Ready** in **General platform work** (the workspace picker under the box switches it
+  for this page) and closes the tray. A short single line is the title; anything longer is
+  the description, untitled, for Tracker's titler. The description ends with the page,
+  screen size and app version. What is typed is kept as a draft in this browser until it
+  is filed;
+- **Screenshot**: the page as it looks with the tray closed, attached on Go (uploaded to
+  Tracker's `/uploads`, then `![Screenshot](url)` in the description);
+- the workspace's issues, grouped by stage (in progress, then ready, then backlog; newest
+  first), with "Titling…", agents working and "Needs input" marked; **Done this week**
+  shows what closed in the last seven days. An issue opens in place with its description
+  and latest comments, and links to Tracker. It reads again every 20 s while open (no
+  stream: [realtime](realtime.md)).
+
+**Shake.** In the FirstMate app the host detects it and dispatches `fm:native:shake`
+(capability `shake`, development builds only: `native/firstmate/README.md`, "Development
+tools"). In a browser, `devicemotion`: three strokes of at least 15 m/s², each the opposite
+way, within 800 ms, then 1.5 s quiet (the Android host runs the same rule). Walking, a bump
+and its rebound, or waving the phone slowly do not open it. Android Chrome reports motion
+without asking; iOS Safari reports it only after the page asks from a tap, so there the
+first opening is from the ⋯ sheet's **Dev tray**, which asks.
+
+**Screenshot.** In the app, `PhoneFeatures.screenshot()` (capability `screenshot`): the tray
+and its backdrop are hidden for two frames and the host captures the web view as on screen
+(WebGL included). In a browser the page is drawn with html2canvas from `<body>` (the tray
+lives on `<html>`, outside it): frames from other origins and some effects do not draw.
+
+**Tracker.** The tray talks to `https://tracker.1m8.ai/api/v1` from the page. Tracker's web
+session is a SameSite=Lax cookie on its own origin and its API allows any origin only
+without credentials, so the portal cannot use it: the tray signs in once per device with
+Tracker's app sign-in (`POST /auth/login` with `token: true`, labelled "FirstMate dev
+tray"; a one-year app token) and sends it as a bearer. The token is kept in this browser's
+`localStorage` (`fm-dev-tray-tracker`) on the development origin; **Sign out** revokes it,
+and a 401 forgets it. Nothing passes through FirstMate's servers, so no route was added.
+Uploads send no `X-Filename` (Tracker does not allow that header across origins), so
+Tracker names the file from its type.
 
 ## Who sees it
 
@@ -101,6 +148,12 @@ library's API answers on the host.
   overlay (z-index 2147483640); on a desktop nothing overlaps it.
 
 ## Tests
+
+`public/v1/tests/dev-tray.test.mjs` (the shake rule, the Tracker client, what Go sends, the
+app's screenshot bridge) and `public/v1/tests/dev-tray-browser.test.mjs` (the tray in the
+app and in a phone browser: shake, sign-in, the list, the screenshot without the tray, Go,
+the full menu, and a desktop keeping the strip); Android's `ShakeDetectorTest` runs the
+same shake cases.
 
 `public/v1/tests/dev-console.test.ts` (the endpoint),
 `tests/guided-experiences-flow-browser.test.mjs` (the guided section, folding,
