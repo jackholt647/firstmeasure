@@ -60,3 +60,25 @@ test('two corners of one outline a tenth of a millimetre apart are one corner st
  // Past half a millimetre they are a step again, at any weld distance.
  assert.deepEqual(W.weldPlan([{point:p(0,0,0),planes:[Y],ring:'a'},{point:p(.0006,0,0),planes:[Y],ring:'a'}],.02).moves,[]);
 });
+
+test('a weld never pulls one point apart: where its uses cannot all go, none does',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),plane=(n,k)=>({n,k});
+ // A house corner: the right wall (plane y=0) and the left wall (plane x=0) share it. A leftover point 7 mm along the
+ // right wall, on a plane of its own beside the left wall's, is inside a 5/16 in weld. The left wall's corner cannot
+ // go there (it would leave its plane). The right wall's corner went anyway, and the two walls no longer met.
+ const corner=p(0,0,3),stray=p(.007,0,3),owners=new Map([['stray',{plane:plane(p(1,0,0),.007)}],['right',{plane:plane(p(0,1,0),0)}],['left',{plane:plane(p(1,0,0),0)}]]);
+ const items=[{point:stray,owner:'stray',ring:null,grid:true},{point:{...corner},owner:'right',ring:'right:0'},{point:{...corner},owner:'left',ring:'left:0'}],why=[];
+ const plan=W.weldPlan(items,.3125*.0254,why,owners);
+ assert.deepEqual(plan.moves,[],JSON.stringify(plan.moves));assert.ok(why.some(w=>w.reason==='split'),JSON.stringify(why.map(w=>w.reason)));
+ // Without the left wall there is nothing to pull apart, and the corner and the leftover point become one.
+ const alone=W.weldPlan(items.filter(i=>i.owner!=='left'),.3125*.0254,[],owners);assert.equal(alone.moves.length,1);
+});
+
+test('a point on a straight edge is not a corner because it is a micron off the line',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ // The side of a wall with a point 0.76 m down it that a drawing's micron grid left 1.2 microns off the line.
+ const on=p(0,1.2e-6,2.2),wall={id:'wall',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(0,0,3),on],holes:[]},index=W.loadBearingIndex([wall]);
+ assert.equal(index.point(on),false);assert.equal(index.marker(on),false);assert.equal(index.point(p(0,0,3)),true,'a real corner still is');
+ // A real jog, half a millimetre, is a corner.
+ const jog=p(0,.0005,2.2);assert.equal(W.loadBearingIndex([{...wall,points:[...wall.points.slice(0,4),jog]}]).point(jog),true);
+});

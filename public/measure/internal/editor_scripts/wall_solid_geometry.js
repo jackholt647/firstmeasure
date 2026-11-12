@@ -1350,7 +1350,11 @@ function loadBearingIndex(faces){
  const cells=new Map(),cell=v=>Math.floor(v/LOAD_CONTACT),segments=[],edgeCache=new Map(),pointCache=new Map(),near=new Map(),reach=v=>Math.floor(v/MARKER_REACH),markerCache=new Map();
  for(const f of loadBearingFaces(faces))for(const r of rings(f))for(let i=0;i<r.length;i++){
   const p=r[i],q=r[(i+1)%r.length],a=sub(r[(i+r.length-1)%r.length],p),b=sub(q,p),c=cross(a,b);
-  if(dot(a,b)>=0||Math.hypot(c.x,c.y,c.z)>1e-6*Math.max(1,Math.hypot(a.x,a.y,a.z)*Math.hypot(b.x,b.y,b.z))){const key=cell(p.x)+','+cell(p.y)+','+cell(p.z);if(!cells.has(key))cells.set(key,[]);cells.get(key).push(p);const wide=reach(p.x)+','+reach(p.y)+','+reach(p.z);if(!near.has(wide))near.set(wide,[]);near.get(wide).push(p);}
+  // A corner is where the outline turns. A point that sits on the straight line between its neighbours to within
+  // LOAD_CONTACT is not one, however the point got there: drawings keep their points on a micron grid, so a point on
+  // a straight edge is routinely a micron off it, and an angle test called that a corner (and coloured it orange).
+  const span=Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+  if(dot(a,b)>=0||span<=1e-12||Math.hypot(c.x,c.y,c.z)/span>LOAD_CONTACT){const key=cell(p.x)+','+cell(p.y)+','+cell(p.z);if(!cells.has(key))cells.set(key,[]);cells.get(key).push(p);const wide=reach(p.x)+','+reach(p.y)+','+reach(p.z);if(!near.has(wide))near.set(wide,[]);near.get(wide).push(p);}
   segments.push({c:p,d:q,minX:Math.min(p.x,q.x),maxX:Math.max(p.x,q.x),minY:Math.min(p.y,q.y),maxY:Math.max(p.y,q.y),minZ:Math.min(p.z,q.z),maxZ:Math.max(p.z,q.z)});
  }
  // Two lines whose ends lie within reach of each other are one line to the eye and to a click.
@@ -1461,21 +1465,29 @@ function weldPlan(items,distance,explain=null,owners=null){
   for(let pass=0;pass<5&&rest.length;pass++){
    const first=rest[0].point;result=position(rest,reach);
    if(result.target){for(const m of rest)if(apart(m.point,result.target)>(m.grid?WELD_SAME:1e-9)&&!moves.some(o=>o.owner===(m.owner??null)&&apart(o.from,m.point)<=1e-9))moves.push({from:{x:m.point.x,y:m.point.y,z:m.point.z},to:{x:result.target.x,y:result.target.y,z:result.target.z},owner:m.owner??null});hard=false;return rest.length===members.length;}
-   if(result.reason==='planes'&&!hard&&rest.some(m=>m.soft)){hard=true;continue;}
+   // A deleted face's plane (soft) gives way when it leaves no shared position, or only one far from the points.
+   if((result.reason==='planes'||result.reason==='far')&&!hard&&rest.some(m=>m.soft)){hard=true;continue;}
    if(result.reason!=='planes'||!result.odd)break;
    const odd=result.odd,keep=rest.filter(m=>m.fixed||!planesOf(m).some(pl=>Math.abs(dot(pl.n,odd.n))>.999999&&Math.abs(height(pl,m.point)-height(odd,m.point)*Math.sign(dot(pl.n,odd.n)))<=1e-9));
    if(keep.length===rest.length||keep.length<1)break;rest=keep;
   }
   explain?.push({reason:result?.reason||'planes',members,planes:result?.planes});hard=false;return false;
  };
+ // A weld never pulls apart what is already one point. Where the uses of a point cannot all go to the shared
+ // position (one of them is held by a plane the position is not on), moving the rest would leave two points where
+ // there was one: a wall corner a few millimetres off its neighbour's. Then nothing in the group moves.
+ const whole=(members,reach)=>{const start=moves.length,ok=place(members,reach);if(moves.length===start)return ok;
+  const end=m=>{const move=moves.slice(start).find(o=>o.owner===(m.owner??null)&&apart(o.from,m.point)<=1e-9);return move?move.to:m.point;};
+  for(let i=0;i<members.length;i++)for(let j=i+1;j<members.length;j++)if(apart(members[i].point,members[j].point)<=WELD_SAME&&apart(end(members[i]),end(members[j]))>WELD_SAME){moves.length=start;explain?.push({reason:'split',members});return false;}
+  return ok;};
  for(const seed of order){if(used[seed])continue;const group=[];for(let i=0;i<items.length;i++)if(!used[i]&&apart(items[i].point,items[seed].point)<=distance)group.push(i);
   for(const i of group)used[i]=true;const members=group.map(i=>items[i]);
   // Two corners of one outline: a real short edge. They are not merged; each still goes onto its planes. Closer
   // than PLANE_WELD they are not a drawn step but one corner stored twice (a cut that ended a hair from the
   // corner it was aimed at), and they weld like any other twins.
   const rings=new Map();let step=false;for(const m of members){if(m.ring==null)continue;const prior=rings.get(m.ring)||[];if(prior.some(q=>apart(q,m.point)>PLANE_WELD))step=true;prior.push(m.point);rings.set(m.ring,prior);}
-  if(!step){if(!place(members,distance))skipped++;continue;}
-  skipped++;explain?.push({reason:'step',members});const rest=members.slice();while(rest.length){const at=rest[0].point,same=rest.filter(m=>apart(m.point,at)<=1e-9);for(const m of same)rest.splice(rest.indexOf(m),1);place(same,PLANE_WELD);}
+  if(!step){if(!whole(members,distance))skipped++;continue;}
+  skipped++;explain?.push({reason:'step',members});const rest=members.slice();while(rest.length){const at=rest[0].point,same=rest.filter(m=>apart(m.point,at)<=1e-9);for(const m of same)rest.splice(rest.indexOf(m),1);whole(same,PLANE_WELD);}
  }
  return {moves,skipped};
 }
