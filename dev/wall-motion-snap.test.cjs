@@ -50,3 +50,19 @@ test('an extrusion snaps to the points of an edge its corner rides along',()=>{
  // An edge that only crosses near the line, without holding its end, adds nothing.
  const apart=[p(5,0,0),p(6,2,0)];assert.ok(!W.motionSnapCandidates(line,[line],p(0,1,0),[],{edges:[apart],excludeMoving:true}).some(c=>c.kind==='Point'&&near(c.amount,2)));
 });
+
+test('a line pushed along an edge that is a hair off square still snaps to a point on that edge, and lands on it',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ // Measured from a real house: the wall the line is pushed along leaves the exact push direction by 0.13 mm in 7 m.
+ const a=p(0,0,3),b=p(0,2,4),q=p(7,.00013,3),far=p(15,.00028,3),dir=p(1,0,0);
+ const found=W.motionSnapCandidates([a,b],[[a,b]],dir,[],{points:[q,far],edges:[[a,q],[q,far]],excludeMoving:true}),hit=found.find(c=>c.kind==='Point'&&Math.abs(c.amount-7)<1e-3);
+ assert.ok(hit,JSON.stringify(found.map(c=>[c.kind,c.amount])));assert.deepEqual(hit.target,q);
+ // The exact way there: pushed by `shift`, the line's end is the point itself, not a twin 0.13 mm beside it.
+ assert.deepEqual({x:a.x+hit.shift.x,y:a.y+hit.shift.y,z:a.z+hit.shift.z},q);
+ assert.ok(W.motionSnap([a,b],[[a,b]],dir,6.9,[],{candidates:found,radius:.15})?.shift);
+ // A point well off the edge's line is not a target: half a degree is the limit.
+ const off=p(7,.2,3);assert.ok(!W.motionSnapCandidates([a,b],[[a,b]],dir,[],{points:[off],edges:[[a,p(7,0,3)]],excludeMoving:true}).some(c=>c.target===off));
+ // Exactly on the push line there is nothing to correct: no shift.
+ const exact=W.motionSnapCandidates([a,b],[[a,b]],dir,[],{points:[p(7,0,3)],edges:[[a,p(7,0,3)]],excludeMoving:true}).filter(c=>c.kind==='Point'&&Math.abs(c.amount-7)<1e-9);
+ assert.ok(exact.length&&exact.every(c=>!c.shift));
+});
