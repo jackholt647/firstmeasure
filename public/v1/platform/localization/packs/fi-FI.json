@@ -8320,7 +8320,10 @@
     "developer_settings_subtitle": "Kehittäjätyökalut, ominaisuusliput ja sovelluksen määritys.",
     "pitch_notation_label": "Katon kaltevuus",
     "pitch_notation_rise": "Nousu per 12 (6/12)",
-    "pitch_notation_degrees": "Asteet (26,6°)"
+    "pitch_notation_degrees": "Asteet (26,6°)",
+    "rp_section_units": "Yksiköt",
+    "rp_section_units_sub": "Miten uudet raportit kirjoittavat mitat.",
+    "rp_tip_pitch_notation": "Nousu per 12 (6/12), kuten kattoasentajat Yhdysvalloissa sen kirjoittavat, tai asteet (26,6°), kuten muualla. Jo tilatut raportit pitävät omansa."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Lisää työtä",

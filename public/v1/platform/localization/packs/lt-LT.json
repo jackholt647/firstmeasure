@@ -8320,7 +8320,10 @@
     "developer_settings_subtitle": "Kūrėjo įrankiai, funkcijų vėliavėlės ir programų konfigūracija.",
     "pitch_notation_label": "Stogo nuolydis",
     "pitch_notation_rise": "Pakilimas per 12 (6/12)",
-    "pitch_notation_degrees": "Laipsniai (26,6°)"
+    "pitch_notation_degrees": "Laipsniai (26,6°)",
+    "rp_section_units": "Vienetai",
+    "rp_section_units_sub": "Kaip naujos ataskaitos rašo matmenis.",
+    "rp_tip_pitch_notation": "Pakilimas per 12 (6/12), kaip rašo JAV stogdengiai, arba laipsniai (26,6°), kaip rašoma kitur. Jau užsakytos ataskaitos lieka tokios, kokios buvo."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Pridėti darbą",
