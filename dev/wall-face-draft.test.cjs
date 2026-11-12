@@ -4431,6 +4431,28 @@ test('point weld: stacked corners across faces, loose points, deleted faces and 
  // A sixteenth of an inch leaves the 2 mm twins alone.
  const fine=model();fine.pointWeldInches=.0625;const g=fixture({state:fine,walls:[],selected:null});g.editor.weldPoints();assert.ok(new Set(spots(fine)).size>2);
 });
+test('point weld removes a sliver: two corners of one outline within the weld distance merge, the face without area goes, and a line the point lay on follows it',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),p=(x,y,z)=>({x,y,z});
+ // A wall whose bottom edge rises 7 mm over 3 m, above a level ceiling: where they part, a sliver face 7 mm wide
+ // fills the gap, with a point Q on the wall's bottom line (the line runs past it) and a free-standing copy of that line.
+ const A=p(0,0,1),B=p(3,0,1.007),Q=p(2.5,0,1+.007*2.5/3),P=p(2.5,0,1);
+ const state={pointWeldInches:.3125,wallEdits:{$surfaces:[
+  {id:'wall',points:[A,Q,B,p(3,0,3),p(0,0,3)].map(q=>({...q})),holes:[]},
+  {id:'sliver',points:[A,P,Q].map(q=>({...q})),holes:[]},
+  {id:'pier',points:[P,p(2.5,0,0),p(3,0,0),B,Q].map(q=>({...q})),holes:[]},
+  {id:'ceiling',points:[A,P,p(2.5,2,1),p(0,2,1)].map(q=>({...q})),holes:[]}],
+  $loose:{points:[],edges:[[{...A},{...B}]]}}};
+ const f=fixture({state,walls:[],selected:null});assert.ok(f.editor.weldPoints()>0,f.message());
+ const faces=state.wallEdits.$surfaces,ids=faces.map(s=>s.id).sort(),far=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+ assert.deepEqual(ids,['ceiling','pier','wall'],'the sliver is gone');for(const face of faces)K.validateFace(face);
+ assert.ok(faces.find(s=>s.id==='wall').points.some(q=>far(q,P)<1e-9)&&!faces.some(s=>s.points.some(q=>far(q,Q)<1e-9)),'the point on the wall line went to the level corner');
+ // The free-standing line turns at the corner with the wall, so no second line is left beside the level edge.
+ const lines=state.wallEdits.$loose.edges;assert.equal(lines.length,2);assert.ok(lines.every(pair=>pair.some(q=>far(q,P)<1e-9)),JSON.stringify(lines));
+ assert.equal(f.editor.weldPoints(),0,'and it settles');
+ // A finer weld distance keeps the 7 mm edge, and the sliver with it.
+ const fine=JSON.parse(JSON.stringify({...state,pointWeldInches:.125,wallEdits:{$surfaces:[{id:'wall',points:[A,Q,B,p(3,0,3),p(0,0,3)],holes:[]},{id:'sliver',points:[A,P,Q],holes:[]}],$loose:{points:[],edges:[]}}}));
+ const g=fixture({state:fine,walls:[],selected:null});g.editor.weldPoints();assert.equal(fine.wallEdits.$surfaces.length,2);
+});
 test('a line drawn where another line was deleted earlier can be clicked: an old deletion record does not hide it',()=>{
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),f=drawDraftLines([0,1],[[4,1]]),pair=[{x:0,y:0,z:1},{x:4,y:0,z:1}];
  const pick=()=>{f.editor.clear();const hit=f.e(2,1),picked=f.editor.pickLine3D(hit);if(picked===true)f.listeners.pointerup(hit);return f.editor.selectionSnapshot().lineSelection.length;};

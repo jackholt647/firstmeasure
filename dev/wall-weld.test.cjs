@@ -18,9 +18,22 @@ test('points further apart than the weld distance, and a weld distance of zero, 
  assert.deepEqual(W.weldPlan(items,QUARTER).moves,[]);assert.equal(W.weldPlan(items,.01).moves.length,1,'a wider setting welds them');
  assert.deepEqual(W.weldPlan([{point:p(0,0,0),planes:[]},{point:p(.001,0,0),planes:[]}],0).moves,[]);
 });
-test('two corners of one outline are a drawn step: they are never merged, and nothing near them is pulled across',()=>{
+test('two corners of one outline within the weld distance become one corner; further apart they stay',()=>{
+ // An edge shorter than the weld distance is not a drawn step: the weld distance is the one measure of that.
  const items=[{point:p(0,0,0),planes:[Y],ring:'a'},{point:p(.004,0,0),planes:[Y],ring:'a'},{point:p(.001,0,0),planes:[],ring:null}];
- const {moves,skipped}=W.weldPlan(items,QUARTER);assert.equal(skipped,1);assert.deepEqual(moves,[]);
+ const {moves,skipped}=W.weldPlan(items,QUARTER);assert.equal(skipped,0);assert.equal(moves.length,2);
+ const after=apply(items,moves);assert.ok(after.every(i=>far(i.point,after[0].point)<=1e-12),'one point');
+ assert.deepEqual(W.weldPlan([{point:p(0,0,0),planes:[Y],ring:'a'},{point:p(.007,0,0),planes:[Y],ring:'a'}],QUARTER).moves,[]);
+});
+test('a step that planes hold open stays, and so does a short edge of an outline that keeps its edges',()=>{
+ // A wall section pushed in by 4 mm: the return's two corners lie on the wall plane and on the recess plane, which
+ // never meet. Merging them would pull the recess corner off the return, so nothing moves.
+ const wall={n:p(0,1,0),k:0},recess={n:p(0,1,0),k:-.004},side={n:p(1,0,0),k:2},owners=new Map([['wall',{plane:wall}],['recess',{plane:recess}],['return',{plane:side}]]);
+ const A=p(2,0,1),B=p(2,-.004,1),items=[{point:{...A},owner:'wall',ring:'wall'},{point:{...A},owner:'return',ring:'return'},{point:{...B},owner:'return',ring:'return'},{point:{...B},owner:'recess',ring:'recess'}],why=[];
+ assert.deepEqual(W.weldPlan(items,QUARTER,why,owners).moves,[]);assert.ok(why.some(w=>w.reason==='step'),JSON.stringify(why.map(w=>w.reason)));
+ // The base has its own sketch and never loses an edge to a weld (keep).
+ const base=[{point:p(0,0,0),planes:[Z],ring:'b',keep:true},{point:p(.004,0,0),planes:[Z],ring:'b',keep:true},{point:p(.001,0,0),planes:[],ring:null}];
+ const kept=W.weldPlan(base,QUARTER);assert.deepEqual(kept.moves,[]);assert.equal(kept.skipped,1);
 });
 test('a fixed point does not move: the others come to it, and two fixed points leave the group alone',()=>{
  const one=W.weldPlan([{point:p(1,0,0),planes:[Y],ring:'a',fixed:true},{point:p(1.002,0,0),planes:[Y],ring:'b'}],QUARTER);
@@ -57,8 +70,6 @@ test('a drawing keeps its points on its own micron grid: it is not nudged again,
 test('two corners of one outline a tenth of a millimetre apart are one corner stored twice, and weld',()=>{
  const items=[{point:p(0,0,0),planes:[Y],ring:'a'},{point:p(.0001,0,0),planes:[Y],ring:'a'},{point:p(.00005,0,0),planes:[],ring:null}];
  const {moves,skipped}=W.weldPlan(items,QUARTER);assert.equal(skipped,0);assert.equal(moves.length,2);assert.ok(moves.every(m=>far(m.to,p(0,0,0))<=1e-12));
- // Past half a millimetre they are a step again, at any weld distance.
- assert.deepEqual(W.weldPlan([{point:p(0,0,0),planes:[Y],ring:'a'},{point:p(.0006,0,0),planes:[Y],ring:'a'}],.02).moves,[]);
 });
 
 test('a weld never pulls one point apart: where its uses cannot all go, none does',()=>{
