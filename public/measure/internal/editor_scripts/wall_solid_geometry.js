@@ -1626,6 +1626,22 @@ function motionSnapCandidates(points,edges,direction,faces,options={}){
   for(const {f,frame}of planes){const den=dot(frame.n,direction);if(!frame||Math.abs(den)<1e-8)continue;const t=dot(sub(frame.origin,p),frame.n)/den,q=at(p,t),local=inFrame(frame,q),outer=f.points.map(p=>inFrame(frame,p));if(pointInRing(local,outer)&&!(f.holes||[]).some(r=>pointInRing(local,r.map(p=>inFrame(frame,p)))))offer(t,p,q,'Face');}
  }
  for(const [a,b]of edges){const u=sub(b,a),c=dot(u,u),bn=dot(direction,u),den=c-bn*bn;if(den<1e-12)continue;for(const q of targetPoints){const v=sub(q,a),t=(dot(direction,v)*c-dot(u,v)*bn)/den,s=(dot(u,v)-bn*dot(direction,v))/den,p=mix3(a,b,s);if(s>=0&&s<=1&&Math.hypot(...Object.values(sub(q,at(p,t))))<tol)offer(t,p,q,'Point');}}
+ // A corner of the moving line or face that sits on another edge rides along that edge as it moves (the result is
+ // trimmed or extended to it). The points of that edge are targets: the amount at which the moved line or plane
+ // passes through one puts the corner on it, although the corner does not travel straight along the direction.
+ for(const p of points){
+  const own=edges.filter(([a,b])=>Math.hypot(...Object.values(sub(a,p)))<tol||Math.hypot(...Object.values(sub(b,p)))<tol).map(([a,b])=>sub(b,a));if(!own.length)continue;
+  let normal=null;for(let i=1;i<own.length&&!normal;i++){const m=cross(own[0],own[i]);if(Math.hypot(m.x,m.y,m.z)>1e-9)normal=m;}
+  for(const [c,d]of targetEdges){
+   if(!pointOnEdge(p,c,d))continue;const r=sub(d,c),along=cross(r,own[0]);if(!normal&&Math.hypot(along.x,along.y,along.z)<1e-9*Math.hypot(r.x,r.y,r.z)*Math.hypot(own[0].x,own[0].y,own[0].z)+1e-12)continue;
+   for(const q of [c,d,...targetPoints.filter(q=>pointOnEdge(q,c,d))]){
+    const v=sub(q,p);if(Math.hypot(v.x,v.y,v.z)<tol)continue;let t;
+    if(normal){const den=dot(direction,normal);if(Math.abs(den)<1e-9)continue;t=dot(v,normal)/den;}
+    else{const u=own[0],cc=dot(u,u),bn=dot(direction,u),den=cc-bn*bn;if(den<1e-12)continue;t=(dot(direction,v)*cc-dot(u,v)*bn)/den;const s2=(dot(u,v)-bn*t)/cc,miss=sub(v,{x:u.x*s2+direction.x*t,y:u.y*s2+direction.y*t,z:u.z*s2+direction.z*t});if(Math.hypot(miss.x,miss.y,miss.z)>=tol)continue;}
+    if(!candidates.some(k=>k.kind==='Point'&&Math.abs(k.amount-t)<1e-9&&Math.hypot(...Object.values(sub(k.target,q)))<tol))offer(t,p,q,'Point',[c,d]);
+   }
+  }
+ }
  // Elevation is a model-wide constraint: horizontal separation is irrelevant.
  if(Math.abs(direction.z)>1e-8){const heights=[...new Map([...targetPoints,...(options.heightPoints||[])].filter(p=>Number.isFinite(p.z)).map(p=>[p.z.toFixed(6),p])).values()];for(const p of points)for(const q of heights){const t=(q.z-p.z)/direction.z,hit=at(p,t);offer(t,p,hit,'Height',[hit,q]);}}
  return candidates;
