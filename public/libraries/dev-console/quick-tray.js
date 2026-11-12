@@ -9,10 +9,10 @@
 const NS = 'dev-console';
 const T = (key, fallback) => window.PlatformLanguage?.text?.(NS, key, fallback) ?? fallback;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-import { trackerClient, composeIssue, groupIssues, DEFAULT_WORKSPACE, TRACKER } from './tracker-client.js?v=20261112-tray1';
-import { watchShake, requestMotionPermission } from './shake.js?v=20261112-tray1';
+import { trackerClient, composeIssue, groupIssues, DEFAULT_WORKSPACE, TRACKER } from './tracker-client.js?v=20261112-tray2';
+import { watchShake, requestMotionPermission } from './shake.js?v=20261112-tray2';
 
-const VERSION = '20261112-tray1';
+const VERSION = '20261112-tray2';
 const DRAFT = 'fm-dev-tray-draft';
 const REFRESH_MS = 20000;
 const tracker = trackerClient();
@@ -272,10 +272,10 @@ function ago(iso) {
 }
 
 function signInForm() {
-  return `<form class="fm-qt-signin">
+  return `<form class="fm-qt-signin" autocomplete="off">
       <p>${esc(T('dc_tray_sign_in_intro', 'Sign in to Tracker once on this device to file and see issues.'))}</p>
-      <input type="email" name="email" autocomplete="username" inputmode="email" required aria-label="${esc(T('dc_tray_email', 'Tracker email'))}" placeholder="${esc(T('dc_tray_email', 'Tracker email'))}">
-      <input type="password" name="password" autocomplete="current-password" required aria-label="${esc(T('dc_tray_password', 'Tracker password'))}" placeholder="${esc(T('dc_tray_password', 'Tracker password'))}">
+      <input type="email" name="tracker-email" autocomplete="off" inputmode="email" required aria-label="${esc(T('dc_tray_email', 'Tracker email'))}" placeholder="${esc(T('dc_tray_email', 'Tracker email'))}">
+      <input type="password" name="tracker-password" autocomplete="new-password" required aria-label="${esc(T('dc_tray_password', 'Tracker password'))}" placeholder="${esc(T('dc_tray_password', 'Tracker password'))}">
       <button type="submit" class="fm-qt-go">${esc(T('dc_tray_sign_in', 'Sign in'))}</button>
     </form>`;
 }
@@ -284,8 +284,8 @@ function wireSignIn(list) {
   form.onsubmit = async (event) => {
     event.preventDefault();
     const button = form.querySelector('button'); button.disabled = true;
-    try { await tracker.signIn(form.email.value.trim(), form.password.value); state.error = ''; await refresh(); }
-    catch (error) { state.error = error.message; button.disabled = false; form.password.value = ''; form.password.focus(); render(); }
+    try { await tracker.signIn(form['tracker-email'].value.trim(), form['tracker-password'].value); state.error = ''; await refresh(); }
+    catch (error) { state.error = error.message; button.disabled = false; form['tracker-password'].value = ''; form['tracker-password'].focus(); render(); }
   };
 }
 
