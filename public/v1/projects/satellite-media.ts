@@ -115,6 +115,22 @@ export function staticMapApiKey() {
 /** A static-map fetch that could not give an image; the message is a short code that is safe to return. */
 class StaticMapUnavailable extends Error {}
 
+/**
+ * Whether Maps Static answered with its "Sorry, we have no imagery here" picture: a 200 image that is one flat
+ * rgb(228,226,222) with a line of small text (FM-422). It is no picture of the property, so it is never saved.
+ */
+export async function staticMapHasNoImagery(bytes: Buffer) {
+  const sharp = (await import("sharp")).default;
+  const data = await sharp(bytes, { failOn: "none" }).resize(32, 20, { fit: "fill" }).removeAlpha().raw().toBuffer().catch(() => null);
+  if (!data?.length) return false;
+  let flat = 0;
+  for (let i = 0; i < data.length; i += 3) {
+    const r = data[i] ?? 0, g = data[i + 1] ?? 0, b = data[i + 2] ?? 0;
+    if (Math.abs(r - 228) <= 8 && Math.abs(g - 226) <= 8 && Math.abs(b - 222) <= 8) flat += 1;
+  }
+  return flat / (data.length / 3) >= 0.85;
+}
+
 async function defaultGoogleStaticMap(point: { lat: number; lng: number }) {
   const key = staticMapApiKey();
   if (!key) throw new StaticMapUnavailable("maps_static_no_key");
@@ -138,6 +154,7 @@ async function defaultGoogleStaticMap(point: { lat: number; lng: number }) {
     throw new StaticMapUnavailable(response.ok ? "maps_static_not_image" : `maps_static_${response.status}`);
   }
   const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.length && await staticMapHasNoImagery(bytes)) throw new StaticMapUnavailable("maps_static_no_imagery");
   return bytes.length ? bytes : null;
 }
 

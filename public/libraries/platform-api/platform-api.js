@@ -2296,9 +2296,14 @@
     return 'google.png';
   }
 
-  function finiteCoord(value){
+  // A blank coordinate is none: Number('') is 0, and a map of 0,0 is open sea ("Sorry, we have no imagery here", FM-422).
+  function finiteCoord(value, limit = 180){
+    if (value == null || String(value).trim() === '') return null;
     const n = Number(value);
-    return Number.isFinite(n) ? n : null;
+    return Number.isFinite(n) && Math.abs(n) <= limit ? n : null;
+  }
+  function usablePoint(lat, lng){
+    return lat != null && lng != null && !(lat === 0 && lng === 0) ? { lat, lng } : null;
   }
 
   function projectThumbnailPoint(project = {}){
@@ -2308,17 +2313,15 @@
     const raw = measurement.raw && typeof measurement.raw === 'object' ? measurement.raw : {};
     const candidates = [project, raw, measurement];
     for (const candidate of candidates) {
-      const lat = finiteCoord(candidate?.lat ?? candidate?.latitude);
-      const lng = finiteCoord(candidate?.lng ?? candidate?.longitude);
-      if (lat != null && lng != null) return { lat, lng };
+      const point = usablePoint(finiteCoord(candidate?.lat ?? candidate?.latitude, 90), finiteCoord(candidate?.lng ?? candidate?.longitude));
+      if (point) return point;
     }
     const pinSources = [project.pins, raw.pins, measurement.pins];
     for (const pins of pinSources) {
       if (!Array.isArray(pins)) continue;
       for (const pin of pins) {
-        const lat = finiteCoord(pin?.lat ?? pin?.latitude);
-        const lng = finiteCoord(pin?.lng ?? pin?.longitude);
-        if (lat != null && lng != null) return { lat, lng };
+        const point = usablePoint(finiteCoord(pin?.lat ?? pin?.latitude, 90), finiteCoord(pin?.lng ?? pin?.longitude));
+        if (point) return point;
       }
     }
     return null;
@@ -2638,7 +2641,13 @@
         )), project.thumbnail_photo_id || project.thumbnailPhotoId || project.thumbnail_id);
       }
       const topDown = projectMedia.firstMeasureTopDownPhoto(project, options) || projectMedia.googleStaticMapPhoto(project, options);
-      if (!topDown) return photos;
+      if (!topDown) {
+        // A static map saved for a project with no location (before FM-422 a blank one was drawn at 0,0) is no picture of it.
+        if (projectThumbnailPoint(project) || projectThumbnailAddress(project)) return photos;
+        return photos.filter((photo) => !(photo.source === 'google_static_map' && !photo.media_id && (
+          photo.id === projectMedia.TOP_DOWN_THUMBNAIL_ID || photo.designator === projectMedia.TOP_DOWN_THUMBNAIL_DESIGNATOR
+        )));
+      }
       const existingIndex = photos.findIndex((photo) => (
         photo.is_top_down_thumbnail
         || photo.designator === projectMedia.TOP_DOWN_THUMBNAIL_DESIGNATOR

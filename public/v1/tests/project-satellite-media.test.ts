@@ -209,3 +209,21 @@ test("while the report is still processing, the static map is fetched with the M
     keys.googleMapsApiKey = saved.server;
   }
 });
+
+test("Maps Static's \"no imagery\" picture is recognised, and blank coordinates are none (FM-422)", async () => {
+  const sharp = (await import("sharp")).default;
+  // Google's answer for a place it has no imagery of: flat rgb(228,226,222), a line of small text and a marker.
+  const noImagery = await sharp({ create: { width: 1280, height: 794, channels: 3, background: { r: 228, g: 226, b: 222 } } })
+    .composite([
+      { input: await sharp({ create: { width: 340, height: 18, channels: 3, background: { r: 20, g: 20, b: 20 } } }).png().toBuffer(), left: 470, top: 380 },
+      { input: await sharp({ create: { width: 24, height: 40, channels: 3, background: { r: 234, g: 67, b: 53 } } }).png().toBuffer(), left: 628, top: 357 }
+    ]).png().toBuffer();
+  assert.equal(await satellite.staticMapHasNoImagery(noImagery), true);
+  assert.equal(await satellite.staticMapHasNoImagery(await png()), false, "imagery");
+  assert.equal(await satellite.staticMapHasNoImagery(await png(640, 400, { r: 245, g: 247, b: 250 })), false, "a snowy roof is not Google's gray");
+  assert.equal(await satellite.staticMapHasNoImagery(Buffer.from("not an image")), false);
+
+  assert.equal(satellite.projectSatellitePoint({ lat: "", lng: "" }), null);
+  assert.equal(satellite.projectSatellitePoint({ lat: 0, lng: 0 }), null);
+  assert.deepEqual(satellite.projectSatellitePoint({ lat: "", lng: "", pins: [{ lat: 39.74, lng: -104.99 }] }), { lat: 39.74, lng: -104.99 });
+});

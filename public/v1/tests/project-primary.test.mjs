@@ -50,3 +50,16 @@ test('public portal primary uses only already shared images and keeps the satell
   context.shared[0].kind='video';
   assert.equal(vm.runInContext('publicProjectView(p,"",shared).thumbnail_photo.id',context),'satellite');
 });
+test('a project with blank coordinates gets no satellite map of 0,0, and a stale one saved for it is dropped (FM-422)',()=>{
+  const keyed={orgId:'org',googleMapsApiKey:'k'};
+  assert.equal(library.googleStaticMapPhoto({lat:'',lng:'',pins:[],address:''},keyed),null);
+  assert.equal(library.googleStaticMapPhoto({lat:0,lng:0},keyed),null);
+  assert.match(library.googleStaticMapPhoto({lat:'',lng:'',address:'1 Main St, Austin, TX'},keyed).src,/center=1\+Main/);
+  assert.match(library.googleStaticMapPhoto({lat:'30.26',lng:'-97.74'},keyed).src,/center=30\.26%2C-97\.74/);
+  const stale={id:'top_down_thumbnail',kind:'external_image',source:'google_static_map',designator:'top_down_thumbnail',is_top_down_thumbnail:true,src:'https://maps.googleapis.com/maps/api/staticmap?center=0%2C0'};
+  const own={id:'m1',media_id:'m1',src:'/m1.jpg',media_type:'image'};
+  const blank={lat:'',lng:'',address:'',photos:[stale,own],thumbnail_photo_id:'top_down_thumbnail'};
+  assert.deepEqual(Array.from(library.withFirstMeasureTopDown(blank,{orgId:'org'}),p=>p.id),['m1']);
+  assert.equal(library.primaryPhoto(blank,{orgId:'org'}).id,'m1');
+  assert.equal(library.withFirstMeasureTopDown({...blank,address:'1 Main St'},{orgId:'org'}).length,2,'with a location the saved map stays');
+});

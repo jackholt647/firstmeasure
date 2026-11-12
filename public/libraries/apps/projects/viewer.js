@@ -438,6 +438,9 @@
     @keyframes vShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
     .v-thumb.loading img{display:none}
     .v-thumb.loading::after{content:'\\f110'; font-family:'Font Awesome 6 Free'; font-weight:900; font-size:22px; color:rgba(0,0,0,0.22); animation:fa-spin 1s linear infinite}
+    /* A tile with no picture shows a plain image icon, never a map provider's "no imagery" picture (FM-422). */
+    .v-thumb.v-thumb-empty:not(.loading)::before{content:'\\f03e'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:'Font Awesome 6 Free'; font-weight:900; font-size:44px; color:#c3c8d0; pointer-events:none}
+    .v-thumb.v-thumb-empty img{visibility:hidden}
     .v-badge{position:absolute; top:10px; right:10px; padding:6px 10px; border-radius:999px; font-size:11px; font-weight:1000; text-transform:uppercase; letter-spacing:.3px; box-shadow:0 6px 16px rgba(0,0,0,0.18)}
     .v-addon-badge{position:absolute; left:10px; bottom:10px; z-index:3; pointer-events:none; padding:6px 10px; border-radius:999px; font-size:10px; font-weight:1000; letter-spacing:.3px; text-transform:uppercase; color:#fff; background:rgba(26,115,232,0.96); border:1px solid rgba(17,86,173,0.32); box-shadow:0 6px 16px rgba(0,0,0,0.16); display:inline-flex; align-items:center; gap:6px}
     .b-ready{background:#34a853; color:#fff}
@@ -1222,7 +1225,7 @@
       .v-list-empty-body[hidden]{display:none}
       /* Tiles: a project with no picture is a compact card, its badges in a row above the name. */
       .v-tile-compact .v-thumb{height:auto;min-height:0;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:6px;padding:12px 12px 0;background:none;animation:none}
-      .v-tile-compact .v-thumb::after{content:none}
+      .v-tile-compact .v-thumb::after,.v-tile-compact .v-thumb::before{content:none}
       .v-tile-compact .v-thumb:not(:has(>:not(img))){padding:0}
       .v-tile-compact .v-thumb>*{position:static;box-shadow:none}
       /* The picture keeps loading out of sight (a lazy image must stay rendered); a loaded one opens the card. */
@@ -4590,9 +4593,14 @@
     }
     return out;
   }
-  function finiteCoord(value){
+  // A blank coordinate is none: Number('') is 0, and a map of 0,0 is open sea ("Sorry, we have no imagery here", FM-422).
+  function finiteCoord(value, limit = 180){
+    if (value == null || String(value).trim() === '') return null;
     const n = Number(value);
-    return Number.isFinite(n) ? n : null;
+    return Number.isFinite(n) && Math.abs(n) <= limit ? n : null;
+  }
+  function usablePoint(lat, lng){
+    return lat != null && lng != null && !(lat === 0 && lng === 0) ? { lat, lng } : null;
   }
   function projectThumbnailPoint(p = {}){
     const measurement = (p.measurement_project && typeof p.measurement_project === 'object')
@@ -4600,16 +4608,14 @@
       : ((p.measurement && typeof p.measurement === 'object') ? p.measurement : {});
     const raw = (measurement.raw && typeof measurement.raw === 'object') ? measurement.raw : {};
     for (const candidate of [p, raw, measurement]){
-      const lat = finiteCoord(candidate?.lat ?? candidate?.latitude);
-      const lng = finiteCoord(candidate?.lng ?? candidate?.longitude);
-      if (lat != null && lng != null) return { lat, lng };
+      const point = usablePoint(finiteCoord(candidate?.lat ?? candidate?.latitude, 90), finiteCoord(candidate?.lng ?? candidate?.longitude));
+      if (point) return point;
     }
     for (const pins of [p.pins, raw.pins, measurement.pins]){
       if (!Array.isArray(pins)) continue;
       for (const pin of pins){
-        const lat = finiteCoord(pin?.lat ?? pin?.latitude);
-        const lng = finiteCoord(pin?.lng ?? pin?.longitude);
-        if (lat != null && lng != null) return { lat, lng };
+        const point = usablePoint(finiteCoord(pin?.lat ?? pin?.latitude, 90), finiteCoord(pin?.lng ?? pin?.longitude));
+        if (point) return point;
       }
     }
     return null;
@@ -4637,6 +4643,29 @@
     params.append('style', 'feature:poi|visibility:off');
     params.append('style', 'feature:transit|visibility:off');
     return `https://maps.googleapis.com/maps/api/staticmap?${params.toString()}`;
+  }
+  const STATIC_MAP_URL = /^https:\/\/maps\.googleapis\.com\/maps\/api\/staticmap\?/i;
+  // A static map is loaded so its pixels can be read (Google allows it): its "no imagery" answer is an ordinary 200 picture.
+  function setThumbImageSrc(img, url){
+    if (STATIC_MAP_URL.test(url)) img.crossOrigin = 'anonymous';
+    else img.removeAttribute('crossorigin');
+    img.src = url;
+  }
+  // Google's "Sorry, we have no imagery here" is one flat rgb(228,226,222) with a line of small text.
+  function staticMapHasNoImagery(img){
+    if (!STATIC_MAP_URL.test(img?.currentSrc || img?.src || '') || !img.naturalWidth) return false;
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 32; canvas.height = 20;
+      const ctx = canvas.getContext('2d', { willReadFrequently:true });
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let flat = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (Math.abs(data[i] - 228) <= 8 && Math.abs(data[i + 1] - 226) <= 8 && Math.abs(data[i + 2] - 222) <= 8) flat += 1;
+      }
+      return flat / (data.length / 4) >= 0.85;
+    } catch (error) { return false; }
   }
   function preferredThumbnailUrls(p, fileNames){
     const fileSet = fileNames instanceof Set ? fileNames : null;
@@ -6326,14 +6355,21 @@
     const contactName = contact.displayName || contact.name || '';
     const addressHtml = named ? `<div>${escapeHtml(named.title || '—')}</div>${named.address ? `<div class="l2">${escapeHtml(named.address)}</div>` : ''}` : displayAddress(p);
     const contactHtml = named && contactName && contactName === named.title ? '' : `<div class="v-meta"><i class="fas fa-user"></i> ${String(escapeHtml(contactName || (globalThis.PlatformLanguage?.text('projects','fm_contact_unavailable','Not provided') ?? 'Not provided')))}</div>`;
-    div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}"><img src="${String(escapeHtml(thumbSrc))}" loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(reportKindThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(addressHtml)}</div>${contactHtml}<div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="v-card-end">${cameraButtonHtml(id)}<span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></span></div></div>`;
+    div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}${hasThumbnail ? '' : ' v-thumb-empty'}"><img src="${String(escapeHtml(thumbSrc))}"${STATIC_MAP_URL.test(thumbSrc) ? ' crossorigin="anonymous"' : ''} loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(reportKindThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(addressHtml)}</div>${contactHtml}<div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="v-card-end">${cameraButtonHtml(id)}<span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></span></div></div>`;
     div.querySelector('.v-body')?.insertAdjacentHTML('beforeend', projectSharingView()?.badge(p) || '');
     div.addEventListener('click', ()=>openModal(lastProjectsById.get(id) || p));
 
     const img = div.querySelector('.v-thumb img');
     const thumb = div.querySelector('.v-thumb');
     // A phone card whose picture candidates all fail becomes compact; a picture that loads later opens it again.
-    if (phone && img) img.addEventListener('load', () => { if (!String(img.currentSrc || img.src || '').startsWith('data:')) div.classList.remove('v-tile-compact'); });
+    // A static map of a place Google has no imagery for is no picture: it is dropped like one that failed.
+    let pictureFailed = null;
+    if (img) img.addEventListener('load', () => {
+      if (String(img.currentSrc || img.src || '').startsWith('data:')) return;
+      if (staticMapHasNoImagery(img)) { pictureFailed?.(); return; }
+      thumb?.classList.remove('v-thumb-empty');
+      if (phone) div.classList.remove('v-tile-compact');
+    });
 
     /* Thumbnail polling: check availability without downloading image bodies. */
     if (img && thumb) {
@@ -6342,14 +6378,15 @@
 
       const startPolling = () => {
         if (!thumbnailCandidates.length) return;
-        thumb.classList.add('loading');
+        // Only a report still processing shows a spinner; any other tile keeps its empty image while it checks.
+        if (isProcessing) thumb.classList.add('loading');
         const tryOnce = async () => {
           for (let i = 0; i < thumbnailCandidates.length; i++) {
             const candidateUrl = thumbnailCandidates[i];
             if (await softFileExists(candidateUrl)) {
               activeCandidateIndex = i;
               thumb.classList.remove('loading');
-              if (img.src !== candidateUrl) img.src = candidateUrl;
+              if (img.src !== candidateUrl) setThumbImageSrc(img, candidateUrl);
               img.style.display = '';
               p.thumbnail = candidateUrl;
               p.thumbnail_candidates = thumbnailCandidates;
@@ -6362,20 +6399,29 @@
         retryTimer = setTimeout(tryOnce, shouldProbeThumbnail ? 60000 : 0);
       };
 
+      pictureFailed = () => {
+        // A static map with no imagery stays no imagery: it is not tried again.
+        if (staticMapHasNoImagery(img)) {
+          thumbnailCandidates.splice(activeCandidateIndex, 1);
+          activeCandidateIndex -= 1;
+        }
+        activeCandidateIndex += 1;
+        if (thumbnailCandidates[activeCandidateIndex]) {
+          setThumbImageSrc(img, thumbnailCandidates[activeCandidateIndex]);
+          return;
+        }
+        img.src = placeholderThumb;
+        thumb.classList.add('v-thumb-empty');
+        if (phone) div.classList.add('v-tile-compact');
+        startPolling();
+      };
+
       if (shouldProbeThumbnail || (!hasThumbnail && isProcessing)) {
         /* No thumbnail URL at all — start polling right away */
         startPolling();
       } else if (hasThumbnail) {
         /* Has URL but image might 404 — poll on error */
-        img.addEventListener('error', () => {
-          activeCandidateIndex += 1;
-          if (thumbnailCandidates[activeCandidateIndex]) {
-            img.src = thumbnailCandidates[activeCandidateIndex];
-            return;
-          }
-          if (phone) div.classList.add('v-tile-compact');
-          startPolling();
-        });
+        img.addEventListener('error', pictureFailed);
       }
     }
 
