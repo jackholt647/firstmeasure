@@ -8332,7 +8332,10 @@
     "developer_settings_subtitle": "Ontwikkelaarstools, functievlaggen en appconfiguratie.",
     "pitch_notation_label": "Dakhelling",
     "pitch_notation_rise": "Stijging per 12 (6/12)",
-    "pitch_notation_degrees": "Graden (26,6°)"
+    "pitch_notation_degrees": "Graden (26,6°)",
+    "rp_section_units": "Eenheden",
+    "rp_section_units_sub": "Hoe nieuwe rapporten maten schrijven.",
+    "rp_tip_pitch_notation": "Stijging per 12 (6/12), zoals dakdekkers in de VS het schrijven, of graden (26,6°), zoals elders. Rapporten die al besteld zijn, houden de hunne."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Werk toevoegen",

@@ -56,6 +56,22 @@ test("report preferences carry the pitch notation and default it from the measur
   assert.throws(() => localizationSchema.parse({ pitch_notation: "grade" }));
 });
 
+test("roof pitch is set in Settings › Reports and saved as a report preference, not company localization (FM-401)", async () => {
+  const source = await readFile(new URL("../../libraries/apps/settings/company.js", import.meta.url), "utf8");
+  assert.ok(!source.includes("csPitchNotation"), "the Company pane has no roof pitch field");
+  const reports = source.slice(source.indexOf("    function renderReports(){"));
+  assert.match(reports, /key:'pitch_notation'[^\n]*\n\s*choices:\[\['rise_12'[^\n]*\['degrees'/, "Reports offers the choice");
+  assert.match(source, /saveReportSettings\(\{[^)]*pitch_notation: state\.report_preferences\?\.pitch_notation/, "the Reports save sends it");
+  const saveReports = source.slice(source.indexOf("  async function saveReportSettings("), source.indexOf("org_update_my_report_settings"));
+  assert.match(saveReports, /report_preferences: \{ \.\.\.reportPreferencesForSave\(branch\), pitch_notation \}/);
+  // Nothing writes the pitch notation into the company localization any more.
+  for (const line of source.split("\n").filter(l => /localization: \{/.test(l))) assert.ok(!line.includes("pitch_notation:"), line.trim().slice(0, 120));
+  const strip = fn(source, "localizationWithoutPitch");
+  const context = vm.createContext({});
+  vm.runInContext(strip + "\nglobalThis.run = b => localizationWithoutPitch(b);", context);
+  assert.equal(JSON.stringify((context as any).run({ localization: { locale: "de-DE", pitch_notation: "degrees" } })), '{"locale":"de-DE"}');
+});
+
 test("the XML export keeps pitch as rise over 12 and adds pitch_degrees", async () => {
   const { buildXmlExportPayload } = await import("../firstmeasure/xml.js");
   const stored = `<?xml version="1.0"?><STRUCTURES><ROOF id="R1"><POINTS><POINT id="P1" data="0,0,0"/><POINT id="P2" data="10,0,0"/><POINT id="P3" data="10,10,0"/></POINTS>`

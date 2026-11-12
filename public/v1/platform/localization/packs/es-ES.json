@@ -8320,7 +8320,10 @@
     "developer_settings_subtitle": "Herramientas para desarrolladores, indicadores de funciones y configuración de aplicaciones.",
     "pitch_notation_label": "Inclinación del tejado",
     "pitch_notation_rise": "Elevación sobre 12 (6/12)",
-    "pitch_notation_degrees": "Grados (26,6°)"
+    "pitch_notation_degrees": "Grados (26,6°)",
+    "rp_section_units": "Unidades",
+    "rp_section_units_sub": "Cómo escriben las medidas los informes nuevos.",
+    "rp_tip_pitch_notation": "Elevación sobre 12 (6/12), como la escriben los techadores en EE. UU., o grados (26,6°), como en otros lugares. Los informes ya pedidos conservan la suya."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Añadir trabajo",
