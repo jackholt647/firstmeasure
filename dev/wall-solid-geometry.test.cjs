@@ -312,3 +312,15 @@ test('deleting a line that overlaps a neighbour wall by a sub-millimetre sliver 
  const result=G.removeFaceEdges([wall,floor],[[p(1.9997,0,0),p(4,0,0)]]);assert.ok(!result.removed.includes('left'));assert.deepEqual(result.removed,['floor']);
  assert.deepEqual(G.removeFaceEdges([wall],[[p(0,0,0),p(2,0,0)]]).removed,['left'],'a line the wall really runs along is still its own');
 });
+
+test('deleting points removes the free-standing lines at them instead of hiding them',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),sq=[p(0,0,0),p(2,0,0),p(2,0,2),p(0,0,2)];
+ const edits={$surfaces:[{id:'face',points:sq.map(q=>({...q})),holes:[]}],$loose:{points:sq.map(q=>({...q})),edges:sq.map((a,i)=>[{...a},{...sq[(i+1)%4]}])}};
+ W.deleteSurfaceElements(edits,[sq[2],sq[3]].map(W.vertexKey));
+ assert.equal(edits.$surfaces[0].deleted,true);
+ // The two top corners and the three lines that touch them are gone; the bottom line was not selected and stays.
+ assert.equal(edits.$loose.points.length,2);assert.equal(edits.$loose.edges.length,1);assert.deepEqual(edits.$loose.edges[0].map(q=>q.z),[0,0]);
+ // A project saved before this still holds lines an earlier delete only hid: opening it removes them.
+ const old={$removedSurfacePoints:[W.vertexKey(sq[2])],$loose:{points:sq.map(q=>({...q})),edges:sq.map((a,i)=>[{...a},{...sq[(i+1)%4]}])}};
+ assert.equal(W.pruneHiddenLoose(old),true);assert.equal(old.$loose.points.length,3);assert.equal(old.$loose.edges.length,2);assert.equal(W.pruneHiddenLoose(old),false);
+});
