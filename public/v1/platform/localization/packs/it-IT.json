@@ -8028,7 +8028,10 @@
     "developer_settings_subtitle": "Strumenti per sviluppatori, flag delle funzionalità e configurazione dell'applicazione.",
     "pitch_notation_label": "Pendenza del tetto",
     "pitch_notation_rise": "Alzata su 12 (6/12)",
-    "pitch_notation_degrees": "Gradi (26,6°)"
+    "pitch_notation_degrees": "Gradi (26,6°)",
+    "rp_section_units": "Unità",
+    "rp_section_units_sub": "Come i nuovi report scrivono le misure.",
+    "rp_tip_pitch_notation": "Alzata su 12 (6/12), come la scrivono i copritetto negli Stati Uniti, o gradi (26,6°), come altrove. I report già ordinati mantengono la loro."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Aggiungi intervento",

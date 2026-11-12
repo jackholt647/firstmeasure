@@ -6,7 +6,8 @@ import { readDocument } from "../platform/storage.js";
 
 /**
  * How roof pitch is written (1M8-255): rise over a 12 run (6/12, the US convention) or degrees (26.6°, how roofers
- * outside the US write it). A company setting beside the measurement system; without one, metric means degrees.
+ * outside the US write it). A report preference, set in Settings › Reports and saved as the branch's
+ * `report_preferences.pitch_notation` (FM-401); without one, metric means degrees.
  */
 export const PITCH_NOTATIONS = ["rise_12", "degrees"] as const;
 export type PitchNotation = typeof PITCH_NOTATIONS[number];
@@ -42,7 +43,8 @@ export async function resolveOrderReportPreferences(input: Record<string, unknow
   const branch = await readDocument(orgId, "branch", String(input.branch_id || "default")).catch(() => null);
   const legacy = (branch?.data?.report_preferences || {}) as Record<string, unknown>;
   const localization = (branch?.data?.localization || {}) as Record<string, unknown>;
-  const saved = { ...legacy, measurement_system: localization.measurement_system ?? legacy.measurement_system, report_language: localization.locale ?? legacy.report_language, pitch_notation: localization.pitch_notation ?? legacy.pitch_notation };
+  // FM-401: pitch notation lives in report_preferences; localization.pitch_notation is only 1M8-255's old copy.
+  const saved = { ...legacy, measurement_system: localization.measurement_system ?? legacy.measurement_system, report_language: localization.locale ?? legacy.report_language, pitch_notation: legacy.pitch_notation ?? localization.pitch_notation };
   return normalizeReportPreferences({
     measurement_system: input.measurement_system ?? saved.measurement_system ?? (metric ? "metric" : profile.measurement_system),
     report_language: input.report_language ?? saved.report_language ?? profile.locale,

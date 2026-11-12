@@ -8336,7 +8336,10 @@
     "developer_settings_subtitle": "開発者ツール、機能フラグ、アプリ設定。",
     "pitch_notation_label": "屋根勾配",
     "pitch_notation_rise": "12に対する立ち上がり (6/12)",
-    "pitch_notation_degrees": "度 (26.6°)"
+    "pitch_notation_degrees": "度 (26.6°)",
+    "rp_section_units": "単位",
+    "rp_section_units_sub": "新しいレポートでの寸法の表記方法。",
+    "rp_tip_pitch_notation": "米国の屋根職人が使う12に対する立ち上がり (6/12)、またはその他の地域で使われる度 (26.6°)。すでに注文済みのレポートは元の表記のままです。"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "作業を追加",

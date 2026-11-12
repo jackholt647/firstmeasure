@@ -13531,7 +13531,10 @@
     "m_9b8573b4339e02": "What one package covers",
     "pitch_notation_label": "Roof pitch",
     "pitch_notation_rise": "Rise over 12 (6/12)",
-    "pitch_notation_degrees": "Degrees (26.6°)"
+    "pitch_notation_degrees": "Degrees (26.6°)",
+    "rp_section_units": "Units",
+    "rp_section_units_sub": "How new reports write measurements.",
+    "rp_tip_pitch_notation": "Rise over a 12 run (6/12), as US roofers write it, or degrees (26.6°), as roofers elsewhere do. Reports already ordered keep theirs."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Add Work",

@@ -583,7 +583,7 @@
           ...(branchData.branding || {})
         },
         contact: branchData.contact || {},
-        report_preferences: { ...(branchData.report_preferences || {}), ...(branchData.localization?.locale ? { report_language: branchData.localization.locale } : {}), ...(branchData.localization?.measurement_system ? { measurement_system: branchData.localization.measurement_system } : {}), ...(branchData.localization?.pitch_notation ? { pitch_notation: branchData.localization.pitch_notation } : {}) },
+        report_preferences: { ...(branchData.report_preferences || {}), ...(branchData.localization?.locale ? { report_language: branchData.localization.locale } : {}), ...(branchData.localization?.measurement_system ? { measurement_system: branchData.localization.measurement_system } : {}), pitch_notation: reportPitchNotation(branchData) },
         report_settings: branchData.report_settings || {},
         billing: portalState?.billing || globalData.billing || {}
       };
@@ -647,7 +647,7 @@
       if (orgId && window.PlatformAPI?.branches?.get) {
         const branchResp = await window.PlatformAPI.branches.get(orgId, branchId);
         const branch = branchResp?.document?.data || branchResp?.data || {};
-        result.report_preferences = { ...(branch.report_preferences || result.report_preferences), ...(branch.localization?.locale ? { report_language: branch.localization.locale } : {}), ...(branch.localization?.measurement_system ? { measurement_system: branch.localization.measurement_system } : {}), ...(branch.localization?.pitch_notation ? { pitch_notation: branch.localization.pitch_notation } : {}) };
+        result.report_preferences = { ...(branch.report_preferences || result.report_preferences), ...(branch.localization?.locale ? { report_language: branch.localization.locale } : {}), ...(branch.localization?.measurement_system ? { measurement_system: branch.localization.measurement_system } : {}), pitch_notation: reportPitchNotation(branch) };
         const branchBrand = branch?.branding || {};
         const branchColors = branchBrand?.colors || {};
         if (branch?.contact && typeof branch.contact === 'object') {
@@ -715,7 +715,7 @@
       const existingBranchLogo = String(branch.branding?.logo || '').trim();
       await window.PlatformAPI.branches.save(orgId, branchId, {
         ...branch,
-        ...(window.PlatformAPI?.appFlags?.has?.("firstmeasure", "report_localization") ? { report_preferences, localization: { ...(branch.localization || {}), locale: report_preferences?.report_language || "en-US", measurement_system: report_preferences?.measurement_system || "imperial", ...(report_preferences?.pitch_notation ? { pitch_notation: report_preferences.pitch_notation } : {}) } } : {}),
+        ...(window.PlatformAPI?.appFlags?.has?.("firstmeasure", "report_localization") ? { report_preferences: { ...reportPreferencesForSave(branch), measurement_system: report_preferences?.measurement_system || "imperial", report_language: report_preferences?.report_language || "en-US" }, localization: { ...localizationWithoutPitch(branch), locale: report_preferences?.report_language || "en-US", measurement_system: report_preferences?.measurement_system || "imperial" } } : {}),
         name: branch.name ?? '',
         contact: {
           ...(branch.contact || {}),
@@ -774,7 +774,27 @@
     } catch(e) { return { ok:false, error:e?.message || 'Could not save brand settings.' }; }
     return { ok:true };
   }
-  async function saveReportSettings({ general, customer }){
+  // FM-401: roof pitch (rise over 12 or degrees) is a report preference, saved as the branch's
+  // report_preferences.pitch_notation from Settings › Reports. 1M8-255 also wrote it into the company
+  // localization; that copy is read only when the report preference is missing and dropped on the next save.
+  function reportPitchNotation(branch){
+    const value = branch?.report_preferences?.pitch_notation || branch?.localization?.pitch_notation;
+    return value === 'degrees' || value === 'rise_12' ? value : undefined;
+  }
+  function reportPreferencesForSave(branch){
+    const pitch_notation = reportPitchNotation(branch);
+    return { ...(branch?.report_preferences || {}), ...(pitch_notation ? { pitch_notation } : {}) };
+  }
+  function localizationWithoutPitch(branch){
+    const { pitch_notation, ...localization } = branch?.localization || {};
+    return localization;
+  }
+  function reportPitchEnabled(){ return !!window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'report_localization'); }
+  function defaultReportPitchNotation(preferences){
+    const units = preferences?.measurement_system || window.PlatformLanguage?.companyContext?.().measurement_system || (window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'metric_measurements') ? 'metric' : 'imperial');
+    return units === 'metric' ? 'degrees' : 'rise_12';
+  }
+  async function saveReportSettings({ general, customer, pitch_notation }){
     const payload = {
       general: mergeGeneralReportSettings(general),
       customer: mergeCustomerReportSettings(customer)
@@ -786,7 +806,8 @@
       const branch = branchResp?.document?.data || branchResp?.data || {};
       await window.PlatformAPI.branches.save(orgId, branchId, {
         ...branch,
-        report_settings: payload
+        report_settings: payload,
+        ...(pitch_notation && reportPitchEnabled() ? { report_preferences: { ...reportPreferencesForSave(branch), pitch_notation }, ...(branch.localization ? { localization: localizationWithoutPitch(branch) } : {}) } : {})
       }, { source: 'company_report_settings' });
     } else {
       const { data } = await postAction('org_update_my_report_settings', {
@@ -13214,7 +13235,6 @@ ${String(window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'report_localizatio
                   <div class="company-localization-grid wide">
                 <label class="cs-field"><span>${escapeHtml(window.PlatformLanguage.text('settings','company_language_label','Company language'))}</span><select id="csReportLanguage">${languageOptions(state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale)}</select></label>
                 <label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ae873abaa56707","Measurements") ?? "Measurements")}</span><select id="csMeasurementSystem"><option value="imperial">${(globalThis.PlatformLanguage?.htmlText("settings","m_455c24bfeb9092","Imperial (feet and squares)") ?? "Imperial (feet and squares)")}</option><option value="metric">${(globalThis.PlatformLanguage?.htmlText("settings","m_ef3e6a234d5a73","Metric (metres and square metres)") ?? "Metric (metres and square metres)")}</option></select></label>
-                <label class="cs-field"><span>${escapeHtml(window.PlatformLanguage?.text('settings','pitch_notation_label','Roof pitch') ?? 'Roof pitch')}</span><select id="csPitchNotation"><option value="rise_12">${escapeHtml(window.PlatformLanguage?.text('settings','pitch_notation_rise','Rise over 12 (6/12)') ?? 'Rise over 12 (6/12)')}</option><option value="degrees">${escapeHtml(window.PlatformLanguage?.text('settings','pitch_notation_degrees','Degrees (26.6°)') ?? 'Degrees (26.6°)')}</option></select></label>
                   </div>` : '')}
 ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                     <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_6e9ebf535758d8","Business address") ?? "Business address")}</span>
@@ -13589,9 +13609,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         const units = $('#csMeasurementSystem', paneCompany), language = $('#csReportLanguage', paneCompany);
         if (units) units.value = state.report_preferences?.measurement_system || window.PlatformLanguage?.companyContext?.().measurement_system || (window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'metric_measurements') ? 'metric' : 'imperial');
         if (language) language.value = state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale || 'en-US';
-        // Roof pitch (1M8-255): the saved choice, else degrees for metric companies and rise over 12 otherwise.
-        const pitchNotation = $('#csPitchNotation', paneCompany);
-        if (pitchNotation) pitchNotation.value = state.report_preferences?.pitch_notation || ((units?.value || state.report_preferences?.measurement_system) === 'metric' ? 'degrees' : 'rise_12');
         // FM-324: never write over a text field the person is typing in; a load
         // or save that answers late would wipe what they typed since.
         const writeText = (input, value) => { if (input && input.getRootNode?.().activeElement !== input) input.value = value; };
@@ -13631,6 +13648,17 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       // General report settings first, then what the customer PDF includes as well.
       const REPORT_ORIENTATIONS = [['portrait', settingsText('rp_portrait', 'Portrait')], ['landscape', settingsText('rp_landscape', 'Landscape')]];
       const sections = [
+        {
+          // FM-401: how new reports write roof pitch, a report preference (not company localization).
+          pitch: true,
+          title: settingsText('rp_section_units', 'Units'),
+          subtitle: settingsText('rp_section_units_sub', 'How new reports write measurements.'),
+          items: [
+            { key:'pitch_notation', label:settingsText('pitch_notation_label', 'Roof pitch'), tip:settingsText('rp_tip_pitch_notation', 'Rise over a 12 run (6/12), as US roofers write it, or degrees (26.6°), as roofers elsewhere do. Reports already ordered keep theirs.'),
+              choices:[['rise_12', settingsText('pitch_notation_rise', 'Rise over 12 (6/12)')], ['degrees', settingsText('pitch_notation_degrees', 'Degrees (26.6°)')]],
+              value:() => state.report_preferences?.pitch_notation || defaultReportPitchNotation(state.report_preferences) }
+          ]
+        },
         {
           title: (globalThis.PlatformLanguage?.text("settings","rp_section_layout","Layout") ?? "Layout"),
           subtitle: (globalThis.PlatformLanguage?.text("settings","rp_section_layout_sub_choice","Portrait or landscape pages for each kind of report, in both the customer and the internal PDF.") ?? "Portrait or landscape pages for each kind of report, in both the customer and the internal PDF."),
@@ -13700,9 +13728,10 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       // Exterior sections show only to organizations with Full Exterior reports.
       for (let i = sections.length - 1; i >= 0; i--) {
         if (sections[i].exteriors && !exteriorReportsEnabled()) { sections.splice(i, 1); continue; }
+        if (sections[i].pitch && !reportPitchEnabled()) { sections.splice(i, 1); continue; }
         sections[i].items = sections[i].items.filter(item => !item.exteriors || exteriorReportsEnabled());
       }
-      const reportToggleTarget = key => GENERAL_REPORT_TOGGLES.has(key) ? (state.report_general ||= mergeGeneralReportSettings(null)) : state.report_customer;
+      const reportToggleTarget = key => key === 'pitch_notation' ? (state.report_preferences ||= {}) : GENERAL_REPORT_TOGGLES.has(key) ? (state.report_general ||= mergeGeneralReportSettings(null)) : state.report_customer;
       const wrap = $('#rpToggles', paneReports);
       // The live report preview: every page of the customer and internal PDFs for the sample report.
       const renderSample = () => {
@@ -13719,7 +13748,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       if (wrap) {
         // A setting with `choices` is one of its values (Portrait / Landscape); the rest are on/off toggles.
         const makeChoice = (it) => {
-          const value = reportToggleTarget(it.key)[it.key];
+          const value = it.value ? it.value() : reportToggleTarget(it.key)[it.key];
           return `<div class="rp-choice"${it.tip ? ` data-fm-tooltip="${escapeHtml(it.tip)}"` : ''}><span class="rp-label">${escapeHtml(it.label)}</span><span class="rp-seg" role="group" aria-label="${escapeHtml(it.label)}">${it.choices.map(([v, l]) => `<button type="button" class="rp-seg-btn${value === v ? ' on' : ''}" data-choice="${escapeHtml(it.key)}" data-value="${escapeHtml(v)}" aria-pressed="${value === v}">${escapeHtml(l)}</button>`).join('')}</span></div>`;
         };
         wrap.innerHTML = sections.map(section => `${section.customerStart ? `
@@ -15218,7 +15247,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         state.company_phone = String(csCompanyPhone?.value || '').trim();
         state.company_business_address = readBusinessAddressInputs();
         state.company_address = formatOrganizationBusinessAddress(state.company_business_address);
-        if ($('#csMeasurementSystem', paneCompany)) state.report_preferences = { measurement_system: $('#csMeasurementSystem', paneCompany).value, report_language: $('#csReportLanguage', paneCompany).value, pitch_notation: $('#csPitchNotation', paneCompany)?.value || ($('#csMeasurementSystem', paneCompany).value === 'metric' ? 'degrees' : 'rise_12') };
+        if ($('#csMeasurementSystem', paneCompany)) state.report_preferences = { ...(state.report_preferences || {}), measurement_system: $('#csMeasurementSystem', paneCompany).value, report_language: $('#csReportLanguage', paneCompany).value };
         const ret = await saveOrg({
           report_preferences: state.report_preferences,
           name: toSaveName,
@@ -15285,7 +15314,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       if(rSav) {
         rSav.addEventListener('click', async ()=>{
           rpStatus.textContent = (globalThis.PlatformLanguage?.text("settings","m_b82c4e12389843","Saving...") ?? "Saving...");
-          const ret = await saveReportSettings({ general: state.report_general, customer: state.report_customer });
+          const ret = await saveReportSettings({ general: state.report_general, customer: state.report_customer, pitch_notation: state.report_preferences?.pitch_notation });
           if (!ret.ok){
             rpStatus.textContent = '';
             showToast((globalThis.PlatformLanguage?.text("settings","m_c8b7bd7ca69f49","Save failed") ?? "Save failed"), ret.error || '-', false);

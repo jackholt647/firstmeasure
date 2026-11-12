@@ -8007,7 +8007,10 @@
     "developer_settings_subtitle": "Utvecklarverktyg, funktionsflaggor och appkonfiguration.",
     "pitch_notation_label": "Taklutning",
     "pitch_notation_rise": "Höjning per 12 (6/12)",
-    "pitch_notation_degrees": "Grader (26,6°)"
+    "pitch_notation_degrees": "Grader (26,6°)",
+    "rp_section_units": "Enheter",
+    "rp_section_units_sub": "Hur nya rapporter skriver mått.",
+    "rp_tip_pitch_notation": "Höjning per 12 (6/12), som takläggare i USA skriver det, eller grader (26,6°), som takläggare på andra håll gör. Rapporter som redan beställts behåller sin."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Lägg till arbete",
