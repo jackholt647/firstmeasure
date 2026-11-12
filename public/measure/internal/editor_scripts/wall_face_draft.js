@@ -581,7 +581,9 @@ window.createWallFaceDraft=function(host){
   // soft: it never stops a live face's corner from being welded.
   for(const f of edits.$surfaces||[]){if(f.drafted||f.replacedBy||f.curvedSurface||f.curves?.length)continue;const pl=plane(f.points),fixed=!!(f.feature||f.trim||f.chimney),soft=!!f.deleted,owner=pl?'s:'+f.id:null;if(pl)owners.set(owner,{plane:pl,fixed,soft});
    [f.points,...(f.holes||[])].forEach((ring,index)=>{for(const point of ring)items.push({point,owner,ring:soft?null:'s:'+f.id+':'+index,fixed,soft});});for(const point of f.retainedPoints||[])items.push({point,owner,ring:null,fixed,soft});}
-  for(const [key,d]of Object.entries(all())){if(!weldDraft(d))continue;const pl=plane([world(d,{x:0,y:0}),world(d,{x:1,y:0}),world(d,{x:0,y:1})]),owner=pl?'d:'+key:null,byId=new Map(d.sketch.nodes.map(n=>[n.id,n])),seen=new Set();
+  // A drawing whose every face has become a surface holds nothing that is shown: the surfaces are the geometry.
+  // Its leftover points are not points of the model, and must not be something a live corner is welded to.
+  for(const [key,d]of Object.entries(all())){if(!weldDraft(d)||d.faces?.length&&d.faces.every(f=>f.solidId))continue;const pl=plane([world(d,{x:0,y:0}),world(d,{x:1,y:0}),world(d,{x:0,y:1})]),owner=pl?'d:'+key:null,byId=new Map(d.sketch.nodes.map(n=>[n.id,n])),seen=new Set();
    const curved=(d.sketch.edges||[]).some(e=>e.curveId),still=n=>!!(d.chimney||n.curveSample||n.curveCenter||n.curveControl)||(d.sketch.edges||[]).some(e=>e.curveId&&(e.a===n.id||e.b===n.id));
    // A drawing made from a generated wall stands where that wall stands (no frame of its own): its plane is one
    // others join, never one that moves.

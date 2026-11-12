@@ -4464,3 +4464,10 @@ test('N starts from a corner picked through several owners at once: a rectangle 
  assert.equal(f.editor.selectedPoints().length,1,'one position, however many owners hold it');
  assert.equal(f.editor.key({key:'n'}),true);assert.equal(f.editor.busy(),true,f.message());assert.match(f.message(),/this face/);
 });
+
+test('the point weld ignores a drawing whose every face has become a surface: its leftover points are not model points',()=>{
+ const f=fixture();f.editor.doubleClick(f.e(1,1),f.w);
+ assert.ok(f.editor.weldItems().items.some(i=>String(i.owner).startsWith('d:')),'a live drawing takes part');
+ for(const face of f.d().faces)face.solidId='surface-made-from-it';
+ assert.ok(!f.editor.weldItems().items.some(i=>String(i.owner).startsWith('d:')),'a consumed one does not');
+});
