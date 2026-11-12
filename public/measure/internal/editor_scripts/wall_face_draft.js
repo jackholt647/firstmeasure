@@ -638,7 +638,10 @@ window.createWallFaceDraft=function(host){
     settle(d,old);laid++;}
    // Every face of a wall is welded against the wall's one plane, not its own reading of it.
    const {items,owners}=laid?weldItems():first;for(const [id,pl]of W.weldPlanes(items,owners).planes)owners.get(id).plane=pl;
-   const {moves}=W.weldPlan(items,distance,null,owners);if(!moves.length&&!laid&&!folded)return 0;
+   const {moves}=W.weldPlan(items,distance,null,owners);
+   // Once the points have settled, a point left beside a line of its own drawing is put on the line (seatPlan).
+   if(!moves.length){const lines=[];for(const [key,d]of Object.entries(all())){if(!weldDraft(d)||d.chimney||d.faces?.length&&d.faces.every(f=>f.solidId))continue;const at=new Map(d.sketch.nodes.map(n=>[n.id,n]));for(const e of d.sketch.edges||[]){if(e.curveId)continue;const p=at.get(e.a),q=at.get(e.b);if(p&&q)lines.push({a:world(d,p),b:world(d,q),owner:'d:'+key});}}moves.push(...W.seatPlan(items,owners,lines,distance));}
+   if(!moves.length&&!laid&&!folded)return 0;
    // A move belongs to one face, drawing or the loose points (owner null): another corner at the same spot may stay.
    const far=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),moveAt=(p,owner)=>moves.find(m=>m.owner===owner&&far(m.from,p)<=K.CONTACT),moved=(p,owner)=>{const m=moveAt(p,owner);return m?{...p,x:m.to.x,y:m.to.y,z:m.to.z}:p;},ring=(ps,owner)=>ps.map(p=>moved(p,owner)).filter((p,i,all)=>all.length<2||far(p,all[(i+1)%all.length])>1e-9),anyAt=p=>moves.find(m=>far(m.from,p)<=K.CONTACT);
    for(const f of edits.$surfaces||[]){if(f.drafted||f.replacedBy||f.curvedSurface||f.curves?.length||f.feature||f.trim||f.chimney)continue;const owner='s:'+f.id;if(f.deleted){f.points=f.points.map(p=>moved(p,owner));if(f.holes)f.holes=f.holes.map(h=>h.map(p=>moved(p,owner)));if(f.retainedPoints)f.retainedPoints=f.retainedPoints.map(p=>moved(p,owner));continue;}f.points=ring(f.points,owner);if(f.holes)f.holes=f.holes.map(h=>ring(h,owner));if(f.retainedPoints)f.retainedPoints=f.retainedPoints.map(p=>moved(p,owner));}
@@ -1823,7 +1826,11 @@ function perf_previewLineMove(e){
   // nothing while it took them one at a time. Take the copies that hold no face with the selected line. A copy
   // that does hold a face stays, and shows as the orange line it is.
   {const index=W.loadBearingIndex([...colourFaces(),...baseColourFaces()]),graph=wire(),at=new Map(graph.nodes.map(n=>[n.id,n])),pool=[...graph.edges.filter(e=>!e.curve).map(e=>[at.get(e.a),at.get(e.b)]),...Object.values(all()).filter(visibleDraft).flatMap(d=>draftSegments(d).filter(e=>!e.curveId).map(e=>[world(d,e.start),world(d,e.end)]))].filter(pair=>pair[0]&&pair[1]);
-   const have=new Set(selectedSegments.map(pair=>W.edgeKey(...pair)));for(const pair of pool){const key=W.edgeKey(...pair);if(have.has(key)||index.edge(...pair)||!selectedSegments.some(s=>index.twin(...s,...pair)))continue;have.add(key);selectedSegments=[...selectedSegments,pair];}}
+   const have=new Set(selectedSegments.map(pair=>W.edgeKey(...pair)));for(const pair of pool){const key=W.edgeKey(...pair);if(have.has(key)||index.edge(...pair)||!selectedSegments.some(s=>index.twin(...s,...pair)))continue;have.add(key);selectedSegments=[...selectedSegments,pair];}
+   // A line that stands a little off the face edge it is the line of (see loadBearingIndex) takes that edge with it:
+   // deleting the line alone would leave the face with a side that has no line.
+   const drawn=new Set(Object.values(all()).filter(visibleDraft).flatMap(d=>draftSegments(d).filter(e=>!e.curveId).map(e=>W.edgeKey(world(d,e.start),world(d,e.end)))));
+   for(const pair of selectedSegments.slice())if(drawn.has(W.edgeKey(...pair)))for(const edge of index.pairs(...pair)){const key=W.edgeKey(...edge);if(!have.has(key)){have.add(key);selectedSegments=[...selectedSegments,edge];}}}
   const previousWalls=renderWalls;renderWalls ||= host.walls();
   try{for(const w of renderWalls)ensure(w);}finally{renderWalls=previousWalls;}
   const segments=selectedSegments,faces=[],refs=new Map();
@@ -3579,7 +3586,7 @@ function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPla
  // Draft classifications follow the generation's segments and sketch nodes,
  // per draft: world positions depend on the owning draft's frame.
  function draftMemoized(name,d,ref,build,inputs=null){const memo=drawMemo(name,inputs);if(!memo)return build();let values=memo.get(d);if(!values){values=new Map();memo.set(d,values);}if(values.has(ref))return values.get(ref);const value=build();values.set(ref,value);return value;}
- function drawnDraftEdgeStructural(d,edge){return draftMemoized('draft-edge-colour',d,edge,()=>colours().edge(world(d,edge.start||d.sketch.nodes.find(n=>n.id===edge.a)),world(d,edge.end||d.sketch.nodes.find(n=>n.id===edge.b))));}
+ function drawnDraftEdgeStructural(d,edge){return draftMemoized('draft-edge-colour',d,edge,()=>colours().edge(world(d,edge.start||d.sketch.nodes.find(n=>n.id===edge.a)),world(d,edge.end||d.sketch.nodes.find(n=>n.id===edge.b)),true));}
  function drawnDraftPointStructural(d,n){return draftMemoized('draft-point-colour',d,n,()=>colours().marker(world(d,n)));}
  function drawnDraftPointKey(d,n){return draftMemoized('draft-point-key',d,n,()=>W.vertexKey(world(d,n)));}
  // The nodes shown depend on the generation and on which of them are picked
