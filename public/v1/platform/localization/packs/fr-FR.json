@@ -7876,6 +7876,8 @@
     "fm_coupon_credit_added": "Crédit du coupon ajouté",
     "fm_cancellation_refund": "Remboursement pour annulation",
     "fm_expedite_refund": "Remboursement des frais d’accélération",
+    "fm_expedite_fee": "Frais d’accélération",
+    "fm_expedite_fee_refund": "Remboursement des frais d’accélération",
     "fm_missed_promised_delivery_window": "Délai de livraison promis non respecté",
     "fm_additional_structure_refund": "Remboursement pour structure supplémentaire",
     "fm_additional_structure_request": "Demande de structure supplémentaire",

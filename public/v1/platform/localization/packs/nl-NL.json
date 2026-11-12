@@ -8085,6 +8085,8 @@
     "fm_coupon_credit_added": "Coupontegoed toegevoegd",
     "fm_cancellation_refund": "Restitutie wegens annulering",
     "fm_expedite_refund": "Restitutie voor spoedverwerking",
+    "fm_expedite_fee": "Spoedtoeslag",
+    "fm_expedite_fee_refund": "Restitutie van spoedtoeslag",
     "fm_missed_promised_delivery_window": "Toegezegde levertijd niet gehaald",
     "fm_additional_structure_refund": "Restitutie voor extra structuur",
     "fm_additional_structure_request": "Verzoek om extra structuur",

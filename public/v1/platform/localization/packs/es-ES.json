@@ -8073,6 +8073,8 @@
     "fm_coupon_credit_added": "Crédito del cupón añadido",
     "fm_cancellation_refund": "Reembolso por cancelación",
     "fm_expedite_refund": "Reembolso por entrega urgente",
+    "fm_expedite_fee": "Cargo por entrega urgente",
+    "fm_expedite_fee_refund": "Reembolso del cargo por entrega urgente",
     "fm_missed_promised_delivery_window": "Incumplimiento del plazo de entrega prometido",
     "fm_additional_structure_refund": "Reembolso por estructura adicional",
     "fm_additional_structure_request": "Solicitud de estructura adicional",
