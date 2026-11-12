@@ -127,7 +127,8 @@ function conformBase(source,cap,sides,base){
 // survey and edit rounding, so a return swept along the face normal leaves the
 // adjoining wall's plane by microns per metre, stops counting as part of it
 // and is built as a separate wall beside it. Slide each swept corner within
-// the cap plane onto that wall.
+// the cap plane onto that wall. A wall within a degree or two of square (RAIL_ANGLE)
+// counts: closer than that it is the wall the return belongs to, not a second one.
 function alignReturns(face,cap,sides,scene){
  const n=W.normal(face.points);if(!n||face.curvedSurface)return;
  const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}),dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z,near=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)<=K.CONTACT;
@@ -135,7 +136,7 @@ function alignReturns(face,cap,sides,scene){
  const walls=scene.filter(f=>!f.deleted&&!f.feature&&!f.curvedSurface).map(f=>({f,m:W.normal(f.points)})).filter(w=>w.m),moves=[];
  for(let i=0;i<face.points.length;i++){const p=face.points[i],q=cap.points[i],length=Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z);if(length<=K.CONTACT)continue;
   for(const {f,m}of walls){const off=dot(sub(q,f.points[0]),m),u=sub(m,{x:n.x*dot(m,n),y:n.y*dot(m,n),z:n.z*dot(m,n)}),size=dot(u,u);
-   if(Math.abs(off)<=1e-9||Math.abs(off)>length*.002||size<.25||Math.abs(dot(sub(p,f.points[0]),m))>K.CONTACT||!onRing(p,f))continue;
+   if(Math.abs(off)<=1e-9||Math.abs(off)>length*Math.tan(W.RAIL_ANGLE)||size<.25||Math.abs(dot(sub(p,f.points[0]),m))>K.CONTACT||!onRing(p,f))continue;
    moves.push({from:{...q},to:{x:q.x-u.x*off/size,y:q.y-u.y*off/size,z:q.z-u.z*off/size}});break;
   }
  }
