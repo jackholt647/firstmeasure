@@ -1429,7 +1429,14 @@ function weldPlan(items,distance,explain=null,owners=null){
  return {moves,skipped};
 }
 function structuralEdge(a,b,faces){return sharedIntervals(a,b,faces.filter(f=>!f.deleted&&!f.drafted).flatMap(f=>K.normalizeFaces(f))).length>0;}
+// Free-standing points and lines that an earlier delete only hid (see deleteSurfaceElements) are removed. True when
+// anything was.
+function pruneHiddenLoose(edits){const loose=edits?.$loose,hidden=new Set(edits?.$removedSurfacePoints||[]);if(!loose||!hidden.size)return false;const gone=p=>hidden.has(vertexKey(p)),points=(loose.points||[]).filter(p=>!gone(p)),lines=(loose.edges||[]).filter(([a,b])=>!gone(a)&&!gone(b));if(points.length===(loose.points||[]).length&&lines.length===(loose.edges||[]).length)return false;loose.points=points;loose.edges=lines;return true;}
 function deleteSurfaceElements(edits,pointIds=[],edgeIds=[]){const points=new Set(pointIds),edges=new Set(edgeIds);edits.$removedSurfacePoints=[...new Set([...(edits.$removedSurfacePoints||[]),...points])];edits.$removedSurfaceEdges=[...new Set([...(edits.$removedSurfaceEdges||[]),...edges])];
+ // A free-standing point or line (a plane-mode outline, a connecting line) has no face to fall back to: it is
+ // removed outright. Left in place and merely hidden by the records above, it came back as soon as a move changed
+ // its coordinates, long after the shape it outlined was gone.
+ if(edits.$loose){const gone=p=>points.has(vertexKey(p));edits.$loose.edges=(edits.$loose.edges||[]).filter(([a,b])=>!gone(a)&&!gone(b)&&!edges.has(edgeKey(a,b)));edits.$loose.points=(edits.$loose.points||[]).filter(p=>!gone(p));}
  for(const f of edits.$surfaces||[]){if(f.drafted)continue;if(!f.deleted)Object.assign(f,K.normalizeFace(f));const selected=rings(f).flat().filter(p=>points.has(vertexKey(p))),defines=selected.length>0&&K.pointRemovalChangesRegion(f,selected.map(K.pointKey));if(defines||rings(f).some(r=>r.some((p,i)=>edges.has(edgeKey(p,r[(i+1)%r.length])))))f.deleted=true;else if(selected.length){f.points=f.points.filter(p=>!points.has(vertexKey(p)));f.holes=(f.holes||[]).map(r=>r.filter(p=>!points.has(vertexKey(p))));}}
 }
 // Removing a coplanar divider unions its incident regions. An exterior edge,
@@ -1626,6 +1633,22 @@ function motionSnapCandidates(points,edges,direction,faces,options={}){
   for(const {f,frame}of planes){const den=dot(frame.n,direction);if(!frame||Math.abs(den)<1e-8)continue;const t=dot(sub(frame.origin,p),frame.n)/den,q=at(p,t),local=inFrame(frame,q),outer=f.points.map(p=>inFrame(frame,p));if(pointInRing(local,outer)&&!(f.holes||[]).some(r=>pointInRing(local,r.map(p=>inFrame(frame,p)))))offer(t,p,q,'Face');}
  }
  for(const [a,b]of edges){const u=sub(b,a),c=dot(u,u),bn=dot(direction,u),den=c-bn*bn;if(den<1e-12)continue;for(const q of targetPoints){const v=sub(q,a),t=(dot(direction,v)*c-dot(u,v)*bn)/den,s=(dot(u,v)-bn*dot(direction,v))/den,p=mix3(a,b,s);if(s>=0&&s<=1&&Math.hypot(...Object.values(sub(q,at(p,t))))<tol)offer(t,p,q,'Point');}}
+ // A corner of the moving line or face that sits on another edge rides along that edge as it moves (the result is
+ // trimmed or extended to it). The points of that edge are targets: the amount at which the moved line or plane
+ // passes through one puts the corner on it, although the corner does not travel straight along the direction.
+ for(const p of points){
+  const own=edges.filter(([a,b])=>Math.hypot(...Object.values(sub(a,p)))<tol||Math.hypot(...Object.values(sub(b,p)))<tol).map(([a,b])=>sub(b,a));if(!own.length)continue;
+  let normal=null;for(let i=1;i<own.length&&!normal;i++){const m=cross(own[0],own[i]);if(Math.hypot(m.x,m.y,m.z)>1e-9)normal=m;}
+  for(const [c,d]of targetEdges){
+   if(!pointOnEdge(p,c,d))continue;const r=sub(d,c),along=cross(r,own[0]);if(!normal&&Math.hypot(along.x,along.y,along.z)<1e-9*Math.hypot(r.x,r.y,r.z)*Math.hypot(own[0].x,own[0].y,own[0].z)+1e-12)continue;
+   for(const q of [c,d,...targetPoints.filter(q=>pointOnEdge(q,c,d))]){
+    const v=sub(q,p);if(Math.hypot(v.x,v.y,v.z)<tol)continue;let t;
+    if(normal){const den=dot(direction,normal);if(Math.abs(den)<1e-9)continue;t=dot(v,normal)/den;}
+    else{const u=own[0],cc=dot(u,u),bn=dot(direction,u),den=cc-bn*bn;if(den<1e-12)continue;t=(dot(direction,v)*cc-dot(u,v)*bn)/den;const s2=(dot(u,v)-bn*t)/cc,miss=sub(v,{x:u.x*s2+direction.x*t,y:u.y*s2+direction.y*t,z:u.z*s2+direction.z*t});if(Math.hypot(miss.x,miss.y,miss.z)>=tol)continue;}
+    if(!candidates.some(k=>k.kind==='Point'&&Math.abs(k.amount-t)<1e-9&&Math.hypot(...Object.values(sub(k.target,q)))<tol))offer(t,p,q,'Point',[c,d]);
+   }
+  }
+ }
  // Elevation is a model-wide constraint: horizontal separation is irrelevant.
  if(Math.abs(direction.z)>1e-8){const heights=[...new Map([...targetPoints,...(options.heightPoints||[])].filter(p=>Number.isFinite(p.z)).map(p=>[p.z.toFixed(6),p])).values()];for(const p of points)for(const q of heights){const t=(q.z-p.z)/direction.z,hit=at(p,t);offer(t,p,hit,'Height',[hit,q]);}}
  return candidates;
@@ -1692,5 +1715,5 @@ function flattenedCurveSamples(before,after){
   const keys=new Set([...ordinary].filter(key=>!carried.has(key)));for(const p of state.points){const key=vertexKey(p);if(samples.has(key))keys.add(key);}return keys;};
  const already=flat(before);return [...flat(after)].filter(key=>!already.has(key));
 }
-const api={weldPlan,weldPlanes,loadBearingFaces,loadBearingIndex,flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={weldPlan,weldPlanes,loadBearingFaces,loadBearingIndex,flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,pruneHiddenLoose,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);
