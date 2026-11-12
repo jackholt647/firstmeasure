@@ -82,3 +82,30 @@ test('a point on a straight edge is not a corner because it is a micron off the 
  // A real jog, half a millimetre, is a corner.
  const jog=p(0,.0005,2.2);assert.equal(W.loadBearingIndex([{...wall,points:[...wall.points.slice(0,4),jog]}]).point(jog),true);
 });
+
+test('a drawn line a little off the face edge it stands for is still read as that edge',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ const wall={id:'wall',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(0,0,3)],holes:[]},index=W.loadBearingIndex([wall]);
+ // The corner line, with its top end 5 mm along the wall: it holds the wall's side, so it is load-bearing (orange).
+ const slanted=[p(0,0,0),p(.005,0,3)];assert.equal(index.edge(...slanted,true),true);
+ // Only a drawing's own line is read that way: a free-standing copy beside the edge holds nothing.
+ assert.equal(index.edge(...slanted),false);
+ // Deleting it must take the side it stands for; a line exactly on the side has nothing extra to take.
+ assert.deepEqual(index.pairs(...slanted),[[p(0,0,3),p(0,0,0)]]);assert.deepEqual(index.pairs(p(0,0,0),p(0,0,3)),[]);
+ // Not the edge: 2 cm away; crossing it at an angle; a line across the middle of the wall.
+ assert.equal(index.edge(p(.02,0,0),p(.02,0,3),true),false);assert.equal(index.edge(p(-.003,0,1),p(1,0,1.2),true),false);assert.equal(index.edge(p(1,0,0),p(1,0,3),true),false);
+});
+
+test('a point left beside a line of its own drawing is put on the line, by the weld\'s rules',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),plane=(n,k)=>({n,k}),inch=.0254;
+ const wall=plane(p(0,1,0),0),owners=new Map([['d:wall',{plane:wall}],['d:side',{plane:plane(p(1,0,0),0)}]]),line={a:p(0,0,0),b:p(0,0,3),owner:'d:wall'};
+ // A cut's start point 2 mm beside the edge it was placed on.
+ const beside=p(.002,0,1.5),items=[{point:line.a,owner:'d:wall'},{point:line.b,owner:'d:wall'},{point:beside,owner:'d:wall',grid:true}];
+ const moves=W.seatPlan(items,owners,[line],.25*inch);assert.equal(moves.length,1);assert.deepEqual(moves[0],{from:beside,to:p(0,0,1.5),owner:'d:wall'});
+ // Further than the weld distance it is a point of its own; with the weld off nothing moves.
+ assert.deepEqual(W.seatPlan([{point:p(.02,0,1.5),owner:'d:wall'}],owners,[line],.25*inch),[]);assert.deepEqual(W.seatPlan(items,owners,[line],0),[]);
+ // Another wall holds the same point and would have to leave its plane: nothing moves, the point is not split.
+ const shared=[...items,{point:{...beside},owner:'d:side'}];owners.get('d:side').plane=plane(p(1,0,0),.002);assert.deepEqual(W.seatPlan(shared,owners,[line],.25*inch),[]);
+ // A held point stays, and a point by the line's end is left to the weld.
+ assert.deepEqual(W.seatPlan([{point:beside,owner:'d:wall',fixed:true}],owners,[line],.25*inch),[]);assert.deepEqual(W.seatPlan([{point:p(.002,0,.003),owner:'d:wall'}],owners,[line],.25*inch),[]);
+});

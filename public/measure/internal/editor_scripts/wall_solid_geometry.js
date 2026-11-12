@@ -1346,6 +1346,8 @@ const LOAD_CONTACT=1e-4;
 // picked together. A marker is drawn for what the hand can reach: within this
 // distance of a load-bearing corner it is orange, so blue stays safe to delete.
 const MARKER_REACH=.01;
+// How far a drawn line may stand from the face edge it is the line of: a quarter inch, the default weld distance.
+const LINE_MATCH=.00635;
 function loadBearingIndex(faces){
  const cells=new Map(),cell=v=>Math.floor(v/LOAD_CONTACT),segments=[],edgeCache=new Map(),pointCache=new Map(),near=new Map(),reach=v=>Math.floor(v/MARKER_REACH),markerCache=new Map();
  for(const f of loadBearingFaces(faces))for(const r of rings(f))for(let i=0;i<r.length;i++){
@@ -1357,6 +1359,22 @@ function loadBearingIndex(faces){
   if(dot(a,b)>=0||span<=1e-12||Math.hypot(c.x,c.y,c.z)/span>LOAD_CONTACT){const key=cell(p.x)+','+cell(p.y)+','+cell(p.z);if(!cells.has(key))cells.set(key,[]);cells.get(key).push(p);const wide=reach(p.x)+','+reach(p.y)+','+reach(p.z);if(!near.has(wide))near.set(wide,[]);near.get(wide).push(p);}
   segments.push({c:p,d:q,minX:Math.min(p.x,q.x),maxX:Math.max(p.x,q.x),minY:Math.min(p.y,q.y),maxY:Math.max(p.y,q.y),minZ:Math.min(p.z,q.z),maxZ:Math.max(p.z,q.z)});
  }
+ // A drawing stores its lines and its faces separately, and an edit can leave a line a little off the face edge it
+ // stands for. The line is still that edge: it is matched when the edge lies within LINE_MATCH of it and runs
+ // within RAIL_ANGLE of its direction, not only when it lies on it to a tenth of a millimetre. Without that, the
+ // corner of a house showed as a line that holds nothing. Nothing is moved by this: it is how a line is read.
+ const paired=(a,b)=>{
+  const ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z,l2=ux*ux+uy*uy+uz*uz,out=[];if(l2<=1e-12)return out;const length=Math.sqrt(l2),turn=Math.cos(RAIL_ANGLE);
+  const minX=Math.min(a.x,b.x)-LINE_MATCH,maxX=Math.max(a.x,b.x)+LINE_MATCH,minY=Math.min(a.y,b.y)-LINE_MATCH,maxY=Math.max(a.y,b.y)+LINE_MATCH,minZ=Math.min(a.z,b.z)-LINE_MATCH,maxZ=Math.max(a.z,b.z)+LINE_MATCH;
+  for(const segment of segments){
+   if(segment.maxX<minX||segment.minX>maxX||segment.maxY<minY||segment.minY>maxY||segment.maxZ<minZ||segment.minZ>maxZ)continue;
+   const {c,d}=segment,tc=((c.x-a.x)*ux+(c.y-a.y)*uy+(c.z-a.z)*uz)/l2,td=((d.x-a.x)*ux+(d.y-a.y)*uy+(d.z-a.z)*uz)/l2;
+   const oc=Math.hypot(c.x-a.x-ux*tc,c.y-a.y-uy*tc,c.z-a.z-uz*tc),od=Math.hypot(d.x-a.x-ux*td,d.y-a.y-uy*td,d.z-a.z-uz*td),overlap=(Math.min(1,Math.max(tc,td))-Math.max(0,Math.min(tc,td)))*length;
+   if(oc<=LOAD_CONTACT&&od<=LOAD_CONTACT){if(overlap>LOAD_CONTACT)out.push({c,d,exact:true});continue;}
+   if(oc>LINE_MATCH||od>LINE_MATCH||overlap<=LINE_MATCH)continue;
+   const run=Math.hypot(d.x-c.x,d.y-c.y,d.z-c.z);if(run>1e-9&&Math.abs((d.x-c.x)*ux+(d.y-c.y)*uy+(d.z-c.z)*uz)/(run*length)>=turn)out.push({c,d,exact:false});
+  }
+  return out;};
  // Two lines whose ends lie within reach of each other are one line to the eye and to a click.
  const twin=(a,b,c,d)=>{const near=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=MARKER_REACH;return near(a,c)&&near(b,d)||near(a,d)&&near(b,c);};
  return {twin,marker:p=>{
@@ -1367,18 +1385,16 @@ function loadBearingIndex(faces){
   const key=vertexKey(p);if(pointCache.has(key))return pointCache.get(key);let yes=false;const x=cell(p.x),y=cell(p.y),z=cell(p.z);
   for(let i=-1;i<=1&&!yes;i++)for(let j=-1;j<=1&&!yes;j++)for(let k=-1;k<=1&&!yes;k++)yes=(cells.get((x+i)+','+(y+j)+','+(z+k))||[]).some(q=>Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<=LOAD_CONTACT);
   pointCache.set(key,yes);return yes;
- },edge:(a,b)=>{
-  const key=edgeKey(a,b);if(edgeCache.has(key))return edgeCache.get(key);
-  const ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z,l2=ux*ux+uy*uy+uz*uz;let yes=false;
-  const minX=Math.min(a.x,b.x)-LOAD_CONTACT,maxX=Math.max(a.x,b.x)+LOAD_CONTACT,minY=Math.min(a.y,b.y)-LOAD_CONTACT,maxY=Math.max(a.y,b.y)+LOAD_CONTACT,minZ=Math.min(a.z,b.z)-LOAD_CONTACT,maxZ=Math.max(a.z,b.z)+LOAD_CONTACT;
-  if(l2>1e-12)for(const segment of segments){
-   if(segment.maxX<minX||segment.minX>maxX||segment.maxY<minY||segment.minY>maxY||segment.maxZ<minZ||segment.minZ>maxZ)continue;
-   const {c,d}=segment,tc=((c.x-a.x)*ux+(c.y-a.y)*uy+(c.z-a.z)*uz)/l2,td=((d.x-a.x)*ux+(d.y-a.y)*uy+(d.z-a.z)*uz)/l2;
-   if(Math.hypot(c.x-a.x-ux*tc,c.y-a.y-uy*tc,c.z-a.z-uz*tc)>LOAD_CONTACT||Math.hypot(d.x-a.x-ux*td,d.y-a.y-uy*td,d.z-a.z-uz*td)>LOAD_CONTACT)continue;
-   if((Math.min(1,Math.max(tc,td))-Math.max(0,Math.min(tc,td)))*Math.sqrt(l2)>LOAD_CONTACT){yes=true;break;}
-  }
+ },
+ // near: the line is one of a drawing's own lines, which may stand a little off the face edge it is the line of.
+ // Any other line (a face's own outline, a free-standing line) is an edge only where it lies on one: a loose copy
+ // of a line two millimetres beside a wall's edge holds nothing.
+ edge:(a,b,near=false)=>{
+  const key=(near?'~':'')+edgeKey(a,b);if(edgeCache.has(key))return edgeCache.get(key);const yes=paired(a,b).some(x=>near||x.exact);
   edgeCache.set(key,yes);return yes;
- }};
+ },
+ // The outline stretches a line stands for without lying exactly on them: what deleting the line must also take.
+ pairs:(a,b)=>paired(a,b).filter(x=>!x.exact).map(x=>[x.c,x.d])};
 }
 // Weld: points within the weld distance of each other become one point.
 //
@@ -1490,6 +1506,26 @@ function weldPlan(items,distance,explain=null,owners=null){
   skipped++;explain?.push({reason:'step',members});const rest=members.slice();while(rest.length){const at=rest[0].point,same=rest.filter(m=>apart(m.point,at)<=1e-9);for(const m of same)rest.splice(rest.indexOf(m),1);whole(same,PLANE_WELD);}
  }
  return {moves,skipped};
+}
+// A point beside a line of its own drawing, within the weld distance, is put on the line.
+//
+// A cut starts from a point on an edge without splitting the edge, and the point is only on the line because its
+// coordinates say so. When a line's end moves, the point is left a millimetre or two beside it and the faces that
+// use the point no longer run along the line. lines: [{a,b,owner}], the straight lines of each drawing. A point
+// near a line's end is the weld's business, not this. The rules are the weld's: every use of the point moves or
+// none does, nothing leaves a plane it lies on, and a fixed point stays. Returns moves like weldPlan's.
+function seatPlan(items,owners,lines,distance){
+ const moves=[];if(!(distance>0))return moves;const apart=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+ for(const {a,b,owner}of lines){const u=sub(b,a),l2=dot(u,u),length=Math.sqrt(l2);if(length<=distance*2)continue;
+  for(const item of items){if(item.owner!==owner||item.fixed)continue;const p=item.point,t=dot(sub(p,a),u)/l2;if(t*length<=distance||(1-t)*length<=distance)continue;
+   const q=mix3(a,b,t),off=apart(p,q);if(off<=WELD_SAME||off>distance||moves.some(m=>apart(m.from,p)<=WELD_SAME))continue;
+   const members=items.filter(o=>apart(o.point,p)<=WELD_SAME);if(members.some(m=>m.fixed))continue;
+   const leaves=m=>!m.soft&&[...(m.planes||[]),...(owners.get(m.owner)?.plane?[owners.get(m.owner).plane]:[])].some(pl=>Math.abs(dot(pl.n,q)-pl.k)>WELD_ON);
+   if(members.some(leaves))continue;
+   for(const m of members)if(!moves.some(o=>o.owner===(m.owner??null)&&apart(o.from,m.point)<=1e-9))moves.push({from:{x:m.point.x,y:m.point.y,z:m.point.z},to:{x:q.x,y:q.y,z:q.z},owner:m.owner??null});
+  }
+ }
+ return moves;
 }
 function structuralEdge(a,b,faces){return sharedIntervals(a,b,faces.filter(f=>!f.deleted&&!f.drafted).flatMap(f=>K.normalizeFaces(f))).length>0;}
 // Free-standing points and lines that an earlier delete only hid (see deleteSurfaceElements) are removed. True when
@@ -1803,5 +1839,5 @@ function flattenedCurveSamples(before,after){
   const keys=new Set([...ordinary].filter(key=>!carried.has(key)));for(const p of state.points){const key=vertexKey(p);if(samples.has(key))keys.add(key);}return keys;};
  const already=flat(before);return [...flat(after)].filter(key=>!already.has(key));
 }
-const api={weldPlan,weldPlanes,loadBearingFaces,loadBearingIndex,flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,pruneHiddenLoose,railDirection,RAIL_ANGLE,localizeWireMasks,followWireExclusions,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={weldPlan,weldPlanes,seatPlan,LINE_MATCH,loadBearingFaces,loadBearingIndex,flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,pruneHiddenLoose,railDirection,RAIL_ANGLE,localizeWireMasks,followWireExclusions,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);
