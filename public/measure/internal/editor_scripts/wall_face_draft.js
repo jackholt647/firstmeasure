@@ -1709,11 +1709,13 @@ function perf_previewEntity(e){
  }
  function setLinePlane(){const t=tool,frame=t.candidates[t.planeIndex].frame,[a,b]=t.pairs[0],u={x:b.x-a.x,y:b.y-a.y,z:b.z-a.z},length=Math.hypot(u.x,u.y,u.z),n=frame.n;
   t.direction={x:(n.y*u.z-n.z*u.y)/length,y:(n.z*u.x-n.x*u.z)/length,z:(n.x*u.y-n.y*u.x)/length};if(t.direction.z<-.99999)t.direction={x:-t.direction.x,y:-t.direction.y,z:-t.direction.z};t.plane={frame};t.start=rayPoint(t.plane,mouse);t.baseAmount=0;t.amount=0;t.numeric=null;
-  if(t.normalMode)t.direction=copy(n);
+  // Pushed square off the face, unless an end sits on an edge that runs within a degree or two of square: then the
+  // push follows that edge, so the new face shares it instead of running a hair beside it.
+  t.rail=null;if(t.normalMode){t.direction=copy(n);const rail=W.railDirection(t.pairs.flat(),t.direction,[...t.snapGeometry.lines.values()],t.pairs);if(rail){t.direction=rail;t.rail=rail;}}
   const start=host.screen(a,'3d'),end=host.screen({x:a.x+t.direction.x,y:a.y+t.direction.y,z:a.z+t.direction.z},'3d');t.screenAxis={x:end.x-start.x,y:end.y-start.y};t.startEvent=mouse;t.inputToken={};
   const feature=t.scene.find(f=>f.feature&&t.pairs.length===1&&W.sharedIntervals(a,b,[f]).reduce((s,[lo,hi])=>s+hi-lo,0)>.99999);
   t.dimension=null;if(feature&&!t.normalMode){const values=feature.points.map(p=>(p.x-a.x)*t.direction.x+(p.y-a.y)*t.direction.y+(p.z-a.z)*t.direction.z),lo=Math.min(...values),hi=Math.max(...values);if(Math.abs(lo)<1e-5||Math.abs(hi)<1e-5){const opposite=Math.abs(lo)>Math.abs(hi)?lo:hi,axis=F.dimensions(feature.points,feature.feature).frame.u;t.dimension={opposite,sign:opposite>0?-1:1,label:Math.abs(t.direction.x*axis.x+t.direction.y*axis.y+t.direction.z*axis.z)>.5?'Width':'Height'};}}
-  host.message((t.extrude?'Extrude lines':'Move line')+' - '+(t.normalMode?'Perpendicular to wall':'Along wall')+' - Face '+(t.planeIndex+1)+' / '+t.candidates.length+' - M changes face'+(t.extrude?'; E toggles along/perpendicular':'')+'. Click to place; Escape cancels.');host.redraw();
+  host.message((t.extrude?'Extrude lines':'Move line')+' - '+(t.normalMode?(t.rail?'Along the adjoining edge':'Perpendicular to wall'):'Along wall')+' - Face '+(t.planeIndex+1)+' / '+t.candidates.length+' - M changes face'+(t.extrude?'; E toggles along/perpendicular':'')+'. Click to place; Escape cancels.');host.redraw();
  }
  function toggleLineExtrusion(){const t=tool;flushPreview();t.normalMode=!t.normalMode;host.state().wallEdits=copy(t.before);t.changed=false;t.invalid=false;t.result=null;t.pathSnap=null;t.navigation=false;lineSelection=t.originalPairs.map(pair=>({id:W.edgeKey(...pair),pair}));setLinePlane();return true;}
  function cycleLinePlane(){const t=tool;
