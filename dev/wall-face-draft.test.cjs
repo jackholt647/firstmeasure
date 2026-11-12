@@ -306,8 +306,8 @@ test('edited wall stays visible and selectable when a base rebuild removes its r
 });
 test('selected orange opening retains its base hue and gets a white outline',()=>{
  const f=fixture({globals:renderGlobals()});f.editor.doubleClick(f.e(1,1),f.w);for(const [x,y]of [[3,1],[3,3],[1,3],[1,1]]){f.editor.key({key:'n'});f.editor.down(f.e(x,y));f.listeners.pointerup(f.e(x,y));}
- const objects=[],group={add:o=>objects.push(o)};f.editor.draw3D(group,p=>p);assert.ok(objects.some(o=>o.material.color==='#ff962f'));
- f.editor.down(f.e(2,2));f.listeners.pointerup(f.e(2,2));objects.length=0;f.editor.draw3D(group,p=>p);assert.ok(objects.some(o=>o.material.color==='#ff962f'&&o.userData.exteriorSelected));assert.ok(objects.some(o=>o.material.color==='#fff'));
+ const objects=[],group={add:o=>objects.push(o)};f.editor.draw3D(group,p=>p);assert.ok(objects.some(o=>o.material.color==='#f2c040'));
+ f.editor.down(f.e(2,2));f.listeners.pointerup(f.e(2,2));objects.length=0;f.editor.draw3D(group,p=>p);assert.ok(objects.some(o=>o.material.color==='#f2c040'&&o.userData.exteriorSelected));assert.ok(objects.some(o=>o.material.color==='#fff'));
 });
 test('horizontal recess floor disappears only below base, cuts an opening, and cancel/commit preserve undo',()=>{
  const floor={id:'floor',points:[{x:1,y:1,z:2},{x:3,y:1,z:2},{x:3,y:3,z:2},{x:1,y:3,z:2}]};
@@ -399,7 +399,7 @@ test('moving a contained face onto a larger generated face produces an orange de
  f.editor.key({key:'m'});f.listeners.pointermove(f.e(1.45,1.5));assert.equal(state.wallEdits.$surfaces.some(s=>s.id==='small'),false);assert.equal(state.wallEdits.$surfaces.find(s=>s.id==='large').drafted,true);const d=state.wallEdits.$drafts['solid:large'];assert.equal(d.faces.filter(f=>f.opening).length,1);assert.equal(d.sketch.nodes.length,8);assert.equal(d.sketch.edges.length,8);assert.match(f.message(),/Contained coplanar/);
  f.editor.key({key:'escape'});assert.equal(JSON.stringify(state.wallEdits),before);
  f.listeners.pointermove(f.e(.5,1.5));f.editor.key({key:'m'});f.listeners.pointermove(f.e(1.45,1.5));f.editor.down(f.e(1.45,1.5));f.listeners.pointerup(f.e(1.45,1.5));assert.equal(JSON.stringify(f.history.at(-1)),before);
- const loaded=fixture({state:JSON.parse(JSON.stringify(state)),globals:renderGlobals()}),objects=[];loaded.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(objects.some(o=>o.material.color==='#ff962f'));
+ const loaded=fixture({state:JSON.parse(JSON.stringify(state)),globals:renderGlobals()}),objects=[];loaded.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(objects.some(o=>o.material.color==='#f2c040'));
 });
 
  test('a generated wall contained by another transfers internal geometry and hides its former boundary',()=>{
