@@ -7673,6 +7673,8 @@
     "fm_coupon_credit_added": "Přidán kredit z kupónu",
     "fm_cancellation_refund": "Vrácení peněz za zrušení",
     "fm_expedite_refund": "Vrácení poplatku za expresní doručení",
+    "fm_expedite_fee": "Poplatek za expresní doručení",
+    "fm_expedite_fee_refund": "Vrácení poplatku za expresní doručení",
     "fm_missed_promised_delivery_window": "Nedodržené slíbené okno doručení",
     "fm_additional_structure_refund": "Vrácení peněz za další strukturu",
     "fm_additional_structure_request": "Požadavek na další strukturu",

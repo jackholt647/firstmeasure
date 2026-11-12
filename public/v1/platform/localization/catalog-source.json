@@ -11680,6 +11680,8 @@
     "fm_coupon_credit_added": "Coupon credit added",
     "fm_cancellation_refund": "Cancellation refund",
     "fm_expedite_refund": "Expedite refund",
+    "fm_expedite_fee": "Expedite fee",
+    "fm_expedite_fee_refund": "Expedite fee refund",
     "fm_missed_promised_delivery_window": "Missed promised delivery window",
     "fm_additional_structure_refund": "Additional structure refund",
     "fm_additional_structure_request": "Additional structure request",

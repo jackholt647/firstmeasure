@@ -8077,6 +8077,8 @@
     "fm_coupon_credit_added": "Gutscheinguthaben hinzugefügt",
     "fm_cancellation_refund": "Erstattung wegen Stornierung",
     "fm_expedite_refund": "Erstattung für Expressbearbeitung",
+    "fm_expedite_fee": "Gebühr für Expressbearbeitung",
+    "fm_expedite_fee_refund": "Erstattung der Gebühr für Expressbearbeitung",
     "fm_missed_promised_delivery_window": "Zugesagtes Lieferzeitfenster verpasst",
     "fm_additional_structure_refund": "Erstattung für zusätzliche Struktur",
     "fm_additional_structure_request": "Anfrage für zusätzliche Struktur",

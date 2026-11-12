@@ -8089,6 +8089,8 @@
     "fm_coupon_credit_added": "Προστέθηκε πίστωση κουπονιού",
     "fm_cancellation_refund": "Επιστροφή χρημάτων ακύρωσης",
     "fm_expedite_refund": "Επιστροφή χρημάτων ταχείας παράδοσης",
+    "fm_expedite_fee": "Χρέωση ταχείας παράδοσης",
+    "fm_expedite_fee_refund": "Επιστροφή χρέωσης ταχείας παράδοσης",
     "fm_missed_promised_delivery_window": "Δεν τηρήθηκε το υποσχεθέν χρονικό περιθώριο παράδοσης",
     "fm_additional_structure_refund": "Επιστροφή χρημάτων για πρόσθετη κατασκευή",
     "fm_additional_structure_request": "Αίτημα πρόσθετης κατασκευής",

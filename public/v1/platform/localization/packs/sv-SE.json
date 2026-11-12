@@ -7764,6 +7764,8 @@
     "fm_coupon_credit_added": "Kupongkredit tillagd",
     "fm_cancellation_refund": "Återbetalning vid avbeställning",
     "fm_expedite_refund": "Återbetalning för expresshantering",
+    "fm_expedite_fee": "Avgift för expresshantering",
+    "fm_expedite_fee_refund": "Återbetalning av avgift för expresshantering",
     "fm_missed_promised_delivery_window": "Utlovad leveranstid missad",
     "fm_additional_structure_refund": "Återbetalning för ytterligare byggnad",
     "fm_additional_structure_request": "Begäran om ytterligare byggnad",

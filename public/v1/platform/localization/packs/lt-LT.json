@@ -8077,6 +8077,8 @@
     "fm_coupon_credit_added": "Pridėtas kupono kreditas",
     "fm_cancellation_refund": "Grąžintos lėšos už atšaukimą",
     "fm_expedite_refund": "Grąžintos lėšos už skubų pristatymą",
+    "fm_expedite_fee": "Mokestis už skubų pristatymą",
+    "fm_expedite_fee_refund": "Grąžintas mokestis už skubų pristatymą",
     "fm_missed_promised_delivery_window": "Praleistas žadėtas pristatymo terminas",
     "fm_additional_structure_refund": "Grąžintos lėšos už papildomą konstrukciją",
     "fm_additional_structure_request": "Papildomos konstrukcijos užklausa",
