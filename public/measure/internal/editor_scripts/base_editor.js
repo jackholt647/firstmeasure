@@ -44,7 +44,9 @@ window.createBaseEditor=function(host){
   state().wallEdits=edits;state().base=next;
   window.WallChimneys?.syncFoundation(state(),{force:true});select(null);message='Base and attached walls regrounded'+(plan.lost.length?` · ${plan.lost.length} step pattern${plan.lost.length===1?'':'s'} removed`:'');changed(false);
  }
- function changed(rebind=true){const entry=pendingBinding;if(rebind)followBase();else pendingBinding=null;if(rebind&&entry)host.recordHistory?.({base:copy(entry.baseBefore),wallEdits:copy(entry.wallEditsBefore)});host.changed();render();}
+ // Every committed base edit is welded like a wall edit (the point weld, and base faces sharing their fold
+ // corners), in the same undo step.
+ function changed(rebind=true){const entry=pendingBinding;if(rebind)followBase();else pendingBinding=null;try{host.weld?.();}catch(e){}if(rebind&&entry)host.recordHistory?.({base:copy(entry.baseBefore),wallEdits:copy(entry.wallEditsBefore)});host.changed();render();}
 
  function select(f){selectedFace=f?.id??null;selectedFaces=f?[f.id]:[];planeCycle=null;points=[];tool=null;message='';}
 

@@ -144,3 +144,18 @@ test('base wire with an end off the base is removed; lines on the base stay',()=
  assert.equal(S.removeStrayWire(base),true);assert.equal(base.sketch.nodes.length,nodes-2);assert.equal(base.sketch.edges.length,edges-2);
  assert.ok(base.sketch.edges.some(e=>[e.a,e.b].includes(a)&&[e.a,e.b].includes(b)),'the line drawn on the base is kept');assert.equal(base.faces.length,1);assert.equal(S.removeStrayWire(base),false);
 });
+test('two base faces that meet along a fold share its corners again after one was pitched back a hair off',()=>{
+ const S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js'),p=(x,y,z=0)=>({x,y,z});
+ // A level face and a sloped one meeting along x=4. The sloped face's corner at (4,3) came back 31 microns high.
+ const slope=(x,y)=>.2*(x-4)+.00001033*y,base={faces:[{id:'level',points:[p(0,0),p(4,0),p(4,3),p(0,3)]},{id:'sloped',points:[p(4,0,slope(4,0)),p(8,0,slope(8,0)),p(8,3,slope(8,3)),p(4,3,slope(4,3))]}]};
+ S.ensure(base);const at=(x,y)=>base.sketch.nodes.filter(n=>Math.hypot(n.x-x,n.y-y)<1e-9);
+ assert.equal(at(4,3).length,2,'each face keeps its own corner at the far end of the fold');assert.equal(at(4,0).length,1);
+ // A line across the sloped face from that spot starts from the sloped face's own corner, not the level face's.
+ const probe=JSON.parse(JSON.stringify(base)),sloped=probe.faces[1].points[3];assert.equal(S.add(probe,p(4,3,sloped.z),.001),sloped.nodeId);
+ assert.equal(S.weldFolds(base),true);
+ assert.equal(at(4,3).length,1,'one corner, shared');assert.ok(base.faces.every(f=>f.points.every(q=>Math.abs(q.z-(f.id==='level'?0:.2*(q.x-4)))<1e-6)),'the sloped face turned onto the fold by a hair');
+ const fold=base.sketch.edges.find(e=>[e.a,e.b].every(id=>Math.abs(base.sketch.nodes.find(n=>n.id===id).x-4)<1e-9));assert.ok(fold&&!fold.fixed,'the fold is one shared line, not two outlines side by side');
+ assert.equal(S.weldFolds(base),false,'welded, there is nothing left to do');
+ // A real step between two faces is left alone.
+ const step={faces:[{id:'low',points:[p(0,0),p(4,0),p(4,3),p(0,3)]},{id:'high',points:[p(4,0,.15),p(8,0,.15),p(8,3,.15),p(4,3,.15)]}]};S.ensure(step);assert.equal(S.weldFolds(step),false);
+});

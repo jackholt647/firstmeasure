@@ -601,6 +601,9 @@ window.createWallFaceDraft=function(host){
   const K=window.ExteriorGeometry,rollback=copy(edits),baseBefore=state.base&&copy(state.base);
   try{
    // Faces a hair off a shared plane are laid onto it; the corners that leaves beside their neighbours weld below.
+   // The base first: two base faces that meet along a fold share its corners again (BaseSketchGeometry.weldFolds),
+   // and a line already drawn from such a corner divides the face it lies on. A weld never removes a base face.
+   let folded=0;{const b=edits.$base||state.base;if(b?.faces?.length){const next=copy(b);if(S.weldFolds(next)){const joined=copy(next);try{S.resolve(next);if(next.faces.length<joined.faces.length)throw Error('faces merged');}catch(e){Object.assign(next,joined);}edits.$base=next;folded=1;}}}
    const first=weldItems(),taken=W.weldPlanes(first.items,first.owners).lay,onto=(pl,p)=>{const h=pl.n.x*p.x+pl.n.y*p.y+pl.n.z*p.z-pl.k;return {...p,x:p.x-pl.n.x*h,y:p.y-pl.n.y*h,z:p.z-pl.n.z*h};};let laid=0;
    // A drawing left open by earlier deletes has no closed region to resolve: its regions keep their corners and
    // simply follow the moved points.
@@ -633,7 +636,7 @@ window.createWallFaceDraft=function(host){
     settle(d,old);laid++;}
    // Every face of a wall is welded against the wall's one plane, not its own reading of it.
    const {items,owners}=laid?weldItems():first;for(const [id,pl]of W.weldPlanes(items,owners).planes)owners.get(id).plane=pl;
-   const {moves}=W.weldPlan(items,distance,null,owners);if(!moves.length&&!laid)return 0;
+   const {moves}=W.weldPlan(items,distance,null,owners);if(!moves.length&&!laid&&!folded)return 0;
    // A move belongs to one face, drawing or the loose points (owner null): another corner at the same spot may stay.
    const far=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),moveAt=(p,owner)=>moves.find(m=>m.owner===owner&&far(m.from,p)<=K.CONTACT),moved=(p,owner)=>{const m=moveAt(p,owner);return m?{...p,x:m.to.x,y:m.to.y,z:m.to.z}:p;},ring=(ps,owner)=>ps.map(p=>moved(p,owner)).filter((p,i,all)=>all.length<2||far(p,all[(i+1)%all.length])>1e-9),anyAt=p=>moves.find(m=>far(m.from,p)<=K.CONTACT);
    for(const f of edits.$surfaces||[]){if(f.drafted||f.replacedBy||f.curvedSurface||f.curves?.length||f.feature||f.trim||f.chimney)continue;const owner='s:'+f.id;if(f.deleted){f.points=f.points.map(p=>moved(p,owner));if(f.holes)f.holes=f.holes.map(h=>h.map(p=>moved(p,owner)));if(f.retainedPoints)f.retainedPoints=f.retainedPoints.map(p=>moved(p,owner));continue;}f.points=ring(f.points,owner);if(f.holes)f.holes=f.holes.map(h=>ring(h,owner));if(f.retainedPoints)f.retainedPoints=f.retainedPoints.map(p=>moved(p,owner));}
@@ -650,7 +653,7 @@ window.createWallFaceDraft=function(host){
    // A welded face that no longer validates undoes the whole weld; faces the weld did not touch are not judged.
    const was=new Map((rollback.$surfaces||[]).map(f=>[f.id,JSON.stringify(f.points)]));for(const f of edits.$surfaces||[])if(!f.deleted&&!f.drafted&&!f.replacedBy&&!f.curvedSurface&&was.get(f.id)!==JSON.stringify(f.points)){try{K.validateFace(f);}catch(error){const frame=K.frame(f),off=frame?Math.max(...[f.points,...(f.holes||[])].flat().map(q=>Math.abs(K.local(frame,q).z))):NaN;throw Error(error.message+" ("+f.id+", "+(off*1e6).toFixed(1)+" microns off its plane)");}}
    // Nothing changed is not a weld (a drawing re-laid onto the plane it is already on).
-   return JSON.stringify(edits)===JSON.stringify(rollback)?0:moves.length+laid;
+   return JSON.stringify(edits)===JSON.stringify(rollback)?0:moves.length+laid+folded;
   }catch(error){state.wallEdits=rollback;if(baseBefore)state.base=baseBefore;console.warn('[Walls] Point weld undone: '+error.message);return 0;}
  }
  function repairStoredDrafts(){const edits=host.state()?.wallEdits;if(!edits)return false;const before=JSON.stringify(edits);solids();for(const d of Object.values(all()))retainSourcePoints(d);return JSON.stringify(host.state().wallEdits)!==before;}
