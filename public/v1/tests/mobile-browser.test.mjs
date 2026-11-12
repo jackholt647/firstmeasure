@@ -12,8 +12,8 @@ test('download settings and file selection work at desktop and phone widths',asy
       let developer=false;
       await page.route('https://mobile.test/**',async route=>{
         const url=new URL(route.request().url());
-        if(url.pathname.endsWith('/config'))return route.fulfill({json:{stores:{android:'https://play.google.com/store/apps/details?id=example',ios:'https://apps.apple.com/app/example'},developer:developer?{android:'/v1/mobile/organizations/test/downloads/android',ios:null}:null}});
-        if(url.pathname.endsWith('.js'))return route.fulfill({contentType:'application/javascript',body:fs.readFileSync(new URL('../../libraries/phone-features/'+url.pathname.split('/').pop(),import.meta.url),'utf8')});
+        if(url.pathname.endsWith('/config'))return route.fulfill({json:{stores:{android:'https://play.google.com/store/apps/details?id=example',ios:'https://apps.apple.com/app/example'},developer:developer?{android:'/v1/mobile/organizations/test/downloads/android',ios:null,version:'1.0.9-dev.db4fb39d'}:null}});
+        if(url.pathname.endsWith('.js'))return route.fulfill({contentType:'application/javascript; charset=utf-8',body:fs.readFileSync(new URL('../../libraries/phone-features/'+url.pathname.split('/').pop(),import.meta.url),'utf8')});
         return route.fulfill({contentType:'text/html',body:'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><main id="download"></main><button id="photos" onclick="PhoneFeatures.pickFiles({multiple:true}).then(f=>document.querySelector(\'#result\').textContent=f.map(x=>x.name).join(\',\'))">Choose photos</button><output id="result"></output><script src="/phone-features.js"></script><script src="/app-download.js"></script><script>FirstMeasureAppDownload.mount(document.querySelector(\'#download\'),{orgId:\'test\'});</script>'});
       });
       await page.goto('https://mobile.test/');
@@ -24,8 +24,8 @@ test('download settings and file selection work at desktop and phone widths',asy
       const chooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Choose photos'}).click();
       await(await chooser).setFiles([{name:'front.png',mimeType:'image/png',buffer:Buffer.from('photo fixture')},{name:'rear.png',mimeType:'image/png',buffer:Buffer.from('photo fixture')}]);
       await page.getByText('front.png,rear.png',{exact:true}).waitFor();
-      developer=true;await page.reload();await page.getByRole('link',{name:'Download Android test build',exact:true}).waitFor();
-      assert.equal(await page.getByRole('link',{name:'Download Android test build',exact:true}).getAttribute('href'),'/v1/mobile/organizations/test/downloads/android');
+      developer=true;await page.reload();await page.getByRole('link',{name:'Download Android test build · 1.0.9-dev.db4fb39d',exact:true}).waitFor();
+      assert.equal(await page.getByRole('link',{name:'Download Android test build · 1.0.9-dev.db4fb39d',exact:true}).getAttribute('href'),'/v1/mobile/organizations/test/downloads/android');
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
       await page.close();
     }
