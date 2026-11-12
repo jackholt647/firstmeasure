@@ -1225,7 +1225,7 @@
       .v-list-empty-body[hidden]{display:none}
       /* Tiles: a project with no picture is a compact card, its badges in a row above the name. */
       .v-tile-compact .v-thumb{height:auto;min-height:0;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:6px;padding:12px 12px 0;background:none;animation:none}
-      .v-tile-compact .v-thumb::after,.v-tile-compact .v-thumb::before{content:none}
+      .v-tile-compact .v-thumb::after,.v-tile-compact .v-thumb.v-thumb-empty:not(.loading)::before{content:none}
       .v-tile-compact .v-thumb:not(:has(>:not(img))){padding:0}
       .v-tile-compact .v-thumb>*{position:static;box-shadow:none}
       /* The picture keeps loading out of sight (a lazy image must stay rendered); a loaded one opens the card. */
