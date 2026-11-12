@@ -5,15 +5,29 @@
  * (walking, setting the phone down, a bump and its rebound) makes one or two strokes, or weaker ones. The Android host
  * runs the same rule natively (native/firstmate ShakeDetector.java, same constants); iOS uses the system shake gesture.
  *
- * watchShake() listens to the host's fm:native:shake when the app reports the `shake` capability, else to the
- * browser's devicemotion (Android Chrome: no prompt; iOS Safari: needs requestMotionPermission() from a tap).
+ * watchShake() listens to the host's fm:native:shake (apps with the `shake` capability) and to the browser's
+ * devicemotion (Android Chrome and Android's web view: no prompt; iOS Safari: needs requestMotionPermission() from a tap).
  */
-export const SHAKE = Object.freeze({ STROKE: 15, RELEASE: 7, STROKES: 3, WINDOW: 800, COOLDOWN: 1500, GRAVITY_MS: 250 });
+export const SHAKE = Object.freeze({ STROKE: 12, RELEASE: 5, STROKES: 3, WINDOW: 800, COOLDOWN: 1500, GRAVITY_MS: 250 });
 
-/** Feed samples with sample(x, y, z, t, { gravity }); calls onShake once per shake. */
+/**
+ * Feed samples with sample(x, y, z, t, { gravity }); calls onShake once per shake. A stroke is a run of readings of at
+ * least STROKE m/s² pointing roughly the same way. It ends when the reading drops under RELEASE or, without a dip, as
+ * soon as a strong reading points the other way: a fast real shake can reverse between two sensor samples without ever
+ * reading near zero.
+ */
 export function createShakeDetector(onShake, rules = SHAKE) {
   let g = null, last = 0, stroke = null, strokes = [], quietUntil = 0;
   const reset = () => { stroke = null; strokes = []; };
+  // Keep the stroke if it went the other way to the one before (within the window); otherwise it starts a new run.
+  const finish = (t) => {
+    const prev = strokes[strokes.length - 1];
+    const reversed = prev && dot(prev.v, stroke.v) < 0 && stroke.t - strokes[0].t <= rules.WINDOW;
+    strokes = reversed ? [...strokes, stroke] : [stroke];
+    stroke = null;
+    if (strokes.length < rules.STROKES) return false;
+    reset(); quietUntil = t + rules.COOLDOWN; onShake?.(); return true;
+  };
   return {
     reset,
     sample(x, y, z, t, { gravity = false } = {}) {
@@ -25,20 +39,20 @@ export function createShakeDetector(onShake, rules = SHAKE) {
         last = t; x -= g[0]; y -= g[1]; z -= g[2];
       }
       if (t < quietUntil) return false;
-      const m = Math.hypot(x, y, z);
+      const m = Math.hypot(x, y, z), v = [x, y, z];
+      if (strokes.length && t - strokes[0].t > rules.WINDOW && !stroke) strokes = [];
       if (stroke) {
-        if (m > stroke.m) Object.assign(stroke, { m, v: [x, y, z] });
-        if (m >= rules.RELEASE) return false;
-        // The stroke ended: keep it if it went the other way to the one before; otherwise it starts a new run.
-        const prev = strokes[strokes.length - 1];
-        const reversed = prev && dot(prev.v, stroke.v) < 0 && stroke.t - strokes[0].t <= rules.WINDOW;
-        strokes = reversed ? [...strokes, stroke] : [stroke];
-        stroke = null;
-        if (strokes.length >= rules.STROKES) { reset(); quietUntil = t + rules.COOLDOWN; onShake?.(); return true; }
+        if (m >= rules.STROKE && dot(v, stroke.v) < 0) {
+          // Reversed without a dip: this reading starts the next stroke.
+          if (finish(t)) return true;
+          stroke = { t, m, v };
+          return false;
+        }
+        if (m > stroke.m) Object.assign(stroke, { m, v });
+        if (m < rules.RELEASE) return finish(t);
         return false;
       }
-      if (m >= rules.STROKE) stroke = { t, m, v: [x, y, z] };
-      if (strokes.length && t - strokes[0].t > rules.WINDOW) strokes = [];
+      if (m >= rules.STROKE) stroke = { t, m, v };
       return false;
     }
   };
@@ -58,9 +72,10 @@ export async function requestMotionPermission(win = window) {
 export function watchShake(onShake, win = window) {
   let native = false;
   const detector = createShakeDetector(onShake);
-  const fromApp = () => { if (native) onShake(); };
+  const fromApp = () => onShake();
+  // In the app both may fire for one shake; the tray ignores a shake while it is open, and the detector's cooldown
+  // keeps devicemotion from firing twice. Listening to both means a host whose own detector misses still works.
   const fromBrowser = (event) => {
-    if (native) return;
     const linear = event.acceleration, raw = event.accelerationIncludingGravity;
     const t = Number(event.timeStamp) || Date.now();
     if (linear && Number.isFinite(linear.x)) detector.sample(linear.x, linear.y, linear.z, t);
