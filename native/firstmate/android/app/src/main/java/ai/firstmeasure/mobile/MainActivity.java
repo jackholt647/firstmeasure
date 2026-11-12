@@ -2,12 +2,19 @@ package ai.firstmeasure.mobile;
 
 import android.app.AlertDialog;
 import android.content.*;
+import android.graphics.Bitmap;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Build;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.view.*;
@@ -32,6 +39,11 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class MainActivity extends ComponentActivity {
+    // Development tools (README "Development tools"): a shake opens the portal's dev tray and the page can capture
+    // the web view for an issue. Development builds only; production neither reports nor answers them.
+    static final boolean DEV_TOOLS = "development".equals(BuildConfig.FLAVOR);
+    private SensorManager sensors;
+    private SensorEventListener shakeListener;
     private WebView web;
     private LinearLayout root;
     private NativeCameraController nativeCamera;
@@ -247,7 +259,12 @@ public class MainActivity extends ComponentActivity {
                     getPreferences(MODE_PRIVATE).edit().putString("auth_state",authState).putString("auth_verifier",authVerifier).putLong("auth_expires",System.currentTimeMillis()+600000).apply();
                     String challenge=android.util.Base64.encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(authVerifier.getBytes(java.nio.charset.StandardCharsets.UTF_8)),android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|android.util.Base64.NO_PADDING);
                     startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(BuildConfig.PORTAL_ORIGIN+"/v1/mobile/auth/browser?challenge="+challenge+"&state="+authState)));respond(reply,id,true,null);break;
-                case "info": respond(reply,id,new JSONObject().put("bridgeVersion",1).put("platform","android").put("version",BuildConfig.VERSION_NAME).put("environment",BuildConfig.FLAVOR).put("capabilities",new org.json.JSONArray(List.of("files","camera","liveCamera","nativeCameraZoom","physicalCameraZoom","share","download","haptic","settings","push","offlineUploads","photoLibrarySave","offlineShell"))),null);break;
+                case "info": {
+                    List<String> capabilities=new ArrayList<>(List.of("files","camera","liveCamera","nativeCameraZoom","physicalCameraZoom","share","download","haptic","settings","push","offlineUploads","photoLibrarySave","offlineShell"));
+                    if(DEV_TOOLS){capabilities.add("shake");capabilities.add("screenshot");}
+                    respond(reply,id,new JSONObject().put("bridgeVersion",1).put("platform","android").put("version",BuildConfig.VERSION_NAME).put("environment",BuildConfig.FLAVOR).put("capabilities",new org.json.JSONArray(capabilities)),null);break;
+                }
+                case "screenshot": if(!DEV_TOOLS){respond(reply,id,null,"unsupported");break;} screenshot(id,reply);break;
                 case "pushStatus": respond(reply,id,new JSONObject().put("available",pushAvailable()).put("granted",pushPermissionGranted()),null);break;
                 case "pushRegister":
                     if (!pushAvailable()) { respond(reply,id,null,"push_unavailable"); break; }
@@ -436,8 +453,50 @@ public class MainActivity extends ComponentActivity {
     }
     private void showMessage(String message){if(!isFinishing())Toast.makeText(this,message,Toast.LENGTH_LONG).show();}
     @Override protected void onSaveInstanceState(Bundle out){super.onSaveInstanceState(out);web.saveState(out);}
-    @Override protected void onPause(){super.onPause();if(nativeCamera!=null)nativeCamera.stopRecording();if(web!=null)web.onPause();CookieManager.getInstance().flush();}
-    @Override protected void onResume(){super.onResume();if(web!=null)web.onResume();if(uploads!=null)offlineIo.execute(uploads::sessionChanged);}
+    @Override protected void onPause(){super.onPause();stopShake();if(nativeCamera!=null)nativeCamera.stopRecording();if(web!=null)web.onPause();CookieManager.getInstance().flush();}
+    @Override protected void onResume(){super.onResume();if(web!=null)web.onResume();if(uploads!=null)offlineIo.execute(uploads::sessionChanged);startShake();}
+
+    /** Development builds: listen for a shake while the app is in front and tell the page (fm:native:shake). */
+    private void startShake(){
+        if(!DEV_TOOLS||shakeListener!=null)return;
+        sensors=getSystemService(SensorManager.class);if(sensors==null)return;
+        Sensor linear=sensors.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION),raw=linear==null?sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER):null;
+        Sensor sensor=linear!=null?linear:raw;if(sensor==null)return;
+        boolean withGravity=linear==null;
+        ShakeDetector detector=new ShakeDetector(this::shaken);
+        shakeListener=new SensorEventListener(){
+            @Override public void onSensorChanged(SensorEvent e){detector.sample(e.values[0],e.values[1],e.values[2],e.timestamp/1_000_000L,withGravity);}
+            @Override public void onAccuracyChanged(Sensor s,int accuracy){}
+        };
+        sensors.registerListener(shakeListener,sensor,SensorManager.SENSOR_DELAY_GAME);
+    }
+    private void stopShake(){if(sensors!=null&&shakeListener!=null)sensors.unregisterListener(shakeListener);shakeListener=null;}
+    private void shaken(){
+        runOnUiThread(()->{
+            if(web==null||isFinishing()||offlineShown()||!policy.trusted(web.getUrl()))return;
+            web.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            web.evaluateJavascript("window.dispatchEvent(new CustomEvent('fm:native:shake'))",null);
+        });
+    }
+    /** Development builds: the web view as it is on screen (GPU layers included), as a JPEG of at most 1600 px. */
+    private void screenshot(String id,JavaScriptReplyProxy reply){
+        if(web==null||web.getWidth()==0||web.getHeight()==0){respond(reply,id,null,"screenshot_failed");return;}
+        int[] at=new int[2];web.getLocationInWindow(at);
+        Bitmap shot=Bitmap.createBitmap(web.getWidth(),web.getHeight(),Bitmap.Config.ARGB_8888);
+        PixelCopy.request(getWindow(),new android.graphics.Rect(at[0],at[1],at[0]+web.getWidth(),at[1]+web.getHeight()),shot,result->{
+            if(result!=PixelCopy.SUCCESS){shot.recycle();respond(reply,id,null,"screenshot_failed");return;}
+            io.execute(()->{
+                try{
+                    double scale=Math.min(1,1600.0/Math.max(shot.getWidth(),shot.getHeight()));
+                    Bitmap out=scale<1?Bitmap.createScaledBitmap(shot,(int)Math.round(shot.getWidth()*scale),(int)Math.round(shot.getHeight()*scale),true):shot;
+                    ByteArrayOutputStream jpeg=new ByteArrayOutputStream();out.compress(Bitmap.CompressFormat.JPEG,85,jpeg);
+                    JSONObject value=new JSONObject().put("mime","image/jpeg").put("width",out.getWidth()).put("height",out.getHeight()).put("data",android.util.Base64.encodeToString(jpeg.toByteArray(),android.util.Base64.NO_WRAP));
+                    if(out!=shot)out.recycle();shot.recycle();
+                    runOnUiThread(()->respond(reply,id,value,null));
+                }catch(Exception e){runOnUiThread(()->respond(reply,id,null,"screenshot_failed"));}
+            });
+        },new Handler(Looper.getMainLooper()));
+    }
     @Override protected void onDestroy(){
         completePicker(null);if(nativeCamera!=null)nativeCamera.destroy();if(web!=null){web.stopLoading();web.destroy();}io.shutdownNow();
         if(networkCallback!=null)try{getSystemService(ConnectivityManager.class).unregisterNetworkCallback(networkCallback);}catch(Exception ignored){}

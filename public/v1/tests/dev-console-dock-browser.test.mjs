@@ -25,7 +25,7 @@ async function page(browser,width){
  });
  await tab.goto('http://dock.test/');
  await tab.evaluate(async()=>{await(await import('/libraries/dev-console/dev-console.js')).mount();});
- await tab.waitForSelector('.fm-dc-strip');
+ await tab.waitForSelector('.fm-dc-strip',{state:'attached'});
  return {tab,errors};
 }
 const measure=tab=>tab.evaluate(()=>{const box=s=>document.querySelector(s).getBoundingClientRect();const d=document.querySelector('dialog[open]');return{inner:innerWidth,client:document.documentElement.clientWidth,body:box('body').right,pinned:box('#pinned').right,pinnedColor:getComputedStyle(document.querySelector('#pinned')).backgroundColor,wide:box('#wide').width,wideHeight:box('#wide').height,frame:box('#frame').right,frameInner:document.querySelector('#frame').contentWindow.innerWidth,early:window.early.matches,fresh:matchMedia('(max-width: 1000px)').matches,resizes:window.resizes,dialog:d?Math.round(box('dialog[open]').left+box('dialog[open]').width/2):null};});
@@ -62,9 +62,10 @@ test('dev console docking: the page is a narrower window, folded, open and expan
   await tab.click('.fm-dc-expand');await tab.click('.fm-dc-fold');await tab.waitForTimeout(300);
   assert.equal((await measure(tab)).inner,1260,'folded again');
   assert.deepEqual(errors,[]);
-  // A phone: the console covers the page as before; nothing is docked.
+  // A phone: no strip (a shake opens the dev tray); the console covers the page as before; nothing is docked.
   const phone=await page(browser,390);
-  await phone.tab.click('.fm-dc-strip');await phone.tab.waitForTimeout(300);
+  assert.equal(await phone.tab.locator('.fm-dc-strip').isVisible(),false);
+  await phone.tab.evaluate(()=>window.FirstMateDevConsole.open());await phone.tab.waitForTimeout(300);
   m=await measure(phone.tab);
   assert.deepEqual([m.inner,m.body,m.pinned],[390,390,390],JSON.stringify(m));
   assert.equal(await phone.tab.evaluate(()=>document.documentElement.classList.contains('fm-dc-docked')),false);

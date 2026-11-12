@@ -36,7 +36,7 @@ test('dev console: scope-filtered nested contracts and synthetic data fit deskto
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no sideways scroll');
   await page.locator('[data-dc-section="synthetic"]').click();await page.locator('[data-dev-generate]').waitFor({state:'visible'});
   assert.equal(await page.locator('[data-dev-category="projects"]').isChecked(),true);
-  await page.locator('.fm-dc-fold').click();assert.equal(await page.locator('.fm-dc').isVisible(),false);assert.equal(await page.locator('.fm-dc-strip').isVisible(),true);
+  await page.locator('.fm-dc-fold').click();assert.equal(await page.locator('.fm-dc').isVisible(),false);assert.equal(await page.locator('.fm-dc-strip').isVisible(),false,'a phone has no strip: a shake opens the dev tray');
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
