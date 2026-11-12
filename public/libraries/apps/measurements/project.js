@@ -67,6 +67,8 @@ window.PlatformCommerce.onReady(function(){
   let userMeasurementTabProject = '';
   let roofViewer = null;
   let roofViewerKey = '';
+  let holidayLights = null;
+  let holidayLightsKey = '';
   // The route's report view as last applied or as it read after a chosen tab was pushed.
   let appliedRouteView = '';
   let activeInstantMountKey = '';
@@ -135,6 +137,7 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-measure-tabs" id="rMeasureTabs"></div>
       <div class="r-measure-body">
         <div class="r-measure-pane" data-measure-pane="model"><div id="rMeasurementModel" style="height:100%"></div></div>
+        <div class="r-measure-pane" data-measure-pane="lights"><div id="rMeasurementLights" style="height:100%"></div></div>
         <div class="r-measure-pane" data-measure-pane="map"><div id="rMeasurementMap" style="height:100%"></div></div>
         <div class="r-measure-pane" data-measure-pane="summary"><div id="rMeasurementSummary" style="height:100%"></div></div>
         <div class="r-measure-pane" data-measure-pane="instant"><div id="rMeasurementInstant" style="height:100%"></div></div>
@@ -349,7 +352,7 @@ window.PlatformCommerce.onReady(function(){
     const projectId = activeMeasurementProjectId();
     const cachedAssets = projectId ? primeMeasurementAssetCacheFromKnownUrls(projectId) : null;
     const hasXml = ready && !!cachedAssets?.xmlUrl;
-    // Order: Summary, Model, then the PDFs (Standard, Customer) and XML.
+    // Order: Summary, Model, Holiday Lights, then the PDFs (Standard, Customer) and XML.
     if (measurementReportSummaryEnabled()) {
       tabs.push({
         id: 'summary',
@@ -360,9 +363,11 @@ window.PlatformCommerce.onReady(function(){
         pending
       });
     }
-    // Reports › 3D Model: the full-size viewer of the model the project details tray shows small. Holiday Lights is a tab
-    // inside that viewer (roof-viewer.js), offered when reportModelData says so.
+    // Reports › 3D Model: the full-size viewer of the model the project details tray shows small; its lightbulb toggle
+    // (roof-viewer.js) shows the lights over the model when reportModelData says this report has them.
     if(ready && reportModelViewerEnabled()) tabs.push({id:'model',get label(){ return (globalThis.PlatformLanguage?.text("measurements","report_model_3d_tab","3D Model") ?? "3D Model"); },icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
+    // Reports › Holiday Lights (FM-400): the full lights view, roof and counts side by side (holiday-lights.js).
+    if(hasXml && holidayLightsEnabled()) tabs.push({id:'lights',get label(){ return (globalThis.PlatformLanguage?.text("measurements","hl_tab","Holiday Lights") ?? "Holiday Lights"); },icon:'fa-lightbulb',active:activeMeasurementTab==='lights',disabled:false,pending:false});
     const changes = reportFollowupEnabled() ? reportChangeRequests() : [];
     const supportView = !changes.length || reportRequestsAreSupportOnly(changes);
     if (inlineProjectMapWithReports()) {
@@ -4183,7 +4188,7 @@ window.PlatformCommerce.onReady(function(){
     const reportTabs = measurementTabs();
     const context = callHost('reportNavigationContext') || {};
     const compactTabs = reportHeaderTabs(context.tabs || [], reportTabs, context.ordered);
-    const tabs = compactTabs ? reportTabs.filter(tab => ['model','customer','standard','summary','xml'].includes(tab.id)) : reportTabs;
+    const tabs = compactTabs ? reportTabs.filter(tab => ['model','lights','customer','standard','summary','xml'].includes(tab.id)) : reportTabs;
     if (!tabs.some((tab) => tab.id === activeMeasurementTab)) {
       activeMeasurementTab = ['summary', 'model', 'standard'].map((id) => tabs.find((tab) => tab.id === id && !tab.disabled)).find(Boolean)?.id || tabs.find((tab) => !tab.disabled)?.id || 'standard';
     }
@@ -4218,6 +4223,16 @@ window.PlatformCommerce.onReady(function(){
       // Full-house reports also draw the walls, openings and base from the published exterior model.
       const data=reportModelData(projectId,cachedAssets);
       roofViewer=window.FirstMateWidgets.mount(modelRoot,{id:'reports.roof',version:'1',config:{}},{surface:'project',data:{'reports.roof':data}});
+    }
+    const lightsRoot = root.querySelector('#rMeasurementLights');
+    const lightsKey = JSON.stringify([projectId,cachedAssets?.xmlUrl]);
+    if(activeMeasurementTab !== 'lights' || terminalWithoutReport){holidayLights?.destroy();holidayLights=null;holidayLightsKey='';}
+    else if(lightsRoot && !window.FirstMeasureHolidayLights){
+      lightsRoot.innerHTML=`<div class="r-report-pending" role="status">${(globalThis.PlatformLanguage?.htmlText("measurements","hl_view_unavailable","The holiday lights view could not load. Refresh to try again.") ?? "The holiday lights view could not load. Refresh to try again.")}</div>`;
+    }
+    else if(lightsRoot && (holidayLightsKey!==lightsKey || !holidayLights)){
+      holidayLights?.destroy();holidayLightsKey=lightsKey;
+      holidayLights=window.FirstMeasureHolidayLights.mount(lightsRoot,{xmlUrl:cachedAssets?.xmlUrl||''});
     }
     if (map && inlineProjectMapWithReports() && activeMeasurementTab === 'map') {
       mountInlineProjectMap(map);
@@ -4359,6 +4374,7 @@ window.PlatformCommerce.onReady(function(){
     disposeInstantMeasurement();
     pendingExpediteSelection = '';
     roofViewer?.destroy();roofViewer=null;roofViewerKey='';
+    holidayLights?.destroy();holidayLights=null;holidayLightsKey='';
     activeMeasurementTab = 'summary';
     appliedRouteView = '';
     reportRequestModalState = null;
@@ -4369,6 +4385,16 @@ window.PlatformCommerce.onReady(function(){
     const fn = api[name];
     return typeof fn === 'function' ? fn(...(Array.isArray(args) ? args : [])) : undefined;
   }
+
+  // The 3D model's "Open Holiday Lights" (roof-viewer.js, in the project details tray or Reports › 3D Model) opens
+  // Reports › Holiday Lights when this project offers it; otherwise the viewer expands itself.
+  document.addEventListener('fm:open-report-view', (event) => {
+    const view = event.detail?.view;
+    if (!view || !state.host || !measurementTabs().some((tab) => tab.id === view && !tab.disabled)) return;
+    event.preventDefault();
+    setActivePreviewTab('measurements', { history: 'push' });
+    setActiveMeasurementTab(view, { user: true });
+  });
 
   const api = {
     mount,
