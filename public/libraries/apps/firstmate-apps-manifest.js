@@ -303,7 +303,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261111-offline'), versionedBundle('project-request/app.js', '20261110-fm382-schedule-offer')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261111-offline'), versionedBundle('project-request/app.js', '20261112-fm410-exterior-rejection')]
     },
     {
       id: 'firstmeasure.order',
@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261112-lights-toggle'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261112-fm383-held-reports')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261112-lights-toggle'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261112-fm410-exterior-rejection')]
     },
     {
       id: 'project.checklists',

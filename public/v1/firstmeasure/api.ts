@@ -12469,6 +12469,14 @@ async function reopenRejectedProjectForReorder(
 
   }
 
+  // A Full Exterior keeps its exteriors_ id and references: trying again, or ordering only the roof, is a new order.
+
+  if (existing.measurement_scope === "full_house" || isCustomerExteriorId(projectId)) {
+
+    throw badRequest("exterior_reorder_requires_new_order", "Place a new order to try a rejected Full Exterior again.");
+
+  }
+
 
 
   const nowIso = new Date().toISOString();
@@ -16198,6 +16206,18 @@ function buildRejectionMessageParagraphs(project: Record<string, unknown>) {
 
   const rejectionReason = String(project.rejection_reason ?? "").trim().toLowerCase();
 
+  if (rejectionReason === "insufficient_footage") {
+
+    return [
+
+      "We were not able to complete this Full Exterior report because the photos and video do not show enough of the house for us to draw every wall, window and door.",
+
+      "You can try again with a wider view of the house and more photos of each side, or order just the roof report."
+
+    ];
+
+  }
+
   if (rejectionReason === "obscured_visibility") {
 
     return [
@@ -16510,7 +16530,11 @@ const DEFAULT_REJECTION_REASONS = [
 
   { id: "invalid_pin_placement", label: "Invalid pin placement", icon: "fas fa-map-pin" },
 
-  { id: "incorrect_structure_type", label: "Incorrect Structure Type", icon: "fas fa-building" }
+  { id: "incorrect_structure_type", label: "Incorrect Structure Type", icon: "fas fa-building" },
+
+  // Full Exterior orders only: the customer's photos and video do not show enough of the house to draw it.
+
+  { id: "insufficient_footage", label: "Insufficient footage", icon: "fas fa-video" }
 
 ];
 
@@ -23485,6 +23509,9 @@ async function rejectCoverageProject(projectId: string, body: Record<string, unk
     const existingLegacy = buildLegacyManifest(existingManifest);
 
     if (["rejected", "rejected_no_coverage", "cancelled"].includes(String(existingManifest.status))) return {ok:true,success:true,manifest:existingLegacy};
+    if (rejectionReason === "insufficient_footage" && existingManifest.measurement_scope !== "full_house") {
+      throw badRequest("invalid_rejection_reason", "Insufficient footage applies to Full Exterior orders only.");
+    }
 
     let structureReorder: StructureTypeReorderPayload | null = null;
 
