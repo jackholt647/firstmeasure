@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261112-lights-toggle'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261112-fm410-exterior-rejection')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261112-lights-toggle'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261112-fm410-exterior-reorder')]
     },
     {
       id: 'project.checklists',
