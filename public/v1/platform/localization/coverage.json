@@ -1,7 +1,7 @@
 {
-  "files": 314,
+  "files": 317,
   "namespaces": 119,
-  "messages": 17340,
+  "messages": 17342,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -1166,6 +1166,13 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/dev-console/quick-tray.js",
+      "namespace": "dev-console",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
       "file": "public/libraries/dev-console/sections/config-library.js",
       "namespace": "dev-console",
       "references": 0,
@@ -1223,6 +1230,20 @@
     },
     {
       "file": "public/libraries/dev-console/sections/test-users.js",
+      "namespace": "dev-console",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/dev-console/shake.js",
+      "namespace": "dev-console",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/dev-console/tracker-client.js",
       "namespace": "dev-console",
       "references": 0,
       "candidates": 0,

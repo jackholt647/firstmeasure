@@ -634,6 +634,14 @@ test('device settings show space, the two limits as choices, and remove saved da
 
   const app = await open({ query: '?native=1' });
   await app.tab.evaluate(() => window.PlatformOfflineUI.mountSettings(document.getElementById('settingsHost')));
+  // In the app the space is the app's: no word of a browser.
+  const appTotal = app.tab.locator('#settingsHost .fmo-set-total');
+  assert.match(await appTotal.innerText(), /^\d+ MB used of about 10 GB the app can use$/);
+  assert.equal(await app.tab.locator('#settingsHost .fmo-meter').getAttribute('aria-label'), await appTotal.innerText());
+  await app.tab.evaluate(() => window.fake.storage({ quota: undefined }));
+  await appTotal.filter({ hasText: 'This device does not report how much space the app can use.' }).waitFor();
+  assert.doesNotMatch(await app.tab.locator('#settingsHost [data-set=space]').innerText(), /browser/i);
+  await app.tab.evaluate(() => window.fake.storage({ quota: 10 * 1073741824 }));
   const roll = app.tab.locator('#settingsHost input[data-fk=saveToCameraRoll]');
   assert.equal(await roll.count(), 1);
   await roll.check({ force: true });

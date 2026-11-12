@@ -1256,7 +1256,9 @@ the device, only while offline.
 
 Settings > Offline (shown where the worker is in use), and the same page
 behind the phone button in the tray: space used by the app itself, saved
-data, pictures and waiting changes against what the browser allows; the two
+data, pictures and waiting changes against what the browser allows (in the
+FirstMate app, `isNative()`, the line speaks of the app instead: the `_app`
+variants of `set_space_used` and `set_space_unknown`); the two
 limits (`readsBudgetMb`: 50, 150, 500; `mediaBudgetMb`: 100, 300, 1024) as
 Less, Standard and More; Keep recently opened projects (`autoPinRecent`);
 Also save photos to the camera roll (`saveToCameraRoll`), only where the
