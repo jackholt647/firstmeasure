@@ -637,7 +637,8 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function reportOrderPendingStage(){
-    if (reportOrderReleaseHoldIsActive()) return 'processing';
+    // A report is held for release only once QA has approved it: it keeps the review stage it had (FM-383).
+    if (reportOrderReleaseHoldIsActive()) return 'review';
     const status = reportOrderStatus();
     if (['submitted', 'queued', 'ready', 'measurement_ordered'].includes(status)) return 'processing';
     if (['awaiting_review', 'awaiting_manager_review', 'pending_rejection'].includes(status)) return 'review';

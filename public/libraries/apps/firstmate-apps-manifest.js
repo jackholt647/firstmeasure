@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261104-wall-default'), versionedBundle('measurements/holiday-lights.js', '20261104-panel-moves'), versionedBundle('measurements/project.js', '20261103-lights-in-model')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261104-wall-default'), versionedBundle('measurements/holiday-lights.js', '20261104-panel-moves'), versionedBundle('measurements/project.js', '20261112-fm383-held-review')]
     },
     {
       id: 'project.checklists',

@@ -950,11 +950,12 @@
     return !!scheduled && scheduled.getTime() > Date.now();
   });
 
-  // A report held for its release window is shown exactly as one still being worked (FM-383): the project's report
-  // status reads "processing" until the report is released, so no reader of it can tell the report is finished.
+  // A report held for its release window is shown exactly as it was just before (FM-383): it is held only once QA has
+  // approved it, so the project's report status stays "awaiting_review" until the report is released, and no reader
+  // of it can tell the report is finished.
   const customerReportStatus = (status, ...holdSources) => {
     const text = cleanText(status);
-    return isFirstMeasureCompleteStatus(text) && reportReleaseHoldIsActive(...holdSources) ? 'processing' : text;
+    return isFirstMeasureCompleteStatus(text) && reportReleaseHoldIsActive(...holdSources) ? 'awaiting_review' : text;
   };
 
   function projectMediaOptions(){
