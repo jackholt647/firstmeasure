@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261112-lights-toggle'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261112-fm383-held-review')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261112-lights-toggle'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261112-fm383-held-reports')]
     },
     {
       id: 'project.checklists',
