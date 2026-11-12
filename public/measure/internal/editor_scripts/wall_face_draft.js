@@ -3257,10 +3257,15 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
 if(k==='n'&&!tool){const ps=selectedWorldPoints();if(ps.length){
  // Shared bottom vertices are usually picked through their wall owner. N
  // must still be able to draw on the base, unless a wall face was chosen.
- // A rectangle that took a base point means the base: a face preferred by an earlier click must not send the
- // line onto a wall drawing instead, where nothing seemed to happen.
- if((selectedBasePoints.length||!preferredDraft&&!preferredSolid||mouse&&host.pasteHost?.(mouse))&&host.startBaseLine?.(ps))return true;
- const before=copy(host.state().wallEdits);d=pointDrawingOwner(ps);if(d){tool={kind:'draw',before};host.message('Click on this face to place the connected point');host.redraw();return true;}}}
+ // The face under the cursor is the face the line is drawn on, and it starts from the selected points that lie
+ // on that face. Before, a line started only if one face held every selected point; a rectangle around a corner
+ // takes points of several faces (and anything behind the corner), no face held them all, and N did nothing.
+ const K=window.ExteriorGeometry,overBase=mouse&&host.pasteHost?.(mouse),overWall=!overBase&&mouse&&viewOf(mouse)==='3d'?placementHost(mouse):null;
+ if(overBase&&host.startBaseLine?.(ps,overBase.f?.id))return true;
+ if(overWall){const frame=W.faceFrame({points:overWall.points}),on=frame?ps.filter(p=>Math.abs(K.local(frame,p).z)<.002):[];if(on.length){if(overWall.d)preferredDraft=draftKey(overWall.d);else preferredSolid=overWall.solid?.id||preferredSolid;const before=copy(host.state().wallEdits);d=pointDrawingOwner(on);if(d){tool={kind:'draw',before};host.message('Click on this face to place the connected point');host.redraw();return true;}}}
+ if((selectedBasePoints.length||!preferredDraft&&!preferredSolid)&&host.startBaseLine?.(ps))return true;
+ const before=copy(host.state().wallEdits);d=pointDrawingOwner(ps);if(d){tool={kind:'draw',before};host.message('Click on this face to place the connected point');host.redraw();return true;}
+ if(!selected()){host.message('Move the cursor over the face to draw on, then press N: the line starts from the selected point on that face.');return true;}}}
 if(!d&&['n','q'].includes(k)&&selected())d=ensure(selected());if(!d)return false;
   if(k==='z'&&(e.ctrlKey||e.metaKey)&&tool){if(tool.before)host.state().wallEdits=tool.before;tool=null;clearGuides();host.redraw();return true;}
   if(k==='escape'&&tool){if(tool.before)host.state().wallEdits=tool.before;tool=null;clearGuides();host.redraw();return true;}

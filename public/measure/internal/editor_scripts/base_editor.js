@@ -261,13 +261,16 @@ window.createBaseEditor=function(host){
    return sketchEditor?.finishToolForSwitch?.()!==false;
   }catch(error){message=error.message;render();return false;}
  }
- function startLine(ps){
-  // Several points picked at one spot (a rectangle takes every copy of a corner) are one starting point: the
-  // base's own point there.
-  if(!sketchEditor||!ps.length||base()?.visible===false||ps.some(q=>Math.hypot(q.x-ps[0].x,q.y-ps[0].y,q.z-ps[0].z)>.001))return false;
-  const near=q=>Math.hypot(q.x-ps[0].x,q.y-ps[0].y,q.z-ps[0].z),own=(window.BaseSketchGeometry?.read(base()).nodes||[]).filter(q=>near(q)<=.001).sort((a,b)=>near(a)-near(b))[0],p=own?{x:own.x,y:own.y,z:own.z}:ps[0];ps=[p];
-  const f=base().faces.find(f=>{const plane=G.plane(f.points);return plane&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002&&G.contains(f,p);});
-  if(!f)return false;
+ // Start a base line from the selected points that lie on the base (on face `faceId` when the cursor is over
+ // one). Points of other faces in the selection are left out, and several copies of one spot are one start: the
+ // base's own point there.
+ function startLine(ps,faceId=null){
+  if(!sketchEditor||!ps.length||base()?.visible===false)return false;
+  const far=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),nodes=window.BaseSketchGeometry?.read(base()).nodes||[];
+  const onFace=(p,f)=>{const plane=G.plane(f.points);return plane&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002&&(G.contains(f,p)||f.points.some((a,i)=>{const b=f.points[(i+1)%f.points.length],dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy,t=l2?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/l2)):0;return Math.hypot(p.x-a.x-dx*t,p.y-a.y-dy*t)<=.001;}));};
+  const faces=base().faces.filter(f=>faceId==null||f.id===faceId),starts=[];
+  for(const q of ps){if(!faces.some(f=>onFace(q,f)))continue;const own=nodes.filter(n=>far(n,q)<=.001).sort((a,b)=>far(a,q)-far(b,q))[0],p=own?{x:own.x,y:own.y,z:own.z}:{x:q.x,y:q.y,z:q.z};if(!starts.some(s=>far(s,p)<=.001))starts.push(p);}
+  if(!starts.length)return false;ps=starts;
   host.setLayer('base');selectedFace=null;selectedFaces=[];points=[];
   sketchEditor.selectEntities(ps,[]);$('selection').value='point';
   return keyDown({key:'n',preventDefault(){},stopImmediatePropagation(){}});
