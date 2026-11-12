@@ -1,6 +1,6 @@
 // A FirstMeasure report as events on the platform projects that link it (work/events.ts), for scopes, organization
 // rules and the Feed: linking a report to a project publishes `measurement.report.ordered`, and a linked report that
-// completes publishes `measurement.report.completed`. Nothing here knows which scope or rule listens.
+// is delivered publishes `measurement.report.completed`. Nothing here knows which scope or rule listens.
 import { listDocuments, type JsonObject } from "../platform/storage.js";
 
 const obj = (value: unknown): JsonObject => value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
@@ -10,6 +10,26 @@ const clean = (value: unknown) => String(value ?? "").trim();
 export function linkedReportId(project: JsonObject) {
   const measurement = obj(project.measurement_project || project.measurement), raw = obj(measurement.raw);
   return clean(measurement.id || measurement.project_id || raw.id || raw.project_id || project.measurement_project_id || project.folder);
+}
+
+/**
+ * Whether a project may show its linked report as received (FM-383). A report is saved completed before its delivery
+ * decides whether to hold it for its release window, so completed alone is not enough: until the delivery step has run
+ * (`submission_status` "submitting") and while the report is held, the project shows it exactly as on order, and
+ * nothing that runs on delivery (the completed event, the satellite photo, the measurements) may run yet.
+ */
+export function reportDeliveredToProject(report: JsonObject | null | undefined) {
+  const manifest = obj(report), hold = obj(manifest.delivery_release_hold || obj(manifest.delivery).release_hold);
+  if (clean(manifest.status).toLowerCase() !== "completed") return false;
+  if (clean(manifest.submission_status).toLowerCase() === "submitting") return false;
+  return clean(manifest.delivery_hold_status || hold.status).toLowerCase() !== "holding";
+}
+
+/** The linked report's stored record, so a hold the project's copy has not seen yet still counts. */
+async function linkedReportDelivered(reportId: string, linked: JsonObject) {
+  const { readManifest } = await import("./storage.js");
+  const stored = await readManifest(reportId).catch(() => null);
+  return reportDeliveredToProject(stored ?? { ...obj(linked.raw), status: linked.status || obj(linked.raw).status });
 }
 
 async function emit(orgId: string, projectId: string, project: JsonObject, type: string, reportId: string, payload: JsonObject, actorUserId = "") {
@@ -34,7 +54,7 @@ async function saveReportSatellite(orgId: string, projectIds: string[]) {
 
 /**
  * A project write that links a report the project did not link before: the report was ordered for it. A report that
- * is already complete when it is linked (an instant report) has also been delivered.
+ * is already delivered when it is linked (an instant report) has also been received; a held one is received on release.
  */
 export async function publishProjectReportLink(orgId: string, projectId: string, before: JsonObject, after: JsonObject, actorUserId = "") {
   const reportId = linkedReportId(after);
@@ -43,17 +63,21 @@ export async function publishProjectReportLink(orgId: string, projectId: string,
     const report = obj(after.measurement_project || after.measurement);
     const status = clean(report.status || obj(report.raw).status).toLowerCase();
     await emit(orgId, projectId, after, "measurement.report.ordered", reportId, { report_status: status }, actorUserId);
-    if (status === "completed") await emit(orgId, projectId, after, "measurement.report.completed", reportId, {}, actorUserId);
-    if (status === "completed") await saveReportSatellite(orgId, [projectId]);
+    if (status !== "completed" || !await linkedReportDelivered(reportId, report)) return;
+    await emit(orgId, projectId, after, "measurement.report.completed", reportId, {}, actorUserId);
+    await saveReportSatellite(orgId, [projectId]);
   } catch (error) {
     // The project is saved; a failed publication must not undo it.
     console.warn("Publishing measurement.report.ordered failed", projectId, error);
   }
 }
 
-/** A report that has just completed publishes `measurement.report.completed` on every project of its organization that links it. */
+/**
+ * A report that has just been delivered (sent, or released from its hold) publishes `measurement.report.completed` on
+ * every project of its organization that links it.
+ */
 export async function publishReportCompleted(previous: JsonObject | null, current: JsonObject) {
-  if (clean(current.status) !== "completed" || clean(previous?.status) === "completed") return;
+  if (!reportDeliveredToProject(current) || reportDeliveredToProject(previous)) return;
   const orgId = clean(obj(current.organization_ref).id), reportId = clean(current.id);
   if (!orgId || !reportId) return;
   try {
