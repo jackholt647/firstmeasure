@@ -119,9 +119,11 @@ test('a wrong project type still reorders as the right one', () => {
   assert.deepEqual(card.buttons, ['data-reorder-rejected-report Reorder as Commercial']);
 });
 
-test('the exterior reorder starts a new order with the scope chosen, never reopening the rejected one', () => {
+test('every reorder of a rejected Full Exterior is a new order; the footage choices start with their scope chosen', () => {
+  // "Reorder as Commercial" included: the server refuses to reopen an exteriors_ order in place.
+  assert.match(fn(measurements, 'reorderCurrentReportOrder'), /if \(reportOrderIsExterior\(\)\) reorderSourceCanReopenInPlace = false;/);
   const reorder = fn(measurements, 'reorderRejectedExteriorReport');
-  assert.match(reorder, /reorderSourceCanReopenInPlace = false/);
+  assert.match(reorder, /reorderCurrentReportOrder\(''\)/);
   assert.match(reorder, /ExteriorOrder\?\.prefer\?\.\(/);
   assert.match(reorder, /callHost\('orderMeasurements'\)/);
   assert.match(measurements, /\[data-reorder-rejected-exterior\][\s\S]{0,200}reorderRejectedExteriorReport\(button\.dataset\.reorderRejectedExterior\)/);
