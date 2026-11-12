@@ -8123,7 +8123,10 @@
     "developer_settings_subtitle": "Outils de développement, indicateurs de fonctionnalités et configuration des applications.",
     "pitch_notation_label": "Pente du toit",
     "pitch_notation_rise": "Hauteur sur 12 (6/12)",
-    "pitch_notation_degrees": "Degrés (26,6°)"
+    "pitch_notation_degrees": "Degrés (26,6°)",
+    "rp_section_units": "Unités",
+    "rp_section_units_sub": "Comment les nouveaux rapports écrivent les mesures.",
+    "rp_tip_pitch_notation": "Hauteur sur 12 (6/12), comme l'écrivent les couvreurs aux États-Unis, ou degrés (26,6°), comme ailleurs. Les rapports déjà commandés gardent la leur."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Ajouter un travail",

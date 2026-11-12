@@ -8336,7 +8336,10 @@
     "developer_settings_subtitle": "Ferramentas do desenvolvedor, sinalizadores de recursos e configuração de aplicativos.",
     "pitch_notation_label": "Inclinação do telhado",
     "pitch_notation_rise": "Elevação sobre 12 (6/12)",
-    "pitch_notation_degrees": "Graus (26,6°)"
+    "pitch_notation_degrees": "Graus (26,6°)",
+    "rp_section_units": "Unidades",
+    "rp_section_units_sub": "Como os novos relatórios escrevem as medidas.",
+    "rp_tip_pitch_notation": "Elevação sobre 12 (6/12), como os telhadistas dos EUA escrevem, ou graus (26,6°), como em outros lugares. Relatórios já pedidos mantêm a sua."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Adicionar trabalho",
