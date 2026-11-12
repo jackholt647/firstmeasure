@@ -1212,6 +1212,55 @@ function restoreCreatedSurfaceWire(edits,before={}){
  edits.$removedSurfacePoints=(edits.$removedSurfacePoints||[]).filter(k=>!restoredPoints.has(k));
  edits.$removedSurfaceEdges=(edits.$removedSurfaceEdges||[]).flatMap(k=>restoredEdges.get(k)||[k]);
 }
+// What a delete hides belongs to the face it was deleted from.
+//
+// A deleted face stays in the model as the source of its remaining boundary lines. The points and lines deleted
+// from it used to be recorded project-wide, by coordinate ($removedSurfacePoints, $removedSurfaceEdges), and hid
+// whatever was at that position: geometry drawn there later could not be seen or selected, and hidden geometry came
+// back when a move changed its coordinates. They are now recorded on the deleted face itself (wireExclusions), hide
+// nothing but that face's own wire, and follow the face when it moves (followWireExclusions).
+//
+// localizeWireMasks moves every project-wide record onto the deleted faces it applies to and empties the lists. A
+// record that matches no deleted face hid nothing that should be hidden, and is dropped: a live face shows all of
+// its boundary, and free-standing points and lines are removed outright, never hidden. True when anything changed.
+// (sharedIntervals ignores a face flagged deleted, so the outline is passed without the flag.)
+// The points that define a curve: deleting one deletes the curve, so it is a record a face with that curve keeps.
+function curveDefinitionPoints(c){return c.type==='spline'?c.controls||[]:c.type==='conic'?[c.start,c.end]:c.type==='ellipse'?[K.curvePoint(c,0),K.curvePoint(c,1)]:[];}
+function localizeWireMasks(edits){
+ const points=edits?.$removedSurfacePoints||[],lines=edits?.$removedSurfaceEdges||[];if(!edits||!points.length&&!lines.length)return false;
+ const parse=k=>{const [x,y,z]=String(k).split(',').map(Number);return {x,y,z};},pairs=lines.map(key=>({key,pair:String(key).split('|').map(parse)})).filter(c=>c.pair.length===2&&c.pair.every(K.finite3)),hidden=new Set(points);
+ for(const f of edits.$surfaces||[]){
+  // A point kept on an outline for reference (retainedPoints) that was deleted is simply no longer kept.
+  if(f.retainedPoints?.some(p=>hidden.has(vertexKey(p))))f.retainedPoints=f.retainedPoints.filter(p=>!hidden.has(vertexKey(p)));
+  if(!f.deleted||f.drafted||f.replacedBy||f.curvedSurface)continue;
+  const own=new Set([...rings(f).flat(),...(f.curves||[]).flatMap(curveDefinitionPoints)].map(vertexKey)),outline={points:f.points,holes:f.holes||[]},ps=points.filter(k=>own.has(k)),es=pairs.filter(c=>sharedIntervals(...c.pair,[outline]).length).map(c=>c.key);
+  if(ps.length||es.length){const mask=f.wireExclusions||{};f.wireExclusions={points:[...new Set([...(mask.points||[]),...ps])],edges:[...new Set([...(mask.edges||[]),...es])]};}
+ }
+ if(edits.$loose){const cuts=pairs.map(c=>({points:c.pair})),gone=p=>hidden.has(vertexKey(p));
+  edits.$loose={...edits.$loose,points:(edits.$loose.points||[]).filter(p=>!gone(p)),edges:(edits.$loose.edges||[]).flatMap(pair=>{if(pair.some(gone))return [];const intervals=cuts.length?sharedIntervals(...pair,cuts):[];if(!intervals.length)return [pair];const rest=[];let lo=0;for(const [start,end]of [...intervals,[1,1]]){if(start-lo>1e-7)rest.push([mix3(...pair,lo),mix3(...pair,start)]);lo=Math.max(lo,end);}return rest;})};
+ }
+ edits.$removedSurfacePoints=[];edits.$removedSurfaceEdges=[];return true;
+}
+// A face's hidden points and lines are written as coordinates of its own outline. When the outline moves (a move,
+// a weld, an extrusion carrying a corner) they move with it: each is found on the outline as it was in `before`
+// and rewritten for the outline as it is now. One that is no longer on the outline hides nothing and is dropped.
+function followWireExclusions(edits,before={}){
+ const old=new Map((before?.$surfaces||[]).map(f=>[f.id,f]));let changed=false;
+ for(const f of edits?.$surfaces||[]){const mask=f.wireExclusions;if(!mask||!(mask.points?.length||mask.edges?.length))continue;const prior=old.get(f.id);if(!prior)continue;
+  const was=rings(prior),now=rings(f);if(was.length!==now.length||was.some((r,i)=>r.length!==now[i].length))continue;
+  const kept=prior.retainedPoints||[],keep=f.retainedPoints||[];if(was.every((r,i)=>r.every((p,j)=>vertexKey(p)===vertexKey(now[i][j])))&&kept.length===keep.length&&kept.every((p,i)=>vertexKey(p)===vertexKey(keep[i])))continue;
+  const parse=k=>{const [x,y,z]=String(k).split(',').map(Number);return {x,y,z};},far=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),wasCurve=(prior.curves||[]).flatMap(curveDefinitionPoints),nowCurve=(f.curves||[]).flatMap(curveDefinitionPoints);
+  // Where a point of the old outline is now: a corner, a retained point, or a place along an edge.
+  const place=p=>{for(let i=0;i<was.length;i++)for(let j=0;j<was[i].length;j++)if(far(was[i][j],p)<=K.CONTACT)return now[i][j];
+   if(kept.length===keep.length)for(let i=0;i<kept.length;i++)if(far(kept[i],p)<=K.CONTACT)return keep[i];
+   if(wasCurve.length===nowCurve.length)for(let i=0;i<wasCurve.length;i++)if(far(wasCurve[i],p)<=K.CONTACT)return nowCurve[i];
+   for(let i=0;i<was.length;i++)for(let j=0;j<was[i].length;j++){const a=was[i][j],b=was[i][(j+1)%was[i].length];if(!pointOnEdge(p,a,b))continue;const u=sub(b,a),t=dot(sub(p,a),u)/dot(u,u);return mix3(now[i][j],now[i][(j+1)%now[i].length],t);}
+   return null;};
+  const points=(mask.points||[]).flatMap(k=>{const q=place(parse(k));return q?[vertexKey(q)]:[];}),lines=(mask.edges||[]).flatMap(k=>{const ends=String(k).split('|').map(e=>place(parse(e)));return ends.length===2&&ends.every(Boolean)&&far(...ends)>K.CONTACT?[edgeKey(...ends)]:[];});
+  f.wireExclusions={points:[...new Set(points)],edges:[...new Set(lines)]};changed=true;
+ }
+ return changed;
+}
 function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).filter(f=>f.curvedSurface?.logical&&!f.deleted&&!f.drafted);edits={...edits,$surfaces:(edits.$surfaces||[]).filter(f=>!f.curvedSurface)};const nodes=new Map(),edges=new Map(),removed=new Set(edits.$removedSurfacePoints||[]),removedEdges=new Set(edits.$removedSurfaceEdges||[]);
  const cuts=[...removedEdges].map(key=>({points:key.split('|').map(s=>{const [x,y,z]=s.split(',').map(Number);return {x,y,z};})})).filter(f=>f.points.length===2&&f.points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)));
  for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const p of (f.retainedPoints||[]).filter(p=>!f.trim||ownsPoint(f,p))){const k=vertexKey(p);if(!removed.has(k)&&!f.wireExclusions?.points?.includes(k))nodes.set(k,{...p,id:k});}
@@ -1236,7 +1285,9 @@ function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).
  // Deleting a curve's end or control deletes the curve. Its samples are never
  // promoted to points, so the dangling pieces go with it.
  const gone=[...removed].map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};}).filter(p=>[p.x,p.y,p.z].every(Number.isFinite)),near=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=K.CONTACT;
- const dropped=new Set(curves.filter(c=>(c.type==='spline'?c.controls:c.type==='conic'?[c.start,c.end]:c.type==='ellipse'?[K.curvePoint(c,0),K.curvePoint(c,1)]:[]).some(p=>gone.some(q=>near(p,q)))).map(c=>c.id));
+ const dropped=new Set(curves.filter(c=>curveDefinitionPoints(c).some(p=>gone.some(q=>near(p,q)))).map(c=>c.id));
+ // A face's own record of a deleted end or control drops that face's curve, and no other curve that happens to pass there.
+ for(const f of edits.$surfaces||[]){if(f.drafted||f.replacedBy||!f.curves?.length||!f.wireExclusions?.points?.length)continue;const own=f.wireExclusions.points.map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};});for(const c of f.curves)if(curveDefinitionPoints(c).some(p=>own.some(q=>near(p,q))))dropped.add(c.id);}
  if(dropped.size){const kept=new Set((edits.$loose?.points||[]).map(vertexKey));for(const [key,e]of edges)if(dropped.has(e.curveId))edges.delete(key);const used=new Set([...edges.values()].flatMap(e=>[e.a,e.b])),onDropped=n=>curves.some(c=>dropped.has(c.id)&&K.curveSamples(c).some((b,i,ps)=>i&&pointOnEdge(n,ps[i-1],b)));for(const [key,n]of nodes)if(!used.has(key)&&!kept.has(key)&&onDropped(n))nodes.delete(key);}
  return {nodes:[...nodes.values()],edges:[...edges.values()]};
 }
@@ -1438,6 +1489,7 @@ function deleteSurfaceElements(edits,pointIds=[],edgeIds=[]){const points=new Se
  // its coordinates, long after the shape it outlined was gone.
  if(edits.$loose){const gone=p=>points.has(vertexKey(p));edits.$loose.edges=(edits.$loose.edges||[]).filter(([a,b])=>!gone(a)&&!gone(b)&&!edges.has(edgeKey(a,b)));edits.$loose.points=(edits.$loose.points||[]).filter(p=>!gone(p));}
  for(const f of edits.$surfaces||[]){if(f.drafted)continue;if(!f.deleted)Object.assign(f,K.normalizeFace(f));const selected=rings(f).flat().filter(p=>points.has(vertexKey(p))),defines=selected.length>0&&K.pointRemovalChangesRegion(f,selected.map(K.pointKey));if(defines||rings(f).some(r=>r.some((p,i)=>edges.has(edgeKey(p,r[(i+1)%r.length])))))f.deleted=true;else if(selected.length){f.points=f.points.filter(p=>!points.has(vertexKey(p)));f.holes=(f.holes||[]).map(r=>r.filter(p=>!points.has(vertexKey(p))));}}
+ localizeWireMasks(edits);
 }
 // Removing a coplanar divider unions its incident regions. An exterior edge,
 // including a crease shared by different planes, invalidates its incident face.
@@ -1715,5 +1767,5 @@ function flattenedCurveSamples(before,after){
   const keys=new Set([...ordinary].filter(key=>!carried.has(key)));for(const p of state.points){const key=vertexKey(p);if(samples.has(key))keys.add(key);}return keys;};
  const already=flat(before);return [...flat(after)].filter(key=>!already.has(key));
 }
-const api={weldPlan,weldPlanes,loadBearingFaces,loadBearingIndex,flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,pruneHiddenLoose,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={weldPlan,weldPlanes,loadBearingFaces,loadBearingIndex,flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,pruneHiddenLoose,localizeWireMasks,followWireExclusions,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

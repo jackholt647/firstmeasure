@@ -227,7 +227,7 @@ function reconcileChimneys(state,edits){
 }
 // Preview and placement must publish the same normalized candidate. Never mutate
 // the caller while reconciling or validating: failures leave its preview intact.
-function prepareEdits(state,edits,before={}){const reconciled=reconcileChimneys(state,edits),next=reconciled===edits?copy(edits):reconciled;validateEdits(next,before,true);W.restoreCreatedSurfaceWire(next,before);return next;}
+function prepareEdits(state,edits,before={}){const reconciled=reconcileChimneys(state,edits),next=reconciled===edits?copy(edits):reconciled;validateEdits(next,before,true);W.restoreCreatedSurfaceWire(next,before);W.followWireExclusions(next,before);W.localizeWireMasks(next);return next;}
 // unshared: the caller guarantees edits and before have no objects in common
 // (e.g. prepareEdits' fresh copy), so a prior surface can be compared when
 // needed instead of first serializing every one; nothing here changes before.

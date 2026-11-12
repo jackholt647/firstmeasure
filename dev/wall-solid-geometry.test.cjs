@@ -295,7 +295,7 @@ test('new surface boundaries reclaim deleted coordinates without resurrecting ol
 });
 test('new surface reclaims only its part of a previously deleted edge',()=>{
  const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(0,0,0),b=p(4,0,0),before={$surfaces:[{id:'old',deleted:true,points:[a,b,p(4,0,2),p(0,0,2)]}],$removedSurfaceEdges:[G.edgeKey(a,b)]},candidate=structuredClone(before),face={id:'new',points:[p(1,0,0),p(3,0,0),p(3,1,0),p(1,1,0)]};candidate.$surfaces.push(face);const next=M.prepareEdits({},candidate,before),wire=G.surfaceWire(next);
- assert.deepEqual(new Set(next.$removedSurfaceEdges),new Set([G.edgeKey(a,p(1,0,0)),G.edgeKey(p(3,0,0),b)]));assert.ok(wire.edges.some(e=>e.id===G.edgeKey(face.points[0],face.points[1])));assert.ok(!wire.edges.some(e=>e.id===G.edgeKey(a,b)));
+ assert.deepEqual(next.$removedSurfaceEdges,[],'the record lives on the deleted face, not project-wide');assert.deepEqual(new Set(next.$surfaces[0].wireExclusions.edges),new Set([G.edgeKey(a,p(1,0,0)),G.edgeKey(p(3,0,0),b)]));assert.ok(wire.edges.some(e=>e.id===G.edgeKey(face.points[0],face.points[1])));assert.ok(!wire.edges.some(e=>e.id===G.edgeKey(a,b)));
 });
 test('new loose connections survive revival while a new deletion remains authoritative',()=>{
  const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(0,0,0),b=p(2,0,0),before={$loose:{points:[],edges:[]},$removedSurfacePoints:[G.vertexKey(a)],$removedSurfaceEdges:[G.edgeKey(a,b)]},candidate=structuredClone(before);candidate.$loose={points:[a,b],edges:[[a,b]]};const next=M.prepareEdits({},candidate,before);assert.equal(G.surfaceWire(next).edges.length,1);assert.equal(G.surfaceWire(next).nodes.length,2);
@@ -303,7 +303,10 @@ test('new loose connections survive revival while a new deletion remains authori
 });
 
 test('wire revival leaves unrelated sub-micron loose geometry and its exclusions unchanged',()=>{
- const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(10,10,0),b=p(10.0000001,10,0),q=p(0,0,0),before={$loose:{points:[{...a,anchorId:'keep'}],edges:[[a,b]]},$removedSurfacePoints:[G.vertexKey(a),G.vertexKey(q)]},candidate=structuredClone(before);candidate.$surfaces=[{id:'new',points:[q,p(2,0,0),p(0,2,0)]}];const next=M.prepareEdits({},candidate,before);assert.ok(next.$removedSurfacePoints.includes(G.vertexKey(a)));assert.deepEqual(next.$loose,before.$loose);
+ const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(10,10,0),b=p(10.0000001,10,0),q=p(0,0,0),before={$loose:{points:[{...a,anchorId:'keep'}],edges:[[a,b]]},$removedSurfacePoints:[G.vertexKey(a),G.vertexKey(q)]},candidate=structuredClone(before);candidate.$surfaces=[{id:'new',points:[q,p(2,0,0),p(0,2,0)]}];const next=M.prepareEdits({},candidate,before);
+ // The new face does not bring the hidden loose point back. A hidden free-standing point is not kept hidden any more:
+ // it is removed, with the line that ends on it, and no project-wide record is left.
+ assert.deepEqual(next.$removedSurfacePoints,[]);assert.deepEqual(next.$loose,{points:[],edges:[]});assert.ok(G.surfaceWire(next).nodes.every(n=>n.id!==G.vertexKey(a)));
 });
 test('deleting a line that overlaps a neighbour wall by a sub-millimetre sliver leaves that wall alone',()=>{
  // Measured houses carry 0.1-0.3 mm slivers; the recess's front line ran 0.3 mm onto the next wall's bottom edge,
@@ -323,4 +326,39 @@ test('deleting points removes the free-standing lines at them instead of hiding 
  // A project saved before this still holds lines an earlier delete only hid: opening it removes them.
  const old={$removedSurfacePoints:[W.vertexKey(sq[2])],$loose:{points:sq.map(q=>({...q})),edges:sq.map((a,i)=>[{...a},{...sq[(i+1)%4]}])}};
  assert.equal(W.pruneHiddenLoose(old),true);assert.equal(old.$loose.points.length,3);assert.equal(old.$loose.edges.length,2);assert.equal(W.pruneHiddenLoose(old),false);
+});
+
+test('what a delete hides is recorded on the deleted face, hides nothing else, and follows the face',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),sq=[p(0,0,0),p(2,0,0),p(2,0,2),p(0,0,2)];
+ const ids=g=>new Set(g.nodes.map(n=>n.id)),edits={$surfaces:[{id:'face',points:sq.map(q=>({...q})),holes:[]}]};
+ W.deleteSurfaceElements(edits,[W.vertexKey(sq[2])]);
+ // No project-wide record is left: the hidden corner is written on the deleted face.
+ assert.deepEqual(edits.$removedSurfacePoints,[]);assert.deepEqual(edits.$removedSurfaceEdges,[]);
+ assert.equal(edits.$surfaces[0].deleted,true);assert.deepEqual(edits.$surfaces[0].wireExclusions.points,[W.vertexKey(sq[2])]);
+ let wire=W.surfaceWire(edits);assert.ok(!ids(wire).has(W.vertexKey(sq[2])));assert.equal(wire.edges.length,2,'the two lines that met at the deleted corner are hidden');
+ // Something drawn later at that position is seen: before, the record hid it.
+ const drawn={...edits,$loose:{points:[{...sq[2]}],edges:[[{...sq[2]},p(2,3,2)]]}};wire=W.surfaceWire(drawn);
+ assert.ok(ids(wire).has(W.vertexKey(sq[2])));assert.ok(wire.edges.some(e=>e.id===W.edgeKey(sq[2],p(2,3,2))));
+ // The deleted face is carried somewhere else: the corner stays hidden there and does not come back.
+ const before=JSON.parse(JSON.stringify(edits)),shift=q=>p(q.x+5,q.y+1,q.z+.5);edits.$surfaces[0].points=edits.$surfaces[0].points.map(shift);
+ assert.equal(W.followWireExclusions(edits,before),true);assert.deepEqual(edits.$surfaces[0].wireExclusions.points,[W.vertexKey(shift(sq[2]))]);
+ wire=W.surfaceWire(edits);assert.ok(!ids(wire).has(W.vertexKey(shift(sq[2]))));assert.equal(wire.edges.length,2);
+ assert.equal(W.followWireExclusions(edits,JSON.parse(JSON.stringify(edits))),false,'nothing moved: nothing to rewrite');
+});
+
+test('a project saved with project-wide delete records keeps the same visible lines when they move onto its faces',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),sq=[p(0,0,0),p(2,0,0),p(2,0,2),p(0,0,2)],other=[p(5,0,0),p(7,0,0),p(7,0,2),p(5,0,2)];
+ const old={$surfaces:[{id:'gone',deleted:true,points:sq,holes:[]},{id:'live',points:other,holes:[],retainedPoints:[p(6,0,0)]}],
+  $removedSurfacePoints:[W.vertexKey(sq[3]),W.vertexKey(p(6,0,0)),W.vertexKey(other[2]),'9.000000,9.000000,9.000000'],$removedSurfaceEdges:[W.edgeKey(sq[0],sq[1])],
+  $loose:{points:[p(9,9,9),p(1,5,1)],edges:[[p(9,9,9),p(1,5,1)]]}};
+ const seen=g=>[g.nodes.map(n=>n.id).sort().join(' '),g.edges.map(e=>e.id).sort().join(' ')];
+ const next=JSON.parse(JSON.stringify(old));assert.equal(W.localizeWireMasks(next),true);
+ assert.deepEqual(next.$removedSurfacePoints,[]);assert.deepEqual(next.$removedSurfaceEdges,[]);assert.equal(W.localizeWireMasks(next),false);
+ assert.deepEqual(next.$surfaces[0].wireExclusions,{points:[W.vertexKey(sq[3])],edges:[W.edgeKey(sq[0],sq[1])]});
+ // A reference point that was deleted is no longer kept; a hidden free-standing line is removed, not hidden.
+ assert.deepEqual(next.$surfaces[1].retainedPoints,[]);assert.deepEqual(next.$loose,{points:[p(1,5,1)],edges:[]});
+ // The deleted face shows exactly what it did. The live face shows its whole outline: a record must not hide a corner it has.
+ const was=W.surfaceWire(old),now=W.surfaceWire(next),corner=W.vertexKey(other[2]);
+ assert.ok(!was.nodes.some(n=>n.id===corner)&&now.nodes.some(n=>n.id===corner));
+ const without=g=>seen({nodes:g.nodes.filter(n=>n.id!==corner),edges:g.edges.filter(e=>e.a!==corner&&e.b!==corner)});assert.deepEqual(without(now),without(was));
 });
