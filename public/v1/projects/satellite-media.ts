@@ -125,7 +125,8 @@ export async function staticMapHasNoImagery(bytes: Buffer) {
   if (!data?.length) return false;
   let flat = 0;
   for (let i = 0; i < data.length; i += 3) {
-    if (Math.abs(data[i] - 228) <= 8 && Math.abs(data[i + 1] - 226) <= 8 && Math.abs(data[i + 2] - 222) <= 8) flat += 1;
+    const r = data[i] ?? 0, g = data[i + 1] ?? 0, b = data[i + 2] ?? 0;
+    if (Math.abs(r - 228) <= 8 && Math.abs(g - 226) <= 8 && Math.abs(b - 222) <= 8) flat += 1;
   }
   return flat / (data.length / 3) >= 0.85;
 }
