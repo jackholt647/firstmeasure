@@ -527,6 +527,29 @@
     };
   }
 
+  function reportReleaseHeld(...sources){
+    return sources.some((source) => {
+      const manifest = source && typeof source === 'object' ? source : {};
+      const delivery = manifest.delivery && typeof manifest.delivery === 'object' ? manifest.delivery : {};
+      const hold = manifest.delivery_release_hold && typeof manifest.delivery_release_hold === 'object'
+        ? manifest.delivery_release_hold
+        : (delivery.release_hold && typeof delivery.release_hold === 'object' ? delivery.release_hold : {});
+      if (cleanText(manifest.delivery_hold_status || hold.status).toLowerCase() !== 'holding') return false;
+      const scheduled = cleanText(manifest.delivery_hold_scheduled_release_at || hold.scheduled_release_at);
+      const scheduledMs = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(scheduled) ? scheduled.replace(' ', 'T') : `${scheduled.replace(' ', 'T')}Z`);
+      return Number.isFinite(scheduledMs) && scheduledMs > Date.now();
+    });
+  }
+
+  // What the customer sees of an ordered report, as the projects list shows it: from order until it is received it is
+  // "Processing", with no step in between and nothing while it is held for release (FM-383).
+  function customerReportStatus(status, ...holdSources){
+    const key = cleanText(status).toLowerCase().replace(/[\s-]+/g, '_');
+    if (!key || ['cancelled', 'canceled', 'rejected', 'rejected_no_coverage'].includes(key)) return status;
+    if (['completed', 'complete'].includes(key) && !reportReleaseHeld(...holdSources)) return status;
+    return 'processing';
+  }
+
   function reportSummary(inputProject = project()){
     const order = reportOrderState();
     const measurement = inputProject?.measurement_project && typeof inputProject.measurement_project === 'object'
@@ -534,7 +557,7 @@
       : ((inputProject?.measurement && typeof inputProject.measurement === 'object') ? inputProject.measurement : {});
     const raw = measurement?.raw && typeof measurement.raw === 'object' ? measurement.raw : {};
     const manifest = raw.manifest && typeof raw.manifest === 'object' ? raw.manifest : {};
-    const status = firstText(order?.status, measurement.status, raw.status, manifest.status, inputProject?.status);
+    const status = customerReportStatus(firstText(order?.status, measurement.status, raw.status, manifest.status, inputProject?.status), measurement, raw, manifest);
     const hasReport = !!(
       order?.ordered
       || measurement.id
