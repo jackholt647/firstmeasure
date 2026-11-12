@@ -1752,7 +1752,9 @@ function perf_previewLineMove(e){
    t.pathSnap=W.motionSnap(t.pairs.flat(),t.pairs,t.direction,amount,t.scene,{...options,candidates:t.lineMotion.candidates});if(t.pathSnap)amount=t.pathSnap.amount;
   }
   try{const edits=t.normalMode?copyWithDrafts(t.stageBefore||t.before,t.sceneDrafts):shareWithDrafts(t.stageBefore||t.before,t.sceneDrafts);let result;
-   if(t.normalMode){const move=p=>({x:p.x+t.direction.x*amount,y:p.y+t.direction.y*amount,z:p.z+t.direction.z*amount});result={pairs:t.pairs.map(pair=>pair.map(move))};if(Math.abs(amount)>1e-6){edits.$surfaces||=[];for(const [i,[a,b]]of t.pairs.entries()){const support=t.scene.find(f=>W.sharedIntervals(a,b,[f]).length),face={id:'line-extrude-'+t.op+'-'+i,points:[a,b,move(b),move(a)],...(support?.material?{material:support.material}:{}),...(support?.finishColor?{finishColor:support.finishColor}:{})};window.ExteriorGeometry.validateFace(face);edits.$surfaces.push(face);}}window.ExteriorModel.validateEdits(edits,t.before);}
+   // Snapped to a point on the edge an end rides along: the lines go exactly there (shift), so the new corner is
+   // that point and not a twin a hair beside it.
+   if(t.normalMode){const shift=t.pathSnap?.shift,move=p=>shift?{x:p.x+shift.x,y:p.y+shift.y,z:p.z+shift.z}:{x:p.x+t.direction.x*amount,y:p.y+t.direction.y*amount,z:p.z+t.direction.z*amount};result={pairs:t.pairs.map(pair=>pair.map(move))};if(Math.abs(amount)>1e-6){edits.$surfaces||=[];for(const [i,[a,b]]of t.pairs.entries()){const support=t.scene.find(f=>W.sharedIntervals(a,b,[f]).length),face={id:'line-extrude-'+t.op+'-'+i,points:[a,b,move(b),move(a)],...(support?.material?{material:support.material}:{}),...(support?.finishColor?{finishColor:support.finishColor}:{})};window.ExteriorGeometry.validateFace(face);edits.$surfaces.push(face);}}window.ExteriorModel.validateEdits(edits,t.before);}
    else if(t.planarDraftKey&&!t.extrude){
     const previous=host.state().wallEdits;host.state().wallEdits=edits;
     try{result={pairs:moveDraftLines(edits.$drafts[t.planarDraftKey],t.pairs,{x:t.direction.x*amount,y:t.direction.y*amount,z:t.direction.z*amount})};}

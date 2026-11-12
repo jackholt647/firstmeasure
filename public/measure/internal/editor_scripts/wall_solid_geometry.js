@@ -1672,6 +1672,8 @@ function coplanarContact(source,target){
 }
 // Snap along the permitted motion axis against finite geometry, even when
 // the target is only a point or edge rather than a parallel containing face.
+// How far a point on an edge may lie off the exact line of a push along that edge, per metre: about half a degree.
+const RAIL_SLACK=.01;
 function motionSnapCandidates(points,edges,direction,faces,options={}){
  const tol=1e-5,targets=faces.filter(f=>!f.deleted&&!f.snapOnly&&!f.drafted),targetPoints0=[...targets.flatMap(f=>[...rings(f).flat(),...(f.retainedPoints||[])]),...(options.points||[])],targetEdges0=[...targets.flatMap(f=>rings(f).flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]]))),...(options.edges||[])];
  const moving=p=>edges.some(([a,b])=>pointOnEdge(p,a,b)),targetPoints=[...new Map(targetPoints0.filter(p=>!options.excludeMoving||!moving(p)).map(p=>[vertexKey(p),p])).values()],targetEdges=[...new Map(targetEdges0.filter(([a,b])=>!options.excludeMoving||!moving(a)||!moving(b)).map(e=>[edgeKey(...e),e])).values()],planes=targets.map(f=>({f,frame:faceFrame(f)})).filter(x=>x.frame);const candidates=[];
@@ -1694,10 +1696,14 @@ function motionSnapCandidates(points,edges,direction,faces,options={}){
   for(const [c,d]of targetEdges){
    if(!pointOnEdge(p,c,d))continue;const r=sub(d,c),along=cross(r,own[0]);if(!normal&&Math.hypot(along.x,along.y,along.z)<1e-9*Math.hypot(r.x,r.y,r.z)*Math.hypot(own[0].x,own[0].y,own[0].z)+1e-12)continue;
    for(const q of [c,d,...targetPoints.filter(q=>pointOnEdge(q,c,d))]){
-    const v=sub(q,p);if(Math.hypot(v.x,v.y,v.z)<tol)continue;let t;
+    const v=sub(q,p);if(Math.hypot(v.x,v.y,v.z)<tol)continue;let t,shift=null;
     if(normal){const den=dot(direction,normal);if(Math.abs(den)<1e-9)continue;t=dot(v,normal)/den;}
-    else{const u=own[0],cc=dot(u,u),bn=dot(direction,u),den=cc-bn*bn;if(den<1e-12)continue;t=(dot(direction,v)*cc-dot(u,v)*bn)/den;const s2=(dot(u,v)-bn*t)/cc,miss=sub(v,{x:u.x*s2+direction.x*t,y:u.y*s2+direction.y*t,z:u.z*s2+direction.z*t});if(Math.hypot(miss.x,miss.y,miss.z)>=tol)continue;}
-    if(!candidates.some(k=>k.kind==='Point'&&Math.abs(k.amount-t)<1e-9&&Math.hypot(...Object.values(sub(k.target,q)))<tol))offer(t,p,q,'Point',[c,d]);
+    else{const u=own[0],cc=dot(u,u),bn=dot(direction,u),den=cc-bn*bn;if(den<1e-12)continue;t=(dot(direction,v)*cc-dot(u,v)*bn)/den;const s2=(dot(u,v)-bn*t)/cc,miss=sub(v,{x:u.x*s2+direction.x*t,y:u.y*s2+direction.y*t,z:u.z*s2+direction.z*t}),off=Math.hypot(miss.x,miss.y,miss.z);
+     // Measured walls are square to each other only to a fraction of a degree, so an edge a line is pushed along
+     // leaves the exact push direction by a hair: a tenth of a millimetre or more over a few metres. The point is
+     // still the target. `shift` is the exact way there, so the pushed line can land on the point itself.
+     if(off>=tol+RAIL_SLACK*Math.hypot(v.x,v.y,v.z))continue;if(off>=tol||Math.abs(s2)>1e-9)shift={x:v.x,y:v.y,z:v.z};}
+    if(Number.isFinite(t)&&Math.abs(t)>=1e-6&&!candidates.some(k=>k.kind==='Point'&&!k.shift===!shift&&Math.abs(k.amount-t)<1e-9&&Math.hypot(...Object.values(sub(k.target,q)))<tol))candidates.push({amount:t,from:p,target:q,kind:'Point',edge:[c,d],...(shift?{shift}:{})});
    }
   }
  }
