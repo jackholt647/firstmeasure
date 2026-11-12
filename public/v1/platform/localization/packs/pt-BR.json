@@ -8089,6 +8089,8 @@
     "fm_coupon_credit_added": "Crédito de cupom adicionado",
     "fm_cancellation_refund": "Reembolso por cancelamento",
     "fm_expedite_refund": "Reembolso da taxa expressa",
+    "fm_expedite_fee": "Taxa expressa",
+    "fm_expedite_fee_refund": "Reembolso da taxa expressa",
     "fm_missed_promised_delivery_window": "Prazo de entrega prometido não cumprido",
     "fm_additional_structure_refund": "Reembolso por estrutura adicional",
     "fm_additional_structure_request": "Solicitação de estrutura adicional",

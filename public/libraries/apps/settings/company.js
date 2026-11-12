@@ -13898,6 +13898,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       if (r === 'coupon_redeem') return settingsText("fm_promo_credit_applied", "Promo credit applied");
       if (r === 'cancellation_refund') return settingsText("fm_cancellation_refund", "Cancellation refund");
       if (r === 'firstmeasure_expedite_missed_promise_refund') return settingsText("fm_expedite_refund", "Expedite refund");
+      if (r === 'order_expedite_upgrade') return settingsText("fm_expedite_fee", "Expedite fee");
+      if (r === 'order_expedite_upgrade_refund') return settingsText("fm_expedite_fee_refund", "Expedite fee refund");
       if (r.indexOf('refund') !== -1) return settingsText("fm_refund", "Refund");
       if (r.indexOf('stripe') === 0) return settingsText("fm_payment_received", "Payment received");
       return settingsText("fm_credit_adjustment", "Credit adjustment");

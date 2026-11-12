@@ -8085,6 +8085,8 @@
     "fm_coupon_credit_added": "Kupongkreditt lagt til",
     "fm_cancellation_refund": "Refusjon ved avbestilling",
     "fm_expedite_refund": "Refusjon for fremskyndet levering",
+    "fm_expedite_fee": "Gebyr for fremskyndet levering",
+    "fm_expedite_fee_refund": "Refusjon av gebyr for fremskyndet levering",
     "fm_missed_promised_delivery_window": "Overskredet lovet leveringstid",
     "fm_additional_structure_refund": "Refusjon for ekstra bygning",
     "fm_additional_structure_request": "Forespørsel om ekstra bygning",
