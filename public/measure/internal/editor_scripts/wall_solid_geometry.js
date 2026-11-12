@@ -1672,6 +1672,24 @@ function coplanarContact(source,target){
 }
 // Snap along the permitted motion axis against finite geometry, even when
 // the target is only a point or edge rather than a parallel containing face.
+// A push that runs almost along an existing edge runs along that edge.
+//
+// Walls are square to each other only to a fraction of a degree, so a line pushed square off its own face leaves
+// the edge its end sits on by a hair: the new face gets an edge of its own a tenth of a millimetre beside the
+// existing one, never quite on it, and the points of the existing edge are not on the push line. When an end of
+// the pushed lines sits on an edge within RAIL_ANGLE of the push direction, that edge's direction is the push
+// direction. ends: the pushed lines' end points; lines: the lines being pushed; edges: the scene's lines.
+// Returns the unit direction to push in, or null where no edge qualifies. The longest qualifying edge decides,
+// because a long edge gives a far better direction than a short one.
+const RAIL_ANGLE=2*Math.PI/180;
+function railDirection(ends,direction,edges,lines=[]){
+ const unit=v=>{const l=Math.hypot(v.x,v.y,v.z);return l>1e-9?{x:v.x/l,y:v.y/l,z:v.z/l,l}:null;},d=unit(direction);if(!d)return null;
+ const own=lines.map(([a,b])=>unit(sub(b,a))).filter(Boolean),limit=Math.cos(RAIL_ANGLE);let best=null;
+ for(const [c,e]of edges){const r=unit(sub(e,c));if(!r||r.l<.01)continue;const along=dot(r,d);if(Math.abs(along)<limit)continue;
+  if(own.some(u=>Math.abs(dot(u,r))>.999))continue;if(!ends.some(p=>pointOnEdge(p,c,e)))continue;
+  if(!best||r.l>best.l)best={x:r.x*Math.sign(along),y:r.y*Math.sign(along),z:r.z*Math.sign(along),l:r.l};}
+ return best?{x:best.x,y:best.y,z:best.z}:null;
+}
 // How far a point on an edge may lie off the exact line of a push along that edge, per metre: about half a degree.
 const RAIL_SLACK=.01;
 function motionSnapCandidates(points,edges,direction,faces,options={}){
@@ -1773,5 +1791,5 @@ function flattenedCurveSamples(before,after){
   const keys=new Set([...ordinary].filter(key=>!carried.has(key)));for(const p of state.points){const key=vertexKey(p);if(samples.has(key))keys.add(key);}return keys;};
  const already=flat(before);return [...flat(after)].filter(key=>!already.has(key));
 }
-const api={weldPlan,weldPlanes,loadBearingFaces,loadBearingIndex,flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,pruneHiddenLoose,localizeWireMasks,followWireExclusions,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={weldPlan,weldPlanes,loadBearingFaces,loadBearingIndex,flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,pruneHiddenLoose,railDirection,RAIL_ANGLE,localizeWireMasks,followWireExclusions,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

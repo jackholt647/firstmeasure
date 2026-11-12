@@ -66,3 +66,19 @@ test('a line pushed along an edge that is a hair off square still snaps to a poi
  const exact=W.motionSnapCandidates([a,b],[[a,b]],dir,[],{points:[p(7,0,3)],edges:[[a,p(7,0,3)]],excludeMoving:true}).filter(c=>c.kind==='Point'&&Math.abs(c.amount-7)<1e-9);
  assert.ok(exact.length&&exact.every(c=>!c.shift));
 });
+
+test('a push within a degree or two of an edge at the line\'s end follows that edge exactly',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),a=p(0,0,3),b=p(0,2,4),square=p(1,0,0);
+ // The wall the line stands against runs 0.13 mm in 7 m off square.
+ const q=p(7,.00013,3),far=p(15,.00013*15/7,3),edges=[[a,q],[q,far],[a,b]],rail=W.railDirection([a,b],square,edges,[[a,b]]);
+ assert.ok(rail&&Math.abs(Math.hypot(rail.x,rail.y,rail.z)-1)<1e-12);assert.ok(rail.x>0,'same way as the push');
+ // Pushed along it, the points of that edge are exactly on the push line: plain snap targets, nothing to correct.
+ const targets=W.motionSnapCandidates([a,b],[[a,b]],rail,[],{points:[q,far],edges:[[a,q],[q,far]],excludeMoving:true}).filter(c=>c.kind==='Point');
+ assert.ok(targets.some(c=>c.target===q&&!c.shift)&&targets.some(c=>c.target===far&&!c.shift),JSON.stringify(targets.map(c=>[c.amount,!!c.shift])));
+ // The opposite push follows the same edge the other way.
+ assert.ok(W.railDirection([a,b],p(-1,0,0),edges,[[a,b]]).x<0);
+ // Three degrees off is a different direction; an edge that does not touch the line, and the line itself, never count.
+ assert.equal(W.railDirection([a,b],square,[[a,p(7,7*Math.tan(3*Math.PI/180),3)]],[[a,b]]),null);
+ assert.equal(W.railDirection([a,b],square,[[p(0,5,3),p(7,5,3)]],[[a,b]]),null);
+ assert.equal(W.railDirection([a,b],p(0,2,1),[[a,b]],[[a,b]]),null);
+});
