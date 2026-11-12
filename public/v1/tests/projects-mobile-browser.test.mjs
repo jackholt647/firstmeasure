@@ -419,6 +419,7 @@ test('a Tile never shows Google\'s "no imagery" picture: no location draws no ma
         await page.waitForFunction((id) => { const tile = document.querySelector(`.v-tile[data-id="${id}"]`); return tile.querySelector('.v-thumb').classList.contains('v-thumb-empty') && tile.querySelector('.v-thumb img').src.startsWith('data:'); }, id);
         if (mobile) {
           assert.equal(await page.locator(`.v-tile[data-id="${id}"]`).evaluate((el) => el.classList.contains('v-tile-compact')), true, `${id} is a compact card on a phone`);
+          assert.equal(await page.locator(`.v-tile[data-id="${id}"] .v-thumb`).evaluate((el) => getComputedStyle(el, '::before').content), 'none', 'a compact card has no image icon');
         } else {
           const icon = await page.locator(`.v-tile[data-id="${id}"] .v-thumb`).evaluate((el) => { const before = getComputedStyle(el, '::before'); return { content:before.content, color:before.color, loading:el.classList.contains('loading') }; });
           assert.deepEqual(icon, { content:'"\uf03e"', color:'rgb(195, 200, 208)', loading:false }, `${id} shows the gray image icon`);
