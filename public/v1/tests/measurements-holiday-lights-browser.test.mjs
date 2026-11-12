@@ -85,3 +85,55 @@ test('holiday lights count by side and roofline, in side colours, with the lengt
     await page.evaluate(()=>window.lights.destroy());
   }finally{await browser.close();}
 });
+
+// FM-400: the 3D model's lights are a toggle beside Expand, not a key tab with a "Show holiday lights" button. Small (the
+// project details tray) it shows only the roof, the total and a way to Reports › Holiday Lights; side by side the counts
+// take the left column. How lengths are measured is a tooltip by the title, not a paragraph.
+test('the 3D model toggles holiday lights: compact in the tray, counts in the left column side by side',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--enable-webgl','--use-angle=swiftshader']});
+  try{
+    const page=await browser.newPage({viewport:{width:1400,height:820}}),errors=[];
+    page.on('pageerror',e=>errors.push(e.message));
+    await page.route(url=>url.host==='lights.test',r=>r.fulfill(/\.xml$/.test(new URL(r.request().url()).pathname)?{contentType:'application/xml',body:xml}:/\.js$/.test(new URL(r.request().url()).pathname)?{contentType:'text/javascript',body:''}:{contentType:'text/html',body:'<style>body{margin:0;font-family:Arial}#w{width:380px;height:380px;position:relative}</style><div id="w"></div>'}));
+    await page.goto('http://lights.test/');
+    await page.addScriptTag({url:'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'});
+    await page.addScriptTag({url:'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js'});
+    for(const file of ['roof-viewer.js','holiday-lights.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/apps/measurements/'+file,import.meta.url),'utf8')});
+    await page.evaluate(()=>{window.opened=[];document.addEventListener('fm:open-report-view',event=>{window.opened.push(event.detail.view);if(window.handleOpen)event.preventDefault();});
+      window.viewer=FirstMeasureRoofViewer.mount(document.querySelector('#w'),{xmlUrl:'/model.xml',standalone:true,holidayLights:true});});
+    const toggle=page.locator('[data-hl-toggle]');
+    await toggle.waitFor();
+    assert.equal(await page.locator('[data-key-tab="lights"], .fm-roof-hl-switch').count(),0);
+    assert.equal(await toggle.getAttribute('aria-pressed'),'false');
+    assert.equal(await toggle.getAttribute('aria-label'),'Holiday lights');
+    await toggle.click();
+    await page.waitForFunction(()=>document.querySelector('.fm-roof-lights .fm-hl-canvas canvas')&&document.querySelector('.fm-hl-message').hidden,{},{timeout:45000});
+    const total=Math.round(40+2*rake+porchRake+20+40+porchRake+2*rake)+' ft';
+    await page.waitForFunction(text=>document.querySelector('.fm-roof-hl-mini strong')?.textContent===text,total);
+    const small=await page.evaluate(()=>{const visible=el=>!!el&&getComputedStyle(el).display!=='none'&&el.getClientRects().length>0,box=el=>el.getBoundingClientRect();
+      const w=box(document.querySelector('#w')),canvas=box(document.querySelector('.fm-roof-lights .fm-hl-canvas')),mini=document.querySelector('.fm-roof-hl-mini');
+      return {pressed:document.querySelector('[data-hl-toggle]').getAttribute('aria-pressed'),model:visible(document.querySelector('.fm-roof-canvas')),panel:visible(document.querySelector('.fm-hl-panel')),key:visible(document.querySelector('.fm-roof-legend')),
+        mini:visible(mini)&&box(mini).bottom<=w.bottom,fills:Math.round(canvas.width)===Math.round(w.width)&&Math.round(canvas.height)===Math.round(w.height),scrolls:document.querySelector('.fm-roof-lights').scrollHeight>document.querySelector('.fm-roof-lights').clientHeight+1};});
+    assert.deepEqual(small,{pressed:'true',model:false,panel:false,key:false,mini:true,fills:true,scrolls:false});
+    // Open Holiday Lights asks the host for Reports › Holiday Lights; a host that answers keeps the tray as it is.
+    await page.evaluate(()=>{window.handleOpen=true;});
+    await page.click('[data-hl-open]');
+    assert.deepEqual(await page.evaluate(()=>window.opened),['lights']);
+    assert.equal(await page.locator('.fm-roof-expanded').count(),0);
+    // With no host to answer, it expands instead: side by side, the counts are in the left column, with the tooltip.
+    await page.evaluate(()=>{window.handleOpen=false;});
+    await page.click('[data-hl-open]');
+    await page.waitForFunction(()=>document.querySelector('.fm-roof-gallery.is-side [data-key-panel="lights"] .fm-hl-panel [data-hl-total]'));
+    const side=await page.evaluate(()=>{const panel=document.querySelector('[data-key-panel="lights"] .fm-hl-panel'),info=panel.querySelector('.fm-hl-info button'),tip=document.getElementById(info.getAttribute('aria-describedby'));
+      return {total:panel.querySelector('[data-hl-total]').textContent,mini:getComputedStyle(document.querySelector('.fm-roof-hl-mini')).display,note:!!document.querySelector('.fm-hl-note'),tip:tip.textContent.startsWith('Lengths are measured along each roof edge'),tipHidden:getComputedStyle(tip).visibility,lines:getComputedStyle(document.querySelector('[data-key-panel="lines"]')).display};});
+    assert.deepEqual(side,{total,mini:'none',note:false,tip:true,tipHidden:'hidden',lines:'none'});
+    await page.hover('[data-key-panel="lights"] .fm-hl-info button');
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-key-panel="lights"] .fm-hl-tip')).opacity==='1');
+    // Toggling off brings back the model and its key; the state remembers the choice.
+    assert.equal(await page.evaluate(()=>window.viewer.serialize().lights),true);
+    await page.click('[data-hl-toggle]');
+    assert.deepEqual(await page.evaluate(()=>[document.querySelector('[data-hl-toggle]').getAttribute('aria-pressed'),getComputedStyle(document.querySelector('.fm-roof-canvas')).display!=='none',document.querySelectorAll('.fm-roof-lights .fm-hl').length,getComputedStyle(document.querySelector('[data-key-panel="lines"]')).display!=='none',window.viewer.serialize().lights]),['false',true,0,true,false]);
+    assert.deepEqual(errors,[]);
+    await page.evaluate(()=>window.viewer.destroy());
+  }finally{await browser.close();}
+});

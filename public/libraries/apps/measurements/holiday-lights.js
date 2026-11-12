@@ -173,10 +173,11 @@
   }
 
   function injectStyle(){
-    if (document.getElementById('fm-holiday-lights-style-v2')) return;
+    if (document.getElementById('fm-holiday-lights-style-v3')) return;
     document.getElementById('fm-holiday-lights-style')?.remove();
+    document.getElementById('fm-holiday-lights-style-v2')?.remove();
     const el = document.createElement('style');
-    el.id = 'fm-holiday-lights-style-v2';
+    el.id = 'fm-holiday-lights-style-v3';
     el.textContent = `
       .fm-hl-host{height:100%;container-type:inline-size}
       .fm-hl{height:100%;min-height:420px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;padding:12px;box-sizing:border-box;background:#f5f6f8}
@@ -223,7 +224,14 @@
       .fm-hl-spacing button:hover{background:#f9fafb;border-color:#d0d5dd}
       .fm-hl-spacing button[aria-pressed=true]{border:1.5px solid #344054;background:#f2f4f7;font-weight:700;color:#101828}
       .fm-hl-spacing button:focus-visible{outline:2px solid #1a73e8;outline-offset:1px}
-      .fm-hl-note{margin:0;font-size:11px;line-height:1.45;color:#667085}
+      .fm-hl-info{position:relative;margin-left:auto;display:inline-flex}
+      .fm-hl-info>button{display:grid;place-items:center;width:24px;height:24px;padding:0;border:1px solid #d0d5dd;border-radius:50%;background:#fff;color:#667085;cursor:help}
+      .fm-hl-info>button svg{width:14px;height:14px;display:block}
+      .fm-hl-info>button:hover,.fm-hl-info.is-open>button{color:#101828;border-color:#98a2b3}
+      .fm-hl-info>button:focus-visible{outline:2px solid #1a73e8;outline-offset:2px}
+      .fm-hl-tip{position:absolute;right:0;top:calc(100% + 6px);z-index:6;width:max-content;max-width:min(280px,80vw);background:#101828eb;color:#fff;font-size:11px;font-weight:400;line-height:1.45;padding:7px 9px;border-radius:6px;box-shadow:0 4px 12px #1018282e;opacity:0;visibility:hidden;transform:translateY(-2px);transition:opacity .12s,transform .12s,visibility .12s;pointer-events:none;text-transform:none;letter-spacing:0}
+      .fm-hl-info:hover .fm-hl-tip,.fm-hl-info>button:focus-visible+.fm-hl-tip,.fm-hl-info.is-open .fm-hl-tip{opacity:1;visibility:visible;transform:none}
+      @media(prefers-reduced-motion:reduce){.fm-hl-tip{transition:none}}
       @container (max-width:760px){.fm-hl{grid-template-columns:1fr;grid-template-rows:minmax(320px,56vh) auto;height:auto}.fm-hl-panel{overflow:visible}}
     `;
     document.head.append(el);
@@ -232,9 +240,10 @@
   const feet = (value) => t('hl_feet', `${Math.round(value).toLocaleString()} ft`, { value: Math.round(value) });
   const bulbsOn = (length, inches) => Math.max(1, Math.round(length * 12 / inches));
 
-  function mount(root, { xmlUrl } = {}){
+  // onUpdate({ total }): told the lit length in feet whenever it changes, for a host that shows only the roof.
+  function mount(root, { xmlUrl, onUpdate } = {}){
     injectStyle();
-    let disposed = false, renderer, scene, camera, controls, observer, runGroup, scale = 1, point = null, spacingIn = STANDARD_SPACING;
+    let disposed = false, renderer, scene, camera, controls, observer, runGroup, scale = 1, point = null, spacingIn = STANDARD_SPACING, fitRadius = 60, fitCorners = [], moved = false;
     const enabled = Object.fromEntries(EDGES.map((edge) => [edge.type, edge.on]));
     // Sides switched off (north, east, south, west, peak: false); every side starts on.
     const sideOn = {};
@@ -256,12 +265,11 @@
           <div class="fm-hl-message" role="status"></div>
         </div>
         <aside class="fm-hl-panel">
-          <h3><i class="fa-solid fa-lightbulb" aria-hidden="true"></i><span></span></h3>
+          <h3><i class="fa-solid fa-lightbulb" aria-hidden="true"></i><span></span><span class="fm-hl-info"><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.6" r="1" fill="currentColor" stroke="none"/></svg></button><span class="fm-hl-tip" role="tooltip"></span></span></h3>
           <div class="fm-hl-total"><strong data-hl-total>—</strong><span data-hl-total-label></span></div>
           <div class="fm-hl-section" data-hl-edges><h4></h4></div>
           <div class="fm-hl-section"><h4 data-hl-runs-title></h4><div data-hl-runs></div></div>
           <div class="fm-hl-section"><h4 data-hl-spacing-title></h4><div class="fm-hl-spacing"><div class="fm-hl-spacing-head"><span></span><span></span><span></span></div><div class="fm-hl-spacing" data-hl-spacing role="group"></div></div></div>
-          <p class="fm-hl-note"></p>
         </aside>
       </div></div>`;
     const canvasHost = root.querySelector('.fm-hl-canvas');
@@ -270,7 +278,7 @@
     const message = root.querySelector('.fm-hl-message');
     const resetButton = root.querySelector('[data-hl-reset]');
     root.querySelector('.fm-hl-panel').setAttribute('aria-label', t('hl_panel_label', 'Holiday lights'));
-    root.querySelector('.fm-hl-panel h3 span').textContent = t('hl_title', 'Holiday Lights');
+    root.querySelector('.fm-hl-panel h3>span').textContent = t('hl_title', 'Holiday Lights');
     root.querySelector('[data-hl-legend]').textContent = t('hl_legend_sides', 'Bulbs · one colour per side of the house');
     root.querySelector('[data-hl-edges] h4').textContent = t('hl_edges_title', 'Edges to light');
     root.querySelector('[data-hl-runs-title]').textContent = t('hl_sides_toggle_title', 'Sides to light');
@@ -280,10 +288,20 @@
     heads[0].textContent = t('hl_col_spacing', 'Spacing');
     heads[1].textContent = t('hl_col_bulbs', 'Bulbs');
     heads[2].textContent = t('hl_col_clips', 'Clips');
-    root.querySelector('.fm-hl-note').textContent = t('hl_note_sides_off', 'Lengths are measured along each roof edge from the report. Each side faces its compass direction and has its own colour; a side with eaves at more than one height is split into rooflines. Switch off a side the customer is not lighting. Each stretch on the roof shows its length. Clips: one per bulb.');
+    // How the lengths are measured: a tooltip on the info button by the title (hover, focus or tap), also its name.
+    const info = panel.querySelector('.fm-hl-info'), infoButton = info.querySelector('button'), tipId = 'fm-hl-tip-' + Math.random().toString(36).slice(2);
+    const note = t('hl_note_sides_off', 'Lengths are measured along each roof edge from the report. Each side faces its compass direction and has its own colour; a side with eaves at more than one height is split into rooflines. Switch off a side the customer is not lighting. Each stretch on the roof shows its length. Clips: one per bulb.');
+    info.querySelector('.fm-hl-tip').textContent = note;
+    info.querySelector('.fm-hl-tip').id = tipId;
+    infoButton.setAttribute('aria-label', t('hl_note_label', 'How lights are measured'));
+    infoButton.setAttribute('aria-describedby', tipId);
+    infoButton.onclick = () => info.classList.toggle('is-open');
+    infoButton.onblur = () => info.classList.remove('is-open');
+    infoButton.onkeydown = (event) => { if (event.key === 'Escape' && info.classList.contains('is-open')) { event.stopPropagation(); info.classList.remove('is-open'); } };
     const touch = matchMedia?.('(hover: none)').matches;
     root.querySelector('.fm-hl-hint').textContent = touch ? t('hl_hint_touch', 'Drag to orbit · Pinch to zoom') : t('hl_hint', 'Drag to orbit · Scroll to zoom · Right-drag to pan');
-    resetButton.innerHTML = `<i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>${t('hl_reset', 'Reset view')}`;
+    resetButton.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2.5 9M3 4v6h6"/></svg><span>${t('hl_reset', 'Reset view')}</span>`;
+    resetButton.title = t('hl_reset', 'Reset view');
     message.textContent = t('hl_loading', 'Loading the roof…');
 
     function lengthOf(type){ return edges[type].reduce((sum, edge) => sum + edge.length, 0); }
@@ -398,12 +416,26 @@
     }
 
     function draw(){ if (!disposed && renderer) renderer.render(scene, camera); }
+    // The whole roof fills the stage at any size: start where its bounding sphere fits, then move in until its corners
+    // reach 80% of the way to the nearer edge of the view.
     function reset(){
       if (!camera) return;
       const aspect = canvasHost.clientWidth && canvasHost.clientHeight ? canvasHost.clientWidth / canvasHost.clientHeight : 1;
-      camera.position.set(1, 0.8, 1.3).normalize().multiplyScalar(140 * Math.max(1, 1 / aspect));
+      const half = (camera.fov * Math.PI / 180) / 2, narrow = Math.min(half, Math.atan(Math.tan(half) * aspect));
+      const direction = camera.position.clone().set(1, 0.8, 1.3).normalize();
+      let distance = Math.max(20, fitRadius / Math.sin(narrow));
+      for (let pass = 0; pass < 3 && fitCorners.length; pass++) {
+        camera.position.copy(direction).multiplyScalar(distance);
+        camera.lookAt(0, 0, 0);
+        camera.updateMatrixWorld();
+        const reach = Math.max(...fitCorners.map((corner) => { const p = corner.clone().project(camera); return Math.max(Math.abs(p.x), Math.abs(p.y)); }));
+        if (!(reach > 0.05)) break;
+        distance = Math.max(controls.minDistance * 2, distance * reach / 0.8);
+      }
+      camera.position.copy(direction).multiplyScalar(distance);
       controls.target.set(0, 0, 0);
       controls.update();
+      moved = false;
       draw();
     }
     function resize(){
@@ -412,7 +444,8 @@
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
-      draw();
+      // Until someone moves the camera, a new stage size (expand, shrink, a narrow window) refits the roof.
+      if (!moved) reset(); else draw();
     }
 
     // A rounded label in the side's colour with a stretch's length.
@@ -492,6 +525,8 @@
       const groups = buildGroups(), shown = groups.filter((group) => sideOn[group.side] !== false);
       renderPanel(groups, shown);
       if (scene) buildRunScene(shown);
+      const total = shown.reduce((sum, group) => sum + group.length, 0);
+      onUpdate?.({ total, text: feet(total) });
     }
 
     resetButton.onclick = reset;
@@ -536,6 +571,7 @@
       controls.enableDamping = false;
       controls.minDistance = 4;
       controls.addEventListener('change', draw);
+      controls.addEventListener('start', () => { moved = true; });
       const sun = new T.DirectionalLight(0xffffff, 0.3);
       sun.position.set(30, 80, 40);
       scene.add(new T.HemisphereLight(0xffffff, 0x8a93a3, 0.55), sun);
@@ -560,6 +596,9 @@
         roofGroup.add(new T.LineSegments(own(new T.BufferGeometry().setFromPoints(outline)), own(new T.LineBasicMaterial({ color: '#98a2b3' }))));
       }
       scene.add(roofGroup);
+      const box = new T.Box3().setFromObject(roofGroup);
+      fitRadius = box.getBoundingSphere(new T.Sphere()).radius || fitRadius;
+      fitCorners = all.map(point);
       // Compass letters on the ground beyond each side, so the sides in the list read against the house.
       const centre = point(min.map((v, i) => (v + max[i]) / 2));
       const ground = (min[2] - (min[2] + max[2]) / 2) * scale;
