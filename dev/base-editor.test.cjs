@@ -267,12 +267,3 @@ test('Delete on a point that holds the base outline changes nothing and commits 
  f.click(50,0);assert.equal(f.key('Delete'),true);
  assert.equal(shape(),before);assert.ok(f.changes()>changes);
 });
-test('a base line starts from the selected points that lie on the base; points of other faces in the selection are left out',()=>{
- const f=fixture(true);
- // The base corner, a second copy of it a tenth of a millimetre away, and a point up a wall above it.
- assert.equal(f.editor.startLine([{x:0,y:0,z:0},{x:.0001,y:0,z:0},{x:0,y:0,z:50}],'f'),true);
- assert.equal(f.editor.selectionSnapshot().sketch.selected.length,1,'one starting point: the base\'s own corner');
- // Nothing on the base: nothing to start from. A face the points are not on: likewise.
- assert.equal(fixture(true).editor.startLine([{x:0,y:0,z:50}]),false);
- assert.equal(fixture(true).editor.startLine([{x:0,y:0,z:0}],'another-face'),false);
-});

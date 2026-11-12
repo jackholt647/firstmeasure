@@ -1660,12 +1660,15 @@ function perf_previewEntity(e){
  }
  // A world-space vertex is not necessarily selected in an editable draft.
  // Resolve its live owner before starting a connected drawing operation.
- function pointDrawingOwner(points){
+ // over: the wall face under the cursor. Where several faces hold the points it is the one drawn on; with
+ // `only`, no other face is taken.
+ function pointDrawingOwner(points,over=null,only=false){
   const supports=(d,f)=>!f.solidId&&!f.boundaryHole&&!deleted(d,f)&&points.every(p=>{const face=engineFace(d,f),fr=W.faceFrame(face);return fr&&Math.abs(window.ExteriorGeometry.local(fr,p).z)<.002&&G.contains(f,toLocal(d,p));});
   const candidates=Object.entries(all()).flatMap(([key,d])=>d.faces.filter(f=>supports(d,f)).map(f=>({key,d,f})));
   for(const f of solids().filter(f=>!f.deleted&&!f.drafted)){const fr=W.faceFrame(f);if(fr&&points.every(p=>Math.abs(window.ExteriorGeometry.local(fr,p).z)<.002&&G.contains({points:f.points.map(q=>W.inFrame(fr,q)),holes:(f.holes||[]).map(r=>r.map(q=>W.inFrame(fr,q)))},W.inFrame(fr,p))))candidates.push({f,solid:f});}
-  candidates.sort((a,b)=>Number(!!b.f.feature)-Number(!!a.f.feature)||Number(b.key===preferredDraft)-Number(a.key===preferredDraft));
-  const owner=candidates[0];if(!owner)return null;const d=owner.d||solidDraft(owner.solid);activeDraftKey=draftKey(d);preferredDraft=activeDraftKey;preferredRegion=owner.d?owner.f.id:d.faces.find(f=>f.feature)?.id||d.faces[0]?.id;
+  const under=c=>!!over&&(over.solid?c.solid?.id===over.solid.id:!!over.d&&c.d===over.d&&(!over.f||c.f===over.f));
+  candidates.sort((a,b)=>Number(under(b))-Number(under(a))||Number(!!b.f.feature)-Number(!!a.f.feature)||Number(b.key===preferredDraft)-Number(a.key===preferredDraft));
+  const owner=candidates[0];if(!owner||only&&!under(owner))return null;const d=owner.d||solidDraft(owner.solid);activeDraftKey=draftKey(d);preferredDraft=activeDraftKey;preferredRegion=owner.d?owner.f.id:d.faces.find(f=>f.feature)?.id||d.faces[0]?.id;
   picked=points.map(p=>add(d,toLocal(d,p)));draftSelection={};solidPoints=[];selectedBasePoints=[];selectedSolid=null;selectedRegion=null;return d;
  }
  function selectPlacedEntity(t,keepSource){
@@ -3215,7 +3218,9 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
   if(!tool&&lineSelection.length&&['delete','backspace'].includes(k)){transaction(deleteLines3D);lineSelection=[];host.redraw();return true;}
   const groups=Object.entries(draftSelection).filter(([,ids])=>ids.length);
   if(!tool&&(groups.length>1||(groups.length&&solidPoints.length))){
-   if(['m','y','r','n','q'].includes(k)){host.message('Select points on one face for this plane editing tool.');return true;}
+   // N starts from where the selected points are, not from who holds them: a rectangle around one corner takes
+   // the wall's corner, the base's point and a drawing's point there, and that is still one starting point.
+   if(['m','y','r','q'].includes(k)){host.message('Select points on one face for this plane editing tool.');return true;}
    if(['c','u'].includes(k)){transaction(()=>{for(const [key,ids]of groups)if(ids.length>1)S.connect(all()[key],ids);});return true;}
    if(k==='f'&&e.shiftKey){transaction(()=>{if(solidPoints.length>=3)W.restoreSurface(host.state().wallEdits,solidPoints);for(const [key,ids]of groups){const d=all()[key],set=new Set(ids);for(const f of d.faces)if(f.points.length===set.size&&f.points.every(p=>set.has(p.nodeId)))d.deletedFaces=(d.deletedFaces||[]).filter(key=>key!==signature(f));}});return true;}
    if(['delete','backspace'].includes(k)){transaction(()=>{removeSolidPoints(solidPoints,solidEdges);for(const [key,ids]of groups){const d=all()[key];if(ids.length)removeDraftPoints(d,ids);}});draftSelection={};picked=[];solidPoints=[];host.redraw();return true;}
@@ -3257,15 +3262,16 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
 if(k==='n'&&!tool){const ps=selectedWorldPoints();if(ps.length){
  // Shared bottom vertices are usually picked through their wall owner. N
  // must still be able to draw on the base, unless a wall face was chosen.
- // The face under the cursor is the face the line is drawn on, and it starts from the selected points that lie
- // on that face. Before, a line started only if one face held every selected point; a rectangle around a corner
- // takes points of several faces (and anything behind the corner), no face held them all, and N did nothing.
- const K=window.ExteriorGeometry,overBase=mouse&&host.pasteHost?.(mouse),overWall=!overBase&&mouse&&viewOf(mouse)==='3d'?placementHost(mouse):null;
- if(overBase&&host.startBaseLine?.(ps,overBase.f?.id))return true;
- if(overWall){const frame=W.faceFrame({points:overWall.points}),on=frame?ps.filter(p=>Math.abs(K.local(frame,p).z)<.002):[];if(on.length){if(overWall.d)preferredDraft=draftKey(overWall.d);else preferredSolid=overWall.solid?.id||preferredSolid;const before=copy(host.state().wallEdits);d=pointDrawingOwner(on);if(d){tool={kind:'draw',before};host.message('Click on this face to place the connected point');host.redraw();return true;}}}
+ // A rectangle that took a base point means the base: a face preferred by an earlier click must not send the
+ // line onto a wall drawing instead, where nothing seemed to happen.
+ // Where the point belongs to several faces, the one under the cursor is the one drawn on: the base, or a wall
+ // that holds every selected point.
+ const before=copy(host.state().wallEdits),overBase=mouse&&host.pasteHost?.(mouse);
+ if(overBase&&host.startBaseLine?.(ps))return true;
+ let over=null;if(!overBase&&mouse&&viewOf(mouse)==='3d')try{over=placementHost(mouse);}catch{over=null;}
+ if(over){d=pointDrawingOwner(ps,over,true);if(d){tool={kind:'draw',before};host.message('Click on this face to place the connected point');host.redraw();return true;}host.state().wallEdits=copy(before);}
  if((selectedBasePoints.length||!preferredDraft&&!preferredSolid)&&host.startBaseLine?.(ps))return true;
- const before=copy(host.state().wallEdits);d=pointDrawingOwner(ps);if(d){tool={kind:'draw',before};host.message('Click on this face to place the connected point');host.redraw();return true;}
- if(!selected()){host.message('Move the cursor over the face to draw on, then press N: the line starts from the selected point on that face.');return true;}}}
+ d=pointDrawingOwner(ps);if(d){tool={kind:'draw',before};host.message('Click on this face to place the connected point');host.redraw();return true;}}}
 if(!d&&['n','q'].includes(k)&&selected())d=ensure(selected());if(!d)return false;
   if(k==='z'&&(e.ctrlKey||e.metaKey)&&tool){if(tool.before)host.state().wallEdits=tool.before;tool=null;clearGuides();host.redraw();return true;}
   if(k==='escape'&&tool){if(tool.before)host.state().wallEdits=tool.before;tool=null;clearGuides();host.redraw();return true;}
