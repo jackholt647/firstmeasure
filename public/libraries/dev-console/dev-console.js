@@ -12,9 +12,9 @@
  * On a phone (or in the FirstMate app) there is no edge strip: a shake opens the dev tray (quick-tray.js), which files
  * Tracker issues and opens this console from its header; the portal's More sheet opens either.
  */
-import { dock, windowWidth } from './dock.js?v=20261112-tray2';
+import { dock, windowWidth } from './dock.js?v=20261112-tray3';
 
-const VERSION = '20261112-tray2';
+const VERSION = '20261112-tray3';
 const NS = 'dev-console';
 const STORE = 'fm-dev-console';
 // The page keeps at least APP_MIN px beside the console.
