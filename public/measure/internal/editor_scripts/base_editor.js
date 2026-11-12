@@ -262,8 +262,11 @@ window.createBaseEditor=function(host){
   }catch(error){message=error.message;render();return false;}
  }
  function startLine(ps){
-  if(!sketchEditor||ps.length!==1||base()?.visible===false)return false;
-  const p=ps[0],f=base().faces.find(f=>{const plane=G.plane(f.points);return plane&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002&&G.contains(f,p);});
+  // Several points picked at one spot (a rectangle takes every copy of a corner) are one starting point: the
+  // base's own point there.
+  if(!sketchEditor||!ps.length||base()?.visible===false||ps.some(q=>Math.hypot(q.x-ps[0].x,q.y-ps[0].y,q.z-ps[0].z)>.001))return false;
+  const near=q=>Math.hypot(q.x-ps[0].x,q.y-ps[0].y,q.z-ps[0].z),own=(window.BaseSketchGeometry?.read(base()).nodes||[]).filter(q=>near(q)<=.001).sort((a,b)=>near(a)-near(b))[0],p=own?{x:own.x,y:own.y,z:own.z}:ps[0];ps=[p];
+  const f=base().faces.find(f=>{const plane=G.plane(f.points);return plane&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002&&G.contains(f,p);});
   if(!f)return false;
   host.setLayer('base');selectedFace=null;selectedFaces=[];points=[];
   sketchEditor.selectEntities(ps,[]);$('selection').value='point';

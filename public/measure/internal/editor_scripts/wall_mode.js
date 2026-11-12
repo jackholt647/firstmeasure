@@ -270,6 +270,28 @@ function perf_finishEdit(){
     }
     // Points closer than this many inches are one point (WallSolidGeometry.weldPlan). A quarter inch unless set; 0 is off.
     function weldInches(s){const v=Number(s?.pointWeldInches);return s?.pointWeldInches===undefined||!Number.isFinite(v)?.25:Math.max(0,Math.min(2,v));}
+    // Shift+Z: look right at the selected point. The first press shows about 2 cm across, each further press on
+    // the same point a quarter of that, down to 1 mm, so points a few hundredths of a millimetre apart can be told
+    // apart. With nothing selected it returns to the view it left.
+    let superZoomBack=null,superZoomAt='',superZoomSpan=0;
+    function superZoom(){
+        if(typeof camera==='undefined'||!camera||typeof controls==='undefined'||!controls||typeof THREE==='undefined')return;
+        const say=text=>{const el=document.getElementById('wall-status');if(el)el.textContent=text;};
+        const own=baseEditor?.chamferSelection?.()?.points||[],wall=wallEditor?.selectedPoints?.()||[],p=(editingLayer==='base'?[...own,...wall]:[...wall,...own])[0];
+        if(!p){
+            if(!superZoomBack){say('Select a point, then press Shift+Z to zoom right in on it.');return;}
+            camera.position.copy(superZoomBack.position);controls.target.copy(superZoomBack.target);camera.near=superZoomBack.near;camera.zoom=superZoomBack.zoom;controls.minDistance=superZoomBack.minDistance;
+            camera.updateProjectionMatrix();controls.update();superZoomBack=null;superZoomAt='';say('View restored.');return;
+        }
+        if(!superZoomBack)superZoomBack={position:camera.position.clone(),target:controls.target.clone(),near:camera.near,zoom:camera.zoom,minDistance:controls.minDistance};
+        const key=[p.x,p.y,p.z].map(v=>v.toFixed(4)).join();superZoomSpan=superZoomAt===key?Math.max(.001,superZoomSpan/4):.02;superZoomAt=key;
+        const target=getVector3(toPixel(p)),perMetre=getVector3(toPixel({...p,x:p.x+1})).distanceTo(target)||1,span=superZoomSpan*perMetre,direction=camera.position.clone().sub(controls.target);
+        if(direction.lengthSq()<1e-12)direction.set(0,.62,.78);direction.normalize();
+        if(camera.isOrthographicCamera){camera.zoom=(camera.top-camera.bottom)/span;camera.position.copy(target.clone().add(direction.multiplyScalar(camera.position.distanceTo(controls.target)||40)));}
+        else{const distance=span/2/Math.tan(THREE.MathUtils.degToRad(camera.fov||45)/2);controls.minDistance=Math.min(controls.minDistance,distance/8);camera.near=Math.min(camera.near,distance/20);camera.position.copy(target.clone().add(direction.multiplyScalar(distance)));}
+        controls.target.copy(target);camera.updateProjectionMatrix();controls.update();
+        say('Zoomed to '+(superZoomSpan>=.01?(superZoomSpan*100)+' cm':(superZoomSpan*1000)+' mm')+' across. Shift+Z again goes closer; with nothing selected it returns.');
+    }
     function estimateGround() {
         // DSM minimum is an explicit, editable starting estimate, not surveyed terrain.
         return Number.isFinite(dsmMin)?dsmMin:0;
@@ -1328,6 +1350,7 @@ function perf_render3DFrame() {
             }
             // Plane mode consumes keys early, but shares the same undo gesture as other layers.
             if(e.key.startsWith('Arrow')&&!e.ctrlKey&&!e.metaKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){nudgeKey=String(nudgeEpoch);deferNudgeWork();}else if(!['Shift','Alt','Control','Meta'].includes(e.key)){settleNudges();nudgeEpoch++;nudgeKey=null;}
+            if(enabled&&e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&e.key.toLowerCase()==='z'&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){if(!e.repeat)superZoom();e.preventDefault();e.stopImmediatePropagation();return true;}
             if(groundEditor?.sampling?.()&&!e.target.closest?.('input,textarea,select,[contenteditable=true]'))return groundEditor.keyDown(e);
             if(resoffitMode&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')&&!['Shift','Control','Alt','Meta','Tab'].includes(e.key)&&!((e.ctrlKey||e.metaKey)&&['s','c'].includes(e.key.toLowerCase())))setResoffit(false);
             if(e.key==='Tab'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){if(!e.repeat)cycleSurfaceDisplay();e.preventDefault();e.stopImmediatePropagation();return true;}
