@@ -1154,6 +1154,7 @@ window.PlatformCommerce.onReady(async function(){
     .r-pending-cancel{appearance:none;border:1px solid rgba(15,23,42,.14);border-radius:13px;background:#fff;color:#344054;padding:10px 12px;font-size:12px;font-weight:1000;cursor:pointer}
     .r-pending-cancel:disabled{opacity:.5;cursor:not-allowed}
     .r-pending-reorder{appearance:none;border:1px solid var(--primary,#d93025);border-radius:13px;background:var(--primary,#d93025);color:var(--on-primary,#fff);padding:10px 12px;font-size:12px;font-weight:1000;cursor:pointer}
+    .r-pending-reorder.is-secondary{border-color:rgba(15,23,42,.14);background:#fff;color:#344054}
     .r-pending-note{font-size:11px;font-weight:850;line-height:1.4;color:#667085}
     .r-schedule-panel{height:100%;min-height:0;overflow:hidden;background:#f8fafc;padding:24px;box-sizing:border-box;display:flex;flex-direction:column}
     .r-schedule-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
