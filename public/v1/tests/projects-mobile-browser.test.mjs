@@ -19,6 +19,11 @@ async function setup({ mobile = true, view = 'stages', camera = true, scenario =
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('https://photos.test/**', (route) => route.fulfill({ contentType:'image/gif', body:Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64') }));
+  // scenario 'imagery': Maps Static answers p2's place with its "no imagery" picture and p3's with imagery.
+  if (scenario === 'imagery') await page.route('https://maps.googleapis.com/**', async (route) => {
+    const center = new URL(route.request().url()).searchParams.get('center') || '';
+    route.fulfill({ contentType:'image/png', headers:{ 'access-control-allow-origin':'*' }, body:center.startsWith('30.27') ? await noImageryPng() : await imageryPng() });
+  });
   await page.setContent('<meta name="viewport" content="width=device-width, initial-scale=1"><style>html,body{margin:0;height:100%;font:14px Arial,sans-serif}.main-panels{height:100%;box-sizing:border-box;padding:12px;overflow:auto}</style><div class="main-panels" id="mainPanels"><div class="fm-tabpanel active" id="tab_viewer" style="height:100%"></div></div>');
   await page.evaluate(({ view, camera, scenario }) => {
     const projects = [
@@ -30,6 +35,12 @@ async function setup({ mobile = true, view = 'stages', camera = true, scenario =
       { id:'lead', title:'Lead', color:'#f59e0b', cards:[{ project_id:'p1' }, { project_id:'p2' }] },
       { id:'won', title:'Won', color:'#16a34a', cards:[{ project_id:'p3' }] }
     ] };
+    // Platform projects with no report (ids project_p1...), as My Projects lists a project nobody ordered a report for.
+    if (scenario === 'imagery') {
+      Object.assign(projects[0], { title:'New Project', address:'', lat:'', lng:'', pins:[] });
+      projects.forEach((project) => { project.id = `project_${project.id}`; });
+      board.columns.forEach((column) => column.cards.forEach((card) => { card.project_id = `project_${card.project_id}`; }));
+    }
     if (scenario === 'mixed') {
       projects[1].thumbnail = 'https://photos.test/p2/thumbnail';
       projects.push({ id:'p4', address:'4 Pine Ct, Austin, TX 78704', title:'Pine Court roof repair', stage_id:'won', lat:30.31, lng:-97.71, created_at:'2026-10-04 10:00:00', status:'project' });
@@ -52,7 +63,7 @@ async function setup({ mobile = true, view = 'stages', camera = true, scenario =
         injectCSS:(id, text) => { if (css.has(id)) return; const style = document.createElement('style'); style.textContent = text; document.head.appendChild(style); css.set(id, style); },
         formatDate:(value) => String(value || ''),
         postAction:async (action) => ({ data:action === 'list_projects' ? { projects:projects.map((p) => ({ ...p })) } : {} }),
-        enableSafeBackdropClose(){}, fmJson:async () => ({}), fmPost:async () => ({}), fmUrl:(path) => `/v1/${path}`, googleMapsApiKey:() => '', currentActor:() => ({}),
+        enableSafeBackdropClose(){}, fmJson:async () => ({}), fmPost:async () => ({}), fmUrl:(path) => `/v1/${path}`, googleMapsApiKey:() => (scenario === 'imagery' ? 'test-key' : ''), currentActor:() => ({}),
         hasPerm:() => false
       },
       apps:{ registerPortalApp(app){ window.viewerApp = app; } },
@@ -71,6 +82,18 @@ async function setup({ mobile = true, view = 'stages', camera = true, scenario =
   await page.addScriptTag({ content:await source('viewer.js') });
   await page.evaluate(() => window.viewerApp.mount(document.querySelector('#tab_viewer')));
   return { browser, page, errors };
+}
+
+// Google's answer for a place it has no imagery of: flat rgb(228,226,222) with a line of small text.
+async function noImageryPng(){
+  const sharp = (await import('sharp')).default;
+  const text = await sharp({ create:{ width:340, height:18, channels:3, background:{ r:20, g:20, b:20 } } }).png().toBuffer();
+  return await sharp({ create:{ width:1280, height:800, channels:3, background:{ r:228, g:226, b:222 } } }).composite([{ input:text, left:470, top:390 }]).png().toBuffer();
+}
+async function imageryPng(){
+  const sharp = (await import('sharp')).default;
+  const roof = await sharp({ create:{ width:600, height:400, channels:3, background:{ r:120, g:70, b:60 } } }).png().toBuffer();
+  return await sharp({ create:{ width:1280, height:800, channels:3, background:{ r:60, g:110, b:50 } } }).composite([{ input:roof, left:340, top:200 }]).png().toBuffer();
 }
 
 const cameraIds = (page) => page.evaluate(() => window.cameraCalls.map((call) => [call.projectId, call.projectTitle, call.orgId, typeof call.onDone]));
@@ -380,4 +403,29 @@ test('a desktop (1600x1000) is unchanged: every List group in order, address row
     assert.equal(await page.locator('.pm-camera').evaluate((el) => getComputedStyle(el).display), 'none');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
+});
+
+test('a Tile never shows Google\'s "no imagery" picture: no location draws no map of 0,0, and a gray image icon stands in (FM-422)', async () => {
+  for (const mobile of [false, true]) {
+    const { browser, page, errors } = await setup({ view:'tiles', scenario:'imagery', mobile });
+    try {
+      await page.locator('.v-tile[data-id="project_p3"]').waitFor();
+      // p3's map has imagery: it shows.
+      await page.waitForFunction(() => { const img = document.querySelector('.v-tile[data-id="project_p3"] .v-thumb img'); return img.src.startsWith('https://maps.googleapis.com/') && img.complete && img.naturalWidth > 1; });
+      const mapUrls = await page.evaluate(() => performance.getEntriesByType('resource').map((entry) => entry.name).filter((name) => name.startsWith('https://maps.googleapis.com/')));
+      assert.ok(!mapUrls.some((url) => /center=0(%2C|,)0/.test(url)), 'no map is drawn of 0,0 for blank coordinates');
+      // p1 has no location and p2's place has no imagery: neither shows a picture.
+      for (const id of ['project_p1', 'project_p2']) {
+        await page.waitForFunction((id) => { const tile = document.querySelector(`.v-tile[data-id="${id}"]`); return tile.querySelector('.v-thumb').classList.contains('v-thumb-empty') && tile.querySelector('.v-thumb img').src.startsWith('data:'); }, id);
+        if (mobile) {
+          assert.equal(await page.locator(`.v-tile[data-id="${id}"]`).evaluate((el) => el.classList.contains('v-tile-compact')), true, `${id} is a compact card on a phone`);
+        } else {
+          const icon = await page.locator(`.v-tile[data-id="${id}"] .v-thumb`).evaluate((el) => { const before = getComputedStyle(el, '::before'); return { content:before.content, color:before.color, loading:el.classList.contains('loading') }; });
+          assert.deepEqual(icon, { content:'"\uf03e"', color:'rgb(195, 200, 208)', loading:false }, `${id} shows the gray image icon`);
+        }
+      }
+      assert.equal(await page.locator('.v-tile[data-id="project_p3"] .v-thumb').evaluate((el) => el.classList.contains('v-thumb-empty')), false);
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  }
 });
