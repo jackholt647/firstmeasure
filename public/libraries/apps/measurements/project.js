@@ -1517,6 +1517,9 @@ window.PlatformCommerce.onReady(function(){
         ...(measurement || {})
       }
     });
+    // A rejected Full Exterior is never reopened in place (its exteriors_ id and references belong to that order):
+    // any reorder of it, a retry, the roof alone or another project type, is a new order on this project.
+    if (reportOrderIsExterior()) reorderSourceCanReopenInPlace = false;
     renderRoofChoice();
     renderWorkflowState();
     syncProjectViewerTabs();
@@ -1532,11 +1535,9 @@ window.PlatformCommerce.onReady(function(){
     reorderCurrentReportOrder(reportOrderReorderType());
   }
 
-  // A rejected Full Exterior is never reopened in place (its exteriors_ id and references belong to that order):
-  // trying again, or ordering only the roof, starts a new order on this project with that scope already chosen.
+  // Trying a rejected Full Exterior again, or ordering only its roof, starts a new order with that scope chosen.
   function reorderRejectedExteriorReport(scope){
     reorderCurrentReportOrder('');
-    reorderSourceCanReopenInPlace = false;
     window.Portal?.ExteriorOrder?.prefer?.(scope === 'full_house' ? 'full_house' : 'roof');
     callHost('orderMeasurements');
   }
