@@ -35,3 +35,18 @@ test('prepared extrusion snaps re-evaluate distance for each position and camera
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),point={x:0,y:0,z:0},direction={x:1,y:0,z:0},options={points:[{x:1,y:0,z:0},{x:2,y:0,z:0}],radius:12,minPixelsPerMeter:20},candidates=W.motionSnapCandidates([point],[],direction,[],options);
  for(const sign of [-1,1])for(const amount of [.95,1.5,1.99]){const screen=p=>({x:p.x*100*sign,y:p.z*100});assert.deepEqual(W.motionSnap([point],[],direction,amount,[],{...options,screen,candidates}),W.motionSnap([point],[],direction,amount,[],{...options,screen}));}
 });
+
+test('an extrusion snaps to the points of an edge its corner rides along',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),near=(a,b)=>Math.abs(a-b)<1e-9;
+ // A line pushed sideways: its end sits on an oblique edge and follows it, so the end reaches that edge's far point
+ // when the moved line passes through it, beyond the line's own length.
+ const line=[p(0,0,0),p(2,0,0)],rail=[p(2,0,0),p(3,2,0)],found=W.motionSnapCandidates(line,[line],p(0,1,0),[],{edges:[rail],points:rail,excludeMoving:true});
+ const hit=found.find(c=>c.kind==='Point'&&near(c.amount,2));assert.ok(hit,JSON.stringify(found.map(c=>[c.kind,c.amount])));assert.deepEqual(hit.target,p(3,2,0));
+ const snap=W.motionSnap(line,[line],p(0,1,0),1.95,[],{candidates:found,radius:.15});assert.ok(snap&&near(snap.amount,2));
+ // A face pushed along its normal: the same, with the moved plane.
+ const ring=[p(0,0,0),p(2,0,0),p(2,0,2),p(0,0,2)],edges=ring.map((a,i)=>[a,ring[(i+1)%4]]),slope=[p(2,0,0),p(3,1.5,0)];
+ const face=W.motionSnapCandidates(ring,edges,p(0,1,0),[],{edges:[slope],points:slope,excludeMoving:true});
+ assert.ok(face.some(c=>c.kind==='Point'&&near(c.amount,1.5)&&c.target.x===3),JSON.stringify(face.map(c=>[c.kind,c.amount])));
+ // An edge that only crosses near the line, without holding its end, adds nothing.
+ const apart=[p(5,0,0),p(6,2,0)];assert.ok(!W.motionSnapCandidates(line,[line],p(0,1,0),[],{edges:[apart],excludeMoving:true}).some(c=>c.kind==='Point'&&near(c.amount,2)));
+});
