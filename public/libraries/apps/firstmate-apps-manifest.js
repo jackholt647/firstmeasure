@@ -27,7 +27,7 @@
   const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261005-appointment-picker-v1');
   const priorityFieldsBundle = versionedBundle('../priority-fields/priority-fields.js', '20261015-ready-event');
   const gifDisplayBundle=versionedBundle('../platform-widgets/gifs.js','20261012-composer-media-fixes-v1');
-  const widgetBundles = [gifDisplayBundle,...['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js',name==='runtime'?'20261012-composer-media-fixes-v1':name==='project-widgets'?'20261112-fm375-prod':'20261003-project-widgets-v1'))];
+  const widgetBundles = [gifDisplayBundle,...['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js',name==='runtime'?'20261012-composer-media-fixes-v1':name==='project-widgets'?'20261112-lights-toggle':'20261003-project-widgets-v1'))];
   const channelsLibBundles = [
     ...widgetBundles, bookingBundle, priorityFieldsBundle,
     versionedBundle('../platform-realtime/platform-realtime.js', '20261026-live-layer'),
@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261110-side-switches'), versionedBundle('measurements/holiday-lights.js', '20261110-side-switches'), versionedBundle('measurements/project.js', '20261103-lights-in-model')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261112-lights-toggle'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261112-lights-toggle')]
     },
     {
       id: 'project.checklists',
