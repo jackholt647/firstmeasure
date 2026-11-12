@@ -228,7 +228,10 @@ function reconcileChimneys(state,edits){
 }
 // Preview and placement must publish the same normalized candidate. Never mutate
 // the caller while reconciling or validating: failures leave its preview intact.
-function prepareEdits(state,edits,before={}){const reconciled=reconcileChimneys(state,edits),next=reconciled===edits?copy(edits):reconciled;validateEdits(next,before,true);W.restoreCreatedSurfaceWire(next,before);W.followWireExclusions(next,before);W.localizeWireMasks(next);return next;}
+function prepareEdits(state,edits,before={}){const reconciled=reconcileChimneys(state,edits),next=reconciled===edits?copy(edits):reconciled;validateEdits(next,before,true);W.restoreCreatedSurfaceWire(next,before);W.followWireExclusions(next,before);W.localizeWireMasks(next);settleDeletedWire({...state,wallEdits:next});return next;}
+// Deleted faces stop drawing lines (W.settleDeletedWire). The lines a drawing's live regions and the generated
+// walls draw themselves are not kept a second time as free-standing lines.
+function settleDeletedWire(state){const edits=state?.wallEdits;if(!edits)return false;let cover=[];try{cover=collect(state,state.alignedWalls||[]).filter(f=>f.draft||String(f.id).startsWith('wall:'));}catch(e){cover=[];}return W.settleDeletedWire(edits,cover);}
 // unshared: the caller guarantees edits and before have no objects in common
 // (e.g. prepareEdits' fresh copy), so a prior surface can be compared when
 // needed instead of first serializing every one; nothing here changes before.
@@ -245,5 +248,5 @@ function validateEdits(edits,before={},unshared=false){
   Object.assign(f,parts[0]);return [f,...parts.slice(1)];});}
  if(edits.$base&&!same(edits.$base.faces,before.$base?.faces))for(const f of edits.$base.faces)K.triangles(f.points,f.holes||[]);
 }
-const api={version:2,indexOpenings,cutOpenings,draftFace,repairFaceIdentities,restoreDraftFaceOwnership,reconcileChimneys,prepareEdits,collect,createExtrusion,createExtrusions,validateResult,validateEdits,transaction,jsonCopy:copy};if(node)module.exports=api;else root.ExteriorModel=api;
+const api={version:2,settleDeletedWire,indexOpenings,cutOpenings,draftFace,repairFaceIdentities,restoreDraftFaceOwnership,reconcileChimneys,prepareEdits,collect,createExtrusion,createExtrusions,validateResult,validateEdits,transaction,jsonCopy:copy};if(node)module.exports=api;else root.ExteriorModel=api;
 })(typeof window==='undefined'?globalThis:window);

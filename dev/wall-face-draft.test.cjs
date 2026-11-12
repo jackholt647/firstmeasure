@@ -206,7 +206,7 @@ test('plane curves remain analytic through move, copy, paste, delete and reload'
 const hiddenWire=edits=>({points:[...(edits.$removedSurfacePoints||[]),...(edits.$surfaces||[]).flatMap(s=>s.wireExclusions?.points||[])],edges:[...(edits.$removedSurfaceEdges||[]),...(edits.$surfaces||[]).flatMap(s=>s.wireExclusions?.edges||[])]});
 test('plane face selection deletes only that face and Shift-selected lines delete together',()=>{
  const p=(x,z)=>({x,y:0,z}),a={id:'left',points:[p(0,0),p(2,0),p(2,2),p(0,2)]},b={id:'right',points:[p(2,0),p(4,0),p(4,2),p(2,2)]};let mode='face';const state={wallEdits:{$surfaces:[a,b],$loose:{points:[p(6,0),p(8,0),p(6,2),p(8,2)],edges:[[p(6,0),p(8,0)],[p(6,2),p(8,2)]]}}},f=fixture({state,walls:[],selected:null,globals:{document:{getElementById:id=>id==='base-selection'?{value:mode}:null}}});f.editor.togglePlane(a);f.editor.down(f.e(1,1));f.listeners.pointerup(f.e(1,1));assert.equal(f.editor.pointSelection().length,4);f.editor.key({key:'Delete'});assert.ok(state.wallEdits.$surfaces.find(f=>f.id==='left').deleted);assert.ok(!state.wallEdits.$surfaces.find(f=>f.id==='right').deleted);assert.equal(state.wallEdits.$surfaces.find(f=>f.id==='right').points.length,4);
- mode='line';f.editor.down(f.e(7,0));f.listeners.pointerup(f.e(7,0));f.editor.down(f.e(7,2,true));f.listeners.pointerup(f.e(7,2,true));assert.equal(f.editor.pointSelection().length,4);assert.equal(f.editor.selectionSnapshot().workingPlane.selectedLines.length,2);f.editor.key({key:'Delete'});assert.equal(f.editor.pointSelection().length,0);assert.equal(state.wallEdits.$loose.edges.length,0,'free-standing lines are removed outright');assert.deepEqual(state.wallEdits.$removedSurfaceEdges||[],[],'nothing is recorded project-wide');
+ mode='line';f.editor.down(f.e(7,0));f.listeners.pointerup(f.e(7,0));f.editor.down(f.e(7,2,true));f.listeners.pointerup(f.e(7,2,true));assert.equal(f.editor.pointSelection().length,4);assert.equal(f.editor.selectionSnapshot().workingPlane.selectedLines.length,2);f.editor.key({key:'Delete'});assert.equal(f.editor.pointSelection().length,0);{const W2=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),left=state.wallEdits.$loose.edges.filter(([a,b])=>a.x>5&&b.x>5);assert.equal(left.length,0,'free-standing lines are removed outright');assert.ok(state.wallEdits.$surfaces.find(f=>f.id==='left').noWire,'the deleted face no longer draws: what is left of its outline is free-standing lines');}assert.deepEqual(state.wallEdits.$removedSurfaceEdges||[],[],'nothing is recorded project-wide');
 });
 test('3D C connects all selected pairs across spatial owners without flattening them',()=>{
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),points=[{x:0,y:0,z:0},{x:2,y:0,z:0},{x:0,y:2,z:0},{x:0,y:0,z:2}],state={wallEdits:{$loose:{points,edges:[]}}},f=fixture({state,walls:[],selected:null});
@@ -366,7 +366,7 @@ test('Delete removes a selected saved recess face while keeping clickable points
  const cap={id:'saved-indent',points:[{x:1,y:0,z:1},{x:3,y:0,z:1},{x:3,y:0,z:3},{x:1,y:0,z:3}]},state={wallEdits:{$surfaces:[cap]}},f=fixture({state,globals:renderGlobals()}),group={add(){}};
  f.editor.draw3D(group,p=>p);f.editor.down(f.e(2,2));f.listeners.pointerup(f.e(2,2));f.editor.key({key:'Delete'});assert.equal(state.wallEdits.$surfaces[0].deleted,true);assert.equal(state.wallEdits.$surfaces[0].points.length,4);assert.equal(f.history.length,1);
  f.editor.draw3D(group,p=>p);for(const [i,p]of cap.points.entries()){f.editor.down(f.e(p.x,p.z,i>0));f.listeners.pointerup(f.e(p.x,p.z,i>0));}f.editor.key({key:'f',shiftKey:true});assert.equal(state.wallEdits.$surfaces[0].deleted,false);assert.equal(f.history.length,2);
- f.editor.down(f.e(1,1));f.listeners.pointerup(f.e(1,1));f.editor.key({key:'Delete'});assert.equal(state.wallEdits.$surfaces[0].deleted,true);assert.equal(hiddenWire(state.wallEdits).points.length,1);assert.deepEqual(state.wallEdits.$removedSurfacePoints,[]);
+ f.editor.down(f.e(1,1));f.listeners.pointerup(f.e(1,1));f.editor.key({key:'Delete'});assert.equal(state.wallEdits.$surfaces[0].deleted,true);assert.deepEqual(state.wallEdits.$removedSurfacePoints,[]);assert.ok(state.wallEdits.$surfaces[0].noWire,'a deleted face is not a source of lines');
 });
 test('draft face deletion retains its graph and persists, Shift+F restores it from its boundary points',()=>{
  const f=fixture();f.editor.doubleClick(f.e(2,2),f.w);f.editor.down(f.e(1,2));f.listeners.pointerup(f.e(1,2));const points=JSON.stringify(f.d().sketch),ids=f.d().faces[0].points.map(p=>p.nodeId);f.editor.key({key:'Delete'});assert.equal(f.d().deletedFaces.length,1);assert.equal(JSON.stringify(f.d().sketch),points);
@@ -375,7 +375,7 @@ test('draft face deletion retains its graph and persists, Shift+F restores it fr
 
 test('blank-space box selects recess points without any highlighted face, and Delete uses that selection',()=>{
  const state={wallEdits:{$surfaces:[{id:'left',points:[{x:1,y:0,z:1},{x:2,y:0,z:1},{x:2,y:0,z:2},{x:1,y:0,z:2}]},{id:'right',points:[{x:5,y:0,z:1},{x:6,y:0,z:1},{x:6,y:0,z:2},{x:5,y:0,z:2}]}]}},f=fixture({state,selected:null});
- f.editor.down(f.e(.8,.8));f.listeners.pointermove(f.e(6.2,2.2));f.listeners.pointerup(f.e(6.2,2.2));assert.equal(f.message(),'8 points selected');f.editor.key({key:'Delete'});assert.ok(state.wallEdits.$surfaces.every(f=>f.deleted));assert.equal(new Set(hiddenWire(state.wallEdits).points).size,8);assert.deepEqual(state.wallEdits.$removedSurfacePoints,[]);
+ f.editor.down(f.e(.8,.8));f.listeners.pointermove(f.e(6.2,2.2));f.listeners.pointerup(f.e(6.2,2.2));assert.equal(f.message(),'8 points selected');f.editor.key({key:'Delete'});assert.ok(state.wallEdits.$surfaces.every(f=>f.deleted));assert.deepEqual(state.wallEdits.$removedSurfacePoints,[]);assert.equal(require('../public/measure/internal/editor_scripts/wall_solid_geometry.js').surfaceWire(state.wallEdits).nodes.length,0,'all eight points are gone and nothing is left drawn');
 });
 test('box selection includes multiple wall drafts and works before the walls layer becomes active',()=>{
  const wall=(id,x)=>({id,bottom:[{x,y:0,z:1},{x:x+1,y:0,z:1}],top:[{x,y:0,z:2},{x:x+1,y:0,z:2}]}),walls=[wall('a',1),wall('b',4)],f=fixture({walls,active:false,selected:null});
@@ -3501,7 +3501,7 @@ test('arrow nudges after orbiting move the geometry instead of placing nothing',
 test('line moves and nudges keep deleted surface records, so Shift+F still restores them',()=>{
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,z)=>({x,y:0,z}),gone=[p(6,0),p(8,0),p(8,2),p(6,2)];
  const state={wallEdits:{$surfaces:[{id:'a',points:[p(0,0),p(2,0),p(2,4),p(0,4)]},{id:'b',points:[p(3,0),p(5,0),p(5,2),p(3,2)]},{id:'gone',deleted:true,points:gone}]}},f=fixture({state,walls:[],selected:null});
- const record=()=>JSON.stringify(state.wallEdits.$surfaces.find(s=>s.id==='gone')),saved=record(),edges=W.surfaceWire(state.wallEdits).edges.length;
+ const record=()=>JSON.stringify({...state.wallEdits.$surfaces.find(s=>s.id==='gone'),noWire:undefined}),saved=record(),edges=W.surfaceWire(state.wallEdits).edges.length;
  f.editor.restoreSelection({lineSelection:[{id:'top',pair:[p(0,4),p(2,4)]}]});f.listeners.pointermove(f.e(1,4));f.editor.key({key:'m'});f.listeners.pointermove(f.e(1,4.5));f.editor.down(f.e(1,4.5));
  assert.equal(f.history.length,1,f.message());assert.equal(record(),saved);assert.equal(W.surfaceWire(state.wallEdits).edges.length,edges);
  f.editor.restoreSelection({selectedSolid:'b',faceSelection:[{solid:'a'},{solid:'b'}]});f.editor.key({key:'ArrowLeft'});assert.equal(f.history.length,2,f.message());assert.equal(record(),saved);
@@ -3712,7 +3712,7 @@ test('deleting a sliver face line in a plane-mode recess only removes: no faces 
  // Hidden free-standing wire is removed outright now, so compare what can be seen: the loose lines that were
  // visible are all still there, and (below) nothing that was hidden shows.
  const seen=e=>new Set(W.surfaceWire({$loose:e.$loose,$removedSurfacePoints:e.$removedSurfacePoints,$removedSurfaceEdges:e.$removedSurfaceEdges}).edges.map(x=>x.id));
- assert.deepEqual([...seen(after)].sort(),[...seen(before)].sort(),'visible loose wire is unchanged');assert.deepEqual(after.$removedSurfacePoints,[]);
+ {const now=seen(after);for(const id of seen(before))assert.ok(now.has(id),'a loose line that was visible is still there: '+id);const whole=e=>new Set(W.surfaceWire(e).edges.map(x=>x.id)),was=whole(before);for(const id of now)assert.ok(was.has(id)||[...was].some(k=>k.split('|').some(end=>id.includes(end))),'a new free-standing line is one the deleted face was already showing: '+id);}assert.deepEqual(after.$removedSurfacePoints,[]);
  assert.deepEqual(W.surfaceWire(after).nodes.map(n=>n.id).filter(id=>!nodes.has(id)),[],'no point becomes visible');
 });
 test('a line delete never rebuilds a face from loose wire outside the face it invalidates',()=>{
@@ -3997,7 +3997,7 @@ for(const rep of curveRepresentations)for(const selection of curveSelections){
  test(`arched ${rep.name}: nudging ${selection.name} ${selection.whole===false?'moves only those points and reshapes the door':'moves whole doors rigidly'}, keeps curves and selection, leaves nothing behind, and undoes`,()=>{
   const {census,curveCount,WS,FT,close}=curveSuite,f=rep.build(),start=curvedDoors(f,rep.type);assert.equal(start.length,rep.doors,rep.name);
   const picked=selectCurved(f,selection,start),moving=selection.moves(start),before=JSON.stringify(f.state.wallEdits),count=f.history.length,startCensus=census(f.state.wallEdits);
-  const loose=JSON.stringify(f.state.wallEdits.$loose||null),removed=(h=>h.points.length+h.edges.length)(hiddenWire(f.state.wallEdits));
+  const settledLoose=()=>{const copy=JSON.parse(JSON.stringify(f.state));require('../public/measure/internal/editor_scripts/exterior_model.js').settleDeletedWire(copy);return JSON.stringify(copy.wallEdits.$loose||null);},loose=settledLoose(),removed=(h=>h.points.length+h.edges.length)(hiddenWire(f.state.wallEdits));
   let total=0;
   for(const [i,e]of [{key:'ArrowRight'},{key:'ArrowRight'},{key:'ArrowRight',shiftKey:true},{key:'ArrowLeft',altKey:true},{key:'ArrowLeft'}].entries()){
    const previous=census(f.state.wallEdits);f.editor.key(e);total+=(e.key==='ArrowRight'?1:-1)*(e.altKey?.25:e.shiftKey?6:1)*FT/12;
@@ -4196,7 +4196,7 @@ test('deleting a corner of an arched transom deletes its two lines and keeps wha
 // reshapes through its other points instead of opening up.
 const keepClosed=f=>{f.state.stickerDeleteKeepsFace=true;return f;};
 for(const rep of curveRepresentations)test(`with keep-closed on, deleting one corner of an arched sticker (${rep.name}) leaves the closed face with its arch, and undoes`,()=>{
- const {census,curveCount,close}=curveSuite,f=keepClosed(rep.build()),start=curvedDoors(f,rep.type),before=JSON.stringify(f.state.wallEdits),count=f.history.length,curves=curveCount(census(f.state.wallEdits)),stickers=stickerCount(f),loose=JSON.stringify(f.state.wallEdits.$loose||null);
+ const {census,curveCount,close}=curveSuite,f=keepClosed(rep.build()),start=curvedDoors(f,rep.type),before=JSON.stringify(f.state.wallEdits),count=f.history.length,curves=curveCount(census(f.state.wallEdits)),stickers=stickerCount(f),loose=(()=>{const copy=JSON.parse(JSON.stringify(f.state));require('../public/measure/internal/editor_scripts/exterior_model.js').settleDeletedWire(copy);return JSON.stringify(copy.wallEdits.$loose||null);})();
  const corner=start[0].defining.find(p=>Math.abs(p.z-start[0].bottom)<1e-6);selectCurved(f,{pick:()=>[corner]},start);assert.equal(f.editor.pointSelection().length,1);
  f.editor.key({key:'Delete'});assert.equal(f.history.length,count+1,rep.name+': '+f.message());
  const now=curvedDoors(f,rep.type);assert.equal(now.length,start.length,'every door keeps its arch');assert.equal(stickerCount(f),stickers,'no sticker is lost');assert.equal(curveCount(census(f.state.wallEdits)),curves);

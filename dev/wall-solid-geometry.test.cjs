@@ -295,7 +295,7 @@ test('new surface boundaries reclaim deleted coordinates without resurrecting ol
 });
 test('new surface reclaims only its part of a previously deleted edge',()=>{
  const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(0,0,0),b=p(4,0,0),before={$surfaces:[{id:'old',deleted:true,points:[a,b,p(4,0,2),p(0,0,2)]}],$removedSurfaceEdges:[G.edgeKey(a,b)]},candidate=structuredClone(before),face={id:'new',points:[p(1,0,0),p(3,0,0),p(3,1,0),p(1,1,0)]};candidate.$surfaces.push(face);const next=M.prepareEdits({},candidate,before),wire=G.surfaceWire(next);
- assert.deepEqual(next.$removedSurfaceEdges,[],'the record lives on the deleted face, not project-wide');assert.deepEqual(new Set(next.$surfaces[0].wireExclusions.edges),new Set([G.edgeKey(a,p(1,0,0)),G.edgeKey(p(3,0,0),b)]));assert.ok(wire.edges.some(e=>e.id===G.edgeKey(face.points[0],face.points[1])));assert.ok(!wire.edges.some(e=>e.id===G.edgeKey(a,b)));
+ assert.deepEqual(next.$removedSurfaceEdges,[],'the record lives on the deleted face, not project-wide');assert.ok(next.$surfaces[0].noWire,'the deleted face no longer draws');assert.ok(!wire.edges.some(e=>[G.edgeKey(a,p(1,0,0)),G.edgeKey(p(3,0,0),b)].includes(e.id)),'the rest of the deleted edge stays gone');assert.ok(wire.edges.some(e=>e.id===G.edgeKey(face.points[0],face.points[1])));assert.ok(!wire.edges.some(e=>e.id===G.edgeKey(a,b)));
 });
 test('new loose connections survive revival while a new deletion remains authoritative',()=>{
  const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(0,0,0),b=p(2,0,0),before={$loose:{points:[],edges:[]},$removedSurfacePoints:[G.vertexKey(a)],$removedSurfaceEdges:[G.edgeKey(a,b)]},candidate=structuredClone(before);candidate.$loose={points:[a,b],edges:[[a,b]]};const next=M.prepareEdits({},candidate,before);assert.equal(G.surfaceWire(next).edges.length,1);assert.equal(G.surfaceWire(next).nodes.length,2);
@@ -361,4 +361,21 @@ test('a project saved with project-wide delete records keeps the same visible li
  const was=W.surfaceWire(old),now=W.surfaceWire(next),corner=W.vertexKey(other[2]);
  assert.ok(!was.nodes.some(n=>n.id===corner)&&now.nodes.some(n=>n.id===corner));
  const without=g=>seen({nodes:g.nodes.filter(n=>n.id!==corner),edges:g.edges.filter(e=>e.a!==corner&&e.b!==corner)});assert.deepEqual(without(now),without(was));
+});
+
+test('a deleted face stops being a source of lines: what it still shows becomes free-standing, and nothing is left to resurface',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),sq=(x0,x1)=>[p(x0,0,0),p(x1,0,0),p(x1,0,3),p(x0,0,3)];
+ const lines=e=>{const g=W.surfaceWire(e),at=new Map(g.nodes.map(n=>[n.id,n]));return g.edges.map(x=>W.edgeKey(at.get(x.a),at.get(x.b))).sort();};
+ // An old wall was replaced by an edit with a wall of the same outline: the old one is kept, flagged deleted.
+ const edits={$surfaces:[{id:'old',deleted:true,points:sq(0,4)},{id:'new',points:sq(0,4)}]},seen=lines(edits);
+ assert.equal(W.settleDeletedWire(edits),true);assert.ok(edits.$surfaces[0].noWire);assert.deepEqual(lines(edits),seen,'what is drawn does not change');
+ assert.deepEqual(edits.$loose.edges,[],'its outline lay under the new wall: nothing of it is kept');
+ // The new wall is pushed away later. Before, the old outline showed through as lines that bound nothing.
+ edits.$surfaces[1].points=sq(0,4).map(q=>({...q,y:1}));assert.equal(lines(edits).some(k=>k.includes(',0.000000,')&&!k.includes(',1.000000,')),false,'no line is left where the old wall stood');
+ assert.equal(W.settleDeletedWire(edits),false,'settled once');
+ // A wall deleted outright, beside a wall that stays: the three sides nothing else draws become free-standing lines.
+ const pair={$surfaces:[{id:'gone',deleted:true,points:sq(0,2)},{id:'stays',points:sq(2,4)}]},was=lines(pair);W.settleDeletedWire(pair);
+ assert.deepEqual(lines(pair),was);assert.equal(pair.$loose.edges.length,3);assert.ok(!pair.$loose.edges.some(([a,b])=>a.x===2&&b.x===2),'the shared side is the other wall\'s');
+ // Brought back (Shift+F), it draws its own outline again.
+ pair.$surfaces[0].deleted=false;W.settleDeletedWire(pair);assert.equal(pair.$surfaces[0].noWire,undefined);
 });
