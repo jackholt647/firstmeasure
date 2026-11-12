@@ -566,6 +566,8 @@ async function publishMeasurementNotificationAfterCommit(previous: ProjectManife
 async function publishMeasurementCompletion(manifest: ProjectManifest) {
   if (manifest.status !== "completed") return;
   try {
+    // Not before delivery has decided the release hold, and not while held (FM-383).
+    if (!(await import("./project-events.js")).reportDeliveredToProject(manifest)) return;
     const { publishCompletedFirstMeasureDataset } = await import("../platform/publication/firstmeasure-datasets.js");
     await publishCompletedFirstMeasureDataset(manifest);
   } catch (error) {
@@ -586,7 +588,8 @@ export async function writeProjectManifestMirror(projectId: string, manifest: Pr
   await writeJsonAtomic(manifestPath, manifest);
 }
 
-export async function updateStatus(projectId: string, status: string) {
+/** `extra` is saved in the same write as the status, e.g. a completion's pending delivery (FM-383). */
+export async function updateStatus(projectId: string, status: string, extra: JsonObject = {}) {
   const requestedStatus = normalizeProjectStatus(status);
   const nowSql = toSqlDate(new Date().toISOString());
   const timestamps: JsonObject = { updated_at: nowSql };
@@ -594,6 +597,7 @@ export async function updateStatus(projectId: string, status: string) {
   if (requestedStatus === "awaiting_review") timestamps.uploaded_at = nowSql;
   if (requestedStatus === "cancelled") timestamps.cancelled_at = nowSql;
   return patchManifest(projectId, {
+    ...extra,
     status: requestedStatus || status,
     timestamps
   });
