@@ -1,6 +1,9 @@
 /* editor_scripts/xml_generator.js */
 
 const XML_POINT_MATCH_TOLERANCE_PX = 0.35;
+// Two roof layers can have points at the same plan position and different heights, where a lower roof meets an upper
+// one. Matching by plan position alone gave the lower face the upper roof's height (FM-405), so heights must agree too.
+const XML_POINT_MATCH_TOLERANCE_Z_M = 0.25;
 const XML_BASE_ELEVATION_FT = 2000;
 
 function generateRoofXML(pdfState) {
@@ -146,7 +149,9 @@ function buildXmlPointRegistry(sourcePoints, faces, report, geometry) {
         if (!candidate) return null;
         let bestPoint = null;
         let bestDistance = Infinity;
+        const candidateZ = candidate.z == null ? NaN : Number(candidate.z);
         for (const point of points) {
+            if (point.hasZ && Number.isFinite(candidateZ) && Math.abs(point.z - candidateZ) > XML_POINT_MATCH_TOLERANCE_Z_M) continue;
             const dx = Number(point.x) - Number(candidate.x);
             const dy = Number(point.y) - Number(candidate.y);
             const distance = Math.sqrt((dx * dx) + (dy * dy));
@@ -166,6 +171,7 @@ function buildXmlPointRegistry(sourcePoints, faces, report, geometry) {
             x: Number(candidate.x),
             y: Number(candidate.y),
             z: toFiniteNumber(candidate.z, 0),
+            hasZ: candidate.z != null && Number.isFinite(Number(candidate.z)),
             layer: candidate.layer || 1
         };
         points.push(point);
