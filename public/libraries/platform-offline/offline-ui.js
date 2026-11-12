@@ -151,6 +151,8 @@
     set_space: 'Space on this device',
     set_space_used: '{used} used of about {quota} this browser allows',
     set_space_unknown: 'This browser does not report how much space is available.',
+    set_space_used_app: '{used} used of about {quota} the app can use',
+    set_space_unknown_app: 'This device does not report how much space the app can use.',
     set_part_app: 'The app',
     set_part_reads: 'Saved data',
     set_part_media: 'Pictures',
@@ -1408,11 +1410,14 @@
       const limits = { reads: budgets.reads || Number(PO.settings.get('readsBudgetMb')) * 1048576, media: budgets.media || Number(PO.settings.get('mediaBudgetMb')) * 1048576 };
 
       const space = e('section', { class: 'fmo-set-group', 'data-set': 'space' }, e('h4', { text: T('set_space') }));
+      // In the FirstMate app the space is the app's, not a browser's.
+      const flavour = isNative() ? '_app' : '';
       if (known) {
-        const meter = e('div', { class: 'fmo-meter', role: 'img', 'aria-label': T('set_space_used', { used: size(storage.usage), quota: size(storage.quota) }) });
+        const total = T('set_space_used' + flavour, { used: size(storage.usage), quota: size(storage.quota) });
+        const meter = e('div', { class: 'fmo-meter', role: 'img', 'aria-label': total });
         for (const name of order) if (parts[name] > 0) meter.append(e('span', { 'data-part': name, style: 'width:' + (parts[name] / storage.quota * 100).toFixed(3) + '%' }));
-        space.append(meter, e('p', { class: 'fmo-set-total', text: T('set_space_used', { used: size(storage.usage), quota: size(storage.quota) }) }));
-      } else space.append(e('p', { class: 'fmo-set-total', text: T('set_space_unknown') }));
+        space.append(meter, e('p', { class: 'fmo-set-total', text: total }));
+      } else space.append(e('p', { class: 'fmo-set-total', text: T('set_space_unknown' + flavour) }));
       const legend = e('ul', { class: 'fmo-legend' });
       for (const name of order) {
         if (name === 'app' && !known) continue;

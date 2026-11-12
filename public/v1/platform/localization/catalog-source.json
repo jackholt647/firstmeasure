@@ -21632,6 +21632,11 @@
       "format": "icu"
     },
     "set_space_unknown": "This browser does not report how much space is available.",
+    "set_space_used_app": {
+      "message": "{used} used of about {quota} the app can use",
+      "format": "icu"
+    },
+    "set_space_unknown_app": "This device does not report how much space the app can use.",
     "set_part_app": "The app",
     "set_part_reads": "Saved data",
     "set_part_media": "Pictures",
