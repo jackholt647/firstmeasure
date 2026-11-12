@@ -70,10 +70,10 @@ test('dev tray in the app: shake, sign in, see issues, screenshot without the tr
   await tab.fill('.fm-qt-text','Map pin is offset');
   await tab.click('.fm-qt-compose .fm-qt-go');
   assert.match(await tab.locator('.fm-qt-error').innerText(),/Sign in to Tracker/);
-  await tab.fill('.fm-qt-signin [name=email]','jack@test');await tab.fill('.fm-qt-signin [name=password]','bad');
+  await tab.fill('.fm-qt-signin [name=tracker-email]','jack@test');await tab.fill('.fm-qt-signin [name=tracker-password]','bad');
   await tab.click('.fm-qt-signin button');
   await tab.locator('.fm-qt-error',{hasText:'Wrong email or password'}).waitFor();
-  await tab.fill('.fm-qt-signin [name=password]','pw');await tab.click('.fm-qt-signin button');
+  await tab.fill('.fm-qt-signin [name=tracker-password]','pw');await tab.click('.fm-qt-signin button');
   await tab.locator('.fm-qt-group h3',{hasText:'In progress'}).waitFor();
   assert.deepEqual((await tab.locator('.fm-qt-group h3').allInnerTexts()).map(s=>s.replace(/\s+/g,' ')),['IN PROGRESS 1','READY 2'],'grouped, in progress first');
   assert.equal(await tab.locator('.fm-qt-target select').inputValue(),'w-gpw','General platform work by default');
@@ -134,7 +134,7 @@ test('dev tray in a phone browser: devicemotion opens it, the screenshot is draw
   assert.equal(await tab.locator('.fm-qt').isVisible(),false,'a bump does not open it');
   await tab.evaluate(()=>{for(let t=0;t<=600;t+=16){const e=new Event('devicemotion');Object.defineProperty(e,'acceleration',{value:{x:25*Math.sin(2*Math.PI*4*t/1000),y:0,z:0}});Object.defineProperty(e,'timeStamp',{value:5000+t});window.dispatchEvent(e);}});
   await tab.locator('.fm-qt.fm-qt-in').waitFor();
-  await tab.fill('.fm-qt-signin [name=email]','jack@test');await tab.fill('.fm-qt-signin [name=password]','pw');await tab.click('.fm-qt-signin button');
+  await tab.fill('.fm-qt-signin [name=tracker-email]','jack@test');await tab.fill('.fm-qt-signin [name=tracker-password]','pw');await tab.click('.fm-qt-signin button');
   await tab.locator('.fm-qt-group').first().waitFor();
   await tab.click('.fm-qt-shot');
   await tab.locator('.fm-qt-thumb img').waitFor({timeout:15000});
