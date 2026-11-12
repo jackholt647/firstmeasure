@@ -1,0 +1,92 @@
+/* The dev tray (quick-tray.js, docs/architecture/dev-console.md). On <html>, over everything the page draws; the
+   full dev menu (2147483640) opens over it when asked. Layout follows the tray's own width (container queries). */
+.fm-qt,.fm-qt-backdrop{--qt-accent:#6941c6;--qt-ink:#101828;--qt-muted:#667085;--qt-line:#eaecf0;box-sizing:border-box}
+.fm-qt *,.fm-qt *::before,.fm-qt *::after{box-sizing:border-box}
+.fm-qt-backdrop{position:fixed;inset:0;z-index:2147483630;background:rgba(16,24,40,.16)}
+.fm-qt-backdrop[hidden],.fm-qt[hidden]{display:none!important}
+.fm-qt{position:fixed;left:0;right:0;bottom:var(--qt-kb,0px);z-index:2147483635;margin:0 auto;width:100%;max-width:720px;height:min(56vh,560px);height:min(56dvh,560px);min-height:300px;display:flex;flex-direction:column;background:#fff;color:var(--qt-ink);border-radius:16px 16px 0 0;box-shadow:0 -10px 40px rgba(16,24,40,.22);font-size:14px;line-height:1.4;text-align:left;transform:translateY(100%);transition:transform .18s ease-out;container:fm-qt/inline-size;padding-bottom:env(safe-area-inset-bottom,0px)}
+.fm-qt.fm-qt-in{transform:none}
+.fm-qt button,.fm-qt input,.fm-qt select,.fm-qt textarea{font:inherit;color:inherit}
+.fm-qt :focus-visible{outline:2px solid var(--qt-accent);outline-offset:2px}
+html.fm-qt-capturing .fm-qt,html.fm-qt-capturing .fm-qt-backdrop{visibility:hidden!important;transition:none!important}
+
+.fm-qt-grab{flex:none;height:14px;display:flex;justify-content:center;align-items:center;touch-action:none;cursor:grab}
+.fm-qt-grab::before{content:'';width:36px;height:4px;border-radius:2px;background:#d0d5dd}
+.fm-qt-head{flex:none;display:flex;align-items:center;gap:6px;padding:0 6px 2px 14px;touch-action:none}
+.fm-qt-name{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--qt-muted)}
+.fm-qt-name i{color:var(--qt-accent)}
+.fm-qt-who{flex:1;min-width:0;font-size:12px;color:#98a2b3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fm-qt-icon{flex:none;width:32px;height:32px;border:0;border-radius:8px;background:transparent;color:#98a2b3;cursor:pointer;font-size:13px}
+.fm-qt-icon:hover{background:#f2f4f7;color:var(--qt-ink)}
+.fm-qt-menu{opacity:.75}
+
+.fm-qt-compose{flex:none;padding:4px 12px 8px}
+.fm-qt-box{display:flex;gap:8px;align-items:stretch}
+.fm-qt-text{flex:1;min-width:0;min-height:84px;max-height:22vh;resize:none;padding:10px 12px;border:1.5px solid #d0d5dd;border-radius:12px;background:#fff;font-size:16px;line-height:1.35}
+.fm-qt-text:focus{border-color:var(--qt-accent);outline:0;box-shadow:0 0 0 3px rgba(105,65,198,.14)}
+.fm-qt-go{flex:none;min-width:64px;border:0;border-radius:12px;background:var(--qt-accent);color:#fff!important;font-weight:700;font-size:16px;cursor:pointer;padding:0 14px}
+.fm-qt-go:hover{background:#53389e}
+.fm-qt-go:disabled{opacity:.6;cursor:default}
+.fm-qt-opts{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
+.fm-qt-chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#344054;font-size:13px;font-weight:600;cursor:pointer;max-width:100%}
+.fm-qt-chip:disabled{opacity:.5}
+.fm-qt-chip[hidden]{display:none}
+.fm-qt-target{margin-left:auto;min-width:0;color:var(--qt-muted);font-weight:500}
+.fm-qt-target select{appearance:none;border:0;background:transparent;padding:0 2px;min-width:0;max-width:48cqw;text-overflow:ellipsis;font-weight:600;color:#344054;cursor:pointer}
+.fm-qt-thumb{position:relative;display:inline-flex}
+.fm-qt-thumb[hidden]{display:none}
+.fm-qt-thumb img{height:44px;width:auto;max-width:90px;object-fit:cover;object-position:top;border-radius:6px;border:1px solid #d0d5dd;display:block}
+.fm-qt-unshot{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;border:0;background:#101828;color:#fff!important;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.fm-qt-error{margin:6px 0 0;color:#b42318;font-size:12.5px}
+.fm-qt-error[hidden]{display:none}
+
+.fm-qt-list{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;border-top:1px solid var(--qt-line);padding:0 12px 12px}
+.fm-qt-tabs{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:4px;padding:6px 0;background:#fff}
+.fm-qt-tabs [role=tab]{border:0;border-radius:7px;padding:5px 10px;background:transparent;color:#475467;font-size:13px;cursor:pointer}
+.fm-qt-tabs [role=tab][aria-selected=true]{background:#f4f3ff;color:var(--qt-accent);font-weight:650}
+.fm-qt-spacer{flex:1}
+.fm-qt-tracker{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--qt-muted);text-decoration:none;padding:0 6px}
+.fm-qt-tracker i{font-size:10px}
+.fm-qt-spin i{animation:fm-qt-spin 1s linear infinite}
+@keyframes fm-qt-spin{to{transform:rotate(360deg)}}
+.fm-qt-group h3{display:flex;align-items:center;gap:7px;margin:10px 0 2px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--qt-muted)}
+.fm-qt-group h3 small{font-weight:600;color:#98a2b3}
+.fm-qt-dot{width:8px;height:8px;border-radius:50%;background:var(--c)}
+.fm-qt-group ul{margin:0;padding:0;list-style:none}
+.fm-qt-group li{border-bottom:1px solid #f2f4f7}
+.fm-qt-row{display:flex;align-items:baseline;gap:8px;width:100%;padding:9px 2px;border:0;background:none;text-align:left;cursor:pointer}
+.fm-qt-key{flex:none;font:600 11.5px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--qt-muted)}
+.fm-qt-ttl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fm-qt-open .fm-qt-ttl{white-space:normal}
+.fm-qt-ttl em{color:#98a2b3}
+.fm-qt-row time{flex:none;font-size:11.5px;color:#98a2b3}
+.fm-qt-agent{flex:none;color:var(--qt-accent);font-size:12px}
+.fm-qt-badge{flex:none;padding:1px 7px;border-radius:999px;background:#fef0c7;color:#93370d;font-size:10.5px;font-weight:650}
+.fm-qt-detail{padding:0 2px 12px;font-size:13px;color:#344054;overflow-wrap:anywhere}
+.fm-qt-detail p{margin:0 0 8px;white-space:pre-wrap}
+.fm-qt-detail h4{margin:10px 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--qt-muted)}
+.fm-qt-img{max-width:min(100%,260px);max-height:200px;border-radius:6px;border:1px solid var(--qt-line);display:block;margin:0 0 8px}
+.fm-qt-comment{padding:6px 0;border-top:1px solid #f2f4f7}
+.fm-qt-comment time{color:#98a2b3;font-size:11.5px}
+.fm-qt-comment p{margin:2px 0 0}
+.fm-qt-link{border:0;background:none;padding:0;color:var(--qt-accent);font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:none}
+.fm-qt-empty{margin:12px 2px;color:var(--qt-muted);font-size:13px}
+.fm-qt-foot{margin:14px 2px 0;font-size:12px;color:#98a2b3}
+.fm-qt-signin{display:grid;gap:8px;padding:12px 0;max-width:420px}
+.fm-qt-signin p{margin:0;color:var(--qt-muted);font-size:13px}
+.fm-qt-signin input{width:100%;height:42px;padding:0 12px;border:1px solid #d0d5dd;border-radius:10px;font-size:16px}
+.fm-qt-signin .fm-qt-go{height:42px}
+
+/* A narrow tray: the options wrap under the box and the workspace takes its own line. */
+@container fm-qt (max-width:360px){
+  .fm-qt-target{margin-left:0;flex-basis:100%}
+  .fm-qt-target select{max-width:80cqw}
+  .fm-qt-go{min-width:56px;padding:0 10px}
+}
+/* A wide tray (tablet, desktop testing): more room for the box. */
+@container fm-qt (min-width:560px){
+  .fm-qt-compose{padding:6px 18px 10px}
+  .fm-qt-list{padding:0 18px 14px}
+  .fm-qt-text{min-height:96px}
+}
+@media (prefers-reduced-motion:reduce){.fm-qt{transition:none}.fm-qt-spin i{animation:none}}

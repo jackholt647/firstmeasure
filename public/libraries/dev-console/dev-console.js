@@ -8,10 +8,13 @@
  * sandbox organization's settings managers); production answers 404 and nothing is drawn. Everything in it is
  * data-fmr-ignore. Sections are modules in ./sections, loaded when first opened; another library adds one with
  * window.FirstMateDevConsole.register().
+ *
+ * On a phone (or in the FirstMate app) there is no edge strip: a shake opens the dev tray (quick-tray.js), which files
+ * Tracker issues and opens this console from its header; the portal's More sheet opens either.
  */
-import { dock, windowWidth } from './dock.js?v=20261028-dock1';
+import { dock, windowWidth } from './dock.js?v=20261112-tray1';
 
-const VERSION = '20261028-dock1';
+const VERSION = '20261112-tray1';
 const NS = 'dev-console';
 const STORE = 'fm-dev-console';
 // The page keeps at least APP_MIN px beside the console.
@@ -84,7 +87,7 @@ async function readAccess() {
 let mounted = false;
 const extra = [];
 const state = { access: null, open: false, expanded: false, section: '', width: DEFAULT_WIDTH, loaded: new Map() };
-let tray, strip, rail, body, title;
+let tray, strip, rail, body, title, quickTray = null;
 
 export async function mount() {
   if (mounted || window.top !== window) return;
@@ -101,7 +104,10 @@ export async function mount() {
   // Docking needs the console's stylesheet; a page that cannot load it still gets the console.
   await new Promise((resolve) => { css.onload = css.onerror = resolve; setTimeout(resolve, 4000); });
   build();
-  window.FirstMateDevConsole = { register, open: (id) => setOpen(true, id), fold: () => setOpen(false), sections: () => visible().map((s) => s.id), access: () => state.access };
+  window.FirstMateDevConsole = { register, open: (id) => setOpen(true, id), fold: () => setOpen(false), sections: () => visible().map((s) => s.id), access: () => state.access, tray: () => quickTray?.open() };
+  // The dev tray: a shake opens it on a phone. It loads on every page the console does; until a shake or a tap
+  // it only listens.
+  import(`./quick-tray.js?v=${VERSION}`).then((module) => { quickTray = module.mountQuickTray({ openConsole: () => setOpen(true), toast }); }).catch(() => {});
   window.dispatchEvent(new CustomEvent('fm:dev-console:ready'));
 }
 
@@ -141,6 +147,7 @@ function build() {
   phoneEntry();
   renderRail();
   window.addEventListener('resize', layout);
+  window.addEventListener('fm:phone:ready', layout);
   setOpen(state.open, state.section, { initial: true });
 }
 
@@ -161,7 +168,7 @@ function renderRail() {
 
 function setOpen(open, section, { initial = false } = {}) {
   state.open = !!open;
-  tray.hidden = !state.open; strip.hidden = state.open;
+  tray.hidden = !state.open; strip.hidden = state.open || phone();
   document.documentElement.classList.toggle('fm-dc-open', state.open);
   if (!initial) writeStore({ open: state.open });
   layout();
@@ -203,8 +210,8 @@ export function toast(message) {
   setTimeout(() => note.remove(), 2600);
 }
 
-// The window's real width: the docked page is told the remaining width.
-function phone() { return windowWidth() <= PHONE; }
+// The window's real width: the docked page is told the remaining width. The FirstMate app counts as a phone (tablets too).
+function phone() { return windowWidth() <= PHONE || document.documentElement.dataset.nativeApp != null; }
 function layout() {
   if (!tray) return;
   const real = windowWidth(), max = Math.max(MIN_WIDTH, real - APP_MIN);
@@ -215,7 +222,9 @@ function layout() {
   expand.querySelector('i').className = `fas ${state.expanded ? 'fa-down-left-and-up-right-to-center' : 'fa-up-right-and-down-left-from-center'}`;
   expand.title = state.expanded ? T('dc_restore', 'Restore the dev console width') : T('dc_expand', 'Expand the dev console');
   expand.setAttribute('aria-label', expand.title);
-  // A phone keeps the console over the page; a desktop page is docked beside it, folded strip included.
+  // A phone keeps the console over the page and has no strip (a shake opens the dev tray); a desktop page is docked
+  // beside the console, folded strip included.
+  strip.hidden = state.open || phone();
   dock(phone() ? 0 : state.open ? width : STRIP);
 }
 
@@ -241,13 +250,22 @@ function resizer(handle) {
   });
 }
 
-/** On a phone the portal's ⋯ sheet gets a Dev console entry too: the strip is narrow under a thumb. */
+/**
+ * On a phone the portal's ⋯ sheet opens the console and the dev tray: there is no strip, and a browser may not report
+ * motion (iOS Safari asks first, which needs a tap: opening the tray from here asks).
+ */
 function phoneEntry() {
   const menu = document.getElementById('mobilePlatformMoreMenu');
   if (!menu || document.getElementById('mobilePlatformMoreDevConsole')) return;
-  const item = document.createElement('button');
-  item.type = 'button'; item.id = 'mobilePlatformMoreDevConsole'; item.className = 'ptb-more-item'; item.setAttribute('data-fmr-ignore', '');
-  item.innerHTML = `<i class="fas fa-code" aria-hidden="true"></i><span>${esc(T('dc_title', 'Dev console'))}</span>`;
-  item.onclick = () => { menu.classList.remove('visible'); setOpen(true); };
-  menu.prepend(item);
+  const entry = (id, icon, label, run) => {
+    const item = document.createElement('button');
+    item.type = 'button'; item.id = id; item.className = 'ptb-more-item'; item.setAttribute('data-fmr-ignore', '');
+    item.innerHTML = `<i class="fas ${icon}" aria-hidden="true"></i><span>${esc(label)}</span>`;
+    item.onclick = () => { menu.classList.remove('visible'); run(); };
+    return item;
+  };
+  menu.prepend(
+    entry('mobilePlatformMoreDevTray', 'fa-bug', T('dc_tray_more_entry', 'Dev tray'), () => quickTray?.open()),
+    entry('mobilePlatformMoreDevConsole', 'fa-code', T('dc_title', 'Dev console'), () => setOpen(true))
+  );
 }

@@ -155,7 +155,20 @@ When production moves to `app.1m8.ai`, only `PORTAL_ORIGIN` changes: the domain 
 
 The Android APK builds and its JVM tests pass on a PC. The iOS sources were written without a compiler. On a Mac, expect to fix small compile errors first in: `Sources/OfflineUploadRules.swift`, `Sources/OfflineUploadStore.swift`, `Sources/OfflineUploader.swift`, `Sources/PhotoLibrarySaver.swift`, `Sources/OfflineScreen.swift`, the changes in `Sources/PortalController.swift` and `Sources/AppDelegate.swift`, and `Tests/OfflineUploadTests.swift`. Also check that XcodeGen puts `en.lproj/Localizable.strings` in the app (the text falls back to English without it) and writes `WKAppBoundDomains` as an array.
 
+## Development tools
+
+Development builds (Android flavor `development`, iOS `APP_ENVIRONMENT=development`) add two capabilities for the portal's dev tray ([docs/architecture/dev-console.md](../../docs/architecture/dev-console.md), "Dev tray"). Production builds neither report nor answer them (`unsupported`). Android 1.0.9 and iOS 1.0.4 have them.
+
+| Capability | What the host does |
+|---|---|
+| `shake` | While the app is in front, on a portal page and not showing the offline screen, a shake dispatches `window.dispatchEvent(new CustomEvent('fm:native:shake'))` in the main frame, with a haptic tap. Android runs `ShakeDetector` on the linear-acceleration sensor (the raw accelerometer with gravity removed when there is none): three strokes of at least 15 m/s², each the opposite way, within 800 ms, then 1.5 s quiet; the same rule and constants as `public/libraries/dev-console/shake.js`, and the same test cases (`ShakeDetectorTest`). iOS uses the system shake gesture (`motionEnded(.motionShake)`) and turns off shake-to-undo, so a shake in a text field opens the tray instead of offering Undo. |
+| `screenshot` | Method `screenshot {}` answers `{ mime: "image/jpeg", width, height, data }` (base64): the web view as it is on screen, scaled to at most 1600 px on its long side. Android copies the window's pixels with `PixelCopy`, so WebGL and video layers are included; iOS uses `WKWebView.takeSnapshot` after screen updates. The page hides its own tray for two frames before asking, so the image is the page without it. `PhoneFeatures.screenshot()` returns it as a `Blob`. |
+
+Neither needs a permission. A plain browser has neither: the tray falls back to `devicemotion` (Android Chrome reports it; iOS Safari asks first, from a tap) and draws the page with html2canvas (frames from other origins do not draw).
+
 ## Android
+
+Version 1.0.9 (version code 10) adds the development tools above (`shake`, `screenshot`) to development builds; production builds are unchanged.
 
 Version 1.0.8 (version code 9) adds the offline capabilities described under Offline: background uploads through WorkManager
 (`androidx.work:work-runtime`), camera-roll copies through MediaStore, a native screen for a failed first load, and native
@@ -217,6 +230,8 @@ Register both `ai.firstmeasure.mobile.dev` and `ai.firstmeasure.mobile` in Fireb
 For iPhone, enable Push Notifications for both bundle IDs and use profiles with the `aps-environment` entitlement. Set `APNS_AUTH_KEY_P8`, `APNS_KEY_ID`, and `APNS_TEAM_ID` on the API server. `APNS_BUNDLE_ID` and `APNS_DEVELOPMENT_BUNDLE_ID` default to the canonical bundle IDs. Development tokens use Apple's sandbox endpoint; production tokens use the production endpoint. Test end-to-end delivery on a signed physical device. iOS categories use `FIRSTMATE_<CATEGORY>` identifiers.
 
 ## iPhone and iPad
+
+Version 1.0.4 (build 5) adds the development tools above (`shake`, `screenshot`) to the Development configuration. On a Mac, check first that `motionEnded` reaches `PortalController` while a text field in the web view is focused.
 
 Version 1.0.3 (build 4) adds the offline capabilities described under Offline, including App-Bound Domains and the list of what still needs a first compile on a Mac. It adds `NSPhotoLibraryAddUsageDescription` and `WKAppBoundDomains` to the generated `Info.plist`. iOS has no native camera in this host, so uploads are handed over with `offlineUploads.put`.
 
