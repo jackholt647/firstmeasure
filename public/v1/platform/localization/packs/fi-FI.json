@@ -8077,6 +8077,8 @@
     "fm_coupon_credit_added": "Kuponkisaldo lisätty",
     "fm_cancellation_refund": "Peruutuksen hyvitys",
     "fm_expedite_refund": "Pikatoimituksen hyvitys",
+    "fm_expedite_fee": "Pikatoimitusmaksu",
+    "fm_expedite_fee_refund": "Pikatoimitusmaksun hyvitys",
     "fm_missed_promised_delivery_window": "Luvattu toimitusaika ylittyi",
     "fm_additional_structure_refund": "Lisärakennuksen hyvitys",
     "fm_additional_structure_request": "Lisärakennuspyyntö",

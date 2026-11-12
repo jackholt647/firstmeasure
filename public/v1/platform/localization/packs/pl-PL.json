@@ -7853,6 +7853,8 @@
     "fm_coupon_credit_added": "Dodano środki z kuponu",
     "fm_cancellation_refund": "Zwrot za anulowanie",
     "fm_expedite_refund": "Zwrot za przyspieszenie",
+    "fm_expedite_fee": "Opłata za przyspieszenie",
+    "fm_expedite_fee_refund": "Zwrot opłaty za przyspieszenie",
     "fm_missed_promised_delivery_window": "Nie dotrzymano obiecanego terminu dostawy",
     "fm_additional_structure_refund": "Zwrot za dodatkową konstrukcję",
     "fm_additional_structure_request": "Prośba o dodatkową konstrukcję",

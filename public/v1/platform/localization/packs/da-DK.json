@@ -8077,6 +8077,8 @@
     "fm_coupon_credit_added": "Rabatkodekredit tilføjet",
     "fm_cancellation_refund": "Refusion ved annullering",
     "fm_expedite_refund": "Refusion for hurtigbehandling",
+    "fm_expedite_fee": "Gebyr for hurtigbehandling",
+    "fm_expedite_fee_refund": "Refusion af gebyr for hurtigbehandling",
     "fm_missed_promised_delivery_window": "Den lovede leveringstid blev overskredet",
     "fm_additional_structure_refund": "Refusion for ekstra bygning",
     "fm_additional_structure_request": "Anmodning om ekstra bygning",

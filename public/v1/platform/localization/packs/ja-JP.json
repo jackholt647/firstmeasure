@@ -8089,6 +8089,8 @@
     "fm_coupon_credit_added": "クーポンクレジットを追加しました",
     "fm_cancellation_refund": "キャンセルの返金",
     "fm_expedite_refund": "特急料金の返金",
+    "fm_expedite_fee": "特急料金",
+    "fm_expedite_fee_refund": "特急料金の返金",
     "fm_missed_promised_delivery_window": "納期の約束を守れなかった場合",
     "fm_additional_structure_refund": "追加構造物の返金",
     "fm_additional_structure_request": "構造物の追加依頼",

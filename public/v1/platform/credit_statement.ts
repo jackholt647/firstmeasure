@@ -49,3 +49,41 @@ export function creditStatementTotals(transactions: unknown[]) {
     total_spent: totalOut
   };
 }
+
+// FM-406: a customer's billing activity never names FirstMate staff. A ledger
+// entry records whoever moved the credit (the technician who rejected a report,
+// the support person who cancelled one) in `by_email`, `rejected_by_email`,
+// `cancelled_by_email` and their `_name` siblings. What a customer reads keeps
+// an email only when it belongs to someone in their own organization; any other
+// email is removed with the name stored beside it.
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function redactPeople(value: unknown, members: ReadonlySet<string>, depth: number): unknown {
+  if (Array.isArray(value)) return depth > 6 ? [] : value.map((item) => redactPeople(item, members, depth + 1));
+  if (!value || typeof value !== "object") return value;
+  if (depth > 6) return {};
+  const source = value as Json;
+  const out: Json = {};
+  const dropped = new Set<string>();
+  for (const [key, item] of Object.entries(source)) {
+    if (typeof item === "string" && EMAIL.test(item.trim()) && !members.has(item.trim().toLowerCase())) {
+      dropped.add(key);
+      continue;
+    }
+    out[key] = redactPeople(item, members, depth + 1);
+  }
+  for (const key of dropped) {
+    const name = key.replace(/email$/i, (match) => match === "EMAIL" ? "NAME" : match[0] === "E" ? "Name" : "name");
+    if (name !== key) delete out[name];
+  }
+  return out;
+}
+
+export function customerLedgerEntries(entries: unknown[], memberEmails: Iterable<string>): Json[] {
+  const members = new Set<string>();
+  for (const email of memberEmails) {
+    const clean = String(email ?? "").trim().toLowerCase();
+    if (clean) members.add(clean);
+  }
+  return entries.map((entry) => redactPeople(object(entry), members, 0) as Json);
+}

@@ -44,7 +44,7 @@ import {
 import { stripeCreditReceiptDescription } from "../payments/stripe_receipt.js";
 import { checkStripeCheckoutAmount, type StripeCheckoutAmountCheck } from "../payments/stripe_checkout_amount.js";
 import { saveInternalDocument } from "../internal/storage.js";
-import { creditLedgerEntryKind, creditStatementTotals } from "./credit_statement.js";
+import { creditLedgerEntryKind, creditStatementTotals, customerLedgerEntries } from "./credit_statement.js";
 import { acquisitionBonusOfferForCampaignToken, acquisitionBonusOfferForOrganization, acquisitionBonusQuoteForOrganization, acquisitionEventInputs, completeAcquisitionSignup, customerReferralEvent, customerReferralStatus, publicAcquisitionLookup, publicReferralLookup, trackAcquisitionEvent, trackAcquisitionEvents } from "../internal/crm/referrals_service.js";
 import { acquisitionVisitorAddress, consumeAcquisitionEventTokens } from "./acquisition_event_limits.js";
 import { enqueueTiktokPurchase, startTiktokEventsOutbox, tiktokCheckoutAttribution } from "./tiktok-events.js";
@@ -1363,7 +1363,7 @@ app.get("/auth/google/config", async () => ({
     return {
       ok: true,
       balance: numericValue(data.credits_balance),
-      ledger: limit > 0 ? ledger.slice(-limit).reverse() : [],
+      ledger: limit > 0 ? (await customerLedgerView(orgId, ledger.slice(-limit).reverse()))[0] : [],
       ledger_count: ledger.length,
       document_revision: global.revision
     };
@@ -10043,9 +10043,18 @@ async function portalBillingHistory(orgId: string, body: JsonObject) {
   const global = await readGlobal(orgId);
   const data = asObject(global.data);
   const limit = Math.max(0, Math.min(500, Number(body.limit || 200) || 200));
-  const ledger = Array.isArray(data.credits_ledger) ? data.credits_ledger.slice(-limit).reverse() : [];
-  const events = Array.isArray(asObject(data.billing).events) ? asObject(data.billing).events : [];
-  return { success: true, events, ledger };
+  const events = asObject(data.billing).events;
+  const [ledger, billingEvents] = await customerLedgerView(orgId,
+    Array.isArray(data.credits_ledger) ? data.credits_ledger.slice(-limit).reverse() : [],
+    Array.isArray(events) ? events : []);
+  return { success: true, events: billingEvents, ledger };
+}
+
+/** Ledger entries as the organization may read them: no FirstMate staff names or emails (FM-406). */
+async function customerLedgerView(orgId: string, ...lists: unknown[][]) {
+  const users = await listDocuments(orgId, "users").catch(() => []);
+  const members = users.map((user) => cleanEmail(asObject(user.data).email));
+  return lists.map((entries) => customerLedgerEntries(entries, members));
 }
 
 async function portalMonthlyStatement(orgId: string, body: JsonObject) {
@@ -12206,6 +12215,7 @@ async function portalExpediteQueuedProjectForMarket(portal: PortalCaller, body: 
       reason: "order_expedite_upgrade",
       meta: {
         project_id: projectId,
+        address: cleanText(manifest.address),
         previous_report_expedite_option: cleanText(manifest.report_expedite_option) || "standard_3_6",
         report_expedite_option: option.key,
         previous_amount: currentCharged,
@@ -12270,7 +12280,7 @@ async function portalExpediteQueuedProjectForMarket(portal: PortalCaller, body: 
   });
   const data = response.body ? JSON.parse(response.body) : {};
   if (response.statusCode >= 400 || data.ok === false || data.success === false) {
-    if (chargeDelta > 0) await applyCreditDelta(orgId, { amount: chargeDelta, reason: "order_expedite_upgrade_refund", meta: { project_id: projectId, failed_expedite: data } }, actor.email);
+    if (chargeDelta > 0) await applyCreditDelta(orgId, { amount: chargeDelta, reason: "order_expedite_upgrade_refund", meta: { project_id: projectId, address: cleanText(manifest.address), failed_expedite: data } }, actor.email);
     return { success: false, status_code: 400, error: String(data.message || data.error || "Expedite upgrade failed.") };
   }
   let freeExpedite = null;

@@ -7785,6 +7785,8 @@
     "fm_coupon_credit_added": "Credito coupon aggiunto",
     "fm_cancellation_refund": "Rimborso per annullamento",
     "fm_expedite_refund": "Rimborso per urgenza",
+    "fm_expedite_fee": "Supplemento per urgenza",
+    "fm_expedite_fee_refund": "Rimborso del supplemento per urgenza",
     "fm_missed_promised_delivery_window": "Mancato rispetto dei tempi di consegna promessi",
     "fm_additional_structure_refund": "Rimborso per struttura aggiuntiva",
     "fm_additional_structure_request": "Richiesta di struttura aggiuntiva",
