@@ -2442,7 +2442,8 @@ window.PlatformCommerce.onReady(function(){
         ...summaryState
       }
     ];
-    if (cachedAssets?.xmlUrl || documentsUnlocked) {
+    // A held report's model exists, as it did in review: its row stays, still processing (FM-383).
+    if (cachedAssets?.xmlUrl || documentsUnlocked || reportOrderReleaseHoldIsActive()) {
       rows.push({
         get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_2d7f82c5d48d2c","XML model") ?? "XML model"); },
         detail: (globalThis.PlatformLanguage?.text("measurements","m_73340cea156d55","Model data export") ?? "Model data export"),
@@ -2487,7 +2488,8 @@ window.PlatformCommerce.onReady(function(){
       raw.report_sent_at,
       measurement.report_sent_at,
       activeBaseProject?.report_sent_at,
-      activeBaseProject?.completed_at
+      // Completion stands in for an older record's send time, never for a report held for release (FM-383).
+      reportOrderReleaseHoldIsActive() ? '' : activeBaseProject?.completed_at
     );
     const notes = firstCleanText(
       reportOrderState?.techNotes,
