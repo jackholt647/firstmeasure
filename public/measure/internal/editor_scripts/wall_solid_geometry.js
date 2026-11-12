@@ -1438,9 +1438,7 @@ function loadBearingIndex(faces){
 // to give:
 //  - every face a point belongs to stays flat: the shared position lies on
 //    all of those planes (two walls and the base meet in exactly one point);
-//  - no drawn edge of a face is removed: two corners of the same outline are a
-//    deliberate small step and are never merged with each other, unless they
-//    are closer than PLANE_WELD, which nobody draws;
+//  - a shared corner is never pulled apart: every use of a point moves, or none does;
 //  - a fixed point (a generated wall, a sticker, a curve) does not move: the
 //    others come to it, or the group is left alone.
 //
@@ -1452,7 +1450,7 @@ function loadBearingIndex(faces){
 // is: it removes storage noise, never a drawn inset. The corners that
 // leaves a hair from their neighbours are then welded like any others.
 //
-// Each item is one use of a point: {point, owner, planes:[{n,k}], ring, fixed}.
+// Each item is one use of a point: {point, owner, planes:[{n,k}], ring, fixed, keep}.
 // owners: id -> {plane:{n,k}, fixed, soft}. weldPlan returns the moves
 // [{from,to,owner}] and how many groups could not be welded. A move belongs to
 // one owner: another face with a corner at the same spot may have to stay.
@@ -1532,12 +1530,16 @@ function weldPlan(items,distance,explain=null,owners=null){
   return ok;};
  for(const seed of order){if(used[seed])continue;const group=[];for(let i=0;i<items.length;i++)if(!used[i]&&apart(items[i].point,items[seed].point)<=distance)group.push(i);
   for(const i of group)used[i]=true;const members=group.map(i=>items[i]);
-  // Two corners of one outline: a real short edge. They are not merged; each still goes onto its planes. Closer
-  // than PLANE_WELD they are not a drawn step but one corner stored twice (a cut that ended a hair from the
-  // corner it was aimed at), and they weld like any other twins.
-  const rings=new Map();let step=false;for(const m of members){if(m.ring==null)continue;const prior=rings.get(m.ring)||[];if(prior.some(q=>apart(q,m.point)>PLANE_WELD))step=true;prior.push(m.point);rings.set(m.ring,prior);}
-  if(!step){if(!whole(members,distance))skipped++;continue;}
-  skipped++;explain?.push({reason:'step',members});const rest=members.slice();while(rest.length){const at=rest[0].point,same=rest.filter(m=>apart(m.point,at)<=1e-9);for(const m of same)rest.splice(rest.indexOf(m),1);whole(same,PLANE_WELD);}
+  // Two corners of one outline within the weld distance are welded like any other points: the weld distance is the
+  // one measure of what is too small to be real, so an edge shorter than it goes, and a face left without area goes
+  // with it (the caller removes it). A step that something holds open stays: where its two corners lie on planes
+  // that do not meet there (the two ends of a shallow return), the group cannot become one point without pulling a
+  // shared corner apart, and then each corner only goes onto its own planes. An outline that keeps its short edges
+  // (item.keep: the base, which has its own sketch and never loses a face to a weld) is such a step always.
+  const rings=new Map();let step=false,held=false;for(const m of members){if(m.ring==null)continue;const prior=rings.get(m.ring)||[];if(prior.some(q=>apart(q,m.point)>PLANE_WELD)){step=true;if(m.keep)held=true;}prior.push(m.point);rings.set(m.ring,prior);}
+  if(!held&&whole(members,distance))continue;
+  skipped++;if(!step)continue;
+  explain?.push({reason:'step',members});const rest=members.slice();while(rest.length){const at=rest[0].point,same=rest.filter(m=>apart(m.point,at)<=1e-9);for(const m of same)rest.splice(rest.indexOf(m),1);whole(same,PLANE_WELD);}
  }
  return {moves,skipped};
 }
