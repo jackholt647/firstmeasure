@@ -9,10 +9,10 @@
 const NS = 'dev-console';
 const T = (key, fallback) => window.PlatformLanguage?.text?.(NS, key, fallback) ?? fallback;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-import { trackerClient, composeIssue, groupIssues, DEFAULT_WORKSPACE, TRACKER } from './tracker-client.js?v=20261112-tray2';
-import { watchShake, requestMotionPermission } from './shake.js?v=20261112-tray2';
+import { trackerClient, composeIssue, groupIssues, DEFAULT_WORKSPACE, TRACKER } from './tracker-client.js?v=20261112-tray3';
+import { watchShake, requestMotionPermission } from './shake.js?v=20261112-tray3';
 
-const VERSION = '20261112-tray2';
+const VERSION = '20261112-tray3';
 const DRAFT = 'fm-dev-tray-draft';
 const REFRESH_MS = 20000;
 const tracker = trackerClient();

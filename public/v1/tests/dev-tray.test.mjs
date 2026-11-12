@@ -39,23 +39,28 @@ test('raw accelerometer readings with gravity work too', () => {
   assert.equal(run(() => 0, 2000, { gravity: true }), 0, 'gravity alone is not a shake');
 });
 
-test('watchShake follows the app when it reports shake, else devicemotion', () => {
+test('real sensors: a fast shake that reverses between samples, with noise on every axis, still fires', () => {
+  // 50 Hz readings (Android SENSOR_DELAY_GAME), a hard 5 Hz shake that is nearly square: it flips sign between two
+  // samples without reading near zero, while the other axes wobble by a few m/s².
+  let seed = 7; const noise = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 6;
+  const fire = (wave, ms) => { let n = 0; const d = createShakeDetector(() => n++); for (let t = 0; t <= ms; t += 20) d.sample(wave(t), noise(), noise(), t); return n; };
+  assert.equal(fire((t) => (t < 600 ? Math.sign(Math.sin((2 * Math.PI * 5 * t) / 1000) || 1) * 20 : 0), 700), 1, 'square shake');
+  assert.equal(fire((t) => (t < 600 ? 16 * Math.sin((2 * Math.PI * 5 * t) / 1000) : 0), 700), 1, 'a moderate hard shake (about 1.6 g)');
+  assert.equal(fire((t) => 5 * Math.sin((2 * Math.PI * 2 * t) / 1000), 5000), 0, 'walking with noise');
+});
+
+test('watchShake: the app event and devicemotion both open it; one shake fires once', () => {
   const listeners = {};
   const win = { addEventListener: (n, f) => { listeners[n] = f; }, removeEventListener: (n) => { delete listeners[n]; }, PhoneFeatures: null };
   let shakes = 0;
   const stop = watchShake(() => shakes++, win);
-  // A browser: devicemotion samples.
   for (let t = 0; t <= 600; t += 16) listeners.devicemotion({ timeStamp: t, acceleration: { x: sine(25, 4)(t), y: 0, z: 0 } });
-  assert.equal(shakes, 1);
+  assert.equal(shakes, 1, 'devicemotion');
   listeners['fm:native:shake']();
-  assert.equal(shakes, 1, 'no app, no app event');
-  // The app: its event counts and devicemotion is ignored (the web view reports motion too).
-  win.PhoneFeatures = { supports: (n) => n === 'shake' };
-  listeners['fm:phone:ready']();
-  listeners['fm:native:shake']();
-  assert.equal(shakes, 2);
-  for (let t = 5000; t <= 5600; t += 16) listeners.devicemotion({ timeStamp: t, acceleration: { x: sine(25, 4)(t), y: 0, z: 0 } });
-  assert.equal(shakes, 2);
+  assert.equal(shakes, 2, 'the app event');
+  // A raw-only browser (no linear acceleration): gravity is removed.
+  for (let t = 5000; t <= 5600; t += 16) listeners.devicemotion({ timeStamp: t, acceleration: null, accelerationIncludingGravity: { x: sine(25, 4)(t), y: 9.81, z: 0 } });
+  assert.equal(shakes, 3);
   stop();
   assert.deepEqual(Object.keys(listeners), []);
 });
