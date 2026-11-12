@@ -1359,6 +1359,9 @@ window.PlatformCommerce.onReady(function(){
   function fallbackCustomerRejectionCopy(reason, details = {}){
     const key = String(reason || '').trim().toLowerCase();
     const rejectionMessage = customerRejectionCopy(details.rejection_message || '');
+    if (key === 'insufficient_footage') {
+      return (globalThis.PlatformLanguage?.text("measurements","m_242477ea5edf74","We were not able to complete this Full Exterior report because the photos and video do not show enough of the house for us to draw every wall, window and door. We have reimbursed the original report.") ?? "We were not able to complete this Full Exterior report because the photos and video do not show enough of the house for us to draw every wall, window and door. We have reimbursed the original report.");
+    }
     if (key === 'obscured_visibility') {
       return (globalThis.PlatformLanguage?.text("measurements","m_20daf0329c6bb5","This report was rejected because the structure is too obscured in the available imagery. This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. We have reimbursed the original report.") ?? "This report was rejected because the structure is too obscured in the available imagery. This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. We have reimbursed the original report.");
     }
@@ -1443,12 +1446,30 @@ window.PlatformCommerce.onReady(function(){
     setActivePreviewTab('map');
   }
 
+  // The reason a report was rejected, in the customer's words. Every rejection reaches FirstMeasure as
+  // rejected_no_coverage, so only the reason tells a coverage gap from footage, a pin or the project type.
+  function rejectionReasonHtml(reason){
+    if (reason === 'insufficient_footage') return `<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_9e8786e455a382","Not enough footage of the house") ?? "Not enough footage of the house")}</span>`;
+    if (reason === 'obscured_visibility') return `<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_afb458b5fb6b21","The structure is hidden in the imagery") ?? "The structure is hidden in the imagery")}</span>`;
+    if (reason === 'invalid_pin_placement') return `<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_e61de280fd24e7","The pin is not on a structure we can measure") ?? "The pin is not on a structure we can measure")}</span>`;
+    if (reason === 'incorrect_structure_type') return `<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_b77e788dcf9d7d","It needs a different project type") ?? "It needs a different project type")}</span>`;
+    if (['no_height_map', 'no_satellite_image', 'no_coverage'].includes(reason)) return `<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_60adf9494a259c","No imagery coverage for this structure yet") ?? "No imagery coverage for this structure yet")}</span>`;
+    if (reason === 'api_insufficient_credits') return `<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_38db6e7fef541e","Not enough credits") ?? "Not enough credits")}</span>`;
+    return '';
+  }
+
   function rejectedReportHtml(){
     const measurement = reportOrderMeasurement();
     const refundAmount = Number(activeBaseProject?.refund_amount ?? measurement?.refund_amount ?? 0) || 0;
     const reorderType = reportOrderReorderType();
     const reorderLabel = normalizeProjectTypeLabel(reorderType || activeBaseProject?.project_type || selectedType || 'commercial');
     const reason = String(activeBaseProject?.rejection_reason || measurement?.rejection_reason || '').trim().toLowerCase();
+    const exterior = reportOrderIsExterior();
+    // A Full Exterior turned down for its footage can be tried again with more of it, or ordered as the roof alone.
+    // No other reason offers these: a coverage gap, a hidden structure or a wrong pin would fail the roof too.
+    const footage = exterior && reason === 'insufficient_footage';
+    const retryExterior = footage && !!window.Portal?.ExteriorOrder?.offersChoice?.('residential');
+    const reasonHtml = rejectionReasonHtml(reason);
     const copy = customerRejectionCopy(activeBaseProject?.customer_rejection_message)
       || customerRejectionCopy(measurement?.customer_rejection_message)
       || fallbackCustomerRejectionCopy(reason, {
@@ -1460,13 +1481,21 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-report-pending">
         <div class="r-report-pending-card is-rejected">
           <i class="fas fa-circle-exclamation"></i>
-          <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_279b64bc569e57","Report rejected") ?? "Report rejected")}</h3>
+          <h3>${exterior ? (globalThis.PlatformLanguage?.htmlText("measurements","m_861f518127ff5b","Full Exterior report rejected") ?? "Full Exterior report rejected") : (globalThis.PlatformLanguage?.htmlText("measurements","m_279b64bc569e57","Report rejected") ?? "Report rejected")}</h3>
+          ${String(reasonHtml ? `<div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_6480ed19528b5a","Reason") ?? "Reason")}</strong>${reasonHtml}</div>` : '')}
           <p>${String(escapeHtml(copy))}</p>
           ${String(refundAmount > 0 ? `<div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_54833ca7291df9","Reimbursed") ?? "Reimbursed")}</strong><span>${((v0) => globalThis.PlatformLanguage?.htmlText("measurements","m_ef6b67b1fdf6fa",`${v0} returned to credits`,{v0}) ?? `${v0} returned to credits`)(escapeHtml(fmtCredit(refundAmount)))}</span></div>` : '')}
-          ${String(reorderType ? `
+          ${String(footage ? `
+          <div class="r-pending-actions">
+            ${retryExterior ? `
+            <button type="button" class="r-pending-reorder" data-reorder-rejected-exterior="full_house">${(globalThis.PlatformLanguage?.htmlText("measurements","m_61916e37809bd1","Try again with more footage") ?? "Try again with more footage")}</button>
+            <div class="r-pending-note">${(globalThis.PlatformLanguage?.htmlText("measurements","m_c04a8c55885f01","Step back to get the whole house in view, and add photos of every side so we can draw all of it.") ?? "Step back to get the whole house in view, and add photos of every side so we can draw all of it.")}</div>` : ''}
+            <button type="button" class="r-pending-reorder${retryExterior ? ' is-secondary' : ''}" data-reorder-rejected-exterior="roof">${(globalThis.PlatformLanguage?.htmlText("measurements","m_2a8fbfcefaed16","Order just the roof") ?? "Order just the roof")}</button>
+            <div class="r-pending-note">${(globalThis.PlatformLanguage?.htmlText("measurements","m_b688bd49aa30b3","A roof report is measured from aerial imagery and needs no photos.") ?? "A roof report is measured from aerial imagery and needs no photos.")}</div>
+          </div>` : (reorderType ? `
           <div class="r-pending-actions">
             <button type="button" class="r-pending-reorder" data-reorder-rejected-report>${escapeHtml(((v0) => globalThis.PlatformLanguage?.text("measurements","m_a76ca37eaaae8e",`Reorder as ${v0}`,{v0}) ?? `Reorder as ${v0}`)(reorderLabel.charAt(0).toUpperCase() + reorderLabel.slice(1)))}</button>
-          </div>` : '')}
+          </div>` : ''))}
         </div>
       </div>`;
   }
@@ -1500,6 +1529,15 @@ window.PlatformCommerce.onReady(function(){
 
   function reorderRejectedReportOrder(){
     reorderCurrentReportOrder(reportOrderReorderType());
+  }
+
+  // A rejected Full Exterior is never reopened in place (its exteriors_ id and references belong to that order):
+  // trying again, or ordering only the roof, starts a new order on this project with that scope already chosen.
+  function reorderRejectedExteriorReport(scope){
+    reorderCurrentReportOrder('');
+    reorderSourceCanReopenInPlace = false;
+    window.Portal?.ExteriorOrder?.prefer?.(scope === 'full_house' ? 'full_house' : 'roof');
+    callHost('orderMeasurements');
   }
 
   function reportFrameHtml(url){
@@ -4231,6 +4269,9 @@ window.PlatformCommerce.onReady(function(){
     document.querySelectorAll('[data-reorder-rejected-report]').forEach((button) => {
       button.addEventListener('click', () => reorderRejectedReportOrder());
     });
+    document.querySelectorAll('[data-reorder-rejected-exterior]').forEach((button) => {
+      button.addEventListener('click', () => reorderRejectedExteriorReport(button.dataset.reorderRejectedExterior));
+    });
     document.querySelectorAll('[data-order-weather-report]').forEach((button) => {
       button.addEventListener('click', () => orderWeatherReport(button));
     });
@@ -4370,6 +4411,7 @@ window.PlatformCommerce.onReady(function(){
     reorderCurrentReportOrder,
     reorderCancelledReportOrder,
     reorderRejectedReportOrder,
+    reorderRejectedExteriorReport,
     reportFrameHtml,
     xmlDownloadFileName,
     xmlDownloadPanelHtml,
