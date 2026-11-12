@@ -35,4 +35,17 @@ public class ShakeDetectorTest {
         assertEquals(1, run(t -> t < 400 ? 0 : t < 900 ? shake.applyAsDouble(t) : 0, 1000, true));
         assertEquals(0, run(t -> 0, 2000, true));
     }
+
+    @Test public void fastShakeReversingBetweenSamplesWithNoiseFires() {
+        long[] seed = { 7 };
+        java.util.function.DoubleSupplier noise = () -> { seed[0] = (seed[0] * 16807) % 2147483647; return (seed[0] / 2147483647.0 - 0.5) * 6; };
+        java.util.function.BiFunction<LongToDoubleFunction, Long, Integer> fire = (wave, ms) -> {
+            int[] n = { 0 }; ShakeDetector d = new ShakeDetector(() -> n[0]++);
+            for (long t = 0; t <= ms; t += 20) d.sample(wave.applyAsDouble(t), noise.getAsDouble(), noise.getAsDouble(), t, false);
+            return n[0];
+        };
+        assertEquals("square shake", 1, (int) fire.apply(t -> t < 600 ? (Math.sin(2 * Math.PI * 5 * t / 1000.0) >= 0 ? 20 : -20) : 0, 700L));
+        assertEquals("moderate hard shake", 1, (int) fire.apply(t -> t < 600 ? 16 * Math.sin(2 * Math.PI * 5 * t / 1000.0) : 0, 700L));
+        assertEquals("walking with noise", 0, (int) fire.apply(t -> 5 * Math.sin(2 * Math.PI * 2 * t / 1000.0), 5000L));
+    }
 }

@@ -71,7 +71,7 @@ Esc closes it. From the top:
 
 **Shake.** In the FirstMate app the host detects it and dispatches `fm:native:shake`
 (capability `shake`, development builds only: `native/firstmate/README.md`, "Development
-tools"). In a browser, `devicemotion`: three strokes of at least 15 m/s², each the opposite
+tools"). In a browser, `devicemotion`: three strokes of at least 12 m/s², each the opposite
 way, within 800 ms, then 1.5 s quiet (the Android host runs the same rule). Walking, a bump
 and its rebound, or waving the phone slowly do not open it. Android Chrome reports motion
 without asking; iOS Safari reports it only after the page asks from a tap, so there the
