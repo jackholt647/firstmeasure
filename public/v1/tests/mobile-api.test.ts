@@ -48,6 +48,10 @@ test("mobile configuration and private builds preserve tenant and deployment bou
     const authorize=(headers:any)=>app.inject({method:'POST',url:'/v1/mobile/auth/authorize',headers,payload:{challenge,state}});
     assert.equal((await authorize({})).statusCode,401);assert.equal((await authorize({cookie})).statusCode,403);
     const browser=await app.inject({method:'GET',url:`/v1/mobile/auth/browser?challenge=${challenge}&state=${state}`});assert.equal(browser.statusCode,302);assert.match(String(browser.headers.location),/^\/portal\/login.php\?redirect=/);
+    const page=await app.inject({method:'GET',url:`/v1/mobile/auth/browser?challenge=${challenge}&state=${state}`,headers:{cookie}});assert.equal(page.statusCode,200,page.body);
+    assert.match(String(page.headers['content-security-policy']),/default-src 'none'.*img-src 'self'; font-src 'self'; connect-src 'self'/, "The sign-in page loads only same-origin images and fonts");
+    assert.match(page.body,/src="\/images\/logo_white\.png"/, "The sign-in page carries the portal login's look (FM-418)");assert.match(page.body,/id="continue"/);
+    assert.ok(page.body.includes(`challenge:${JSON.stringify(challenge)},state:${JSON.stringify(state)}`)&&page.body.includes(`'x-platform-csrf':${JSON.stringify(csrf)}`), "The page posts the handoff with the session's CSRF token");
     const approved=await authorize({cookie,'x-platform-csrf':csrf});assert.equal(approved.statusCode,200,approved.body);
     const callback=new URL(approved.json().callback);assert.equal(callback.protocol,'ai.firstmeasure.mobile.dev:');assert.equal(callback.searchParams.get('state'),state);
     const code=callback.searchParams.get('code')!;
