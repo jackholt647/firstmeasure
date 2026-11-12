@@ -366,7 +366,9 @@ window.createBaseEditor=function(host){
 
  function pitchDirection(p){const dx=p.x-tool.pivot.x,dy=p.y-tool.pivot.y,angle=Math.atan2(dy,dx),input={x:Math.cos(angle),y:Math.sin(angle)};
   if(typeof isFreeMove!=='undefined'&&isFreeMove)return input;
-  const snap=B.boundaryAxis(tool.f,input);if(snap)return snap.direction;
+  // Square to a fold the face shares with a neighbour, where the chosen direction is that to the eye.
+  const others=tool.original.faces.filter(f=>!(tool.faces?.length?tool.faces:[tool.f]).some(own=>own.id===f.id)),snap=B.boundaryAxis(tool.f,input);if(snap)return B.foldAxis(tool.f,others,snap.direction)||snap.direction;
+  const fold=B.foldAxis(tool.f,others,input);if(fold)return fold;
   const world=Math.round(angle/(Math.PI/4))*Math.PI/4;return Math.abs(angle-world)<Math.PI/36?{x:Math.cos(world),y:Math.sin(world)}:input;
  }
  function down(e){
