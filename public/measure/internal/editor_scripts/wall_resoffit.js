@@ -122,12 +122,16 @@ function apply(faces,pairs,depth,roof,sources,options={}){
  }}
  // When an inset consumes a short adjoining wall, its two junctions become
  // one. Connect the surviving planes across it before solving either corner.
- const consumed=new Set(),bridges=[];
+ // A return that joins the moving wall to a parallel wall beside it (a step in one wall line) is not consumed when
+ // the moving wall passes that neighbour: two parallel planes have no corner to bridge to. The moving wall then
+ // stands proud of the neighbour instead of behind it, and the return between them turns to face the other way
+ // (turned: return id -> the moving plane's normal). Within ALIGN of the neighbour the two became one plane above.
+ const consumed=new Set(),bridges=[],turned=new Map();
  for(const f of faces){const n=K.normal(f.points);if(f.deleted||requests.has(f.id)||f.baseId||f.chimney||f.trim||!n||Math.abs(n.z)>.02)continue;
   for(const [id,r]of requests){const owner=faces.find(o=>o.id===id);if(!owner||Math.abs(dot(n,r.n))>.9999||!adjacent(f,owner))continue;
    const distances=f.points.map(p=>dot(sub(p,owner.points[0]),r.n)),side=distances.reduce((a,b)=>a+b,0)>=0?1:-1;
    if(Math.min(...distances)<-.002&&Math.max(...distances)>.002)continue;
-   if(Math.max(...distances.map(d=>side*(d-r.value)))<-.002){consumed.add(f.id);break;}
+   if(Math.max(...distances.map(d=>side*(d-r.value)))<-.002){if(faces.some(g=>g!==f&&g!==owner&&upright(g)&&!requests.has(g.id)&&Math.abs(dot(K.normal(g.points),r.n))>.9999&&adjacent(f,g))){turned.set(f.id,r.n);continue;}consumed.add(f.id);break;}
   }
  }
  for(const f of faces.filter(f=>consumed.has(f.id))){const neighbors=faces.filter(o=>!o.deleted&&!consumed.has(o.id)&&!o.trim&&Math.abs(K.normal(o.points)?.z||0)<.02&&adjacent(f,o));bridges.push({face:f,neighbors});}
@@ -218,6 +222,8 @@ function apply(faces,pairs,depth,roof,sources,options={}){
   // its new corner. Clip those to the moved plane instead of folding the ring.
   for(const owner of faces.filter(o=>!o.deleted&&!consumed.has(o.id)&&o.id!==f.id&&!o.trim&&!o.feature)){
    const r=requests.get(owner.id)||{n:K.normal(owner.points),value:0};if(flexible.has(f.id)||flexible.has(owner.id)||!r.n||Math.abs(dot(n,r.n))>.9999||!adjacent(f,owner))continue;
+   // A turned return lies on the far side of both walls it joins: neither clips it.
+   if(turned.has(f.id)&&Math.abs(dot(r.n,turned.get(f.id)))>.9999)continue;
    const original=f.points.map(p=>dot(sub(p,owner.points[0]),r.n)),side=original.reduce((a,b)=>a+b,0)>=0?1:-1;
    if(Math.min(...original)<-.002&&Math.max(...original)>.002)continue;
    const clip=ring=>ring.flatMap((a,i)=>{const b=ring[(i+1)%ring.length],da=side*(dot(sub(a,owner.points[0]),r.n)-r.value),db=side*(dot(sub(b,owner.points[0]),r.n)-r.value),inside=da>=-1e-7,other=db>=-1e-7;return [...(inside?[a]:[]),...(inside!==other?[mix(a,b,da/(da-db))]:[])];}).filter((p,i,all)=>length(sub(p,all[(i+1)%all.length]))>1e-7);
@@ -232,7 +238,7 @@ function apply(faces,pairs,depth,roof,sources,options={}){
   const spans=next.points.map(p=>p.x*n.y-p.y*n.x),collapsedReturn=Math.abs(n.z)<.02&&Math.max(...spans)-Math.min(...spans)<K.CONTACT;
   if(next.points.length<3||K.area(region)<1e-8||collapsedReturn){if(requests.has(f.id))throw Error("This depth leaves no wall between the adjoining boundaries.");affected.push(f.id);return {...f,deleted:true};}
   let pieces;try{const normalized=K.normalizeFace(next,!f.baseId);pieces=Array.isArray(normalized)?normalized:[normalized];for(const piece of pieces)K.validateFace(piece);}catch(e){throw Error('The requested depth cannot form a continuous wall at this junction.');}
-  if(pieces.some(piece=>dot(n,K.normal(piece.points))<=0))throw Error('This depth would reverse a neighboring wall. Select the adjoining soffits together or use a smaller change.');affected.push(f.id);
+  if(!turned.has(f.id)&&pieces.some(piece=>dot(n,K.normal(piece.points))<=0))throw Error('This depth would reverse a neighboring wall. Select the adjoining soffits together or use a smaller change.');affected.push(f.id);
   return pieces.map((piece,i)=>{const frame=K.frame(piece),shape={points:piece.points.map(p=>K.local(frame,p)),holes:(piece.holes||[]).map(r=>r.map(p=>K.local(frame,p)))};
    piece.retainedPoints=(piece.retainedPoints||[]).filter(p=>G.contains(shape,K.local(frame,p)));
    if(!i)return piece;let serial=1,id;do{id=f.id+'~resoffit-'+serial++;}while(usedIds.has(id));usedIds.add(id);return {...piece,id,draft:false};});
