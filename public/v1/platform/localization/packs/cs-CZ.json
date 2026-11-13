@@ -12579,5 +12579,59 @@
       "message": "Předvolba země: {country} +{code}",
       "format": "icu"
     }
+  },
+  "document-scanner": {
+    "title": "Naskenovat papír",
+    "aim_at_page": "Držte fotoaparát nad stránkou",
+    "page_found": "Stránka nalezena. Pořiďte fotku",
+    "review_title": "Zkontrolovat sken",
+    "page_n": {
+      "message": "Stránka {number}",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "Stránka {number}: oříznout, otočit nebo odebrat",
+      "format": "icu"
+    },
+    "add_pages": "Přidat stránky",
+    "filter": "Vzhled",
+    "filter_document": "Dokument",
+    "filter_grey": "Odstíny šedi",
+    "filter_bw": "Černobílý",
+    "filter_original": "Originál",
+    "name": "Název",
+    "default_name": {
+      "message": "Sken {date}",
+      "format": "icu"
+    },
+    "discard": "Zahodit",
+    "discard_confirm": "Zahodit tento sken? Stránky se nikam neukládají.",
+    "save_one": "Uložit 1 stránku",
+    "save_many": {
+      "message": "Uložit stránky: {count}",
+      "format": "icu"
+    },
+    "no_edge": "Okraj stránky nebyl nalezen. Klepnutím ji ořízněte sami.",
+    "preparing_page": {
+      "message": "Příprava stránky {number} z {count}…",
+      "format": "icu"
+    },
+    "saving": "Ukládání…",
+    "save_failed": "Sken se nepodařilo uložit. Zkuste to znovu.",
+    "find_edges": "Najít okraje",
+    "whole_photo": "Celá fotka",
+    "rotate": "Otočit",
+    "rotated": {
+      "message": "Otočit · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "Dříve",
+    "move_later": "Později",
+    "remove_page": "Odebrat",
+    "done": "Hotovo",
+    "corner_top_left": "Levý horní roh",
+    "corner_top_right": "Pravý horní roh",
+    "corner_bottom_right": "Pravý dolní roh",
+    "corner_bottom_left": "Levý dolní roh"
   }
 }

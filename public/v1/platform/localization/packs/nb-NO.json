@@ -13130,5 +13130,59 @@
       "message": "Landskode: {country} +{code}",
       "format": "icu"
     }
+  },
+  "document-scanner": {
+    "title": "Skann papir",
+    "aim_at_page": "Hold kameraet over siden",
+    "page_found": "Siden er funnet. Ta bildet",
+    "review_title": "Se gjennom skanningen",
+    "page_n": {
+      "message": "Side {number}",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "Side {number}: beskjær, roter eller fjern",
+      "format": "icu"
+    },
+    "add_pages": "Legg til sider",
+    "filter": "Utseende",
+    "filter_document": "Dokument",
+    "filter_grey": "Gråtoner",
+    "filter_bw": "Svart-hvitt",
+    "filter_original": "Original",
+    "name": "Navn",
+    "default_name": {
+      "message": "Skanning {date}",
+      "format": "icu"
+    },
+    "discard": "Forkast",
+    "discard_confirm": "Forkaste denne skanningen? Sidene lagres ingen steder.",
+    "save_one": "Lagre 1 side",
+    "save_many": {
+      "message": "Lagre {count} sider",
+      "format": "icu"
+    },
+    "no_edge": "Fant ingen sidekant. Trykk for å beskjære selv.",
+    "preparing_page": {
+      "message": "Klargjør side {number} av {count}…",
+      "format": "icu"
+    },
+    "saving": "Lagrer…",
+    "save_failed": "Skanningen kunne ikke lagres. Prøv igjen.",
+    "find_edges": "Finn kanter",
+    "whole_photo": "Hele bildet",
+    "rotate": "Roter",
+    "rotated": {
+      "message": "Roter · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "Tidligere",
+    "move_later": "Senere",
+    "remove_page": "Fjern",
+    "done": "Ferdig",
+    "corner_top_left": "Øvre venstre hjørne",
+    "corner_top_right": "Øvre høyre hjørne",
+    "corner_bottom_right": "Nedre høyre hjørne",
+    "corner_bottom_left": "Nedre venstre hjørne"
   }
 }

@@ -219,6 +219,31 @@
     return workflowRuntimePromise;
   }
 
+  // The document scanner (FM-432, flag documents.scanner) and the camera it drives, loaded on first use.
+  const SCANNER_VERSION = '20261113-scanner';
+  const loadedScripts = new Map();
+  function loadLibraryScript(path, ready){
+    if (ready()) return Promise.resolve(true);
+    if (loadedScripts.has(path)) return loadedScripts.get(path);
+    const loading = new Promise((resolve) => {
+      let src = `/libraries/${path}?v=${SCANNER_VERSION}`;
+      try { src = new URL(`../../${path}?v=${SCANNER_VERSION}`, SCRIPT_URL || window.location.href).toString(); } catch (e) { /* keep the absolute fallback */ }
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.onload = () => resolve(!!ready());
+      script.onerror = () => { loadedScripts.delete(path); resolve(false); };
+      document.head.appendChild(script);
+    });
+    loadedScripts.set(path, loading);
+    return loading;
+  }
+  async function ensureDocumentScanner(){
+    const camera = await loadLibraryScript('camera-capture/camera-capture.js', () => !!window.FirstMateCamera?.open);
+    const scanner = camera && await loadLibraryScript('document-scanner/document-scanner.js', () => !!window.FirstMateDocumentScanner?.open);
+    return scanner ? window.FirstMateDocumentScanner : null;
+  }
+
   // ------------------------------------------------ readable on-primary text
   // Ported from public/customer_portal/customer_portal.js: when the org's
   // primary brand color is light, white button text disappears. Compute the
@@ -1822,6 +1847,49 @@
       picker.click();
     }
 
+    /** Scan paper with the camera (documents.scanner). The PDF goes through the same paper intake as an upload
+     *  when the organization has document ingestion, otherwise into the project's files (the Docs tab's own upload
+     *  when it opened us). Without the scanner library, the file picker as before. */
+    async function startDocumentScan(templateId, documentTypeHint, { onAddFiles = null, onDone = null } = {}){
+      const scanner = await ensureDocumentScanner();
+      if (!scanner) { startPaperUpload(templateId, documentTypeHint, onDone); return; }
+      onDone?.();
+      let review = null;
+      await scanner.open({
+        subtitle: firstText(project().name, project().customer_name),
+        save: async (file) => {
+          if (capabilityEnabled('documents.ingestion')) {
+            const res = await api().ingestion.upload(orgId(), {
+              file_name: file.name,
+              content_type: 'application/pdf',
+              data_base64: await fileToBase64(file),
+              project_id: projectId(),
+              ...(templateId ? { template_id: templateId } : {}),
+              ...(documentTypeHint ? { document_type: documentTypeHint } : {})
+            });
+            review = objectValue(res.document);
+            await loadDocs({ silent: true });
+            return review;
+          }
+          // The host has already said what went wrong; throwing keeps the pages so Save can be tried again.
+          if (typeof onAddFiles === 'function') {
+            if ((await onAddFiles([file]))?.saved !== true) throw new Error('The scan could not be saved. Try again.');
+            return file;
+          }
+          if (projectId() && window.PlatformAPI?.projectDocuments?.upload) {
+            await window.PlatformAPI.projectDocuments.upload(orgId(), projectId(), file, { title: file.name, document_type: 'document' });
+            await loadDocs({ silent: true });
+            return file;
+          }
+          throw new Error('Save the project before scanning documents into it.');
+        }
+      }).catch((error) => {
+        console.warn('Document scanner failed', error);
+        showToast('Scan paper', errorMessage(error, 'The camera could not be opened.'), false);
+      });
+      if (review?.id) openUploadReview(review);
+    }
+
     // DELETE on an instance voids it server-side (lifecycle §10.3) — the
     // record survives, customers just can't open it any more.
     async function archiveDoc(doc){
@@ -2554,12 +2622,17 @@
         // A host's own file upload (the Docs tab on a phone, where New is its
         // only button): Upload beside Blank, and the paper intake says Scan.
         const filesUpload = typeof options.onUploadFiles === 'function';
+        // With the scanner (documents.scanner), a phone's paper button opens the camera; Upload keeps the picker.
+        const scanner = capabilityEnabled('documents.scanner');
         body.innerHTML = `
           <div class="fmdx-create-top">
             <label class="fmdx-create-search"><i class="fas fa-magnifying-glass"></i><input type="search" data-tpl-search value="${esc(picker.query)}" placeholder="Search templates" autocomplete="off"></label>
             <button type="button" class="fmdx-btn" data-create-blank title="Start from an empty page"><i class="fas fa-file"></i> Blank</button>
             ${filesUpload ? '<button type="button" class="fmdx-btn fmdx-phone-only" data-create-files title="Add files to this project: PDFs, photos, spreadsheets"><i class="fas fa-file-arrow-up"></i> Upload</button>' : ''}
-            <button type="button" class="fmdx-btn" data-create-upload title="Scan or photo of a paper document; add fields during review"><i class="fas ${filesUpload ? 'fa-camera fmdx-phone-only' : 'fa-arrow-up-from-bracket'}"></i>${filesUpload ? '<i class="fas fa-arrow-up-from-bracket fmdx-desk-only"></i> <span class="fmdx-desk-only">Upload</span><span class="fmdx-phone-only">Scan paper</span>' : ' Upload'}</button>
+            ${scanner
+              ? `<button type="button" class="fmdx-btn ${filesUpload ? 'fmdx-desk-only' : ''}" data-create-upload title="A PDF or photo of a paper document; add fields during review"><i class="fas fa-arrow-up-from-bracket"></i> Upload</button>
+                 <button type="button" class="fmdx-btn primary fmdx-phone-only" data-create-scan title="Scan a paper document with the camera"><i class="fas fa-camera"></i> Scan paper</button>`
+              : `<button type="button" class="fmdx-btn" data-create-upload title="Scan or photo of a paper document; add fields during review"><i class="fas ${filesUpload ? 'fa-camera fmdx-phone-only' : 'fa-arrow-up-from-bracket'}"></i>${filesUpload ? '<i class="fas fa-arrow-up-from-bracket fmdx-desk-only"></i> <span class="fmdx-desk-only">Upload</span><span class="fmdx-phone-only">Scan paper</span>' : ' Upload'}</button>`}
           </div>
           ${pinned.length ? `
             <p class="fmdx-section-label">Pinned</p>
@@ -2609,6 +2682,11 @@
         };
         body.querySelector('[data-create-blank]').addEventListener('click', (event) => withType(event.currentTarget, (type) => { wizard.type = type; wizard.template = null; proceed(body.querySelector('[data-create-blank]')); }));
         body.querySelector('[data-create-upload]').addEventListener('click', (event) => withType(event.currentTarget, (type) => { wizard.type = type; wizard.template = '__upload__'; proceed(body.querySelector('[data-create-upload]')); }));
+        // The scan only needs a document type when it goes through the paper intake.
+        body.querySelector('[data-create-scan]')?.addEventListener('click', (event) => {
+          const scan = (type) => startDocumentScan('', type, { onAddFiles: options.onAddFiles, onDone: () => modal.close() });
+          if (capabilityEnabled('documents.ingestion')) withType(event.currentTarget, scan); else scan('');
+        });
         // The file picker opens inside the same tap, so the browser allows it.
         body.querySelector('[data-create-files]')?.addEventListener('click', () => { modal.close(); options.onUploadFiles(); });
       }
@@ -5557,7 +5635,7 @@
 
     if (embedded) {
       embed.onReady?.({
-        openCreateModal: (prefill = {}, opts = {}) => openCreateModal(objectValue(prefill), { onUploadFiles: typeof opts?.onUploadFiles === 'function' ? opts.onUploadFiles : null }),
+        openCreateModal: (prefill = {}, opts = {}) => openCreateModal(objectValue(prefill), { onUploadFiles: typeof opts?.onUploadFiles === 'function' ? opts.onUploadFiles : null, onAddFiles: typeof opts?.onAddFiles === 'function' ? opts.onAddFiles : null }),
         openCreateInline: (host, prefill = {}, opts = {}) => openCreateModal(objectValue(prefill), { inlineHost: host, onClose: opts.onClose }),
         openDocument: (doc) => {
           // Standalone sessions track their documents locally (no server list)

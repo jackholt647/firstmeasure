@@ -13083,5 +13083,59 @@
       "message": "Prefijo telefónico del país: {country} +{code}",
       "format": "icu"
     }
+  },
+  "document-scanner": {
+    "title": "Escanear papel",
+    "aim_at_page": "Sostén la cámara sobre la página",
+    "page_found": "Página detectada. Haz la foto",
+    "review_title": "Revisar escaneo",
+    "page_n": {
+      "message": "Página {number}",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "Página {number}: recortar, girar o quitar",
+      "format": "icu"
+    },
+    "add_pages": "Añadir páginas",
+    "filter": "Aspecto",
+    "filter_document": "Documento",
+    "filter_grey": "Gris",
+    "filter_bw": "Blanco y negro",
+    "filter_original": "Original",
+    "name": "Nombre",
+    "default_name": {
+      "message": "Escaneo {date}",
+      "format": "icu"
+    },
+    "discard": "Descartar",
+    "discard_confirm": "¿Descartar este escaneo? Las páginas no se guardan en ningún sitio.",
+    "save_one": "Guardar 1 página",
+    "save_many": {
+      "message": "Guardar {count} páginas",
+      "format": "icu"
+    },
+    "no_edge": "No se ha encontrado el borde de la página. Toca para recortarla tú.",
+    "preparing_page": {
+      "message": "Preparando la página {number} de {count}…",
+      "format": "icu"
+    },
+    "saving": "Guardando…",
+    "save_failed": "No se ha podido guardar el escaneo. Inténtalo de nuevo.",
+    "find_edges": "Buscar bordes",
+    "whole_photo": "Foto completa",
+    "rotate": "Girar",
+    "rotated": {
+      "message": "Girar · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "Antes",
+    "move_later": "Después",
+    "remove_page": "Quitar",
+    "done": "Listo",
+    "corner_top_left": "Esquina superior izquierda",
+    "corner_top_right": "Esquina superior derecha",
+    "corner_bottom_right": "Esquina inferior derecha",
+    "corner_bottom_left": "Esquina inferior izquierda"
   }
 }

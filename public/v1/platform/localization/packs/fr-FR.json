@@ -12925,5 +12925,59 @@
       "message": "Indicatif téléphonique du pays : {country} +{code}",
       "format": "icu"
     }
+  },
+  "document-scanner": {
+    "title": "Numériser un document",
+    "aim_at_page": "Placez l’appareil photo au-dessus de la page",
+    "page_found": "Page détectée. Prenez la photo",
+    "review_title": "Vérifier la numérisation",
+    "page_n": {
+      "message": "Page {number}",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "Page {number} : recadrer, pivoter ou supprimer",
+      "format": "icu"
+    },
+    "add_pages": "Ajouter des pages",
+    "filter": "Rendu",
+    "filter_document": "Document",
+    "filter_grey": "Gris",
+    "filter_bw": "Noir et blanc",
+    "filter_original": "Original",
+    "name": "Nom",
+    "default_name": {
+      "message": "Numérisation {date}",
+      "format": "icu"
+    },
+    "discard": "Abandonner",
+    "discard_confirm": "Abandonner cette numérisation ? Les pages ne sont enregistrées nulle part.",
+    "save_one": "Enregistrer 1 page",
+    "save_many": {
+      "message": "Enregistrer {count} pages",
+      "format": "icu"
+    },
+    "no_edge": "Aucun bord de page détecté. Touchez pour recadrer vous-même.",
+    "preparing_page": {
+      "message": "Préparation de la page {number} sur {count}…",
+      "format": "icu"
+    },
+    "saving": "Enregistrement…",
+    "save_failed": "La numérisation n’a pas pu être enregistrée. Réessayez.",
+    "find_edges": "Détecter les bords",
+    "whole_photo": "Photo entière",
+    "rotate": "Pivoter",
+    "rotated": {
+      "message": "Pivoter · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "Avant",
+    "move_later": "Après",
+    "remove_page": "Supprimer",
+    "done": "Terminé",
+    "corner_top_left": "Coin supérieur gauche",
+    "corner_top_right": "Coin supérieur droit",
+    "corner_bottom_right": "Coin inférieur droit",
+    "corner_bottom_left": "Coin inférieur gauche"
   }
 }

@@ -13138,5 +13138,59 @@
       "message": "国番号：{country} +{code}",
       "format": "icu"
     }
+  },
+  "document-scanner": {
+    "title": "紙をスキャン",
+    "aim_at_page": "カメラをページの上にかざしてください",
+    "page_found": "ページが見つかりました。撮影してください",
+    "review_title": "スキャンを確認",
+    "page_n": {
+      "message": "{number} ページ",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "{number} ページ: 切り抜き、回転、削除",
+      "format": "icu"
+    },
+    "add_pages": "ページを追加",
+    "filter": "表示",
+    "filter_document": "ドキュメント",
+    "filter_grey": "グレー",
+    "filter_bw": "白黒",
+    "filter_original": "オリジナル",
+    "name": "名前",
+    "default_name": {
+      "message": "スキャン {date}",
+      "format": "icu"
+    },
+    "discard": "破棄",
+    "discard_confirm": "このスキャンを破棄しますか？ページはどこにも保存されません。",
+    "save_one": "1 ページを保存",
+    "save_many": {
+      "message": "{count} ページを保存",
+      "format": "icu"
+    },
+    "no_edge": "ページの端が見つかりません。タップして自分で切り抜いてください。",
+    "preparing_page": {
+      "message": "{count} ページ中 {number} ページ目を準備しています…",
+      "format": "icu"
+    },
+    "saving": "保存しています…",
+    "save_failed": "スキャンを保存できませんでした。もう一度お試しください。",
+    "find_edges": "端を検出",
+    "whole_photo": "写真全体",
+    "rotate": "回転",
+    "rotated": {
+      "message": "回転 · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "前へ",
+    "move_later": "後へ",
+    "remove_page": "削除",
+    "done": "完了",
+    "corner_top_left": "左上の角",
+    "corner_top_right": "右上の角",
+    "corner_bottom_right": "右下の角",
+    "corner_bottom_left": "左下の角"
   }
 }

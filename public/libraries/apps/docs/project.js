@@ -972,6 +972,7 @@
     closeViewer(false, { fromRoute:true });
     callHost('setActivePreviewTab', tab, { history:'push', source:'document-related' });
   }
+  /** Upload files into the project; { saved } is true when every one arrived (the document scanner waits on it). */
   async function addFiles(files){
     const oid = orgId();
     // The first upload on a new project saves it through the project window (FM-374).
@@ -979,10 +980,11 @@
     const pid = projectId();
     if (!oid || !pid || !window.PlatformAPI?.projectDocuments?.upload) {
       showToast((globalThis.PlatformLanguage?.text("docs","m_920aa9d1b0216a","Upload unavailable") ?? "Upload unavailable"), (globalThis.PlatformLanguage?.text("docs","m_546d652f15f847","Save the project before uploading documents.") ?? "Save the project before uploading documents."), false);
-      return;
+      return { saved: false };
     }
     const list = [...(files || [])].filter(Boolean);
-    if (!list.length) return;
+    if (!list.length) return { saved: false };
+    let failed = 0;
     for (const file of list) {
       try {
         const result = await window.PlatformAPI.projectDocuments.upload(oid, pid, file, {
@@ -993,12 +995,14 @@
         setProjectUploadedDocs(state.uploadedDocs);
         state.docs = normalizeList(result.documents || [...state.docs, result.document]);
       } catch (error) {
+        failed += 1;
         showToast((globalThis.PlatformLanguage?.text("docs","m_eba695c553b0b3","Upload failed") ?? "Upload failed"), error?.message || `Could not upload ${file.name || 'document'}.`, false);
       }
     }
     callHost('persistProject');
     await window.PlatformAPI?.mediaStorage?.usage?.(oid).catch(() => null);
     await loadDocs({ quiet: true });
+    return { saved: !failed };
   }
   async function removeDoc(doc, options = {}){
     if (!doc?.media_id || doc.special) return { count:0 };
@@ -1291,7 +1295,7 @@
         showLabel:true,
         // On a phone this is the only New/Upload button: the New dialog
         // offers Upload beside Blank (the desktop keeps its own Upload).
-        onClick:() => state.engineApi?.openCreateModal({}, { onUploadFiles:() => input?.click() })
+        onClick:() => state.engineApi?.openCreateModal({}, { onUploadFiles:() => input?.click(), onAddFiles:(files) => addFiles(files) })
       }] : [])],
       onDensityChange:(density) => {
         state.galleryDensity = density;

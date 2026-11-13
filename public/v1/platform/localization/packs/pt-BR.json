@@ -13138,5 +13138,59 @@
       "message": "Código telefônico do país: {country} +{code}",
       "format": "icu"
     }
+  },
+  "document-scanner": {
+    "title": "Digitalizar papel",
+    "aim_at_page": "Segure a câmera sobre a página",
+    "page_found": "Página encontrada. Tire a foto",
+    "review_title": "Revisar digitalização",
+    "page_n": {
+      "message": "Página {number}",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "Página {number}: cortar, girar ou remover",
+      "format": "icu"
+    },
+    "add_pages": "Adicionar páginas",
+    "filter": "Aparência",
+    "filter_document": "Documento",
+    "filter_grey": "Cinza",
+    "filter_bw": "Preto e branco",
+    "filter_original": "Original",
+    "name": "Nome",
+    "default_name": {
+      "message": "Digitalização {date}",
+      "format": "icu"
+    },
+    "discard": "Descartar",
+    "discard_confirm": "Descartar esta digitalização? As páginas não são salvas em nenhum lugar.",
+    "save_one": "Salvar 1 página",
+    "save_many": {
+      "message": "Salvar {count} páginas",
+      "format": "icu"
+    },
+    "no_edge": "Nenhuma borda de página encontrada. Toque para cortar você mesmo.",
+    "preparing_page": {
+      "message": "Preparando a página {number} de {count}…",
+      "format": "icu"
+    },
+    "saving": "Salvando…",
+    "save_failed": "Não foi possível salvar a digitalização. Tente novamente.",
+    "find_edges": "Encontrar bordas",
+    "whole_photo": "Foto inteira",
+    "rotate": "Girar",
+    "rotated": {
+      "message": "Girar · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "Antes",
+    "move_later": "Depois",
+    "remove_page": "Remover",
+    "done": "Concluído",
+    "corner_top_left": "Canto superior esquerdo",
+    "corner_top_right": "Canto superior direito",
+    "corner_bottom_right": "Canto inferior direito",
+    "corner_bottom_left": "Canto inferior esquerdo"
   }
 }

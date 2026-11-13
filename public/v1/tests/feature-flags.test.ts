@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 
-import { closePlatformFixtureStores, nextTestPhone } from "./helpers/platform-fixture.js";
+import { closePlatformFixtureStores, enableExpandedPlatformFixture, nextTestPhone } from "./helpers/platform-fixture.js";
 
 // The feature flag console (docs/architecture/feature-flags.md): read-time percentages over stored values, explicit
 // per-organization values, the pasted list, the audit log, access keys, and that all of it reaches the gates code uses.
@@ -378,4 +378,23 @@ test("an agent machine enrolls its own write key by SSH signature; only developm
   const refused = await app.inject({ method: "POST", url: "/v1/internal/flags/keys/enroll", payload: { machine: "agents:test-box", timestamp: Date.now(), nonce: "a".repeat(32), signature: "x" } });
   assert.equal(refused.statusCode, 404);
   await rm(dir, { recursive: true, force: true }).catch(() => {});
+});
+
+// FM-432: the camera document scanner is an ordinary Documents feature: listed in the console, off unless set (the
+// MVP platform configuration turns it on), and off whenever the Documents app is.
+test("the document scanner is a Documents feature, off unless set, and only on with the Documents app", async () => {
+  const admin = await caller("scanner-admin", { role: "admin" });
+  const row = ok(await flags(admin, "GET", "/catalog")).flags.find((flag: any) => flag.key === "documents.scanner");
+  assert.ok(row, "documents.scanner is in the console");
+  assert.equal(row.parent, "platform.documents");
+  assert.equal(row.type, "boolean");
+  assert.notEqual(row.default, true);
+  const org = await caller("scanner-org");
+  const { isCapabilityEnabled, saveCapabilityValues } = await import("../platform/capabilities.js");
+  await enableExpandedPlatformFixture(org.orgId, { "platform.documents": true });
+  assert.equal(await isCapabilityEnabled(org.orgId, "documents.scanner"), false);
+  await saveCapabilityValues(org.orgId, { "documents.scanner": true });
+  assert.equal(await isCapabilityEnabled(org.orgId, "documents.scanner"), true);
+  await saveCapabilityValues(org.orgId, { "platform.documents": false });
+  assert.equal(await isCapabilityEnabled(org.orgId, "documents.scanner"), false, "it follows the Documents app");
 });

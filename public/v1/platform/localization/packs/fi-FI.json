@@ -13122,5 +13122,59 @@
       "message": "Maatunnus: {country} +{code}",
       "format": "icu"
     }
+  },
+  "document-scanner": {
+    "title": "Skannaa paperi",
+    "aim_at_page": "Pidä kameraa sivun yllä",
+    "page_found": "Sivu löytyi. Ota kuva",
+    "review_title": "Tarkista skannaus",
+    "page_n": {
+      "message": "Sivu {number}",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "Sivu {number}: rajaa, käännä tai poista",
+      "format": "icu"
+    },
+    "add_pages": "Lisää sivuja",
+    "filter": "Ulkoasu",
+    "filter_document": "Asiakirja",
+    "filter_grey": "Harmaasävy",
+    "filter_bw": "Mustavalkoinen",
+    "filter_original": "Alkuperäinen",
+    "name": "Nimi",
+    "default_name": {
+      "message": "Skannaus {date}",
+      "format": "icu"
+    },
+    "discard": "Hylkää",
+    "discard_confirm": "Hylätäänkö tämä skannaus? Sivuja ei tallenneta mihinkään.",
+    "save_one": "Tallenna 1 sivu",
+    "save_many": {
+      "message": "Tallenna {count} sivua",
+      "format": "icu"
+    },
+    "no_edge": "Sivun reunaa ei löytynyt. Rajaa itse napauttamalla.",
+    "preparing_page": {
+      "message": "Valmistellaan sivua {number}/{count}…",
+      "format": "icu"
+    },
+    "saving": "Tallennetaan…",
+    "save_failed": "Skannausta ei voitu tallentaa. Yritä uudelleen.",
+    "find_edges": "Etsi reunat",
+    "whole_photo": "Koko kuva",
+    "rotate": "Käännä",
+    "rotated": {
+      "message": "Käännä · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "Aiemmaksi",
+    "move_later": "Myöhemmäksi",
+    "remove_page": "Poista",
+    "done": "Valmis",
+    "corner_top_left": "Vasen yläkulma",
+    "corner_top_right": "Oikea yläkulma",
+    "corner_bottom_right": "Oikea alakulma",
+    "corner_bottom_left": "Vasen alakulma"
   }
 }

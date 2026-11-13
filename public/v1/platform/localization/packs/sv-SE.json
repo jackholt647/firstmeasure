@@ -12685,5 +12685,59 @@
       "message": "Landsnummer: {country} +{code}",
       "format": "icu"
     }
+  },
+  "document-scanner": {
+    "title": "Skanna papper",
+    "aim_at_page": "Håll kameran över sidan",
+    "page_found": "Sidan hittad. Ta bilden",
+    "review_title": "Granska skanningen",
+    "page_n": {
+      "message": "Sida {number}",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "Sida {number}: beskär, rotera eller ta bort",
+      "format": "icu"
+    },
+    "add_pages": "Lägg till sidor",
+    "filter": "Utseende",
+    "filter_document": "Dokument",
+    "filter_grey": "Gråskala",
+    "filter_bw": "Svartvitt",
+    "filter_original": "Original",
+    "name": "Namn",
+    "default_name": {
+      "message": "Skanning {date}",
+      "format": "icu"
+    },
+    "discard": "Släng",
+    "discard_confirm": "Slänga den här skanningen? Sidorna sparas inte någonstans.",
+    "save_one": "Spara 1 sida",
+    "save_many": {
+      "message": "Spara {count} sidor",
+      "format": "icu"
+    },
+    "no_edge": "Ingen sidkant hittades. Tryck för att beskära själv.",
+    "preparing_page": {
+      "message": "Förbereder sida {number} av {count}…",
+      "format": "icu"
+    },
+    "saving": "Sparar…",
+    "save_failed": "Skanningen kunde inte sparas. Försök igen.",
+    "find_edges": "Hitta kanter",
+    "whole_photo": "Hela bilden",
+    "rotate": "Rotera",
+    "rotated": {
+      "message": "Rotera · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "Tidigare",
+    "move_later": "Senare",
+    "remove_page": "Ta bort",
+    "done": "Klar",
+    "corner_top_left": "Övre vänstra hörnet",
+    "corner_top_right": "Övre högra hörnet",
+    "corner_bottom_right": "Nedre högra hörnet",
+    "corner_bottom_left": "Nedre vänstra hörnet"
   }
 }

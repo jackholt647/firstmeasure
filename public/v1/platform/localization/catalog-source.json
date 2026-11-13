@@ -2909,7 +2909,8 @@
     "m_dc6d0673f049c3": "Enter their email address: the signed copy goes there.",
     "m_32923c20e947de": "Confirm that you are presenting this in person.",
     "m_9ba5134ee5d0df": "Preparing the agreement…",
-    "m_a612df7f675c3f": "Preview what they see (nothing can be signed or paid)"
+    "m_a612df7f675c3f": "Preview what they see (nothing can be signed or paid)",
+    "m_18d3d018740a11": "Scan paper"
   },
   "equipment": {
     "m_f326bdcd77881a": "Available",
@@ -21762,5 +21763,59 @@
   },
   "camera-capture": {
     "waiting_upload": "Saved on this device. Uploads when you are back online."
+  },
+  "document-scanner": {
+    "title": "Scan paper",
+    "aim_at_page": "Hold the camera over the page",
+    "page_found": "Page found. Take the photo",
+    "review_title": "Review scan",
+    "page_n": {
+      "message": "Page {number}",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "Page {number}: crop, rotate or remove",
+      "format": "icu"
+    },
+    "add_pages": "Add pages",
+    "filter": "Look",
+    "filter_document": "Document",
+    "filter_grey": "Gray",
+    "filter_bw": "Black & white",
+    "filter_original": "Original",
+    "name": "Name",
+    "default_name": {
+      "message": "Scan {date}",
+      "format": "icu"
+    },
+    "discard": "Discard",
+    "discard_confirm": "Discard this scan? The pages are not saved anywhere.",
+    "save_one": "Save 1 page",
+    "save_many": {
+      "message": "Save {count} pages",
+      "format": "icu"
+    },
+    "no_edge": "No page edge found. Tap to crop it yourself.",
+    "preparing_page": {
+      "message": "Preparing page {number} of {count}…",
+      "format": "icu"
+    },
+    "saving": "Saving…",
+    "save_failed": "The scan could not be saved. Try again.",
+    "find_edges": "Find edges",
+    "whole_photo": "Whole photo",
+    "rotate": "Rotate",
+    "rotated": {
+      "message": "Rotate · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "Earlier",
+    "move_later": "Later",
+    "remove_page": "Remove",
+    "done": "Done",
+    "corner_top_left": "Top left corner",
+    "corner_top_right": "Top right corner",
+    "corner_bottom_right": "Bottom right corner",
+    "corner_bottom_left": "Bottom left corner"
   }
 }
