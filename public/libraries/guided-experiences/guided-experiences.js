@@ -903,11 +903,13 @@
   const faqCss = `
     .gx-faqs-wrap{padding:0 2px 5px}
     .gx-faqs-wrap[hidden]{display:none}
-    .gx-faqs{display:flex;flex-wrap:wrap;align-items:center;gap:5px;overflow:hidden;transition:height .28s cubic-bezier(.22,1,.36,1)}
-    .gx-faq{flex:0 1 auto;max-width:calc(50% - 3px);min-width:0;display:inline-flex;align-items:center;gap:5px;min-height:26px;padding:3px 10px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;color:#344054;font:inherit;font-size:12px;line-height:1.25;font-weight:600;text-align:left;cursor:pointer;white-space:normal;box-sizing:border-box;transition:background .15s,border-color .15s,transform .15s;animation:gxChip .35s cubic-bezier(.22,1,.36,1) both}
+    .gx-faqs{display:flex;flex-wrap:wrap;align-items:stretch;gap:4px;overflow:hidden;transition:height .28s cubic-bezier(.22,1,.36,1)}
+    .gx-faq{flex:1 1 100%;min-width:0;display:flex;align-items:center;gap:6px;min-height:26px;padding:4px 11px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;color:#344054;font:inherit;font-size:12px;line-height:1.25;font-weight:600;text-align:left;cursor:pointer;white-space:normal;box-sizing:border-box;transition:background .15s,border-color .15s,transform .15s;animation:gxChip .35s cubic-bezier(.22,1,.36,1) both}
     .gx-faq[hidden]{display:none}
-    .gx-faq-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .gx-faq-more{flex:none;min-height:26px;padding:3px 10px;border:1px dashed #d0d5dd;border-radius:999px;background:#f9fafb;color:#475467;font:inherit;font-size:12px;font-weight:650;cursor:pointer}
+    .gx-faq-text{min-width:0;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+    /* One question per row, read in full (FM-443); the row before More shares it with More. */
+    .gx-faqs[data-collapsed=true] .gx-faq:nth-child(3),.gx-faqs[data-collapsed=false] .gx-faq:has(+ .gx-faq-more){flex:1 1 0}
+    .gx-faq-more{flex:none;min-height:26px;padding:3px 10px;border:1px dashed #d0d5dd;border-radius:14px;background:#f9fafb;color:#475467;font:inherit;font-size:12px;font-weight:650;cursor:pointer}
     .gx-faq-more:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
     @media(prefers-reduced-motion:reduce){.gx-faqs{transition:none}}
     .gx-faq:hover{background:#f9fafb;border-color:#98a2b3;transform:translateY(-1px)}
@@ -944,7 +946,7 @@
     const composer = drawer.querySelector('[data-fma="composer"]');
     const shell = composer?.querySelector('.fma-compose-shell');
     if (!composer || !shell) return null;
-    // The first three questions at once, inline; the rest behind a More chip at the end of the row.
+    // The first three questions at once, one per row; the rest behind a More chip at the end of the third row.
     const wrap = doc.createElement('div'); wrap.className = 'gx-faqs-wrap'; wrap.hidden = true;
     const VISIBLE = 3;
     const strip = doc.createElement('div'); strip.className = 'gx-faqs'; strip.dataset.collapsed = 'true'; strip.setAttribute('role', 'list'); strip.setAttribute('aria-label', L('gx_ui_suggested', 'Suggested questions'));
