@@ -84,6 +84,8 @@ else echo "v1 HTTP cluster rolling replace failed: the new worker exited before 
 }
 
 const HUP = 'kill --kill-whom=main --signal=SIGHUP firstmeasure-legacy.service';
+// A successful activation hands old-release pruning to the background service (prune-releases.py).
+const PRUNE = 'start --no-block firstmeasure-release-prune.service';
 
 test('legacy: a primary with the same supervisor code replaces its workers instead of restarting', { skip: process.platform === 'win32', timeout: 30000 }, async () => {
   const host = await fakeHost();
@@ -92,7 +94,7 @@ test('legacy: a primary with the same supervisor code replaces its workers inste
     assert.equal(result.status, 0, result.out);
     assert.match(result.out, /Activated b+ for firstmeasure-legacy.service \(rolling replace\)/);
     assert.equal(host.current(), B);
-    assert.deepEqual(host.calls(), [HUP, 'reload php8.3-fpm.service']);
+    assert.deepEqual(host.calls(), [HUP, 'reload php8.3-fpm.service', PRUNE]);
   } finally { host.close(); }
 });
 
@@ -108,7 +110,7 @@ test('legacy: restarts when the primary lacks rolling replace, its code changed,
       const result = await host.run('firstmeasure-legacy.service', extra);
       assert.equal(result.status, 0, result.out);
       assert.match(result.out, /\(restart\)/);
-      assert.deepEqual(host.calls(), ['restart firstmeasure-legacy.service', 'restart php8.3-fpm.service'], JSON.stringify(options));
+      assert.deepEqual(host.calls(), ['restart firstmeasure-legacy.service', 'restart php8.3-fpm.service', PRUNE], JSON.stringify(options));
     } finally { host.close(); }
   }
   // The first release with FM-389: the running primary's server.js does not have it yet.
@@ -117,7 +119,7 @@ test('legacy: restarts when the primary lacks rolling replace, its code changed,
     fs.writeFileSync(path.join(host.app, 'releases', A, 'public/v1/dist/src/server.js'), '// older primary\n');
     const result = await host.run();
     assert.equal(result.status, 0, result.out);
-    assert.deepEqual(host.calls(), ['restart firstmeasure-legacy.service', 'restart php8.3-fpm.service']);
+    assert.deepEqual(host.calls(), ['restart firstmeasure-legacy.service', 'restart php8.3-fpm.service', PRUNE]);
   } finally { host.close(); }
 });
 

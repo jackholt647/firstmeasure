@@ -2,7 +2,10 @@
 """Delete old FirstMeasure release directories so a node's disk never fills.
 
 Keeps the active release (/opt/firstmeasure/current), anything another symlink
-in /opt/firstmeasure points at, every release changed in the last two hours
+in /opt/firstmeasure points at, any release a running process still uses (its
+working directory, executable, open files or mapped files; compatibility's
+cluster primary keeps running from the release it started in across rolling
+replaces), every release changed in the last two hours
 (an install or activation may be in flight) and the newest KEEP releases. If
 free space is still below --min-free-percent, it keeps only the active release
 and the newest other one, so a rollback target always survives. Abandoned
@@ -13,7 +16,6 @@ firstmeasure-release-prune.timer. Never fails a release: errors are printed
 and the exit code is 0 unless --strict is given.
 """
 import argparse
-
 import os
 import re
 import shutil
@@ -40,16 +42,57 @@ def protected_targets(root, releases):
     for entry in root.iterdir():
         if entry.is_symlink():
             target = Path(os.path.realpath(entry))
-            if target.parent == releases:
+            if target.parent == Path(os.path.realpath(releases)):
                 keep.add(target.name)
     return keep
 
 
-def plan(root, keep_count, now, emergency=False):
+def in_use(releases, proc=Path('/proc')):
+    """Releases any running process has as cwd, executable, open file or mapping."""
+    prefix = os.path.realpath(releases) + os.sep
+    used = set()
+    if not proc.is_dir():
+        return used
+
+    def note(path):
+        if path.startswith(prefix):
+            used.add(path[len(prefix):].split(os.sep, 1)[0].split(' ', 1)[0])
+
+    for pid in proc.iterdir():
+        if not pid.name.isdigit():
+            continue
+        try:
+            for link in ('cwd', 'exe', 'root'):
+                try:
+                    note(os.readlink(pid / link))
+                except OSError:
+                    pass
+            try:
+                for fd in (pid / 'fd').iterdir():
+                    try:
+                        note(os.readlink(fd))
+                    except OSError:
+                        pass
+            except OSError:
+                pass
+            try:
+                with open(pid / 'maps', errors='replace') as maps:
+                    for line in maps:
+                        parts = line.split(None, 5)
+                        if len(parts) == 6:
+                            note(parts[5].strip())
+            except OSError:
+                pass
+        except Exception:
+            continue
+    return used
+
+
+def plan(root, keep_count, now, emergency=False, proc=Path('/proc')):
     releases = root / 'releases'
     if not releases.is_dir():
         return [], []
-    protected = protected_targets(root, releases)
+    protected = protected_targets(root, releases) | in_use(releases, proc)
     candidates = []
     stale_staging = []
     for entry in releases.iterdir():
@@ -79,13 +122,13 @@ def plan(root, keep_count, now, emergency=False):
     return remove, stale_staging
 
 
-def prune(root, keep_count, min_free_percent, dry_run=False, now=None):
+def prune(root, keep_count, min_free_percent, dry_run=False, now=None, proc=Path('/proc')):
     now = time.time() if now is None else now
     removed = []
     for emergency in (False, True):
         if emergency and free_percent(root) >= min_free_percent:
             break
-        remove, staging = plan(root, keep_count, now, emergency)
+        remove, staging = plan(root, keep_count, now, emergency, proc)
         for entry in remove + staging:
             removed.append(entry.name)
             print(('would remove ' if dry_run else 'removing ') + str(entry), flush=True)
