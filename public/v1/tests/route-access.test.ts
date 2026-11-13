@@ -121,7 +121,7 @@ test("a customer reaches only their own organization's projects", async () => {
   await project(b.orgId, "2 Bravo Road, Mobile, AL");
 
   assert.equal((await inject("GET", `/v1/firstmeasure/projects/${alphaProject}`, { cookie: a.cookie })).statusCode, 200);
-  for (const [method, suffix] of [["GET", ""], ["GET", "/artifacts/report.pdf"], ["GET", "/thumbnail"], ["PATCH", ""], ["POST", "/instant/ensure"]] as const) {
+  for (const [method, suffix] of [["GET", ""], ["GET", "/artifacts/report.pdf"], ["GET", "/thumbnail"], ["GET", "/roof-lines"], ["PATCH", ""], ["POST", "/instant/ensure"]] as const) {
     const response = await inject(method, `/v1/firstmeasure/projects/${alphaProject}${suffix}`, { cookie: b.cookie }, method === "GET" ? undefined : { resident: { name: "x" } });
     assert.equal(response.statusCode, 404, `${method} ${suffix} answered ${response.statusCode}`);
   }
