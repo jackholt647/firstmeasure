@@ -623,7 +623,7 @@ test('at phone width the setup fills the screen with the conversation folded bel
   } finally { await browser.close(); }
 });
 
-test('the first three questions show inline, with More at the end of their row, close above the composer',async()=>{
+test('the first three questions show one per row, read in full, with More beside the third, close above the composer',async()=>{
   const browser=await launch();
   try{
     for(const [viewport,host] of [[1280,380],[390,360]]){
@@ -632,12 +632,17 @@ test('the first three questions show inline, with More at the end of their row, 
       await page.waitForSelector('#faqHost .gx-faq');
       await page.waitForTimeout(500);
       const box=await page.evaluate(()=>{const strip=document.querySelector('#faqHost .gx-faqs'),wrap=document.querySelector('#faqHost .gx-faqs-wrap'),r=strip.getBoundingClientRect();const shown=[...strip.querySelectorAll('.gx-faq:not([hidden])')];const more=strip.querySelector('.gx-faq-more').getBoundingClientRect();const chip=shown[0].getBoundingClientRect();
-        return {count:shown.length,first:shown[0].textContent,icon:!!shown[0].querySelector('.fa-circle-play'),height:r.height,chip:chip.height,moreRow:shown.some(c=>Math.abs(c.getBoundingClientRect().top-more.top)<2),sideways:strip.scrollWidth>strip.clientWidth+1,gap:wrap.nextElementSibling.getBoundingClientRect().top-r.bottom,label:strip.querySelector('.gx-faq-more').textContent,title:shown[1].title};});
+        const tops=shown.map(c=>Math.round(c.getBoundingClientRect().top));
+        return {count:shown.length,first:shown[0].textContent,icon:!!shown[0].querySelector('.fa-circle-play'),height:r.height,chip:chip.height,rows:new Set(tops).size,full:chip.width>=r.width-1,moreRow:Math.abs(shown[2].getBoundingClientRect().top-more.top)<2,cut:shown.filter(c=>{const t=c.querySelector('.gx-faq-text');return t.scrollWidth>t.clientWidth+1||t.scrollHeight>t.clientHeight+1;}).map(c=>c.textContent),sideways:strip.scrollWidth>strip.clientWidth+1,gap:wrap.nextElementSibling.getBoundingClientRect().top-r.bottom,label:strip.querySelector('.gx-faq-more').textContent,title:shown[1].title};});
       assert.equal(box.count,3,'three at once');
       assert.equal(box.first,'Show me the tutorial again');assert.ok(box.icon);
-      assert.ok(box.moreRow,'More sits on a row with the questions, not on its own line');
-      assert.ok(box.height<=box.chip*2+8,`about two rows (${box.height} for ${box.chip} chips)`);
-      assert.ok(box.chip<=28,`compact chips (${box.chip})`);
+      // FM-443: two to a row, the questions were cut off with an ellipsis on a phone.
+      assert.equal(box.rows,3,'one question per row');
+      assert.ok(box.full,'a question takes the whole row');
+      assert.deepEqual(box.cut,[],'every question is read in full');
+      assert.ok(box.moreRow,'More sits beside the third question, not on its own line');
+      assert.ok(box.height<=box.chip*3+12,`three rows (${box.height} for ${box.chip} chips)`);
+      assert.ok(box.chip<=30,`compact chips (${box.chip})`);
       assert.equal(box.sideways,false);
       assert.ok(box.gap<=6,`close above the composer (${box.gap})`);
       assert.equal(box.title,'How do I make a proposal for this project?','a shortened question keeps its full text');
