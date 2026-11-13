@@ -86,6 +86,8 @@ session_write_close();
   <link rel="manifest" href="/portal/manifest.webmanifest">
   <link rel="icon" type="image/png" href="/images/icon.png">
   <link rel="apple-touch-icon" href="/images/icon.png">
+  <!-- The boot cover's logo (a CSS mask, fetched in CORS mode) must not wait behind the bundles. -->
+  <link rel="preload" as="image" href="/images/logo_white.png" crossorigin="anonymous" fetchpriority="high">
   <title>FirstMate - Report Dashboard</title>
   <script>
   /*
@@ -1859,7 +1861,8 @@ session_write_close();
     #fmPlatformBootCover{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;box-sizing:border-box;padding:max(24px,env(safe-area-inset-top,0px)) 24px max(24px,env(safe-area-inset-bottom,0px));background:#f5f6f8;color:#667085;font-family:Inter,Arial,sans-serif;transition:opacity .18s ease}
     #fmPlatformBootCover.is-leaving{opacity:0;pointer-events:none}
     #fmPlatformBootCover .fm-boot-card{display:grid;justify-items:center;gap:18px;width:min(340px,100%);text-align:center}
-    #fmPlatformBootCover .fm-boot-logo{width:148px;height:56px;background:var(--primary,#d93025);-webkit-mask:url('/images/logo_red.png') center / contain no-repeat;mask:url('/images/logo_red.png') center / contain no-repeat}
+    /* logo_white.png is the same artwork as logo_red.png at a sixth of the size; only its shape is used. */
+    #fmPlatformBootCover .fm-boot-logo{width:148px;height:56px;background:var(--primary,#d93025);-webkit-mask:url('/images/logo_white.png') center / contain no-repeat;mask:url('/images/logo_white.png') center / contain no-repeat}
     #fmPlatformBootCover .fm-boot-bar{position:relative;width:120px;height:4px;overflow:hidden;border-radius:999px;background:rgba(var(--primary-rgb,217,48,37),.14)}
     #fmPlatformBootCover .fm-boot-bar>span{position:absolute;top:0;bottom:0;left:0;width:40%;border-radius:inherit;background:var(--primary,#d93025);animation:fmBootSlide 1.1s cubic-bezier(.45,0,.25,1) infinite}
     /* A quick start shows only the logo and bar; the words come in when it takes a moment. */
