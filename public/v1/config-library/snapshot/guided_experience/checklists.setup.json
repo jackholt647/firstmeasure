@@ -1,11 +1,11 @@
 {
   "kind": "guided_experience",
   "id": "checklists.setup",
-  "revision": 2,
-  "sha256": "95b2ca188ca415e2cd4fb543c345efab0b476268259f3ca3d475b74208c88df7",
+  "revision": 3,
+  "sha256": "1dbab4b35a48904f76dd5fcce93e06721e1cdf16f61f756123d7a6df4348735d",
   "title": "Set up checklists",
-  "updated_at": "2026-11-04T03:33:05.453Z",
-  "updated_by": "key:ck_7897b5259beb4fa3 agents:jack-pc",
+  "updated_at": "2026-11-13T06:06:27.500Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "id": "checklists.setup",
     "version": 1,
@@ -17,8 +17,8 @@
       "text": "Set up checklists"
     },
     "description": {
-      "key": "gx_cl_setup_description",
-      "text": "Start with the checklists you'd use on a job: a customer punch list, crew safety and work completion."
+      "key": "gx_cl_setup_description_v2",
+      "text": "Start with the checklists you'd use on a job: crew safety, work completion and a customer punch list."
     },
     "tab": "project.checklists",
     "eligibility": {
@@ -77,52 +77,15 @@
           "use_cases": {
             "use_cases": [
               {
-                "id": "punchlist",
-                "icon": "fa-handshake",
-                "label": {
-                  "key": "gx_cl_uc_punch_label",
-                  "text": "Customer punch list"
-                },
-                "description": {
-                  "key": "gx_cl_uc_punch_body",
-                  "text": "Walk the finished job with your customer and have them tick off each item to sign off on the work."
-                },
-                "checklist": {
-                  "title": "Customer punch list",
-                  "description": "Walked with the customer at the end of the job.",
-                  "audience": "crew",
-                  "crew_editable": false,
-                  "signature_required": false,
-                  "customer": "complete",
-                  "items": [
-                    {
-                      "title": "Walk the finished roof and gutters with the customer"
-                    },
-                    {
-                      "title": "Magnetic sweep done: no nails left in the yard or driveway"
-                    },
-                    {
-                      "title": "Gutters and downspouts cleared of debris"
-                    },
-                    {
-                      "title": "Landscaping and siding checked for damage"
-                    },
-                    {
-                      "title": "Customer happy with the finished roof"
-                    }
-                  ]
-                }
-              },
-              {
                 "id": "crew_safety",
                 "icon": "fa-helmet-safety",
                 "label": {
-                  "key": "gx_cl_uc_safety_label",
-                  "text": "Crew safety checklist"
+                  "key": "gx_cl_uc_safety_label_v2",
+                  "text": "Crew safety"
                 },
                 "description": {
-                  "key": "gx_cl_uc_safety_body",
-                  "text": "What the crew confirms before work starts, signed by whoever completes it."
+                  "key": "gx_cl_uc_safety_body_v2",
+                  "text": "Checked and signed before work starts."
                 },
                 "checklist": {
                   "title": "Crew safety",
@@ -161,8 +124,8 @@
                   "text": "Work completion"
                 },
                 "description": {
-                  "key": "gx_cl_uc_done_body",
-                  "text": "Everything that has to be done before the job counts as finished."
+                  "key": "gx_cl_uc_done_body_v2",
+                  "text": "What must be done before the job is finished."
                 },
                 "checklist": {
                   "title": "Work completion",
@@ -192,6 +155,28 @@
                     }
                   ]
                 }
+              },
+              {
+                "id": "punchlist",
+                "icon": "fa-handshake",
+                "label": {
+                  "key": "gx_cl_uc_punch_label",
+                  "text": "Customer punch list"
+                },
+                "description": {
+                  "key": "gx_cl_uc_punch_body_v2",
+                  "text": "Your customer ticks it off to sign off on the job."
+                },
+                "checklist": {
+                  "title": "Customer punch list",
+                  "description": "Walked with the customer at the end of the job.",
+                  "audience": "crew",
+                  "crew_editable": false,
+                  "signature_required": false,
+                  "customer": "complete",
+                  "items": []
+                },
+                "selected": false
               }
             ]
           }
@@ -205,66 +190,29 @@
       {
         "id": "use_cases",
         "widget": "module",
-        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261103-fit",
+        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261113-fm444",
         "requires": [],
         "title": {
-          "key": "gx_cl_uc_title",
-          "text": "Which checklists do you want to start with?"
+          "key": "gx_cl_uc_title_v2",
+          "text": "Which checklists do you want?"
         },
         "subtitle": {
-          "key": "gx_cl_uc_subtitle",
-          "text": "Pick the ones you'd use. We'll add them to this project, ready to change."
+          "key": "gx_cl_uc_subtitle_v2",
+          "text": "We'll add them to this project."
         },
         "say": [],
         "options": {
           "use_cases": [
             {
-              "id": "punchlist",
-              "icon": "fa-handshake",
-              "label": {
-                "key": "gx_cl_uc_punch_label",
-                "text": "Customer punch list"
-              },
-              "description": {
-                "key": "gx_cl_uc_punch_body",
-                "text": "Walk the finished job with your customer and have them tick off each item to sign off on the work."
-              },
-              "checklist": {
-                "title": "Customer punch list",
-                "description": "Walked with the customer at the end of the job.",
-                "audience": "crew",
-                "crew_editable": false,
-                "signature_required": false,
-                "customer": "complete",
-                "items": [
-                  {
-                    "title": "Walk the finished work with the customer"
-                  },
-                  {
-                    "title": "All debris and leftover materials removed"
-                  },
-                  {
-                    "title": "Touch-ups and small fixes done"
-                  },
-                  {
-                    "title": "Customer's questions answered"
-                  },
-                  {
-                    "title": "Customer happy with the finished job"
-                  }
-                ]
-              }
-            },
-            {
               "id": "crew_safety",
               "icon": "fa-helmet-safety",
               "label": {
-                "key": "gx_cl_uc_safety_label",
-                "text": "Crew safety checklist"
+                "key": "gx_cl_uc_safety_label_v2",
+                "text": "Crew safety"
               },
               "description": {
-                "key": "gx_cl_uc_safety_body",
-                "text": "What the crew confirms before work starts, signed by whoever completes it."
+                "key": "gx_cl_uc_safety_body_v2",
+                "text": "Checked and signed before work starts."
               },
               "checklist": {
                 "title": "Crew safety",
@@ -300,8 +248,8 @@
                 "text": "Work completion"
               },
               "description": {
-                "key": "gx_cl_uc_done_body",
-                "text": "Everything that has to be done before the job counts as finished."
+                "key": "gx_cl_uc_done_body_v2",
+                "text": "What must be done before the job is finished."
               },
               "checklist": {
                 "title": "Work completion",
@@ -328,11 +276,33 @@
                   }
                 ]
               }
+            },
+            {
+              "id": "punchlist",
+              "icon": "fa-handshake",
+              "label": {
+                "key": "gx_cl_uc_punch_label",
+                "text": "Customer punch list"
+              },
+              "description": {
+                "key": "gx_cl_uc_punch_body_v2",
+                "text": "Your customer ticks it off to sign off on the job."
+              },
+              "checklist": {
+                "title": "Customer punch list",
+                "description": "Walked with the customer at the end of the job.",
+                "audience": "crew",
+                "crew_editable": false,
+                "signature_required": false,
+                "customer": "complete",
+                "items": []
+              },
+              "selected": false
             }
           ],
           "note": {
-            "key": "gx_cl_uc_note",
-            "text": "They go on this project, and you can change every one of them afterwards, by typing or by voice."
+            "key": "gx_cl_uc_note_v2",
+            "text": "You can change them any time, by typing or by voice."
           }
         },
         "selects": [
@@ -351,6 +321,9 @@
       "screen": "none",
       "say": [],
       "then": [
+        {
+          "play": "checklists.punchlist_tutorial"
+        },
         {
           "play": "checklists.tab_tutorial"
         }

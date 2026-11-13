@@ -383,16 +383,21 @@ question.
 
 ## Checklists: setup and tour
 
-Library entries `guided_experience/checklists.setup`, `checklists.tab_tutorial` and `guided_tab_faqs/project.checklists`:
+Library entries `guided_experience/checklists.setup`, `checklists.punchlist_tutorial`, `checklists.tab_tutorial` and `guided_tab_faqs/project.checklists`:
 
 - `checklists.setup` (modal, organization, replayable): the first time someone who manages projects opens a
   project's Checklists tab. It `requires` `company.type`, so an organization that has not said what kind of company
   it is answers that first. One step (module `guided-experiences/checklists-setup.js`) picks the checklists to start
-  with: a customer punch list (the customer ticks items off in their portal), crew safety (signature required) and
-  work completion. What each says is the step's options; the `roofing` variant (chosen when
-  `organization.industry` is roofing or exteriors) has roofing items. Completion: `checklists.setup.apply`
-  (`workforce/checklists-setup.ts`) adds the picked ones to that project once each (source key
-  `setup:<use case>`), then plays the tour.
+  with: crew safety (signature required), work completion and, last, a customer punch list (the customer ticks
+  items off in their portal), which starts unpicked (`selected: false`) and empty. What each says is the step's
+  options; the `roofing` variant (chosen when `organization.industry` is roofing or exteriors) has roofing items.
+  Completion: `checklists.setup.apply` (`workforce/checklists-setup.ts`) adds the picked ones to that project once
+  each (source key `setup:<use case>`), then plays the punch list tour and the tour.
+- `checklists.punchlist_tutorial` (overlay, person, replayable, needs `platform.customer_portal`): no `tab`, so it
+  carries on across tab changes. It points at a checklist shared with the customer
+  (`[data-fmcl-customer-shared=true]`), has them press the Customer Portal tab, shows the link card, and has them
+  press Checklists to come back. Every step's target needs that shared list (or the portal tab it opened), so
+  where the punch list was not picked it shows nothing and the Checklists tour follows.
 - `checklists.tab_tutorial` (overlay, person, replayable): the lists, who completes them and the signature option,
   adding an item, comments, changing a list by voice, the document button and Send to crew app (each only where its
   capability is on), and last a step that waits for the person to press New from Audio and ramble about a checklist
