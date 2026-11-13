@@ -17,7 +17,7 @@ const xml='<DATA_EXPORT><STRUCTURES><ROOF id="ROOF1"><POINT id="a" data="0,0,0"/
 const edgeTypes=[{path:'a,b',type:'EAVE'},{path:'b,c',type:'RAKE'},{path:'c,d',type:'RIDGE'},{path:'a,d',type:'RAKE'},
   ...['p','q'].flatMap(p=>[[1,2],[2,3],[3,4],[1,4]].map(([i,j])=>({path:`${p}${i},${p}${j}`,type:'PROTRUSION'})))];
 const ft=value=>({value,unit:'ft',source:'firstmeasure'});
-const roofLines={ok:true,edgeTypes,measurements:{eavesLf:ft(30),rakesLf:ft(35),ridgesLf:ft(30),protrusionLf:ft(32.4)}};
+const roofLines={ok:true,edgeTypes,measurements:{eavesLf:ft(30),rakesLf:ft(35),ridgesLf:ft(30),protrusionLf:ft(32.4),pitch7Squares:{value:99,unit:'roofing_square',source:'firstmeasure'}}};
 
 test('the 3D model draws the report\'s line types and prints its line totals',async()=>{
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--enable-webgl','--use-angle=swiftshader']});
@@ -38,16 +38,20 @@ test('the 3D model draws the report\'s line types and prints its line totals',as
       await page.waitForFunction(()=>window.drawnScene&&document.querySelector('.fm-roof-message').hidden,{},{timeout:45000});
       return page.evaluate(()=>{const drawn={};drawnScene.traverse(o=>{if(o.isLine&&o.userData.type)drawn[o.userData.type]=(drawn[o.userData.type]||0)+1;});
         const value=name=>document.querySelector(`input[aria-label="${name} length"]`)?.value;
-        return {drawn,protrusion:value('Protrusion'),skylight:value('Skylight'),eave:value('Eave')};});
+        const squares=[...document.querySelectorAll('[aria-label$=" pitch squares"]')].map(input=>input.value);
+        return {drawn,protrusion:value('Protrusion'),skylight:value('Skylight'),eave:value('Eave'),squares};});
     };
     const report=await open();
     assert.deepEqual(report.drawn,{EAVE:1,RAKE:2,RIDGE:1,PROTRUSION:8},'every protrusion edge as a protrusion; the orphan SKYLIGHT edge is no line of the report');
     assert.equal(report.protrusion,'32','the PDF\'s protrusion total, not the drawn length');
     assert.equal(report.skylight,'');assert.equal(report.eave,'30');
+    // The PDF prints squares from the faces, not the saved materials.squares: the same as without the report's lines.
+    assert.ok(!report.squares.includes('99.00')&&report.squares.length===1,JSON.stringify(report.squares));
     // Without the report's types (the request fails), the model still opens with the XML's own types.
     linesStatus=500;
     const fallback=await open();
     assert.deepEqual(fallback.drawn,{EAVE:9,RAKE:2,RIDGE:1,SKYLIGHT:1});
+    assert.deepEqual(fallback.squares,report.squares);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

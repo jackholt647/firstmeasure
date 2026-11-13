@@ -612,8 +612,9 @@
       const [response,exteriorResult,linesResult]=await Promise.all([fetch(xmlUrl,{credentials:'same-origin',signal:controller.signal}),json(exteriorUrl),json(linesUrl),loadLibraries()]);
       if(!response.ok)throw new Error('The roof model could not be loaded.');
       // FM-455: the report's own line types and the line totals its PDF prints. Without them the XML's coarser types stay.
+      // Only line totals: the PDF's squares are the faces', as drawn here.
       if(!edgeTypes.length&&Array.isArray(linesResult?.edgeTypes))edgeTypes=linesResult.edgeTypes;
-      if(linesResult?.measurements&&typeof linesResult.measurements==='object')measurements={...linesResult.measurements,...measurements};
+      if(linesResult?.measurements&&typeof linesResult.measurements==='object')measurements={...Object.fromEntries(Object.entries(linesResult.measurements).filter(([key])=>Object.values(measurementKeys).includes(key))),...measurements};
       const roofs=parseModel(await response.text(),edgeTypes);if(disposed)return;
       exterior=exteriorResult?.model&&Array.isArray(exteriorResult.model.walls)&&exteriorResult.model.walls.length?exteriorResult.model:null;
       if(exterior){finishes=await loadFinishes();frame=exteriorFrame(exterior,roofs);if(disposed)return;
