@@ -19,7 +19,9 @@
   let scheduleModeActive = false;
   let scheduleCalendarGen = 0;
   let scheduleAnchorDate = new Date();
-  let scheduleViewMode = 'month';
+  // With no view chosen, a phone opens the schedule on three days and anything wider on Month (see scheduleDefaultView).
+  const schedulePhoneLayout = () => window.matchMedia?.('(max-width:720px)').matches === true;
+  let scheduleViewMode = schedulePhoneLayout() ? '4day' : 'month';
   let projectGanttZoom = 0;
   let projectGanttCollapsedGroups = [];
   let projectGanttDefaultApplied = false;
@@ -44,6 +46,8 @@
   let scheduleSelectedEventId = '';
   let scheduleAssignmentEventId = '';
   let materialScheduleModeActive = false;
+  // Placing a delivery from Materials always starts in Month (30 days), on a phone too.
+  const scheduleDefaultView = () => (schedulePhoneLayout() && !materialScheduleModeActive ? '4day' : 'month');
   let materialScheduleEventId = '';
   let materialScheduleListId = '';
   let materialScheduleDraft = null;
@@ -1409,6 +1413,13 @@
     if (!scheduleIsWidget()) setActivePreviewTab('schedule');
     if (state.active) renderSchedulePanel();
     return !!event;
+  }
+
+  // Materials asks the schedule to place a delivery: on a phone that opens the Schedule tab, which starts in Month
+  // (30 days) for it rather than the phone's three days. The Timeline and Routing views stay as they are.
+  function focusMaterialDeliveryFromMaterials(payload = {}){
+    if (!scheduleIsWidget() && schedulePhoneLayout() && ['day','4day','week'].includes(scheduleViewMode)) scheduleViewMode = 'month';
+    return focusMaterialDelivery(payload);
   }
 
   // The Timeline places a single item from its own row. A span is placed by
@@ -7715,7 +7726,7 @@
     scheduleModeActive = false;
     scheduleCalendarGen = 0;
     scheduleAnchorDate = new Date();
-    scheduleViewMode = 'month';
+    scheduleViewMode = schedulePhoneLayout() ? '4day' : 'month';
     // Each project opens its timeline fitted to its own work.
     projectGanttZoom = 0;
     projectGanttCollapsedGroups = [];
@@ -7764,7 +7775,7 @@
   function prepareFromEvent(event){
     const start = window.PlatformScheduling?.eventStart?.(event) || new Date(event?.start_at || event?.start || Date.now());
     if (Number.isFinite(start.getTime())) scheduleAnchorDate = start;
-    scheduleViewMode = 'month';
+    scheduleViewMode = scheduleDefaultView();
     scheduleModeActive = false;
     return api;
   }
@@ -7872,7 +7883,7 @@
     ensureRemoteSchedulingProject,
     hasDraft,
     prepareFromEvent,
-    focusMaterialDelivery,
+    focusMaterialDelivery: focusMaterialDeliveryFromMaterials,
     context: () => ({ mounted: state.mounted, active: state.active, mode: materialScheduleModeActive ? 'materials' : scheduleViewMode, hasDraft: hasDraft() || !!materialScheduleDraft?.start })
   };
 
@@ -7907,7 +7918,7 @@
         && (!requestedView.startsWith('scheduling') || projectRoutingViewEnabled());
       scheduleViewMode = requestedAvailable
         ? requestedView
-        : (!projectGanttDefaultApplied && projectGanttViewEnabled() && projectPrefersGantt() ? (projectGanttDefaultApplied = true, 'gantt') : 'month');
+        : (!projectGanttDefaultApplied && projectGanttViewEnabled() && projectPrefersGantt() ? (projectGanttDefaultApplied = true, 'gantt') : scheduleDefaultView());
       scheduleSchedulingTarget = ['production','sales'].includes(route.projectScheduleTarget) ? route.projectScheduleTarget : 'production';
       const routeDate = scheduleDateFromRoute(route.projectScheduleDate);
       if (routeDate) scheduleAnchorDate = routeDate;
