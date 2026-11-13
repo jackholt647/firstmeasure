@@ -123,10 +123,38 @@ test('date, color and project pickers report typed selections; the cap and the o
 });
 
 
+test('icon picker fits a phone: one grid of icon tiles, a usable color swatch, no sideways overflow',async()=>{
+ const browser=await launch();try{const {page,errors}=await open(browser);await page.setViewportSize({width:433,height:870});
+ await page.evaluate(async()=>{const host=document.querySelector('#a');host.style.width='calc(100vw - 56px)';window.icon=FirstMateWidgets.mount(host,{id:'icon.picker',version:'1',config:{prompt:'Icon and color',includeColor:true,value:'fa-helmet-safety',color:'#125634'}},context);await icon.ready;});
+ const layout=await page.evaluate(()=>{const host=document.querySelector('#a'),card=host.querySelector('.fm-icon-picker'),tiles=[...card.querySelectorAll('.fm-icon-picker-tile')],swatch=card.querySelector('input[type=color]').getBoundingClientRect(),rows=new Set(tiles.map(tile=>Math.round(tile.getBoundingClientRect().top)));
+  return {overflow:card.scrollWidth-card.clientWidth,tiles:tiles.length,rows:rows.size,labelled:tiles.every(tile=>tile.getAttribute('aria-label')&&!tile.textContent.trim()),tileWidths:tiles.map(tile=>tile.getBoundingClientRect().width),swatch:{width:swatch.width,height:swatch.height},current:card.querySelector('.fm-icon-picker-current').textContent,height:card.getBoundingClientRect().height};});
+ await mkdir(output,{recursive:true});await page.screenshot({path:shot('icon-picker-phone.png'),fullPage:true});
+ assert.ok(layout.overflow<=0,'nothing scrolls sideways');assert.equal(layout.tiles,29);assert.ok(layout.labelled,'tiles are icon-only and named');
+ assert.ok(layout.rows<=6,`icons wrap into a compact grid (${layout.rows} rows)`);assert.ok(layout.tileWidths.every(width=>width>=40),'tiles stay finger-sized');
+ assert.ok(layout.swatch.width>=40&&layout.swatch.height>=30,`color swatch is a real swatch (${JSON.stringify(layout.swatch)})`);assert.equal(layout.current,'helmet safety');
+ assert.ok(layout.height<600,`picker fits the screen (${layout.height}px)`);
+ await page.locator('#a input[type=search]').fill('truck');assert.deepEqual(await page.locator('#a .fm-icon-picker-tile').evaluateAll(tiles=>tiles.map(tile=>tile.getAttribute('aria-label'))),['truck','truck pickup']);
+ await page.locator('#a input[type=search]').fill('zzz');assert.equal(await page.locator('#a .fm-icon-picker-empty').textContent(),'No icons match.');
+ assert.deepEqual(errors,[]);
+ }finally{await browser.close();}
+});
+
+test('icon picker in a modal dialog opens its color panel above the dialog, where it can be used',async()=>{
+ const browser=await launch();try{const {page,errors}=await open(browser);await page.setViewportSize({width:433,height:870});
+ await page.evaluate(async()=>{const dialog=document.createElement('dialog'),stage=document.createElement('div');dialog.append(stage);document.body.append(dialog);window.icon=FirstMateWidgets.mount(stage,{id:'icon.picker',version:'1',config:{includeColor:true,value:'fa-layer-group',color:'#125634'}},context);await icon.ready;dialog.showModal();});
+ await page.locator('dialog input[type=color]').click();await page.locator('.fm-color-picker').waitFor();
+ const placed=await page.evaluate(()=>{const panel=document.querySelector('.fm-color-picker'),r=panel.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return {inDialog:!!panel.closest('dialog[open]'),onTop:panel.contains(hit),inView:r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight};});
+ assert.deepEqual(placed,{inDialog:true,onTop:true,inView:true});
+ await page.locator('.fm-color-picker [data-hex]').fill('#abcdef');await page.locator('.fm-color-picker .fm-color-done').click();
+ assert.equal(await page.locator('dialog input[type=color]').inputValue(),'#abcdef');assert.equal(await page.evaluate(()=>document.querySelector('dialog').open),true,'choosing a color leaves the dialog open');
+ assert.deepEqual(errors,[]);
+ }finally{await browser.close();}
+});
+
 test('icon picker edits icon and color in one confirmed selection',async()=>{
  const browser=await launch();try{const {page,errors}=await open(browser);
  await page.evaluate(async()=>{window.icon=FirstMateWidgets.mount(document.querySelector('#a'),{id:'icon.picker',version:'1',config:{includeColor:true,value:'fa-layer-group',color:'#125634'}},context);await icon.ready;});
- await page.locator('#a button').filter({hasText:/^truck$/}).click();assert.equal(await page.evaluate(()=>picks.at(-1).confirmed),false);
+ await page.locator('#a').getByRole('button',{name:'truck',exact:true}).click();assert.equal(await page.evaluate(()=>picks.at(-1).confirmed),false);
  await page.locator('#a input[type=color]').evaluate(el=>{el.value='#abcdef';el.dispatchEvent(new Event('input',{bubbles:true}));});
  await page.getByRole('button',{name:'Apply',exact:true}).click();assert.deepEqual(await page.evaluate(()=>icon.selection()),{value:'fa-truck',color:'#abcdef'});assert.equal(await page.evaluate(()=>picks.at(-1).confirmed),true);assert.deepEqual(errors,[]);
  }finally{await browser.close();}
