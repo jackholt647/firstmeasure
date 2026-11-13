@@ -72,7 +72,7 @@ test('report entry searches existing projects, preserves report intent, and swit
   assert.equal(await page.getByRole('button',{name:'Order report',exact:true}).count(),0);
   await page.evaluate(()=>{window.hasReportOrdered=()=>false;syncOverviewWorkflow();});
   assert.equal(await page.getByRole('button',{name:'Order report',exact:true}).isVisible(),true);
-  assert.equal(await page.getByRole('button',{name:'Build proposal',exact:true}).isVisible(),true);
+  assert.equal(await page.getByRole('button',{name:'Build proposal',exact:true}).count(),0,'proposals are built in the Proposals tab');
   assert.equal(await page.getByRole('button',{name:'Schedule appointment',exact:true}).isVisible(),true);
   await page.getByRole('button',{name:'Order report',exact:true}).click();
   assert.deepEqual(await page.evaluate(()=>[window.reordered,requestedWorkflow,reportProjectChoice,window.chosenTab]),[undefined,'report','existing','map']);
@@ -126,7 +126,7 @@ for(const width of [390,1280])for(const expanded of [false,true])test(`unordered
  },expanded);
  const begin=app.indexOf('  function syncOverviewWorkflow(){'),end=app.indexOf('  function renderWorkflowStateBody',begin);
  await page.addScriptTag({content:app.match(/  function reportHeaderPending[^\n]+/)[0]+'\n'+app.slice(begin,end)+'\nsyncOverviewWorkflow();'});
- assert.equal(await page.locator('.r-overview-initial-actions button').count(),expanded?3:1);
+ assert.equal(await page.locator('.r-overview-initial-actions button').count(),0);
  const boxes=await page.evaluate(()=>Object.fromEntries(['#rStepAddress','#rStepType','.r-overview-initial-actions'].map(s=>[s,document.querySelector(s).getBoundingClientRect().toJSON()])));
  assert.ok(boxes['.r-overview-initial-actions'].y>=boxes['#rStepType'].bottom);assert.ok(boxes['.r-overview-initial-actions'].y>=boxes['#rStepAddress'].bottom);
  assert.equal(await page.getByRole('textbox',{name:'Contact name',exact:true}).isVisible(),expanded);

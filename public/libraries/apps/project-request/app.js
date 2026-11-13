@@ -10164,8 +10164,9 @@ window.PlatformCommerce.onReady(async function(){
     if(actionAnchor && actionAnchor.nextElementSibling!==actions)actionAnchor.after(actions);
     overlay.classList.toggle('firstmeasure-unordered-overview',requestedWorkflow==='project' && !expandedPlatformEnabled() && !hasReportOrdered());
     actions.hidden=requestedWorkflow!=='project' || !addressSelected || !selectedType;
-    // A report order starts from the measurement ordering widget beneath these fields, not from here.
-    const choices=[['roof',(globalThis.PlatformLanguage?.text('project-request','overview_order_report','Order report') ?? 'Order report'),false],['proposal',(globalThis.PlatformLanguage?.text('project-request','overview_build_proposal','Build proposal') ?? 'Build proposal'),actionAvailable('proposal')],['schedule',(globalThis.PlatformLanguage?.text('project-request','overview_schedule_appointment','Schedule appointment') ?? 'Schedule appointment'),actionAvailable('schedule')]].filter(item=>item[2]);
+    // A report order starts from the measurement ordering widget beneath these fields, not from here. Proposals are
+    // built in the Proposals tab (FM-410; the old "Build proposal" here opened the order form's retired proposal workspace).
+    const choices=[['roof',(globalThis.PlatformLanguage?.text('project-request','overview_order_report','Order report') ?? 'Order report'),false],['schedule',(globalThis.PlatformLanguage?.text('project-request','overview_schedule_appointment','Schedule appointment') ?? 'Schedule appointment'),actionAvailable('schedule')]].filter(item=>item[2]);
     const signature=choices.map(item=>item[0]+':'+item[1]).join(',');
     if (actions.dataset.choices!==signature) {
       actions.dataset.choices=signature;actions.replaceChildren();
