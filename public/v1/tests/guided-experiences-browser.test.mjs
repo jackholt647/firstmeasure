@@ -848,6 +848,7 @@ test('a covering panel holds the tab tour; its own tour plays over it, then clos
     await page.locator('.gx-pop [data-gx=next]').click();
     await tourStep(page, 'Close the tray');
     assert.equal(await page.locator('.gx-pop [data-gx=next]').count(), 0, 'the person closes the tray themselves');
+    assert.equal(await page.locator('.gx-pop [data-gx=skip]').count(), 1, 'a last step that waits for a click can still be skipped (FM-445)');
     await page.click('#close');
     await tourStep(page, 'Switch tabs');
     assert.equal(await page.locator('.gx-pop.gx-sheet-top').count(), 0, 'a target near the top keeps the card along the bottom');
@@ -866,6 +867,22 @@ test('a covering panel holds the tab tour; its own tour plays over it, then clos
     await page.evaluate(() => { setTray(true, true); setTray(false, true); });
     await page.waitForTimeout(600);
     assert.equal(await page.locator('.gx-pop').count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('Skip step on a last step that waits for a click finishes the tour (FM-445)', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await panelPage(browser);
+    await page.evaluate(() => setTray(true, false));
+    await tourStep(page, 'Your details');
+    await page.locator('.gx-pop [data-gx=next]').click();
+    await tourStep(page, 'Close the tray');
+    await page.locator('.gx-pop [data-gx=skip]').click();
+    await page.waitForFunction(() => events.includes('project.details_tutorial:complete'));
+    await page.waitForFunction(() => !document.querySelector('.gx-pop'));
+    assert.equal(await page.isVisible('#panel'), true, 'skipping leaves the tray as it was');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

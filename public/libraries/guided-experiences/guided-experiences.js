@@ -817,12 +817,14 @@
         function onTargetClick(){ setTimeout(() => go(index + 1, 1), 60); }
         function render(step){
           const total = list.length, position = index + 1, last = position >= total;
+          // A step that waits for a click on its target has no Next, so it always offers Skip step, even last (FM-445).
+          const waitsForClick = step.advance === 'click' && targets.length > 0;
           pop.innerHTML = `<button type="button" class="gx-x" data-gx="close" aria-label="${esc(L('gx_ui_skip_tutorial', 'Skip tutorial'))}" title="${esc(L('gx_ui_skip_tutorial', 'Skip tutorial'))}">&times;</button>
             <h3>${H(step.title)}</h3><p>${H(step.body)}</p>
             <footer><span class="gx-dots" aria-label="${esc(L('gx_ui_step_of', 'Step') + ' ' + position + ' / ' + total)}">${list.map((_, i) => `<i class="${i === index ? 'on' : ''}"></i>`).join('')}</span>
               ${position > 1 ? `<button type="button" class="gx-b gx-link" data-gx="back">${H('gx_ui_back', 'Back')}</button>` : ''}
-              ${!last ? `<button type="button" class="gx-b gx-link" data-gx="skip">${H('gx_ui_skip_step', 'Skip step')}</button>` : ''}
-              ${step.advance === 'click' && targets.length ? '' : `<button type="button" class="gx-b gx-primary" data-gx="next">${last ? H('gx_ui_done', 'Done') : H('gx_ui_next', 'Next')}</button>`}</footer>
+              ${!last || waitsForClick ? `<button type="button" class="gx-b gx-link" data-gx="skip">${H('gx_ui_skip_step', 'Skip step')}</button>` : ''}
+              ${waitsForClick ? '' : `<button type="button" class="gx-b gx-primary" data-gx="next">${last ? H('gx_ui_done', 'Done') : H('gx_ui_next', 'Next')}</button>`}</footer>
             ${targets.length && step.placement !== 'center' ? '<span class="gx-arrow" aria-hidden="true"></span>' : ''}`;
           pop.hidden = false;
           pop.setAttribute('aria-label', L(step.title)); pop.dataset.gxStep = step.id;
