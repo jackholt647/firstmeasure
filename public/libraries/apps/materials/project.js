@@ -898,7 +898,7 @@
       dialog.mt-card:not([open]){display:none!important}
       dialog.mt-card[open]{display:flex}
       .mt-pricebook-panel{position:absolute;right:14px;top:6px;z-index:9;width:min(390px,calc(100% - 28px));max-height:calc(100% - 12px);background:#fff;border:1px solid rgba(15,23,42,.12);border-radius:8px;box-shadow:0 24px 70px rgba(15,23,42,.22);display:flex;flex-direction:column;overflow:hidden}
-      .mt-pricebook-head{padding:10px 11px;border-bottom:1px solid rgba(15,23,42,.08);display:flex;align-items:center;justify-content:space-between;gap:10px}.mt-pricebook-head strong{font-size:13px;color:#101828}.mt-pricebook-body{padding:10px;display:flex;flex-direction:column;gap:9px;min-height:0}
+      .mt-pricebook-head{padding:10px 11px;border-bottom:1px solid rgba(15,23,42,.08);display:flex;align-items:center;justify-content:space-between;gap:10px}.mt-pricebook-title{display:flex;align-items:center;gap:9px;min-width:0}.mt-pricebook-title>i{flex:none;width:28px;height:28px;border-radius:8px;background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary-readable,var(--primary,#d93025));display:grid;place-items:center;font-size:12px}.mt-pricebook-title>div{min-width:0}.mt-pricebook-title strong{display:block;font-size:13px;color:#101828}.mt-pricebook-title span{display:block;font-size:10px;font-weight:800;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mt-pricebook-tools{flex:none;display:flex;gap:6px}.mt-suggest .mt-icon-btn.is-added{border-color:#abefc6;background:#ecfdf3;color:#067647}.mt-pricebook-body{padding:10px;display:flex;flex-direction:column;gap:9px;min-height:0}
       .mt-suggest-list{display:flex;flex-direction:column;gap:7px;max-height:420px;overflow:auto}
       .mt-suggest{border:1px solid rgba(15,23,42,.08);border-radius:8px;background:#fff;padding:9px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
       .mt-suggest strong{display:block;font-size:12px;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mt-suggest span{font-size:10px;font-weight:800;color:#667085}
@@ -1234,8 +1234,24 @@
         .mt-phone-pill[aria-current=true] i{color:inherit}
         .mt-phone-pill[aria-current=true] em{background:#fff;color:#d92d20}
         .mt-phone-pill:focus-visible{outline:none}.mt-phone-pill:focus-visible>span{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+        /* The quick price book is a full-screen modal (a <dialog> in the top layer, over the project window and its bars) on a
+           dimmed page: a header with its title, list and buttons, the search, and a list that scrolls. */
+        dialog.mt-pricebook-panel{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;border-radius:0;box-sizing:border-box;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);box-shadow:none;color:inherit;overscroll-behavior:contain;animation:mt-pricebook-in .28s cubic-bezier(.22,1,.36,1)}
+        dialog.mt-pricebook-panel::backdrop{background:rgba(15,23,42,.48);animation:mt-pricebook-dim .28s ease-out}
+        .mt-pricebook-head{flex:none;min-height:60px;padding:10px 12px 10px 16px;border-bottom-color:#eaecf0}
+        .mt-pricebook-title{gap:10px}.mt-pricebook-title>i{width:36px;height:36px;border-radius:10px;font-size:14px}
+        .mt-pricebook-title strong{font-size:16px;font-weight:800}.mt-pricebook-title span{margin-top:1px;font-size:12px;font-weight:600}
+        .mt-pricebook-tools{gap:8px}.mt-pricebook-tools .mt-icon-btn{width:40px;min-height:40px;border-radius:10px;font-size:14px}
+        .mt-pricebook-body{flex:1;padding:12px 16px 0;gap:12px}
+        .mt-pricebook-body .mt-search{flex:none;min-height:44px;font-size:16px;font-weight:600}
+        .mt-pricebook-body .mt-suggest-list{flex:1;min-height:0;max-height:none;gap:8px;padding-bottom:16px;overscroll-behavior:contain}
+        .mt-pricebook-body .mt-suggest{padding:10px 10px 10px 14px;gap:12px}
+        .mt-pricebook-body .mt-suggest strong{font-size:14px;font-weight:700}.mt-pricebook-body .mt-suggest span{display:block;margin-top:2px;font-size:12px;font-weight:600}
+        .mt-pricebook-body .mt-suggest .mt-icon-btn{width:40px;min-height:40px;border-radius:10px;font-size:14px}
+        .mt-pricebook-body .mt-empty{padding:32px 12px;text-align:center}
       }
-      @media(max-width:760px) and (prefers-reduced-motion:reduce){.mt-phone-lists .mt-material-grid{transition:none}}
+      @keyframes mt-pricebook-in{from{transform:translateY(24px);opacity:0}}@keyframes mt-pricebook-dim{from{opacity:0}}
+      @media(max-width:760px) and (prefers-reduced-motion:reduce){.mt-phone-lists .mt-material-grid{transition:none}dialog.mt-pricebook-panel,dialog.mt-pricebook-panel::backdrop{animation:none}}
     `;
   }
 
@@ -3005,9 +3021,12 @@
     state.activeList = materialListById(targetList.id);
     state.visibleListIds.add(cleanText(targetList.id));
     syncMaterialsGrid();
-    const nameInput = findByData(materialRoot(), '[data-mt-item-name]', 'mtItemName', line.id);
-    nameInput?.focus();
-    nameInput?.select();
+    // On a phone the price book covers the list: focusing the new row behind it would only raise the keyboard.
+    if (!(state.pricebookOpen && phoneLayout())) {
+      const nameInput = findByData(materialRoot(), '[data-mt-item-name]', 'mtItemName', line.id);
+      nameInput?.focus();
+      nameInput?.select();
+    }
     // The row is usable at once; the save happens behind it and only speaks up if it fails.
     persistVersion({ reason: 'supplement', add_items: [line] }, { baseItems, list: targetList }).then(() => (type === 'labor' ? loadExpenseProjection().then(() => syncFooterTotals()) : null)).catch((error) => {
       const latest = materialListById(targetList.id);
@@ -3016,6 +3035,7 @@
       showToast(((v0) => globalThis.PlatformLanguage?.text("materials","m_6b20ad5f8a56d9",`Could not add ${v0}`,{v0}) ?? `Could not add ${v0}`)(terms.singular.toLowerCase()), error?.message || 'Please try again.', false);
     });
     timingMark('addItem:end', { items: listItems().length }, timingStart);
+    return true;
   }
 
   function markGenerateButtonLoading(button){
@@ -4339,6 +4359,7 @@
     bindResourceActions(root);
     bindRequirements(root);
     syncPhoneLists(root);
+    showPricebookDialog(root.querySelector('[data-mt-pricebook-panel]'));
     restoreResourceScroll(root, previousResourceScroll);
     timingMark('render:bindMain', { items: listItems().length }, bindStart);
     if (options.preserveScroll) {
@@ -5041,8 +5062,10 @@
   function syncPricebookPanel(){
     const root = materialRoot();
     const existing = root?.querySelector?.('[data-mt-pricebook-panel]');
+    root?.querySelectorAll?.('[data-mt-open-pricebook][data-mt-list-id]')?.forEach((button) => button.setAttribute('aria-pressed', String(state.pricebookOpen && button.dataset.mtListId === cleanText(state.pricebookListId))));
     if (!state.pricebookOpen || resourceType(state.activeList) !== 'material') {
       existing?.remove?.();
+      showPricebookDialog(null);
       return true;
     }
     const holder = document.createElement('div');
@@ -5050,17 +5073,36 @@
     const selectionStart = searchWasActive ? document.activeElement.selectionStart : null;
     const selectionEnd = searchWasActive ? document.activeElement.selectionEnd : null;
     holder.innerHTML = renderPricebookPanel();
-    const next = holder.firstElementChild;
+    let next = holder.firstElementChild;
     if (!next) return false;
-    if (existing) existing.replaceWith(next);
+    // The same kind of panel is refilled in place, so typing a search does not close and reopen the phone's modal.
+    if (existing?.tagName === next.tagName) { existing.replaceChildren(...next.childNodes); next = existing; }
+    else if (existing) existing.replaceWith(next);
     else root.querySelector('.mt-main')?.appendChild(next);
     bindMain(next);
+    showPricebookDialog(next);
     if (searchWasActive) {
       const search = next.querySelector('[data-mt-pricebook-search]');
       search?.focus?.();
       if (search?.setSelectionRange) search.setSelectionRange(selectionStart, selectionEnd);
     }
     return true;
+  }
+
+  // The phone's price book is a modal <dialog>, on the portal's modal stack so Esc closes it rather than the project
+  // window under it. Called with the panel on screen (or none), it forgets a dialog that has gone.
+  let pricebookModal = null;
+  function showPricebookDialog(panel){
+    if (pricebookModal && pricebookModal.el !== panel) { pricebookModal.unregister?.(); pricebookModal = null; }
+    if (!panel?.showModal || panel.open) return;
+    const close = () => {
+      if (!state.pricebookOpen || !panel.isConnected) return;
+      state.pricebookOpen = false;
+      syncPricebookPanel();
+    };
+    panel.addEventListener('close', close);
+    panel.showModal();
+    pricebookModal = rootWindow.Portal?.modals?.register?.(panel, { id:'materials-pricebook', closeOnEscape:true, onClose:close }) || null;
   }
 
   // Marks tiles whose item list is cut off, until it has been scrolled to its end.
@@ -5180,13 +5222,15 @@
 
   function renderPricebookPanel(){
     const suggestions = suggestedItems();
+    // A phone opens it as a full-screen modal (showPricebookDialog); wider screens float it over the lists.
+    const tag = phoneLayout() ? 'dialog' : 'div';
     return `
-      <div class="mt-pricebook-panel" data-mt-pricebook-panel>
+      <${tag} class="mt-pricebook-panel" data-mt-pricebook-panel aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_dd68cb64803c4d","Price Book") ?? "Price Book")}">
         <div class="mt-pricebook-head">
-          <strong><i class="fas fa-book"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_cf3630161575f6"," Price Book") ?? " Price Book")}${escapeHtml(` · ${cleanText(materialListById(state.pricebookListId)?.title) || 'Default'}`)}</strong>
-          <div class="mt-actions">
-            <button type="button" class="mt-icon-btn" data-mt-expand-pricebook title="${(globalThis.PlatformLanguage?.htmlText("materials","m_df1458500a02a8","Open full price book") ?? "Open full price book")}"><i class="fas fa-up-right-and-down-left-from-center"></i></button>
-            <button type="button" class="mt-icon-btn" data-mt-close-pricebook title="${(globalThis.PlatformLanguage?.htmlText("materials","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
+          <div class="mt-pricebook-title"><i class="fas fa-book" aria-hidden="true"></i><div><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_dd68cb64803c4d","Price Book") ?? "Price Book")}</strong><span>${escapeHtml(cleanText(materialListById(state.pricebookListId)?.title) || 'Default')}</span></div></div>
+          <div class="mt-pricebook-tools">
+            <button type="button" class="mt-icon-btn" data-mt-expand-pricebook title="${(globalThis.PlatformLanguage?.htmlText("materials","m_df1458500a02a8","Open full price book") ?? "Open full price book")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_df1458500a02a8","Open full price book") ?? "Open full price book")}"><i class="fas fa-up-right-and-down-left-from-center"></i></button>
+            <button type="button" class="mt-icon-btn" data-mt-close-pricebook title="${(globalThis.PlatformLanguage?.htmlText("materials","m_3742924668fb10","Close") ?? "Close")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
           </div>
         </div>
         <div class="mt-pricebook-body">
@@ -5200,7 +5244,7 @@
             `).join('') || `<div class="mt-empty">${(globalThis.PlatformLanguage?.htmlText("materials","m_d8588ab21f5ab1","No price book items") ?? "No price book items")}</div>`)}
             </div>
         </div>
-      </div>
+      </${tag}>
     `;
   }
 
@@ -5997,7 +6041,6 @@
       state.pricebookListId = listId;
       if (list && resourceType(list) === 'material') { state.activeListId = listId; state.activeList = list; }
       syncPricebookPanel();
-      materialRoot()?.querySelectorAll?.('[data-mt-open-pricebook][data-mt-list-id]')?.forEach((other) => other.setAttribute('aria-pressed', String(state.pricebookOpen && other.dataset.mtListId === listId)));
     }));
     root.querySelectorAll('[data-mt-pane-list]').forEach((pane) => {
       pane.addEventListener('dragover', (event) => {
@@ -6036,7 +6079,13 @@
       syncPricebookPanel();
     });
     root.querySelectorAll('[data-mt-add-pricebook]').forEach((button) => {
-      button.addEventListener('click', () => addItem(state.pricebookItems.find((item) => item.id === button.dataset.mtAddPricebook), '', state.pricebookListId));
+      // The button itself confirms the add (on a phone the list it went into is behind the price book).
+      button.addEventListener('click', () => addItem(state.pricebookItems.find((item) => item.id === button.dataset.mtAddPricebook), '', state.pricebookListId).then((added) => {
+        const icon = button.querySelector('i');
+        if (!added || !icon) return;
+        button.classList.add('is-added'); icon.className = 'fas fa-check';
+        setTimeout(() => { button.classList.remove('is-added'); icon.className = 'fas fa-plus'; }, 1200);
+      }));
     });
     root.querySelector('[data-mt-expand-pricebook]')?.addEventListener('click', (event) => {
       const pb = pricebook();
@@ -7259,6 +7308,7 @@
     if (!state.active || !state.panelRoot) return;
     renderLeft();
     if (!syncMaterialsGrid()) syncPhoneLists();
+    if (state.pricebookOpen) syncPricebookPanel();
   });
   // Taking work off a work order, or giving it back, builds that list again from its pay sheet without or with it.
   async function setWorkExcluded(listId, requirement, excluded){
@@ -8108,6 +8158,7 @@
     state.regeneratingLaborListId = '';
     state.flashingColor = 'black';
     state.pricebookOpen = false;
+    showPricebookDialog(null);
     state.pricebookSearch = '';
     state.colorMenu = null;
     state.search = '';
