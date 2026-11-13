@@ -66,7 +66,17 @@ test("the checklists setup asks the kind of company first, then adds the picked 
   assert.ok(punchTour.steps.every((step: any) => step.targets.length), "every step points at something, so it shows nothing without a punch list");
   assert.ok((punchTour.steps.find((step: any) => step.id === "portal_tab") as any).targets[0].includes("[data-fmcl-customer-shared=true]"), "it goes to the portal only when a list is shared with the customer");
 
-  // Finishing it adds the picked checklists to the project, once each.
+  // The project already started with its scope template's checklists; someone ticked an item on one of them.
+  const crew = await import("../workforce/crew_storage.js");
+  const template = { checklists: ["safety", "work", "completion"].map((id) => ({ id, title: `${id} checklist`, items: [{ title: `${id} item` }] })) };
+  await crew.initializeProjectChecklistsFromScope(ORG, PROJECT, template, "generic_roofing");
+  const started = await crew.listProjectChecklists(ORG, PROJECT);
+  assert.equal(started.length, 3);
+  const worked = started.find((entry) => entry.source_key === "scope:generic_roofing:completion")!;
+  await crew.patchProjectChecklistItem(ORG, PROJECT, worked.items[0]!.id, { completed: true }, "owner", true);
+
+  // Finishing it gives the project the picked checklists, once each, and takes off the untouched ones it started
+  // with (FM-448: two picked, five shown); the one someone worked on stays.
   const picked = useCases.filter((entry: any) => entry.id !== "work_completion");
   const selections = { checklist_use_cases: picked.map((entry: any) => entry.id), checklist_definitions: picked.map((entry: any) => ({ ...entry.checklist, use_case: entry.id })) };
   const done = await service.completeGuided(owner, "checklists.setup", { project_id: PROJECT, tab: "project.checklists", selections }) as any;
@@ -81,7 +91,32 @@ test("the checklists setup asks the kind of company first, then adds the picked 
   assert.equal(punch.items.length, 0, "an empty punch list is added");
   assert.equal(punch.customer_access.visible, true);
   assert.equal(punch.customer_access.can_complete, true);
+  assert.deepEqual(lists.map((entry) => entry.source_key).sort(), ["scope:generic_roofing:completion", "setup:crew_safety", "setup:punchlist"]);
+  assert.equal(done.result.removed.length, 2, "the untouched safety and work lists from the scope template are gone");
   await service.completeGuided(owner, "checklists.setup", { project_id: PROJECT, tab: "project.checklists", selections: { ...selections, checklist_use_cases: ["punchlist", "crew_safety"] } });
-  assert.equal((await listProjectChecklists(ORG, PROJECT)).length, 2, "playing it again adds nothing twice");
+  assert.equal((await listProjectChecklists(ORG, PROJECT)).length, 3, "playing it again adds nothing twice");
+
+  // The picks are the organization's starting checklists: a scope starting on a new project adds those, not its
+  // template's (the library's Manual scope has safety, work and completion lists).
+  const { readStartingChecklists } = await import("../workforce/checklists-setup.js");
+  assert.deepEqual((await readStartingChecklists(ORG))!.map((entry) => entry.source_key), ["setup:crew_safety", "setup:punchlist"]);
+  const { registerBuiltinWorkAutomations } = await import("../work/automations/builtins.js");
+  registerBuiltinWorkAutomations();
+  const { workAutomation } = await import("../work/registry.js");
+  const scopeStarts = workAutomation("checklists.initializeFromScope.v1")!;
+  const NEXT = "checklists_setup_next_project";
+  await storage.upsertDocument(ORG, "projects", { id: NEXT, data: { branch_id: "default", title: "Next project" }, metadata: { kind: "platform_project", branch_id: "default" } }, { replace: true });
+  const startContext = (projectId: string) => ({ event: { organization_id: ORG }, project: { id: projectId }, plan: { template_id: "manual", branch_id: "default" } }) as any;
+  await scopeStarts(startContext(NEXT), {});
+  const next = await listProjectChecklists(ORG, NEXT);
+  assert.deepEqual(next.map((entry) => entry.source_key), ["setup:crew_safety", "setup:punchlist"]);
+  assert.equal(next[0]!.signature_required, true);
+  await scopeStarts(startContext(NEXT), {});
+  assert.equal((await listProjectChecklists(ORG, NEXT)).length, 2, "a second scope on the project adds them once");
+
+  // Played again with fewer picks: the untouched list no longer picked goes, here and for new projects.
+  await service.completeGuided(owner, "checklists.setup", { project_id: NEXT, tab: "project.checklists", selections: { ...selections, checklist_use_cases: ["crew_safety"] } });
+  assert.deepEqual((await listProjectChecklists(ORG, NEXT)).map((entry) => entry.source_key), ["setup:crew_safety"]);
+  assert.deepEqual((await readStartingChecklists(ORG))!.map((entry) => entry.source_key), ["setup:crew_safety"]);
   await assert.rejects(() => service.completeGuided(owner, "checklists.setup", { project_id: PROJECT, selections: { checklist_use_cases: [], checklist_definitions: [] } }), /at least one/);
 });

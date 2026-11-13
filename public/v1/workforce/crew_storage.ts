@@ -645,6 +645,41 @@ export async function ensureProjectChecklists(
   }));
 }
 
+/**
+ * Removes the project's checklists that `remove` names and nobody has touched: the list was never changed, and no
+ * item was completed, changed, deleted, noted on or added after the list was made (its items came with it, within a
+ * minute). A list someone worked on stays. Used by the checklists setup to replace the lists a project started with.
+ */
+export async function removeUntouchedProjectChecklists(
+  orgId: string,
+  projectId: string,
+  remove: (checklist: ReturnType<typeof checklistView>) => boolean
+) {
+  return (await getWorkforceDatabase().transaction(async () => {
+  ensureCrewSchema();
+  const removed: string[] = [];
+  for (const checklist of (await activeChecklistRows(orgId, projectId)).map(checklistView)) {
+    if (!remove(checklist) || checklist.revision !== 1) continue;
+    const items = (await getWorkforceDatabase().prepare(`SELECT * FROM crew_checklist_items
+      WHERE organization_id=? AND project_id=? AND checklist_id=?`).all(orgId, projectId, checklist.id));
+    const madeWith = Date.parse(checklist.created_at) + 60_000;
+    const touched = items.some((row) => {
+      const item = checklistItemView(row);
+      return item.revision !== 1 || item.completed || item.note || cleanText(asObject(row).deleted_at)
+        || asArray(item.metadata.attachments).length || !(Date.parse(item.created_at) <= madeWith);
+    });
+    if (touched) continue;
+    (await getWorkforceDatabase().prepare("DELETE FROM crew_checklist_items WHERE organization_id=? AND project_id=? AND checklist_id=?")
+      .run(orgId, projectId, checklist.id));
+    (await getWorkforceDatabase().prepare("DELETE FROM crew_checklists WHERE id=? AND organization_id=? AND project_id=?")
+      .run(checklist.id, orgId, projectId));
+    removed.push(checklist.id);
+  }
+  return removed;
+
+  }));
+}
+
 export async function listProjectChecklists(
   orgId: string,
   projectId: string,
