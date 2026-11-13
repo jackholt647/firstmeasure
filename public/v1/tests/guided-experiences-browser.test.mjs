@@ -943,6 +943,25 @@ test('nested targets of a step light one area: the inner target is never dimmed 
   } finally { await browser.close(); }
 });
 
+// FM-452: fallback selectors of one step that find the same element (the delivery tour's job strip) light it once.
+// Two equal holes in the even-odd dim cancel out, so the element was dimmed under its own ring.
+test('two selectors that find the same element light it, not dim it again', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await panelPage(browser);
+    await page.evaluate(() => {
+      document.getElementById('field').innerHTML = '<div id="strip" class="strip" style="height:40px">Roof installation</div>';
+      FirstMateGuides.overlay.run([{ id: 'family', targets: ['#strip', '.strip'], placement: 'auto', title: { key: 'k', text: 'The job' }, body: { key: 'b', text: 'b' }, advance: 'next', wait_ms: 500 }], {});
+    });
+    await page.evaluate(() => { document.getElementById('panel').hidden = false; });
+    await tourStep(page, 'The job');
+    await page.waitForTimeout(600);
+    const hit = await page.evaluate(() => { const r = document.getElementById('strip').getBoundingClientRect(); return document.elementFromPoint(r.left + 20, r.top + r.height / 2)?.id === 'strip' ? 'lit' : 'dimmed'; });
+    assert.equal(hit, 'lit');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
 // FM-363: a widget that offers different buttons is described by one step with a case per state. The case on the page
 // decides the copy and the target, and the step keeps one dot whichever case shows.
 test('a step with cases says what the case on the page says, and is one dot', async () => {

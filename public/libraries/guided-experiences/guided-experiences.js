@@ -746,6 +746,8 @@
         // One hole per target, except a target inside another found target: the dim is drawn even-odd, so a hole
         // inside a hole would be dimmed again (the inner target dark, the rest of the outer one lit).
         const holesOf = (list) => list.filter((el) => !list.some((other) => other !== el && other.contains(el))).map(rectOf);
+        // Each element once: fallback selectors often find the same element, and two equal holes cancel out (FM-452).
+        const found = (selectors) => [...new Set(array(selectors).map(visible).filter(Boolean))];
         const draw = (list) => { path.setAttribute('d', `M0,0H${root.innerWidth}V${root.innerHeight}H0Z` + list.map(rr).join('')); };
         // The hole slides from the last target to the next one.
         const animateTo = (next) => {
@@ -803,7 +805,7 @@
           if (targets.some((el) => !el.isConnected || !el.getClientRects().length)) {
             if (now - lastSearch < 150) return;
             lastSearch = now;
-            const again = array(current.targets).map(visible).filter(Boolean);
+            const again = found(current.targets);
             clickTarget?.removeEventListener('click', onTargetClick, true); clickTarget = null;
             targets = again;
             if (current.advance === 'click' && targets[0]) { clickTarget = targets[0]; clickTarget.addEventListener('click', onTargetClick, true); }
@@ -847,7 +849,7 @@
             // A step with cases points at, and says, whichever case is on the page: the first one found.
             const cases = array(step.cases);
             const selectors = cases.length ? cases.flatMap((entry) => array(entry.targets)) : array(step.targets);
-            let found = [];
+            let lit = [];
             if (selectors.length) {
               const wait = !waitedForPage && direction > 0 ? Number(step.wait_ms ?? 1500) : 0;
               waitedForPage = true;
@@ -856,12 +858,12 @@
               if (!first) { options.onStep?.({ type: 'step_skip', step: step.id, missing: true }); continue; }
               const chosen = cases.find((entry) => array(entry.targets).some(visible));
               if (chosen) step = { ...step, ...(chosen.title ? { title: chosen.title } : {}), ...(chosen.body ? { body: chosen.body } : {}), targets: array(chosen.targets) };
-              found = array(step.targets).map(visible).filter(Boolean);
-              found.sort((a, b) => (a === first ? -1 : b === first ? 1 : 0));
+              lit = found(step.targets);
+              lit.sort((a, b) => (a === first ? -1 : b === first ? 1 : 0));
               first.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
             }
             if (mine !== move) return;
-            index = i; current = step; targets = found; shown += 1; trackedKey = '';
+            index = i; current = step; targets = lit; shown += 1; trackedKey = '';
             render(step);
             animateTo(holesOf(targets));
             requestAnimationFrame(place);
