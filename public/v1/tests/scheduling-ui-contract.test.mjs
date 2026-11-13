@@ -231,6 +231,20 @@ test('scheduling calendars expose a routed four-day view between day and week', 
   assert.match(appsManifestSource, /values:\['day','4day','week','month','appointment_schedule','gantt'\]/);
 });
 
+test('a phone opens the schedules on three days unless a view was chosen; Materials places deliveries in Month', () => {
+  // Project Schedule tab: a phone starts on 3 Day, wider screens on Month; a view in the link still wins.
+  assert.match(projectScheduleSource, /const schedulePhoneLayout = \(\) => window\.matchMedia\?\.\('\(max-width:720px\)'\)\.matches === true;\n  let scheduleViewMode = schedulePhoneLayout\(\) \? '4day' : 'month';/);
+  assert.match(projectScheduleSource, /const scheduleDefaultView = \(\) => \(schedulePhoneLayout\(\) && !materialScheduleModeActive \? '4day' : 'month'\);/);
+  assert.match(projectScheduleSource, /scheduleAnchorDate = new Date\(\);\n    scheduleViewMode = schedulePhoneLayout\(\) \? '4day' : 'month';/);
+  assert.match(projectScheduleSource, /scheduleViewMode = requestedAvailable\s*\? requestedView\s*: \(.*'gantt'\) : scheduleDefaultView\(\)\);/);
+  // Scheduling a delivery from Materials (the Ops tab) keeps Month, 30 days, on a phone too.
+  assert.match(projectScheduleSource, /function focusMaterialDeliveryFromMaterials\(payload = \{\}\)\{\n    if \(!scheduleIsWidget\(\) && schedulePhoneLayout\(\) && \['day','4day','week'\]\.includes\(scheduleViewMode\)\) scheduleViewMode = 'month';\n    return focusMaterialDelivery\(payload\);/);
+  assert.match(projectScheduleSource, /focusMaterialDelivery: focusMaterialDeliveryFromMaterials,/);
+  // Global Schedule: the link, then the view this person last used, then 3 Day on a phone (Week otherwise).
+  assert.match(schedulingSource, /let viewMode = 'week';/);
+  assert.match(schedulingSource, /const remembered = readSchedulePref\(SCHEDULE_VIEW_PREF_KEY\);\n\s*if \(scheduleViewAllowed\(remembered\)\) \{[\s\S]*?\} else if \(isMobileScheduleLayout\(\)\) \{\n[^\n]*\n\s*viewMode = '4day';/);
+});
+
 test('project scheduling mode uses branch-configurable Routing terminology', async () => {
   // The default label is a config library terminology entry, not scheduling code.
   const uiTerms = JSON.parse(await readSource('v1/config-library/snapshot/terminology_namespace/ui.json')).data.terms;
