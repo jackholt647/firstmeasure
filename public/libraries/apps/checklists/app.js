@@ -14,6 +14,32 @@
   const esc = (value) => runtime.escapeHtml ? runtime.escapeHtml(value) : clean(value).replace(/[&<>"']/g, '');
   const first = (...values) => values.find((value) => clean(value)) ?? '';
   const showToast = (title, message, ok = true) => Portal.ui?.showToast?.(title, message, ok);
+  // Haptics first (FM-449): the phone's tap fires before anything waits on the network, and is never waited on.
+  const haptic = () => { try { window.PhoneFeatures?.haptic?.()?.catch?.(() => {}); } catch (_) {} };
+  // A button whose answer has to come from the server shows it is working the moment it is tapped (FM-449).
+  const busy = (button) => {
+    if (!button) return () => {};
+    const icon = button.querySelector('i');
+    const iconClass = icon?.className;
+    const html = icon ? '' : button.innerHTML;
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    if (icon) icon.className = 'fas fa-circle-notch fa-spin';
+    else button.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
+    return () => {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      if (icon) icon.className = iconClass;
+      else button.innerHTML = html;
+    };
+  };
+  // A switch flips the moment it is tapped and says which way it now points; a failed save re-renders it back.
+  const flipSwitch = (button) => {
+    const on = !button.classList.contains('on');
+    button.classList.toggle('on', on);
+    button.setAttribute('aria-pressed', String(on));
+    return on;
+  };
   const statusError = (error, fallback) => clean(error?.data?.message || error?.message || fallback || 'Something went wrong.');
   const shortDate = (value) => {
     const date = new Date(clean(value));
@@ -163,6 +189,10 @@
     .fmcl-item.done .fmcl-check{background:#12b76a;border-color:#12b76a}
     .fmcl-check i{opacity:0;transform:scale(.4);transition:opacity .15s,transform .22s cubic-bezier(.34,1.56,.64,1)}
     .fmcl-item.done .fmcl-check i{opacity:1;transform:scale(1)}
+    .fmcl-item.done .fmcl-check.fmcl-pop{animation:fmcl-check-pop .34s cubic-bezier(.34,1.56,.64,1)}
+    @keyframes fmcl-check-pop{0%{transform:scale(.8)}55%{transform:scale(1.2)}100%{transform:scale(1)}}
+    .fmcl-item.removing,.fmcl-card.removing{opacity:0;transform:scale(.97);pointer-events:none;transition:opacity .18s,transform .18s}
+    .fmcl-item.pending{opacity:.6}
     .fmcl-item-copy{min-width:0;flex:1}
     .fmcl-item-copy strong{display:block;font-size:10px;font-weight:950;line-height:1.2}
     .fmcl-item-title{display:flex;align-items:center;gap:3px}.fmcl-title-edit-trigger{width:18px;height:18px;border:0;background:transparent;color:#98a2b3;display:grid;place-items:center;cursor:pointer;opacity:0;font-size:9px;transition:opacity .15s,color .15s}.fmcl-item:hover .fmcl-title-edit-trigger,.fmcl-title-edit-trigger:focus{opacity:1}.fmcl-title-edit-trigger:hover{color:#344054}
@@ -299,6 +329,64 @@
       render();
     };
 
+    // Checking or rating an item shows at once (FM-449): the row is repainted in place, so the check animates, and the
+    // save runs behind it. Saves of one item go out in order; a failed one puts the row back as it was and says why.
+    const itemSaves = {};
+    const findItem = (checklistId, itemId) => {
+      const list = checklists().find((entry) => entry.id === checklistId);
+      const index = arr(list?.items).findIndex((entry) => entry.id === itemId);
+      return { list, index, item:index >= 0 ? list.items[index] : null };
+    };
+    const paintItem = (checklistId, itemId, pop = false) => {
+      const { list, item } = findItem(checklistId, itemId);
+      const row = [...root.querySelectorAll('[data-fmcl-item]')].find((node) => node.dataset.fmclItem === `${checklistId}::${itemId}`);
+      if (!item || !row) return;
+      row.classList.toggle('done', !!item.completed);
+      row.classList.toggle('bad', item.item_type === 'rating' && item.rating === 'bad');
+      row.querySelectorAll('[data-fmcl-rate]').forEach((button) => button.classList.toggle('on', item.rating === button.dataset.fmclRate));
+      const copy = row.querySelector('.fmcl-item-copy');
+      let subtitle = copy?.querySelector(':scope > span');
+      const text = itemSubtitle(item);
+      if (text && !subtitle && copy) subtitle = copy.appendChild(document.createElement('span'));
+      if (subtitle) { if (text) subtitle.textContent = text; else subtitle.remove(); }
+      const check = row.querySelector('[data-fmcl-toggle]');
+      if (check && pop) { check.classList.remove('fmcl-pop'); void check.offsetWidth; check.classList.add('fmcl-pop'); }
+      const count = row.closest('[data-fmcl-list]')?.querySelector('.fmcl-count');
+      if (count) count.textContent = `${arr(list.items).filter((entry) => entry.completed).length}/${arr(list.items).length}`;
+    };
+    const saveItemNow = (checklistId, itemId, patch) => {
+      const { list, index, item:before } = findItem(checklistId, itemId);
+      if (!before) return;
+      const next = { ...before, ...patch };
+      if (next.item_type === 'rating') next.completed = !!clean(next.rating);
+      if (next.completed && !before.completed) Object.assign(next, { completed_by_user_id:userId(context), completed_by_name:clean(first(Portal.currentUser?.name, 'You')), completed_at:new Date().toISOString() });
+      if (!next.completed) Object.assign(next, { completed_by_user_id:'', completed_by_name:'', completed_at:'' });
+      list.items[index] = next;
+      paintItem(checklistId, itemId, next.completed && !before.completed);
+      const prior = itemSaves[itemId];
+      const save = itemSaves[itemId] = { previous:before };
+      save.done = (prior?.done || Promise.resolve()).catch(() => {})
+        .then(() => window.CrewAPI.projects.updateItemInChecklist(orgId(context), projectId(context), checklistId, itemId, patch));
+      save.done.then((result) => {
+        if (itemSaves[itemId] !== save || destroyed) return;
+        delete itemSaves[itemId];
+        const current = findItem(checklistId, itemId);
+        if (!current.item) return;
+        const updated = { ...obj(result?.item) };
+        if (!clean(updated.id)) return;
+        updated.completed_by_name = updated.completed_by_user_id && updated.completed_by_user_id === current.item.completed_by_user_id ? current.item.completed_by_name : '';
+        current.list.items[current.index] = updated;
+        paintItem(checklistId, itemId);
+      }, (error) => {
+        if (itemSaves[itemId] !== save || destroyed) return;
+        delete itemSaves[itemId];
+        const current = findItem(checklistId, itemId);
+        if (current.item) current.list.items[current.index] = save.previous;
+        paintItem(checklistId, itemId);
+        showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false);
+      });
+    };
+
     const itemHtml = (checklist, item) => {
       const rating = item.item_type === 'rating';
       const drawer = state(item.id);
@@ -364,7 +452,7 @@
     };
     const sendToCrew = async (checklist, button) => {
       const workforce = window.PlatformAPI?.workforce;
-      if (button) button.disabled = true;
+      const done = busy(button);
       let subjects = [];
       try {
         subjects = records(await (workforce?.assignableResources?.(orgId(context), 'default', {}) || Promise.resolve({})), 'subjects', 'resources')
@@ -372,7 +460,7 @@
       } catch (error) {
         showToast((globalThis.PlatformLanguage?.text("checklists","m_6baf833ff896ca","Send to crew app") ?? "Send to crew app"), statusError(error, 'Could not load who to send it to.'), false);
         return;
-      } finally { if (button) button.disabled = false; }
+      } finally { done(); }
       // Groups first, then people; whoever it is already assigned to leads.
       const assigned = new Set([...arr(checklist.assigned_resource_group_ids).map((id) => `resource_group:${id}`), ...arr(checklist.assigned_user_ids).map((id) => `organization_user:${id}`)]);
       const choices = subjects
@@ -420,7 +508,7 @@
     // The document button: writes the checklist out as a document (it is then in the Documents tab), and offers to
     // email it with the documents' own send dialog, download its PDF or print it.
     const checklistDocument = async (checklist, button) => {
-      if (button) button.disabled = true;
+      const done = busy(button);
       let documentRecord = null;
       try {
         documentRecord = obj((await window.CrewAPI.projects.checklistDocument(orgId(context), projectId(context), checklist.id))?.document);
@@ -428,7 +516,7 @@
       } catch (error) {
         showToast((globalThis.PlatformLanguage?.text("checklists","m_bbb5f3d70ddd66","Checklist document") ?? "Checklist document"), statusError(error), false);
         return;
-      } finally { if (button) button.disabled = false; }
+      } finally { done(); }
       if (!clean(documentRecord.id)) return;
       const pdfUrl = window.DocumentsAPI?.documents?.pdfUrl?.(orgId(context), documentRecord.id)
         || `${location.origin}/v1/documents/organizations/${encodeURIComponent(orgId(context))}/documents/${encodeURIComponent(documentRecord.id)}/pdf`;
@@ -519,7 +607,7 @@
             <span class="fmcl-menu-wrap"><button class="fmcl-config-btn ${String(assignmentUi.open ? 'open' : '')}" type="button" data-fmcl-assign><i class="fas fa-user-group"></i>${((v16) => globalThis.PlatformLanguage?.htmlText("checklists","m_467cf3556084e7",` Completes: ${v16} `,{v16}) ?? ` Completes: ${v16} `)(esc(assignmentLabel))}<i class="fas fa-chevron-down"></i></button><div class="fmcl-assignment ${String(assignmentUi.open ? 'open' : '')}" data-fmcl-assignment>
               <div class="fmcl-assignment-top"><div class="fmcl-field-editing"><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_b983a2145eb15f","Allow field editing") ?? "Allow field editing")}</span><button class="fmcl-switch ${String(checklist.crew_editable ? 'on' : '')}" type="button" data-fmcl-editable-v2 aria-pressed="${String(!!checklist.crew_editable)}"></button></div><div class="fmcl-field-editing" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_ef449324af3761","Whoever completes this checklist signs it once every item is done, in the crew app. Printed copies get a signature line.") ?? "Whoever completes this checklist signs it once every item is done, in the crew app. Printed copies get a signature line.")}"><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_bd11b7eff758d3","Require signature") ?? "Require signature")}</span><button class="fmcl-switch ${String(checklist.signature_required ? 'on' : '')}" type="button" data-fmcl-signature-required aria-pressed="${String(!!checklist.signature_required)}"></button></div></div>
               <div class="fmcl-assignment-stack">
-                <div class="fmcl-assignment-field"><span class="fmcl-compact-label">${(globalThis.PlatformLanguage?.htmlText("checklists","m_a3b601c625c54a","Eligible type") ?? "Eligible type")}</span><div class="fmcl-eligibility">${String(eligibilityChips || `<span class="fmcl-type-chip">${(globalThis.PlatformLanguage?.htmlText("checklists","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</span>`)}${String(eligibility.customRules.length ? `<span class="fmcl-type-chip" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_ef04a14ddff020","Additional filters are inherited from the scope definition.") ?? "Additional filters are inherited from the scope definition.")}">${(globalThis.PlatformLanguage?.htmlText("checklists","m_14b5d0674601b3","Scope filters") ?? "Scope filters")}</span>` : '')}<div class="fmcl-expand-picker ${String(assignmentUi.eligibilityPickerOpen ? 'open' : '')}" data-fmcl-picker="eligibility"><button class="fmcl-expand-trigger" type="button" data-fmcl-picker-toggle="eligibility" aria-expanded="${String(assignmentUi.eligibilityPickerOpen)}"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_7ce48edf7d0424","Add eligible type") ?? "Add eligible type")}</span></button><div class="fmcl-picker-options">${String(assignmentUi.loading ? `<span class="fmcl-picker-empty">${(globalThis.PlatformLanguage?.htmlText("checklists","m_60869a53c82d79","Loading types…") ?? "Loading types…")}</span>` : `<button type="button" data-fmcl-eligibility-option="everyone">${(globalThis.PlatformLanguage?.htmlText("checklists","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</button>${eligibilityOptions.map((option) => `<button type="button" data-fmcl-eligibility-option="${esc(option.token)}">${esc(option.label)}</button>`).join('')}`)}</div></div></div></div>
+                <div class="fmcl-assignment-field"><span class="fmcl-compact-label">${(globalThis.PlatformLanguage?.htmlText("checklists","m_a3b601c625c54a","Eligible type") ?? "Eligible type")}</span><div class="fmcl-eligibility">${String(eligibilityChips || `<span class="fmcl-type-chip" data-fmcl-everyone>${(globalThis.PlatformLanguage?.htmlText("checklists","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</span>`)}${String(eligibility.customRules.length ? `<span class="fmcl-type-chip" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_ef04a14ddff020","Additional filters are inherited from the scope definition.") ?? "Additional filters are inherited from the scope definition.")}">${(globalThis.PlatformLanguage?.htmlText("checklists","m_14b5d0674601b3","Scope filters") ?? "Scope filters")}</span>` : '')}<div class="fmcl-expand-picker ${String(assignmentUi.eligibilityPickerOpen ? 'open' : '')}" data-fmcl-picker="eligibility"><button class="fmcl-expand-trigger" type="button" data-fmcl-picker-toggle="eligibility" aria-expanded="${String(assignmentUi.eligibilityPickerOpen)}"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_7ce48edf7d0424","Add eligible type") ?? "Add eligible type")}</span></button><div class="fmcl-picker-options">${String(assignmentUi.loading ? `<span class="fmcl-picker-empty">${(globalThis.PlatformLanguage?.htmlText("checklists","m_60869a53c82d79","Loading types…") ?? "Loading types…")}</span>` : `<button type="button" data-fmcl-eligibility-option="everyone">${(globalThis.PlatformLanguage?.htmlText("checklists","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</button>${eligibilityOptions.map((option) => `<button type="button" data-fmcl-eligibility-option="${esc(option.token)}">${esc(option.label)}</button>`).join('')}`)}</div></div></div></div>
                 <div class="fmcl-assignment-field"><span class="fmcl-compact-label">${(globalThis.PlatformLanguage?.htmlText("checklists","m_6167d42c586703","Assign person") ?? "Assign person")}</span><div class="fmcl-eligibility">${String(assigneeChips || '')}<div class="fmcl-expand-picker ${String(assignmentUi.personPickerOpen ? 'open' : '')}" data-fmcl-picker="person"><button class="fmcl-expand-trigger" type="button" data-fmcl-picker-toggle="person" aria-expanded="${String(assignmentUi.personPickerOpen)}"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_6167d42c586703","Assign person") ?? "Assign person")}</span></button><div class="fmcl-picker-options">${String(assignmentUi.loading ? `<span class="fmcl-picker-empty">${(globalThis.PlatformLanguage?.htmlText("checklists","m_e35d44ebe92c7e","Loading people…") ?? "Loading people…")}</span>` : subjectChoices.length ? subjectChoices.map((subject) => `<button type="button" data-fmcl-person-option="${esc(subject.value)}">${esc(subject.label)}</button>`).join('') : `<span class="fmcl-picker-empty">${(globalThis.PlatformLanguage?.htmlText("checklists","m_0559904744409b","No eligible people found") ?? "No eligible people found")}</span>`)}</div></div></div></div>
               </div>
               ${String(assignmentUi.error ? `<div class="fmcl-drawer-hint">${esc(assignmentUi.error)}</div>` : '')}
@@ -563,6 +651,11 @@
       const effectiveView = deletedView ? 'deleted' : selectedChecklist ? selectedChecklist.id : 'all';
       const visibleLists = deletedView ? deletedLists : lists;
       const scrollTop = root.querySelector('.fmcl-content')?.scrollTop || 0;
+      // What is being typed into a list's "Add an item" box survives a re-render (one lands while an add saves).
+      const newItemDrafts = [...root.querySelectorAll('[data-fmcl-list]')]
+        .map((section) => [section.dataset.fmclList, section.querySelector('[data-fmcl-new-item]')])
+        .filter(([, input]) => input && (input.value || input === document.activeElement))
+        .map(([id, input]) => ({ id, value:input.value, focused:input === document.activeElement }));
       root.innerHTML = `<div class="fmcl-shell"><div class="fmcl-page">
         <header class="fmcl-head"><div class="fmcl-head-title"><i class="fas fa-list-check"></i><strong>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("checklists","m_4d94794c7ce022",`${v0} checklist${v1}`,{v0,v1}) ?? `${v0} checklist${v1}`)(lists.length,lists.length === 1 ? '' : 's')}</strong></div><div class="fmcl-head-actions">${data?.department_context?.show_selector ? `<select class="fmcl-btn" aria-label="${esc(data.department_context.department_label || 'Department')}" data-fmcl-department><option value="">${esc('All available ' + (data.department_context.departments_label || 'departments'))}</option>${arr(data.department_context.departments).map(d => `<option value="${esc(d.id)}" ${d.id === departmentId ? 'selected' : ''}>${esc(d.label)}</option>`).join('')}</select>` : ''}<button class="fmcl-btn primary new-checklist" type="button" data-fmcl-new-toggle title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_00fcd79c65b45e"," New checklist") ?? " New checklist").trim()}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_00fcd79c65b45e"," New checklist") ?? " New checklist").trim()}"><i class="fas fa-plus" aria-hidden="true"></i></button><button class="fmcl-btn new-audio" type="button" data-fmcl-new-audio title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_cf14f596affe83","New from Audio") ?? "New from Audio")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_cf14f596affe83","New from Audio") ?? "New from Audio")}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span></button></div></header>
         <nav class="fmcl-tabs" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_93a4e0ee487531","Checklist views") ?? "Checklist views")}"><button class="fmcl-tab ${String(effectiveView === 'all' ? 'active' : '')}" type="button" data-fmcl-view="all"><i class="fas fa-border-all"></i><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_d47c4b894a4794","All checklists") ?? "All checklists")}</span></button>${String(lists.map((checklist) => `<button class="fmcl-tab ${effectiveView === checklist.id ? 'active' : ''}" type="button" data-fmcl-view="${esc(checklist.id)}" title="${esc(checklist.title)}"><i class="fas fa-list-check"></i><span>${esc(checklist.title)}</span></button>`).join(''))}<button class="fmcl-tab ${String(effectiveView === 'deleted' ? 'active' : '')}" type="button" data-fmcl-view="deleted"><i class="fas fa-trash-can"></i><span>${((v5) => globalThis.PlatformLanguage?.htmlText("checklists","m_97f3e87e187ab6",`Deleted${v5}`,{v5}) ?? `Deleted${v5}`)(deletedLists.length ? ` (${deletedLists.length})` : '')}</span></button></nav>
@@ -572,6 +665,12 @@
       </div></div>`;
       layoutChecklistGrid();
       bind();
+      newItemDrafts.forEach((draft) => {
+        const input = [...root.querySelectorAll('[data-fmcl-list]')].find((section) => section.dataset.fmclList === draft.id)?.querySelector('[data-fmcl-new-item]');
+        if (!input) return;
+        input.value = draft.value;
+        if (draft.focused) input.focus({ preventScroll:true });
+      });
       const content = root.querySelector('.fmcl-content');
       if (content) content.scrollTop = scrollNewChecklistToTop ? 0 : scrollTop;
       scrollNewChecklistToTop = false;
@@ -615,7 +714,8 @@
       }
     };
 
-    const createBlankChecklist = async (startVoice = false) => {
+    const createBlankChecklist = async (startVoice = false, button = null) => {
+      const done = busy(button);
       try {
         const result = await window.CrewAPI.projects.createChecklist(orgId(context), projectId(context), {
           title:(globalThis.PlatformLanguage?.text("checklists","m_fe7779543e8858","Untitled checklist") ?? "Untitled checklist"),
@@ -642,7 +742,7 @@
           const mount = section.querySelector('[data-fmcl-empty-voice-mount]');
           if (mount) void runVoice(mount, checklist);
         }
-      } catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); }
+      } catch (error) { done(); showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); }
     };
 
     const fetchAssignmentOptions = async (ui, policyValue, force = false) => {
@@ -670,8 +770,8 @@
     };
 
     const bind = () => {
-      root.querySelector('[data-fmcl-new-toggle]')?.addEventListener('click', () => void createBlankChecklist(false));
-      root.querySelector('[data-fmcl-new-audio]')?.addEventListener('click', () => void createBlankChecklist(true));
+      root.querySelector('[data-fmcl-new-toggle]')?.addEventListener('click', (event) => void createBlankChecklist(false, event.currentTarget));
+      root.querySelector('[data-fmcl-new-audio]')?.addEventListener('click', (event) => void createBlankChecklist(true, event.currentTarget));
       root.querySelector('[data-fmcl-department]')?.addEventListener('change', event => { departmentId = event.target.value; activeView = 'all'; render(); });
       root.querySelectorAll('[data-fmcl-view]').forEach((button) => button.addEventListener('click', () => {
         const next = clean(button.dataset.fmclView) || 'all';
@@ -725,13 +825,15 @@
         });
         section.querySelector('[data-fmcl-send-crew]')?.addEventListener('click', (event) => { event.stopPropagation(); void sendToCrew(checklist, event.currentTarget); });
         section.querySelector('[data-fmcl-document]')?.addEventListener('click', (event) => { event.stopPropagation(); void checklistDocument(checklist, event.currentTarget); });
-        section.querySelector('[data-fmcl-signature-required]')?.addEventListener('click', async () => {
-          try { await window.CrewAPI.projects.updateChecklist(orgId(context), projectId(context), checklistId, { signature_required: !checklist.signature_required }); await load(); }
-          catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); }
+        section.querySelector('[data-fmcl-signature-required]')?.addEventListener('click', async (event) => {
+          const on = flipSwitch(event.currentTarget);
+          try { await window.CrewAPI.projects.updateChecklist(orgId(context), projectId(context), checklistId, { signature_required: on }); await load(); }
+          catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); render(); }
         });
-        section.querySelector('[data-fmcl-editable-v2]')?.addEventListener('click', async () => {
-          try { await window.CrewAPI.projects.updateChecklist(orgId(context), projectId(context), checklistId, { crew_editable: !checklist.crew_editable }); await load(); }
-          catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); }
+        section.querySelector('[data-fmcl-editable-v2]')?.addEventListener('click', async (event) => {
+          const on = flipSwitch(event.currentTarget);
+          try { await window.CrewAPI.projects.updateChecklist(orgId(context), projectId(context), checklistId, { crew_editable: on }); await load(); }
+          catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); render(); }
         });
         section.querySelector('[data-fmcl-assign]')?.addEventListener('click', async () => {
           const ui = assignment(checklistId);
@@ -761,9 +863,19 @@
           try {
             await window.CrewAPI.projects.updateChecklist(orgId(context), projectId(context), checklistId, { customer_access:customerAccess });
             await load();
-          } catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_9b4db3060b8d82","Customer checklist") ?? "Customer checklist"), statusError(error), false); }
+          } catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_9b4db3060b8d82","Customer checklist") ?? "Customer checklist"), statusError(error), false); render(); }
         };
-        section.querySelectorAll('[data-fmcl-customer-level]').forEach((button) => button.addEventListener('click', () => void updateCustomerAccess(button.dataset.fmclCustomerLevel)));
+        section.querySelectorAll('[data-fmcl-customer-level]').forEach((button) => button.addEventListener('click', () => {
+          const level = button.dataset.fmclCustomerLevel;
+          section.querySelectorAll('[data-fmcl-customer-level]').forEach((candidate) => candidate.classList.toggle('on', candidate === button));
+          const trigger = section.querySelector('[data-fmcl-customer]');
+          const label = level === 'private' ? 'No customer access' : `Customer can: ${level === 'view' ? 'View' : level === 'complete' ? 'Complete' : 'Edit'}`;
+          if (trigger) {
+            trigger.classList.toggle('on', level !== 'private');
+            trigger.innerHTML = `<i class="fas fa-user-shield"></i> ${esc(label)} <i class="fas fa-chevron-down"></i>`;
+          }
+          void updateCustomerAccess(level);
+        }));
         section.querySelector('[data-fmcl-customer-remove]')?.addEventListener('click', () => void updateCustomerAccess('private'));
         const updateEligibility = async (tokens) => {
           const current = assignmentEligibility(checklist.assignment_policy, checklist.assigned_role_ids);
@@ -784,7 +896,14 @@
             ui.subjects = [];
             await fetchAssignmentOptions(ui, policy, true);
             await load();
-          } catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_acc392633ac82a","Checklist assignment") ?? "Checklist assignment"), statusError(error), false); }
+          } catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_acc392633ac82a","Checklist assignment") ?? "Checklist assignment"), statusError(error), false); render(); }
+        };
+        // A pick shows as a chip at once, before the save and the reload behind it.
+        const pendingChip = (picker, className, label) => {
+          const chip = document.createElement('span');
+          chip.className = `${className} pending`;
+          chip.textContent = label;
+          picker?.before(chip);
         };
         section.querySelectorAll('[data-fmcl-picker-toggle]').forEach((button) => button.addEventListener('click', () => {
           const kind = button.dataset.fmclPickerToggle;
@@ -802,11 +921,15 @@
           const value = clean(button.dataset.fmclEligibilityOption);
           if (!value) return;
           assignment(checklistId).eligibilityPickerOpen = false;
-          button.closest('[data-fmcl-picker]')?.classList.remove('open');
+          const picker = button.closest('[data-fmcl-picker]');
+          picker?.classList.remove('open');
+          picker?.parentElement?.querySelectorAll(value === 'everyone' ? '.fmcl-type-chip' : '[data-fmcl-everyone]').forEach((chip) => chip.remove());
+          pendingChip(picker, 'fmcl-type-chip', button.textContent);
           const current = assignmentEligibility(checklist.assignment_policy, checklist.assigned_role_ids);
           void updateEligibility(value === 'everyone' ? [] : [...new Set([...current.tokens, value])]);
         }));
         section.querySelectorAll('[data-fmcl-eligibility-remove]').forEach((button) => button.addEventListener('click', () => {
+          button.closest('.fmcl-type-chip')?.remove();
           const current = assignmentEligibility(checklist.assignment_policy, checklist.assigned_role_ids);
           void updateEligibility(current.tokens.filter((token) => token !== button.dataset.fmclEligibilityRemove));
         }));
@@ -814,7 +937,9 @@
           const value = clean(button.dataset.fmclPersonOption);
           if (!value) return;
           assignment(checklistId).personPickerOpen = false;
-          button.closest('[data-fmcl-picker]')?.classList.remove('open');
+          const picker = button.closest('[data-fmcl-picker]');
+          picker?.classList.remove('open');
+          pendingChip(picker, 'fmcl-assignee', button.textContent);
           const separator = value.indexOf(':');
           const type = value.slice(0, separator);
           const id = value.slice(separator + 1);
@@ -825,9 +950,10 @@
           try {
             await window.CrewAPI.projects.updateChecklist(orgId(context), projectId(context), checklistId, patch);
             await load();
-          } catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_acc392633ac82a","Checklist assignment") ?? "Checklist assignment"), statusError(error), false); }
+          } catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_acc392633ac82a","Checklist assignment") ?? "Checklist assignment"), statusError(error), false); render(); }
         }));
         section.querySelectorAll('[data-fmcl-unassign]').forEach((button) => button.addEventListener('click', async () => {
+          button.remove();
           const value = clean(button.dataset.fmclUnassign);
           const separator = value.indexOf(':');
           const type = value.slice(0, separator);
@@ -844,7 +970,7 @@
           try {
             await window.CrewAPI.projects.updateChecklist(orgId(context), projectId(context), checklistId, patch);
             await load();
-          } catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_acc392633ac82a","Checklist assignment") ?? "Checklist assignment"), statusError(error), false); }
+          } catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_acc392633ac82a","Checklist assignment") ?? "Checklist assignment"), statusError(error), false); render(); }
         }));
         section.querySelector('[data-fmcl-voice-update]')?.addEventListener('click', () => {
           const mount = section.querySelector('[data-fmcl-voice-mount]');
@@ -857,6 +983,7 @@
         section.querySelector('[data-fmcl-cl-delete]')?.addEventListener('click', async () => {
           const approved = await (Portal.ui?.confirm?.(((v0) => globalThis.PlatformLanguage?.text("checklists","m_a06b02f7ca731a",`Delete "${v0}" and its items?`,{v0}) ?? `Delete "${v0}" and its items?`)(checklist.title)) || Promise.resolve(window.confirm(((v0) => globalThis.PlatformLanguage?.text("checklists","m_a06b02f7ca731a",`Delete "${v0}" and its items?`,{v0}) ?? `Delete "${v0}" and its items?`)(checklist.title))));
           if (!approved) return;
+          section.classList.add('removing');
           try {
             await window.CrewAPI.projects.removeChecklist(orgId(context), projectId(context), checklistId);
             if (activeView === checklistId) {
@@ -865,20 +992,28 @@
             }
             await load();
           }
-          catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); }
+          catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); render(); }
         });
-        section.querySelector('[data-fmcl-add-item]')?.addEventListener('click', async (event) => {
+        // A new item shows in the list at once, and the box is ready for the next one, while it saves.
+        section.querySelector('[data-fmcl-add-item]')?.addEventListener('click', async () => {
           const input = section.querySelector('[data-fmcl-new-item]');
           const title = clean(input?.value);
           if (!title) return;
-          event.currentTarget.disabled = true;
+          const itemType = section.querySelector('[data-fmcl-new-item-type].on')?.dataset.fmclNewItemType || 'todo';
+          input.value = '';
+          const pending = document.createElement('div');
+          pending.className = `fmcl-item pending${itemType === 'rating' ? '' : ' is-todo'}`;
+          pending.innerHTML = `<div class="fmcl-item-main">${itemType === 'rating' ? '' : '<span class="fmcl-check"></span>'}<div class="fmcl-item-copy"><div class="fmcl-item-title"><strong>${esc(title)}</strong></div></div></div>`;
+          section.querySelector('.fmcl-items')?.append(pending);
           try {
-            await window.CrewAPI.projects.addItemToChecklist(orgId(context), projectId(context), checklistId, {
-              title,
-              item_type: section.querySelector('[data-fmcl-new-item-type].on')?.dataset.fmclNewItemType || 'todo'
-            });
+            await window.CrewAPI.projects.addItemToChecklist(orgId(context), projectId(context), checklistId, { title, item_type:itemType });
             await load();
-          } catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); event.currentTarget.disabled = false; }
+          } catch (error) {
+            pending.remove();
+            const box = root.querySelector(`[data-fmcl-list="${checklistId}"] [data-fmcl-new-item]`);
+            if (box && !clean(box.value)) box.value = title;
+            showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false);
+          }
         });
         section.querySelector('[data-fmcl-new-item]')?.addEventListener('keydown', (event) => {
           if (event.key === 'Enter') section.querySelector('[data-fmcl-add-item]')?.click();
@@ -905,7 +1040,7 @@
             || arr(entry.allowed_kinds).some((kind) => ['photo','video'].includes(clean(kind)));
           const saveRequirements = async (next) => {
             try { await patchItem(checklistId, itemId, { metadata:{ ...itemMetadata, required_attachments:next } }); }
-            catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_63be2d7b4a99b1","Checklist evidence") ?? "Checklist evidence"), statusError(error), false); }
+            catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_63be2d7b4a99b1","Checklist evidence") ?? "Checklist evidence"), statusError(error), false); render(); }
           };
           row.querySelector('[data-fmcl-evidence-open]')?.addEventListener('click', () => {
             drawer.evidenceOpen = !drawer.evidenceOpen;
@@ -918,7 +1053,7 @@
           row.querySelectorAll('[data-fmcl-requirement-toggle]').forEach((button) => button.addEventListener('click', () => {
             const kind = button.dataset.fmclRequirementToggle;
             const matches = (entry) => kind === 'media' ? isMediaRequirement(entry) : clean(entry.kind) === kind;
-            const alreadyRequired = itemRequirements.some(matches);
+            const alreadyRequired = !flipSwitch(button);
             const remaining = itemRequirements.filter((entry) => !matches(entry));
             if (alreadyRequired) return void saveRequirements(remaining);
             const requirement = kind === 'media'
@@ -1013,20 +1148,17 @@
             input.accept = kind === 'photo' ? 'image/*' : kind === 'video' ? 'video/*' : kind === 'audio' ? 'audio/*' : kind === 'document' ? '.pdf,.doc,.docx,.xls,.xlsx,.txt' : 'image/*,video/*,audio/*,.pdf,.doc,.docx';
             input.click();
           }));
-          row.querySelector('[data-fmcl-toggle]')?.addEventListener('click', async (event) => {
-            event.currentTarget.disabled = true;
-            try { await patchItem(checklistId, itemId, { completed: !item.completed }); }
-            catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); render(); }
-          });
-          row.querySelectorAll('[data-fmcl-rate]').forEach((button) => button.addEventListener('click', async () => {
+          // The row is repainted without a render, so read the item as it is now, not as it was when this was bound.
+          const currentItem = () => findItem(checklistId, itemId).item || item;
+          row.querySelector('[data-fmcl-toggle]')?.addEventListener('click', () => saveItemNow(checklistId, itemId, { completed: !currentItem().completed }));
+          row.querySelectorAll('[data-fmcl-rate]').forEach((button) => button.addEventListener('click', () => {
             const value = button.dataset.fmclRate;
-            try {
-              if (item.rating === value) { await patchItem(checklistId, itemId, { rating: '' }); return; }
-              if (value === 'bad' && !clean(drawer.draft ?? item.note)) {
-                drawer.open = true; drawer.pendingRating = 'bad'; drawer.hint = false; drawer.focus = true; render(); return;
-              }
-              await patchItem(checklistId, itemId, { rating: value });
-            } catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); }
+            const current = currentItem();
+            if (current.rating === value) return saveItemNow(checklistId, itemId, { rating: '' });
+            if (value === 'bad' && !clean(drawer.draft ?? current.note)) {
+              drawer.open = true; drawer.pendingRating = 'bad'; drawer.hint = false; drawer.focus = true; render(); return;
+            }
+            saveItemNow(checklistId, itemId, { rating: value });
           }));
           row.querySelectorAll('[data-fmcl-note-open]').forEach((button) => button.addEventListener('click', () => {
             drawer.open = !drawer.open; drawer.pendingRating = ''; drawer.hint = false; drawer.preview = false; drawer.focus = drawer.open; render();
@@ -1047,8 +1179,14 @@
             const title = clean(drawer.titleDraft);
             if (!title) return showToast((globalThis.PlatformLanguage?.text("checklists","m_acae62bc1e44fc","Checklist item") ?? "Checklist item"), (globalThis.PlatformLanguage?.text("checklists","m_ce722f06631579","Enter an item title.") ?? "Enter an item title."), false);
             drawer.editingTitle = false;
+            const { list, index, item:previous } = findItem(checklistId, itemId);
+            if (previous) { list.items[index] = { ...previous, title }; render(); }
             try { await patchItem(checklistId, itemId, { title }); }
-            catch (error) { drawer.editingTitle = true; showToast((globalThis.PlatformLanguage?.text("checklists","m_acae62bc1e44fc","Checklist item") ?? "Checklist item"), statusError(error), false); render(); }
+            catch (error) {
+              const current = findItem(checklistId, itemId);
+              if (previous && current.item) current.list.items[current.index] = previous;
+              drawer.editingTitle = true; showToast((globalThis.PlatformLanguage?.text("checklists","m_acae62bc1e44fc","Checklist item") ?? "Checklist item"), statusError(error), false); render();
+            }
           });
           row.querySelector('[data-fmcl-title-cancel]')?.addEventListener('click', () => {
             drawer.editingTitle = false;
@@ -1079,22 +1217,36 @@
           row.querySelector('[data-fmcl-note-cancel]')?.addEventListener('click', () => {
             drawer.open = false; drawer.draft = null; drawer.pendingRating = ''; drawer.hint = false; drawer.preview = false; render();
           });
-          row.querySelector('[data-fmcl-note-save]')?.addEventListener('click', async (event) => {
-            const note = clean(drawer.draft ?? item.note);
-            if ((drawer.pendingRating || item.rating) === 'bad' && !note) { drawer.hint = true; render(); return; }
-            event.currentTarget.disabled = true;
-            try {
-              const patch = { note };
-              if (drawer.pendingRating) patch.rating = drawer.pendingRating;
-              drawer.open = false; drawer.draft = null; drawer.pendingRating = ''; drawer.hint = false; drawer.preview = false;
-              await patchItem(checklistId, itemId, patch);
-            } catch (error) { drawer.open = true; showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); render(); }
+          row.querySelector('[data-fmcl-note-save]')?.addEventListener('click', async () => {
+            const note = clean(drawer.draft ?? currentItem().note);
+            if ((drawer.pendingRating || currentItem().rating) === 'bad' && !note) { drawer.hint = true; render(); return; }
+            const patch = { note };
+            if (drawer.pendingRating) patch.rating = drawer.pendingRating;
+            const { list, index, item:previous } = findItem(checklistId, itemId);
+            const draft = drawer.draft;
+            const pendingRating = drawer.pendingRating;
+            drawer.open = false; drawer.draft = null; drawer.pendingRating = ''; drawer.hint = false; drawer.preview = false;
+            if (previous) {
+              const shown = { ...previous, note };
+              if (patch.rating) Object.assign(shown, { rating:patch.rating, completed:true });
+              if (patch.rating && !previous.completed) Object.assign(shown, { completed_by_user_id:userId(context), completed_by_name:clean(first(Portal.currentUser?.name, 'You')), completed_at:new Date().toISOString() });
+              list.items[index] = shown;
+            }
+            render();
+            try { await patchItem(checklistId, itemId, patch); }
+            catch (error) {
+              const current = findItem(checklistId, itemId);
+              if (previous && current.item) current.list.items[current.index] = previous;
+              drawer.open = true; drawer.draft = draft; drawer.pendingRating = pendingRating;
+              showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); render();
+            }
           });
           row.querySelector('[data-fmcl-item-delete]')?.addEventListener('click', async () => {
             const approved = await (Portal.ui?.confirm?.((globalThis.PlatformLanguage?.text("checklists","m_3dd0af0b6f7be5","Delete this checklist item?") ?? "Delete this checklist item?")) || Promise.resolve(window.confirm((globalThis.PlatformLanguage?.text("checklists","m_3dd0af0b6f7be5","Delete this checklist item?") ?? "Delete this checklist item?"))));
             if (!approved) return;
+            row.classList.add('removing');
             try { await window.CrewAPI.projects.removeItemFromChecklist(orgId(context), projectId(context), checklistId, itemId); await load(); }
-            catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); }
+            catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); render(); }
           });
         });
       });
@@ -1119,6 +1271,11 @@
       }
     });
     root.innerHTML = `<div class="fmcl-shell">${stateHtml()}</div>`;
+    // Haptics first, for every control on the tab: this capturing listener runs before any control's own handler.
+    const onTap = (event) => {
+      if (event.target instanceof Element && event.target.closest('button, select, input[type="checkbox"], [data-fmcl-note-open]')) haptic();
+    };
+    root.addEventListener('click', onTap, true);
     const onResize = () => {
       window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => {
@@ -1151,7 +1308,7 @@
     document.addEventListener('pointerdown', onDocumentPointerDown);
     document.addEventListener('keydown', onDocumentKeyDown);
     load();
-    return { destroy(){ destroyed = true; guideWindows.forEach((target) => { try { target.removeEventListener('fm:guides:ended', onGuideEnded); target.removeEventListener('fm:guides:playing', onGuideEnded); } catch (_) {} }); window.clearTimeout(resizeTimer); window.removeEventListener('resize', onResize); document.removeEventListener('pointerdown', onDocumentPointerDown); document.removeEventListener('keydown', onDocumentKeyDown); if (typeof unregisterRoute === 'function') unregisterRoute(); root.innerHTML = ''; } };
+    return { destroy(){ destroyed = true; root.removeEventListener('click', onTap, true); guideWindows.forEach((target) => { try { target.removeEventListener('fm:guides:ended', onGuideEnded); target.removeEventListener('fm:guides:playing', onGuideEnded); } catch (_) {} }); window.clearTimeout(resizeTimer); window.removeEventListener('resize', onResize); document.removeEventListener('pointerdown', onDocumentPointerDown); document.removeEventListener('keydown', onDocumentKeyDown); if (typeof unregisterRoute === 'function') unregisterRoute(); root.innerHTML = ''; } };
   }
 
   runtime.registerApp({
