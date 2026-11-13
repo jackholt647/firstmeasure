@@ -70,12 +70,12 @@ test('a rejected Full Exterior is never reopened in place', async () => {
 
 // The left column's rejected report card, rendered from the real functions with the project as state.
 function renderRejected(project: Record<string, any>, {exteriorsOffered = true} = {}){
-  const names = ['rejectionReasonHtml', 'rejectedReportHtml', 'reportOrderReorderType', 'normalizeProjectTypeLabel',
+  const names = ['rejectionReasonLabel', 'rejectedReportHtml', 'reportOrderReorderType', 'normalizeProjectTypeLabel',
     'customerRejectionCopy', 'fallbackCustomerRejectionCopy', 'reportOrderMeasurement', 'reportOrderManifest', 'reportOrderIsExterior'];
   const body = [
     'let activeBaseProject = project, selectedType = project.project_type || "residential";',
     'const reportOrderExpediteKey = () => String(reportOrderMeasurement().report_expedite_option || "");',
-    'const escapeHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");',
+    'const escapeHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");',
     'const fmtCredit = (n) => "$" + n;',
     ...names.map((name) => fn(measurements, name)),
     'return rejectedReportHtml();',
@@ -83,8 +83,12 @@ function renderRejected(project: Record<string, any>, {exteriorsOffered = true} 
   const window = {Portal: {ExteriorOrder: {offersChoice: (type: string) => exteriorsOffered && type === 'residential'}}};
   const html = new Function('project', 'window', 'globalThis', body)(project, window, {});
   const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-  const buttons = [...html.matchAll(/<button[^>]*?(data-reorder-[\w-]+(?:="[^"]*")?)[^>]*>([^<]*)<\/button>/g)].map((m: any) => `${m[1]} ${m[2].trim()}`);
-  return {html, text, buttons};
+  const unescape = (value: string) => value.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+  const tooltip = (attrs: string) => unescape(attrs.match(/data-fm-tooltip="([^"]*)"/)?.[1] ?? '');
+  const buttons = [...html.matchAll(/<button([^>]*?(data-reorder-[\w-]+(?:="[^"]*")?)[^>]*)>([\s\S]*?)<\/button>/g)].map((m: any) => `${m[2]} ${m[3].replace(/<[^>]+>/g, '').trim()}`);
+  const tips = [...html.matchAll(/<button([^>]*?data-reorder-[^>]*)>/g)].map((m: any) => tooltip(m[1]));
+  const why = tooltip(html.match(/<button([^>]*data-rejection-why[^>]*)>/)?.[1] ?? '');
+  return {html, text, buttons, tips, why};
 }
 const rejected = (scope: 'roof' | 'full_house', reason: string, extra: Record<string, any> = {}) => ({
   id: 'project_fixture', project_type: 'residential', refund_amount: 0,
@@ -94,10 +98,13 @@ const rejected = (scope: 'roof' | 'full_house', reason: string, extra: Record<st
 
 test('a Full Exterior rejected for footage says so and offers more footage or the roof alone', () => {
   const card = renderRejected(rejected('full_house', 'insufficient_footage'));
-  assert.match(card.text, /^Full Exterior report rejected Reason Not enough footage of the house/);
-  assert.match(card.text, /photos and video do not show enough of the house/);
+  // Title, reason and buttons only (FM-410 review): every explanation is a tooltip, never a loose paragraph.
+  assert.equal(card.text, 'Full Exterior report rejected Reason Not enough footage of the house Try again with more footage Order just the roof');
+  assert.doesNotMatch(card.html, /<p>|r-pending-note/);
+  assert.match(card.why, /photos and video do not show enough of the house/);
   assert.deepEqual(card.buttons, ['data-reorder-rejected-exterior="full_house" Try again with more footage', 'data-reorder-rejected-exterior="roof" Order just the roof']);
-  assert.match(card.text, /wider|whole house in view/);
+  assert.match(card.tips[0], /whole house in view/);
+  assert.match(card.tips[1], /aerial imagery and needs no photos/);
   // With Full Exterior off for the organization, only the roof is offered.
   assert.deepEqual(renderRejected(rejected('full_house', 'insufficient_footage'), {exteriorsOffered: false}).buttons, ['data-reorder-rejected-exterior="roof" Order just the roof']);
 });
@@ -107,7 +114,8 @@ test('coverage, visibility and pin rejections show their reason and offer no reo
     for (const [reason, label] of <Array<[string, string]>>[['no_height_map', 'No imagery coverage'], ['no_satellite_image', 'No imagery coverage'], ['obscured_visibility', 'hidden in the imagery'], ['invalid_pin_placement', 'pin is not on a structure']]) {
       const card = renderRejected(rejected(scope, reason, {customer_rejection_message: 'Server copy.'}));
       assert.match(card.text, new RegExp(`^${scope === 'full_house' ? 'Full Exterior report' : 'Report'} rejected Reason [^.]*${label}`), `${scope} ${reason}`);
-      assert.match(card.text, /Server copy\./);
+      assert.equal(card.why, 'Server copy.');
+      assert.doesNotMatch(card.text, /Server copy/);
       assert.deepEqual(card.buttons, [], `${scope} ${reason}`);
     }
   }
@@ -117,6 +125,15 @@ test('a wrong project type still reorders as the right one', () => {
   const card = renderRejected(rejected('roof', 'incorrect_structure_type', {correct_project_type: 'commercial'}));
   assert.match(card.text, /Reason It needs a different project type/);
   assert.deepEqual(card.buttons, ['data-reorder-rejected-report Reorder as Commercial']);
+  assert.match(card.tips[0], /new order/);
+  // A refund is told in the reason's tooltip, not as another row.
+  const refunded = renderRejected({...rejected('roof', 'incorrect_structure_type', {correct_project_type: 'commercial'}), refund_amount: 30});
+  assert.match(refunded.why, /\$30 returned to credits$/);
+  assert.doesNotMatch(refunded.text, /returned to credits/);
+});
+
+test('the reason tooltip also opens on a tap (phones have no hover)', () => {
+  assert.match(measurements, /\[data-rejection-why\][\s\S]{0,200}PlatformUI\?\.showTooltip\?\.\(/);
 });
 
 test('every reorder of a rejected Full Exterior is a new order; the footage choices start with their scope chosen', () => {
