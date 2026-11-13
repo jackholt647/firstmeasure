@@ -342,7 +342,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('project-schedule/panel.js', '20261113-fm441-touch-controls')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20261113-fm454-instant-placement')]
     },
     {
       id: 'project.comms',
@@ -388,7 +388,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
-      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261113-fm441-touch-controls')]
+      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261113-fm454-instant-placement')]
     },
     {
       id: 'portal.training',

@@ -1283,3 +1283,37 @@ test('a touch scroll of the calendar keeps its momentum after the finger lifts',
   assert.match(scheduleViewSource, /scroller\.dispatchEvent\(new CustomEvent\('prs-touch-glide'\)\);/);
   assert.match(projectScheduleSource, /\['wheel', 'touchmove', 'prs-touch-glide', 'keydown', 'pointerdown'\]\.forEach\(\(type\) => surface\.addEventListener\(type, markUserScroll/);
 });
+
+test('scheduling actions are drawn and felt before their save answers, and put back when it fails', () => {
+  // FM-454: render first, then save; a failed or refused save rolls the calendar back.
+  const body = (source, start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
+  const before = (text, first, second, label) => {
+    const a = text.indexOf(first), b = text.indexOf(second);
+    assert.ok(a >= 0 && b > a, label);
+  };
+  const place = body(projectScheduleSource, '  async function saveMaterialScheduleDraft(', '  /* ── Placement (Sales + New');
+  before(place, 'upsertLocalProjectEvent(updated);', 'await saveProjectEventQuiet(updated', 'a strip drop or ✓ draws the item before saving');
+  before(place, 'scheduleHaptic();', 'await saveProjectEventQuiet(updated', 'and ticks before saving');
+  assert.match(place, /showRelatedChangesLocally\(related, \{ children:true \}\)/);
+  assert.match(place, /restoreLocalProjectEvent\(source\);/);
+  const lock = body(projectScheduleSource, '  async function toggleMaterialScheduleLock(', '  async function toggleWorkScheduleLock(');
+  before(lock, 'upsertLocalProjectEvent(next);', 'await saveProjectEventQuiet(next', 'a delivery lock tap shows at once');
+  before(lock, 'scheduleHaptic();', 'await saveProjectEventQuiet(next', 'and ticks at once');
+  assert.match(lock, /restoreLocalProjectEvent\(source\);/);
+  const work = body(projectScheduleSource, '  async function saveWorkScheduleDraft(', '  function cancelWorkDraft(');
+  before(work, 'upsertLocalProjectEvent(event);', 'await saveProjectEventQuiet(event', 'a work draft ✓ draws the work before saving');
+  // The strip drag previews the item and its children on the hovered day.
+  assert.match(projectScheduleSource, /previewScheduleWaitingDrop\(drag\.id, day\);/);
+  assert.match(projectScheduleSource, /window\.PlatformScheduleView\.previewPlacement\(calendar, drafts\);/);
+  assert.match(projectScheduleSource, /relatedDragPreview\(item, range\)\{/);
+  // The global Scheduling app: single items, deliveries and appointments are shown before the save.
+  for (const [name, saveCall] of [['confirmProductionDraftNow', 'projectEventSavePayload(event)'], ['confirmMaterialDraftNow', 'projectEventSavePayload(next)'], ['confirmDashboardDraftNow', 'projectEventSavePayload(event)']]) {
+    const fn = body(schedulingSource, `  async function ${name}(`, '\n  }\n');
+    before(fn, 'showPlacementLocally(project', saveCall, `${name} draws before saving`);
+    assert.match(fn, /shownPlacement\.putBack\(\);/, `${name} puts the calendar back when the save fails`);
+  }
+  const shown = body(schedulingSource, '  function showPlacementLocally(', '  function scheduleHaptic(');
+  assert.match(shown, /clearPlacementSelection\(\);\n    releasePlacementSave\(\);\n    render\(\);\n    scheduleHaptic\(\);/);
+  // The shared view ticks on a drop with the item already drawn where it landed.
+  assert.match(scheduleViewSource, /upsertCalendarItem\(updatedItem, monthMarginTop \? \{ monthMarginTop \} : \{\}\);\n        applyTouchSelection\(\);\n[^\n]*\n[^\n]*\n        dropHaptic\(\);\n        options\.onEventRangeChange\?\.\(updatedItem, payload\);/);
+});

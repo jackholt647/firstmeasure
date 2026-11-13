@@ -1538,6 +1538,9 @@
           const bottom = Math.min(box?.bottom ?? 0, window.innerHeight);
           const step = box ? (drag.y > bottom - 14 ? 4 : (drag.y < box.top + 12 && drag.y > box.top - 40 ? -4 : 0)) : 0;
           if (step) { scroller.scrollTop += step; follow(); }
+          // The calendar was redrawn under the finger (a refresh): show the
+          // drop day and its previews again.
+          else if (drag.key && !document.querySelector('.r-schedule-drop-day')) { drag.key = ''; follow(); }
           drag.frame = requestAnimationFrame(scroll);
         };
         drag.frame = requestAnimationFrame(scroll);
@@ -1552,6 +1555,9 @@
         cell?.classList.add('r-schedule-drop-day');
         const day = scheduleWaitingDropDate(key);
         drag.ghost.querySelector('small').textContent = day ? day.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' }) : '';
+        // The calendar shows where it lands: the item with its own length,
+        // and everything under it at its own place.
+        previewScheduleWaitingDrop(drag.id, day);
       };
       const move = (event) => {
         if (event.pointerId !== drag.pointerId) return;
@@ -1575,6 +1581,7 @@
         if (!drag.started) return;
         cancelAnimationFrame(drag.frame);
         drag.ghost?.remove();
+        previewScheduleWaitingDrop('', null);
         document.documentElement.classList.remove('r-schedule-dragging');
         document.querySelectorAll('.r-schedule-drop-day').forEach((node) => node.classList.remove('r-schedule-drop-day'));
         // The click that may follow a mouse drag is not a choice of the item.
@@ -1588,6 +1595,30 @@
       window.addEventListener('pointerup', finish);
       window.addEventListener('pointercancel', cancel);
     });
+  }
+  // Previews of an item dropped on a day (null clears them): the item where
+  // a placement on that day puts it, then its children where the server will.
+  function scheduleWaitingDropDrafts(id, day){
+    const event = id && day ? projectProductionEvents().find((item) => String(item.id || '') === String(id)) : null;
+    if (!event) return [];
+    const range = schedulePlacementNaturalRange(event, { start:day, end:scheduleAddDays(day, 1), all_day:true, schedule_granularity:'date' });
+    if (!range?.start || !range?.end) return [];
+    const primary = { ...event, id:String(event.id), title:scheduleWaitingTitle(event), start:new Date(range.start), end:new Date(range.end), all_day:range.all_day !== false, schedule_granularity:range.schedule_granularity };
+    const children = projectPlacedChildPreviews(event, { start:primary.start, end:primary.end, all_day:primary.all_day })
+      .map(({ __placed_child:ignored, ...child }) => ({ ...child, title:scheduleWaitingTitle(child) || child.title, start:new Date(child.start || child.start_at), end:new Date(child.end || child.end_at) }));
+    return [primary, ...children];
+  }
+  function previewScheduleWaitingDrop(id, day){
+    const calendar = $('#rSchedulePanel')?.querySelector('.r-schedule-calendar');
+    if (!calendar || typeof window.PlatformScheduleView?.previewPlacement !== 'function') return;
+    let drafts = [];
+    try { drafts = scheduleWaitingDropDrafts(id, day); } catch (error) { drafts = []; }
+    window.PlatformScheduleView.previewPlacement(calendar, drafts);
+  }
+  // A phone's tick for an action taken (drawn before its save comes back).
+  function scheduleHaptic(){
+    if (typeof window.PlatformScheduleView?.haptic === 'function') window.PlatformScheduleView.haptic();
+    else { try { navigator.vibrate?.(8); } catch (_) {} }
   }
   // The day under a point, looking through anything drawn over the calendar (the ghost, a tour).
   function scheduleWaitingDropCell(x, y){
@@ -1748,35 +1779,52 @@
       ...(scheduleEventIsSpan(event) ? {} : { schedule_item_kind: event.schedule_item_kind || productionResourceType(event) || 'production' }),
       updated_at: new Date().toISOString()
     };
-    // Busy (not "Saving…") while the past-day and linked-item questions are
-    // open; the banner says Saving only once the save itself runs.
+    // Busy while the past-day and linked-item questions are open.
     schedulePlacementBusy = true;
+    let related = null;
     try {
       if (!(await confirmPastPlacement(event, start))) return;
-      const related = await resolveProjectRelatedReschedule(event, { start, end }, { verb:materialEventIsScheduled(event) ? 'Moving' : 'Scheduling' });
+      related = await resolveProjectRelatedReschedule(event, { start, end }, { verb:materialEventIsScheduled(event) ? 'Moving' : 'Scheduling' });
       if (related.cancelled) return;
-      setSchedulePlacementSaving(true);
-      const saved = await persistMaterialScheduleEvent(updated);
-      // The item is placed: leave placement and show it (and the linked
-      // items' new dates) right away; the linked saves continue behind it.
-      materialScheduleDraft = null;
-      materialScheduleModeActive = false;
-      materialScheduleEventId = '';
-      materialScheduleListId = '';
-      scheduleAnchorDate = start;
-      setSchedulePlacementSaving(false);
-      showRelatedChangesLocally(related);
-      renderSchedulePanel();
-      showScheduleSavedToast((globalThis.PlatformLanguage?.text("project-schedule","m_165bc3ab3937ae","Production scheduled") ?? "Production scheduled"), `${((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_d30ad66a8eab41",`${v0} was placed on the project schedule.`,{v0}) ?? `${v0} was placed on the project schedule.`)(event.title || productionResourceLabel(event))}${relatedMoveNote(related)}`, saved);
-      await saveRelatedRescheduleChanges(related);
-      renderSchedulePanelPreservingScroll();
     } catch (error) {
-      if (isStaleSaveError(error)) handleStaleScheduleSave(error);
-      else showToast((globalThis.PlatformLanguage?.text("project-schedule","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), scheduleSaveFailureText(error, 'Could not schedule this production item.'), false);
+      showToast((globalThis.PlatformLanguage?.text("project-schedule","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), scheduleSaveFailureText(error, 'Could not schedule this production item.'), false);
+      return;
     } finally {
       schedulePlacementBusy = false;
-      setSchedulePlacementSaving(false);
     }
+    // Drawn first: the item is placed, with its children and linked items at
+    // their new dates, and placement ends at once. The save runs behind it;
+    // a failed or refused save puts everything back where it was.
+    const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(event.id)) || event;
+    const mutationVersion = beginScheduleEventSave(updated.id);
+    upsertLocalProjectEvent(updated);
+    showRelatedChangesLocally(related, { children:true });
+    materialScheduleDraft = null;
+    materialScheduleModeActive = false;
+    materialScheduleEventId = '';
+    materialScheduleListId = '';
+    scheduleAnchorDate = start;
+    scheduleHaptic();
+    renderSchedulePanel();
+    const saved = await saveProjectEventQuiet(updated, {
+      successTitle: (globalThis.PlatformLanguage?.text("project-schedule","m_165bc3ab3937ae","Production scheduled") ?? "Production scheduled"),
+      successMessage: `${((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_d30ad66a8eab41",`${v0} was placed on the project schedule.`,{v0}) ?? `${v0} was placed on the project schedule.`)(event.title || productionResourceLabel(event))}${relatedMoveNote(related)}`,
+      failureTitle: (globalThis.PlatformLanguage?.text("project-schedule","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"),
+      broadcast: true,
+      preserveLocalEvents: true,
+      mutationVersion
+    });
+    if (!saved) {
+      if (scheduleEventSaveVersions.get(String(updated.id || '')) === mutationVersion) {
+        restoreLocalProjectEvent(source);
+        related?.sources?.forEach((original) => { if (original) restoreLocalProjectEvent(original); });
+        if (state.active) renderSchedulePanelPreservingScroll();
+      }
+      return null;
+    }
+    await saveRelatedRescheduleChanges(related);
+    if (state.active) renderSchedulePanelPreservingScroll();
+    return saved;
   }
 
   /* ── Placement (Sales + New, a selected sidebar item, a work draft) ─────
@@ -2027,10 +2075,11 @@
   async function toggleMaterialScheduleLock(event, requestedLocked = null){
     if (!requireScheduleEdit()) return null;
     if (!event?.id) return;
-    const locked = materialEventIsLocked(event);
+    const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(event.id)) || event;
+    const locked = materialEventIsLocked(source);
     const nextLocked = typeof requestedLocked === 'boolean' ? requestedLocked : !locked;
     if (nextLocked === locked) return;
-    if (locked && !nextLocked && materialEventIsOrdered(event)) {
+    if (locked && !nextLocked && materialEventIsOrdered(source)) {
       const confirmed = await Portal?.ui?.confirm?.((globalThis.PlatformLanguage?.text("project-schedule","m_ad42d2a999c6f8","This item has already been ordered. Are you sure you want to reschedule?") ?? "This item has already been ordered. Are you sure you want to reschedule?"), {
         title: (globalThis.PlatformLanguage?.text("project-schedule","m_7fa4cd849f2943","Unlock material delivery") ?? "Unlock material delivery"),
         okLabel: 'Unlock',
@@ -2040,26 +2089,39 @@
       if (!confirmed) return;
     }
     const now = new Date().toISOString();
-    try {
-      await persistMaterialScheduleEvent({
-        ...event,
+    const next = {
+      ...source,
+      locked: nextLocked,
+      schedule_locked: nextLocked,
+      schedule_lock: {
+        ...(source.schedule_lock || {}),
         locked: nextLocked,
-        schedule_locked: nextLocked,
-        schedule_lock: {
-          ...(event.schedule_lock || {}),
-          locked: nextLocked,
-          reason: materialEventIsOrdered(event) ? 'material_order' : 'manual',
-          locked_at: nextLocked ? now : '',
-          unlocked_at: nextLocked ? '' : now
-        },
-        unlock_confirmed: locked && !nextLocked,
-        updated_at: now
-      });
-      renderSchedulePanel();
-      showToast(nextLocked ? 'Delivery locked' : 'Delivery unlocked', nextLocked ? 'The delivery date is protected.' : 'You can move the delivery now.', true);
-    } catch (error) {
-      showToast((globalThis.PlatformLanguage?.text("project-schedule","m_b20cc0a5a8b73a","Lock update failed") ?? "Lock update failed"), error?.message || 'Could not update this delivery lock.', false);
+        reason: materialEventIsOrdered(source) ? 'material_order' : 'manual',
+        locked_at: nextLocked ? now : '',
+        unlocked_at: nextLocked ? '' : now
+      },
+      unlock_confirmed: locked && !nextLocked,
+      updated_at: now
+    };
+    // The delivery shows its new lock at once; a failed or refused save puts
+    // the stored state back.
+    const mutationVersion = beginScheduleEventSave(next.id);
+    upsertLocalProjectEvent(next);
+    scheduleHaptic();
+    renderSchedulePanelPreservingScroll();
+    const saved = await saveProjectEventQuiet(next, {
+      successTitle: nextLocked ? 'Delivery locked' : 'Delivery unlocked',
+      successMessage: nextLocked ? 'The delivery date is protected.' : 'You can move the delivery now.',
+      failureTitle: (globalThis.PlatformLanguage?.text("project-schedule","m_b20cc0a5a8b73a","Lock update failed") ?? "Lock update failed"),
+      broadcast: true,
+      preserveLocalEvents: true,
+      mutationVersion
+    });
+    if (!saved && scheduleEventSaveVersions.get(String(next.id || '')) === mutationVersion) {
+      restoreLocalProjectEvent(source);
+      if (state.active) renderSchedulePanelPreservingScroll();
     }
+    return saved || null;
   }
 
   async function toggleWorkScheduleLock(event, requestedLocked = null){
@@ -2086,6 +2148,7 @@
     };
     const mutationVersion = beginScheduleEventSave(next.id);
     upsertLocalProjectEvent(next);
+    scheduleHaptic();
     renderSchedulePanelPreservingScroll();
     const saved = await saveProjectEventQuiet(next, {
       successTitle: nextLocked ? 'Date locked' : 'Date unlocked',
@@ -2095,8 +2158,8 @@
       preserveLocalEvents: true,
       mutationVersion
     });
-    if (!saved) {
-      upsertLocalProjectEvent(source);
+    if (!saved && scheduleEventSaveVersions.get(String(next.id || '')) === mutationVersion) {
+      restoreLocalProjectEvent(source);
       renderSchedulePanelPreservingScroll();
     }
   }
@@ -3849,6 +3912,21 @@
     rememberScheduleProject(activeBaseProject);
   }
 
+  /* Puts back the copy an item had before a change that was drawn at once
+   * and then not saved: the whole copy (fields the change added go too),
+   * unless a newer stored copy has been shown since. */
+  function restoreLocalProjectEvent(original){
+    if (!original?.id || !activeBaseProject) return;
+    const events = Array.isArray(activeBaseProject.events) ? [...activeBaseProject.events] : [];
+    const idx = events.findIndex((item) => String(item.id || '') === String(original.id));
+    if (idx < 0) return;
+    if (scheduleEventRevision(events[idx]) > scheduleEventRevision(original)) return;
+    events[idx] = original;
+    activeBaseProject = { ...activeBaseProject, events, updated_at: new Date().toISOString() };
+    cacheActiveBaseProject();
+    rememberScheduleProject(activeBaseProject);
+  }
+
   function beginScheduleEventSave(eventId = ''){
     const id = String(eventId || '');
     const version = (scheduleEventSaveVersions.get(id) || 0) + 1;
@@ -4073,7 +4151,7 @@
     }
     let config = null;
     try {
-      config = await Scheduling.loadBranchConfig(orgId, scheduleBranchId());
+      config = scheduleCachedConfig || await Scheduling.loadBranchConfig(orgId, scheduleBranchId());
       const eventType = config.event_types?.[eventTypeId] || {};
       const existing = scheduleAssignmentEventId
         ? projectSalesAppointmentEvents().find((event) => String(event.id || '') === String(scheduleAssignmentEventId))
@@ -4095,10 +4173,10 @@
             durationMinutes: duration,
             ...assignment,
           }, config);
-      const saved = await saveScheduleEventRemote(orgId, project, event, config);
-      activeBaseProject = { ...activeBaseProject, ...saved.project, events: saved.project.events || [] };
-      cacheActiveBaseProject();
-      rememberScheduleProject(activeBaseProject);
+      // Drawn first: the appointment shows where it was placed and placement
+      // ends before the save answers; a failed or refused save takes it back.
+      const mutationVersion = beginScheduleEventSave(event.id);
+      upsertLocalProjectEvent(event);
       scheduleDraft = null;
       scheduleSelectedEventId = '';
       scheduleAssignmentEventId = '';
@@ -4106,13 +4184,34 @@
       schedulePlacementReturn = null;
       setSchedulePlacementSaving(false);
       updateScheduleChoiceCard();
-      const scrollPosition = captureScheduleScroll();
-      setActivePreviewTab('schedule');
-      renderWorkflowState();
-      setActivePreviewTab('schedule');
-      restoreScheduleScroll(scrollPosition);
-      window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
-      showScheduleSavedToast(existing ? 'Appointment updated' : 'Appointment scheduled', ((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_b8e410fbacfc29",`${v0} was saved.`,{v0}) ?? `${v0} was saved.`)(event.title || 'Appointment'), saved);
+      const showPlaced = () => {
+        const scrollPosition = captureScheduleScroll();
+        setActivePreviewTab('schedule');
+        renderWorkflowState();
+        setActivePreviewTab('schedule');
+        restoreScheduleScroll(scrollPosition);
+      };
+      showPlaced();
+      scheduleHaptic();
+      const saved = await saveProjectEventQuiet(event, {
+        successTitle: existing ? 'Appointment updated' : 'Appointment scheduled',
+        successMessage: ((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_b8e410fbacfc29",`${v0} was saved.`,{v0}) ?? `${v0} was saved.`)(event.title || 'Appointment'),
+        failureTitle: (globalThis.PlatformLanguage?.text("project-schedule","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"),
+        broadcast: true,
+        preserveLocalEvents: true,
+        mutationVersion
+      });
+      if (!saved && scheduleEventSaveVersions.get(String(event.id || '')) === mutationVersion) {
+        if (existing) restoreLocalProjectEvent(existing);
+        else if (activeBaseProject && !scheduleEventRevision(scheduleProjectEvents().find((item) => String(item.id || '') === String(event.id)) || {})) {
+          activeBaseProject = { ...activeBaseProject, events:scheduleProjectEvents().filter((item) => String(item.id || '') !== String(event.id)) };
+          cacheActiveBaseProject();
+          rememberScheduleProject(activeBaseProject);
+        }
+      }
+      // The project's own state (its stage) follows the stored answer.
+      if (state.active) showPlaced();
+      return saved;
     } catch (error) {
       if (isStaleSaveError(error)) handleStaleScheduleSave(error);
       else showToast((globalThis.PlatformLanguage?.text("project-schedule","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), scheduleSaveFailureText(error, 'Could not save the appointment.'), false);
@@ -4260,9 +4359,10 @@
       showToast((globalThis.PlatformLanguage?.text("project-schedule","m_15fa17332ed5c6","Work schedule unavailable") ?? "Work schedule unavailable"), (globalThis.PlatformLanguage?.text("project-schedule","m_9eaf6c129707cd","Choose a work start and end before confirming.") ?? "Choose a work start and end before confirming."), false);
       return;
     }
+    let shown = null;
     try {
       if (!(await confirmPastPlacement(workScheduleDraft, workScheduleDraft.start))) return;
-      const config = await Scheduling.loadBranchConfig(orgId, scheduleBranchId());
+      const config = scheduleCachedConfig || await Scheduling.loadBranchConfig(orgId, scheduleBranchId());
       scheduleCachedConfig = config;
       await loadWorkforceResources();
       const start = new Date(workScheduleDraft.start);
@@ -4314,32 +4414,57 @@
       };
       const related = existing ? await resolveProjectRelatedReschedule(existing, { start, end }, { verb:materialEventIsScheduled(existing) ? 'Moving' : 'Scheduling' }) : null;
       if (related?.cancelled) return;
-      setSchedulePlacementSaving(true);
-      const saved = await saveScheduleEventRemote(orgId, project, event, config);
-      activeBaseProject = { ...activeBaseProject, ...saved.project, events: saved.project.events || [] };
-      cacheActiveBaseProject();
-      rememberScheduleProject(activeBaseProject);
-      // Placed: leave placement and show the result (linked items at their
-      // new dates) now; their saves continue behind it.
+      // Drawn first: the work is placed (linked items and its children at
+      // their new dates) and the draft goes at once; the save runs behind it.
+      // A failed or refused save takes it off again and gives the draft back.
+      const source = existing || null;
+      const mutationVersion = beginScheduleEventSave(event.id);
+      upsertLocalProjectEvent(event);
+      showRelatedChangesLocally(related, { children:true });
       workScheduleDrafts.delete(String(workScheduleDraft.id || ''));
       const remaining = lastWorkDraft();
       setActiveWorkDraftId(remaining?.id || '');
-      showRelatedChangesLocally(related);
+      shown = { source, mutationVersion };
+      schedulePlacementBusy = false;
       const scrollPosition = captureScheduleScroll();
-      setSchedulePlacementSaving(false);
       setActivePreviewTab('schedule');
+      scheduleHaptic();
       renderSchedulePanel();
       restoreScheduleScroll(scrollPosition);
-      showScheduleSavedToast(existing ? 'Work schedule updated' : 'Work scheduled', `${((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_b8e410fbacfc29",`${v0} was saved.`,{v0}) ?? `${v0} was saved.`)(event.title || 'Work')}${relatedMoveNote(related)}`, saved);
+      const saved = await saveProjectEventQuiet(event, {
+        successTitle: existing ? 'Work schedule updated' : 'Work scheduled',
+        successMessage: `${((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_b8e410fbacfc29",`${v0} was saved.`,{v0}) ?? `${v0} was saved.`)(event.title || 'Work')}${relatedMoveNote(related)}`,
+        failureTitle: (globalThis.PlatformLanguage?.text("project-schedule","m_f1b40620f12653","Work scheduling failed") ?? "Work scheduling failed"),
+        broadcast: true,
+        preserveLocalEvents: true,
+        mutationVersion
+      });
+      if (!saved) {
+        if (scheduleEventSaveVersions.get(String(event.id || '')) === mutationVersion) {
+          if (source) restoreLocalProjectEvent(source);
+          else if (activeBaseProject && !scheduleEventRevision(scheduleProjectEvents().find((item) => String(item.id || '') === String(event.id)) || {})) {
+            activeBaseProject = { ...activeBaseProject, events:scheduleProjectEvents().filter((item) => String(item.id || '') !== String(event.id)) };
+            cacheActiveBaseProject();
+            rememberScheduleProject(activeBaseProject);
+          }
+          related?.sources?.forEach((original) => { if (original) restoreLocalProjectEvent(original); });
+          // The draft comes back so ✓ can be tried again.
+          if (!workScheduleDrafts.has(String(workScheduleDraft.id || ''))) {
+            workScheduleDrafts.set(String(workScheduleDraft.id || ''), workScheduleDraft);
+            setActiveWorkDraftId(String(workScheduleDraft.id || ''));
+          }
+          if (state.active) renderSchedulePanelPreservingScroll();
+        }
+        return null;
+      }
       await saveRelatedRescheduleChanges(related);
       if (related?.changes?.length) renderSchedulePanelPreservingScroll();
-      window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
-      window.dispatchEvent(new CustomEvent('fm:projects:refresh'));
+      return saved;
     } catch (error) {
       if (isStaleSaveError(error)) handleStaleScheduleSave(error);
       else showToast((globalThis.PlatformLanguage?.text("project-schedule","m_f1b40620f12653","Work scheduling failed") ?? "Work scheduling failed"), scheduleSaveFailureText(error, 'Could not save this work.'), false);
     } finally {
-      schedulePlacementBusy = false;
+      if (!shown) schedulePlacementBusy = false;
       setSchedulePlacementSaving(false);
     }
   }
@@ -5681,6 +5806,11 @@
       onEventLockToggle: canEditSchedule() ? (event, nextLocked) => {
         if (isMaterialDeliveryEvent(event)) toggleMaterialScheduleLock(event, nextLocked);
       } : undefined,
+      // A placed item being dragged shows its children where they follow it.
+      relatedDragPreview(item, range){
+        const source = scheduleProjectEvents().find((event) => String(event.id || '') === String(item?.id || ''));
+        return source ? projectPlacedChildPreviews(source, range).map(({ __placed_child:ignored, ...child }) => child) : [];
+      },
       mode: renderedMode,
       showModeSwitch: false,
       showToolbar: false,
