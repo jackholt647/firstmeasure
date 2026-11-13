@@ -1863,6 +1863,15 @@ function perf_previewLineMove(e){
   // Keep any part of the selected edge still on the merged outer boundary
   // (for example the chimney portion above the adjoining roof/wall).
   const erased=segments.flatMap(([a,b])=>{const out=[];let lo=0;const at=t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});for(const [start,end]of [...W.sharedIntervals(a,b,result.merged),[1,1]]){if(start-lo>1e-6)out.push([at(lo),at(start)]);lo=Math.max(lo,end);}return out;});
+  // A delete removes the selected line and nothing else. The faces on either side of it merge, and a merged face
+  // has no lines inside it: the other lines those faces drew (the rest of a stepped divider between them) would go
+  // with them. Each face that goes hands its remaining lines over as free-standing lines first; one that the merged
+  // face or a neighbour still draws is not kept twice (WallSolidGeometry.settleDeletedWire).
+  {const chosen=segments.map(points=>({points})),kept=[];for(const id of result.removed){const {d,f}=refs.get(id);if(d||f.curvedSurface||f.curves?.length)continue;const g=W.surfaceWire({$surfaces:[{...f,noWire:false}]}),at=new Map(g.nodes.map(n=>[n.id,n]));
+    for(const e of g.edges){if(e.curve)continue;const a=at.get(e.a),b=at.get(e.b);if(!a||!b)continue;const mix=t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});let lo=0;for(const [start,end]of [...W.sharedIntervals(a,b,chosen),[1,1]]){if(start-lo>1e-6)kept.push([mix(lo),mix(start)]);lo=Math.max(lo,end);}}}
+   if(kept.length){const loose={points:[...(edits.$loose?.points||[])],edges:[...(edits.$loose?.edges||[])]},lines=new Set(loose.edges.map(pair=>W.edgeKey(...pair))),points=new Set(loose.points.map(q=>W.vertexKey(q)));
+    for(const pair of kept){const key=W.edgeKey(...pair);if(lines.has(key))continue;lines.add(key);loose.edges.push(pair);for(const q of pair){const k=W.vertexKey(q);if(!points.has(k)){points.add(k);loose.points.push({x:q.x,y:q.y,z:q.z});}}}
+    edits.$loose={...(edits.$loose||{}),...loose};}}
   // Retain endpoint nodes, split partial boundary edges, and remove only the selected wire.
   const cuts=erased.map(points=>({points}));for(const d of Object.values(all())){const edges=[];for(const e of d.sketch.edges){
    if(e.curveId){const curve=d.sketch.curves.find(c=>c.id===e.curveId),hits=S.curveEdges({...d.sketch,edges:[e]}).flatMap(s=>W.sharedIntervals(world(d,s.start),world(d,s.end),cuts).map(([lo,hi])=>[s.start.curveT+(s.end.curveT-s.start.curveT)*lo,s.start.curveT+(s.end.curveT-s.start.curveT)*hi]));

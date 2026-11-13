@@ -146,6 +146,20 @@ test('Q keeps the selected draft point when the host wall has a colliding local 
  assert.ok(!drafts.left.sketch.nodes.some(n=>n.y===2));
 });
 
+test('deleting one line of a stepped divider between two faces leaves the rest of the divider',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),far=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+ // Two faces of one wall meet along a stepped line: along z=1, up at x=2, along z=2. The faces draw those lines;
+ // nothing else stores them. Deleting the riser merges the faces, and a merged face has no lines inside it.
+ const A=p(0,0,1),B=p(2,0,1),C=p(2,0,2),D=p(4,0,2),state={wallEdits:{$surfaces:[
+  {id:'up',points:[p(0,0,3),p(4,0,3),D,C,B,A].map(q=>({...q})),holes:[]},{id:'low',points:[p(0,0,0),A,B,C,D,p(4,0,0)].map(q=>({...q})),holes:[]}]}};
+ const f=fixture({state,walls:[],selected:null,globals:{isFreeMove:true}}),drawn=(a,b)=>wirePairs(state.wallEdits).some(pair=>pair.some(q=>far(q,a)<1e-9)&&pair.some(q=>far(q,b)<1e-9));
+ assert.ok(drawn(A,B)&&drawn(B,C)&&drawn(C,D));
+ f.editor.restoreSelection({lineSelection:[{id:W.edgeKey(B,C),pair:[B,C]}]});f.editor.key({key:'Delete'});assert.equal(f.history.length,1,f.message());
+ assert.equal(state.wallEdits.$surfaces.filter(s=>!s.deleted&&!s.replacedBy).length,1,'the two faces are one');
+ assert.ok(!drawn(B,C),'the selected line is gone');assert.ok(drawn(A,B)&&drawn(C,D),'the lines either side of it are still there');
+ assert.ok(drawn(p(0,0,0),p(4,0,0))&&drawn(p(0,0,3),p(4,0,3)),'and so is the outline');
+ assert.equal(state.wallEdits.$loose.edges.length,2,'only the two lines no face draws are kept as lines of their own');
+});
 test('points selected together nudge together when only one of them has a line in that direction',()=>{
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
  // A step in a wall: from A the only upright line runs down, from B the only upright line runs up.
