@@ -154,3 +154,39 @@ test('on a phone the rail is not mounted, scheduling opens the Schedule tab, and
   assert.match(setActive, /if \(listsLoadedHere\(\)\) void refreshWorkspace\(\);\s*else if \(!state\.loading\) loadData\(\);/);
   assert.doesNotMatch(source, /listsView/);
 });
+
+// FM-439: on a phone the workspace header fits one row: the projected total is just the figure, and Category, Schedule
+// and Closeout are icons that keep their aria-label and tooltip. Desktop keeps every label. A scheduled job shows a
+// calendar with a check, not a bare check.
+test('on a phone the workspace header is the total and icons; desktop keeps the labels', async () => {
+  const header = source.slice(source.indexOf('<header class="mt-workspace-header">'), source.indexOf('</header>`;', source.indexOf('<header class="mt-workspace-header">')));
+  assert.match(header, /data-mt-new-category [^>]*aria-label="New category"><i class="fas fa-plus" aria-hidden="true"><\/i><span>Category<\/span><\/button>/, 'Category is an icon and a label the phone can hide');
+  const schedule = source.slice(source.indexOf('  function scheduleJobButton(){'), source.indexOf('  function startPlacing('));
+  assert.match(schedule, /aria-label="\$\{done \? 'Scheduled' : 'Schedule this job'\}"/, 'the Schedule button names itself without its text');
+  assert.match(schedule, /done \? 'fa-calendar-check'/, 'a scheduled job shows a calendar with a check');
+  assert.doesNotMatch(schedule, /'fa-check'/);
+  const rule = (prefix) => { const at = source.indexOf(`      ${prefix}`); assert.ok(at > 0, `${prefix} is styled`); return source.slice(at, source.indexOf('\n', at)).trim(); };
+  const css = [rule('.mt-workspace-header{'), rule('.mt-projected-total{'), rule('.mt-workspace-actions .mt-schedule-job{'), rule('.mt-workspace-actions .mt-closeout{'), phoneCss].join('\n');
+  const markup = (phone) => `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body style="margin:0"><div class="mt-app${phone ? ' mt-phone-lists' : ''}">
+    <header class="mt-workspace-header"><div class="mt-projected-total"><span>Projected total</span><strong>$12,345.67</strong></div><div class="mt-collapsed-pills"></div><div class="mt-workspace-actions">
+    <button type="button" data-mt-new-category aria-label="New category"><i class="fas fa-plus" aria-hidden="true"></i><span>Category</span></button>
+    <button type="button" class="mt-schedule-job is-done" data-mt-schedule-job aria-label="Scheduled"><i class="fas fa-calendar-check" aria-hidden="true"></i><span>Scheduled</span></button>
+    <button type="button" class="mt-closeout" data-mt-closeout aria-label="Close out project"><i class="fas fa-flag-checkered" aria-hidden="true"></i><span>Closeout</span></button>
+    </div></header></div></body></html>`;
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const read = async (width, phone) => {
+      const tab = await browser.newPage({ viewport: { width, height: 400 } });
+      await tab.setContent(markup(phone));
+      return tab.evaluate(() => {
+        const shown = (el) => getComputedStyle(el).display !== 'none';
+        return { label: shown(document.querySelector('.mt-projected-total span')), total: shown(document.querySelector('.mt-projected-total strong')), texts: [...document.querySelectorAll('.mt-workspace-actions button>span')].map(shown), widths: [...document.querySelectorAll('.mt-workspace-actions button')].map((b) => Math.round(b.getBoundingClientRect().width)) };
+      });
+    };
+    const phone = await read(433, true);
+    assert.deepEqual([phone.label, phone.total, phone.texts], [false, true, [false, false, false]], 'a phone shows the figure and the icons alone');
+    assert.ok(phone.widths.every((width) => width <= 40), `the icon buttons are square: ${phone.widths}`);
+    const desktop = await read(1200, false);
+    assert.deepEqual([desktop.label, desktop.total, desktop.texts], [true, true, [true, true, true]], 'desktop keeps every label');
+  } finally { await browser.close(); }
+});
