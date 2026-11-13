@@ -4348,6 +4348,22 @@ test('a leftover roof face a few pixels across is not a roof plane and builds no
  const f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}}),line=f.editor.soffitEdges().find(c=>c.source.id==='R3.0');
  f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});assert.equal(f.editor.resoffit(.3048),true,f.message());
 });
+test('a leftover traced between two overlapping roofs is not a roof plane whatever its area',()=>{
+ // The same junction redrawn: the leftover came to 0.033 m2, over the area limit, and a 26-sided pillar of 3 cm
+ // walls with its own base face was built under the overlap. None of its 36 corners is a roof point.
+ const G=require('../public/measure/internal/editor_scripts/wall_geometry'),build=require('./roof-generation-fixture.cjs').build,source=require('./fixtures/roof-overlap-leftover.json');
+ const pillar=w=>[...w.bottom,...w.top].every(p=>Math.hypot(p.x-1.02,p.y+6.89)<.3);
+ assert.deepEqual(G.roofPlanesOnly(source.roof.faces).map(f=>f.id),[0,1,2,3,4,5],'area alone keeps it');
+ const dirty=build(source,'24');assert.equal(dirty.composed.filter(pillar).length,26);assert.equal(dirty.state.base.faces.length,2);
+ const clean=structuredClone(source);clean.roof.faces=G.roofPlanesOnly(clean.roof.faces,clean.roof.points);
+ assert.deepEqual(clean.roof.faces.map(f=>f.id),[0,1,2,3,4],'the roof planes keep their ids');
+ const r=build(clean,'24');assert.equal(r.state.base.faces.length,1);assert.ok(!r.composed.some(pillar));assert.deepEqual(r.open,[]);
+ // A small face that is bounded by roof lines is a roof plane, and so is a large one with no roof point on it.
+ const q=(x,y)=>({x,y,z:0}),points=[q(0,0),q(.4,0),q(.4,.4)];
+ assert.equal(G.roofPlanesOnly([{id:0,points:[q(0,0),q(.4,0),q(.4,.4)]}],points).length,1);
+ assert.equal(G.roofPlanesOnly([{id:0,points:[q(5,5),q(5.4,5),q(5.4,5.4)]}],points).length,0);
+ assert.equal(G.roofPlanesOnly([{id:0,points:[q(5,5),q(8,5),q(8,8)]}],points).length,1);
+});
 test('Resoffit of a lower roof wall keeps the end of the taller wall above it vertical',()=>{
  // The lower roof's back wall meets only the bottom of the gable piece above
  // it. Moving it dragged that corner alone and opened a wedge up to the rake.
