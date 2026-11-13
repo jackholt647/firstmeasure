@@ -21,7 +21,9 @@ import sys
 import time
 from pathlib import Path
 
-RELEASE_NAME = re.compile(r'^[A-Za-z0-9._-]{7,80}$')
+# Only full commit ids, the names release-artifact.py installs. Hand-made folders
+# (cluster-v1.0.0, preprod-r1-..., short ids) are never touched.
+RELEASE_NAME = re.compile(r'^[0-9a-f]{40}$')
 STAGING_NAME = re.compile(r'^\.(release-install-.*|.+\.installing\.\d+)$')
 RECENT_SECONDS = 2 * 3600
 STAGING_SECONDS = 24 * 3600
