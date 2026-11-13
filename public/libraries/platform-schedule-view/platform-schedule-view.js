@@ -37,6 +37,16 @@
   // Scroll memory keyed by host stateKey (or mount id) so a host re-render
   // that recreates the mount keeps the user's place.
   const scheduleViewports = new Map();
+  // Phone calendar controls (FM-441, options.touchControls): hour rows start
+  // further out than the desktop's and a two-finger pinch sets their height,
+  // remembered on the device for every calendar.
+  const TOUCH_SLOT_HEIGHT_DEFAULT_PX = 32;
+  const TOUCH_SLOT_HEIGHT_MIN_PX = 18;
+  const TOUCH_SLOT_HEIGHT_MAX_PX = 120;
+  const TOUCH_SLOT_HEIGHT_KEY = 'fm:schedule:touch-slot-height';
+  // A placed or selected event ends this far above the bottom event tray.
+  const EVENT_TRAY_GAP_PX = 10;
+  const EVENT_TRAY_SCROLL_MS = 280;
   const CHIP_INNER_CONTROL_SELECTOR = '[data-prs-assignee],[data-prs-view]';
   const containerKeyHandlers = new Map();
   let containerKeyDispatcherInstalled = false;
@@ -1193,10 +1203,34 @@
       .prs-roster-preview:empty{display:none}
       .prs-roster-preview-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:#b45309}
       .prs-roster-preview.block .prs-roster-preview-text{color:#b91c1c}
+      .prs-wrap.prs-touch-controls .prs-time-body :is(.prs-slot,.prs-time-label){height:var(--prs-touch-slot-h,${TOUCH_SLOT_HEIGHT_DEFAULT_PX}px)!important;min-height:0!important;box-sizing:border-box}
+      .prs-wrap.prs-touch-controls .prs-time-body .prs-time-label{overflow:hidden;padding-top:2px!important}
+      .prs-wrap.prs-touch-controls.prs-pinching .prs-work-chip{transition:none}
+      .prs-work-chip.prs-touch-selected{box-shadow:0 0 0 2px var(--primary,#d93025),0 10px 22px rgba(15,23,42,.22);z-index:30!important}
+      .prs-work-chip.timed.prs-touch-selected{overflow:visible}
+      .prs-work-chip.prs-touch-selected .prs-confirm{display:none}
+      .prs-touch-handle{position:absolute;z-index:6;display:block;box-sizing:border-box;touch-action:none;cursor:grab}
+      .prs-touch-handle:after{content:"";position:absolute;border-radius:999px;background:var(--primary,#d93025);opacity:.38;box-shadow:0 0 0 1px rgba(255,255,255,.7)}
+      .prs-work-chip.timed .prs-touch-handle{left:-2px;right:-2px;height:22px}
+      .prs-work-chip.timed .prs-touch-handle.start{top:-17px}
+      .prs-work-chip.timed .prs-touch-handle.end{bottom:-17px}
+      .prs-work-chip.timed .prs-touch-handle:after{left:18%;right:18%;height:7px;top:7px}
+      .prs-work-chip:not(.timed) .prs-touch-handle{top:0;bottom:0;width:14px}
+      .prs-work-chip:not(.timed) .prs-touch-handle.start{left:0}
+      .prs-work-chip:not(.timed) .prs-touch-handle.end{right:0}
+      .prs-work-chip:not(.timed) .prs-touch-handle:after{top:2px;bottom:2px;width:5px;left:4px}
+      .prs-touch-tray-space{flex:none;pointer-events:none}
+      .prs-event-tray.prs-event-tray{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:auto!important;max-width:none!important;height:auto!important;min-height:0!important;max-height:min(58dvh,520px)!important;overflow:auto!important;overscroll-behavior:contain;box-sizing:border-box;margin:0!important;border:0!important;border-top:1px solid rgba(15,23,42,.10)!important;border-radius:18px 18px 0 0!important;box-shadow:0 -14px 36px rgba(15,23,42,.18)!important;padding-top:18px!important;padding-bottom:max(14px,env(safe-area-inset-bottom))!important;z-index:2147483100!important}
+      .prs-event-tray.prs-event-tray:before{content:"";position:absolute;top:7px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:2px;background:rgba(15,23,42,.18)}
+      .prs-event-tray.prs-event-tray-enter{animation:prs-event-tray-up .26s cubic-bezier(.2,.8,.2,1)}
+      @keyframes prs-event-tray-up{from{transform:translateY(100%)}to{transform:none}}
+      @media (prefers-reduced-motion:reduce){.prs-event-tray.prs-event-tray-enter{animation:none}}
     `;
     const existing = document.getElementById(STYLE_ID);
     if (existing) {
-      existing.textContent = cssText;
+      // Rewriting identical rules would restart running animations (the
+      // event tray's slide-in) on every render.
+      if (existing.textContent !== cssText) existing.textContent = cssText;
       return;
     }
     const style = document.createElement('style');
@@ -2550,6 +2584,8 @@
       : (options.draft?.id || rawDrafts[rawDrafts.length - 1]?.id || '');
     const activeDraftId = String(requestedActiveDraftId || '');
     const activeDraft = rawDrafts.find((entry) => String(entry?.id || '') === activeDraftId) || options.draft || null;
+    // The draft as last placed or moved here (ahead of the host's re-render).
+    let localActiveDraft = activeDraft;
     const showModeSwitch = options.showModeSwitch !== false;
     const showToolbar = options.showToolbar !== false;
     const modeChoices = (Array.isArray(options.modes) && options.modes.length ? options.modes : ['day','4day','week','month'])
@@ -2619,6 +2655,12 @@
     // Hosts may restyle rows (phones use 48px); the rendered height is
     // measured after mount and replaces this nominal value.
     let slotHeight = Math.max(24, Number(options.renderSlotHeight || 54) || 54);
+    // Phones (touchControls): tap places, a tap selects, pinch zooms the
+    // hour rows, and the host shows its editor as a bottom tray
+    // (presentEventTray). The row height is the device's remembered zoom.
+    const touchControls = options.touchControls === true && mode !== 'list';
+    const touchZoom = touchControls && mode !== 'month';
+    if (touchZoom) slotHeight = readTouchSlotHeight();
     // An all-day item dropped into the time grid becomes a timed item this long.
     const defaultTimedDurationMinutes = Math.max(snapMinutes, Number(options.defaultTimedDurationMinutes || 60) || 60);
     const workStart = Math.max(0, Number(options.workStartMinute ?? 0) || 0);
@@ -3014,36 +3056,84 @@
     const placementHintHtml = placementHintText && mode !== 'list'
       ? `<div class="prs-placement-hint" role="status"><i class="fas fa-hand-pointer" aria-hidden="true"></i><span>${esc(placementHintText)}</span><kbd>Esc</kbd><span>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_place_hint_cancel","cancels") ?? "cancels")}</span></div>`
       : '';
-    container.innerHTML = `<div class="prs-wrap ${readOnly ? 'readonly' : ''} ${allowCreate ? '' : 'no-create'} ${allowEventDrag ? '' : 'events-click-only'} ${clickPlacement ? 'placement-active' : ''} ${showToolbar ? '' : 'no-toolbar'} ${options.mobileLayout === true ? 'mobile-layout' : ''} ${mode === 'list' ? 'list-mode' : ''}">${showToolbar ? toolbar : ''}${mode === 'list' ? renderList() : mode === 'month' ? renderMonth() : renderTimed()}${placementHintHtml}</div>`;
+    container.innerHTML = `<div class="prs-wrap ${readOnly ? 'readonly' : ''} ${allowCreate ? '' : 'no-create'} ${allowEventDrag ? '' : 'events-click-only'} ${clickPlacement ? 'placement-active' : ''} ${showToolbar ? '' : 'no-toolbar'} ${options.mobileLayout === true ? 'mobile-layout' : ''} ${mode === 'list' ? 'list-mode' : ''} ${touchControls ? 'prs-touch-controls' : ''}"${touchZoom ? ` style="--prs-touch-slot-h:${slotHeight}px"` : ''}>${showToolbar ? toolbar : ''}${mode === 'list' ? renderList() : mode === 'month' ? renderMonth() : renderTimed()}${placementHintHtml}</div>`;
     const surfaceNode = container.querySelector('.prs-surface');
     if (surfaceNode) surfaceNode.dataset.prsViewport = viewportSignature;
     // Use the row height the host's CSS actually produced (phones: 48px), so
     // chips line up with their hours and the initial scroll lands on the
     // requested hour.
+    const relayoutTimedChips = () => {
+      container.querySelectorAll('.prs-time-body .prs-work-chip.timed').forEach((chip) => {
+        const rangeStart = new Date(chip.dataset.prsRangeStart || '');
+        const rangeEnd = new Date(chip.dataset.prsRangeEnd || '');
+        const day = clean(chip.dataset.prsDay);
+        if (!day || !Number.isFinite(rangeStart.getTime()) || !Number.isFinite(rangeEnd.getTime())) return;
+        const dayStart = dateAt(day, '00:00');
+        const dayEnd = addDays(dayStart, 1);
+        const segmentStart = rangeStart > dayStart ? rangeStart : dayStart;
+        const segmentEnd = rangeEnd < dayEnd ? rangeEnd : dayEnd;
+        if (segmentEnd <= segmentStart) return;
+        const geometry = timedChipGeometry(segmentStart, segmentEnd);
+        chip.style.top = `${geometry.top}px`;
+        chip.style.height = `${geometry.height}px`;
+        chip.style.minHeight = `${geometry.height}px`;
+        chip.classList.toggle('compact-confirm', geometry.classes.includes('compact-confirm'));
+        chip.classList.toggle('prs-short', geometry.classes.includes('prs-short'));
+      });
+    };
     if (!['list','month'].includes(mode)) {
       const firstRow = container.querySelector('.prs-time-body .prs-slot');
       const measuredRow = Number(firstRow?.getBoundingClientRect?.().height || firstRow?.offsetHeight || 0);
       if (measuredRow > 0 && Math.abs(measuredRow - slotHeight) > 0.5) {
         slotHeight = measuredRow;
-        container.querySelectorAll('.prs-time-body .prs-work-chip.timed').forEach((chip) => {
-          const rangeStart = new Date(chip.dataset.prsRangeStart || '');
-          const rangeEnd = new Date(chip.dataset.prsRangeEnd || '');
-          const day = clean(chip.dataset.prsDay);
-          if (!day || !Number.isFinite(rangeStart.getTime()) || !Number.isFinite(rangeEnd.getTime())) return;
-          const dayStart = dateAt(day, '00:00');
-          const dayEnd = addDays(dayStart, 1);
-          const segmentStart = rangeStart > dayStart ? rangeStart : dayStart;
-          const segmentEnd = rangeEnd < dayEnd ? rangeEnd : dayEnd;
-          if (segmentEnd <= segmentStart) return;
-          const geometry = timedChipGeometry(segmentStart, segmentEnd);
-          chip.style.top = `${geometry.top}px`;
-          chip.style.height = `${geometry.height}px`;
-          chip.style.minHeight = `${geometry.height}px`;
-          chip.classList.toggle('compact-confirm', geometry.classes.includes('compact-confirm'));
-          chip.classList.toggle('prs-short', geometry.classes.includes('prs-short'));
-        });
+        relayoutTimedChips();
       }
     }
+    /* The selected event (FM-441, touchControls): its chips are marked and,
+     * when it may be resized, carry translucent bars on the edges that can
+     * move (above/below in the time grid, left/right on day bars). While the
+     * tray is open the surface gets room below the last row so an event at
+     * the end of the day can still scroll above the tray. */
+    const applyTouchSelection = () => {
+      if (!touchControls) return;
+      const selection = container.__prsTouchSelection || null;
+      const selectedId = String(selection?.eventId || '');
+      container.querySelectorAll('.prs-work-chip.prs-touch-selected').forEach((chip) => {
+        if (selectedId && String(chip.dataset.prsEventId || '') === selectedId) return;
+        chip.classList.remove('prs-touch-selected');
+        chip.querySelectorAll(':scope > .prs-touch-handle').forEach((handle) => handle.remove());
+      });
+      const surface = container.querySelector('.prs-surface');
+      let spacer = surface?.querySelector(':scope > .prs-touch-tray-space') || null;
+      const space = selectedId ? Math.max(0, Number(selection?.space || 0)) : 0;
+      if (surface && space > 0) {
+        if (!spacer) {
+          spacer = document.createElement('div');
+          spacer.className = 'prs-touch-tray-space';
+          spacer.setAttribute('aria-hidden', 'true');
+          surface.appendChild(spacer);
+        }
+        spacer.style.height = `${space}px`;
+      } else spacer?.remove();
+      if (!selectedId) return;
+      const item = eventByRenderedId(selectedId);
+      const resizable = !!item && allowEventDrag && !clickPlacement && itemCanAdjustRange(item);
+      container.querySelectorAll(`.prs-work-chip[data-prs-event-id="${cssEscape(selectedId)}"]`).forEach((chip) => {
+        if (chip.matches('.live-preview,.preview,.drag-preview,.prs-month-day-peek-chip')) return;
+        chip.classList.add('prs-touch-selected');
+        if (!resizable || chip.querySelector(':scope > .prs-touch-handle')) return;
+        [['start', 'no-start-handle'], ['end', 'no-end-handle']].forEach(([edge, blocked]) => {
+          if (chip.classList.contains(blocked)) return;
+          const handle = document.createElement('span');
+          handle.className = `prs-touch-handle ${edge}`;
+          handle.dataset.prsTouchHandle = edge;
+          handle.setAttribute('aria-hidden', 'true');
+          chip.appendChild(handle);
+        });
+      });
+    };
+    container.__prsApplyTouchSelection = applyTouchSelection;
+    applyTouchSelection();
     if (mode !== 'list' && (previousScrollTop > 0 || previousScrollLeft > 0)) {
       const scroll = surfaceNode;
       if (scroll) {
@@ -3417,6 +3507,8 @@
     };
     const armTouchHold = (event, activate) => {
       if (!touchHoldToPlace || event.pointerType !== 'touch') return false;
+      // A second finger (a pinch) never starts a hold.
+      if (pinch) return true;
       cancelTouchHold();
       suppressTouchClickUntil = Date.now() + 700;
       const pending = {
@@ -3577,6 +3669,100 @@
       options.onNavigate?.(next, delta, { source:'swipe' });
       return true;
     };
+    /* Two-finger pinch (touchControls, timed views): the hour rows follow
+     * the fingers' spread and the time between the fingers stays under them,
+     * so a pinch that also travels scrolls in the same motion. The height is
+     * remembered on the device. */
+    const touchPoints = new Map();
+    let pinch = null;
+    let touchTap = null;
+    const pinchGeometry = () => {
+      const [first, second] = [...touchPoints.values()].slice(-2);
+      return { distance:Math.max(1, Math.hypot(first.x - second.x, first.y - second.y)), midY:(first.y + second.y) / 2 };
+    };
+    const applyTouchSlotHeight = (height) => {
+      slotHeight = height;
+      container.querySelector('.prs-wrap')?.style.setProperty('--prs-touch-slot-h', `${height}px`);
+      relayoutTimedChips();
+      paintNowLine();
+    };
+    const beginPinch = () => {
+      const grid = container.querySelector('.prs-time-body');
+      if (!touchZoom || !grid || !touchGestureScroller || drag || touchPoints.size < 2) return false;
+      cancelTouchHold();
+      stopTouchGlide();
+      touchTap = null;
+      touchGesture = null;
+      const { distance, midY } = pinchGeometry();
+      pinch = { distance, height:slotHeight, rows:(midY - grid.getBoundingClientRect().top) / Math.max(1, slotHeight), grid };
+      container.querySelector('.prs-wrap')?.classList.add('prs-pinching');
+      suppressTouchGestureClickUntil = Date.now() + 600;
+      return true;
+    };
+    const updatePinch = () => {
+      if (!pinch || touchPoints.size < 2) return;
+      const { distance, midY } = pinchGeometry();
+      const height = Math.max(TOUCH_SLOT_HEIGHT_MIN_PX, Math.min(TOUCH_SLOT_HEIGHT_MAX_PX, pinch.height * distance / pinch.distance));
+      if (Math.abs(height - slotHeight) >= 0.25) applyTouchSlotHeight(height);
+      const gridTop = pinch.grid.getBoundingClientRect().top;
+      touchGestureScroller.scrollTop = Math.max(0, Number(touchGestureScroller.scrollTop || 0) + (gridTop + pinch.rows * slotHeight) - midY);
+    };
+    const endPinch = (event) => {
+      if (!pinch) return;
+      pinch = null;
+      container.querySelector('.prs-wrap')?.classList.remove('prs-pinching');
+      writeTouchSlotHeight(slotHeight);
+      suppressTouchGestureClickUntil = Date.now() + 600;
+      // The finger still down neither scrolls, taps nor holds.
+      const [remaining] = [...touchPoints.keys()].filter((id) => id !== event.pointerId);
+      touchGesture = remaining === undefined ? null : { pointerId:remaining, startX:0, startY:0, lastY:0, startedAt:Date.now(), startScrollTop:0, samples:[], stoppedGlide:false, intent:'pinch' };
+    };
+    /* A tap on an empty spot (touchControls) places a one-slot event there
+     * (the whole day in Month or the all-day band); with a tray open the tap
+     * only closes it. A tap on an item is the item's click (it selects it). */
+    const placeTouchTap = (event, tap) => {
+      if (tap.target?.closest?.('.prs-work-chip,.prs-toolbar,.prs-view-switch,[data-prs-month-overflow],[data-prs-week-all-day-overflow],.prs-month-day-peek,.prs-placement-hint,button,a,input,select,textarea')) return false;
+      if (container.__prsTray) {
+        dismissEventTray(container);
+        suppressFollowUpClick(500);
+        return true;
+      }
+      if (!allowCreate || clickPlacement) return false;
+      const range = rangeFromPointer(event) || pointRange(event.target, event);
+      if (!range) return false;
+      const allDay = mode === 'month' || range.allDay === true;
+      const start = allDay ? range.start : dateAt(dateKey(range.start), timeString(rowStartMinute(range.start)));
+      const end = allDay ? range.end : new Date(start.getTime() + renderSlotMinutes * 60000);
+      const draft = publishDraft({ start, end, allDay, granularity:allDay ? 'date' : 'time' }, { resetExisting:true });
+      if (!draft) return false;
+      suppressFollowUpClick(500);
+      const chip = container.querySelector(`.prs-work-chip[data-prs-event-id="${cssEscape(draft.id || '')}"]`);
+      options.onDraftCreateComplete?.(draft, { element:chip, sourceEvent:event, touchTap:true });
+      return true;
+    };
+    /* The selected event's translucent bars resize it at once (no hold). */
+    const beginTouchHandleResize = (event) => {
+      const handle = event.target.closest?.('[data-prs-touch-handle]');
+      if (!handle || drag || event.button > 0) return false;
+      const chip = handle.closest('.prs-work-chip');
+      const item = eventByRenderedId(chip?.dataset.prsEventId || '');
+      if (!chip || !item || !allowEventDrag || clickPlacement || !itemCanAdjustRange(item)) return false;
+      event.preventDefault();
+      event.stopPropagation();
+      cancelTouchHold();
+      touchTap = null;
+      const kind = handle.dataset.prsTouchHandle === 'start' ? 'start' : 'end';
+      const zone = mode === 'month' ? 'month' : (chip.closest('.prs-all-day-grid') ? 'band' : 'grid');
+      const base = normalizeRangeItem(item).range;
+      // Grabbed where the finger is; a bar above the visible grid reads as
+      // the edge itself.
+      const edge = kind === 'start' ? base.start : base.end;
+      const grab = calendarPointAt(event, { gridOnly:zone === 'grid' })
+        || (zone === 'grid' ? { zone:'grid', day:dateKey(kind === 'end' ? new Date(edge.getTime() - 1) : edge), minute:edge.getHours() * 60 + edge.getMinutes() + (kind === 'end' && edge.getHours() === 0 && edge.getMinutes() === 0 ? 24 * 60 : 0) } : null);
+      drag = { kind, zone, grab, item, node:chip, base, anchor:pointRange(chip.closest('[data-prs-date]') || chip, event), startX:event.clientX, startY:event.clientY, moved:false, maxDistance:0, touchHeld:true, touchHandle:true, pointerId:event.pointerId, captureNode:chip };
+      capturePointer(chip, event.pointerId);
+      return true;
+    };
     const pointRange = (target, pointerEvent = null) => {
       const cell = target.closest?.('.prs-day[data-prs-date],.prs-all-day-cell[data-prs-date],.prs-slot[data-prs-date]');
       if (!cell) return null;
@@ -3705,7 +3891,6 @@
         : event;
       return calendarPointAt(point, { gridOnly:true });
     };
-    let localActiveDraft = activeDraft;
     const composeDraft = (range, extra = {}) => {
       if (!range) return;
       const defaultPayload = typeof options.defaultDraftPayload === 'function'
@@ -4559,7 +4744,20 @@
     };
     container.addEventListener('pointerdown', (event) => {
       if (!event.target.closest?.('.prs-surface')) return;
+      if (touchControls && event.pointerType === 'touch') {
+        touchPoints.set(event.pointerId, { x:Number(event.clientX), y:Number(event.clientY) });
+        if (pinch || (touchPoints.size >= 2 && beginPinch())) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+      }
       beginTouchGesture(event);
+      if (!touchControls) return;
+      if (beginTouchHandleResize(event)) return;
+      touchTap = event.pointerType === 'touch' && touchPoints.size === 1
+        ? { pointerId:event.pointerId, x:Number(event.clientX), y:Number(event.clientY), at:Date.now(), target:event.target, stoppedGlide:touchGesture?.stoppedGlide === true }
+        : null;
     }, { capture:true, signal:listenerSignal });
     container.addEventListener('click', (event) => {
       if (Date.now() >= suppressTouchGestureClickUntil) return;
@@ -4668,7 +4866,9 @@
       container.addEventListener('click', (event) => {
         // Listeners from an earlier render of this mount go inert.
         if (listenerSignal?.aborted) return;
-        if (touchHoldToPlace && Date.now() < suppressTouchClickUntil) return;
+        // Phones with touchControls place with a tap too (a scroll's
+        // release is no tap); otherwise touch places by holding.
+        if (touchHoldToPlace && !touchControls && Date.now() < suppressTouchClickUntil) return;
         commitClickPlacement(event);
       }, true);
       container.addEventListener('pointerleave', () => clearLivePreview(), { signal:listenerSignal });
@@ -4852,6 +5052,13 @@
     });
     reflowTimedOverlaps();
     container.addEventListener('pointermove', (event) => {
+      if (touchPoints.has(event.pointerId)) touchPoints.set(event.pointerId, { x:Number(event.clientX), y:Number(event.clientY) });
+      if (pinch) {
+        event.preventDefault();
+        updatePinch();
+        return;
+      }
+      if (touchTap?.pointerId === event.pointerId && Math.hypot(Number(event.clientX) - touchTap.x, Number(event.clientY) - touchTap.y) > POINTER_DRAG_THRESHOLD) touchTap = null;
       updateTouchGesture(event);
       cancelTouchHoldForMovement(event);
       if (!drag) {
@@ -4867,8 +5074,18 @@
     }, { signal:listenerSignal });
     container.addEventListener('pointerup', (event) => {
       releaseSuppressedClicks();
+      const tap = touchTap?.pointerId === event.pointerId ? touchTap : null;
+      touchTap = null;
+      if (pinch) {
+        endPinch(event);
+        touchPoints.delete(event.pointerId);
+        return;
+      }
+      touchPoints.delete(event.pointerId);
       if (pendingTouchHold?.pointerId === event.pointerId) cancelTouchHold();
+      const tapIntent = touchGesture?.pointerId === event.pointerId ? touchGesture.intent : '';
       if (finishTouchGesture(event)) return;
+      if (!drag && tap && !tapIntent && !tap.stoppedGlide && Date.now() - tap.at < 600 && placeTouchTap(event, tap)) return;
       if (!drag) return;
       if (drag.kind === 'create') {
         finishCreateDrag(event);
@@ -4914,6 +5131,7 @@
       if (item.__draft === true || item.id === '__draft') {
         const nextDraft = { ...item, ...payload };
         const renderedDraft = upsertDraft(nextDraft) || nextDraft;
+        applyTouchSelection();
         options.onDraftChange?.(renderedDraft);
       }
       else {
@@ -4930,10 +5148,16 @@
         Object.assign(item, updatedItem);
         const monthMarginTop = mode === 'month' ? '' : (activeDrag.node?.closest?.('.prs-month-bar,.prs-all-day-bar-top')?.style?.marginTop || `${allDayBandTop}px`);
         upsertCalendarItem(updatedItem, monthMarginTop ? { monthMarginTop } : {});
+        applyTouchSelection();
         options.onEventRangeChange?.(updatedItem, payload);
       }
+      // Resized by its bars: the event still clears the tray.
+      if (activeDrag.touchHandle && container.isConnected) revealSelectionAboveTray(container, { animate:true });
     }, { signal:listenerSignal });
     container.addEventListener('pointercancel', (event) => {
+      if (touchTap?.pointerId === event.pointerId) touchTap = null;
+      if (pinch) endPinch(event);
+      touchPoints.delete(event.pointerId);
       if (pendingTouchHold?.pointerId === event.pointerId) cancelTouchHold();
       if (touchGesture?.pointerId === event.pointerId) touchGesture = null;
       if (drag && (drag.touchHeld || drag.pointerId === event.pointerId)) cancelDrag();
@@ -7712,7 +7936,173 @@
     timer = setTimeout(stop, 1500);
   }
 
+  /* ---- Phone event tray (FM-441) ----------------------------------------
+   * On a calendar rendered with touchControls, the host's own event editor
+   * or details panel is shown as a tray from the bottom of the screen
+   * instead of a popover or a full-screen page. presentEventTray(panel, {
+   * anchor, eventId, onClose }) turns the panel (already in the page) into
+   * the tray, selects the event in the calendar (its resize bars show) and
+   * scrolls the calendar, animated, so the event's bottom edge ends
+   * EVENT_TRAY_GAP_PX above the tray. It returns false (and changes nothing)
+   * when the event is not on a touch-controls calendar: hosts keep their
+   * usual popover then. Removing the panel ends the selection; a host that
+   * re-renders its panel in place presents the new one straight away (no
+   * second slide-in). A tap on an empty spot of the calendar while a tray is
+   * open calls onClose (or removes the panel). */
+  function touchCalendarChip(anchor, eventId, doc){
+    const inTouchCalendar = (node) => !!node?.closest?.('.prs-wrap.prs-touch-controls');
+    const fromAnchor = anchor?.closest?.('.prs-work-chip[data-prs-event-id]');
+    if (fromAnchor?.isConnected && inTouchCalendar(fromAnchor) && (!eventId || String(fromAnchor.dataset.prsEventId || '') === String(eventId))) return fromAnchor;
+    // The anchor was replaced by a re-render (or is not a chip): find the
+    // event's chip on the page.
+    const id = clean(eventId || fromAnchor?.dataset?.prsEventId);
+    if (!id || !doc?.querySelectorAll) return null;
+    return [...doc.querySelectorAll(`.prs-wrap.prs-touch-controls .prs-work-chip[data-prs-event-id="${cssEscape(id)}"]`)]
+      .find((chip) => !chip.matches('.live-preview,.preview,.drag-preview,.prs-month-day-peek-chip')) || null;
+  }
+  function touchCalendarContainer(node){
+    return node?.closest?.('.prs-wrap.prs-touch-controls')?.parentElement || null;
+  }
+  function animateScrollTop(scroller, top, durationMs = EVENT_TRAY_SCROLL_MS){
+    if (!scroller) return;
+    if (scroller.__prsTrayScroll) cancelAnimationFrame(scroller.__prsTrayScroll);
+    scroller.__prsTrayScroll = 0;
+    const from = Number(scroller.scrollTop || 0);
+    const to = Math.max(0, Math.min(Number(top) || 0, scroller.scrollHeight - scroller.clientHeight));
+    const reduced = root.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+    if (Math.abs(to - from) < 1 || reduced || durationMs <= 0) { scroller.scrollTop = to; return; }
+    const startedAt = performance.now();
+    // Any touch on the calendar takes the scroll back.
+    const stop = () => {
+      if (scroller.__prsTrayScroll) cancelAnimationFrame(scroller.__prsTrayScroll);
+      scroller.__prsTrayScroll = 0;
+      scroller.removeEventListener('pointerdown', stop, true);
+    };
+    scroller.addEventListener('pointerdown', stop, true);
+    const step = (now) => {
+      if (!scroller.isConnected) { stop(); return; }
+      const t = Math.min(1, (now - startedAt) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3);
+      scroller.scrollTop = from + (to - from) * eased;
+      if (t < 1) scroller.__prsTrayScroll = requestAnimationFrame(step);
+      else stop();
+    };
+    scroller.__prsTrayScroll = requestAnimationFrame(step);
+  }
+  /* Scroll the calendar so the selected event clears the tray: its bottom
+   * edge EVENT_TRAY_GAP_PX above the tray's top, without hiding its top
+   * under the sticky day header (a tall event keeps its top in view). */
+  // Top of the calendar's visible grid: below its sticky day header/band.
+  function calendarVisibleTop(container){
+    const surface = container?.querySelector('.prs-surface');
+    if (!surface) return 0;
+    const sticky = container.querySelector('.prs-all-day-grid') || container.querySelector('.prs-time-header-grid') || container.querySelector('.prs-month-head-row');
+    return Math.max(surface.getBoundingClientRect().top, sticky ? sticky.getBoundingClientRect().bottom : -Infinity) + 4;
+  }
+  function revealSelectionAboveTray(container, { animate = true } = {}){
+    const selection = container?.__prsTouchSelection;
+    const tray = container?.__prsTray?.panel;
+    const surface = container?.querySelector('.prs-surface');
+    if (!selection?.eventId || !surface || !tray?.isConnected) return;
+    const chips = [...container.querySelectorAll(`.prs-work-chip.prs-touch-selected[data-prs-event-id="${cssEscape(selection.eventId)}"]`)]
+      .filter((chip) => !chip.closest('.prs-all-day-grid,.prs-time-header-grid,.prs-month-head-row'));
+    if (!chips.length) return;
+    const rect = chips.map((chip) => chip.getBoundingClientRect()).reduce((box, next) => ({ top:Math.min(box.top, next.top), bottom:Math.max(box.bottom, next.bottom) }));
+    const trayTop = Number(container.__prsTray.top ?? tray.getBoundingClientRect().top);
+    const visibleTop = calendarVisibleTop(container);
+    let delta = rect.bottom - (trayTop - EVENT_TRAY_GAP_PX);
+    if (delta > 0) delta = Math.min(delta, rect.top - visibleTop);
+    else if (rect.top < visibleTop) delta = rect.top - visibleTop;
+    else return;
+    if (Math.abs(delta) < 1) return;
+    const target = Number(surface.scrollTop || 0) + delta;
+    if (animate) animateScrollTop(surface, target);
+    else surface.scrollTop = Math.max(0, target);
+  }
+  function clearTouchSelection(container){
+    if (!container) return;
+    container.__prsTouchSelection = null;
+    container.__prsTray = null;
+    container.__prsApplyTouchSelection?.();
+  }
+  function watchEventTray(container, panel){
+    // The whole document: the panel may also go with an ancestor (a closed
+    // project window). Only while this tray is open.
+    const scope = panel.ownerDocument?.body || panel.parentNode;
+    if (!scope || panel.__prsTrayObserver || typeof MutationObserver !== 'function') return;
+    const observer = new MutationObserver(() => {
+      if (panel.isConnected) return;
+      observer.disconnect();
+      const tray = container.__prsTray;
+      if (tray?.panel !== panel) return;
+      tray.goneAt = Date.now();
+      // A host that re-renders its panel presents the new one right away;
+      // only a tray that stays gone ends the selection.
+      setTimeout(() => { if (container.__prsTray === tray) clearTouchSelection(container); }, 60);
+    });
+    panel.__prsTrayObserver = observer;
+    observer.observe(scope, { childList:true, subtree:true });
+  }
+  function presentEventTray(panel, { anchor = null, eventId = '', onClose = null } = {}){
+    if (!panel?.isConnected) return false;
+    const doc = panel.ownerDocument || document;
+    const chip = touchCalendarChip(anchor, clean(eventId), doc);
+    const container = touchCalendarContainer(chip);
+    if (!chip || !container) return false;
+    injectCss();
+    const previous = container.__prsTray;
+    // Re-rendered in place (same moment, or the previous one still shows).
+    const reopened = !!previous && (previous.panel?.isConnected || !previous.goneAt || Date.now() - previous.goneAt < 600);
+    if (previous?.panel && previous.panel !== panel && previous.panel.isConnected) previous.panel.remove();
+    panel.classList.add('prs-event-tray');
+    // The tray never covers the room the event needs below the sticky day
+    // header (its height, up to two rows, and the gap): on a short screen it
+    // is shorter and scrolls inside.
+    const view = doc.defaultView || root;
+    const chipHeight = Math.min(96, Math.max(24, chip.getBoundingClientRect().height));
+    const roomForTray = Math.floor(Number(view.innerHeight || 0) - calendarVisibleTop(container) - chipHeight - EVENT_TRAY_GAP_PX - 6);
+    if (roomForTray > 0) panel.style.setProperty('max-height', `${Math.max(180, Math.min(roomForTray, Math.round(Number(view.innerHeight || 0) * 0.58), 520))}px`, 'important');
+    // Measured before the slide-in starts (a transform would move it).
+    const trayTop = panel.getBoundingClientRect().top;
+    const surface = container.querySelector('.prs-surface');
+    const space = surface ? Math.max(0, Math.ceil(surface.getBoundingClientRect().bottom - trayTop + EVENT_TRAY_GAP_PX)) : 0;
+    if (!reopened) {
+      panel.classList.add('prs-event-tray-enter');
+      const settle = () => panel.classList.remove('prs-event-tray-enter');
+      panel.addEventListener('animationend', settle, { once:true });
+      setTimeout(settle, 450);
+    }
+    container.__prsTray = { panel, onClose:typeof onClose === 'function' ? onClose : null, goneAt:0, top:trayTop };
+    container.__prsTouchSelection = { eventId:String(chip.dataset.prsEventId || eventId || ''), space };
+    container.__prsApplyTouchSelection?.();
+    revealSelectionAboveTray(container, { animate:true });
+    watchEventTray(container, panel);
+    return true;
+  }
+  function dismissEventTray(container){
+    const tray = container?.__prsTray;
+    if (!tray) return false;
+    if (tray.onClose) {
+      try { tray.onClose(); } catch (error) { console.warn('Schedule tray close failed.', error); }
+    } else tray.panel?.remove?.();
+    if (container.__prsTray === tray && !tray.panel?.isConnected) clearTouchSelection(container);
+    return true;
+  }
+  function readTouchSlotHeight(){
+    try {
+      const stored = Number(root.localStorage?.getItem(TOUCH_SLOT_HEIGHT_KEY));
+      if (Number.isFinite(stored) && stored > 0) return Math.max(TOUCH_SLOT_HEIGHT_MIN_PX, Math.min(TOUCH_SLOT_HEIGHT_MAX_PX, stored));
+    } catch (error) {}
+    return TOUCH_SLOT_HEIGHT_DEFAULT_PX;
+  }
+  function writeTouchSlotHeight(value){
+    try { root.localStorage?.setItem(TOUCH_SLOT_HEIGHT_KEY, String(Math.round(value * 10) / 10)); } catch (error) {}
+  }
+
   root.PlatformScheduleView = {
+    // Phone event tray (see presentEventTray above).
+    presentEventTray,
+    dismissEventTray,
     mobileCalendarToolbarHtml,
     revealMonthDate,
     travelSegmentLayout,
