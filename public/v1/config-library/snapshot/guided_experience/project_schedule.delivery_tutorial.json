@@ -1,0 +1,123 @@
+{
+  "kind": "guided_experience",
+  "id": "project_schedule.delivery_tutorial",
+  "revision": 1,
+  "sha256": "37d8596c96a145e877dd20cdc5cf49aba3139f1fdd774501b52e568bc2773359",
+  "title": "Scheduling deliveries",
+  "updated_at": "2026-11-13T05:41:55.501Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
+  "data": {
+    "id": "project_schedule.delivery_tutorial",
+    "version": 1,
+    "kind": "overlay",
+    "scope": "person",
+    "salt": "2026-11",
+    "title": {
+      "key": "gx_psd_title",
+      "text": "Scheduling deliveries"
+    },
+    "description": {
+      "key": "gx_psd_description",
+      "text": "How a delivery sits under its job, and dragging it onto the calendar on a phone."
+    },
+    "tab": "project.schedule",
+    "eligibility": {
+      "capabilities": [
+        "platform.scheduling"
+      ],
+      "permissions": []
+    },
+    "triggers": [
+      {
+        "kind": "manual"
+      }
+    ],
+    "variants": [
+      {
+        "id": "tour",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "family",
+        "title": {
+          "key": "gx_psd_family_title",
+          "text": "Deliveries belong to a job"
+        },
+        "body": {
+          "key": "gx_psd_family_body",
+          "text": "Each delivery sits under the job it is for. When the job goes on the calendar, its deliveries go with it."
+        },
+        "targets": [
+          ".r-schedule-waiting-family:has([data-schedule-waiting-kind=\"delivery\"])",
+          ".r-schedule-waiting-family"
+        ],
+        "placement": "bottom",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "drag",
+        "title": {
+          "key": "gx_psd_drag_title",
+          "text": "Drag it onto a day"
+        },
+        "body": {
+          "key": "gx_psd_drag_body",
+          "text": "Pull a delivery down onto a day to schedule it there. Its job stays where it is."
+        },
+        "targets": [],
+        "cases": [
+          {
+            "targets": [
+              ".r-schedule-waiting-family:has([data-schedule-waiting-kind=\"delivery\"]) .r-schedule-waiting-item.is-job.is-unplaced"
+            ],
+            "title": {
+              "key": "gx_psd_drag_job_title",
+              "text": "Drag the job onto a day"
+            },
+            "body": {
+              "key": "gx_psd_drag_job_body",
+              "text": "Pull the job down onto the day it starts. Its deliveries are placed with it, and you can drag each one to another day after."
+            }
+          },
+          {
+            "targets": [
+              ".r-schedule-waiting-item.is-child[data-schedule-waiting-kind=\"delivery\"]"
+            ]
+          }
+        ],
+        "placement": "bottom",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "tap",
+        "title": {
+          "key": "gx_psd_tap_title",
+          "text": "Or tap, then hold a day"
+        },
+        "body": {
+          "key": "gx_psd_tap_body",
+          "text": "You can also tap an item, then touch and hold a day. Tap a delivery on the calendar to see it, lock it or reschedule it."
+        },
+        "targets": [
+          ".r-schedule-calendar"
+        ],
+        "placement": "top",
+        "advance": "next",
+        "wait_ms": 1500
+      }
+    ],
+    "completion": {
+      "screen": "pricebook",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

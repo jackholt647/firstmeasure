@@ -607,6 +607,19 @@ tab's own tour (Photos on a new project) waits under the tray and plays after th
 phone a tour card sits along the top when its target is in the lower half of the screen,
 so it never covers the bottom buttons it points at.
 
+## Schedule: the delivery tour
+
+`project_schedule.delivery_tutorial` (overlay, person, replayable, phone only) shows how a
+delivery is scheduled from the project Schedule tab: deliveries sit under their job in the
+strip above the calendar, a job or delivery is dragged down onto a day (the job, while it is
+not on the calendar, brings its deliveries), or tapped and then a day held. Its trigger is
+`manual`: no data trigger knows that a delivery is on screen, so the Schedule panel
+(`project-schedule/panel.js`, `offerScheduleDeliveryTour`) asks `FirstMateGuides.play` once
+per page, on a touch screen under 720px, when the strip shows a delivery under a job. The
+runtime keeps who has seen it. Its targets are the strip's `r-schedule-waiting-family` and
+`data-schedule-waiting-kind` hooks; `tests/scheduling-ui-contract.test.mjs` checks the panel
+still draws each one.
+
 ## Agents can press the buttons
 
 `pricebook.setup.apply` (organization, `manage_company_settings`) and
