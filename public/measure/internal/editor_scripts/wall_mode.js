@@ -1317,6 +1317,24 @@ function perf_render3DFrame() {
         const planeDisplay=document.createElement('select');planeDisplay.id='plane-other-geometry';planeDisplay.setAttribute('aria-label','Off-plane geometry');
         for(const [value,text]of [['normal','Normal'],['faint','Faint'],['hidden','Hidden']]){const option=document.createElement('option');option.value=value;option.textContent=text;planeDisplay.appendChild(option);}planeDisplay.value='faint';planeDisplay.onchange=()=>wallEditor?.setPlaneDisplay(planeDisplay.value);planeControls.appendChild(planeDisplay);interaction.appendChild(planeControls);
         const lineDimension=document.createElement('span');lineDimension.id='wall-selected-line-length';lineDimension.hidden=true;lineDimension.setAttribute('aria-label','Selected line length');
+        // Two lines selected: hovering the length shows how they stand to each other (WallSolidGeometry.linePairMeasure).
+        const pairDetail=document.createElement('div');pairDetail.id='wall-line-pair-detail';pairDetail.hidden=true;pairDetail.setAttribute('role','tooltip');
+        pairDetail.style.cssText='position:fixed;z-index:2147483000;min-width:190px;padding:8px 10px;background:#fff;color:#222;border:1px solid #d0d0d0;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.18);font:400 12px system-ui;font-variant-numeric:tabular-nums;text-align:left;white-space:nowrap;pointer-events:none;';
+        document.body.appendChild(pairDetail);let pairHover=false,pairHtml='';
+        const placePairDetail=()=>{const show=pairHover&&!!pairHtml&&!lineDimension.hidden;if(pairDetail.hidden===show)pairDetail.hidden=!show;if(!show)return;const r=lineDimension.getBoundingClientRect(),w=pairDetail.offsetWidth||200;pairDetail.style.left=Math.max(8,Math.min(window.innerWidth-w-8,r.right-w))+'px';pairDetail.style.top=(r.bottom+6)+'px';};
+        lineDimension.addEventListener('mouseenter',()=>{pairHover=true;placePairDetail();});lineDimension.addEventListener('mouseleave',()=>{pairHover=false;placePairDetail();});
+        const selectedSegments=()=>{
+            if(enabled)return (editingLayer==='base'?baseEditor:wallEditor)?.selectedLineSegments?.()||[];
+            const mpp=Number(window.getMetersPerPx?.());if(!(mpp>0))return [];
+            return [...selectedLines].filter(line=>line.start&&line.end).map(line=>[line.start,line.end].map(p=>({x:p.x*mpp,y:p.y*mpp,z:p.z??0})));
+        };
+        const pairDetailHtml=()=>{
+            const segments=selectedSegments();if(segments.length!==2)return '';const m=window.WallSolidGeometry?.linePairMeasure?.(...segments);if(!m)return '';
+            const dist=v=>window.ReportUnits?.current().distance(v,(v/.3048).toFixed(2)+'\u2032')??(v/.3048).toFixed(2)+'\u2032',row=(label,value)=>'<div style="display:flex;justify-content:space-between;gap:18px;line-height:1.6"><span style="color:#666">'+label+'</span><span>'+value+'</span></div>';
+            const angle=m.angle==null?'n/a (a line is upright)':m.angle.toFixed(m.angle<10?2:1)+'\u00b0',badge=m.parallel?'Parallel':m.perpendicular?'Perpendicular':'';
+            return '<div style="font-weight:600;margin-bottom:4px">Between the two lines</div>'+row('Closest',dist(m.closest))+row('Furthest',dist(m.furthest))+row('Average',dist(m.average))+row('Angle (from above)',angle)
+                +(badge?'<div style="margin-top:6px;padding:3px 6px;border-radius:4px;background:'+(m.parallel?'#e7f6ec;color:#17693a':'#e8f0fd;color:#1c4fa0')+';font-weight:600">'+(m.parallel?'\u2225 Parallel'+(m.spacing!=null?' \u00b7 '+dist(m.spacing)+' apart in plan':''):'\u22a5 Perpendicular')+'</div>':'');
+        };
         // This runs on every redraw: write only what changed, since each DOM write wakes the toolbar layout observer.
         const put=(el,key,value)=>{if(el&&el[key]!==value)el[key]=value;};
         const updateInteraction=()=>{
@@ -1332,7 +1350,10 @@ function perf_render3DFrame() {
                 if(Number.isFinite(mpp)&&mpp>0)length=[...selectedLines].reduce((sum,line)=>{const a=line.start,b=line.end;return sum+(a&&b?Math.hypot((b.x-a.x)*mpp,(b.y-a.y)*mpp,(b.z??0)-(a.z??0)):0);},0);
             }
             put(lineDimension,'hidden',!(Number.isFinite(length)&&length>=0));
-            if(!lineDimension.hidden)put(lineDimension,'textContent','Length: '+(window.ReportUnits?.current().distance(length,(length/.3048).toFixed(2)+'′')??(length/.3048).toFixed(2)+'′'));
+            const pairNow=lineDimension.hidden?'':pairDetailHtml();if(pairNow!==pairHtml){pairHtml=pairNow;pairDetail.innerHTML=pairNow;}
+            put(lineDimension.style,'cursor',pairHtml?'help':'');put(lineDimension,'title',pairHtml?'':'');
+            if(!lineDimension.hidden)put(lineDimension,'textContent','Length: '+(window.ReportUnits?.current().distance(length,(length/.3048).toFixed(2)+'′')??(length/.3048).toFixed(2)+'′')+(pairHtml?' \u25be':''));
+            placePairDetail();
             const name=enabled&&(groundEditor?.interaction?.()||wallEditor?.interaction()||baseEditor?.interaction());
             put(interaction,'hidden',!name);put(interaction.style,'display',name?'flex':'none');
             put(interactionText,'hidden',name==='Drawing plane');
