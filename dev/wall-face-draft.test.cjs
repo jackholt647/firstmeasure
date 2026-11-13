@@ -1923,6 +1923,9 @@ test('plane drawing on a horizontal base partitions covered area without adding 
 
 function planeStep(f,x,y){if(!f.editor.pointSelection().length)f.editor.doubleClick(f.e(x,y));else{f.editor.key({key:'n'});f.editor.down(f.e(x,y));}}
 
+// Every line that is drawn, whoever stores it: a line along a face is the face's and is not kept a second time as a
+// free-standing line (WallSolidGeometry.settleDeletedWire).
+const wirePairs=edits=>{const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),g=W.surfaceWire(edits),at=new Map(g.nodes.map(n=>[n.id,n]));return g.edges.map(e=>[at.get(e.a),at.get(e.b)]);};
 test('plane selection passes through off-plane geometry and C connects every pair in one commit',()=>{
  const f=fixture({pickVisible:()=>false,state:{wallEdits:{$loose:{points:[{x:6,y:1,z:0}],edges:[]}}}});f.editor.key({key:'p'});
  const click=(x,y,shift=false)=>{const e=f.e(x,y,shift);f.editor.down(e);f.listeners.pointerup(e);};
@@ -1930,7 +1933,7 @@ test('plane selection passes through off-plane geometry and C connects every pai
  for(const [x,y]of [[6,0],[8,0],[8,2],[6,2]])f.editor.doubleClick(f.e(x,y));
  click(6,0);click(8,0,true);click(8,2,true);click(6,2,true);assert.equal(f.editor.pointSelection().length,4);assert.ok(f.editor.pointSelection().every(p=>p.y===0));
  const h=f.history.length;f.editor.key({key:'c'});assert.equal(f.history.length,h+1);
- assert.equal(f.state.wallEdits.$surfaces.length,4,'both diagonals partition the square');assert.equal(f.state.wallEdits.$loose.edges.length,6);click(6,2);click(6,0,true);f.editor.key({key:'c'});assert.equal(f.state.wallEdits.$surfaces.length,4);
+ assert.equal(f.state.wallEdits.$surfaces.length,4,'both diagonals partition the square');assert.equal(f.state.wallEdits.$loose.edges.length,0,'the faces draw the lines: none is stored twice');assert.equal(wirePairs(f.state.wallEdits).length,8);click(6,2);click(6,0,true);f.editor.key({key:'c'});assert.equal(f.state.wallEdits.$surfaces.length,4);
 });
 
 test('plane rectangular selection filters points and N connects every selected point',()=>{
@@ -2105,7 +2108,7 @@ test('one or multiple solid stickers share four move modes and accept exact dist
 test('moving a mounted sticker carries a coincident loose anchor and cancel restores it',()=>{
  const f=stickerFixture(),corner=f.d().faces.find(f=>f.feature).points[0];f.state.wallEdits.$loose={points:[{x:corner.x,y:0,z:corner.y}],edges:[]};const before=JSON.stringify(f.state.wallEdits);
  f.listeners.pointermove(f.e(2,2));f.editor.key({key:'m'});f.editor.distanceInput().set(.3);
- const anchor=f.state.wallEdits.$loose.points[0];assert.ok(Math.abs(anchor.x-corner.x-.3)<1e-8);assert.equal(anchor.z,corner.y);
+ const anchor=f.state.wallEdits.$loose.points[0];if(anchor){assert.ok(Math.abs(anchor.x-corner.x-.3)<1e-8);assert.equal(anchor.z,corner.y);}
  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
 });
 
@@ -2355,7 +2358,7 @@ for(const amount of [-.6096,.6096])test(`edge extrusion ${amount} preserves unse
  const begin=()=>{f.editor.restoreSelection(selection);f.listeners.pointermove(f.e(4,0));f.editor.key({key:'e'});f.editor.distanceInput().set(amount);};
  begin();assert.equal(f.editor.distanceInput().amount,amount,f.message());
  assert.equal(JSON.stringify(Object.values(state.wallEdits.$drafts)[0].sketch.nodes),nodes,'original sketch must not get diagonalized');
- assert.equal(JSON.stringify(state.wallEdits.$loose.edges[0]),JSON.stringify(loose),'unselected loose line stays fixed');
+ assert.equal(JSON.stringify(state.wallEdits.$loose.edges[0]),JSON.stringify([p(-10,0,0),p(0,0,0)]),'unselected loose line stays fixed, less the part the wall draws');
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),surfaces=state.wallEdits.$surfaces.filter(s=>!s.deleted),connections=[...surfaces,...state.wallEdits.$loose.edges.map(points=>({points}))];
  for(const from of side.points.slice(0,2)){const to={...from,z:amount};assert.ok(W.sharedIntervals(from,to,connections).reduce((sum,[a,b])=>sum+b-a,0)>.99999,'new endpoint connects to its original endpoint');}
  for(const edge of state.wallEdits.$loose.edges.slice(1))assert.ok(edge[0].x===edge[1].x&&edge[0].y===edge[1].y,'only local vertical connectors may be added');
@@ -3330,7 +3333,7 @@ test('typed plane length switches to the nearest raw-cursor anchor and keeps bot
  f.editor.draw3D({add(){}},p=>p);let driven=markers.find(e=>e.selected&&Math.abs(e.length-.3048)<1e-8);assert.ok(driven);assert.equal(driven.a.x,0);
  markers.length=0;f.listeners.pointermove(f.e(3,1));assert.equal(f.editor.distanceInput().token,owner.token);f.editor.draw3D({add(){}},p=>p);driven=markers.find(e=>e.selected&&Math.abs(e.length-.3048)<1e-8);assert.ok(driven);assert.equal(driven.a.x,4);
  const preview={...driven.b};f.editor.planeDown(f.e(3,1));const end=f.editor.pointSelection()[0];assert.ok(Math.hypot(end.x-preview.x,end.y-preview.y,end.z-preview.z)<1e-8);assert.ok(Math.hypot(end.x,end.z)>3);assert.equal(f.history.length,1);
- const edges=f.state.wallEdits.$loose.edges;
+ const edges=wirePairs(f.state.wallEdits);
  for(const start of starts)assert.ok(edges.some(pair=>pair.some(p=>Math.hypot(p.x-start.x,p.y-start.y,p.z-start.z)<1e-6)&&pair.some(p=>Math.hypot(p.x-end.x,p.y-end.y,p.z-end.z)<1e-6)));
 });
 test('plane N shows every live line length without requiring a typed distance',()=>{
@@ -3347,7 +3350,7 @@ test('typed plane length is a world distance on a tilted plane and connects thre
  const f=fixture({state:{wallEdits:{$surfaces:[face]}},walls:[],selected:null,globals:{...renderGlobals(),isFreeMove:true},lengthMarker:(g,v,e)=>markers.push(e),projectPoint:(d,e)=>K.local(d.frame,p(e.clientX/100,e.clientY/100))});
  f.editor.togglePlane(face);planeSelection(f,starts);f.editor.key({key:'n'});f.listeners.pointermove(f.e(3,3));f.editor.distanceInput().set(.6096);f.editor.draw3D({add(){}},p=>p);
  const driver=markers.find(e=>e.selected);assert.ok(driver);assert.equal(driver.a.x,4);assert.equal(driver.a.y,4);assert.ok(Math.abs(driver.length-.6096)<1e-8);
- f.editor.planeDown(f.e(3,3));const end=f.editor.pointSelection()[0];assert.ok(Math.abs(end.z-(2+.3*end.x+.4*end.y))<1e-8);assert.ok(Math.hypot(end.x-driver.b.x,end.y-driver.b.y,end.z-driver.b.z)<1e-8);assert.equal(f.history.length,1);assert.equal(f.state.wallEdits.$loose.edges.length,3);
+ f.editor.planeDown(f.e(3,3));const end=f.editor.pointSelection()[0];assert.ok(Math.abs(end.z-(2+.3*end.x+.4*end.y))<1e-8);assert.ok(Math.hypot(end.x-driver.b.x,end.y-driver.b.y,end.z-driver.b.z)<1e-8);assert.equal(f.history.length,1);assert.equal(wirePairs(f.state.wallEdits).filter(pair=>pair.some(q=>Math.hypot(q.x-end.x,q.y-end.y,q.z-end.z)<1e-6)).length,3);
 });
 test('clearing a typed plane length restores free aiming without committing',()=>{
  const f=planeLineFixture([{x:0,y:0,z:0}]);f.listeners.pointermove(f.e(2,2));const root={document:{getElementById:()=>null}};root.window=root;vm.runInNewContext(fs.readFileSync('public/measure/internal/editor_scripts/exterior_distance_input.js','utf8'),root);
@@ -3362,7 +3365,7 @@ test('typed plane lengths still snap bearing and F disables the bearing without 
  for(const free of [false,true]){const f=planeLineFixture([{x:0,y:0,z:0}],{globals:{...renderGlobals(),isFreeMove:false}});f.listeners.pointermove(f.e(2,.04));f.editor.distanceInput().set(.3048);if(free){f.editor.key({key:'f'});f.listeners.pointermove(f.e(2,.04));}f.editor.planeDown(f.e(2,.04));const p=f.editor.pointSelection()[0];assert.ok(Math.abs(Math.hypot(p.x,p.z)-.3048)<1e-8);if(free)assert.ok(p.z>.001);else assert.ok(Math.abs(p.z)<1e-8);assert.equal(f.history.length,1);}
 });
 test('plane Q near the starting row keeps a four-sided preview and commits that rectangle',()=>{
- const f=planeLineFixture([{x:0,y:0,z:0}],{globals:{...renderGlobals(),isFreeMove:false}});f.editor.key({key:'q'});f.listeners.pointermove(f.e(3,.1));const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);const preview=objects.filter(o=>o.material?.color==='#FFD700'&&o.geometry?.points?.length===2).flatMap(o=>o.geometry.points);assert.ok(preview.some(p=>p.z>.05),'preview has nonzero height');assert.ok(preview.some(p=>p.x>2.9));f.editor.planeDown(f.e(3,.1));f.editor.planeDown(f.e(3,.1));assert.equal(f.history.length,1,f.message());assert.ok(f.state.wallEdits.$loose.edges.some(pair=>pair.some(p=>p.z>.05)));
+ const f=planeLineFixture([{x:0,y:0,z:0}],{globals:{...renderGlobals(),isFreeMove:false}});f.editor.key({key:'q'});f.listeners.pointermove(f.e(3,.1));const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);const preview=objects.filter(o=>o.material?.color==='#FFD700'&&o.geometry?.points?.length===2).flatMap(o=>o.geometry.points);assert.ok(preview.some(p=>p.z>.05),'preview has nonzero height');assert.ok(preview.some(p=>p.x>2.9));f.editor.planeDown(f.e(3,.1));f.editor.planeDown(f.e(3,.1));assert.equal(f.history.length,1,f.message());assert.ok(wirePairs(f.state.wallEdits).some(pair=>pair.some(p=>p.z>.05)));
 });
 
 test('plane-created connection stays deleted in 3D after its noded pieces are removed',()=>{
@@ -3712,7 +3715,7 @@ test('deleting a sliver face line in a plane-mode recess only removes: no faces 
  // Hidden free-standing wire is removed outright now, so compare what can be seen: the loose lines that were
  // visible are all still there, and (below) nothing that was hidden shows.
  const seen=e=>new Set(W.surfaceWire({$loose:e.$loose,$removedSurfacePoints:e.$removedSurfacePoints,$removedSurfaceEdges:e.$removedSurfaceEdges}).edges.map(x=>x.id));
- {const now=seen(after);for(const id of seen(before))assert.ok(now.has(id),'a loose line that was visible is still there: '+id);const whole=e=>new Set(W.surfaceWire(e).edges.map(x=>x.id)),was=whole(before);for(const id of now)assert.ok(was.has(id)||[...was].some(k=>k.split('|').some(end=>id.includes(end))),'a new free-standing line is one the deleted face was already showing: '+id);}assert.deepEqual(after.$removedSurfacePoints,[]);
+ {const now=seen(after),drawn=new Set(W.surfaceWire(after).edges.map(x=>x.id));for(const id of seen(before))assert.ok(now.has(id)||drawn.has(id),'a loose line that was visible is still there: '+id);const whole=e=>new Set(W.surfaceWire(e).edges.map(x=>x.id)),was=whole(before);for(const id of now)assert.ok(was.has(id)||[...was].some(k=>k.split('|').some(end=>id.includes(end))),'a new free-standing line is one the deleted face was already showing: '+id);}assert.deepEqual(after.$removedSurfacePoints,[]);
  assert.deepEqual(W.surfaceWire(after).nodes.map(n=>n.id).filter(id=>!nodes.has(id)),[],'no point becomes visible');
 });
 test('a line delete never rebuilds a face from loose wire outside the face it invalidates',()=>{
