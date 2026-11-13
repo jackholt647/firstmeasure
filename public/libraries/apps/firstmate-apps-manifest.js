@@ -211,13 +211,13 @@
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
-        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
+        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261113-touch-gestures'),
         versionedBundle('../doc-sent-editor/firstmate-doc-sent-editor.js', '20261026-mobile-documents-2'),
         versionedBundle('photos/feed.js', '20261111-offline-uploads'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261113-document-scanner-2')
+        versionedBundle('documents/project.js', '20261113-mobile-editor-controls')
       ]
     },
     {
@@ -240,7 +240,7 @@
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
-        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
+        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261113-touch-gestures'),
         versionedBundle('photos/feed.js', '20261111-offline-uploads'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
@@ -266,7 +266,7 @@
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
         versionedBundle('../web-widgets/firstmate-web-widgets.js', '20260728-web-editor-v1'),
         versionedBundle('../portal-widgets/firstmate-portal-widgets.js', '20261101-prod-sync'),
-        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
+        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261113-touch-gestures'),
         versionedBundle('../visual-editor/firstmate-visual-editor.js', '20260813-modes-in-toolbar'),
         versionedBundle('settings/domains.js', '20260731-domains-v11'),
         versionedBundle('web-editor/app.js', '20260930-app-groups-v1')
