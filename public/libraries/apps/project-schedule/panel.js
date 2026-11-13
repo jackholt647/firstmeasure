@@ -5728,12 +5728,12 @@
       }
       revealedTop = surface.scrollTop;
     };
-    // Only a scroll the user made (wheel, touch, keys, the scrollbar) is
-    // their choice of position; our own reveal, or the browser keeping the
-    // content in place while the pane resizes, is not.
+    // Only a scroll the user made (wheel, touch and its momentum glide, keys,
+    // the scrollbar) is their choice of position; our own reveal, or the
+    // browser keeping the content in place while the pane resizes, is not.
     let userScrollAt = 0;
     const markUserScroll = () => { userScrollAt = Date.now(); };
-    ['wheel', 'touchmove', 'keydown', 'pointerdown'].forEach((type) => surface.addEventListener(type, markUserScroll, { passive:true }));
+    ['wheel', 'touchmove', 'prs-touch-glide', 'keydown', 'pointerdown'].forEach((type) => surface.addEventListener(type, markUserScroll, { passive:true }));
     surface.addEventListener('scroll', () => {
       if (!surface.isConnected) return;
       if (revealedTop !== null && Math.abs(surface.scrollTop - revealedTop) <= 1) return;
