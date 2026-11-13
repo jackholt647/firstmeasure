@@ -8927,6 +8927,8 @@ function branchModuleWritePermission(moduleId: string) {
   if (moduleId === "scheduling") return "manage_schedule|manage_company_settings";
   // The Money tab's settings (expense categories): whoever manages projects' money, or company settings.
   if (moduleId === "money_settings") return "manage_projects|manage_company_settings";
+  // The checklists every new project starts with (FM-448): written by the checklists setup, which project managers run.
+  if (moduleId === "starting_checklists") return "manage_projects|manage_company_settings";
   return undefined;
 }
 

@@ -527,6 +527,11 @@ async function initializeScopeChecklists(context: WorkAutomationContext, _input:
   const frozen = version ? (await readScopeTemplateVersion(orgId, branchId, templateId, version)) : null;
   const definition = asObject(frozen?.definition || asObject((await readScopeTemplate(orgId, branchId, templateId))).definition);
   if (!asArray(definition.checklists).length) return { skipped: true, reason: "no_checklists" };
+  // An organization that picked its starting checklists in the checklists setup starts every project with those
+  // instead of the template's (FM-448).
+  const { ensureStartingChecklists } = await import("../../workforce/checklists-setup.js");
+  const starting = await ensureStartingChecklists(orgId, projectId);
+  if (starting) return { initialized: true, source: "organization_starting_checklists", checklist_count: starting.created.length };
   const { initializeProjectChecklistsFromScope } = await import("../../workforce/crew_storage.js");
   (await initializeProjectChecklistsFromScope(orgId, projectId, definition, templateId));
   return { initialized: true, checklist_count: asArray(definition.checklists).length };
