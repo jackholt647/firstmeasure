@@ -289,6 +289,7 @@
       .r-schedule-dialog .r-schedule-allday{display:flex;align-items:center;gap:8px;margin:12px 0 0;color:#344054;font-size:12px;font-weight:900;cursor:pointer}.r-schedule-dialog [hidden]{display:none!important}
       .r-schedule-assignees{display:grid;gap:6px}.r-schedule-assignee-chips{display:flex;flex-wrap:wrap;gap:5px}.r-schedule-assignee-chip{display:inline-flex;align-items:center;gap:4px;max-width:100%;height:26px;padding:0 4px 0 9px;border-radius:999px;background:#f2f4f7;color:#344054;font-size:11px;font-weight:900;text-transform:none;letter-spacing:0}.r-schedule-assignee-chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.r-schedule-assignee-chip button{width:20px;height:20px;border:0;border-radius:50%;background:transparent;color:#667085;cursor:pointer;font-size:10px}.r-schedule-assignee-chip button:hover{background:#e4e7ec;color:#b42318}.r-schedule-assignee-empty{color:#667085;font-size:11px;font-style:italic;font-weight:850;text-transform:none;letter-spacing:0}
       .r-schedule-event-popover-action.danger{color:#b42318}.r-schedule-event-popover-action.danger:hover{background:#fef3f2;color:#912018}
+      .r-schedule-event-popover-action.primary{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:#fff}
       .r-schedule-crew-option{display:flex;align-items:center;gap:8px}.r-schedule-crew-option .check{width:12px;flex:0 0 12px;color:var(--primary,#d93025);font-size:10px}.r-schedule-crew-option span{min-width:0;overflow:hidden;text-overflow:ellipsis}.r-schedule-crew-option:disabled{cursor:progress;color:#98a2b3;font-style:italic}.r-schedule-crew-hint{padding:2px 10px 4px;color:#667085;font-size:10px;font-weight:850}.r-schedule-crew-more{height:30px;border:0;border-top:1px solid rgba(15,23,42,.08);border-radius:0 0 8px 8px;background:#fff;color:#475467;font:inherit;font-size:11px;font-weight:950;text-align:left;padding:0 10px;cursor:pointer}.r-schedule-crew-more:hover{background:#f2f4f7}
       .r-schedule-panel .prs-month-bar>.prs-work-chip{container-type:inline-size}@container (max-width:120px){.r-schedule-panel .prs-month-bar .prs-work-chip .prs-assignee{display:none}}
       .r-schedule-other-tile{display:block;width:100%;box-sizing:border-box;font:inherit;cursor:pointer}.r-schedule-other-tile:hover .r-schedule-tile-title{color:var(--primary-readable,var(--primary,#d93025))}
@@ -2539,13 +2540,20 @@
     `;
     }
     schedulePopoverHost(anchor).appendChild(popover);
+    // Phones: on the calendar the details are the shared bottom tray, and the
+    // calendar scrolls so the item clears it (PlatformScheduleView).
+    const trayed = schedulePhoneLayout() && window.PlatformScheduleView?.presentEventTray?.(popover, {
+      anchor:anchor instanceof Element ? anchor : null,
+      eventId:event.id,
+      onClose:closeScheduleEventPopover
+    }) === true;
     // Keep the popover inside the window as it grows (customer sharing
     // options, confirmation state): flip above the anchor or pin to the
     // viewport and scroll inside it.
     const anchorRect = anchor.getBoundingClientRect();
     const pinned = anchor.__pinnedPopover || null;
     const placePopover = () => {
-      if (!popover.isConnected) return;
+      if (!popover.isConnected || trayed) return;
       popover.style.maxHeight = `${Math.max(160, window.innerHeight - 16)}px`;
       const popoverRect = popover.getBoundingClientRect();
       if (pinned) {
@@ -2564,7 +2572,7 @@
       popover.style.top = `${top}px`;
     };
     placePopover();
-    if (typeof ResizeObserver === 'function') {
+    if (typeof ResizeObserver === 'function' && !trayed) {
       popover.__resizeObserver = new ResizeObserver(() => placePopover());
       popover.__resizeObserver.observe(popover);
     }
@@ -2731,9 +2739,97 @@
       });
       closeScheduleEventPopover();
     });
-    setTimeout(() => {
+    // A tray stays while the calendar above it scrolls; a tap on an empty
+    // spot (or its Close) dismisses it.
+    if (!trayed) setTimeout(() => {
       scheduleEventPopoverDocHandler = bindOutsidePointerDismiss(popover, closeScheduleEventPopover, [anchor]);
     }, 0);
+  }
+
+  /* Phones (FM-441): a work draft placed with a tap (or a tap on a staged
+   * draft) shows in the shared bottom tray with its time and Save, More
+   * options (the full schedule dialog at that time) and Discard; closing
+   * the tray discards the draft, as Close does for a new event in
+   * Scheduling. Returns false when there is no touch calendar to anchor to. */
+  function openScheduleDraftTray(draft = {}, anchor = null){
+    const id = String(draft?.id || '');
+    if (!id || !draft.start || !draft.end || !window.PlatformScheduleView?.presentEventTray) return false;
+    closeWorkAssignmentMenu();
+    closeScheduleEventPopover();
+    const start = new Date(draft.start);
+    const end = new Date(draft.end);
+    const allDay = draft.all_day !== false && draft.schedule_granularity !== 'time';
+    const popover = document.createElement('div');
+    popover.className = 'r-schedule-event-popover r-schedule-draft-tray';
+    popover.dataset.scheduleDraftTray = id;
+    popover.setAttribute('role', 'dialog');
+    popover.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("platform-schedule-view","m_2ac9ecd66d638b","New Event") ?? "New Event"));
+    const action = (attr, icon, label, extra = '') => `<button type="button" class="r-schedule-event-popover-action ${extra}" ${attr}><i class="fas ${icon}"></i>${escapeHtml(label)}</button>`;
+    const kindLabel = globalThis.PlatformLanguage?.text("platform-schedule-view","m_2ac9ecd66d638b","New Event") ?? "New Event";
+    const title = String(draft.title || '').trim();
+    popover.innerHTML = `
+      <div class="r-schedule-event-popover-head">
+        <div class="r-schedule-event-popover-title"><span class="r-schedule-event-popover-kind"><i class="fas fa-calendar-plus"></i>${escapeHtml(kindLabel)}</span>${title && title.toLowerCase() !== kindLabel.toLowerCase() ? `<br>${escapeHtml(title)}` : ''}</div>
+        <button type="button" class="r-schedule-event-popover-close" data-schedule-event-close aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="r-schedule-event-popover-details">
+        <div class="r-schedule-event-popover-row"><i class="fas fa-calendar-day"></i><span data-schedule-draft-range>${escapeHtml(workRangeLabel({ ...draft, __start:start, __end:end }))}</span></div>
+        <div class="r-schedule-event-popover-row"><i class="fas fa-up-down"></i><span>Drag the bars on the event to change its length.</span></div>
+      </div>
+      <div class="r-schedule-event-popover-actions">
+        ${action('data-schedule-draft-save', 'fa-check', 'Save', 'primary')}
+        ${action('data-schedule-draft-more', 'fa-sliders', 'More options')}
+        ${action('data-schedule-draft-discard', 'fa-trash', 'Discard', 'danger')}
+      </div>
+    `;
+    schedulePopoverHost(anchor).appendChild(popover);
+    const discard = () => {
+      closeScheduleEventPopover();
+      if (workScheduleDrafts.has(id)) setWorkScheduleDraft({ id });
+    };
+    if (!window.PlatformScheduleView.presentEventTray(popover, { anchor, eventId:id, onClose:discard })) {
+      popover.remove();
+      return false;
+    }
+    scheduleEventPopoverId = id;
+    popover.querySelector('[data-schedule-event-close]')?.addEventListener('click', (clickEvent) => {
+      clickEvent.preventDefault();
+      clickEvent.stopPropagation();
+      discard();
+    });
+    popover.querySelector('[data-schedule-draft-discard]')?.addEventListener('click', (clickEvent) => {
+      clickEvent.preventDefault();
+      discard();
+    });
+    popover.querySelector('[data-schedule-draft-save]')?.addEventListener('click', (clickEvent) => {
+      clickEvent.preventDefault();
+      setActiveWorkDraftId(id);
+      closeScheduleEventPopover();
+      saveWorkScheduleDraft();
+    });
+    popover.querySelector('[data-schedule-draft-more]')?.addEventListener('click', (clickEvent) => {
+      clickEvent.preventDefault();
+      const current = workScheduleDrafts.get(id) || draft;
+      const from = new Date(current.start);
+      const to = new Date(current.end);
+      discard();
+      openScheduleDialog('project_work', null, {
+        start:from,
+        allDay,
+        days:allDay ? Math.max(1, Math.round((scheduleAddDays(to, 0) - scheduleAddDays(from, 0)) / 86400000)) : 1,
+        durationMinutes:!allDay && to > from ? Math.round((to - from) / 60000) : 0
+      });
+    });
+    return true;
+  }
+  // A staged draft resized or moved while its tray is open: the tray shows
+  // the new time.
+  function refreshScheduleDraftTray(next = {}){
+    const tray = document.querySelector(`.r-schedule-draft-tray[data-schedule-draft-tray="${cssEscape(String(next?.id || ''))}"]`);
+    const draft = workScheduleDrafts.get(String(next?.id || ''));
+    const label = tray?.querySelector('[data-schedule-draft-range]');
+    if (!label || !draft?.start || !draft?.end) return;
+    label.textContent = workRangeLabel({ ...draft, __start:new Date(draft.start), __end:new Date(draft.end) });
   }
 
   // Re-open the details popover for an item at the place it was shown
@@ -5589,6 +5685,8 @@
       showModeSwitch: false,
       showToolbar: false,
       mobileLayout,
+      // Phones: tap to place or select, pinch to zoom, details as a bottom tray.
+      touchControls: mobileLayout,
       shortRangeDayCount: mobileLayout ? 3 : scheduleShortRangeDays(),
       touchHoldToPlace: mobileLayout,
       touchHoldDelayMs: 360,
@@ -5647,7 +5745,15 @@
             durationMinutes:!allDay && end && end > start ? Math.round((end - start) / 60000) : 0
           });
         }
-        else setWorkScheduleDraft(next, { render: false, renderLeft: true });
+        else {
+          setWorkScheduleDraft(next, { render: false, renderLeft: true });
+          refreshScheduleDraftTray(next);
+        }
+      },
+      // Phones: a draft placed with a tap opens in the bottom tray.
+      onDraftCreateComplete(next, meta = {}){
+        if (meta.touchTap !== true || draftIsMaterial(next) || !next?.start) return;
+        openScheduleDraftTray(activeWorkDraft() || next, meta.element || null);
       },
       onDraftConfirm(next){
         if (draftIsMaterial(next)) saveMaterialScheduleDraft(next);
@@ -5671,7 +5777,7 @@
         }
         openScheduleEventPopover(event, meta.element);
       },
-      onDraftSelect(draft){
+      onDraftSelect(draft, meta = {}){
         if (!draft?.id) return;
         if (draftIsMaterial(draft)) {
           renderScheduleLeft();
@@ -5679,6 +5785,7 @@
         }
         setActiveWorkDraftId(draft.id);
         renderScheduleLeft();
+        if (mobileLayout) openScheduleDraftTray(activeWorkDraft() || draft, meta.element || null);
       }
     });
     if (renderedMode === 'month') revealMonthAnchor(target);
@@ -5927,6 +6034,8 @@
     const keepPopover = openPopover?.isConnected && scheduleEventPopoverId && typeof openPopover.__reopenPlacement === 'function'
       ? { id:scheduleEventPopoverId, placement:openPopover.__reopenPlacement() }
       : null;
+    // A staged draft's tray (phones) stays open on the draft too.
+    const keepDraftTray = openPopover?.isConnected ? String(openPopover.dataset.scheduleDraftTray || '') : '';
     closeScheduleEventPopover();
     if (!state.active) {
       setScheduleWorkspaceChrome(false);
@@ -5946,6 +6055,7 @@
       const item = scheduleProjectEvents().find((candidate) => String(candidate.id || '') === String(keepPopover.id));
       if (item) reopenScheduleEventPopover(item, keepPopover.placement);
     }
+    if (keepDraftTray && workScheduleDrafts.has(keepDraftTray)) openScheduleDraftTray(workScheduleDrafts.get(keepDraftTray));
   }
 
   // The shown view, target and date live in the route (the project window
