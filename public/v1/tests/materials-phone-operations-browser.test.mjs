@@ -190,3 +190,72 @@ test('on a phone the workspace header is the total and icons; desktop keeps the 
     assert.deepEqual([desktop.label, desktop.total, desktop.texts], [true, true, [true, true, true]], 'desktop keeps every label');
   } finally { await browser.close(); }
 });
+
+// FM-436: on a phone the quick price book is a full-screen modal on a dimmed page, with a header of its title, list and
+// two square buttons; typing a search refills it without reopening it, and Esc closes it, not the project window under it.
+// Wider screens keep the panel floating over the lists.
+test('on a phone the price book is a full-screen modal that Esc closes; desktop keeps the floating panel', async () => {
+  const fn = (name) => { const at = source.indexOf(`  function ${name}(`); assert.ok(at > 0, `${name} is found`); return source.slice(at, source.indexOf('\n  }\n', at) + 4); };
+  const modalAt = source.indexOf('  let pricebookModal = null;');
+  assert.ok(modalAt > 0, 'the price book modal is found');
+  const code = [fn('renderPricebookPanel'), fn('syncPricebookPanel'), source.slice(modalAt, source.indexOf('\n  }\n', modalAt) + 4)].join('\n');
+  const rule = (prefix) => { const at = source.indexOf(`      ${prefix}`); assert.ok(at > 0, `${prefix} is styled`); return source.slice(at, source.indexOf('\n', at)).trim(); };
+  const css = [rule('.mt-btn,.mt-icon-btn{'), rule('.mt-btn{padding'), rule('.mt-search{'), rule('.mt-pricebook-panel{'), rule('.mt-pricebook-head{'), rule('.mt-suggest-list{'), rule('.mt-suggest{'), rule('.mt-suggest strong{'), rule('@media (max-width:620px){.mt-top'), phoneCss].join('\n');
+  const page = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body style="margin:0">
+<div class="mt-app" data-materials-root style="container-type:inline-size;height:420px;margin-top:90px"><main class="mt-main" style="position:relative;height:100%"><button type="button" data-mt-open-pricebook data-mt-list-id="l1" aria-pressed="false">Price book</button></main></div>
+<script>
+  const rootWindow = window, state = { pricebookOpen: false, pricebookListId: 'l1', pricebookSearch: '', activeList: { id: 'l1', resource_type: 'material' } };
+  const cleanText = (v) => String(v ?? '').trim(), escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';');
+  const money = (v) => '$' + v, resourceType = (list) => list?.resource_type, materialListById = () => ({ title: 'Roof materials' }), materialRoot = () => document.querySelector('[data-materials-root]');
+  const phoneLayout = () => matchMedia('(max-width:760px)').matches;
+  const items = [{ id: 'i1', name: 'Architectural Shingles', category: 'Shingles', unitPrice: 365, unit: 'sq' }, { id: 'i2', name: 'Ridge Cap', category: 'Shingles', unitPrice: 80, unit: 'bundle' }];
+  const suggestedItems = () => items.filter((item) => item.name.toLowerCase().includes(state.pricebookSearch.toLowerCase()));
+  const bindMain = (root) => {
+    root.querySelector('[data-mt-close-pricebook]')?.addEventListener('click', () => { state.pricebookOpen = false; syncPricebookPanel(); });
+    root.querySelector('[data-mt-pricebook-search]')?.addEventListener('input', (event) => { state.pricebookSearch = event.target.value; syncPricebookPanel(); });
+  };
+  // The portal's modal stack, as core.js runs it: Esc closes the top entry, or else the project window.
+  const stack = []; window.projectClosed = false;
+  window.Portal = { modals: { register: (el, options) => { const entry = { el, options }; stack.push(entry); return { el, unregister: () => { const i = stack.indexOf(entry); if (i >= 0) stack.splice(i, 1); } }; } } };
+  document.addEventListener('keydown', (event) => { if (event.key !== 'Escape') return; const entry = stack.pop(); if (entry) entry.options.onClose('escape'); else window.projectClosed = true; event.preventDefault(); }, true);
+  ${code.replace(/<\/script/g, '<\\/script')}
+  window.t = { state, open: () => { state.pricebookOpen = true; syncPricebookPanel(); }, stack };
+</script></body></html>`;
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    // Reduced motion: the sheet is measured where it lands, not while it slides in.
+    const tab = await browser.newPage({ viewport: { width: 433, height: 582 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+    const errors = []; tab.on('pageerror', (error) => errors.push(error.message));
+    await tab.setContent(page);
+    const read = () => tab.evaluate(() => {
+      const panel = document.querySelector('[data-mt-pricebook-panel]');
+      if (!panel) return null;
+      const box = (el) => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round); };
+      return { tag: panel.tagName, modal: panel.matches(':modal'), box: box(panel), backdrop: getComputedStyle(panel, '::backdrop').backgroundColor, title: panel.querySelector('.mt-pricebook-title').textContent.trim(), tools: [...panel.querySelectorAll('.mt-pricebook-tools .mt-icon-btn')].map(box), head: box(panel.querySelector('.mt-pricebook-head')), rows: panel.querySelectorAll('.mt-suggest').length, focus: document.activeElement?.matches('[data-mt-pricebook-search]'), pressed: document.querySelector('[data-mt-open-pricebook]').getAttribute('aria-pressed') };
+    });
+    await tab.evaluate(() => t.open());
+    const phone = await read();
+    assert.deepEqual([phone.tag, phone.modal, phone.box], ['DIALOG', true, [0, 0, 433, 582]], `a phone opens a full-screen modal: ${JSON.stringify(phone)}`);
+    assert.equal(phone.backdrop, 'rgba(15, 23, 42, 0.48)', 'the page behind is dimmed');
+    assert.equal(phone.title, 'Price BookRoof materials', 'the header names the price book and the list');
+    assert.ok(phone.tools.every(([, top, width, height]) => width <= 44 && height <= 44 && top >= phone.head[1] && top + height <= phone.head[1] + phone.head[3]), `the header's buttons are square and in the header: ${JSON.stringify(phone.tools)}`);
+    assert.equal(phone.pressed, 'true');
+    const panel = await tab.$('[data-mt-pricebook-panel]');
+    await tab.locator('[data-mt-pricebook-search]').tap();
+    await tab.keyboard.type('ridge');
+    const searched = await read();
+    assert.ok(await panel.evaluate((el) => el.isConnected && el.open), 'a search refills the same modal');
+    assert.deepEqual([searched.modal, searched.rows, searched.focus], [true, 1, true]);
+    await tab.keyboard.press('Escape');
+    assert.deepEqual(await tab.evaluate(() => ({ panel: !!document.querySelector('[data-mt-pricebook-panel]'), open: t.state.pricebookOpen, project: window.projectClosed, stack: t.stack.length, pressed: document.querySelector('[data-mt-open-pricebook]').getAttribute('aria-pressed') })), { panel: false, open: false, project: false, stack: 0, pressed: 'false' }, 'Esc closes the price book and leaves the project window open');
+    await tab.evaluate(() => t.open());
+    await tab.locator('[data-mt-close-pricebook]').tap();
+    assert.deepEqual(await tab.evaluate(() => ({ panel: !!document.querySelector('[data-mt-pricebook-panel]'), stack: t.stack.length })), { panel: false, stack: 0 }, 'Close takes it off the modal stack');
+    await tab.setViewportSize({ width: 1200, height: 700 });
+    await tab.evaluate(() => t.open());
+    const desktop = await read();
+    assert.ok(desktop.tag === 'DIV' && !desktop.modal && desktop.box[2] <= 392, `desktop keeps the floating panel: ${JSON.stringify(desktop)}`);
+    assert.equal(await tab.evaluate(() => t.stack.length), 0, 'the floating panel is not a modal');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
