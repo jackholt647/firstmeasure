@@ -5074,7 +5074,9 @@
     "m_242477ea5edf74": "We were not able to complete this Full Exterior report because the photos and video do not show enough of the house for us to draw every wall, window and door. We have reimbursed the original report.",
     "m_861f518127ff5b": "Full Exterior report rejected",
     "m_61916e37809bd1": "Try again with more footage",
-    "m_c04a8c55885f01": "Step back to get the whole house in view, and add photos of every side so we can draw all of it."
+    "m_c04a8c55885f01": "Step back to get the whole house in view, and add photos of every side so we can draw all of it.",
+    "m_6396ccf961d884": "Why it was rejected",
+    "m_1b6fb2f8bf15dc": "Starts a new order for this project as the right project type."
   },
   "money": {
     "m_487adb3f2ba511": "Loading money...",
