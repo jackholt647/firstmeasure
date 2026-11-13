@@ -1226,3 +1226,17 @@ test('phones are offered the delivery tour, a config library definition the stri
   assert.match(offer, /\.r-schedule-waiting-item\.is-child\[data-schedule-waiting-kind="delivery"\]/);
   assert.match(offer, /window\.FirstMateGuides\.play\('project_schedule\.delivery_tutorial'\)/);
 });
+
+test('a touch scroll of the calendar keeps its momentum after the finger lifts', () => {
+  // The surface is touch-action:none and scrolled by hand, so the glide is ours (FM-438).
+  assert.match(scheduleViewSource, /\.prs-wrap\.mobile-layout \.prs-surface\{[^}]*touch-action:none/);
+  const finish = scheduleViewSource.slice(scheduleViewSource.indexOf('    const finishTouchGesture = (event) =>'), scheduleViewSource.indexOf('    const pointRange = (target'));
+  assert.match(finish, /if \(gesture\.intent === 'scroll' && !drag\) \{\n        startTouchGlide\(touchVelocity\(gesture\)\);/);
+  // A finger that stopped before lifting does not glide; the next touch stops it and is not a tap.
+  assert.match(scheduleViewSource, /if \(now - last\.t > TOUCH_GLIDE_SAMPLE_MS \/ 2\) return 0;/);
+  assert.match(scheduleViewSource, /const beginTouchGesture = \(event\) => \{\n      if \(!touchSwipeNavigation \|\| event\.pointerType !== 'touch'\) return;\n      const stoppedGlide = stopTouchGlide\(\);/);
+  assert.match(finish, /if \(gesture\.stoppedGlide && !gesture\.intent && !drag\) suppressTouchGestureClickUntil = Date\.now\(\) \+ 350;/);
+  // The month view remembers a position the glide reached as the person's own.
+  assert.match(scheduleViewSource, /scroller\.dispatchEvent\(new CustomEvent\('prs-touch-glide'\)\);/);
+  assert.match(projectScheduleSource, /\['wheel', 'touchmove', 'prs-touch-glide', 'keydown', 'pointerdown'\]\.forEach\(\(type\) => surface\.addEventListener\(type, markUserScroll/);
+});
