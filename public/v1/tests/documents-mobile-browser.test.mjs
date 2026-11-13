@@ -139,11 +139,12 @@ const menuEnd = '    return { el: menu, close };\n  }';
 const modalCode = documentsSource.slice(documentsSource.indexOf('  function openModal('), documentsSource.indexOf(menuEnd) + menuEnd.length);
 const createCode = between('    async function openCreateModal(', '    function setEditorFocus(');
 
-async function openNewDialog(page, { phone = false } = {}) {
+async function openNewDialog(page, { phone = false, flags = {} } = {}) {
   await page.setContent(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style><main></main>`);
   if (phone) await page.evaluate(() => document.documentElement.setAttribute('data-fm-doc-phone', ''));
-  await page.evaluate(({ typeCode, modalCode, createCode }) => {
+  await page.evaluate(({ typeCode, modalCode, createCode, flags }) => {
     window.calls = [];
+    window.flags = flags;
     const helpers = `
       function cleanText(value){ return String(value ?? '').trim(); }
       function firstText(...values){ for (const value of values) { const text = cleanText(value); if (text) return text; } return ''; }
@@ -160,6 +161,8 @@ async function openNewDialog(page, { phone = false } = {}) {
       const loadCatalog = async () => ({ types: [{ id: 'proposal', label: 'Proposal' }] });
       const loadTemplates = async () => [{ id: 'tpl_roof', document_type: 'proposal', name: 'Roof replacement · Itemized proposal', status: 'active', metadata: { default: true }, department_ids: [] }, { id: 'tpl_quick', document_type: 'proposal', name: 'Quick roof quote', status: 'active', metadata: {}, department_ids: [] }];
       const startPaperUpload = (templateId, type) => window.calls.push(['paper', type]);
+      const startDocumentScan = (templateId, type, options) => { window.calls.push(['scan', type, typeof options.onAddFiles]); options.onDone(); };
+      const capabilityEnabled = (key) => window.flags[key] === true;
       const ensureInlineStyles = () => {};
       const ensureWorkflowRuntime = async () => null;
       const normalizeWorkflowRecord = (record) => record;
@@ -172,8 +175,8 @@ async function openNewDialog(page, { phone = false } = {}) {
       const paramFieldHtml = () => '';
     `;
     window.openCreate = new Function(`${helpers}\n${typeCode}\n${modalCode}\n${createCode}\nreturn openCreateModal;`)();
-    window.openCreate({}, { onUploadFiles: () => window.calls.push(['files']) });
-  }, { typeCode, modalCode, createCode });
+    window.openCreate({}, { onUploadFiles: () => window.calls.push(['files']), onAddFiles: () => ({ saved: true }) });
+  }, { typeCode, modalCode, createCode, flags });
   await page.waitForSelector('[data-tpl-search]');
 }
 
@@ -309,6 +312,46 @@ test('on a phone New fills the screen and offers Upload beside Blank', async () 
     assert.equal(await page.locator('.fmdx-modal-back').count(), 0, 'the dialog closes for the file picker');
     assert.deepEqual(errors, []);
     await context.close();
+  } finally { await browser.close(); }
+});
+
+// FM-432: with documents.scanner, Scan paper opens the camera scanner; Upload keeps the file picker and the paper intake.
+test('on a phone with the document scanner, Scan paper opens the scanner and asks the type only for the paper intake', async () => {
+  const browser = await launch();
+  try {
+    for (const [flags, expected] of [
+      [{ 'documents.scanner': true }, [['scan', '', 'function']]],
+      [{ 'documents.scanner': true, 'documents.ingestion': true }, [['scan', 'proposal', 'function']]]
+    ]) {
+      const { page, errors, context } = await pageFor(browser, PHONE);
+      await openNewDialog(page, { phone: true, flags });
+      const buttons = await page.locator('.fmdx-create-top > .fmdx-btn').evaluateAll((list) => list.filter((b) => b.getClientRects().length).map((b) => b.innerText.trim()));
+      assert.deepEqual(buttons, ['Blank', 'Upload', 'Scan paper']);
+      assert.equal(await page.locator('[data-create-upload]').isVisible(), false, 'the phone keeps one Upload: the files one');
+      await page.locator('[data-create-scan]').tap();
+      if (flags['documents.ingestion']) {
+        assert.equal(await page.locator('.fmdx-menu').count(), 1, 'the paper intake asks what kind of document');
+        await page.locator('[data-menu-type="proposal"]').tap();
+      }
+      assert.deepEqual(await page.evaluate(() => window.calls), expected);
+      assert.equal(await page.locator('.fmdx-modal-back').count(), 0, 'the dialog closes for the scanner');
+      assert.deepEqual(errors, []);
+      await context.close();
+    }
+  } finally { await browser.close(); }
+});
+
+test('on a desktop the document scanner changes nothing: Blank and Upload', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await pageFor(browser, DESKTOP);
+    await openNewDialog(page, { flags: { 'documents.scanner': true } });
+    const buttons = await page.locator('.fmdx-create-top > .fmdx-btn').evaluateAll((list) => list.filter((b) => b.getClientRects().length).map((b) => b.innerText.trim()));
+    assert.deepEqual(buttons, ['Blank', 'Upload']);
+    await page.locator('[data-create-upload]').click();
+    await page.locator('[data-menu-type="proposal"]').click();
+    assert.deepEqual(await page.evaluate(() => window.calls), [['paper', 'proposal']]);
+    assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
 

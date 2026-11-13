@@ -13134,5 +13134,59 @@
       "message": "Κωδικός χώρας: {country} +{code}",
       "format": "icu"
     }
+  },
+  "document-scanner": {
+    "title": "Σάρωση χαρτιού",
+    "aim_at_page": "Κρατήστε την κάμερα πάνω από τη σελίδα",
+    "page_found": "Η σελίδα βρέθηκε. Τραβήξτε τη φωτογραφία",
+    "review_title": "Έλεγχος σάρωσης",
+    "page_n": {
+      "message": "Σελίδα {number}",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "Σελίδα {number}: περικοπή, περιστροφή ή αφαίρεση",
+      "format": "icu"
+    },
+    "add_pages": "Προσθήκη σελίδων",
+    "filter": "Εμφάνιση",
+    "filter_document": "Έγγραφο",
+    "filter_grey": "Γκρι",
+    "filter_bw": "Ασπρόμαυρο",
+    "filter_original": "Πρωτότυπο",
+    "name": "Όνομα",
+    "default_name": {
+      "message": "Σάρωση {date}",
+      "format": "icu"
+    },
+    "discard": "Απόρριψη",
+    "discard_confirm": "Απόρριψη αυτής της σάρωσης; Οι σελίδες δεν αποθηκεύονται πουθενά.",
+    "save_one": "Αποθήκευση 1 σελίδας",
+    "save_many": {
+      "message": "Αποθήκευση {count} σελίδων",
+      "format": "icu"
+    },
+    "no_edge": "Δεν βρέθηκε άκρη σελίδας. Πατήστε για να την περικόψετε μόνοι σας.",
+    "preparing_page": {
+      "message": "Προετοιμασία σελίδας {number} από {count}…",
+      "format": "icu"
+    },
+    "saving": "Αποθήκευση…",
+    "save_failed": "Δεν ήταν δυνατή η αποθήκευση της σάρωσης. Δοκιμάστε ξανά.",
+    "find_edges": "Εύρεση άκρων",
+    "whole_photo": "Ολόκληρη η φωτογραφία",
+    "rotate": "Περιστροφή",
+    "rotated": {
+      "message": "Περιστροφή · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "Νωρίτερα",
+    "move_later": "Αργότερα",
+    "remove_page": "Αφαίρεση",
+    "done": "Τέλος",
+    "corner_top_left": "Πάνω αριστερή γωνία",
+    "corner_top_right": "Πάνω δεξιά γωνία",
+    "corner_bottom_right": "Κάτω δεξιά γωνία",
+    "corner_bottom_left": "Κάτω αριστερή γωνία"
   }
 }

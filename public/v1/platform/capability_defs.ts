@@ -370,6 +370,13 @@ const definitions: CapabilityDefinition[] = [
     description: "Upload external files (PDF, images) and extract typed document data from them."
   },
   {
+    key: "documents.scanner",
+    kind: "feature",
+    parent: "platform.documents",
+    label: "Document Scanner",
+    description: "Scan paper with a phone's camera from New document: each page is found, straightened and cleaned up, and the scan is saved as one PDF (into Document Ingestion's review when that is on, otherwise into the project's files)."
+  },
+  {
     key: "documents.enabled_types",
     kind: "setting",
     parent: "platform.documents",

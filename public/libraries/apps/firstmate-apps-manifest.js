@@ -164,7 +164,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261111-offline-queue'), versionedBundle('photos/project.js', '20261111-offline-photos')]
+      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261113-scanner'), versionedBundle('photos/project.js', '20261111-offline-photos')]
     },
     {
       // DEPRECATED (2026-08): legacy Proposals project tab — hidden by its
@@ -189,7 +189,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('docs/project.js', '20261027-merged-2')]
+      bundles: [versionedBundle('docs/project.js', '20261113-document-scanner')]
     },
     {
       id: 'project.documents',
@@ -217,7 +217,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261111-offline-documents')
+        versionedBundle('documents/project.js', '20261113-document-scanner')
       ]
     },
     {

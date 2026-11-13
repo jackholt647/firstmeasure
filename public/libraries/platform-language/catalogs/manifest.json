@@ -93,7 +93,8 @@
     "guided-experiences",
     "dev-console",
     "platform-offline",
-    "camera-capture"
+    "camera-capture",
+    "document-scanner"
   ],
   "namespaces": {
     "billing": "billing.160f88fa588ba4a7.json",
@@ -106,7 +107,7 @@
     "crew": "crew.6191aa50b5e885c9.json",
     "customer-portal": "customer-portal.af0bdf7f3055f165.json",
     "docs": "docs.29116a16d45e316b.json",
-    "documents": "documents.805208b9281cf6a8.json",
+    "documents": "documents.07f570488b95e85f.json",
     "equipment": "equipment.0445d0b0c16372fc.json",
     "feedback": "feedback.752afbb5525fcd92.json",
     "financials": "financials.e697e90928e9750a.json",
@@ -214,6 +215,7 @@
     "guided-experiences": "guided-experiences.61aa75d7c761e573.json",
     "dev-console": "dev-console.36e83fbbc1b0bbf0.json",
     "platform-offline": "platform-offline.dde407f6a77750e5.json",
-    "camera-capture": "camera-capture.f9b8fa50a31d8c47.json"
+    "camera-capture": "camera-capture.f9b8fa50a31d8c47.json",
+    "document-scanner": "document-scanner.645a174f8d5d9578.json"
   }
 }

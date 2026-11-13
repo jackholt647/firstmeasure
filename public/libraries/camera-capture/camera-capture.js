@@ -39,6 +39,11 @@
  * heading) and resolves with any value, which is passed to onDone as its second argument. Resolve
  * `false` to go back to the camera. Back on the step panel also returns to the camera.
  *
+ * The step's `remove(entry)` takes a photo out of the session (and its strip), for a step that lets people drop one.
+ *
+ * `overlay({ stage, video })`, optional, draws over the live viewport (the document scanner's page outline) and
+ * returns a function that removes it.
+ *
  * Camera permission refused or no camera: a clear message and a "Choose photos" button that opens the
  * device's picker (with the camera capture hint), feeding the same strip and uploads.
  */
@@ -201,6 +206,8 @@
     let stream = null, facing = 'environment', starting = false, torchOn = false, zoom = null, devices = 0, active = false, closing = false;
     let entries = [], sessionEntries = [], queue = Promise.resolve(), statusTimer = 0, step = null;
     const upload = typeof options.upload === 'function' ? options.upload : (options.orgId && options.projectId ? projectUploader(options.orgId, options.projectId) : null);
+    let removeOverlay = null;
+    try { removeOverlay = typeof options.overlay === 'function' ? options.overlay({ stage, video }) : null; } catch (error) { console.warn('Camera overlay failed', error); }
 
     function say(text, sticky = false){
       clearTimeout(statusTimer);
@@ -418,7 +425,13 @@
         step.innerHTML = `<div class="fmc-step-head"><button type="button" class="fmc-round" data-fmc-step-back aria-label="${esc(T('back_to_camera', 'Back to the camera'))}"><i class="fas fa-chevron-left" aria-hidden="true"></i></button><strong></strong></div><div class="fmc-step-body"></div>`;
         shell.append(step);
         const back = new Promise((resolve) => { step.querySelector('[data-fmc-step-back]').onclick = () => resolve(false); });
-        const api = { element: step, body: step.querySelector('.fmc-step-body'), setTitle: (text) => { step.querySelector('strong').textContent = String(text || ''); }, close: () => {} };
+        const api = {
+          element: step, body: step.querySelector('.fmc-step-body'), setTitle: (text) => { step.querySelector('strong').textContent = String(text || ''); }, close: () => {},
+          remove: (entry) => {
+            entries = entries.filter((item) => item !== entry); sessionEntries = sessionEntries.filter((item) => item !== entry);
+            strip.querySelector(`[data-fmc-entry="${entry?.id}"]`)?.remove(); syncControls();
+          }
+        };
         nextResult = await Promise.race([Promise.resolve().then(() => options.next(taken, api)), back]);
         step?.remove(); step = null;
         if (nextResult === false) { void start(); return; }
@@ -463,7 +476,7 @@
       shell, show, finish,
       get active(){ return active; },
       entries: () => entries.slice(),
-      destroy(){ hide(); step?.remove(); shell.remove(); stopQueueEvents.forEach((stop) => stop?.()); }
+      destroy(){ hide(); step?.remove(); shell.remove(); stopQueueEvents.forEach((stop) => stop?.()); if (typeof removeOverlay === 'function') removeOverlay(); }
     };
   }
 
@@ -522,5 +535,5 @@
     };
   }
 
-  root.FirstMateCamera = { mount, open, version: '20261111-offline-queue' };
+  root.FirstMateCamera = { mount, open, version: '20261113-scanner' };
 })(window);

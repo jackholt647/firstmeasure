@@ -13134,5 +13134,59 @@
       "message": "Landnummer: {country} +{code}",
       "format": "icu"
     }
+  },
+  "document-scanner": {
+    "title": "Papier scannen",
+    "aim_at_page": "Houd de camera boven de pagina",
+    "page_found": "Pagina gevonden. Maak de foto",
+    "review_title": "Scan controleren",
+    "page_n": {
+      "message": "Pagina {number}",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "Pagina {number}: bijsnijden, draaien of verwijderen",
+      "format": "icu"
+    },
+    "add_pages": "Pagina’s toevoegen",
+    "filter": "Weergave",
+    "filter_document": "Document",
+    "filter_grey": "Grijs",
+    "filter_bw": "Zwart-wit",
+    "filter_original": "Origineel",
+    "name": "Naam",
+    "default_name": {
+      "message": "Scan {date}",
+      "format": "icu"
+    },
+    "discard": "Weggooien",
+    "discard_confirm": "Deze scan weggooien? De pagina’s worden nergens bewaard.",
+    "save_one": "1 pagina opslaan",
+    "save_many": {
+      "message": "{count} pagina’s opslaan",
+      "format": "icu"
+    },
+    "no_edge": "Geen paginarand gevonden. Tik om zelf bij te snijden.",
+    "preparing_page": {
+      "message": "Pagina {number} van {count} voorbereiden…",
+      "format": "icu"
+    },
+    "saving": "Opslaan…",
+    "save_failed": "De scan kon niet worden opgeslagen. Probeer het opnieuw.",
+    "find_edges": "Randen zoeken",
+    "whole_photo": "Hele foto",
+    "rotate": "Draaien",
+    "rotated": {
+      "message": "Draaien · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "Eerder",
+    "move_later": "Later",
+    "remove_page": "Verwijderen",
+    "done": "Klaar",
+    "corner_top_left": "Hoek linksboven",
+    "corner_top_right": "Hoek rechtsboven",
+    "corner_bottom_right": "Hoek rechtsonder",
+    "corner_bottom_left": "Hoek linksonder"
   }
 }

@@ -13122,5 +13122,59 @@
       "message": "Šalies kodas: {country} +{code}",
       "format": "icu"
     }
+  },
+  "document-scanner": {
+    "title": "Nuskaityti popierių",
+    "aim_at_page": "Laikykite kamerą virš puslapio",
+    "page_found": "Puslapis rastas. Fotografuokite",
+    "review_title": "Peržiūrėti nuskaitymą",
+    "page_n": {
+      "message": "{number} puslapis",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "{number} puslapis: apkirpti, pasukti arba pašalinti",
+      "format": "icu"
+    },
+    "add_pages": "Pridėti puslapių",
+    "filter": "Išvaizda",
+    "filter_document": "Dokumentas",
+    "filter_grey": "Pilki tonai",
+    "filter_bw": "Nespalvotas",
+    "filter_original": "Originalas",
+    "name": "Pavadinimas",
+    "default_name": {
+      "message": "Nuskaitymas {date}",
+      "format": "icu"
+    },
+    "discard": "Atmesti",
+    "discard_confirm": "Atmesti šį nuskaitymą? Puslapiai niekur neišsaugomi.",
+    "save_one": "Išsaugoti 1 puslapį",
+    "save_many": {
+      "message": "Išsaugoti puslapius: {count}",
+      "format": "icu"
+    },
+    "no_edge": "Puslapio krašto nerasta. Palieskite ir apkirpkite patys.",
+    "preparing_page": {
+      "message": "Ruošiamas {number} puslapis iš {count}…",
+      "format": "icu"
+    },
+    "saving": "Išsaugoma…",
+    "save_failed": "Nuskaitymo išsaugoti nepavyko. Bandykite dar kartą.",
+    "find_edges": "Rasti kraštus",
+    "whole_photo": "Visa nuotrauka",
+    "rotate": "Pasukti",
+    "rotated": {
+      "message": "Pasukti · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "Anksčiau",
+    "move_later": "Vėliau",
+    "remove_page": "Pašalinti",
+    "done": "Atlikta",
+    "corner_top_left": "Viršutinis kairysis kampas",
+    "corner_top_right": "Viršutinis dešinysis kampas",
+    "corner_bottom_right": "Apatinis dešinysis kampas",
+    "corner_bottom_left": "Apatinis kairysis kampas"
   }
 }

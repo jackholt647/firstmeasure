@@ -12790,5 +12790,59 @@
       "message": "Prefisso internazionale: {country} +{code}",
       "format": "icu"
     }
+  },
+  "document-scanner": {
+    "title": "Scansiona carta",
+    "aim_at_page": "Tieni la fotocamera sopra la pagina",
+    "page_found": "Pagina trovata. Scatta la foto",
+    "review_title": "Controlla la scansione",
+    "page_n": {
+      "message": "Pagina {number}",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "Pagina {number}: ritaglia, ruota o rimuovi",
+      "format": "icu"
+    },
+    "add_pages": "Aggiungi pagine",
+    "filter": "Aspetto",
+    "filter_document": "Documento",
+    "filter_grey": "Grigio",
+    "filter_bw": "Bianco e nero",
+    "filter_original": "Originale",
+    "name": "Nome",
+    "default_name": {
+      "message": "Scansione {date}",
+      "format": "icu"
+    },
+    "discard": "Scarta",
+    "discard_confirm": "Scartare questa scansione? Le pagine non vengono salvate da nessuna parte.",
+    "save_one": "Salva 1 pagina",
+    "save_many": {
+      "message": "Salva {count} pagine",
+      "format": "icu"
+    },
+    "no_edge": "Nessun bordo della pagina trovato. Tocca per ritagliarla tu.",
+    "preparing_page": {
+      "message": "Preparazione della pagina {number} di {count}…",
+      "format": "icu"
+    },
+    "saving": "Salvataggio…",
+    "save_failed": "Impossibile salvare la scansione. Riprova.",
+    "find_edges": "Trova i bordi",
+    "whole_photo": "Foto intera",
+    "rotate": "Ruota",
+    "rotated": {
+      "message": "Ruota · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "Prima",
+    "move_later": "Dopo",
+    "remove_page": "Rimuovi",
+    "done": "Fine",
+    "corner_top_left": "Angolo in alto a sinistra",
+    "corner_top_right": "Angolo in alto a destra",
+    "corner_bottom_right": "Angolo in basso a destra",
+    "corner_bottom_left": "Angolo in basso a sinistra"
   }
 }

@@ -1,7 +1,7 @@
 {
-  "files": 317,
-  "namespaces": 119,
-  "messages": 17347,
+  "files": 318,
+  "namespaces": 120,
+  "messages": 17382,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -253,7 +253,7 @@
       "namespace": "documents",
       "references": 320,
       "candidates": 89,
-      "edits": 53
+      "edits": 54
     },
     {
       "file": "public/libraries/apps/documents/studio.js",
@@ -1344,6 +1344,13 @@
       "file": "public/libraries/doc-workflow/firstmate-workflow-editor.js",
       "namespace": "doc-workflow",
       "references": 85,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/document-scanner/document-scanner.js",
+      "namespace": "document-scanner",
+      "references": 0,
       "candidates": 0,
       "edits": 0
     },

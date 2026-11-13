@@ -13114,5 +13114,59 @@
       "message": "Ländervorwahl: {country} +{code}",
       "format": "icu"
     }
+  },
+  "document-scanner": {
+    "title": "Papier scannen",
+    "aim_at_page": "Halten Sie die Kamera über die Seite",
+    "page_found": "Seite erkannt. Foto aufnehmen",
+    "review_title": "Scan prüfen",
+    "page_n": {
+      "message": "Seite {number}",
+      "format": "icu"
+    },
+    "edit_page_n": {
+      "message": "Seite {number}: zuschneiden, drehen oder entfernen",
+      "format": "icu"
+    },
+    "add_pages": "Seiten hinzufügen",
+    "filter": "Darstellung",
+    "filter_document": "Dokument",
+    "filter_grey": "Graustufen",
+    "filter_bw": "Schwarzweiß",
+    "filter_original": "Original",
+    "name": "Name",
+    "default_name": {
+      "message": "Scan {date}",
+      "format": "icu"
+    },
+    "discard": "Verwerfen",
+    "discard_confirm": "Diesen Scan verwerfen? Die Seiten werden nirgends gespeichert.",
+    "save_one": "1 Seite speichern",
+    "save_many": {
+      "message": "{count} Seiten speichern",
+      "format": "icu"
+    },
+    "no_edge": "Kein Seitenrand gefunden. Tippen Sie, um selbst zuzuschneiden.",
+    "preparing_page": {
+      "message": "Seite {number} von {count} wird vorbereitet…",
+      "format": "icu"
+    },
+    "saving": "Wird gespeichert…",
+    "save_failed": "Der Scan konnte nicht gespeichert werden. Versuchen Sie es erneut.",
+    "find_edges": "Ränder finden",
+    "whole_photo": "Ganzes Foto",
+    "rotate": "Drehen",
+    "rotated": {
+      "message": "Drehen · {degrees}°",
+      "format": "icu"
+    },
+    "move_earlier": "Früher",
+    "move_later": "Später",
+    "remove_page": "Entfernen",
+    "done": "Fertig",
+    "corner_top_left": "Ecke oben links",
+    "corner_top_right": "Ecke oben rechts",
+    "corner_bottom_right": "Ecke unten rechts",
+    "corner_bottom_left": "Ecke unten links"
   }
 }
