@@ -167,6 +167,8 @@
     .fmcl-setting-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:9px 10px}.fmcl-setting-row>span{min-width:0}.fmcl-setting-row strong{display:block;font-size:10px}.fmcl-setting-row small{display:block;margin-top:2px;color:#667085;font-size:8px;font-weight:800;line-height:1.4}
     .fmcl-switch{width:38px;height:22px;flex:none;border:0;border-radius:999px;background:#d0d5dd;padding:3px;cursor:pointer;transition:background .18s}.fmcl-switch:before{content:"";display:block;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(16,24,40,.24);transition:transform .18s}.fmcl-switch.on{background:#12b76a}.fmcl-switch.on:before{transform:translateX(16px)}.fmcl-switch:disabled{opacity:.42;cursor:not-allowed}
     .fmcl-signature{display:inline-flex;align-items:center;gap:5px;max-width:140px;height:24px;padding:0 8px;border-radius:999px;background:#fffaeb;color:#b54708;font-size:10px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fmcl-signature.signed{background:#ecfdf3;color:#027a48}
+    button.fmcl-signature{height:30px;border:1px solid #fedf89;font:inherit;font-size:10px;font-weight:950;cursor:pointer;flex:none}button.fmcl-signature:hover,button.fmcl-signature.open{background:#fef0c7;border-color:#fec84b}
+    .fmcl-sign{display:grid;gap:8px;margin:2px 0 10px;border:1px solid #fedf89;border-radius:12px;background:#fffcf5;padding:10px}.fmcl-sign strong{display:flex;align-items:center;gap:6px;color:#101828;font-size:12px;font-weight:1000}.fmcl-sign-note{display:flex;align-items:center;gap:7px;color:#93370d;font-size:12px;font-weight:800}.fmcl-sign input{min-height:40px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:0 11px;font:inherit;font-size:14px;color:#101828;box-sizing:border-box;width:100%}.fmcl-sign canvas{display:block;width:100%;height:150px;border:1px dashed #98a2b3;border-radius:10px;background:#fff;touch-action:none;cursor:crosshair;box-sizing:border-box}.fmcl-sign-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
     .fmcl-assignees{display:flex;gap:5px;flex-wrap:wrap}
     .fmcl-assignee{border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#344054;padding:5px 8px;font:inherit;font-size:9px;font-weight:950;cursor:pointer}
     .fmcl-assignee i{margin-left:4px;color:#98a2b3}
@@ -283,6 +285,7 @@
     const assignmentState = {};
     const customerState = {};
     const checklistState = {};
+    const signState = {};
     const state = (id) => noteState[id] || (noteState[id] = {
       open:false,
       draft:null,
@@ -297,6 +300,8 @@
     const assignment = (id) => assignmentState[id] || (assignmentState[id] = { open:false, loading:false, loaded:false, eligibilityPickerOpen:false, personPickerOpen:false, subjects:[], catalog:[], roles:[], error:'' });
     const customerUi = (id) => customerState[id] || (customerState[id] = { open:false });
     const checklistUi = (id) => checklistState[id] || (checklistState[id] = { collapsed:false });
+    // The sign-off panel a "To sign" button opens: the name typed and the signature drawn so far survive a re-render.
+    const signUi = (id) => signState[id] || (signState[id] = { open:false, name:null, image:'' });
     const checklists = () => arr(data?.checklists).filter(list => !departmentId || !arr(list.department_ids).length || arr(list.department_ids).includes(departmentId));
     const deletedChecklists = () => arr(data?.deleted_checklists);
     const orderedChecklists = () => checklists().map((checklist, index) => ({ checklist, index })).sort((left, right) => {
@@ -536,13 +541,66 @@
       }
     };
 
-    // A checklist that asks for a sign-off says whether it has one: who signed and when, or that it is still to sign.
+    // A checklist that asks for a sign-off says whether it has one: who signed and when, or a "To sign" button that
+    // opens the sign-off below the card's actions (a name and a drawn signature, once every item is done).
     const signatureHtml = (checklist) => {
       if (!checklist.signature_required) return '';
       const signature = obj(checklist.crew_signature);
-      return clean(signature.signer_name)
-        ? `<span class="fmcl-signature signed" title="${esc(`Signed by ${signature.signer_name}${signature.signed_at ? ` on ${shortDate(signature.signed_at)}` : ''}`)}"><i class="fas fa-signature"></i>${esc(signature.signer_name)}</span>`
-        : `<span class="fmcl-signature" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_215579be77973e","Signed in the crew app once every item is done") ?? "Signed in the crew app once every item is done")}"><i class="fas fa-signature"></i>${(globalThis.PlatformLanguage?.htmlText("checklists","m_0874ee51f73df9","To sign") ?? "To sign")}</span>`;
+      if (clean(signature.signer_name)) return `<span class="fmcl-signature signed" title="${esc(`Signed by ${signature.signer_name}${signature.signed_at ? ` on ${shortDate(signature.signed_at)}` : ''}`)}"><i class="fas fa-signature"></i>${esc(signature.signer_name)}</span>`;
+      const open = signUi(checklist.id).open;
+      return `<button class="fmcl-signature ${open ? 'open' : ''}" type="button" data-fmcl-sign-open aria-expanded="${String(open)}" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_fa5306953831ff","Sign off this checklist") ?? "Sign off this checklist")}"><i class="fas fa-signature"></i>${(globalThis.PlatformLanguage?.htmlText("checklists","m_0874ee51f73df9","To sign") ?? "To sign")}</button>`;
+    };
+    const signPanelHtml = (checklist) => {
+      if (!checklist.signature_required || clean(obj(checklist.crew_signature).signer_name) || !signUi(checklist.id).open) return '';
+      const items = arr(checklist.items);
+      const left = items.filter((item) => !item.completed).length;
+      const close = `<button class="fmcl-btn" type="button" data-fmcl-sign-cancel>${(globalThis.PlatformLanguage?.htmlText("checklists","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
+      if (checklist.can_complete !== true) return `<div class="fmcl-sign" data-fmcl-sign><span class="fmcl-sign-note"><i class="fas fa-signature"></i>${(globalThis.PlatformLanguage?.htmlText("checklists","m_1a417aada28a3c","Only someone who can complete this checklist can sign it.") ?? "Only someone who can complete this checklist can sign it.")}</span><div class="fmcl-sign-actions">${close}</div></div>`;
+      if (!items.length || left) return `<div class="fmcl-sign" data-fmcl-sign><span class="fmcl-sign-note"><i class="fas fa-signature"></i>${left ? `Sign here once every item is done (${left} to go).` : 'Add items to this checklist before signing it.'}</span><div class="fmcl-sign-actions">${close}</div></div>`;
+      const name = clean(signUi(checklist.id).name ?? first(Portal.currentUser?.name, Portal.currentUser?.display_name));
+      return `<div class="fmcl-sign ready" data-fmcl-sign><strong><i class="fas fa-signature"></i>${(globalThis.PlatformLanguage?.htmlText("checklists","m_fa5306953831ff","Sign off this checklist") ?? "Sign off this checklist")}</strong><input data-fmcl-sign-name value="${esc(name)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("checklists","m_2d2dbe7ed3c8d7","Your full name") ?? "Your full name")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_2d2dbe7ed3c8d7","Your full name") ?? "Your full name")}" autocomplete="name"><canvas data-fmcl-sign-pad aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_49c6fd54e8b59c","Draw your signature") ?? "Draw your signature")}"></canvas><div class="fmcl-sign-actions"><button class="fmcl-btn" type="button" data-fmcl-sign-clear>${(globalThis.PlatformLanguage?.htmlText("checklists","m_506191e24dd383","Clear") ?? "Clear")}</button>${close}<button class="fmcl-btn primary" type="button" data-fmcl-sign-save>${(globalThis.PlatformLanguage?.htmlText("checklists","m_df6b98fab3cda2","Sign") ?? "Sign")}</button></div></div>`;
+    };
+
+    // The signature pad: drawn with a finger or a mouse, kept as an image so a re-render redraws it, sent with the name.
+    const bindSignature = (section, checklist) => {
+      const pad = section.querySelector('[data-fmcl-sign-pad]');
+      if (!pad) return;
+      const ui = signUi(checklist.id);
+      const ratio = window.devicePixelRatio || 1;
+      pad.width = Math.max(1, pad.clientWidth * ratio);
+      pad.height = Math.max(1, pad.clientHeight * ratio);
+      const pen = pad.getContext('2d');
+      const ink = () => { pen.setTransform(ratio, 0, 0, ratio, 0, 0); pen.lineWidth = 2.2; pen.lineCap = 'round'; pen.lineJoin = 'round'; pen.strokeStyle = '#101828'; };
+      ink();
+      if (ui.image) {
+        const drawn = new Image();
+        drawn.onload = () => { pen.setTransform(1, 0, 0, 1, 0, 0); pen.drawImage(drawn, 0, 0, pad.width, pad.height); ink(); };
+        drawn.src = ui.image;
+      }
+      let drawing = false;
+      const at = (event) => { const box = pad.getBoundingClientRect(); return [event.clientX - box.left, event.clientY - box.top]; };
+      pad.addEventListener('pointerdown', (event) => { drawing = true; pad.setPointerCapture?.(event.pointerId); const [x, y] = at(event); pen.beginPath(); pen.moveTo(x, y); pen.lineTo(x + 0.01, y); pen.stroke(); event.preventDefault(); });
+      pad.addEventListener('pointermove', (event) => { if (!drawing) return; const [x, y] = at(event); pen.lineTo(x, y); pen.stroke(); event.preventDefault(); });
+      const stop = () => { if (!drawing) return; drawing = false; ui.image = pad.toDataURL('image/png'); };
+      pad.addEventListener('pointerup', stop);
+      pad.addEventListener('pointercancel', stop);
+      const nameInput = section.querySelector('[data-fmcl-sign-name]');
+      nameInput?.addEventListener('input', () => { ui.name = nameInput.value; });
+      section.querySelector('[data-fmcl-sign-clear]')?.addEventListener('click', () => { pen.setTransform(1, 0, 0, 1, 0, 0); pen.clearRect(0, 0, pad.width, pad.height); ink(); ui.image = ''; });
+      section.querySelector('[data-fmcl-sign-save]')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        const name = clean(nameInput?.value);
+        if (!name) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), (globalThis.PlatformLanguage?.text("checklists","m_f44bd4ca2b4882","Type your name to sign.") ?? "Type your name to sign."), false); nameInput?.focus(); return; }
+        if (!ui.image) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), (globalThis.PlatformLanguage?.text("checklists","m_23b01ca5b00ffb","Draw your signature in the box.") ?? "Draw your signature in the box."), false); return; }
+        const done = busy(button);
+        try {
+          const result = await window.CrewAPI.projects.signChecklist(orgId(context), projectId(context), checklist.id, { type:'drawn', signer_name:name, image_data:ui.image });
+          checklist.crew_signature = obj(result?.checklist?.crew_signature);
+          signState[checklist.id] = { open:false, name:null, image:'' };
+          showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), (globalThis.PlatformLanguage?.text("checklists","m_ad1ad337116e8f","Signed.") ?? "Signed."));
+          render();
+        } catch (error) { done(); showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); }
+      });
     };
 
     const checklistHtml = (checklist, detail = false, order = 0, deleted = false) => {
@@ -605,7 +663,7 @@
         <div class="fmcl-card-body"><div class="fmcl-card-body-inner">
           <div class="fmcl-card-actions">
             <span class="fmcl-menu-wrap"><button class="fmcl-config-btn ${String(assignmentUi.open ? 'open' : '')}" type="button" data-fmcl-assign><i class="fas fa-user-group"></i>${((v16) => globalThis.PlatformLanguage?.htmlText("checklists","m_467cf3556084e7",` Completes: ${v16} `,{v16}) ?? ` Completes: ${v16} `)(esc(assignmentLabel))}<i class="fas fa-chevron-down"></i></button><div class="fmcl-assignment ${String(assignmentUi.open ? 'open' : '')}" data-fmcl-assignment>
-              <div class="fmcl-assignment-top"><div class="fmcl-field-editing"><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_b983a2145eb15f","Allow field editing") ?? "Allow field editing")}</span><button class="fmcl-switch ${String(checklist.crew_editable ? 'on' : '')}" type="button" data-fmcl-editable-v2 aria-pressed="${String(!!checklist.crew_editable)}"></button></div><div class="fmcl-field-editing" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_ef449324af3761","Whoever completes this checklist signs it once every item is done, in the crew app. Printed copies get a signature line.") ?? "Whoever completes this checklist signs it once every item is done, in the crew app. Printed copies get a signature line.")}"><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_bd11b7eff758d3","Require signature") ?? "Require signature")}</span><button class="fmcl-switch ${String(checklist.signature_required ? 'on' : '')}" type="button" data-fmcl-signature-required aria-pressed="${String(!!checklist.signature_required)}"></button></div></div>
+              <div class="fmcl-assignment-top"><div class="fmcl-field-editing"><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_b983a2145eb15f","Allow field editing") ?? "Allow field editing")}</span><button class="fmcl-switch ${String(checklist.crew_editable ? 'on' : '')}" type="button" data-fmcl-editable-v2 aria-pressed="${String(!!checklist.crew_editable)}"></button></div><div class="fmcl-field-editing" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_85a2e67110feec","Whoever completes this checklist signs it once every item is done, here or in the crew app. Printed copies get a signature line.") ?? "Whoever completes this checklist signs it once every item is done, here or in the crew app. Printed copies get a signature line.")}"><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_bd11b7eff758d3","Require signature") ?? "Require signature")}</span><button class="fmcl-switch ${String(checklist.signature_required ? 'on' : '')}" type="button" data-fmcl-signature-required aria-pressed="${String(!!checklist.signature_required)}"></button></div></div>
               <div class="fmcl-assignment-stack">
                 <div class="fmcl-assignment-field"><span class="fmcl-compact-label">${(globalThis.PlatformLanguage?.htmlText("checklists","m_a3b601c625c54a","Eligible type") ?? "Eligible type")}</span><div class="fmcl-eligibility">${String(eligibilityChips || `<span class="fmcl-type-chip" data-fmcl-everyone>${(globalThis.PlatformLanguage?.htmlText("checklists","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</span>`)}${String(eligibility.customRules.length ? `<span class="fmcl-type-chip" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_ef04a14ddff020","Additional filters are inherited from the scope definition.") ?? "Additional filters are inherited from the scope definition.")}">${(globalThis.PlatformLanguage?.htmlText("checklists","m_14b5d0674601b3","Scope filters") ?? "Scope filters")}</span>` : '')}<div class="fmcl-expand-picker ${String(assignmentUi.eligibilityPickerOpen ? 'open' : '')}" data-fmcl-picker="eligibility"><button class="fmcl-expand-trigger" type="button" data-fmcl-picker-toggle="eligibility" aria-expanded="${String(assignmentUi.eligibilityPickerOpen)}"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_7ce48edf7d0424","Add eligible type") ?? "Add eligible type")}</span></button><div class="fmcl-picker-options">${String(assignmentUi.loading ? `<span class="fmcl-picker-empty">${(globalThis.PlatformLanguage?.htmlText("checklists","m_60869a53c82d79","Loading types…") ?? "Loading types…")}</span>` : `<button type="button" data-fmcl-eligibility-option="everyone">${(globalThis.PlatformLanguage?.htmlText("checklists","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</button>${eligibilityOptions.map((option) => `<button type="button" data-fmcl-eligibility-option="${esc(option.token)}">${esc(option.label)}</button>`).join('')}`)}</div></div></div></div>
                 <div class="fmcl-assignment-field"><span class="fmcl-compact-label">${(globalThis.PlatformLanguage?.htmlText("checklists","m_6167d42c586703","Assign person") ?? "Assign person")}</span><div class="fmcl-eligibility">${String(assigneeChips || '')}<div class="fmcl-expand-picker ${String(assignmentUi.personPickerOpen ? 'open' : '')}" data-fmcl-picker="person"><button class="fmcl-expand-trigger" type="button" data-fmcl-picker-toggle="person" aria-expanded="${String(assignmentUi.personPickerOpen)}"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_6167d42c586703","Assign person") ?? "Assign person")}</span></button><div class="fmcl-picker-options">${String(assignmentUi.loading ? `<span class="fmcl-picker-empty">${(globalThis.PlatformLanguage?.htmlText("checklists","m_e35d44ebe92c7e","Loading people…") ?? "Loading people…")}</span>` : subjectChoices.length ? subjectChoices.map((subject) => `<button type="button" data-fmcl-person-option="${esc(subject.value)}">${esc(subject.label)}</button>`).join('') : `<span class="fmcl-picker-empty">${(globalThis.PlatformLanguage?.htmlText("checklists","m_0559904744409b","No eligible people found") ?? "No eligible people found")}</span>`)}</div></div></div></div>
@@ -615,6 +673,7 @@
             <span class="fmcl-menu-wrap"><button class="fmcl-config-btn customer ${String(sharedWithCustomer ? 'on' : '')} ${String(customerPanel.open ? 'open' : '')}" type="button" data-fmcl-customer><i class="fas fa-user-shield"></i> ${String(esc(customerLabel))} <i class="fas fa-chevron-down"></i></button><div class="fmcl-customer ${String(customerPanel.open ? 'open' : '')}" data-fmcl-customer-panel><div class="fmcl-compact-field"><span class="fmcl-compact-label">${(globalThis.PlatformLanguage?.htmlText("checklists","m_df7c812069f56a","Customer can") ?? "Customer can")}</span><div class="fmcl-customer-levels" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_8081e27d7264bc","Customer checklist access") ?? "Customer checklist access")}"><button type="button" class="${String(!customerLevel ? 'on' : '')}" data-fmcl-customer-level="private">${(globalThis.PlatformLanguage?.htmlText("checklists","m_2d4ff8a83b1b5c","None") ?? "None")}</button><button type="button" class="${String(customerLevel === 'view' ? 'on' : '')}" data-fmcl-customer-level="view">${(globalThis.PlatformLanguage?.htmlText("checklists","m_f3c2eb85778751","Read-only") ?? "Read-only")}</button><button type="button" class="${String(customerLevel === 'complete' ? 'on' : '')}" data-fmcl-customer-level="complete">${(globalThis.PlatformLanguage?.htmlText("checklists","m_e8e493437c1a17","Complete") ?? "Complete")}</button><button type="button" class="${String(customerLevel === 'edit' ? 'on' : '')}" data-fmcl-customer-level="edit">${(globalThis.PlatformLanguage?.htmlText("checklists","m_5b9378df7220c1","Edit") ?? "Edit")}</button></div></div></div></span>
             <span class="fmcl-cl-tools">${String(signatureHtml(checklist))}<span class="fmcl-count">${String(doneCount)}/${String(items.length)}</span><button class="fmcl-icon-btn danger" type="button" data-fmcl-cl-delete aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_0b91b01a0b286a","Delete checklist") ?? "Delete checklist")}"><i class="fas fa-trash"></i></button></span>
           </div>
+          ${String(signPanelHtml(checklist))}
           <div class="fmcl-voice-mount" data-fmcl-voice-mount></div>
           ${String(items.length ? `<div class="fmcl-items">${items.map((item) => itemHtml(checklist, item)).join('')}</div>` : `<div class="fmcl-empty-voice"><div class="fmcl-empty-voice-inner"><button class="fmcl-empty-voice-button" type="button" data-fmcl-empty-voice aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_2d8f75a3258628","Create the list with just your voice") ?? "Create the list with just your voice")}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span></button><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_274d5307ddcfc4","Create the list with just your voice.") ?? "Create the list with just your voice.")}</span></div><div class="fmcl-empty-voice-mount" data-fmcl-empty-voice-mount></div></div>`)}
           <div class="fmcl-add"><input data-fmcl-new-item placeholder="${(globalThis.PlatformLanguage?.htmlText("checklists","m_7b2113cc856add","Add an item…") ?? "Add an item…")}"><div class="fmcl-item-type-toggle" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_ba5dd11f1bb044","Item type") ?? "Item type")}"><button class="on" type="button" data-fmcl-new-item-type="todo" aria-pressed="true">${(globalThis.PlatformLanguage?.htmlText("checklists","m_d2ab565901fd0a","Task") ?? "Task")}</button><button type="button" data-fmcl-new-item-type="rating" aria-pressed="false">${(globalThis.PlatformLanguage?.htmlText("checklists","m_ff908def5f42c6","Rating") ?? "Rating")}</button></div><button class="fmcl-btn primary" type="button" data-fmcl-add-item><i class="fas fa-plus"></i></button></div>
@@ -830,6 +889,15 @@
           try { await window.CrewAPI.projects.updateChecklist(orgId(context), projectId(context), checklistId, { signature_required: on }); await load(); }
           catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); render(); }
         });
+        section.querySelector('[data-fmcl-sign-open]')?.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const ui = signUi(checklistId);
+          ui.open = !ui.open;
+          render();
+          if (ui.open) root.querySelector(`[data-fmcl-list="${checklistId}"] [data-fmcl-sign]`)?.scrollIntoView({ block:'nearest', behavior:'smooth' });
+        });
+        section.querySelectorAll('[data-fmcl-sign-cancel]').forEach((button) => button.addEventListener('click', () => { signUi(checklistId).open = false; render(); }));
+        bindSignature(section, checklist);
         section.querySelector('[data-fmcl-editable-v2]')?.addEventListener('click', async (event) => {
           const on = flipSwitch(event.currentTarget);
           try { await window.CrewAPI.projects.updateChecklist(orgId(context), projectId(context), checklistId, { crew_editable: on }); await load(); }
