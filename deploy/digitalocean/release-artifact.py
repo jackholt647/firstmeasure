@@ -13,6 +13,7 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 
@@ -178,6 +179,11 @@ if __name__ == '__main__':
             parser.error('Build release artifacts on the reviewed Linux x64 staging host')
         print(json.dumps(package(Path(args.repo), Path(args.stage), args.commit, Path(args.out))))
     elif args.command == 'install':
+        # Make room first when the disk is getting tight (never blocks the install).
+        prune_script = Path(__file__).with_name('prune-releases.py')
+        if prune_script.exists() and args.releases.parent.is_dir():
+            subprocess.run([sys.executable, str(prune_script), '--root', str(args.releases.parent),
+                            '--only-below-free-percent', '25'], stdout=sys.stderr, check=False)
         print(install(args.archive, json.loads(args.manifest.read_text()), args.releases))
     else:
         with tempfile.TemporaryDirectory(prefix='fm-release-verify-') as folder:

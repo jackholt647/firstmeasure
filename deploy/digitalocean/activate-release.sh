@@ -29,6 +29,20 @@ if [[ "$service_name" == "firstmeasure-web.service" ]]; then
 fi
 
 previous_target="$(readlink -f /opt/firstmeasure/current 2>/dev/null || true)"
+activation_dir="$(cd -- "$(dirname -- "$0")" && pwd)"
+
+# Housekeeping after a successful activation: delete old releases and keep the
+# hourly pruning timer installed. Never fails the activation.
+prune_after_activation() {
+  # Skipped when a test points systemctl at a fake host.
+  [[ -z "${FIRSTMEASURE_SYSTEMCTL:-}" ]] || return 0
+  if [[ -f "$activation_dir/install-release-prune.sh" ]]; then
+    bash "$activation_dir/install-release-prune.sh" >/dev/null 2>&1 || echo 'Warning: could not install the release pruning timer.' >&2
+  fi
+  if [[ -f "$activation_dir/prune-releases.py" ]]; then
+    python3 "$activation_dir/prune-releases.py" --root /opt/firstmeasure || true
+  fi
+}
 php_fpm_service="${FIRSTMEASURE_PHP_FPM_SERVICE:-php8.3-fpm.service}"
 # Overridable only so test_release_activation.py can run this against a fake host.
 systemctl_command="${FIRSTMEASURE_SYSTEMCTL:-systemctl}"
@@ -132,12 +146,14 @@ if activate_release_services "$release_directory"; then
       if journalctl -u "$service_name" --since "$worker_started_at" --no-pager \
         | grep -q 'dedicated background worker is ready'; then
         echo "Activated $release_id for $service_name."
+        prune_after_activation
         exit 0
       fi
       sleep 2
     done
   elif bash /opt/firstmeasure/current/deploy/digitalocean/verify-node.sh "$node_http"; then
     echo "Activated $release_id for $service_name ($activation_method)."
+    prune_after_activation
     exit 0
   fi
 fi
