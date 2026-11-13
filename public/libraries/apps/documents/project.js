@@ -2633,7 +2633,7 @@
             ${filesUpload ? '<button type="button" class="fmdx-btn fmdx-phone-only" data-create-files title="Add files to this project: PDFs, photos, spreadsheets"><i class="fas fa-file-arrow-up"></i> Upload</button>' : ''}
             ${scanner
               ? `<button type="button" class="fmdx-btn ${filesUpload ? 'fmdx-desk-only' : ''}" data-create-upload title="A PDF or photo of a paper document; add fields during review"><i class="fas fa-arrow-up-from-bracket"></i> Upload</button>
-                 <button type="button" class="fmdx-btn primary fmdx-phone-only" data-create-scan title="Scan a paper document with the camera"><i class="fas fa-camera"></i> Scan paper</button>`
+                 <button type="button" class="fmdx-btn fmdx-phone-only" data-create-scan title="Scan a paper document with the camera"><i class="fas fa-camera"></i> Scan paper</button>`
               : `<button type="button" class="fmdx-btn" data-create-upload title="Scan or photo of a paper document; add fields during review"><i class="fas ${filesUpload ? 'fa-camera fmdx-phone-only' : 'fa-arrow-up-from-bracket'}"></i>${filesUpload ? '<i class="fas fa-arrow-up-from-bracket fmdx-desk-only"></i> <span class="fmdx-desk-only">Upload</span><span class="fmdx-phone-only">Scan paper</span>' : ' Upload'}</button>`}
           </div>
           ${pinned.length ? `
