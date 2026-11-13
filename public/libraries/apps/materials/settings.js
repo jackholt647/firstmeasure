@@ -250,9 +250,14 @@
         const row = find(id);
         if (!row || !root.FirstMateWidgets?.mount) return;
         const dialog = document.createElement('dialog');
-        dialog.className = 'mts-icon-dialog'; dialog.style.cssText = 'max-width:520px;width:calc(100vw - 32px);padding:12px;border:0;border-radius:14px';
+        // The picker's card is the dialog's surface; the close button sits in its corner (phones have no Escape key).
+        dialog.className = 'mts-icon-dialog'; dialog.style.cssText = 'width:min(440px,calc(100vw - 24px));max-width:none;max-height:calc(100dvh - 24px);box-sizing:border-box;padding:0;border:0;border-radius:12px;background:transparent;overflow:auto';
+        const close = document.createElement('button');
+        close.type = 'button'; close.title = t('materials_settings_close', 'Close'); close.setAttribute('aria-label', close.title);
+        close.style.cssText = 'position:absolute;top:8px;right:8px;z-index:1;display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;border-radius:8px;background:transparent;color:#667085;font-size:17px;cursor:pointer';
+        close.innerHTML = '<i class="fas fa-xmark" aria-hidden="true"></i>'; close.onclick = () => dialog.close();
         const stage = document.createElement('div');
-        dialog.append(stage); document.body.append(dialog);
+        dialog.append(close, stage); document.body.append(dialog);
         const widget = root.FirstMateWidgets.mount(stage, { id:'icon.picker', version:'1', config:{ prompt:t('materials_settings_cat_icon', 'Icon and color'), includeColor:true, value:row.icon, color:row.color } }, { surface:'settings', onSelect:(selection, detail) => { if (!detail?.confirmed) return; row.icon = selection.value; row.color = selection.color; save(row); dialog.close(); done?.(); } });
         dialog.onclose = () => { try { widget?.destroy?.(); } catch (error) {} dialog.remove(); };
         dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
