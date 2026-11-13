@@ -8989,7 +8989,10 @@
     "m_86ec40fa3f9758": "Ausschalten",
     "m_4aaef822b47692": "FirstMate Assistant",
     "m_20117f24d2d135": "Abrechnungseinstellungen konnten nicht geladen werden. ",
-    "m_48a9cdd2af44f4": "Erneut versuchen"
+    "m_48a9cdd2af44f4": "Erneut versuchen",
+    "m_db92249b608747": "Ihr Arbeitsbereich wird geladen…",
+    "m_cade29468d2218": "Das Laden Ihres Arbeitsbereichs dauert länger. Bitte versuchen Sie es erneut.",
+    "m_b39f2fc77d6729": "Arbeitsbereich neu laden"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Büro",

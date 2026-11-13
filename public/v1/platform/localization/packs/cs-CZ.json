@@ -8529,7 +8529,10 @@
       "format": "icu"
     },
     "m_20117f24d2d135": "Nastavení fakturace se nepodařilo načíst. ",
-    "m_48a9cdd2af44f4": "Zkusit znovu"
+    "m_48a9cdd2af44f4": "Zkusit znovu",
+    "m_db92249b608747": "Načítání pracovního prostoru…",
+    "m_cade29468d2218": "Načítání pracovního prostoru trvá déle. Zkuste to prosím znovu.",
+    "m_b39f2fc77d6729": "Znovu načíst pracovní prostor"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Kancelář",

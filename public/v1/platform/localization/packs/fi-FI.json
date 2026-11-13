@@ -8997,7 +8997,10 @@
       "format": "icu"
     },
     "m_20117f24d2d135": "Laskutusasetusten lataaminen epäonnistui. ",
-    "m_48a9cdd2af44f4": "Yritä uudelleen"
+    "m_48a9cdd2af44f4": "Yritä uudelleen",
+    "m_db92249b608747": "Työtilaasi ladataan…",
+    "m_cade29468d2218": "Työtilasi lataaminen kestää tavallista kauemmin. Yritä uudelleen.",
+    "m_b39f2fc77d6729": "Lataa työtila uudelleen"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Toimisto",

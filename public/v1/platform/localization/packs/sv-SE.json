@@ -8616,7 +8616,10 @@
     "m_86ec40fa3f9758": "Stäng av",
     "m_4aaef822b47692": "FirstMate Assistant",
     "m_20117f24d2d135": "Det gick inte att läsa in faktureringsinställningarna. ",
-    "m_48a9cdd2af44f4": "Försök igen"
+    "m_48a9cdd2af44f4": "Försök igen",
+    "m_db92249b608747": "Läser in din arbetsyta…",
+    "m_cade29468d2218": "Det tar längre tid än vanligt att läsa in din arbetsyta. Försök igen.",
+    "m_b39f2fc77d6729": "Läs in arbetsytan igen"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Kontor",

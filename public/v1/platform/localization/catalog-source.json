@@ -14396,7 +14396,10 @@
       "message": "{v0} {v1} to your message",
       "format": "icu"
     },
-    "m_1098e67fa6e0a6": "Reactions to your message"
+    "m_1098e67fa6e0a6": "Reactions to your message",
+    "m_db92249b608747": "Loading your workspace…",
+    "m_cade29468d2218": "Your workspace is taking longer to load. Please try again.",
+    "m_b39f2fc77d6729": "Reload workspace"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Office",

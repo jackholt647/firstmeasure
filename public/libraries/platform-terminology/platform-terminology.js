@@ -100,15 +100,22 @@
   async function load(orgId, branchId = 'default', options = {}){
     const organizationId = clean(orgId);
     const branch = clean(branchId || 'default') || 'default';
-    if (!organizationId || !root.PlatformScheduling?.loadBranchConfig) return current;
+    const readTerminology = root.PlatformAPI?.terminologyConfiguration;
+    if (!organizationId || (!readTerminology && !root.PlatformScheduling?.loadBranchConfig)) return current;
     const key = `${organizationId}:${branch}`;
     if (loading && loadingKey === key && options.refresh !== true) return loading;
     const sequence = ++loadSequence;
     loadingKey = key;
     if(current.orgId !== organizationId || current.branchId !== branch) setConfig({mappings:{}},{orgId:organizationId,branchId:branch,silent:true});
-    loading = Promise.all([root.PlatformScheduling.loadBranchConfig(organizationId, branch, { refresh:options.refresh === true }), ready()])
-      .then(async ([config]) => {
-        const persisted=await root.PlatformAPI?.terminologyConfiguration?.(organizationId,branch);
+    // The terminology read is the whole answer; the scheduling configuration
+    // (with its department list) is read only when that fails, or on a refresh
+    // so the scheduling copy of the labels stays current. The portal's tabs
+    // wait for this before they show.
+    const branchConfig = () => root.PlatformScheduling?.loadBranchConfig?.(organizationId, branch, { refresh:options.refresh === true }) || null;
+    const refreshed = options.refresh === true ? Promise.resolve(branchConfig()).catch(() => null) : null;
+    loading = Promise.all([readTerminology ? Promise.resolve(readTerminology.call(root.PlatformAPI, organizationId, branch)).catch(() => null) : null, ready(), refreshed])
+      .then(async ([persisted, , refreshedConfig]) => {
+        const config = persisted?.mappings ? (refreshedConfig || {}) : (refreshedConfig || await branchConfig() || {});
         if(sequence !== loadSequence) return current;
         return setConfig({...config,mappings:persisted?.mappings || config.mappings || {}},{orgId:organizationId,branchId:branch,silent:options.silent});
       })

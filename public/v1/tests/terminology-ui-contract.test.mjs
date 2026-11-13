@@ -19,11 +19,29 @@ test('shared resolver handles empty navigation placeholders safely',()=>{
 });
 
 test('an older organization load cannot replace newer organization terminology',async()=>{
- const pending=new Map();const window={dispatchEvent(){},PlatformScheduling:{loadBranchConfig:org=>new Promise(resolve=>pending.set(org,resolve))},PlatformAPI:{terminologyConfiguration:async org=>({mappings:{localized_labels:{'en-US':{projects:{project:org}}}}})}};
+ const pending=new Map();const window={dispatchEvent(){},PlatformScheduling:{loadBranchConfig:async()=>({mappings:{}})},PlatformAPI:{terminologyConfiguration:org=>new Promise(resolve=>pending.set(org,resolve))}};
  vm.runInNewContext(catalog,{window,CustomEvent:class{constructor(type,init){this.type=type;this.detail=init.detail;}}});
  const first=window.PlatformTerminology.load('first'),second=window.PlatformTerminology.load('second');
- pending.get('second')({mappings:{}});await second;pending.get('first')({mappings:{}});await first;
+ const labels=org=>({mappings:{localized_labels:{'en-US':{projects:{project:org}}}}});
+ pending.get('second')(labels('second'));await second;pending.get('first')(labels('first'));await first;
  assert.equal(window.PlatformTerminology.current().orgId,'second');assert.equal(window.PlatformTerminology.current().mappings.localized_labels['en-US'].projects.project,'second');
+});
+
+// FM-431: the portal's tabs wait for terminology before the boot cover goes;
+// that must not also wait for the scheduling configuration and its departments.
+test('terminology loads from its own read without waiting for the scheduling configuration',async()=>{
+ let schedulingReads=0;const window={dispatchEvent(){},PlatformScheduling:{loadBranchConfig:()=>{schedulingReads++;return new Promise(()=>{});}},PlatformAPI:{terminologyConfiguration:async()=>({mappings:{localized_labels:{'en-US':{projects:{project:'Job'}}}}})}};
+ vm.runInNewContext(catalog,{window,CustomEvent:class{constructor(type,init){this.type=type;this.detail=init.detail;}}});
+ const result=await window.PlatformTerminology.load('org');
+ assert.equal(result.mappings.localized_labels['en-US'].projects.project,'Job');assert.equal(schedulingReads,0);
+});
+test('terminology falls back to the scheduling configuration when its read fails, and a refresh refreshes both',async()=>{
+ const scheduling=[];const window={dispatchEvent(){},PlatformScheduling:{loadBranchConfig:async(org,branch,options)=>{scheduling.push(options.refresh);return {mappings:{labels:{projects:{project:'Fallback job'}}}};}},PlatformAPI:{terminologyConfiguration:async()=>{throw new Error('offline');}}};
+ vm.runInNewContext(catalog,{window,CustomEvent:class{constructor(type,init){this.type=type;this.detail=init.detail;}}});
+ assert.equal((await window.PlatformTerminology.load('org')).mappings.labels.projects.project,'Fallback job');
+ window.PlatformAPI.terminologyConfiguration=async()=>({mappings:{labels:{projects:{project:'Saved job'}}}});
+ assert.equal((await window.PlatformTerminology.refresh('org')).mappings.labels.projects.project,'Saved job');
+ assert.deepEqual(scheduling,[false,true]);
 });
 
 test('the browser catalog is the library terminology, loaded once, with no inline terms',async()=>{

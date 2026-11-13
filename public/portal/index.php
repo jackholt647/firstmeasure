@@ -1853,24 +1853,52 @@ session_write_close();
 <body class="platform-booting">
   <style>
     body.platform-booting > :not(script):not(style):not(#fmPlatformBootCover){visibility:hidden!important}
-    #fmPlatformBootCover{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;background:#f5f6f8;color:#64748b;font:500 14px Inter,Arial,sans-serif}
+    /* Painted with the first frame, before any bundle: the platform's own
+       loading look (logo in the organization's cached brand colour, the
+       tab-loading type) on the background the onboarding pre-cover uses. */
+    #fmPlatformBootCover{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;box-sizing:border-box;padding:max(24px,env(safe-area-inset-top,0px)) 24px max(24px,env(safe-area-inset-bottom,0px));background:#f5f6f8;color:#667085;font-family:Inter,Arial,sans-serif;transition:opacity .18s ease}
+    #fmPlatformBootCover.is-leaving{opacity:0;pointer-events:none}
+    #fmPlatformBootCover .fm-boot-card{display:grid;justify-items:center;gap:18px;width:min(340px,100%);text-align:center}
+    #fmPlatformBootCover .fm-boot-logo{width:148px;height:56px;background:var(--primary,#d93025);-webkit-mask:url('/images/logo_red.png') center / contain no-repeat;mask:url('/images/logo_red.png') center / contain no-repeat}
+    #fmPlatformBootCover .fm-boot-bar{position:relative;width:120px;height:4px;overflow:hidden;border-radius:999px;background:rgba(var(--primary-rgb,217,48,37),.14)}
+    #fmPlatformBootCover .fm-boot-bar>span{position:absolute;top:0;bottom:0;left:0;width:40%;border-radius:inherit;background:var(--primary,#d93025);animation:fmBootSlide 1.1s cubic-bezier(.45,0,.25,1) infinite}
+    /* A quick start shows only the logo and bar; the words come in when it takes a moment. */
+    #fmPlatformBootCover .fm-boot-text{margin:0;font-size:12px;font-weight:750;color:#667085;opacity:0;animation:fmBootIn .3s ease 1.2s forwards}
+    #fmPlatformBootCover .fm-boot-problem,#fmPlatformBootCover .fm-boot-retry{display:none}
+    #fmPlatformBootCover[data-state="slow"] .fm-boot-bar,#fmPlatformBootCover[data-state="slow"] .fm-boot-text,
+    #fmPlatformBootCover[data-state="error"] .fm-boot-bar,#fmPlatformBootCover[data-state="error"] .fm-boot-text{display:none}
+    #fmPlatformBootCover[data-state="slow"] .fm-boot-problem,#fmPlatformBootCover[data-state="error"] .fm-boot-problem{display:block;margin:0;font-size:14px;font-weight:750;line-height:1.5;color:#101828}
+    #fmPlatformBootCover[data-state="slow"] .fm-boot-retry,#fmPlatformBootCover[data-state="error"] .fm-boot-retry{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 18px;border:0;border-radius:10px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:800 14px Inter,Arial,sans-serif;cursor:pointer}
+    #fmPlatformBootCover .fm-boot-retry:focus-visible{outline:3px solid rgba(var(--primary-rgb,217,48,37),.35);outline-offset:2px}
+    @keyframes fmBootSlide{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+    @keyframes fmBootIn{to{opacity:1}}
+    @media (prefers-reduced-motion:reduce){
+      #fmPlatformBootCover{transition:none}
+      #fmPlatformBootCover .fm-boot-bar>span{animation:none;width:100%;opacity:.45}
+      #fmPlatformBootCover .fm-boot-text{animation:none;opacity:1}
+    }
   </style>
-  <div id="fmPlatformBootCover" role="status" aria-live="polite">Loading your workspace…</div>
+  <!-- Copy is localized by core.js (localizeBootCover) once the language catalog loads. -->
+  <div id="fmPlatformBootCover" role="status" aria-live="polite" data-state="loading">
+    <div class="fm-boot-card">
+      <span class="fm-boot-logo" role="img" aria-label="FirstMate"></span>
+      <span class="fm-boot-bar" aria-hidden="true"><span></span></span>
+      <p class="fm-boot-text" data-fm-boot-copy="loading">Loading your workspace…</p>
+      <p class="fm-boot-problem" data-fm-boot-copy="slow">Your workspace is taking longer to load. Please try again.</p>
+      <button type="button" class="fm-boot-retry" data-fm-boot-copy="reload">Reload workspace</button>
+    </div>
+  </div>
   <script>
     // Keep a failed bundle or network request recoverable without showing tabs
-    // before account permissions have loaded.
-    setTimeout(function () {
+    // before account permissions have loaded. Reloading is the person's choice.
+    (function () {
       var cover = document.getElementById('fmPlatformBootCover');
       if (!cover) return;
-      var message = document.createElement('div');
-      message.style.cssText = 'text-align:center;padding:24px;line-height:1.8';
-      message.textContent = 'Your workspace is taking longer to load. Please try again.';
-      var retry = document.createElement('button');
-      retry.type = 'button'; retry.textContent = 'Reload workspace';
-      retry.style.cssText = 'display:block;margin:16px auto;padding:10px 18px;cursor:pointer';
-      retry.addEventListener('click', function () { window.location.reload(); });
-      message.appendChild(retry); cover.replaceChildren(message);
-    }, 20000);
+      cover.querySelector('.fm-boot-retry').addEventListener('click', function () { window.location.reload(); });
+      setTimeout(function () {
+        if (cover.isConnected && cover.dataset.state === 'loading') cover.dataset.state = 'slow';
+      }, 20000);
+    })();
   </script>
   <?php if ($showOnboarding || $paidFlag === '1'): ?>
   <!--

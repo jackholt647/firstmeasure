@@ -9013,7 +9013,10 @@
       "format": "icu"
     },
     "m_20117f24d2d135": "Não foi possível carregar as configurações de cobrança. ",
-    "m_48a9cdd2af44f4": "Tentar novamente"
+    "m_48a9cdd2af44f4": "Tentar novamente",
+    "m_db92249b608747": "Carregando sua área de trabalho…",
+    "m_cade29468d2218": "Sua área de trabalho está demorando mais para carregar. Tente novamente.",
+    "m_b39f2fc77d6729": "Recarregar área de trabalho"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Escritório",
