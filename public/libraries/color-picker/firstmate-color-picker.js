@@ -68,8 +68,11 @@
   function position() {
     if (!active || !panel) return;
     const rect = active.getBoundingClientRect(), height = panel.offsetHeight;
-    panel.style.left = Math.max(10, Math.min(rect.left, innerWidth - panel.offsetWidth - 10)) + 'px';
-    panel.style.top = Math.max(10, Math.min(rect.bottom + 6, innerHeight - height - 10)) + 'px';
+    const left = Math.max(10, Math.min(rect.left, innerWidth - panel.offsetWidth - 10)), top = Math.max(10, Math.min(rect.bottom + 6, innerHeight - height - 10));
+    panel.style.left = left + 'px'; panel.style.top = top + 'px';
+    // Inside a transformed dialog, fixed is relative to the dialog: correct by where the panel actually landed.
+    const placed = panel.getBoundingClientRect();
+    if (Math.abs(placed.left - left) > .5 || Math.abs(placed.top - top) > .5) { panel.style.left = (2 * left - placed.left) + 'px'; panel.style.top = (2 * top - placed.top) + 'px'; }
   }
   function sync() {
     if (!panel || !active) return;
@@ -151,7 +154,9 @@
     plane.addEventListener('pointermove', event => { if (plane.hasPointerCapture(event.pointerId)) move(event); });
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) plane.addEventListener(type, () => commit());
     plane.addEventListener('keydown', event => { const step = event.shiftKey ? .1 : .01; if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) return; event.preventDefault(); hsv.s = clamp(hsv.s + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0)); hsv.v = clamp(hsv.v + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0)); choose(rgbToHex(hsvToRgb(hsv)), true); });
-    document.body.appendChild(panel); sync(); position(); panel.querySelector('[data-hex]').focus({ preventScroll: true });
+    // A modal dialog sits in the top layer and makes the rest of the page inert, so the panel opens inside the dialog that holds the field.
+    let modal = null; try { modal = input.closest('dialog:modal'); } catch (_) {}
+    (modal || document.body).appendChild(panel); sync(); position(); panel.querySelector('[data-hex]').focus({ preventScroll: true });
   }
   function colorTarget(target) {
     if (target?.matches?.('input[type="color"]')) return target;
