@@ -181,10 +181,55 @@ function portalDecodeAuthSessionResponse($raw, int $status): array
         header('Retry-After: 2');
         header('Cache-Control: no-store');
         header('Content-Type: text/html; charset=utf-8');
-        echo '<!doctype html><html lang="en"><meta charset="utf-8"><title>Portal temporarily unavailable</title><p>The portal is temporarily unavailable. Please refresh in a moment.</p></html>';
+        echo portalUnavailablePage();
         exit;
     }
     return $data;
+}
+
+// Stands alone: the backend is down, so no platform script, stylesheet or
+// language catalog. It looks like the portal's boot cover in its error state.
+// Reloading is the person's choice (the button), never automatic.
+function portalUnavailablePage(): string
+{
+    return <<<'HTML'
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#f5f6f8">
+<title>FirstMate is temporarily unavailable</title>
+<style>
+html,body{margin:0;height:100%}
+body{display:grid;place-items:center;box-sizing:border-box;min-height:100vh;min-height:100dvh;padding:max(24px,env(safe-area-inset-top,0px)) 24px max(24px,env(safe-area-inset-bottom,0px));background:#f5f6f8;color:#667085;font-family:Inter,Arial,sans-serif;-webkit-text-size-adjust:100%}
+.fm-unavailable{display:grid;justify-items:center;gap:18px;width:min(340px,100%);text-align:center}
+.fm-unavailable-logo{width:148px;height:56px;background:#d93025;-webkit-mask:url('/images/logo_white.png') center / contain no-repeat;mask:url('/images/logo_white.png') center / contain no-repeat}
+.fm-unavailable h1{margin:0;font-size:16px;font-weight:800;line-height:1.4;color:#101828}
+.fm-unavailable p{margin:-8px 0 0;font-size:14px;font-weight:600;line-height:1.5;color:#667085}
+.fm-unavailable button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 22px;border:0;border-radius:10px;background:#d93025;color:#fff;font:800 14px Inter,Arial,sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.fm-unavailable button:active{background:#b5281f}
+.fm-unavailable button:focus-visible{outline:3px solid rgba(217,48,37,.35);outline-offset:2px}
+.fm-unavailable button svg{width:16px;height:16px;flex:none}
+</style>
+</head>
+<body>
+<main class="fm-unavailable" role="alert">
+<span class="fm-unavailable-logo" role="img" aria-label="FirstMate"></span>
+<h1>The portal is temporarily unavailable</h1>
+<p>Please refresh in a moment.</p>
+<button type="button" id="fmUnavailableRefresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Refresh</button>
+</main>
+<script>
+document.getElementById('fmUnavailableRefresh').addEventListener('click', function () {
+  this.disabled = true;
+  window.location.reload();
+});
+</script>
+</body>
+</html>
+HTML;
 }
 
 function portalClearNodeBackedSessionState(): void

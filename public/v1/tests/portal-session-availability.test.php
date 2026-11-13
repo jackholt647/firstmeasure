@@ -26,6 +26,10 @@ foreach ($cases as [$status, $body, $expected]) {
     if (proc_close($process) !== 0) throw new RuntimeException($error);
     if ($expected === null) {
         if (!str_contains($output, 'temporarily unavailable') || str_contains($output, '"returned"')) throw new RuntimeException('Backend error must stop protected-page rendering');
+        // FM-442: a styled, phone-sized page whose Refresh button reloads only when tapped.
+        if (!str_contains($output, 'name="viewport"') || !str_contains($output, 'id="fmUnavailableRefresh"')) throw new RuntimeException('Unavailable page must fit a phone and offer Refresh');
+        if (!preg_match("/addEventListener\\('click'[^}]*location\\.reload\\(\\)/", $output)) throw new RuntimeException('Refresh must reload on tap');
+        if (preg_match('/http-equiv=["\']?refresh|setTimeout|setInterval/i', $output)) throw new RuntimeException('Unavailable page must never reload by itself');
     } else {
         $data = json_decode($output, true);
         if (($data['returned']['authenticated'] ?? null) !== $expected) throw new RuntimeException('Authentication response changed');
