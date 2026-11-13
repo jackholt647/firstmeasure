@@ -139,6 +139,18 @@ test('icon picker fits a phone: one grid of icon tiles, a usable color swatch, n
  }finally{await browser.close();}
 });
 
+test('icon picker in a modal dialog opens its color panel above the dialog, where it can be used',async()=>{
+ const browser=await launch();try{const {page,errors}=await open(browser);await page.setViewportSize({width:433,height:870});
+ await page.evaluate(async()=>{const dialog=document.createElement('dialog'),stage=document.createElement('div');dialog.append(stage);document.body.append(dialog);window.icon=FirstMateWidgets.mount(stage,{id:'icon.picker',version:'1',config:{includeColor:true,value:'fa-layer-group',color:'#125634'}},context);await icon.ready;dialog.showModal();});
+ await page.locator('dialog input[type=color]').click();await page.locator('.fm-color-picker').waitFor();
+ const placed=await page.evaluate(()=>{const panel=document.querySelector('.fm-color-picker'),r=panel.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return {inDialog:!!panel.closest('dialog[open]'),onTop:panel.contains(hit),inView:r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight};});
+ assert.deepEqual(placed,{inDialog:true,onTop:true,inView:true});
+ await page.locator('.fm-color-picker [data-hex]').fill('#abcdef');await page.locator('.fm-color-picker .fm-color-done').click();
+ assert.equal(await page.locator('dialog input[type=color]').inputValue(),'#abcdef');assert.equal(await page.evaluate(()=>document.querySelector('dialog').open),true,'choosing a color leaves the dialog open');
+ assert.deepEqual(errors,[]);
+ }finally{await browser.close();}
+});
+
 test('icon picker edits icon and color in one confirmed selection',async()=>{
  const browser=await launch();try{const {page,errors}=await open(browser);
  await page.evaluate(async()=>{window.icon=FirstMateWidgets.mount(document.querySelector('#a'),{id:'icon.picker',version:'1',config:{includeColor:true,value:'fa-layer-group',color:'#125634'}},context);await icon.ready;});
