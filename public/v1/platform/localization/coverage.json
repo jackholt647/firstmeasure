@@ -1,7 +1,7 @@
 {
   "files": 318,
   "namespaces": 120,
-  "messages": 17390,
+  "messages": 17402,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -139,9 +139,9 @@
     {
       "file": "public/libraries/apps/checklists/app.js",
       "namespace": "checklists",
-      "references": 138,
-      "candidates": 3,
-      "edits": 2
+      "references": 135,
+      "candidates": 18,
+      "edits": 12
     },
     {
       "file": "public/libraries/apps/comms/calling-runtime.js",
@@ -356,9 +356,9 @@
     {
       "file": "public/libraries/apps/materials/project.js",
       "namespace": "materials",
-      "references": 156,
-      "candidates": 178,
-      "edits": 120
+      "references": 159,
+      "candidates": 179,
+      "edits": 121
     },
     {
       "file": "public/libraries/apps/materials/rail-media.js",
@@ -664,7 +664,7 @@
     {
       "file": "public/libraries/apps/project-request/app.js",
       "namespace": "project-request",
-      "references": 408,
+      "references": 406,
       "candidates": 2,
       "edits": 4
     },
@@ -1855,8 +1855,8 @@
       "file": "public/libraries/platform-widgets/extended-widgets.js",
       "namespace": "platform-widgets",
       "references": 0,
-      "candidates": 17,
-      "edits": 17
+      "candidates": 19,
+      "edits": 19
     },
     {
       "file": "public/libraries/platform-widgets/forms-widgets.js",

@@ -394,7 +394,17 @@
     "m_215579be77973e": "Signed in the crew app once every item is done",
     "m_bd11b7eff758d3": "Require signature",
     "m_ef449324af3761": "Whoever completes this checklist signs it once every item is done, in the crew app. Printed copies get a signature line.",
-    "m_ca9dd8bc3670c2": "Save to Documents, then email, download or print"
+    "m_ca9dd8bc3670c2": "Save to Documents, then email, download or print",
+    "m_fa5306953831ff": "Sign off this checklist",
+    "m_1a417aada28a3c": "Only someone who can complete this checklist can sign it.",
+    "m_506191e24dd383": "Clear",
+    "m_df6b98fab3cda2": "Sign",
+    "m_2d2dbe7ed3c8d7": "Your full name",
+    "m_49c6fd54e8b59c": "Draw your signature",
+    "m_f44bd4ca2b4882": "Type your name to sign.",
+    "m_23b01ca5b00ffb": "Draw your signature in the box.",
+    "m_ad1ad337116e8f": "Signed.",
+    "m_85a2e67110feec": "Whoever completes this checklist signs it once every item is done, here or in the crew app. Printed copies get a signature line."
   },
   "comms": {
     "m_f6ab2f58b94a8e": "Customer call workspace",
@@ -4617,7 +4627,8 @@
     "m_c65b0348d8952e": "Create work order",
     "m_f92c72190aa503": "Create proposal",
     "m_6175206dc77242": "The new document could not be opened",
-    "m_96047a0c8f68e0": "Open the Documents tab to create it."
+    "m_96047a0c8f68e0": "Open the Documents tab to create it.",
+    "m_c478c1907a4d4f": "Category"
   },
   "measurements": {
     "m_aaf397f737f7b1": "Residential",
@@ -20901,7 +20912,8 @@
     "m_974091bf415ab8": "Remove GIF",
     "m_5cb357cdd8d301": "Could not open contact action",
     "m_c587aef787417a": "Attach a GIF",
-    "m_f23e5a4b942249": "3D model"
+    "m_f23e5a4b942249": "3D model",
+    "m_596b19b57b443d": "Icons"
   },
   "project-selector": {
     "m_72c2b5831cf3b6": "Project or lead (optional)",
