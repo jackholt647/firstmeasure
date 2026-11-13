@@ -2623,7 +2623,9 @@
         // only button): Upload beside Blank, and the paper intake says Scan.
         const filesUpload = typeof options.onUploadFiles === 'function';
         // With the scanner (documents.scanner), a phone's paper button opens the camera; Upload keeps the picker.
-        const scanner = capabilityEnabled('documents.scanner');
+        // A scan is saved through the paper intake (documents.ingestion) or into the project's files (Project Docs):
+        // with neither, there is nowhere to put it and the menu stays as it was.
+        const scanner = capabilityEnabled('documents.scanner') && (capabilityEnabled('documents.ingestion') || capabilityEnabled('platform.project_docs'));
         body.innerHTML = `
           <div class="fmdx-create-top">
             <label class="fmdx-create-search"><i class="fas fa-magnifying-glass"></i><input type="search" data-tpl-search value="${esc(picker.query)}" placeholder="Search templates" autocomplete="off"></label>

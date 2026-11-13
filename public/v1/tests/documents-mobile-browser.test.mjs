@@ -320,7 +320,7 @@ test('on a phone with the document scanner, Scan paper opens the scanner and ask
   const browser = await launch();
   try {
     for (const [flags, expected] of [
-      [{ 'documents.scanner': true }, [['scan', '', 'function']]],
+      [{ 'documents.scanner': true, 'platform.project_docs': true }, [['scan', '', 'function']]],
       [{ 'documents.scanner': true, 'documents.ingestion': true }, [['scan', 'proposal', 'function']]]
     ]) {
       const { page, errors, context } = await pageFor(browser, PHONE);
@@ -341,11 +341,24 @@ test('on a phone with the document scanner, Scan paper opens the scanner and ask
   } finally { await browser.close(); }
 });
 
+test('with nowhere to save a scan (no document ingestion, no Project Docs) the phone menu stays as it was', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors, context } = await pageFor(browser, PHONE);
+    await openNewDialog(page, { phone: true, flags: { 'documents.scanner': true } });
+    assert.equal(await page.locator('[data-create-scan]').count(), 0);
+    const buttons = await page.locator('.fmdx-create-top > .fmdx-btn').evaluateAll((list) => list.filter((b) => b.getClientRects().length).map((b) => b.innerText.trim()));
+    assert.deepEqual(buttons, ['Blank', 'Upload', 'Scan paper']);
+    assert.deepEqual(errors, []);
+    await context.close();
+  } finally { await browser.close(); }
+});
+
 test('on a desktop the document scanner changes nothing: Blank and Upload', async () => {
   const browser = await launch();
   try {
     const { page, errors } = await pageFor(browser, DESKTOP);
-    await openNewDialog(page, { flags: { 'documents.scanner': true } });
+    await openNewDialog(page, { flags: { 'documents.scanner': true, 'documents.ingestion': true } });
     const buttons = await page.locator('.fmdx-create-top > .fmdx-btn').evaluateAll((list) => list.filter((b) => b.getClientRects().length).map((b) => b.innerText.trim()));
     assert.deepEqual(buttons, ['Blank', 'Upload']);
     await page.locator('[data-create-upload]').click();
