@@ -103,8 +103,8 @@ test('a Full Exterior rejected for footage says so and offers more footage or th
   assert.doesNotMatch(card.html, /<p>|r-pending-note/);
   assert.match(card.why, /photos and video do not show enough of the house/);
   assert.deepEqual(card.buttons, ['data-reorder-rejected-exterior="full_house" Try again with more footage', 'data-reorder-rejected-exterior="roof" Order just the roof']);
-  assert.match(card.tips[0], /whole house in view/);
-  assert.match(card.tips[1], /aerial imagery and needs no photos/);
+  assert.match(card.tips[0] ?? '', /whole house in view/);
+  assert.match(card.tips[1] ?? '', /aerial imagery and needs no photos/);
   // With Full Exterior off for the organization, only the roof is offered.
   assert.deepEqual(renderRejected(rejected('full_house', 'insufficient_footage'), {exteriorsOffered: false}).buttons, ['data-reorder-rejected-exterior="roof" Order just the roof']);
 });
@@ -125,7 +125,7 @@ test('a wrong project type still reorders as the right one', () => {
   const card = renderRejected(rejected('roof', 'incorrect_structure_type', {correct_project_type: 'commercial'}));
   assert.match(card.text, /Reason It needs a different project type/);
   assert.deepEqual(card.buttons, ['data-reorder-rejected-report Reorder as Commercial']);
-  assert.match(card.tips[0], /new order/);
+  assert.match(card.tips[0] ?? '', /new order/);
   // A refund is told in the reason's tooltip, not as another row.
   const refunded = renderRejected({...rejected('roof', 'incorrect_structure_type', {correct_project_type: 'commercial'}), refund_amount: 30});
   assert.match(refunded.why, /\$30 returned to credits$/);
