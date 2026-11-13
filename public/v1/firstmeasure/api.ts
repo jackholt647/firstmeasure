@@ -3500,7 +3500,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   });
 
-  // The completed report's roof line types and line totals as its PDF prints them, for the customer 3D viewer:
+  // The completed report's roof line types and the line totals its PDF prints, for the customer 3D viewer:
   // model_data.xml carries only the export's coarser line types (FM-455). Same organization check as exterior-model.
   app.get("/projects/:id/roof-lines", async (request) => {
     const auth = await requirePlatformAuth(request, { permission: 'view_reports' });
@@ -3516,7 +3516,9 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     if (String(manifest.status ?? '').toLowerCase() !== 'completed' || reportHeldForRelease(manifest)) return { ok: true, edgeTypes: [], measurements: {} };
     const { reportEdgeTypes } = await import("../platform/widgets/roof-classifications.js");
     const [pdfState, xml] = await Promise.all([readPdfState(projectId), readStoredXml(projectId).then(file => file.content.toString("utf8"), () => "")]);
-    return { ok: true, edgeTypes: reportEdgeTypes(pdfState, xml), measurements: measurementPayloadFromSavedReport(pdfState) };
+    // Line totals only: the PDF prints squares from the faces, as the viewer computes them, not the saved materials.squares.
+    const measurements = Object.fromEntries(Object.entries(measurementPayloadFromSavedReport(pdfState)).filter(([key]) => key.endsWith("Lf")));
+    return { ok: true, edgeTypes: reportEdgeTypes(pdfState, xml), measurements };
   });
 
   // The completed full-house model for the customer 3D viewer: only the published exterior report geometry and the
