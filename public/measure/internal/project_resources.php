@@ -116,6 +116,19 @@ function resource_index($name, $raw) {
     }
     return $index;
 }
+// Delete: the file's index is marked deleted, by whom and when. It is then left out of the project's files, with
+// its markup, and can no longer be read. Its parts stay in storage, so a deletion can be reversed by hand.
+// Only staff uploads and saved copies: a customer's own reference is not ours to remove, and a training
+// project's source files are read only (resource_api refuses the write).
+if ($method === 'POST' && ($_GET['action'] ?? '') === 'delete') {
+    if ($customerOrder) resource_error(403, 'Customer references cannot be deleted.');
+    if (strpos($name, 'internal-resource-v2-') !== 0) resource_error(400, 'This file cannot be deleted.');
+    $index = resource_index($name, resource_api($name));
+    if (!$index) resource_error(404, 'File not found.');
+    if (($index['source'] ?? '') === 'customer-order' || ($index['role'] ?? '') === 'customer') resource_error(403, 'Customer references cannot be deleted.');
+    if (empty($index['deleted_at'])) { $index['deleted_at'] = gmdate('c'); $index['deleted_by'] = $resourceActor; resource_api($name, json_encode($index)); }
+    header('Content-Type: application/json'); echo json_encode(['ok'=>true, 'deleted'=>$name]); exit;
+}
 if ($method === 'POST' && ($_GET['action'] ?? '') === 'frame') {
     // The browser sends a video name and timestamp; the server decodes and stores the frame
     // after answering, so a slow connection never uploads image bytes.
@@ -216,19 +229,25 @@ if ($method === 'POST') {
     header('Content-Type: application/json'); echo json_encode($result); exit;
 }
 if (!$name) {
-    $data = json_decode(resource_api(), true); $files = [];
+    $data = json_decode(resource_api(), true); $files = []; $deleted = [];
     foreach ($data['files'] ?? [] as $file) {
         if (!preg_match('/^internal-(resource|markup)-/', $file['name']) || strpos($file['name'], 'internal-markup-part-') === 0) continue;
         if (strpos($file['name'], 'internal-resource-v2-') === 0) {
             $index = resource_index($file['name'], resource_api($file['name'])); $file['size'] = $index['size'];
+            // A deleted file is not one of the project's files, and neither is the markup saved on it.
+            if (!empty($index['deleted_at'])) { $deleted[$index['id']] = true; continue; }
             foreach (['original_name', 'uploaded_at', 'role', 'elevation_view', 'source', 'source_video'] as $field) if (isset($index[$field])) $file[$field] = $index[$field];
         }
         $files[] = $file;
     }
+    if ($deleted) $files = array_values(array_filter($files, function ($file) use ($deleted) {
+        return !(preg_match('/^internal-markup-(?:favorite-)?([0-9a-f-]{36})-/', $file['name'], $m) && isset($deleted[$m[1]]));
+    }));
     header('Content-Type: application/json'); echo json_encode(['ok'=>true, 'files'=>$files]); exit;
 }
 $raw = resource_api($name);
 $index = resource_index($name, $raw);
+if ($index && !empty($index['deleted_at'])) resource_error(404, 'This file was deleted.');
 $size = $index ? $index['size'] : strlen($raw);
 $start = 0; $end = $size - 1;
 if (isset($_SERVER['HTTP_RANGE'])) {
