@@ -1,11 +1,11 @@
 {
   "kind": "guided_tab_faqs",
   "id": "project.checklists",
-  "revision": 1,
-  "sha256": "017b8f65d822d73a4e6bc49553afdce578639edc54722086054c59e927e46531",
+  "revision": 2,
+  "sha256": "b3da09985010c3e40c6c9600e06cb7b658da5b5a0ec1f83b5038a90aaade68ba",
   "title": "Questions on project.checklists",
-  "updated_at": "2026-10-28T08:39:48.487Z",
-  "updated_by": "router-fm-283",
+  "updated_at": "2026-11-13T06:06:33.527Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "tab": "project.checklists",
     "questions": [
@@ -32,6 +32,15 @@
           "text": "How do I print or email a checklist?"
         },
         "action": "ask"
+      },
+      {
+        "id": "checklists.punchlist_tour",
+        "text": {
+          "key": "gx_cl_faq_punchlist_tour",
+          "text": "Show me the punch list tour"
+        },
+        "action": "play",
+        "experience": "checklists.punchlist_tutorial"
       },
       {
         "id": "checklists.tour",

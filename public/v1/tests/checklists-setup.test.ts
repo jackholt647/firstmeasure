@@ -19,7 +19,7 @@ after(async () => {
 
 const ORG = "org_checklists_setup";
 const PROJECT = "checklists_setup_project";
-const flags = { "apps.checklists": true, "apps.crew": true, "platform.documents": true, "checklists.crew_send": true };
+const flags = { "apps.checklists": true, "apps.crew": true, "platform.documents": true, "checklists.crew_send": true, "platform.customer_portal": true };
 const person = (userId: string, extra: Record<string, unknown> = {}) => ({ orgId: ORG, userId, role: "owner", permissions: { "*": true }, branchId: "default", organization: { data: {} }, capabilities: { effectiveByKey: flags }, ...extra }) as any;
 const ids = (experience: any) => experience.steps.map((step: any) => step.id);
 
@@ -52,22 +52,33 @@ test("the checklists setup asks the kind of company first, then adds the picked 
   const answered = await setup();
   assert.deepEqual(ids(answered), ["use_cases"]);
   const useCases = (answered.steps[0] as any).options.use_cases;
-  assert.deepEqual(useCases.map((entry: any) => entry.id), ["punchlist", "crew_safety", "work_completion"]);
-  assert.ok(useCases[1].checklist.items.some((item: any) => /harness/i.test(item.title)), "the roofing variant's crew safety list");
-  assert.equal(useCases[1].checklist.signature_required, true);
+  // The customer punch list is last, not picked to start with, and empty: the person fills it in (FM-444).
+  assert.deepEqual(useCases.map((entry: any) => entry.id), ["crew_safety", "work_completion", "punchlist"]);
+  assert.ok(useCases[0].checklist.items.some((item: any) => /harness/i.test(item.title)), "the roofing variant's crew safety list");
+  assert.equal(useCases[0].checklist.signature_required, true);
+  assert.equal(useCases[2].selected, false, "the punch list starts unpicked");
+  assert.deepEqual(useCases[2].checklist.items, [], "the punch list starts empty");
+  assert.ok(useCases.slice(0, 2).every((entry: any) => entry.selected !== false), "the crew lists start picked");
+  const punchTour = (await listed()).find((entry: any) => entry.id === "checklists.punchlist_tutorial")!;
+  assert.ok(punchTour, "the punch list tour is offered");
+  assert.ok(!punchTour.tab, "no tab of its own: it goes to the Customer Portal tab and back without ending");
+  assert.deepEqual(ids(punchTour), ["punch", "access", "portal_tab", "portal", "back", "done"]);
+  assert.ok(punchTour.steps.every((step: any) => step.targets.length), "every step points at something, so it shows nothing without a punch list");
+  assert.ok((punchTour.steps.find((step: any) => step.id === "portal_tab") as any).targets[0].includes("[data-fmcl-customer-shared=true]"), "it goes to the portal only when a list is shared with the customer");
 
   // Finishing it adds the picked checklists to the project, once each.
   const picked = useCases.filter((entry: any) => entry.id !== "work_completion");
   const selections = { checklist_use_cases: picked.map((entry: any) => entry.id), checklist_definitions: picked.map((entry: any) => ({ ...entry.checklist, use_case: entry.id })) };
   const done = await service.completeGuided(owner, "checklists.setup", { project_id: PROJECT, tab: "project.checklists", selections }) as any;
-  assert.deepEqual(done.then, [{ play: "checklists.tab_tutorial" }]);
-  assert.deepEqual(done.result.checklists.map((entry: any) => entry.use_case), ["punchlist", "crew_safety"]);
+  assert.deepEqual(done.then, [{ play: "checklists.punchlist_tutorial" }, { play: "checklists.tab_tutorial" }]);
+  assert.deepEqual(done.result.checklists.map((entry: any) => entry.use_case).sort(), ["crew_safety", "punchlist"]);
   const { listProjectChecklists } = await import("../workforce/crew_storage.js");
   const lists = await listProjectChecklists(ORG, PROJECT);
   const safety = lists.find((entry) => entry.source_key === "setup:crew_safety")!;
   assert.equal(safety.signature_required, true);
   assert.ok(safety.items.length >= 5);
   const punch = lists.find((entry) => entry.source_key === "setup:punchlist")!;
+  assert.equal(punch.items.length, 0, "an empty punch list is added");
   assert.equal(punch.customer_access.visible, true);
   assert.equal(punch.customer_access.can_complete, true);
   await service.completeGuided(owner, "checklists.setup", { project_id: PROJECT, tab: "project.checklists", selections: { ...selections, checklist_use_cases: ["punchlist", "crew_safety"] } });

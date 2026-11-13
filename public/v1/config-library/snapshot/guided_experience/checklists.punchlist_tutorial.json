@@ -1,0 +1,154 @@
+{
+  "kind": "guided_experience",
+  "id": "checklists.punchlist_tutorial",
+  "revision": 1,
+  "sha256": "593451796826ab13563a0637fb93614a5bf13651cb2ae48405df65943b1fe213",
+  "title": "Customer punch list tour",
+  "updated_at": "2026-11-13T06:06:27.157Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
+  "data": {
+    "id": "checklists.punchlist_tutorial",
+    "version": 1,
+    "kind": "overlay",
+    "scope": "person",
+    "salt": "2026-11",
+    "title": {
+      "key": "gx_cl_pt_title",
+      "text": "Customer punch list tour"
+    },
+    "eligibility": {
+      "capabilities": [
+        "apps.checklists",
+        "platform.customer_portal"
+      ],
+      "permissions": []
+    },
+    "triggers": [
+      {
+        "kind": "after_experience",
+        "experience": "checklists.setup",
+        "once": true
+      }
+    ],
+    "variants": [
+      {
+        "id": "tour",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "punch",
+        "title": {
+          "key": "gx_cl_pt_punch_title",
+          "text": "Your customer punch list"
+        },
+        "body": {
+          "key": "gx_cl_pt_punch_body",
+          "text": "It starts empty. Add what you'll walk through with your customer at the end of the job."
+        },
+        "targets": [
+          "[data-fmcl-list][data-fmcl-customer-shared=true]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 2500
+      },
+      {
+        "id": "access",
+        "title": {
+          "key": "gx_cl_pt_access_title",
+          "text": "Your customer ticks it off"
+        },
+        "body": {
+          "key": "gx_cl_pt_access_body",
+          "text": "They see it on their own page and tick items off to sign off on the job. Choose what they can do here."
+        },
+        "targets": [
+          "[data-fmcl-list][data-fmcl-customer-shared=true] [data-fmcl-customer]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "portal_tab",
+        "title": {
+          "key": "gx_cl_pt_portal_tab_title",
+          "text": "Send it from Customer Portal"
+        },
+        "body": {
+          "key": "gx_cl_pt_portal_tab_body",
+          "text": "Press Customer Portal to see where you send it."
+        },
+        "targets": [
+          "body:has([data-fmcl-list][data-fmcl-customer-shared=true]) #rProjectViewerTabs [data-tab=customer_portal]"
+        ],
+        "placement": "auto",
+        "advance": "click",
+        "wait_ms": 1500
+      },
+      {
+        "id": "portal",
+        "title": {
+          "key": "gx_cl_pt_portal_title",
+          "text": "Your customer's page"
+        },
+        "body": {
+          "key": "gx_cl_pt_portal_body",
+          "text": "Make their private link here and send it. The punch list is on their page, ready to tick off."
+        },
+        "targets": [
+          ".r-preview-panel.active[data-panel=customer_portal] [data-cpo-link-card]",
+          ".r-preview-panel.active[data-panel=customer_portal]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "back",
+        "title": {
+          "key": "gx_cl_pt_back_title",
+          "text": "Back to your checklists"
+        },
+        "body": {
+          "key": "gx_cl_pt_back_body",
+          "text": "Press Checklists to go back."
+        },
+        "targets": [
+          "#rProjectViewerTabs:has([data-tab=customer_portal].active) [data-tab=checklists]"
+        ],
+        "placement": "auto",
+        "advance": "click",
+        "wait_ms": 1500
+      },
+      {
+        "id": "done",
+        "title": {
+          "key": "gx_cl_pt_done_title",
+          "text": "That's it"
+        },
+        "body": {
+          "key": "gx_cl_pt_done_body",
+          "text": "Fill it in before the walk-through. Want this again? Ask the agent “Show me the punch list tour”."
+        },
+        "targets": [
+          "[data-fmcl-list][data-fmcl-customer-shared=true]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      }
+    ],
+    "completion": {
+      "screen": "none",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}
