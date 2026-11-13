@@ -1170,3 +1170,59 @@ test('production routing exposes compact crew vehicle lanes and a draggable vehi
   assert.match(schedulingSource, /kind:'equipment_booking'/);
   assert.match(schedulingSource, /persistFloatingEvent\(booking\)/);
 });
+
+// FM-437: on a phone a delivery reads as part of its job in the strip above the
+// calendar, is dragged onto a day, and the delivery tour (config library) shows how.
+test('the work strip groups each job with its deliveries as sub items', () => {
+  const start = projectScheduleSource.indexOf('\n  function scheduleWaitingFamilies(){');
+  assert.ok(start >= 0, 'scheduleWaitingFamilies');
+  const source = projectScheduleSource.slice(start, projectScheduleSource.indexOf('\n  }\n', start) + 4);
+  const items = [
+    { id:'job' }, { id:'delivery', parent_event_id:'job' }, { id:'crew', parent_event_id:'job' }, { id:'hold', parent_event_id:'crew' },
+    { id:'loose' }, { id:'orphan', parent_event_id:'gone' }
+  ];
+  const context = { window:{ PlatformScheduling:{ eventParentId:(event) => event.parent_event_id || '' } }, scheduleWaitingItems:() => items };
+  const families = vm.runInNewContext(`${source}; scheduleWaitingFamilies()`, context);
+  assert.deepEqual(JSON.parse(JSON.stringify(families.map(({ event, children }) => [event.id, children.map((child) => child.id)]))), [
+    ['job', ['delivery', 'crew', 'hold']],
+    ['loose', []],
+    ['orphan', []]
+  ]);
+  assert.match(projectScheduleSource, /class="r-schedule-waiting-family" role="group" data-schedule-waiting-family=/);
+  assert.match(projectScheduleSource, /\$\{parent \? ' is-child' : ''\}" data-schedule-waiting="\$\{escapeHtml\(id\)\}" data-schedule-waiting-kind="\$\{kind\}"/);
+  assert.match(projectScheduleSource, /<span class="r-schedule-waiting-branch" aria-hidden="true"><\/span>/);
+});
+
+test('a strip item is dragged onto a day and lands on the day shown as the drop', () => {
+  // Sideways still scrolls the strip on a phone; a pull down drags.
+  assert.match(projectScheduleSource, /\.r-schedule-waiting-item\{touch-action:pan-x;/);
+  assert.match(projectScheduleSource, /if \(drag\.touch && Math\.abs\(dx\) > 10 && Math\.abs\(dx\) > Math\.abs\(dy\)\) return finish\(null\);/);
+  // What is dragged is what choosing it places: the job when it is not on the calendar yet.
+  assert.match(projectScheduleSource, /const target = schedulePlacementTarget\(requested\);\n      const drag = \{ id:String\(target\?\.id \|\| id\)/);
+  // The highlighted day, never one scrolled under the finger after it.
+  assert.match(projectScheduleSource, /const day = event \? scheduleWaitingDropDate\(drag\.key\) : null;\n        if \(day\) placeScheduleWaitingItemOnDay\(drag\.id, day\);/);
+  // Placed through the same save as choosing the item and then a day (past days ask, linked items follow).
+  const place = projectScheduleSource.slice(projectScheduleSource.indexOf('  async function placeScheduleWaitingItemOnDay('), projectScheduleSource.indexOf('  let scheduleDeliveryTourAsked'));
+  assert.match(place, /confirmDiscardPlacementDraft\(id\)/);
+  assert.match(place, /__schedule_natural_range:true \}\);\n    if \(materialScheduleDraft\?\.start\) await saveMaterialScheduleDraft\(materialScheduleDraft\);/);
+  // The ghost sits above the project window (z-index 2147483200).
+  assert.match(projectScheduleSource, /\.r-schedule-drag-ghost\{position:fixed;left:0;top:0;z-index:2147483400;/);
+  assert.match(appsManifestSource, /versionedBundle\('project-schedule\/panel\.js', '20261113-delivery-drag'\)/);
+});
+
+test('phones are offered the delivery tour, a config library definition the strip anchors', async () => {
+  const entry = JSON.parse(await readFile(path.join(publicRoot, 'v1', 'config-library', 'snapshot', 'guided_experience', 'project_schedule.delivery_tutorial.json'), 'utf8')).data;
+  assert.equal(entry.kind, 'overlay');
+  assert.equal(entry.scope, 'person');
+  assert.equal(entry.tab, 'project.schedule');
+  assert.deepEqual(entry.triggers, [{ kind:'manual' }]);
+  const selectors = entry.steps.flatMap((step) => [...(step.targets || []), ...(step.cases || []).flatMap((entry) => entry.targets)]);
+  assert.ok(selectors.length >= 3);
+  for (const selector of selectors) {
+    for (const hook of selector.match(/r-schedule-[a-z-]+|data-schedule-[a-z-]+/g) || []) assert.ok(projectScheduleSource.includes(hook), `${hook} is drawn by the panel`);
+  }
+  const offer = projectScheduleSource.slice(projectScheduleSource.indexOf('  function offerScheduleDeliveryTour('), projectScheduleSource.indexOf('  function scheduleDayStart('));
+  assert.match(offer, /if \(!scheduleTouchLayout\(\) \|\| window\.matchMedia\?\.\('\(max-width:720px\)'\)\.matches !== true\) return;/);
+  assert.match(offer, /\.r-schedule-waiting-item\.is-child\[data-schedule-waiting-kind="delivery"\]/);
+  assert.match(offer, /window\.FirstMateGuides\.play\('project_schedule\.delivery_tutorial'\)/);
+});

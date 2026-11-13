@@ -262,6 +262,16 @@
       .r-schedule-waiting-item.is-active{border:1px solid var(--primary,#2563eb);background:var(--primary,#2563eb);color:#fff}
       .r-schedule-waiting-item.is-along{border:1.5px dashed var(--primary,#2563eb);background:color-mix(in srgb,var(--primary,#2563eb) 8%,#fff);color:var(--primary-readable,var(--primary,#1d4ed8))}
       .r-schedule-waiting-item.is-placed{border:1px solid #079455;background:#079455;color:#fff}
+      .r-schedule-waiting-item{touch-action:pan-x;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+      .r-schedule-waiting-family{flex:0 0 auto;display:inline-flex;align-items:center;padding:2px 6px 2px 2px;border:1px solid rgba(15,23,42,.10);border-radius:999px;background:#f8fafc}
+      .r-schedule-waiting-branch{flex:0 0 auto;width:9px;height:10px;margin:-10px 3px 0 7px;border-left:2px solid #667085;border-bottom:2px solid #667085;border-bottom-left-radius:4px}
+      .r-schedule-waiting-item.is-child{height:22px;max-width:190px;padding:0 8px;gap:5px;font-size:10.5px;font-weight:850}
+      .r-schedule-waiting-item.is-child.is-unplaced{background:#fff}
+      .r-schedule-waiting-item.is-child.is-placed{border-color:#079455;background:#ecfdf3;color:#067647}
+      .r-schedule-drag-ghost{position:fixed;left:0;top:0;z-index:2147483400;display:flex;flex-direction:column;align-items:center;gap:1px;max-width:220px;padding:6px 12px;border-radius:12px;background:var(--primary,#2563eb);color:#fff;font-size:12px;font-weight:900;box-shadow:0 10px 28px rgba(15,23,42,.28);pointer-events:none;white-space:nowrap}
+      .r-schedule-drag-ghost>span{max-width:196px;overflow:hidden;text-overflow:ellipsis}.r-schedule-drag-ghost>i{display:none}.r-schedule-drag-ghost>small{font-size:10.5px;font-weight:800;opacity:.9}.r-schedule-drag-ghost>small:empty{display:none}
+      html.r-schedule-dragging,html.r-schedule-dragging *{cursor:grabbing!important;-webkit-user-select:none!important;user-select:none!important}
+      .r-schedule-panel .r-schedule-drop-day{box-shadow:inset 0 0 0 2px var(--primary,#2563eb);background:color-mix(in srgb,var(--primary,#2563eb) 10%,#fff)!important}
       .r-schedule-waiting .r-schedule-placement-banner.is-compact{margin:0 0 0 auto;flex:0 0 auto;padding:2px 4px 2px 10px;gap:8px;border-radius:999px;font-size:11px;white-space:nowrap}
       .r-schedule-waiting .r-schedule-placement-banner.is-compact .r-schedule-placement-cancel{height:22px;padding:0 8px;font-size:11px}
       .r-schedule-panel.widget .r-schedule-waiting{padding:4px 8px}
@@ -1430,27 +1440,190 @@
     live.forEach(add);
     return ordered;
   }
+  /* The strip groups each job with what is under it: the job first, then
+   * its deliveries, work and equipment as smaller sub items joined to it, so
+   * a delivery reads as part of its job and not as a job of its own. */
+  function scheduleWaitingFamilies(){
+    const families = [], familyOf = new Map();
+    for (const event of scheduleWaitingItems()) {
+      const id = String(event.id || '');
+      const parentId = String(window.PlatformScheduling?.eventParentId?.(event) || '');
+      const family = familyOf.get(parentId);
+      if (family) family.children.push(event);
+      else families.push({ event, children:[] });
+      familyOf.set(id, family || families[families.length - 1]);
+    }
+    return families;
+  }
+  function scheduleWaitingTitle(event = {}){
+    return isMaterialDeliveryEvent(event) ? `${materialDeliveryTitle(event)} delivery` : (String(event.title || '').trim() || productionResourceLabel(event));
+  }
   function scheduleWaitingStripHtml(){
     if (!canEditSchedule()) return '';
-    const items = scheduleWaitingItems();
-    if (!items.length) return '';
+    const families = scheduleWaitingFamilies();
+    if (!families.length) return '';
     const Scheduling = window.PlatformScheduling;
     const placing = materialScheduleModeActive ? String(materialScheduleEventId || '') : '';
     const moving = new Set(placing ? (Scheduling?.eventDescendants?.(scheduleProjectEvents(), placing) || []).map((child) => String(child.id || '')) : []);
-    return `<div class="r-schedule-waiting" role="group" aria-label="This project's work">${items.map((event) => {
-      const id = String(event.id || ''), title = isMaterialDeliveryEvent(event) ? `${materialDeliveryTitle(event)} delivery` : (String(event.title || '').trim() || productionResourceLabel(event));
+    const chip = (event, parent = null) => {
+      const id = String(event.id || ''), title = scheduleWaitingTitle(event);
       const placed = materialEventIsScheduled(event), active = placing === id, along = moving.has(id), span = scheduleEventIsSpan(event);
       const state = active ? 'is-active' : along ? 'is-along' : placed ? 'is-placed' : 'is-unplaced';
+      const kind = span ? 'job' : isMaterialDeliveryEvent(event) ? 'delivery' : 'work';
       const hint = active ? `Placing ${title}. Click it again or press Esc to stop.` : along ? `${title} is placed with it` : placed ? `${title} is on the schedule` : `Schedule ${title}`;
-      return `<button type="button" class="r-schedule-waiting-item ${state}${span ? ' is-job' : ''}" data-schedule-waiting="${escapeHtml(id)}" aria-pressed="${active ? 'true' : 'false'}" title="${escapeHtml(hint)}" aria-label="${escapeHtml(hint)}"><i class="fas ${escapeHtml(placed && !active && !along ? 'fa-circle-check' : span ? 'fa-layer-group' : productionResourceIcon(event))}" aria-hidden="true"></i><span>${escapeHtml(title)}</span></button>`;
-    }).join('')}${placing ? '<span class="r-schedule-placement-banner is-compact" hidden aria-hidden="true"></span>' : ''}</div>`;
+      const label = parent ? `${hint} (part of ${scheduleWaitingTitle(parent)})` : hint;
+      const icon = placed && !active && !along ? 'fa-circle-check' : span ? 'fa-layer-group' : productionResourceIcon(event);
+      return `${parent ? '<span class="r-schedule-waiting-branch" aria-hidden="true"></span>' : ''}<button type="button" class="r-schedule-waiting-item ${state}${span ? ' is-job' : ''}${parent ? ' is-child' : ''}" data-schedule-waiting="${escapeHtml(id)}" data-schedule-waiting-kind="${kind}" aria-pressed="${active ? 'true' : 'false'}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"><i class="fas ${escapeHtml(icon)}" aria-hidden="true"></i><span>${escapeHtml(title)}</span></button>`;
+    };
+    return `<div class="r-schedule-waiting" role="group" aria-label="This project's work">${families.map(({ event, children }) => children.length
+      ? `<div class="r-schedule-waiting-family" role="group" data-schedule-waiting-family="${escapeHtml(String(event.id || ''))}" aria-label="${escapeHtml(scheduleWaitingTitle(event))}">${chip(event)}${children.map((child) => chip(child, event)).join('')}</div>`
+      : chip(event)).join('')}${placing ? '<span class="r-schedule-placement-banner is-compact" hidden aria-hidden="true"></span>' : ''}</div>`;
   }
   function bindScheduleWaitingStrip(rootEl){
-    rootEl?.querySelectorAll('[data-schedule-waiting]').forEach((button) => button.addEventListener('click', async () => {
+    rootEl?.querySelectorAll('[data-schedule-waiting]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (button.__scheduleDragged) return;
+        const id = String(button.dataset.scheduleWaiting || '');
+        if (!id || !(await confirmDiscardPlacementDraft(id))) return;
+        focusMaterialDelivery({ event_id:id });
+      });
+      bindScheduleWaitingDrag(button);
+    });
+    offerScheduleDeliveryTour(rootEl);
+  }
+
+  /* Dragging an item from the strip onto a day places it there, the same as
+   * choosing it and then the day: an item whose job is not on the calendar
+   * yet brings the job (its day is where the job starts), and an item that
+   * is placed moves. On a touch screen the strip still scrolls sideways;
+   * pulling an item down out of it starts the drag. */
+  let scheduleWaitingDragging = null;
+  function bindScheduleWaitingDrag(button){
+    button.addEventListener('pointerdown', (down) => {
+      if (down.button !== 0 || scheduleWaitingDragging || !canEditSchedule()) return;
       const id = String(button.dataset.scheduleWaiting || '');
-      if (!id || !(await confirmDiscardPlacementDraft(id))) return;
-      focusMaterialDelivery({ event_id:id });
-    }));
+      const requested = projectProductionEvents().find((item) => String(item.id || '') === id);
+      if (!requested) return;
+      const target = schedulePlacementTarget(requested);
+      const drag = { id:String(target?.id || id), title:scheduleWaitingTitle(target || requested), icon:button.querySelector('i')?.className || 'fas fa-calendar-day', pointerId:down.pointerId, x:down.clientX, y:down.clientY, touch:down.pointerType !== 'mouse', started:false, ghost:null, key:'', frame:0 };
+      scheduleWaitingDragging = drag;
+      button.__scheduleDragged = false;
+      const begin = () => {
+        drag.started = true;
+        button.__scheduleDragged = true;
+        try { navigator.vibrate?.(8); } catch (_) {}
+        drag.ghost = document.createElement('div');
+        drag.ghost.className = 'r-schedule-drag-ghost';
+        drag.ghost.setAttribute('aria-hidden', 'true');
+        drag.ghost.innerHTML = `<i class="${escapeHtml(drag.icon)}"></i><span>${escapeHtml(drag.title)}</span><small></small>`;
+        document.body.appendChild(drag.ghost);
+        document.documentElement.classList.add('r-schedule-dragging');
+        const scroll = () => {
+          if (scheduleWaitingDragging !== drag) return;
+          const scroller = scheduleWaitingDropScroller();
+          const box = scroller?.getBoundingClientRect?.();
+          // Only right at the calendar's edges, and the day under the finger is followed as it scrolls.
+          const bottom = Math.min(box?.bottom ?? 0, window.innerHeight);
+          const step = box ? (drag.y > bottom - 14 ? 4 : (drag.y < box.top + 12 && drag.y > box.top - 40 ? -4 : 0)) : 0;
+          if (step) { scroller.scrollTop += step; follow(); }
+          drag.frame = requestAnimationFrame(scroll);
+        };
+        drag.frame = requestAnimationFrame(scroll);
+      };
+      const follow = () => {
+        drag.ghost.style.transform = `translate(${Math.round(drag.x)}px, ${Math.round(drag.y - (drag.touch ? 52 : 18))}px) translate(-50%, -100%)`;
+        const cell = scheduleWaitingDropCell(drag.x, drag.y);
+        const key = String(cell?.dataset?.prsDate || '');
+        if (key === drag.key) return;
+        drag.key = key;
+        document.querySelectorAll('.r-schedule-drop-day').forEach((node) => node.classList.remove('r-schedule-drop-day'));
+        cell?.classList.add('r-schedule-drop-day');
+        const day = scheduleWaitingDropDate(key);
+        drag.ghost.querySelector('small').textContent = day ? day.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' }) : '';
+      };
+      const move = (event) => {
+        if (event.pointerId !== drag.pointerId) return;
+        const dx = event.clientX - down.clientX, dy = event.clientY - down.clientY;
+        drag.x = event.clientX;
+        drag.y = event.clientY;
+        if (!drag.started) {
+          // A sideways swipe on a phone scrolls the strip instead.
+          if (drag.touch && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) return finish(null);
+          if (drag.touch ? Math.abs(dy) < 10 : Math.hypot(dx, dy) < 6) return;
+          begin();
+        }
+        if (event.cancelable) event.preventDefault();
+        follow();
+      };
+      const finish = (event) => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', finish);
+        window.removeEventListener('pointercancel', cancel);
+        if (scheduleWaitingDragging === drag) scheduleWaitingDragging = null;
+        if (!drag.started) return;
+        cancelAnimationFrame(drag.frame);
+        drag.ghost?.remove();
+        document.documentElement.classList.remove('r-schedule-dragging');
+        document.querySelectorAll('.r-schedule-drop-day').forEach((node) => node.classList.remove('r-schedule-drop-day'));
+        // The click that may follow a mouse drag is not a choice of the item.
+        setTimeout(() => { button.__scheduleDragged = false; }, 0);
+        // It lands on the day that was shown as the drop, never one scrolled under the finger since.
+        const day = event ? scheduleWaitingDropDate(drag.key) : null;
+        if (day) placeScheduleWaitingItemOnDay(drag.id, day);
+      };
+      const cancel = (event) => { if (event.pointerId === drag.pointerId) finish(null); };
+      window.addEventListener('pointermove', move, { passive:false });
+      window.addEventListener('pointerup', finish);
+      window.addEventListener('pointercancel', cancel);
+    });
+  }
+  // The day under a point, looking through anything drawn over the calendar (the ghost, a tour).
+  function scheduleWaitingDropCell(x, y){
+    const panel = $('#rSchedulePanel');
+    return (document.elementsFromPoint?.(x, y) || []).find((node) => node.matches?.('[data-prs-date]') && panel?.contains(node)) || null;
+  }
+  function scheduleWaitingDropDate(key){
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(key || ''))) return null;
+    const [year, month, day] = key.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+  function scheduleWaitingDropScroller(){
+    const calendar = $('#rSchedulePanel')?.querySelector('.r-schedule-calendar');
+    return Array.from(calendar?.querySelectorAll('.prs-surface,.prs-month,.prs-scroll') || []).find((node) => node.scrollHeight > node.clientHeight + 1) || null;
+  }
+  async function placeScheduleWaitingItemOnDay(id, day){
+    if (!(await confirmDiscardPlacementDraft(id))) return;
+    const event = projectProductionEvents().find((item) => String(item.id || '') === String(id));
+    if (!event) return;
+    materialScheduleModeActive = true;
+    materialScheduleEventId = String(event.id || '');
+    materialScheduleListId = scheduleEventListId(event);
+    materialScheduleDraft = null;
+    scheduleModeActive = false;
+    workScheduleModeActive = false;
+    scheduleSchedulingTarget = 'materials';
+    scheduleSelectedEventId = '';
+    scheduleAssignmentEventId = '';
+    setMaterialScheduleDraft({ start:day, end:scheduleAddDays(day, 1), all_day:true, schedule_granularity:'date', __schedule_natural_range:true });
+    if (materialScheduleDraft?.start) await saveMaterialScheduleDraft(materialScheduleDraft);
+    // Not saved (a day in the past declined, a locked delivery): it stays staged there to confirm or move.
+    if (materialScheduleModeActive && state.active) renderSchedulePanel();
+  }
+
+  /* The first time someone on a phone sees a delivery under its job, the
+   * delivery tour shows how to place it: the guided experience
+   * project_schedule.delivery_tutorial (config library), played by the
+   * guides runtime, which keeps who has seen it. Asked once per page. */
+  let scheduleDeliveryTourAsked = false;
+  function offerScheduleDeliveryTour(rootEl){
+    if (scheduleDeliveryTourAsked || scheduleIsWidget() || typeof window.FirstMateGuides?.play !== 'function') return;
+    if (!scheduleTouchLayout() || window.matchMedia?.('(max-width:720px)').matches !== true) return;
+    if (!rootEl?.querySelector?.('.r-schedule-waiting-item.is-child[data-schedule-waiting-kind="delivery"]')) return;
+    scheduleDeliveryTourAsked = true;
+    setTimeout(() => {
+      if (!state.active || !$('#rSchedulePanel')?.querySelector('.r-schedule-waiting-family')) { scheduleDeliveryTourAsked = false; return; }
+      Promise.resolve(window.FirstMateGuides.play('project_schedule.delivery_tutorial')).catch(() => {});
+    }, 500);
   }
 
   function scheduleDayStart(value){

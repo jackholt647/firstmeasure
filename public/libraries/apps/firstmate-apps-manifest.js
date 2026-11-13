@@ -342,7 +342,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('project-schedule/panel.js', '20261016-placing-2')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20261113-delivery-drag')]
     },
     {
       id: 'project.comms',
