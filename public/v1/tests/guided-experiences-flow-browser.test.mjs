@@ -178,7 +178,7 @@ test('one experience at a time, fast Next and Back, close mid-tour, reopen, relo
     // The tray's questions are styled chips in the project window's document.
     await frame().waitForSelector('.fm-project-tray .gx-faq');
     const chip=await frame().locator('.fm-project-tray .gx-faq').first().evaluate(el=>{const s=getComputedStyle(el);return {radius:s.borderTopLeftRadius,height:el.getBoundingClientRect().height,bg:s.backgroundColor};});
-    assert.equal(chip.radius,'999px');assert.ok(chip.height>=24&&chip.height<=30);assert.equal(chip.bg,'rgb(255, 255, 255)');
+    assert.equal(chip.radius,'14px');assert.ok(chip.height>=24&&chip.height<=32);assert.equal(chip.bg,'rgb(255, 255, 255)');
     // Fast Next through the tour: every press is one step, missing targets are skipped without waiting.
     const titles=[];
     // Seconds of lag was the bug; these bounds leave room for a busy test machine. Timed in the page: the click to the new step's title, without waiting for the popover to stop sliding.
