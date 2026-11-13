@@ -105,7 +105,7 @@
     <button data-action="expand" aria-label="Expand resources" title="Expand resources">${icon('expand')}</button>
    </div>
    <input class="resource-files" type="file" multiple hidden>
-   <div class="resource-more" hidden><button data-action="download">Download original</button><button data-action="refresh">Refresh project files</button></div>
+   <div class="resource-more" hidden><button data-action="download">Download original</button><button data-action="refresh">Refresh project files</button><button data-action="deleteFile">Delete this file</button></div>
    <div class="resource-body">
     <aside id="resource-library" class="resource-library" aria-label="Project files">
      <div class="resource-file-list"></div>
@@ -258,6 +258,7 @@
    $('[data-action="perspective"]').disabled = !current || busy || !image || !!media || !window.ResourcePerspective;
    perspControls(); ratioReadout();
    $('[data-action="notes"]').disabled = !current; $('[data-action="download"]').disabled = !current;
+   {const button=$('[data-action="deleteFile"]'),able=deletable(current);button.disabled=busy||!able;button.title=!current?'Open a file first':able?'Remove this file from the project':'Only files you or the team uploaded or saved here can be deleted';}
    $('.resource-notes-dot').hidden = !$('.resource-description').value.trim();
    $('.resource-filename').textContent = current ? roleName(current.role)+' · '+label(current.name) : 'Project resources'; $('.resource-filename').title = current ? label(current.name) : 'Internal project references';
    updateFrameAction(); $('.resource-frame-help').hidden = !media?.videoWidth;
@@ -293,6 +294,17 @@
   function setTool(next) {
    tool = next; selected = -1; panel.querySelectorAll('[data-tool]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.tool === tool)));
    stage.style.cursor = next === 'pan' ? 'grab' : 'crosshair'; controls(); draw();
+  }
+  // Uploads and saved copies (a frame, a marked-up or straightened copy) can be deleted; a customer's own
+  // reference and a file that is still being saved cannot.
+  const deletable=file=>!!file&&!file.notes&&!file.reference&&String(file.name||'').startsWith('internal-resource-v2-')&&file.role!=='customer'&&file.source!=='customer-order'&&serverFiles.some(f=>f.name===file.name);
+  async function deleteCurrentFile(){
+   const file=current,id=project;if(!deletable(file)||!id)return;
+   if(dirty&&!window.confirm('This file has unsaved markup. Delete it anyway?'))return;
+   if(!window.confirm('Delete "'+(file.original_name||label(file.name))+'" from this project\'s files?'))return;
+   try{message('Deleting…');await request(id,file.name,'',{},'delete');if(project!==id)return;if(window.Resource3DOverlay?.imageName===file.name)window.Resource3DOverlay.remove?.();
+    imageCache.clear();markupCache.clear();if(current?.name===file.name){reset();empty.textContent='Select a file to view it.';}await refresh({quiet:true});message('File deleted.');}
+   catch(error){message(error.message,true);}
   }
   function reset() {
    if(coreVideo){coreVideo.pause();coreVideo.removeAttribute('src');coreVideo.load();coreVideo=null;}coreVideoName=null;$('.resource-core-grid').replaceChildren();
@@ -1006,6 +1018,7 @@
    delete: () => { if (selected >= 0) { snapshot(); marks.splice(selected, 1); selected = -1; controls(); draw(); } },
    frame: captureFrame, favorites: () => { renderFavorites(); showInspector('favorites'); }, favorite: () => startFavorite(),
    returnVideo: async () => {if(media?.videoWidth){const saved=savedFrameAtPlayhead();if(saved)await open(saved);else startFavorite(true);}else if (frameSource) { const source = frameSource; await open(source.file, { time: source.time }); } },
+   deleteFile: deleteCurrentFile,
    download: () => { if (current&&!current.notes) { const link = document.createElement('a'); link.href = sourceUrl(current); const name = label(current.name), ext = fileExtension(current); link.download = ext && extensionOf(name) !== ext ? name + '.' + ext : name; link.click(); } },
    applyText: () => { if (marks[selected]?.type === 'note') { snapshot(); marks[selected].text = $('.resource-note input').value; draw(); } }
   };
