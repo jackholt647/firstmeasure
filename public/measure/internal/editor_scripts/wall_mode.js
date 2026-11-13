@@ -1332,8 +1332,10 @@ function perf_render3DFrame() {
             const segments=selectedSegments();if(segments.length!==2)return '';const m=window.WallSolidGeometry?.linePairMeasure?.(...segments);if(!m)return '';
             const dist=v=>window.ReportUnits?.current().distance(v,(v/.3048).toFixed(2)+'\u2032')??(v/.3048).toFixed(2)+'\u2032',row=(label,value)=>'<div style="display:flex;justify-content:space-between;gap:18px;line-height:1.6"><span style="color:#666">'+label+'</span><span>'+value+'</span></div>';
             const angle=m.angle==null?'n/a (a line is upright)':m.angle.toFixed(m.angle<10?2:1)+'\u00b0',badge=m.parallel?'Parallel':m.perpendicular?'Perpendicular':'';
-            return '<div style="font-weight:600;margin-bottom:4px">Between the two lines</div>'+row('Closest',dist(m.closest))+row('Furthest',dist(m.furthest))+row('Average',dist(m.average))+row('Angle (from above)',angle)
-                +(badge?'<div style="margin-top:6px;padding:3px 6px;border-radius:4px;background:'+(m.parallel?'#e7f6ec;color:#17693a':'#e8f0fd;color:#1c4fa0')+';font-weight:600">'+(m.parallel?'\u2225 Parallel'+(m.spacing!=null?' \u00b7 '+dist(m.spacing)+' apart in plan':''):'\u22a5 Perpendicular')+'</div>':'');
+            // Lines that run alongside each other: the gap square across them, where both run. Otherwise the gaps between them as drawn.
+            const head=m.across?'Gap across the two lines':'Between the two lines',note=m.across?'<div style="margin-top:4px;color:#888;font-size:11px">Square across, from above, over '+(m.extended?'both lines extended ('+dist(m.over)+')':'the '+dist(m.over)+' they share')+'</div>':'';
+            return '<div style="font-weight:600;margin-bottom:4px">'+head+'</div>'+row('Closest',dist(m.closest))+row('Furthest',dist(m.furthest))+row('Average',dist(m.average))+row('Angle (from above)',angle)+note
+                +(badge?'<div style="margin-top:6px;padding:3px 6px;border-radius:4px;background:'+(m.parallel?'#e7f6ec;color:#17693a':'#e8f0fd;color:#1c4fa0')+';font-weight:600">'+(m.parallel?'\u2225 Parallel'+(m.spacing!=null?' \u00b7 '+dist(m.spacing)+' apart':''):'\u22a5 Perpendicular')+'</div>':'');
         };
         // This runs on every redraw: write only what changed, since each DOM write wakes the toolbar layout observer.
         const put=(el,key,value)=>{if(el&&el[key]!==value)el[key]=value;};

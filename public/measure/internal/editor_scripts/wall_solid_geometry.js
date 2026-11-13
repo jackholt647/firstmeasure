@@ -1899,23 +1899,38 @@ function flattenedCurveSamples(before,after){
   const keys=new Set([...ordinary].filter(key=>!carried.has(key)));for(const p of state.points){const key=vertexKey(p);if(samples.has(key))keys.add(key);}return keys;};
  const already=flat(before);return [...flat(after)].filter(key=>!already.has(key));
 }
-// Two selected lines measured against each other (a, b: [start, end] in metres). Distances are true 3D gaps
-// between the two segments: the closest they come, the furthest any point of one is from the other, and the average
-// gap along both. The angle is the one seen from above (0 to 90 degrees), null when a line is upright and has no
-// direction in plan. Parallel lines also give their spacing in plan.
+// Two selected lines measured against each other, seen from above (a, b: [start, end] in metres).
+//
+// The question is how far apart the lines run and how parallel they are, not how far apart their ends happen to
+// be. So for lines that run roughly the same way (under 45 degrees apart) the gap is measured square across them:
+// both are laid along their shared direction (the bisector of the two), and at each station where both exist the
+// gap is the distance across. closest, furthest and average are that gap over the stretch the two lines share
+// (over: its length). Lines that do not run alongside each other at all are extended to do so (extended: true).
+// Lines that cross have a closest gap of zero. across: true says the gap was measured this way.
+//
+// Lines more than 45 degrees apart, or with one upright (no direction from above, angle null), have no "across":
+// there the figures are the true 3D gaps between the two segments as drawn.
+// The angle is 0 to 90 degrees from above. Parallel lines (within half a degree) also give their spacing.
 function linePairMeasure(a,b){
- const d3=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y,(p.z||0)-(q.z||0)),at=(s,t)=>({x:s[0].x+(s[1].x-s[0].x)*t,y:s[0].y+(s[1].y-s[0].y)*t,z:(s[0].z||0)+((s[1].z||0)-(s[0].z||0))*t});
- const toSegment=(p,s)=>{const u={x:s[1].x-s[0].x,y:s[1].y-s[0].y,z:(s[1].z||0)-(s[0].z||0)},l2=u.x*u.x+u.y*u.y+u.z*u.z,t=l2?Math.max(0,Math.min(1,((p.x-s[0].x)*u.x+(p.y-s[0].y)*u.y+((p.z||0)-(s[0].z||0))*u.z)/l2)):0;return d3(p,at(s,t));};
  if(![a,b].every(s=>s?.length===2&&s.every(p=>p&&[p.x,p.y].every(Number.isFinite))))return null;
+ const u={x:a[1].x-a[0].x,y:a[1].y-a[0].y},v={x:b[1].x-b[0].x,y:b[1].y-b[0].y},lu=Math.hypot(u.x,u.y),lv=Math.hypot(v.x,v.y);let angle=null,parallel=false,perpendicular=false,spacing=null;
+ if(lu>1e-6&&lv>1e-6){angle=Math.acos(Math.min(1,Math.abs(u.x*v.x+u.y*v.y)/(lu*lv)))*180/Math.PI;parallel=angle<=.5;perpendicular=angle>=89.5;}
+ if(angle!==null&&angle<45){
+  const flip=u.x*v.x+u.y*v.y<0?-1:1,ex=u.x/lu+flip*v.x/lv,ey=u.y/lu+flip*v.y/lv,el=Math.hypot(ex,ey),e={x:ex/el,y:ey/el},n={x:-e.y,y:e.x};
+  const along=p=>p.x*e.x+p.y*e.y,off=p=>p.x*n.x+p.y*n.y,line=s=>{const s0=along(s[0]),s1=along(s[1]),o0=off(s[0]),o1=off(s[1]);return {lo:Math.min(s0,s1),hi:Math.max(s0,s1),at:t=>o0+(o1-o0)*(t-s0)/(s1-s0)};},A=line(a),B=line(b);
+  let lo=Math.max(A.lo,B.lo),hi=Math.min(A.hi,B.hi),extended=false;if(hi-lo<1e-6){lo=Math.min(A.lo,B.lo);hi=Math.max(A.hi,B.hi);extended=true;}
+  const d0=B.at(lo)-A.at(lo),d1=B.at(hi)-A.at(hi),crossing=d0*d1<0,closest=crossing?0:Math.min(Math.abs(d0),Math.abs(d1)),furthest=Math.max(Math.abs(d0),Math.abs(d1));
+  const average=crossing?(d0*d0+d1*d1)/(2*(Math.abs(d0)+Math.abs(d1))):(Math.abs(d0)+Math.abs(d1))/2;if(parallel)spacing=average;
+  return {closest,furthest,average,angle,parallel,perpendicular,spacing,across:true,extended,over:hi-lo};
+ }
+ const d3=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y,(p.z||0)-(q.z||0)),at=(s,t)=>({x:s[0].x+(s[1].x-s[0].x)*t,y:s[0].y+(s[1].y-s[0].y)*t,z:(s[0].z||0)+((s[1].z||0)-(s[0].z||0))*t});
+ const toSegment=(p,s)=>{const w={x:s[1].x-s[0].x,y:s[1].y-s[0].y,z:(s[1].z||0)-(s[0].z||0)},l2=w.x*w.x+w.y*w.y+w.z*w.z,t=l2?Math.max(0,Math.min(1,((p.x-s[0].x)*w.x+(p.y-s[0].y)*w.y+((p.z||0)-(s[0].z||0))*w.z)/l2)):0;return d3(p,at(s,t));};
  // The gap from a point moving along one segment to the other segment is convex: its largest value is at an end,
  // and its smallest is found by a ternary search.
  const least=(s,o)=>{let lo=0,hi=1;for(let i=0;i<60;i++){const m1=lo+(hi-lo)/3,m2=hi-(hi-lo)/3;if(toSegment(at(s,m1),o)<toSegment(at(s,m2),o))hi=m2;else lo=m1;}return toSegment(at(s,(lo+hi)/2),o);};
- const mean=(s,o)=>{let sum=0;const n=64;for(let i=0;i<n;i++)sum+=toSegment(at(s,(i+.5)/n),o);return sum/n;},la=d3(...a),lb=d3(...b);
+ const mean=(s,o)=>{let sum=0;const k=64;for(let i=0;i<k;i++)sum+=toSegment(at(s,(i+.5)/k),o);return sum/k;},la=d3(...a),lb=d3(...b);
  const closest=Math.min(least(a,b),least(b,a)),furthest=Math.max(...a.map(p=>toSegment(p,b)),...b.map(p=>toSegment(p,a))),average=la+lb>0?(mean(a,b)*la+mean(b,a)*lb)/(la+lb):closest;
- const u={x:a[1].x-a[0].x,y:a[1].y-a[0].y},v={x:b[1].x-b[0].x,y:b[1].y-b[0].y},lu=Math.hypot(u.x,u.y),lv=Math.hypot(v.x,v.y);let angle=null,parallel=false,perpendicular=false,spacing=null;
- if(lu>1e-6&&lv>1e-6){angle=Math.acos(Math.min(1,Math.abs(u.x*v.x+u.y*v.y)/(lu*lv)))*180/Math.PI;parallel=angle<=.5;perpendicular=angle>=89.5;
-  if(parallel){const m={x:(b[0].x+b[1].x)/2,y:(b[0].y+b[1].y)/2};spacing=Math.abs((m.x-a[0].x)*u.y-(m.y-a[0].y)*u.x)/lu;}}
- return {closest,furthest,average,angle,parallel,perpendicular,spacing};
+ return {closest,furthest,average,angle,parallel,perpendicular,spacing,across:false,extended:false,over:null};
 }
 const api={linePairMeasure,weldPlan,weldPlanes,seatPlan,LINE_MATCH,loadBearingFaces,loadBearingIndex,flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,pruneHiddenLoose,settleDeletedWire,railDirection,RAIL_ANGLE,localizeWireMasks,followWireExclusions,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

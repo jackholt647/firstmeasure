@@ -413,18 +413,25 @@ test('the points a pushed face keeps on its edges are fitted with its corners',(
  assert.deepEqual(cap.retainedPoints.map(q=>[q.x,q.y,+q.z.toFixed(9)]),[[0,.6,.1],[2,.6,.2],[4,.6,.3],[4,.6,3],[9,9,9]]);
 });
 
-test('two selected lines are measured against each other: closest, furthest and average gap, and the angle seen from above',()=>{
+test('two selected lines are measured against each other: the gap square across them where both run, and the angle seen from above',()=>{
  const near=(a,b,t=1e-6)=>Math.abs(a-b)<=t,m=(a,b)=>G.linePairMeasure(a,b);
- // Parallel, 2 m apart: every gap is 2 m, and the spacing in plan is given.
- let r=m([p(0,0,0),p(4,0,0)],[p(0,2,0),p(4,2,0)]);assert.ok(near(r.closest,2)&&near(r.furthest,2)&&near(r.average,2));assert.equal(r.parallel,true);assert.ok(near(r.angle,0)&&near(r.spacing,2));
- // The same two lines at different heights are still parallel from above; the gaps are true 3D distances.
- r=m([p(0,0,0),p(4,0,0)],[p(0,2,1.5),p(4,2,1.5)]);assert.ok(near(r.closest,2.5)&&near(r.furthest,2.5));assert.equal(r.parallel,true);assert.ok(near(r.spacing,2));
- // Diverging lines: closest at the near ends, furthest at the far end, the average between them.
- r=m([p(0,0,0),p(4,0,0)],[p(1,1,0),p(5,3,0)]);assert.ok(near(r.closest,1)&&near(r.furthest,Math.hypot(1,3)));assert.ok(r.average>r.closest&&r.average<r.furthest);assert.ok(near(r.angle,26.565051,1e-5));assert.equal(r.parallel,false);assert.equal(r.spacing,null);
- // Lines that meet at a corner; the order of the lines and of their ends does not matter.
- r=m([p(0,0,0),p(4,0,0)],[p(4,0,0),p(4,3,0)]);assert.ok(near(r.closest,0,1e-6)&&near(r.furthest,4));assert.equal(r.perpendicular,true);assert.ok(near(r.angle,90));
- const back=m([p(4,3,0),p(4,0,0)],[p(4,0,0),p(0,0,0)]);assert.ok(near(back.furthest,r.furthest)&&near(back.average,r.average)&&near(back.angle,r.angle));
+ // Parallel, 2 m apart: every gap is 2 m.
+ let r=m([p(0,0,0),p(4,0,0)],[p(0,2,0),p(4,2,0)]);assert.ok(near(r.closest,2)&&near(r.furthest,2)&&near(r.average,2));assert.equal(r.parallel,true);assert.equal(r.across,true);assert.ok(near(r.angle,0)&&near(r.spacing,2)&&near(r.over,4));
+ // Parallel lines that only partly run alongside each other: still 2 m, whatever the offset along them. Measured to
+ // each other's ends, the average came out far larger and said nothing about how far apart the lines run.
+ r=m([p(0,0,0),p(4,0,0)],[p(3,2,0),p(13,2,0)]);assert.ok(near(r.closest,2)&&near(r.furthest,2)&&near(r.average,2));assert.ok(near(r.over,1));assert.equal(r.extended,false);
+ // From above: a difference in height is not a gap, and direction or order of the lines does not matter.
+ r=m([p(4,0,7),p(0,0,7)],[p(3,2,1),p(13,2,1)]);assert.ok(near(r.average,2));const swapped=m([p(13,2,1),p(3,2,1)],[p(0,0,7),p(4,0,7)]);assert.ok(near(swapped.average,2)&&near(swapped.over,1));
+ // A degree out of parallel: the gap opens along the shared stretch; closest and furthest are its two ends.
+ const tilt=Math.tan(Math.PI/180);r=m([p(0,0,0),p(10,0,0)],[p(0,1,0),p(10,1+10*tilt,0)]);
+ assert.ok(near(r.angle,1,1e-9));assert.equal(r.parallel,false);assert.ok(near(r.closest,1,2e-3)&&near(r.furthest,1+10*tilt,2e-3));assert.ok(near(r.average,(r.closest+r.furthest)/2,1e-9));assert.ok(r.closest<r.average&&r.average<r.furthest);
+ // No shared stretch (end to end): the lines are extended, and that is said.
+ r=m([p(0,0,0),p(4,0,0)],[p(6,.5,0),p(9,.5,0)]);assert.equal(r.extended,true);assert.ok(near(r.average,.5)&&near(r.over,9));
+ // Lines that cross where both run: closest is zero.
+ r=m([p(0,0,0),p(10,0,0)],[p(0,-.1,0),p(10,.1,0)]);assert.ok(near(r.closest,0)&&near(r.furthest,.1,1e-4));assert.ok(r.average>0&&r.average<r.furthest);
+ // More than 45 degrees apart there is no "across": the true gaps between the segments as drawn.
+ r=m([p(0,0,0),p(4,0,0)],[p(4,0,0),p(4,3,0)]);assert.equal(r.across,false);assert.ok(near(r.closest,0,1e-6)&&near(r.furthest,4));assert.equal(r.perpendicular,true);assert.ok(near(r.angle,90));
  // An upright line has no direction from above.
- r=m([p(0,0,0),p(4,0,0)],[p(2,1,0),p(2,1,3)]);assert.equal(r.angle,null);assert.equal(r.parallel,false);assert.ok(near(r.closest,1));
+ r=m([p(0,0,0),p(4,0,0)],[p(2,1,0),p(2,1,3)]);assert.equal(r.angle,null);assert.equal(r.across,false);assert.ok(near(r.closest,1));
  assert.equal(m([p(0,0,0),p(4,0,0)],null),null);
 });
