@@ -1,7 +1,7 @@
 {
   "files": 318,
   "namespaces": 120,
-  "messages": 17382,
+  "messages": 17390,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -356,7 +356,7 @@
     {
       "file": "public/libraries/apps/materials/project.js",
       "namespace": "materials",
-      "references": 148,
+      "references": 156,
       "candidates": 178,
       "edits": 120
     },

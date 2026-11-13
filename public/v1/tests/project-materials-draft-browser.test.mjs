@@ -30,17 +30,17 @@ async function serve(control){
 }
 
 // Stubs for everything the tab reads and writes; every call is recorded in window.calls.
-async function open(page, port, { projectId = '', requirements = 'empty' } = {}){
+async function open(page, port, { projectId = '', requirements = 'empty', scope = false } = {}){
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${port}/`);
-  await page.evaluate(({ projectId, requirements }) => {
+  await page.evaluate(({ projectId, requirements, scope }) => {
     const calls = window.calls = [];
     const TYPES = [['material', 'Materials'], ['labor', 'Labor'], ['equipment', 'Equipment']].map(([id, name]) => ({ id, name, icon: 'fa-box', color: '#123456', revision: 1 }));
     const lists = window.lists = [];
     window.__APP = { userOrgId: 'org' };
     window.FirstMateEmbeddableApps = { registerApp(app){ window.mtApp = app; } };
-    window.Portal = { util: {}, cfg: { userOrgId: 'org' }, modules: {}, navigation: { registerHandler(){}, read: () => ({}) } };
+    window.Portal = { util: {}, cfg: { userOrgId: 'org' }, modules: {}, navigation: { registerHandler(){}, read: () => ({}) }, ui: { showToast: (title, text, ok) => calls.push(['toast', title, text, ok]) } };
     let releaseRequirements;
     window.requirementsGate = requirements === 'pending' ? new Promise((resolve) => { releaseRequirements = resolve; }) : null;
     window.releaseRequirements = () => releaseRequirements?.();
@@ -49,7 +49,9 @@ async function open(page, port, { projectId = '', requirements = 'empty' } = {})
       resourceTypes: { list: async (org) => { calls.push(['types', org]); return { resource_types: TYPES }; } },
       projects: {
         list: async (org, pid) => { calls.push(['list', pid]); return { material_lists: lists.filter((list) => list.project_id === pid), resource_types: TYPES }; },
-        create: async (org, pid, payload) => { calls.push(['create', pid, payload.resource_type]); const list = { ...payload, id: `list_${lists.length}`, project_id: pid, revision: 1, status: 'planning', current_items: [] }; lists.push(list); return { material_list: list }; }
+        create: async (org, pid, payload) => { calls.push(['create', pid, payload.resource_type]); const list = { ...payload, id: `list_${lists.length}`, project_id: pid, revision: 1, status: 'planning', current_items: [] }; lists.push(list); return { material_list: list }; },
+        // A scope that defines no lists (the tab copies these when it mounts).
+        ...(scope ? { initializeFromScope: async (org, pid) => { calls.push(['scope', pid]); return { material_lists: [] }; } } : {})
       },
       labor: { requirements: async (org, pid) => {
         calls.push(['requirements', pid]);
@@ -72,7 +74,7 @@ async function open(page, port, { projectId = '', requirements = 'empty' } = {})
     // Stands in for the guided setups' hold (a capture listener on the document): it must see a draft's write only
     // after the project is saved.
     document.addEventListener('click', (event) => { if (event.target.closest?.('[data-mt-generate-column]')) calls.push(['document-capture', window.activeProject?.id || '']); }, true);
-  }, { projectId, requirements });
+  }, { projectId, requirements, scope });
   await page.addScriptTag({ url: '/libraries/platform-widgets/scope-data.js' });
   await page.addScriptTag({ url: '/libraries/apps/materials/project.js?v=test' });
   await page.evaluate((projectId) => {
@@ -81,7 +83,7 @@ async function open(page, port, { projectId = '', requirements = 'empty' } = {})
   }, projectId);
   return errors;
 }
-const projectCalls = (calls) => calls.filter(([kind]) => !['types', 'roof-widget', 'document-capture'].includes(kind));
+const projectCalls = (calls) => calls.filter(([kind]) => !['types', 'roof-widget', 'document-capture', 'toast'].includes(kind));
 
 test('a draft shows the whole tab with empty states, reads nothing about the project and saves on the first write', async () => {
   const control = { railGate: Promise.resolve() };
@@ -207,5 +209,73 @@ test('loading says so once and styled; a saved project with no report still load
     control.railGate = Promise.resolve();
     await failing.locator('[data-mt-rail-retry]').click();
     await failing.locator('[data-scope-view="roof"]').waitFor();
+  } finally { await browser.close(); server.close(); }
+});
+
+// FM-433: Generate with nothing to build from (no signed document with materials, no scope lists, default materials off
+// or no roof measurements for them) is not an error: a dialog says so and offers to start a proposal or a work order,
+// which opens the Documents tab's create wizard for that type. A real failure is still an error.
+test('generate with nothing to build from offers to start a proposal or a work order in Documents', async () => {
+  const server = await serve({ railGate: Promise.resolve() });
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 433, height: 582 } });
+    const errors = await open(page, server.address().port, { projectId: 'p1', scope: true });
+    await page.addScriptTag({ url: '/libraries/platform-ui/platform-ui.js' });
+    await page.evaluate(() => {
+      window.defaultsResult = 'unmeasured';
+      window.FirstMeasureAPI = { roofMeasurements: { load: async () => null } };
+      // The measurement defaults (POST …/calculus/defaults): off, unmeasured, or a real failure.
+      const request = window.MaterialsAPI.request;
+      window.MaterialsAPI.request = async (path, options) => {
+        if (!path.endsWith('/calculus/defaults')) return request(path, options);
+        window.calls.push(['defaults']);
+        if (window.defaultsResult === 'off') return { ok: true, status: 'off' };
+        const error = new Error(window.defaultsResult === 'unmeasured' ? 'This project has no roof measurements yet.' : 'The pricebook is broken.');
+        error.data = { ok: false, error: window.defaultsResult === 'unmeasured' ? 'measurement_defaults_unmeasured' : 'measurement_defaults_invalid' };
+        throw error;
+      };
+      window.host.setActivePreviewTab = (tab) => window.calls.push(['tab', tab]);
+      window.Portal.modules.projectDocsTab = { openNewDocument: async (prefill) => { window.calls.push(['new-document', prefill.document_type]); return true; } };
+    });
+    const generate = page.locator('[data-mt-generate-column="material"]');
+    const dialog = page.locator('.fm-dialog');
+    await generate.waitFor();
+    await generate.click();
+    await dialog.waitFor();
+    const shown = await dialog.evaluate((el) => ({ text: el.innerText, width: el.getBoundingClientRect().width, right: el.getBoundingClientRect().right, buttons: [...el.querySelectorAll('button')].map((button) => button.textContent.trim()) }));
+    assert.match(shown.text, /Nothing to build materials from/);
+    assert.match(shown.text, /roof measurements/);
+    assert.deepEqual(shown.buttons, ['Not now', 'Create work order', 'Create proposal']);
+    assert.ok(shown.right <= 433, 'the dialog fits a phone: ' + JSON.stringify(shown));
+    assert.equal((await page.evaluate(() => window.calls)).filter(([kind]) => kind === 'toast').length, 0, 'no error toast');
+    await dialog.getByRole('button', { name: 'Create proposal' }).click();
+    await page.waitForFunction(() => window.calls.some(([kind]) => kind === 'new-document'));
+    let calls = await page.evaluate(() => window.calls);
+    assert.deepEqual(calls.filter(([kind]) => kind === 'tab' || kind === 'new-document'), [['tab', 'docs'], ['new-document', 'proposal']]);
+
+    // Defaults off: the same dialog; Create work order starts a work order.
+    await page.evaluate(() => { window.defaultsResult = 'off'; window.calls.length = 0; });
+    await page.locator('.fm-dialog').waitFor({ state: 'detached' });
+    await generate.click();
+    await dialog.waitFor();
+    assert.match(await dialog.innerText(), /default materials are off/);
+    await dialog.getByRole('button', { name: 'Create work order' }).click();
+    await page.waitForFunction(() => window.calls.some(([kind]) => kind === 'new-document'));
+    calls = await page.evaluate(() => window.calls);
+    assert.deepEqual(calls.filter(([kind]) => kind === 'new-document'), [['new-document', 'work_order']]);
+
+    // A real failure of the defaults stays an error, with no dialog.
+    await page.evaluate(() => { window.defaultsResult = 'invalid'; window.calls.length = 0; });
+    await page.locator('.fm-dialog').waitFor({ state: 'detached' });
+    await generate.click();
+    await page.waitForFunction(() => window.calls.some(([kind]) => kind === 'toast'));
+    await page.waitForTimeout(800);
+    calls = await page.evaluate(() => window.calls);
+    assert.equal(await dialog.count(), 0);
+    const toast = calls.find(([kind]) => kind === 'toast');
+    assert.equal(toast[3], false);
+    assert.match(toast[2], /The pricebook is broken/);
+    assert.deepEqual(errors, []);
   } finally { await browser.close(); server.close(); }
 });
