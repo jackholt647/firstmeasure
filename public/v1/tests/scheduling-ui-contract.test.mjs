@@ -245,6 +245,35 @@ test('a phone opens the schedules on three days unless a view was chosen; Materi
   assert.match(schedulingSource, /const remembered = readSchedulePref\(SCHEDULE_VIEW_PREF_KEY\);\n\s*if \(scheduleViewAllowed\(remembered\)\) \{[\s\S]*?\} else if \(isMobileScheduleLayout\(\)\) \{\n[^\n]*\n\s*viewMode = '4day';/);
 });
 
+test('phones place with a tap, pinch the hour rows and show events in one shared bottom tray (FM-441)', () => {
+  // One implementation in the shared renderer, opted into by both calendars on phones only.
+  assert.match(scheduleViewSource, /const touchControls = options\.touchControls === true && mode !== 'list';/);
+  assert.match(schedulingSource, /touchControls: isMobileScheduleLayout\(\),/);
+  assert.match(projectScheduleSource, /touchControls: mobileLayout,/);
+  // Further-out default zoom; a two-finger pinch sets the row height and keeps the time between the fingers under them.
+  assert.match(scheduleViewSource, /const TOUCH_SLOT_HEIGHT_DEFAULT_PX = 32;/);
+  assert.match(scheduleViewSource, /touchGestureScroller\.scrollTop = Math\.max\(0, Number\(touchGestureScroller\.scrollTop \|\| 0\) \+ \(gridTop \+ pinch\.rows \* slotHeight\) - midY\);/);
+  assert.match(scheduleViewSource, /if \(pinch \|\| \(touchPoints\.size >= 2 && beginPinch\(\)\)\)/);
+  // A tap on an empty spot places one slot; with a tray open it only closes the tray.
+  assert.match(scheduleViewSource, /const end = allDay \? range\.end : new Date\(start\.getTime\(\) \+ renderSlotMinutes \* 60000\);/);
+  assert.match(scheduleViewSource, /if \(container\.__prsTray\) \{\n\s*dismissEventTray\(container\);/);
+  // Only the selected event carries the translucent resize bars, and they resize without a hold.
+  assert.match(scheduleViewSource, /handle\.className = `prs-touch-handle \$\{edge\}`;/);
+  assert.match(scheduleViewSource, /touchHeld:true, touchHandle:true/);
+  // The tray: the event's bottom edge ends 10px above it, scrolled with an animation.
+  assert.match(scheduleViewSource, /const EVENT_TRAY_GAP_PX = 10;/);
+  assert.match(scheduleViewSource, /let delta = rect\.bottom - \(trayTop - EVENT_TRAY_GAP_PX\);/);
+  assert.match(scheduleViewSource, /if \(animate\) animateScrollTop\(surface, target\);/);
+  assert.match(scheduleViewSource, /@keyframes prs-event-tray-up/);
+  assert.match(scheduleViewSource, /root\.PlatformScheduleView = \{\n[^}]*presentEventTray,\n\s*dismissEventTray,/);
+  // Both apps show their own panel through the shared tray, on phones only (desktop keeps its popover).
+  assert.match(schedulingSource, /const trayed = isMobileScheduleLayout\(\) && window\.PlatformScheduleView\?\.presentEventTray\?\.\(pop, \{/);
+  assert.match(schedulingSource, /\.dash-event-popover:not\(\.prs-event-tray\)\{z-index:2147483000!important;top:0!important/);
+  assert.match(projectScheduleSource, /const trayed = schedulePhoneLayout\(\) && window\.PlatformScheduleView\?\.presentEventTray\?\.\(popover, \{/);
+  assert.match(projectScheduleSource, /if \(!trayed\) setTimeout\(\(\) => \{\n\s*scheduleEventPopoverDocHandler = bindOutsidePointerDismiss/);
+  assert.match(projectScheduleSource, /onDraftCreateComplete\(next, meta = \{\}\)\{\n\s*if \(meta\.touchTap !== true/);
+});
+
 test('project scheduling mode uses branch-configurable Routing terminology', async () => {
   // The default label is a config library terminology entry, not scheduling code.
   const uiTerms = JSON.parse(await readSource('v1/config-library/snapshot/terminology_namespace/ui.json')).data.terms;
