@@ -3039,7 +3039,11 @@
     try {
       const result = await api.generateDefaults({ legacy_measurements: legacyMeasurementPayload() });
       return { generated: result?.status === 'generated', failed: '' };
-    } catch (error) { return { generated: false, failed: error?.message || 'They could not be generated.' }; }
+    } catch (error) {
+      // A project with no roof measurements has nothing for the defaults to read: not a failure, nothing to build from.
+      if (cleanText(error?.data?.error) === 'measurement_defaults_unmeasured') return { generated: false, failed: '', unmeasured: true };
+      return { generated: false, failed: error?.message || 'They could not be generated.' };
+    }
   }
   // options.resourceType limits it to one column (the Materials heading's wand): the other columns are left as they are.
   async function regenerateMaterialListsFromScope(options = {}){
@@ -3071,6 +3075,7 @@
     renderLeft();
     render({ preserveScroll: true });
     const minimumFeedback = new Promise((resolve) => setTimeout(resolve, 650));
+    let nothingToBuildFrom = false;
     try {
       const operation = captureProjectOperation();
       await requestMeasurementHydration();
@@ -3084,10 +3089,11 @@
       const generated = await initializeMaterialListsFromScope({ force: true, mergeLists: true, ...(only ? { resourceType: only } : {}) }).catch((error) => (fromDocuments.generated.length || fromDefaults.generated ? null : Promise.reject(error)));
       const fromScope = (generated?.material_lists || generated?.lists || []).length;
       if (!fromScope && !fromDocuments.generated.length && !fromDefaults.generated) {
-        throw new Error(fromDocuments.failed.length
-          ? `The signed document's materials could not be generated. ${fromDocuments.failed.join(' ')}`
-          : fromDefaults.failed ? `The measurement defaults could not be generated. ${fromDefaults.failed}`
-          : 'Nothing was generated: there is no signed document with materials, the project scope defines no lists, and default materials are off. Sign a document that includes materials, or turn on default materials in Settings > Reports.');
+        if (fromDocuments.failed.length) throw new Error(`The signed document's materials could not be generated. ${fromDocuments.failed.join(' ')}`);
+        if (fromDefaults.failed) throw new Error(`The measurement defaults could not be generated. ${fromDefaults.failed}`);
+        // Nothing failed: there is just nothing to build from yet. Asked once the button is back (finally).
+        nothingToBuildFrom = fromDefaults.unmeasured ? 'unmeasured' : 'off';
+        return;
       }
       if (fromDocuments.failed.length) showToast('Some materials were not generated', fromDocuments.failed.join(' '), false);
       if (!projectOperationIsCurrent(operation)) return;
@@ -3105,6 +3111,34 @@
       state.generatingMaterials = false;
       renderLeft();
       render({ preserveScroll: true });
+      if (nothingToBuildFrom && state.mounted) promptToStartSourceDocument(nothingToBuildFrom);
+    }
+  }
+  // Materials come from a document (a signed proposal or work order publishes them), the scope's lists or the
+  // measurement defaults. With none of them, say so and offer to start the document: a choice opens the Documents
+  // tab's create wizard for that type, which starts the type's default template. defaults: 'off' or 'unmeasured'.
+  async function promptToStartSourceDocument(defaults = 'off'){
+    const title = (globalThis.PlatformLanguage?.text("materials","m_3a740415e4fcde","Nothing to build materials from") ?? "Nothing to build materials from");
+    const message = defaults === 'unmeasured'
+      ? (globalThis.PlatformLanguage?.text("materials","m_a703fd77fe83bf","No signed document includes materials, the project scope has no lists, and default materials need roof measurements this project does not have yet. Create a proposal or a work order to start.") ?? "No signed document includes materials, the project scope has no lists, and default materials need roof measurements this project does not have yet. Create a proposal or a work order to start.")
+      : (globalThis.PlatformLanguage?.text("materials","m_027c23df3a75bb","No signed document includes materials, the project scope has no lists, and default materials are off. Create a proposal or a work order to start.") ?? "No signed document includes materials, the project scope has no lists, and default materials are off. Create a proposal or a work order to start.");
+    const docs = rootWindow.Portal?.modules?.projectDocsTab || window.Portal?.ProjectDocsTab;
+    const choose = window.PlatformUI?.choose || Portal?.ui?.choose;
+    if (typeof choose !== 'function' || typeof docs?.openNewDocument !== 'function' || !documentsOn() || draftProject()) {
+      showToast(title, message, false);
+      return;
+    }
+    const operation = captureProjectOperation();
+    const choice = await choose(message, [
+      { label: (globalThis.PlatformLanguage?.text("materials","m_2d4675a22ab6bd","Not now") ?? "Not now"), value: 'cancel' },
+      { label: (globalThis.PlatformLanguage?.text("materials","m_c65b0348d8952e","Create work order") ?? "Create work order"), value: 'work_order' },
+      { label: (globalThis.PlatformLanguage?.text("materials","m_f92c72190aa503","Create proposal") ?? "Create proposal"), value: 'proposal', primary: true }
+    ], { title });
+    if ((choice !== 'proposal' && choice !== 'work_order') || !projectOperationIsCurrent(operation)) return;
+    callHost('setActivePreviewTab', 'docs');
+    try { rootWindow.Portal?.navigation?.push?.({ projectTab: 'docs' }, { source: 'materials-start-document', ownedKeys: ['projectTab'] }); } catch (_) {}
+    if (!(await docs.openNewDocument({ document_type: choice }).catch(() => false))) {
+      showToast((globalThis.PlatformLanguage?.text("materials","m_6175206dc77242","The new document could not be opened") ?? "The new document could not be opened"), (globalThis.PlatformLanguage?.text("materials","m_96047a0c8f68e0","Open the Documents tab to create it.") ?? "Open the Documents tab to create it."), false);
     }
   }
 

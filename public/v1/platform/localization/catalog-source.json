@@ -4609,7 +4609,15 @@
     "m_e1a77a52be0af1": "Not marked for this work",
     "m_bcfc52d3ed9f62": "this document",
     "m_2fc861f59fd0ce": "Roof measurements XML",
-    "m_a620d9a43636cd": "Project documents"
+    "m_a620d9a43636cd": "Project documents",
+    "m_3a740415e4fcde": "Nothing to build materials from",
+    "m_a703fd77fe83bf": "No signed document includes materials, the project scope has no lists, and default materials need roof measurements this project does not have yet. Create a proposal or a work order to start.",
+    "m_027c23df3a75bb": "No signed document includes materials, the project scope has no lists, and default materials are off. Create a proposal or a work order to start.",
+    "m_2d4675a22ab6bd": "Not now",
+    "m_c65b0348d8952e": "Create work order",
+    "m_f92c72190aa503": "Create proposal",
+    "m_6175206dc77242": "The new document could not be opened",
+    "m_96047a0c8f68e0": "Open the Documents tab to create it."
   },
   "measurements": {
     "m_aaf397f737f7b1": "Residential",
