@@ -235,7 +235,7 @@ function perf_finishEdit(){
     // Roof mode's Subtract Face on a face's whole outline leaves that face as its own hole: no surface, and
     // nothing to triangulate. Roof mode shows and measures no surface there, so the walls leave it out too (FM-320).
     // A leftover face a few pixels across is not a roof plane either (WallGeometry.roofPlanesOnly).
-    function usableRoofFaces(faces){return G.roofPlanesOnly(faces).filter(f=>{try{window.ExteriorGeometry?.triangles(f.points,f.holes||[]);return true;}catch(error){console.warn('[Walls] Roof face '+f.id+' has no surface and is left out of the walls.',error);return false;}});}
+    function usableRoofFaces(faces,points=null){return G.roofPlanesOnly(faces,points).filter(f=>{try{window.ExteriorGeometry?.triangles(f.points,f.holes||[]);return true;}catch(error){console.warn('[Walls] Roof face '+f.id+' has no surface and is left out of the walls.',error);return false;}});}
     function captureRoof(force=false) {
         if(!activeGeometry?.points?.length)throw new Error('Finish the roof points and resolved faces first.');
         const ctx=currentContext(); if(!(ctx.mpp>0))throw new Error('Load calibrated project imagery first.');
@@ -244,7 +244,7 @@ function perf_finishEdit(){
         let resolved=window.altFaceResolver?.getRenderFaces?.(force)||window.lastResolvedFacesCache||[];
         if(!resolved.length)resolved=activeGeometry.manualFaces||[];
         const points=activeGeometry.points.map(p=>toMetric(p,ctx));
-        const faces=usableRoofFaces(resolved.map((f,i)=>({id:i,points:(f.points||[]).map(p=>toMetric(p,ctx)),holes:(f.holes||[]).map(h=>h.map(p=>toMetric(p,ctx)))})).filter(f=>f.points.length>=3));
+        const faces=usableRoofFaces(resolved.map((f,i)=>({id:i,points:(f.points||[]).map(p=>toMetric(p,ctx)),holes:(f.holes||[]).map(h=>h.map(p=>toMetric(p,ctx)))})).filter(f=>f.points.length>=3),points);
         if(!faces.length)throw new Error('Resolve the roof faces before using Auto wall.');
         return {context:ctx,roof:{points,connections,faces}};
     }
@@ -480,7 +480,7 @@ function perf_persist(touch=true) {
         const candidates=(clearedAt?[]:[server,local]).filter(valid).sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
         const resumedLocal=clearedAt?local:candidates[0]===local?local:null,localStamp=resumedLocal?.savedAt??null;
         if(candidates.length){state=copy(candidates[0]);sourceContext=state.context;stage=Math.max(1,Math.min(7,state.stage||1));roofVisible=state.roofVisible!==false;gapHighlights=state.gapHighlights!==false;initializeGround();}
-        if(state?.roof?.faces)state.roof.faces=usableRoofFaces(state.roof.faces);
+        if(state?.roof?.faces)state.roof.faces=usableRoofFaces(state.roof.faces,state.roof.points);
         recoverRoofFromWalls();
         applyDisplayPreferences();if(state&&!state.roofTrim)state.roofTrim=copy(roofTrimOnly);wallsVisible=state?.wallsVisible!==false;editingLayer=state?.editingLayer||'base';
         const upgraded=upgradeEngine(),contactsRepaired=window.BaseGeometry?.repairStoredRoofContacts?.(state),weldSet=!!state&&state.pointWeldInches===undefined&&(state.pointWeldInches=.25,true),strayWire=!!state&&[state.base,state.wallEdits?.$base].filter(Boolean).map(b=>window.BaseSketchGeometry?.removeStrayWire?.(b)).some(Boolean);retainGradeDraftOwnership();window.WallChimneys?.normalizeDrafts(state?.wallEdits);window.normalizeWallDraftOwnership?.(state?.wallEdits);window.WallBaseBinding?.upgrade(state?.wallEdits);window.WallSolidGeometry?.cleanupSweepRemnants(state?.wallEdits);if(state)calculateStage(stage);const draftsRepaired=!!state&&wallEditor?.repairStoredDrafts?.();

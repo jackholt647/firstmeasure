@@ -87,10 +87,17 @@
     // Where short roof lines meet, the face resolver can leave a leftover a
     // few pixels across. It is not a roof plane: walls built around it stand
     // as a pillar under the real roof. Ids of the remaining faces are kept.
-    const MIN_ROOF_FACE=.025;
-    function roofPlanesOnly(faces) {
+    // Area alone does not tell one from a roof plane: a leftover traced between two overlapping roofs came to
+    // 0.033 m2, a third over the limit, and got a 26-sided pillar of 3 cm walls. What does tell them apart is what
+    // bounds them. A roof plane is bounded by roof lines, so its corners are roof points. A leftover is traced
+    // from pixels: none of its corners is a roof point. With the roof's points given, a face no more than
+    // LEFTOVER_SPAN across with no corner on a roof point is a leftover whatever its area.
+    const MIN_ROOF_FACE=.025,LEFTOVER_SPAN=.6;
+    function roofPlanesOnly(faces,points=null) {
         const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-q.x*p.y;},0)/2);
-        return faces.filter(f=>area(f.points)>=MIN_ROOF_FACE);
+        const span=ps=>{let d=0;for(const p of ps)for(const q of ps)d=Math.max(d,Math.hypot(p.x-q.x,p.y-q.y));return d;};
+        const traced=f=>points?.length&&span(f.points)<=LEFTOVER_SPAN&&!f.points.some(p=>points.some(q=>Math.hypot(p.x-q.x,p.y-q.y)<.002));
+        return faces.filter(f=>area(f.points)>=MIN_ROOF_FACE&&!traced(f));
     }
     function roofLayers(roof,faces) {
         const groups=faces.map(f=>[f]),same=(a,b)=>distance(a,b)<.002&&Math.abs(a.z-b.z)<.02;
