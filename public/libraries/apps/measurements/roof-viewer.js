@@ -82,7 +82,7 @@
     for(const roof of doc.querySelectorAll('ROOF')){
       const points=new Map(),lines=new Map(),faces=[],openings=[];
       for(const p of roof.querySelectorAll('POINT')){const xyz=(p.getAttribute('data')||'').split(',').map(Number);if(xyz.length===3&&xyz.every(Number.isFinite))points.set(p.getAttribute('id'),xyz);}
-      for(const l of roof.querySelectorAll('LINE')){const ids=(l.getAttribute('path')||'').split(',').map(x=>x.trim());if(ids.length===2&&ids.every(id=>points.has(id)))lines.set(l.getAttribute('id'),{ids,type:classified.get(ids.slice().sort().join(',')) || lineType(l.getAttribute('type'))});}
+      for(const l of roof.querySelectorAll('LINE')){const ids=(l.getAttribute('path')||'').split(',').map(x=>x.trim());if(ids.length===2&&ids.every(id=>points.has(id))){const saved=classified.get(ids.slice().sort().join(','));lines.set(l.getAttribute('id'),{ids,type:saved || lineType(l.getAttribute('type')),listed:!!saved});}}
       function ringIds(polygon){
         const edges=(polygon?.getAttribute('path')||'').split(',').map(id=>lines.get(id.trim()));
         if(edges.length<3||edges.some(e=>!e))return null;
@@ -115,6 +115,11 @@
       if(points.size)roofs.push({points,lines,faces,openings});
     }
     if(!roofs.length)throw new Error('No saved roof geometry is available for this report.');
+    // FM-455: with the report's own line types, the model draws the report's lines. A line it does not list (a face edge
+    // across a notch, or an orphan protrusion edge in older XML, typed SKYLIGHT there) is no line of the PDF's. Only when
+    // the types name nearly every line: otherwise they belong to another model and the XML's own types stay.
+    const all=roofs.flatMap(roof=>[...roof.lines.values()]);
+    if(classified.size&&all.filter(line=>line.listed).length>=all.length*.9)for(const line of all)if(!line.listed)line.unlisted=true;
     return roofs;
   }
   // Build a face-local surface basis: shingle courses run across the slope.
@@ -332,7 +337,7 @@
   }
   /* Roof pitch (1M8-255): the stored rise over 12, written 6/12 or, for degree projects, 26.6° (labels whole degrees). */
   function pitchLabel(rise,notation,digits=1){if(notation!=='degrees')return rise+'/12';return (Math.atan(Math.abs(Number(rise))/12)*180/Math.PI).toFixed(digits)+'°';}
-  function mount(root,{xmlUrl,exteriorUrl,designUrl='',materialsUrl='',edgeTypes=[],media=[],standalone=false,layout='auto',initialState={},measurements={},getMeasurements,onMeasurementChange,subscribeMeasurements,pitchNotation='rise_12',holidayLights=false}={}){
+  function mount(root,{xmlUrl,exteriorUrl,linesUrl='',designUrl='',materialsUrl='',edgeTypes=[],media=[],standalone=false,layout='auto',initialState={},measurements={},getMeasurements,onMeasurementChange,subscribeMeasurements,pitchNotation='rise_12',holidayLights=false}={}){
     injectStyle();let disposed=false,renderer,controls,scene,camera,observer,geometryGroup,lineGroup,texture,selection='model',textureEnabled=initialState.texture!==false,coloredLinesEnabled=initialState.lines!==false,keyVisible=initialState.key!==false,pitchEnabled=initialState.pitch===true,pitchGroup,areaEnabled=initialState.area===true,keyTab=initialState.keyTab||'lines';
     let selectedCategory=initialState.category||(initialState.selectedType?'line:'+initialState.selectedType:null),lengthsEnabled=initialState.lengths===true,layers={roof:initialState.layers?.roof!==false,walls:initialState.layers?.walls!==false,base:initialState.layers?.base!==false};
     let modelLoaded=false,exterior=null,finishes=null,roofFinishes=null,frame=null,scale=1,picked=null,hovered=null,exteriorVector=null,rebuildRoofCaps=null,reportRoofFaces=[],gradeMesh=null,renderedKey='',ownsWallMode=false,measuring=false,measureStart=null,measurePreview=null,sideLayout=false;
@@ -603,8 +608,12 @@
     observer=new ResizeObserver(resize);observer.observe(gallery);observer.observe(canvas);resize();
     (async()=>{
       if(!xmlUrl)throw new Error('The completed report does not contain a roof model yet.');
-      const [response,exteriorResult]=await Promise.all([fetch(xmlUrl,{credentials:'same-origin',signal:controller.signal}),exteriorUrl?fetch(exteriorUrl,{credentials:'same-origin',signal:controller.signal}).then(r=>r.ok?r.json():null).catch(()=>null):null,loadLibraries()]);
+      const json=url=>url?fetch(url,{credentials:'same-origin',signal:controller.signal}).then(r=>r.ok?r.json():null).catch(()=>null):null;
+      const [response,exteriorResult,linesResult]=await Promise.all([fetch(xmlUrl,{credentials:'same-origin',signal:controller.signal}),json(exteriorUrl),json(linesUrl),loadLibraries()]);
       if(!response.ok)throw new Error('The roof model could not be loaded.');
+      // FM-455: the report's own line types and the line totals its PDF prints. Without them the XML's coarser types stay.
+      if(!edgeTypes.length&&Array.isArray(linesResult?.edgeTypes))edgeTypes=linesResult.edgeTypes;
+      if(linesResult?.measurements&&typeof linesResult.measurements==='object')measurements={...linesResult.measurements,...measurements};
       const roofs=parseModel(await response.text(),edgeTypes);if(disposed)return;
       exterior=exteriorResult?.model&&Array.isArray(exteriorResult.model.walls)&&exteriorResult.model.walls.length?exteriorResult.model:null;
       if(exterior){finishes=await loadFinishes();frame=exteriorFrame(exterior,roofs);if(disposed)return;
@@ -639,7 +648,7 @@
         for(const group of found){let rectangle=null;for(let i=0;i<group.points.length;i++){const p=group.points[i],q=group.points[(i+1)%group.points.length],angle=Math.atan2(q[1]-p[1],q[0]-p[0]),cos=Math.cos(angle),sin=Math.sin(angle),xy=group.points.map(([x,y])=>[x*cos+y*sin,-x*sin+y*cos]);const width=Math.max(...xy.map(p=>p[0]))-Math.min(...xy.map(p=>p[0])),height=Math.max(...xy.map(p=>p[1]))-Math.min(...xy.map(p=>p[1]));if(!rectangle||width*height<rectangle.area)rectangle={area:width*height,width:Math.min(width,height),height:Math.max(width,height)};}if(rectangle){
           // Its edges' lengths, as the report sizes a chimney or skylight from its lines (pdf.js labelCluster).
           const edgeTypes=group.kind==='skylight'?['SKYLIGHT']:['CHIMNEY_BACK','CHIMNEY_EDGE','CHIMNEY_FRONT'],on=p=>group.points.some(q=>Math.hypot(p[0]-q[0],p[1]-q[1],p[2]-q[2])<.05);
-          const edges=[...roof.lines.values()].filter(line=>edgeTypes.includes(line.type)&&line.ids.every(id=>on(roof.points.get(id)))).map(line=>{const [a,b]=line.ids.map(id=>roof.points.get(id));return Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);});
+          const edges=[...roof.lines.values()].filter(line=>!line.unlisted&&edgeTypes.includes(line.type)&&line.ids.every(id=>on(roof.points.get(id)))).map(line=>{const [a,b]=line.ids.map(id=>roof.points.get(id));return Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);});
           openingGroups.push({...group,...rectangle,edges});}}
         for(const face of roof.faces){const rings=[face.points,...face.holes],flat=rings.flat(),vertices=flat.map(point),faceUVs=faceTextureUVs(face.points,flat);const project=ring=>ring.map(p=>new T.Vector2(p[0],p[1]));const triangles=T.ShapeUtils.triangulateShape(project(face.points),face.holes.map(project));const pos=[],uv=[];
           // Roofs are textured with the editor's covering in metres: a full house in its fitted frame, a roof-only report
@@ -658,7 +667,7 @@
           else{const spec=membrane?MEMBRANE_SPEC:roofCoverSpec,mat=new T.MeshStandardMaterial({map:roofCover||membrane?null:texture,side:T.DoubleSide,roughness:spec?.roughness??1,metalness:spec?.metalness??0,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});const mesh=new T.Mesh(geo,mat);mesh.userData.roofOnlyMaterial=true;if(membrane)mesh.userData.membrane=true;else if(roofCover)mesh.userData.exteriorFinish=roofCover;const item={kind:'roofFace',layer:'roof',category:'roof',mesh:null,area,reportArea,pitch,title:'Roof face',swatch:membrane?MEMBRANE_SPEC.color:roofCover?roofFinishes.resolve(roofCover,{}).color:'#706e69',details:()=>[['Pitch',pitch!=null?pitchLabel(pitch,pitchNotation):null],['Area',squaresText(reportArea)]]};mesh.userData.item=item;item.pickMesh=mesh;geometryGroup.add(mesh);objects.push(mat);items.push(item);}
           if(pitch!=null)faceMetrics.push({pitch:Math.round(pitch),exact:reportFaceExactSqFt(face)??area??0});if(anchor){const sprite=labelSprite(point(anchor.point),{pitch:anchor.pitch,area:anchor.area,reportArea,anchor:anchor.point});sprite.position.y+=.5;pitchGroup.add(sprite);}
         }
-        for(const line of roof.lines.values()){const type=lineType(line.type);types.add(type);const ends=line.ids.map(id=>roof.points.get(id)),length=Math.hypot(...ends[0].map((value,i)=>value-ends[1][i]));lengths[type]=(lengths[type]||0)+length;const geo=new T.BufferGeometry().setFromPoints(line.ids.map(id=>point(roof.points.get(id))));const mat=new T.LineBasicMaterial({color:styles[type][0]});const edge=new T.Line(geo,mat);edge.renderOrder=2;edge.userData.type=type;lineGroup.add(edge);objects.push(geo,mat);
+        for(const line of roof.lines.values()){if(line.unlisted)continue;const type=lineType(line.type);types.add(type);const ends=line.ids.map(id=>roof.points.get(id)),length=Math.hypot(...ends[0].map((value,i)=>value-ends[1][i]));lengths[type]=(lengths[type]||0)+length;const geo=new T.BufferGeometry().setFromPoints(line.ids.map(id=>point(roof.points.get(id))));const mat=new T.LineBasicMaterial({color:styles[type][0]});const edge=new T.Line(geo,mat);edge.renderOrder=2;edge.userData.type=type;lineGroup.add(edge);objects.push(geo,mat);
           const item={kind:'roofLine',layer:'roof',category:'line:'+type,type,line:edge,length,ends:ends.map(point),swatch:styles[type][0],title:styles[type][1],details:()=>[['Length',`${reportRoofFeet(length)} ft`],['Type','Roof line']]};edge.userData.item=item;items.push(item);}
       }
       // Roof-only meshes are picked through their item without the full-house finish path.

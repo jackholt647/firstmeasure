@@ -74,6 +74,7 @@ const entries: Record<string, RouteAccess> = {
   "POST /projects/:id/weather/order": customer,
   "GET /projects/:id/exterior-measurements": customer,
   "GET /projects/:id/exterior-model": customer,
+  "GET /projects/:id/roof-lines": customer,
   "GET /projects/:id/exterior-design": customer,
   "PUT /projects/:id/exterior-design": customer,
   "GET /projects/:id/thumbnail": SIGNED_FILE_ACCESS,

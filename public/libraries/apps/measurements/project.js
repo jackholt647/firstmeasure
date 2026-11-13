@@ -3726,7 +3726,8 @@ window.PlatformCommerce.onReady(function(){
 
   function reportModelData(projectId,assets){
     const fullHouseModel=reportSummaryIsFullHouse()&&projectId,platformProjectId=activeBaseProject?.id||'',orgId=projectOrgId();
-    return {xmlUrl:assets?.xmlUrl,pitchNotation:summaryPitchNotation(),exteriorUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',designUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-design`):'',materialsUrl:fullHouseModel&&orgId&&platformProjectId&&isPlatformProjectId(platformProjectId)?`/v1/materials/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(platformProjectId)}/material-lists`:'',media:assets?.media||[],holidayLights:holidayLightsEnabled()};
+    // The report's own line types and line totals (FM-455): the XML alone has only the export's coarser types.
+    return {xmlUrl:assets?.xmlUrl,linesUrl:projectId&&assets?.xmlUrl?fmUrl(`projects/${encodeURIComponent(projectId)}/roof-lines`):'',pitchNotation:summaryPitchNotation(),exteriorUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',designUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-design`):'',materialsUrl:fullHouseModel&&orgId&&platformProjectId&&isPlatformProjectId(platformProjectId)?`/v1/materials/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(platformProjectId)}/material-lists`:'',media:assets?.media||[],holidayLights:holidayLightsEnabled()};
   }
 
   // The finished report's model, from the order alone, for a surface that cannot read published measurements.
