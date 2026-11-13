@@ -73,7 +73,7 @@ test("the checklists setup asks the kind of company first, then adds the picked 
   const started = await crew.listProjectChecklists(ORG, PROJECT);
   assert.equal(started.length, 3);
   const worked = started.find((entry) => entry.source_key === "scope:generic_roofing:completion")!;
-  await crew.patchProjectChecklistItem(ORG, PROJECT, worked.items[0].id, { completed: true }, "owner", true);
+  await crew.patchProjectChecklistItem(ORG, PROJECT, worked.items[0]!.id, { completed: true }, "owner", true);
 
   // Finishing it gives the project the picked checklists, once each, and takes off the untouched ones it started
   // with (FM-448: two picked, five shown); the one someone worked on stays.
@@ -110,7 +110,7 @@ test("the checklists setup asks the kind of company first, then adds the picked 
   await scopeStarts(startContext(NEXT), {});
   const next = await listProjectChecklists(ORG, NEXT);
   assert.deepEqual(next.map((entry) => entry.source_key), ["setup:crew_safety", "setup:punchlist"]);
-  assert.equal(next[0].signature_required, true);
+  assert.equal(next[0]!.signature_required, true);
   await scopeStarts(startContext(NEXT), {});
   assert.equal((await listProjectChecklists(ORG, NEXT)).length, 2, "a second scope on the project adds them once");
 
