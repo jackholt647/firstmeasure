@@ -1242,8 +1242,32 @@ function settleDeletedWire(edits,cover=[]){
   for(const f of pending){f.noWire=true;delete f.wireExclusions;}
   changed=true;
  }
- // A restored or refilled face may now lie over free-standing lines that were its outline. They stay: a shape
- // drawn in plane mode is stored the same way, as a face with its outline lines beside it.
+ // A line is stored once. A free-standing line, or the part of one, that lies along a line a face, a drawing, a
+ // generated wall or the base already draws is that line a second time: nothing shows it while the two coincide,
+ // and the copy is left behind, bounding nothing, as soon as the face moves. So the copy goes, and a free-standing
+ // point that is one of their corners goes with it. Deleting the face later gives the lines back (above).
+ const loose=edits.$loose;if(loose?.edges?.length||loose?.points?.length){
+  const rest=surfaceWire({...edits,$loose:{points:[],edges:[]}}),restAt=new Map(rest.nodes.map(n=>[n.id,n])),covers=cover.filter(f=>f.points?.length>=2).map(f=>({points:f.points,holes:f.holes||[]}));
+  const drawn=rest.edges.filter(e=>!e.curve).map(e=>({points:[restAt.get(e.a),restAt.get(e.b)]})).filter(x=>x.points[0]&&x.points[1]).concat(covers),edges=[];let cut=false;
+  for(const [a,b]of loose.edges||[]){const shared=sharedIntervals(a,b,drawn);if(!shared.length){edges.push([a,b]);continue;}cut=true;let lo=0;
+   for(const [start,end]of [...shared,[1,1]]){if(start-lo>1e-7){const p=lo<1e-7?bare(a):mix3(a,b,lo),q=start>1-1e-7?bare(b):mix3(a,b,start);if(Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)>K.CONTACT)edges.push([p,q]);}lo=Math.max(lo,end);}}
+  const corners=new Set(covers.flatMap(f=>[f.points,...f.holes].flat()).map(vertexKey)),ends=new Set(edges.flat().map(vertexKey)),points=(loose.points||[]).filter(p=>{const k=vertexKey(p);return ends.has(k)||!(restAt.has(k)||corners.has(k));});
+  if(cut||points.length!==(loose.points||[]).length){for(const q of edges.flat()){const k=vertexKey(q);if(!points.some(p=>vertexKey(p)===k)&&!restAt.has(k)&&!corners.has(k))points.push(bare(q));}edits.$loose={...loose,points,edges};changed=true;}
+ }
+ // The same for a drawing. A line of a drawing that bounds none of its regions (what is left of a region that was
+ // deleted) and lies wholly along the outline of a face is that face's edge, kept a second time. It goes, and so
+ // does a point it leaves with no line and no region, where that point is a corner of the face.
+ const drawings=Object.values(edits.$drafts||{}).filter(d=>!d.mergedInto&&!d.chimney&&!d.constructionPlane&&d.sketch?.edges?.length&&(d.frame||d.origin&&d.u));
+ if(drawings.length&&faces.some(f=>!f.deleted&&!f.drafted&&!f.replacedBy&&!f.curvedSurface)){
+  const rest=surfaceWire({...edits,$loose:{points:[],edges:[]}}),restAt=new Map(rest.nodes.map(n=>[n.id,n])),drawn=rest.edges.filter(e=>!e.curve).map(e=>({points:[restAt.get(e.a),restAt.get(e.b)]})).filter(x=>x.points[0]&&x.points[1]);
+  for(const d of drawings){const world=p=>d.frame?fromFrame(d.frame,p):{x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x,z:p.y},at=new Map(d.sketch.nodes.map(n=>[n.id,n])),flat=p=>({x:p.x,y:p.y,z:0}),regions=(d.faces||[]).map(f=>({points:f.points.map(flat),holes:(f.holes||[]).map(r=>r.map(flat))})),gone=new Set();
+   const kept=d.sketch.edges.filter(e=>{if(e.curveId)return true;const a=at.get(e.a),b=at.get(e.b);if(!a||!b||a.curveSample||b.curveSample)return true;if(sharedIntervals(flat(a),flat(b),regions).length)return true;
+    const covered=sharedIntervals(world(a),world(b),drawn).reduce((t,[lo,hi])=>t+hi-lo,0);if(covered<1-1e-6)return true;gone.add(e.a);gone.add(e.b);return false;});
+   if(kept.length===d.sketch.edges.length)continue;d.sketch.edges=kept;changed=true;
+   const used=new Set([...kept.flatMap(e=>[e.a,e.b]),...(d.faces||[]).flatMap(f=>[f.points,...(f.holes||[])].flat().map(p=>p.nodeId))]);
+   d.sketch.nodes=d.sketch.nodes.filter(n=>!gone.has(n.id)||used.has(n.id)||n.curveSample||n.curveCenter||n.curveControl||!restAt.has(vertexKey(world(n))));
+  }
+ }
  return changed;
 }
 // What a delete hides belongs to the face it was deleted from.

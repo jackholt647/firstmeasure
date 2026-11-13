@@ -161,6 +161,17 @@ function conformFooting(face,cap,sides,scene,base){
  }
  for(const g of [cap,...sides])for(const p of [g.points,...(g.holes||[])].flat()){const c=changes.find(c=>near(p,c.from));if(c)p.z=c.z;}
 }
+// The corners of a pushed face are fitted to what it stands on (the base, the foot of the wall beside it). The
+// points it keeps along its edges are fitted with them: one at a corner goes where the corner went, one on an edge
+// stays on that edge. swept: the outline as it was swept, before fitting. Left where the sweep put them, they
+// stayed at the old height, under the wall they belong to.
+function followRetained(cap,swept){
+ if(!cap.retainedPoints?.length||swept.length!==cap.points.length)return;const far=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),n=swept.length;
+ cap.retainedPoints=cap.retainedPoints.map(r=>{const i=swept.findIndex(p=>far(p,r)<=K.CONTACT);if(i>=0)return {...r,x:cap.points[i].x,y:cap.points[i].y,z:cap.points[i].z};
+  for(let j=0;j<n;j++){const a=swept[j],b=swept[(j+1)%n],u={x:b.x-a.x,y:b.y-a.y,z:b.z-a.z},l2=u.x*u.x+u.y*u.y+u.z*u.z;if(l2<1e-12)continue;const t=((r.x-a.x)*u.x+(r.y-a.y)*u.y+(r.z-a.z)*u.z)/l2;if(t<=0||t>=1||far(r,{x:a.x+u.x*t,y:a.y+u.y*t,z:a.z+u.z*t})>K.CONTACT)continue;
+   const p=cap.points[j],q=cap.points[(j+1)%n];return {...r,x:p.x+(q.x-p.x)*t,y:p.y+(q.y-p.y)*t,z:p.z+(q.z-p.z)*t};}
+  return r;});
+}
 function extrusionTrim(scene,sources,caps,keepStatic){
  const selected=new Set(sources.map(f=>f.id)),faces=[...scene.filter(f=>!selected.has(f.id)),...caps];
  const moved=W.followTrim([...scene.filter(f=>!selected.has(f.id)),...sources],{faces,moves:[],affected:[]},[...selected],keepStatic);
@@ -186,7 +197,7 @@ function createExtrusion(input){
   // everything except an intentionally open door threshold (a recess gets its
   // ceiling). None returns along the ground: the base update moves the base.
   const supports=start.supports||scene,patch=supports.some(f=>W.coplanarContact(face,f)&&face.points.some((p,i)=>W.sharedIntervals(p,face.points[(i+1)%face.points.length],[f]).length)),hosted=face.supportedExtrusion||face.feature||patch;
-  let shape=W.extrude(face,amount,{facets:true,completeBoundary:!hosted,hostedPatch:patch&&!face.feature&&!face.supportedExtrusion,direction:start.direction,supports,ground:start.base?.faces});if(hosted)shape.cap.supportedExtrusion=true;conformBase(face,shape.cap,shape.sides,start.base);alignReturns(face,shape.cap,shape.sides,scene);conformFooting(face,shape.cap,shape.sides,scene,start.base);shape.sides=planarExtrusionReturns(shape.sides);const fitMoves=fit?fit(shape.cap,shape.sides):null;const base=start.base?B.extrudeWall(start.base,face,shape.cap):null;shape=W.roofExtrusion(face,amount,shape,start.roof,{direction:start.direction});
+  let shape=W.extrude(face,amount,{facets:true,completeBoundary:!hosted,hostedPatch:patch&&!face.feature&&!face.supportedExtrusion,direction:start.direction,supports,ground:start.base?.faces});if(hosted)shape.cap.supportedExtrusion=true;const swept=shape.cap.points.map(p=>({x:p.x,y:p.y,z:p.z}));conformBase(face,shape.cap,shape.sides,start.base);alignReturns(face,shape.cap,shape.sides,scene);conformFooting(face,shape.cap,shape.sides,scene,start.base);followRetained(shape.cap,swept);shape.sides=planarExtrusionReturns(shape.sides);const fitMoves=fit?fit(shape.cap,shape.sides):null;const base=start.base?B.extrudeWall(start.base,face,shape.cap):null;shape=W.roofExtrusion(face,amount,shape,start.roof,{direction:start.direction});
   const trim=extrusionTrim(scene,[face],[shape.cap],start.keepTrimStatic),trimmed=W.trimExtrusion(shape.sides,scene.filter(f=>!trim.ids.has(f.id)));trimmed.replacements.push(...trim.replacements);trimmed.sides=K.compactSurfaces(trimmed.sides);K.attachBoundaryCurves(trimmed.replacements.flatMap(r=>r.pieces),[shape.cap,...trimmed.sides]);
   const result=validateResult({cap:shape.cap,sides:trimmed.sides,replacements:trimmed.replacements,base,amount,fitMoves});
   if(!fit){previousAmount=amount;previous=copy(result);}return result;
@@ -231,7 +242,7 @@ function reconcileChimneys(state,edits){
 function prepareEdits(state,edits,before={}){const reconciled=reconcileChimneys(state,edits),next=reconciled===edits?copy(edits):reconciled;validateEdits(next,before,true);W.restoreCreatedSurfaceWire(next,before);W.followWireExclusions(next,before);W.localizeWireMasks(next);settleDeletedWire({...state,wallEdits:next});return next;}
 // Deleted faces stop drawing lines (W.settleDeletedWire). The lines a drawing's live regions and the generated
 // walls draw themselves are not kept a second time as free-standing lines.
-function settleDeletedWire(state){const edits=state?.wallEdits;if(!edits)return false;let cover=[];try{cover=collect(state,state.alignedWalls||[]).filter(f=>f.draft||String(f.id).startsWith('wall:'));}catch(e){cover=[];}return W.settleDeletedWire(edits,cover);}
+function settleDeletedWire(state){const edits=state?.wallEdits;if(!edits)return false;let cover=[];try{cover=collect(state,state.alignedWalls||[]).filter(f=>f.draft||String(f.id).startsWith('wall:'));}catch(e){cover=[];}const base=(edits.$base||state.base)?.faces||[];return W.settleDeletedWire(edits,[...cover,...base.filter(f=>!f.curves?.length)]);}
 // unshared: the caller guarantees edits and before have no objects in common
 // (e.g. prepareEdits' fresh copy), so a prior surface can be compared when
 // needed instead of first serializing every one; nothing here changes before.
@@ -248,5 +259,5 @@ function validateEdits(edits,before={},unshared=false){
   Object.assign(f,parts[0]);return [f,...parts.slice(1)];});}
  if(edits.$base&&!same(edits.$base.faces,before.$base?.faces))for(const f of edits.$base.faces)K.triangles(f.points,f.holes||[]);
 }
-const api={version:2,settleDeletedWire,indexOpenings,cutOpenings,draftFace,repairFaceIdentities,restoreDraftFaceOwnership,reconcileChimneys,prepareEdits,collect,createExtrusion,createExtrusions,validateResult,validateEdits,transaction,jsonCopy:copy};if(node)module.exports=api;else root.ExteriorModel=api;
+const api={version:2,settleDeletedWire,followRetained,indexOpenings,cutOpenings,draftFace,repairFaceIdentities,restoreDraftFaceOwnership,reconcileChimneys,prepareEdits,collect,createExtrusion,createExtrusions,validateResult,validateEdits,transaction,jsonCopy:copy};if(node)module.exports=api;else root.ExteriorModel=api;
 })(typeof window==='undefined'?globalThis:window);

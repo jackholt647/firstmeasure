@@ -379,3 +379,36 @@ test('a deleted face stops being a source of lines: what it still shows becomes 
  // Brought back (Shift+F), it draws its own outline again.
  pair.$surfaces[0].deleted=false;W.settleDeletedWire(pair);assert.equal(pair.$surfaces[0].noWire,undefined);
 });
+
+test('a line is stored once: a free-standing line along a face, and a drawing\'s leftover line along a face, are not kept beside it',()=>{
+ const W=G,far=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),wall=()=>({id:'wall',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(0,0,3)],holes:[]});
+ const lines=e=>{const g=W.surfaceWire(e),at=new Map(g.nodes.map(n=>[n.id,n]));return g.edges.map(x=>[at.get(x.a),at.get(x.b)]);},has=(e,a,b)=>lines(e).some(pair=>pair.some(q=>far(q,a)<1e-9)&&pair.some(q=>far(q,b)<1e-9));
+ // A face made from four drawn lines: the lines lay beside it, and stayed behind when the face was pushed in.
+ const edits={$surfaces:[wall()],$loose:{points:[p(0,0,0),p(4,0,0),p(2,0,0),p(9,9,9)],edges:[[p(0,0,0),p(4,0,0)],[p(4,0,0),p(4,0,3)],[p(-2,0,0),p(1,0,0)],[p(0,0,3),p(0,5,3)]]}};
+ assert.equal(W.settleDeletedWire(edits),true);
+ assert.deepEqual(edits.$loose.edges.map(pair=>pair.map(q=>[q.x,q.y,q.z].join(','))),[['-2,0,0','0,0,0'],['0,0,3','0,5,3']],'the copies are gone; a line is cut back to the part no face draws; a line of its own stays');
+ assert.ok(has(edits,p(0,0,0),p(4,0,0))&&has(edits,p(4,0,0),p(4,0,3)),'the face still draws them');assert.ok(has(edits,p(-2,0,0),p(0,0,0))&&has(edits,p(0,0,3),p(0,5,3)),'nothing drawn is lost');
+ const kept=edits.$loose.points.map(q=>[q.x,q.y,q.z].join(','));assert.ok(kept.includes('2,0,0'),'a point placed on an edge stays');assert.ok(kept.includes('9,9,9'));assert.ok(!kept.includes('4,0,0'),'a point that is the face corner is not kept twice');
+ assert.equal(W.settleDeletedWire(edits),false,'settled once');
+ // Pushed in, the face takes its lines with it: nothing is left where it stood.
+ for(const q of edits.$surfaces[0].points)q.y=1;W.settleDeletedWire(edits);assert.ok(!has(edits,p(0,0,0),p(4,0,0))&&!has(edits,p(4,0,0),p(4,0,3)));
+ // Deleted, the face gives its lines back as free-standing lines.
+ edits.$surfaces[0].deleted=true;W.settleDeletedWire(edits);assert.ok(edits.$loose.edges.some(pair=>pair.every(q=>q.y===1&&q.z===0)));
+ // A cover (the base, a generated wall, a drawing's region) draws its outline too.
+ const based={$surfaces:[],$loose:{points:[],edges:[[p(0,0,0),p(4,0,0)]]}};W.settleDeletedWire(based,[{id:'base',points:[p(0,0,0),p(4,0,0),p(4,4,0),p(0,4,0)]}]);assert.deepEqual(based.$loose.edges,[]);
+ // A drawing: the upper wall is its region; the line left of a region deleted below it runs down the side of a face.
+ const frame={origin:p(0,0,0),u:p(1,0,0),v:p(0,0,1),n:p(0,-1,0)},node=(id,x,y)=>({id,x,y,z:0}),ring=ids=>ids.map(id=>({nodeId:id,...{p0:{x:0,y:3},p1:{x:4,y:3},p2:{x:4,y:6},p3:{x:0,y:6}}[id]}));
+ const drawing=()=>({frame,sketch:{nodes:[node('p0',0,3),node('p1',4,3),node('p2',4,6),node('p3',0,6),node('p4',0,0),node('p5',2,1)],edges:[{id:'e0',a:'p0',b:'p1'},{id:'e1',a:'p1',b:'p2'},{id:'e2',a:'p2',b:'p3'},{id:'e3',a:'p3',b:'p0'},{id:'e4',a:'p0',b:'p4'},{id:'e5',a:'p4',b:'p5'}]},faces:[{id:'upper',points:ring(['p0','p1','p2','p3']),holes:[]}]});
+ const world=q=>W.fromFrame(frame,q);assert.ok(far(world({x:4,y:3}),p(4,0,3))<1e-9,'the frame maps the drawing onto the wall plane');
+ const withDrawing={$surfaces:[wall()],$drafts:{d:drawing()}};assert.equal(W.settleDeletedWire(withDrawing),true);const d=withDrawing.$drafts.d;
+ assert.deepEqual(d.sketch.edges.map(e=>e.id),['e0','e1','e2','e3','e5'],'the line down the face\'s side is the face\'s; the region\'s own lines and a line across the face stay');
+ assert.ok(d.sketch.nodes.some(n=>n.id==='p4'),'its end still carries another line');assert.equal(d.faces.length,1);
+});
+test('the points a pushed face keeps on its edges are fitted with its corners',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model.js');
+ // The sweep put every point 0.6 m in at the old height; fitting to the ground then raised the two bottom corners
+ // by different amounts. The kept points went on standing at the old height, under the wall.
+ const swept=[p(0,.6,0),p(4,.6,0),p(4,.6,3),p(0,.6,3)],cap={points:[p(0,.6,.1),p(4,.6,.3),p(4,.6,3),p(0,.6,3)],retainedPoints:[p(0,.6,0),p(2,.6,0),p(4,.6,0),p(4,.6,3),p(9,9,9)]};
+ M.followRetained(cap,swept);
+ assert.deepEqual(cap.retainedPoints.map(q=>[q.x,q.y,+q.z.toFixed(9)]),[[0,.6,.1],[2,.6,.2],[4,.6,.3],[4,.6,3],[9,9,9]]);
+});
