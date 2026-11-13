@@ -80,9 +80,13 @@ class PruneTests(unittest.TestCase):
             make_release(self.releases, f'{i:040x}', 100 - i, self.now)
         (self.releases / 'README').write_text('not a release')
         (self.releases / 'x').mkdir()
+        for name in ('cluster-v1.0.0', 'preprod-r1-20260907', '1b09f15', '.urgent-20260909.ABC'):
+            make_release(self.releases, name, 2000, self.now)
         prune_releases.prune(self.root, 2, 15, now=self.now)
         self.assertIn('README', self.names())
         self.assertIn('x', self.names())
+        for name in ('cluster-v1.0.0', 'preprod-r1-20260907', '1b09f15', '.urgent-20260909.ABC'):
+            self.assertIn(name, self.names())
 
 
 if __name__ == '__main__':
