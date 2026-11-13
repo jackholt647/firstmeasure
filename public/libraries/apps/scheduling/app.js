@@ -11726,6 +11726,9 @@
         viewMode = remembered;
         routeSpecifiedView = true;
         restoredFromPreference = true;
+      } else if (isMobileScheduleLayout()) {
+        // Nothing chosen yet: a phone starts on three days.
+        viewMode = '4day';
       }
     }
     const routeDateValue = parseRouteDate(route.date);
