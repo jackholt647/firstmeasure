@@ -3500,6 +3500,25 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   });
 
+  // The completed report's roof line types and line totals as its PDF prints them, for the customer 3D viewer:
+  // model_data.xml carries only the export's coarser line types (FM-455). Same organization check as exterior-model.
+  app.get("/projects/:id/roof-lines", async (request) => {
+    const auth = await requirePlatformAuth(request, { permission: 'view_reports' });
+    const projectId = getProjectId(request.params);
+    const manifest = await readManifest(projectId);
+    const legacy = buildLegacyManifest(manifest);
+    const email = String(auth.identity.email || '').toLowerCase();
+    if (String(legacy.organization_id || '') !== auth.orgId &&
+        ![legacy.owner_email, legacy.issuer_email].some(value => email && String(value || '').toLowerCase() === email)) {
+      throw new FirstMeasureError('project_forbidden', 403, 'This project is not available to this account.');
+    }
+    const { measurementPayloadFromSavedReport, reportHeldForRelease } = await import("../platform/publication/firstmeasure-datasets.js");
+    if (String(manifest.status ?? '').toLowerCase() !== 'completed' || reportHeldForRelease(manifest)) return { ok: true, edgeTypes: [], measurements: {} };
+    const { reportEdgeTypes } = await import("../platform/widgets/roof-classifications.js");
+    const [pdfState, xml] = await Promise.all([readPdfState(projectId), readStoredXml(projectId).then(file => file.content.toString("utf8"), () => "")]);
+    return { ok: true, edgeTypes: reportEdgeTypes(pdfState, xml), measurements: measurementPayloadFromSavedReport(pdfState) };
+  });
+
   // The completed full-house model for the customer 3D viewer: only the published exterior report geometry and the
   // roof covering, never editor state or images. Same organization check as exterior-measurements.
   app.get("/projects/:id/exterior-model", async (request) => {
