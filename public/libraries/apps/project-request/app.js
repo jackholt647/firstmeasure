@@ -10253,20 +10253,11 @@ window.PlatformCommerce.onReady(async function(){
     if(actionAnchor && actionAnchor.nextElementSibling!==actions)actionAnchor.after(actions);
     overlay.classList.toggle('firstmeasure-unordered-overview',requestedWorkflow==='project' && !expandedPlatformEnabled() && !hasReportOrdered());
     actions.hidden=requestedWorkflow!=='project' || !addressSelected || !selectedType;
-    // A report order starts from the measurement ordering widget beneath these fields, not from here.
-    // Appointments are booked in the Schedule tab, not from here.
-    const choices=[['roof',(globalThis.PlatformLanguage?.text('project-request','overview_order_report','Order report') ?? 'Order report'),false],['proposal',(globalThis.PlatformLanguage?.text('project-request','overview_build_proposal','Build proposal') ?? 'Build proposal'),actionAvailable('proposal')]].filter(item=>item[2]);
-    const signature=choices.map(item=>item[0]+':'+item[1]).join(',');
-    if (actions.dataset.choices!==signature) {
-      actions.dataset.choices=signature;actions.replaceChildren();
-      for (const [key,label] of choices) {const button=document.createElement('button');button.type='button';button.className='r-toggle-btn';const icon=document.createElement('i');icon.className='fas '+({roof:'fa-ruler-combined',proposal:'fa-file-signature'}[key]);icon.setAttribute('aria-hidden','true');button.append(icon,document.createTextNode(label));
-        button.onclick=()=>{
-          if (key==='roof') {
-            startMeasurementOrder();
-          } else document.querySelector('.r-toggle-btn[data-report-choice="'+key+'"]')?.click();
-        };actions.append(button);
-      }
-    }
+    // Nothing starts from here any more: a report order starts from the measurement ordering widget beneath these
+    // fields, appointments are booked in the Schedule tab (FM-382) and proposals in the Proposals tab (FM-410; the
+    // old "Build proposal" here opened the order form's retired proposal workspace).
+    if (actions.childElementCount) actions.replaceChildren();
+    delete actions.dataset.choices;
     decorateProjectContactActions(details);
     if (!details.__contactActions) {details.addEventListener('click',handleProjectContactAction);details.__contactActions=true;}
     let picker=details.querySelector('.r-workflow-project-picker');
