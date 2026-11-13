@@ -22,7 +22,9 @@ async function mount(page, lists) {
   await page.evaluate((lists) => {
     window.__signed = [];
     window.__toasts = [];
-    window.Portal = { currentUser: { id: 'user_1', name: 'Sam Signer' }, ui: { showToast: (title, message, ok) => window.__toasts.push({ title, message, ok }) } };
+    // The portal's current user carries no name of its own; the page's __APP does (as on dev).
+    window.__APP = { userId: 'user_1', userName: 'Sam Signer' };
+    window.Portal = { currentUser: { id: 'user_1', user_id: 'user_1' }, ui: { showToast: (title, message, ok) => window.__toasts.push({ title, message, ok }) } };
     window.FirstMateEmbeddableApps = { registerApp: (definition) => { window.__app = definition; } };
     window.CrewAPI = { projects: {
       checklists: async () => ({ checklists: lists, deleted_checklists: [], permissions: {} }),
