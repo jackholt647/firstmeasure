@@ -789,7 +789,7 @@
       .dash-routing-placement-tile span{margin-top:4px;font-size:9px;font-weight:850;color:#667085}
       .dash-routing-placement-empty{font-size:11px;font-weight:850;color:#98a2b3;padding:14px 3px}
       .dash-schedule-split.mobile-routing .prs-resource-time-head{font-size:9px;line-height:1.05}
-      .dash-event-popover{z-index:2147483000!important;top:0!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:100dvh!important;max-width:none!important;max-height:none!important;border:0;border-radius:0;box-shadow:none;padding:16px;padding-top:max(16px,env(safe-area-inset-top));gap:12px}
+      .dash-event-popover:not(.prs-event-tray){z-index:2147483000!important;top:0!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:100dvh!important;max-width:none!important;max-height:none!important;border:0;border-radius:0;box-shadow:none;padding:16px;padding-top:max(16px,env(safe-area-inset-top));gap:12px}
       .dash-event-time-options{gap:10px 14px}.dash-event-switch{white-space:normal;min-width:0}
       .dash-event-pop-head>.dash-event-time-fields,.dash-event-pop-head>.dash-event-time-options,.dash-event-pop-head>.dash-event-recurrence-fields{grid-column:1/-1}
 
@@ -7167,65 +7167,74 @@
       </div>
     `;
     document.body.appendChild(pop);
-    // The editor may use the whole scheduling body (calendar and rail) so it
-    // can sit beside the item it edits instead of covering it.
-    const schedulingViewport = rootEl?.querySelector('.dash-body')
-      || rootEl?.querySelector('.dash-left')
-      || rootEl?.querySelector('#dashEventCalendarView')
-      || rootEl;
-    const rawContentRect = schedulingViewport?.getBoundingClientRect?.()
-      || { left: 8, right: window.innerWidth - 8, top: 8, bottom: window.innerHeight - 8 };
-    const contentRect = {
-      left:Math.max(0, Number(rawContentRect.left || 0)),
-      right:Math.min(window.innerWidth, Number(rawContentRect.right || window.innerWidth)),
-      top:Math.max(0, Number(rawContentRect.top || 0)),
-      bottom:Math.min(window.innerHeight, Number(rawContentRect.bottom || window.innerHeight))
-    };
-    // A floating placement banner (bottom of the calendar) stays readable:
-    // the editor keeps above it instead of covering its text and Cancel.
-    const bannerRect = rootEl?.querySelector?.('[data-placement-banner]')?.getBoundingClientRect?.();
-    if (bannerRect && bannerRect.height > 0 && bannerRect.top > contentRect.top + (contentRect.bottom - contentRect.top) / 2) {
-      contentRect.bottom = Math.min(contentRect.bottom, bannerRect.top - 6);
+    // Phones: on the calendar the editor is the shared bottom tray, and the
+    // calendar scrolls so the event clears it (PlatformScheduleView).
+    const trayed = isMobileScheduleLayout() && window.PlatformScheduleView?.presentEventTray?.(pop, {
+      anchor:anchor || editorAnchorFor(draft.id),
+      eventId:draft.id,
+      onClose:() => dismissEventEditor()
+    }) === true;
+    if (!trayed) {
+      // The editor may use the whole scheduling body (calendar and rail) so it
+      // can sit beside the item it edits instead of covering it.
+      const schedulingViewport = rootEl?.querySelector('.dash-body')
+        || rootEl?.querySelector('.dash-left')
+        || rootEl?.querySelector('#dashEventCalendarView')
+        || rootEl;
+      const rawContentRect = schedulingViewport?.getBoundingClientRect?.()
+        || { left: 8, right: window.innerWidth - 8, top: 8, bottom: window.innerHeight - 8 };
+      const contentRect = {
+        left:Math.max(0, Number(rawContentRect.left || 0)),
+        right:Math.min(window.innerWidth, Number(rawContentRect.right || window.innerWidth)),
+        top:Math.max(0, Number(rawContentRect.top || 0)),
+        bottom:Math.min(window.innerHeight, Number(rawContentRect.bottom || window.innerHeight))
+      };
+      // A floating placement banner (bottom of the calendar) stays readable:
+      // the editor keeps above it instead of covering its text and Cancel.
+      const bannerRect = rootEl?.querySelector?.('[data-placement-banner]')?.getBoundingClientRect?.();
+      if (bannerRect && bannerRect.height > 0 && bannerRect.top > contentRect.top + (contentRect.bottom - contentRect.top) / 2) {
+        contentRect.bottom = Math.min(contentRect.bottom, bannerRect.top - 6);
+      }
+      const width = Math.min(420, Math.max(0, Number(contentRect.right || window.innerWidth) - Number(contentRect.left || 0) - 16), window.innerWidth - 16);
+      const height = Math.min(620, Math.max(0, Number(contentRect.bottom || window.innerHeight) - Number(contentRect.top || 0) - 16), window.innerHeight - 16);
+      pop.style.width = `${width}px`;
+      pop.style.height = `${height}px`;
+      const minLeft = Math.max(8, Number(contentRect.left || 8) + 8);
+      const maxLeft = Math.max(minLeft, Math.min(window.innerWidth - width - 8, Number(contentRect.right || window.innerWidth) - width - 8));
+      const minTop = Math.max(8, Number(contentRect.top || 8) + 8);
+      const maxTop = Math.max(minTop, Math.min(window.innerHeight - height - 8, Number(contentRect.bottom || window.innerHeight) - height - 8));
+      // The visible part of the item (a tall bar can extend past the screen).
+      const itemRect = rect ? {
+        left:Math.max(0, rect.left), right:Math.min(window.innerWidth, rect.right),
+        top:Math.max(0, rect.top), bottom:Math.min(window.innerHeight, rect.bottom)
+      } : null;
+      const overlapWith = (x, y) => {
+        if (!itemRect) return 0;
+        const w = Math.max(0, Math.min(x + width, itemRect.right) - Math.max(x, itemRect.left));
+        const h = Math.max(0, Math.min(y + height, itemRect.bottom) - Math.max(y, itemRect.top));
+        return w * h;
+      };
+      let left = maxLeft;
+      let top = Math.max(minTop, Math.min(maxTop, 90));
+      if (itemRect) {
+        const centeredTop = Math.max(minTop, Math.min(maxTop, itemRect.top + ((itemRect.bottom - itemRect.top) / 2) - (height / 2)));
+        // Beside the item (left first, then right); otherwise the spot that
+        // covers the least of it, including above/below it.
+        const candidates = [
+          { x:itemRect.left - width - 10, y:centeredTop },
+          { x:itemRect.right + 10, y:centeredTop },
+          { x:minLeft, y:centeredTop },
+          { x:maxLeft, y:centeredTop },
+          { x:Math.max(minLeft, Math.min(maxLeft, itemRect.left)), y:itemRect.bottom + 10 },
+          { x:Math.max(minLeft, Math.min(maxLeft, itemRect.left)), y:itemRect.top - height - 10 }
+        ].map((spot) => ({ x:Math.max(minLeft, Math.min(maxLeft, spot.x)), y:Math.max(minTop, Math.min(maxTop, spot.y)) }));
+        const best = candidates.reduce((winner, spot) => (overlapWith(spot.x, spot.y) < overlapWith(winner.x, winner.y) ? spot : winner), candidates[0]);
+        left = best.x;
+        top = best.y;
+      }
+      pop.style.left = `${left}px`;
+      pop.style.top = `${top}px`;
     }
-    const width = Math.min(420, Math.max(0, Number(contentRect.right || window.innerWidth) - Number(contentRect.left || 0) - 16), window.innerWidth - 16);
-    const height = Math.min(620, Math.max(0, Number(contentRect.bottom || window.innerHeight) - Number(contentRect.top || 0) - 16), window.innerHeight - 16);
-    pop.style.width = `${width}px`;
-    pop.style.height = `${height}px`;
-    const minLeft = Math.max(8, Number(contentRect.left || 8) + 8);
-    const maxLeft = Math.max(minLeft, Math.min(window.innerWidth - width - 8, Number(contentRect.right || window.innerWidth) - width - 8));
-    const minTop = Math.max(8, Number(contentRect.top || 8) + 8);
-    const maxTop = Math.max(minTop, Math.min(window.innerHeight - height - 8, Number(contentRect.bottom || window.innerHeight) - height - 8));
-    // The visible part of the item (a tall bar can extend past the screen).
-    const itemRect = rect ? {
-      left:Math.max(0, rect.left), right:Math.min(window.innerWidth, rect.right),
-      top:Math.max(0, rect.top), bottom:Math.min(window.innerHeight, rect.bottom)
-    } : null;
-    const overlapWith = (x, y) => {
-      if (!itemRect) return 0;
-      const w = Math.max(0, Math.min(x + width, itemRect.right) - Math.max(x, itemRect.left));
-      const h = Math.max(0, Math.min(y + height, itemRect.bottom) - Math.max(y, itemRect.top));
-      return w * h;
-    };
-    let left = maxLeft;
-    let top = Math.max(minTop, Math.min(maxTop, 90));
-    if (itemRect) {
-      const centeredTop = Math.max(minTop, Math.min(maxTop, itemRect.top + ((itemRect.bottom - itemRect.top) / 2) - (height / 2)));
-      // Beside the item (left first, then right); otherwise the spot that
-      // covers the least of it, including above/below it.
-      const candidates = [
-        { x:itemRect.left - width - 10, y:centeredTop },
-        { x:itemRect.right + 10, y:centeredTop },
-        { x:minLeft, y:centeredTop },
-        { x:maxLeft, y:centeredTop },
-        { x:Math.max(minLeft, Math.min(maxLeft, itemRect.left)), y:itemRect.bottom + 10 },
-        { x:Math.max(minLeft, Math.min(maxLeft, itemRect.left)), y:itemRect.top - height - 10 }
-      ].map((spot) => ({ x:Math.max(minLeft, Math.min(maxLeft, spot.x)), y:Math.max(minTop, Math.min(maxTop, spot.y)) }));
-      const best = candidates.reduce((winner, spot) => (overlapWith(spot.x, spot.y) < overlapWith(winner.x, winner.y) ? spot : winner), candidates[0]);
-      left = best.x;
-      top = best.y;
-    }
-    pop.style.left = `${left}px`;
-    pop.style.top = `${top}px`;
     pop.querySelectorAll('[data-event-type]').forEach((btn) => btn.addEventListener('click', () => {
       const id = btn.dataset.eventType || '';
       const meta = eventTypeMeta(id);
@@ -7648,6 +7657,8 @@
       showModeSwitch: false,
       showToolbar: false,
       mobileLayout: isMobileScheduleLayout(),
+      // Phones: tap to place or select, pinch to zoom, editor as a bottom tray.
+      touchControls: isMobileScheduleLayout(),
       date: anchorDate,
       shortRangeDayCount: isMobileScheduleLayout() ? 3 : 4,
       slotMinutes: 15,
