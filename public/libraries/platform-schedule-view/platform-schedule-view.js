@@ -22,6 +22,13 @@
   const travelCache = new Map();
   // A drag that ends where it started, within this travel, is still a click.
   const CLICK_WOBBLE_PX = 16;
+  // Touch scroll momentum (FM-438): velocity is read from the last moves
+  // (px per ms), and decays like a page fling until it is too slow to see.
+  const TOUCH_GLIDE_SAMPLE_MS = 100;
+  const TOUCH_GLIDE_MIN_VELOCITY = 0.12;
+  const TOUCH_GLIDE_MAX_VELOCITY = 6;
+  const TOUCH_GLIDE_STOP_VELOCITY = 0.02;
+  const TOUCH_GLIDE_DECAY_MS = 325;
   const DRAG_AUTO_SCROLL_EDGE_PX = 44;
   const DRAG_AUTO_SCROLL_MAX_STEP_PX = 22;
   // Timed items lasting a day or more read as spans (all-day band / month
@@ -3458,8 +3465,59 @@
       const dy = Number(event.clientY) - pendingTouchHold.startY;
       if (Math.hypot(dx, dy) > POINTER_DRAG_THRESHOLD) cancelTouchHold();
     };
+    // The surface is touch-action:none (so hold-to-drag and swipe navigation
+    // own the finger), which means we scroll it by hand and the browser adds
+    // no momentum. A flick keeps gliding after the finger lifts, slowing like
+    // a page scroll, and the next touch stops it (that touch is not a tap).
+    let touchGlide = null;
+    const stopTouchGlide = () => {
+      if (!touchGlide) return false;
+      window.cancelAnimationFrame(touchGlide.frame);
+      touchGlide = null;
+      return true;
+    };
+    const touchVelocity = (gesture) => {
+      const now = performance.now();
+      const samples = gesture.samples.filter((sample) => now - sample.t <= TOUCH_GLIDE_SAMPLE_MS);
+      if (samples.length < 2) return 0;
+      const first = samples[0];
+      const last = samples[samples.length - 1];
+      // The finger stopped before lifting: no glide.
+      if (now - last.t > TOUCH_GLIDE_SAMPLE_MS / 2) return 0;
+      const elapsed = Math.max(1, last.t - first.t);
+      return (first.y - last.y) / elapsed;
+    };
+    const startTouchGlide = (velocity) => {
+      stopTouchGlide();
+      const scroller = touchGestureScroller;
+      if (!scroller || Math.abs(velocity) < TOUCH_GLIDE_MIN_VELOCITY) return;
+      const glide = {
+        frame:0,
+        velocity:Math.max(-TOUCH_GLIDE_MAX_VELOCITY, Math.min(TOUCH_GLIDE_MAX_VELOCITY, velocity)),
+        top:Number(scroller.scrollTop || 0),
+        at:performance.now()
+      };
+      const step = (now) => {
+        if (touchGlide !== glide) return;
+        if (!scroller.isConnected || listenerSignal?.aborted) { touchGlide = null; return; }
+        const elapsed = Math.max(0, Math.min(64, now - glide.at));
+        glide.at = now;
+        const maxTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+        glide.top = Math.max(0, Math.min(maxTop, glide.top + glide.velocity * elapsed));
+        scroller.scrollTop = glide.top;
+        // Tell scroll-position memory (the month view keeps where the person
+        // scrolled to) that this movement is still the person's own.
+        scroller.dispatchEvent(new CustomEvent('prs-touch-glide'));
+        glide.velocity *= Math.exp(-elapsed / TOUCH_GLIDE_DECAY_MS);
+        if (Math.abs(glide.velocity) < TOUCH_GLIDE_STOP_VELOCITY || glide.top <= 0 || glide.top >= maxTop) { touchGlide = null; return; }
+        glide.frame = window.requestAnimationFrame(step);
+      };
+      touchGlide = glide;
+      glide.frame = window.requestAnimationFrame(step);
+    };
     const beginTouchGesture = (event) => {
       if (!touchSwipeNavigation || event.pointerType !== 'touch') return;
+      const stoppedGlide = stopTouchGlide();
       touchGesture = {
         pointerId:event.pointerId,
         startX:event.clientX,
@@ -3467,6 +3525,8 @@
         lastY:event.clientY,
         startedAt:Date.now(),
         startScrollTop:Number(touchGestureScroller?.scrollTop || 0),
+        samples:[{ t:performance.now(), y:Number(event.clientY) }],
+        stoppedGlide,
         intent:''
       };
     };
@@ -3487,6 +3547,9 @@
       if (touchGesture.intent === 'scroll') {
         if (touchGestureScroller) touchGestureScroller.scrollTop = Math.max(0, touchGesture.startScrollTop - dy);
         touchGesture.lastY = event.clientY;
+        const now = performance.now();
+        touchGesture.samples.push({ t:now, y:Number(event.clientY) });
+        while (touchGesture.samples.length > 2 && now - touchGesture.samples[0].t > TOUCH_GLIDE_SAMPLE_MS) touchGesture.samples.shift();
         event.preventDefault();
       } else if (touchGesture.intent === 'navigate') {
         cancelTouchHold();
@@ -3497,6 +3560,12 @@
       if (!touchGesture || touchGesture.pointerId !== event.pointerId) return false;
       const gesture = touchGesture;
       touchGesture = null;
+      if (gesture.intent === 'scroll' && !drag) {
+        startTouchGlide(touchVelocity(gesture));
+        return false;
+      }
+      // A touch that only stopped a glide is not a tap on what lies under it.
+      if (gesture.stoppedGlide && !gesture.intent && !drag) suppressTouchGestureClickUntil = Date.now() + 350;
       if (gesture.intent !== 'navigate' || drag) return false;
       const dx = Number(event.clientX) - gesture.startX;
       const dy = Number(event.clientY) - gesture.startY;
