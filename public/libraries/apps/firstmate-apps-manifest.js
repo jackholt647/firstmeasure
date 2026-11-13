@@ -376,7 +376,7 @@
       requiresContext: ['project'],
       bundles: [
         versionedBundle('../crew-api/crew-api.js', '20261111-offline-uploads'),
-        versionedBundle('checklists/app.js', '20261111-offline-wave3')
+        versionedBundle('checklists/app.js', '20261113-fm446-phone-dropdowns')
       ]
     },
     {
