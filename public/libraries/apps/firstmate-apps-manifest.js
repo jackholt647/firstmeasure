@@ -342,7 +342,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('project-schedule/panel.js', '20261113-fm440-phone-3day')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20261113-fm441-touch-controls')]
     },
     {
       id: 'project.comms',
@@ -388,7 +388,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
-      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261113-fm440-phone-3day')]
+      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261113-fm441-touch-controls')]
     },
     {
       id: 'portal.training',
