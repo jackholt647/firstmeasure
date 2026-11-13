@@ -7949,21 +7949,24 @@
           customer_show_crew: appointmentScheduleDraft.customer_show_crew === true,
           customer_description: clean(appointmentScheduleDraft.customer_description),
         }, schedulingConfig);
-    showPlacementSaving();
+    // Drawn first: the appointment shows where it was placed before the save
+    // answers; a failed or refused save puts the calendar back (and gives the
+    // draft back when nothing was stored).
+    if (eventDraftPopoverId === String(event.id || '') || (!eventEditorEventId && !eventDraftPopoverId)) closeEventDraftPopover();
+    const shownPlacement = showPlacementLocally(project, [event]);
     try {
-      const saved = await placementSaveRequest(Scheduling.saveProjectEvent(orgId(), project, projectEventSavePayload(event), schedulingConfig));
-      appointmentScheduleDraft = null;
-      appointmentScheduleProjectId = '';
-      appointmentScheduleEventId = '';
-      appointmentScheduleMenuEventId = '';
-      if (eventDraftPopoverId === String(event.id || '') || (!eventEditorEventId && !eventDraftPopoverId)) closeEventDraftPopover();
-      // Placed: draft, banner and rail tile update before the reload.
-      if (existing) {
-        updateLocalCalendarEvent(event.id, event);
-        applyRelatedEvents(saved);
-        events = visibleEvents();
+      let saved = null;
+      try {
+        saved = await placementSaveRequest(Scheduling.saveProjectEvent(orgId(), project, projectEventSavePayload(event), schedulingConfig));
+      } catch (error) {
+        shownPlacement.putBack();
+        if (!isStaleSaveError(error) && (placementSaveTimedOut(error) || placementNetworkFailed(error))) shownPlacement.restageIfWaiting();
+        throw error;
       }
-      render();
+      updateLocalCalendarEvent(event.id, saved?.event || event);
+      applyRelatedEvents(saved);
+      events = visibleEvents();
+      refreshActiveScheduleSurface();
       await loadData({ force: true });
       const assigneeName = currentAssignmentId(event) ? salesAssignmentLabel(event) : '';
       const when = fmtDayTime(eventStart(event));
@@ -7985,19 +7988,26 @@
    * as soon as the save itself starts. */
   // (placementSaveInFlight / placementSavingShown are declared with the other
   // placement state at the top.)
+  // A placement drawn before its save answers has nothing left to guard:
+  // releasePlacementSave lets the next placement start while it saves.
+  let placementSaveRun = 0;
   async function runPlacementSave(task){
     if (placementSaveInFlight) { placementSaveBusy('save'); return undefined; }
     placementSaveInFlight = true;
+    const run = ++placementSaveRun;
     rootEl?.classList.add('dash-placement-busy');
     suppressPlacementFollowUpClick();
     try {
       return await task();
     } finally {
-      placementSaveInFlight = false;
-      placementSavingShown = false;
-      rootEl?.classList.remove('dash-placement-busy');
-      if (rootEl?.querySelector('[data-placement-banner][data-saving]')) refreshPlacementBanner();
+      if (run === placementSaveRun) releasePlacementSave();
     }
+  }
+  function releasePlacementSave(){
+    placementSaveInFlight = false;
+    placementSavingShown = false;
+    rootEl?.classList.remove('dash-placement-busy');
+    if (rootEl?.querySelector('[data-placement-banner][data-saving]')) refreshPlacementBanner();
   }
   function showPlacementSaving(){
     placementSavingShown = true;
@@ -8187,17 +8197,28 @@
     const waitingPredecessors = existing && Scheduling.eventDependencies
       ? Scheduling.eventDependencies(existing).map((dep) => allEvents.find((item) => String(item.id || '') === String(dep.event_id || ''))).filter((item) => item && !eventIsScheduled(item))
       : [];
-    showPlacementSaving();
+    // Drawn first: the draft, banner and rail tile go and the item shows
+    // where it was placed (linked items moved too) before the save answers.
+    // A failed or refused save puts the calendar back, and a save that got no
+    // answer gives the draft back so ✓ can be tried again.
+    const shownPlacement = showPlacementLocally(project, [event, ...(related?.changes || [])]);
+    let saved = null;
     try {
-      const saved = await placementSaveRequest(Scheduling.saveProjectEvent(orgId(), project, projectEventSavePayload(event), schedulingConfig));
-      // The placement is done: the draft, banner and rail tile go at once
-      // (with the items under it where the save put them); linked moves
-      // finish behind it.
-      updateLocalCalendarEvent(event.id, event);
+      saved = await placementSaveRequest(Scheduling.saveProjectEvent(orgId(), project, projectEventSavePayload(event), schedulingConfig));
+    } catch (error) {
+      shownPlacement.putBack();
+      if (isStaleSaveError(error)) { await reloadAfterStalePlacement(error, existing ? event.id : ''); return; }
+      if (placementSaveFailureToast(error)) { shownPlacement.restageIfWaiting(); return; }
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), scheduleSaveErrorMessage(error, 'Could not schedule this production work.'), false);
+      return;
+    }
+    try {
+      // The items under it go where the save put them; linked moves finish
+      // behind it.
+      updateLocalCalendarEvent(event.id, saved?.event || event);
       applyRelatedEvents(saved);
       events = visibleEvents();
-      clearPlacementSelection();
-      render();
+      refreshActiveScheduleSurface();
       const linked = related?.changes?.length ? await saveRelatedRescheduleChanges(project, related.changes) : null;
       // Placing onto an assignee who already has work then says so (the lane
       // also marks both chips double-booked).
@@ -8213,10 +8234,55 @@
         !(related?.leftOutOfOrder) && !overlap
       );
     } catch (error) {
-      if (isStaleSaveError(error)) { await reloadAfterStalePlacement(error, existing ? event.id : ''); return; }
-      if (placementSaveFailureToast(error)) return;
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), scheduleSaveErrorMessage(error, 'Could not schedule this production work.'), false);
+      // The work itself was placed; a linked item or the reload failed.
+      showToast(error?.relatedFailures ? 'Some linked items were not moved' : (globalThis.PlatformLanguage?.text("scheduling","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), error?.relatedFailures ? error.message : scheduleSaveErrorMessage(error, 'The work was placed, but the schedule could not be refreshed.'), false);
+      loadData({ force:true }).catch(() => null);
     }
+  }
+  /* Shows a placement before its save answers: `items` (the placed item
+   * first, then linked items it moves) take their new places on the
+   * calendar, a new item is added, and the placement ends. -> { putBack,
+   * restageIfWaiting }: putBack returns the calendar to how it was;
+   * restageIfWaiting gives the staged draft back when the item is still
+   * waiting (nothing was stored). */
+  function showPlacementLocally(project = {}, items = [], { focus = false } = {}){
+    const list = (Array.isArray(items) ? items : []).filter((item) => clean(item?.id));
+    const originals = new Map(list.map((item) => [String(item.id), allEvents.find((event) => String(event.id || '') === String(item.id)) || null]));
+    const added = new Set();
+    list.forEach((item) => {
+      const id = String(item.id);
+      if (originals.get(id)) { updateLocalCalendarEvent(id, item); return; }
+      // A new item is shown as the calendar reads it from its project.
+      let shown = null;
+      try { shown = window.PlatformScheduling?.eventsFromProjects?.([{ ...project, events:[item] }], schedulingConfig || {})?.find((event) => String(event.id || '') === id) || null; } catch (error) { shown = null; }
+      allEvents = [...allEvents, shown || { ...item, project_id:item.project_id || project?.id || '' }];
+      added.add(id);
+    });
+    events = visibleEvents();
+    const staged = placementStateSnapshot();
+    if (focus) focusedScheduleEventId = String(list[0]?.id || focusedScheduleEventId || '');
+    clearPlacementSelection();
+    releasePlacementSave();
+    render();
+    scheduleHaptic();
+    return {
+      putBack(){
+        allEvents = allEvents
+          .filter((event) => !added.has(String(event.id || '')))
+          .map((event) => originals.get(String(event.id || '')) || event);
+        events = visibleEvents();
+        render();
+      },
+      restageIfWaiting(){
+        if (placementWaitingItem()) return;
+        applyPlacementHistory(staged);
+      }
+    };
+  }
+  // A phone's tick for an action taken (drawn before its save answers).
+  function scheduleHaptic(){
+    if (typeof window.PlatformScheduleView?.haptic === 'function') window.PlatformScheduleView.haptic();
+    else { try { navigator.vibrate?.(8); } catch (error) {} }
   }
   /* Placing a pile saves its primary item only: the server places everything
    * under it and answers with where those items now sit. */
@@ -8278,7 +8344,9 @@
     // Kept so a failed save (nothing stored) can put the staged pile back.
     const stagedPlacement = placementStateSnapshot();
     clearPlacementSelection();
+    releasePlacementSave();
     render();
+    scheduleHaptic();
     const guardUnload = (event) => { event.preventDefault(); event.returnValue = ''; return ''; };
     window.addEventListener('beforeunload', guardUnload);
     // Stays up (info, not a success tick) until the result toast replaces it.
@@ -8425,30 +8493,27 @@
       customer_show_crew: draft.customer_show_crew === true,
       customer_description: clean(draft.customer_description)
     };
-    showPlacementSaving();
+    // Drawn first: the delivery shows on its day before the save answers; a
+    // failed or refused save puts it back.
+    const shownPlacement = showPlacementLocally(project, [next], { focus:true });
+    let saved = null;
     try {
-      const saved = await placementSaveRequest(Scheduling.saveProjectEvent(orgId(), project, projectEventSavePayload(next), schedulingConfig));
-      materialScheduleDraft = null;
-      materialScheduleEventId = '';
-      materialScheduleProjectId = '';
-      productionScheduleDraft = null;
-      productionScheduleEventId = '';
-      productionScheduleProjectId = '';
-      focusedScheduleEventId = next.id;
-      // Placed: draft, banner and rail tile update before the reload.
-      updateLocalCalendarEvent(next.id, next);
-      applyRelatedEvents(saved);
-      events = visibleEvents();
-      render();
-      await loadData({ force: true });
-      const savedNote = `${assigneeConflictNote(saved)}${blockedChildrenNote(saved)}`;
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_0c0a1a5bde2186","Delivery scheduled") ?? "Delivery scheduled"), `${((v0) => globalThis.PlatformLanguage?.text("scheduling","m_ffc8470f2fd563",`${v0} was placed on the calendar.`,{v0}) ?? `${v0} was placed on the calendar.`)(event.title || 'Material delivery')}${savedNote}`, !savedNote);
+      saved = await placementSaveRequest(Scheduling.saveProjectEvent(orgId(), project, projectEventSavePayload(next), schedulingConfig));
     } catch (error) {
+      shownPlacement.putBack();
       if (isStaleSaveError(error)) { await reloadAfterStalePlacement(error, next.id); return; }
-      if (placementSaveFailureToast(error)) return;
+      if (placementSaveFailureToast(error)) { shownPlacement.restageIfWaiting(); return; }
       showToast((globalThis.PlatformLanguage?.text("scheduling","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), scheduleSaveErrorMessage(error, 'Could not schedule this material delivery.'), false);
       await loadData({ force: true });
+      return;
     }
+    updateLocalCalendarEvent(next.id, saved?.event || next);
+    applyRelatedEvents(saved);
+    events = visibleEvents();
+    refreshActiveScheduleSurface();
+    await loadData({ force: true }).catch(() => null);
+    const savedNote = `${assigneeConflictNote(saved)}${blockedChildrenNote(saved)}`;
+    showToast((globalThis.PlatformLanguage?.text("scheduling","m_0c0a1a5bde2186","Delivery scheduled") ?? "Delivery scheduled"), `${((v0) => globalThis.PlatformLanguage?.text("scheduling","m_ffc8470f2fd563",`${v0} was placed on the calendar.`,{v0}) ?? `${v0} was placed on the calendar.`)(event.title || 'Material delivery')}${savedNote}`, !savedNote);
   }
   async function toggleScheduleEventLock(event, requestedLocked = null){
     const Scheduling = window.PlatformScheduling;

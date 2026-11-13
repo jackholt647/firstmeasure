@@ -187,6 +187,18 @@
       },
     };
   }
+  // The short tick a phone gives when a drop or placement is taken (hosts
+  // call PlatformScheduleView.haptic() for their own taps).
+  function dropHaptic(){
+    try { root.navigator?.vibrate?.(8); } catch (error) {}
+  }
+  /* Where a host's own drag would land: drafts (the item first, then what is
+   * placed with it) are drawn as placement previews on a calendar rendered
+   * by renderProjectRangeScheduler; an empty list clears them. */
+  function previewPlacement(container, drafts = []){
+    const host = container?.__prsPreviewPlacement ? container : container?.querySelector?.('.prs-wrap')?.parentElement;
+    if (typeof host?.__prsPreviewPlacement === 'function') host.__prsPreviewPlacement(drafts);
+  }
   /* Transient "why can't I move this" hint for hosts that do not toast. */
   function showRefusedDragHint(node, reason = 'locked', message = ''){
     if (!node?.getBoundingClientRect || typeof document === 'undefined') return;
@@ -4376,14 +4388,64 @@
       if (!clickPlacement || drag || placementChromeTarget(event.target)) return;
       if (placedChipUnderPointer(event.target)) { clearLivePreview(); return; }
       const range = rangeFromPointer(event) || pointRange(event.target, event);
-      const drafts = placementDraftsForRange(range);
-      if (!drafts.length) { clearLivePreview(); return; }
+      renderPlacementPreviews(placementDraftsForRange(range));
+    };
+    // Placement previews of an item and everything placed with it (its
+    // children at their own offsets), the first one primary. An empty list
+    // clears them.
+    const renderPlacementPreviews = (drafts = []) => {
+      const list = (Array.isArray(drafts) ? drafts : []).filter((draft) => {
+        const start = new Date(draft?.start || draft?.start_at || 0);
+        const end = new Date(draft?.end || draft?.end_at || 0);
+        return Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) && end > start;
+      }).map((draft) => ({ ...draft, start:new Date(draft.start || draft.start_at), end:new Date(draft.end || draft.end_at) }));
       clearLivePreview();
-      const laneByDraft = layoutClickPlacementPreviews(drafts);
-      drafts.forEach((draft, index) => renderRangePreview(new Date(draft.start), new Date(draft.end), {
+      if (!list.length) return;
+      const laneByDraft = layoutClickPlacementPreviews(list);
+      list.forEach((draft, index) => renderRangePreview(draft.start, draft.end, {
         item:{ ...draft, __previewPrimary:index === 0, __previewLaneByRow:laneByDraft[index] || {} },
         anchor:{ allDay:draft.all_day !== false }
       }, false));
+    };
+    // A host's own drag (an item pulled in from outside the calendar) shows
+    // where it would land with PlatformScheduleView.previewPlacement.
+    container.__prsPreviewPlacement = (drafts) => {
+      if (listenerSignal?.aborted || drag) return;
+      renderPlacementPreviews(drafts);
+    };
+    /* While a placed item is dragged or resized, the items under it (its children,
+     * placed by the server against the parent's new range) are shown where
+     * they will land, beside the dragged item's own preview. A host can
+     * answer with options.relatedDragPreview(item, range) -> drafts; by
+     * default they come from PlatformScheduling. */
+    const relatedDragDrafts = (item, next) => {
+      const range = { start:next.start, end:next.end, all_day:next.all_day === true, schedule_granularity:next.all_day === true ? 'date' : 'time' };
+      if (typeof options.relatedDragPreview === 'function') {
+        try { return options.relatedDragPreview(item, range) || []; } catch (error) { return []; }
+      }
+      const itemId = clean(item?.id);
+      const parentOf = (event) => clean(Scheduling?.eventParentId?.(event) || event?.parent_event_id);
+      if (!itemId || typeof Scheduling?.relatedScheduleRescheduleImpact !== 'function' || !(options.events || []).some((event) => parentOf(event) === itemId)) return [];
+      try {
+        return Scheduling.relatedScheduleRescheduleImpact(item, options.events || [], range, options.project || {}, { config:options.config || null }).children || [];
+      } catch (error) {
+        return [];
+      }
+    };
+    const renderRelatedDragPreviews = (activeDrag, next) => {
+      if (!activeDrag?.item || ['create', 'refused'].includes(activeDrag.kind) || !next?.start || !next?.end) return;
+      const key = `${new Date(next.start).getTime()}|${new Date(next.end).getTime()}|${next.all_day === true}`;
+      if (activeDrag.relatedKey !== key) {
+        activeDrag.relatedKey = key;
+        activeDrag.relatedDrafts = relatedDragDrafts(activeDrag.item, next);
+      }
+      (activeDrag.relatedDrafts || []).forEach((child) => {
+        const start = new Date(child.start || child.start_at || 0);
+        const end = new Date(child.end || child.end_at || 0);
+        if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) return;
+        const allDay = child.all_day !== false && String(child.schedule_granularity || '').toLowerCase() !== 'time';
+        renderRangePreview(start, end, { kind:'move', item:{ ...child, all_day:allDay }, anchor:{ allDay } }, false, { all_day:allDay });
+      });
     };
     const removeRenderedDraft = (draftId = '') => {
       const id = String(draftId || localActiveDraft?.id || activeDraftId || '');
@@ -5009,6 +5071,7 @@
         return;
       }
       renderRangePreview(next.start, next.end, drag, true, next);
+      renderRelatedDragPreviews(drag, next);
     };
     container.querySelectorAll('.prs-work-chip:not(.prs-month-day-peek-chip)').forEach(bindProjectChip);
     // A peek only previews items that have their own Tab stops elsewhere
@@ -5149,6 +5212,9 @@
         const monthMarginTop = mode === 'month' ? '' : (activeDrag.node?.closest?.('.prs-month-bar,.prs-all-day-bar-top')?.style?.marginTop || `${allDayBandTop}px`);
         upsertCalendarItem(updatedItem, monthMarginTop ? { monthMarginTop } : {});
         applyTouchSelection();
+        // Felt at the release, with the item already drawn where it landed;
+        // the host saves behind it.
+        dropHaptic();
         options.onEventRangeChange?.(updatedItem, payload);
       }
       // Resized by its bars: the event still clears the tray.
@@ -8103,6 +8169,8 @@
     // Phone event tray (see presentEventTray above).
     presentEventTray,
     dismissEventTray,
+    previewPlacement,
+    haptic: dropHaptic,
     mobileCalendarToolbarHtml,
     revealMonthDate,
     travelSegmentLayout,
