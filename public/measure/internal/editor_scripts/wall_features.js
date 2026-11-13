@@ -101,7 +101,8 @@ const supportsTrim=type=>trimTypes.includes(type);
 function setTrim(feature,inches,color){
  if(!supportsTrim(feature?.type))return feature;
  if(!Number.isFinite(inches)||inches<0)throw Error('Enter a nonnegative trim width.');
- const next={...feature};if(inches===0)delete next.trim;else next.trim={width:inches*.0254,...(color?{color}:{})};return next;
+ // A side whose trim was taken off (trim.off) stays off when the width or colour changes.
+ const next={...feature};if(inches===0)delete next.trim;else next.trim={width:inches*.0254,...(color?{color}:{}),...(feature.trim?.off?.length?{off:[...feature.trim.off]}:{})};return next;
 }
 // Doors and garage doors are their default door material unless glass is turned on for one; windows and
 // skylights are always glass and have no choice. Stored as feature.glass, absent when off.
@@ -109,10 +110,32 @@ const glassTypes=['door','garage'];
 const supportsGlass=type=>glassTypes.includes(type);
 const isGlass=feature=>feature?.glass===true&&supportsGlass(feature.type);
 function setGlass(feature,on){if(!supportsGlass(feature?.type))return feature;const next={...feature};if(on)next.glass=true;else delete next.glass;return next;}
+// Trim runs along each side of an opening, and a side can be without it (trim.off: 'left', 'right', 'top',
+// 'bottom', as the opening stands). The mullion between two windows side by side is the right side of one and the
+// left side of the other.
+const TRIM_SIDES=['left','right','top','bottom'],trimSide=n=>Math.abs(n.x)>Math.abs(n.y)?(n.x>0?'right':'left'):(n.y>0?'top':'bottom');
+const trimEdges=(ps)=>{const area=ps.reduce((sum,p,i)=>{const q=ps[(i+1)%ps.length];return sum+p.x*q.y-q.x*p.y;},0),sign=area>=0?1:-1;return ps.map((p,i)=>{const q=ps[(i+1)%ps.length],dx=q.x-p.x,dy=q.y-p.y,l=Math.hypot(dx,dy);return {p,q,l,x:sign*dy/(l||1),y:-sign*dx/(l||1)};});};
+// Turn trim on or off along some sides. On: the width (inches) and colour given, or the opening's own; an opening
+// without trim gets it on those sides only. With every side off the opening has no trim.
+function setTrimSides(feature,sides,on,inches,color){
+ if(!supportsTrim(feature?.type)||!sides?.length)return feature;const next={...feature};let trim=feature.trim;
+ if(!trim){if(!on)return feature;trim={width:(inches>0?inches:2)*.0254,...(color?{color}:{}),off:TRIM_SIDES.filter(s=>!sides.includes(s))};}
+ else{const off=new Set(trim.off||[]);for(const s of sides)if(on)off.delete(s);else off.add(s);trim={...trim,...(on&&inches>0?{width:inches*.0254}:{}),...(on&&color?{color}:{})};delete trim.off;if(off.size)trim.off=TRIM_SIDES.filter(s=>off.has(s));}
+ const floor=defs.get(feature.type)?.floor;if(TRIM_SIDES.every(s=>trim.off?.includes(s)||floor&&s==='bottom'))delete next.trim;else next.trim=trim;return next;
+}
+// The sides of an opening a line (a, b: world points) runs along: the side itself, or anywhere in the strip of trim
+// outside it. Empty for a line across the opening, a mitre, or a line somewhere else.
+function trimSidesAlong(points,feature,a,b){
+ const fr=orientedFrame(points,feature?.axis),flat=p=>dot(sub(p,fr.origin),fr.n);if([a,b].some(p=>Math.abs(flat(p))>.01))return [];
+ const A=W.inFrame(fr,a),B=W.inFrame(fr,b),dx=B.x-A.x,dy=B.y-A.y,len=Math.hypot(dx,dy);if(len<1e-6)return [];const reach=(feature?.trim?.width||0)+.005,sides=new Set();
+ for(const e of trimEdges(points.map(p=>W.inFrame(fr,p)))){if(e.l<1e-6)continue;const ux=(e.q.x-e.p.x)/e.l,uy=(e.q.y-e.p.y)/e.l;if(Math.abs(dx*ux+dy*uy)/len<.94)continue;
+  if([A,B].every(P=>{const t=(P.x-e.p.x)*ux+(P.y-e.p.y)*uy,s=(P.x-e.p.x)*e.x+(P.y-e.p.y)*e.y;return t>=-reach&&t<=e.l+reach&&s>=-.005&&s<=reach;}))sides.add(trimSide(e));}
+ return TRIM_SIDES.filter(s=>sides.has(s));
+}
 function trimFaces(points,feature){
  const width=feature?.trim?.width;if(!(width>0)||!supportsTrim(feature.type))return [];
  const fr=orientedFrame(points,feature.axis),ps=points.map(p=>W.inFrame(fr,p)),b=bounds(ps),area=ps.reduce((sum,p,i)=>{const q=ps[(i+1)%ps.length];return sum+p.x*q.y-q.x*p.y;},0),sign=area>=0?1:-1;
- const edges=ps.map((p,i)=>{const q=ps[(i+1)%ps.length],dx=q.x-p.x,dy=q.y-p.y,l=Math.hypot(dx,dy),bottom=defs.get(feature.type)?.floor&&Math.abs(p.y-b.bottom)<1e-5&&Math.abs(q.y-b.bottom)<1e-5;return {x:sign*dy/(l||1),y:-sign*dx/(l||1),width:bottom?0:width};});
+ const off=feature.trim.off||[],edges=ps.map((p,i)=>{const q=ps[(i+1)%ps.length],dx=q.x-p.x,dy=q.y-p.y,l=Math.hypot(dx,dy),bottom=defs.get(feature.type)?.floor&&Math.abs(p.y-b.bottom)<1e-5&&Math.abs(q.y-b.bottom)<1e-5,n={x:sign*dy/(l||1),y:-sign*dx/(l||1)};return {...n,width:bottom||off.includes(trimSide(n))?0:width};});
  // Its own colour, unless it is the fixed white trims were saved with before sticker defaults existed.
  // Placement used to copy the wall trim colour in, so a trim equal to it is the default too.
  const baked=['#f5f3ef',String(root.WallMode?.finishDefaults?.trimColor||'').toLowerCase()],own=typeof feature.trim.color==='string'&&/^#[0-9a-f]{6}$/i.test(feature.trim.color)&&!baked.includes(feature.trim.color.toLowerCase())?feature.trim.color.toLowerCase():null;
@@ -212,7 +235,7 @@ function percentageSticker(face,f,box){
  if(dot(W.normal(points),W.normal(face.points))<0)points.reverse();
  return {points,feature:{type:box.type,preset:null,shape:'rectangle',axis:{...f.u}}};
 }
-const api={percentageFrame,percentageSticker,divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimTypes,supportsTrim,trimSizes,setTrim,glassTypes,supportsGlass,isGlass,setGlass,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};
+const api={percentageFrame,percentageSticker,divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimTypes,supportsTrim,trimSizes,setTrim,setTrimSides,trimSidesAlong,TRIM_SIDES,glassTypes,supportsGlass,isGlass,setGlass,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};
 // The sticker outline model (wall_stickers.js), reachable wherever the catalog is.
 Object.defineProperty(api,'Stickers',{enumerable:true,get(){return typeof module!=='undefined'&&module.exports?require('./wall_stickers.js'):root.WallStickers;}});if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
 

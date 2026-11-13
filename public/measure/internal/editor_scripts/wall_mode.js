@@ -1180,18 +1180,24 @@ function perf_render3DFrame() {
             const owned=openingLines(draft.lineSelection||[]);
             const lines=lineTrimItems(owned.free).map(i=>{const l=i.layers[0];return {kind:'line',width:l?l.width/G.INCH:0,raw:l?.finishColor,color:l?(l.finishColor||trimDefault()):null};});
             const faces=(wallEditor.faceTrimItems?.()||[]).map(i=>({kind:'face',ref:i.ref,width:i.width,raw:i.color||undefined,color:i.width>0?i.color:null}));
-            const openings=['window','door','garage'].flatMap(type=>(wallEditor.openingTrimItems(type)||[]).filter(i=>i.selected||owned.keys.has(i.key)).map(i=>({kind:type,ref:i.ref,width:i.width,raw:i.f.feature.trim?.color,color:i.width>0?(i.f.feature.trim?.color||trimDefault()):null})));
+            // A whole opening, or the sides of one that picked lines run along: those sides' trim only.
+            const openings=['window','door','garage'].flatMap(type=>(wallEditor.openingTrimItems(type)||[]).filter(i=>i.selected||owned.keys.has(i.key)||owned.sides.has(i.key)).map(i=>{const whole=i.selected||owned.keys.has(i.key),sides=whole?null:owned.sides.get(i.key),off=i.f.feature.trim?.off||[],width=whole||sides.some(s=>!off.includes(s))?i.width:0;
+                return {kind:type,ref:i.ref,...(sides?{sides}:{}),width,raw:i.f.feature.trim?.color,color:width>0?(i.f.feature.trim?.color||trimDefault()):null};}));
             return [...lines,...faces,...openings];
         }
-        // A selected line that is part of a window, door or garage (its outline, a line inside it, or a line of the
-        // trim around it) selects that opening: its trim is the opening's, not a wall line's. Read as a wall line it
-        // had no trim, and the trim around a window could not be removed by picking it. free: the other lines.
+        // A selected line that is part of a window, door or garage is that opening's, not a wall line's: read as a
+        // wall line it had no trim, and the trim around a window could not be removed by picking it. A line along a
+        // side of an opening (the side, or the trim outside it) stands for that side of every opening it runs along:
+        // the mullion between two windows is a side of each (sides: opening key -> sides). Any other line of an
+        // opening (across it, a mitre) stands for the whole opening (keys). free: the other lines.
         function openingLines(lines){
-            const keys=new Set(),free=[];if(!lines.length)return {keys,free};const W=window.WallSolidGeometry,openings=['window','door','garage'].flatMap(type=>wallEditor.openingTrimItems(type)||[]).map(o=>({o,frame:W.faceFrame({points:o.points})})).filter(x=>x.frame).map(x=>({...x,ring:x.o.points.map(p=>W.inFrame(x.frame,p)),reach:(x.o.width||0)*G.INCH*Math.SQRT2+.005}));
+            const keys=new Set(),sides=new Map(),free=[];if(!lines.length)return {keys,sides,free};const W=window.WallSolidGeometry,F=window.WallFeatures,openings=['window','door','garage'].flatMap(type=>wallEditor.openingTrimItems(type)||[]).map(o=>({o,frame:W.faceFrame({points:o.points})})).filter(x=>x.frame).map(x=>({...x,ring:x.o.points.map(p=>W.inFrame(x.frame,p)),reach:(x.o.width||0)*G.INCH*Math.SQRT2+.005}));
             const inside=(q,r)=>{let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++)if((r[i].y>q.y)!==(r[j].y>q.y)&&q.x<(r[j].x-r[i].x)*(q.y-r[i].y)/(r[j].y-r[i].y)+r[i].x)c=!c;return c;},away=(q,r)=>Math.min(...r.map((a,i)=>{const b=r[(i+1)%r.length],ux=b.x-a.x,uy=b.y-a.y,l2=ux*ux+uy*uy,t=l2?Math.max(0,Math.min(1,((q.x-a.x)*ux+(q.y-a.y)*uy)/l2)):0;return Math.hypot(q.x-a.x-ux*t,q.y-a.y-uy*t);}));
             const within=(p,x)=>{const off=(p.x-x.frame.origin.x)*x.frame.n.x+(p.y-x.frame.origin.y)*x.frame.n.y+(p.z-x.frame.origin.z)*x.frame.n.z;if(Math.abs(off)>.01)return false;const q=W.inFrame(x.frame,p);return inside(q,x.ring)||away(q,x.ring)<=x.reach;};
-            for(const line of lines){const pairs=line.pairs||[line.pair],owner=openings.find(x=>pairs.every(pair=>pair.every(p=>within(p,x))));if(owner)keys.add(owner.o.key);else free.push(line);}
-            return {keys,free};
+            for(const line of lines){const pairs=line.pairs||[line.pair];let sided=false;
+                for(const x of openings){const along=pairs.map(pair=>F?.trimSidesAlong?.(x.o.points,x.o.f.feature,...pair)||[]);if(along.some(a=>!a.length))continue;sided=true;if(!sides.has(x.o.key))sides.set(x.o.key,[]);for(const s of along.flat())if(!sides.get(x.o.key).includes(s))sides.get(x.o.key).push(s);}
+                if(sided)continue;const owner=openings.find(x=>pairs.every(pair=>pair.every(p=>within(p,x))));if(owner)keys.add(owner.o.key);else free.push(line);}
+            for(const key of keys)sides.delete(key);return {keys,sides,free};
         }
         // Each type through its own writer: face trim, line trim, opening trim. decide(kind,width,raw,effective) gives null or {width (in), color}.
         function applySelectionTrim(decide){
@@ -1210,7 +1216,8 @@ function perf_render3DFrame() {
             // Lines that cannot hold trim (no wall face along them) are skipped, not fatal.
             let skipped=0;for(const g of add.values()){select({lineSelection:lineRefs(g.items),...faces([])});if(wallEditor.applyTrim(g.width*G.INCH,g.color||undefined))changed=true;else skipped+=g.items.length;}
             if(skipped&&!changed&&!removing.length&&!selectedFaces.length&&!openingItems.length)return false;
-            for(const type of ['window','door','garage']){const groups=new Map();for(const i of openingItems.filter(i=>i.kind===type)){const t=decide(type,i.width,i.raw,i.color);if(t)group(groups,t,i.ref);}
+            for(const i of openingItems.filter(i=>i.sides)){const t=decide(i.kind,i.width,i.raw,i.color);if(t&&wallEditor.applyOpeningTrimSides(i.ref,i.sides,t.width,t.color||undefined)===false)return false;}
+            for(const type of ['window','door','garage']){const groups=new Map();for(const i of openingItems.filter(i=>i.kind===type&&!i.sides)){const t=decide(type,i.width,i.raw,i.color);if(t)group(groups,t,i.ref);}
                 for(const g of groups.values()){select({lineSelection:[],...faces(g.items)});if(wallEditor.applyOpeningTrim(type,g.width,g.color||undefined)===false)return false;}}
             // The selection comes back as it was; faces divided by trim are selected by what is left of them.
             const surfaces=state.wallEdits.$surfaces||[],refs=[...openingItems.map(i=>i.ref),...surfaces.filter(s=>!s.deleted&&!s.trim&&!s.feature&&hosts.has(hostOf(s))).map(s=>({solid:s.id}))];
