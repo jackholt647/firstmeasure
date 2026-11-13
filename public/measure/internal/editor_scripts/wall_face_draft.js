@@ -2875,8 +2875,16 @@ function previewFaceSlideBody(e,full,priorWalls){const t=tool;if(t.face.feature)
   const direction={x:(c.end.x-source.x)/c.length,y:(c.end.y-source.y)/c.length,z:(c.end.z-source.z)/c.length},amount=Math.min(step,c.length),point={x:source.x+direction.x*amount,y:source.y+direction.y*amount,z:source.z+direction.z*amount};
   return {source,point,direction,amount};
  }
+ // Points selected together move together. Each slides along its own line in the arrow's direction; one that has no
+ // line that way (a corner whose only upright line runs down from it) goes the same way and as far as the others,
+ // when they all go one way. Without this it stayed behind and the nudge looked like it had picked one point.
+ function pointNudgePlans(points,e,step,lines){
+  const plans=points.map(p=>pointNudgePlan(p,e,step,lines)),own=plans.filter(Boolean);if(!own.length||own.length===plans.length)return plans;
+  const d=own[0].direction;if(own.some(o=>o.direction.x*d.x+o.direction.y*d.y+o.direction.z*d.z<.9999))return plans;
+  const amount=Math.min(...own.map(o=>o.amount));return plans.map((plan,i)=>plan||{source:points[i],point:{x:points[i].x+d.x*amount,y:points[i].y+d.y*amount,z:points[i].z+d.z*amount},direction:d,amount});
+ }
  function nudgePoints(e,step,points){
-  const lines=[...sceneLines().lines.values()],plans=points.map(p=>pointNudgePlan(p,e,step,lines));
+  const lines=[...sceneLines().lines.values()],plans=pointNudgePlans(points,e,step,lines);
   if(!plans.some(Boolean)){host.message('No connected line runs in that screen direction.');return true;}
   // Compute every destination before editing, then update shared vertices once.
   // Sequential nudges can otherwise move a point twice when it lands on another
@@ -3640,7 +3648,7 @@ function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPla
    if(!pending.preview){
     const plane=workingPlane?.frame,axes=plane&&[plane.origin,...[plane.u,plane.v].map(a=>({x:plane.origin.x+a.x,y:plane.origin.y+a.y,z:plane.origin.z+a.z}))];
     const lines=!plane&&points.length?[...sceneLines().lines.values()]:[];
-    pending.preview={points,view:axes&&F.viewFrame(axes,p=>host.screen(p,'3d')),plans:!plane&&points.map(p=>pointNudgePlan(p,pending,Infinity,lines))};
+    pending.preview={points,view:axes&&F.viewFrame(axes,p=>host.screen(p,'3d')),plans:!plane&&pointNudgePlans(points,pending,Infinity,lines)};
    }
    const {view,plans}=pending.preview,step=(pending.altKey?.25:pending.shiftKey?6:1)*F.FT/12*pending.nudgeCount,dx=pending.key==='ArrowRight'?step:pending.key==='ArrowLeft'?-step:0,dy=pending.key==='ArrowUp'?step:pending.key==='ArrowDown'?-step:0;
    points=points.map((p,i)=>{if(view)return {x:p.x+view.u.x*dx+view.v.x*dy,y:p.y+view.u.y*dx+view.v.y*dy,z:p.z+view.u.z*dx+view.v.z*dy};const plan=plans?.[i];if(!plan)return p;const amount=Math.min(step,plan.amount);return {x:p.x+plan.direction.x*amount,y:p.y+plan.direction.y*amount,z:p.z+plan.direction.z*amount};});

@@ -146,6 +146,19 @@ test('Q keeps the selected draft point when the host wall has a colliding local 
  assert.ok(!drafts.left.sketch.nodes.some(n=>n.y===2));
 });
 
+test('points selected together nudge together when only one of them has a line in that direction',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ // A step in a wall: from A the only upright line runs down, from B the only upright line runs up.
+ const A=p(0,0,1),B=p(2,0,1),faces=()=>[{id:'up',points:[p(-1,0,3),p(4,0,3),p(4,0,2),p(2,0,2),B,A,p(0,0,0),p(-1,0,0)].map(q=>({...q})),holes:[]},{id:'low',points:[p(0,0,0),A,B,p(2,0,2),p(4,0,2),p(4,0,0)].map(q=>({...q})),holes:[]}];
+ for(const key of ['ArrowUp','ArrowDown']){
+  const state={wallEdits:{$surfaces:faces()}},f=fixture({state,walls:[],selected:null,globals:{isFreeMove:true}});
+  f.editor.restoreSelection({solidPoints:[W.vertexKey(A),W.vertexKey(B)]});assert.equal(f.editor.pointSelection().length,2,f.message());
+  f.editor.key({key});assert.equal(f.history.length,1,key+': '+f.message());
+  const low=state.wallEdits.$surfaces.find(s=>s.id==='low'),a=low.points[1],b=low.points[2];
+  assert.ok(Math.abs(a.z-1)>1e-6,key+': the corner without a line that way moves too');assert.ok(Math.abs(a.z-b.z)<1e-9&&a.x===0&&b.x===2,key+': both by the same amount '+JSON.stringify([a,b]));
+  for(const face of state.wallEdits.$surfaces.filter(s=>!s.deleted))require('../public/measure/internal/editor_scripts/exterior_geometry.js').validateFace(face);
+ }
+});
 test('multiple selected boundary points nudge together repeatedly in one undo operation',()=>{
  const f=fixture();for(const x of [1,2,3])f.editor.doubleClick(f.e(x,4),f.w);
  const ids=f.d().sketch.nodes.filter(n=>[1,2,3].includes(n.x)&&n.y===4).map(n=>n.id);
