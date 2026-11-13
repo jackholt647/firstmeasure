@@ -258,7 +258,8 @@
         close.innerHTML = '<i class="fas fa-xmark" aria-hidden="true"></i>'; close.onclick = () => dialog.close();
         const stage = document.createElement('div');
         dialog.append(close, stage); document.body.append(dialog);
-        const widget = root.FirstMateWidgets.mount(stage, { id:'icon.picker', version:'1', config:{ prompt:t('materials_settings_cat_icon', 'Icon and color'), includeColor:true, value:row.icon, color:row.color } }, { surface:'settings', onSelect:(selection, detail) => { if (!detail?.confirmed) return; row.icon = selection.value; row.color = selection.color; save(row); dialog.close(); done?.(); } });
+        // Widgets declare the surfaces they run on (catalog.json); an organization page is 'dashboard'. There is no 'settings' surface.
+        const widget = root.FirstMateWidgets.mount(stage, { id:'icon.picker', version:'1', config:{ prompt:t('materials_settings_cat_icon', 'Icon and color'), includeColor:true, value:row.icon, color:row.color } }, { surface:'dashboard', onSelect:(selection, detail) => { if (!detail?.confirmed) return; row.icon = selection.value; row.color = selection.color; save(row); dialog.close(); done?.(); } });
         dialog.onclose = () => { try { widget?.destroy?.(); } catch (error) {} dialog.remove(); };
         dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
         dialog.showModal();
