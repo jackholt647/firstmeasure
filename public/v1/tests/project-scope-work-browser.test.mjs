@@ -524,3 +524,33 @@ test('list header actions move into the ⋮ menu by priority as the header narro
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
+
+test('the line item sources menu changes the category as it is now, after a background refresh replaced it (FM-435)',async()=>{
+ const code='var LINE_ITEM_SOURCE_DEFS=[{id:"pricebook",label:"Price Book",detail:"Items"},{id:"equipment",label:"Equipment",detail:"Units"}];\n'+['categorySources','categorySkuOnly','closeSourcesMenu','sourcesMenuDismiss','toggleSourcesMenu','colorPortalHost'].map(fn).join('\n');
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:433,height:870}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.setContent('<html><body><div id="root"><button id="gear" data-mt-category-sources="labor">gear</button></div></body></html>');
+  const result=await page.evaluate(code=>{
+   const saved=[];
+   Object.assign(window,{state:{panelRoot:document.getElementById('root'),sourcesMenu:null,resourceTypes:[{id:'labor',name:'Labor',revision:1}]},resourceCategories:()=>state.resourceTypes,equipmentOn:()=>false,
+    escapeHtml:v=>String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'),saveResourceCategory:category=>{saved.push({same:category===state.resourceTypes[0],sources:[...(category.line_item_sources||[])],...(typeof category.pricebook_sku_only==="boolean"?{sku:category.pricebook_sku_only}:{})});return Promise.resolve();}});
+   (0,eval)(code);
+   const refresh=()=>{state.resourceTypes=state.resourceTypes.map(row=>JSON.parse(JSON.stringify(row)));};
+   const checked=()=>document.querySelector('[data-mt-source="pricebook"]')?.getAttribute('aria-checked');
+   toggleSourcesMenu('labor',document.getElementById('gear'));
+   const before=checked();
+   refresh();
+   document.querySelector('[data-mt-source="pricebook"]').click();
+   const afterTap=checked();
+   refresh();
+   const sku=document.querySelector('[data-mt-source-sku]');sku.checked=true;sku.dispatchEvent(new Event('change'));
+   return {before,afterTap,saved,stored:state.resourceTypes[0]};
+  },code);
+  assert.equal(result.before,'false');
+  assert.equal(result.afterTap,'true','the tap shows at once even though the refresh swapped the category object');
+  assert.deepEqual(result.saved,[{same:true,sources:['pricebook']},{same:true,sources:['pricebook'],sku:true}],'each save writes the category on screen now, not the one the menu opened with');
+  assert.deepEqual(result.stored.line_item_sources,['pricebook']);assert.equal(result.stored.pricebook_sku_only,true);
+  assert.deepEqual(errors,[]);
+ }finally{await browser.close();}
+});

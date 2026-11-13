@@ -3613,11 +3613,13 @@
     if (event.type === 'keydown' ? event.key === 'Escape' : !event.target?.closest?.('[data-mt-sources-portal],[data-mt-category-sources]')) closeSourcesMenu();
   }
   // The per-category choice of which sources feed its suggestions; saved on the resource type for the whole company.
+  // The background refresh replaces every category object, so a choice changes the category as it is now, never the
+  // one the menu opened with (FM-435: a tap after a refresh saved but the menu never showed it).
   function toggleSourcesMenu(type, trigger){
     const open = state.sourcesMenu === type;
     closeSourcesMenu();
-    const category = resourceCategories().find((row) => row.id === type);
-    if (open || !category || !trigger?.getBoundingClientRect) return;
+    const current = () => resourceCategories().find((row) => row.id === type);
+    if (open || !current() || !trigger?.getBoundingClientRect) return;
     state.sourcesMenu = type;
     const portal = document.createElement('div');
     portal.className = 'mt-labor-portal';
@@ -3627,10 +3629,12 @@
     const draw = () => {
       const enabled = categorySources(type);
       portal.innerHTML = `<div class="mt-labor-menu-title">Line Item Sources</div><div class="mt-labor-options">${LINE_ITEM_SOURCE_DEFS.filter((source) => source.id !== 'equipment' || equipmentOn()).map((source) => `<button type="button" class="mt-labor-option${enabled.includes(source.id) ? ' active' : ''}" role="menuitemcheckbox" aria-checked="${enabled.includes(source.id)}" data-mt-source="${source.id}"><span><strong>${escapeHtml(source.label)}</strong><small>${escapeHtml(source.detail)}</small></span>${enabled.includes(source.id) ? '<i class="fas fa-check" aria-hidden="true"></i>' : ''}</button>${source.id === 'pricebook' && enabled.includes('pricebook') ? `<label class="mt-source-sub" title="Leave out price book items kept only for estimating, which have no SKU to order."><input type="checkbox" data-mt-source-sku ${categorySkuOnly(type) ? 'checked' : ''}> Only items with a SKU</label>` : ''}`).join('')}</div>`;
-      portal.querySelector('[data-mt-source-sku]')?.addEventListener('change', (event) => { category.pricebook_sku_only = event.target.checked; if (!Array.isArray(category.line_item_sources)) category.line_item_sources = categorySources(type); saveResourceCategory(category); });
+      portal.querySelector('[data-mt-source-sku]')?.addEventListener('change', (event) => { const category = current(); if (!category) return closeSourcesMenu(); category.pricebook_sku_only = event.target.checked; if (!Array.isArray(category.line_item_sources)) category.line_item_sources = categorySources(type); saveResourceCategory(category); });
       portal.querySelectorAll('[data-mt-source]').forEach((button) => button.addEventListener('click', () => {
-        const current = categorySources(type);
-        category.line_item_sources = LINE_ITEM_SOURCE_DEFS.map((source) => source.id).filter((id) => (id === button.dataset.mtSource ? !current.includes(id) : current.includes(id)));
+        const category = current();
+        if (!category) return closeSourcesMenu();
+        const enabled = categorySources(type);
+        category.line_item_sources = LINE_ITEM_SOURCE_DEFS.map((source) => source.id).filter((id) => (id === button.dataset.mtSource ? !enabled.includes(id) : enabled.includes(id)));
         saveResourceCategory(category);
         draw();
       }));
