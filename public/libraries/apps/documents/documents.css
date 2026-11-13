@@ -333,7 +333,7 @@
 .fmdx-chip.locked::before{display:none}
 .fmdx-chip.locked i{font-size:9px}
 .fmdx-chip.paid{background:#e0f2fe;color:#075985}
-.fmdx-float-note{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:9;display:flex;align-items:center;gap:8px;border:1px solid #f5dc9a;border-radius:999px;background:#fffbeb;color:#8a6400;padding:6px 12px;font-size:10.5px;font-weight:900;box-shadow:0 8px 20px rgba(15,23,42,.12);pointer-events:none;max-width:min(92%,560px)}
+.fmdx-float-note{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:9;display:flex;align-items:center;gap:8px;border:1px solid #f5dc9a;border-radius:999px;background:#fffbeb;color:#8a6400;padding:6px 12px;font-size:10.5px;font-weight:900;box-shadow:0 8px 20px rgba(15,23,42,.12);pointer-events:none;max-width:min(92%,560px);height:auto}
 .fmdx-doc-total{flex:none;font-size:13px;font-weight:1000;color:#111827;white-space:nowrap}
 
 /* ---------------------------------------------------------- send recipients */
@@ -679,6 +679,14 @@ html[data-fm-doc-phone] .fmdx-menu,html[data-fm-doc-phone] .fmdx-menu.fmdx-theme
 html[data-fm-doc-phone] .fmdx-menu::before{content:'';flex:none;width:38px;height:4px;border-radius:4px;background:#d0d5dd;margin:4px auto 8px}
 html[data-fm-doc-phone] .fmdx-menu-item{min-height:48px;padding:10px 12px;font-size:14px;gap:12px}
 html[data-fm-doc-phone] .fmdx-menu-item i{width:20px;font-size:15px}
+
+/* The editor fills the screen, over the project window's header and tab bar,
+   so its own back and title row is at the top. The Docs tab's engine host turns
+   fixed; the active panel's settled transform (translateY(0) scale(1)) would
+   otherwise hold a fixed box inside the panel. Steps (workflow view) stay put. */
+html[data-fm-doc-phone] .r-preview-panel.active:has([data-docs-engine-host]:not([hidden]) > .fmdx-shell > .fmdx-editor-screen:not(.workflow-view)){transform:none}
+html[data-fm-doc-phone] [data-docs-engine-host]:not([hidden]):has(> .fmdx-shell > .fmdx-editor-screen:not(.workflow-view)){position:fixed!important;inset:0!important;z-index:100!important}
+html[data-fm-doc-phone] [data-docs-engine-host] .fmdx-editor-screen:not(.workflow-view)>.fmdx-editor-top{padding-top:max(8px,env(safe-area-inset-top))}
 
 /* The document's top bar: one row. Back, the title with its status, total and
    save state beneath it, then Preview, Send and ⋯ (which holds Setup, Agent,

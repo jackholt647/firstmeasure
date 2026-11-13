@@ -625,6 +625,8 @@
   // ----------------------------------------------------- lifecycle helpers
   const READ_ONLY_STATUSES = ['signed', 'completed', 'declined', 'expired', 'void'];
   const AMENDABLE_STATUSES = ['signed', 'completed'];
+  // Played the first time the editor opens on a phone (playPhoneEditorTour).
+  const PHONE_EDITOR_TOUR = 'documents.editor_gestures';
   function isReadOnlyStatus(status){ return READ_ONLY_STATUSES.includes(cleanText(status).toLowerCase()); }
   function isAmendableStatus(status){ return AMENDABLE_STATUSES.includes(cleanText(status).toLowerCase()); }
 
@@ -4408,6 +4410,7 @@
         });
         state.mountedEditorDocumentId = cleanText(state.doc?.id);
         restoreDocumentViewport();
+        playPhoneEditorTour();
         // Line-items affordance (§bug 3): selection chip + double-click.
         try { state.editorHandle.on?.('selection', (ids) => updateLineItemsChip(ids)); } catch (e) { /* optional */ }
         if (canvas.dataset.fmdxDblBound !== '1') {
@@ -4427,6 +4430,22 @@
       // Dock the Data tray under the editor's toolbar row (owner bug #1).
       syncTrayOffset();
       setTimeout(() => syncTrayOffset(), 80);
+    }
+
+    /** The first time someone opens the editor on a phone: a short tour of its
+     *  gestures (two fingers zoom and move, one finger selects, press and hold
+     *  to move). A config library guided_experience; the runtime keeps who has
+     *  seen it. */
+    function playPhoneEditorTour(){
+      if (!document.documentElement.hasAttribute('data-fm-doc-phone')) return;
+      const guides = window.FirstMateGuides;
+      const known = guides?.experience?.(PHONE_EDITOR_TOUR);
+      if (!guides?.play || (known?.progress && known.progress.status !== 'started')) return;
+      const opened = state.doc?.id;
+      setTimeout(() => {
+        if (state.destroyed || state.view !== 'editor' || state.docView !== 'editor' || state.doc?.id !== opened) return;
+        guides.play(PHONE_EDITOR_TOUR).catch?.(() => {});
+      }, 700);
     }
 
     // Accumulate command→override ops (collapsing consecutive same-target

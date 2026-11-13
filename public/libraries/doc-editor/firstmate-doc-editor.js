@@ -1575,11 +1575,19 @@
     ".fmde-selbox.fmde-selbox-part{--fmde-selection-color:#7a5af8!important;--fmde-selection-halo:rgba(255,255,255,.8)!important}.fmde-partchip{position:absolute;left:calc(-1.5 * var(--fmde-px,1px));top:100%;margin-top:calc(4 * var(--fmde-px,1px));display:inline-flex;align-items:center;gap:calc(4 * var(--fmde-px,1px));height:calc(18 * var(--fmde-px,1px));padding:0 calc(7 * var(--fmde-px,1px));border-radius:calc(5 * var(--fmde-px,1px));background:#7a5af8;color:#fff;font:700 calc(10 * var(--fmde-px,1px))/1 Inter,ui-sans-serif,system-ui,sans-serif;letter-spacing:.01em;white-space:nowrap;pointer-events:none;z-index:3}.fmde-partchip svg{width:calc(10 * var(--fmde-px,1px));height:calc(10 * var(--fmde-px,1px))}\n" +
     ".fmde-tb-host-buttons{gap:8px!important;padding-right:0!important;border-right:none!important}.fmde-host-btn{height:32px;padding:0 13px;border:1px solid var(--fmde-border);border-radius:8px;background:#fff}.fmde-host-btn.primary{border-color:var(--fmde-accent);background:var(--fmde-accent);color:var(--fmde-on-accent,#fff)}.fmde-host-btn.primary:hover:not(:disabled){background:var(--fmde-accent);filter:brightness(.94)}.fmde-host-btn:disabled{opacity:.45}\n";
 
+  const EDITOR_CSS_V14 = "\n/* ---------- v14: touch: two fingers pan and zoom, press and hold lifts what it moves ---------- */\n" +
+    "@media(pointer:coarse){.fmde-canvas{touch-action:none;-webkit-touch-callout:none;overscroll-behavior:contain}}\n" +
+    ".fmde-touch-lifted .fmde-selbox:not(.member){border-width:calc(3 * var(--fmde-px,1px));border-style:solid;box-shadow:0 0 0 calc(5 * var(--fmde-px,1px)) color-mix(in srgb,var(--fmde-accent) 26%,transparent),0 calc(14 * var(--fmde-px,1px)) calc(30 * var(--fmde-px,1px)) rgba(15,23,42,.28);animation:fmde-lift-pulse .8s ease-in-out infinite alternate}\n" +
+    ".fmde-touch-lifted .fmde-doc-object-chrome:not(.fmde-doc-object-group-member){border-width:3px;border-style:solid;box-shadow:0 0 0 5px color-mix(in srgb,var(--fmde-accent) 26%,transparent),0 14px 30px rgba(15,23,42,.28);animation:fmde-lift-pulse .8s ease-in-out infinite alternate}\n" +
+    ".fmde-touch-lifted .fmde-handle,.fmde-touch-lifted .fmde-handle-rotate,.fmde-touch-lifted .fmde-doc-object-resize,.fmde-touch-lifted .fmde-doc-object-controls{opacity:0;pointer-events:none}\n" +
+    ".fmde-lifted-node{filter:drop-shadow(0 10px 14px rgba(15,23,42,.34));opacity:.9}\n" +
+    "@keyframes fmde-lift-pulse{to{border-color:color-mix(in srgb,var(--fmde-accent) 50%,#fff)}}@media(prefers-reduced-motion:reduce){.fmde-touch-lifted .fmde-selbox,.fmde-touch-lifted .fmde-doc-object-chrome{animation:none}}\n";
+
   function ensureEditorStyles(doc) {
     if (!doc || !doc.head || doc.getElementById(EDITOR_STYLE_ELEMENT_ID)) return;
     const style = doc.createElement("style");
     style.id = EDITOR_STYLE_ELEMENT_ID;
-    style.textContent = EDITOR_CSS + EDITOR_CSS_V3 + EDITOR_CSS_V5 + EDITOR_CSS_V6 + EDITOR_CSS_V7 + EDITOR_CSS_V8 + EDITOR_CSS_V9 + EDITOR_CSS_V10 + EDITOR_CSS_V13 + EDITOR_CSS_V11 + EDITOR_CSS_V12;
+    style.textContent = EDITOR_CSS + EDITOR_CSS_V3 + EDITOR_CSS_V5 + EDITOR_CSS_V6 + EDITOR_CSS_V7 + EDITOR_CSS_V8 + EDITOR_CSS_V9 + EDITOR_CSS_V10 + EDITOR_CSS_V13 + EDITOR_CSS_V11 + EDITOR_CSS_V12 + EDITOR_CSS_V14;
     doc.head.appendChild(style);
   }
 
@@ -2031,6 +2039,7 @@
         if (state.mode === "doc" && ev.target.closest("button")) ev.preventDefault();
       });
       dom.canvas.addEventListener("wheel", onCanvasWheel, { passive: false });
+      installTouchGestures();
       dom.canvas.addEventListener("scroll", function () { positionViewRootSelection(); }, { passive: true });
       // Doc-mode projection listeners are delegated so they survive re-renders.
       dom.stage.addEventListener("beforeinput", function (ev) { docProjection.onBeforeInput(ev); });
@@ -4276,6 +4285,232 @@
       setZoom(state.zoom * factor);
     }
 
+    // ---- touch: two fingers pan and zoom, one finger selects, press and hold moves ---------
+    // On a touch screen the canvas takes no native panning (touch-action:none,
+    // CSS v14). Two fingers pinch-zoom and pan, keeping the point between them
+    // under the fingers. One finger taps select and edit at once; a drag
+    // (trackPointer) only gets its moves once the finger has been held still
+    // for TOUCH_HOLD_MS, when the selection lifts (.fmde-touch-lifted). Handles
+    // (resize, rotate, crop) act at once. Lifting and releasing without a drag
+    // opens the element's context menu, as a long press does elsewhere.
+    const TOUCH_HOLD_MS = 420;
+    const TOUCH_SLOP_PX = 10;
+    const TOUCH_HANDLE_SELECTOR = "[data-fmde-handle],.fmde-doc-object-resize,.fmde-img-handle,.fmde-cropui,.fmde-ruler-handle,.fmde-doc-object-controls,.fmde-img-chip,.fmde-textbar,input,select,textarea,button";
+    const touch = { points: new Map(), hold: null, timer: 0, pinch: null, ghost: false, frame: 0, menu: null, scroll: null, swallowClickUntil: 0, synthetic: false, remove: null };
+
+    function touchDistance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+    function touchAnchor(point) {
+      // The page under the fingers (else the nearest one) and where on it they
+      // are, as fractions, so the same spot can be put back under them after
+      // the zoom changes. Fixed page gaps make stage maths drift; a page doesn't.
+      let best = null;
+      for (const pageEl of pageElements()) {
+        const r = pageEl.getBoundingClientRect();
+        if (!r.width || !r.height) continue;
+        const dy = point.y < r.top ? r.top - point.y : (point.y > r.bottom ? point.y - r.bottom : 0);
+        if (!best || dy < best.dy) best = { el: pageEl, dy: dy, fx: (point.x - r.left) / r.width, fy: (point.y - r.top) / r.height };
+        if (!dy) break;
+      }
+      if (best) return best;
+      const r = dom.stage.getBoundingClientRect();
+      return { el: dom.stage, fx: (point.x - r.left) / (r.width || 1), fy: (point.y - r.top) / (r.height || 1) };
+    }
+
+    function cancelTouchTracking(pointerId, point) {
+      // Ends a drag a handler started on the first finger's pointerdown,
+      // before it moved anything (its moves were held back).
+      touch.synthetic = true;
+      try {
+        document.dispatchEvent(new PointerEvent("pointercancel", { pointerId: pointerId, pointerType: "touch", isPrimary: true, bubbles: true, clientX: point.x, clientY: point.y }));
+      } catch (err) { /* no PointerEvent constructor */ }
+      touch.synthetic = false;
+    }
+
+    function dropTouchLift() {
+      clearTimeout(touch.timer);
+      dom.root.classList.remove("fmde-touch-lifted");
+      dom.stage.querySelectorAll(".fmde-lifted-node").forEach(function (node) { node.classList.remove("fmde-lifted-node"); });
+    }
+
+    function liftTouchHold() {
+      const hold = touch.hold;
+      if (!hold || hold.moved || touch.pinch || state.destroyed) return;
+      hold.lifted = true;
+      // Only something a drag is waiting on lifts (text keeps the browser's
+      // own long press: select a word).
+      if (!hold.armed) return;
+      try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) { /* not allowed */ }
+      if (!state.selection.length) return;
+      dom.root.classList.add("fmde-touch-lifted");
+      for (const id of state.selection) {
+        let node = null;
+        try { node = state.renderHandle && typeof state.renderHandle.nodeElement === "function" ? state.renderHandle.nodeElement(id) : null; } catch (err) { node = null; }
+        node = node || renderedNodeElement(id);
+        if (node) node.classList.add("fmde-lifted-node");
+      }
+    }
+
+    function beginTouchPinch() {
+      clearTimeout(touch.timer);
+      const hold = touch.hold;
+      touch.hold = null;
+      touch.menu = null;
+      dropTouchLift();
+      // Whatever the first finger began (a drag waiting for its hold, a
+      // handle) ends here, and a caret its touch put down goes again so the
+      // keyboard doesn't open under a pinch.
+      const firstId = touch.points.keys().next().value;
+      cancelTouchTracking(firstId, hold ? { x: hold.x, y: hold.y } : touch.points.get(firstId));
+      if (hold && document.activeElement !== hold.focused && dom.stage.contains(document.activeElement)) {
+        try { document.activeElement.blur(); } catch (err) { /* nothing focused */ }
+      }
+      // Putting that caret back may have scrolled to it: the pinch starts where the page was.
+      if (touch.scroll) {
+        dom.canvas.scrollTop = touch.scroll.top;
+        dom.canvas.scrollLeft = touch.scroll.left;
+      }
+      const pts = Array.from(touch.points.values()).slice(0, 2);
+      const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+      touch.pinch = { d0: Math.max(1, touchDistance(pts[0], pts[1])), zoom0: state.zoom, anchor: touchAnchor(mid) };
+      touch.ghost = false;
+      dom.root.classList.add("fmde-touch-pinching");
+    }
+
+    function applyTouchPinch() {
+      touch.frame = 0;
+      const pinch = touch.pinch;
+      if (!pinch || state.destroyed) return;
+      const pts = Array.from(touch.points.values()).slice(0, 2);
+      if (pts.length < 2) return;
+      const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+      const next = clamp(pinch.zoom0 * touchDistance(pts[0], pts[1]) / pinch.d0, MIN_ZOOM, MAX_ZOOM);
+      if (Math.abs(next - state.zoom) > 0.002) setZoom(next);
+      if (!pinch.anchor.el.isConnected) pinch.anchor = touchAnchor(mid);
+      const r = pinch.anchor.el.getBoundingClientRect();
+      dom.canvas.scrollLeft += r.left + pinch.anchor.fx * r.width - mid.x;
+      dom.canvas.scrollTop += r.top + pinch.anchor.fy * r.height - mid.y;
+    }
+
+    function installTouchGestures() {
+      const onDown = function (ev) {
+        if (ev.pointerType !== "touch" || state.destroyed) return;
+        if (ev.isPrimary) touch.points.clear(); // a new touch: forget any finger whose lift went unseen
+        touch.points.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+        if (touch.points.size === 1) {
+          touch.scroll = { top: dom.canvas.scrollTop, left: dom.canvas.scrollLeft };
+          touch.pinch = null;
+          touch.ghost = false;
+          touch.hold = null;
+          if (ev.target && ev.target.closest && ev.target.closest(TOUCH_HANDLE_SELECTOR)) return;
+          touch.hold = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, focused: document.activeElement, armed: false, lifted: false, moved: false, dragging: false };
+          touch.timer = setTimeout(liftTouchHold, TOUCH_HOLD_MS);
+          return; // a tap selects or places the caret as usual
+        }
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        if (touch.hold && touch.hold.dragging) return; // carrying something: keep going
+        if (!touch.pinch && touch.points.size >= 2) beginTouchPinch();
+      };
+      const onMove = function (ev) {
+        if (ev.pointerType !== "touch" || !touch.points.has(ev.pointerId)) return;
+        touch.points.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+        if (touch.pinch || touch.ghost) {
+          ev.stopImmediatePropagation();
+          if (touch.pinch && !touch.frame) touch.frame = requestAnimationFrame(applyTouchPinch);
+          return;
+        }
+        const hold = touch.hold;
+        if (!hold || hold.id !== ev.pointerId) {
+          if (touch.points.size > 1) ev.stopImmediatePropagation(); // a second finger while carrying
+          return;
+        }
+        const far = Math.hypot(ev.clientX - hold.x, ev.clientY - hold.y) > TOUCH_SLOP_PX;
+        if (hold.lifted && hold.armed) {
+          // Lifted: the drag gets its moves once the finger really goes
+          // (a still finger's jitter neither nudges it nor cancels its menu).
+          if (far) hold.dragging = true;
+          if (!hold.dragging) ev.stopImmediatePropagation();
+          return;
+        }
+        if (far) { hold.moved = true; clearTimeout(touch.timer); }
+        ev.stopImmediatePropagation(); // nothing moves before the hold lifts it
+      };
+      const onUp = function (ev) {
+        if (ev.pointerType !== "touch" || touch.synthetic || !touch.points.has(ev.pointerId)) return;
+        touch.points.delete(ev.pointerId);
+        if (touch.pinch || touch.ghost) {
+          ev.stopImmediatePropagation();
+          if (touch.pinch && touch.points.size < 2) {
+            if (touch.frame) { cancelAnimationFrame(touch.frame); touch.frame = 0; }
+            applyTouchPinch();
+            touch.pinch = null;
+            dom.root.classList.remove("fmde-touch-pinching");
+            touch.ghost = touch.points.size > 0;
+            touch.swallowClickUntil = Date.now() + 400;
+          }
+          if (!touch.points.size) touch.ghost = false;
+          return;
+        }
+        const hold = touch.hold;
+        if (hold && hold.id !== ev.pointerId) { ev.stopImmediatePropagation(); return; }
+        if (!hold) return;
+        touch.hold = null;
+        touch.ghost = touch.points.size > 0;
+        dropTouchLift();
+        if (hold.moved && !hold.lifted) {
+          // A one-finger swipe neither scrolls nor edits: undo the caret its
+          // touch put down (and the scroll to it).
+          if (document.activeElement !== hold.focused && dom.stage.contains(document.activeElement)) {
+            try { document.activeElement.blur(); } catch (err) { /* nothing focused */ }
+          }
+          if (touch.scroll) {
+            dom.canvas.scrollTop = touch.scroll.top;
+            dom.canvas.scrollLeft = touch.scroll.left;
+          }
+        }
+        const menu = touch.menu;
+        touch.menu = null;
+        if (menu && hold.lifted && !hold.dragging) {
+          // Held and let go without moving: the long press's own menu.
+          setTimeout(function () {
+            if (state.destroyed || !menu.target.isConnected) return;
+            menu.target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: menu.x, clientY: menu.y }));
+          }, 0);
+        }
+      };
+      dom.canvas.addEventListener("pointerdown", onDown, true);
+      // Window capture runs before trackPointer's document listeners.
+      root.addEventListener("pointermove", onMove, true);
+      root.addEventListener("pointerup", onUp, true);
+      root.addEventListener("pointercancel", onUp, true);
+      dom.canvas.addEventListener("contextmenu", function (ev) {
+        const hold = touch.hold;
+        if (touch.pinch || touch.ghost) { ev.preventDefault(); ev.stopImmediatePropagation(); return; }
+        if (!hold || !hold.armed) return;
+        // A long press on something that can move lifts it; its menu waits
+        // for the finger to come up without dragging.
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        touch.menu = { target: ev.target, x: ev.clientX, y: ev.clientY };
+      }, true);
+      dom.canvas.addEventListener("selectstart", function (ev) {
+        if (touch.pinch || (touch.hold && touch.hold.armed && touch.hold.lifted)) ev.preventDefault();
+      }, true);
+      dom.canvas.addEventListener("click", function (ev) {
+        if (Date.now() < touch.swallowClickUntil) { ev.preventDefault(); ev.stopImmediatePropagation(); }
+      }, true);
+      // iOS Safari's own pinch would zoom the whole page.
+      dom.canvas.addEventListener("gesturestart", function (ev) { ev.preventDefault(); });
+      touch.remove = function () {
+        root.removeEventListener("pointermove", onMove, true);
+        root.removeEventListener("pointerup", onUp, true);
+        root.removeEventListener("pointercancel", onUp, true);
+        clearTimeout(touch.timer);
+        if (touch.frame) cancelAnimationFrame(touch.frame);
+      };
+    }
+
     let resizeObserver = null;
     const onViewportResize = debounce(function () {
       if (state.destroyed) return;
@@ -4835,6 +5070,8 @@
     }
 
     function trackPointer(startEv, onMove, onUp) {
+      // A touch drag waits for its hold (installTouchGestures).
+      if (touch.hold && startEv && touch.hold.id === startEv.pointerId && !touch.hold.lifted) touch.hold.armed = true;
       const move = function (ev) { onMove(ev); };
       const up = function (ev) {
         document.removeEventListener("pointermove", move, true);
@@ -14488,6 +14725,7 @@
         state.collabSession = null;
       }
       if (resizeObserver) resizeObserver.disconnect();
+      if (touch.remove) touch.remove();
       if (state.renderHandle && typeof state.renderHandle.destroy === "function") {
         try { state.renderHandle.destroy(); } catch (err) { /* renderer already gone */ }
       }
