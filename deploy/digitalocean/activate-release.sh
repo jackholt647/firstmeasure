@@ -31,17 +31,22 @@ fi
 previous_target="$(readlink -f /opt/firstmeasure/current 2>/dev/null || true)"
 activation_dir="$(cd -- "$(dirname -- "$0")" && pwd)"
 
-# Housekeeping after a successful activation: delete old releases and keep the
-# hourly pruning timer installed. Never fails the activation.
+# Housekeeping after a successful activation: keep the hourly release pruning
+# timer installed and start one pruning run in the background, so activation is
+# not delayed and its output (callers read its last line) is unchanged. Pruning
+# never deletes the active release, a symlinked one, one a running process uses
+# or the newest four (prune-releases.py). Never fails the activation.
 prune_after_activation() {
-  # Skipped when a test points systemctl at a fake host.
-  [[ -z "${FIRSTMEASURE_SYSTEMCTL:-}" ]] || return 0
-  if [[ -f "$activation_dir/install-release-prune.sh" ]]; then
-    bash "$activation_dir/install-release-prune.sh" >/dev/null 2>&1 || echo 'Warning: could not install the release pruning timer.' >&2
+  if [[ -z "${FIRSTMEASURE_SYSTEMCTL:-}" && -f "$activation_dir/install-release-prune.sh" ]]; then
+    bash "$activation_dir/install-release-prune.sh" >/dev/null 2>&1 || true
+  fi
+  if "$systemctl_command" start --no-block firstmeasure-release-prune.service >/dev/null 2>&1; then
+    return 0
   fi
   if [[ -f "$activation_dir/prune-releases.py" ]]; then
-    python3 "$activation_dir/prune-releases.py" --root /opt/firstmeasure || true
+    python3 "$activation_dir/prune-releases.py" --root /opt/firstmeasure >/dev/null 2>&1 || true
   fi
+  return 0
 }
 php_fpm_service="${FIRSTMEASURE_PHP_FPM_SERVICE:-php8.3-fpm.service}"
 # Overridable only so test_release_activation.py can run this against a fake host.
