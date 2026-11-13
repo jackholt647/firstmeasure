@@ -9009,7 +9009,10 @@
       "format": "icu"
     },
     "m_20117f24d2d135": "Factuurinstellingen konden niet worden geladen. ",
-    "m_48a9cdd2af44f4": "Opnieuw proberen"
+    "m_48a9cdd2af44f4": "Opnieuw proberen",
+    "m_db92249b608747": "Je werkruimte wordt geladen…",
+    "m_cade29468d2218": "Het laden van je werkruimte duurt langer dan normaal. Probeer het opnieuw.",
+    "m_b39f2fc77d6729": "Werkruimte opnieuw laden"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Kantoor",

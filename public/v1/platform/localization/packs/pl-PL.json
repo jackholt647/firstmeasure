@@ -8777,7 +8777,10 @@
       "format": "icu"
     },
     "m_20117f24d2d135": "Nie udało się wczytać ustawień rozliczeń. ",
-    "m_48a9cdd2af44f4": "Ponów próbę"
+    "m_48a9cdd2af44f4": "Ponów próbę",
+    "m_db92249b608747": "Wczytywanie obszaru roboczego…",
+    "m_cade29468d2218": "Wczytywanie obszaru roboczego trwa dłużej niż zwykle. Spróbuj ponownie.",
+    "m_b39f2fc77d6729": "Wczytaj obszar roboczy ponownie"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Biuro",

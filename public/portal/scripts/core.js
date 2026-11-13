@@ -4365,17 +4365,22 @@
       .finally(() => { capabilitiesPromise = null; });
     return capabilitiesPromise;
   }
-  async function refreshCredits(){
+  // The balance and the session its permissions come from. Boot starts these
+  // beside its other reads and applies them once billing settings are set.
+  function readCredits(orgId){
+    return Promise.all([
+      window.PlatformAPI.credits.get(orgId).catch(() => null),
+      window.PlatformAPI.auth?.me ? window.PlatformAPI.auth.me().catch(() => null) : Promise.resolve(null)
+    ]);
+  }
+  async function refreshCredits(options = {}){
     if (creditsRefreshPromise) return creditsRefreshPromise;
 
     creditsRefreshPromise = (async ()=>{
       let data = null;
       const orgId = String(APP.userOrgId || '').trim();
       if (orgId && window.PlatformAPI?.credits?.get) {
-        const [directCredits, session] = await Promise.all([
-          window.PlatformAPI.credits.get(orgId).catch(() => null),
-          window.PlatformAPI.auth?.me ? window.PlatformAPI.auth.me().catch(() => null) : Promise.resolve(null)
-        ]);
+        const [directCredits, session] = await (options?.reads || readCredits(orgId));
         const sessionPermissions = session?.membership?.permissions || session?.membership?.org_permissions?.items || session?.user?.permissions || session?.user?.org_permissions?.items || null;
         const creditsMissing = directCredits?.missing === true;
         const hasDirectBalance = directCredits
@@ -5088,6 +5093,35 @@
   });
   window.addEventListener('fm:embeddable-apps:app-unregistered', renderTabs);
 
+  // The boot cover is painted by portal/index.php before any script runs, in
+  // English; its copy is switched to the person's language once that loads.
+  function localizeBootCover(){
+    const cover=document.getElementById('fmPlatformBootCover');
+    // A billing failure has already written its own message.
+    if(!cover||cover.dataset.state==='error')return;
+    const copy={
+      loading:(globalThis.PlatformLanguage?.text("platform","m_db92249b608747","Loading your workspace…") ?? "Loading your workspace…"),
+      slow:(globalThis.PlatformLanguage?.text("platform","m_cade29468d2218","Your workspace is taking longer to load. Please try again.") ?? "Your workspace is taking longer to load. Please try again."),
+      reload:(globalThis.PlatformLanguage?.text("platform","m_b39f2fc77d6729","Reload workspace") ?? "Reload workspace")
+    };
+    cover.querySelectorAll('[data-fm-boot-copy]').forEach((node)=>{node.textContent=copy[node.dataset.fmBootCopy]||node.textContent;});
+  }
+  function showBootCoverProblem(message, action){
+    const cover=document.getElementById('fmPlatformBootCover');
+    if(!cover)return;
+    cover.dataset.state='error';
+    const problem=cover.querySelector('[data-fm-boot-copy="slow"]'),retry=cover.querySelector('[data-fm-boot-copy="reload"]');
+    if(problem)problem.textContent=message;
+    if(retry)retry.textContent=action;
+  }
+  function finishBootCover(){
+    const cover=document.getElementById('fmPlatformBootCover');
+    if(!cover)return;
+    // Fade out over the first screen rather than cutting to it.
+    cover.classList.add('is-leaving');
+    setTimeout(()=>cover.remove(),200);
+  }
+
   // Boot
   document.addEventListener('DOMContentLoaded', async ()=>{
     // Manifests are registered synchronously above. Prune stale nested route
@@ -5101,8 +5135,12 @@
     const capabilitiesReady = loadCapabilities().catch(()=>null);
     const terminologyReady = Promise.resolve(window.Portal.terminology.load()).catch(()=>null);
     initializeSidebarModes();
+    languageReady.then(localizeBootCover);
+    const orgId=String(APP.userOrgId || '').trim();
+    // The balance read also carries permissions, so the cover waits for it;
+    // it runs beside the reads below and is applied after billing settings.
+    const creditReads=orgId && window.PlatformAPI?.credits?.get ? readCredits(orgId) : null;
     try {
-      const orgId=String(APP.userOrgId || '').trim();
       // These reads share the resolved session, not one another's results.
       // Start commerce alongside flags/language instead of adding another RTT.
       const [commerce]=await Promise.all([
@@ -5111,15 +5149,14 @@
       ]);
       window.PlatformCommerce.set(commerce.commerce || commerce);
     } catch(error) {
-      const cover=document.getElementById('fmPlatformBootCover');
-      if(cover){cover.textContent=(globalThis.PlatformLanguage?.text("platform","m_20117f24d2d135","Billing settings could not be loaded. ") ?? "Billing settings could not be loaded. ");const retry=document.createElement('button');retry.textContent=(globalThis.PlatformLanguage?.text("platform","m_48a9cdd2af44f4","Retry") ?? "Retry");retry.onclick=()=>location.reload();cover.appendChild(retry);}
+      showBootCoverProblem((globalThis.PlatformLanguage?.text("platform","m_20117f24d2d135","Billing settings could not be loaded. ") ?? "Billing settings could not be loaded. "),(globalThis.PlatformLanguage?.text("platform","m_48a9cdd2af44f4","Retry") ?? "Retry"));
       console.error('Billing initialization failed',error);return;
     }
     TabRegistry.routesReady = true;
     renderTabs();
-    await refreshCredits().catch(()=>null);
+    await refreshCredits({ reads:creditReads }).catch(()=>null);
     document.body.classList.remove('platform-booting');
-    document.getElementById('fmPlatformBootCover')?.remove();
+    finishBootCover();
     setTimeout(()=>checkSession().catch(()=>null), 1000);
     setInterval(()=>checkSession().catch(()=>null), 240000);
   });

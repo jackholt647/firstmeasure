@@ -9005,7 +9005,10 @@
       "format": "icu"
     },
     "m_20117f24d2d135": "Kunne ikke laste inn betalingsinnstillingene. ",
-    "m_48a9cdd2af44f4": "Prøv igjen"
+    "m_48a9cdd2af44f4": "Prøv igjen",
+    "m_db92249b608747": "Laster inn arbeidsområdet ditt…",
+    "m_cade29468d2218": "Det tar lengre tid enn vanlig å laste inn arbeidsområdet. Prøv igjen.",
+    "m_b39f2fc77d6729": "Last inn arbeidsområdet på nytt"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Kontor",

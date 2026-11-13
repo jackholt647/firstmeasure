@@ -8997,7 +8997,10 @@
       "format": "icu"
     },
     "m_20117f24d2d135": "Kunne ikke indlæse faktureringsindstillinger. ",
-    "m_48a9cdd2af44f4": "Prøv igen"
+    "m_48a9cdd2af44f4": "Prøv igen",
+    "m_db92249b608747": "Indlæser dit arbejdsområde…",
+    "m_cade29468d2218": "Dit arbejdsområde er længere tid om at indlæse. Prøv igen.",
+    "m_b39f2fc77d6729": "Genindlæs arbejdsområde"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Kontor",

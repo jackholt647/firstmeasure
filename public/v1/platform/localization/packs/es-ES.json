@@ -8977,7 +8977,10 @@
     "m_86ec40fa3f9758": "Desactivar",
     "m_4aaef822b47692": "FirstMate Assistant",
     "m_20117f24d2d135": "No se ha podido cargar la configuración de facturación. ",
-    "m_48a9cdd2af44f4": "Reintentar"
+    "m_48a9cdd2af44f4": "Reintentar",
+    "m_db92249b608747": "Cargando tu espacio de trabajo…",
+    "m_cade29468d2218": "Tu espacio de trabajo está tardando más en cargar. Inténtalo de nuevo.",
+    "m_b39f2fc77d6729": "Volver a cargar el espacio de trabajo"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Oficina",

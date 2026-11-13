@@ -8669,7 +8669,10 @@
       "format": "icu"
     },
     "m_20117f24d2d135": "Impossibile caricare le impostazioni di fatturazione. ",
-    "m_48a9cdd2af44f4": "Riprova"
+    "m_48a9cdd2af44f4": "Riprova",
+    "m_db92249b608747": "Caricamento dell’area di lavoro…",
+    "m_cade29468d2218": "Il caricamento dell’area di lavoro richiede più tempo del previsto. Riprova.",
+    "m_b39f2fc77d6729": "Ricarica l’area di lavoro"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Ufficio",
