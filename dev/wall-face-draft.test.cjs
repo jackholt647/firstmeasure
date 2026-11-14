@@ -811,6 +811,22 @@ test('window labeling, size cycling, nudging and metadata survive resolve and re
  f.editor.key({key:'W',shiftKey:true});assert.equal(selected().feature.preset,0,f.message());const F=require('../public/measure/internal/editor_scripts/wall_features.js'),b=F.bounds(selected().points);assert.ok(Math.abs(b.right-b.left-3*F.FT)<1e-8);
  f.editor.key({key:'ArrowRight'});assert.ok(Math.abs(F.bounds(selected().points).left-b.left-F.FT/12)<1e-8,f.message());S.resolve(f.d());assert.equal(selected().feature.type,'window');const restored=fixture({state:JSON.parse(JSON.stringify(f.state)),globals:renderGlobals()});restored.editor.draw3D({add(){}},p=>p);assert.equal(restored.d().faces.find(f=>f.feature).feature.type,'window');
 });
+test('a sticker from the library can be placed, cancelled and left with a drawing plane on',()=>{
+ // With a plane on, the plane took the sticker tool's clicks and keys: the sticker could not be placed, Escape did
+ // not cancel it, and P refused to close the plane because a tool was running. The session was stuck.
+ const make=()=>{let f;f=fixture({featureHost:()=>{const d=f.d();return {d,f:d.faces[0],points:d.faces[0].points.map(p=>({x:p.x,y:0,z:p.y}))};},globals:renderGlobals(),projectPoint:(d,e)=>d.frame?require('../public/measure/internal/editor_scripts/wall_solid_geometry.js').inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):({x:e.clientX/100,y:e.clientY/100,z:0})});
+  f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));f.editor.togglePlane({points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}]});assert.ok(f.editor.planeView(),'the plane is on');return f;};
+ // Placed with a click, the plane stays on.
+ let f=make();f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));f.editor.down(f.e(2,2));
+ assert.ok(f.d().faces.some(x=>x.feature?.type==='window'),f.message());assert.ok(!f.editor.featurePlacement(),'the sticker tool is done');assert.ok(f.editor.planeView());
+ // Escape cancels the sticker and nothing else.
+ f=make();const before=JSON.stringify(f.state.wallEdits);f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));assert.ok(f.editor.featurePlacement());f.editor.key({key:'Escape'});
+ assert.ok(!f.editor.featurePlacement(),'the sticker tool is cancelled');assert.equal(JSON.stringify(f.state.wallEdits),before);assert.ok(f.editor.planeView(),'the plane is still on');
+ // P always leaves the plane with a sticker tool running: the sticker is placed where it is previewed, or the tool
+ // is cancelled when it cannot be; either way no tool is left running and the plane is off.
+ f=make();const untouched=JSON.stringify(f.state.wallEdits);f.editor.featureCommand('window',0,true);assert.ok(f.editor.featurePlacement());f.editor.key({key:'p'});
+ assert.ok(!f.editor.planeView(),'the plane is off');assert.ok(!f.editor.featurePlacement());assert.equal(f.editor.busy(),false);assert.ok(JSON.stringify(f.state.wallEdits)===untouched||f.d().faces.some(x=>x.feature?.type==='window'));
+});
 test('library placement creates editable geometry and cancellation leaves no sticker',()=>{
  let f;f=fixture({featureHost:()=>{const d=f.d();return {d,f:d.faces[0],points:d.faces[0].points.map(p=>({x:p.x,y:0,z:p.y}))};},globals:renderGlobals(),projectPoint:(d,e)=>d.frame?require('../public/measure/internal/editor_scripts/wall_solid_geometry.js').inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):({x:e.clientX/100,y:e.clientY/100,z:0})});f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));const before=JSON.stringify(f.state.wallEdits);f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
  f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));f.editor.down(f.e(2,2));assert.ok(f.d().faces.some(f=>f.feature?.type==='window'),f.message());assert.equal(f.editor.busy(),false);assert.ok(f.d().sketch.edges.some(e=>!e.fixed));
