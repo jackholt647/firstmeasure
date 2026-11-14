@@ -2963,8 +2963,10 @@ window.PlatformCommerce.onReady(async function(){
 
   function pinCount(){ return getMarkersData().length; }
 
+  // Before a project type is chosen, allow the most any type allows; picking residential lowers it.
   function maxPinsForType(type){
     const normalized = normalizedProjectType(type);
+    if (!normalized) return MAX_PINS_PER_STRUCTURE_REPORT;
     if (normalized === 'residential') return MAX_PINS_RESIDENTIAL;
     if (isPerStructureType(normalized)) return MAX_PINS_PER_STRUCTURE_REPORT;
     return 0;
@@ -7235,7 +7237,8 @@ window.PlatformCommerce.onReady(async function(){
     const el = $('#rPinInfo');
     const count = pinCount();
     const maxPins = maxPinsForType(selectedType);
-    const showLimitNotice = structurePinLimitNoticeActive && !!maxPins && count >= maxPins;
+    // Over the limit (residential picked after more pins were placed) always shows the notice.
+    const showLimitNotice = !!maxPins && (count > maxPins || (structurePinLimitNoticeActive && count >= maxPins));
     if (!showLimitNotice && (!maxPins || count < maxPins)) {
       structurePinLimitNoticeActive = false;
     }
