@@ -88,8 +88,10 @@
     return normalized === 'commercial' || normalized === 'multifamily' || normalized === 'multi_family';
   }
 
+  // Before a project type is chosen, allow the most any type allows; picking residential lowers it.
   function maxPinsForType(type){
     const normalized = normalizedProjectType(type);
+    if (!normalized) return MAX_PINS_PER_STRUCTURE_REPORT;
     if (normalized === 'residential') return MAX_PINS_RESIDENTIAL;
     if (isPerStructureType(normalized)) return MAX_PINS_PER_STRUCTURE_REPORT;
     return 0;
@@ -955,8 +957,8 @@
 
   function addPin(latLng, draggable = true, options = {}){
     if (!state.map || !window.google?.maps) return null;
-    const type = normalizedProjectType(selectedType());
-    const maxPins = maxPinsForType(type);
+    // The limit follows the type actually chosen, not selectedType()'s residential default.
+    const maxPins = maxPinsForType(callHost('getSelectedType') || project()?.project_type || '');
     if (!options.silent && maxPins && state.markers.length >= maxPins) {
       callHost('showStructurePinLimitNotice', maxPins) || showToast((globalThis.PlatformLanguage?.text("project-map","m_21b024a2811c3a","Pin limit") ?? "Pin limit"), pinLimitMessage(maxPins), false);
       return null;
