@@ -88,11 +88,21 @@
     return normalized === 'commercial' || normalized === 'multifamily' || normalized === 'multi_family';
   }
 
+  // Before a project type is chosen, allow the most any type allows; picking residential lowers it.
   function maxPinsForType(type){
     const normalized = normalizedProjectType(type);
+    if (!normalized) return MAX_PINS_PER_STRUCTURE_REPORT;
     if (normalized === 'residential') return MAX_PINS_RESIDENTIAL;
     if (isPerStructureType(normalized)) return MAX_PINS_PER_STRUCTURE_REPORT;
     return 0;
+  }
+
+  // The pin limit follows the type the person chose. A new request's draft is autosaved as
+  // residential before any type is picked, so a host that knows the choice is asked, even when
+  // it answers none; selectedType()'s residential fallback is only for icons.
+  function pinLimitType(){
+    if (typeof state.host?.getSelectedType === 'function') return state.host.getSelectedType() || '';
+    return project()?.project_type || '';
   }
 
   function pinLimitMessage(maxPins){
@@ -955,8 +965,7 @@
 
   function addPin(latLng, draggable = true, options = {}){
     if (!state.map || !window.google?.maps) return null;
-    const type = normalizedProjectType(selectedType());
-    const maxPins = maxPinsForType(type);
+    const maxPins = maxPinsForType(pinLimitType());
     if (!options.silent && maxPins && state.markers.length >= maxPins) {
       callHost('showStructurePinLimitNotice', maxPins) || showToast((globalThis.PlatformLanguage?.text("project-map","m_21b024a2811c3a","Pin limit") ?? "Pin limit"), pinLimitMessage(maxPins), false);
       return null;
