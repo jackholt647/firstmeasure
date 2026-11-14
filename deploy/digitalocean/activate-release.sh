@@ -29,6 +29,25 @@ if [[ "$service_name" == "firstmeasure-web.service" ]]; then
 fi
 
 previous_target="$(readlink -f /opt/firstmeasure/current 2>/dev/null || true)"
+activation_dir="$(cd -- "$(dirname -- "$0")" && pwd)"
+
+# Housekeeping after a successful activation: keep the hourly release pruning
+# timer installed and start one pruning run in the background, so activation is
+# not delayed and its output (callers read its last line) is unchanged. Pruning
+# never deletes the active release, a symlinked one, one a running process uses
+# or the newest four (prune-releases.py). Never fails the activation.
+prune_after_activation() {
+  if [[ -z "${FIRSTMEASURE_SYSTEMCTL:-}" && -f "$activation_dir/install-release-prune.sh" ]]; then
+    bash "$activation_dir/install-release-prune.sh" >/dev/null 2>&1 || true
+  fi
+  if "$systemctl_command" start --no-block firstmeasure-release-prune.service >/dev/null 2>&1; then
+    return 0
+  fi
+  if [[ -f "$activation_dir/prune-releases.py" ]]; then
+    python3 "$activation_dir/prune-releases.py" --root /opt/firstmeasure >/dev/null 2>&1 || true
+  fi
+  return 0
+}
 php_fpm_service="${FIRSTMEASURE_PHP_FPM_SERVICE:-php8.3-fpm.service}"
 # Overridable only so test_release_activation.py can run this against a fake host.
 systemctl_command="${FIRSTMEASURE_SYSTEMCTL:-systemctl}"
@@ -132,12 +151,14 @@ if activate_release_services "$release_directory"; then
       if journalctl -u "$service_name" --since "$worker_started_at" --no-pager \
         | grep -q 'dedicated background worker is ready'; then
         echo "Activated $release_id for $service_name."
+        prune_after_activation
         exit 0
       fi
       sleep 2
     done
   elif bash /opt/firstmeasure/current/deploy/digitalocean/verify-node.sh "$node_http"; then
     echo "Activated $release_id for $service_name ($activation_method)."
+    prune_after_activation
     exit 0
   fi
 fi

@@ -117,3 +117,23 @@ test('fallback inset handles concave roofs and rejects a setback that consumes t
  const points=[p(0,0,5),p(10,0,5),p(10,4,5),p(4,4,5),p(4,10,5),p(0,10,5)],roof={faces:[{points}]},grade=T.fromPlane({x0:-1,x1:11,y0:-1,y1:11},{dx:0,dy:0,k:0});
  const b=B.fromRoof(roof,grade,[],1);assert.equal(b.faces.length,1);assert.ok(b.faces[0].points.some(p=>p.x===3&&p.y===3));assert.throws(()=>B.fromRoof(roof,grade,[],6),/closed house outline/);
 });
+test('pitch is square to a fold the face shares, so a move down brings both ends of the fold onto the neighbour',()=>{
+ const B=require('../public/measure/internal/editor_scripts/base_geometry.js'),p=(x,y,z=0)=>({x,y,z});
+ // Two level faces meeting along x=4. The far edge of the right face runs 0.0013 degrees off parallel to the fold,
+ // as the edges of a surveyed building do.
+ const tilt=Math.tan(.0013*Math.PI/180),left={id:'left',points:[p(0,0),p(4,0),p(4,6),p(0,6)]},right={id:'right',points:[p(4,0),p(12,0),p(12+6*tilt,6),p(4,6)]};
+ const far={x:-1,y:tilt},length=Math.hypot(far.x,far.y),wanted={x:far.x/length,y:far.y/length};
+ // Taking the direction from the far edge (square to it) is what tilted the fold.
+ const fromFarEdge=B.boundaryAxis(right,wanted)?.direction||wanted,axis=B.foldAxis(right,[left,right],fromFarEdge);
+ assert.ok(axis&&Math.abs(Math.abs(axis.x)-1)<1e-12&&Math.abs(axis.y)<1e-12,'square to the fold exactly: '+JSON.stringify(axis));
+ assert.equal(B.foldAxis(right,[left,right],{x:Math.cos(.2),y:Math.sin(.2)}),null,'a direction that is plainly another one is left alone');
+ assert.equal(B.foldAxis(left,[left],{x:1,y:0}),null,'a face with no neighbour has no fold');
+ const fold=f=>f.points.filter(q=>Math.abs(q.x-4)<1e-9).map(q=>q.z);
+ const skew=fold(B.transform(right,'pitch',.2,wanted,B.center(right))),square=B.transform(right,'pitch',.2,axis,B.center(right));
+ assert.ok(Math.abs(skew[0]-skew[1])>1e-5,'pitched off the far edge, the fold ends differ by '+Math.abs(skew[0]-skew[1]));
+ assert.ok(Math.abs(fold(square)[0]-fold(square)[1])<1e-9,'pitched square to the fold, it stays level');
+ // Moving it back down snaps the fold onto the neighbour, not some other edge that is level with the neighbour's plane.
+ const snap=B.heightSnap(square,[left],-fold(square)[0]+.004,q=>({x:q.x*100+q.y*10,y:q.z*100}));
+ assert.ok(snap,'a snap is offered');assert.equal(snap.kind,'Edge / plane height snap');
+ const landed=fold(B.transform(square,'move',snap.amount));assert.ok(landed.every(z=>Math.abs(z)<1e-9),'both ends of the fold are on the neighbour: '+landed);
+});

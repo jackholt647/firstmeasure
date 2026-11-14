@@ -3500,6 +3500,27 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   });
 
+  // The completed report's roof line types and the line totals its PDF prints, for the customer 3D viewer:
+  // model_data.xml carries only the export's coarser line types (FM-455). Same organization check as exterior-model.
+  app.get("/projects/:id/roof-lines", async (request) => {
+    const auth = await requirePlatformAuth(request, { permission: 'view_reports' });
+    const projectId = getProjectId(request.params);
+    const manifest = await readManifest(projectId);
+    const legacy = buildLegacyManifest(manifest);
+    const email = String(auth.identity.email || '').toLowerCase();
+    if (String(legacy.organization_id || '') !== auth.orgId &&
+        ![legacy.owner_email, legacy.issuer_email].some(value => email && String(value || '').toLowerCase() === email)) {
+      throw new FirstMeasureError('project_forbidden', 403, 'This project is not available to this account.');
+    }
+    const { measurementPayloadFromSavedReport, reportHeldForRelease } = await import("../platform/publication/firstmeasure-datasets.js");
+    if (String(manifest.status ?? '').toLowerCase() !== 'completed' || reportHeldForRelease(manifest)) return { ok: true, edgeTypes: [], measurements: {} };
+    const { reportEdgeTypes } = await import("../platform/widgets/roof-classifications.js");
+    const [pdfState, xml] = await Promise.all([readPdfState(projectId), readStoredXml(projectId).then(file => file.content.toString("utf8"), () => "")]);
+    // Line totals only: the PDF prints squares from the faces, as the viewer computes them, not the saved materials.squares.
+    const measurements = Object.fromEntries(Object.entries(measurementPayloadFromSavedReport(pdfState)).filter(([key]) => key.endsWith("Lf")));
+    return { ok: true, edgeTypes: reportEdgeTypes(pdfState, xml), measurements };
+  });
+
   // The completed full-house model for the customer 3D viewer: only the published exterior report geometry and the
   // roof covering, never editor state or images. Same organization check as exterior-measurements.
   app.get("/projects/:id/exterior-model", async (request) => {
@@ -12469,6 +12490,14 @@ async function reopenRejectedProjectForReorder(
 
   }
 
+  // A Full Exterior keeps its exteriors_ id and references: trying again, or ordering only the roof, is a new order.
+
+  if (existing.measurement_scope === "full_house" || isCustomerExteriorId(projectId)) {
+
+    throw badRequest("exterior_reorder_requires_new_order", "Place a new order to try a rejected Full Exterior again.");
+
+  }
+
 
 
   const nowIso = new Date().toISOString();
@@ -16198,6 +16227,18 @@ function buildRejectionMessageParagraphs(project: Record<string, unknown>) {
 
   const rejectionReason = String(project.rejection_reason ?? "").trim().toLowerCase();
 
+  if (rejectionReason === "insufficient_footage") {
+
+    return [
+
+      "We were not able to complete this Full Exterior report because the photos and video do not show enough of the house for us to draw every wall, window and door.",
+
+      "You can try again with a wider view of the house and more photos of each side, or order just the roof report."
+
+    ];
+
+  }
+
   if (rejectionReason === "obscured_visibility") {
 
     return [
@@ -16510,7 +16551,11 @@ const DEFAULT_REJECTION_REASONS = [
 
   { id: "invalid_pin_placement", label: "Invalid pin placement", icon: "fas fa-map-pin" },
 
-  { id: "incorrect_structure_type", label: "Incorrect Structure Type", icon: "fas fa-building" }
+  { id: "incorrect_structure_type", label: "Incorrect Structure Type", icon: "fas fa-building" },
+
+  // Full Exterior orders only: the customer's photos and video do not show enough of the house to draw it.
+
+  { id: "insufficient_footage", label: "Insufficient footage", icon: "fas fa-video" }
 
 ];
 
@@ -23485,6 +23530,9 @@ async function rejectCoverageProject(projectId: string, body: Record<string, unk
     const existingLegacy = buildLegacyManifest(existingManifest);
 
     if (["rejected", "rejected_no_coverage", "cancelled"].includes(String(existingManifest.status))) return {ok:true,success:true,manifest:existingLegacy};
+    if (rejectionReason === "insufficient_footage" && existingManifest.measurement_scope !== "full_house") {
+      throw badRequest("invalid_rejection_reason", "Insufficient footage applies to Full Exterior orders only.");
+    }
 
     let structureReorder: StructureTypeReorderPayload | null = null;
 

@@ -38,7 +38,9 @@ function read(base){
 function inside(s,p,base){if(base?.constructionPlane)return true;return base&&!base.origin&&!base.frame?base.faces.some(f=>G.contains(f,p)):s.outlines.some(points=>G.contains({points},p));}
 function add(base,p,tolerance=.01){
  const s=ensure(base);if(![p.x,p.y,p.z].every(Number.isFinite))throw Error('Point coordinates must be finite.');
- const found=s.nodes.find(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<tolerance);if(found){found.userDraftPoint=true;delete found.curveSample;return found.id;}
+ // The nearest point within reach, not the first: where two faces each keep a corner at one spot, a line across
+ // one of them starts from that face's own corner.
+ const found=s.nodes.filter(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<tolerance).sort((a,b)=>Math.hypot(p.x-a.x,p.y-a.y,p.z-a.z)-Math.hypot(p.x-b.x,p.y-b.y,p.z-b.z))[0];if(found){found.userDraftPoint=true;delete found.curveSample;return found.id;}
  const n={...p,id:'p'+(++s.next),fixed:false,userDraftPoint:true};delete n.curveSample;s.nodes.push(n);return n.id;
 }
 function connect(base,ids){
@@ -81,14 +83,60 @@ function fold(base,a,b){
   if(planes.length>1)return true;planes.length=0;}
  return false;
 }
+// A boundary point that lies straight along one edge carries nothing: it can
+// go, and its two boundary edges become one. A point where the boundary turns,
+// or where a curve or a third boundary edge meets it, holds the outline.
+function straightBoundaryPoint(s,n){
+ const own=s.edges.filter(e=>e.fixed&&(e.a===n.id||e.b===n.id));if(own.length!==2||own.some(e=>e.curveId))return null;
+ const [a,b]=own.map(e=>s.nodes.find(m=>m.id===(e.a===n.id?e.b:e.a)));if(!a||!b||a===b)return null;
+ const d={x:b.x-a.x,y:b.y-a.y,z:b.z-a.z},l2=d.x*d.x+d.y*d.y+d.z*d.z;if(l2<1e-12)return null;const t=((n.x-a.x)*d.x+(n.y-a.y)*d.y+(n.z-a.z)*d.z)/l2;
+ return t>0&&t<1&&Math.hypot(n.x-a.x-d.x*t,n.y-a.y-d.y*t,n.z-a.z-d.z*t)<=1e-4?{a,b,edges:own}:null;
+}
+// A base sketch holds what lies on the base. onBase: on the plane of a base face and within or on its outline.
+function onBase(base,p){return (base?.faces||[]).some(f=>{const pl=G.plane(f.points);return onPlane(p,pl,.002)&&(G.contains(f,p)||onRing(p,f.points,.002));});}
+// Lines that were connected between points up a wall were stored in the base sketch, drawn there and
+// selectable nowhere. Remove user lines with an end off the base, and the user points left with no line.
+function removeStrayWire(base){
+ if(!base?.sketch||base.origin||base.frame||base.constructionPlane||!base.faces?.length)return false;const s=base.sketch,off=new Set(s.nodes.filter(n=>!n.fixed&&!n.curveSample&&!n.curveCenter&&!n.curveControl&&!onBase(base,n)).map(n=>n.id));if(!off.size)return false;
+ const edges=s.edges.filter(e=>e.fixed||e.curveId||!(off.has(e.a)||off.has(e.b)));if(edges.length===s.edges.length&&![...off].some(id=>!s.edges.some(e=>e.a===id||e.b===id)))return false;
+ s.edges=edges;s.nodes=s.nodes.filter(n=>!off.has(n.id)||s.edges.some(e=>e.a===n.id||e.b===n.id));resolve(base);return true;
+}
+// Two base faces meet along a fold, and share the corners at its ends. Pitching or re-levelling one of them
+// brings its corner back to within tens of microns of the other's, not onto it: the fold then has two corners
+// at each such end, one per face, and a line drawn from "the" corner starts from the wrong face's copy and
+// divides nothing. weldFolds tilts the steeper face by that hair so both faces meet in the same points again.
+// Corners further apart in height than FOLD_WELD are a real step and are left alone.
+const FOLD_WELD=1e-4;
+function weldFolds(base){
+ if(!base?.faces?.length||base.origin||base.frame||base.constructionPlane)return false;
+ const plan=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),steep=f=>{const pl=G.plane(f.points);return pl?Math.hypot(pl.dx,pl.dy):Infinity;},before=copy(base);let changed=false;
+ // Level faces stay; steeper ones come to them.
+ const order=base.faces.map((f,i)=>({f,i,s:steep(f)})).sort((a,b)=>a.s-b.s||a.i-b.i).map(o=>o.f);
+ for(let j=1;j<order.length;j++){const face=order[j];if(face.curves?.length)continue;const fixes=[];
+  for(const q of face.points){let fix=null;for(let i=0;i<j&&!fix;i++){const a=order[i].points.find(p=>plan(p,q)<=K.CONTACT&&Math.abs(p.z-q.z)<=FOLD_WELD);if(a)fix={x:q.x,y:q.y,dz:a.z-q.z};}if(fix&&!fixes.some(o=>plan(o,fix)<=K.CONTACT))fixes.push(fix);}
+  if(!fixes.some(o=>Math.abs(o.dz)>1e-7))continue;
+  // One shared corner: the face moves up or down by the difference. Two or more: it turns about the fold.
+  let delta=()=>fixes[0].dz;
+  if(fixes.length>1){let P=fixes[0],Q=fixes[1];for(const a of fixes)for(const b of fixes)if(plan(a,b)>plan(P,Q)){P=a;Q=b;}const l2=plan(P,Q)**2;delta=p=>P.dz+(Q.dz-P.dz)*((p.x-P.x)*(Q.x-P.x)+(p.y-P.y)*(Q.y-P.y))/l2;if(fixes.some(o=>Math.abs(delta(o)-o.dz)>1e-7))continue;}
+  for(const p of face.points)p.z+=delta(p);changed=true;
+ }
+ if(!changed)return false;
+ try{rebind(before,base);}catch(e){Object.assign(base,before);return false;}
+ return true;
+}
+// Returns how many points and lines were removed; 0 means nothing changed.
 function remove(base,pointIds,lineIds){
- const s=ensure(base),deleted=new Set(s.nodes.filter(n=>pointIds.includes(n.id)&&!n.fixed).map(n=>n.id));
+ const s=ensure(base),straight=new Map(s.nodes.filter(n=>pointIds.includes(n.id)&&n.fixed).map(n=>[n.id,straightBoundaryPoint(s,n)]).filter(([,v])=>v)),deleted=new Set(s.nodes.filter(n=>pointIds.includes(n.id)&&(!n.fixed||straight.has(n.id))).map(n=>n.id));
+ const counted=deleted.size+s.edges.filter(e=>!e.fixed&&(lineIds.includes(e.id)||deleted.has(e.a)||deleted.has(e.b))).length;if(!counted)return 0;
  if(!(base.origin||base.frame||base.constructionPlane)){const doomed=s.edges.filter(e=>!e.fixed&&(lineIds.includes(e.id)||deleted.has(e.a)||deleted.has(e.b)));
   if(s.edges.some(e=>e.holeCut&&lineIds.includes(e.id)))throw Error('That line divides the base around an enclosed region. Remove the region outline instead.');
   if(curveEdges({...s,edges:doomed}).some(e=>e.start&&e.end&&fold(base,e.start,e.end)))throw Error('That line is the fold between base faces on different planes. Make the faces coplanar before removing it.');
  }
- s.nodes=s.nodes.filter(n=>!deleted.has(n.id));s.edges=s.edges.filter(e=>e.fixed||(!lineIds.includes(e.id)&&!deleted.has(e.a)&&!deleted.has(e.b)));
- resolve(base);
+ // Join the boundary across each removed straight point (a run of them joins end to end).
+ for(const [id,{edges}]of straight){const ends=edges.map(e=>e.a===id?e.b:e.a),live=s.edges.filter(e=>e.fixed&&(e.a===id||e.b===id));if(live.length!==2)continue;const [u,v]=live.map(e=>e.a===id?e.b:e.a);s.edges=s.edges.filter(e=>!live.includes(e));if(u!==v&&!s.edges.some(e=>!e.curveId&&[e.a,e.b].includes(u)&&[e.a,e.b].includes(v)))s.edges.push({id:'e'+(++s.next),a:u,b:v,fixed:true});}
+ s.nodes=s.nodes.filter(n=>!deleted.has(n.id));s.edges=s.edges.filter(e=>e.fixed?!deleted.has(e.a)&&!deleted.has(e.b):(!lineIds.includes(e.id)&&!deleted.has(e.a)&&!deleted.has(e.b)));
+ for(const f of base.faces)f.points=f.points.filter(p=>!deleted.has(p.nodeId));
+ resolve(base);return counted;
 }
 // Publish changed curve definitions and synchronize only persistent controls.
 // Evaluated face loops are rebuilt from those definitions by resolve().
@@ -381,6 +429,6 @@ function upgrade(base){
   return parts.length?parts:[e];});
  before.faces=[...before.faces,...recorded];rebind(before,base);return true;
 }
-const api={nodeLines,updateCurves,syncSurfaceBoundaries,isCurveSample,curveSampleTest,curveEdges,compactCurves,addCurve,read,ensure,rebind,upgrade,add,connect,remove,move,setHeights,resolve};
+const api={onBase,removeStrayWire,weldFolds,nodeLines,updateCurves,syncSurfaceBoundaries,isCurveSample,curveSampleTest,curveEdges,compactCurves,addCurve,read,ensure,rebind,upgrade,add,connect,remove,move,setHeights,resolve};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.BaseSketchGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

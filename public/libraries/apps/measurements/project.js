@@ -67,6 +67,8 @@ window.PlatformCommerce.onReady(function(){
   let userMeasurementTabProject = '';
   let roofViewer = null;
   let roofViewerKey = '';
+  let holidayLights = null;
+  let holidayLightsKey = '';
   // The route's report view as last applied or as it read after a chosen tab was pushed.
   let appliedRouteView = '';
   let activeInstantMountKey = '';
@@ -135,6 +137,7 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-measure-tabs" id="rMeasureTabs"></div>
       <div class="r-measure-body">
         <div class="r-measure-pane" data-measure-pane="model"><div id="rMeasurementModel" style="height:100%"></div></div>
+        <div class="r-measure-pane" data-measure-pane="lights"><div id="rMeasurementLights" style="height:100%"></div></div>
         <div class="r-measure-pane" data-measure-pane="map"><div id="rMeasurementMap" style="height:100%"></div></div>
         <div class="r-measure-pane" data-measure-pane="summary"><div id="rMeasurementSummary" style="height:100%"></div></div>
         <div class="r-measure-pane" data-measure-pane="instant"><div id="rMeasurementInstant" style="height:100%"></div></div>
@@ -349,7 +352,7 @@ window.PlatformCommerce.onReady(function(){
     const projectId = activeMeasurementProjectId();
     const cachedAssets = projectId ? primeMeasurementAssetCacheFromKnownUrls(projectId) : null;
     const hasXml = ready && !!cachedAssets?.xmlUrl;
-    // Order: Summary, Model, then the PDFs (Standard, Customer) and XML.
+    // Order: Summary, Model, Holiday Lights, then the PDFs (Standard, Customer) and XML.
     if (measurementReportSummaryEnabled()) {
       tabs.push({
         id: 'summary',
@@ -360,9 +363,11 @@ window.PlatformCommerce.onReady(function(){
         pending
       });
     }
-    // Reports › 3D Model: the full-size viewer of the model the project details tray shows small. Holiday Lights is a tab
-    // inside that viewer (roof-viewer.js), offered when reportModelData says so.
+    // Reports › 3D Model: the full-size viewer of the model the project details tray shows small; its lightbulb toggle
+    // (roof-viewer.js) shows the lights over the model when reportModelData says this report has them.
     if(ready && reportModelViewerEnabled()) tabs.push({id:'model',get label(){ return (globalThis.PlatformLanguage?.text("measurements","report_model_3d_tab","3D Model") ?? "3D Model"); },icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
+    // Reports › Holiday Lights (FM-400): the full lights view, roof and counts side by side (holiday-lights.js).
+    if(hasXml && holidayLightsEnabled()) tabs.push({id:'lights',get label(){ return (globalThis.PlatformLanguage?.text("measurements","hl_tab","Holiday Lights") ?? "Holiday Lights"); },icon:'fa-lightbulb',active:activeMeasurementTab==='lights',disabled:false,pending:false});
     const changes = reportFollowupEnabled() ? reportChangeRequests() : [];
     const supportView = !changes.length || reportRequestsAreSupportOnly(changes);
     if (inlineProjectMapWithReports()) {
@@ -1355,6 +1360,9 @@ window.PlatformCommerce.onReady(function(){
   function fallbackCustomerRejectionCopy(reason, details = {}){
     const key = String(reason || '').trim().toLowerCase();
     const rejectionMessage = customerRejectionCopy(details.rejection_message || '');
+    if (key === 'insufficient_footage') {
+      return (globalThis.PlatformLanguage?.text("measurements","m_242477ea5edf74","We were not able to complete this Full Exterior report because the photos and video do not show enough of the house for us to draw every wall, window and door. We have reimbursed the original report.") ?? "We were not able to complete this Full Exterior report because the photos and video do not show enough of the house for us to draw every wall, window and door. We have reimbursed the original report.");
+    }
     if (key === 'obscured_visibility') {
       return (globalThis.PlatformLanguage?.text("measurements","m_20daf0329c6bb5","This report was rejected because the structure is too obscured in the available imagery. This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. We have reimbursed the original report.") ?? "This report was rejected because the structure is too obscured in the available imagery. This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. We have reimbursed the original report.");
     }
@@ -1439,12 +1447,32 @@ window.PlatformCommerce.onReady(function(){
     setActivePreviewTab('map');
   }
 
+  // The reason a report was rejected, in the customer's words. Every rejection reaches FirstMeasure as
+  // rejected_no_coverage, so only the reason tells a coverage gap from footage, a pin or the project type.
+  function rejectionReasonLabel(reason){
+    if (reason === 'insufficient_footage') return (globalThis.PlatformLanguage?.text("measurements","m_9e8786e455a382","Not enough footage of the house") ?? "Not enough footage of the house");
+    if (reason === 'obscured_visibility') return (globalThis.PlatformLanguage?.text("measurements","m_afb458b5fb6b21","The structure is hidden in the imagery") ?? "The structure is hidden in the imagery");
+    if (reason === 'invalid_pin_placement') return (globalThis.PlatformLanguage?.text("measurements","m_e61de280fd24e7","The pin is not on a structure we can measure") ?? "The pin is not on a structure we can measure");
+    if (reason === 'incorrect_structure_type') return (globalThis.PlatformLanguage?.text("measurements","m_b77e788dcf9d7d","It needs a different project type") ?? "It needs a different project type");
+    if (['no_height_map', 'no_satellite_image', 'no_coverage'].includes(reason)) return (globalThis.PlatformLanguage?.text("measurements","m_60adf9494a259c","No imagery coverage for this structure yet") ?? "No imagery coverage for this structure yet");
+    if (reason === 'api_insufficient_credits') return (globalThis.PlatformLanguage?.text("measurements","m_38db6e7fef541e","Not enough credits") ?? "Not enough credits");
+    return '';
+  }
+
+  // The card is the title, the reason and what can be done; the explanation is in tooltips (the reason's (i) also
+  // opens on a tap, for phones), never loose paragraphs.
   function rejectedReportHtml(){
     const measurement = reportOrderMeasurement();
     const refundAmount = Number(activeBaseProject?.refund_amount ?? measurement?.refund_amount ?? 0) || 0;
     const reorderType = reportOrderReorderType();
     const reorderLabel = normalizeProjectTypeLabel(reorderType || activeBaseProject?.project_type || selectedType || 'commercial');
     const reason = String(activeBaseProject?.rejection_reason || measurement?.rejection_reason || '').trim().toLowerCase();
+    const exterior = reportOrderIsExterior();
+    // A Full Exterior turned down for its footage can be tried again with more of it, or ordered as the roof alone.
+    // No other reason offers these: a coverage gap, a hidden structure or a wrong pin would fail the roof too.
+    const footage = exterior && reason === 'insufficient_footage';
+    const retryExterior = footage && !!window.Portal?.ExteriorOrder?.offersChoice?.('residential');
+    const reasonLabel = rejectionReasonLabel(reason);
     const copy = customerRejectionCopy(activeBaseProject?.customer_rejection_message)
       || customerRejectionCopy(measurement?.customer_rejection_message)
       || fallbackCustomerRejectionCopy(reason, {
@@ -1452,17 +1480,20 @@ window.PlatformCommerce.onReady(function(){
         project_type: activeBaseProject?.project_type || selectedType,
         rejection_message: activeBaseProject?.rejection_message || measurement?.rejection_message || ''
       });
+    const why = [copy, refundAmount > 0 ? ((v0) => globalThis.PlatformLanguage?.text("measurements","m_ef6b67b1fdf6fa",`${v0} returned to credits`,{v0}) ?? `${v0} returned to credits`)(fmtCredit(refundAmount)) : ''].filter(Boolean).join('\n\n');
+    const tip = (text) => `data-fm-tooltip="${escapeHtml(text)}"`;
+    const action = (attrs, icon, label, help, secondary = false) => `<button type="button" class="r-pending-reorder${secondary ? ' is-secondary' : ''}" ${attrs} ${tip(help)}><span class="fas ${icon}" aria-hidden="true"></span><span>${escapeHtml(label)}</span></button>`;
+    const actions = footage
+      ? [retryExterior ? action('data-reorder-rejected-exterior="full_house"', 'fa-video', (globalThis.PlatformLanguage?.text("measurements","m_61916e37809bd1","Try again with more footage") ?? "Try again with more footage"), (globalThis.PlatformLanguage?.text("measurements","m_c04a8c55885f01","Step back to get the whole house in view, and add photos of every side so we can draw all of it.") ?? "Step back to get the whole house in view, and add photos of every side so we can draw all of it.")) : '',
+        action('data-reorder-rejected-exterior="roof"', 'fa-house-chimney', (globalThis.PlatformLanguage?.text("measurements","m_2a8fbfcefaed16","Order just the roof") ?? "Order just the roof"), (globalThis.PlatformLanguage?.text("measurements","m_b688bd49aa30b3","A roof report is measured from aerial imagery and needs no photos.") ?? "A roof report is measured from aerial imagery and needs no photos."), retryExterior)].join('')
+      : (reorderType ? action('data-reorder-rejected-report', 'fa-rotate-right', ((v0) => globalThis.PlatformLanguage?.text("measurements","m_a76ca37eaaae8e",`Reorder as ${v0}`,{v0}) ?? `Reorder as ${v0}`)(reorderLabel.charAt(0).toUpperCase() + reorderLabel.slice(1)), (globalThis.PlatformLanguage?.text("measurements","m_1b6fb2f8bf15dc","Starts a new order for this project as the right project type.") ?? "Starts a new order for this project as the right project type.")) : '');
     return `
       <div class="r-report-pending">
         <div class="r-report-pending-card is-rejected">
           <i class="fas fa-circle-exclamation"></i>
-          <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_279b64bc569e57","Report rejected") ?? "Report rejected")}</h3>
-          <p>${String(escapeHtml(copy))}</p>
-          ${String(refundAmount > 0 ? `<div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_54833ca7291df9","Reimbursed") ?? "Reimbursed")}</strong><span>${((v0) => globalThis.PlatformLanguage?.htmlText("measurements","m_ef6b67b1fdf6fa",`${v0} returned to credits`,{v0}) ?? `${v0} returned to credits`)(escapeHtml(fmtCredit(refundAmount)))}</span></div>` : '')}
-          ${String(reorderType ? `
-          <div class="r-pending-actions">
-            <button type="button" class="r-pending-reorder" data-reorder-rejected-report>${escapeHtml(((v0) => globalThis.PlatformLanguage?.text("measurements","m_a76ca37eaaae8e",`Reorder as ${v0}`,{v0}) ?? `Reorder as ${v0}`)(reorderLabel.charAt(0).toUpperCase() + reorderLabel.slice(1)))}</button>
-          </div>` : '')}
+          <h3>${exterior ? (globalThis.PlatformLanguage?.htmlText("measurements","m_861f518127ff5b","Full Exterior report rejected") ?? "Full Exterior report rejected") : (globalThis.PlatformLanguage?.htmlText("measurements","m_279b64bc569e57","Report rejected") ?? "Report rejected")}</h3>
+          ${reasonLabel ? `<div class="r-pending-detail r-rejection-reason"><strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_6480ed19528b5a","Reason") ?? "Reason")}</strong><span class="r-rejection-reason-text"><span>${escapeHtml(reasonLabel)}</span><button type="button" class="r-rejection-why" data-rejection-why ${tip(why)} aria-label="${(globalThis.PlatformLanguage?.htmlText("measurements","m_6396ccf961d884","Why it was rejected") ?? "Why it was rejected")}"><span class="fas fa-circle-info" aria-hidden="true"></span></button></span></div>` : `<p>${escapeHtml(why)}</p>`}
+          ${actions ? `<div class="r-pending-actions r-rejection-actions">${actions}</div>` : ''}
         </div>
       </div>`;
   }
@@ -1483,6 +1514,9 @@ window.PlatformCommerce.onReady(function(){
         ...(measurement || {})
       }
     });
+    // A rejected Full Exterior is never reopened in place (its exteriors_ id and references belong to that order):
+    // any reorder of it, a retry, the roof alone or another project type, is a new order on this project.
+    if (reportOrderIsExterior()) reorderSourceCanReopenInPlace = false;
     renderRoofChoice();
     renderWorkflowState();
     syncProjectViewerTabs();
@@ -1496,6 +1530,13 @@ window.PlatformCommerce.onReady(function(){
 
   function reorderRejectedReportOrder(){
     reorderCurrentReportOrder(reportOrderReorderType());
+  }
+
+  // Trying a rejected Full Exterior again, or ordering only its roof, starts a new order with that scope chosen.
+  function reorderRejectedExteriorReport(scope){
+    reorderCurrentReportOrder('');
+    window.Portal?.ExteriorOrder?.prefer?.(scope === 'full_house' ? 'full_house' : 'roof');
+    callHost('orderMeasurements');
   }
 
   function reportFrameHtml(url){
@@ -3599,7 +3640,8 @@ window.PlatformCommerce.onReady(function(){
 
   function reportModelData(projectId,assets){
     const fullHouseModel=reportSummaryIsFullHouse()&&projectId,platformProjectId=activeBaseProject?.id||'',orgId=projectOrgId();
-    return {xmlUrl:assets?.xmlUrl,pitchNotation:summaryPitchNotation(),exteriorUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',designUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-design`):'',materialsUrl:fullHouseModel&&orgId&&platformProjectId&&isPlatformProjectId(platformProjectId)?`/v1/materials/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(platformProjectId)}/material-lists`:'',media:assets?.media||[],holidayLights:holidayLightsEnabled()};
+    // The report's own line types and line totals (FM-455): the XML alone has only the export's coarser types.
+    return {xmlUrl:assets?.xmlUrl,linesUrl:projectId&&assets?.xmlUrl?fmUrl(`projects/${encodeURIComponent(projectId)}/roof-lines`):'',pitchNotation:summaryPitchNotation(),exteriorUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',designUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-design`):'',materialsUrl:fullHouseModel&&orgId&&platformProjectId&&isPlatformProjectId(platformProjectId)?`/v1/materials/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(platformProjectId)}/material-lists`:'',media:assets?.media||[],holidayLights:holidayLightsEnabled()};
   }
 
   // The finished report's model, from the order alone, for a surface that cannot read published measurements.
@@ -4100,7 +4142,7 @@ window.PlatformCommerce.onReady(function(){
     const reportTabs = measurementTabs();
     const context = callHost('reportNavigationContext') || {};
     const compactTabs = reportHeaderTabs(context.tabs || [], reportTabs, context.ordered);
-    const tabs = compactTabs ? reportTabs.filter(tab => ['model','customer','standard','summary','xml'].includes(tab.id)) : reportTabs;
+    const tabs = compactTabs ? reportTabs.filter(tab => ['model','lights','customer','standard','summary','xml'].includes(tab.id)) : reportTabs;
     if (!tabs.some((tab) => tab.id === activeMeasurementTab)) {
       activeMeasurementTab = ['summary', 'model', 'standard'].map((id) => tabs.find((tab) => tab.id === id && !tab.disabled)).find(Boolean)?.id || tabs.find((tab) => !tab.disabled)?.id || 'standard';
     }
@@ -4135,6 +4177,16 @@ window.PlatformCommerce.onReady(function(){
       // Full-house reports also draw the walls, openings and base from the published exterior model.
       const data=reportModelData(projectId,cachedAssets);
       roofViewer=window.FirstMateWidgets.mount(modelRoot,{id:'reports.roof',version:'1',config:{}},{surface:'project',data:{'reports.roof':data}});
+    }
+    const lightsRoot = root.querySelector('#rMeasurementLights');
+    const lightsKey = JSON.stringify([projectId,cachedAssets?.xmlUrl]);
+    if(activeMeasurementTab !== 'lights' || terminalWithoutReport){holidayLights?.destroy();holidayLights=null;holidayLightsKey='';}
+    else if(lightsRoot && !window.FirstMeasureHolidayLights){
+      lightsRoot.innerHTML=`<div class="r-report-pending" role="status">${(globalThis.PlatformLanguage?.htmlText("measurements","hl_view_unavailable","The holiday lights view could not load. Refresh to try again.") ?? "The holiday lights view could not load. Refresh to try again.")}</div>`;
+    }
+    else if(lightsRoot && (holidayLightsKey!==lightsKey || !holidayLights)){
+      holidayLights?.destroy();holidayLightsKey=lightsKey;
+      holidayLights=window.FirstMeasureHolidayLights.mount(lightsRoot,{xmlUrl:cachedAssets?.xmlUrl||''});
     }
     if (map && inlineProjectMapWithReports() && activeMeasurementTab === 'map') {
       mountInlineProjectMap(map);
@@ -4219,6 +4271,17 @@ window.PlatformCommerce.onReady(function(){
     document.querySelectorAll('[data-reorder-rejected-report]').forEach((button) => {
       button.addEventListener('click', () => reorderRejectedReportOrder());
     });
+    // Touch has no hover: a tap on the reason's (i) shows its tooltip (anchored on the icon, which the platform's
+    // tooltip has not just hidden for that tap); the next tap anywhere hides it.
+    document.querySelectorAll('[data-rejection-why]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        window.PlatformUI?.showTooltip?.(button.querySelector('.fas') || button, { text: button.dataset.fmTooltip || '' });
+      });
+    });
+    document.querySelectorAll('[data-reorder-rejected-exterior]').forEach((button) => {
+      button.addEventListener('click', () => reorderRejectedExteriorReport(button.dataset.reorderRejectedExterior));
+    });
     document.querySelectorAll('[data-order-weather-report]').forEach((button) => {
       button.addEventListener('click', () => orderWeatherReport(button));
     });
@@ -4274,6 +4337,7 @@ window.PlatformCommerce.onReady(function(){
     disposeInstantMeasurement();
     pendingExpediteSelection = '';
     roofViewer?.destroy();roofViewer=null;roofViewerKey='';
+    holidayLights?.destroy();holidayLights=null;holidayLightsKey='';
     activeMeasurementTab = 'summary';
     appliedRouteView = '';
     reportRequestModalState = null;
@@ -4284,6 +4348,16 @@ window.PlatformCommerce.onReady(function(){
     const fn = api[name];
     return typeof fn === 'function' ? fn(...(Array.isArray(args) ? args : [])) : undefined;
   }
+
+  // The 3D model's "Open Holiday Lights" (roof-viewer.js, in the project details tray or Reports › 3D Model) opens
+  // Reports › Holiday Lights when this project offers it; otherwise the viewer expands itself.
+  document.addEventListener('fm:open-report-view', (event) => {
+    const view = event.detail?.view;
+    if (!view || !state.host || !measurementTabs().some((tab) => tab.id === view && !tab.disabled)) return;
+    event.preventDefault();
+    setActivePreviewTab('measurements', { history: 'push' });
+    setActiveMeasurementTab(view, { user: true });
+  });
 
   const api = {
     mount,
@@ -4347,6 +4421,7 @@ window.PlatformCommerce.onReady(function(){
     reorderCurrentReportOrder,
     reorderCancelledReportOrder,
     reorderRejectedReportOrder,
+    reorderRejectedExteriorReport,
     reportFrameHtml,
     xmlDownloadFileName,
     xmlDownloadPanelHtml,

@@ -1202,7 +1202,7 @@ function restoreCreatedSurfaceWire(edits,before={}){
  if(!restoredPoints.size&&!restoredEdges.size)return;
  // Deleted surfaces intentionally retain their other boundary lines. Preserve
  // their exclusions locally so a new cap cannot resurrect an old diagonal.
- for(const f of edits.$surfaces||[])if(f.deleted&&!f.drafted&&!f.replacedBy){const mask=f.wireExclusions||{},keys=new Set([...rings(f).flat(),...(f.retainedPoints||[])].map(vertexKey)),ps=[...restoredPoints].filter(k=>keys.has(k)),es=[...restoredEdges.keys()].filter(k=>{const pair=k.split('|').map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};});return sharedIntervals(...pair,[f]).length;});if(ps.length||es.length)f.wireExclusions={points:[...new Set([...(mask.points||[]),...ps])],edges:[...new Set([...(mask.edges||[]),...es])]};}
+ for(const f of edits.$surfaces||[])if(f.deleted&&!f.drafted&&!f.replacedBy&&!f.noWire){const mask=f.wireExclusions||{},keys=new Set([...rings(f).flat(),...(f.retainedPoints||[])].map(vertexKey)),ps=[...restoredPoints].filter(k=>keys.has(k)),es=[...restoredEdges.keys()].filter(k=>{const pair=k.split('|').map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};});return sharedIntervals(...pair,[f]).length;});if(ps.length||es.length)f.wireExclusions={points:[...new Set([...(mask.points||[]),...ps])],edges:[...new Set([...(mask.edges||[]),...es])]};}
  // Materialize surviving loose wire before clearing the historical masks.
  // Newly added loose geometry is restored separately below.
  if(edits.$loose){const addedPoints=new Set(newLoosePoints),addedEdges=new Set(newLooseEdges),cuts=[...restoredEdges.keys()].map(k=>({points:k.split('|').map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};})}));
@@ -1212,7 +1212,114 @@ function restoreCreatedSurfaceWire(edits,before={}){
  edits.$removedSurfacePoints=(edits.$removedSurfacePoints||[]).filter(k=>!restoredPoints.has(k));
  edits.$removedSurfaceEdges=(edits.$removedSurfaceEdges||[]).flatMap(k=>restoredEdges.get(k)||[k]);
 }
-function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).filter(f=>f.curvedSurface?.logical&&!f.deleted&&!f.drafted);edits={...edits,$surfaces:(edits.$surfaces||[]).filter(f=>!f.curvedSurface)};const nodes=new Map(),edges=new Map(),removed=new Set(edits.$removedSurfacePoints||[]),removedEdges=new Set(edits.$removedSurfaceEdges||[]);
+// A deleted face is not a source of lines.
+//
+// A face that was deleted, or replaced by an edit (a merge, a cut), stayed in the model and its whole outline went
+// on being drawn, less the points and lines recorded as hidden. Most of that outline lay under the edges of live
+// faces and was never seen, until a later edit moved or removed those faces and the old outline showed through:
+// lines bounding nothing, points from nowhere. Half the faces of a worked project are such leftovers.
+//
+// settleDeletedWire ends that. The lines and points a deleted face still shows that nothing else draws become
+// ordinary free-standing lines and points ($loose): real, selectable, deletable, welded like any other. The face
+// is then marked noWire and never draws again. What is on screen does not change when this runs; what changes is
+// that nothing is left hidden to reappear. A deleted face with a curve is left as it is (its curve is not a set
+// of straight lines). cover: the faces drawn by something other than $surfaces (the live regions of drawings,
+// generated walls): a line that lies along one of those is drawn by it already. True when anything changed.
+function settleDeletedWire(edits,cover=[]){
+ const faces=edits?.$surfaces||[];if(!edits)return false;let changed=false;
+ // A face that is back (Shift+F) draws its own outline again.
+ for(const f of faces)if(f.noWire&&!f.deleted){delete f.noWire;changed=true;}
+ const bare=p=>({x:p.x,y:p.y,z:p.z}),outlines=[...faces.filter(f=>!f.deleted&&!f.drafted&&!f.replacedBy&&!f.curvedSurface),...cover].filter(f=>f.points?.length>=2).map(f=>({points:f.points,holes:f.holes||[]}));
+ const pending=faces.filter(f=>f.deleted&&!f.drafted&&!f.replacedBy&&!f.noWire&&!f.curvedSurface&&!f.curves?.length);
+ if(pending.length){
+  const all=surfaceWire(edits),rest=surfaceWire({...edits,$surfaces:faces.filter(f=>!pending.includes(f))}),at=new Map(all.nodes.map(n=>[n.id,n])),restAt=new Map(rest.nodes.map(n=>[n.id,n]));
+  const drawn=rest.edges.filter(e=>!e.curve).map(e=>({points:[restAt.get(e.a),restAt.get(e.b)]})).filter(x=>x.points[0]&&x.points[1]).concat(outlines),loose={points:[...(edits.$loose?.points||[])],edges:[...(edits.$loose?.edges||[])]};
+  const have=new Set(loose.points.map(vertexKey)),point=p=>{const k=vertexKey(p);if(!have.has(k)){have.add(k);loose.points.push(bare(p));}};
+  for(const e of all.edges){if(e.curve)continue;const a=at.get(e.a),b=at.get(e.b);if(!a||!b)continue;let lo=0;
+   for(const [start,end]of [...sharedIntervals(a,b,drawn),[1,1]]){if(start-lo>1e-7){const p=lo<1e-7?bare(a):mix3(a,b,lo),q=start>1-1e-7?bare(b):mix3(a,b,start);if(Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)>K.CONTACT){loose.edges.push([p,q]);point(p);point(q);}}lo=Math.max(lo,end);}}
+  for(const n of all.nodes)if(!n.curveSample&&!restAt.has(n.id))point(n);
+  edits.$loose={...(edits.$loose||{}),points:loose.points,edges:loose.edges};
+  for(const f of pending){f.noWire=true;delete f.wireExclusions;}
+  changed=true;
+ }
+ // A line is stored once. A free-standing line, or the part of one, that lies along a line a face, a drawing, a
+ // generated wall or the base already draws is that line a second time: nothing shows it while the two coincide,
+ // and the copy is left behind, bounding nothing, as soon as the face moves. So the copy goes, and a free-standing
+ // point that is one of their corners goes with it. Deleting the face later gives the lines back (above).
+ const loose=edits.$loose;if(loose?.edges?.length||loose?.points?.length){
+  const rest=surfaceWire({...edits,$loose:{points:[],edges:[]}}),restAt=new Map(rest.nodes.map(n=>[n.id,n])),covers=cover.filter(f=>f.points?.length>=2).map(f=>({points:f.points,holes:f.holes||[]}));
+  const drawn=rest.edges.filter(e=>!e.curve).map(e=>({points:[restAt.get(e.a),restAt.get(e.b)]})).filter(x=>x.points[0]&&x.points[1]).concat(covers),edges=[];let cut=false;
+  for(const [a,b]of loose.edges||[]){const shared=sharedIntervals(a,b,drawn);if(!shared.length){edges.push([a,b]);continue;}cut=true;let lo=0;
+   for(const [start,end]of [...shared,[1,1]]){if(start-lo>1e-7){const p=lo<1e-7?bare(a):mix3(a,b,lo),q=start>1-1e-7?bare(b):mix3(a,b,start);if(Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)>K.CONTACT)edges.push([p,q]);}lo=Math.max(lo,end);}}
+  const corners=new Set(covers.flatMap(f=>[f.points,...f.holes].flat()).map(vertexKey)),ends=new Set(edges.flat().map(vertexKey)),points=(loose.points||[]).filter(p=>{const k=vertexKey(p);return ends.has(k)||!(restAt.has(k)||corners.has(k));});
+  if(cut||points.length!==(loose.points||[]).length){for(const q of edges.flat()){const k=vertexKey(q);if(!points.some(p=>vertexKey(p)===k)&&!restAt.has(k)&&!corners.has(k))points.push(bare(q));}edits.$loose={...loose,points,edges};changed=true;}
+ }
+ // The same for a drawing. A line of a drawing that bounds none of its regions (what is left of a region that was
+ // deleted) and lies wholly along the outline of a face is that face's edge, kept a second time. It goes, and so
+ // does a point it leaves with no line and no region, where that point is a corner of the face.
+ const drawings=Object.values(edits.$drafts||{}).filter(d=>!d.mergedInto&&!d.chimney&&!d.constructionPlane&&d.sketch?.edges?.length&&(d.frame||d.origin&&d.u));
+ if(drawings.length&&faces.some(f=>!f.deleted&&!f.drafted&&!f.replacedBy&&!f.curvedSurface)){
+  const rest=surfaceWire({...edits,$loose:{points:[],edges:[]}}),restAt=new Map(rest.nodes.map(n=>[n.id,n])),drawn=rest.edges.filter(e=>!e.curve).map(e=>({points:[restAt.get(e.a),restAt.get(e.b)]})).filter(x=>x.points[0]&&x.points[1]);
+  for(const d of drawings){const world=p=>d.frame?fromFrame(d.frame,p):{x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x,z:p.y},at=new Map(d.sketch.nodes.map(n=>[n.id,n])),flat=p=>({x:p.x,y:p.y,z:0}),regions=(d.faces||[]).map(f=>({points:f.points.map(flat),holes:(f.holes||[]).map(r=>r.map(flat))})),gone=new Set();
+   const kept=d.sketch.edges.filter(e=>{if(e.curveId)return true;const a=at.get(e.a),b=at.get(e.b);if(!a||!b||a.curveSample||b.curveSample)return true;if(sharedIntervals(flat(a),flat(b),regions).length)return true;
+    const covered=sharedIntervals(world(a),world(b),drawn).reduce((t,[lo,hi])=>t+hi-lo,0);if(covered<1-1e-6)return true;gone.add(e.a);gone.add(e.b);return false;});
+   if(kept.length===d.sketch.edges.length)continue;d.sketch.edges=kept;changed=true;
+   const used=new Set([...kept.flatMap(e=>[e.a,e.b]),...(d.faces||[]).flatMap(f=>[f.points,...(f.holes||[])].flat().map(p=>p.nodeId))]);
+   d.sketch.nodes=d.sketch.nodes.filter(n=>!gone.has(n.id)||used.has(n.id)||n.curveSample||n.curveCenter||n.curveControl||!restAt.has(vertexKey(world(n))));
+  }
+ }
+ return changed;
+}
+// What a delete hides belongs to the face it was deleted from.
+//
+// A deleted face stays in the model as the source of its remaining boundary lines. The points and lines deleted
+// from it used to be recorded project-wide, by coordinate ($removedSurfacePoints, $removedSurfaceEdges), and hid
+// whatever was at that position: geometry drawn there later could not be seen or selected, and hidden geometry came
+// back when a move changed its coordinates. They are now recorded on the deleted face itself (wireExclusions), hide
+// nothing but that face's own wire, and follow the face when it moves (followWireExclusions).
+//
+// localizeWireMasks moves every project-wide record onto the deleted faces it applies to and empties the lists. A
+// record that matches no deleted face hid nothing that should be hidden, and is dropped: a live face shows all of
+// its boundary, and free-standing points and lines are removed outright, never hidden. True when anything changed.
+// (sharedIntervals ignores a face flagged deleted, so the outline is passed without the flag.)
+// The points that define a curve: deleting one deletes the curve, so it is a record a face with that curve keeps.
+function curveDefinitionPoints(c){return c.type==='spline'?c.controls||[]:c.type==='conic'?[c.start,c.end]:c.type==='ellipse'?[K.curvePoint(c,0),K.curvePoint(c,1)]:[];}
+function localizeWireMasks(edits){
+ const points=edits?.$removedSurfacePoints||[],lines=edits?.$removedSurfaceEdges||[];if(!edits||!points.length&&!lines.length)return false;
+ const parse=k=>{const [x,y,z]=String(k).split(',').map(Number);return {x,y,z};},pairs=lines.map(key=>({key,pair:String(key).split('|').map(parse)})).filter(c=>c.pair.length===2&&c.pair.every(K.finite3)),hidden=new Set(points);
+ for(const f of edits.$surfaces||[]){
+  // A point kept on an outline for reference (retainedPoints) that was deleted is simply no longer kept.
+  if(f.retainedPoints?.some(p=>hidden.has(vertexKey(p))))f.retainedPoints=f.retainedPoints.filter(p=>!hidden.has(vertexKey(p)));
+  if(!f.deleted||f.drafted||f.replacedBy||f.curvedSurface||f.noWire)continue;
+  const own=new Set([...rings(f).flat(),...(f.curves||[]).flatMap(curveDefinitionPoints)].map(vertexKey)),outline={points:f.points,holes:f.holes||[]},ps=points.filter(k=>own.has(k)),es=pairs.filter(c=>sharedIntervals(...c.pair,[outline]).length).map(c=>c.key);
+  if(ps.length||es.length){const mask=f.wireExclusions||{};f.wireExclusions={points:[...new Set([...(mask.points||[]),...ps])],edges:[...new Set([...(mask.edges||[]),...es])]};}
+ }
+ if(edits.$loose){const cuts=pairs.map(c=>({points:c.pair})),gone=p=>hidden.has(vertexKey(p));
+  edits.$loose={...edits.$loose,points:(edits.$loose.points||[]).filter(p=>!gone(p)),edges:(edits.$loose.edges||[]).flatMap(pair=>{if(pair.some(gone))return [];const intervals=cuts.length?sharedIntervals(...pair,cuts):[];if(!intervals.length)return [pair];const rest=[];let lo=0;for(const [start,end]of [...intervals,[1,1]]){if(start-lo>1e-7)rest.push([mix3(...pair,lo),mix3(...pair,start)]);lo=Math.max(lo,end);}return rest;})};
+ }
+ edits.$removedSurfacePoints=[];edits.$removedSurfaceEdges=[];return true;
+}
+// A face's hidden points and lines are written as coordinates of its own outline. When the outline moves (a move,
+// a weld, an extrusion carrying a corner) they move with it: each is found on the outline as it was in `before`
+// and rewritten for the outline as it is now. One that is no longer on the outline hides nothing and is dropped.
+function followWireExclusions(edits,before={}){
+ const old=new Map((before?.$surfaces||[]).map(f=>[f.id,f]));let changed=false;
+ for(const f of edits?.$surfaces||[]){const mask=f.wireExclusions;if(!mask||!(mask.points?.length||mask.edges?.length))continue;const prior=old.get(f.id);if(!prior)continue;
+  const was=rings(prior),now=rings(f);if(was.length!==now.length||was.some((r,i)=>r.length!==now[i].length))continue;
+  const kept=prior.retainedPoints||[],keep=f.retainedPoints||[];if(was.every((r,i)=>r.every((p,j)=>vertexKey(p)===vertexKey(now[i][j])))&&kept.length===keep.length&&kept.every((p,i)=>vertexKey(p)===vertexKey(keep[i])))continue;
+  const parse=k=>{const [x,y,z]=String(k).split(',').map(Number);return {x,y,z};},far=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),wasCurve=(prior.curves||[]).flatMap(curveDefinitionPoints),nowCurve=(f.curves||[]).flatMap(curveDefinitionPoints);
+  // Where a point of the old outline is now: a corner, a retained point, or a place along an edge.
+  const place=p=>{for(let i=0;i<was.length;i++)for(let j=0;j<was[i].length;j++)if(far(was[i][j],p)<=K.CONTACT)return now[i][j];
+   if(kept.length===keep.length)for(let i=0;i<kept.length;i++)if(far(kept[i],p)<=K.CONTACT)return keep[i];
+   if(wasCurve.length===nowCurve.length)for(let i=0;i<wasCurve.length;i++)if(far(wasCurve[i],p)<=K.CONTACT)return nowCurve[i];
+   for(let i=0;i<was.length;i++)for(let j=0;j<was[i].length;j++){const a=was[i][j],b=was[i][(j+1)%was[i].length];if(!pointOnEdge(p,a,b))continue;const u=sub(b,a),t=dot(sub(p,a),u)/dot(u,u);return mix3(now[i][j],now[i][(j+1)%now[i].length],t);}
+   return null;};
+  const points=(mask.points||[]).flatMap(k=>{const q=place(parse(k));return q?[vertexKey(q)]:[];}),lines=(mask.edges||[]).flatMap(k=>{const ends=String(k).split('|').map(e=>place(parse(e)));return ends.length===2&&ends.every(Boolean)&&far(...ends)>K.CONTACT?[edgeKey(...ends)]:[];});
+  f.wireExclusions={points:[...new Set(points)],edges:[...new Set(lines)]};changed=true;
+ }
+ return changed;
+}
+function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).filter(f=>f.curvedSurface?.logical&&!f.deleted&&!f.drafted);edits={...edits,$surfaces:(edits.$surfaces||[]).filter(f=>!f.curvedSurface&&!f.noWire)};const nodes=new Map(),edges=new Map(),removed=new Set(edits.$removedSurfacePoints||[]),removedEdges=new Set(edits.$removedSurfaceEdges||[]);
  const cuts=[...removedEdges].map(key=>({points:key.split('|').map(s=>{const [x,y,z]=s.split(',').map(Number);return {x,y,z};})})).filter(f=>f.points.length===2&&f.points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)));
  for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const p of (f.retainedPoints||[]).filter(p=>!f.trim||ownsPoint(f,p))){const k=vertexKey(p);if(!removed.has(k)&&!f.wireExclusions?.points?.includes(k))nodes.set(k,{...p,id:k});}
  // Surface boundaries and loose connections must use the same interval deletions.
@@ -1236,7 +1343,9 @@ function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).
  // Deleting a curve's end or control deletes the curve. Its samples are never
  // promoted to points, so the dangling pieces go with it.
  const gone=[...removed].map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};}).filter(p=>[p.x,p.y,p.z].every(Number.isFinite)),near=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=K.CONTACT;
- const dropped=new Set(curves.filter(c=>(c.type==='spline'?c.controls:c.type==='conic'?[c.start,c.end]:c.type==='ellipse'?[K.curvePoint(c,0),K.curvePoint(c,1)]:[]).some(p=>gone.some(q=>near(p,q)))).map(c=>c.id));
+ const dropped=new Set(curves.filter(c=>curveDefinitionPoints(c).some(p=>gone.some(q=>near(p,q)))).map(c=>c.id));
+ // A face's own record of a deleted end or control drops that face's curve, and no other curve that happens to pass there.
+ for(const f of edits.$surfaces||[]){if(f.drafted||f.replacedBy||!f.curves?.length||!f.wireExclusions?.points?.length)continue;const own=f.wireExclusions.points.map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};});for(const c of f.curves)if(curveDefinitionPoints(c).some(p=>own.some(q=>near(p,q))))dropped.add(c.id);}
  if(dropped.size){const kept=new Set((edits.$loose?.points||[]).map(vertexKey));for(const [key,e]of edges)if(dropped.has(e.curveId))edges.delete(key);const used=new Set([...edges.values()].flatMap(e=>[e.a,e.b])),onDropped=n=>curves.some(c=>dropped.has(c.id)&&K.curveSamples(c).some((b,i,ps)=>i&&pointOnEdge(n,ps[i-1],b)));for(const [key,n]of nodes)if(!used.has(key)&&!kept.has(key)&&onDropped(n))nodes.delete(key);}
  return {nodes:[...nodes.values()],edges:[...edges.values()]};
 }
@@ -1262,9 +1371,233 @@ function structuralIndex(faces){
   edgeCache.set(key,yes);return yes;
  }};
 }
+// Orange marks what a face depends on: a line or corner whose removal would
+// take a face away or change what it is. Blue is safe to delete.
+//
+// Plain faces that lie in one plane, touch and carry the same finish are one
+// face to this rule: a line between them only divides it, and deleting the
+// line merges the two. A sticker, trim, chimney or curved face keeps its own
+// outline, because without that outline it is no longer that thing.
+function loadBearingFaces(faces){
+ const live=faces.filter(f=>!f.deleted&&!f.drafted),own=f=>!!(f.feature||f.trim||f.chimney||f.curvedSurface||f.curves?.length),result=live.filter(own),groups=[];
+ // A face the kernel cannot normalise (a base face a hair off its plane) still has an outline.
+ const whole=f=>{try{return K.normalizeFaces(f);}catch(e){return [f];}};
+ for(const f of live.filter(f=>!own(f)).flatMap(whole)){
+  const n=normal(f.points);if(!n){result.push(f);continue;}
+  const kind=JSON.stringify([f.material??null,f.finishColor??null]);
+  const group=groups.find(g=>g.kind===kind&&Math.abs(dot(g.n,n))>.99999&&rings(f).every(r=>r.every(p=>Math.abs(dot(sub(p,g.origin),g.n))<=LOAD_CONTACT)));
+  if(group)group.faces.push(f);else groups.push({kind,n,origin:f.points[0],faces:[f]});
+ }
+ for(const g of groups){
+  if(g.faces.length===1){result.push(g.faces[0]);continue;}
+  const frame=faceFrame(g.faces[0]),local=f=>({points:f.points.map(p=>({...inFrame(frame,p),z:0})),holes:(f.holes||[]).map(r=>r.map(p=>({...inFrame(frame,p),z:0})))});
+  let merged=null;try{merged=frame&&K.union(g.faces.map(local));}catch(e){merged=null;}
+  if(!merged?.length){result.push(...g.faces);continue;}
+  result.push(...merged.map(r=>({points:r.points.map(p=>fromFrame(frame,p)),holes:(r.holes||[]).map(h=>h.map(p=>fromFrame(frame,p)))})));
+ }
+ return result;
+}
+// Surveyed, moved and re-soffited geometry meets within tens of microns, not
+// exactly. A marker that near a corner is that corner.
+const LOAD_CONTACT=1e-4;
+// Edits leave points a few millimetres apart that look like one point and are
+// picked together. A marker is drawn for what the hand can reach: within this
+// distance of a load-bearing corner it is orange, so blue stays safe to delete.
+const MARKER_REACH=.01;
+// How far a drawn line may stand from the face edge it is the line of: a quarter inch, the default weld distance.
+const LINE_MATCH=.00635;
+function loadBearingIndex(faces){
+ const cells=new Map(),cell=v=>Math.floor(v/LOAD_CONTACT),segments=[],edgeCache=new Map(),pointCache=new Map(),near=new Map(),reach=v=>Math.floor(v/MARKER_REACH),markerCache=new Map();
+ for(const f of loadBearingFaces(faces))for(const r of rings(f))for(let i=0;i<r.length;i++){
+  const p=r[i],q=r[(i+1)%r.length],a=sub(r[(i+r.length-1)%r.length],p),b=sub(q,p),c=cross(a,b);
+  // A corner is where the outline turns. A point that sits on the straight line between its neighbours to within
+  // LOAD_CONTACT is not one, however the point got there: drawings keep their points on a micron grid, so a point on
+  // a straight edge is routinely a micron off it, and an angle test called that a corner (and coloured it orange).
+  const span=Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+  if(dot(a,b)>=0||span<=1e-12||Math.hypot(c.x,c.y,c.z)/span>LOAD_CONTACT){const key=cell(p.x)+','+cell(p.y)+','+cell(p.z);if(!cells.has(key))cells.set(key,[]);cells.get(key).push(p);const wide=reach(p.x)+','+reach(p.y)+','+reach(p.z);if(!near.has(wide))near.set(wide,[]);near.get(wide).push(p);}
+  segments.push({c:p,d:q,minX:Math.min(p.x,q.x),maxX:Math.max(p.x,q.x),minY:Math.min(p.y,q.y),maxY:Math.max(p.y,q.y),minZ:Math.min(p.z,q.z),maxZ:Math.max(p.z,q.z)});
+ }
+ // A drawing stores its lines and its faces separately, and an edit can leave a line a little off the face edge it
+ // stands for. The line is still that edge: it is matched when the edge lies within LINE_MATCH of it and runs
+ // within RAIL_ANGLE of its direction, not only when it lies on it to a tenth of a millimetre. Without that, the
+ // corner of a house showed as a line that holds nothing. Nothing is moved by this: it is how a line is read.
+ const paired=(a,b)=>{
+  const ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z,l2=ux*ux+uy*uy+uz*uz,out=[];if(l2<=1e-12)return out;const length=Math.sqrt(l2),turn=Math.cos(RAIL_ANGLE);
+  const minX=Math.min(a.x,b.x)-LINE_MATCH,maxX=Math.max(a.x,b.x)+LINE_MATCH,minY=Math.min(a.y,b.y)-LINE_MATCH,maxY=Math.max(a.y,b.y)+LINE_MATCH,minZ=Math.min(a.z,b.z)-LINE_MATCH,maxZ=Math.max(a.z,b.z)+LINE_MATCH;
+  for(const segment of segments){
+   if(segment.maxX<minX||segment.minX>maxX||segment.maxY<minY||segment.minY>maxY||segment.maxZ<minZ||segment.minZ>maxZ)continue;
+   const {c,d}=segment,tc=((c.x-a.x)*ux+(c.y-a.y)*uy+(c.z-a.z)*uz)/l2,td=((d.x-a.x)*ux+(d.y-a.y)*uy+(d.z-a.z)*uz)/l2;
+   const oc=Math.hypot(c.x-a.x-ux*tc,c.y-a.y-uy*tc,c.z-a.z-uz*tc),od=Math.hypot(d.x-a.x-ux*td,d.y-a.y-uy*td,d.z-a.z-uz*td),overlap=(Math.min(1,Math.max(tc,td))-Math.max(0,Math.min(tc,td)))*length;
+   if(oc<=LOAD_CONTACT&&od<=LOAD_CONTACT){if(overlap>LOAD_CONTACT)out.push({c,d,exact:true});continue;}
+   if(oc>LINE_MATCH||od>LINE_MATCH||overlap<=LINE_MATCH)continue;
+   const run=Math.hypot(d.x-c.x,d.y-c.y,d.z-c.z);if(run>1e-9&&Math.abs((d.x-c.x)*ux+(d.y-c.y)*uy+(d.z-c.z)*uz)/(run*length)>=turn)out.push({c,d,exact:false});
+  }
+  return out;};
+ // Two lines whose ends lie within reach of each other are one line to the eye and to a click.
+ const twin=(a,b,c,d)=>{const near=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=MARKER_REACH;return near(a,c)&&near(b,d)||near(a,d)&&near(b,c);};
+ return {twin,marker:p=>{
+  const key=vertexKey(p);if(markerCache.has(key))return markerCache.get(key);let yes=false;const x=reach(p.x),y=reach(p.y),z=reach(p.z);
+  for(let i=-1;i<=1&&!yes;i++)for(let j=-1;j<=1&&!yes;j++)for(let k=-1;k<=1&&!yes;k++)yes=(near.get((x+i)+','+(y+j)+','+(z+k))||[]).some(q=>Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<=MARKER_REACH);
+  markerCache.set(key,yes);return yes;
+ },point:p=>{
+  const key=vertexKey(p);if(pointCache.has(key))return pointCache.get(key);let yes=false;const x=cell(p.x),y=cell(p.y),z=cell(p.z);
+  for(let i=-1;i<=1&&!yes;i++)for(let j=-1;j<=1&&!yes;j++)for(let k=-1;k<=1&&!yes;k++)yes=(cells.get((x+i)+','+(y+j)+','+(z+k))||[]).some(q=>Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<=LOAD_CONTACT);
+  pointCache.set(key,yes);return yes;
+ },
+ // near: the line is one of a drawing's own lines, which may stand a little off the face edge it is the line of.
+ // Any other line (a face's own outline, a free-standing line) is an edge only where it lies on one: a loose copy
+ // of a line two millimetres beside a wall's edge holds nothing.
+ edge:(a,b,near=false)=>{
+  const key=(near?'~':'')+edgeKey(a,b);if(edgeCache.has(key))return edgeCache.get(key);const yes=paired(a,b).some(x=>near||x.exact);
+  edgeCache.set(key,yes);return yes;
+ },
+ // The outline stretches a line stands for without lying exactly on them: what deleting the line must also take.
+ pairs:(a,b)=>paired(a,b).filter(x=>!x.exact).map(x=>[x.c,x.d])};
+}
+// Weld: points within the weld distance of each other become one point.
+//
+// Edits leave a corner's twin a hair away (a face corner, a loose point, a base
+// corner). They look like one point, are picked together and behave like
+// several. A weld moves them to one position, and only when nothing else has
+// to give:
+//  - every face a point belongs to stays flat: the shared position lies on
+//    all of those planes (two walls and the base meet in exactly one point);
+//  - a shared corner is never pulled apart: every use of a point moves, or none does;
+//  - a fixed point (a generated wall, a sticker, a curve) does not move: the
+//    others come to it, or the group is left alone.
+//
+// The same wall is often stored as several faces whose planes lie a tenth of
+// a millimetre apart, and no point can lie on both. So planes weld first: a
+// face that is parallel to another within the flatness the kernel demands, and
+// no further from it than PLANE_WELD at any of its points, is laid onto that
+// plane (weldPlanes). PLANE_WELD is half a millimetre whatever the point distance
+// is: it removes storage noise, never a drawn inset. The corners that
+// leaves a hair from their neighbours are then welded like any others.
+//
+// Each item is one use of a point: {point, owner, planes:[{n,k}], ring, fixed, keep}.
+// owners: id -> {plane:{n,k}, fixed, soft}. weldPlan returns the moves
+// [{from,to,owner}] and how many groups could not be welded. A move belongs to
+// one owner: another face with a corner at the same spot may have to stay.
+// WELD_ON: a point this close to a plane is on it. Well inside the kernel flatness (CONTACT), and loose enough that
+// a corner where four stored planes meet within a micron or two is still one point.
+// WELD_SAME: a drawing keeps its points on a one-micron grid of its own (item.grid). Such a point within this
+// distance of the shared position is there already and is not moved again; the shared position is one a drawing
+// already holds where there is one, and every other use of the point is put on it exactly.
+const PLANE_WELD=5e-4,WELD_ON=2e-6,WELD_SAME=2e-6;
+// Faces of one wall share one plane. weldPlanes groups the owners whose points all lie within PLANE_WELD of a
+// plane (so an offset and a slight tilt are both storage noise) and returns
+//   planes: owner id -> the group's plane, the one every member is welded against; and
+//   lay: the owners that are off it by more than a point may be, whose points are all put on it.
+// The plane of a group is that of its widest member: a wide face fixes a plane far better than a narrow one, and
+// the choice does not change from one weld to the next. Fixed planes come first.
+function weldPlanes(items,owners){
+ const height=(pl,p)=>dot(pl.n,p)-pl.k,points=new Map(),lay=new Map(),planes=new Map();for(const item of items)if(item.owner!=null&&owners.has(item.owner)){if(!points.has(item.owner))points.set(item.owner,[]);points.get(item.owner).push(item.point);}
+ const width=id=>{const ps=points.get(id)||[];let w=0;for(const a of ps)for(const b of ps)w=Math.max(w,Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z));return w;},widths=new Map([...owners.keys()].map(id=>[id,width(id)])),canonical=[];
+ for(const [id,o]of [...owners].sort((a,b)=>(b[1].fixed?1:0)-(a[1].fixed?1:0)||widths.get(b[0])-widths.get(a[0])||String(a[0]).localeCompare(String(b[0])))){
+  // A soft plane (a deleted face) neither gives nor takes a plane: its points only follow the corners they share.
+  if(o.soft)continue;const ps=points.get(id)||[];let found=null;
+  if(!o.fixed&&ps.length)for(const c of canonical){if(Math.abs(dot(c.n,o.plane.n))>.9999&&ps.every(q=>Math.abs(height(c,q))<=PLANE_WELD)){found=c;break;}}
+  if(!found){canonical.push(o.plane);planes.set(id,o.plane);continue;}
+  // A drawing stores its points in its own plane, so it is on the group's plane exactly or it is laid onto it.
+  planes.set(id,found);if(ps.some(q=>Math.abs(height(found,q))>(o.exact?1e-7:WELD_ON)))lay.set(id,found);
+ }
+ return {lay,planes};
+}
+function weldPlan(items,distance,explain=null,owners=null){
+ const apart=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),height=(pl,p)=>dot(pl.n,p)-pl.k;
+ if(!(distance>0))return {moves:[],skipped:0};
+ owners=owners||new Map();const planeOf=id=>owners.get(id)?.plane||null,moves=[],used=new Array(items.length).fill(false),order=items.map((_,i)=>i).sort((a,b)=>(items[b].fixed?1:0)-(items[a].fixed?1:0));let skipped=0;
+ // A soft plane (a deleted face's) is kept when it can be; hard is true once it has been given up.
+ let hard=false;const planesOf=m=>hard&&m.soft?[]:[...(m.planes||[]),...(planeOf(m.owner)?[planeOf(m.owner)]:[])];
+ // One position for these uses of a point, on every plane they belong to. null when there is none.
+ const position=(members,reach)=>{
+  // Faces of one wall carry planes that agree here to within the flatness the kernel allows: one constraint.
+  const here=members[0].point,planes=[];for(const m of members)for(const pl of planesOf(m))if(!planes.some(q=>Math.abs(dot(q.n,pl.n))>.999999&&Math.abs(height(q,here)*Math.sign(dot(q.n,pl.n))-height(pl,here))<=WELD_ON))planes.push(pl);
+  const on=q=>planes.every(pl=>Math.abs(height(pl,q))<=WELD_ON),fixed=members.filter(m=>m.fixed).map(m=>m.point);
+  if(fixed.some(q=>apart(q,fixed[0])>1e-9))return {reason:'fixed',planes};
+  // Prefer a position some of them already have (most used first), so exact geometry does not drift.
+  const counts=members.map(m=>({p:m.point,grid:m.grid?1:0,n:members.filter(o=>apart(o.point,m.point)<=1e-9).length})).sort((a,b)=>b.grid-a.grid||b.n-a.n||a.p.x-b.p.x||a.p.y-b.p.y||a.p.z-b.p.z);
+  let target=fixed.length?(on(fixed[0])?fixed[0]:null):counts.map(c=>c.p).find(on)||null,odd=null;
+  if(!target&&!fixed.length){
+   // The point of all their planes nearest to where they sit now.
+   const centre=members.reduce((t,m)=>({x:t.x+m.point.x/members.length,y:t.y+m.point.y/members.length,z:t.z+m.point.z/members.length}),{x:0,y:0,z:0}),basis=[];let q={...centre};
+   for(const pl of planes){let v={...pl.n},value=pl.k-dot(pl.n,centre);for(const b of basis){const t=dot(v,b.v);v={x:v.x-t*b.v.x,y:v.y-t*b.v.y,z:v.z-t*b.v.z};value-=t*b.value;}const l=Math.hypot(v.x,v.y,v.z);
+    // Planes within a milliradian of each other, or of the line two others meet in, do not fix a point between
+    // them (it would lie metres away): either they agree here, or one of them is the odd one out.
+    if(l<1e-3){if(Math.abs(value)>WELD_ON&&!odd)odd=pl;continue;}basis.push({v:{x:v.x/l,y:v.y/l,z:v.z/l},value:value/l});}
+   if(!odd){for(const b of basis)q={x:q.x+b.v.x*b.value,y:q.y+b.v.y*b.value,z:q.z+b.v.z*b.value};if(on(q))target={x:q.x,y:q.y,z:q.z};}
+  }
+  if(!target)return {reason:'planes',planes,odd};
+  return members.some(m=>apart(m.point,target)>reach*2)?{reason:'far',planes}:{target};
+ };
+ const place=(members,reach)=>{
+  // Where the planes cannot all meet (a fourth plane a hair off the corner of three), the uses on the odd plane
+  // stay where they are and the others still become one point.
+  let rest=members,result=null;hard=false;
+  for(let pass=0;pass<5&&rest.length;pass++){
+   const first=rest[0].point;result=position(rest,reach);
+   if(result.target){for(const m of rest)if(apart(m.point,result.target)>(m.grid?WELD_SAME:1e-9)&&!moves.some(o=>o.owner===(m.owner??null)&&apart(o.from,m.point)<=1e-9))moves.push({from:{x:m.point.x,y:m.point.y,z:m.point.z},to:{x:result.target.x,y:result.target.y,z:result.target.z},owner:m.owner??null});hard=false;return rest.length===members.length;}
+   // A deleted face's plane (soft) gives way when it leaves no shared position, or only one far from the points.
+   if((result.reason==='planes'||result.reason==='far')&&!hard&&rest.some(m=>m.soft)){hard=true;continue;}
+   if(result.reason!=='planes'||!result.odd)break;
+   const odd=result.odd,keep=rest.filter(m=>m.fixed||!planesOf(m).some(pl=>Math.abs(dot(pl.n,odd.n))>.999999&&Math.abs(height(pl,m.point)-height(odd,m.point)*Math.sign(dot(pl.n,odd.n)))<=1e-9));
+   if(keep.length===rest.length||keep.length<1)break;rest=keep;
+  }
+  explain?.push({reason:result?.reason||'planes',members,planes:result?.planes});hard=false;return false;
+ };
+ // A weld never pulls apart what is already one point. Where the uses of a point cannot all go to the shared
+ // position (one of them is held by a plane the position is not on), moving the rest would leave two points where
+ // there was one: a wall corner a few millimetres off its neighbour's. Then nothing in the group moves.
+ const whole=(members,reach)=>{const start=moves.length,ok=place(members,reach);if(moves.length===start)return ok;
+  const end=m=>{const move=moves.slice(start).find(o=>o.owner===(m.owner??null)&&apart(o.from,m.point)<=1e-9);return move?move.to:m.point;};
+  for(let i=0;i<members.length;i++)for(let j=i+1;j<members.length;j++)if(apart(members[i].point,members[j].point)<=WELD_SAME&&apart(end(members[i]),end(members[j]))>WELD_SAME){moves.length=start;explain?.push({reason:'split',members});return false;}
+  return ok;};
+ for(const seed of order){if(used[seed])continue;const group=[];for(let i=0;i<items.length;i++)if(!used[i]&&apart(items[i].point,items[seed].point)<=distance)group.push(i);
+  for(const i of group)used[i]=true;const members=group.map(i=>items[i]);
+  // Two corners of one outline within the weld distance are welded like any other points: the weld distance is the
+  // one measure of what is too small to be real, so an edge shorter than it goes, and a face left without area goes
+  // with it (the caller removes it). A step that something holds open stays: where its two corners lie on planes
+  // that do not meet there (the two ends of a shallow return), the group cannot become one point without pulling a
+  // shared corner apart, and then each corner only goes onto its own planes. An outline that keeps its short edges
+  // (item.keep: the base, which has its own sketch and never loses a face to a weld) is such a step always.
+  const rings=new Map();let step=false,held=false;for(const m of members){if(m.ring==null)continue;const prior=rings.get(m.ring)||[];if(prior.some(q=>apart(q,m.point)>PLANE_WELD)){step=true;if(m.keep)held=true;}prior.push(m.point);rings.set(m.ring,prior);}
+  if(!held&&whole(members,distance))continue;
+  skipped++;if(!step)continue;
+  explain?.push({reason:'step',members});const rest=members.slice();while(rest.length){const at=rest[0].point,same=rest.filter(m=>apart(m.point,at)<=1e-9);for(const m of same)rest.splice(rest.indexOf(m),1);whole(same,PLANE_WELD);}
+ }
+ return {moves,skipped};
+}
+// A point beside a line of its own drawing, within the weld distance, is put on the line.
+//
+// A cut starts from a point on an edge without splitting the edge, and the point is only on the line because its
+// coordinates say so. When a line's end moves, the point is left a millimetre or two beside it and the faces that
+// use the point no longer run along the line. lines: [{a,b,owner}], the straight lines of each drawing. A point
+// near a line's end is the weld's business, not this. The rules are the weld's: every use of the point moves or
+// none does, nothing leaves a plane it lies on, and a fixed point stays. Returns moves like weldPlan's.
+function seatPlan(items,owners,lines,distance){
+ const moves=[];if(!(distance>0))return moves;const apart=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+ for(const {a,b,owner}of lines){const u=sub(b,a),l2=dot(u,u),length=Math.sqrt(l2);if(length<=distance*2)continue;
+  for(const item of items){if(item.owner!==owner||item.fixed)continue;const p=item.point,t=dot(sub(p,a),u)/l2;if(t*length<=distance||(1-t)*length<=distance)continue;
+   const q=mix3(a,b,t),off=apart(p,q);if(off<=WELD_SAME||off>distance||moves.some(m=>apart(m.from,p)<=WELD_SAME))continue;
+   const members=items.filter(o=>apart(o.point,p)<=WELD_SAME);if(members.some(m=>m.fixed))continue;
+   const leaves=m=>!m.soft&&[...(m.planes||[]),...(owners.get(m.owner)?.plane?[owners.get(m.owner).plane]:[])].some(pl=>Math.abs(dot(pl.n,q)-pl.k)>WELD_ON);
+   if(members.some(leaves))continue;
+   for(const m of members)if(!moves.some(o=>o.owner===(m.owner??null)&&apart(o.from,m.point)<=1e-9))moves.push({from:{x:m.point.x,y:m.point.y,z:m.point.z},to:{x:q.x,y:q.y,z:q.z},owner:m.owner??null});
+  }
+ }
+ return moves;
+}
 function structuralEdge(a,b,faces){return sharedIntervals(a,b,faces.filter(f=>!f.deleted&&!f.drafted).flatMap(f=>K.normalizeFaces(f))).length>0;}
+// Free-standing points and lines that an earlier delete only hid (see deleteSurfaceElements) are removed. True when
+// anything was.
+function pruneHiddenLoose(edits){const loose=edits?.$loose,hidden=new Set(edits?.$removedSurfacePoints||[]);if(!loose||!hidden.size)return false;const gone=p=>hidden.has(vertexKey(p)),points=(loose.points||[]).filter(p=>!gone(p)),lines=(loose.edges||[]).filter(([a,b])=>!gone(a)&&!gone(b));if(points.length===(loose.points||[]).length&&lines.length===(loose.edges||[]).length)return false;loose.points=points;loose.edges=lines;return true;}
 function deleteSurfaceElements(edits,pointIds=[],edgeIds=[]){const points=new Set(pointIds),edges=new Set(edgeIds);edits.$removedSurfacePoints=[...new Set([...(edits.$removedSurfacePoints||[]),...points])];edits.$removedSurfaceEdges=[...new Set([...(edits.$removedSurfaceEdges||[]),...edges])];
+ // A free-standing point or line (a plane-mode outline, a connecting line) has no face to fall back to: it is
+ // removed outright. Left in place and merely hidden by the records above, it came back as soon as a move changed
+ // its coordinates, long after the shape it outlined was gone.
+ if(edits.$loose){const gone=p=>points.has(vertexKey(p));edits.$loose.edges=(edits.$loose.edges||[]).filter(([a,b])=>!gone(a)&&!gone(b)&&!edges.has(edgeKey(a,b)));edits.$loose.points=(edits.$loose.points||[]).filter(p=>!gone(p));}
  for(const f of edits.$surfaces||[]){if(f.drafted)continue;if(!f.deleted)Object.assign(f,K.normalizeFace(f));const selected=rings(f).flat().filter(p=>points.has(vertexKey(p))),defines=selected.length>0&&K.pointRemovalChangesRegion(f,selected.map(K.pointKey));if(defines||rings(f).some(r=>r.some((p,i)=>edges.has(edgeKey(p,r[(i+1)%r.length])))))f.deleted=true;else if(selected.length){f.points=f.points.filter(p=>!points.has(vertexKey(p)));f.holes=(f.holes||[]).map(r=>r.filter(p=>!points.has(vertexKey(p))));}}
+ localizeWireMasks(edits);
 }
 // Removing a coplanar divider unions its incident regions. An exterior edge,
 // including a crease shared by different planes, invalidates its incident face.
@@ -1447,6 +1780,26 @@ function coplanarContact(source,target){
 }
 // Snap along the permitted motion axis against finite geometry, even when
 // the target is only a point or edge rather than a parallel containing face.
+// A push that runs almost along an existing edge runs along that edge.
+//
+// Walls are square to each other only to a fraction of a degree, so a line pushed square off its own face leaves
+// the edge its end sits on by a hair: the new face gets an edge of its own a tenth of a millimetre beside the
+// existing one, never quite on it, and the points of the existing edge are not on the push line. When an end of
+// the pushed lines sits on an edge within RAIL_ANGLE of the push direction, that edge's direction is the push
+// direction. ends: the pushed lines' end points; lines: the lines being pushed; edges: the scene's lines.
+// Returns the unit direction to push in, or null where no edge qualifies. The longest qualifying edge decides,
+// because a long edge gives a far better direction than a short one.
+const RAIL_ANGLE=2*Math.PI/180;
+function railDirection(ends,direction,edges,lines=[]){
+ const unit=v=>{const l=Math.hypot(v.x,v.y,v.z);return l>1e-9?{x:v.x/l,y:v.y/l,z:v.z/l,l}:null;},d=unit(direction);if(!d)return null;
+ const own=lines.map(([a,b])=>unit(sub(b,a))).filter(Boolean),limit=Math.cos(RAIL_ANGLE);let best=null;
+ for(const [c,e]of edges){const r=unit(sub(e,c));if(!r||r.l<.01)continue;const along=dot(r,d);if(Math.abs(along)<limit)continue;
+  if(own.some(u=>Math.abs(dot(u,r))>.999))continue;if(!ends.some(p=>pointOnEdge(p,c,e)))continue;
+  if(!best||r.l>best.l)best={x:r.x*Math.sign(along),y:r.y*Math.sign(along),z:r.z*Math.sign(along),l:r.l};}
+ return best?{x:best.x,y:best.y,z:best.z}:null;
+}
+// How far a point on an edge may lie off the exact line of a push along that edge, per metre: about half a degree.
+const RAIL_SLACK=.01;
 function motionSnapCandidates(points,edges,direction,faces,options={}){
  const tol=1e-5,targets=faces.filter(f=>!f.deleted&&!f.snapOnly&&!f.drafted),targetPoints0=[...targets.flatMap(f=>[...rings(f).flat(),...(f.retainedPoints||[])]),...(options.points||[])],targetEdges0=[...targets.flatMap(f=>rings(f).flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]]))),...(options.edges||[])];
  const moving=p=>edges.some(([a,b])=>pointOnEdge(p,a,b)),targetPoints=[...new Map(targetPoints0.filter(p=>!options.excludeMoving||!moving(p)).map(p=>[vertexKey(p),p])).values()],targetEdges=[...new Map(targetEdges0.filter(([a,b])=>!options.excludeMoving||!moving(a)||!moving(b)).map(e=>[edgeKey(...e),e])).values()],planes=targets.map(f=>({f,frame:faceFrame(f)})).filter(x=>x.frame);const candidates=[];
@@ -1460,6 +1813,26 @@ function motionSnapCandidates(points,edges,direction,faces,options={}){
   for(const {f,frame}of planes){const den=dot(frame.n,direction);if(!frame||Math.abs(den)<1e-8)continue;const t=dot(sub(frame.origin,p),frame.n)/den,q=at(p,t),local=inFrame(frame,q),outer=f.points.map(p=>inFrame(frame,p));if(pointInRing(local,outer)&&!(f.holes||[]).some(r=>pointInRing(local,r.map(p=>inFrame(frame,p)))))offer(t,p,q,'Face');}
  }
  for(const [a,b]of edges){const u=sub(b,a),c=dot(u,u),bn=dot(direction,u),den=c-bn*bn;if(den<1e-12)continue;for(const q of targetPoints){const v=sub(q,a),t=(dot(direction,v)*c-dot(u,v)*bn)/den,s=(dot(u,v)-bn*dot(direction,v))/den,p=mix3(a,b,s);if(s>=0&&s<=1&&Math.hypot(...Object.values(sub(q,at(p,t))))<tol)offer(t,p,q,'Point');}}
+ // A corner of the moving line or face that sits on another edge rides along that edge as it moves (the result is
+ // trimmed or extended to it). The points of that edge are targets: the amount at which the moved line or plane
+ // passes through one puts the corner on it, although the corner does not travel straight along the direction.
+ for(const p of points){
+  const own=edges.filter(([a,b])=>Math.hypot(...Object.values(sub(a,p)))<tol||Math.hypot(...Object.values(sub(b,p)))<tol).map(([a,b])=>sub(b,a));if(!own.length)continue;
+  let normal=null;for(let i=1;i<own.length&&!normal;i++){const m=cross(own[0],own[i]);if(Math.hypot(m.x,m.y,m.z)>1e-9)normal=m;}
+  for(const [c,d]of targetEdges){
+   if(!pointOnEdge(p,c,d))continue;const r=sub(d,c),along=cross(r,own[0]);if(!normal&&Math.hypot(along.x,along.y,along.z)<1e-9*Math.hypot(r.x,r.y,r.z)*Math.hypot(own[0].x,own[0].y,own[0].z)+1e-12)continue;
+   for(const q of [c,d,...targetPoints.filter(q=>pointOnEdge(q,c,d))]){
+    const v=sub(q,p);if(Math.hypot(v.x,v.y,v.z)<tol)continue;let t,shift=null;
+    if(normal){const den=dot(direction,normal);if(Math.abs(den)<1e-9)continue;t=dot(v,normal)/den;}
+    else{const u=own[0],cc=dot(u,u),bn=dot(direction,u),den=cc-bn*bn;if(den<1e-12)continue;t=(dot(direction,v)*cc-dot(u,v)*bn)/den;const s2=(dot(u,v)-bn*t)/cc,miss=sub(v,{x:u.x*s2+direction.x*t,y:u.y*s2+direction.y*t,z:u.z*s2+direction.z*t}),off=Math.hypot(miss.x,miss.y,miss.z);
+     // Measured walls are square to each other only to a fraction of a degree, so an edge a line is pushed along
+     // leaves the exact push direction by a hair: a tenth of a millimetre or more over a few metres. The point is
+     // still the target. `shift` is the exact way there, so the pushed line can land on the point itself.
+     if(off>=tol+RAIL_SLACK*Math.hypot(v.x,v.y,v.z))continue;if(off>=tol||Math.abs(s2)>1e-9)shift={x:v.x,y:v.y,z:v.z};}
+    if(Number.isFinite(t)&&Math.abs(t)>=1e-6&&!candidates.some(k=>k.kind==='Point'&&!k.shift===!shift&&Math.abs(k.amount-t)<1e-9&&Math.hypot(...Object.values(sub(k.target,q)))<tol))candidates.push({amount:t,from:p,target:q,kind:'Point',edge:[c,d],...(shift?{shift}:{})});
+   }
+  }
+ }
  // Elevation is a model-wide constraint: horizontal separation is irrelevant.
  if(Math.abs(direction.z)>1e-8){const heights=[...new Map([...targetPoints,...(options.heightPoints||[])].filter(p=>Number.isFinite(p.z)).map(p=>[p.z.toFixed(6),p])).values()];for(const p of points)for(const q of heights){const t=(q.z-p.z)/direction.z,hit=at(p,t);offer(t,p,hit,'Height',[hit,q]);}}
  return candidates;
@@ -1526,5 +1899,38 @@ function flattenedCurveSamples(before,after){
   const keys=new Set([...ordinary].filter(key=>!carried.has(key)));for(const p of state.points){const key=vertexKey(p);if(samples.has(key))keys.add(key);}return keys;};
  const already=flat(before);return [...flat(after)].filter(key=>!already.has(key));
 }
-const api={flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+// Two selected lines measured against each other, seen from above (a, b: [start, end] in metres).
+//
+// The question is how far apart the lines run and how parallel they are, not how far apart their ends happen to
+// be. So for lines that run roughly the same way (under 45 degrees apart) the gap is measured square across them:
+// both are laid along their shared direction (the bisector of the two), and at each station where both exist the
+// gap is the distance across. closest, furthest and average are that gap over the stretch the two lines share
+// (over: its length). Lines that do not run alongside each other at all are extended to do so (extended: true).
+// Lines that cross have a closest gap of zero. across: true says the gap was measured this way.
+//
+// Lines more than 45 degrees apart, or with one upright (no direction from above, angle null), have no "across":
+// there the figures are the true 3D gaps between the two segments as drawn.
+// The angle is 0 to 90 degrees from above. Parallel lines (within half a degree) also give their spacing.
+function linePairMeasure(a,b){
+ if(![a,b].every(s=>s?.length===2&&s.every(p=>p&&[p.x,p.y].every(Number.isFinite))))return null;
+ const u={x:a[1].x-a[0].x,y:a[1].y-a[0].y},v={x:b[1].x-b[0].x,y:b[1].y-b[0].y},lu=Math.hypot(u.x,u.y),lv=Math.hypot(v.x,v.y);let angle=null,parallel=false,perpendicular=false,spacing=null;
+ if(lu>1e-6&&lv>1e-6){angle=Math.acos(Math.min(1,Math.abs(u.x*v.x+u.y*v.y)/(lu*lv)))*180/Math.PI;parallel=angle<=.5;perpendicular=angle>=89.5;}
+ if(angle!==null&&angle<45){
+  const flip=u.x*v.x+u.y*v.y<0?-1:1,ex=u.x/lu+flip*v.x/lv,ey=u.y/lu+flip*v.y/lv,el=Math.hypot(ex,ey),e={x:ex/el,y:ey/el},n={x:-e.y,y:e.x};
+  const along=p=>p.x*e.x+p.y*e.y,off=p=>p.x*n.x+p.y*n.y,line=s=>{const s0=along(s[0]),s1=along(s[1]),o0=off(s[0]),o1=off(s[1]);return {lo:Math.min(s0,s1),hi:Math.max(s0,s1),at:t=>o0+(o1-o0)*(t-s0)/(s1-s0)};},A=line(a),B=line(b);
+  let lo=Math.max(A.lo,B.lo),hi=Math.min(A.hi,B.hi),extended=false;if(hi-lo<1e-6){lo=Math.min(A.lo,B.lo);hi=Math.max(A.hi,B.hi);extended=true;}
+  const d0=B.at(lo)-A.at(lo),d1=B.at(hi)-A.at(hi),crossing=d0*d1<0,closest=crossing?0:Math.min(Math.abs(d0),Math.abs(d1)),furthest=Math.max(Math.abs(d0),Math.abs(d1));
+  const average=crossing?(d0*d0+d1*d1)/(2*(Math.abs(d0)+Math.abs(d1))):(Math.abs(d0)+Math.abs(d1))/2;if(parallel)spacing=average;
+  return {closest,furthest,average,angle,parallel,perpendicular,spacing,across:true,extended,over:hi-lo};
+ }
+ const d3=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y,(p.z||0)-(q.z||0)),at=(s,t)=>({x:s[0].x+(s[1].x-s[0].x)*t,y:s[0].y+(s[1].y-s[0].y)*t,z:(s[0].z||0)+((s[1].z||0)-(s[0].z||0))*t});
+ const toSegment=(p,s)=>{const w={x:s[1].x-s[0].x,y:s[1].y-s[0].y,z:(s[1].z||0)-(s[0].z||0)},l2=w.x*w.x+w.y*w.y+w.z*w.z,t=l2?Math.max(0,Math.min(1,((p.x-s[0].x)*w.x+(p.y-s[0].y)*w.y+((p.z||0)-(s[0].z||0))*w.z)/l2)):0;return d3(p,at(s,t));};
+ // The gap from a point moving along one segment to the other segment is convex: its largest value is at an end,
+ // and its smallest is found by a ternary search.
+ const least=(s,o)=>{let lo=0,hi=1;for(let i=0;i<60;i++){const m1=lo+(hi-lo)/3,m2=hi-(hi-lo)/3;if(toSegment(at(s,m1),o)<toSegment(at(s,m2),o))hi=m2;else lo=m1;}return toSegment(at(s,(lo+hi)/2),o);};
+ const mean=(s,o)=>{let sum=0;const k=64;for(let i=0;i<k;i++)sum+=toSegment(at(s,(i+.5)/k),o);return sum/k;},la=d3(...a),lb=d3(...b);
+ const closest=Math.min(least(a,b),least(b,a)),furthest=Math.max(...a.map(p=>toSegment(p,b)),...b.map(p=>toSegment(p,a))),average=la+lb>0?(mean(a,b)*la+mean(b,a)*lb)/(la+lb):closest;
+ return {closest,furthest,average,angle,parallel,perpendicular,spacing,across:false,extended:false,over:null};
+}
+const api={linePairMeasure,weldPlan,weldPlanes,seatPlan,LINE_MATCH,loadBearingFaces,loadBearingIndex,flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,pruneHiddenLoose,settleDeletedWire,railDirection,RAIL_ANGLE,localizeWireMasks,followWireExclusions,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

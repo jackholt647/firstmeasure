@@ -5587,8 +5587,10 @@ function openRejectModal() {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+    // Insufficient footage is a Full Exterior reason; the API refuses it for a roof order.
     const rejectionReasons = Array.isArray(window.FIRSTMEASURE_REJECTION_REASONS)
-        ? window.FIRSTMEASURE_REJECTION_REASONS.filter(reason => reason && reason.id && reason.label)
+        ? window.FIRSTMEASURE_REJECTION_REASONS.filter(reason => reason && reason.id && reason.label
+            && (reason.id !== 'insufficient_footage' || window.FIRSTMEASURE_FULL_HOUSE === true))
         : [];
     if (rejectionReasons.length === 0) {
         alert('Rejection reasons are unavailable. Please reload and try again.');

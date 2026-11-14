@@ -568,7 +568,23 @@ function extrudeWall(base,source,cap){
  return next;
 }
 // Vertical translation snaps to existing vertex heights and nearby base planes.
-function heightSnap(face,others,amount,screen){let best=null;const moving=face.points,shift=(p,z)=>({...p,z:p.z+z});for(const target of others.filter(f=>!f.deleted&&f.id!==face.id)){const plane=G.plane(target.points);if(!plane)continue;for(const p of moving){const candidates=target.points.map(q=>({amount:q.z-p.z,guide:q}));if(G.contains(target,p))candidates.push({amount:plane.dx*p.x+plane.dy*p.y+plane.k-p.z,guide:{...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}});for(const c of candidates){const delta=Math.abs(c.amount-amount);if(delta>.3)continue;const a=screen(shift(p,amount)),b=screen(shift(p,c.amount)),pixels=Math.hypot(a.x-b.x,a.y-b.y);if(!Number.isFinite(pixels)||pixels>10)continue;let aligned=null;for(let i=0;i<moving.length;i++){const a=shift(moving[i],c.amount),b=shift(moving[(i+1)%moving.length],c.amount);if([a,b].every(q=>Math.abs(q.z-plane.dx*q.x-plane.dy*q.y-plane.k)<1e-6)){aligned=[a,b];break;}}const score=pixels-(aligned?1:0);if(!best||score<best.score-1e-7)best={amount:c.amount,score,guide:aligned||[shift(p,c.amount),c.guide],target:target.id,kind:aligned?'Edge / plane height snap':'Point height snap'};}}}return best;}
+function heightSnap(face,others,amount,screen){let best=null;const moving=face.points,shift=(p,z)=>({...p,z:p.z+z});for(const target of others.filter(f=>!f.deleted&&f.id!==face.id)){const plane=G.plane(target.points);if(!plane)continue;
+  // An edge that lands on the target itself (a fold the two faces share) is the snap that joins them. An edge
+  // that is merely level with the target's plane somewhere else must not outrank it: the two heights can be
+  // tens of microns apart, one pixel on screen, and the wrong one left the faces a hair from meeting.
+  const onTarget=q=>G.contains(target,q)||target.points.some((a,i)=>{const b=target.points[(i+1)%target.points.length],dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy,t=l2?Math.max(0,Math.min(1,((q.x-a.x)*dx+(q.y-a.y)*dy)/l2)):0;return Math.hypot(q.x-a.x-dx*t,q.y-a.y-dy*t)<=1e-4;});for(const p of moving){const candidates=target.points.map(q=>({amount:q.z-p.z,guide:q}));if(G.contains(target,p))candidates.push({amount:plane.dx*p.x+plane.dy*p.y+plane.k-p.z,guide:{...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}});for(const c of candidates){const delta=Math.abs(c.amount-amount);if(delta>.3)continue;const a=screen(shift(p,amount)),b=screen(shift(p,c.amount)),pixels=Math.hypot(a.x-b.x,a.y-b.y);if(!Number.isFinite(pixels)||pixels>10)continue;let aligned=null,touching=false;for(let i=0;i<moving.length;i++){const a=shift(moving[i],c.amount),b=shift(moving[(i+1)%moving.length],c.amount);if([a,b].every(q=>Math.abs(q.z-plane.dx*q.x-plane.dy*q.y-plane.k)<1e-6)){const meets=[a,b].every(onTarget);if(meets||!aligned){aligned=[a,b];touching=meets;}if(meets)break;}}const score=pixels-(touching?2:aligned?1:0);if(!best||score<best.score-1e-7)best={amount:c.amount,score,guide:aligned||[shift(p,c.amount),c.guide],target:target.id,kind:aligned?'Edge / plane height snap':'Point height snap'};}}}return best;}
+// A face that meets another along a fold is pitched square to that fold, so the fold stays level and the two
+// faces can still meet along all of it. The edges of a real building are parallel only to within a thousandth of
+// a degree: taking the pitch direction from some other edge that looks parallel tilted the fold by tens of
+// microns, and then no straight move up or down could bring both its ends back onto the neighbour.
+// Returns the direction along or square to the longest shared edge that is within `tolerance` of `direction`.
+function foldAxis(face,others,direction,tolerance=.5*Math.PI/180){
+ const len=Math.hypot(direction.x,direction.y);if(len<1e-10)return null;const input={x:direction.x/len,y:direction.y/len},limit=Math.cos(tolerance);let best=null;
+ const shared=p=>others.some(f=>f.id!==face.id&&f.points.some((a,i)=>{const b=f.points[(i+1)%f.points.length],dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy,t=l2?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/l2)):0;return Math.hypot(p.x-a.x-dx*t,p.y-a.y-dy*t)<=1e-4;}));
+ for(let i=0;i<face.points.length;i++){const a=face.points[i],b=face.points[(i+1)%face.points.length],length=Math.hypot(b.x-a.x,b.y-a.y);if(length<1e-5||!shared(a)||!shared(b)||!shared({x:(a.x+b.x)/2,y:(a.y+b.y)/2}))continue;
+  const along={x:(b.x-a.x)/length,y:(b.y-a.y)/length};for(const axis of [along,{x:-along.y,y:along.x}]){let d=axis.x*input.x+axis.y*input.y;if(d<0){axis.x=-axis.x;axis.y=-axis.y;d=-d;}if(d>=limit&&(!best||length>best.length))best={direction:axis,length};}}
+ return best?.direction||null;
+}
 // Prefer a substantial boundary edge (or its perpendicular) over world axes.
 // Short notches must not rotate the layout of the whole foundation.
 function boundaryAxis(face,direction,tolerance=5*Math.PI/180){
@@ -580,6 +596,6 @@ function boundaryAxis(face,direction,tolerance=5*Math.PI/180){
   }
  }return best;
 }
-const api={repairStoredRoofContacts,usesRoofEnvelope,reconcileRoofWalls,boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,levelPivot,center,triangles,terrain,fromRoof,repairInitial,fitGrade,reground,followCuts,simplePieces,split,transform,validate,boundary,followWalls};
+const api={foldAxis,repairStoredRoofContacts,usesRoofEnvelope,reconcileRoofWalls,boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,levelPivot,center,triangles,terrain,fromRoof,repairInitial,fitGrade,reground,followCuts,simplePieces,split,transform,validate,boundary,followWalls};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.BaseGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

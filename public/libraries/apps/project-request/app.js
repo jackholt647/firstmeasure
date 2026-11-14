@@ -1154,6 +1154,15 @@ window.PlatformCommerce.onReady(async function(){
     .r-pending-cancel{appearance:none;border:1px solid rgba(15,23,42,.14);border-radius:13px;background:#fff;color:#344054;padding:10px 12px;font-size:12px;font-weight:1000;cursor:pointer}
     .r-pending-cancel:disabled{opacity:.5;cursor:not-allowed}
     .r-pending-reorder{appearance:none;border:1px solid var(--primary,#d93025);border-radius:13px;background:var(--primary,#d93025);color:var(--on-primary,#fff);padding:10px 12px;font-size:12px;font-weight:1000;cursor:pointer}
+    .r-pending-reorder.is-secondary{border-color:rgba(15,23,42,.14);background:#fff;color:#344054}
+    /* A rejected report: title, reason and actions only; the explanation is in tooltips (FM-410). */
+    .r-report-pending-card.is-rejected .r-rejection-reason{margin-top:4px}
+    .r-rejection-reason-text{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+    .r-rejection-why{appearance:none;flex-shrink:0;border:0;background:none;padding:4px;margin:-4px;border-radius:50%;cursor:help;color:#98a2b3;font-size:14px;line-height:1}
+    .r-rejection-why:hover,.r-rejection-why:focus-visible{color:#475467}
+    .r-report-pending-card.is-rejected .r-rejection-actions{gap:8px;margin-top:4px}
+    .r-rejection-actions .r-pending-reorder{display:flex;align-items:center;justify-content:center;gap:8px}
+    .r-rejection-actions .r-pending-reorder>.fas{font-size:13px}
     .r-pending-note{font-size:11px;font-weight:850;line-height:1.4;color:#667085}
     .r-schedule-panel{height:100%;min-height:0;overflow:hidden;background:#f8fafc;padding:24px;box-sizing:border-box;display:flex;flex-direction:column}
     .r-schedule-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
@@ -2341,6 +2350,10 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.report-ordered:not(.mobile-order) .r-report-pending-card i{font-size:18px}
       .r-overlay.report-ordered:not(.mobile-order) .r-report-pending-card h3{font-size:14px;line-height:1.15}
       .r-overlay.report-ordered:not(.mobile-order) .r-report-pending-card p{font-size:11px;line-height:1.35}
+      /* The left column's order status stays flat here too: the narrow report pane's card frame is for the Reports tab. */
+      .r-overlay.report-ordered:not(.mobile-order) .r-measure-order-status .r-report-pending{padding:0;overflow:visible}
+      .r-overlay.report-ordered:not(.mobile-order) .r-measure-order-status .r-report-pending-card{max-height:none;overflow:visible;border-radius:0;padding:0;gap:8px;box-shadow:none}
+      .r-overlay.report-ordered:not(.mobile-order) .r-measure-order-status .r-report-pending-card>i{font-size:15px}
       .r-overlay.report-ordered:not(.mobile-order) .r-pending-badge{padding:3px 7px;font-size:9px}
       .r-overlay.report-ordered:not(.mobile-order) .r-pending-detail{padding:7px 8px;border-radius:10px;font-size:10.5px;gap:2px}
       .r-overlay.report-ordered:not(.mobile-order) .r-pending-detail strong{font-size:9px}
@@ -10151,8 +10164,9 @@ window.PlatformCommerce.onReady(async function(){
     if(actionAnchor && actionAnchor.nextElementSibling!==actions)actionAnchor.after(actions);
     overlay.classList.toggle('firstmeasure-unordered-overview',requestedWorkflow==='project' && !expandedPlatformEnabled() && !hasReportOrdered());
     actions.hidden=requestedWorkflow!=='project' || !addressSelected || !selectedType;
-    // A report order starts from the measurement ordering widget beneath these fields, not from here.
-    const choices=[['roof',(globalThis.PlatformLanguage?.text('project-request','overview_order_report','Order report') ?? 'Order report'),false],['proposal',(globalThis.PlatformLanguage?.text('project-request','overview_build_proposal','Build proposal') ?? 'Build proposal'),actionAvailable('proposal')],['schedule',(globalThis.PlatformLanguage?.text('project-request','overview_schedule_appointment','Schedule appointment') ?? 'Schedule appointment'),actionAvailable('schedule')]].filter(item=>item[2]);
+    // A report order starts from the measurement ordering widget beneath these fields, not from here. Proposals are
+    // built in the Proposals tab (FM-410; the old "Build proposal" here opened the order form's retired proposal workspace).
+    const choices=[['roof',(globalThis.PlatformLanguage?.text('project-request','overview_order_report','Order report') ?? 'Order report'),false],['schedule',(globalThis.PlatformLanguage?.text('project-request','overview_schedule_appointment','Schedule appointment') ?? 'Schedule appointment'),actionAvailable('schedule')]].filter(item=>item[2]);
     const signature=choices.map(item=>item[0]+':'+item[1]).join(',');
     if (actions.dataset.choices!==signature) {
       actions.dataset.choices=signature;actions.replaceChildren();

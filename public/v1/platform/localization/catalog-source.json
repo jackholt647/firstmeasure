@@ -5061,7 +5061,22 @@
       "message": "{structures, plural, one {# structure} other {# structures}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Roof, walls, windows, doors and gutters included."
+    "report_kind_full_exterior_includes": "Roof, walls, windows, doors and gutters included.",
+    "m_9e8786e455a382": "Not enough footage of the house",
+    "m_afb458b5fb6b21": "The structure is hidden in the imagery",
+    "m_e61de280fd24e7": "The pin is not on a structure we can measure",
+    "m_b77e788dcf9d7d": "It needs a different project type",
+    "m_60adf9494a259c": "No imagery coverage for this structure yet",
+    "m_38db6e7fef541e": "Not enough credits",
+    "m_6480ed19528b5a": "Reason",
+    "m_2a8fbfcefaed16": "Order just the roof",
+    "m_b688bd49aa30b3": "A roof report is measured from aerial imagery and needs no photos.",
+    "m_242477ea5edf74": "We were not able to complete this Full Exterior report because the photos and video do not show enough of the house for us to draw every wall, window and door. We have reimbursed the original report.",
+    "m_861f518127ff5b": "Full Exterior report rejected",
+    "m_61916e37809bd1": "Try again with more footage",
+    "m_c04a8c55885f01": "Step back to get the whole house in view, and add photos of every side so we can draw all of it.",
+    "m_6396ccf961d884": "Why it was rejected",
+    "m_1b6fb2f8bf15dc": "Starts a new order for this project as the right project type."
   },
   "money": {
     "m_487adb3f2ba511": "Loading money...",

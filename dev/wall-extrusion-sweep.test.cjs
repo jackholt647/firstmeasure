@@ -116,3 +116,20 @@ test('a hosted door region keeps an open threshold without a base, and a sticker
  const r=M.createExtrusion({face:door,scene:[door,wall]}).preview(-.5);assert.equal(r.sides.length,3);assert.ok(!r.sides.some(f=>f.points.every(q=>Math.abs(q.z)<1e-9)));
  const sticker={...door,feature:{type:'garage'}},s=M.createExtrusion({face:sticker,scene:[sticker]}).preview(-.5);assert.equal(s.sides.length,0);
 });
+test('a face pushed in along walls that are not exactly square notches them at any depth and keeps to their foot',()=>{
+ // The side walls are 0.00002 rad off square and their feet rise away from
+ // the corner, with no base under them. Past half a metre the returns left
+ // the side walls' planes by more than the contact tolerance, so the walls
+ // were no longer cut and a walled cavity was built beside them.
+ const M=require('../public/measure/internal/editor_scripts/exterior_model.js'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),{face,scene}=require('./fixtures/extrusion-return-along-neighbor.json');
+ const neighbours=scene.filter(f=>f.id!==face.id&&Math.abs(W.normal(f.points).x*W.normal(face.points).x+W.normal(f.points).y*W.normal(face.points).y)<.01);assert.equal(neighbours.length,2);
+ for(const amount of [-.3,-.5,-.61,-.7]){
+  const r=M.createExtrusion({face,scene,supports:scene,base:null}).preview(amount);
+  assert.deepEqual(neighbours.map(f=>r.replacements.some(x=>x.face.id===f.id)),[true,true],'both side walls are cut at '+amount);
+  assert.ok(r.sides.every(s=>Math.abs(W.normal(s.points).z)>.5),'no return stands beside a side wall at '+amount);
+  const low=r.cap.points.map(p=>p.z).sort((a,b)=>a-b).slice(0,2),rise=-amount*(95.084-94.924)/.61;
+  assert.ok(low.every(z=>Math.abs(z-94.924-rise)<.005),'the cap stands on the walls\' foot at '+amount+': '+low);
+ }
+ // Pulled out, there is no wall to follow and the foot stays where it was.
+ assert.ok(M.createExtrusion({face,scene,supports:scene,base:null}).preview(.3).cap.points.every(p=>p.z>94.923));
+});

@@ -146,6 +146,33 @@ test('Q keeps the selected draft point when the host wall has a colliding local 
  assert.ok(!drafts.left.sketch.nodes.some(n=>n.y===2));
 });
 
+test('deleting one line of a stepped divider between two faces leaves the rest of the divider',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),far=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+ // Two faces of one wall meet along a stepped line: along z=1, up at x=2, along z=2. The faces draw those lines;
+ // nothing else stores them. Deleting the riser merges the faces, and a merged face has no lines inside it.
+ const A=p(0,0,1),B=p(2,0,1),C=p(2,0,2),D=p(4,0,2),state={wallEdits:{$surfaces:[
+  {id:'up',points:[p(0,0,3),p(4,0,3),D,C,B,A].map(q=>({...q})),holes:[]},{id:'low',points:[p(0,0,0),A,B,C,D,p(4,0,0)].map(q=>({...q})),holes:[]}]}};
+ const f=fixture({state,walls:[],selected:null,globals:{isFreeMove:true}}),drawn=(a,b)=>wirePairs(state.wallEdits).some(pair=>pair.some(q=>far(q,a)<1e-9)&&pair.some(q=>far(q,b)<1e-9));
+ assert.ok(drawn(A,B)&&drawn(B,C)&&drawn(C,D));
+ f.editor.restoreSelection({lineSelection:[{id:W.edgeKey(B,C),pair:[B,C]}]});f.editor.key({key:'Delete'});assert.equal(f.history.length,1,f.message());
+ assert.equal(state.wallEdits.$surfaces.filter(s=>!s.deleted&&!s.replacedBy).length,1,'the two faces are one');
+ assert.ok(!drawn(B,C),'the selected line is gone');assert.ok(drawn(A,B)&&drawn(C,D),'the lines either side of it are still there');
+ assert.ok(drawn(p(0,0,0),p(4,0,0))&&drawn(p(0,0,3),p(4,0,3)),'and so is the outline');
+ assert.equal(state.wallEdits.$loose.edges.length,2,'only the two lines no face draws are kept as lines of their own');
+});
+test('points selected together nudge together when only one of them has a line in that direction',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ // A step in a wall: from A the only upright line runs down, from B the only upright line runs up.
+ const A=p(0,0,1),B=p(2,0,1),faces=()=>[{id:'up',points:[p(-1,0,3),p(4,0,3),p(4,0,2),p(2,0,2),B,A,p(0,0,0),p(-1,0,0)].map(q=>({...q})),holes:[]},{id:'low',points:[p(0,0,0),A,B,p(2,0,2),p(4,0,2),p(4,0,0)].map(q=>({...q})),holes:[]}];
+ for(const key of ['ArrowUp','ArrowDown']){
+  const state={wallEdits:{$surfaces:faces()}},f=fixture({state,walls:[],selected:null,globals:{isFreeMove:true}});
+  f.editor.restoreSelection({solidPoints:[W.vertexKey(A),W.vertexKey(B)]});assert.equal(f.editor.pointSelection().length,2,f.message());
+  f.editor.key({key});assert.equal(f.history.length,1,key+': '+f.message());
+  const low=state.wallEdits.$surfaces.find(s=>s.id==='low'),a=low.points[1],b=low.points[2];
+  assert.ok(Math.abs(a.z-1)>1e-6,key+': the corner without a line that way moves too');assert.ok(Math.abs(a.z-b.z)<1e-9&&a.x===0&&b.x===2,key+': both by the same amount '+JSON.stringify([a,b]));
+  for(const face of state.wallEdits.$surfaces.filter(s=>!s.deleted))require('../public/measure/internal/editor_scripts/exterior_geometry.js').validateFace(face);
+ }
+});
 test('multiple selected boundary points nudge together repeatedly in one undo operation',()=>{
  const f=fixture();for(const x of [1,2,3])f.editor.doubleClick(f.e(x,4),f.w);
  const ids=f.d().sketch.nodes.filter(n=>[1,2,3].includes(n.x)&&n.y===4).map(n=>n.id);
@@ -202,9 +229,11 @@ test('plane curves remain analytic through move, copy, paste, delete and reload'
  let d=Object.values(f.state.wallEdits.$drafts).find(d=>d.constructionPlane);planeSelection(f,d.sketch.nodes.map(p=>K.world(d.frame,p)));f.listeners.pointermove(f.e(7,1));f.editor.key({key:'m'});f.listeners.pointermove(f.e(9,2));f.editor.down(f.e(9,2));d=Object.values(f.state.wallEdits.$drafts).find(d=>d.constructionPlane);assert.equal(d.sketch.curves.length,1);assert.ok(d.sketch.nodes.every(p=>K.world(d.frame,p).x>=8));assert.ok(!f.state.wallEdits.$loose.points.some(p=>p.x===6&&p.z===0),'no ghost loose endpoint after moving');
  f.editor.key({key:'c',ctrlKey:true});assert.equal(f.clipboard().curves.length,1);f.editor.key({key:'v',ctrlKey:true});f.listeners.pointermove(f.e(12,5));f.editor.down(f.e(12,5));let curves=Object.values(f.state.wallEdits.$drafts).filter(d=>d.constructionPlane);assert.equal(curves.length,2,f.message());assert.equal(curves[1].sketch.curves.length,1);f.editor.key({key:'Delete'});assert.equal(f.editor.pointSelection().length,0,f.message());curves=Object.values(f.state.wallEdits.$drafts).filter(d=>d.constructionPlane);assert.equal(curves.flatMap(d=>d.sketch.curves).length,1,f.message());assert.equal(Object.values(JSON.parse(JSON.stringify(f.state)).wallEdits.$drafts).flatMap(d=>d.sketch.curves||[]).length,1);
 });
+// What deletes have hidden: recorded on the deleted faces themselves (wireExclusions), no longer project-wide.
+const hiddenWire=edits=>({points:[...(edits.$removedSurfacePoints||[]),...(edits.$surfaces||[]).flatMap(s=>s.wireExclusions?.points||[])],edges:[...(edits.$removedSurfaceEdges||[]),...(edits.$surfaces||[]).flatMap(s=>s.wireExclusions?.edges||[])]});
 test('plane face selection deletes only that face and Shift-selected lines delete together',()=>{
  const p=(x,z)=>({x,y:0,z}),a={id:'left',points:[p(0,0),p(2,0),p(2,2),p(0,2)]},b={id:'right',points:[p(2,0),p(4,0),p(4,2),p(2,2)]};let mode='face';const state={wallEdits:{$surfaces:[a,b],$loose:{points:[p(6,0),p(8,0),p(6,2),p(8,2)],edges:[[p(6,0),p(8,0)],[p(6,2),p(8,2)]]}}},f=fixture({state,walls:[],selected:null,globals:{document:{getElementById:id=>id==='base-selection'?{value:mode}:null}}});f.editor.togglePlane(a);f.editor.down(f.e(1,1));f.listeners.pointerup(f.e(1,1));assert.equal(f.editor.pointSelection().length,4);f.editor.key({key:'Delete'});assert.ok(state.wallEdits.$surfaces.find(f=>f.id==='left').deleted);assert.ok(!state.wallEdits.$surfaces.find(f=>f.id==='right').deleted);assert.equal(state.wallEdits.$surfaces.find(f=>f.id==='right').points.length,4);
- mode='line';f.editor.down(f.e(7,0));f.listeners.pointerup(f.e(7,0));f.editor.down(f.e(7,2,true));f.listeners.pointerup(f.e(7,2,true));assert.equal(f.editor.pointSelection().length,4);assert.equal(f.editor.selectionSnapshot().workingPlane.selectedLines.length,2);f.editor.key({key:'Delete'});assert.equal(f.editor.pointSelection().length,0);const removed=state.wallEdits.$removedSurfaceEdges;assert.ok(removed.length>=2);
+ mode='line';f.editor.down(f.e(7,0));f.listeners.pointerup(f.e(7,0));f.editor.down(f.e(7,2,true));f.listeners.pointerup(f.e(7,2,true));assert.equal(f.editor.pointSelection().length,4);assert.equal(f.editor.selectionSnapshot().workingPlane.selectedLines.length,2);f.editor.key({key:'Delete'});assert.equal(f.editor.pointSelection().length,0);{const W2=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),left=state.wallEdits.$loose.edges.filter(([a,b])=>a.x>5&&b.x>5);assert.equal(left.length,0,'free-standing lines are removed outright');assert.ok(state.wallEdits.$surfaces.find(f=>f.id==='left').noWire,'the deleted face no longer draws: what is left of its outline is free-standing lines');}assert.deepEqual(state.wallEdits.$removedSurfaceEdges||[],[],'nothing is recorded project-wide');
 });
 test('3D C connects all selected pairs across spatial owners without flattening them',()=>{
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),points=[{x:0,y:0,z:0},{x:2,y:0,z:0},{x:0,y:2,z:0},{x:0,y:0,z:2}],state={wallEdits:{$loose:{points,edges:[]}}},f=fixture({state,walls:[],selected:null});
@@ -306,8 +335,8 @@ test('edited wall stays visible and selectable when a base rebuild removes its r
 });
 test('selected orange opening retains its base hue and gets a white outline',()=>{
  const f=fixture({globals:renderGlobals()});f.editor.doubleClick(f.e(1,1),f.w);for(const [x,y]of [[3,1],[3,3],[1,3],[1,1]]){f.editor.key({key:'n'});f.editor.down(f.e(x,y));f.listeners.pointerup(f.e(x,y));}
- const objects=[],group={add:o=>objects.push(o)};f.editor.draw3D(group,p=>p);assert.ok(objects.some(o=>o.material.color==='#ff962f'));
- f.editor.down(f.e(2,2));f.listeners.pointerup(f.e(2,2));objects.length=0;f.editor.draw3D(group,p=>p);assert.ok(objects.some(o=>o.material.color==='#ff962f'&&o.userData.exteriorSelected));assert.ok(objects.some(o=>o.material.color==='#fff'));
+ const objects=[],group={add:o=>objects.push(o)};f.editor.draw3D(group,p=>p);assert.ok(objects.some(o=>o.material.color==='#f2c040'));
+ f.editor.down(f.e(2,2));f.listeners.pointerup(f.e(2,2));objects.length=0;f.editor.draw3D(group,p=>p);assert.ok(objects.some(o=>o.material.color==='#f2c040'&&o.userData.exteriorSelected));assert.ok(objects.some(o=>o.material.color==='#fff'));
 });
 test('horizontal recess floor disappears only below base, cuts an opening, and cancel/commit preserve undo',()=>{
  const floor={id:'floor',points:[{x:1,y:1,z:2},{x:3,y:1,z:2},{x:3,y:3,z:2},{x:1,y:3,z:2}]};
@@ -364,7 +393,7 @@ test('Delete removes a selected saved recess face while keeping clickable points
  const cap={id:'saved-indent',points:[{x:1,y:0,z:1},{x:3,y:0,z:1},{x:3,y:0,z:3},{x:1,y:0,z:3}]},state={wallEdits:{$surfaces:[cap]}},f=fixture({state,globals:renderGlobals()}),group={add(){}};
  f.editor.draw3D(group,p=>p);f.editor.down(f.e(2,2));f.listeners.pointerup(f.e(2,2));f.editor.key({key:'Delete'});assert.equal(state.wallEdits.$surfaces[0].deleted,true);assert.equal(state.wallEdits.$surfaces[0].points.length,4);assert.equal(f.history.length,1);
  f.editor.draw3D(group,p=>p);for(const [i,p]of cap.points.entries()){f.editor.down(f.e(p.x,p.z,i>0));f.listeners.pointerup(f.e(p.x,p.z,i>0));}f.editor.key({key:'f',shiftKey:true});assert.equal(state.wallEdits.$surfaces[0].deleted,false);assert.equal(f.history.length,2);
- f.editor.down(f.e(1,1));f.listeners.pointerup(f.e(1,1));f.editor.key({key:'Delete'});assert.equal(state.wallEdits.$surfaces[0].deleted,true);assert.equal(state.wallEdits.$removedSurfacePoints.length,1);
+ f.editor.down(f.e(1,1));f.listeners.pointerup(f.e(1,1));f.editor.key({key:'Delete'});assert.equal(state.wallEdits.$surfaces[0].deleted,true);assert.deepEqual(state.wallEdits.$removedSurfacePoints,[]);assert.ok(state.wallEdits.$surfaces[0].noWire,'a deleted face is not a source of lines');
 });
 test('draft face deletion retains its graph and persists, Shift+F restores it from its boundary points',()=>{
  const f=fixture();f.editor.doubleClick(f.e(2,2),f.w);f.editor.down(f.e(1,2));f.listeners.pointerup(f.e(1,2));const points=JSON.stringify(f.d().sketch),ids=f.d().faces[0].points.map(p=>p.nodeId);f.editor.key({key:'Delete'});assert.equal(f.d().deletedFaces.length,1);assert.equal(JSON.stringify(f.d().sketch),points);
@@ -373,7 +402,7 @@ test('draft face deletion retains its graph and persists, Shift+F restores it fr
 
 test('blank-space box selects recess points without any highlighted face, and Delete uses that selection',()=>{
  const state={wallEdits:{$surfaces:[{id:'left',points:[{x:1,y:0,z:1},{x:2,y:0,z:1},{x:2,y:0,z:2},{x:1,y:0,z:2}]},{id:'right',points:[{x:5,y:0,z:1},{x:6,y:0,z:1},{x:6,y:0,z:2},{x:5,y:0,z:2}]}]}},f=fixture({state,selected:null});
- f.editor.down(f.e(.8,.8));f.listeners.pointermove(f.e(6.2,2.2));f.listeners.pointerup(f.e(6.2,2.2));assert.equal(f.message(),'8 points selected');f.editor.key({key:'Delete'});assert.ok(state.wallEdits.$surfaces.every(f=>f.deleted));assert.equal(state.wallEdits.$removedSurfacePoints.length,8);
+ f.editor.down(f.e(.8,.8));f.listeners.pointermove(f.e(6.2,2.2));f.listeners.pointerup(f.e(6.2,2.2));assert.equal(f.message(),'8 points selected');f.editor.key({key:'Delete'});assert.ok(state.wallEdits.$surfaces.every(f=>f.deleted));assert.deepEqual(state.wallEdits.$removedSurfacePoints,[]);assert.equal(require('../public/measure/internal/editor_scripts/wall_solid_geometry.js').surfaceWire(state.wallEdits).nodes.length,0,'all eight points are gone and nothing is left drawn');
 });
 test('box selection includes multiple wall drafts and works before the walls layer becomes active',()=>{
  const wall=(id,x)=>({id,bottom:[{x,y:0,z:1},{x:x+1,y:0,z:1}],top:[{x,y:0,z:2},{x:x+1,y:0,z:2}]}),walls=[wall('a',1),wall('b',4)],f=fixture({walls,active:false,selected:null});
@@ -399,7 +428,7 @@ test('moving a contained face onto a larger generated face produces an orange de
  f.editor.key({key:'m'});f.listeners.pointermove(f.e(1.45,1.5));assert.equal(state.wallEdits.$surfaces.some(s=>s.id==='small'),false);assert.equal(state.wallEdits.$surfaces.find(s=>s.id==='large').drafted,true);const d=state.wallEdits.$drafts['solid:large'];assert.equal(d.faces.filter(f=>f.opening).length,1);assert.equal(d.sketch.nodes.length,8);assert.equal(d.sketch.edges.length,8);assert.match(f.message(),/Contained coplanar/);
  f.editor.key({key:'escape'});assert.equal(JSON.stringify(state.wallEdits),before);
  f.listeners.pointermove(f.e(.5,1.5));f.editor.key({key:'m'});f.listeners.pointermove(f.e(1.45,1.5));f.editor.down(f.e(1.45,1.5));f.listeners.pointerup(f.e(1.45,1.5));assert.equal(JSON.stringify(f.history.at(-1)),before);
- const loaded=fixture({state:JSON.parse(JSON.stringify(state)),globals:renderGlobals()}),objects=[];loaded.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(objects.some(o=>o.material.color==='#ff962f'));
+ const loaded=fixture({state:JSON.parse(JSON.stringify(state)),globals:renderGlobals()}),objects=[];loaded.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(objects.some(o=>o.material.color==='#f2c040'));
 });
 
  test('a generated wall contained by another transfers internal geometry and hides its former boundary',()=>{
@@ -558,13 +587,14 @@ test('deleting a drafted host corner removes only its incident region, not the n
 
 test('an extruded recess rim remains structural when its supporting wall uses a hole ring',()=>{
  const f=fixture({globals:renderGlobals()});f.editor.doubleClick(f.e(1,1),f.w);for(const [x,y]of [[3,1],[3,3],[1,3],[1,1]]){f.editor.key({key:'n'});f.editor.down(f.e(x,y));f.listeners.pointerup(f.e(x,y));}f.editor.clear();
- let rendered=[];f.editor.draw3D({add:o=>rendered.push(o)},p=>p);assert.equal(rendered.filter(o=>o.material.color==='#6ce4ed').length,0,'A closed drawing inside a wall is a region: its rim bounds it and the hole around it (FM-385)');
+ let rendered=[];f.editor.draw3D({add:o=>rendered.push(o)},p=>p);assert.equal(rendered.filter(o=>o.material.color==='#6ce4ed').length,8,'A closed drawing inside a plain wall only divides it: deleting it merges the two regions, so its four lines and four corners are blue');
  const opening=f.d().faces.find(face=>face.opening);opening.solidId='extruded-cap';
  rendered=[];f.editor.draw3D({add:o=>rendered.push(o)},p=>p);assert.equal(rendered.filter(o=>o.material.color==='#6ce4ed').length,0,'The remaining wall depends on all four recess corners and rim edges even without a return face');
 });
-// FM-385: orange marks a line or point on the outline of a face. Each region of
-// a draft counts with its own rings, as a solid does; the draft's union, which
-// snapping reads, fills sticker holes and drops the edges between regions.
+// Orange marks a line or point a face depends on: removing it would take a face
+// away or change what it is (WallSolidGeometry.loadBearingFaces). Plain regions
+// in one plane are one face to this rule, so a line dividing them is blue; a
+// sticker keeps its own outline (FM-385), and so does the hole it sits in.
 function wallColours(f,pass='draw3D'){
  f.editor.clear?.();const objects=[];f.editor[pass]({add:o=>objects.push(o)},p=>p);
  return objects.filter(o=>['#e7ad52','#6ce4ed'].includes(o.material?.color)).map(o=>({point:o.material.size===8,orange:o.material.color==='#e7ad52',at:(o.geometry?.points||[]).map(p=>+p.x.toFixed(3)+','+ +p.z.toFixed(3)).join(' ')}));
@@ -580,14 +610,14 @@ test('a sticker inside a wall\'s draft draws its edges and corners orange in 3D,
  const g=stickerFixture('window',[2,2],{redrawOverlay:()=>{},drawsOverlay:true});g.editor.key({key:'m'});g.listeners.pointermove({...g.e(1.8,2.1),buttons:0});
  const overlay=wallColours({editor:{drawOverlay:g.editor.drawOverlay}},'drawOverlay');assert.equal(overlay.length,16,JSON.stringify(overlay));assert.deepEqual(overlay.filter(o=>!o.orange),[],'the sliding sticker stays structural');
 });
-test('an edge between two regions of one draft is orange; a collinear point on it and a loose line stay blue',()=>{
+test('a line dividing one plain wall into two regions is blue with its ends; a loose line stays blue',()=>{
+ // Deleting the divider merges the two regions back into the wall they came
+ // from: no face is lost, so nothing about it is load-bearing.
  const split=wallColours(drawDraftLines([0,1],[[4,1]]));
- assert.ok(split.some(o=>!o.point&&o.at==='0,1 4,1'&&o.orange),JSON.stringify(split));
- for(const at of ['0,1','4,1'])assert.ok(split.some(o=>o.point&&o.at===at&&o.orange),at+' is a corner of both regions');
- assert.deepEqual(split.filter(o=>!o.orange),[]);
+ assert.deepEqual(split.filter(o=>!o.orange).map(o=>o.at).sort(),['0,1','0,1 4,1','4,1'],JSON.stringify(split));
+ assert.equal(split.filter(o=>o.orange).length,8,'the wall outline stays load-bearing');
  const f=drawDraftLines([0,1],[[4,1]]);f.editor.doubleClick(f.e(2,1),f.w);const mid=wallColours(f);
- assert.ok(mid.some(o=>o.point&&o.at==='2,1'&&!o.orange),'a point midway along a straight edge is not a corner: '+JSON.stringify(mid));
- assert.equal(mid.filter(o=>!o.orange).length,1);
+ assert.deepEqual(mid.filter(o=>!o.orange).map(o=>o.at).sort(),['0,1','0,1 4,1','2,1','4,1'],JSON.stringify(mid));
  const loose=wallColours(drawDraftLines([1,1],[[2,2]]));
  assert.deepEqual(loose.filter(o=>!o.orange).map(o=>o.at).sort(),['1,1','1,1 2,2','2,2'],'a loose sketch line is not on any outline');
  assert.equal(loose.filter(o=>o.orange).length,8,'the wall outline stays structural');
@@ -780,6 +810,22 @@ test('window labeling, size cycling, nudging and metadata survive resolve and re
  const selected=()=>f.d().faces.find(f=>f.feature),before=f.d().faces.find(f=>f.opening).points.map(p=>({...p}));f.editor.key({key:'W',shiftKey:true});assert.equal(selected().feature.type,'window');assert.equal(JSON.stringify(selected().points),JSON.stringify(before));
  f.editor.key({key:'W',shiftKey:true});assert.equal(selected().feature.preset,0,f.message());const F=require('../public/measure/internal/editor_scripts/wall_features.js'),b=F.bounds(selected().points);assert.ok(Math.abs(b.right-b.left-3*F.FT)<1e-8);
  f.editor.key({key:'ArrowRight'});assert.ok(Math.abs(F.bounds(selected().points).left-b.left-F.FT/12)<1e-8,f.message());S.resolve(f.d());assert.equal(selected().feature.type,'window');const restored=fixture({state:JSON.parse(JSON.stringify(f.state)),globals:renderGlobals()});restored.editor.draw3D({add(){}},p=>p);assert.equal(restored.d().faces.find(f=>f.feature).feature.type,'window');
+});
+test('a sticker from the library can be placed, cancelled and left with a drawing plane on',()=>{
+ // With a plane on, the plane took the sticker tool's clicks and keys: the sticker could not be placed, Escape did
+ // not cancel it, and P refused to close the plane because a tool was running. The session was stuck.
+ const make=()=>{let f;f=fixture({featureHost:()=>{const d=f.d();return {d,f:d.faces[0],points:d.faces[0].points.map(p=>({x:p.x,y:0,z:p.y}))};},globals:renderGlobals(),projectPoint:(d,e)=>d.frame?require('../public/measure/internal/editor_scripts/wall_solid_geometry.js').inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):({x:e.clientX/100,y:e.clientY/100,z:0})});
+  f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));f.editor.togglePlane({points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}]});assert.ok(f.editor.planeView(),'the plane is on');return f;};
+ // Placed with a click, the plane stays on.
+ let f=make();f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));f.editor.down(f.e(2,2));
+ assert.ok(f.d().faces.some(x=>x.feature?.type==='window'),f.message());assert.ok(!f.editor.featurePlacement(),'the sticker tool is done');assert.ok(f.editor.planeView());
+ // Escape cancels the sticker and nothing else.
+ f=make();const before=JSON.stringify(f.state.wallEdits);f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));assert.ok(f.editor.featurePlacement());f.editor.key({key:'Escape'});
+ assert.ok(!f.editor.featurePlacement(),'the sticker tool is cancelled');assert.equal(JSON.stringify(f.state.wallEdits),before);assert.ok(f.editor.planeView(),'the plane is still on');
+ // P always leaves the plane with a sticker tool running: the sticker is placed where it is previewed, or the tool
+ // is cancelled when it cannot be; either way no tool is left running and the plane is off.
+ f=make();const untouched=JSON.stringify(f.state.wallEdits);f.editor.featureCommand('window',0,true);assert.ok(f.editor.featurePlacement());f.editor.key({key:'p'});
+ assert.ok(!f.editor.planeView(),'the plane is off');assert.ok(!f.editor.featurePlacement());assert.equal(f.editor.busy(),false);assert.ok(JSON.stringify(f.state.wallEdits)===untouched||f.d().faces.some(x=>x.feature?.type==='window'));
 });
 test('library placement creates editable geometry and cancellation leaves no sticker',()=>{
  let f;f=fixture({featureHost:()=>{const d=f.d();return {d,f:d.faces[0],points:d.faces[0].points.map(p=>({x:p.x,y:0,z:p.y}))};},globals:renderGlobals(),projectPoint:(d,e)=>d.frame?require('../public/measure/internal/editor_scripts/wall_solid_geometry.js').inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):({x:e.clientX/100,y:e.clientY/100,z:0})});f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));const before=JSON.stringify(f.state.wallEdits);f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
@@ -1920,6 +1966,9 @@ test('plane drawing on a horizontal base partitions covered area without adding 
 
 function planeStep(f,x,y){if(!f.editor.pointSelection().length)f.editor.doubleClick(f.e(x,y));else{f.editor.key({key:'n'});f.editor.down(f.e(x,y));}}
 
+// Every line that is drawn, whoever stores it: a line along a face is the face's and is not kept a second time as a
+// free-standing line (WallSolidGeometry.settleDeletedWire).
+const wirePairs=edits=>{const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),g=W.surfaceWire(edits),at=new Map(g.nodes.map(n=>[n.id,n]));return g.edges.map(e=>[at.get(e.a),at.get(e.b)]);};
 test('plane selection passes through off-plane geometry and C connects every pair in one commit',()=>{
  const f=fixture({pickVisible:()=>false,state:{wallEdits:{$loose:{points:[{x:6,y:1,z:0}],edges:[]}}}});f.editor.key({key:'p'});
  const click=(x,y,shift=false)=>{const e=f.e(x,y,shift);f.editor.down(e);f.listeners.pointerup(e);};
@@ -1927,7 +1976,7 @@ test('plane selection passes through off-plane geometry and C connects every pai
  for(const [x,y]of [[6,0],[8,0],[8,2],[6,2]])f.editor.doubleClick(f.e(x,y));
  click(6,0);click(8,0,true);click(8,2,true);click(6,2,true);assert.equal(f.editor.pointSelection().length,4);assert.ok(f.editor.pointSelection().every(p=>p.y===0));
  const h=f.history.length;f.editor.key({key:'c'});assert.equal(f.history.length,h+1);
- assert.equal(f.state.wallEdits.$surfaces.length,4,'both diagonals partition the square');assert.equal(f.state.wallEdits.$loose.edges.length,6);click(6,2);click(6,0,true);f.editor.key({key:'c'});assert.equal(f.state.wallEdits.$surfaces.length,4);
+ assert.equal(f.state.wallEdits.$surfaces.length,4,'both diagonals partition the square');assert.equal(f.state.wallEdits.$loose.edges.length,0,'the faces draw the lines: none is stored twice');assert.equal(wirePairs(f.state.wallEdits).length,8);click(6,2);click(6,0,true);f.editor.key({key:'c'});assert.equal(f.state.wallEdits.$surfaces.length,4);
 });
 
 test('plane rectangular selection filters points and N connects every selected point',()=>{
@@ -2102,7 +2151,7 @@ test('one or multiple solid stickers share four move modes and accept exact dist
 test('moving a mounted sticker carries a coincident loose anchor and cancel restores it',()=>{
  const f=stickerFixture(),corner=f.d().faces.find(f=>f.feature).points[0];f.state.wallEdits.$loose={points:[{x:corner.x,y:0,z:corner.y}],edges:[]};const before=JSON.stringify(f.state.wallEdits);
  f.listeners.pointermove(f.e(2,2));f.editor.key({key:'m'});f.editor.distanceInput().set(.3);
- const anchor=f.state.wallEdits.$loose.points[0];assert.ok(Math.abs(anchor.x-corner.x-.3)<1e-8);assert.equal(anchor.z,corner.y);
+ const anchor=f.state.wallEdits.$loose.points[0];if(anchor){assert.ok(Math.abs(anchor.x-corner.x-.3)<1e-8);assert.equal(anchor.z,corner.y);}
  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
 });
 
@@ -2352,7 +2401,7 @@ for(const amount of [-.6096,.6096])test(`edge extrusion ${amount} preserves unse
  const begin=()=>{f.editor.restoreSelection(selection);f.listeners.pointermove(f.e(4,0));f.editor.key({key:'e'});f.editor.distanceInput().set(amount);};
  begin();assert.equal(f.editor.distanceInput().amount,amount,f.message());
  assert.equal(JSON.stringify(Object.values(state.wallEdits.$drafts)[0].sketch.nodes),nodes,'original sketch must not get diagonalized');
- assert.equal(JSON.stringify(state.wallEdits.$loose.edges[0]),JSON.stringify(loose),'unselected loose line stays fixed');
+ assert.equal(JSON.stringify(state.wallEdits.$loose.edges[0]),JSON.stringify([p(-10,0,0),p(0,0,0)]),'unselected loose line stays fixed, less the part the wall draws');
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),surfaces=state.wallEdits.$surfaces.filter(s=>!s.deleted),connections=[...surfaces,...state.wallEdits.$loose.edges.map(points=>({points}))];
  for(const from of side.points.slice(0,2)){const to={...from,z:amount};assert.ok(W.sharedIntervals(from,to,connections).reduce((sum,[a,b])=>sum+b-a,0)>.99999,'new endpoint connects to its original endpoint');}
  for(const edge of state.wallEdits.$loose.edges.slice(1))assert.ok(edge[0].x===edge[1].x&&edge[0].y===edge[1].y,'only local vertical connectors may be added');
@@ -2741,7 +2790,7 @@ test('a line move that closes an outline notch leaves a consumed mask matching i
  assert.equal(new Set(ring(mask.points)).size,mask.points.length);assert.ok(mask.points.every(p=>d.sketch.nodes.some(n=>n.id===p.nodeId)),'the mask still follows sketch nodes');
  // Shown again by any later edit, it triangulates.
  K.triangles(mask.points,mask.holes||[]);
- const lines=[];f.editor.draw3D({add:o=>{if(o.material?.color==='#6ce4ed'&&o.geometry?.points?.length===2)lines.push(o);}},p=>p);assert.equal(lines.length,0,'the closed tab leaves no loose wire');
+ const lines=[];f.editor.draw3D({add:o=>{if(o.material?.color==='#6ce4ed'&&o.geometry?.points?.length===2)lines.push(o);}},p=>p);assert.deepEqual(lines.map(o=>o.geometry.points.map(q=>q.x+','+q.z).sort().join(' ')),['0,1 4,1'],'the closed tab leaves no loose wire; the one blue line only divides plain faces in the same plane');
 });
 
 // Renz's and Joanne's training projects (Nov 4) hold masks like these: a
@@ -3327,7 +3376,7 @@ test('typed plane length switches to the nearest raw-cursor anchor and keeps bot
  f.editor.draw3D({add(){}},p=>p);let driven=markers.find(e=>e.selected&&Math.abs(e.length-.3048)<1e-8);assert.ok(driven);assert.equal(driven.a.x,0);
  markers.length=0;f.listeners.pointermove(f.e(3,1));assert.equal(f.editor.distanceInput().token,owner.token);f.editor.draw3D({add(){}},p=>p);driven=markers.find(e=>e.selected&&Math.abs(e.length-.3048)<1e-8);assert.ok(driven);assert.equal(driven.a.x,4);
  const preview={...driven.b};f.editor.planeDown(f.e(3,1));const end=f.editor.pointSelection()[0];assert.ok(Math.hypot(end.x-preview.x,end.y-preview.y,end.z-preview.z)<1e-8);assert.ok(Math.hypot(end.x,end.z)>3);assert.equal(f.history.length,1);
- const edges=f.state.wallEdits.$loose.edges;
+ const edges=wirePairs(f.state.wallEdits);
  for(const start of starts)assert.ok(edges.some(pair=>pair.some(p=>Math.hypot(p.x-start.x,p.y-start.y,p.z-start.z)<1e-6)&&pair.some(p=>Math.hypot(p.x-end.x,p.y-end.y,p.z-end.z)<1e-6)));
 });
 test('plane N shows every live line length without requiring a typed distance',()=>{
@@ -3344,7 +3393,7 @@ test('typed plane length is a world distance on a tilted plane and connects thre
  const f=fixture({state:{wallEdits:{$surfaces:[face]}},walls:[],selected:null,globals:{...renderGlobals(),isFreeMove:true},lengthMarker:(g,v,e)=>markers.push(e),projectPoint:(d,e)=>K.local(d.frame,p(e.clientX/100,e.clientY/100))});
  f.editor.togglePlane(face);planeSelection(f,starts);f.editor.key({key:'n'});f.listeners.pointermove(f.e(3,3));f.editor.distanceInput().set(.6096);f.editor.draw3D({add(){}},p=>p);
  const driver=markers.find(e=>e.selected);assert.ok(driver);assert.equal(driver.a.x,4);assert.equal(driver.a.y,4);assert.ok(Math.abs(driver.length-.6096)<1e-8);
- f.editor.planeDown(f.e(3,3));const end=f.editor.pointSelection()[0];assert.ok(Math.abs(end.z-(2+.3*end.x+.4*end.y))<1e-8);assert.ok(Math.hypot(end.x-driver.b.x,end.y-driver.b.y,end.z-driver.b.z)<1e-8);assert.equal(f.history.length,1);assert.equal(f.state.wallEdits.$loose.edges.length,3);
+ f.editor.planeDown(f.e(3,3));const end=f.editor.pointSelection()[0];assert.ok(Math.abs(end.z-(2+.3*end.x+.4*end.y))<1e-8);assert.ok(Math.hypot(end.x-driver.b.x,end.y-driver.b.y,end.z-driver.b.z)<1e-8);assert.equal(f.history.length,1);assert.equal(wirePairs(f.state.wallEdits).filter(pair=>pair.some(q=>Math.hypot(q.x-end.x,q.y-end.y,q.z-end.z)<1e-6)).length,3);
 });
 test('clearing a typed plane length restores free aiming without committing',()=>{
  const f=planeLineFixture([{x:0,y:0,z:0}]);f.listeners.pointermove(f.e(2,2));const root={document:{getElementById:()=>null}};root.window=root;vm.runInNewContext(fs.readFileSync('public/measure/internal/editor_scripts/exterior_distance_input.js','utf8'),root);
@@ -3359,7 +3408,7 @@ test('typed plane lengths still snap bearing and F disables the bearing without 
  for(const free of [false,true]){const f=planeLineFixture([{x:0,y:0,z:0}],{globals:{...renderGlobals(),isFreeMove:false}});f.listeners.pointermove(f.e(2,.04));f.editor.distanceInput().set(.3048);if(free){f.editor.key({key:'f'});f.listeners.pointermove(f.e(2,.04));}f.editor.planeDown(f.e(2,.04));const p=f.editor.pointSelection()[0];assert.ok(Math.abs(Math.hypot(p.x,p.z)-.3048)<1e-8);if(free)assert.ok(p.z>.001);else assert.ok(Math.abs(p.z)<1e-8);assert.equal(f.history.length,1);}
 });
 test('plane Q near the starting row keeps a four-sided preview and commits that rectangle',()=>{
- const f=planeLineFixture([{x:0,y:0,z:0}],{globals:{...renderGlobals(),isFreeMove:false}});f.editor.key({key:'q'});f.listeners.pointermove(f.e(3,.1));const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);const preview=objects.filter(o=>o.material?.color==='#FFD700'&&o.geometry?.points?.length===2).flatMap(o=>o.geometry.points);assert.ok(preview.some(p=>p.z>.05),'preview has nonzero height');assert.ok(preview.some(p=>p.x>2.9));f.editor.planeDown(f.e(3,.1));f.editor.planeDown(f.e(3,.1));assert.equal(f.history.length,1,f.message());assert.ok(f.state.wallEdits.$loose.edges.some(pair=>pair.some(p=>p.z>.05)));
+ const f=planeLineFixture([{x:0,y:0,z:0}],{globals:{...renderGlobals(),isFreeMove:false}});f.editor.key({key:'q'});f.listeners.pointermove(f.e(3,.1));const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);const preview=objects.filter(o=>o.material?.color==='#FFD700'&&o.geometry?.points?.length===2).flatMap(o=>o.geometry.points);assert.ok(preview.some(p=>p.z>.05),'preview has nonzero height');assert.ok(preview.some(p=>p.x>2.9));f.editor.planeDown(f.e(3,.1));f.editor.planeDown(f.e(3,.1));assert.equal(f.history.length,1,f.message());assert.ok(wirePairs(f.state.wallEdits).some(pair=>pair.some(p=>p.z>.05)));
 });
 
 test('plane-created connection stays deleted in 3D after its noded pieces are removed',()=>{
@@ -3498,7 +3547,7 @@ test('arrow nudges after orbiting move the geometry instead of placing nothing',
 test('line moves and nudges keep deleted surface records, so Shift+F still restores them',()=>{
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,z)=>({x,y:0,z}),gone=[p(6,0),p(8,0),p(8,2),p(6,2)];
  const state={wallEdits:{$surfaces:[{id:'a',points:[p(0,0),p(2,0),p(2,4),p(0,4)]},{id:'b',points:[p(3,0),p(5,0),p(5,2),p(3,2)]},{id:'gone',deleted:true,points:gone}]}},f=fixture({state,walls:[],selected:null});
- const record=()=>JSON.stringify(state.wallEdits.$surfaces.find(s=>s.id==='gone')),saved=record(),edges=W.surfaceWire(state.wallEdits).edges.length;
+ const record=()=>JSON.stringify({...state.wallEdits.$surfaces.find(s=>s.id==='gone'),noWire:undefined}),saved=record(),edges=W.surfaceWire(state.wallEdits).edges.length;
  f.editor.restoreSelection({lineSelection:[{id:'top',pair:[p(0,4),p(2,4)]}]});f.listeners.pointermove(f.e(1,4));f.editor.key({key:'m'});f.listeners.pointermove(f.e(1,4.5));f.editor.down(f.e(1,4.5));
  assert.equal(f.history.length,1,f.message());assert.equal(record(),saved);assert.equal(W.surfaceWire(state.wallEdits).edges.length,edges);
  f.editor.restoreSelection({selectedSolid:'b',faceSelection:[{solid:'a'},{solid:'b'}]});f.editor.key({key:'ArrowLeft'});assert.equal(f.history.length,2,f.message());assert.equal(record(),saved);
@@ -3706,8 +3755,10 @@ test('deleting a sliver face line in a plane-mode recess only removes: no faces 
  const after=f.state.wallEdits,live=after.$surfaces.filter(s=>!s.deleted);
  assert.equal(f.history.length,1,f.message());
  assert.deepEqual(live.map(s=>s.id).sort(),before.$surfaces.map(s=>s.id).filter(id=>id!=='plane-face-5').sort(),'only the sliver that owned the line is gone; nothing is added');
- assert.deepEqual([...after.$removedSurfacePoints].sort(),[...before.$removedSurfacePoints].sort(),'hidden points stay hidden');
- assert.equal(JSON.stringify(after.$loose),JSON.stringify(before.$loose),'loose wire is unchanged');
+ // Hidden free-standing wire is removed outright now, so compare what can be seen: the loose lines that were
+ // visible are all still there, and (below) nothing that was hidden shows.
+ const seen=e=>new Set(W.surfaceWire({$loose:e.$loose,$removedSurfacePoints:e.$removedSurfacePoints,$removedSurfaceEdges:e.$removedSurfaceEdges}).edges.map(x=>x.id));
+ {const now=seen(after),drawn=new Set(W.surfaceWire(after).edges.map(x=>x.id));for(const id of seen(before))assert.ok(now.has(id)||drawn.has(id),'a loose line that was visible is still there: '+id);const whole=e=>new Set(W.surfaceWire(e).edges.map(x=>x.id)),was=whole(before);for(const id of now)assert.ok(was.has(id)||[...was].some(k=>k.split('|').some(end=>id.includes(end))),'a new free-standing line is one the deleted face was already showing: '+id);}assert.deepEqual(after.$removedSurfacePoints,[]);
  assert.deepEqual(W.surfaceWire(after).nodes.map(n=>n.id).filter(id=>!nodes.has(id)),[],'no point becomes visible');
 });
 test('a line delete never rebuilds a face from loose wire outside the face it invalidates',()=>{
@@ -3992,7 +4043,7 @@ for(const rep of curveRepresentations)for(const selection of curveSelections){
  test(`arched ${rep.name}: nudging ${selection.name} ${selection.whole===false?'moves only those points and reshapes the door':'moves whole doors rigidly'}, keeps curves and selection, leaves nothing behind, and undoes`,()=>{
   const {census,curveCount,WS,FT,close}=curveSuite,f=rep.build(),start=curvedDoors(f,rep.type);assert.equal(start.length,rep.doors,rep.name);
   const picked=selectCurved(f,selection,start),moving=selection.moves(start),before=JSON.stringify(f.state.wallEdits),count=f.history.length,startCensus=census(f.state.wallEdits);
-  const loose=JSON.stringify(f.state.wallEdits.$loose||null),removed=JSON.stringify([f.state.wallEdits.$removedSurfacePoints||[],f.state.wallEdits.$removedSurfaceEdges||[]]);
+  const settledLoose=()=>{const copy=JSON.parse(JSON.stringify(f.state));require('../public/measure/internal/editor_scripts/exterior_model.js').settleDeletedWire(copy);return JSON.stringify(copy.wallEdits.$loose||null);},loose=settledLoose(),removed=(h=>h.points.length+h.edges.length)(hiddenWire(f.state.wallEdits));
   let total=0;
   for(const [i,e]of [{key:'ArrowRight'},{key:'ArrowRight'},{key:'ArrowRight',shiftKey:true},{key:'ArrowLeft',altKey:true},{key:'ArrowLeft'}].entries()){
    const previous=census(f.state.wallEdits);f.editor.key(e);total+=(e.key==='ArrowRight'?1:-1)*(e.altKey?.25:e.shiftKey?6:1)*FT/12;
@@ -4000,7 +4051,7 @@ for(const rep of curveRepresentations)for(const selection of curveSelections){
    const now=curvedDoors(f,rep.type);assert.equal(now.length,start.length,label+': door count');
    start.forEach((door,j)=>doorCheck(selection,label+' door '+j,door,matchDoor(now,curveExpect(selection,door,j,picked,offset,moving)),picked,offset,moving,j));
    const after=census(f.state.wallEdits);assert.equal(curveCount(after),curveCount(startCensus),label+': curve count');assert.deepEqual(WS.flattenedCurveSamples(previous,after),[],label+': no curve is flattened');
-   assert.equal(JSON.stringify(f.state.wallEdits.$loose||null),loose,label+': no loose wire');assert.equal(JSON.stringify([f.state.wallEdits.$removedSurfacePoints||[],f.state.wallEdits.$removedSurfaceEdges||[]]),removed,label+': no removed-wire record');
+   assert.equal(JSON.stringify(f.state.wallEdits.$loose||null),loose,label+': no loose wire');{const h=hiddenWire(f.state.wallEdits);assert.ok(h.points.length+h.edges.length<=removed,label+': no removed-wire record is added');}
    const selected=f.editor.pointSelection();for(const p of picked)assert.ok(selected.some(q=>close(q,{x:p.x+offset.x,y:p.y+offset.y,z:p.z+offset.z},1e-5)),label+': '+JSON.stringify(p)+' stays selected');
    if(selection.face){const snap=JSON.parse(JSON.stringify(f.editor.selectionSnapshot())),refs=snap.faceSelection.length?snap.faceSelection:[snap.selectedSolid?{solid:snap.selectedSolid}:snap.selectedRegion];assert.equal(refs.filter(Boolean).length,selection.face==='all'?start.length:1,label+': the sticker selection is kept');}
   }
@@ -4191,7 +4242,7 @@ test('deleting a corner of an arched transom deletes its two lines and keeps wha
 // reshapes through its other points instead of opening up.
 const keepClosed=f=>{f.state.stickerDeleteKeepsFace=true;return f;};
 for(const rep of curveRepresentations)test(`with keep-closed on, deleting one corner of an arched sticker (${rep.name}) leaves the closed face with its arch, and undoes`,()=>{
- const {census,curveCount,close}=curveSuite,f=keepClosed(rep.build()),start=curvedDoors(f,rep.type),before=JSON.stringify(f.state.wallEdits),count=f.history.length,curves=curveCount(census(f.state.wallEdits)),stickers=stickerCount(f),loose=JSON.stringify(f.state.wallEdits.$loose||null);
+ const {census,curveCount,close}=curveSuite,f=keepClosed(rep.build()),start=curvedDoors(f,rep.type),before=JSON.stringify(f.state.wallEdits),count=f.history.length,curves=curveCount(census(f.state.wallEdits)),stickers=stickerCount(f),loose=(()=>{const copy=JSON.parse(JSON.stringify(f.state));require('../public/measure/internal/editor_scripts/exterior_model.js').settleDeletedWire(copy);return JSON.stringify(copy.wallEdits.$loose||null);})();
  const corner=start[0].defining.find(p=>Math.abs(p.z-start[0].bottom)<1e-6);selectCurved(f,{pick:()=>[corner]},start);assert.equal(f.editor.pointSelection().length,1);
  f.editor.key({key:'Delete'});assert.equal(f.history.length,count+1,rep.name+': '+f.message());
  const now=curvedDoors(f,rep.type);assert.equal(now.length,start.length,'every door keeps its arch');assert.equal(stickerCount(f),stickers,'no sticker is lost');assert.equal(curveCount(census(f.state.wallEdits)),curves);
@@ -4283,4 +4334,224 @@ test('a chimney piece of a drafted wall belongs to that draft, not an undeletabl
  // The draft projection is face-local: the new draft starts at the piece.
  g.editor.beginFace(g.e(.5,2),cut);g.listeners.pointerup(g.e(.5,2));assert.match(g.message(),/1 face selected/);
  g.editor.key({key:'Delete'});assert.equal(g.history.length,1,g.message());assert.equal(separate.wallEdits.$drafts[cut.id].deletedFaces.length,1);assert.equal(separate.wallEdits.$drafts['wall-x'].deletedFaces,undefined);
+});
+test('Resoffit brings a gable into line with the wing wall beside it and keeps every soffit line selectable',()=>{
+ // The gable is generated a short return behind the wing wall and behind the
+ // part held out to a lower roof, each a few millimetres from one foot away.
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/gable-wing-inline-roof.json'),'24'),f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}});
+ const lines=()=>f.editor.soffitEdges(),insets=id=>lines().filter(c=>c.source.id===id).map(c=>c.inset),near=(a,b)=>Math.abs(a-b)<.002;
+ const apply=(ids,depth)=>{f.editor.restoreSelection({lineSelection:lines().filter(c=>ids.includes(c.source.id)).map(c=>({pair:c.pair}))});assert.equal(f.editor.resoffit(depth),true,f.message());for(const face of r.state.wallEdits.$surfaces.filter(f=>!f.deleted))K.validateFace(face);};
+ // The rake beside the lower roof is generated at two depths, and the lower
+ // roof's back wall runs on past the roof. Both are soffit lines.
+ assert.equal(insets('R2.0').length,2);assert.equal(insets('R16.0').length,1);
+ const before=new Set(lines().map(c=>c.source.id));
+ apply(['R3.0'],.3048);
+ assert.ok(insets('R3.0').every(v=>near(v,.3048)));assert.ok(insets('R2.0').length===2&&insets('R2.0').every(v=>near(v,.3048)));
+ assert.ok(insets('R14.0').every(v=>Math.abs(v-.6096)<.03));
+ // Two rakes of one gable are one wall; the unselected rake stays a soffit line.
+ apply(['R4.0'],.3048);assert.ok(near(insets('R5.0')[0],.3048));apply(['R13.0'],.3048);assert.ok(near(insets('R11.0')[0],.3048));
+ assert.deepEqual([...before].filter(id=>!lines().some(c=>c.source.id===id)),[]);
+});
+test('a leftover roof face a few pixels across is not a roof plane and builds no pillar',()=>{
+ // Where the gable, the wing rake and two short side walls meet, the face
+ // resolver left a 0.013 m2 staircase face. Walls were built around it.
+ const G=require('../public/measure/internal/editor_scripts/wall_geometry'),R=require('../public/measure/internal/editor_scripts/wall_resoffit'),build=require('./roof-generation-fixture.cjs').build,source=require('./fixtures/gable-wing-inline-roof.json');
+ const pillar=w=>[...w.bottom,...w.top].every(p=>Math.hypot(p.x-1.25,p.y+6.95)<.2);
+ assert.ok(build(source,'24').composed.some(pillar));
+ const clean=structuredClone(source);clean.roof.faces=G.roofPlanesOnly(clean.roof.faces);
+ assert.deepEqual(clean.roof.faces.map(f=>f.id),[0,1,2,3,4]);
+ const r=build(clean,'24');assert.equal(r.state.base.faces.length,1);assert.ok(!r.composed.some(pillar));assert.deepEqual(r.open,[]);
+ const f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}}),line=f.editor.soffitEdges().find(c=>c.source.id==='R3.0');
+ f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});assert.equal(f.editor.resoffit(.3048),true,f.message());
+});
+test('a leftover traced between two overlapping roofs is not a roof plane whatever its area',()=>{
+ // The same junction redrawn: the leftover came to 0.033 m2, over the area limit, and a 26-sided pillar of 3 cm
+ // walls with its own base face was built under the overlap. None of its 36 corners is a roof point.
+ const G=require('../public/measure/internal/editor_scripts/wall_geometry'),build=require('./roof-generation-fixture.cjs').build,source=require('./fixtures/roof-overlap-leftover.json');
+ const pillar=w=>[...w.bottom,...w.top].every(p=>Math.hypot(p.x-1.02,p.y+6.89)<.3);
+ assert.deepEqual(G.roofPlanesOnly(source.roof.faces).map(f=>f.id),[0,1,2,3,4,5],'area alone keeps it');
+ const dirty=build(source,'24');assert.equal(dirty.composed.filter(pillar).length,26);assert.equal(dirty.state.base.faces.length,2);
+ const clean=structuredClone(source);clean.roof.faces=G.roofPlanesOnly(clean.roof.faces,clean.roof.points);
+ assert.deepEqual(clean.roof.faces.map(f=>f.id),[0,1,2,3,4],'the roof planes keep their ids');
+ const r=build(clean,'24');assert.equal(r.state.base.faces.length,1);assert.ok(!r.composed.some(pillar));assert.deepEqual(r.open,[]);
+ // A small face that is bounded by roof lines is a roof plane, and so is a large one with no roof point on it.
+ const q=(x,y)=>({x,y,z:0}),points=[q(0,0),q(.4,0),q(.4,.4)];
+ assert.equal(G.roofPlanesOnly([{id:0,points:[q(0,0),q(.4,0),q(.4,.4)]}],points).length,1);
+ assert.equal(G.roofPlanesOnly([{id:0,points:[q(5,5),q(5.4,5),q(5.4,5.4)]}],points).length,0);
+ assert.equal(G.roofPlanesOnly([{id:0,points:[q(5,5),q(8,5),q(8,8)]}],points).length,1);
+});
+test('Resoffit of a lower roof wall keeps the end of the taller wall above it vertical',()=>{
+ // The lower roof's back wall meets only the bottom of the gable piece above
+ // it. Moving it dragged that corner alone and opened a wedge up to the rake.
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),K=require('../public/measure/internal/editor_scripts/exterior_geometry'),build=require('./roof-generation-fixture.cjs').build,source=require('./fixtures/gable-wing-inline-roof.json');
+ const leaning=state=>state.wallEdits.$surfaces.filter(g=>!g.deleted&&Math.abs(K.normal(g.points)?.z??1)<.02).flatMap(g=>g.points.filter((a,i)=>{const b=g.points[(i+1)%g.points.length],d=Math.hypot(a.x-b.x,a.y-b.y);return d>.01&&Math.abs(a.z-b.z)/d>3;}));
+ for(const steps of [[[['R16.0'],.1524]],[[['R16.0','R18.0','R19.0'],.1524],[['R3.0'],.3048]],[[['R3.0'],.3048],[['R16.0','R18.0','R19.0'],.1524]]]){
+  const r=build(source,'24'),f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}});
+  for(const [ids,depth]of steps){f.editor.restoreSelection({lineSelection:f.editor.soffitEdges().filter(c=>ids.includes(c.source.id)).map(c=>({pair:c.pair}))});assert.equal(f.editor.resoffit(depth),true,f.message());}
+  assert.deepEqual(leaning(r.state),[]);for(const face of r.state.wallEdits.$surfaces.filter(f=>!f.deleted))K.validateFace(face);
+ }
+});
+test('B turns a selected flat face into a base face, and refuses steep, holed or overlapping ones',()=>{
+ const p=(x,y,z)=>({x,y,z}),base={faces:[{id:'base-1',points:[p(0,0,0),p(4,0,0),p(4,3,0),p(0,3,0)]}]};
+ const floor={id:'floor',points:[p(4,0,0),p(7,0,0),p(7,3,0),p(4,3,0)],holes:[]},steep={id:'steep',points:[p(0,5,0),p(4,5,0),p(4,5,3),p(0,5,3)],holes:[]};
+ const over={id:'over',points:[p(1,1,0),p(3,1,0),p(3,2,0),p(1,2,0)],holes:[]},holed={id:'holed',points:[p(10,0,0),p(14,0,0),p(14,4,0),p(10,4,0)],holes:[[p(11,1,0),p(12,1,0),p(12,2,0),p(11,2,0)]]};
+ const state={base,wallEdits:{$surfaces:[floor,steep,over,holed]}},f=fixture({state,walls:[],selected:null});
+ for(const [id,reason]of [['steep',/too steep/],['over',/overlaps the base/],['holed',/cannot have a hole/]]){
+  const before=JSON.stringify(state.wallEdits);f.editor.restoreSelection({selectedSolid:id});assert.equal(f.editor.key({key:'b'}),true);
+  assert.match(f.message(),reason);assert.equal(JSON.stringify(state.wallEdits),before);assert.equal(f.history.length,0);
+ }
+ f.editor.restoreSelection({selectedSolid:'floor'});assert.equal(f.editor.key({key:'b'}),true,f.message());assert.match(f.message(),/now a base face/);
+ assert.equal(f.history.length,1);assert.equal(state.wallEdits.$surfaces.find(s=>s.id==='floor').deleted,true);
+ const made=state.wallEdits.$base.faces.filter(b=>b.id!=='base-1');assert.equal(made.length,1);
+ assert.deepEqual(made[0].points.map(q=>[q.x,q.y,q.z]),floor.points.map(q=>[q.x,q.y,q.z]));
+ assert.ok(state.wallEdits.$base.faces.some(b=>b.id==='base-1'));
+ // With nothing selected B is not handled here, and plane mode keeps B for Subtract.
+ f.editor.restoreSelection({});assert.notEqual(f.editor.key({key:'b'}),true);
+});
+test('orange is load-bearing: corners that meet within microns count, and a sticker keeps its outline where a plain region does not',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ const front={id:'front',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(0,0,3)],holes:[]},side={id:'side',points:[p(4,0,0),p(4,2,0),p(4,2,3),p(4,0,3)],holes:[]};
+ const index=W.loadBearingIndex([front,side]);
+ // A wire point half a micron or 40 microns from the corner is that corner;
+ // rounding the two to different six-decimal keys used to leave it blue.
+ for(const d of [0,4e-7,-6e-7,4e-5])assert.equal(index.point(p(4+d,d,3)),true,'corner offset '+d);
+ assert.equal(index.point(p(4,0,1.5)),false,'a point partway up the fold between two walls is a corner of neither');
+ assert.equal(index.point(p(2,0,3)),false,'a point along a straight edge can go');assert.equal(index.point(p(2,0,1.5)),false);
+ assert.equal(index.edge(p(4+3e-5,0,0),p(4,3e-5,3)),true);assert.equal(index.edge(p(1,0,1),p(3,0,1)),false);
+ // A plain region drawn on the wall: same plane, same finish, so only a divider.
+ const region={id:'region',points:[p(1,0,1),p(2,0,1),p(2,0,2),p(1,0,2)],holes:[]},around={...front,holes:[region.points.slice().reverse()]};
+ const plain=W.loadBearingIndex([around,region,side]);assert.equal(plain.point(p(1,0,1)),false);assert.equal(plain.edge(p(1,0,1),p(2,0,1)),false);assert.equal(plain.point(p(0,0,3)),true);
+ // The same region as a sticker, or in another finish, is its own face.
+ for(const special of [{feature:{type:'window'}},{finishColor:'#445566'},{trim:true}]){const own=W.loadBearingIndex([around,{...region,...special},side]);assert.equal(own.point(p(1,0,1)),true,JSON.stringify(special));assert.equal(own.edge(p(1,0,1),p(2,0,1)),true,JSON.stringify(special));}
+ // With the region deleted the wall has a real hole, and its rim is load-bearing.
+ const hole=W.loadBearingIndex([around,side]);assert.equal(hole.point(p(1,0,1)),true);assert.equal(hole.edge(p(1,0,1),p(2,0,1)),true);
+});
+test('markers stacked within a few millimetres show one colour: orange if any of them holds a face, on walls and base alike',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ const front={id:'front',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(0,0,3)],holes:[]},baseFace={points:[p(0,0,0),p(4,0,0),p(4,3,0),p(0,3,0)],holes:[]};
+ const index=W.loadBearingIndex([front,baseFace]);
+ // Edits leave twins of a corner 1 to 8 mm away. They are picked with it, so they are drawn like it.
+ for(const d of [0,.0014,.0028,.008])assert.equal(index.marker(p(4+d,0,0)),true,'twin '+d+' m from the corner');
+ assert.equal(index.point(p(4.0028,0,0)),false,'the exact test still tells the twin from the corner');
+ assert.equal(index.marker(p(2,0,0)),false,'a point straight along the wall foot and the base edge is safe');assert.equal(index.marker(p(3.97,0,0)),false,'3 cm from the corner is a point of its own');
+ // A base corner under no wall, and a wall corner over no base, are both load-bearing in the one index.
+ assert.equal(index.marker(p(0,3,0)),true);assert.equal(index.marker(p(0,0,3)),true);
+ // Drawn through the editor: a loose point 2 mm from a wall corner is orange, one in the open is blue.
+ const state={wallEdits:{$surfaces:[front],$loose:{points:[p(4.002,0,3),p(2,0,1.5)],edges:[]}}},f=fixture({state,walls:[],selected:null,globals:renderGlobals()});
+ const drawn=[];f.editor.draw3D({add:o=>drawn.push(o)},q=>q);const colourAt=q=>drawn.filter(o=>o.material?.size===8&&Math.hypot(o.geometry.points[0].x-q.x,o.geometry.points[0].z-q.z)<1e-6).map(o=>o.material.color);
+ assert.deepEqual(colourAt(p(4.002,0,3)),['#e7ad52']);assert.deepEqual(colourAt(p(2,0,1.5)),['#6ce4ed']);
+});
+test('deleting a line takes its loose copies a few millimetres away with it, and leaves a copy that holds a face',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ const wall={id:'wall',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(0,0,3)],holes:[]};
+ // Three copies of one loose line in the open, and one loose line 2 mm off the wall's end.
+ const a=[p(6,0,0),p(6,0,3)],b=[p(6.001,.0014,.002),p(6,0,3)],c=[p(6.001,.0014,.002),p(6.0005,0,2.993)],edge=[p(4.002,0,0),p(4.001,0,3)];
+ const state={wallEdits:{$surfaces:[wall],$loose:{points:[...a,...b,...c,...edge],edges:[a,b,c,edge]}}},f=fixture({state,walls:[],selected:null,globals:renderGlobals()});
+ const lines=()=>{const g=W.surfaceWire(state.wallEdits),at=new Map(g.nodes.map(n=>[n.id,n]));return g.edges.map(e=>[at.get(e.a),at.get(e.b)]);},near=(q,x)=>lines().filter(([s,t])=>Math.abs(s.x-x)<.01&&Math.abs(t.x-x)<.01&&Math.abs(s.z-t.z)>2).length;
+ assert.equal(near(null,6),3);
+ f.editor.restoreSelection({lineSelection:[{pair:a}]});assert.equal(f.editor.key({key:'Delete'}),true,f.message());
+ assert.equal(near(null,6),0,'one Delete removes the line and both copies under it');assert.equal(f.history.length,1);
+ // The loose line beside the wall's end goes; the wall's own edge, which holds the wall, stays.
+ f.editor.restoreSelection({lineSelection:[{pair:edge}]});f.editor.key({key:'Delete'});
+ assert.ok(!state.wallEdits.$surfaces[0].deleted);assert.equal(near(null,4),1,'the wall edge is still there');
+});
+test('C between points up a wall that stands over the base makes a wall line, not a base line',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ const base={faces:[{id:'base-1',points:[p(0,0,0),p(4,0,0),p(4,3,0),p(0,3,0)]}]},top=p(4,0,2.9),foot=p(4,0,0);
+ const state={base,wallEdits:{$loose:{points:[top,foot],edges:[]}}},f=fixture({state,walls:[],selected:null,globals:renderGlobals()});
+ f.editor.restoreSelection({solidPoints:[top,foot].map(W.vertexKey)});assert.equal(f.editor.key({key:'c'}),true,f.message());
+ const stored=state.wallEdits.$base||state.base;
+ assert.ok(!(stored.sketch?.nodes||[]).some(n=>n.z>1),'no point up the wall entered the base sketch');assert.ok(!(stored.sketch?.edges||[]).some(e=>e.userConnection));
+ const wire=W.surfaceWire(state.wallEdits),at=new Map(wire.nodes.map(n=>[n.id,n]));
+ const drafts=Object.values(state.wallEdits.$drafts||{}).flatMap(d=>d.sketch.edges.length);
+ assert.ok(wire.edges.some(e=>Math.abs(at.get(e.a).z-at.get(e.b).z)>2.8)||drafts.some(n=>n>0),'the line exists where wall tools can select it');
+});
+test('point weld: stacked corners across faces, loose points, deleted faces and the base become one point at the set distance',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),p=(x,y,z)=>({x,y,z});
+ const model=()=>({base:{faces:[{id:'base-1',points:[p(0,0,0),p(4.001,.0005,0),p(4,3,0),p(0,3,0)]}]},wallEdits:{$surfaces:[
+  {id:'front',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(0,0,3)],holes:[]},
+  // The side wall's corner sits 1.4 mm from the front wall's, and a second piece of the front wall lies 0.1 mm off its plane.
+  {id:'side',points:[p(4.0000004,.0014,0),p(4,3,0),p(4,3,3),p(4.0000004,.0014,3)],holes:[]},
+  {id:'front-2',points:[p(-3,.0001,0),p(-.002,.0001,0),p(-.002,.0001,3),p(-3,.0001,3)],holes:[]},
+  // A deleted face still carries wire at the corner.
+  {id:'gone',deleted:true,points:[p(4.0008,.0003,0),p(6,.0003,0),p(6,.0003,3),p(4.0008,.0003,3)],holes:[]}],
+  $loose:{points:[p(4.002,.001,3.003),p(2,0,1.5)],edges:[]}}});
+ const spots=state=>{const g=W.surfaceWire(state.wallEdits);return g.nodes.filter(n=>Math.hypot(n.x-4,n.y)<.01).map(n=>W.vertexKey(n));};
+ // No setting, and zero, weld nothing.
+ for(const inches of [undefined,0]){const state=model();if(inches!==undefined)state.pointWeldInches=inches;const f=fixture({state,walls:[],selected:null}),before=JSON.stringify(state);assert.equal(f.editor.weldPoints(),0);assert.equal(JSON.stringify(state),before);}
+ const state=model();state.pointWeldInches=.25;const f=fixture({state,walls:[],selected:null});
+ assert.ok(new Set(spots(state)).size>4,'several positions at the corner before');
+ assert.ok(f.editor.weldPoints()>0);
+ assert.deepEqual([...new Set(spots(state))].sort(),[W.vertexKey(p(4,0,0)),W.vertexKey(p(4,0,3))],'one point at the foot of the corner and one at its top');
+ for(const face of state.wallEdits.$surfaces.filter(s=>!s.deleted))K.validateFace(face);
+ const front2=state.wallEdits.$surfaces.find(s=>s.id==='front-2');assert.ok(front2.points.every(q=>Math.abs(q.y)<1e-9),'the second piece of the front wall lies in the front wall\'s plane');
+ assert.ok(Math.abs(front2.points[1].x)<1e-9,'and its end meets the front wall\'s corner');
+ const baseFace=(state.wallEdits.$base||state.base).faces[0];assert.ok(baseFace.points.some(q=>Math.hypot(q.x-4,q.y,q.z)<1e-9),'the base corner is the wall corner');
+ assert.ok(state.wallEdits.$loose.points.some(q=>Math.hypot(q.x-2,q.y,q.z-1.5)<1e-12),'a loose point in the open is not touched');
+ // Welded, a second weld changes nothing.
+ const settled=JSON.stringify(state);assert.equal(f.editor.weldPoints(),0);assert.equal(JSON.stringify(state),settled);
+ // A sixteenth of an inch leaves the 2 mm twins alone.
+ const fine=model();fine.pointWeldInches=.0625;const g=fixture({state:fine,walls:[],selected:null});g.editor.weldPoints();assert.ok(new Set(spots(fine)).size>2);
+});
+test('point weld removes a sliver: two corners of one outline within the weld distance merge, the face without area goes, and a line the point lay on follows it',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),p=(x,y,z)=>({x,y,z});
+ // A wall whose bottom edge rises 7 mm over 3 m, above a level ceiling: where they part, a sliver face 7 mm wide
+ // fills the gap, with a point Q on the wall's bottom line (the line runs past it) and a free-standing copy of that line.
+ const A=p(0,0,1),B=p(3,0,1.007),Q=p(2.5,0,1+.007*2.5/3),P=p(2.5,0,1);
+ const state={pointWeldInches:.3125,wallEdits:{$surfaces:[
+  {id:'wall',points:[A,Q,B,p(3,0,3),p(0,0,3)].map(q=>({...q})),holes:[]},
+  {id:'sliver',points:[A,P,Q].map(q=>({...q})),holes:[]},
+  {id:'pier',points:[P,p(2.5,0,0),p(3,0,0),B,Q].map(q=>({...q})),holes:[]},
+  {id:'ceiling',points:[A,P,p(2.5,2,1),p(0,2,1)].map(q=>({...q})),holes:[]}],
+  $loose:{points:[],edges:[[{...A},{...B}]]}}};
+ const f=fixture({state,walls:[],selected:null});assert.ok(f.editor.weldPoints()>0,f.message());
+ const faces=state.wallEdits.$surfaces,ids=faces.map(s=>s.id).sort(),far=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+ assert.deepEqual(ids,['ceiling','pier','wall'],'the sliver is gone');for(const face of faces)K.validateFace(face);
+ assert.ok(faces.find(s=>s.id==='wall').points.some(q=>far(q,P)<1e-9)&&!faces.some(s=>s.points.some(q=>far(q,Q)<1e-9)),'the point on the wall line went to the level corner');
+ // The free-standing line turns at the corner with the wall, so no second line is left beside the level edge.
+ const lines=state.wallEdits.$loose.edges;assert.equal(lines.length,2);assert.ok(lines.every(pair=>pair.some(q=>far(q,P)<1e-9)),JSON.stringify(lines));
+ assert.equal(f.editor.weldPoints(),0,'and it settles');
+ // A finer weld distance keeps the 7 mm edge, and the sliver with it.
+ const fine=JSON.parse(JSON.stringify({...state,pointWeldInches:.125,wallEdits:{$surfaces:[{id:'wall',points:[A,Q,B,p(3,0,3),p(0,0,3)],holes:[]},{id:'sliver',points:[A,P,Q],holes:[]}],$loose:{points:[],edges:[]}}}));
+ const g=fixture({state:fine,walls:[],selected:null});g.editor.weldPoints();assert.equal(fine.wallEdits.$surfaces.length,2);
+});
+test('a line drawn where another line was deleted earlier can be clicked: an old deletion record does not hide it',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),f=drawDraftLines([0,1],[[4,1]]),pair=[{x:0,y:0,z:1},{x:4,y:0,z:1}];
+ const pick=()=>{f.editor.clear();const hit=f.e(2,1),picked=f.editor.pickLine3D(hit);if(picked===true)f.listeners.pointerup(hit);return f.editor.selectionSnapshot().lineSelection.length;};
+ assert.equal(pick(),1,'the divider is a line of the drawing');
+ // Deleting a face line records where it was. The record outlived the line, and a line drawn there later was
+ // drawn but could never be selected or deleted.
+ f.state.wallEdits.$removedSurfaceEdges=[W.edgeKey(...pair),W.edgeKey({x:0,y:0,z:1},{x:2.5,y:0,z:1})];
+ assert.equal(pick(),1,'the drawing still holds the line, so it is still selectable');
+ f.editor.key({key:'Delete'});assert.ok(!f.d().sketch.edges.some(e=>e.userConnection),'and it can be deleted: '+f.message());
+});
+test('point weld joins a twin corner inside one drawing and never changes which regions a drawing has',()=>{
+ // The top right corner of the wall stored twice, 0.1 mm apart, as a cut that stopped a hair short of the corner
+ // leaves it: the outline runs through both.
+ const f=drawDraftLines([0,1],[[4,1]]),d=()=>f.d(),s=d().sketch,at=id=>s.nodes.find(n=>n.id===id),corner=s.nodes.find(n=>Math.hypot(n.x-4,n.y-4)<1e-9),down=s.edges.find(e=>[e.a,e.b].includes(corner.id)&&Math.abs(at(e.a===corner.id?e.b:e.a).x-4)<1e-9);
+ const twin={...corner,id:'p-twin',y:3.9999};s.nodes.push(twin);if(down.a===corner.id)down.a=twin.id;else down.b=twin.id;s.edges.push({id:'e-twin',a:corner.id,b:twin.id,fixed:true});
+ for(const r of d().faces){const i=r.points.findIndex(q=>q.nodeId===corner.id);if(i<0)continue;const next=r.points[(i+1)%r.points.length];r.points.splice(Math.abs(next.x-4)<1e-9?i+1:i,0,{x:twin.x,y:twin.y,nodeId:twin.id});}
+ const twins=()=>d().sketch.nodes.filter(n=>Math.hypot(n.x-4,n.y-4)<.001).length,regions=()=>d().faces.length,before=d().sketch.nodes.length,shape=regions();
+ assert.equal(twins(),2);f.state.pointWeldInches=.25;assert.ok(f.editor.weldPoints()>0,f.message());
+ assert.equal(twins(),1,'one point at the corner');assert.equal(d().sketch.nodes.length,before-1);assert.equal(regions(),shape,'the same regions');
+ assert.ok(d().sketch.edges.some(e=>e.userConnection),'the cut is still there');assert.ok(!d().sketch.edges.some(e=>e.a===e.b));
+ assert.equal(f.editor.weldPoints(),0);
+});
+
+test('N starts from a corner picked through several owners at once: a rectangle takes the drawing point and the surface corner there',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js');
+ const f=fixture();f.editor.pickVisiblePoint(f.e(0,0));f.listeners.pointerup(f.e(0,0));
+ const at=f.editor.selectedPoints()[0],s=f.editor.selectionSnapshot();assert.ok(at&&s.picked.length===1);
+ // A surface with a corner at the same spot, selected with the drawing's own point as a rectangle would.
+ f.state.wallEdits.$surfaces=[{id:'side',points:[at,{x:at.x,y:at.y+3,z:at.z},{x:at.x,y:at.y+3,z:at.z+3},{x:at.x,y:at.y,z:at.z+3}],holes:[]}];
+ f.editor.restoreSelection({...s,preferredDraft:s.activeDraftKey,draftSelection:{[s.activeDraftKey]:s.picked.slice()},solidPoints:[W.vertexKey(at)]});
+ assert.equal(f.editor.selectedPoints().length,1,'one position, however many owners hold it');
+ assert.equal(f.editor.key({key:'n'}),true);assert.equal(f.editor.busy(),true,f.message());assert.match(f.message(),/this face/);
+});
+
+test('the point weld ignores a drawing whose every face has become a surface: its leftover points are not model points',()=>{
+ const f=fixture();f.editor.doubleClick(f.e(1,1),f.w);
+ assert.ok(f.editor.weldItems().items.some(i=>String(i.owner).startsWith('d:')),'a live drawing takes part');
+ for(const face of f.d().faces)face.solidId='surface-made-from-it';
+ assert.ok(!f.editor.weldItems().items.some(i=>String(i.owner).startsWith('d:')),'a consumed one does not');
 });
