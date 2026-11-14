@@ -21,7 +21,8 @@
     const item=typeof value==='string'?{url:value}:value;if(!item)continue;
     const raw=String(item.dataUrl||item.url||item.file_name||item.name||'');if(!raw)continue;
     const src=/^(https?:|data:image\/|\/)/i.test(raw)?raw:!/[\\/]/.test(raw)?artifactUrl(raw):'';if(!src||seen.has(role+src))continue;seen.add(role+src);
-    result.push({name:'reference-'+key+'-'+i,original_name:item.original_name||item.name||item.file_name||raw.split('/').pop()||'Reference',role,src,resource_name:item.resource_name,slot:item.elevation_view||item.slot,reference:true,size:item.size||0});
+    // A stored file is named by its artifact, so a frame saved from a walkthrough links back to it.
+    result.push({name:/^[a-zA-Z0-9._-]+$/.test(raw)&&!result.some(r=>r.name===raw)?raw:'reference-'+key+'-'+i,original_name:item.original_name||item.name||item.file_name||raw.split('/').pop()||'Reference',role,src,resource_name:item.resource_name,slot:item.elevation_view||item.slot,reference:true,size:item.size||0});
    }
   };
   add('customer','order',manifest.tech_notes);
@@ -38,19 +39,35 @@
   return result;
  }
  const coreSlots=[['back-left','Back left'],['back','Back'],['back-right','Back right'],['left','Left'],[null,'Video'],['right','Right'],['front-left','Front left'],['front','Front'],['front-right','Front right']];
- const isVideoFile=file=>!file.notes&&/\.(mp4|webm|mov)(?:[?#].*)?$/i.test(file.original_name||file.name||file.src||'');
+ // A file's type comes from the first of its label, its name and its stored URL that has an extension:
+ // a Full House customer reference is labelled "Structure 1 · front-left" but stored as customer-reference-0.jpg.
+ const extensionOf=value=>(/\.([a-z0-9]{2,5})(?:[?#].*)?$/i.exec(String(value||''))?.[1]||'').toLowerCase();
+ const fileExtension=file=>extensionOf(file.original_name)||extensionOf(file.name)||(/^data:/i.test(file.src||'')?'':extensionOf(file.src));
+ const isVideoFile=file=>!file.notes&&/^(mp4|webm|mov)$/.test(fileExtension(file));
+ // Reference photos the report's elevation slots can use. A customer's walkthrough video is not a photo: an <img>
+ // cannot show it (FM-340); frames saved from it in Resources are stored artifacts and are offered as those.
+ const photoReferences=(references,artifacts=[])=>references.filter(f=>f.src&&!f.notes&&!isVideoFile(f)&&!artifacts.some(a=>a.name===f.resource_name));
  function coreViews(files){return coreSlots.map(([slot,title])=>({slot,title,file:slot?files.find(f=>(f.elevation_view||f.slot)===slot&&!f.notes):files.find(isVideoFile)||null}));}
- // The report's Sources & Notes lists the tech's own uploads. A video frame saved from Resources is a
- // tech file too, but derived: the server records source_video in its index (listed by
- // project_resources.php), and every saved frame also has a frame record
- // (internal-markup-favorite-*.json) naming it, which covers frames saved before the listing showed
- // source_video. Anything marked derived_from or generated is left out the same way.
- const isDerivedResource=(file,frameNames)=>!!(file&&(file.source_video||file.derived_from||file.generated))||frameNames.has(file&&file.name);
- function submissionUploads(files=[],frameRecords=[]){
-  const frames=new Set(frameRecords.map(r=>r&&r.frame).filter(Boolean));
-  return {uploads:files.filter(f=>String(f.name||'').startsWith('internal-resource-')&&(f.role||'tech')==='tech'&&!isDerivedResource(f,frames)),derived:new Set([...files.filter(f=>isDerivedResource(f,frames)).map(f=>f.name),...frames])};
+ const favoritePrefix = 'internal-markup-favorite-', markupPrefix = 'internal-markup-';
+ const fileId = name => name.replace(/^internal-resource-(?:v2-)?/, '').slice(0, 36);
+ // The report's Sources & Notes holds only what the tech adds there (Jack, 2026-11-01): screenshots and
+ // uploads in Resources stay in Resources. Earlier versions copied every Resources upload in (those copies
+ // carry resource_name; images added by hand have none) and appended each one's markup note as
+ // "<file name>:\n<note>", so both come out again here. One unreadable markup leaves its note, never the report.
+ async function mergeSubmissionSources(state,files,read){
+  state.finalizeSources||={images:[],notes:''};
+  state.finalizeSources.images=(state.finalizeSources.images||[]).filter(i=>i&&!i.resource_name);
+  let notes=String(state.finalizeSources.notes||'');
+  for(const f of notes?files.filter(f=>String(f.name||'').startsWith('internal-resource-')):[]){
+   const revisions=files.filter(r=>r.name.startsWith(markupPrefix+fileId(f.name)+'-')).sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||''))||b.name.localeCompare(a.name));
+   const markup=revisions.length?await read(revisions[0].name).catch(error=>{console.warn('Markup could not be read for Sources & Notes:',revisions[0].name,error);return null;}):null;
+   const note=String(markup?.notes||'').trim();if(!note)continue;
+   const block=(f.original_name||f.name)+':\n'+note;
+   notes=notes.split('\n\n'+block).join('').split(block+'\n\n').join('').split(block).join('');
+  }
+  state.finalizeSources.notes=notes.trim()?notes:'';
  }
- if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,referenceCache,submissionUploads};return;}
+ if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,photoReferences,referenceCache,mergeSubmissionSources,fileExtension,isVideoFile};return;}
  function boot() {
   const host = document.getElementById('google-earth-wrapper'), tabs = host?.querySelector('.map-view-tabs');
   if (!host || !tabs) return;
@@ -65,7 +82,9 @@
    qa:'<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6zm-4 9 3 3 5-6"/>',
    tech:'<path d="M14 6a5 5 0 0 0-6 6L3 17l4 4 5-5a5 5 0 0 0 6-6l-3 3-4-4z"/>',
    customer:'<circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/>',
-   expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>'
+   expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
+   ratio:'<path d="M3 12h18M3 8v8M21 8v8M9 10v4M15 10v4"/>',
+   perspective:'<path d="M7 5h10l4 14H3z"/><circle cx="7" cy="5" r="1.6" fill="currentColor"/><circle cx="17" cy="5" r="1.6" fill="currentColor"/><circle cx="21" cy="19" r="1.6" fill="currentColor"/><circle cx="3" cy="19" r="1.6" fill="currentColor"/>'
   }[name]||'')+'</svg>';
   const panel = document.createElement('section'); panel.id = 'project-resources'; panel.hidden = true; panel.setAttribute('aria-label', 'Internal project resources');
   panel.innerHTML = `
@@ -77,6 +96,8 @@
     <button data-action="jobs" class="resource-jobs" hidden aria-live="polite"></button>
     <button data-action="overlay" disabled title="Use this still image behind the 3D model" aria-label="Use image as 3D background">${icon('overlay')}<span>Overlay</span></button>
     <button data-action="markup" aria-expanded="false" aria-controls="resource-inspector" title="Open markup tools">${icon('markup')} <span class="resource-action-label">Markup</span></button>
+    <button data-action="perspective" aria-expanded="false" aria-controls="resource-inspector" title="Correct perspective: drag four corners and save a straightened copy">${icon('perspective')} <span class="resource-action-label">Perspective</span></button>
+    <button data-action="ratio" title="Ratio line: split a line into parts and see each as a percentage (R)">${icon('ratio')} <span class="resource-action-label">Ratio</span></button>
     <button data-action="favorites" aria-expanded="false" title="Saved video frames">${icon('frames')} <span class="resource-action-label">Frames</span></button>
     <button data-action="notes" aria-expanded="false" aria-controls="resource-inspector" title="Reference notes">${icon('notes')} <span class="resource-action-label">Notes</span><span class="resource-notes-dot" hidden>•</span></button>
     <button data-action="save" class="resource-save" hidden>Save</button>
@@ -84,7 +105,7 @@
     <button data-action="expand" aria-label="Expand resources" title="Expand resources">${icon('expand')}</button>
    </div>
    <input class="resource-files" type="file" multiple hidden>
-   <div class="resource-more" hidden><button data-action="download">Download original</button><button data-action="refresh">Refresh project files</button></div>
+   <div class="resource-more" hidden><button data-action="download">Download original</button><button data-action="refresh">Refresh project files</button><button data-action="deleteFile">Delete this file</button></div>
    <div class="resource-body">
     <aside id="resource-library" class="resource-library" aria-label="Project files">
      <div class="resource-file-list"></div>
@@ -114,14 +135,25 @@
      <div class="resource-tray-heading"><strong class="resource-inspector-title">Markup</strong><button data-action="closeInspector" aria-label="Close tools">×</button></div>
      <div class="resource-favorites-pane" hidden><p class="resource-help">Click ☆ Note or press N within Resources, type a label, then press Enter. Select a frame to mark it up, or its timestamp to jump to the video.</p><div class="resource-favorites-list"></div></div>
      <div class="resource-markup-pane">
+      <p class="resource-temp-note" hidden>Order photos can't keep markup: these marks go away when you open another file. To keep them, save a copy with Perspective first.</p>
       <div class="resource-frame-help" hidden><span>Draw on a still frame. The source video stays unchanged.</span><button data-action="frame">Mark this frame</button></div>
       <div class="resource-tools" role="toolbar" aria-label="Markup tools">
-       <button data-tool="select">↖ Select</button><button data-tool="pen">✎ Pen</button><button data-tool="circle">○ Circle</button><button data-tool="arrow">↗ Arrow</button><button data-tool="line">╱ Line</button><button data-tool="rect">□ Box</button><button data-tool="note">T Text</button>
+       <button data-tool="select">↖ Select</button><button data-tool="pen">✎ Pen</button><button data-tool="circle">○ Circle</button><button data-tool="arrow">↗ Arrow</button><button data-tool="line">╱ Line</button><button data-tool="rect">□ Box</button><button data-tool="note">T Text</button><button data-tool="ratio">⟷ Ratio</button>
       </div>
       <div class="resource-stroke"><label>Color <input type="color" class="resource-color" value="#ffcc33" aria-label="Markup color"></label><div class="resource-width" role="group" aria-label="Stroke width"><button data-width="2" aria-label="Thin stroke" title="Thin stroke" aria-pressed="false"><span style="--dot:6px"></span></button><button data-width="4" aria-label="Medium stroke" title="Medium stroke" aria-pressed="true"><span style="--dot:12px"></span></button><button data-width="8" aria-label="Thick stroke" title="Thick stroke" aria-pressed="false"><span style="--dot:18px"></span></button></div></div>
       <div class="resource-note" hidden><label>Text label<input placeholder="Type a label, then click to place it" aria-label="Text to place on image" maxlength="1000"></label><button data-action="applyText" hidden>Update selected text</button></div>
+      <div class="resource-ratio" hidden><strong>Ratio line</strong><ol class="resource-ratio-segments"></ol><p class="resource-help">Drag across the image to draw a line. Click the line to add a point, drag a point to move it, right-click a point to remove it. Each part is shown as a percentage of the whole line.</p></div>
       <div class="resource-edit-actions"><button data-action="undo" title="Undo">↶ Undo</button><button data-action="redo" title="Redo">↷ Redo</button><button data-action="delete">Delete mark</button></div>
       <p class="resource-help">Click the selected tool again to pan. Closing Markup also returns to pan.<br>Wheel to zoom. Middle-drag pans while drawing.</p>
+     </div>
+     <div class="resource-perspective-pane" hidden>
+      <p class="resource-help resource-persp-intro">Drag the four corners onto the corners of something rectangular in real life, such as a wall, window or door. Wheel to zoom in for accuracy; drag elsewhere to pan.</p>
+      <label class="resource-check"><input type="checkbox" class="resource-persp-crop"> <span>Crop to the largest rectangle inside</span></label>
+      <p class="resource-help resource-persp-crop-help">Off: the whole photo is warped to the new shape, leaving empty corners. On: only the largest upright rectangle the photo fills is kept.</p>
+      <div class="resource-persp-actions resource-persp-adjust"><button data-action="perspSave" class="resource-primary">Save as new file</button><button data-action="perspDownload">Download</button><button data-action="perspPreview">View full size</button><button data-action="perspReset">Reset corners</button></div>
+      <p class="resource-help resource-persp-live-help">The live view in the corner of the photo updates as you drag. Click it to see the result full size.</p>
+      <div class="resource-persp-actions resource-persp-result" hidden><button data-action="perspSave" class="resource-primary">Save as new file</button><button data-action="perspDownload">Download</button><button data-action="perspAdjust">Adjust corners</button></div>
+      <p class="resource-help resource-persp-size"></p>
      </div>
      <div class="resource-notes-pane" hidden><label>Notes for technicians<textarea class="resource-description" placeholder="Add a reference note…" aria-label="Reference notes" maxlength="20000"></textarea></label><p class="resource-help">Saved with this file. Internal use only.</p></div>
     </aside>
@@ -129,7 +161,7 @@
    <footer role="status" aria-live="polite"></footer>`;
   host.append(panel);
   const $ = selector => panel.querySelector(selector);
-  const markupKeys={c:'circle',a:'arrow',p:'pen',l:'line',b:'rect',t:'note',s:'select'};
+  const markupKeys={c:'circle',a:'arrow',p:'pen',l:'line',b:'rect',t:'note',r:'ratio',s:'select'};
   for(const [key,name]of Object.entries(markupKeys)){const button=$('[data-tool="'+name+'"]');button.title=button.textContent.trim()+' ('+key.toUpperCase()+')';button.setAttribute('aria-keyshortcuts',key.toUpperCase());}
   $('[data-action="delete"]').setAttribute('aria-keyshortcuts','Delete');
   $('[data-action="upload"]').title='Upload to '+roleName(currentRole())+' references (You)';
@@ -144,13 +176,30 @@
   let uploading = false, savingPromise = null, projectEpoch = 0, refreshSeq = 0, serverFiles = [], referenceFiles = [];
   const defaultLibraryWidth = 336; let libraryWidth = defaultLibraryWidth;
   const frameJobs = new Map(), pendingFrames = new Map();
-  const favoritePrefix = 'internal-markup-favorite-';
   let frameLinks=new Map();
   const imageCache=referenceCache(),markupCache=referenceCache({maxBytes:2*1024*1024,maxEntries:64});
   let retainedMedia=null;
+  // Perspective correction: corners in image pixels, the preview canvas once rendered, and the crop choice.
+  let persp=null,perspCrop=false,ratioIndex=-1;
   const referenceKey=file=>JSON.stringify([project,sourceUrl(file),file.updated_at||'',file.size||0]);
   function cachedImage(src,key=src){return imageCache.get(key,()=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error('Image could not be previewed. Download the original from More actions.'));img.src=src;}),img=>img.naturalWidth*img.naturalHeight*4);}
-  function releaseMedia(){if(retainedMedia){retainedMedia.element.pause();retainedMedia.element.removeAttribute('src');retainedMedia.element.load();retainedMedia=null;}}
+  function releaseMedia(){if(retainedMedia){clearTimeout(retainedMedia.probe);retainedMedia.download?.abort();retainedMedia.element.pause();retainedMedia.element.removeAttribute('src');retainedMedia.element.load();if(retainedMedia.local)URL.revokeObjectURL(retainedMedia.local);retainedMedia=null;}}
+  // Chrome buffers a paused video only a little way ahead, so the whole file is downloaded as soon as it is shown
+  // and the player switches to that copy where it stands; until then it streams, seeking by byte ranges. The
+  // download skips the HTTP cache, whose lock on the URL would otherwise hold it behind the player's range requests.
+  const WHOLE_MEDIA_LIMIT=1024*1024*1024;
+  function downloadWholeMedia(entry,src){
+   const controller=new AbortController();entry.download=controller;entry.downloading=true;
+   // A copy arriving while the stream still reads a WebM's length replaces it at once and carries the
+   // time asked for; a stuck seek on the stream holds the swap back only briefly.
+   fetch(src,{signal:controller.signal,credentials:'same-origin',cache:'no-store'}).then(response=>{if(!response.ok||Number(response.headers.get('content-length'))>WHOLE_MEDIA_LIMIT){controller.abort();return null;}return response.blob();}).then(function swap(blob,tries=0){
+    const element=entry.element;if(!blob||retainedMedia!==entry||controller.signal.aborted)return;
+    if(scrub?.element===element||element.seeking&&!entry.probe&&tries<12){setTimeout(()=>swap(blob,tries+1),250);return;}
+    const playing=!element.paused&&!element.ended,rate=element.playbackRate,at=entry.probe?entry.pendingTime:element.currentTime;
+    clearTimeout(entry.probe);entry.probe=null;
+    entry.local=URL.createObjectURL(blob);entry.pendingTime=at;entry.resume=entry.resume||playing;element.defaultPlaybackRate=rate;element.src=entry.local;element.playbackRate=rate;
+   }).catch(()=>{}).finally(()=>{entry.downloading=false;});
+  }
 
   const frameLink=file=>{const link=frameLinks.get(file?.name);return link&&files.some(f=>f.name===link.source)?link:null;};
   async function jumpToFrame(file){const link=frameLink(file);if(link)await open(files.find(f=>f.name===link.source),{time:link.time});}
@@ -158,11 +207,10 @@
   function atPlayhead(time){if(!media)return false;if(scrub?.element===media)return Math.abs(time-scrub.target)<.02;const shown=shownFrameTime(media),info=frameInfo.get(media),span=info?.known?info.duration:.02;return Math.abs(time-media.currentTime)<.02||time>=shown-.001&&time<shown+span-.001;}
   function savedFrameAtPlayhead(){return media?.videoWidth&&files.find(f=>{const link=frameLink(f);return !f.pending&&link?.source===current?.name&&atPlayhead(link.time);});}
   function updateFrameAction(){const button=$('[data-action="returnVideo"]'),video=!!media?.videoWidth,saved=video&&savedFrameAtPlayhead(),saving=video&&!saved&&pendingFrameAt(current?.name);button.hidden=!frameSource&&!video;button.textContent=video?(saved?'Saved Frame':saving?'Saving frame…':'Save Frame'):'Jump to video frame';button.classList.toggle('is-saved',!!saved);button.classList.toggle('is-saving',!!saving);button.disabled=!!favoriteDraft||!!saving;button.title=saved?'Open the saved frame':video?'Save this frame without a title (the server extracts it)':'Open the source video at this frame';}
-  const uuid = () => crypto.randomUUID(), prefix = 'internal-resource-', markupPrefix = 'internal-markup-';
+  const uuid = () => crypto.randomUUID(), prefix = 'internal-resource-';
   const url = (id, name = '', action = '') => 'project_resources.php?' + new URLSearchParams({ project: id, ...(name ? { name } : {}), ...(action ? { action } : {}) });
   // Resource names allow only ASCII letters, digits, dot, dash and underscore.
   const safeName = text => String(text).normalize('NFKD').replace(/\p{M}/gu, '').replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^[._-]+|_+$/g, '');
-  const fileId = name => name.replace(/^internal-resource-(?:v2-)?/, '').slice(0, 36);
   const label = name => files.find(file => file.name === name)?.original_name || name.replace(/^internal-resource-(?:v2-)?/, '').slice(37);
   const sourceUrl = file => file.src || url(project,file.name);
   const viewKey = id => 'firstmeasure:resources:view:'+id;
@@ -170,7 +218,8 @@
   function savedView(id){try{return JSON.parse(localStorage.getItem(viewKey(id)))||{};}catch{return {};}}
   function remember(){if(!project||restoring)return;try{localStorage.setItem(viewKey(project),JSON.stringify({active,coreActive,name:current?.name,collapsedGroups,filesOpen,inspector,expanded:panel.classList.contains('expanded'),libraryWidth,time:media?.currentTime||0,scale,ox,oy,stageWidth:stage.clientWidth,stageHeight:stage.clientHeight}));}catch{}}
   async function restoreView(saved=savedView(project)){restoring=true;try{const file=files.find(f=>f.name===saved.name);if(file&&!saved.coreActive)await open(file,{time:saved.time});else await showCoreViews();filesOpen=saved.filesOpen!==false;inspector=['notes','markup','favorites'].includes(saved.inspector)?saved.inspector:'';panel.classList.toggle('expanded',!!saved.expanded);setLibraryWidth(saved.libraryWidth);updateDrawers();if(file&&image&&saved.scale>0&&saved.stageWidth===stage.clientWidth&&saved.stageHeight===stage.clientHeight){scale=saved.scale;ox=saved.ox;oy=saved.oy;draw();}}finally{restoring=false;}}
-  async function feedback(id){for(const action of ['project_feedback','project_bundle']){const response=await fetch(window.location.pathname+'?'+new URLSearchParams({action,folder:id}),{cache:'no-store'});if(response.ok&&response.headers.get('content-type')?.includes('application/json'))return response.json();if(response.status===401||response.status===403)break;}throw Error('Reference notes could not be loaded. Refresh Files to retry.');}
+  // A training project has no feedback of its own: its notes are the manifest it loaded with.
+  async function feedback(id){if(window.firstMeasureIsTutorialProjectId?.(id))return {manifest:window.currentProjectManifest,app_metadata:window.currentProjectLoadedAppMetadata};for(const action of ['project_feedback','project_bundle']){const response=await fetch(window.location.pathname+'?'+new URLSearchParams({action,folder:id}),{cache:'no-store'});if(response.ok&&response.headers.get('content-type')?.includes('application/json'))return response.json();if(response.status===401||response.status===403)break;}throw Error('Reference notes could not be loaded. Refresh Files to retry.');}
   async function uploadFile(id,name,file){
    if(!file.size)throw Error('The file is empty.');
    const chunkSize=8*1024*1024,parts=Math.ceil(file.size/chunkSize),resourceId=fileId(name),sha256=[];
@@ -187,23 +236,29 @@
    // The index makes the completed file visible only after all parts are stored.
    return request(id,name,JSON.stringify({format:'firstmeasure-resource-chunks-v1',id:resourceId,size:file.size,chunkSize,parts,sha256,original_name:file.name||label(name),content_type:file.type||'application/octet-stream'}));
   }
-  async function request(id,name='',body,headers={},action=''){if(/^exteriors_[a-f0-9]{32}$/.test(id)&&!name&&body===undefined)return new Response(JSON.stringify({files:[]}),{headers:{'Content-Type':'application/json'}});const response=await fetch(url(id,name,action),body===undefined?{cache:'no-store'}:{method:'POST',headers:{'X-Resource-Request':'1','X-Resource-Role':currentRole(),'Content-Type':'application/octet-stream',...headers},body});if(!response.ok){const data=await response.json().catch(()=>({}));throw Error(data.error||`Resource request failed (${response.status}).`);}return response;}
+  async function request(id,name='',body,headers={},action=''){const response=await fetch(url(id,name,action),body===undefined?{cache:'no-store'}:{method:'POST',headers:{'X-Resource-Request':'1','X-Resource-Role':currentRole(),'Content-Type':'application/octet-stream',...headers},body});if(!response.ok){const data=await response.json().catch(()=>({}));throw Error(data.error||`Resource request failed (${response.status}).`);}return response;}
   function message(text, error = false) {
    status.textContent = text; status.classList.toggle('error', error); status.classList.add('visible'); clearTimeout(messageTimer);
    if (!error) messageTimer = setTimeout(() => { if (!busy && !uploading) status.classList.remove('visible'); }, 3500);
   }
-  function dimensions() { return image ? { w: image.width, h: image.height } : { w: media?.videoWidth || 0, h: media?.videoHeight || 0 }; }
+  const shown = () => persp?.preview || image;
+  function dimensions() { const view = shown(); return view ? { w: view.width, h: view.height } : { w: media?.videoWidth || 0, h: media?.videoHeight || 0 }; }
   function controls() {
    for (const action of ['upload', 'refresh']) $(`[data-action="${action}"]`).disabled = uploading || !project;
-   if(/^exteriors_[a-f0-9]{32}$/.test(project||'')) $('[data-action="upload"]').disabled=true;
    const saveButton = $('[data-action="save"]'); saveButton.hidden = !dirty; saveButton.disabled = busy || !current || !dirty; saveButton.textContent = busy && dirty ? 'Saving…' : 'Save';
    $('.resource-description').disabled = !current || !!current.reference;
    $('[data-action="favorite"]').disabled = !media?.videoWidth || !!favoriteDraft;
    $('[data-action="overlay"]').setAttribute('aria-pressed',String(!!current&&window.Resource3DOverlay?.imageName===current.name));
    $('[data-action="overlay"]').setAttribute('aria-label',current&&window.Resource3DOverlay?.imageName===current.name?'Remove image from 3D background':'Use image as 3D background');
-   $('[data-action="overlay"]').disabled = busy || !image || !!media || !!current?.reference || !window.Resource3DOverlay;
-   $('[data-action="markup"]').disabled = !current || busy || !!current.reference || (!image && !media?.videoWidth);
+   // Any still photo can sit behind the model, a customer's or QA's reference as much as the tech's upload (FM-344).
+   $('[data-action="overlay"]').disabled = busy || !image || !!media || !window.Resource3DOverlay;
+   $('[data-action="markup"]').disabled = !current || busy || (!image && !media?.videoWidth);
+   $('[data-action="ratio"]').disabled = $('[data-action="markup"]').disabled; $('[data-action="ratio"]').setAttribute('aria-pressed', String(inspector === 'markup' && tool === 'ratio'));
+   $('.resource-temp-note').hidden = !current?.reference;
+   $('[data-action="perspective"]').disabled = !current || busy || !image || !!media || !window.ResourcePerspective;
+   perspControls(); ratioReadout();
    $('[data-action="notes"]').disabled = !current; $('[data-action="download"]').disabled = !current;
+   {const button=$('[data-action="deleteFile"]'),able=deletable(current);button.disabled=busy||!able;button.title=!current?'Open a file first':able?'Remove this file from the project':'Only files you or the team uploaded or saved here can be deleted';}
    $('.resource-notes-dot').hidden = !$('.resource-description').value.trim();
    $('.resource-filename').textContent = current ? roleName(current.role)+' · '+label(current.name) : 'Project resources'; $('.resource-filename').title = current ? label(current.name) : 'Internal project references';
    updateFrameAction(); $('.resource-frame-help').hidden = !media?.videoWidth;
@@ -212,28 +267,44 @@
    $('[data-action="undo"]').disabled = !history.length; $('[data-action="redo"]').disabled = !redo.length; $('[data-action="delete"]').disabled = selected < 0;
    panel.classList.toggle('is-busy', busy || uploading);
   }
-  function changed() { dirty = true; controls(); }
+  // Order photos (references) are read-only: marks on them are kept only until another file opens.
+  function changed() { dirty = !current?.reference; controls(); }
   function snapshot() { history.push(JSON.stringify(marks)); if (history.length > 100) history.shift(); redo = []; changed(); }
   function updateDrawers() {
    const opening=inspector==='markup';if(opening!==markupOpen){markupOpen=opening;gesture=null;setTool(opening?'pen':'pan');}
+   if(inspector!=='perspective'&&persp){const hadPreview=!!persp.preview;persp=null;gesture=null;if(hadPreview)fit();else draw();}
    panel.classList.toggle('files-open', filesOpen); panel.classList.toggle('inspector-open', !!inspector);
    $('#resource-library').hidden = !filesOpen; $('.resource-splitter').hidden = !filesOpen; $('#resource-inspector').hidden = !inspector;
    $('[data-action="files"]').setAttribute('aria-expanded', String(filesOpen));
-   for (const kind of ['markup', 'notes', 'favorites']) $('[data-action="' + kind + '"]').setAttribute('aria-expanded', String(inspector === kind));
-   $('.resource-inspector-title').textContent = inspector === 'favorites' ? 'Favorite frames' : inspector === 'notes' ? 'Reference notes' : 'Markup';
+   for (const kind of ['markup', 'notes', 'favorites', 'perspective']) $('[data-action="' + kind + '"]').setAttribute('aria-expanded', String(inspector === kind));
+   $('.resource-inspector-title').textContent = inspector === 'favorites' ? 'Favorite frames' : inspector === 'notes' ? 'Reference notes' : inspector === 'perspective' ? 'Perspective' : 'Markup';
+   $('.resource-perspective-pane').hidden = inspector !== 'perspective';
    $('.resource-favorites-pane').hidden = inspector !== 'favorites';
    $('.resource-markup-pane').hidden = inspector !== 'markup'; $('.resource-notes-pane').hidden = inspector !== 'notes';
   }
   async function showInspector(kind) {
    inspector = inspector === kind ? '' : kind;
    if (inspector && panel.clientWidth < 760) filesOpen = false;
-   if (inspector === 'markup') media?.pause(); updateDrawers(); controls();
+   if (inspector === 'markup') media?.pause();
+   if (inspector === 'perspective') { if (!image || media) { inspector = ''; message('Open a photo to correct its perspective.', true); } else startPerspective(); }
+   updateDrawers(); controls();
    if(inspector==='markup'&&media?.videoWidth&&!await captureFrame())setTool('pan');
    if (inspector === 'notes') $('.resource-description').focus();
   }
   function setTool(next) {
    tool = next; selected = -1; panel.querySelectorAll('[data-tool]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.tool === tool)));
    stage.style.cursor = next === 'pan' ? 'grab' : 'crosshair'; controls(); draw();
+  }
+  // Uploads and saved copies (a frame, a marked-up or straightened copy) can be deleted; a customer's own
+  // reference and a file that is still being saved cannot.
+  const deletable=file=>!!file&&!file.notes&&!file.reference&&String(file.name||'').startsWith('internal-resource-v2-')&&file.role!=='customer'&&file.source!=='customer-order'&&serverFiles.some(f=>f.name===file.name);
+  async function deleteCurrentFile(){
+   const file=current,id=project;if(!deletable(file)||!id)return;
+   if(dirty&&!window.confirm('This file has unsaved markup. Delete it anyway?'))return;
+   if(!window.confirm('Delete "'+(file.original_name||label(file.name))+'" from this project\'s files?'))return;
+   try{message('Deleting…');await request(id,file.name,'',{},'delete');if(project!==id)return;if(window.Resource3DOverlay?.imageName===file.name)window.Resource3DOverlay.remove?.();
+    imageCache.clear();markupCache.clear();if(current?.name===file.name){reset();empty.textContent='Select a file to view it.';}await refresh({quiet:true});message('File deleted.');}
+   catch(error){message(error.message,true);}
   }
   function reset() {
    if(coreVideo){coreVideo.pause();coreVideo.removeAttribute('src');coreVideo.load();coreVideo=null;}coreVideoName=null;$('.resource-core-grid').replaceChildren();
@@ -242,7 +313,7 @@
    favoriteDraft = null; $('.resource-favorite-entry').hidden = true;
    scrub = null; cancelAnimationFrame(seekFrame); seekFrame = 0;
    if (media) media.pause();
-   media = null; player.replaceChildren(); image = null; marks = []; history = []; redo = []; selected = -1;
+   persp = null; ratioIndex = -1; media = null; player.replaceChildren(); image = null; marks = []; history = []; redo = []; selected = -1;
    frameTime = null; frameSource = null; current = null; dirty = false; gesture = null; fitMode = 'contain';
    canvas.hidden = true; player.hidden = true; empty.hidden = false; $('.resource-transport').hidden = true;
    $('.resource-description').value = ''; $('.resource-note input').value = ''; panel.classList.remove('has-video'); setTool('pan'); controls(); draw();
@@ -297,7 +368,7 @@
    await settleMarkup();epoch++;reset();inspector='';updateDrawers();coreActive=true;empty.hidden=true;
    $('.resource-core-grid').hidden=false;$('[data-action="coreViews"]').setAttribute('aria-pressed','true');$('.resource-filename').textContent='';renderList();remember();
   }
-  const isImageFile=file=>!file.notes&&(/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(file.original_name||file.name||'')||/^data:image\//.test(file.src||''));
+  const isImageFile=file=>!file.notes&&(/^(png|jpe?g|gif|webp|avif|bmp)$/.test(fileExtension(file))||/^data:image\//.test(file.src||''));
   const slotNames={front:'Front',back:'Back',left:'Left',right:'Right','front-left':'Front Left','front-right':'Front Right','back-left':'Back Left','back-right':'Back Right'};
   const displayName=file=>(file.elevation_view?(slotNames[file.elevation_view]||file.elevation_view)+' · ':'')+label(file.name);
   // Categories are QA, Tech and Customer; within each, videos lead, then newest first.
@@ -329,7 +400,7 @@
     button.prepend(preview);
    }
    if(link){const jump=document.createElement('button');jump.className='resource-frame-shortcut';jump.innerHTML=icon('frames');jump.title='Video frame · '+timeLabel(link.time)+' · Jump to video';jump.setAttribute('aria-label','Jump to video frame for '+label(file.name));jump.onclick=()=>jumpToFrame(file).catch(error=>message(error.message,true));card.append(jump);}
-   if (!file.reference&&!file.pending&&/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(file.name)) {const overlay=document.createElement('button');overlay.className='resource-overlay-shortcut';overlay.innerHTML=icon('overlay');overlay.title=overlayOn?'Remove from 3D background':'Show behind 3D model';overlay.setAttribute('aria-label',(overlayOn?'Remove ':'Use ')+label(file.name)+(overlayOn?' from 3D background':' as 3D background'));overlay.setAttribute('aria-pressed',String(overlayOn));overlay.onclick=()=>sendBackground(file).catch(error=>message(error.message,true));card.append(overlay);}
+   if (!file.pending&&photo) {const overlay=document.createElement('button');overlay.className='resource-overlay-shortcut';overlay.innerHTML=icon('overlay');overlay.title=overlayOn?'Remove from 3D background':'Show behind 3D model';overlay.setAttribute('aria-label',(overlayOn?'Remove ':'Use ')+label(file.name)+(overlayOn?' from 3D background':' as 3D background'));overlay.setAttribute('aria-pressed',String(overlayOn));overlay.onclick=()=>sendBackground(file).catch(error=>message(error.message,true));card.append(overlay);}
    cardNodes.set(file.name,{signature,card,button});return card;
   }
   function markActive(){for(const [name,{button}]of cardNodes){const on=current?.name===name;button.classList.toggle('active',on);if(on)button.setAttribute('aria-current','true');else button.removeAttribute('aria-current');}}
@@ -368,7 +439,7 @@
    if(window.Resource3DOverlay.imageName===file.name){window.Resource3DOverlay.remove();message('3D background removed.');return;}
    const img=await cachedImage(sourceUrl(file),referenceKey(file));
    if(project!==id||requestId!==overlayRequest)return;
-   await window.Resource3DOverlay.show({image:img,label:label(file.name),project:id,name:file.name});
+   await window.Resource3DOverlay.show({image:img,label:label(file.name),project:id,name:file.name,src:file.reference?sourceUrl(file):''});
    panel.classList.remove('expanded');$('[data-action="expand"]').setAttribute('aria-label','Expand resources');renderList();message('3D background ready. Alignment is saved per image.');
   }
   window.addEventListener('resource-3d-overlay-change',()=>{if(project){renderList();controls();}});
@@ -410,8 +481,8 @@
   function finishScrub() { if (scrub) { scrub.dragging = false; queueScrub(); } }
   function updateTransport() {
    updateFrameAction();
-   if (!media) return; const duration = Number.isFinite(media.duration) ? media.duration : 0;
-   const time = scrub?.element === media ? scrub.target : media.currentTime;
+   if (!media) return; const probing = retainedMedia?.probe && retainedMedia.element === media, duration = Number.isFinite(media.duration) ? media.duration : probing ? retainedMedia.duration || 0 : 0;
+   const time = scrub?.element === media ? scrub.target : probing ? retainedMedia.pendingTime || 0 : media.currentTime;
    $('.resource-seek').max = duration || 1; $('.resource-seek').value = time || 0; $('.resource-seek').disabled = !duration || !!favoriteDraft;
    $('.resource-time').textContent = timeLabel(time) + ' / ' + timeLabel(duration);
    $('[data-action="play"]').textContent = media.paused ? '▶' : 'Ⅱ'; $('[data-action="play"]').setAttribute('aria-label', media.paused ? 'Play' : 'Pause');
@@ -420,7 +491,7 @@
   async function open(file, options = {}) {
    if (!file) return; await settleMarkup(); const ticket = ++epoch; reset(); current = file; markActive(); panel.classList.add('is-loading');
    if (!options.keepInspector) inspector = ''; updateDrawers();
-   empty.textContent = 'Loading reference…'; const src = sourceUrl(file), ext = (file.original_name||file.name).split('.').pop().toLowerCase();
+   empty.textContent = 'Loading reference…'; const src = sourceUrl(file), ext = fileExtension(file);
    try {
     const saved = await latestMarkup(file); if (ticket !== epoch) return;
     const favorite = favorites.find(item => item.frame === file.name);
@@ -439,17 +510,22 @@
       const element=document.createElement(isVideo?'video':'audio'),entry={key,element,pendingTime:null};retainedMedia=entry;
       // Audio starts muted; the mute button turns it on for this video.
       element.controls=false;element.preload='auto';element.playsInline=true;element.muted=true;element.defaultMuted=true;
-      element.onerror=()=>{if(element!==media)return;panel.classList.remove('is-loading','is-buffering');empty.hidden=false;empty.textContent='This video cannot play in this browser.';message('This format cannot play in this browser. Download the original from More actions.',true);};
+      element.onerror=()=>{if(entry.local){URL.revokeObjectURL(entry.local);entry.local=null;element.src=src;return;}if(element!==media)return;panel.classList.remove('is-loading','is-buffering');empty.hidden=false;empty.textContent='This video cannot play in this browser.';message('This format cannot play in this browser. Download the original from More actions.',true);};
       if(isVideo)watchFrames(element);
       for(const event of ['waiting','seeking'])element.addEventListener(event,()=>{if(element===media)panel.classList.add('is-buffering');});
       for(const event of ['playing','seeked','canplay','pause','loadeddata'])element.addEventListener(event,()=>{if(element===media&&!element.seeking&&element.readyState>=2)panel.classList.remove('is-buffering');});
-      element.addEventListener('loadedmetadata',()=>{if(element!==media)return;if(entry.pendingTime!=null){element.currentTime=Math.min(entry.pendingTime,Number.isFinite(element.duration)?element.duration:entry.pendingTime);entry.pendingTime=null;}fit();controls();updateTransport();});
+      const ready=()=>{if(Number.isFinite(element.duration))entry.duration=element.duration;if(element!==media)return;if(entry.pendingTime!=null){element.currentTime=Math.min(entry.pendingTime,Number.isFinite(element.duration)?element.duration:entry.pendingTime);entry.pendingTime=null;}fit();controls();updateTransport();if(entry.resume){entry.resume=false;if(active)element.play().catch(()=>{});}};
+      // A recorder-made WebM (no Cues, Duration 0) loads with an infinite duration, which leaves nothing to
+      // scrub. Seeking past the end makes Chrome read its length; the player then returns to where it was.
+      const endProbe=()=>{clearTimeout(entry.probe);entry.probe=null;ready();};
+      element.addEventListener('loadedmetadata',()=>{clearTimeout(entry.probe);entry.probe=null;if(Number.isFinite(element.duration)){ready();return;}if(entry.pendingTime==null)entry.pendingTime=0;entry.probe=setTimeout(function wait(){if(entry.downloading){entry.probe=setTimeout(wait,2000);return;}endProbe();},10000);element.currentTime=1e101;});
+      element.addEventListener('durationchange',()=>{if(entry.probe&&Number.isFinite(element.duration))endProbe();});
       for(const event of ['timeupdate','durationchange','play','pause','ended','volumechange'])element.addEventListener(event,()=>{if(element===media)updateTransport();});
       element.addEventListener('seeked',()=>{if(element===media)queueScrub();});
-      element.src=src;
+      element.src=src;downloadWholeMedia(entry,src);
      }
      const entry=retainedMedia,element=media=entry.element;player.append(element);player.hidden=!isVideo;empty.hidden=true;
-     const targetTime=options.time??entry.pendingTime;if(targetTime!=null){if(element.readyState>=1){element.currentTime=Math.min(targetTime,Number.isFinite(element.duration)?element.duration:targetTime);entry.pendingTime=null;}else entry.pendingTime=targetTime;}
+     const targetTime=options.time??entry.pendingTime;if(targetTime!=null){if(element.readyState>=1&&!entry.probe){element.currentTime=Math.min(targetTime,Number.isFinite(element.duration)?element.duration:targetTime);entry.pendingTime=null;}else entry.pendingTime=targetTime;}
      if(!isVideo){empty.hidden=false;empty.textContent='Audio reference';}
      $('.resource-transport').hidden=false;panel.classList.toggle('has-video',isVideo);$('.resource-rate').value=String(element.playbackRate);fit();controls();updateTransport();
     } else if(ext==='pdf'){const frame=document.createElement('iframe');frame.title=label(file.name);frame.src=src;frame.style.cssText='width:100%;height:100%;border:0';player.append(frame);player.hidden=false;empty.hidden=true;}
@@ -507,7 +583,7 @@
    const next = Math.min(base * 32, Math.max(base * .25, scale * factor));
    ox = x - (x - ox) * next / scale; oy = y - (y - oy) * next / scale; scale = next; fitMode = null; draw();
   }
-  function pathMark(m){const a=m.points[0],b=m.points[m.points.length-1];ctx.strokeStyle=m.color;ctx.fillStyle=m.color;ctx.lineWidth=m.width;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();if(m.type==='circle'){ctx.ellipse((a.x+b.x)/2,(a.y+b.y)/2,Math.max(.1,Math.abs(b.x-a.x)/2),Math.max(.1,Math.abs(b.y-a.y)/2),0,0,Math.PI*2);}else if(m.type==='rect'){ctx.rect(a.x,a.y,b.x-a.x,b.y-a.y);}else if(m.type==='note'){ctx.font=`${m.fontSize||24}px sans-serif`;String(m.text).split('\n').forEach((line,i)=>ctx.fillText(line,a.x,a.y+i*(m.fontSize||24)*1.3));}else{ctx.moveTo(a.x,a.y);for(const p of m.points.slice(1))ctx.lineTo(p.x,p.y);}ctx.stroke();if(m.type==='arrow'){const angle=Math.atan2(b.y-a.y,b.x-a.x),n=Math.max(12,m.width*4);ctx.beginPath();ctx.moveTo(b.x-n*Math.cos(angle-.5),b.y-n*Math.sin(angle-.5));ctx.lineTo(b.x,b.y);ctx.lineTo(b.x-n*Math.cos(angle+.5),b.y-n*Math.sin(angle+.5));ctx.stroke();}}
+  function pathMark(m){if(m.type==='ratio')return ratioMark(m);const a=m.points[0],b=m.points[m.points.length-1];ctx.strokeStyle=m.color;ctx.fillStyle=m.color;ctx.lineWidth=m.width;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();if(m.type==='circle'){ctx.ellipse((a.x+b.x)/2,(a.y+b.y)/2,Math.max(.1,Math.abs(b.x-a.x)/2),Math.max(.1,Math.abs(b.y-a.y)/2),0,0,Math.PI*2);}else if(m.type==='rect'){ctx.rect(a.x,a.y,b.x-a.x,b.y-a.y);}else if(m.type==='note'){ctx.font=`${m.fontSize||24}px sans-serif`;String(m.text).split('\n').forEach((line,i)=>ctx.fillText(line,a.x,a.y+i*(m.fontSize||24)*1.3));}else{ctx.moveTo(a.x,a.y);for(const p of m.points.slice(1))ctx.lineTo(p.x,p.y);}ctx.stroke();if(m.type==='arrow'){const angle=Math.atan2(b.y-a.y,b.x-a.x),n=Math.max(12,m.width*4);ctx.beginPath();ctx.moveTo(b.x-n*Math.cos(angle-.5),b.y-n*Math.sin(angle-.5));ctx.lineTo(b.x,b.y);ctx.lineTo(b.x-n*Math.cos(angle+.5),b.y-n*Math.sin(angle+.5));ctx.stroke();}}
   function bounds(m){const xs=m.points.map(p=>p.x),ys=m.points.map(p=>p.y);let x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y;if(m.type==='note'){const size=m.fontSize||24;w=String(m.text).length*size*.65;h=size*1.4;y-=size;}return{x,y,w,h};}
   function draw() {
    const dpr = window.devicePixelRatio || 1;
@@ -516,17 +592,182 @@
    if (w && h) $('.resource-zoom-level').textContent = Math.round(scale / Math.min(stage.clientWidth / w, stage.clientHeight / h) * 100) + '%';
    if (media?.videoWidth) { media.style.width = media.videoWidth + 'px'; media.style.height = media.videoHeight + 'px'; media.style.transform = `translate(${ox}px, ${oy}px) scale(${scale})`; }
    if (!image) return;
+   if (persp) { ctx.save(); ctx.translate(ox, oy); ctx.scale(scale, scale); ctx.drawImage(shown(), 0, 0); ctx.restore(); if (!persp.preview) drawPerspective(); return; }
    ctx.save(); ctx.translate(ox, oy); ctx.scale(scale, scale); ctx.drawImage(image, 0, 0); marks.forEach(pathMark);
    if (gesture?.mark) pathMark(gesture.mark);
    if (marks[selected]) { const b = bounds(marks[selected]); ctx.strokeStyle = '#69b9ff'; ctx.lineWidth = 1 / scale; ctx.setLineDash([4 / scale, 4 / scale]); ctx.strokeRect(b.x - 5 / scale, b.y - 5 / scale, b.w + 10 / scale, b.h + 10 / scale); }
    ctx.restore();
   }
+  // Ratio lines: stops are fractions of the line from its first end, so moving or stretching the line keeps them.
+  const ratioStops = m => (m.stops || []).filter(t => t > 0 && t < 1).sort((a, b) => a - b);
+  const percent = v => (v * 100).toFixed(1) + '%';
+  function ratioT(m, p) { const [a, b] = m.points, dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy || 1; return Math.min(.999, Math.max(.001, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)); }
+  // Shift snaps a ratio line to horizontal or vertical.
+  function straighten(from, p) { return Math.abs(p.x - from.x) >= Math.abs(p.y - from.y) ? { x: p.x, y: from.y } : { x: from.x, y: p.y }; }
+  function ratioHit(p) {
+   const tol = 10 / scale;
+   for (let index = marks.length - 1; index >= 0; index--) {
+    const m = marks[index]; if (m.type !== 'ratio') continue; const [a, b] = m.points;
+    for (const end of [0, 1]) if (Math.hypot(p.x - m.points[end].x, p.y - m.points[end].y) < tol) return { index, end, stop: -1 };
+    const stops = m.stops || [], at = t => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    for (let stop = 0; stop < stops.length; stop++) { const q = at(stops[stop]); if (Math.hypot(p.x - q.x, p.y - q.y) < tol) return { index, end: -1, stop }; }
+    const t = ratioT(m, p), q = at(t); if (t > .005 && t < .995 && Math.hypot(p.x - q.x, p.y - q.y) < tol) return { index, end: -1, stop: -1, t };
+   }
+   return null;
+  }
+  function ratioMark(m) {
+   const [a, b] = m.points, dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy); if (len < 1e-6) return;
+   // Drawn at a fixed size on screen (like its labels), so zooming never makes it thick or faint.
+   const k = 1 / scale, lw = 2.5 * k, ts = [0, ...ratioStops(m), 1], at = t => ({ x: a.x + dx * t, y: a.y + dy * t });
+   let nx = -dy / len, ny = dx / len; if (ny > 0 || (ny === 0 && nx > 0)) { nx = -nx; ny = -ny; } // labels sit above (or left of) the line
+   ctx.save(); ctx.strokeStyle = m.color; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+   ts.forEach((t, i) => { const p = at(t), n = (i === 0 || i === ts.length - 1 ? 11 : 8) * k + lw / 2; ctx.moveTo(p.x - nx * n, p.y - ny * n); ctx.lineTo(p.x + nx * n, p.y + ny * n); }); ctx.stroke();
+   ctx.fillStyle = '#fff'; ctx.lineWidth = 1.5 * k; for (const t of ts.slice(1, -1)) { const p = at(t); ctx.beginPath(); ctx.arc(p.x, p.y, 4 * k + lw / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+   ctx.font = `600 ${12 * k}px system-ui,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+   for (let i = 1; i < ts.length; i++) {
+    const text = percent(ts[i] - ts[i - 1]), mid = at((ts[i] + ts[i - 1]) / 2), off = 20 * k + lw / 2, x = mid.x + nx * off, y = mid.y + ny * off, w = ctx.measureText(text).width + 10 * k, h = 17 * k;
+    ctx.fillStyle = 'rgba(17,24,39,.82)'; ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, 4 * k); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillText(text, x, y + .5 * k);
+   }
+   ctx.restore();
+  }
+  function ratioReadout() {
+   const box = $('.resource-ratio'), list = $('.resource-ratio-segments');
+   const m = marks[selected]?.type === 'ratio' ? marks[selected] : marks[ratioIndex]?.type === 'ratio' ? marks[ratioIndex] : null;
+   box.hidden = inspector !== 'markup' || (tool !== 'ratio' && !m); list.hidden = !m;
+   if (!m) { list.replaceChildren(); return; }
+   const ts = [0, ...ratioStops(m), 1];
+   list.replaceChildren(...ts.slice(1).map((t, i) => { const item = document.createElement('li'); item.textContent = percent(t - ts[i]); return item; }));
+  }
+  // Perspective: four corners in image pixels over the photo; the preview replaces the photo until saved or adjusted.
+  function startPerspective() {
+   const w = image.width, h = image.height, ix = w * .12, iy = h * .12;
+   persp = { corners: [{ x: ix, y: iy }, { x: w - ix, y: iy }, { x: w - ix, y: h - iy }, { x: ix, y: h - iy }], preview: null, rendering: false, live: null, liveKey: '', liveError: '', px: null, rect: null };
+   try { persp.px = window.ResourcePerspective.pixels(image, 1000); } catch (error) { persp.liveError = error.message; }
+   fit();
+  }
+  const perspKey = () => JSON.stringify([persp.corners, perspCrop]);
+  // The live corrected view: recomputed (small, synchronously) only when the corners or the crop choice change.
+  function liveView() {
+   if (!persp.px) return null; const key = perspKey(); if (key === persp.liveKey) return persp.live;
+   persp.liveKey = key; persp.liveError = '';
+   const side = Math.round(Math.min(560, Math.max(stage.clientWidth * .38, stage.clientHeight * .45)) * (window.devicePixelRatio || 1));
+   try { persp.live = window.ResourcePerspective.renderLive(persp.px, { corners: persp.corners, crop: perspCrop, maxSide: side }); }
+   catch (error) { persp.live = null; persp.liveError = error.message; }
+   return persp.live;
+  }
+  // Puts the live view in whichever corner of the viewer covers the least of the corner handles.
+  function liveRect(live) {
+   const W = stage.clientWidth, H = stage.clientHeight, maxW = W * .38, maxH = H * .45, k = live ? Math.min(maxW / live.width, maxH / live.height) : 1;
+   const w = live ? live.width * k : Math.min(maxW, 240), h = live ? live.height * k : 64, m = 12;
+   const q = persp.corners.map(c => ({ x: ox + c.x * scale, y: oy + c.y * scale }));
+   const spots = [[W - w - m, m], [m, m], [W - w - m, H - h - m - 44], [m, H - h - m - 44]];
+   const cost = ([x, y]) => q.reduce((n, c) => n + (c.x > x - 20 && c.x < x + w + 20 && c.y > y - 20 && c.y < y + h + 20 ? 1 : 0), 0);
+   const [x, y] = spots.reduce((best, spot) => cost(spot) < cost(best) ? spot : best);
+   return { x, y, w, h };
+  }
+  function drawLive() {
+   const live = liveView(), r = persp.rect = liveRect(live);
+   ctx.save(); ctx.shadowColor = 'rgba(15,23,42,.35)'; ctx.shadowBlur = 12; ctx.fillStyle = '#1f2937'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.restore();
+   ctx.save();
+   if (live) { // checks behind the transparent corners
+    ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip(); ctx.fillStyle = '#374151';
+    for (let y = 0; y < r.h; y += 10) for (let x = (y / 10) % 2 ? 10 : 0; x < r.w; x += 20) ctx.fillRect(r.x + x, r.y + y, 10, 10);
+    ctx.imageSmoothingQuality = 'high'; ctx.drawImage(live, r.x, r.y, r.w, r.h);
+   } else { ctx.fillStyle = '#fff'; ctx.font = '12px system-ui,sans-serif'; ctx.textBaseline = 'middle'; ctx.fillText(persp.liveError || 'Corners must outline a rectangle.', r.x + 10, r.y + r.h / 2, r.w - 20); }
+   ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(r.x, r.y, r.w, r.h);
+   const tag = 'Live view · click to enlarge'; ctx.font = '600 11px system-ui,sans-serif'; const tw = ctx.measureText(tag).width + 12;
+   ctx.fillStyle = 'rgba(17,24,39,.8)'; ctx.fillRect(r.x, r.y, tw, 20); ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.fillText(tag, r.x + 6, r.y + 10);
+   ctx.restore();
+  }
+  const inLive = event => { const r = persp?.rect, b = stage.getBoundingClientRect(), x = event.clientX - b.left, y = event.clientY - b.top; return !!r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; };
+  function nearestCorner(event) { const r = stage.getBoundingClientRect(), x = event.clientX - r.left, y = event.clientY - r.top; let best = -1, distance = 18; persp.corners.forEach((c, i) => { const d = Math.hypot(ox + c.x * scale - x, oy + c.y * scale - y); if (d < distance) { distance = d; best = i; } }); return best; }
+  function hoverCursor(event) {
+   let cursor = !image || tool === 'pan' || inspector !== 'markup' ? 'grab' : 'crosshair';
+   if (persp && !persp.preview && nearestCorner(event) >= 0) cursor = 'move';
+   else if (persp && !persp.preview && inLive(event)) cursor = 'zoom-in';
+   else if (inspector === 'markup' && image && tool === 'ratio') { const hit = ratioHit(pos(event)); if (hit) cursor = hit.stop >= 0 || hit.end >= 0 ? 'move' : 'copy'; }
+   if (stage.style.cursor !== cursor) stage.style.cursor = cursor;
+  }
+  function drawPerspective() {
+   const P = window.ResourcePerspective, q = persp.corners.map(c => ({ x: ox + c.x * scale, y: oy + c.y * scale })), ok = P.usableQuad(P.orderQuad(persp.corners));
+   ctx.save(); ctx.fillStyle = 'rgba(15,23,42,.45)'; ctx.beginPath(); ctx.rect(0, 0, stage.clientWidth, stage.clientHeight);
+   ctx.moveTo(q[0].x, q[0].y); for (const c of q.slice(1)) ctx.lineTo(c.x, c.y); ctx.closePath(); ctx.fill('evenodd');
+   ctx.strokeStyle = ok ? '#1a73e8' : '#d92d20'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(q[0].x, q[0].y); for (const c of q.slice(1)) ctx.lineTo(c.x, c.y); ctx.closePath(); ctx.stroke();
+   if (ok) { // thirds as they will lie after correction, to line up with siding courses or window grids
+    const o = P.orderQuad(q), H = P.homography([{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }], o);
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1; ctx.setLineDash([5, 5]); ctx.beginPath();
+    for (const t of [1 / 3, 2 / 3]) { for (const [u, v] of [[[t, 0], [t, 1]], [[0, t], [1, t]]]) { const s = P.apply(H, { x: u[0], y: u[1] }), e = P.apply(H, { x: v[0], y: v[1] }); ctx.moveTo(s.x, s.y); ctx.lineTo(e.x, e.y); } }
+    ctx.stroke(); ctx.setLineDash([]);
+   }
+   drawLive();
+   for (const [i, c] of q.entries()) { const active = gesture?.corner === i; ctx.beginPath(); ctx.arc(c.x, c.y, active ? 9 : 7, 0, Math.PI * 2); ctx.fillStyle = active ? '#1a73e8' : '#fff'; ctx.fill(); ctx.strokeStyle = ok ? '#1a73e8' : '#d92d20'; ctx.lineWidth = 2; ctx.stroke(); }
+   if (gesture?.corner != null) { // magnifier beside the corner being dragged
+    const c = persp.corners[gesture.corner], s = q[gesture.corner], R = 64, z = 3; let lx = s.x + R + 28, ly = s.y - R - 28;
+    if (lx + R > stage.clientWidth) lx = s.x - R - 28; if (ly - R < 0) ly = s.y + R + 28;
+    ctx.save(); ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2); ctx.clip(); ctx.fillStyle = '#111827'; ctx.fill();
+    ctx.translate(lx, ly); ctx.scale(scale * z, scale * z); ctx.translate(-c.x, -c.y); ctx.drawImage(image, 0, 0); ctx.restore();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#1a73e8'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(lx - 10, ly); ctx.lineTo(lx + 10, ly); ctx.moveTo(lx, ly - 10); ctx.lineTo(lx, ly + 10); ctx.stroke();
+   }
+   ctx.restore();
+  }
+  const canUpload = () => !!project; // same rule as the Upload button
+  function perspControls() {
+   const preview = !!persp?.preview, rendering = !!persp?.rendering;
+   $('.resource-persp-adjust').hidden = preview; $('.resource-persp-result').hidden = !preview; $('.resource-persp-intro').hidden = preview; $('.resource-persp-live-help').hidden = preview;
+   $('[data-action="perspPreview"]').disabled = !persp || rendering;
+   for (const button of panel.querySelectorAll('[data-action="perspSave"]')) { button.disabled = !persp || rendering || uploading || !canUpload(); button.textContent = uploading && persp ? 'Saving…' : rendering ? 'Working…' : 'Save as new file'; button.title = canUpload() ? 'Upload the corrected image to this project as a new file' : 'This project cannot take uploads; use Download'; }
+   for (const button of panel.querySelectorAll('[data-action="perspDownload"]')) button.disabled = !persp || rendering;
+   $('[data-action="perspReset"]').disabled = !persp || rendering;
+   $('.resource-persp-crop').checked = perspCrop;
+   $('.resource-persp-size').textContent = preview ? `Corrected image: ${persp.preview.width} × ${persp.preview.height} px` : '';
+  }
+  // The corrected image at full resolution for the current corners (reused while they do not change).
+  async function perspFull() {
+   const job = persp, key = perspKey(); if (job.full?.key === key) return job.full.canvas;
+   job.rendering = true; controls();
+   try {
+    const plan = window.ResourcePerspective.plan({ width: image.width, height: image.height, corners: job.corners, crop: perspCrop });
+    const canvas = await window.ResourcePerspective.render(image, plan, { onProgress: f => { if (persp === job) message(`Correcting perspective… ${Math.round(f * 100)}%`); } });
+    job.full = { key, canvas }; return canvas;
+   } finally { job.rendering = false; controls(); }
+  }
+  async function perspPreview() {
+   if (!persp || persp.rendering || !image) return; const job = persp;
+   try { const canvas = await perspFull(); if (persp !== job) return; job.preview = canvas; fit(); message('Full-size result. Save it, download it, or go back to adjust the corners.'); }
+   catch (error) { message(error.message, true); }
+   finally { controls(); }
+  }
+  const perspBlob = canvas => new Promise(resolve => canvas.toBlob(resolve, perspCrop ? 'image/jpeg' : 'image/png', .92));
+  const perspFileName = () => (label(current.name).replace(/\.[^.]+$/, '') || 'image') + ' (perspective).' + (perspCrop ? 'jpg' : 'png');
+  async function perspSave() {
+   if (!persp || persp.rendering || uploading || !canUpload()) return;
+   const id = project, ticket = projectEpoch, fileName = perspFileName(), blob = await perspBlob(await perspFull()); if (!blob) throw Error('Could not encode the corrected image.');
+   const name = prefix + 'v2-' + uuid() + '-' + (safeName(fileName).slice(-42) || 'perspective'); uploading = true; controls();
+   try { await uploadFile(id, name, new File([blob], fileName, { type: blob.type })); } finally { uploading = false; controls(); }
+   if (ticket !== projectEpoch) return; await refresh({ quiet: true });
+   const saved = files.find(f => f.name === name); message('Saved ' + fileName + ' to the project.');
+   if (saved) { inspector = ''; await open(saved); }
+  }
+  async function perspDownload() { if (!persp || persp.rendering) return; const fileName = perspFileName(), blob = await perspBlob(await perspFull()); if (!blob) throw Error('Could not encode the corrected image.'); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = fileName; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 60000); }
   const pos = event => { const r = stage.getBoundingClientRect(); return { x: (event.clientX - r.left - ox) / scale, y: (event.clientY - r.top - oy) / scale }; };
   const isControl = target => !!target.closest('button,input,select,textarea,a');
   stage.addEventListener('pointerdown', event => {
    if (isControl(event.target) || !dimensions().w || busy || ![0, 1, 2].includes(event.button)) return;
    event.preventDefault(); stage.focus({ preventScroll: true }); stage.setPointerCapture(event.pointerId);
-   const p = pos(event), pan = inspector!=='markup' || !image || tool === 'pan' || event.button !== 0 || spaceDown;
+   const p = pos(event);
+   if (persp && !persp.preview && event.button === 0 && !spaceDown && nearestCorner(event) < 0 && inLive(event)) { gesture = null; perspPreview(); return; }
+   if (persp && !persp.preview && event.button === 0 && !spaceDown) { const corner = nearestCorner(event); if (corner >= 0) { gesture = { id: event.pointerId, corner }; stage.style.cursor = 'grabbing'; draw(); return; } }
+   if (inspector === 'markup' && image && tool === 'ratio' && !spaceDown && (event.button === 0 || event.button === 2)) {
+    const hit = ratioHit(p);
+    if (hit) {
+     ratioIndex = hit.index; const m = marks[hit.index];
+     if (event.button === 2) { if (hit.stop >= 0) { snapshot(); m.stops.splice(hit.stop, 1); } gesture = null; controls(); draw(); return; }
+     snapshot(); if (hit.stop < 0 && hit.end < 0) { m.stops = [...(m.stops || []), hit.t]; hit.stop = m.stops.length - 1; }
+     gesture = { id: event.pointerId, ratio: hit }; stage.style.cursor = 'grabbing'; controls(); draw(); return;
+    }
+   }
+   const pan = inspector!=='markup' || !image || tool === 'pan' || event.button !== 0 || spaceDown;
    gesture = { id: event.pointerId, start: p, x: event.clientX, y: event.clientY, ox, oy, pan };
    if (pan) { fitMode = null; stage.style.cursor = 'grabbing'; return; }
    if (tool === 'select') {
@@ -535,17 +776,23 @@
     controls(); draw(); return;
    }
    if (tool === 'note' && !$('.resource-note input').value.trim()) { message('Type a label in the markup tray, then click to place it.', true); gesture = null; return; }
-   gesture.mark = { type: tool, points: [p, p], color: $('.resource-color').value, width: strokeWidth / scale, fontSize: 20 / scale, text: $('.resource-note input').value }; draw();
+   gesture.mark = { type: tool, points: [p, p], color: $('.resource-color').value, width: strokeWidth / scale, fontSize: 20 / scale, text: $('.resource-note input').value, ...(tool === 'ratio' ? { stops: [] } : {}) }; draw();
   });
   stage.addEventListener('pointermove', event => {
-   if (!gesture || gesture.id !== event.pointerId) return; const p = pos(event);
+   if (!gesture) { hoverCursor(event); return; }
+   if (gesture.id !== event.pointerId) return; const p = pos(event);
+   if (gesture.corner != null) { persp.corners[gesture.corner] = p; draw(); return; }
+   if (gesture.ratio) { const m = marks[gesture.ratio.index]; if (gesture.ratio.end >= 0) m.points[gesture.ratio.end] = event.shiftKey ? straighten(m.points[1 - gesture.ratio.end], p) : p; else m.stops[gesture.ratio.stop] = ratioT(m, p); ratioReadout(); draw(); return; }
+   if (gesture.mark?.type === 'ratio') { gesture.mark.points[1] = event.shiftKey ? straighten(gesture.mark.points[0], p) : p; draw(); return; }
    if (gesture.pan) { ox = gesture.ox + event.clientX - gesture.x; oy = gesture.oy + event.clientY - gesture.y; }
    else if (gesture.original) marks[selected].points = gesture.original.points.map(q => ({ x: q.x + p.x - gesture.start.x, y: q.y + p.y - gesture.start.y }));
    else if (gesture.mark) { if (tool === 'pen') gesture.mark.points.push(p); else gesture.mark.points[1] = p; } draw();
   });
   function finish(event) {
    if (!gesture || gesture.id !== event.pointerId) return;
-   if (event.type === 'pointerup' && gesture.mark) { snapshot(); marks.push(gesture.mark); }
+   if (gesture.corner != null || gesture.ratio) { const m = gesture.ratio && marks[gesture.ratio.index]; if (m) m.stops = ratioStops(m); gesture = null; hoverCursor(event); controls(); draw(); return; }
+   const tooShort = gesture.mark?.type === 'ratio' && Math.hypot(gesture.mark.points[1].x - gesture.mark.points[0].x, gesture.mark.points[1].y - gesture.mark.points[0].y) * scale < 6;
+   if (event.type === 'pointerup' && gesture.mark && !tooShort) { snapshot(); marks.push(gesture.mark); if (gesture.mark.type === 'ratio') ratioIndex = marks.length - 1; }
    else if (event.type !== 'pointerup' && gesture.original) marks[selected] = gesture.original;
    gesture = null; stage.style.cursor = !image || tool === 'pan' ? 'grab' : 'crosshair'; controls(); draw();
   }
@@ -646,7 +893,7 @@
    const video = media; if (!video || favoriteDraft) return;
    cancelScrub(); stepQueue = 0; video.currentTime = clampTime(video, video.currentTime + seconds); updateTransport();
   }
-  function playMedia(video = media) { return video?.play().catch(error => { if (error.name !== 'AbortError') message(error.message, true); }); }
+  function playMedia(video = media) { if (retainedMedia?.probe && retainedMedia.element === video) { retainedMedia.resume = true; return Promise.resolve(); } return video?.play().catch(error => { if (error.name !== 'AbortError') message(error.message, true); }); }
   function togglePlay() { if (!media || favoriteDraft) return; if (media.paused) { cancelScrub(); stepQueue = 0; playMedia(); } else media.pause(); }
 
   // Saved frames are decoded on the server from the stored video: the browser
@@ -665,15 +912,19 @@
    chip.title = failed ? jobs.filter(job => job.status === 'failed').map(job => timeLabel(job.time) + ': ' + job.error).join('\n') : 'Frames are extracted on the server; keep working.';
    updateFrameAction();
   }
+  // A busy server can drop or stall one status check while the job keeps
+  // running, so only a definite answer ends polling before the deadline.
+  // A frame takes a few seconds, so checks are at most a second apart.
   async function pollFrameJob(job) {
    for (let attempt = 0; ; attempt++) {
-    await new Promise(resolve => setTimeout(resolve, Math.min(2000, 400 + attempt * 200)));
-    const response = await fetch(url(job.project, job.record), { cache: 'no-store' });
-    if (response.ok) {
+    await new Promise(resolve => setTimeout(resolve, Math.min(1000, 300 + attempt * 150)));
+    const abort = new AbortController(), timer = setTimeout(() => abort.abort(), 20000);
+    const response = await fetch(url(job.project, job.record), { cache: 'no-store', signal: abort.signal }).catch(() => null).finally(() => clearTimeout(timer));
+    if (response?.ok) {
      const record = await response.json().catch(() => ({}));
      if (record.status === 'done') return record;
      if (record.status === 'failed') throw Error(record.error || 'The server could not extract this frame.');
-    } else if (response.status !== 404) { const data = await response.json().catch(() => ({})); throw Error(data.error || `Frame status unavailable (${response.status}).`); }
+    } else if (response && response.status !== 404 && response.status !== 408 && response.status !== 429 && response.status < 500) { const data = await response.json().catch(() => ({})); throw Error(data.error || `Frame status unavailable (${response.status}).`); }
     if (Date.now() - job.startedAt > 5 * 60 * 1000) throw Error('Frame extraction is taking too long. Refresh project files later.');
    }
   }
@@ -751,7 +1002,11 @@
    files: () => { filesOpen = !filesOpen; if (filesOpen && panel.clientWidth < 760) inspector = ''; updateDrawers(); },
    coreViews:showCoreViews,
    upload: () => $('.resource-files').click(), refresh,
-   markup: () => showInspector('markup'), notes: () => showInspector('notes'), closeInspector: () => { inspector = ''; updateDrawers(); },
+   markup: () => showInspector('markup'), perspective: () => showInspector('perspective'),
+   ratio: async () => { if (inspector !== 'markup') await showInspector('markup'); if (inspector === 'markup') await chooseTool('ratio', false); },
+   perspPreview, perspSave, perspDownload,
+   perspReset: () => { if (persp && !persp.rendering) { startPerspective(); controls(); } },
+   perspAdjust: () => { if (persp) { persp.preview = null; fit(); controls(); } }, notes: () => showInspector('notes'), closeInspector: () => { inspector = ''; updateDrawers(); },
    more: () => { $('.resource-more').hidden = !$('.resource-more').hidden; $('[data-action="more"]').setAttribute('aria-expanded', String(!$('.resource-more').hidden)); },
    save,
    overlay: async () => { if (!image || media || busy || !current) return; await sendBackground(current); },
@@ -763,7 +1018,8 @@
    delete: () => { if (selected >= 0) { snapshot(); marks.splice(selected, 1); selected = -1; controls(); draw(); } },
    frame: captureFrame, favorites: () => { renderFavorites(); showInspector('favorites'); }, favorite: () => startFavorite(),
    returnVideo: async () => {if(media?.videoWidth){const saved=savedFrameAtPlayhead();if(saved)await open(saved);else startFavorite(true);}else if (frameSource) { const source = frameSource; await open(source.file, { time: source.time }); } },
-   download: () => { if (current&&!current.notes) { const link = document.createElement('a'); link.href = sourceUrl(current); link.download = label(current.name); link.click(); } },
+   deleteFile: deleteCurrentFile,
+   download: () => { if (current&&!current.notes) { const link = document.createElement('a'); link.href = sourceUrl(current); const name = label(current.name), ext = fileExtension(current); link.download = ext && extensionOf(name) !== ext ? name + '.' + ext : name; link.click(); } },
    applyText: () => { if (marks[selected]?.type === 'note') { snapshot(); marks[selected].text = $('.resource-note input').value; draw(); } }
   };
   panel.addEventListener('click', event => {
@@ -771,13 +1027,17 @@
    if (button.dataset.action !== 'more') { $('.resource-more').hidden = true; $('[data-action="more"]').setAttribute('aria-expanded', 'false'); }
    Promise.resolve().then(() => button.dataset.tool ? chooseTool(button.dataset.tool) : actions[button.dataset.action]?.()).catch(error => message(error.message, true));
   });
+  $('.resource-persp-crop').addEventListener('change', event => { perspCrop = event.target.checked; if (persp?.preview) { persp.preview = null; perspPreview(); } else { controls(); draw(); } });
   const seek = $('.resource-seek');
   seek.addEventListener('pointerdown', event => {
    if (event.button !== 0 || favoriteDraft) return; stepQueue = 0; beginScrub(true);
    event.target.setPointerCapture(event.pointerId);
   });
   seek.addEventListener('input', event => {
-   if (favoriteDraft || !media) return; const target = Number(event.target.value); if (!scrub) beginScrub(false); if (!scrub) return;
+   if (favoriteDraft || !media) return; const target = Number(event.target.value);
+   // While the player reads a recorder WebM's length, a drag is kept and applied once it is known.
+   if (retainedMedia?.probe && retainedMedia.element === media) { retainedMedia.pendingTime = Math.max(0, target); updateTransport(); return; }
+   if (!scrub) beginScrub(false); if (!scrub) return;
    scrub.target = Math.max(0, Math.min(media.duration, target)); scrub.pending = true; updateTransport(); queueScrub();
   });
   for (const event of ['change', 'pointerup', 'pointercancel', 'lostpointercapture', 'blur']) seek.addEventListener(event, finishScrub);
@@ -908,21 +1168,11 @@
    const savedFrames=await Promise.all(artifacts.filter(f=>f.name.startsWith(favoritePrefix)).map(async f=>(await request(id,f.name)).json()));
    return [...artifacts.filter(f=>f.name.startsWith(prefix)&&/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(f.name)).map(f=>{
     const frame=savedFrames.find(s=>s.frame===f.name),reference=references.find(r=>r.resource_name===f.name);return {key:f.name,resourceName:f.name,url:new URL(url(id,f.name),location.href).href,label:frame?.label||f.original_name||f.name,role:reference?.role||f.role||'tech',slot:reference?.slot||f.elevation_view,frame:!!frame};
-   }),...references.filter(f=>f.src&&!f.notes&&!artifacts.some(a=>a.name===f.resource_name)).map(f=>({key:f.name,url:f.src,label:f.original_name,role:f.role,slot:f.slot}))];
+   }),...photoReferences(references,artifacts).map(f=>({key:f.name,url:f.src,label:f.original_name,role:f.role,slot:f.slot}))];
   },async mergeSubmission(state){
    const id=String(state.folderId||window.currentProjectId||'');if(!id||currentRole()==='qa')return;
-   const data=await(await request(id)).json(),frameRecords=await Promise.all((data.files||[]).filter(f=>f.name.startsWith(favoritePrefix)).map(f=>request(id,f.name).then(r=>r.json()).catch(()=>({})))),{uploads:resources,derived}=submissionUploads(data.files||[],frameRecords);
-   state.finalizeSources||={images:[],notes:''};
-   // Saved video frames merged by earlier versions come out again; images added by hand have no resource_name.
-   const images=state.finalizeSources.images=(state.finalizeSources.images||[]).filter(i=>!(i&&i.resource_name&&derived.has(i.resource_name)));
-   for(const f of resources){
-    const revisions=(data.files||[]).filter(r=>r.name.startsWith(markupPrefix+fileId(f.name)+'-')).sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||''))||b.name.localeCompare(a.name));
-    const markup=revisions.length?await(await request(id,revisions[0].name)).json():null;
-    // A capture whose markup names the video it came from is a derived frame too: leave it (and its note) out.
-    if(markup?.sourceVideo){const at=images.findIndex(i=>i.resource_name===f.name);if(at>=0)images.splice(at,1);continue;}
-    if(!images.some(i=>i.resource_name===f.name))images.push({resource_name:f.name,url:new URL(url(id,f.name),location.href).href,dataUrl:new URL(url(id,f.name),location.href).href,name:f.original_name||f.name,role:'tech'});
-    const note=String(markup?.notes||'').trim();if(note&&!String(state.finalizeSources.notes||'').includes(note))state.finalizeSources.notes=(state.finalizeSources.notes?state.finalizeSources.notes+'\n\n':'')+(f.original_name||f.name)+':\n'+note;
-   }
+   const data=await(await request(id)).json();
+   await mergeSubmissionSources(state,data.files||[],name=>request(id,name).then(r=>r.json()),name=>new URL(url(id,name),location.href).href);
   }};
   for(const event of ['pointerdown','dblclick','wheel'])$('.resource-core-grid').addEventListener(event,e=>e.stopPropagation());
   if(window.WallMode?.enabled)window.switchMapLayer('resources');

@@ -28,9 +28,32 @@ function fm_tutorial_source_request($tutorialId, $student, $course, $name = '') 
     return fm_tutorial_bridge(['operation' => 'source', 'tutorial_id' => $tutorialId, 'student_email' => $student, 'course_id' => $course, 'name' => $name]);
 }
 
+// Reference imagery only: never the answer geometry, report snapshots, generated PDFs or source markups.
+// The same list is in tutorialSourceFile (public/v1/internal/tutorial_exteriors.ts).
+function fm_tutorial_source_file($name) {
+    return preg_match('/^(google\.(png|jpg)|azure\.png|apple\.(png|jpg)|rgb\.tif|dsm\.tif|mask\.tif|insights\.json|instant-structures\.json|structure-[0-9]+-(rgb|dsm|mask)\.tif|structure-[0-9]+-apple\.(png|jpg)|internal-resource-[a-zA-Z0-9._-]+|internal-markup-part-[a-zA-Z0-9._-]+)$/D', (string)$name) === 1;
+}
+
+function fm_tutorial_source_url($tutorialId, $student, $course, $name) {
+    return 'tutorial_sources.php?' . http_build_query(['tutorial_id' => $tutorialId, 'student_email' => $student, 'course_id' => $course, 'name' => $name]);
+}
+
+// A saved capture names its tiles relative to its own folder; here each one is served through tutorial_sources.php.
+function fm_tutorial_source_capture_manifest($raw, $tutorialId, $student, $course) {
+    $manifest = json_decode($raw, true);
+    if (!is_array($manifest) || !is_array($manifest['tiles'] ?? null)) return $raw;
+    foreach ($manifest['tiles'] as &$tile) {
+        if (is_array($tile) && isset($tile['file'])) $tile['url'] = fm_tutorial_source_url($tutorialId, $student, $course, 'google-3d/tiles/' . $tile['file']);
+    }
+    unset($tile);
+    return json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+}
+
 function fm_tutorial_fetch_source_bundle($tutorialId, $student, $course) {
     $found = fm_tutorial_find_project($tutorialId, $student, $course);
     if (!$found) return null;
+    // Callers such as project_resources.php send no course: Node reads the project from the one it lives in (FM-318).
+    $course = $found['course_id'];
     $source = $found['manifest']['source_project_id'] ?? '';
     // Preserve legacy roof sources and environments without the experimental feature.
     if (!fm_is_full_house_id($source) && ($found['manifest']['measurement_scope'] ?? '') !== 'full_house') return fm_fetch_project_bundle($source);
@@ -40,11 +63,13 @@ function fm_tutorial_fetch_source_bundle($tutorialId, $student, $course) {
     $bundle['manifest'] = fm_legacy_manifest($bundle['manifest'] ?? []);
     foreach ($bundle['files'] ?? [] as $file) {
         $name = $file['name'] ?? '';
-        if (!preg_match('/^(google\.(png|jpg)|rgb\.tif|dsm\.tif|mask\.tif|insights\.json|internal-resource-[a-zA-Z0-9._-]+|internal-markup-part-[a-zA-Z0-9._-]+)$/D', $name)) continue;
-        $url = 'tutorial_sources.php?' . http_build_query(['tutorial_id' => $tutorialId, 'student_email' => $student, 'course_id' => $course, 'name' => $name]);
+        if (!fm_tutorial_source_file($name)) continue;
+        $url = fm_tutorial_source_url($tutorialId, $student, $course, $name);
         $assets[strtolower(pathinfo($name, PATHINFO_FILENAME))] = $url;
         $file['url'] = $url; $files[] = $file;
     }
+    // The saved Google 3D capture has no file entry; without its manifest the editor shows no 3D imagery (FM-319).
+    if (!empty($bundle['assets']['google_3d_manifest'])) $assets['google_3d_manifest'] = fm_tutorial_source_url($tutorialId, $student, $course, 'google-3d/manifest.json');
     $bundle['assets'] = $assets; $bundle['files'] = $files;
     return $bundle;
 }

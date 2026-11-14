@@ -13,7 +13,10 @@ $input=json_decode(file_get_contents($argv[1]),true);$dir=$input['store'];
 $get=function($name)use($dir){if(!is_file("$dir/$name"))throw new RuntimeException("missing $name");return file_get_contents("$dir/$name");};
 $put=function($name,$bytes,$digest)use($dir){if($digest!==null&&!hash_equals($digest,hash('sha256',$bytes)))throw new RuntimeException('digest');file_put_contents("$dir/$name",$bytes);};
 if(isset($input['publish'])){fm_resource_publish_bytes($input['publish']['name'],file_get_contents($input['publish']['file']),['original_name'=>'Walk through.mp4'],$put);echo json_encode(['ok'=>true]);exit;}
-try{echo json_encode(fm_resource_frame_run($input['job'],$get,$put,['ffmpeg'=>$input['ffmpeg']??null,'cache_dir'=>"$dir/cache"]));}
+if(isset($input['valid'])){echo json_encode(array_map('fm_resource_frame_source_valid',$input['valid']));exit;}
+$stream=empty($input['download'])?[]:['download'=>function($name,$path)use($dir){$GLOBALS['downloads'][]=$name;copy("$dir/$name",$path);},'version'=>['size'=>filesize("$dir/".$input['job']['source']),'tag'=>'t1']];
+$get=empty($input['download'])?$get:function($name)use($get){if(strpos($name,'customer-reference-')===0)throw new RuntimeException('a customer video is never read into memory');return $get($name);};
+try{echo json_encode(fm_resource_frame_run($input['job'],$get,$put,['ffmpeg'=>$input['ffmpeg']??null,'cache_dir'=>"$dir/cache"]+$stream)+['downloads'=>$GLOBALS['downloads']??[]]);}
 catch(Throwable $e){echo json_encode(['status'=>'failed','error'=>$e->getMessage()]);}
 `;
 const video='internal-resource-v2-11111111-1111-4111-8111-111111111111-Walk_through.mp4';
@@ -42,6 +45,42 @@ test('server extracts the displayed video frame and publishes it as a chunked re
   const record=JSON.parse(fs.readFileSync(path.join(store,'internal-markup-favorite-33333333-3333-4333-8333-333333333333.json'),'utf8'));
   assert.deepEqual({label:record.label,source:record.source,time:record.time,frame:record.frame,version:record.version},{label:'Back of house',source:video,time:1,frame:frameName(6),version:1});
   assert.ok(Math.abs(red(frameName(6)).red-120)<=3);
+  // Only the chosen frame is encoded as PNG; the window before it is decoded without encoding (FM-343: 180 PNGs per save at 60 fps).
+  if(process.platform!=='win32'){
+   const log=path.join(dir,'ffmpeg.log'),shim=path.join(dir,'ffmpeg-shim');fs.writeFileSync(shim,`#!/bin/sh\nprintf '%s\\n' "$*" >> ${JSON.stringify(log)}\nexec ${JSON.stringify(ffmpeg)} "$@"\n`,{mode:0o755});
+   fs.rmSync(path.join(store,'cache'),{recursive:true});
+   for(const [n,time,expected]of [[10,1.5,15],[11,0,0]]){
+    fs.rmSync(log,{force:true});const result=run({ffmpeg:shim,job:job(n,time)});assert.equal(result.status,'done',result.error);assert.ok(Math.abs(red(frameName(n)).red-expected*12)<=3);
+    for(const line of fs.readFileSync(log,'utf8').trim().split('\n'))if(/-c:v png/.test(line))assert.match(line,/-frames:v 1 /,'a PNG encode of more than one frame: '+line);
+    // The first decode is a quarter-second window, not three seconds (FM-343: 7-10 s of ffmpeg per save on production).
+    const window=fs.readFileSync(log,'utf8').split('\n').find(line=>/-c:v pam/.test(line));assert.ok(Number((window.match(/trim=end=([\d.]+)/)||[])[1])<=0.2505,'first decode window too wide: '+window);
+   }
+  }
+  // Exact at 59.94 fps (frame k at k*1001/60000 s): just before a frame gives the one before it, just after gives it.
+  // Frame k is red mod(k,16)*16, green floor(k/16)*16.
+  const ntsc='internal-resource-v2-88888888-8888-4888-8888-888888888888-Walk_ntsc.mp4',ntscFile=path.join(dir,'ntsc.mp4');
+  assert.equal(spawnSync(ffmpeg,['-v','error','-f','lavfi','-i','color=c=black:s=64x48:r=60000/1001:d=2','-vf',"format=rgb24,geq=r='mod(N,16)*16':g='floor(N/16)*16':b=0",'-c:v','libx264','-pix_fmt','yuv444p','-qp','0','-g','56',ntscFile]).status,0);
+  run({publish:{name:ntsc,file:ntscFile}});
+  const frameIndex=name=>{const index=JSON.parse(fs.readFileSync(path.join(store,name),'utf8')),pngFile=path.join(dir,'ntsc.png');fs.writeFileSync(pngFile,Buffer.concat(Array.from({length:index.parts},(_,i)=>fs.readFileSync(path.join(store,`internal-markup-part-${index.id}-${String(i).padStart(8,'0')}.bin`)))));
+   const raw=spawnSync(ffmpeg,['-v','error','-i',pngFile,'-f','rawvideo','-pix_fmt','rgb24','-']).stdout;return Math.round(raw[0]/16)+16*Math.round(raw[1]/16);};
+  for(const [n,k,offset]of [[12,57,-.002],[13,57,.0002],[14,90,-.002],[15,31,-.004],[16,100,.008],[17,111,-.002]]){
+   const time=Number((k*1001/60000+offset).toFixed(4)),expected=offset<0?k-1:k,result=run({job:job(n,time,{source:ntsc})});assert.equal(result.status,'done',result.error);
+   assert.equal(frameIndex(frameName(n)),expected,`t=${time}: frame ${expected} expected`);
+  }
+  // A video slower than 4 fps has no frame in the quarter-second window: the three-second window finds it.
+  const slow='internal-resource-v2-99999999-9999-4999-8999-999999999999-Walk_slow.mp4',slowFile=path.join(dir,'slow.mp4');
+  assert.equal(spawnSync(ffmpeg,['-v','error','-f','lavfi','-i','color=c=black:s=64x48:r=2:d=4','-vf',"format=rgb24,geq=r='N*24':g=0:b=0",'-c:v','libx264','-pix_fmt','yuv444p','-qp','0',slowFile]).status,0);
+  run({publish:{name:slow,file:slowFile}});
+  for(const [n,time,expected]of [[18,1.3,2],[19,3.9,7],[20,.2,0]]){
+   const result=run({job:job(n,time,{source:slow})});assert.equal(result.status,'done',result.error);assert.ok(Math.abs(red(frameName(n)).red-expected*24)<=3,`t=${time}: frame ${expected} expected`);
+  }
+  // A customer's walkthrough is a plain stored file: streamed to disk once, never held in PHP memory.
+  assert.deepEqual(run({valid:['customer-reference-0.webm','customer-reference-12.MP4','customer-reference-x.webm','customer-reference-0.webm.php','manifest.json']}),[true,true,false,false,false]);
+  fs.copyFileSync(source,path.join(store,'customer-reference-0.mp4'));
+  const customer=n=>job(n,1.0,{project:'exteriors_'+'c'.repeat(32),source:'customer-reference-0.mp4'});
+  const streamed=run({download:true,job:customer(9)});assert.equal(streamed.status,'done',streamed.error);assert.deepEqual(streamed.downloads,['customer-reference-0.mp4']);
+  assert.ok(Math.abs(red(frameName(9)).red-120)<=3);assert.deepEqual(red(frameName(9)).index.source_video,{name:'customer-reference-0.mp4',time:1});
+  assert.deepEqual(run({download:true,job:customer(9)}).downloads,[],'the streamed copy is reused');
   // Failures are reported, never published.
   const missingBinary=run({ffmpeg:path.join(dir,'no-ffmpeg-here'),job:job(7,.5)});assert.equal(missingBinary.status,'failed');assert.match(missingBinary.error,/not available|not installed/);assert.equal(fs.existsSync(path.join(store,frameName(7))),false);
   fs.rmSync(path.join(store,'cache'),{recursive:true});const part=path.join(store,'internal-markup-part-11111111-1111-4111-8111-111111111111-00000000.bin'),bytes=fs.readFileSync(part);fs.writeFileSync(part,Buffer.concat([bytes.subarray(0,-1),Buffer.from([bytes.at(-1)^1])]));
@@ -56,11 +95,11 @@ const phpExt=path.dirname(spawnSync(php,['-r','echo PHP_BINARY;'],{encoding:'utf
 const phpArgs=['-d','display_errors=0','-d','extension_dir='+phpExt,'-d','extension=curl','-d','extension=mbstring'];
 const bridgeMissing=missing||(spawnSync(php,[...phpArgs,'-r','exit(function_exists("curl_init")?0:1);']).status?'php curl extension is unavailable':'');
 test('project_resources.php accepts a frame job, answers before extracting, and publishes the frame',{skip:bridgeMissing||false},async()=>{
- const dir=fs.mkdtempSync(path.join(os.tmpdir(),'fm-bridge-')),project='fullhouse_'+'a'.repeat(32),store=new Map();
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'fm-bridge-')),project='fullhouse_'+'a'.repeat(32),customer='exteriors_'+'d'.repeat(32),store=new Map();
  const api=http.createServer((req,res)=>{const chunks=[];req.on('data',c=>chunks.push(c));req.on('end',()=>{
   const body=Buffer.concat(chunks),u=new URL(req.url,'http://api'),send=(status,value,type='application/json')=>{res.writeHead(status,{'Content-Type':type});res.end(Buffer.isBuffer(value)?value:JSON.stringify(value));};
   if(u.pathname==='/internal-exteriors/capability')return send(200,{email:'tech@example.com'});
-  const m=u.pathname.match(/^\/projects\/([^/]+)\/artifacts(?:\/(.+))?$/);if(!m||m[1]!==project)return send(404,{error:'no'});
+  const m=u.pathname.match(/^\/projects\/([^/]+)\/artifacts(?:\/(.+))?$/);if(!m||![project,customer].includes(m[1]))return send(404,{error:'no'});
   if(req.method==='POST'){const boundary=req.headers['content-type'].split('boundary=')[1],text=body.toString('latin1'),name=text.match(/filename="([^"]+)"/)[1],start=text.indexOf('\r\n\r\n')+4,end=text.lastIndexOf('\r\n--'+boundary);store.set(name,body.subarray(start,end));return send(200,{ok:true,artifact:{name,size:end-start}});}
   if(!m[2])return send(200,{files:[...store].map(([name,b])=>({name,size:b.length,updated_at:new Date().toISOString()}))});
   const name=decodeURIComponent(m[2]);return store.has(name)?send(200,store.get(name),'application/octet-stream'):send(404,{error:'missing'});
@@ -89,5 +128,17 @@ test('project_resources.php accepts a frame job, answers before extracting, and 
   const check=path.join(dir,'check.png');fs.writeFileSync(check,png);const red=spawnSync(ffmpeg,['-v','error','-i',check,'-f','rawvideo','-pix_fmt','rgb24','-']).stdout[0];assert.ok(Math.abs(red-144)<=3,'frame 12 expected, red '+red);
   const listing=(await (await fetch(base)).json()).files,listed=listing.find(f=>f.name===frame);assert.equal(listed.original_name,'Walk through – 0:01.png');assert.equal(listed.role,'tech');
   const favorite=JSON.parse(store.get('internal-markup-favorite-66666666-6666-4666-8666-666666666666.json'));assert.equal(favorite.label,'Porch');assert.equal(favorite.frame,frame);
+  // A customer's order: the walkthrough is their own stored file (not a Resources upload).
+  store.set('customer-reference-0.mp4',bytes);
+  const cbase=`http://127.0.0.1:${port}/project_resources.php?project=${customer}`,cframe='internal-resource-v2-77777777-7777-4777-8777-777777777777-Walkthrough-frame-1.20s.png';
+  const cpost=body=>fetch(`${cbase}&name=${cframe}&action=frame`,{method:'POST',headers:{'X-Resource-Request':'1','X-Resource-Role':'tech','Content-Type':'application/json'},body:JSON.stringify(body)});
+  assert.equal((await cpost({source:'customer-reference-1.mp4',time:1})).status,404,'missing video');
+  assert.equal((await cpost({source:'manifest.json',time:1})).status,400,'only videos');
+  const caccepted=await cpost({source:'customer-reference-0.mp4',time:1.2});assert.equal(caccepted.status,202);const cjob=(await caccepted.json()).job;
+  let crecord;for(let i=0;i<100;i++){crecord=await (await fetch(`${cbase}&name=${cjob}`)).json();if(crecord.status!=='running')break;await new Promise(r=>setTimeout(r,100));}
+  assert.equal(crecord.status,'done',crecord.error);
+  const cpng=path.join(dir,'customer.png');fs.writeFileSync(cpng,Buffer.from(await (await fetch(`${cbase}&name=${cframe}`)).arrayBuffer()));
+  assert.ok(Math.abs(spawnSync(ffmpeg,['-v','error','-i',cpng,'-f','rawvideo','-pix_fmt','rgb24','-']).stdout[0]-144)<=3);
+  assert.ok((await (await fetch(cbase)).json()).files.some(f=>f.name===cframe),'listed on the customer order');
  }finally{server.kill();api.close();fs.rmSync(dir,{recursive:true,force:true});}
 });

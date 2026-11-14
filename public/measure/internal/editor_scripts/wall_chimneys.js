@@ -144,8 +144,11 @@ function normalizeDrafts(edits){
   if(group.some(id=>!id.startsWith(d.chimney.id+':'))){
    d.members=group;d.joinedChimneys=[...new Set([...(d.joinedChimneys||[]),d.chimney.id])];delete d.chimney;continue;
   }
+  // A side's own walls are the side, its parts, or (exposure-clipped sides,
+  // generatedSide) its cells. Dropping a cell detaches the person's edit and
+  // the generated side shows again on every reload.
   const prefix=d.chimney.id+':side-'+d.chimney.side,fragmented=(d.members||[]).some(id=>id.startsWith(prefix+':part-'));
-  d.members=(d.members||[]).filter(id=>id===prefix||id.startsWith(prefix+':part-'));
+  d.members=(d.members||[]).filter(id=>id===prefix||id.startsWith(prefix+':part-')||id.startsWith(prefix+':cell-'));
   if(!fragmented)continue;
   for(const n of d.sketch?.nodes||[]){if(n.fixed||n.userDraftPoint||d.sketch.edges.some(e=>e.a===n.id||e.b===n.id))continue;
    if(d.sketch.outlines.some(r=>r.some((a,i)=>G.onEdge(n,a,r[(i+1)%r.length],1e-6))))n.generatedBoundary=true;
@@ -193,7 +196,7 @@ function updateScene(walls,state,cs){
  const drafts=Object.values(edits.$drafts||{}).filter(d=>!d.chimney&&!d.mergedInto),claimed=new Set(drafts.flatMap(d=>d.members||[]).map(id=>id.split(':chimney-cut-')[0]));
  const world=(d,p)=>d.frame?W.fromFrame(d.frame,p):{x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x,z:p.y},faces=[...surfaces];
  for(const d of drafts)for(const f of d.faces||[]){const signature=f.points.map(p=>p.nodeId).sort().join('|');if(f.boundaryHole||f.solidId||(d.deletedFaces||[]).includes(signature))continue;faces.push({...f,points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))});}
- for(const w of walls){const face={points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]};if(!claimed.has(w.id)){faces.push(face);continue;}
+ for(const w of walls){const face={points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]};if(!claimed.has(w.id)&&!drafts.some(d=>G.draftOwnsWall(d,w))){faces.push(face);continue;}
   // Drafts created on either side of a chimney omit its covered siding.
   // Restore that covered interval solely for the building-inside query.
   for(const c of cs)for(const [lo,hi]of volumeIntervals(...w.bottom,c)){const p=sliceWall(w,lo,hi,w.id);faces.push({points:[p.bottom[0],p.bottom[1],p.top[1],p.top[0]]});}}
@@ -225,8 +228,16 @@ function exposureBands(a,b,state,offset,bottom,top,other=[]){const scene=scenes.
 // Intersect the generated building with a chimney side in (side distance,
 // elevation). Splitting at actual surface planes preserves sloped roof seams;
 // a lower support only hides masonry below its roof, never the full shaft.
+// A chimney with roof all around it, wider than any eave overhang, comes up through
+// the middle of the roof: nothing of it is below the roof, whatever the base says.
+// A chimney at the roof's edge (an overhang or an open side) may run to the ground.
+const ROOF_SURROUND=.75;
+function roofSurrounds(c,state){
+ const faces=state.roof?.faces||[],n=c.points.length,sign=area(c.points)<0?-1:1;if(!faces.length||n<3)return false;
+ return c.points.every((a,i)=>{const b=c.points[(i+1)%n],len=dist(a,b);if(len<EPS)return true;const o={x:sign*(b.y-a.y)/len,y:-sign*(b.x-a.x)/len};return [.1,.5,.9].every(t=>{const p=mix(a,b,t);return [.05,ROOF_SURROUND/2,ROOF_SURROUND].every(d=>{const q={x:p.x+o.x*d,y:p.y+o.y*d};return faces.some(f=>contains(f,q));});});});
+}
 function generatedSide(c,side,state){
- if(c.points.every(p=>buildingBase(state).some(f=>contains(f,p))))return [];
+ if(roofSurrounds(c,state)||c.points.every(p=>buildingBase(state).some(f=>contains(f,p))))return [];
  const scene=scenes.get(state),a=c.points[side],b=c.points[(side+1)%c.points.length],length=dist(a,b),u={x:(b.x-a.x)/length,y:(b.y-a.y)/length},n={x:u.y,y:-u.x};
  const world=p=>({x:a.x+u.x*p.x,y:a.y+u.y*p.x,z:p.y}),lines=[],seen=new Set();
  for(const {f,frame}of scene.faces){
@@ -272,7 +283,7 @@ function buildFoundation(state){
  // Leave manually reshaped foundation pieces alone.
  const overridden=new Set(base.faces.filter(f=>f.chimneyFoundation&&f.chimneyFoundationShape!==shape(f)).map(f=>f.chimneyFoundation));
  const kept=base.faces.filter(f=>!f.chimneyFoundation||overridden.has(f.chimneyFoundation)),added=[];
- for(const c of cs){if(overridden.has(c.id))continue;
+ for(const c of cs){if(overridden.has(c.id)||roofSurrounds(c,state))continue;
   const points=c.points.map(p=>({...p,z:floorAt(state,p)}));
   const pieces=W.joinFragments(W.subtract({points},[...kept,...added])).flatMap(f=>f.holes?.length?W.subtract(f,f.holes.map(points=>({points}))):[f.points]);
   pieces.forEach((ring,i)=>{if(Math.abs(area(ring))<1e-8)return;const f={id:c.id+':foundation-'+i,chimneyFoundation:c.id,points:clean(ring,true).map(p=>({...p,z:floorAt(state,p)}))};B.validate(f);f.chimneyFoundationShape=shape(f);added.push(f);});
@@ -431,6 +442,7 @@ function compose(walls,state){
  for(const w of walls){let pieces=[w];for(const c of chimneys)pieces=pieces.flatMap(p=>cutWall(p,c,state));pieces.forEach((p,i)=>normal.push({...p,id:i?w.id+':chimney-cut-'+i:w.id}));}
  const shell=[];
  for(const c of chimneys.filter(c=>!state.wallEdits?.$chimneyVolumes?.[c.id]||state.wallEdits.$chimneyVolumes[c.id].mode==='upper'))for(let side=0;side<c.points.length;side++){
+  if(roofSurrounds(c,state))break;
   if(scenes.get(state)?.generated){shell.push(...generatedSide(c,side,state));continue;}
   const a=c.points[side],b=c.points[(side+1)%c.points.length],len=dist(a,b),outward={x:(b.y-a.y)/len,y:-(b.x-a.x)/len};
   // Sample just outside the volume so a side coincident with a building edge is exposed.

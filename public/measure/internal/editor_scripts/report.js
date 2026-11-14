@@ -183,6 +183,8 @@ function mergeReportConfigStateIntoLatestState(targetState, sourceState) {
         }
     });
 
+    targetState.exteriorSettings = exteriorSettingsObject(targetState.exteriorSettings);
+
     if (Array.isArray(sourceState.excludedSignatures)) {
         targetState.excludedSignatures = sourceState.excludedSignatures.slice();
         window.reportExcludedSignatures = new Set(sourceState.excludedSignatures);
@@ -2717,7 +2719,7 @@ async function renderConfigPage() {
         container.appendChild(pageDiv);
     } catch (e) {
         console.error(e);
-        container.innerHTML = '<div style="color:red">Error rendering preview.</div>';
+        container.innerHTML = `<div style="color:red">Error rendering preview: ${escapeHtml(e?.message || 'unknown error')}</div>`;
     }
 }
 
@@ -6771,10 +6773,22 @@ function getMissingRequiredGutterStories(state) {
     }
 }
 
+// Adds the project's uploaded files to Sources & Notes. Storage or a login that fails here costs the
+// references, never the report (FM-313): returns the reason, or '' when they were added.
+async function mergeProjectResourcesIntoSources(state) {
+    try {
+        await window.ProjectResources?.mergeSubmission(state);
+        return '';
+    } catch (e) {
+        console.warn('[PDF Preview] Project resources could not be added to Sources & Notes:', e);
+        return e?.message || 'unknown error';
+    }
+}
+
 async function renderLegacyFinalizeChecklistPage(container) {
     const state = reportConfigState;
     if (!state) return;
-    await window.ProjectResources?.mergeSubmission(state);
+    await mergeProjectResourcesIntoSources(state);
 
     if (!state.finalizeChecklist) state.finalizeChecklist = {};
     if (!state.finalizeSources) state.finalizeSources = { images: [], notes: '' };
@@ -6832,9 +6846,8 @@ async function renderLegacyFinalizeChecklistPage(container) {
     const storiesReady = !guttersRequired || missingGutterStories.length === 0;
     const srcChecked = qaPdfReviewMode ? true : state.finalizeSourcesConfirmed;
     const allDone = finalizeCategories.every(c => !!state.finalizeChecklist[c.key]) && srcChecked && storiesReady;
-    const storiesHint = storiesReady
-        ? 'All gutter stories are filled in.'
-        : `Set stories for ${missingGutterStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submission.`;
+    // A reminder only while gutter stories are missing; filled in, it takes no space (Jack, 2026-11-01).
+    const storiesHint = `Set gutter stories for ${missingGutterStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submitting.`;
 
     container.innerHTML = `
         <div class="fin-wrap">
@@ -6870,8 +6883,8 @@ async function renderLegacyFinalizeChecklistPage(container) {
             </div>`}
 
             ${guttersRequired ? `
-                <div id="finGutterStoriesReq" style="margin:0 0 8px 0; padding:10px 12px; border:1px solid ${storiesReady ? '#c5d8c9' : '#f2c6c2'}; background:${storiesReady ? '#f7fbf8' : '#fff5f5'}; border-radius:10px; font-size:12px; color:${storiesReady ? '#188038' : '#b3261e'}; font-weight:700;">
-                    Gutter stories requirement: ${storiesHint}
+                <div id="finGutterStoriesReq" ${storiesReady ? 'hidden ' : ''}style="margin:0 0 8px 0; padding:10px 12px; border:1px solid ${storiesReady ? '#c5d8c9' : '#f2c6c2'}; background:${storiesReady ? '#f7fbf8' : '#fff5f5'}; border-radius:10px; font-size:12px; color:${storiesReady ? '#188038' : '#b3261e'}; font-weight:700;">
+                    ${storiesHint}
                 </div>
             ` : ''}
 
@@ -6909,12 +6922,11 @@ async function renderLegacyFinalizeChecklistPage(container) {
             hint.textContent = 'All checks passed - ready to submit!';
         }
         if (reqBox && currentGuttersRequired) {
+            reqBox.hidden = currentStoriesReady;
             reqBox.style.borderColor = currentStoriesReady ? '#c5d8c9' : '#f2c6c2';
             reqBox.style.background = currentStoriesReady ? '#f7fbf8' : '#fff5f5';
             reqBox.style.color = currentStoriesReady ? '#188038' : '#b3261e';
-            reqBox.textContent = currentStoriesReady
-                ? 'Gutter stories requirement: All gutter stories are filled in.'
-                : `Gutter stories requirement: Set stories for ${currentMissingStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submission.`;
+            if (!currentStoriesReady) reqBox.textContent = `Set gutter stories for ${currentMissingStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submitting.`;
         }
 
         // Dots
@@ -7025,65 +7037,6 @@ const QA_PDF_REVIEW_ITEMS = [
     { key: 'diagram_labels', label: 'Diagram Labels' }
 ];
 
-// The seven confirmations the server requires before a customer full-house
-// report is approved (full_house_workflow.ts FULL_HOUSE_REVIEW_FIELDS). In
-// embedded QA the portal's own checklist is hidden, so the PDF page shows them
-// and sends them with the QA or manager decision.
-const QA_FULL_HOUSE_REVIEW_ITEMS = [
-    { key: 'roof', label: 'Roof measurements' },
-    { key: 'walls', label: 'Exterior walls and dimensions' },
-    { key: 'openings', label: 'Windows and doors' },
-    { key: 'finishes_trim', label: 'Finishes and trim' },
-    { key: 'gutters', label: 'Gutters and stories' },
-    { key: 'references', label: 'Customer photos and walkthroughs' },
-    { key: 'pdf', label: 'Complete full-house PDF' }
-];
-let qaFullHouseReviewChecks = { folder: '', checks: {} };
-
-function isQaFullHouseReviewMode() {
-    return window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE === true;
-}
-
-function getQaFullHouseReviewChecks() {
-    const folder = String(window.currentProjectId || '');
-    if (qaFullHouseReviewChecks.folder !== folder) qaFullHouseReviewChecks = { folder, checks: {} };
-    return qaFullHouseReviewChecks.checks;
-}
-
-function qaFullHouseReviewPayload() {
-    if (!isQaFullHouseReviewMode()) return null;
-    const checks = getQaFullHouseReviewChecks();
-    return Object.fromEntries(QA_FULL_HOUSE_REVIEW_ITEMS.map((item) => [item.key, checks[item.key] === true]));
-}
-
-function isQaFullHouseReviewComplete() {
-    const payload = qaFullHouseReviewPayload();
-    return !payload || QA_FULL_HOUSE_REVIEW_ITEMS.every((item) => payload[item.key] === true);
-}
-
-function postQaFullHouseReviewState() {
-    const review = qaFullHouseReviewPayload();
-    if (!review || window.parent === window) return;
-    window.parent.postMessage({
-        type: 'firstmeasure:qa_full_house_review',
-        folder: window.currentProjectId || reportConfigState?.folderId || '',
-        full_house_review: review
-    }, window.location.origin);
-}
-
-function renderQaFullHouseReviewHtml() {
-    if (!isQaFullHouseReviewMode()) return '';
-    const checks = getQaFullHouseReviewChecks();
-    return `
-        <fieldset class="qa-full-house-review" id="qaPdfFullHouseReview" style="margin:0 0 10px; padding:10px 12px; border:1px solid #d0d5dd; border-radius:10px;">
-            <legend style="font-weight:700; padding:0 4px;">Full-house review</legend>
-            ${QA_FULL_HOUSE_REVIEW_ITEMS.map((item) => `
-                <label style="display:block; margin:6px 0;"><input type="checkbox" data-full-house-review="${item.key}" ${checks[item.key] === true ? 'checked' : ''}> ${escapeHtml(item.label)}</label>
-            `).join('')}
-        </fieldset>
-    `;
-}
-
 // Each PDF preview render synchronizes a new server revision. Approval waits for
 // renders in flight so it names the newest revision, not one replaced seconds later.
 let firstMeasurePdfPreviewsInFlight = 0;
@@ -7164,7 +7117,6 @@ function renderQaPdfReviewHtml(state) {
     return `
         <div class="qa-pdf-review-panel" id="qaPdfReviewPanel">
             <div class="qa-pdf-review-grid">${itemsHtml}</div>
-            ${renderQaFullHouseReviewHtml()}
             <div class="qa-pdf-review-actions">
                 <button class="fin-submit-btn qa-sendback disabled" id="qaPdfSendBackBtn" disabled>
                     <i class="fas fa-undo"></i> Request Tech Correction
@@ -7429,7 +7381,6 @@ function postQaPdfDecision(status, threads) {
         folder: window.currentProjectId || reportConfigState?.folderId || '',
         pdf_sync_job_id: reviewedSync.jobId || reviewedSync.job_id || '',
         pdf_sync_revision: reviewedSync.revision || '',
-        ...(isQaFullHouseReviewMode() ? { full_house_review: qaFullHouseReviewPayload() } : {}),
         threads: Array.isArray(threads) ? threads : (window.DrafterQA?.getThreads ? window.DrafterQA.getThreads() : [])
     }, window.location.origin);
 }
@@ -7518,15 +7469,13 @@ function setupQaPdfReviewControls(container, state, storiesReady) {
         const allPass = allReviewed && values.every((item) => item.status === 'pass');
         const failed = values.filter((item) => item.status === 'fail');
         const failedWithComments = failed.length > 0 && failed.every((item) => String(item.comment || '').trim().length > 0);
-        const fullHouseReady = isQaFullHouseReviewComplete();
-        const canApprove = storiesReady && allPass && fullHouseReady;
-        const canCorrectApprove = storiesReady && failedWithComments && fullHouseReady;
+        const canApprove = storiesReady && allPass;
+        const canCorrectApprove = storiesReady && failedWithComments;
         const canSendBack = failedWithComments && !fixOnlyMode;
 
         if (approveBtn) {
             approveBtn.disabled = !canApprove;
             approveBtn.className = `fin-submit-btn qa-approve ${canApprove ? 'enabled' : 'disabled'}`;
-            approveBtn.title = fullHouseReady ? '' : 'Tick every full-house review check first.';
         }
         if (correctApproveBtn) {
             correctApproveBtn.disabled = !canCorrectApprove;
@@ -7538,15 +7487,6 @@ function setupQaPdfReviewControls(container, state, storiesReady) {
             sendBackBtn.className = `fin-submit-btn qa-sendback ${canSendBack ? 'enabled' : 'disabled'}`;
         }
     };
-
-    container.querySelectorAll('#qaPdfFullHouseReview [data-full-house-review]').forEach((input) => {
-        input.addEventListener('change', () => {
-            getQaFullHouseReviewChecks()[input.getAttribute('data-full-house-review')] = input.checked;
-            postQaFullHouseReviewState();
-            refresh();
-        });
-    });
-    postQaFullHouseReviewState();
 
     container.querySelectorAll('.qa-pdf-check').forEach((card) => {
         const key = card.getAttribute('data-qa-review');
@@ -7635,10 +7575,10 @@ function setupQaPdfReviewControls(container, state, storiesReady) {
 async function renderFinalizePage(container) {
     let state = reportConfigState;
     if (!state) return;
-    await window.ProjectResources?.mergeSubmission(state);
+    const resourcesError = await mergeProjectResourcesIntoSources(state);
 
     if (!state.finalizeSources) state.finalizeSources = { images: [], notes: '' };
-    if (!Array.isArray(state.finalizeSources.images)) state.finalizeSources.images = [];
+    state.finalizeSources.images = Array.isArray(state.finalizeSources.images) ? state.finalizeSources.images.filter(Boolean) : [];
     if (typeof state.finalizeSources.notes !== 'string') state.finalizeSources.notes = '';
 
     const buildThumbsHtml = () => (state.finalizeSources.images || []).map((img, idx) => `
@@ -7650,9 +7590,8 @@ async function renderFinalizePage(container) {
     const guttersRequired = shouldIncludeGutters(state);
     const missingGutterStories = getMissingRequiredGutterStories(state);
     const storiesReady = !guttersRequired || missingGutterStories.length === 0;
-    const storiesHint = storiesReady
-        ? 'All gutter stories are filled in.'
-        : `Set stories for ${missingGutterStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submission.`;
+    // A reminder only while gutter stories are missing; filled in, it takes no space (Jack, 2026-11-01).
+    const storiesHint = `Set gutter stories for ${missingGutterStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submitting.`;
     const qaPdfReviewMode = isQaPortalPdfReviewMode();
 
     container.innerHTML = `
@@ -7661,6 +7600,12 @@ async function renderFinalizePage(container) {
                 <div class="pdf-preview-toolbar">
                     <div class="pdf-preview-title"><i class="fas fa-file-pdf"></i> Report PDF</div>
                     <div class="pdf-preview-status" id="pdfPreviewStatus">Preparing preview...</div>
+                    <button type="button" class="pdf-preview-refresh" id="pdfPreviewOpen" disabled title="Open the PDF in a new tab">
+                        <i class="fas fa-external-link-alt"></i> Open
+                    </button>
+                    <button type="button" class="pdf-preview-refresh" id="pdfPreviewDownload" disabled title="Download the PDF">
+                        <i class="fas fa-download"></i> Download
+                    </button>
                     <button type="button" class="pdf-preview-refresh" id="pdfPreviewRefresh">
                         <i class="fas fa-sync-alt"></i> Regenerate
                     </button>
@@ -7673,6 +7618,10 @@ async function renderFinalizePage(container) {
                     <iframe class="pdf-preview-frame" id="pdfPreviewFrame" title="PDF Preview" style="display:none;"></iframe>
                 </div>
             </div>
+
+            ${resourcesError ? `<div id="finResourcesWarning" style="margin:0; padding:10px 12px; border:1px solid #f2c6c2; background:#fff5f5; border-radius:10px; font-size:12px; color:#b3261e; font-weight:700;">
+                Your project files could not be added to Sources &amp; Notes (${escapeHtml(resourcesError)}). You can still generate the PDF; add any references it needs below.
+            </div>` : ''}
 
             ${qaPdfReviewMode ? renderQaSubmissionSourcesReviewHtml(state) : `<div class="fin-src" id="finSrcCard">
                 <div class="fin-src-body">
@@ -7696,12 +7645,12 @@ async function renderFinalizePage(container) {
             </div>`}
 
             ${guttersRequired ? `
-                <div id="finGutterStoriesReq" style="margin:0; padding:10px 12px; border:1px solid ${storiesReady ? '#c5d8c9' : '#f2c6c2'}; background:${storiesReady ? '#f7fbf8' : '#fff5f5'}; border-radius:10px; font-size:12px; color:${storiesReady ? '#188038' : '#b3261e'}; font-weight:700;">
-                    Gutter stories requirement: ${storiesHint}
+                <div id="finGutterStoriesReq" ${storiesReady ? 'hidden ' : ''}style="margin:0; padding:10px 12px; border:1px solid ${storiesReady ? '#c5d8c9' : '#f2c6c2'}; background:${storiesReady ? '#f7fbf8' : '#fff5f5'}; border-radius:10px; font-size:12px; color:${storiesReady ? '#188038' : '#b3261e'}; font-weight:700;">
+                    ${storiesHint}
                 </div>
             ` : ''}
 
-            ${window.FIRSTMEASURE_FULL_HOUSE === true && !window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE && !window.FIRSTMEASURE_TUTORIAL?.enabled ? '<p>Internal draft · Download from the preview above.</p>' : qaPdfReviewMode ? renderQaPdfReviewHtml(state) : `
+            ${window.FIRSTMEASURE_FULL_HOUSE === true && !window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE && !window.FIRSTMEASURE_TUTORIAL?.enabled ? '' : qaPdfReviewMode ? renderQaPdfReviewHtml(state) : `
                 <div class="fin-submit-area">
                     <button class="fin-submit-btn ${storiesReady ? 'enabled' : 'disabled'}" id="finalSubmitBtn" ${storiesReady ? '' : 'disabled'}>
                         <i class="fas fa-file-pdf"></i> Submit PDF
@@ -7716,6 +7665,25 @@ async function renderFinalizePage(container) {
     const previewFrame = container.querySelector('#pdfPreviewFrame');
     const placeholder = container.querySelector('#pdfPreviewPlaceholder');
     const refreshBtn = container.querySelector('#pdfPreviewRefresh');
+    // Chrome hides its own PDF toolbar once the preview scrolls, so the preview
+    // has its own Open and Download, enabled whenever a preview is showing.
+    const openBtn = container.querySelector('#pdfPreviewOpen');
+    const downloadBtn = container.querySelector('#pdfPreviewDownload');
+    const syncPreviewFileButtons = () => {
+        [openBtn, downloadBtn].forEach((button) => { if (button) button.disabled = !_pdfPreviewUrl; });
+    };
+    if (openBtn) openBtn.addEventListener('click', () => {
+        if (_pdfPreviewUrl) window.open(_pdfPreviewUrl, '_blank', 'noopener');
+    });
+    if (downloadBtn) downloadBtn.addEventListener('click', () => {
+        if (!_pdfPreviewUrl) return;
+        const link = document.createElement('a');
+        link.href = _pdfPreviewUrl;
+        link.download = `${String(state.address || 'Report').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'Report'}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    });
     let previewSyncReady = false;
     if (qaPdfReviewMode) wireQaSubmissionSourcesReview(container, state);
 
@@ -7846,6 +7814,7 @@ async function renderFinalizePage(container) {
                             previewFrame.src = `${_pdfPreviewUrl}#toolbar=1&navpanes=0&view=FitH`;
                             previewFrame.style.display = 'block';
                             placeholder.style.display = 'none';
+                            syncPreviewFileButtons();
                             setPreviewStatus('Main report ready; verifying summary...');
                         }
                     }
@@ -7904,6 +7873,7 @@ async function renderFinalizePage(container) {
             setPreviewStatus('Preview failed', true);
         } finally {
             finishPreviewTracking();
+            syncPreviewFileButtons();
             if (typeof refreshSubmitState === 'function') refreshSubmitState();
             if (refreshBtn) {
                 refreshBtn.disabled = false;
@@ -7929,12 +7899,11 @@ async function renderFinalizePage(container) {
             : (missingStories.length ? 'Fill in all gutter stories to enable submission.' : 'Waiting for the reviewed PDF revision to be accepted...');
         if (reqBox) {
             const storiesFilled = missingStories.length === 0;
+            reqBox.hidden = storiesFilled;
             reqBox.style.borderColor = storiesFilled ? '#c5d8c9' : '#f2c6c2';
             reqBox.style.background = storiesFilled ? '#f7fbf8' : '#fff5f5';
             reqBox.style.color = storiesFilled ? '#188038' : '#b3261e';
-            reqBox.textContent = storiesFilled
-                ? 'Gutter stories requirement: All gutter stories are filled in.'
-                : `Gutter stories requirement: Set stories for ${missingStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submission.`;
+            if (!storiesFilled) reqBox.textContent = `Set gutter stories for ${missingStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submitting.`;
         }
     };
 
@@ -8191,11 +8160,18 @@ function getSubmissionSourceActorLabel() {
     return 'Technician';
 }
 
-function getSubmissionSourceMetadataBase() {
+async function getSubmissionSourceMetadataBase(folderId) {
     const current = (window.currentProjectLoadedAppMetadata && typeof window.currentProjectLoadedAppMetadata === 'object')
-        ? window.currentProjectLoadedAppMetadata
+        ? cloneSubmissionSourcesValue(window.currentProjectLoadedAppMetadata, {}) || {}
         : {};
-    return cloneSubmissionSourcesValue(current, {}) || {};
+    if (current.geometry) return current;
+    // The save below replaces the whole file. A loaded copy without the model (FM-357: only
+    // the QA drafts) would delete the roof and walls, so start from what is stored instead.
+    const stored = await window.firstMeasureFetchJson(
+        `/projects/${encodeURIComponent(folderId)}/artifacts/app_metadata.json`,
+        { method: 'GET', headers: { 'Accept': 'application/json' }, cache: 'no-store' }
+    );
+    return { ...(stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {}), ...current };
 }
 
 async function persistSubmissionSourceMetadata(folderId, payload) {
@@ -8203,7 +8179,7 @@ async function persistSubmissionSourceMetadata(folderId, payload) {
         throw new Error('Unable to save submission note metadata for this project.');
     }
 
-    const nextMeta = getSubmissionSourceMetadataBase();
+    const nextMeta = await getSubmissionSourceMetadataBase(folderId);
     nextMeta.submission_sources = payload && typeof payload === 'object'
         ? cloneSubmissionSourcesValue(payload, {})
         : {};
@@ -8225,7 +8201,7 @@ async function persistSubmissionSourceMetadata(folderId, payload) {
 }
 
 async function uploadSubmissionSourcesAndPersist(state, setOverlay) {
-    await window.ProjectResources?.mergeSubmission(state);
+    await mergeProjectResourcesIntoSources(state);
     if (isQaPortalPdfReviewMode()) {
         return cloneSubmissionSourcesValue(
             window.currentProjectManifest?.submission_sources ||

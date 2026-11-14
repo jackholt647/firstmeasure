@@ -4,13 +4,13 @@
 // with equal values, and marker toggles, and compare every frame's SVG calls,
 // 3D scene (objects, geometry, materials, userData and render-part reuse) and
 // model state:
-// - against the same editor with its draw memos switched off, always;
-// - against the editor before the memos were added (REFERENCE), when git can
-//   read that commit. Retire this comparison once drawing intentionally changes.
+// against the same editor with its draw memos switched off. (A comparison with
+// the editor before the memos were added, 43b2fa22, was retired when FM-385
+// changed which lines and points draw orange, and so how they are batched.)
 // Extra saved houses: set FM_DRAW_MODELS to a directory of exported projects
 // (default output/full-house-speed-20261019/models when it exists).
-const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
-const SCRIPTS='public/measure/internal/editor_scripts/',REFERENCE='43b2fa22';
+const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
+const SCRIPTS='public/measure/internal/editor_scripts/';
 const req=name=>require('../'+SCRIPTS+name+'.js');
 const M={ExteriorGeometry:req('exterior_geometry'),ExteriorModel:req('exterior_model'),WallAxisCuts:req('wall_axis_cuts'),WallTrim:req('wall_trim'),WallSteps:req('wall_steps'),WallFeatures:req('wall_features'),WallSolidGeometry:req('wall_solid_geometry'),BaseGeometry:req('base_geometry'),BaseSketchGeometry:req('base_sketch_geometry'),WallGeometry:req('wall_geometry'),WallChimneys:req('wall_chimneys'),WallClosedSoffits:req('wall_closed_soffits')};
 // Compare behavior, not checkout line endings (function sources are serialized).
@@ -109,11 +109,6 @@ function compare(a,b,name){
 }
 test('draw memos reproduce the unmemoized draw output, frame by frame, on saved houses',()=>{
  let frames=0;for(const house of houses())frames+=compare(instance(current,house),instance(current,house,{memo:false}),house.name);
- assert.ok(frames>100,'too few frames compared: '+frames);
-});
-test('optimized drawing reproduces the pre-optimization editor output on saved houses',t=>{
- let reference;try{reference=lf(execFileSync('git',['show',REFERENCE+':'+SCRIPTS+'wall_face_draft.js'],{encoding:'utf8',maxBuffer:64*1024*1024,stdio:['ignore','pipe','ignore']}));}catch(e){t.skip('reference commit '+REFERENCE+' is not available');return;}
- let frames=0;for(const house of houses())frames+=compare(instance(current,house),instance(reference,house),house.name);
  assert.ok(frames>100,'too few frames compared: '+frames);
 });
 test('chimney clipping shared through a render generation is never mutated by its readers',()=>{

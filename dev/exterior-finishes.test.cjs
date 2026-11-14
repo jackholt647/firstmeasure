@@ -97,3 +97,12 @@ test('opaque faces use depth bias to preserve coplanar lines without exposing hi
  for(const mode of ['opaque','textured','opaque']){ctx.exteriorSurfaceDisplay(group,mode);assert.equal(fill.material.polygonOffset,true);assert.equal(fill.material.polygonOffsetFactor,1);assert.equal(fill.material.polygonOffsetUnits,1);assert.equal(fill.material.depthWrite,true);assert.equal(line.material.depthTest,true);assert.equal(line.material.depthWrite,false);}
  ctx.exteriorSurfaceDisplay(group,'translucent');assert.equal(fill.material.polygonOffset,false);assert.equal(fill.material.polygonOffsetFactor,0);assert.equal(line.material.depthTest,false);
 });
+test('roof trim has its own default colour, falls back to the default trim, and a line\'s own colour wins',()=>{
+ const ctx=fixture(),R=require('../public/measure/internal/editor_scripts/roof_trim.js'),roof={faces:[{points:[{x:0,y:0,z:3},{x:4,y:0,z:3},{x:4,y:4,z:5},{x:0,y:4,z:5}]}]},classified={...roof,points:roof.faces[0].points,connections:[{startIdx:1,endIdx:2,type:'rake'}]};
+ const panel=R.panels(classified,R.setHeight({},R.perimeter(classified).map(e=>e.id),6)).find(f=>!f.deleted);assert.equal(panel.roofTrim,true,'a roof trim panel says so');
+ const color=(settings,face=panel)=>ctx.ExteriorFinishes.resolve(face,settings).color;
+ assert.equal(color({trimColor:'#112233'}),'#112233','no roof trim colour: the default trim');
+ assert.equal(color({trimColor:'#112233',roofTrimColor:'#445566'}),'#445566','the roof trim default');
+ assert.equal(color({trimColor:'#112233',roofTrimColor:'#445566'},{...panel,finishColor:'#778899'}),'#778899','a line coloured in Trim keeps its colour');
+ assert.equal(color({trimColor:'#112233',roofTrimColor:'#445566'},{material:'trim-horizontal',trim:true,points:panel.points}),'#112233','wall trim is not roof trim');
+});

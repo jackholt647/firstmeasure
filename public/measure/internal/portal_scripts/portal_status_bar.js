@@ -461,9 +461,7 @@
       const counts = Array.isArray(data.status_counts) ? data.status_counts : [];
       const countChips = counts.map((item) => this.renderCountChip(item)).join('');
 
-      const averageMs = Number.isFinite(Number(data.average_completion_ms))
-        ? Number(data.average_completion_ms)
-        : null;
+      const averageMs = this.durationMs(data.average_completion_ms);
       const averageCount = Number(data.average_completion_count || 0);
       const averageTone = this.averageToneClass(averageMs);
       const averageText = averageMs === null ? '--' : this.formatDuration(averageMs);
@@ -517,7 +515,7 @@
       if (!mount) return;
       const tech = data?.stats?.technician || {};
       const shift = data?.shift || {};
-      const avgMs = Number.isFinite(Number(tech.average_work_ms)) ? Number(tech.average_work_ms) : null;
+      const avgMs = this.durationMs(tech.average_work_ms);
       const avgText = avgMs === null ? '--' : this.formatDuration(avgMs);
       const avgHelp = this.escapeHtml(
         `Average working time for projects you submitted to QA during this shift. This includes the initial work segment plus any correction rounds you completed during the same shift window.`
@@ -549,7 +547,7 @@
       if (!mount) return;
       const qa = data?.stats?.qa || {};
       const shift = data?.shift || {};
-      const avgMs = Number.isFinite(Number(qa.average_decision_ms)) ? Number(qa.average_decision_ms) : null;
+      const avgMs = this.durationMs(qa.average_decision_ms);
       const avgText = avgMs === null ? '--' : this.formatDuration(avgMs);
       const shiftLabel = this.escapeHtml(this.formatShiftLabel(shift));
       mount.innerHTML = `
@@ -738,6 +736,14 @@
       const dt = new Date(Date.UTC(year, month - 1, day));
       dt.setUTCDate(dt.getUTCDate() + days);
       return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+    },
+
+    // A duration from the server, or null when it sent none (nothing finished
+    // in the window). Number(null) is 0, which would show as "0m".
+    durationMs(value){
+      if (value === null || value === undefined || value === '') return null;
+      const ms = Number(value);
+      return Number.isFinite(ms) ? ms : null;
     },
 
     formatDuration(ms){

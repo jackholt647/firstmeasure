@@ -99,3 +99,29 @@ test('closed circle reuses its starting node and stores its center without spoke
  assert.equal(edge.a,edge.b);assert.ok(center.curveCenter);assert.ok(base.sketch.edges.every(e=>e.a!==center.id&&e.b!==center.id));assert.equal(base.faces.length,3);assert.ok(Math.abs(base.faces.reduce((s,f)=>s+K.area({points:f.points}),0)-100)<1e-6);
  const loaded=JSON.parse(JSON.stringify(base));S.upgrade(loaded);assert.equal(loaded.sketch.curves[0].centerId,center.id);assert.ok(loaded.sketch.nodes.some(n=>n.id===center.id));
 });
+
+test('a face closed against a curved wall edge keeps the curve through repeated extrusion in either direction',()=>{
+ const c={...curve,radiusY:2},wall=W.extrude({id:'source',points:K.curveSamples(c),curves:[c]},3).sides.find(f=>f.curvedSurface?.logical),surfaces=[wall],moved=q=>({x:q.x+wall.curvedSurface.offset.x,y:q.y+wall.curvedSurface.offset.y,z:q.z+wall.curvedSurface.offset.z});
+ const ring=K.curveSamples(wall.curvedSurface.curve).map(({x,y,z})=>moved({x,y,z})),sampled={id:'plane-face',points:ring,holes:[]};
+ assert.ok(W.extrude(sampled,1).sides.every(f=>!f.curvedSurface),'a ring of samples alone sweeps into facets');
+ assert.equal(K.attachBoundaryCurves([sampled],surfaces),true);assert.equal(sampled.curves.length,1);
+ for(const [a,b]of [[1,-2.5],[1,1],[-1,1],[-1,-1]]){const first=W.extrude(sampled,a),second=W.extrude(first.cap,b);for(const r of [first,second]){assert.equal(r.cap.curves.length,1);assert.equal(r.sides.filter(f=>f.curvedSurface?.logical).length,1);assert.ok(r.sides.length<=2,'one curved wall and the straight side');}}
+ const a=ring[0],b=ring.at(-1),wire=W.surfaceWire({$surfaces:surfaces,$loose:{points:[a,b],edges:[[a,b]]}});assert.ok(wire.edges.some(e=>e.id===W.edgeKey(a,b)),'a chord across the surface stays in the wire');
+});
+
+test('a sticker on a curved face is the surface trimmed to its outline: true size, a real hole, and a report opening',()=>{
+ const R=require('../public/measure/internal/editor_scripts/exterior_report_model.js'),c={...curve,radiusY:2},wall=W.extrude({id:'source',points:K.curveSamples(c),curves:[c]},3).sides.find(f=>f.curvedSurface?.logical),def=wall.curvedSurface,chart=K.surfaceChart(def);
+ assert.ok(Math.abs(chart.width-Math.PI*2)<.01);assert.ok(Math.abs(chart.height-3)<1e-9);
+ for(const u of [0,.13,.5,.91,1]){const q=chart.fromChart(chart.toChart({x:u,y:.4}));assert.ok(Math.abs(q.x-u)<1e-6);assert.ok(Math.abs(q.y-.4)<1e-9);}
+ const FT=.3048,box=[[2,1],[2+3*FT,1],[2+3*FT,1+4*FT],[2,1+4*FT]].map(([x,y])=>chart.fromChart({x,y})),sticker={id:'s',feature:{type:'window'},holes:[],points:box.map(p=>K.surfacePoint(def,p.x,p.y)),curvedSurface:{...K.surfaceDefinition(def),logical:true,domains:[{points:box,holes:[]}]}};
+ assert.ok(Math.abs(K.surfaceArea(sticker)-3*FT*4*FT)<.001,'the area on the surface is the size asked for');
+ const [cut]=M.cutOpenings(wall,[sticker]);assert.equal(cut.curvedSurface.domains[0].holes.length,1);assert.ok(Math.abs(K.surfaceArea(cut)-(K.surfaceArea(wall)-K.surfaceArea(sticker)))<.001);assert.equal(wall.curvedSurface.domains[0].holes.length,0,'the wall itself is not rewritten');
+ const report=R.build({faces:[wall,sticker]}),w=report.walls.find(w=>w.curvedSurface);assert.equal(w.openings.length,1);assert.ok(Math.abs(w.openings[0].width-3)<.01);assert.ok(Math.abs(w.openings[0].height-4)<.01);assert.ok(Math.abs(w.net-(w.gross-w.openingArea))<1e-6);assert.ok(Math.abs(w.openingArea-12)<.02);assert.equal(report.warnings?.some?.(t=>/opening/i.test(t))||false,false);
+});
+
+test('a curve on a surface is a (u,v) path that bends two ways and saves as plain data',()=>{
+ const c={...curve,radiusY:2},wall=W.extrude({id:'source',points:K.curveSamples(c),curves:[c]},3).sides.find(f=>f.curvedSurface?.logical),def=K.surfaceDefinition(wall.curvedSurface),corners=[{x:.4,y:.2},{x:.6,y:.2},{x:.6,y:.6},{x:.4,y:.6}],arch=[.25,.5,.75].map(t=>({x:.6-.2*t,y:.6+.2*Math.sin(Math.PI*t)})),sticker={id:'s',feature:{type:'window'},holes:[],curvedSurface:{...def,logical:true,domains:[{points:[...corners.slice(0,3),...arch,corners[3]],holes:[]}],boundaryControls:corners}};
+ sticker.points=corners.map(p=>K.surfacePoint(def,p.x,p.y));const saved=JSON.parse(JSON.stringify(sticker));K.validateFace(saved);
+ const mesh=K.surfaceMesh(saved),paths=K.surfaceBoundaryCurves(saved).flat(2);assert.equal(paths.length,4);assert.ok(paths.every(p=>p.type==='surface-boundary'));const top=K.curveSamples(paths[2]);assert.ok(new Set(top.map(p=>p.z.toFixed(3))).size>2,'the arch rises');assert.ok(new Set(top.map(p=>p.y.toFixed(3))).size>2,'and follows the wall round');assert.ok(mesh.positions.every(p=>Math.abs(Math.hypot(p.x/2,p.y/2)-1)<1e-3),'every sample is on the surface');
+ assert.deepEqual(K.compactSurfaces([saved])[0].curvedSurface.domains,saved.curvedSurface.domains,'a saved sticker keeps its outline');
+});

@@ -2532,6 +2532,9 @@
       tbody.innerHTML = '';
       const summary = document.getElementById('studentProgressSummary');
       const showUnstarted = !!document.getElementById('tutorialShowUnstartedStudents')?.checked;
+      const courseLabel = tutorialCourseLabel();
+      const courseChip = document.getElementById('studentProgressCourse');
+      if (courseChip) courseChip.textContent = courseLabel;
       
       // Only employees:
       // - Prefer explicit account_type === 'employee' if present
@@ -2544,36 +2547,47 @@
         return true; // back-compat default
       };
       
+      // Everything on a row is about the selected curriculum. The server also
+      // sends totals across every curriculum; those only explain why someone
+      // who has not started this one has activity elsewhere.
+      const courseCounts = (s) => {
+        const counts = s.activity_counts || {};
+        const chapter = Math.max(1, Math.floor(Number(s.current_chapter || 1)) || 1);
+        const out = {
+          chapter,
+          projects: Number(counts.selected_tutorial_projects || 0),
+          attempts: Number(counts.selected_test_attempts || 0),
+          videos: Number(counts.selected_completed_videos || 0),
+          completed: Number(counts.selected_completed_projects || 0)
+        };
+        out.active = chapter > 1 || out.projects > 0 || out.attempts > 0 || out.videos > 0 || out.completed > 0;
+        return out;
+      };
+
       const allStudents = (data.students || []).filter(isEmployee);
-      const activeStudents = allStudents.filter(s => !!s.has_activity);
+      const activeStudents = allStudents.filter(s => courseCounts(s).active);
       const students = showUnstarted ? allStudents : activeStudents;
       const hiddenCount = Math.max(0, allStudents.length - activeStudents.length);
       if (summary) {
         summary.textContent = showUnstarted
-          ? `Showing ${students.length} employee${students.length === 1 ? '' : 's'} including ${hiddenCount} who have not started.`
-          : `Showing ${students.length} employee${students.length === 1 ? '' : 's'} with tutorial activity. ${hiddenCount} not-started user${hiddenCount === 1 ? '' : 's'} hidden.`;
+          ? `Showing ${students.length} employee${students.length === 1 ? '' : 's'} in ${courseLabel}, including ${hiddenCount} who have not started it.`
+          : `Showing ${students.length} employee${students.length === 1 ? '' : 's'} who have started ${courseLabel}. ${hiddenCount} who have not started it hidden.`;
       }
-      
+
       if (students.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">${showUnstarted ? 'No students found.' : 'No students with tutorial activity yet.'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">${showUnstarted ? 'No students found.' : `No one has started ${Portal.escapeHtml(courseLabel)} yet.`}</td></tr>`;
         return;
       }
       students.forEach(s => {
-        const counts = s.activity_counts || {};
-        const projectCount = Number(counts.tutorial_projects || 0);
-        const testCount = Number(counts.test_attempts || 0);
-        const videoCount = Number(counts.completed_videos || 0);
+        const course = courseCounts(s);
         const activityBits = [];
-        if (projectCount) activityBits.push(`${projectCount} project${projectCount === 1 ? '' : 's'}`);
-        if (testCount) activityBits.push(`${testCount} attempt${testCount === 1 ? '' : 's'}`);
-        if (videoCount) activityBits.push(`${videoCount} video${videoCount === 1 ? '' : 's'}`);
-        const normalizedStatus = String(s.activity_label || '').trim().toLowerCase();
-        if (s.training_complete && normalizedStatus !== 'training complete') activityBits.push('training complete');
-        if (!s.has_activity && s.seen_tutorial) activityBits.push('opened tutorial');
-        const chapterLabel = s.activity_label
-          ? Portal.escapeHtml(s.activity_label)
-          : s.has_activity
-          ? `Chapter ${Portal.escapeHtml(s.current_chapter || 1)}`
+        if (course.projects) activityBits.push(`${course.projects} project${course.projects === 1 ? '' : 's'}`);
+        if (course.attempts) activityBits.push(`${course.attempts} test attempt${course.attempts === 1 ? '' : 's'}`);
+        if (course.videos) activityBits.push(`${course.videos} video${course.videos === 1 ? '' : 's'} watched`);
+        if (!course.active && s.has_activity) activityBits.push('active in another curriculum');
+        else if (!course.active && s.seen_tutorial) activityBits.push('opened training');
+        const chapterLabel = course.active
+          ? `Chapter ${Portal.escapeHtml(course.chapter)}`
           : 'Not started';
         const activityLabel = activityBits.length ? `<div style="font-size:11px; color:#667085; margin-top:2px;">${Portal.escapeHtml(activityBits.join(' · '))}</div>` : '';
         const tr = document.createElement('tr');
@@ -2602,6 +2616,8 @@
 
       if (!data.success) return alert("Could not fetch details");
 
+      const courseEl = document.getElementById('stCourseLabel');
+      if (courseEl) courseEl.textContent = tutorialCourseLabel();
       const chapEl = document.getElementById('stCurrentChap');
       if (chapEl) chapEl.innerText = `Chapter ${data.progress.current_chapter}`;
 

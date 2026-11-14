@@ -1385,6 +1385,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
     <script src="editor_scripts/scene_3d.js?v=<?=fm_editor_asset_version('editor_scripts/scene_3d.js')?>"></script>
     <script src="editor_scripts/interaction_2d.js?v=<?=fm_editor_asset_version('editor_scripts/interaction_2d.js')?>"></script>
     <?php if ($fmFullHouseEditor): ?>
+    <script defer src="editor_scripts/resource_perspective.js?v=<?=fm_editor_asset_version('editor_scripts/resource_perspective.js')?>"></script>
     <script defer src="editor_scripts/project_resources.js?v=<?=fm_editor_asset_version('editor_scripts/project_resources.js')?>"></script>
     <?php endif; ?>
     <script src="editor_scripts/pane_layout.js?v=<?=fm_editor_asset_version('editor_scripts/pane_layout.js')?>"></script>
@@ -1431,6 +1432,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
     <script src="editor_scripts/exterior_model.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_model.js')?>"></script>
     <script src="editor_scripts/exterior_report_model.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_report_model.js')?>"></script>
     <script src="editor_scripts/wall_features.js?v=<?=fm_editor_asset_version('editor_scripts/wall_features.js')?>"></script>
+    <script src="editor_scripts/wall_stickers.js?v=<?=fm_editor_asset_version('editor_scripts/wall_stickers.js')?>"></script>
     <script src="editor_scripts/exterior_distance_input.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_distance_input.js')?>"></script>
 <script src="editor_scripts/wall_trim.js?v=<?=fm_editor_asset_version('editor_scripts/wall_trim.js')?>"></script>
 <script src="editor_scripts/exterior_frame_pipeline.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_frame_pipeline.js')?>"></script>
@@ -1438,6 +1440,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
 <script>window.FIRSTMEASURE_EXTERIOR_AI = <?=json_encode(strtolower((string)($_SESSION['user_email'] ?? '')) === 'jack@1m8.ai' && is_file('/var/lib/firstmeasure-exterior-ai/api.key') && strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]) === 'dev.1m8.ai')?>;</script>
 <script src="editor_scripts/exterior_ai_stickers.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_ai_stickers.js')?>"></script>
 <script src="editor_scripts/exterior_ai.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_ai.js')?>"></script>
+<script>window.FIRSTMEASURE_DEV_TOOLS = <?=json_encode(strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]) === 'dev.1m8.ai')?>;</script>
 <script src="editor_scripts/exterior_performance.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_performance.js')?>"></script>
 <script src="editor_scripts/exterior_rendered.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_rendered.js')?>"></script>
 <script src="editor_scripts/exterior_finishes.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_finishes.js')?>"></script>
@@ -2029,7 +2032,8 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
                 for (const entry of history) {
                     if (!entry || typeof entry !== 'object') continue;
                     const event = String(entry.event || entry.type || '').toLowerCase();
-                    if (event !== 'project_reopened_for_edits') continue;
+                    // A customer reorder of a rejected project reopens the same id: claims from before it belong to the earlier order (FM-386).
+                    if (event !== 'project_reopened_for_edits' && event !== 'reordered_rejected_project') continue;
                     const ms = window.firstMeasureParseClaimTimestamp(entry.ts || entry.at || entry.created_at);
                     if (ms !== null && (latest === null || ms > latest)) latest = ms;
                 }
@@ -3081,5 +3085,6 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
         });
 
     </script>
+<script src="portal_scripts/flag_console.js?v=<?=@filemtime(__DIR__ . '/portal_scripts/flag_console.js')?>"></script>
 </body>
 </html>

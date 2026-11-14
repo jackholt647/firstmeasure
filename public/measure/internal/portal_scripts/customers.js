@@ -550,6 +550,9 @@
           <button class="btn-secondary" id="customersExportCreditsBtn" title="All customer credit transactions, including test organizations. Unknown historical paid/bonus splits are left blank.">
             <i class="fas fa-file-download"></i> Export Credit Ledger
           </button>
+          <button class="btn-secondary" id="customersExportAcquisitionBtn" style="display:none;" title="Every campaign and landing page, all time: one zip of CSVs with each landing view, signup, event and spend entry, and campaign, daily, hourly, source and bonus offer totals.">
+            <i class="fas fa-file-download"></i> Export Acquisition Data
+          </button>
           <button class="btn-secondary" id="customersPairingBtn" style="display:none;">
             <i class="fas fa-link"></i> Pair Leads
           </button>
@@ -2383,7 +2386,7 @@
 
   /* ───────────── IMPERSONATE USER ───────────── */
 
-  async function impersonateUser(email, displayName, userId){
+  async function impersonateUser(email, displayName, userId, orgId){
     if (!confirm(
       'Switch to "' + displayName + '" (' + email + ')?\n\n' +
       'A new tab will open with the customer portal as this user.\n' +
@@ -2402,7 +2405,7 @@
         action: 'admin_impersonate_user',
         email,
         user_id: userId || '',
-        org_id: (currentOrg && currentOrg.id) ? currentOrg.id : '',
+        org_id: orgId || ((currentOrg && currentOrg.id) ? currentOrg.id : ''),
         actor_email: actor.email || actor.user_email || '',
         actor_name: actor.name || actor.user_name || '',
         actor_role: actor.role || actor.user_role || '',
@@ -2885,6 +2888,25 @@
     finally{button.disabled=false;button.innerHTML=label;}
   }
 
+  // The Campaigns tab's script owns the acquisition endpoints and who may use them.
+  function syncAcquisitionExportButton(){
+    const button = document.getElementById('customersExportAcquisitionBtn');
+    if (button) button.style.display = window.AcquisitionCampaigns?.canAccess?.() ? '' : 'none';
+  }
+
+  async function exportAcquisitionData(){
+    const button = document.getElementById('customersExportAcquisitionBtn');
+    const label = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing acquisition data…';
+    try {
+      await window.AcquisitionCampaigns.exportAllData(bytes => {
+        button.textContent = `Downloading acquisition data… ${(bytes / 1048576).toFixed(1)} MB`;
+      });
+    } catch (error) { alert(error?.message || 'Could not export the acquisition data.'); }
+    finally { button.disabled = false; button.innerHTML = label; }
+  }
+
   async function exportUsersTsv(){
     const exportBtn = document.getElementById('customersExportUsersBtn');
     const originalLabel = exportBtn?.innerHTML || '';
@@ -2972,7 +2994,9 @@
               userPermission,
               (user.orderCount || 0) > 0 ? 'Yes' : 'No',
               user.orderCount || 0,
-              userEmail && String(orgContact.email || '').trim().toLowerCase() === String(userEmail).trim().toLowerCase() ? 'Yes' : 'No'
+              userEmail && String(orgContact.email || '').trim().toLowerCase() === String(userEmail).trim().toLowerCase() ? 'Yes' : 'No',
+              org.country || '',
+              org.country_name || ''
             ]);
           });
       });
@@ -3044,7 +3068,9 @@
       'user_permission_level',
       'user_has_orders',
       'user_order_count',
-      'user_matches_org_contact_email'
+      'user_matches_org_contact_email',
+      'organization_country',
+      'organization_country_name'
     ];
     const tsv = [header, ...rows]
       .map(cols => cols.map(tsvCell).join('\t'))
@@ -3065,6 +3091,7 @@
     document.getElementById('customersRefreshBtn').onclick = () => loadCustomers();
     document.getElementById('customersExportUsersBtn').onclick = () => exportUsersTsv();
     document.getElementById('customersExportCreditsBtn').onclick = () => exportCreditLedger();
+    document.getElementById('customersExportAcquisitionBtn').onclick = () => exportAcquisitionData();
     document.getElementById('customerPageSize').value = String(customerPageSize);
     document.getElementById('customerPageSize').onchange = async e => {
       const value = parseInt(e.target.value || '200', 10);
@@ -3251,9 +3278,9 @@
       wireUI();
       window.Customers = this;
     },
-    async onShow(){ await loadCustomers(); },
+    async onShow(){ syncAcquisitionExportButton(); await loadCustomers(); },
     openOrgDetail(orgId){ openOrgDetail(orgId); },
-    impersonateUser(email, name){ impersonateUser(email, name); }
+    impersonateUser(email, name, userId, orgId){ impersonateUser(email, name, userId, orgId); }
   };
 
   const origSwitch = Portal.switchView ? Portal.switchView.bind(Portal) : null;

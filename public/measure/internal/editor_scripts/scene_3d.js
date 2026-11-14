@@ -484,6 +484,9 @@ async function requestProjectGoogleTileCapture(force = false) {
     if (!window.currentProjectId) {
         throw new Error('Save or load the project before generating Google 3D tiles.');
     }
+    if (window.FIRSTMEASURE_TUTORIAL?.enabled) {
+        throw new Error('This training source has no saved Google 3D tile capture.');
+    }
     if (!Number.isFinite(mapCenterLat) || !Number.isFinite(mapCenterLng)) {
         throw new Error('Project coordinates are missing for Google 3D tile generation.');
     }
@@ -987,7 +990,7 @@ function scheduleDeferredGoogleTilePreload() {
         update3DSurfaceButtons();
         try {
             await ensureGoogleTileSurfaceLoaded({
-                allowGenerate: !hasManifestUrl,
+                allowGenerate: !hasManifestUrl && !window.FIRSTMEASURE_TUTORIAL?.enabled,
                 background: true,
                 workerCount: 2,
                 backgroundTileDelayMs: GOOGLE_TILE_BACKGROUND_TILE_DELAY_MS
@@ -1266,7 +1269,8 @@ async function ensureGoogleTileSurfaceLoaded(options = {}) {
                 if (tileIndex >= tiles.length) return;
                 const tile = tiles[tileIndex];
                 if (!tile || !tile.file) continue;
-                const gltf = await loadGltfScene(tileBaseUrl + tile.file, loader);
+                // A training project serves each tile from its source (tutorial_sources.php).
+                const gltf = await loadGltfScene(tile.url ? new URL(tile.url, manifestUrl).href : tileBaseUrl + tile.file, loader);
                 if (token !== googleTileState.loadToken) return;
                 gltf.scene.traverse(obj => {
                     if (!obj.isMesh) return;
@@ -1432,8 +1436,8 @@ function build3DControlPanel() {
     fovGroup.className = 'enh-crop-group';
     fovGroup.id = 'perspective-fov-controls';
     fovGroup.style.userSelect = 'none';
-    fovGroup.title = 'Smaller angles flatten perspective; larger angles give a wider lens. Camera distance compensates to keep the orbit target framed at the same size.';
-    fovGroup.innerHTML = '<span>FOV</span><input id="perspectiveFovRange" type="range" min="15" max="100" step="1" aria-label="Perspective field of view"><span id="perspectiveFovValue"></span>';
+    fovGroup.title = 'Smaller angles flatten perspective; larger angles give a wider lens. Up to 100°, camera distance compensates to keep the orbit target framed at the same size; wider angles widen the lens from where the camera is.';
+    fovGroup.innerHTML = '<span>FOV</span><input id="perspectiveFovRange" type="range" min="15" max="180" step="1" aria-label="Perspective field of view"><span id="perspectiveFovValue"></span>';
     const fovInput = fovGroup.querySelector('input');
     fovInput.style.touchAction = 'none';
     fovGroup.querySelector('#perspectiveFovValue').style.cssText = 'display:inline-block;width:4ch;font-variant-numeric:tabular-nums';
@@ -1479,7 +1483,9 @@ function buildAxisWidget() {
         border:'1px solid rgba(255,255,255,0.15)'
     });
     container.appendChild(_enh.axisContainer);
-    _enh.axisRenderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+    // The axis gizmo is optional: without a context of its own the 3D view works without it.
+    try { _enh.axisRenderer = new THREE.WebGLRenderer({ antialias:true, alpha:true }); }
+    catch (e) { console.warn('[3D] Axis gizmo has no WebGL context:', e); _enh.axisRenderer = null; _enh.axisContainer.remove(); return; }
     _enh.axisRenderer.setSize(SIZE, SIZE);
     _enh.axisRenderer.setPixelRatio(window.devicePixelRatio || 1);
     _enh.axisRenderer.setClearColor(0x000000, 0);
@@ -1578,25 +1584,105 @@ function toggle3DLoader(show) {
 // =========================================================
 // §3  INIT 3D  (core setup + UI build)
 // =========================================================
+// The browser can refuse a WebGL context or take one back (GPU reset, driver crash, too many contexts in the
+// browser). That must not stop the project loading: the 3D view says what happened, retries, and offers a restart.
+const _ctx3D = { retryTimer: 0, retries: 0, lostTimer: 0 };
+const CONTEXT_RETRY_DELAYS_3D = [1500, 4000, 10000];
+function show3DContextNotice(state) {
+    const wrapper = document.getElementById('three-view-wrapper');
+    let box = document.getElementById('three-context-notice');
+    if (!state) { box?.remove(); return; }
+    if (!wrapper) return;
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'three-context-notice';
+        box.setAttribute('role', 'status');
+        Object.assign(box.style, { position:'absolute', inset:'0', zIndex:'200', display:'flex', alignItems:'center', justifyContent:'center', padding:'16px', background:'rgba(32,33,36,0.92)', color:'#e8eaed', font:'13px/1.45 system-ui, sans-serif', textAlign:'center' });
+        wrapper.appendChild(box);
+    }
+    const retrying = state === 'retrying' || state === 'lost';
+    const title = state === 'lost' ? 'The 3D view lost its graphics context' : 'The 3D view could not start';
+    const detail = state === 'lost'
+        ? 'The browser reset the graphics card. Your project and edits are safe; restoring the 3D view…'
+        : retrying
+            ? 'The browser did not give this page graphics (WebGL). The rest of the project is loaded; trying again…'
+            : 'The browser did not give this page graphics (WebGL). The rest of the project is loaded. Close other editor tabs and try again; if it keeps happening, restart Chrome and check that hardware acceleration is on (Settings › System).';
+    box.innerHTML = '<div style="max-width:420px"><div style="font-weight:600;font-size:14px;margin-bottom:6px"></div><div></div>'
+        + (retrying ? '' : '<div style="margin-top:12px;display:flex;gap:8px;justify-content:center"><button type="button" data-act="retry" style="padding:6px 12px;border-radius:6px;border:0;background:#1a73e8;color:#fff;cursor:pointer">Try again</button><button type="button" data-act="reload" style="padding:6px 12px;border-radius:6px;border:1px solid #5f6368;background:transparent;color:#e8eaed;cursor:pointer">Reload page</button></div>')
+        + '</div>';
+    box.firstChild.children[0].textContent = title;
+    box.firstChild.children[1].textContent = detail;
+    box.querySelector('[data-act="retry"]')?.addEventListener('click', () => { _ctx3D.retries = 0; restart3DView(); });
+    box.querySelector('[data-act="reload"]')?.addEventListener('click', () => window.location.reload());
+}
+function restart3DView() {
+    clearTimeout(_ctx3D.retryTimer); clearTimeout(_ctx3D.lostTimer);
+    init3D();
+    if (typeof renderer === 'undefined' || !renderer || renderer._fmRetired) return;
+    if (typeof renderGeometry3D === 'function') renderGeometry3D();
+    if (typeof triggerLiveUpdate === 'function') triggerLiveUpdate();
+    window.invalidateScene3D?.();
+}
+function watch3DContext(next) {
+    const canvas = next.domElement;
+    canvas.addEventListener('webglcontextlost', () => {
+        // forceContextLoss on a renderer being replaced also fires this; only the live renderer matters.
+        if (next._fmRetired || next !== renderer) return;
+        console.warn('[3D] WebGL context lost');
+        show3DContextNotice('lost');
+        clearTimeout(_ctx3D.lostTimer);
+        // Three.js keeps the scene and re-uploads it on restore; when the browser never restores, start over.
+        _ctx3D.lostTimer = setTimeout(() => { if (next === renderer && !next._fmRetired) restart3DView(); }, 6000);
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+        if (next._fmRetired || next !== renderer) return;
+        console.warn('[3D] WebGL context restored');
+        clearTimeout(_ctx3D.lostTimer);
+        show3DContextNotice(null);
+        if (typeof renderGeometry3D === 'function') renderGeometry3D();
+        if (typeof triggerLiveUpdate === 'function') triggerLiveUpdate();
+        window.invalidateScene3D?.();
+    });
+}
+function create3DRenderer() {
+    try {
+        const next = new THREE.WebGLRenderer({ antialias:true, alpha:window.FIRSTMEASURE_FULL_HOUSE === true, preserveDrawingBuffer:true, powerPreference:'high-performance' });
+        clearTimeout(_ctx3D.retryTimer); _ctx3D.retries = 0;
+        show3DContextNotice(null);
+        watch3DContext(next);
+        return next;
+    } catch (e) {
+        console.error('[3D] WebGL context could not be created:', e);
+        const delay = CONTEXT_RETRY_DELAYS_3D[_ctx3D.retries];
+        show3DContextNotice(delay ? 'retrying' : 'failed');
+        clearTimeout(_ctx3D.retryTimer);
+        if (delay) { _ctx3D.retries++; _ctx3D.retryTimer = setTimeout(restart3DView, delay); }
+        return null;
+    }
+}
+function retire3DRenderer(old) {
+    if (!old || old._fmRetired) return;
+    old._fmRetired = true;
+    old.dispose();
+    old.forceContextLoss();
+}
 function init3D() {
     if (!layerData.dsm || !layerData.rgb) return;
     const container = document.getElementById('three-container');
     const wrapper = document.getElementById('three-view-wrapper');
     if (!container || !wrapper) return;
+    // Get the context first: if the browser refuses one, the current view (if any) stays as it is.
+    const nextRenderer = create3DRenderer();
+    if (!nextRenderer) return;
     if (window.FIRSTMEASURE_FULL_HOUSE === true) {
     // Removing a canvas does not release its WebGL resources or controls.
     // Address changes and DSM rebuilds can initialize this view repeatedly.
     if (typeof controls !== 'undefined' && controls) controls.dispose();
     if (typeof scene !== 'undefined' && scene) disposeObject3D(scene);
-    if (typeof renderer !== 'undefined' && renderer) {
-        renderer.dispose();
-        renderer.forceContextLoss();
-    }
+    if (typeof renderer !== 'undefined' && renderer) retire3DRenderer(renderer);
     if (_enh.axisScene) disposeObject3D(_enh.axisScene);
-    if (_enh.axisRenderer) {
-        _enh.axisRenderer.dispose();
-        _enh.axisRenderer.forceContextLoss();
-    }
+    if (_enh.axisRenderer) retire3DRenderer(_enh.axisRenderer);
+    _enh.axisRenderer = null;
     disposeGoogleTileProjectionTexture();
     // Editor controls must survive imagery/terrain rebuilding the Three.js scene.
     const exteriorToolbar = container.querySelector('#exterior-toolbar');
@@ -1612,7 +1698,7 @@ function init3D() {
     camera = new THREE.PerspectiveCamera(_enh.perspectiveFov, w/h, 0.01, 2000);
     _enh.isOrthographic = false;
     camera.position.set(0, 80, 100);
-    renderer = new THREE.WebGLRenderer({ antialias:true, alpha:window.FIRSTMEASURE_FULL_HOUSE === true, preserveDrawingBuffer:true, powerPreference:'high-performance' });
+    renderer = nextRenderer;
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.setSize(w, h, false);
     if ('toneMapping' in renderer && typeof THREE.NoToneMapping !== 'undefined') {
@@ -6070,6 +6156,14 @@ window.toggle3DImage = function(forceState=null) {
 // =========================================================
 // §19  PROJECTION TOGGLE (Iso / Tri)
 // =========================================================
+// The slider goes to a 180° lens, but a vertical 180° frustum is degenerate (tan(90°) is infinite),
+// so the camera stops just short of it and the slider shows that camera FOV as 180°.
+// Distance compensation stops at 100°: past it, keeping the target's size would put the camera
+// inside the house, so wider angles show more around it instead.
+const PERSPECTIVE_FOV_MIN = 15, PERSPECTIVE_FOV_MAX = 180, PERSPECTIVE_CAMERA_FOV_MAX = 179.5, PERSPECTIVE_FOV_COMPENSATION_MAX = 100;
+function perspectiveFovSliderValue(fov) {
+    return fov >= PERSPECTIVE_CAMERA_FOV_MAX ? PERSPECTIVE_FOV_MAX : fov;
+}
 function sync3DPerspectiveFovUI() {
     const group = document.getElementById('perspective-fov-controls');
     if (!group || typeof camera === 'undefined' || !camera) return;
@@ -6078,16 +6172,18 @@ function sync3DPerspectiveFovUI() {
     _enh.perspectiveFov = camera.fov;
     const input = document.getElementById('perspectiveFovRange');
     const value = document.getElementById('perspectiveFovValue');
-    if (input && !input.dataset.dragging && Number(input.value) !== camera.fov) input.value = String(camera.fov);
-    const label = Math.round(camera.fov) + '°';
+    const shown = perspectiveFovSliderValue(camera.fov);
+    if (input && !input.dataset.dragging && Number(input.value) !== shown) input.value = String(shown);
+    const label = Math.round(shown) + '°';
     if (value && value.textContent !== label) value.textContent = label;
 }
 window.set3DPerspectiveFov = function(value) {
     if (typeof camera === 'undefined' || !camera?.isPerspectiveCamera || !Number.isFinite(Number(value))) return;
-    const nextFov = Math.max(15, Math.min(100, Number(value)));
-    // Preserve the visible span at the orbit target: distance * tan(FOV / 2).
+    const nextFov = Math.max(PERSPECTIVE_FOV_MIN, Math.min(PERSPECTIVE_CAMERA_FOV_MAX, Number(value)));
+    // Preserve the visible span at the orbit target: distance * tan(FOV / 2), up to the compensation limit.
     // Move along the existing orbit ray, so heading and target do not change.
-    const ratio = Math.tan(camera.fov * Math.PI / 360) / Math.tan(nextFov * Math.PI / 360);
+    const compensated = fov => Math.min(fov, PERSPECTIVE_FOV_COMPENSATION_MAX) * Math.PI / 360;
+    const ratio = Math.tan(compensated(camera.fov)) / Math.tan(compensated(nextFov));
     if (typeof controls !== 'undefined' && controls?.target && Number.isFinite(ratio) && ratio > 0) {
         camera.position.sub(controls.target).multiplyScalar(ratio).add(controls.target);
         // Keep orbit zoom limits consistent with the compensated distance.
@@ -6151,9 +6247,11 @@ function getGeometryBounds3D() {
     if (!hasPoint || box.isEmpty()) return null;
     return { box, sphere: box.getBoundingSphere(new THREE.Sphere()) };
 }
+// options.points (THREE.Vector3s) fits those instead of the whole measurement.
 function fitCameraToActiveGeometry(options = {}) {
     if (typeof THREE === 'undefined' || typeof camera === 'undefined' || !camera || typeof controls === 'undefined' || !controls) return false;
-    const bounds = getGeometryBounds3D();
+    const pointBox = Array.isArray(options.points) && options.points.length ? new THREE.Box3().setFromPoints(options.points) : null;
+    const bounds = pointBox && !pointBox.isEmpty() ? { box: pointBox, sphere: pointBox.getBoundingSphere(new THREE.Sphere()) } : getGeometryBounds3D();
     if (!bounds || !bounds.sphere || !Number.isFinite(bounds.sphere.radius)) return false;
 
     const { sphere } = bounds;

@@ -15,3 +15,9 @@ Shift-clicking empty space preserves existing wall point and line selections. So
 - Real layered-house turret seams, almost parallel surveyed junctions and lower-return rejection with exact rollback.
 - Editor selection, attached base, one undo commit, saved-edit reload, roof-contact picking and Shift-empty selection.
 - A 53-edge house sweep at 0.5 ft applies 49 edits; four lower-roof returns reject safely because the requested movement would reverse/collapse their connected faces.
+
+## Walls in line and soffit lines that stay selectable
+
+- A wall line is often generated as parallel pieces a short return apart (a gable under its rakes, a wing wall under a deeper eave, a part held out to a lower roof). When a request brings a piece within 3 cm of the next, the pieces become one plane at the requested depth and the return is consumed. From then on they are one wall and move together.
+- Every face a request moves keeps all of its roof-edge references (`resoffitSources`), so the unselected rake of a gable and other edges of the same wall stay red-orange. `resoffitSource` on older edits is still read.
+- A wall generated under the next collinear roof edge at that edge's setback (a rake held out to a lower roof beside the rest of its gable) is a soffit line, and so is the part of a wall under a lower roof when the wall runs on past the roof's end.

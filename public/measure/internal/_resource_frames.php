@@ -14,7 +14,8 @@ function fm_resource_frame_name_valid($name) {
 }
 function fm_resource_frame_source_valid($name) {
     return is_string($name) && strlen($name) <= 100
-        && preg_match('/^internal-resource-[a-zA-Z0-9._-]+\.(mp4|webm|mov|m4v)$/Di', $name) === 1;
+        && (preg_match('/^internal-resource-[a-zA-Z0-9._-]+\.(mp4|webm|mov|m4v)$/Di', $name) === 1
+            || preg_match('/^customer-reference-\d{1,3}\.(mp4|webm|mov|m4v)$/Di', $name) === 1);
 }
 function fm_resource_frame_job_name($frameName) {
     return 'internal-markup-framejob-' . substr($frameName, strlen('internal-resource-v2-'), 36) . '.json';
@@ -47,23 +48,41 @@ function fm_resource_run(array $command, $timeoutSeconds) {
 }
 
 // Returns the PNG of the frame a browser shows at $time: the last frame whose
-// presentation time is at or before $time. Decoding starts up to three
-// seconds earlier so the choice does not depend on keyframe placement.
+// presentation time is at or before $time, found by decoding a window that
+// ends at $time. Each decoded frame overwrites one uncompressed PAM file and
+// only the last one is encoded as PNG: encoding every frame of the window
+// (180 at 60 fps) made a save take a minute or more on a busy server (FM-343).
+// Every frame in the window is still converted and written, so the window is a
+// quarter second (any video of 4 fps or more has a frame in it) and widens to
+// three seconds only when it holds none; three seconds every time kept a save
+// at 7-10 s of ffmpeg on production's busy compatibility host. The window ends
+// with trim, measured from the seek point: an output -t counts from the first
+// frame after it, which let a frame up to one frame interval late in.
+const FM_RESOURCE_FRAME_WINDOWS = [0.25, 3.0];
 function fm_resource_extract_frame($videoPath, $time, $ffmpeg = null) {
     $ffmpeg = $ffmpeg ?: fm_resource_ffmpeg_path();
     if (!is_float($time) && !is_int($time) || !is_finite((float)$time) || $time < 0) throw new InvalidArgumentException('Invalid frame time.');
     $time = (float)$time;
-    $start = max(0.0, $time - 3.0);
     $out = tempnam(sys_get_temp_dir(), 'fmframe');
-    $png = $out . '.png'; @unlink($out);
+    $png = $out . '.png'; $pam = $out . '.pam'; @unlink($out);
     try {
         $fmt = fn($value) => number_format($value, 6, '.', '');
-        [$code, $stderr] = fm_resource_run([$ffmpeg, '-nostdin', '-v', 'error', '-y', '-ss', $fmt($start), '-i', $videoPath,
-            '-t', $fmt($time - $start + 0.0005), '-map', '0:v:0', '-fps_mode', 'passthrough', '-update', '1', '-c:v', 'png', '-f', 'image2', $png], 120);
-        if (!is_file($png) || !filesize($png)) {
+        $tried = null;
+        foreach (FM_RESOURCE_FRAME_WINDOWS as $window) {
+            $start = max(0.0, $time - $window);
+            if ($start === $tried) continue;
+            $tried = $start;
+            [$code, $stderr] = fm_resource_run([$ffmpeg, '-nostdin', '-v', 'error', '-y', '-ss', $fmt($start), '-i', $videoPath,
+                '-map', '0:v:0', '-vf', 'trim=end=' . $fmt($time - $start + 0.0005), '-t', $fmt($time - $start + 1.0),
+                '-fps_mode', 'passthrough', '-update', '1', '-c:v', 'pam', '-f', 'image2', $pam], 120);
+            if ($code !== 0 || is_file($pam) && filesize($pam)) break;
+        }
+        if (!is_file($pam) || !filesize($pam)) {
             // A timestamp before the first frame: use the first frame instead.
             [$code, $stderr] = fm_resource_run([$ffmpeg, '-nostdin', '-v', 'error', '-y', '-ss', $fmt($time), '-i', $videoPath,
                 '-map', '0:v:0', '-frames:v', '1', '-c:v', 'png', '-f', 'image2', $png], 120);
+        } elseif ($code === 0) {
+            [$code, $stderr] = fm_resource_run([$ffmpeg, '-nostdin', '-v', 'error', '-y', '-i', $pam, '-frames:v', '1', '-c:v', 'png', '-f', 'image2', $png], 60);
         }
         if ($code !== 0 || !is_file($png) || !filesize($png)) {
             $detail = trim(preg_replace('/\s+/', ' ', (string)$stderr));
@@ -72,19 +91,37 @@ function fm_resource_extract_frame($videoPath, $time, $ffmpeg = null) {
         $bytes = file_get_contents($png);
         if (strncmp($bytes, "\x89PNG\r\n\x1a\n", 8) !== 0) throw new RuntimeException('The video frame could not be decoded.');
         return $bytes;
-    } finally { @unlink($png); }
+    } finally { @unlink($png); @unlink($pam); }
 }
 
 // Writes the stored video to a local file, reusing a recent copy so several
 // frames from one walkthrough fetch it once. Part checksums are verified.
-function fm_resource_frame_video_file($project, $source, callable $get, $cacheDir = null) {
+// A plain (unchunked) video such as a customer walkthrough is streamed to disk
+// with $download($name, $path) when given; $version (size, tag) then keys the copy.
+function fm_resource_frame_video_file($project, $source, callable $get, $cacheDir = null, $download = null, $version = null) {
     $cacheDir = $cacheDir ?: sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'firstmeasure-resource-frames';
     if (!is_dir($cacheDir) && !@mkdir($cacheDir, 0700, true) && !is_dir($cacheDir)) throw new RuntimeException('Frame workspace is unavailable.');
     foreach (glob($cacheDir . DIRECTORY_SEPARATOR . '*') ?: [] as $old) {
         if (is_file($old) && filemtime($old) < time() - FM_RESOURCE_FRAME_CACHE_SECONDS) @unlink($old);
     }
+    $chunked = strpos($source, 'internal-resource-v2-') === 0;
+    if (!$chunked && $download && is_array($version) && ($version['size'] ?? 0) > 0) {
+        $path = $cacheDir . DIRECTORY_SEPARATOR . hash('sha256', $project . "
+" . $source . "
+" . $version['size'] . "
+" . ($version['tag'] ?? '')) . '.' . strtolower(pathinfo($source, PATHINFO_EXTENSION));
+        $lock = fopen($path . '.lock', 'c');
+        if (!$lock || !flock($lock, LOCK_EX)) throw new RuntimeException('Frame workspace is unavailable.');
+        try {
+            if (is_file($path) && filesize($path) === $version['size']) { touch($path); return $path; }
+            $download($source, $path . '.partial');
+            if (filesize($path . '.partial') !== $version['size']) { @unlink($path . '.partial'); throw new RuntimeException('Stored video is incomplete.'); }
+            rename($path . '.partial', $path);
+            return $path;
+        } finally { flock($lock, LOCK_UN); fclose($lock); @unlink($path . '.lock'); }
+    }
     $raw = $get($source);
-    $index = strpos($source, 'internal-resource-v2-') === 0 ? json_decode($raw, true) : null;
+    $index = $chunked ? json_decode($raw, true) : null;
     if ($index !== null && (!is_array($index) || ($index['format'] ?? '') !== 'firstmeasure-resource-chunks-v1' || !is_int($index['size'] ?? null))) throw new RuntimeException('The video index is invalid.');
     $ext = strtolower(pathinfo($source, PATHINFO_EXTENSION));
     $key = hash('sha256', $project . "\n" . $source . "\n" . ($index ? json_encode($index['sha256'] ?? $index['size']) : hash('sha256', $raw)));
@@ -130,7 +167,7 @@ function fm_resource_publish_bytes($name, $bytes, array $meta, callable $put) {
 // Runs one frame job. $job: project, frame, source, time, original_name, role,
 // actor and optionally favorite {record, label}. Returns the job result.
 function fm_resource_frame_run(array $job, callable $get, callable $put, $options = []) {
-    $video = fm_resource_frame_video_file($job['project'], $job['source'], $get, $options['cache_dir'] ?? null);
+    $video = fm_resource_frame_video_file($job['project'], $job['source'], $get, $options['cache_dir'] ?? null, $options['download'] ?? null, $options['version'] ?? null);
     $png = fm_resource_extract_frame($video, (float)$job['time'], $options['ffmpeg'] ?? null);
     $now = gmdate('c');
     $index = fm_resource_publish_bytes($job['frame'], $png, [

@@ -44,7 +44,9 @@ window.createBaseEditor=function(host){
   state().wallEdits=edits;state().base=next;
   window.WallChimneys?.syncFoundation(state(),{force:true});select(null);message='Base and attached walls regrounded'+(plan.lost.length?` · ${plan.lost.length} step pattern${plan.lost.length===1?'':'s'} removed`:'');changed(false);
  }
- function changed(rebind=true){const entry=pendingBinding;if(rebind)followBase();else pendingBinding=null;if(rebind&&entry)host.recordHistory?.({base:copy(entry.baseBefore),wallEdits:copy(entry.wallEditsBefore)});host.changed();render();}
+ // Every committed base edit is welded like a wall edit (the point weld, and base faces sharing their fold
+ // corners), in the same undo step.
+ function changed(rebind=true){const entry=pendingBinding;if(rebind)followBase();else pendingBinding=null;try{host.weld?.();}catch(e){}if(rebind&&entry)host.recordHistory?.({base:copy(entry.baseBefore),wallEdits:copy(entry.wallEditsBefore)});host.changed();render();}
 
  function select(f){selectedFace=f?.id??null;selectedFaces=f?[f.id]:[];planeCycle=null;points=[];tool=null;message='';}
 
@@ -99,7 +101,7 @@ window.createBaseEditor=function(host){
 
   panel.appendChild(box);
 
-  sketchEditor=window.createBaseSketchEditor?.({lineCenters:()=>state()?.lineCenters!==false,pickVisible:host.pickVisible,pickLineVisible:host.pickLineVisible,opaque:()=>host.state()?.translucent===false,base,active,mode:()=>$('selection').value,position,screen,toPixel:host.toPixel,mouse:()=>mouse,
+  sketchEditor=window.createBaseSketchEditor?.({lineCenters:()=>state()?.lineCenters!==false,pickVisible:host.pickVisible,pickLineVisible:host.pickLineVisible,opaque:()=>host.state()?.translucent===false,pickThrough:()=>!['textured','rendered','match-textured'].includes(host.state()?.displayMode),base,active,mode:()=>$('selection').value,position,screen,toPixel:host.toPixel,mouse:()=>mouse,
 
    referencePoints:()=>{const W=window.WallSolidGeometry,edits=state()?.wallEdits||{};return [...(host.walls?.()||[]).flatMap(w=>[...w.bottom,...w.top]),...(W?.surfaceWire(edits).nodes||[]).filter(n=>!n.curveSample),...Object.values(edits.$drafts||{}).flatMap(d=>(d.sketch?.nodes||[]).map(n=>d.frame?W.fromFrame(d.frame,n):{x:d.origin.x+d.u.x*n.x,y:d.origin.y+d.u.y*n.x,z:n.y}))];},selectFace:f=>{selectFace(f);render();host.redraw();},faceAt:(e,v)=>hit(e,v)?.f||face(),isCenter:(e,v)=>hit(e,v)?.index===-1,
 
@@ -260,19 +262,39 @@ window.createBaseEditor=function(host){
   }catch(error){message=error.message;render();return false;}
  }
  function startLine(ps){
-  if(!sketchEditor||ps.length!==1||base()?.visible===false)return false;
-  const p=ps[0],f=base().faces.find(f=>{const plane=G.plane(f.points);return plane&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002&&G.contains(f,p);});
+  // Several points picked at one spot (a rectangle takes every copy of a corner) are one starting point: the
+  // base's own point there.
+  if(!sketchEditor||!ps.length||base()?.visible===false||ps.some(q=>Math.hypot(q.x-ps[0].x,q.y-ps[0].y,q.z-ps[0].z)>.001))return false;
+  const near=q=>Math.hypot(q.x-ps[0].x,q.y-ps[0].y,q.z-ps[0].z),own=(window.BaseSketchGeometry?.read(base()).nodes||[]).filter(q=>near(q)<=.001).sort((a,b)=>near(a)-near(b))[0],p=own?{x:own.x,y:own.y,z:own.z}:ps[0];ps=[p];
+  const f=base().faces.find(f=>{const plane=G.plane(f.points);return plane&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002&&G.contains(f,p);});
   if(!f)return false;
   host.setLayer('base');selectedFace=null;selectedFaces=[];points=[];
   sketchEditor.selectEntities(ps,[]);$('selection').value='point';
   return keyDown({key:'n',preventDefault(){},stopImmediatePropagation(){}});
  }
 
+ // B turns the selected base faces into regular faces (and B on a regular
+ // face in the Walls layer turns it into a base face). Attached walls stay
+ // exactly where they are; only the base under them changes.
+ function facesToRegular(){
+  const ids=selectedFaces.length?selectedFaces:selectedFace!=null?[selectedFace]:[];
+  if(!ids.length||points.length||sketchEditor?.singlePoint()||sketchEditor?.singleLine())throw Error('Select one or more base faces to turn into regular faces.');
+  const before=copy(base()),wallEditsBefore=copy(state().wallEdits||{}),next=copy(before),moving=next.faces.filter(f=>ids.includes(f.id));
+  if(!moving.length)throw Error('Select one or more base faces to turn into regular faces.');
+  if(moving.some(f=>f.curves?.length))throw Error('A base face with a curved edge cannot become a regular face.');
+  next.faces=next.faces.filter(f=>!ids.includes(f.id));window.BaseSketchGeometry?.rebind(before,next);
+  const edits=copy(wallEditsBefore),used=new Set((edits.$surfaces||[]).map(f=>f.id));let serial=0;
+  edits.$surfaces=[...(edits.$surfaces||[]),...moving.map(f=>{let id;do{id='base-surface-'+Date.now()+'-'+serial++;}while(used.has(id));used.add(id);return {id,points:f.points.map(p=>({x:p.x,y:p.y,z:p.z})),holes:[]};})];
+  if(edits.$base)edits.$base=next;if(edits.$baseCuts)edits.$baseCuts=B.followCuts(edits.$baseCuts,next);
+  history.push({baseBefore:before,wallEditsBefore});host.recordHistory?.({base:copy(before),wallEdits:copy(wallEditsBefore)});
+  state().wallEdits=edits;state().base=next;
+  select(null);sketchEditor?.clear();message=(moving.length===1?'Base face is now a regular face.':moving.length+' base faces are now regular faces.')+' On the Walls layer, B turns a face into a base face.';changed(false);
+ }
  function keyDown(e){
 
   if(!active())return false;
 
-  const k=e.key.toLowerCase();if(k==='l'&&(e.ctrlKey||e.metaKey||e.altKey))return false;if(k==='s'&&(e.ctrlKey||e.metaKey))return false;if(!['a','f','c','u','n','m','h','l','y','escape','enter','z','delete','backspace','tab','s'].includes(k))return false;
+  const k=e.key.toLowerCase();if(k==='l'&&(e.ctrlKey||e.metaKey||e.altKey))return false;if(k==='s'&&(e.ctrlKey||e.metaKey))return false;if(k==='b'&&(e.ctrlKey||e.metaKey||e.altKey))return false;if(!['a','b','f','c','u','n','m','h','l','y','escape','enter','z','delete','backspace','tab','s'].includes(k))return false;
 
   e.preventDefault();e.stopImmediatePropagation();
 
@@ -297,6 +319,7 @@ window.createBaseEditor=function(host){
    if(k==='enter'){if(tool?.numericInvalid)return true;if(tool?.kind==='path')finishPath();else if(tool?.original&&(tool.kind==='height'||tool.direction)){record(tool.original);tool=null;changed();}return true;}
 
    if(k==='c'){finishPath();return true;}
+   if(k==='b'){if(!e.repeat&&!tool)facesToRegular();return true;}
 
    if(!face())throw Error('Select a base face or one of its points first.');
 
@@ -346,7 +369,9 @@ window.createBaseEditor=function(host){
 
  function pitchDirection(p){const dx=p.x-tool.pivot.x,dy=p.y-tool.pivot.y,angle=Math.atan2(dy,dx),input={x:Math.cos(angle),y:Math.sin(angle)};
   if(typeof isFreeMove!=='undefined'&&isFreeMove)return input;
-  const snap=B.boundaryAxis(tool.f,input);if(snap)return snap.direction;
+  // Square to a fold the face shares with a neighbour, where the chosen direction is that to the eye.
+  const others=tool.original.faces.filter(f=>!(tool.faces?.length?tool.faces:[tool.f]).some(own=>own.id===f.id)),snap=B.boundaryAxis(tool.f,input);if(snap)return B.foldAxis(tool.f,others,snap.direction)||snap.direction;
+  const fold=B.foldAxis(tool.f,others,input);if(fold)return fold;
   const world=Math.round(angle/(Math.PI/4))*Math.PI/4;return Math.abs(angle-world)<Math.PI/36?{x:Math.cos(world),y:Math.sin(world)}:input;
  }
  function down(e){
@@ -604,7 +629,7 @@ window.createBaseEditor=function(host){
 
  }
 
- return {selectedLineLength:()=>sketchEditor?.selectedLineLength?.()??null,selectionSnapshot:()=>copy({selectedFace,selectedFaces,points,planeCycle,mode:$('selection')?.value,sketch:sketchEditor?.selectionSnapshot?.()}),restoreSelection(value){const s=copy(value||{});selectedFace=s.selectedFace||null;selectedFaces=s.selectedFaces||[];points=s.points||[];planeCycle=s.planeCycle||null;if(s.mode&&$('selection'))$('selection').value=s.mode;sketchEditor?.restoreSelection?.(s.sketch);},selectedFaceGeometry:()=>face()&&({face:copy(face()),event:mouse?.e}),finishToolForSwitch,chamferSelection:()=>({...sketchEditor?.chamferSelection(),view:mouse?.v,event:mouse?.e}),stepWheel,stepCommand,cancelPointerGesture(){sketchEditor?.cancelPointerGesture();if(drag||marquee)cancel();},interaction:()=>tool?"Base "+tool.kind:drag?"Move base":marquee?"Rectangle selection":sketchEditor?.interaction(),selectEntities:(ps,pairs,add,subtract)=>{selectedFace=null;selectedFaces=[];points=[];sketchEditor?.selectEntities(ps,pairs,add,subtract);render();host.redraw();},selectedFaceId:()=>selectedFace,entitySelection:()=>({point:sketchEditor?.singlePoint()||(face()&&points.length===1?copy(face().points[points[0]]):null),pair:sketchEditor?.singleLine(),event:mouse?.e}),distanceInput(){if(!tool||!['height','pitch'].includes(tool.kind)||tool.kind==='pitch'&&!tool.direction)return null;const t=tool,angle=t.kind==='pitch';const pl=angle?G.plane(face().points):null;return {token:t,...(angle?{unit:'degrees',unitsPerInput:1,allowZero:true}:{}),amount:angle?Math.atan(pl.dx*t.direction.x+pl.dy*t.direction.y)*180/Math.PI:t.amount,set(value){if(angle&&value!=null&&Math.abs(value)>=90){t.numericInvalid=true;message='Enter an angle between -90 and 90 degrees.';render();return;}t.numericInvalid=false;t.numeric=value;message='';if(mouse)preview(mouse.e);host.redraw();render();}};},startLine,finishPointer:up,singlePoint:()=>sketchEditor?.singlePoint()||(face()&&points.length===1?copy(face().points[points[0]]):null),busy:()=>!!tool||!!drag||!!marquee||!!sketchEditor?.busy(),canHit:e=>base()?.visible!==false&&!!base()&&!!view(e)&&(!!hit(e,view(e))||!!sketchEditor?.canHit(e,view(e))),clearSelection(){select(null);sketchEditor?.clear();},setup,render,draw2D,draw3D,down,keyDown,doubleClick:e=>{if(!active())return false;$('selection').value='point';return sketchEditor?.doubleClick(e,view(e));},leave:cancel};
+ return {selectedLineLength:()=>sketchEditor?.selectedLineLength?.()??null,selectedLineSegments:()=>sketchEditor?.selectedLineSegments?.()||[],selectionSnapshot:()=>copy({selectedFace,selectedFaces,points,planeCycle,mode:$('selection')?.value,sketch:sketchEditor?.selectionSnapshot?.()}),restoreSelection(value){const s=copy(value||{});selectedFace=s.selectedFace||null;selectedFaces=s.selectedFaces||[];points=s.points||[];planeCycle=s.planeCycle||null;if(s.mode&&$('selection'))$('selection').value=s.mode;sketchEditor?.restoreSelection?.(s.sketch);},selectedFaceGeometry:()=>face()&&({face:copy(face()),event:mouse?.e}),finishToolForSwitch,chamferSelection:()=>({...sketchEditor?.chamferSelection(),view:mouse?.v,event:mouse?.e}),stepWheel,stepCommand,cancelPointerGesture(){sketchEditor?.cancelPointerGesture();if(drag||marquee)cancel();},interaction:()=>tool?"Base "+tool.kind:drag?"Move base":marquee?"Rectangle selection":sketchEditor?.interaction(),selectEntities:(ps,pairs,add,subtract)=>{selectedFace=null;selectedFaces=[];points=[];sketchEditor?.selectEntities(ps,pairs,add,subtract);render();host.redraw();},selectedFaceId:()=>selectedFace,entitySelection:()=>({point:sketchEditor?.singlePoint()||(face()&&points.length===1?copy(face().points[points[0]]):null),pair:sketchEditor?.singleLine(),event:mouse?.e}),distanceInput(){if(!tool||!['height','pitch'].includes(tool.kind)||tool.kind==='pitch'&&!tool.direction)return null;const t=tool,angle=t.kind==='pitch';const pl=angle?G.plane(face().points):null;return {token:t,...(angle?{unit:'degrees',unitsPerInput:1,allowZero:true}:{}),amount:angle?Math.atan(pl.dx*t.direction.x+pl.dy*t.direction.y)*180/Math.PI:t.amount,set(value){if(angle&&value!=null&&Math.abs(value)>=90){t.numericInvalid=true;message='Enter an angle between -90 and 90 degrees.';render();return;}t.numericInvalid=false;t.numeric=value;message='';if(mouse)preview(mouse.e);host.redraw();render();}};},startLine,finishPointer:up,singlePoint:()=>sketchEditor?.singlePoint()||(face()&&points.length===1?copy(face().points[points[0]]):null),busy:()=>!!tool||!!drag||!!marquee||!!sketchEditor?.busy(),canHit:e=>base()?.visible!==false&&!!base()&&!!view(e)&&(!!hit(e,view(e))||!!sketchEditor?.canHit(e,view(e))),clearSelection(){select(null);sketchEditor?.clear();},setup,render,draw2D,draw3D,down,keyDown,doubleClick:e=>{if(!active())return false;$('selection').value='point';return sketchEditor?.doubleClick(e,view(e));},leave:cancel};
 
 };
 

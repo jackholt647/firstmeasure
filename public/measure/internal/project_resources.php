@@ -28,9 +28,11 @@ if (strpos($project, 'tutorial_') === 0) {
     $tutorialOwner = fm_editor_tutorial_request_user_email($_SESSION['user_email'], $project, $tutorialCourse);
     $tutorialResource = fm_tutorial_find_project($project, $tutorialOwner, $tutorialCourse);
     if (!$tutorialResource || ($tutorialResource['manifest']['measurement_scope'] ?? '') !== 'full_house') resource_error(404, 'Not found.');
+    // The editor's resource requests name no course; use the one the project was found in (FM-318).
+    $tutorialCourse = $tutorialResource['course_id'];
     if ($customerOrder) resource_error(403, 'Student uploads cannot replace customer references.');
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!empty($tutorialResource['manifest']['locked_for_student']) || $tutorialOwner !== strtolower($_SESSION['user_email']))) resource_error(403, 'This training project is read only.');
-} elseif (!fm_is_full_house_id($project) || !fm_full_house_allowed()) resource_error(404, 'Not found.');
+} elseif (!fm_is_customer_full_house_id($project) && (!fm_is_full_house_id($project) || !fm_full_house_allowed())) resource_error(404, 'Not found.');
 if (!preg_match('/^[a-zA-Z0-9_-]{1,100}$/D', $project)) resource_error(400, 'Open a saved project first.');
 if (strlen($name) > 100 || ($name !== '' && !preg_match('/^internal-(resource|markup)-[a-zA-Z0-9._-]+$/D', $name))) resource_error(400, 'Invalid resource name.');
 $method = $_SERVER['REQUEST_METHOD'];
@@ -88,6 +90,18 @@ function resource_api($name = '', $body = null) {
     if ($status < 200 || $status >= 300) resource_error($status, 'Resource storage request failed (' . $status . ').');
     return $result;
 }
+// Streams one stored file to disk: a customer's walkthrough can be larger than PHP's memory limit.
+function resource_api_download($name, $path) {
+    global $artifactBase;
+    $url = $artifactBase . '/' . rawurlencode($name);
+    $headers = array_merge(fm_full_house_headers(), fm_node_identity_headers('session', 'GET', $url, null, false));
+    $out = fopen($path, 'wb');
+    if (!$out) throw new RuntimeException('Frame workspace is unavailable.');
+    $ch = curl_init($url);
+    curl_setopt_array($ch, fm_node_curl_options() + [CURLOPT_FILE=>$out, CURLOPT_HTTPHEADER=>$headers, CURLOPT_TIMEOUT=>600]);
+    $ok = curl_exec($ch); $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch); fclose($out);
+    if ($ok === false || $status < 200 || $status >= 300) { @unlink($path); throw new RuntimeException('The video could not be read from storage (' . $status . ').'); }
+}
 function resource_part_name($id, $index) { return 'internal-markup-part-' . $id . '-' . str_pad((string)$index, 8, '0', STR_PAD_LEFT) . '.bin'; }
 function resource_index($name, $raw) {
     if (!preg_match('/^internal-resource-v2-([0-9a-f-]{36})-/', $name, $match)) return null;
@@ -101,6 +115,19 @@ function resource_index($name, $raw) {
         foreach ($index['sha256'] as $digest) if (!is_string($digest) || !preg_match('/^[a-f0-9]{64}$/D', $digest)) resource_error(422, 'Invalid resource checksum.');
     }
     return $index;
+}
+// Delete: the file's index is marked deleted, by whom and when. It is then left out of the project's files, with
+// its markup, and can no longer be read. Its parts stay in storage, so a deletion can be reversed by hand.
+// Only staff uploads and saved copies: a customer's own reference is not ours to remove, and a training
+// project's source files are read only (resource_api refuses the write).
+if ($method === 'POST' && ($_GET['action'] ?? '') === 'delete') {
+    if ($customerOrder) resource_error(403, 'Customer references cannot be deleted.');
+    if (strpos($name, 'internal-resource-v2-') !== 0) resource_error(400, 'This file cannot be deleted.');
+    $index = resource_index($name, resource_api($name));
+    if (!$index) resource_error(404, 'File not found.');
+    if (($index['source'] ?? '') === 'customer-order' || ($index['role'] ?? '') === 'customer') resource_error(403, 'Customer references cannot be deleted.');
+    if (empty($index['deleted_at'])) { $index['deleted_at'] = gmdate('c'); $index['deleted_by'] = $resourceActor; resource_api($name, json_encode($index)); }
+    header('Content-Type: application/json'); echo json_encode(['ok'=>true, 'deleted'=>$name]); exit;
 }
 if ($method === 'POST' && ($_GET['action'] ?? '') === 'frame') {
     // The browser sends a video name and timestamp; the server decodes and stores the frame
@@ -120,7 +147,10 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'frame') {
     }
     $originalName = $request['original_name'] ?? '';
     $originalName = is_string($originalName) && $originalName !== '' && strlen($originalName) <= 255 ? preg_replace('/[ -]/', ' ', $originalName) : 'Video frame.png';
-    resource_api($source); // The source must exist before a job is accepted.
+    // The source must exist before a job is accepted (read from the listing: a customer video can be large).
+    $stored = null;
+    foreach (json_decode(resource_api(), true)['files'] ?? [] as $file) if (($file['name'] ?? '') === $source) $stored = $file;
+    if (!$stored) resource_error(404, 'The video is no longer stored. Refresh project files.');
     $jobName = fm_resource_frame_job_name($name);
     $jobRecord = ['version'=>1, 'status'=>'running', 'frame'=>$name, 'source'=>$source, 'time'=>(float)$time, 'started_at'=>gmdate('c')];
     resource_api($jobName, json_encode($jobRecord));
@@ -136,7 +166,7 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'frame') {
         $result = fm_resource_frame_run($job, fn($part) => resource_api($part), function ($part, $bytes, $digest) {
             resource_api($part, $bytes);
             if ($digest !== null && !hash_equals($digest, hash('sha256', resource_api($part)))) throw new RuntimeException('Stored frame checksum mismatch.');
-        });
+        }, $tutorialResource ? [] : ['download' => 'resource_api_download', 'version' => ['size' => (int)($stored['size'] ?? 0), 'tag' => (string)($stored['updated_at'] ?? $stored['etag'] ?? '')]]);
     } catch (Throwable $error) { $result = ['status'=>'failed', 'error'=>$error->getMessage(), 'finished_at'=>gmdate('c')]; }
     try { resource_api($jobName, json_encode($result + $jobRecord)); } catch (Throwable $error) { error_log('Resource frame job record failed: ' . $error->getMessage()); }
     exit;
@@ -199,19 +229,25 @@ if ($method === 'POST') {
     header('Content-Type: application/json'); echo json_encode($result); exit;
 }
 if (!$name) {
-    $data = json_decode(resource_api(), true); $files = [];
+    $data = json_decode(resource_api(), true); $files = []; $deleted = [];
     foreach ($data['files'] ?? [] as $file) {
         if (!preg_match('/^internal-(resource|markup)-/', $file['name']) || strpos($file['name'], 'internal-markup-part-') === 0) continue;
         if (strpos($file['name'], 'internal-resource-v2-') === 0) {
             $index = resource_index($file['name'], resource_api($file['name'])); $file['size'] = $index['size'];
+            // A deleted file is not one of the project's files, and neither is the markup saved on it.
+            if (!empty($index['deleted_at'])) { $deleted[$index['id']] = true; continue; }
             foreach (['original_name', 'uploaded_at', 'role', 'elevation_view', 'source', 'source_video'] as $field) if (isset($index[$field])) $file[$field] = $index[$field];
         }
         $files[] = $file;
     }
+    if ($deleted) $files = array_values(array_filter($files, function ($file) use ($deleted) {
+        return !(preg_match('/^internal-markup-(?:favorite-)?([0-9a-f-]{36})-/', $file['name'], $m) && isset($deleted[$m[1]]));
+    }));
     header('Content-Type: application/json'); echo json_encode(['ok'=>true, 'files'=>$files]); exit;
 }
 $raw = resource_api($name);
 $index = resource_index($name, $raw);
+if ($index && !empty($index['deleted_at'])) resource_error(404, 'This file was deleted.');
 $size = $index ? $index['size'] : strlen($raw);
 $start = 0; $end = $size - 1;
 if (isset($_SERVER['HTTP_RANGE'])) {

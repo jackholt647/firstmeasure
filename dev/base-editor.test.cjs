@@ -241,3 +241,29 @@ test('a grade-only exterior has no selectable or visible base until From Roof cr
  assert.equal(f.editor.down(f.e(2,2)),false);assert.equal(f.editor.keyDown({key:'m',preventDefault(){},stopImmediatePropagation(){}}),false);
  assert.equal(f.changes(),0);
 });
+test('B turns the selected base face into a regular face and leaves the rest of the base and the walls alone',()=>{
+ const f=fixture(true);f.click(0,0);f.click(100,100,true);f.key('c');assert.equal(f.state.base.faces.length,2);
+ const wall={id:'wall',points:[{x:0,y:0,z:0},{x:100,y:0,z:0},{x:100,y:0,z:30},{x:0,y:0,z:30}],holes:[]};f.state.wallEdits={$surfaces:[wall]};
+ const [keep,move]=f.state.base.faces.map(face=>JSON.parse(JSON.stringify(face)));
+ f.editor.restoreSelection({selectedFace:move.id,selectedFaces:[move.id]});
+ assert.equal(f.editor.keyDown({key:'b',ctrlKey:true,preventDefault(){},stopImmediatePropagation(){}}),false);
+ assert.equal(f.key('b'),true);
+ assert.equal(f.state.base.faces.map(face=>face.id).join(),keep.id);
+ const made=f.state.wallEdits.$surfaces.filter(s=>s.id!=='wall');assert.equal(made.length,1);
+ assert.equal(JSON.stringify(made[0].points.map(p=>[p.x,p.y,p.z])),JSON.stringify(move.points.map(p=>[p.x,p.y,p.z])));
+ assert.equal(JSON.stringify(f.state.wallEdits.$surfaces.find(s=>s.id==='wall')),JSON.stringify(wall));
+ // One undo step brings the base face back and removes the regular face.
+ f.editor.keyDown({key:'z',ctrlKey:true,preventDefault(){},stopImmediatePropagation(){}});
+ assert.equal(f.state.base.faces.length,2);assert.equal(JSON.stringify(f.state.wallEdits.$surfaces),JSON.stringify([wall]));
+ // A point or a line is not a face.
+ f.editor.restoreSelection({});f.key('b');assert.equal(f.state.base.faces.length,2);
+});
+test('Delete on a point that holds the base outline changes nothing and commits nothing; a straight boundary point is deleted',()=>{
+ const f=fixture(true),shape=()=>JSON.stringify(f.state.base.faces.map(face=>face.points.map(p=>[p.x,p.y,p.z].join()).sort())),before=shape(),changes=f.changes();
+ f.click(0,0);assert.equal(f.key('Delete'),true);
+ assert.equal(shape(),before);assert.equal(f.changes(),changes,'no commit, so no wall is re-fitted to the base');
+ // A point added along the boundary lies straight on it: it can go again.
+ f.editor.restoreSelection({});f.state.base.faces[0].points.splice(1,0,{x:50,y:0,z:0});delete f.state.base.sketch;
+ f.click(50,0);assert.equal(f.key('Delete'),true);
+ assert.equal(shape(),before);assert.ok(f.changes()>changes);
+});

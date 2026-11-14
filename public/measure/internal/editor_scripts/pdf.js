@@ -8,7 +8,11 @@ function pdfUnit(kind, legacy) { return window.ReportUnits?.current().metric ? w
 function pdfMaterialKind(unit) { return ({SQ:'sq',SF:'sf',LF:'ft',FT:'ft',GAL:'gallon'})[String(unit).toUpperCase()]; }
 function pdfMaterialUnit(unit) { const kind=pdfMaterialKind(unit); return kind ? pdfUnit(kind,unit) : unit; }
 function pdfMaterialAmount(n,unit,legacy) { const kind=pdfMaterialKind(unit); return kind ? pdfMeasure(n,kind,legacy,false) : legacy; }
+/** A roof pitch in the project's notation (1M8-255): 6/12, or 26.6° for degree projects; other text is unchanged. */
+function pdfPitch(pitch, digits = 1) { return window.ReportUnits?.current?.()?.pitch?.(pitch, digits) ?? pitch; }
 function pdfLabel(text, values = {}) { return window.ReportUnits?.current().label(text, values) ?? text.replace(/\{(\w+)\}/g, (all, key) => Object.hasOwn(values, key) ? String(values[key]) : all); }
+// A line type's name in the report language. Look the name up itself: passed as a {value} it stays English (FM-390).
+function pdfLineTypeLabel(typeId) { return pdfLabel(formatLineType(typeId)); }
 
 /* pdf.js - Complete PDF Generation Logic & Helpers (DROP-IN REPLACEMENT)
    - Uses a single "Roof Diagram (Labels & Pitch)" page.
@@ -801,11 +805,17 @@ function emitPdfDebug(stage, payload = {}) {
     return entry;
 }
 
+// Saved through PHP, an empty settings object comes back as []; named settings set on an array
+// are dropped by the next JSON copy, so the front bearing and photo slots never reached the PDF (FM-320).
+function exteriorSettingsObject(value) {
+    return (value && typeof value === 'object' && !Array.isArray(value)) ? value : {};
+}
+
 function serializePdfConfigForSave(sourceState) {
     if (!sourceState || typeof sourceState !== 'object') return null;
 
     const config = {
-        exteriorSettings: cloneJsonSafe(sourceState.exteriorSettings, {}),
+        exteriorSettings: cloneJsonSafe(exteriorSettingsObject(sourceState.exteriorSettings), {}),
         customLabels: cloneJsonSafe(sourceState.customLabels, []),
         manualWastePct: (typeof sourceState.manualWastePct === 'number') ? sourceState.manualWastePct : undefined,
         manualTotalFacets: (typeof sourceState.manualTotalFacets === 'number') ? sourceState.manualTotalFacets : undefined,
@@ -918,7 +928,7 @@ function createStandalonePdfSnapshot(sourceState) {
 
     const snapshot = {
         exteriorReport: cloneJsonSafe(sourceState.exteriorReport, null),
-        exteriorSettings: cloneJsonSafe(sourceState.exteriorSettings, {}),
+        exteriorSettings: cloneJsonSafe(exteriorSettingsObject(sourceState.exteriorSettings), {}),
         snapshotVersion: PDF_SNAPSHOT_VERSION,
         savedAt: new Date().toISOString(),
         pdfSyncRevision: sourceState.pdfSyncRevision || sourceState.pdf_sync_revision || null,
@@ -950,6 +960,8 @@ function createStandalonePdfSnapshot(sourceState) {
         manualWastePct: (typeof sourceState.manualWastePct === 'number') ? sourceState.manualWastePct : null,
         manualLayerFacets: cloneJsonSafe(sourceState.manualLayerFacets, {}),
         gutterSettings: cloneJsonSafe(sourceState.gutterSettings, null),
+        // The server render has no XML generator: the Holiday Lights roof model travels with the snapshot.
+        holidayLightsModel: shouldIncludePdfHolidayLights(sourceState) ? cloneJsonSafe(resolvePdfHolidayLightsModel(sourceState), null) : null,
         ventSettings: cloneJsonSafe(sourceState.ventSettings, null),
         structureSettings: cloneJsonSafe(sourceState.structureSettings, null),
         elevationSettings: firstMeasurePdfQuadViewsDisabled()
@@ -1394,7 +1406,7 @@ async function captureStateForPDF(options = {}) {
 
         const state = {
             exteriorReport: window.WallMode?.reportSnapshot?.() || null,
-            exteriorSettings: cloneJsonSafe(currentConfig.exteriorSettings, {}),
+            exteriorSettings: cloneJsonSafe(exteriorSettingsObject(currentConfig.exteriorSettings), {}),
             folderId: window.currentProjectId,
             geometry, report, address, center, dims,
             radiusMeters: Number.isFinite(capturedRadiusMeters) && capturedRadiusMeters > 0 ? capturedRadiusMeters : null,
@@ -2359,7 +2371,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         doc.setFont("Montserrat", "normal");
 
         const coverFacetText = pdfLabel("Total Facets: {value1}", {value1: state.manualTotalFacets});
-        const coverPitchText = pdfLabel("Predominant Pitch: {value1}", {value1: domPitch});
+        const coverPitchText = pdfLabel("Predominant Pitch: {value1}", {value1: pdfPitch(domPitch)});
         const coverNetSquaresText = pdfLabel("{value1} (Net): {value2}", {value1: pdfAreaHeading("Total Squares"), value2: pdfMeasure(netSquares, "sq", Math.round(netSquares * 100) / 100, false)});
         const coverWasteSquaresText = pdfLabel("{value1} ({value2}% Waste): {value3}", {value1: pdfAreaHeading("Total Squares"), value2: wastePct, value3: pdfMeasure(wasteSquares, "sq", Math.round(wasteSquares * 100) / 100, false)});
         emitPdfDebug('page:cover:text', {
@@ -2406,10 +2418,9 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         } else Object.keys(state.report.materials.linear || {}).forEach(key => {
             if (key.toLowerCase() === 'unknown' || key.toLowerCase() === 'skylight back' || key.toLowerCase() === 'skylight sides') return;
             if (yCursor > box2Y + coverBoxH - 5) return;
-            const label = formatLineType(key);
             const val = Math.round(state.report.materials.linear[key]);
 
-            doc.text(pdfLabel("{value1}:", {value1: label}), box2X + pad, yCursor);
+            doc.text(pdfLineTypeLabel(key) + ':', box2X + pad, yCursor);
             doc.text(pdfLabel("{value1}", {value1: pdfMeasure(state.report.materials.linear[key], 'ft', `${val}'`)}), box2X + boxWidth - pad, yCursor, { align: 'right' });
 
             yCursor += 5;
@@ -2693,37 +2704,8 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
                 layerTotals[item.type] += item.length;
             });
             const layerFlowTypes = Object.keys(layerTotals).filter(type => !['unknown', 'skylight', 'chimney_edge', 'chimney_back', 'chimney_front'].includes(type));
-            const layerFlowLabel = (type) => `${formatLineType(type)}: ${pdfMeasure(layerTotals[type], 'ft', `${Math.round(layerTotals[type])}'`)}`;
+            const layerFlowLabel = (type) => `${pdfLineTypeLabel(type)}: ${pdfMeasure(layerTotals[type], 'ft', `${Math.round(layerTotals[type])}'`)}`;
             const detailsX = landscape ? sideX : marginLeft, detailsW = landscape ? sideW : availableW;
-            // Landscape: the layer drawing fills the left. The details box is as tall as its contents
-            // (the totals one per line, then the line lengths in as many rows as they wrap to) and the
-            // key sits under it in two aligned columns of the box's width; the two together are centred
-            // beside the drawing. Portrait: the drawing, the legend, then the details box at the bottom.
-            let detailsH = 50, bottomBoxY = pageHeight - 25 - 50, legendY = bottomBoxY - 20;
-            if (landscape) {
-                doc.setFont("Montserrat", "normal"); doc.setFontSize(9);
-                let flowRows = layerFlowTypes.length ? 1 : 0, flowX = detailsX + pad;
-                layerFlowTypes.forEach(type => {
-                    const textW = doc.getTextWidth(layerFlowLabel(type));
-                    if (flowX + textW > detailsX + detailsW - pad && flowX > detailsX + pad) { flowX = detailsX + pad; flowRows++; }
-                    flowX += textW + 8;
-                });
-                detailsH = 36 + Math.max(0, flowRows - 1) * 8 + 7;
-                const blockH = detailsH + 8 + pdfLegendGridHeight(state.report, 2);
-                bottomBoxY = Math.max(topY - 10, topY - 10 + (pageHeight - 25 - (topY - 10) - blockH) / 2);
-                legendY = bottomBoxY + detailsH + 8;
-            }
-
-            placeImageCentered(doc, layerImg, imgRatio, marginLeft, landscape ? topY - 10 : topY, landscape ? pageHeight - 25 : legendY - 5, mainW);
-            if (landscape) drawLegendGrid(doc, state.report, detailsX, legendY, detailsW, 2);
-            else drawLegend(doc, state.report, detailsX, legendY);
-
-            drawSummaryBox(doc, detailsX, bottomBoxY, detailsW, detailsH, `Layer ${layerNum} Details`, {
-                forceDefault: forceDefaultBoxes,
-                colors: brandingColors,
-                pad
-            });
-            
             let layerAreaSq = 0;
             let layerFacetCount = 0;
             const autoExcludedLayerFaces = getReportAutoExcludedFaceIndexSet(state);
@@ -2771,24 +2753,69 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
                 layerAreaSq += areaSq;
             });
 
+            const wasteFactor = 1 + ((typeof state.manualWastePct === 'number' ? state.manualWastePct : 10) / 100);
+            const layerTotalTexts = [
+                pdfLabel("Facets: {value1}", {value1: layerFacetCount}),
+                pdfLabel("{value1}: {value2}", {value1: pdfAreaHeading("Squares Without Waste"), value2: pdfMeasure(layerAreaSq, "sq", Math.round(layerAreaSq * 10) / 10, false)}),
+                pdfLabel("{value1}: {value2}", {value1: pdfAreaHeading("Squares With Waste"), value2: pdfMeasure(layerAreaSq * wasteFactor, "sq", Math.round(layerAreaSq * wasteFactor * 10) / 10, false)})
+            ];
+            // The three totals, measured. Portrait: on one line at their usual columns, moved right
+            // when a translation or a metric value is wider than the gap, and onto the next line
+            // (6 below) when the line is full. Landscape: one per line in the narrower box. A total
+            // wider than the box wraps inside it. y is below the first line; FM-378.
+            const layoutLayerTotals = (left, right) => {
+                doc.setFont("Montserrat", "bold"); doc.setFontSize(9);
+                const columns = landscape ? [0, 0, 0] : [0, 34, 90], placed = [];
+                let rowY = 0, rowH = 0, nextX = left;
+                layerTotalTexts.forEach((text, i) => {
+                    const lines = doc.getTextWidth(text) > right - left ? doc.splitTextToSize(text, right - left) : [text];
+                    const w = Math.max(...lines.map(line => doc.getTextWidth(line)));
+                    let x = Math.max(left + columns[i], nextX);
+                    if (placed.length && (landscape || x + w > right)) { rowY += rowH + 6; rowH = 0; x = left; }
+                    lines.forEach((line, n) => placed.push({text: line, x, y: rowY + n * 4.5}));
+                    rowH = Math.max(rowH, (lines.length - 1) * 4.5);
+                    nextX = x + w + 8;
+                });
+                return {placed, height: rowY + rowH};
+            };
+            // Landscape: the layer drawing fills the left. The details box is as tall as its contents
+            // (the totals, then the line lengths in as many rows as they wrap to) and the key sits
+            // under it in two aligned columns of the box's width; the two together are centred beside
+            // the drawing. Portrait: the drawing, the legend, then the details box at the bottom, at
+            // least 50 tall and taller when the totals or line lengths need more rows.
+            doc.setFont("Montserrat", "normal"); doc.setFontSize(9);
+            let flowRows = layerFlowTypes.length ? 1 : 0, rowX = detailsX + pad;
+            layerFlowTypes.forEach(type => {
+                const textW = doc.getTextWidth(layerFlowLabel(type));
+                if (rowX + textW > detailsX + detailsW - pad && rowX > detailsX + pad) { rowX = detailsX + pad; flowRows++; }
+                rowX += textW + 8;
+            });
+            const contentH = 16 + layoutLayerTotals(detailsX + pad, detailsX + detailsW - pad).height + 8 + Math.max(0, flowRows - 1) * 8 + 7;
+            let detailsH = landscape ? contentH : Math.max(50, contentH), bottomBoxY = pageHeight - 25 - detailsH, legendY = bottomBoxY - 20;
+            if (landscape) {
+                const blockH = detailsH + 8 + pdfLegendGridHeight(state.report, 2);
+                bottomBoxY = Math.max(topY - 10, topY - 10 + (pageHeight - 25 - (topY - 10) - blockH) / 2);
+                legendY = bottomBoxY + detailsH + 8;
+            }
+
+            placeImageCentered(doc, layerImg, imgRatio, marginLeft, landscape ? topY - 10 : topY, landscape ? pageHeight - 25 : legendY - 5, mainW);
+            if (landscape) drawLegendGrid(doc, state.report, detailsX, legendY, detailsW, 2);
+            else drawLegend(doc, state.report, detailsX, legendY);
+
+            drawSummaryBox(doc, detailsX, bottomBoxY, detailsW, detailsH, `Layer ${layerNum} Details`, {
+                forceDefault: forceDefaultBoxes,
+                colors: brandingColors,
+                pad
+            });
+            
             doc.setFontSize(9);
             const innerLeft  = detailsX + pad;
             const innerRight = detailsX + detailsW - pad;
 
             let lyCursor = bottomBoxY + 16;
-            const wasteFactor = 1 + ((typeof state.manualWastePct === 'number' ? state.manualWastePct : 10) / 100);
-
-            doc.setFont("Montserrat", "bold");
-            // Portrait: the three totals on one line. Landscape: one per line in the narrower box.
-            const c1 = innerLeft;
-            const c2 = landscape ? innerLeft : innerLeft + 34;
-            const c3 = landscape ? innerLeft : innerLeft + 90;
-            const stackStep = landscape ? 6 : 0;
-
-            doc.text(pdfLabel("Facets: {value1}", {value1: layerFacetCount}), c1, lyCursor);
-            doc.text(pdfLabel("{value1}: {value2}", {value1: pdfAreaHeading("Squares Without Waste"), value2: pdfMeasure(layerAreaSq, "sq", Math.round(layerAreaSq * 10) / 10, false)}), c2, lyCursor + stackStep);
-            doc.text(pdfLabel("{value1}: {value2}", {value1: pdfAreaHeading("Squares With Waste"), value2: pdfMeasure(layerAreaSq * wasteFactor, "sq", Math.round(layerAreaSq * wasteFactor * 10) / 10, false)}), c3, lyCursor + stackStep * 2);
-            lyCursor += stackStep * 2;
+            const layerTotalsLayout = layoutLayerTotals(innerLeft, innerRight);
+            layerTotalsLayout.placed.forEach(item => doc.text(item.text, item.x, lyCursor + item.y));
+            lyCursor += layerTotalsLayout.height;
 
             doc.setFont("Montserrat", "normal");
             lyCursor += 8;
@@ -2847,6 +2874,16 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
             if (updateStatusCallback) updateStatusCallback("Generating Gutter Page...");
             beginReportPage(pdfLabel("Gutters"));
             await drawGutterPage(doc, state, gutterMetrics, marginLeft, 35, availableW, pageHeight - 60, brandingColors);
+        }
+    }
+
+    // Holiday Lights: ordered with the report (free); no setting hides it.
+    if (shouldIncludePdfHolidayLights(state)) {
+        const holidayModel = resolvePdfHolidayLightsModel(state);
+        if (holidayModel) {
+            if (updateStatusCallback) updateStatusCallback("Generating Holiday Lights Page...");
+            beginReportPage(pdfLabel("Holiday Lights"));
+            await drawHolidayLightsPage(doc, state, holidayModel, marginLeft, 35, availableW, pageHeight - 60, brandingColors);
         }
     }
 
@@ -3145,7 +3182,7 @@ function drawDynamicCoverPage(doc, state, settings, x, y, w, h, options = {}) {
                     const val = squaresData[p];
                     if (typeof val === 'number' && val > maxArea) { maxArea = val; domPitch = p; }
                 });
-                doc.text(pdfLabel("Pitch: {value1}", {value1: domPitch}), leftColX, cy); cy += statLineH;
+                doc.text(pdfLabel("Pitch: {value1}", {value1: pdfPitch(domPitch)}), leftColX, cy); cy += statLineH;
             }
             if (settings.cover_show_waste) {
                 doc.text(pdfLabel("Waste: {value1}%", {value1: wastePct}), leftColX, cy); cy += statLineH;
@@ -3494,7 +3531,7 @@ async function drawStructuresBatch(doc, structs, state, x, y, w, h) {
     };
     
     drawRow(pdfLabel("Facets:"), String(structureMetrics.activeFaceCount || 0));
-    drawRow(pdfLabel("Pitch:"), structureMetrics.predominantPitch || "N/A");
+    drawRow(pdfLabel("Pitch:"), pdfPitch(structureMetrics.predominantPitch || "N/A"));
     drawRow(window.ReportUnits?.current().metric ? pdfLabel("Square metres:") : pdfLabel("Square Feet:"), pdfMeasure(structureMetrics.netSqFt, "sf", sSqFt.toLocaleString('en-US'), false));
     drawRow(pdfLabel("{value1} ({value2}%):", {value1: pdfAreaHeading("Squares with Waste"), value2: wastePct}), pdfMeasure((structureMetrics.netSquares || 0) * (1 + wastePct/100), "sq", sSquaresWaste.toLocaleString('en-US'), false), true, "#d93025");
     statsY += 2;
@@ -4084,7 +4121,7 @@ async function createFacetCanvasFromState(state, mode, layerFilter = null) {
 
             const text = (mode === 'AREA')
                 ? pdfMeasure(lbl.areaSqFt ?? Number(lbl.areaText), 'sf', String(lbl.areaText ?? ''))
-                : String(lbl.pitchText ?? lbl.text ?? '');
+                : String(pdfPitch(String(lbl.pitchText ?? lbl.text ?? ''), 0));
 
             if (!text) return;
 
@@ -5891,6 +5928,18 @@ window.ensurePdfWireframesForState = ensurePdfWireframesForState;
 
 
 
+// The row-label column of a summary table (FM-379): as wide as its longest label, translated ("Marge de perte",
+// "Powierzchnia (m²)"), and at least `minW`, but never so wide a value column has no room for its widest value; past that
+// the labels shrink. `inset` is where the labels start in the column.
+function pdfSummaryLabelColumn(doc, labels, values, tableW, count, minW, inset) {
+    doc.setFont("Montserrat", "bold");
+    const widest = list => Math.max(0, ...list.map(t => doc.getTextWidth(String(t))));
+    const labelTextW = widest(labels), needed = labelTextW + inset + 2;
+    const width = Math.min(Math.max(minW, tableW - Math.max(1, count) * (widest(values) + 3)), Math.max(minW, needed));
+    const size = doc.getFontSize();
+    return { width, valueW: (tableW - width) / Math.max(1, count), labelSize: needed > width ? size * (width - inset - 2) / labelTextW : size };
+}
+
 function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCount, manualWastePct) {
     const hasManualWaste = manualWastePct !== null && typeof manualWastePct !== 'undefined' && Number.isFinite(Number(manualWastePct));
     manualWastePct = hasManualWaste
@@ -5918,37 +5967,49 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 
     // --- PITCH TABLE (Card Style) ---
     const colCount = pitches.length + 1;
-    const pitchTableW = Math.min(landscape ? w * 0.42 : w, colCount * 25);
+    const pitchLabels = [pdfLabel("Pitch"), window.ReportUnits?.current().metric ? pdfLabel("Area (m²)") : pdfLabel("Area (sq ft)"), pdfLabel("Percent")];
+    // A longer (translated) label widens the card rather than narrowing its 25 mm value columns, where there is room.
+    doc.setFontSize(9); doc.setFont("Montserrat", "bold");
+    const pitchLabelNeed = Math.max(...pitchLabels.map(t => doc.getTextWidth(t))) + 6;
+    const pitchTableW = Math.min(landscape ? w * 0.42 : w, colCount * 25 + Math.max(0, pitchLabelNeed - 25));
     const pitchTableX = landscape ? x : x + (w - pitchTableW) / 2;
     const colW = pitchTableW / colCount;
-    // The row labels get a fixed 22 mm in landscape (equal columns in portrait, as before).
-    const pitchLabelW = landscape ? 22 : colW, pitchValW = landscape ? (pitchTableW - pitchLabelW) / Math.max(1, colCount - 1) : colW;
+    const pitchTexts = pitches.map(p => pdfPitch(p));
+    const pitchAreaTexts = pitches.map(p => {
+        const val = squaresData[p];
+        return (typeof val === 'number') ? pdfMeasure(val * 100, "sf", Math.round(val*100).toLocaleString('en-US'), false) : "0";
+    });
+    const pitchPctTexts = pitches.map(p => {
+        const val = squaresData[p];
+        return ((totalSq > 0 && typeof val === 'number') ? Math.round((val/totalSq)*100) : 0) + "%";
+    });
+    // The row labels get at least 22 mm in landscape (equal columns in portrait, as before), wider for longer labels.
+    doc.setFontSize(9);
+    const pitchCols = pdfSummaryLabelColumn(doc, pitchLabels, [...pitchTexts, ...pitchAreaTexts, ...pitchPctTexts], pitchTableW, colCount - 1, landscape ? 22 : colW, 4);
+    const pitchLabelW = pitchCols.width, pitchValW = pitchCols.valueW;
     const pitchValX = (i) => pitchTableX + pitchLabelW + (i * pitchValW) + (pitchValW / 2);
+    const pitchLabel = (text) => { doc.setFontSize(pitchCols.labelSize); doc.text(text, pitchTableX+4, cursorY+5); doc.setFontSize(9); };
     const pitchTableH = 27;
 
     // Draw card behind pitch table — sized to table, not full width
     drawPdfCard(doc, pitchTableX, cursorY - 2, pitchTableW, pitchTableH, 3);
 
     doc.setFontSize(9); doc.setTextColor(0);
-    doc.setFont("Montserrat", "bold"); doc.text(pdfLabel("Pitch"), pitchTableX+4, cursorY+5);
-    pitches.forEach((p,i)=>doc.text(p, pitchValX(i), cursorY+5, {align:'center'}));
+    doc.setFont("Montserrat", "bold"); pitchLabel(pitchLabels[0]);
+    pitches.forEach((p,i)=>doc.text(pitchTexts[i], pitchValX(i), cursorY+5, {align:'center'}));
     cursorY += 8;
     
-    doc.text(window.ReportUnits?.current().metric ? pdfLabel("Area (m²)") : pdfLabel("Area (sq ft)"), pitchTableX+4, cursorY+5); doc.setFont("Montserrat", "normal");
+    pitchLabel(pitchLabels[1]); doc.setFont("Montserrat", "normal");
     pitches.forEach((p,i)=>{
         if(p===domPitch) doc.setFont("Montserrat","bold"); else doc.setFont("Montserrat","normal");
-        const val = squaresData[p];
-        const disp = (typeof val === 'number') ? pdfMeasure(val * 100, "sf", Math.round(val*100).toLocaleString('en-US'), false) : "0";
-        doc.text(disp, pitchValX(i), cursorY+5, {align:'center'});
+        doc.text(pitchAreaTexts[i], pitchValX(i), cursorY+5, {align:'center'});
     });
     cursorY += 8;
 
-    doc.setFont("Montserrat","bold"); doc.text(pdfLabel("Percent"), pitchTableX+4, cursorY+5); doc.setFont("Montserrat","normal");
+    doc.setFont("Montserrat","bold"); pitchLabel(pitchLabels[2]); doc.setFont("Montserrat","normal");
     pitches.forEach((p,i)=>{
         if(p===domPitch) doc.setFont("Montserrat","bold"); else doc.setFont("Montserrat","normal");
-        const val = squaresData[p];
-        const pct = (totalSq > 0 && typeof val === 'number') ? Math.round((val/totalSq)*100) : 0;
-        doc.text(pct+"%", pitchValX(i), cursorY+5, {align:'center'});
+        doc.text(pitchPctTexts[i], pitchValX(i), cursorY+5, {align:'center'});
     });
     cursorY += 16;
 
@@ -5963,10 +6024,17 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
     const wasteInnerW = wasteW - (wastePad * 2);
     const wasteColW = wasteInnerW / (wastes.length + 1);
     const wasteContentX = wasteX + wastePad; // Content starts with padding
-    const wasteLabelW = landscape ? 22 : wasteColW, wasteValW = landscape ? (wasteInnerW - wasteLabelW) / wastes.length : wasteColW;
-    const wasteValX = (i) => wasteContentX + wasteLabelW + (i * wasteValW) + (wasteValW / 2);
-    const highlightX = wasteContentX + wasteLabelW + (suggestedIdx * wasteValW);
     const metricUnits = !!window.ReportUnits?.current().metric;
+    const wasteLabels = [pdfLabel("Waste"), metricUnits ? pdfLabel("Area (m²)") : pdfLabel("Area (sq ft)"), ...(metricUnits ? [] : [pdfUnit("sq", "Squares")])];
+    const wastePctTexts = wastes.map(v => v + "%");
+    const wasteAreaTexts = wastes.map(v => pdfMeasure(totalSq*100*(1+v/100), "sf", Math.round(totalSq*100*(1+v/100)).toLocaleString('en-US'), false));
+    const wasteSquareTexts = metricUnits ? [] : wastes.map(v => pdfMeasure(totalSq*(1+v/100), "sq", Math.ceil(totalSq*(1+v/100)).toString(), false));
+    // The label column gets at least 22 mm in landscape (equal columns in portrait), wider for longer (translated) labels.
+    const wasteCols = pdfSummaryLabelColumn(doc, wasteLabels, [...wastePctTexts, ...wasteAreaTexts, ...wasteSquareTexts], wasteInnerW, wastes.length, landscape ? 22 : wasteColW, 2);
+    const wasteLabelW = wasteCols.width, wasteValW = wasteCols.valueW;
+    const wasteValX = (i) => wasteContentX + wasteLabelW + (i * wasteValW) + (wasteValW / 2);
+    const wasteLabel = (text) => { doc.setFontSize(wasteCols.labelSize); doc.text(text, wasteContentX+2, cursorY+5); doc.setFontSize(9); };
+    const highlightX = wasteContentX + wasteLabelW + (suggestedIdx * wasteValW);
     const wasteTableH = metricUnits ? 20 : 28;
     
     // Draw card behind waste table
@@ -5991,22 +6059,22 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
         doc.roundedRect(highlightX, cursorY - 1, wasteValW, metricUnits ? 18 : 26, 1, 1, 'S');
     }
 
-    doc.setFont("Montserrat","bold"); doc.setTextColor(0); doc.text(pdfLabel("Waste"), wasteContentX+2, cursorY+5);
-    wastes.forEach((v,i)=>doc.text(v+"%", wasteValX(i), cursorY+5, {align:'center'}));
+    doc.setFont("Montserrat","bold"); doc.setTextColor(0); wasteLabel(wasteLabels[0]);
+    wastes.forEach((v,i)=>doc.text(wastePctTexts[i], wasteValX(i), cursorY+5, {align:'center'}));
     cursorY+=8;
     
-    doc.text(window.ReportUnits?.current().metric ? pdfLabel("Area (m²)") : pdfLabel("Area (sq ft)"), wasteContentX+2, cursorY+5); doc.setFont("Montserrat","normal");
+    wasteLabel(wasteLabels[1]); doc.setFont("Montserrat","normal");
     wastes.forEach((v,i)=>{
         if(i===suggestedIdx) doc.setFont("Montserrat","bold"); else doc.setFont("Montserrat","normal");
-        doc.text(pdfMeasure(totalSq*100*(1+v/100), "sf", Math.round(totalSq*100*(1+v/100)).toLocaleString('en-US'), false), wasteValX(i), cursorY+5, {align:'center'});
+        doc.text(wasteAreaTexts[i], wasteValX(i), cursorY+5, {align:'center'});
     });
     cursorY+=8;
 
     if (!metricUnits) {
-    doc.setFont("Montserrat","bold"); doc.text(pdfUnit("sq", "Squares"), wasteContentX+2, cursorY+5); doc.setFont("Montserrat","normal");
+    doc.setFont("Montserrat","bold"); wasteLabel(wasteLabels[2]); doc.setFont("Montserrat","normal");
     wastes.forEach((v,i)=>{
         if(i===suggestedIdx) doc.setFont("Montserrat","bold"); else doc.setFont("Montserrat","normal");
-        doc.text(pdfMeasure(totalSq*(1+v/100), "sq", Math.ceil(totalSq*(1+v/100)).toString(), false), wasteValX(i), cursorY+5, {align:'center'});
+        doc.text(wasteSquareTexts[i], wasteValX(i), cursorY+5, {align:'center'});
     });
     }
     cursorY += metricUnits ? 8 : 16;
@@ -6021,22 +6089,6 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
     let statsY = cursorY + 5;
     let rowHeight = 8;
 
-    // --- UPDATED HELPER: Accepts 'showLine' parameter (defaults to true) ---
-    const addStat = (l, v, showLine = true) => {
-        doc.setFontSize(rowHeight < 7 ? 8 : 9);
-        doc.setFont("Montserrat","bold"); 
-        doc.text(pdfLabel(l), statsX, statsY);
-        
-        doc.setFont("Montserrat","normal"); 
-        doc.text(v, statsX + statsW, statsY, {align:'right'});
-        
-        if (showLine) {
-            doc.setDrawColor(230, 230, 230); 
-            doc.line(statsX, statsY + 2, statsX + statsW, statsY + 2);
-        }
-        statsY += rowHeight;
-    };
-    
     statsY += 3;
     const lin = report.materials.linear;
     
@@ -6052,7 +6104,7 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
     // Always show these
     statRows.push([pdfLabel("Roof Area"), pdfMeasure(totalSq * 100, 'sf', Math.round(totalSq * 100) + " sq ft")]);
     statRows.push([pdfLabel("Facets"), facetCount.toString()]);
-    statRows.push([pdfLabel("Pitch"), domPitch ? domPitch.replace(/\//g, " / ") : pdfLabel("N/A")]);
+    statRows.push([pdfLabel("Pitch"), domPitch ? (window.ReportUnits?.current?.()?.pitchNotation === 'degrees' ? pdfPitch(domPitch) : domPitch.replace(/\//g, " / ")) : pdfLabel("N/A")]);
 
     // Counts — only if non-zero
     if (skyCount > 0)  statRows.push([pdfLabel("Skylights"), skyCount.toString()]);
@@ -6077,24 +6129,35 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 
     lineStatTypes.forEach(t => {
         const val = Math.round(lin[t.id] || 0);
-        if (val > 0) statRows.push([t.label, pdfMeasure(lin[t.id] || 0, 'ft', val + " ft")]);
+        if (val > 0) statRows.push([pdfLabel(t.label), pdfMeasure(lin[t.id] || 0, 'ft', val + " ft")]);
     });
 
     // Counter Flashing — only if non-zero
     if (counterFlashing > 0) statRows.push([pdfLabel("Counter Flashing"), pdfMeasure((lin.chimney_edge || 0) + (lin.chimney_back || 0) + (lin.chimney_front || 0), 'ft', counterFlashing + " ft")]);
 
-    // --- Size the card dynamically to fit rows (rows tighten only when they would reach the footer note) ---
-    if (landscape) rowHeight = Math.max(5.5, Math.min(8, (pageH - 34 - statsY) / Math.max(1, statRows.length - 1)));
+    // --- Size the card to fit its rows (rows tighten only when they would reach the footer note) ---
+    // Every label and value in the card has one type size (FM-380); a label too long for one line takes two lines and
+    // its row grows by a line. 9 pt, or 8 pt once rows are tighter than 7 mm.
+    const statLabels = statRows.map(([l, v]) => [pdfLabel(l), v]);
+    const fitRowHeight = (card) => Math.max(5.5, Math.min(8, (pageH - 34 - statsY - card.extra) / Math.max(1, statRows.length - 1)));
+    let card = layoutPdfStatCard(doc, statLabels, statsW, 9);
+    rowHeight = fitRowHeight(card);
+    if (rowHeight < 7) { card = layoutPdfStatCard(doc, statLabels, statsW, 8); rowHeight = fitRowHeight(card); }
     const cardPad = 6;  // equal padding top and bottom
-    const cardH = cardPad + ((statRows.length - 1) * rowHeight) + cardPad;
+    const cardH = cardPad + ((statRows.length - 1) * rowHeight) + card.extra + cardPad;
     const cardTopY = statsY - cardPad;
 
     drawPdfCard(doc, statsX - 2, cardTopY, statsW + 4, cardH, 3);
 
-    // --- Draw all rows ---
-    statRows.forEach((row, idx) => {
-        const isLast = (idx === statRows.length - 1);
-        addStat(row[0], row[1], !isLast);
+    // --- Draw all rows: a two-line row is centred on its value, half a line further down ---
+    card.rows.forEach((row, idx) => {
+        statsY += row.extra / 2;
+        drawPdfStatRow(doc, row, statsX, statsY, statsW, card.size);
+        if (idx < card.rows.length - 1) {
+            doc.setDrawColor(230, 230, 230);
+            doc.line(statsX, statsY + 2 + row.extra / 2, statsX + statsW, statsY + 2 + row.extra / 2);
+        }
+        statsY += rowHeight + row.extra / 2;
     });
 
 
@@ -6105,9 +6168,710 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 }
 
 
+
+/**
+ * The summary page's totals card (1M8-256, FM-305, FM-380): one type size for every label and value in the card, so the
+ * rows read as one list. The value keeps its width at the right; a label that would reach it wraps onto two lines
+ * between words, so long labels (Headwall Flashing, and longer in other languages) never overlap their values. The card
+ * is `size` unless some label needs more than two lines at it: then every row gets smaller together, down to 7.5 pt. A
+ * word still too wide is broken inside with a hyphen (then down to 6 pt), and nothing is cut off. `rows` are [label, value]; returns { size, extra, rows: [{ lines, value, extra }] }, `extra` being the height the
+ * second lines add (the card's total, and each row's).
+ */
+function layoutPdfStatCard(doc, rows, width, size = 9) {
+    const lineHeight = s => s * 0.3528 * 1.15;
+    const layoutAt = (s, breakWords) => rows.map(([label, value]) => {
+        const text = String(label ?? '').trim(), shown = String(value ?? '');
+        doc.setFont("Montserrat", "normal"); doc.setFontSize(s);
+        const labelW = Math.max(8, width - doc.getTextWidth(shown) - 2);
+        doc.setFont("Montserrat", "bold");
+        return { lines: wrapPdfStatLabel(doc, text, labelW, breakWords), value: shown, labelW };
+    });
+    const fitsTwo = laid => laid.every(r => r.lines.length <= 2 && r.lines.every(line => doc.getTextWidth(line) <= r.labelW));
+    // Between words, the largest size down to 7.5 pt; then with words broken inside, the largest size down to 6 pt (a
+    // long compound such as Firstwandanschlussblech is hyphenated rather than every row made small).
+    let labelSize = null, laid = null;
+    for (const [breakWords, min] of [[false, 7.5], [true, 6]]) {
+        for (let s = size; s >= min && !laid; s -= 0.5) {
+            doc.setFontSize(s);
+            const at = layoutAt(s, breakWords);
+            if (fitsTwo(at)) { labelSize = s; laid = at; }
+        }
+        if (laid) break;
+    }
+    // A label that needs a third line even then: the card gets smaller only while it does.
+    if (!laid) for (labelSize = 6; ; labelSize -= 0.5) {
+        laid = layoutAt(labelSize, true);
+        if (laid.every(r => r.lines.length <= 2) || labelSize <= 4) break;
+    }
+    const lineH = lineHeight(labelSize);
+    const out = laid.map(r => ({ lines: r.lines, value: r.value, extra: (r.lines.length - 1) * lineH }));
+    doc.setFont("Montserrat", "normal"); doc.setFontSize(size);
+    return { size: labelSize, lineH, extra: out.reduce((sum, r) => sum + r.extra, 0), rows: out };
+}
+
+/** A label as lines no wider than `labelW` at the current font: broken at spaces and after hyphens (German compounds),
+ * and with `breakWords` a piece wider than the label broken inside with a hyphen, into two halves as even as possible,
+ * or (a piece too long for two lines) where each line reaches the edge. */
+function wrapPdfStatLabel(doc, text, labelW, breakWords) {
+    const fits = line => doc.getTextWidth(line) <= labelW;
+    // `space` is whether a space comes before a piece.
+    let pieces = text.split(/\s+/).filter(Boolean).flatMap(word => word.split(/(?<=-)/).map((part, i) => ({ part, space: i === 0 })));
+    if (breakWords) pieces = pieces.flatMap(({ part, space }) => {
+        if (fits(part)) return [{ part, space }];
+        let even = null;
+        for (let n = 1; n < part.length; n++) {
+            const head = part.slice(0, n) + '-', tail = part.slice(n);
+            if (!fits(head) || !fits(tail)) continue;
+            const widest = Math.max(doc.getTextWidth(head), doc.getTextWidth(tail));
+            if (!even || widest < even.widest) even = { head, tail, widest };
+        }
+        if (even) return [{ part: even.head, space }, { part: even.tail, space: false }];
+        const out = [];
+        let rest = part;
+        while (!fits(rest) && rest.length > 1) {
+            let n = rest.length - 1;
+            while (n > 1 && !fits(rest.slice(0, n) + '-')) n--;
+            out.push({ part: rest.slice(0, n) + '-', space: out.length ? false : space });
+            rest = rest.slice(n);
+        }
+        out.push({ part: rest, space: out.length ? false : space });
+        return out;
+    });
+    return pieces.reduce((lines, { part, space }) => {
+        const joined = lines.length ? lines[lines.length - 1] + (space ? ' ' : '') + part : null;
+        if (joined != null && fits(joined)) lines[lines.length - 1] = joined; else lines.push(part);
+        return lines;
+    }, []);
+}
+
+/** One row of the card as layoutPdfStatCard laid it out: the label's lines centred on the value's baseline `y`. */
+function drawPdfStatRow(doc, row, x, y, width, size) {
+    const lineH = size * 0.3528 * 1.15;
+    doc.setFont("Montserrat", "bold"); doc.setFontSize(size);
+    row.lines.forEach((line, i) => doc.text(line, x, y - ((row.lines.length - 1) * lineH / 2) + i * lineH));
+    doc.setFont("Montserrat", "normal");
+    doc.text(row.value, x + width, y, { align: 'right' });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Gutter PDF Page
 // ─────────────────────────────────────────────────────────────────────────────
+
+// =============================================================================
+// Holiday Lights (a free add-on chosen when the report is ordered: manifest.include_holiday_lights)
+// Lights along every eave and rake: the total, the length on each side of the house and, where a side has more than
+// one roofline, on each roofline (lower, middle, upper); on the drawing each side is in its colour (as in the table)
+// and each unbroken stretch is labelled with its length; and bulbs and clips at common spacings. Everything comes from the roof model (the same geometry as model_data.xml);
+// nothing is entered in the editor. The browser's Holiday Lights tab (libraries/apps/measurements/holiday-lights.js)
+// groups the same way. The model travels with the PDF snapshot (holidayLightsModel) because the server render has
+// no XML generator.
+// =============================================================================
+const PDF_HOLIDAY_LIGHT_EDGES = [
+    { type: 'EAVE', label: 'Eaves', lit: true },
+    { type: 'RAKE', label: 'Rakes', lit: true },
+    { type: 'RIDGE', label: 'Ridges', lit: false },
+    { type: 'HIP', label: 'Hips', lit: false }
+];
+const PDF_HOLIDAY_SPACINGS_IN = [6, 8, 12, 15, 18];
+const PDF_HOLIDAY_STANDARD_SPACING_IN = 12;
+const PDF_HOLIDAY_BULB_RED = '#d93025';
+const PDF_HOLIDAY_BULB_GREEN = '#188038';
+// One colour per side; they avoid the bulbs' red and green.
+const PDF_HOLIDAY_SIDE_COLORS = { north: '#1a73e8', east: '#f29900', south: '#9334e6', west: '#12b5cb', peak: '#e52592' };
+const PDF_HOLIDAY_SIDE_NAMES = { north: 'North', east: 'East', south: 'South', west: 'West', peak: 'Ridges and hips' };
+const PDF_HOLIDAY_LEVEL_NAMES = { lower: 'Lower', middle: 'Middle', upper: 'Upper' };
+
+function shouldIncludePdfHolidayLights(state) {
+    if (typeof state?.includeHolidayLights === 'boolean') return state.includeHolidayLights;
+    const manifest = window.currentProjectManifest || {};
+    return manifest.include_holiday_lights === true || manifest.include_holiday_lights === '1';
+}
+
+function parseHolidayLightsXml(xml) {
+    if (!xml || typeof DOMParser !== 'function') return null;
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    if (doc.querySelector('parsererror')) return null;
+    const roofs = [];
+    const seenLines = new Set();
+    for (const roof of doc.querySelectorAll('ROOF')) {
+        const points = {};
+        for (const p of roof.querySelectorAll('POINT')) {
+            const xyz = String(p.getAttribute('data') || '').split(',').map(Number);
+            if (xyz.length === 3 && xyz.every(Number.isFinite)) points[p.getAttribute('id')] = xyz;
+        }
+        const lineById = {};
+        const lines = [];
+        for (const l of roof.querySelectorAll('LINE')) {
+            const ids = String(l.getAttribute('path') || '').split(',').map((id) => id.trim());
+            if (ids.length !== 2 || !points[ids[0]] || !points[ids[1]]) continue;
+            const line = { id: l.getAttribute('id'), a: ids[0], b: ids[1], type: String(l.getAttribute('type') || '').toUpperCase() };
+            lineById[line.id] = line;
+            // A line shared by two structures is counted once.
+            const key = [points[ids[0]], points[ids[1]]].map((p) => p.map((v) => v.toFixed(2)).join(',')).sort().join('|');
+            if (seenLines.has(key)) continue;
+            seenLines.add(key);
+            lines.push(line);
+        }
+        const faces = [];
+        for (const face of roof.querySelectorAll('FACE')) {
+            if (String(face.getAttribute('type') || 'ROOF').toUpperCase() !== 'ROOF') continue;
+            const edges = String(face.querySelector('POLYGON')?.getAttribute('path') || '').split(',').map((id) => lineById[id.trim()]);
+            if (edges.length < 3 || edges.some((edge) => !edge)) continue;
+            // Walk the boundary; stored line directions need not agree.
+            const pending = edges.slice(1);
+            const ring = [edges[0].a, edges[0].b];
+            while (pending.length) {
+                const end = ring[ring.length - 1];
+                const i = pending.findIndex((edge) => edge.a === end || edge.b === end);
+                if (i < 0) break;
+                const [edge] = pending.splice(i, 1);
+                ring.push(edge.a === end ? edge.b : edge.a);
+            }
+            if (!pending.length && ring[0] === ring[ring.length - 1]) faces.push(ring.slice(0, -1));
+        }
+        const used = new Set([...lines.flatMap((line) => [line.a, line.b]), ...faces.flat()]);
+        roofs.push({ points: Object.fromEntries(Object.entries(points).filter(([id]) => used.has(id))), lines, faces });
+    }
+    return roofs.some((roof) => roof.lines.length) ? { roofs } : null;
+}
+
+// The editor builds it from the current roof each time; a server render (no XML generator) uses the snapshot's copy.
+function resolvePdfHolidayLightsModel(state) {
+    if (typeof generateRoofXML !== 'function') return state?.holidayLightsModel?.roofs?.length ? state.holidayLightsModel : null;
+    try { return parseHolidayLightsXml(generateRoofXML(state)); }
+    catch (error) { console.warn('[Holiday Lights] Roof model unavailable:', error); return null; }
+}
+
+// Lights by side and roofline (FM-375). Each lit edge is on one side of the house (the compass side it faces, squared
+// to the house's own walls) and one roofline (eave heights in bands at least a story apart: lower, middle, upper, or
+// numbered above three). Edges: [{type, roof, a:[x,y,z], b:[x,y,z], length, keys}] in feet (x east, y north, z up),
+// all four kinds whether lit or not, so a side or roofline never changes when an edge kind is switched on or off.
+// faces: [{roof, ring:[[x,y,z], ...]}]. The same function is in holiday-lights.js and pdf.js; keep them identical.
+function groupHolidayLights(edges, faces, lit){
+    const SIDES = ['north', 'east', 'south', 'west', 'peak'];
+    const PEAK = { RIDGE: 1, HIP: 1 };
+    const near = (p, q) => Math.abs(p[0] - q[0]) < 0.02 && Math.abs(p[1] - q[1]) < 0.02 && Math.abs(p[2] - q[2]) < 0.02;
+    const inside = ([x, y], ring) => {
+        let hit = false;
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            const [xi, yi] = ring[i], [xj, yj] = ring[j];
+            if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) hit = !hit;
+        }
+        return hit;
+    };
+    const facesOf = (edge) => faces.filter((face) => face.roof === edge.roof && face.ring.some((p, i) => {
+        const q = face.ring[(i + 1) % face.ring.length];
+        return (near(p, edge.a) && near(q, edge.b)) || (near(p, edge.b) && near(q, edge.a));
+    }));
+    // The house's axes: the plan direction most eaves and rakes run in, folded to a quarter turn.
+    let c = 0, s = 0;
+    for (const edge of edges) {
+        if (PEAK[edge.type]) continue;
+        const dx = edge.b[0] - edge.a[0], dy = edge.b[1] - edge.a[1], run = Math.hypot(dx, dy);
+        if (!run) continue;
+        const angle = Math.atan2(dy, dx) * 4;
+        c += run * Math.cos(angle); s += run * Math.sin(angle);
+    }
+    const axis = c || s ? Math.atan2(s, c) / 4 : 0;
+    // Rooflines: eave heights, sorted, split where they jump more than 3.5 ft, then bands closer than a story (7 ft)
+    // merged, nearest first. A sloping lot or a porch a few feet down stays on the same roofline.
+    const bands = [];
+    edges.filter((edge) => edge.type === 'EAVE')
+        .map((edge) => ({ z: (edge.a[2] + edge.b[2]) / 2, w: edge.length }))
+        .sort((p, q) => p.z - q.z)
+        .forEach(({ z, w }) => {
+            const last = bands[bands.length - 1];
+            if (last && z - last.hi < 3.5) { last.hi = z; last.sum += z * w; last.w += w; }
+            else bands.push({ lo: z, hi: z, sum: z * w, w });
+        });
+    for (;;) {
+        let best = -1, gap = 7;
+        for (let i = 0; i + 1 < bands.length; i++) {
+            const d = bands[i + 1].sum / bands[i + 1].w - bands[i].sum / bands[i].w;
+            if (d < gap) { gap = d; best = i; }
+        }
+        if (best < 0) break;
+        const [p, q] = bands.splice(best, 2);
+        bands.splice(best, 0, { lo: p.lo, hi: q.hi, sum: p.sum + q.sum, w: p.w + q.w });
+    }
+    const levelAt = (z) => {
+        let level = 0, best = Infinity;
+        bands.forEach((band, i) => { const d = z < band.lo ? band.lo - z : z > band.hi ? z - band.hi : 0; if (d < best) { best = d; level = i; } });
+        return level;
+    };
+    const groups = new Map();
+    for (const edge of edges) {
+        if (!lit[edge.type]) continue;
+        const own = facesOf(edge);
+        let side = 'peak', z = Math.min(edge.a[2], edge.b[2]);
+        if (PEAK[edge.type]) {
+            // A ridge sits above its roofs' eaves: it takes the roofline of the lowest corner of the faces beside it.
+            const corners = own.flatMap((face) => face.ring.map((p) => p[2]));
+            if (corners.length) z = Math.min(...corners);
+        } else {
+            // Outward: square to the edge in plan, away from the face it bounds.
+            const dx = edge.b[0] - edge.a[0], dy = edge.b[1] - edge.a[1], run = Math.hypot(dx, dy) || 1;
+            let nx = dy / run, ny = -dx / run;
+            const mid = [(edge.a[0] + edge.b[0]) / 2, (edge.a[1] + edge.b[1]) / 2];
+            const face = own[0];
+            const ahead = !!face && inside([mid[0] + nx * 0.25, mid[1] + ny * 0.25], face.ring);
+            const behind = !!face && inside([mid[0] - nx * 0.25, mid[1] - ny * 0.25], face.ring);
+            if (ahead && !behind) { nx = -nx; ny = -ny; }
+            else if (ahead === behind) {
+                // No face, or one too thin to tell: away from the middle of the face, else of the whole roof.
+                const ring = face ? face.ring : edges.filter((other) => other.roof === edge.roof).flatMap((other) => [other.a, other.b]);
+                const centre = [0, 1].map((i) => ring.reduce((sum, p) => sum + p[i], 0) / ring.length);
+                if ((centre[0] - mid[0]) * nx + (centre[1] - mid[1]) * ny > 0) { nx = -nx; ny = -ny; }
+            }
+            const u = nx * Math.cos(axis) + ny * Math.sin(axis), v = -nx * Math.sin(axis) + ny * Math.cos(axis);
+            side = Math.abs(u) > Math.abs(v) ? (u > 0 ? 'east' : 'west') : (v > 0 ? 'north' : 'south');
+        }
+        const level = levelAt(z);
+        const id = `${side}:${level}`;
+        if (!groups.has(id)) groups.set(id, { id, side, level, edges: [], length: 0, lengths: {} });
+        const group = groups.get(id);
+        group.edges.push(edge);
+        group.length += edge.length;
+        group.lengths[edge.type] = (group.lengths[edge.type] || 0) + edge.length;
+    }
+    // Pieces: the unbroken stretches of a group (each its own string), longest first.
+    for (const group of groups.values()) {
+        const parent = new Map();
+        const find = (key) => { while (parent.get(key) !== key) { parent.set(key, parent.get(parent.get(key))); key = parent.get(key); } return key; };
+        for (const edge of group.edges) for (const key of edge.keys) if (!parent.has(key)) parent.set(key, key);
+        for (const edge of group.edges) parent.set(find(edge.keys[0]), find(edge.keys[1]));
+        const pieces = new Map();
+        for (const edge of group.edges) {
+            const root = find(edge.keys[0]);
+            if (!pieces.has(root)) pieces.set(root, { edges: [], length: 0 });
+            pieces.get(root).edges.push(edge);
+            pieces.get(root).length += edge.length;
+        }
+        group.pieces = [...pieces.values()].sort((p, q) => q.length - p.length);
+    }
+    const count = Math.max(1, bands.length);
+    const levelKey = (level) => count === 1 ? '' : count === 2 ? ['lower', 'upper'][level] : count === 3 ? ['lower', 'middle', 'upper'][level] : String(level + 1);
+    const list = [...groups.values()]
+        .sort((p, q) => SIDES.indexOf(p.side) - SIDES.indexOf(q.side) || p.level - q.level)
+        .map((group) => ({ ...group, levelKey: levelKey(group.level) }));
+    const sides = SIDES.map((side) => ({ side, groups: list.filter((group) => group.side === side) }))
+        .filter((side) => side.groups.length)
+        .map((side) => ({ ...side, length: side.groups.reduce((sum, group) => sum + group.length, 0) }));
+    return { levels: count, groups: list, sides, length: list.reduce((sum, group) => sum + group.length, 0) };
+}
+
+function buildPdfHolidayLightsMetrics(model) {
+    const lengths = Object.fromEntries(PDF_HOLIDAY_LIGHT_EDGES.map((edge) => [edge.type, 0]));
+    const edges = [], faces = [];
+    (model?.roofs || []).forEach((roof, r) => {
+        (roof.faces || []).forEach((ring) => { if (ring.every((id) => roof.points[id])) faces.push({ roof: r, ring: ring.map((id) => roof.points[id]) }); });
+        roof.lines.forEach((line) => {
+            if (!(line.type in lengths)) return;
+            const a = roof.points[line.a], b = roof.points[line.b];
+            const length = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+            if (!(length > 0.01)) return;
+            lengths[line.type] += length;
+            edges.push({ type: line.type, roof: r, line, a, b, length, keys: [`${r}:${line.a}`, `${r}:${line.b}`] });
+        });
+    });
+    const lit = Object.fromEntries(PDF_HOLIDAY_LIGHT_EDGES.map((edge) => [edge.type, edge.lit]));
+    const layout = groupHolidayLights(edges, faces, lit);
+    // Names and colours: "North", "Upper"; one roofline leaves the level unnamed.
+    const groups = layout.groups.map((group) => {
+        const sideName = pdfLabel(PDF_HOLIDAY_SIDE_NAMES[group.side]);
+        const levelName = !group.levelKey ? '' : PDF_HOLIDAY_LEVEL_NAMES[group.levelKey] ? pdfLabel(PDF_HOLIDAY_LEVEL_NAMES[group.levelKey]) : pdfLabel('Roofline {number}', { number: group.levelKey });
+        return { ...group, sideName, levelName, color: PDF_HOLIDAY_SIDE_COLORS[group.side] };
+    });
+    const sides = layout.sides.map((side) => ({ ...side, name: groups.find((group) => group.side === side.side).sideName, color: PDF_HOLIDAY_SIDE_COLORS[side.side] }));
+    const litEdges = groups.flatMap((group) => group.edges);
+    // One bulb and one clip every `inches` along each edge, at least one per edge.
+    const bySpacing = PDF_HOLIDAY_SPACINGS_IN.map((inches) => {
+        const bulbs = litEdges.reduce((sum, edge) => sum + Math.max(1, Math.round(edge.length * 12 / inches)), 0);
+        return { inches, bulbs, clips: bulbs };
+    });
+    return { lengths, totalFt: layout.length, levels: layout.levels, groups, sides, bySpacing };
+}
+
+// Triangles of a roof face, by ear clipping in plan (roof faces are never vertical).
+function triangulateHolidayFace(pts) {
+    const n = pts.length;
+    if (n < 3) return [];
+    let area = 0;
+    for (let i = 0; i < n; i++) { const a = pts[i], b = pts[(i + 1) % n]; area += a[0] * b[1] - b[0] * a[1]; }
+    const sign = area >= 0 ? 1 : -1;
+    const cross = (a, b, c) => ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) * sign;
+    const inside = (p, a, b, c) => cross(a, b, p) >= 0 && cross(b, c, p) >= 0 && cross(c, a, p) >= 0;
+    const idx = pts.map((_, i) => i);
+    const tris = [];
+    let guard = n * n;
+    while (idx.length > 3 && guard-- > 0) {
+        let clipped = false;
+        for (let i = 0; i < idx.length; i++) {
+            const ia = idx[(i + idx.length - 1) % idx.length], ib = idx[i], ic = idx[(i + 1) % idx.length];
+            const a = pts[ia], b = pts[ib], c = pts[ic];
+            if (cross(a, b, c) <= 1e-9) continue;
+            if (idx.some((j) => j !== ia && j !== ib && j !== ic && inside(pts[j], a, b, c))) continue;
+            tris.push([ia, ib, ic]);
+            idx.splice(i, 1);
+            clipped = true;
+            break;
+        }
+        if (!clipped) break;
+    }
+    if (idx.length === 3) tris.push([idx[0], idx[1], idx[2]]);
+    return tris;
+}
+
+/** The roof from the south-east on white, each side in its colour with alternating red and green bulbs, each stretch
+ *  labelled with its length, and a north arrow.
+ *  Roofs go into a depth buffer, and every piece of a run line, outline and bulb is drawn only where nothing on
+ *  the roof is in front of it, so a roof that sits over another hides the lights beneath it. */
+function createHolidayLightsCanvas(model, metrics, { width = 1600, height = 1000 } = {}) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    const roofs = model?.roofs || [];
+    const all = roofs.flatMap((roof) => Object.values(roof.points));
+    if (!all.length) return canvas;
+
+    const az = -Math.PI * 0.2, el = Math.PI * 0.22;
+    const cosA = Math.cos(az), sinA = Math.sin(az), cosE = Math.cos(el), sinE = Math.sin(el);
+    const view = ([x, y, z]) => {
+        const rx = x * cosA - y * sinA, ry = x * sinA + y * cosA;
+        return { sx: rx, sy: -(z * cosE) - ry * sinE, depth: ry * cosE - z * sinE };
+    };
+    const projected = all.map(view);
+    const minX = Math.min(...projected.map((p) => p.sx)), maxX = Math.max(...projected.map((p) => p.sx));
+    const minY = Math.min(...projected.map((p) => p.sy)), maxY = Math.max(...projected.map((p) => p.sy));
+    const pad = 0.08;
+    const scale = Math.min(width * (1 - pad * 2) / Math.max(maxX - minX, 1), height * (1 - pad * 2) / Math.max(maxY - minY, 1));
+    const offX = (width - (maxX - minX) * scale) / 2 - minX * scale;
+    const offY = (height - (maxY - minY) * scale) / 2 - minY * scale;
+    const screen = (p) => { const v = view(p); return { x: v.sx * scale + offX, y: v.sy * scale + offY, depth: v.depth }; };
+
+    // Roof faces: rasterised with a depth buffer (the view is orthographic, so depth is linear across a triangle).
+    const depth = new Float32Array(width * height).fill(Infinity);
+    const image = ctx.getImageData(0, 0, width, height);
+    const px = image.data;
+    const light = [0.35, -0.55, 0.76];
+    roofs.forEach((roof) => {
+        roof.faces.forEach((ring) => {
+            const pts = ring.map((id) => roof.points[id]);
+            let nx = 0, ny = 0, nz = 0;
+            for (let i = 0; i < pts.length; i++) {
+                const [x1, y1, z1] = pts[i], [x2, y2, z2] = pts[(i + 1) % pts.length];
+                nx += (y1 - y2) * (z1 + z2); ny += (z1 - z2) * (x1 + x2); nz += (x1 - x2) * (y1 + y2);
+            }
+            const nl = Math.hypot(nx, ny, nz) || 1;
+            if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
+            const shade = Math.max(0, (nx * light[0] + ny * light[1] + nz * light[2]) / nl);
+            const l = Math.round(200 + shade * 45), rgb = [l, l + 2, Math.min(255, l + 6)];
+            const s = pts.map(screen);
+            for (const [ia, ib, ic] of triangulateHolidayFace(pts)) {
+                const a = s[ia], b = s[ib], c = s[ic];
+                const det = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+                if (Math.abs(det) < 1e-9) continue;
+                const x0 = Math.max(0, Math.floor(Math.min(a.x, b.x, c.x))), x1 = Math.min(width - 1, Math.ceil(Math.max(a.x, b.x, c.x)));
+                const y0 = Math.max(0, Math.floor(Math.min(a.y, b.y, c.y))), y1 = Math.min(height - 1, Math.ceil(Math.max(a.y, b.y, c.y)));
+                for (let yy = y0; yy <= y1; yy++) {
+                    for (let xx = x0; xx <= x1; xx++) {
+                        const cx = xx + 0.5, cy = yy + 0.5;
+                        const w0 = ((b.y - c.y) * (cx - c.x) + (c.x - b.x) * (cy - c.y)) / det;
+                        const w1 = ((c.y - a.y) * (cx - c.x) + (a.x - c.x) * (cy - c.y)) / det;
+                        const w2 = 1 - w0 - w1;
+                        if (w0 < -1e-6 || w1 < -1e-6 || w2 < -1e-6) continue;
+                        const d = w0 * a.depth + w1 * b.depth + w2 * c.depth;
+                        const k = yy * width + xx;
+                        if (d >= depth[k]) continue;
+                        depth[k] = d;
+                        px[k * 4] = rgb[0]; px[k * 4 + 1] = rgb[1]; px[k * 4 + 2] = rgb[2]; px[k * 4 + 3] = 255;
+                    }
+                }
+            }
+        });
+    });
+    ctx.putImageData(image, 0, 0);
+
+    // A point on an edge shows unless every nearby pixel holds roof clearly in front of it.
+    const tolerance = 1.0;
+    const visible = (p) => {
+        const cx = Math.round(p.x), cy = Math.round(p.y);
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+            const xx = cx + dx, yy = cy + dy;
+            if (xx < 0 || yy < 0 || xx >= width || yy >= height) return true;
+            if (depth[yy * width + xx] >= p.depth - tolerance) return true;
+        }
+        return false;
+    };
+    const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, depth: a.depth + (b.depth - a.depth) * t });
+    // Stroke only the visible stretches of a segment, tested every few pixels.
+    const strokeVisible = (sa, sb, style, lineWidth) => {
+        const steps = Math.max(1, Math.ceil(Math.hypot(sb.x - sa.x, sb.y - sa.y) / 3));
+        ctx.strokeStyle = style;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = 'round';
+        let start = null;
+        for (let i = 0; i <= steps; i++) {
+            const shown = i < steps && visible(lerp(sa, sb, (i + 0.5) / steps));
+            if (shown && start === null) start = i;
+            if (!shown && start !== null) {
+                const p = lerp(sa, sb, start / steps), q = lerp(sa, sb, i / steps);
+                ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+                start = null;
+            }
+        }
+    };
+
+    roofs.forEach((roof) => roof.lines.forEach((line) => strokeVisible(screen(roof.points[line.a]), screen(roof.points[line.b]), '#a3abb8', 1.5)));
+
+    // Every lit line's stretch (an unbroken run of one side and roofline) and its side's colour.
+    const runOf = new Map();
+    (metrics?.groups || []).forEach((group) => group.pieces.forEach((piece) => piece.edges.forEach((edge) => runOf.set(edge.line, { color: group.color, piece }))));
+    const lineW = Math.max(5, Math.min(12, width / 150));
+    const bulbR = Math.max(3.5, Math.min(7, width / 260));
+    const badgeSpots = new Map();
+    roofs.forEach((roof) => roof.lines.forEach((line) => {
+        const run = runOf.get(line);
+        if (!run) return;
+        const a = roof.points[line.a], b = roof.points[line.b];
+        const sa = screen(a), sb = screen(b);
+        strokeVisible(sa, sb, run.color, lineW);
+        // Bulbs a foot apart, thinned where the drawing is too small, so the run's colour shows between them.
+        const length = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+        const span = Math.hypot(sb.x - sa.x, sb.y - sa.y);
+        const count = Math.max(1, Math.min(Math.round(length), Math.floor(span / (bulbR * 5))));
+        for (let i = 0; i < count; i++) {
+            const p = lerp(sa, sb, (i + 0.5) / count);
+            if (!visible(p)) continue;
+            ctx.fillStyle = i % 2 ? PDF_HOLIDAY_BULB_GREEN : PDF_HOLIDAY_BULB_RED;
+            ctx.beginPath(); ctx.arc(p.x, p.y, bulbR, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+        // Where this edge could carry its stretch's length: visible spots, the middle of long edges first.
+        if (!badgeSpots.has(run.piece)) badgeSpots.set(run.piece, { run, spots: [] });
+        for (const t of [0.5, 0.35, 0.65, 0.2, 0.8]) {
+            const p = lerp(sa, sb, t);
+            if (visible(p)) badgeSpots.get(run.piece).spots.push({ p, score: length * (1 - Math.abs(t - 0.5)) });
+        }
+    }));
+
+    // Every stretch of 3 ft or more carries its length in its side's colour (shorter ones are corner returns, still
+    // counted in the table), longest first, each where it overlaps no label already placed: on the stretch if it can,
+    // else moved off it with a leader line. A stretch hidden behind the roof has no label.
+    const badgeR = Math.max(12, Math.min(20, width / 80));
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `700 ${Math.round(badgeR * 1.05)}px Arial`;
+    const placed = [];
+    [...badgeSpots.entries()].sort(([p], [q]) => q.length - p.length).forEach(([piece, { run, spots }]) => {
+        if (!spots.length || piece.length < 3) return;
+        const text = pdfMeasure(piece.length, 'ft', `${Math.round(piece.length).toLocaleString('en-US')} ft`);
+        const half = Math.max(badgeR, ctx.measureText(text).width / 2 + badgeR * 0.55);
+        const box = (p) => ({ x0: p.x - half - 3, x1: p.x + half + 3, y0: p.y - badgeR - 3, y1: p.y + badgeR + 3 });
+        const free = (b) => placed.every((o) => b.x1 < o.x0 || b.x0 > o.x1 || b.y1 < o.y0 || b.y0 > o.y1);
+        spots.sort((a, b) => b.score - a.score);
+        const at = spots.find((spot) => free(box(spot.p)))?.p;
+        let p = at;
+        if (!p) {
+            const from = spots[0].p, step = badgeR * 2 + 8;
+            const moves = [];
+            for (let k = 1; k <= 6; k++) moves.push([0, -k], [0, k], [k * 2, 0], [-k * 2, 0]);
+            const move = moves.map(([dx, dy]) => ({ x: from.x + dx * half, y: from.y + dy * step }))
+                .find((q) => q.x - half > 0 && q.x + half < width && q.y - badgeR > 0 && q.y + badgeR < height && free(box(q)));
+            p = move || from;
+            if (move) {
+                ctx.strokeStyle = run.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+            }
+        }
+        placed.push(box(p));
+        ctx.fillStyle = run.color;
+        ctx.beginPath();
+        ctx.arc(p.x - half + badgeR, p.y, badgeR, Math.PI / 2, Math.PI * 1.5);
+        ctx.arc(p.x + half - badgeR, p.y, badgeR, -Math.PI / 2, Math.PI / 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(text, p.x, p.y + 1);
+    });
+
+    // North arrow, top right: the sides in the table read against it.
+    const origin = view([0, 0, 0]), north = view([0, 1, 0]);
+    const nx = north.sx - origin.sx, ny = north.sy - origin.sy, nl = Math.hypot(nx, ny) || 1;
+    const arrow = Math.max(22, width / 40), ax = width - arrow * 2, ay = arrow * 2.2;
+    const ux = nx / nl, uy = ny / nl;
+    ctx.fillStyle = '#475467';
+    ctx.beginPath();
+    ctx.moveTo(ax + ux * arrow, ay + uy * arrow);
+    ctx.lineTo(ax - ux * arrow * 0.7 - uy * arrow * 0.45, ay - uy * arrow * 0.7 + ux * arrow * 0.45);
+    ctx.lineTo(ax - ux * arrow * 0.35, ay - uy * arrow * 0.35);
+    ctx.lineTo(ax - ux * arrow * 0.7 + uy * arrow * 0.45, ay - uy * arrow * 0.7 - ux * arrow * 0.45);
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = `700 ${Math.round(arrow * 0.8)}px Arial`;
+    ctx.fillText(pdfLabel(PDF_HOLIDAY_SIDE_NAMES.north).charAt(0).toUpperCase(), ax + ux * arrow * 1.75, ay + uy * arrow * 1.75);
+    return canvas;
+}
+
+async function drawHolidayLightsPage(doc, state, model, x, y, w, h, brandingColors) {
+    const metrics = buildPdfHolidayLightsMetrics(model);
+    const gap = 5;
+    const pColor = (brandingColors && brandingColors.primary) ? brandingColors.primary : { r: 200, g: 40, b: 40 };
+    const feet = (value) => pdfMeasure(value, 'ft', `${Math.round(value).toLocaleString('en-US')} ft`);
+    // A row's side colour, as on the drawing.
+    const swatch = (group, cx, cy) => {
+        const rgb = hexToRgbReport(group.color);
+        doc.setFillColor(rgb.r, rgb.g, rgb.b);
+        doc.roundedRect(cx - 1.7, cy - 1.7, 3.4, 3.4, 0.8, 0.8, 'F');
+    };
+
+    // Top row, kept short so the drawing gets the page: lights needed, and the length on each side, in its colour.
+    const totalW = w * 0.24;
+    const sidesX = x + totalW + gap, sidesW = w - totalW - gap;
+    const topH = 20;
+    drawSummaryBox(doc, x, y, totalW, topH, "Lights Needed");
+    doc.setFont("Montserrat", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(pColor.r, pColor.g, pColor.b);
+    doc.text(feet(metrics.totalFt), x + totalW / 2, y + 16, { align: 'center' });
+
+    drawSummaryBox(doc, sidesX, y, sidesW, topH, "By Side");
+    const sideW = (sidesW - 12) / Math.max(4, metrics.sides.length);
+    metrics.sides.forEach((side, index) => {
+        const sx = sidesX + 6 + index * sideW, cy = y + 14.5;
+        const rgb = hexToRgbReport(side.color);
+        doc.setFillColor(rgb.r, rgb.g, rgb.b);
+        doc.roundedRect(sx + 1, cy - 2.2, 3.4, 3.4, 0.8, 0.8, 'F');
+        doc.setFont("Montserrat", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(60);
+        doc.text(side.name, sx + 6, cy + 0.6);
+        doc.setFont("Montserrat", "normal");
+        doc.text(feet(side.length), sx + 7 + doc.getTextWidth(side.name) + 1.5, cy + 0.6);
+    });
+
+    // Bottom: bulbs and clips by spacing, one column per spacing, three rows.
+    const rowH = 6.5;
+    const tableH = 13 + rowH * 3;
+    const tableY = y + h - tableH;
+    const midY = y + topH + gap, midH = tableY - gap - midY;
+
+    // The table of sides and rooflines: one row per side, or per roofline on a side with more than one. Beside the
+    // drawing on a landscape page; under it on a portrait one, in two columns when it is long. Spaced like the bulbs
+    // and clips table below it: 8 mm in from the box, a header row, 6.5 mm rows, numbers centred in equal columns.
+    const groups = metrics.groups;
+    const showLevel = metrics.levels > 1;
+    const wide = w > h;
+    const columns = !wide && groups.length > 8 ? 2 : 1;
+    const perColumn = Math.max(1, Math.ceil(groups.length / columns));
+    const listRowH = 6.5;
+    const listW = wide ? Math.min(w * 0.42, 110) : w;
+    const listH = wide ? midH : 13 + listRowH * (perColumn + 1);
+    const listX = wide ? x + w - listW : x, listY = wide ? midY : midY + midH - listH;
+    const viewW = wide ? w - listW - gap : w, viewH = wide ? midH : midH - listH - gap;
+    drawSummaryBox(doc, listX, listY, listW, listH, showLevel ? "Lights By Side And Roofline" : "Lights By Side");
+    const compact = columns > 1 || listW < 150;
+    const textSize = compact ? 9 : 10.5, headSize = compact ? 8 : 9;
+    const blockGap = 8, blockW = (listW - 16 - blockGap * (columns - 1)) / columns;
+    // The side and roofline columns are as wide as their longest (translated) label, the numbers share the rest.
+    const widest = (texts, style) => { doc.setFont("Montserrat", style); doc.setFontSize(textSize); return Math.max(0, ...texts.map((text) => doc.getTextWidth(text))); };
+    const nameColW = Math.max(compact ? 20 : 34, 5.5 + widest(groups.map((group) => group.sideName), "bold") + 4);
+    const levelColW = showLevel ? Math.max(compact ? 16 : 30, widest([pdfLabel('Roofline'), ...groups.map((group) => group.levelName)], "normal") + 4) : 0;
+    const numbers = [
+        ['Eaves', (group) => group.lengths.EAVE ? feet(group.lengths.EAVE) : '—'],
+        ['Rakes', (group) => group.lengths.RAKE ? feet(group.lengths.RAKE) : '—'],
+        ['Length', (group) => feet(group.length)]
+    ];
+    for (let column = 0; column < columns; column++) {
+        const left = listX + 8 + column * (blockW + blockGap), right = left + blockW;
+        const nameX = left + 5.5, levelX = left + nameColW, numW = (blockW - nameColW - levelColW) / numbers.length;
+        const numX = (i) => left + nameColW + levelColW + numW * (i + 0.5);
+        const headY = listY + 15;
+        doc.setFont("Montserrat", "bold");
+        doc.setFontSize(headSize);
+        doc.setTextColor(120);
+        doc.text(pdfLabel('Side'), nameX, headY);
+        if (showLevel) doc.text(pdfLabel('Roofline'), levelX, headY);
+        numbers.forEach(([label], i) => doc.text(pdfLabel(label), numX(i), headY, { align: 'center' }));
+        const rows = groups.slice(column * perColumn, (column + 1) * perColumn);
+        rows.forEach((group, index) => {
+            const rowY = headY + (index + 1) * listRowH;
+            // A line under the header and between rows; darker where a new side starts.
+            const newSide = index === 0 || rows[index - 1].side !== group.side;
+            doc.setDrawColor(...(newSide ? [215, 215, 215] : [236, 236, 236]));
+            doc.setLineWidth(0.25);
+            doc.line(left, rowY - listRowH + 2.3, right, rowY - listRowH + 2.3);
+            if (newSide) {
+                swatch(group, left + 1.7, rowY - 1.1);
+                doc.setFont("Montserrat", "bold");
+                doc.setFontSize(textSize);
+                doc.setTextColor(50);
+                doc.text(group.sideName, nameX, rowY);
+            }
+            doc.setFont("Montserrat", "normal");
+            doc.setFontSize(textSize);
+            doc.setTextColor(70);
+            if (showLevel) doc.text(group.levelName, levelX, rowY);
+            numbers.forEach(([label, value], i) => {
+                doc.setFont("Montserrat", label === 'Length' ? "bold" : "normal");
+                doc.setTextColor(label === 'Length' ? 30 : 70);
+                doc.text(value(group), numX(i), rowY, { align: 'center' });
+            });
+        });
+    }
+    if (!groups.length) {
+        doc.setFont("Montserrat", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(120);
+        doc.text(pdfLabel("No eaves or rakes on this roof."), listX + 8, listY + 20);
+    }
+
+    drawSummaryBox(doc, x, midY, viewW, viewH, "Light Runs");
+    const canvasH = Math.round(1600 * Math.max(0.4, (viewH - 19) / (viewW - 6)));
+    const canvas = createHolidayLightsCanvas(model, metrics, { width: 1600, height: canvasH });
+    placeImageCentered(doc, canvas.toDataURL('image/jpeg', 0.85), canvas.width / canvas.height, x + 3, midY + 15, midY + viewH - 4, viewW - 6);
+
+    drawSummaryBox(doc, x, tableY, w, tableH, "Bulbs And Clips By Spacing");
+    const labelW = 26;
+    const colW = (w - 12 - labelW) / metrics.bySpacing.length;
+    const rows = [
+        ['Spacing', (row) => pdfLabel('{inches} in', { inches: row.inches })],
+        ['Bulbs', (row) => row.bulbs.toLocaleString('en-US')],
+        ['Clips', (row) => row.clips.toLocaleString('en-US')]
+    ];
+    rows.forEach(([label, value], r) => {
+        const rowY = tableY + 15 + r * rowH;
+        doc.setFont("Montserrat", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(120);
+        doc.text(pdfLabel(label), x + 8, rowY);
+        metrics.bySpacing.forEach((row, c) => {
+            const standard = row.inches === PDF_HOLIDAY_STANDARD_SPACING_IN;
+            doc.setFont("Montserrat", standard || r === 0 ? "bold" : "normal");
+            doc.setFontSize(10.5);
+            if (standard) doc.setTextColor(pColor.r, pColor.g, pColor.b); else doc.setTextColor(r === 0 ? 90 : 50);
+            doc.text(value(row), x + 8 + labelW + colW * (c + 0.5), rowY, { align: 'center' });
+        });
+        if (r < rows.length - 1) {
+            doc.setDrawColor(236, 236, 236);
+            doc.setLineWidth(0.25);
+            doc.line(x + 8, rowY + 2.3, x + w - 8, rowY + 2.3);
+        }
+    });
+}
+window.shouldIncludePdfHolidayLights = shouldIncludePdfHolidayLights;
+window.resolvePdfHolidayLightsModel = resolvePdfHolidayLightsModel;
+window.buildPdfHolidayLightsMetrics = buildPdfHolidayLightsMetrics;
+window.createHolidayLightsCanvas = createHolidayLightsCanvas;
 
 async function drawGutterPage(doc, state, metrics, x, y, w, h, brandingColors) {
     const gap = 5;
@@ -6946,7 +7710,7 @@ function drawPitchTable(doc, squaresData, x, y, w, highlightDominant = false) {
         }
 
         // Row Data (Adjusted X positions)
-        doc.text(r.pitch, x + pad + 10, cy, {align:'center'}); // Centered under header
+        doc.text(String(pdfPitch(r.pitch)), x + pad + 10, cy, {align:'center'}); // Centered under header
         doc.text(pdfMeasure(r.sq, "sq", r.sq.toFixed(2), false), x + w/2, cy, {align:'center'});
         doc.text(Math.round(r.pct) + "%", x + w - pad - 10, cy, {align:'right'}); // Right-align to padding
         cy += 5;

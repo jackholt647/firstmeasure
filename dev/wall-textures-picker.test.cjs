@@ -25,7 +25,7 @@ test('brick, stone and masonry resolve to distinct maps at real-world scale, in 
  assert.equal(errors.length,0,errors.join('\n'));
 });
 
-test('the Wall materials picker reports open and every close route, and stays open for painting in the 3D view',async t=>{
+test('the Wall materials picker reports open and every close route, and stays open whatever else is clicked',async t=>{
  const page=await (await browser(t)).newPage();
  await page.setContent('<body class="wall-mode-active"><button id="btnToggleTypes">Types</button><button id="elsewhere">Toolbar</button><div id="three-view-wrapper" style="position:relative;height:900px;width:1200px"><canvas id="view" width="600" height="400"></canvas></div></body>');
  await page.addScriptTag({path:SCRIPTS+'wall_features.js'});
@@ -34,8 +34,18 @@ test('the Wall materials picker reports open and every close route, and stays op
  await open();await page.getByRole('button',{name:'Close wall materials'}).click();assert.deepEqual(await events(),['open','close'],'× button');
  await open();await page.keyboard.press('Escape');assert.deepEqual(await events(),['open','close'],'Escape');
  await open();await page.locator('#view').click({position:{x:50,y:50}});assert.deepEqual(await events(),['open'],'painting in the 3D view keeps it open');
- await page.locator('#elsewhere').click();assert.deepEqual(await events(),['close'],'an outside click');
- await open();await page.evaluate(()=>document.querySelector('.exterior-sticker-bar .ss-tile').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,composed:true})));assert.deepEqual((await events()).slice(0,2),['open','close'],'another tool (the sticker strip)');
- await open();await page.getByRole('button',{name:'Wall materials',exact:true}).click();assert.deepEqual(await events(),['open','close'],'toggling the trigger');
+ await page.locator('#elsewhere').click();assert.deepEqual(await events(),[],'an outside click keeps it open');
+ await page.evaluate(()=>document.querySelector('.exterior-sticker-bar .ss-tile').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,composed:true})));assert.deepEqual(await events(),[],'so does the sticker strip');
+ await page.getByRole('button',{name:'Wall materials',exact:true}).click();assert.deepEqual(await events(),['close'],'toggling the trigger closes it');
  await page.evaluate(()=>WallFeatures.closeUI());assert.deepEqual(await events(),[],'closing an already closed picker restores nothing');
+});
+test('Wall materials › Roof sets the roof trim colour, shown as the default trim until set',async t=>{
+ const page=await (await browser(t)).newPage();
+ await page.setContent('<body class="wall-mode-active"><button id="btnToggleTypes">Types</button><div id="three-view-wrapper" style="position:relative;height:900px;width:1200px"></div></body>');
+ await page.addScriptTag({path:SCRIPTS+'exterior_finishes.js'});await page.addScriptTag({path:SCRIPTS+'wall_features.js'});
+ await page.evaluate(()=>{window.saved={material:'siding',color:'#123456',trimColor:'#abcdef'};let roof={category:Object.keys(ExteriorFinishes.roofMaterials)[0],color:'#333333'};WallFeatures.mountUI(()=>{},()=>null,()=>false,{defaults:v=>{if(v)saved={...saved,...v};return saved;},roof:v=>{if(v)roof=v;return roof;}});});
+ await page.getByRole('button',{name:'Wall materials',exact:true}).click();
+ const input=page.getByLabel('Roof trim color');assert.equal(await input.inputValue(),'#abcdef','until set it shows the default trim');
+ await input.evaluate(el=>{el.value='#445566';el.dispatchEvent(new Event('change',{bubbles:true}));});
+ assert.equal(await page.evaluate(()=>saved.roofTrimColor),'#445566');assert.equal(await page.evaluate(()=>saved.trimColor),'#abcdef','the default trim is untouched');
 });

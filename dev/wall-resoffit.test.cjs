@@ -57,6 +57,25 @@ test('an inset consumes a short neighbor and joins the surviving planes across i
  for(const face of r.faces.filter(f=>!f.deleted))K.validateFace(face);
 });
 
+test('a wall that passes the parallel section beside it turns the return between them around',()=>{
+ // One wall line with a step in it: the front wall, a 0.39 m return, and the next section standing 0.39 m behind.
+ const build=()=>{const f=fixture(),wall=(id,a,b)=>({id,points:[p(...a,0),p(...b,0),p(...b,f.z(...b)),p(...a,f.z(...a))]});f.faces[1]=wall('return',[4,.6096],[4,1]);f.faces.push(wall('next',[4,1],[8,1]));return f;};
+ const spanY=face=>[Math.min(...face.points.map(q=>q.y)),Math.max(...face.points.map(q=>q.y))],near=(a,b)=>Math.abs(a-b)<1e-7;
+ // Short of the next section the return only gets shorter.
+ {const f=build(),r=R.apply(f.faces,[f.pair],.8,f.roof,f.sources),back=r.faces.find(x=>x.id==='return'),was=K.normal(f.faces[1].points);
+  assert.ok(!back.deleted);assert.ok(near(spanY(back)[0],.8)&&near(spanY(back)[1],1));assert.ok(K.normal(back.points).x*was.x>0,'it faces the way it did');}
+ // Past it there is no corner for the two parallel walls to share: the tool refused ("cannot meet"). The front
+ // wall now stands behind the next section instead of in front of it, and the return faces the other way.
+ {const f=build(),before=JSON.stringify(f),r=R.apply(f.faces,[f.pair],1.2,f.roof,f.sources),front=r.faces.find(x=>x.id==='front'),back=r.faces.find(x=>x.id==='return'),next=r.faces.find(x=>x.id==='next'),was=K.normal(f.faces[1].points);
+  assert.ok(front.points.every(q=>near(q.y,1.2))&&near(Math.max(...front.points.map(q=>q.x)),4),'the front wall is on its new plane and still ends at the return');
+  assert.ok(!back.deleted,'the return is still a wall');assert.ok(back.points.every(q=>near(q.x,4)));assert.ok(near(spanY(back)[0],1)&&near(spanY(back)[1],1.2),JSON.stringify(spanY(back)));
+  assert.ok(K.normal(back.points).x*was.x<0,'and faces the other way');assert.equal(JSON.stringify(next.points),JSON.stringify(f.faces.find(x=>x.id==='next').points),'the next section does not move');
+  assert.ok(back.points.filter(q=>q.z>0).every(q=>Math.abs(q.z-f.z(q.x,q.y))<1e-7),'its top follows the roof');
+  assert.equal(JSON.stringify(f),before);for(const face of r.faces.filter(x=>!x.deleted))K.validateFace(face);
+  // And back again.
+  const pair=[front.points[3],front.points[2]],again=R.apply(r.faces,[pair],.8,f.roof,f.sources),turned=again.faces.find(x=>x.id==='return');
+  assert.ok(!turned.deleted&&near(spanY(turned)[0],.8)&&near(spanY(turned)[1],1));assert.ok(K.normal(turned.points).x*was.x>0);for(const face of again.faces.filter(x=>!x.deleted))K.validateFace(face);}
+});
 test('a lower roof boundary continues its contacted sheet instead of jumping to an overlapping upper roof',()=>{
  const f=fixture(),lowZ=(x,y)=>2+y;
  f.roof.faces.push({id:2,points:[p(-2,.6096,lowZ(0,.6096)),p(8,.6096,lowZ(0,.6096)),p(8,2,lowZ(0,2)),p(-2,2,lowZ(0,2))]});

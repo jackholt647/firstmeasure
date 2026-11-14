@@ -88,6 +88,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       const p = payload || {};
       return JSON.stringify({
         team: String(p.team ?? p.team_id ?? 'all').trim() || 'all',
+        reportType: String(p.reportType ?? p.report_type ?? 'all').trim() || 'all',
         view: String(p.view ?? p.row_view ?? p.fields ?? 'card').trim() || 'card',
         include: p.include ?? null,
         limit: Math.max(1, Math.min(250, parseInt(p.bucketLimit ?? p.limit ?? 50, 10) || 50)),
@@ -118,6 +119,8 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       if (!['completed', 'rejected', 'cancelled'].includes(group)) body.include_all = true;
       const team = String(base.team ?? base.team_id ?? 'all').trim();
       if (team && team !== 'all') body.team_id = team;
+      const reportType = String(base.reportType ?? base.report_type ?? 'all').trim();
+      if (reportType && reportType !== 'all') body.report_type = reportType;
       if (['completed', 'rejected', 'cancelled'].includes(group)) {
         Object.assign(body, localDayWindow());
         if (group === 'rejected') body.activity_fields = ['rejected'];
@@ -156,6 +159,8 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       const countsPayload = { view: body.view || 'card', include_all: true };
       const team = String(body.team ?? body.team_id ?? 'all').trim();
       if (team && team !== 'all') countsPayload.team_id = team;
+      const reportType = String(body.reportType ?? body.report_type ?? 'all').trim();
+      if (reportType && reportType !== 'all') countsPayload.report_type = reportType;
       const [countsRes, ...bucketResponses] = await Promise.all([
         fmPost('queue/counts', countsPayload).catch(() => null),
         ...queueGroups.map(group => {
@@ -258,6 +263,8 @@ Note: Our coverage is based on individual structure, not area - so we may have c
     queueAdminHasLoaded: false,
     queueAdminTeam: 'all',
     queueAdminLastTeam: 'all',
+    queueAdminReportType: 'all',
+    queueAdminLastReportType: 'all',
     queueAdminTeams: [],
     queueAdminBucketLimit: 50,
     queueAdminBucketOffsets: {},
@@ -508,7 +515,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         if (ms !== null && (latest === null || ms > latest)) latest = ms;
       }
       for (const ev of events) {
-        if (ev.event === 'project_reopened_for_edits' && (latest === null || ev.ms > latest)) latest = ev.ms;
+        if ((ev.event === 'project_reopened_for_edits' || ev.event === 'reordered_rejected_project') && (latest === null || ev.ms > latest)) latest = ev.ms;
       }
       return latest;
     },
@@ -4883,6 +4890,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       if (pmDate)   pmDate.innerText   = m.created_at || '-';
       // ★ ENHANCED: comprehensive modal instead of basic fields
       this.renderProjectModalAdminMeta(m, { loading: false });
+      this.renderProjectModalImpersonate(m);
       this.renderProjectModalComprehensive(m, id, data);
       const pdfBtn = document.getElementById('pmPdfBtn');
       if (pdfBtn) { if (data.pdf_url) { pdfBtn.href = data.pdf_url; pdfBtn.style.display='flex'; } else pdfBtn.style.display='none'; }
@@ -5118,6 +5126,54 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         else metaCol.appendChild(box);
       }
     },
+    // Sign in as the customer who ordered the report, through the same
+    // admin_impersonate_user action as Customers > Users (the server refuses
+    // anyone below full admin and audits it; the portal shows the way back).
+    canImpersonateProjectOwner(){
+      const user = cfg().user || {};
+      return user.is_admin === true || cfg().perms?.is_admin_legacy === true;
+    },
+    renderProjectModalImpersonate(project){
+      let btn = document.getElementById('pmImpersonateBtn');
+      if (!this.canImpersonateProjectOwner()) {
+        if (btn) btn.remove();
+        return;
+      }
+      const pdfBtn = document.getElementById('pmPdfBtn');
+      if (!btn) {
+        if (!pdfBtn || !pdfBtn.parentNode) return;
+        btn = document.createElement('button');
+        btn.id = 'pmImpersonateBtn';
+        btn.type = 'button';
+        btn.className = 'btn-secondary';
+        btn.style.cssText = 'justify-content:center; gap:10px; font:inherit;';
+        btn.innerHTML = '<i class="fas fa-user-secret"></i> Impersonate customer';
+        pdfBtn.parentNode.insertBefore(btn, pdfBtn);
+      }
+      if (!project) {
+        btn.style.display = 'none';
+        btn.onclick = null;
+        return;
+      }
+      const email = String(project.owner_email || project.issuer?.email || '').trim().toLowerCase();
+      const name = String(project.issuer?.name || project.owner_name || '').trim() || email;
+      const orgId = String(project.organization_id || project.organization_ref?.id || '').trim();
+      const reason = project.is_tutorial_instance ? 'Training projects have no customer to impersonate'
+        : !email ? 'No ordering user is recorded on this order'
+        : '';
+      btn.style.display = 'flex';
+      btn.disabled = !!reason;
+      btn.style.opacity = reason ? '0.55' : '';
+      btn.style.cursor = reason ? 'not-allowed' : '';
+      btn.title = reason || `Open the customer portal as ${name}${name !== email ? ` (${email})` : ''}`;
+      btn.onclick = reason ? null : () => {
+        if (!window.Customers || typeof window.Customers.impersonateUser !== 'function') {
+          alert('Impersonation is not available on this page.');
+          return;
+        }
+        window.Customers.impersonateUser(email, name, '', orgId);
+      };
+    },
     isProjectModalRequestCurrent(folderId, requestToken){
       const activeId = String(this._projectModalActiveId || '').trim();
       const targetId = String(folderId || '').trim();
@@ -5158,6 +5214,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         isTutorial: !!seed.is_tutorial_instance
       });
       this.renderProjectModalAdminMeta(seed, { loading: true });
+      this.renderProjectModalImpersonate(null);
       const pdfBtn = document.getElementById('pmPdfBtn');
       if (pdfBtn) {
         pdfBtn.removeAttribute('href');
@@ -5196,6 +5253,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         isTutorial: !!seed.is_tutorial_instance
       });
       this.renderProjectModalAdminMeta(seed, { loading: false });
+      this.renderProjectModalImpersonate(null);
       const gal = document.getElementById('pmGallery');
       if (gal) {
         gal.classList.add('pm-gallery-loading');
@@ -7779,8 +7837,11 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       this.ensureCollapsibleStyle(); this.ensureQueueStructurePinsUI(); this.ensureQueueReworkRequestsUI(); this.ensureQueueRequeueUI(); this.ensureQueueWaitingUI(); this.ensureQueueQASplitUI(); this.ensureQueueReleaseHoldingUI(); this.ensureQueueFillerToggleUI(); this.ensureQueueRejectedUI(); this.ensureQueueCancelledUI();
       const sel = document.getElementById('queueTeamSelect');
       if (sel) this.queueAdminTeam = sel.value || 'all';
-      if (this.queueAdminTeam !== this.queueAdminLastTeam) {
+      const reportTypeSel = document.getElementById('queueReportTypeSelect');
+      if (reportTypeSel) this.queueAdminReportType = reportTypeSel.value || 'all';
+      if (this.queueAdminTeam !== this.queueAdminLastTeam || this.queueAdminReportType !== this.queueAdminLastReportType) {
         this.queueAdminLastTeam = this.queueAdminTeam;
+        this.queueAdminLastReportType = this.queueAdminReportType;
         this.resetQueueBucketOffsets();
         queueOverviewStore.invalidate();
       }
@@ -7789,6 +7850,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       try {
         const data = await queueOverviewStore.get({
           team: this.queueAdminTeam,
+          reportType: this.queueAdminReportType,
           view: 'card',
           bucketLimit: this.queueAdminBucketLimit,
           offsets: this.queueAdminBucketOffsets || {}

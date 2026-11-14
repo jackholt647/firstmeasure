@@ -8,7 +8,11 @@ test('multi-selection height, deletion and reload preserve roof geometry and unr
 test('trim controller supports Shift selection, typed inches, Escape, Delete and undo snapshots',()=>{
  const vm=require('node:vm'),fs=require('node:fs');let settings={},editor,front,history=[];const ctx={RoofTrim:R,document:{querySelector:()=>null},wallNearestSurface:()=>front};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/roof_trim_editor.js','utf8'),ctx);
  editor=ctx.createRoofTrimEditor({settings:()=>settings,set:v=>settings=v,visible:()=>true,redraw:()=>editor.refresh(roof),screen:()=>null,commit:b=>history.push(b),undo:()=>{settings=history.pop();editor.refresh(roof);}});const panels=editor.refresh(roof),event=shiftKey=>({shiftKey,target:{closest:()=>true}}),key=k=>editor.key({key:k,preventDefault(){},stopImmediatePropagation(){}}),pick=(i,shift=false)=>{front={object:{userData:{roofTrimId:panels[i].id}}};assert.equal(editor.pick(event(shift),{},p=>p),true);};
- pick(0);pick(1,true);key('9');key('.');key('5');assert.ok(R.panels(roof,settings).slice(0,2).every(p=>Math.abs(p.height-9.5*.0254)<1e-9));key('Enter');assert.equal(history.length,1);key('1');key('2');key('Escape');assert.ok(R.panels(roof,settings).slice(0,2).every(p=>Math.abs(p.height-9.5*.0254)<1e-9));key('Delete');assert.equal(R.panels(roof,settings).filter(f=>f.deleted).length,6);assert.equal(history.length,2);editor.key({key:'z',ctrlKey:true,preventDefault(){},stopImmediatePropagation(){}});assert.equal(R.panels(roof,settings).filter(f=>f.deleted).length,4);pick(1,true);assert.equal(editor.selected(panels[1].id),false);
+ pick(0);pick(1,true);
+ // With Trim closed a click only selects (to read lengths): typed numbers do not touch trim.
+ assert.equal(editor.selected(panels[0].id)&&editor.selected(panels[1].id),true);assert.equal(key('9'),false);assert.ok(R.panels(roof,settings).every(p=>!(p.height>0)));
+ assert.ok(Math.abs(editor.selectedLength()-[0,1].reduce((n,i)=>n+Math.hypot(panels[i].b.x-panels[i].a.x,panels[i].b.y-panels[i].a.y,panels[i].b.z-panels[i].a.z),0))<1e-9);
+ editor.openMenu();key('9');key('.');key('5');assert.ok(R.panels(roof,settings).slice(0,2).every(p=>Math.abs(p.height-9.5*.0254)<1e-9));key('Enter');assert.equal(history.length,1);key('1');key('2');key('Escape');assert.ok(R.panels(roof,settings).slice(0,2).every(p=>Math.abs(p.height-9.5*.0254)<1e-9));key('Delete');assert.equal(R.panels(roof,settings).filter(f=>f.deleted).length,6);assert.equal(history.length,2);editor.key({key:'z',ctrlKey:true,preventDefault(){},stopImmediatePropagation(){}});assert.equal(R.panels(roof,settings).filter(f=>f.deleted).length,4);pick(1,true);assert.equal(editor.selected(panels[1].id),false);
 });
 
 test('fascia excludes chimney, sidewall, headwall and unclassified boundaries even with saved trim',()=>{
@@ -27,16 +31,6 @@ test('empty array settings from project metadata retain new fascia sizes after s
 });
 
 
-test('compact trim menu selects additively without applying, then applies chosen width and color',()=>{
- const vm=require('node:vm'),fs=require('node:fs'),nodes=new Map(),calls=[];
- const element=()=>({style:{setProperty(){}},dataset:{},children:[],replaceChildren(){this.children=[];},appendChild(n){this.children.push(n);},value:'',hidden:false,addEventListener(){},setAttribute(){},focus(){},blur(){},querySelector:q=>nodes.get(q.slice(1)),querySelectorAll(){return this.children;},set innerHTML(html){for(const m of html.matchAll(/<(?:button|input|select|span|section|div)[^>]*id="([^"]+)"[^>]*>/g)){const n=element();n.value=m[0].match(/value="([^"]+)"/)?.[1]||'';nodes.set(m[1],n);}},get parentElement(){return parent;}}),parent={insertBefore(node){nodes.set(node.id,node);}};
- const ctx={RoofTrim:R,WallTrim:require('../public/measure/internal/editor_scripts/wall_trim.js'),document:{querySelector:()=>parent,createElement:element,head:{appendChild(){}},getElementById:()=>null}},settings={};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/roof_trim_editor.js','utf8'),ctx);
- const editor=ctx.createRoofTrimEditor({settings:()=>settings,enabled:()=>true,visible:()=>true,redraw(){},wallMaterials:()=>['siding','brick','chimney-top'],wallWidth:()=>8,setWallWidth:n=>calls.push(['width',n]),selectWallTrim:k=>calls.push(['select',k]),applyWallTrim:(w,c,materials)=>calls.push(['apply',w,c,...materials])});editor.refresh(roof);
- nodes.get('roof-trim-tool').onclick();nodes.get('roof-trim-eaves').onclick();assert.equal(editor.selectionSnapshot().selected.length,2);assert.deepEqual(settings,{});nodes.get('roof-trim-rakes').onclick();assert.equal(editor.selectionSnapshot().selected.length,6,'Rakes adds to the eaves while the menu is open');assert.deepEqual(settings,{});nodes.get('wall-trim-select').onclick();nodes.get('wall-trim-ground').onclick();assert.deepEqual(calls,[['select','walls'],['select','ground']]);assert.equal(nodes.get('roof-trim-options').hidden,false);
- nodes.get('wall-trim-color').value='#aabbcc';nodes.get('wall-trim-apply').onclick();assert.deepEqual(calls.at(-1),['apply',8,'#aabbcc','siding']);
- const width=nodes.get('wall-trim-width');width.value='custom';width.onchange();nodes.get('wall-trim-custom').value='4.5';nodes.get('wall-trim-apply').onclick();assert.deepEqual(calls.at(-1),['apply',4.5,'#aabbcc','siding']);assert.equal(nodes.get('wall-trim-custom').hidden,false);
- nodes.get('trim-material-all').onclick();nodes.get('wall-trim-apply').onclick();assert.deepEqual(calls.at(-1).slice(3),['siding','brick','chimney-top']);nodes.get('trim-material-none').onclick();nodes.get('wall-trim-apply').onclick();assert.equal(calls.at(-1).length,3);nodes.get('trim-material-default').onclick();nodes.get('wall-trim-apply').onclick();assert.deepEqual(calls.at(-1).slice(3),['siding']);
-});
 test('roof fascia wins coplanar depth ties without offsetting measured or picked geometry',()=>{
  const vm=require('node:vm'),fs=require('node:fs'),source=fs.readFileSync('public/measure/internal/editor_scripts/wall_mode.js','utf8'),fn=source.split('\n').find(l=>l.includes('function drawRoofTrim('));
  class Geometry{setFromPoints(points){this.points=points;return this;}setIndex(){}}
@@ -47,11 +41,4 @@ test('roof fascia wins coplanar depth ties without offsetting measured or picked
 });
 
 test('roof trim is absent by default and eaves/rakes retain separate classifications',()=>{const panels=R.panels(roof);assert.ok(panels.every(p=>p.deleted&&p.height===0));assert.equal(panels.filter(p=>p.type==='eave').length,2);assert.equal(panels.filter(p=>p.type==='rake').length,4);});
-test('the Trim menu tells its host when it opens and closes',()=>{
- const vm=require('node:vm'),fs=require('node:fs'),nodes=new Map(),changes=[];
- const element=()=>({style:{setProperty(){}},dataset:{},children:[],replaceChildren(){this.children=[];},appendChild(n){this.children.push(n);},value:'',hidden:false,addEventListener(){},setAttribute(){},focus(){},blur(){},querySelector:q=>nodes.get(q.slice(1)),querySelectorAll(){return this.children;},set innerHTML(html){for(const m of html.matchAll(/<(?:button|input|select|span|section|div)[^>]*id="([^"]+)"[^>]*>/g)){const n=element();n.value=m[0].match(/value="([^"]+)"/)?.[1]||'';nodes.set(m[1],n);}},get parentElement(){return parent;}}),parent={insertBefore(node){nodes.set(node.id,node);}};
- const ctx={RoofTrim:R,WallTrim:require('../public/measure/internal/editor_scripts/wall_trim.js'),document:{querySelector:()=>parent,createElement:element,head:{appendChild(){}},getElementById:()=>null}},settings={};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/roof_trim_editor.js','utf8'),ctx);
- const editor=ctx.createRoofTrimEditor({settings:()=>settings,enabled:()=>true,visible:()=>true,redraw(){},wallMaterials:()=>[],applyWallTrim(){},openChanged:open=>changes.push(open)});editor.refresh(roof);
- nodes.get('roof-trim-tool').onclick();assert.deepEqual(changes,[true]);nodes.get('wall-trim-apply').onclick();editor.update();assert.deepEqual(changes,[true],'applying keeps the menu open');
- nodes.get('roof-trim-tool').onclick();assert.deepEqual(changes,[true,false]);nodes.get('roof-trim-tool').onclick();editor.clear();assert.deepEqual(changes,[true,false,true,false]);
-});
+// The Trim menu itself is tested in a browser: dev/trim-panel-browser.test.cjs.
