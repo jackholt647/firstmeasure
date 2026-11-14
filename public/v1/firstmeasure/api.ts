@@ -6919,7 +6919,12 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
 
-      const updated = await updateStatus(projectId, "completed");
+      const updated = await updateStatus(projectId, "completed", {
+        // Saved with its delivery pending, so nothing reads it as delivered before the delivery job has decided
+        // whether to hold it for its release window (FM-383, firstmeasure/project-events.ts).
+        submission_status: "submitting",
+        submission_failure: null
+      });
 
       const updatedLegacy = buildLegacyManifest(updated);
 
@@ -7263,7 +7268,12 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
 
-      const updated = await updateStatus(projectId, "completed");
+      const updated = await updateStatus(projectId, "completed", {
+        // Saved with its delivery pending, so nothing reads it as delivered before the delivery job has decided
+        // whether to hold it for its release window (FM-383, firstmeasure/project-events.ts).
+        submission_status: "submitting",
+        submission_failure: null
+      });
 
       const delivery = await enqueueProjectReportDelivery(projectId, pdfSync?.jobId, pdfSync?.revision);
 
@@ -18952,7 +18962,12 @@ async function approveQaProjectFromBulk(
 
 
 
-  const updated = await updateStatus(projectId, "completed");
+  const updated = await updateStatus(projectId, "completed", {
+    // Saved with its delivery pending, so nothing reads it as delivered before the delivery job has decided
+    // whether to hold it for its release window (FM-383, firstmeasure/project-events.ts).
+    submission_status: "submitting",
+    submission_failure: null
+  });
 
   const updatedLegacy = buildLegacyManifest(updated);
 

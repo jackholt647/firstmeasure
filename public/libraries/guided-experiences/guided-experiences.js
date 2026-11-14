@@ -896,12 +896,17 @@
   /**
    * Facts about a project that a reveal rule can name. `has_report`: a measurement report has been delivered for it
    * (a report link or file, or a completed report). Ordered but not delivered does not count: Materials would have
-   * nothing to work from yet.
+   * nothing to work from yet. A report held for its release window is not delivered either (FM-383).
    */
   function projectFacts(project){
     const p = object(project), m = object(p.measurement_project || p.measurement), raw = object(m.raw), manifest = object(p.manifest || raw.manifest);
     const rows = [p, m, raw, manifest];
-    const delivered = rows.some((row) => row.has_report === true || !!clean(row.report_url) || !!clean(row.pdf_url) || !!clean(row.summary_url) || !!clean(row.xml_url) || ['completed', 'complete', 'delivered'].includes(clean(row.workflow_state || row.status).toLowerCase()));
+    const held = rows.some((row) => {
+      const hold = object(row.delivery_release_hold || object(row.delivery).release_hold);
+      const scheduled = Date.parse(clean(row.delivery_hold_scheduled_release_at || hold.scheduled_release_at));
+      return clean(row.delivery_hold_status || hold.status).toLowerCase() === 'holding' && scheduled > Date.now();
+    });
+    const delivered = !held && rows.some((row) => row.has_report === true || !!clean(row.report_url) || !!clean(row.pdf_url) || !!clean(row.summary_url) || !!clean(row.xml_url) || ['completed', 'complete', 'delivered'].includes(clean(row.workflow_state || row.status).toLowerCase()));
     return { has_report: delivered, is_draft: !clean(p.platform_project_id || p.id) };
   }
   /** Map-form equality (`{ "project.has_report": true }`), the part of the condition contract a reveal may use. */

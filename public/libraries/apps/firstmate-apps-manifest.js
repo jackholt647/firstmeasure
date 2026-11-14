@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261113-fm455-line-totals'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261113-fm455-roof-lines')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261113-fm455-line-totals'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261114-fm455-fm383-held-reports')]
     },
     {
       id: 'project.checklists',

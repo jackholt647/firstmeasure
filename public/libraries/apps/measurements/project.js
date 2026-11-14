@@ -642,7 +642,8 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function reportOrderPendingStage(){
-    if (reportOrderReleaseHoldIsActive()) return 'processing';
+    // A report is held for release only once QA has approved it: it keeps the review stage it had (FM-383).
+    if (reportOrderReleaseHoldIsActive()) return 'review';
     const status = reportOrderStatus();
     if (['submitted', 'queued', 'ready', 'measurement_ordered'].includes(status)) return 'processing';
     if (['awaiting_review', 'awaiting_manager_review', 'pending_rejection'].includes(status)) return 'review';
@@ -2391,7 +2392,8 @@ window.PlatformCommerce.onReady(function(){
         ...summaryState
       }
     ];
-    if (cachedAssets?.xmlUrl || documentsUnlocked) {
+    // A held report's model exists, as it did in review: its row stays, still processing (FM-383).
+    if (cachedAssets?.xmlUrl || documentsUnlocked || reportOrderReleaseHoldIsActive()) {
       rows.push({
         get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_2d7f82c5d48d2c","XML model") ?? "XML model"); },
         detail: (globalThis.PlatformLanguage?.text("measurements","m_73340cea156d55","Model data export") ?? "Model data export"),
@@ -2436,7 +2438,8 @@ window.PlatformCommerce.onReady(function(){
       raw.report_sent_at,
       measurement.report_sent_at,
       activeBaseProject?.report_sent_at,
-      activeBaseProject?.completed_at
+      // Completion stands in for an older record's send time, never for a report held for release (FM-383).
+      reportOrderReleaseHoldIsActive() ? '' : activeBaseProject?.completed_at
     );
     const notes = firstCleanText(
       reportOrderState?.techNotes,

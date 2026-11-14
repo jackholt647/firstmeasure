@@ -950,6 +950,14 @@
     return !!scheduled && scheduled.getTime() > Date.now();
   });
 
+  // A report held for its release window is shown exactly as it was just before (FM-383): it is held only once QA has
+  // approved it, so the project's report status stays "awaiting_review" until the report is released, and no reader
+  // of it can tell the report is finished.
+  const customerReportStatus = (status, ...holdSources) => {
+    const text = cleanText(status);
+    return isFirstMeasureCompleteStatus(text) && reportReleaseHoldIsActive(...holdSources) ? 'awaiting_review' : text;
+  };
+
   function projectMediaOptions(){
     return {
       orgId: cleanText(APP.userOrgId, APP.orgId, window.__APP?.userOrgId, window.__APP?.orgId),
@@ -1461,7 +1469,7 @@
         platform_project: project.platform_project,
         measurement: project.measurement,
         measurement_project: project.measurement_project,
-        status: cleanText(fmProject.status, manifest.status, project.status),
+        status: customerReportStatus(cleanText(fmProject.status, manifest.status, project.status), manifest, fmProject),
         is_expedited: Boolean(manifest.is_expedited ?? project.is_expedited),
         report_expedite_option: cleanText(manifest.report_expedite_option, project.report_expedite_option),
         report_expedite_label: cleanText(manifest.report_expedite_label, project.report_expedite_label),
@@ -1560,7 +1568,7 @@
   }
 
   function firstMeasureSyncStatus(project = {}){
-    return cleanText(project.status, project.measurement_project?.status, project.measurement?.status).toLowerCase();
+    return customerReportStatus(cleanText(project.status, project.measurement_project?.status, project.measurement?.status), project).toLowerCase();
   }
 
   function platformSyncStatus(project = {}){
@@ -1617,7 +1625,7 @@
       id: measurementId,
       project_id: measurementId,
       folder: cleanMeasurementText(project.folder, measurementId),
-      status: cleanText(project.status, 'queued'),
+      status: customerReportStatus(cleanText(project.status, 'queued'), project),
       report_mode: cleanText(project.report_mode, project.instant_enabled ? 'both' : 'full'),
       measurement_system: project.measurement_system || "imperial",
       report_language: project.report_language || "en-US",
