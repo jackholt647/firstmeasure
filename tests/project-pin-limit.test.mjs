@@ -51,8 +51,9 @@ function mapAddPin({ hostType, projectType, existing }){
   const notices = [];
   const added = Symbol('added');
   const { maxPinsForType } = pinLimitHelpers(mapSource);
+  const host = hostType === undefined ? {} : { getSelectedType: () => hostType };
   const ctx = {
-    state: { map: {}, markers: Array.from({ length: existing }, () => ({})) },
+    state: { map: {}, host, markers: Array.from({ length: existing }, () => ({})) },
     window: { google: { maps: {} } },
     google: { maps: { Marker: function(){ throw added; } } },
     // The first thing addPin builds once a pin is allowed.
@@ -67,10 +68,13 @@ function mapAddPin({ hostType, projectType, existing }){
     selectedType: () => String(hostType || projectType || 'residential'),
     normalizedProjectType: (type) => String(type || '').trim().toLowerCase(),
     maxPinsForType,
+    pinLimitType: null,
     pinLimitMessage: (max) => `Maximum of ${max} pins per report.`,
     showToast: () => {},
   };
-  const addPin = new Function('ctx', `with (ctx) { return (${functionSource(mapSource, 'addPin').trim()}); }`)(ctx);
+  const compile = (name) => new Function('ctx', `with (ctx) { return (${functionSource(mapSource, name).trim()}); }`)(ctx);
+  ctx.pinLimitType = compile('pinLimitType');
+  const addPin = compile('addPin');
   try {
     const result = addPin({ lat: 1, lng: 2 }, true, {});
     return { added: false, result, notices };
@@ -81,12 +85,13 @@ function mapAddPin({ hostType, projectType, existing }){
 }
 
 test('project-map: with no type chosen the 6th to 10th pins are placed and the 11th is refused with "10"', () => {
+  // The new request's draft is autosaved as residential before a type is picked.
   for (let existing = 5; existing < 10; existing += 1) {
-    const outcome = mapAddPin({ hostType: null, projectType: '', existing });
+    const outcome = mapAddPin({ hostType: null, projectType: 'residential', existing });
     assert.equal(outcome.added, true, `pin ${existing + 1} placed`);
     assert.deepEqual(outcome.notices, []);
   }
-  const eleventh = mapAddPin({ hostType: null, projectType: '', existing: 10 });
+  const eleventh = mapAddPin({ hostType: null, projectType: 'residential', existing: 10 });
   assert.equal(eleventh.added, false);
   assert.deepEqual(eleventh.notices, [10]);
 });
@@ -97,8 +102,10 @@ test('project-map: residential still stops at 5 and says 5', () => {
   const sixth = mapAddPin({ hostType: 'residential', projectType: '', existing: 5 });
   assert.equal(sixth.added, false);
   assert.deepEqual(sixth.notices, [5]);
-  const saved = mapAddPin({ hostType: null, projectType: 'residential', existing: 5 });
-  assert.deepEqual(saved.notices, [5], 'a saved residential project keeps its limit');
+  const saved = mapAddPin({ hostType: undefined, projectType: 'residential', existing: 5 });
+  assert.deepEqual(saved.notices, [5], 'a host without a type choice uses the project\'s type');
+  const untyped = mapAddPin({ hostType: undefined, projectType: '', existing: 9 });
+  assert.equal(untyped.added, true, 'an untyped project takes a 10th pin');
 });
 
 test('project-request: more pins than the chosen type allows always shows the limit in the pin info', () => {
