@@ -38,41 +38,62 @@
   // FM-405: model_data.xml written before FM-405 matched points by plan position alone (xml_generator.js), so where a
   // lower roof meets an upper one in plan, the lower face's corner took the upper roof's height and the face rose into a
   // wall-high sliver. A roof face is a plane: a vertex far off the plane its other vertices agree on (at the face's saved
-  // pitch) belongs on that plane. Returns the face's heights, or null when it is already a plane and stays as saved.
-  function facePlaneHeights(ring,pitch){
+  // pitch) belongs on that plane. A flat face's corner no other face uses (`own`) was never given another roof's height,
+  // so the level its own corners agree on wins, even where most corners are shared (a flat porch under three upper roofs).
+  // Returns the face's heights, or null when it is already a plane and stays as saved.
+  function facePlaneHeights(ring,pitch,own=[]){
     const n=ring.length,TOL=.5,FAR=2,off=(pl,p)=>pl[0]*p[0]+pl[1]*p[1]+pl[2]-p[2],rise=pl=>Math.hypot(pl[0],pl[1])*12;
     if(n<3)return null;
     // A plane stays as saved, unless it stands near upright though its saved pitch is a roof's (a triangle with one such corner).
     const normal=newell(ring),c=ring.reduce((sum,p)=>sum.map((v,i)=>v+p[i]/n),[0,0,0]),fit=normal&&Math.abs(normal[2])>1e-6?[-normal[0]/normal[2],-normal[1]/normal[2],c[2]+(normal[0]*c[0]+normal[1]*c[1])/normal[2]]:null;
     const upright=pitch!=null&&pitch<18&&(!fit||rise(fit)>24);
-    if(fit&&ring.every(p=>Math.abs(off(fit,p))<=TOL)&&!upright)return null;
-    // Only a broken face gets here. Its plane is one through three of its corners, or through two at its saved pitch.
-    if(n>24)return null;
-    const planes=[];
-    for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)for(let k=j+1;k<n;k++){const [a,b,c]=[ring[i],ring[j],ring[k]],d=(b[0]-a[0])*(c[1]-a[1])-(c[0]-a[0])*(b[1]-a[1]);if(Math.abs(d)<1e-6)continue;
+    const planar=fit&&ring.every(p=>Math.abs(off(fit,p))<=TOL);
+    if(planar&&!upright)return null;
+    // Only a broken face gets here. Its plane is one through three of its corners, or through two at its saved pitch; a flat
+    // face's is level with one of its corners (cheap, so a large flat roof with many corners is repaired too).
+    if(n>24&&pitch!==0)return null;
+    const planes=pitch===0?[...new Set(ring.map(p=>p[2]))].map(z=>[0,0,z]):[];
+    if(n<=24)for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)for(let k=j+1;k<n;k++){const [a,b,c]=[ring[i],ring[j],ring[k]],d=(b[0]-a[0])*(c[1]-a[1])-(c[0]-a[0])*(b[1]-a[1]);if(Math.abs(d)<1e-6)continue;
       const A=((b[2]-a[2])*(c[1]-a[1])-(c[2]-a[2])*(b[1]-a[1]))/d,B=((b[0]-a[0])*(c[2]-a[2])-(c[0]-a[0])*(b[2]-a[2]))/d;planes.push([A,B,a[2]-A*a[0]-B*a[1]]);}
-    if(pitch!=null){const s=pitch/12;for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){const [a,b]=[ring[i],ring[j]],run=Math.hypot(b[0]-a[0],b[1]-a[1]);if(run<1e-6)continue;
+    if(pitch!=null&&n<=24){const s=pitch/12;for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){const [a,b]=[ring[i],ring[j]],run=Math.hypot(b[0]-a[0],b[1]-a[1]);if(run<1e-6)continue;
       const u=[(b[0]-a[0])/run,(b[1]-a[1])/run],along=(b[2]-a[2])/run;if(Math.abs(along)>s)continue;const across=Math.sqrt(s*s-along*along);
       for(const sign of [-1,1]){const A=along*u[0]-sign*across*u[1],B=along*u[1]+sign*across*u[0];planes.push([A,B,a[2]-A*a[0]-B*a[1]]);}}}
-    let best=null;
-    for(const pl of planes){if(pitch!=null&&Math.abs(rise(pl)-pitch)>1.5)continue;const r=ring.map(p=>Math.abs(off(pl,p))),inliers=r.filter(x=>x<=TOL).length,moved=r.reduce((sum,x)=>sum+(x>TOL?x:0),0);
-      if(!best||inliers>best.inliers||(inliers===best.inliers&&moved<best.moved))best={pl,r,inliers,moved};}
-    if(!best||best.inliers*2<=n||!best.r.some(x=>x>FAR))return null;
+    // A broken flat face: the level most (and at least two) of its own corners lie on. Otherwise, or when that level moves
+    // no corner far, the plane most of all its corners lie on.
+    if(pitch!==0||planar)own=[];
+    const owned=own.filter(Boolean).length,better=(a,b)=>!b||a.inliers>b.inliers||(a.inliers===b.inliers&&a.moved<b.moved);
+    let best=null,bestOwn=null;
+    for(const pl of planes){if(pitch!=null&&Math.abs(rise(pl)-pitch)>1.5)continue;const r=ring.map(p=>Math.abs(off(pl,p))),inliers=r.filter(x=>x<=TOL).length,ownInliers=r.filter((x,i)=>own[i]&&x<=TOL).length,moved=r.reduce((sum,x)=>sum+(x>TOL?x:0),0),plane={pl,r,inliers,ownInliers,moved};
+      if(better(plane,best))best=plane;if(ownInliers>=2&&ownInliers*2>owned&&(!bestOwn||ownInliers>bestOwn.ownInliers||(ownInliers===bestOwn.ownInliers&&better(plane,bestOwn))))bestOwn=plane;}
+    const repairs=plane=>plane&&plane.r.some(x=>x>FAR);
+    if(repairs(bestOwn))best=bestOwn;else if(!repairs(best)||best.inliers*2<=n)return null;
     return ring.map((p,i)=>best.r[i]>TOL?best.pl[0]*p[0]+best.pl[1]*p[1]+best.pl[2]:p[2]);
   }
   // Give a face's corrected corners their own points, and its edges the corrected ends where every face on the edge agrees,
   // so the face, its lines and their lengths all follow the corrected roof. Faces that fit their points keep them.
-  function separateLayers(points,lines,faces){
+  // `faceCount(id)` is how many faces in the whole model use the point.
+  function separateLayers(points,lines,faces,faceCount){
     const byEnds=new Map([...lines].map(([id,line])=>[line.ids.slice().sort().join(','),id])),ends=new Map(),split=new Map();
+    const copyAt=(id,xyz)=>{const copies=split.get(id)||[];split.set(id,copies);let copy=copies.find(other=>Math.abs(points.get(other)[2]-xyz[2])<=.25);if(!copy){copy=`${id}~${copies.length+1}`;copies.push(copy);points.set(copy,xyz);}return copy;};
     for(const face of faces){
-      const heights=facePlaneHeights(face.points,face.pitch),ids=face.ids.map((id,i)=>{
+      const heights=facePlaneHeights(face.points,face.pitch,face.ids.map(id=>faceCount(id)<=1)),ids=face.ids.map((id,i)=>{
         if(!heights||Math.abs(heights[i]-face.points[i][2])<=.5)return id;
-        const xyz=[face.points[i][0],face.points[i][1],heights[i]],copies=split.get(id)||[];split.set(id,copies);
-        let copy=copies.find(other=>Math.abs(points.get(other)[2]-xyz[2])<=.25);if(!copy){copy=`${id}~${copies.length+1}`;copies.push(copy);points.set(copy,xyz);}return copy;});
+        return copyAt(id,[face.points[i][0],face.points[i][1],heights[i]]);});
       if(heights)face.points=ids.map(id=>points.get(id));
       ids.forEach((id,i)=>{const j=(i+1)%ids.length,line=byEnds.get([face.ids[i],face.ids[j]].sort().join(','));if(line)(ends.get(line)||ends.set(line,[]).get(line)).push(id+','+ids[j]);});
     }
     for(const [id,seen] of ends){const line=lines.get(id),pair=seen[0].split(',');if(seen.every(other=>new Set(other.split(',')).size===2&&other.split(',').every(p=>pair.includes(p))))line.ids=line.ids.map(end=>pair.find(p=>p===end||p.startsWith(end+'~')));}
+    // A face the report leaves out keeps its edges as lines on no face. Where its corner was merged with a roof's corner at
+    // another height, its lines hang from that corner like a tent. When two or more such lines leave a face's corner and
+    // their other ends agree on a height more than 2 ft above or below it, those lines get a corner at that height.
+    const loose=new Map();
+    for(const [id,line] of lines)if(!ends.has(id))for(const end of line.ids)(loose.get(end)||loose.set(end,[]).get(end)).push(line);
+    for(const [id,group] of loose){
+      if(group.length<2||!faceCount(id))continue;
+      const at=points.get(id),others=group.map(line=>points.get(line.ids[0]===id?line.ids[1]:line.ids[0])[2]).sort((a,b)=>a-b),mid=others[others.length>>1];
+      if(others[others.length-1]-others[0]>2||!(others.every(z=>z-at[2]>2)||others.every(z=>at[2]-z>2)))continue;
+      const copy=copyAt(id,[at[0],at[1],mid]);for(const line of group)line.ids=line.ids.map(end=>end===id?copy:end);
+    }
   }
   function parseModel(xml,edgeTypes=[]){
     const classified=new Map(edgeTypes.map(edge=>[String(edge.path),lineType(edge.type)]));
@@ -111,10 +132,13 @@
         const size=face.querySelector('POLYGON')?.getAttribute('size');
         faces.push({ids,points:boundary,holes,area:size!==null&&size!==undefined&&Number.isFinite(Number(size))?Math.max(0,Number(size)):null,pitch:pitchText!==null&&pitchText!==undefined&&Number.isFinite(Number(pitchText))?Math.max(0,Number(pitchText)):null});
       }
-      separateLayers(points,lines,faces);
       if(points.size)roofs.push({points,lines,faces,openings});
     }
     if(!roofs.length)throw new Error('No saved roof geometry is available for this report.');
+    // Every ROOF repeats the model's points under the same ids, so a corner is shared when faces of any ROOF use it.
+    const used=new Map(),key=(roof,id)=>id+'@'+roof.points.get(id);
+    for(const roof of roofs)for(const face of roof.faces)for(const id of new Set(face.ids))used.set(key(roof,id),(used.get(key(roof,id))||0)+1);
+    for(const roof of roofs)separateLayers(roof.points,roof.lines,roof.faces,id=>used.get(key(roof,id))||0);
     // FM-455: with the report's own line types, the model draws the report's lines. A line it does not list (a face edge
     // across a notch, or an orphan protrusion edge in older XML, typed SKYLIGHT there) is no line of the PDF's. Only when
     // the types name nearly every line: otherwise they belong to another model and the XML's own types stay.
