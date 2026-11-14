@@ -49,6 +49,15 @@ test("report preferences are opt-in, validated and frozen on orders", async () =
     assert.throws(()=>createProjectSchema.parse({...input,report_language:"fr"}));
     await assert.rejects(storage.patchManifest(saved.id,{report_language:"invalid"}));
     assert.deepEqual(prefs.normalizeReportPreferences({}),us);
+    // FM-401: roof pitch is a report preference, not company localization. The branch's report_preferences win over
+    // the copy 1M8-255 also wrote into localization, which is read only when the report preference is missing.
+    await platform.saveGlobal(org.id,{data:{app_flags:{firstmeasure:{report_localization:true,metric_measurements:false}}}});
+    await platform.upsertDocument(org.id,"branch",{id:"default",data:{report_preferences:us,localization:{locale:"en-US",measurement_system:"imperial",pitch_notation:"degrees"}}},{replace:true});
+    assert.equal((await prefs.resolveOrderReportPreferences(input)).pitch_notation,"rise_12","the report preference wins");
+    await platform.upsertDocument(org.id,"branch",{id:"default",data:{report_preferences:{measurement_system:"imperial",report_language:"en-US"},localization:{pitch_notation:"degrees"}}},{replace:true});
+    assert.equal((await prefs.resolveOrderReportPreferences(input)).pitch_notation,"degrees","a legacy localization copy is still honoured");
+    const { companyLocalization } = await import("../platform/localization/settings.js");
+    assert.equal((await companyLocalization(org.id)).company.pitch_notation,undefined,"company localization does not carry the pitch notation");
   } finally {
     await (await import("../firstmeasure/project_index.js")).closeFirstMeasureProjectIndex();
   }

@@ -8100,7 +8100,10 @@
     "developer_settings_subtitle": "Narzędzia deweloperskie, flagi funkcji i konfiguracja aplikacji.",
     "pitch_notation_label": "Nachylenie dachu",
     "pitch_notation_rise": "Wzniesienie na 12 (6/12)",
-    "pitch_notation_degrees": "Stopnie (26,6°)"
+    "pitch_notation_degrees": "Stopnie (26,6°)",
+    "rp_section_units": "Jednostki",
+    "rp_section_units_sub": "Jak nowe raporty zapisują wymiary.",
+    "rp_tip_pitch_notation": "Wzniesienie na 12 (6/12), jak zapisują je dekarze w USA, lub stopnie (26,6°), jak gdzie indziej. Raporty już zamówione zachowują swój zapis."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Dodaj pracę",

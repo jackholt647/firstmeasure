@@ -8320,7 +8320,10 @@
     "developer_settings_subtitle": "Udviklerværktøjer, funktionsflag og appkonfiguration.",
     "pitch_notation_label": "Taghældning",
     "pitch_notation_rise": "Stigning pr. 12 (6/12)",
-    "pitch_notation_degrees": "Grader (26,6°)"
+    "pitch_notation_degrees": "Grader (26,6°)",
+    "rp_section_units": "Enheder",
+    "rp_section_units_sub": "Hvordan nye rapporter skriver mål.",
+    "rp_tip_pitch_notation": "Stigning pr. 12 (6/12), som tagdækkere i USA skriver det, eller grader (26,6°), som tagdækkere andre steder gør. Rapporter, der allerede er bestilt, beholder deres."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Tilføj arbejde",

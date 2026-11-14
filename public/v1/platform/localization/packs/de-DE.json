@@ -8320,7 +8320,10 @@
     "developer_settings_subtitle": "Entwicklerwerkzeuge, Feature-Flags und App-Konfiguration.",
     "pitch_notation_label": "Dachneigung",
     "pitch_notation_rise": "Steigung auf 12 (6/12)",
-    "pitch_notation_degrees": "Grad (26,6°)"
+    "pitch_notation_degrees": "Grad (26,6°)",
+    "rp_section_units": "Einheiten",
+    "rp_section_units_sub": "Wie neue Berichte Maße angeben.",
+    "rp_tip_pitch_notation": "Steigung auf 12 (6/12), wie Dachdecker in den USA sie angeben, oder Grad (26,6°), wie es Dachdecker anderswo tun. Bereits bestellte Berichte behalten ihre Angabe."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Arbeit hinzufügen",

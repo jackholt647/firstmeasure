@@ -8328,7 +8328,10 @@
     "developer_settings_subtitle": "Utviklerverktøy, funksjonsflagg og appkonfigurasjon.",
     "pitch_notation_label": "Takvinkel",
     "pitch_notation_rise": "Stigning per 12 (6/12)",
-    "pitch_notation_degrees": "Grader (26,6°)"
+    "pitch_notation_degrees": "Grader (26,6°)",
+    "rp_section_units": "Enheter",
+    "rp_section_units_sub": "Hvordan nye rapporter skriver mål.",
+    "rp_tip_pitch_notation": "Stigning per 12 (6/12), slik taktekkere i USA skriver det, eller grader (26,6°), slik taktekkere andre steder gjør. Rapporter som allerede er bestilt, beholder sin."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Legg til arbeid",

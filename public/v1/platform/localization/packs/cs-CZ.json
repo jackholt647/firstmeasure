@@ -7924,7 +7924,10 @@
     "developer_settings_subtitle": "Nástroje pro vývojáře, přepínače funkcí a konfigurace aplikací.",
     "pitch_notation_label": "Sklon střechy",
     "pitch_notation_rise": "Převýšení na 12 (6/12)",
-    "pitch_notation_degrees": "Stupně (26,6°)"
+    "pitch_notation_degrees": "Stupně (26,6°)",
+    "rp_section_units": "Jednotky",
+    "rp_section_units_sub": "Jak nové zprávy zapisují míry.",
+    "rp_tip_pitch_notation": "Převýšení na 12 (6/12), jak píší pokrývači v USA, nebo stupně (26,6°), jak je píší pokrývači jinde. Už objednané zprávy si ponechají svůj zápis."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Přidat práci",
