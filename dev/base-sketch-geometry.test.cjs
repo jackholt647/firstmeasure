@@ -116,3 +116,46 @@ test('rounded spline boundaries restore analytic sketch edges at creation and re
  const loaded=JSON.parse(JSON.stringify(base));delete loaded.sketch;const rebuilt=S.ensure(loaded);assert.equal(rebuilt.nodes.length,5);assert.equal(rebuilt.curves[0].controls.length,3);assert.equal(rebuilt.edges.filter(e=>e.curveId).length,2);
  const corrupt={nodes:rebuilt.nodes,edges:[{...rebuilt.edges.find(e=>e.curveId),curveId:'missing'}],curves:[]};assert.throws(()=>S.curveEdges(corrupt),/analytic definition/);
 });
+test('a boundary point lying straight along one edge is removed and its edges join; a corner stays',()=>{
+ const S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js'),p=(x,y,z=0)=>({x,y,z});
+ const base={faces:[{id:'f',points:[p(0,0),p(2,0),p(4,0),p(4,3),p(0,3)]}]};S.ensure(base);
+ const id=q=>base.sketch.nodes.find(n=>Math.hypot(n.x-q.x,n.y-q.y)<1e-9).id,mid=id(p(2,0)),corner=id(p(4,0));
+ assert.ok(base.sketch.nodes.find(n=>n.id===mid).fixed);
+ assert.equal(S.remove(base,[corner],[]),0,'a corner holds the outline');assert.equal(base.faces[0].points.length,5);assert.equal(base.sketch.nodes.length,5);
+ assert.equal(S.remove(base,[mid],[]),1);
+ assert.equal(base.faces.length,1);assert.equal(base.faces[0].points.length,4);assert.ok(!base.faces[0].points.some(q=>Math.hypot(q.x-2,q.y)<1e-9));
+ assert.equal(base.sketch.nodes.length,4);assert.ok(base.sketch.edges.every(e=>e.fixed));assert.equal(base.sketch.edges.length,4);
+ assert.ok(base.sketch.edges.some(e=>[e.a,e.b].includes(id(p(0,0)))&&[e.a,e.b].includes(corner)),'the two edges became one');
+ // A divider ending on such a point goes with it, and the boundary still joins.
+ const split={faces:[{id:'a',points:[p(0,0),p(2,0),p(2,3),p(0,3)]},{id:'b',points:[p(2,0),p(4,0),p(4,3),p(2,3)]}]};S.ensure(split);
+ const at=q=>split.sketch.nodes.find(n=>Math.hypot(n.x-q.x,n.y-q.y)<1e-9).id;
+ assert.ok(S.remove(split,[at(p(2,0))],[])>=2);assert.equal(split.faces.length,1);assert.equal(split.sketch.nodes.length,5);
+});
+test('base wire with an end off the base is removed; lines on the base stay',()=>{
+ const S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js'),p=(x,y,z=0)=>({x,y,z});
+ const base={faces:[{id:'f',points:[p(0,0),p(4,0),p(4,3),p(0,3)]}]};S.ensure(base);
+ const a=S.add(base,p(1,1)),b=S.add(base,p(3,2));S.connect(base,[a,b]);
+ assert.equal(S.onBase(base,p(1,1)),true);assert.equal(S.onBase(base,p(4,0)),true);assert.equal(S.onBase(base,p(1,1,2.8)),false,'over the base is not on it');assert.equal(S.onBase(base,p(9,9)),false);
+ assert.equal(S.removeStrayWire(base),false,'nothing to repair');
+ // What a connect between wall points used to leave behind: nodes up a wall, joined to each other and to the base.
+ const s=base.sketch,top={...p(4,0,2.9),id:'p90',fixed:false,userDraftPoint:true},top2={...p(4.001,0,2.89),id:'p91',fixed:false,userDraftPoint:true},corner=s.nodes.find(n=>n.x===4&&n.y===0).id;
+ s.nodes.push(top,top2);s.edges.push({id:'e90',a:'p90',b:corner,fixed:false,userConnection:true},{id:'e91',a:'p90',b:'p91',fixed:false,userConnection:true});
+ const nodes=s.nodes.length,edges=s.edges.length;
+ assert.equal(S.removeStrayWire(base),true);assert.equal(base.sketch.nodes.length,nodes-2);assert.equal(base.sketch.edges.length,edges-2);
+ assert.ok(base.sketch.edges.some(e=>[e.a,e.b].includes(a)&&[e.a,e.b].includes(b)),'the line drawn on the base is kept');assert.equal(base.faces.length,1);assert.equal(S.removeStrayWire(base),false);
+});
+test('two base faces that meet along a fold share its corners again after one was pitched back a hair off',()=>{
+ const S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js'),p=(x,y,z=0)=>({x,y,z});
+ // A level face and a sloped one meeting along x=4. The sloped face's corner at (4,3) came back 31 microns high.
+ const slope=(x,y)=>.2*(x-4)+.00001033*y,base={faces:[{id:'level',points:[p(0,0),p(4,0),p(4,3),p(0,3)]},{id:'sloped',points:[p(4,0,slope(4,0)),p(8,0,slope(8,0)),p(8,3,slope(8,3)),p(4,3,slope(4,3))]}]};
+ S.ensure(base);const at=(x,y)=>base.sketch.nodes.filter(n=>Math.hypot(n.x-x,n.y-y)<1e-9);
+ assert.equal(at(4,3).length,2,'each face keeps its own corner at the far end of the fold');assert.equal(at(4,0).length,1);
+ // A line across the sloped face from that spot starts from the sloped face's own corner, not the level face's.
+ const probe=JSON.parse(JSON.stringify(base)),sloped=probe.faces[1].points[3];assert.equal(S.add(probe,p(4,3,sloped.z),.001),sloped.nodeId);
+ assert.equal(S.weldFolds(base),true);
+ assert.equal(at(4,3).length,1,'one corner, shared');assert.ok(base.faces.every(f=>f.points.every(q=>Math.abs(q.z-(f.id==='level'?0:.2*(q.x-4)))<1e-6)),'the sloped face turned onto the fold by a hair');
+ const fold=base.sketch.edges.find(e=>[e.a,e.b].every(id=>Math.abs(base.sketch.nodes.find(n=>n.id===id).x-4)<1e-9));assert.ok(fold&&!fold.fixed,'the fold is one shared line, not two outlines side by side');
+ assert.equal(S.weldFolds(base),false,'welded, there is nothing left to do');
+ // A real step between two faces is left alone.
+ const step={faces:[{id:'low',points:[p(0,0),p(4,0),p(4,3),p(0,3)]},{id:'high',points:[p(4,0,.15),p(8,0,.15),p(8,3,.15),p(4,3,.15)]}]};S.ensure(step);assert.equal(S.weldFolds(step),false);
+});

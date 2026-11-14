@@ -22,3 +22,16 @@ test('raising a subdivided recessed base keeps the top edge and the adjoining lo
  const f={id:'recess',points:[p(0,1),p(8,1),p(8,1,4),p(0,1,4)],retainedPoints:[p(6,1,2)]},edits={$surfaces:[f]},next=F.follow(edits,recessed,up).$surfaces[0];
  for(const q of [p(4,1,0),p(4,1,1.5),p(8,1,0),p(8,1,4),p(0,1,4)])assert.ok(next.points.some(v=>Math.hypot(v.x-q.x,v.y-q.y,v.z-q.z)<1e-7));assert.deepEqual(next.retainedPoints,f.retainedPoints);
 });
+test('walls are left exactly as they are when the base under them did not move',()=>{
+ const WB=require('../public/measure/internal/editor_scripts/wall_base_binding.js'),p=(x,y,z)=>({x,y,z});
+ const base=()=>({faces:[{id:'a',points:[p(0,0,0),p(2,0,0),p(2,3,0),p(0,3,0)]},{id:'b',points:[p(2,0,0),p(4,0,0),p(4,3,0),p(2,3,0)]}]});
+ // This wall stands 1 mm off the base and runs across the seam between the two base faces.
+ const wall={id:'wall',points:[p(0,0,.001),p(4,0,.001),p(4,0,3),p(0,0,3)],holes:[]},edits={$surfaces:[wall]};
+ // An edit that removed nothing used to re-fit every wall: this one was cut at the seam and dropped onto the base.
+ assert.deepEqual(WB.follow(edits,base(),base()),edits);
+ // The base rises under face b only: the wall follows there and keeps its own height over face a.
+ const raised=base();raised.faces[1].points.forEach(q=>q.z=.5);
+ const followed=WB.follow(edits,base(),raised).$surfaces[0],low=followed.points.filter(q=>q.z<1);
+ assert.ok(low.some(q=>Math.abs(q.z-.5)<1e-9),'the stretch over the raised face follows it');
+ assert.ok(low.some(q=>Math.abs(q.x)<1e-9&&Math.abs(q.z-.001)<1e-9),'the stretch over the unchanged face keeps its height: '+JSON.stringify(low));
+});

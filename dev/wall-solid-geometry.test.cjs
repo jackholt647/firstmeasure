@@ -295,7 +295,7 @@ test('new surface boundaries reclaim deleted coordinates without resurrecting ol
 });
 test('new surface reclaims only its part of a previously deleted edge',()=>{
  const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(0,0,0),b=p(4,0,0),before={$surfaces:[{id:'old',deleted:true,points:[a,b,p(4,0,2),p(0,0,2)]}],$removedSurfaceEdges:[G.edgeKey(a,b)]},candidate=structuredClone(before),face={id:'new',points:[p(1,0,0),p(3,0,0),p(3,1,0),p(1,1,0)]};candidate.$surfaces.push(face);const next=M.prepareEdits({},candidate,before),wire=G.surfaceWire(next);
- assert.deepEqual(new Set(next.$removedSurfaceEdges),new Set([G.edgeKey(a,p(1,0,0)),G.edgeKey(p(3,0,0),b)]));assert.ok(wire.edges.some(e=>e.id===G.edgeKey(face.points[0],face.points[1])));assert.ok(!wire.edges.some(e=>e.id===G.edgeKey(a,b)));
+ assert.deepEqual(next.$removedSurfaceEdges,[],'the record lives on the deleted face, not project-wide');assert.ok(next.$surfaces[0].noWire,'the deleted face no longer draws');assert.ok(!wire.edges.some(e=>[G.edgeKey(a,p(1,0,0)),G.edgeKey(p(3,0,0),b)].includes(e.id)),'the rest of the deleted edge stays gone');assert.ok(wire.edges.some(e=>e.id===G.edgeKey(face.points[0],face.points[1])));assert.ok(!wire.edges.some(e=>e.id===G.edgeKey(a,b)));
 });
 test('new loose connections survive revival while a new deletion remains authoritative',()=>{
  const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(0,0,0),b=p(2,0,0),before={$loose:{points:[],edges:[]},$removedSurfacePoints:[G.vertexKey(a)],$removedSurfaceEdges:[G.edgeKey(a,b)]},candidate=structuredClone(before);candidate.$loose={points:[a,b],edges:[[a,b]]};const next=M.prepareEdits({},candidate,before);assert.equal(G.surfaceWire(next).edges.length,1);assert.equal(G.surfaceWire(next).nodes.length,2);
@@ -303,7 +303,10 @@ test('new loose connections survive revival while a new deletion remains authori
 });
 
 test('wire revival leaves unrelated sub-micron loose geometry and its exclusions unchanged',()=>{
- const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(10,10,0),b=p(10.0000001,10,0),q=p(0,0,0),before={$loose:{points:[{...a,anchorId:'keep'}],edges:[[a,b]]},$removedSurfacePoints:[G.vertexKey(a),G.vertexKey(q)]},candidate=structuredClone(before);candidate.$surfaces=[{id:'new',points:[q,p(2,0,0),p(0,2,0)]}];const next=M.prepareEdits({},candidate,before);assert.ok(next.$removedSurfacePoints.includes(G.vertexKey(a)));assert.deepEqual(next.$loose,before.$loose);
+ const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(10,10,0),b=p(10.0000001,10,0),q=p(0,0,0),before={$loose:{points:[{...a,anchorId:'keep'}],edges:[[a,b]]},$removedSurfacePoints:[G.vertexKey(a),G.vertexKey(q)]},candidate=structuredClone(before);candidate.$surfaces=[{id:'new',points:[q,p(2,0,0),p(0,2,0)]}];const next=M.prepareEdits({},candidate,before);
+ // The new face does not bring the hidden loose point back. A hidden free-standing point is not kept hidden any more:
+ // it is removed, with the line that ends on it, and no project-wide record is left.
+ assert.deepEqual(next.$removedSurfacePoints,[]);assert.deepEqual(next.$loose,{points:[],edges:[]});assert.ok(G.surfaceWire(next).nodes.every(n=>n.id!==G.vertexKey(a)));
 });
 test('deleting a line that overlaps a neighbour wall by a sub-millimetre sliver leaves that wall alone',()=>{
  // Measured houses carry 0.1-0.3 mm slivers; the recess's front line ran 0.3 mm onto the next wall's bottom edge,
@@ -311,4 +314,124 @@ test('deleting a line that overlaps a neighbour wall by a sub-millimetre sliver 
  const wall={id:'left',points:[p(0,0,0),p(2,0,0),p(2,0,3),p(0,0,3)]},floor={id:'floor',points:[p(1.9997,0,0),p(4,0,0),p(4,-1,0),p(1.9997,-1,0)]};
  const result=G.removeFaceEdges([wall,floor],[[p(1.9997,0,0),p(4,0,0)]]);assert.ok(!result.removed.includes('left'));assert.deepEqual(result.removed,['floor']);
  assert.deepEqual(G.removeFaceEdges([wall],[[p(0,0,0),p(2,0,0)]]).removed,['left'],'a line the wall really runs along is still its own');
+});
+
+test('deleting points removes the free-standing lines at them instead of hiding them',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),sq=[p(0,0,0),p(2,0,0),p(2,0,2),p(0,0,2)];
+ const edits={$surfaces:[{id:'face',points:sq.map(q=>({...q})),holes:[]}],$loose:{points:sq.map(q=>({...q})),edges:sq.map((a,i)=>[{...a},{...sq[(i+1)%4]}])}};
+ W.deleteSurfaceElements(edits,[sq[2],sq[3]].map(W.vertexKey));
+ assert.equal(edits.$surfaces[0].deleted,true);
+ // The two top corners and the three lines that touch them are gone; the bottom line was not selected and stays.
+ assert.equal(edits.$loose.points.length,2);assert.equal(edits.$loose.edges.length,1);assert.deepEqual(edits.$loose.edges[0].map(q=>q.z),[0,0]);
+ // A project saved before this still holds lines an earlier delete only hid: opening it removes them.
+ const old={$removedSurfacePoints:[W.vertexKey(sq[2])],$loose:{points:sq.map(q=>({...q})),edges:sq.map((a,i)=>[{...a},{...sq[(i+1)%4]}])}};
+ assert.equal(W.pruneHiddenLoose(old),true);assert.equal(old.$loose.points.length,3);assert.equal(old.$loose.edges.length,2);assert.equal(W.pruneHiddenLoose(old),false);
+});
+
+test('what a delete hides is recorded on the deleted face, hides nothing else, and follows the face',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),sq=[p(0,0,0),p(2,0,0),p(2,0,2),p(0,0,2)];
+ const ids=g=>new Set(g.nodes.map(n=>n.id)),edits={$surfaces:[{id:'face',points:sq.map(q=>({...q})),holes:[]}]};
+ W.deleteSurfaceElements(edits,[W.vertexKey(sq[2])]);
+ // No project-wide record is left: the hidden corner is written on the deleted face.
+ assert.deepEqual(edits.$removedSurfacePoints,[]);assert.deepEqual(edits.$removedSurfaceEdges,[]);
+ assert.equal(edits.$surfaces[0].deleted,true);assert.deepEqual(edits.$surfaces[0].wireExclusions.points,[W.vertexKey(sq[2])]);
+ let wire=W.surfaceWire(edits);assert.ok(!ids(wire).has(W.vertexKey(sq[2])));assert.equal(wire.edges.length,2,'the two lines that met at the deleted corner are hidden');
+ // Something drawn later at that position is seen: before, the record hid it.
+ const drawn={...edits,$loose:{points:[{...sq[2]}],edges:[[{...sq[2]},p(2,3,2)]]}};wire=W.surfaceWire(drawn);
+ assert.ok(ids(wire).has(W.vertexKey(sq[2])));assert.ok(wire.edges.some(e=>e.id===W.edgeKey(sq[2],p(2,3,2))));
+ // The deleted face is carried somewhere else: the corner stays hidden there and does not come back.
+ const before=JSON.parse(JSON.stringify(edits)),shift=q=>p(q.x+5,q.y+1,q.z+.5);edits.$surfaces[0].points=edits.$surfaces[0].points.map(shift);
+ assert.equal(W.followWireExclusions(edits,before),true);assert.deepEqual(edits.$surfaces[0].wireExclusions.points,[W.vertexKey(shift(sq[2]))]);
+ wire=W.surfaceWire(edits);assert.ok(!ids(wire).has(W.vertexKey(shift(sq[2]))));assert.equal(wire.edges.length,2);
+ assert.equal(W.followWireExclusions(edits,JSON.parse(JSON.stringify(edits))),false,'nothing moved: nothing to rewrite');
+});
+
+test('a project saved with project-wide delete records keeps the same visible lines when they move onto its faces',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),sq=[p(0,0,0),p(2,0,0),p(2,0,2),p(0,0,2)],other=[p(5,0,0),p(7,0,0),p(7,0,2),p(5,0,2)];
+ const old={$surfaces:[{id:'gone',deleted:true,points:sq,holes:[]},{id:'live',points:other,holes:[],retainedPoints:[p(6,0,0)]}],
+  $removedSurfacePoints:[W.vertexKey(sq[3]),W.vertexKey(p(6,0,0)),W.vertexKey(other[2]),'9.000000,9.000000,9.000000'],$removedSurfaceEdges:[W.edgeKey(sq[0],sq[1])],
+  $loose:{points:[p(9,9,9),p(1,5,1)],edges:[[p(9,9,9),p(1,5,1)]]}};
+ const seen=g=>[g.nodes.map(n=>n.id).sort().join(' '),g.edges.map(e=>e.id).sort().join(' ')];
+ const next=JSON.parse(JSON.stringify(old));assert.equal(W.localizeWireMasks(next),true);
+ assert.deepEqual(next.$removedSurfacePoints,[]);assert.deepEqual(next.$removedSurfaceEdges,[]);assert.equal(W.localizeWireMasks(next),false);
+ assert.deepEqual(next.$surfaces[0].wireExclusions,{points:[W.vertexKey(sq[3])],edges:[W.edgeKey(sq[0],sq[1])]});
+ // A reference point that was deleted is no longer kept; a hidden free-standing line is removed, not hidden.
+ assert.deepEqual(next.$surfaces[1].retainedPoints,[]);assert.deepEqual(next.$loose,{points:[p(1,5,1)],edges:[]});
+ // The deleted face shows exactly what it did. The live face shows its whole outline: a record must not hide a corner it has.
+ const was=W.surfaceWire(old),now=W.surfaceWire(next),corner=W.vertexKey(other[2]);
+ assert.ok(!was.nodes.some(n=>n.id===corner)&&now.nodes.some(n=>n.id===corner));
+ const without=g=>seen({nodes:g.nodes.filter(n=>n.id!==corner),edges:g.edges.filter(e=>e.a!==corner&&e.b!==corner)});assert.deepEqual(without(now),without(was));
+});
+
+test('a deleted face stops being a source of lines: what it still shows becomes free-standing, and nothing is left to resurface',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),sq=(x0,x1)=>[p(x0,0,0),p(x1,0,0),p(x1,0,3),p(x0,0,3)];
+ const lines=e=>{const g=W.surfaceWire(e),at=new Map(g.nodes.map(n=>[n.id,n]));return g.edges.map(x=>W.edgeKey(at.get(x.a),at.get(x.b))).sort();};
+ // An old wall was replaced by an edit with a wall of the same outline: the old one is kept, flagged deleted.
+ const edits={$surfaces:[{id:'old',deleted:true,points:sq(0,4)},{id:'new',points:sq(0,4)}]},seen=lines(edits);
+ assert.equal(W.settleDeletedWire(edits),true);assert.ok(edits.$surfaces[0].noWire);assert.deepEqual(lines(edits),seen,'what is drawn does not change');
+ assert.deepEqual(edits.$loose.edges,[],'its outline lay under the new wall: nothing of it is kept');
+ // The new wall is pushed away later. Before, the old outline showed through as lines that bound nothing.
+ edits.$surfaces[1].points=sq(0,4).map(q=>({...q,y:1}));assert.equal(lines(edits).some(k=>k.includes(',0.000000,')&&!k.includes(',1.000000,')),false,'no line is left where the old wall stood');
+ assert.equal(W.settleDeletedWire(edits),false,'settled once');
+ // A wall deleted outright, beside a wall that stays: the three sides nothing else draws become free-standing lines.
+ const pair={$surfaces:[{id:'gone',deleted:true,points:sq(0,2)},{id:'stays',points:sq(2,4)}]},was=lines(pair);W.settleDeletedWire(pair);
+ assert.deepEqual(lines(pair),was);assert.equal(pair.$loose.edges.length,3);assert.ok(!pair.$loose.edges.some(([a,b])=>a.x===2&&b.x===2),'the shared side is the other wall\'s');
+ // Brought back (Shift+F), it draws its own outline again.
+ pair.$surfaces[0].deleted=false;W.settleDeletedWire(pair);assert.equal(pair.$surfaces[0].noWire,undefined);
+});
+
+test('a line is stored once: a free-standing line along a face, and a drawing\'s leftover line along a face, are not kept beside it',()=>{
+ const W=G,far=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),wall=()=>({id:'wall',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(0,0,3)],holes:[]});
+ const lines=e=>{const g=W.surfaceWire(e),at=new Map(g.nodes.map(n=>[n.id,n]));return g.edges.map(x=>[at.get(x.a),at.get(x.b)]);},has=(e,a,b)=>lines(e).some(pair=>pair.some(q=>far(q,a)<1e-9)&&pair.some(q=>far(q,b)<1e-9));
+ // A face made from four drawn lines: the lines lay beside it, and stayed behind when the face was pushed in.
+ const edits={$surfaces:[wall()],$loose:{points:[p(0,0,0),p(4,0,0),p(2,0,0),p(9,9,9)],edges:[[p(0,0,0),p(4,0,0)],[p(4,0,0),p(4,0,3)],[p(-2,0,0),p(1,0,0)],[p(0,0,3),p(0,5,3)]]}};
+ assert.equal(W.settleDeletedWire(edits),true);
+ assert.deepEqual(edits.$loose.edges.map(pair=>pair.map(q=>[q.x,q.y,q.z].join(','))),[['-2,0,0','0,0,0'],['0,0,3','0,5,3']],'the copies are gone; a line is cut back to the part no face draws; a line of its own stays');
+ assert.ok(has(edits,p(0,0,0),p(4,0,0))&&has(edits,p(4,0,0),p(4,0,3)),'the face still draws them');assert.ok(has(edits,p(-2,0,0),p(0,0,0))&&has(edits,p(0,0,3),p(0,5,3)),'nothing drawn is lost');
+ const kept=edits.$loose.points.map(q=>[q.x,q.y,q.z].join(','));assert.ok(kept.includes('2,0,0'),'a point placed on an edge stays');assert.ok(kept.includes('9,9,9'));assert.ok(!kept.includes('4,0,0'),'a point that is the face corner is not kept twice');
+ assert.equal(W.settleDeletedWire(edits),false,'settled once');
+ // Pushed in, the face takes its lines with it: nothing is left where it stood.
+ for(const q of edits.$surfaces[0].points)q.y=1;W.settleDeletedWire(edits);assert.ok(!has(edits,p(0,0,0),p(4,0,0))&&!has(edits,p(4,0,0),p(4,0,3)));
+ // Deleted, the face gives its lines back as free-standing lines.
+ edits.$surfaces[0].deleted=true;W.settleDeletedWire(edits);assert.ok(edits.$loose.edges.some(pair=>pair.every(q=>q.y===1&&q.z===0)));
+ // A cover (the base, a generated wall, a drawing's region) draws its outline too.
+ const based={$surfaces:[],$loose:{points:[],edges:[[p(0,0,0),p(4,0,0)]]}};W.settleDeletedWire(based,[{id:'base',points:[p(0,0,0),p(4,0,0),p(4,4,0),p(0,4,0)]}]);assert.deepEqual(based.$loose.edges,[]);
+ // A drawing: the upper wall is its region; the line left of a region deleted below it runs down the side of a face.
+ const frame={origin:p(0,0,0),u:p(1,0,0),v:p(0,0,1),n:p(0,-1,0)},node=(id,x,y)=>({id,x,y,z:0}),ring=ids=>ids.map(id=>({nodeId:id,...{p0:{x:0,y:3},p1:{x:4,y:3},p2:{x:4,y:6},p3:{x:0,y:6}}[id]}));
+ const drawing=()=>({frame,sketch:{nodes:[node('p0',0,3),node('p1',4,3),node('p2',4,6),node('p3',0,6),node('p4',0,0),node('p5',2,1)],edges:[{id:'e0',a:'p0',b:'p1'},{id:'e1',a:'p1',b:'p2'},{id:'e2',a:'p2',b:'p3'},{id:'e3',a:'p3',b:'p0'},{id:'e4',a:'p0',b:'p4'},{id:'e5',a:'p4',b:'p5'}]},faces:[{id:'upper',points:ring(['p0','p1','p2','p3']),holes:[]}]});
+ const world=q=>W.fromFrame(frame,q);assert.ok(far(world({x:4,y:3}),p(4,0,3))<1e-9,'the frame maps the drawing onto the wall plane');
+ const withDrawing={$surfaces:[wall()],$drafts:{d:drawing()}};assert.equal(W.settleDeletedWire(withDrawing),true);const d=withDrawing.$drafts.d;
+ assert.deepEqual(d.sketch.edges.map(e=>e.id),['e0','e1','e2','e3','e5'],'the line down the face\'s side is the face\'s; the region\'s own lines and a line across the face stay');
+ assert.ok(d.sketch.nodes.some(n=>n.id==='p4'),'its end still carries another line');assert.equal(d.faces.length,1);
+});
+test('the points a pushed face keeps on its edges are fitted with its corners',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model.js');
+ // The sweep put every point 0.6 m in at the old height; fitting to the ground then raised the two bottom corners
+ // by different amounts. The kept points went on standing at the old height, under the wall.
+ const swept=[p(0,.6,0),p(4,.6,0),p(4,.6,3),p(0,.6,3)],cap={points:[p(0,.6,.1),p(4,.6,.3),p(4,.6,3),p(0,.6,3)],retainedPoints:[p(0,.6,0),p(2,.6,0),p(4,.6,0),p(4,.6,3),p(9,9,9)]};
+ M.followRetained(cap,swept);
+ assert.deepEqual(cap.retainedPoints.map(q=>[q.x,q.y,+q.z.toFixed(9)]),[[0,.6,.1],[2,.6,.2],[4,.6,.3],[4,.6,3],[9,9,9]]);
+});
+
+test('two selected lines are measured against each other: the gap square across them where both run, and the angle seen from above',()=>{
+ const near=(a,b,t=1e-6)=>Math.abs(a-b)<=t,m=(a,b)=>G.linePairMeasure(a,b);
+ // Parallel, 2 m apart: every gap is 2 m.
+ let r=m([p(0,0,0),p(4,0,0)],[p(0,2,0),p(4,2,0)]);assert.ok(near(r.closest,2)&&near(r.furthest,2)&&near(r.average,2));assert.equal(r.parallel,true);assert.equal(r.across,true);assert.ok(near(r.angle,0)&&near(r.spacing,2)&&near(r.over,4));
+ // Parallel lines that only partly run alongside each other: still 2 m, whatever the offset along them. Measured to
+ // each other's ends, the average came out far larger and said nothing about how far apart the lines run.
+ r=m([p(0,0,0),p(4,0,0)],[p(3,2,0),p(13,2,0)]);assert.ok(near(r.closest,2)&&near(r.furthest,2)&&near(r.average,2));assert.ok(near(r.over,1));assert.equal(r.extended,false);
+ // From above: a difference in height is not a gap, and direction or order of the lines does not matter.
+ r=m([p(4,0,7),p(0,0,7)],[p(3,2,1),p(13,2,1)]);assert.ok(near(r.average,2));const swapped=m([p(13,2,1),p(3,2,1)],[p(0,0,7),p(4,0,7)]);assert.ok(near(swapped.average,2)&&near(swapped.over,1));
+ // A degree out of parallel: the gap opens along the shared stretch; closest and furthest are its two ends.
+ const tilt=Math.tan(Math.PI/180);r=m([p(0,0,0),p(10,0,0)],[p(0,1,0),p(10,1+10*tilt,0)]);
+ assert.ok(near(r.angle,1,1e-9));assert.equal(r.parallel,false);assert.ok(near(r.closest,1,2e-3)&&near(r.furthest,1+10*tilt,2e-3));assert.ok(near(r.average,(r.closest+r.furthest)/2,1e-9));assert.ok(r.closest<r.average&&r.average<r.furthest);
+ // No shared stretch (end to end): the lines are extended, and that is said.
+ r=m([p(0,0,0),p(4,0,0)],[p(6,.5,0),p(9,.5,0)]);assert.equal(r.extended,true);assert.ok(near(r.average,.5)&&near(r.over,9));
+ // Lines that cross where both run: closest is zero.
+ r=m([p(0,0,0),p(10,0,0)],[p(0,-.1,0),p(10,.1,0)]);assert.ok(near(r.closest,0)&&near(r.furthest,.1,1e-4));assert.ok(r.average>0&&r.average<r.furthest);
+ // More than 45 degrees apart there is no "across": the true gaps between the segments as drawn.
+ r=m([p(0,0,0),p(4,0,0)],[p(4,0,0),p(4,3,0)]);assert.equal(r.across,false);assert.ok(near(r.closest,0,1e-6)&&near(r.furthest,4));assert.equal(r.perpendicular,true);assert.ok(near(r.angle,90));
+ // An upright line has no direction from above.
+ r=m([p(0,0,0),p(4,0,0)],[p(2,1,0),p(2,1,3)]);assert.equal(r.angle,null);assert.equal(r.across,false);assert.ok(near(r.closest,1));
+ assert.equal(m([p(0,0,0),p(4,0,0)],null),null);
 });

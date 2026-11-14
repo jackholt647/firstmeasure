@@ -154,5 +154,7 @@ test('base boundary points are gold only where the boundary turns or edges meet,
  const colour=p=>{const objects=[];editor.draw3D({add:o=>objects.push(o)},q=>q);return objects.filter(o=>o.geometry.points.length===1&&o.material.size).find(o=>Math.hypot(o.geometry.points[0].x-p.x,o.geometry.points[0].y-p.y)<1e-9)?.material.color;};
  assert.ok(base.sketch.nodes.find(n=>n.id===straight).fixed,'the point lies on the boundary');
  assert.equal(colour({x:1,y:0}),'#6ce4ed','a point straight along one boundary edge is not load-bearing');
- assert.equal(colour({x:0,y:0}),'#e7ad52','a corner is load-bearing');assert.equal(colour({x:3,y:0}),'#e7ad52','a junction of three edges is load-bearing');
+ assert.equal(colour({x:0,y:0}),'#e7ad52','a corner is load-bearing');assert.equal(colour({x:3,y:0}),'#6ce4ed','where a line that only divides one plane meets the straight boundary, nothing is load-bearing: deleting it merges the two faces');
+ // The same junction is load-bearing once the two faces lie in different planes: the line is then a fold.
+ base.faces[1].points.forEach(n=>{if(n.x===4)n.z=1;});delete base.sketch;S.ensure(base);assert.equal(colour({x:3,y:0}),'#e7ad52','a fold between two planes ends in a load-bearing point');
 });

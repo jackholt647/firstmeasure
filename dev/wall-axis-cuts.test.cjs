@@ -19,3 +19,13 @@ test('shallow-slope H stops at the first divider and does not jump across exteri
  const notched={points:[p(0,0),p(4,0),p(4,4),p(2,4),p(2,2),p(1,2),p(1,4),p(0,4)]};
  assert.equal(A.targets(notched,p(1,3),p(1,0)).some(q=>q.x>1),false,'A ray pointing out of a concave face must not reach its far side');
 });
+test('a cut aimed at a corner that is a hair off its axis ends on that corner, not on a new point beside it',()=>{
+ const A=require('../public/measure/internal/editor_scripts/wall_axis_cuts.js'),p=(x,y)=>({x,y,z:0}),far=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+ // A wall outline whose lower right edge slopes away from the corner at (8,1). The start point on the left edge
+ // is stored 40 microns lower than that corner, so an exactly horizontal ray meets the sloped edge 0.1 mm before it.
+ const corner=p(8,1),ring=[p(0,3),p(8,3),corner,p(5,0),p(0,0)],start=p(0,1-.00004);
+ const ends=A.targets({points:ring,holes:[]},start,{x:1,y:0},[],ring);
+ assert.equal(ends.length,1);assert.ok(far(ends[0],corner)<=1e-12,'the cut ends on the corner: '+JSON.stringify(ends[0]));
+ // A corner a full millimetre off the axis is not what the cut was aimed at: the cut stays level.
+ const level=A.targets({points:ring,holes:[]},p(0,.999),{x:1,y:0},[],ring);assert.ok(Math.abs(level[0].y-.999)<=1e-12&&far(level[0],corner)>5e-4,JSON.stringify(level[0]));
+});

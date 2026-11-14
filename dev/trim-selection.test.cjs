@@ -21,7 +21,7 @@ const p=(x,z,y=0)=>({x,y,z});
 function setup(){
  let wallHost,wallEditor,menu;const walls=wallEditorFactory(),dom=menuFactory(),typing=distanceInput();dom.ctx.ExteriorDistanceInput=walls.ExteriorDistanceInput=typing;
  const f=wallModeFixture(true,{console,ExteriorDistanceInput:typing,WallTrim:T,WallSolidGeometry:require('../'+dir+'wall_solid_geometry.js'),createWallEditor:h=>{wallHost=h;wallEditor=walls.createWallEditor(h);return wallEditor;},createRoofTrimEditor:h=>{menu=dom.ctx.createRoofTrimEditor(h);return menu;}});
- f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ f.ctx.WallFeatures={...(f.ctx.WallFeatures||{}),trimSidesAlong:F.trimSidesAlong};f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
  const state=wallHost.state(),window={id:'win',points:[p(5.5,1),p(6.5,1),p(6.5,2),p(5.5,2)].map(q=>({...q,x:q.x+100})),feature:{type:'window'}};
  // Two stored wall faces meeting at a corner, a third face and a window, away from the generated walls.
  const at=q=>({...q,x:q.x+100});
@@ -75,6 +75,29 @@ test('Remove takes trim off every selected item; T adds trim with the current se
  assert.ok(lineLayers(state).length&&faceLayers(state).length&&opening(state).trim&&t.settings().edges[eave.id].height>0);
  assert.equal(menu.applySelection({remove:true}),true);s=menu.summary();assert.equal(s.width,0);
  assert.equal(lineLayers(state).length,0);assert.equal(faceLayers(state).length,0);assert.equal(opening(state).trim,undefined);assert.equal(t.settings().edges[eave.id].height,0);
+});
+
+test('a line picked along a side of an opening takes the trim off that side only; the mullion between two windows is a side of each',()=>{
+ const t=setup(),{state,menu}=t,at=q=>({...q,x:q.x+100}),w=4*inch,feature=id=>state.wallEdits.$surfaces.find(f=>f.id===id).feature,strips=id=>{const f=state.wallEdits.$surfaces.find(f=>f.id===id);return F.trimFaces(f.points,f.feature).length;};
+ // A second window against the first: the line between them is the right side of one and the left side of the other.
+ state.wallEdits.$surfaces.push({id:'win2',points:[p(6.5,1),p(7.5,1),p(7.5,2),p(6.5,2)].map(at),feature:{type:'window'}});
+ t.wallEditor.restoreSelection({draft:{faceSelection:[{solid:'win'},{solid:'win2'}],selectedSolid:'win'}});menu.restoreSelection({selected:[]});menu.update();menu.applySelection({width:4});
+ assert.equal(strips('win'),4);assert.equal(strips('win2'),4);
+ const pick=pairs=>{t.wallEditor.restoreSelection({draft:{lineSelection:pairs.map((pair,i)=>({id:'l'+i,pair:pair.map(at)})),faceSelection:[],selectedSolid:null}});menu.update();return menu.summary();};
+ // Only the line between the windows is selected. Read as a wall line it had no trim, and Remove trim was greyed out.
+ let s=pick([[p(6.5,1),p(6.5,2)]]);assert.deepEqual({...s.counts},{window:2},s.text);assert.equal(s.width,4);assert.equal(t.dom.nodes.get('trim-selection-remove').disabled,false,'Remove trim is offered');
+ assert.equal(menu.applySelection({remove:true}),true);
+ assert.deepEqual(feature('win').trim.off,['right']);assert.deepEqual(feature('win2').trim.off,['left']);assert.equal(strips('win'),3,'the other three sides keep their trim');assert.equal(strips('win2'),3);
+ assert.ok(Math.abs(feature('win').trim.width-w)<1e-9);assert.equal(lineLayers(state).length,0,'no wall line was trimmed');
+ s=pick([[p(6.5,1),p(6.5,2)]]);assert.equal(s.width,0,'that side reads as untrimmed now');assert.equal(t.dom.nodes.get('trim-selection-remove').disabled,true);
+ // A width change on the whole window keeps the side off; Apply on the line puts it back.
+ t.wallEditor.restoreSelection({draft:{faceSelection:[{solid:'win'}],selectedSolid:'win'}});menu.update();menu.applySelection({width:6});assert.deepEqual(feature('win').trim.off,['right']);assert.equal(strips('win'),3);
+ pick([[p(6.5,1),p(6.5,2)]]);assert.equal(menu.applySelection({width:6}),true);assert.equal(feature('win').trim.off,undefined);assert.equal(feature('win2').trim.off,undefined);assert.equal(strips('win'),4);
+ // The outer edge of the trim on the far left is the left side of the first window alone.
+ s=pick([[p(5.5-6*inch,1),p(5.5-6*inch,2)]]);assert.deepEqual({...s.counts},{window:1});menu.applySelection({remove:true});assert.deepEqual(feature('win').trim.off,['left']);assert.equal(feature('win2').trim.off,undefined);
+ // Every side off is no trim at all; a line across the opening still stands for the whole opening.
+ pick([[p(6.5,1),p(7.5,1)],[p(6.5,2),p(7.5,2)],[p(6.5,1),p(6.5,2)],[p(7.5,1),p(7.5,2)]]);menu.applySelection({remove:true});assert.equal(feature('win2').trim,undefined);
+ s=pick([[p(5.6,1.5),p(6.4,1.5)]]);assert.deepEqual({...s.counts},{window:1});menu.applySelection({remove:true});assert.equal(feature('win').trim,undefined);
 });
 
 // FM-299: a number typed with the Trim menu open is the selection's width in
