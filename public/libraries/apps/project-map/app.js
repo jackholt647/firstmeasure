@@ -97,6 +97,14 @@
     return 0;
   }
 
+  // The pin limit follows the type the person chose. A new request's draft is autosaved as
+  // residential before any type is picked, so a host that knows the choice is asked, even when
+  // it answers none; selectedType()'s residential fallback is only for icons.
+  function pinLimitType(){
+    if (typeof state.host?.getSelectedType === 'function') return state.host.getSelectedType() || '';
+    return project()?.project_type || '';
+  }
+
   function pinLimitMessage(maxPins){
     return `Maximum of ${maxPins} pins per report. Remove a pin to place a new one.`;
   }
@@ -957,8 +965,7 @@
 
   function addPin(latLng, draggable = true, options = {}){
     if (!state.map || !window.google?.maps) return null;
-    // The limit follows the type actually chosen, not selectedType()'s residential default.
-    const maxPins = maxPinsForType(callHost('getSelectedType') || project()?.project_type || '');
+    const maxPins = maxPinsForType(pinLimitType());
     if (!options.silent && maxPins && state.markers.length >= maxPins) {
       callHost('showStructurePinLimitNotice', maxPins) || showToast((globalThis.PlatformLanguage?.text("project-map","m_21b024a2811c3a","Pin limit") ?? "Pin limit"), pinLimitMessage(maxPins), false);
       return null;
