@@ -92,6 +92,12 @@ test('event creation supports production, multi-equipment assignments, and advan
   assert.match(platformApiSource, /resource_requirements: normalizeEventResourceRequirements/);
 });
 
+test('the advanced event fields toggle is drawn only when it reveals something (FM-507)', () => {
+  // On a plain appointment it redrew the same form, so it looked broken.
+  assert.match(schedulingSource, /function eventHasAdvancedFields\(ctx, draft, project\)\{[\s\S]{0,420}sections\(true\) !== sections\(false\)/);
+  assert.match(schedulingSource, /\$\{eventHasAdvancedFields\(ctx, draft, project\) \? `<button type="button" class="dash-event-advanced-toggle/);
+});
+
 test('customer portal schedule renders all shared event categories as a customer-facing timeline', () => {
   assert.match(customerPortalSource, /function portalScheduleEvents\(payload\)/);
   assert.match(customerPortalSource, /Project work/);

@@ -6949,6 +6949,16 @@
    * with remove buttons and an add-menu of policy-eligible subjects. Only for
    * persisted events and floating items; placement drafts keep their own
    * single-assignee flow. */
+  /* The advanced toggle only changes the assignee and equipment sections.
+   * It is offered only when opening it would change one of them: an
+   * ordinary appointment with equipment scheduling off has no advanced
+   * fields, and a toggle that redraws the same form looks broken (FM-507). */
+  function eventHasAdvancedFields(ctx, draft, project){
+    const was = eventAdvancedOpen;
+    const sections = (open) => { eventAdvancedOpen = open; return eventAssigneeSectionHtml(ctx, draft) + eventEquipmentSectionHtml(ctx, draft, project); };
+    try { return sections(true) !== sections(false); }
+    finally { eventAdvancedOpen = was; }
+  }
   function eventAssigneeSectionHtml(ctx, draft){
     // Equipment reservation/maintenance windows hold a unit, not people.
     if (isEquipmentWindowEvent(draft)) return '';
@@ -7155,7 +7165,7 @@
           </button>`).join('') || (clean(eventDraftProjectQuery) ? `<div class="dash-empty" style="padding:12px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0e31fa9fe147f8","No matching projects.") ?? "No matching projects.")}</div>` : '')}
         </div></div>` : '')}
       <div class="dash-event-pop-actions">
-        <span style="display:flex;gap:7px"><button type="button" class="dash-event-advanced-toggle ${String(eventAdvancedOpen ? 'active' : '')}" data-event-advanced aria-label="${((v21) => globalThis.PlatformLanguage?.htmlText("scheduling","m_407444280ca9bb",`${v21} advanced event fields`,{v21}) ?? `${v21} advanced event fields`)(eventAdvancedOpen ? 'Hide' : 'Show')}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_bec5274b269a70","Advanced event fields") ?? "Advanced event fields")}" aria-pressed="${String(eventAdvancedOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i></button>${String(canDelete && !readOnly ? `<button type="button" class="dash-event-delete" data-event-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_90e27d705bee80"," Delete") ?? " Delete")}</button>` : '')}${String(project?.id ? `<button type="button" class="dash-event-view-btn" data-event-view-project>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_438062886ff2f5","View Project") ?? "View Project")}</button>` : '')}${String(canToggleLock && !readOnly ? `<button type="button" class="dash-event-view-btn" data-event-lock-toggle aria-pressed="${eventIsLocked(draft) ? 'true' : 'false'}" title="${eventIsLocked(draft) ? 'Unlock to allow time changes' : 'Protect the scheduled time from changes'}"><i class="fas fa-${eventIsLocked(draft) ? 'lock' : 'lock-open'}"></i> ${eventIsLocked(draft) ? 'Unlock' : 'Lock'}</button>` : '')}</span>
+        <span style="display:flex;gap:7px">${eventHasAdvancedFields(ctx, draft, project) ? `<button type="button" class="dash-event-advanced-toggle ${String(eventAdvancedOpen ? 'active' : '')}" data-event-advanced aria-label="${((v21) => globalThis.PlatformLanguage?.htmlText("scheduling","m_407444280ca9bb",`${v21} advanced event fields`,{v21}) ?? `${v21} advanced event fields`)(eventAdvancedOpen ? 'Hide' : 'Show')}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_bec5274b269a70","Advanced event fields") ?? "Advanced event fields")}" aria-pressed="${String(eventAdvancedOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i></button>` : ''}${String(canDelete && !readOnly ? `<button type="button" class="dash-event-delete" data-event-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_90e27d705bee80"," Delete") ?? " Delete")}</button>` : '')}${String(project?.id ? `<button type="button" class="dash-event-view-btn" data-event-view-project>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_438062886ff2f5","View Project") ?? "View Project")}</button>` : '')}${String(canToggleLock && !readOnly ? `<button type="button" class="dash-event-view-btn" data-event-lock-toggle aria-pressed="${eventIsLocked(draft) ? 'true' : 'false'}" title="${eventIsLocked(draft) ? 'Unlock to allow time changes' : 'Protect the scheduled time from changes'}"><i class="fas fa-${eventIsLocked(draft) ? 'lock' : 'lock-open'}"></i> ${eventIsLocked(draft) ? 'Unlock' : 'Lock'}</button>` : '')}</span>
         ${String(readOnly ? '' : `<button type="button" class="dash-event-save" data-event-save ${String(canSave ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_5bab3e72de1ebf","Save") ?? "Save")}</button>`)}
       </div>
     `;
