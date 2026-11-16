@@ -760,7 +760,9 @@
 
     function appExplanation(workflowId, app) {
         if (app.state === 'on') return app.switches.length ? `On: ${app.switches.filter((entry) => entry.on).map((entry) => entry.label).join(', ')}.` : 'Always on: this app has no organization switch.';
-        if (app.state === 'offered') return 'Offered: shows its welcome and Get Started until someone starts it.';
+        if (app.state === 'offered') return app.welcome === 'placeholder'
+            ? 'Offered: shows a placeholder welcome (no marketing page written for it yet) and Get Started until someone starts it.'
+            : 'Offered: shows its welcome and Get Started until someone starts it.';
         if (REASONS[app.reason]) return REASONS[app.reason];
         if (app.reason.startsWith('offered:')) return `Its switch is held off by the ${appTitleById(workflowId, app.reason.slice(8))} offer.`;
         if (app.reason.startsWith('requires ')) return `Off until ${app.reason.slice(9)} is on (On turns it on).`;
@@ -818,10 +820,10 @@
             button.appendChild(el('span', 'sbx-state-dot'));
             button.appendChild(el('span', '', item.label));
             let unavailable = '';
-            if (item.id === 'offered' && !app.offerable) unavailable = 'This app has no welcome page, so it cannot be offered.';
+            if (item.id === 'offered' && !app.offerable) unavailable = 'This view has no organization switch, so it is always on and cannot be offered.';
             if (item.id === 'off' && !app.switches.length && app.surface !== 'portal_tab') unavailable = 'This view has no organization switch, so it is always on.';
             button.disabled = !editable || !!unavailable;
-            button.title = unavailable || item.hint;
+            button.title = unavailable || (item.id === 'offered' && app.welcome === 'placeholder' ? `${item.hint} It has no marketing page yet, so it shows a placeholder welcome.` : item.hint);
             button.addEventListener('click', () => {
                 if (app.state === item.id) return;
                 saveAppChange(workflowId, app.id, { state: item.id });

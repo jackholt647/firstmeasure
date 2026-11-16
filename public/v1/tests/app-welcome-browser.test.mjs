@@ -35,6 +35,24 @@ test('activation refreshes guides before the host mounts and fades the advertise
   }finally{await browser.close();}
 });
 
+test('an app with no welcome of its own shows the placeholder (FM-468)',async()=>{
+  const { placeholderWelcome } = await import('../platform/app-experience/offers.ts');
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:1100,height:760}});
+    await page.setContent('<main id="root" style="height:700px"></main>');
+    await page.addScriptTag({content:source+'\nwindow.mountWelcome=mountWelcome;'});
+    await page.evaluate(welcome=>{window.handle=window.mountWelcome({appId:'portal.stats',orgId:'org_test',roots:{main:document.getElementById('root')},entitlement:{welcome}});},
+      placeholderWelcome({id:'portal.stats',title:'Stats'}));
+    assert.equal(await page.locator('.fm-app-welcome').getAttribute('data-theme'),'generic');
+    assert.equal(await page.locator('.fm-app-welcome h1').textContent(),'Stats');
+    assert.equal(await page.locator('.faw-free').count(),0,'a placeholder makes no promise about price');
+    assert.equal(await page.locator('.faw-benefits li').count(),3);
+    await page.getByRole('button',{name:'Get Started'}).waitFor();
+    await page.screenshot({path:new URL('placeholder.png',output).pathname});
+  }finally{await browser.close();}
+});
+
 test('designed welcome screens fit phones and desktops and only activate on Get Started',async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try {

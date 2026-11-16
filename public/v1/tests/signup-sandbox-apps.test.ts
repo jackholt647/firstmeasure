@@ -81,7 +81,16 @@ test("changing a state writes only the switches, offers and placement it means",
   const offered = await applyAppChange(start, "project.photos", { state: "offered" });
   assert.deepEqual(offered.defaults.settings.app_offers, ["project.money", "portal.financials", "project.photos"]);
   assert.equal(find(await configurationApps(offered), "project.photos").state, "offered");
-  await assert.rejects(applyAppChange(start, "portal.training", { state: "offered" }), /cannot be offered/);
+  // Any app with a switch can be offered (FM-468); one without its own welcome shows the placeholder. A view with no
+  // switch is always on, so there is nothing to hold back.
+  const training = await applyAppChange(start, "portal.training", { state: "offered" });
+  assert.ok((training.defaults.settings.app_offers as string[]).includes("portal.training"));
+  const trainingRow = find(await configurationApps(training), "portal.training");
+  assert.equal(trainingRow.state, "offered");
+  assert.equal(trainingRow.welcome, "placeholder");
+  assert.equal(find(model, "project.money").welcome, "configured");
+  for (const group of model.groups) for (const app of group.apps) assert.equal(app.offerable, app.switches.length > 0, `${app.id} is offerable when it has a switch`);
+  await assert.rejects(applyAppChange(start, "project.field_customer", { state: "offered" }), /cannot be offered/);
 
   // On from off turns on what the switch depends on; a hidden app is shown again.
   const scheduling = await applyAppChange(start, "portal.scheduling", { state: "on" });

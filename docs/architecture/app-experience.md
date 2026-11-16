@@ -87,7 +87,13 @@ Photos, Documents, Customer Portal and Materials begin as pending offers in new
 organizations (`global.data.app_offers`). The configured organization switches
 are still the ceiling: an off or commercially unavailable app is not advertised.
 Existing organizations without this field retain their current active apps.
-The capability groups live in `app-experience/offers.ts`. Each welcome (the advertisement) is a config library entry of kind `app_welcome`, keyed by the offered app id (`config-library/kinds/app_welcome.ts`), edited on dev and read live into the entitlements.
+Any app with an organization switch can be offered (FM-468): its offer holds back the app's own switches (registry
+`capabilities`), and `APP_OFFERS` in `app-experience/offers.ts` names only offers whose switches differ (Docs also
+holds Documents; Financials holds Money's switch). An app with no switch is always on and cannot be offered. Each
+welcome (the advertisement) is a config library entry of kind `app_welcome`, keyed by the offered app id
+(`config-library/kinds/app_welcome.ts`), edited on dev and read live into the entitlements. An offered app with no
+entry yet shows `placeholderWelcome` (theme `generic`, the app's title, generic copy, no price pill, marked
+`placeholder: true`); the sandbox Apps tab says which offers show it. Write an `app_welcome` entry to replace it.
 Feed (`platform.photos_feed`) is an independent app: an offered project Photos
 app never disables the organization Feed.
 

@@ -1,5 +1,6 @@
 import { appDefinitions, appDefinition, type AppDefinition } from "../platform/app-experience/registry.js";
-import { APP_OFFERS, NEW_ORGANIZATION_APP_OFFERS, offerSiblings, offeredAppIds, maskOfferedCapabilities, type OfferedAppId } from "../platform/app-experience/offers.js";
+import { NEW_ORGANIZATION_APP_OFFERS, isOfferableApp, offerSiblings, offerSwitches, offeredAppIds, maskOfferedCapabilities, type OfferedAppId } from "../platform/app-experience/offers.js";
+import { libraryData } from "../config-library/library.js";
 import {
   capabilityDefinition, capabilityDefinitions, EQUIPMENT_SIMPLE_CAPABILITIES, flattenGroupedValues, normalizeCapabilityValue, resolveCapabilities,
   type CapabilityValue, type NormalizedCapability
@@ -16,7 +17,8 @@ import { appFlagBaseOverrides, USER_CHOICE } from "./service.js";
  * - **On**: one of the app's organization switches (registry `capabilities`) resolves on, after the configuration's
  *   offers mask theirs, and its placement is not `hidden`. An app without a switch is always on.
  * - **Offered**: the app is in `settings.app_offers` (or, with no list, the new-organization offers) and one of its
- *   offer switches is on before masking, so it shows its welcome until someone starts it.
+ *   offer switches is on before masking, so it shows its welcome until someone starts it. Any app with a switch can be
+ *   offered; one with no app_welcome entry shows the placeholder welcome (`welcome: "placeholder"`).
  * - **Off**: anything else (a switch off, a dependency off, a switch masked by another app's offer, or `hidden`).
  *
  * Writing a state changes only those fields: switches (with what they depend on, when turning on) in
@@ -38,7 +40,6 @@ const SURFACE_GROUPS = [
 ] as const;
 
 const object = (value: unknown): Record<string, Json> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, Json> : {};
-const isOffered = (id: string): id is OfferedAppId => Object.prototype.hasOwnProperty.call(APP_OFFERS, id);
 
 /** What a new organization's flags are before this configuration's own: registration's start, then its base. */
 export async function configurationFlagBase(data: Pick<SandboxConfigurationData, "app_flags_base">): Promise<Flat> {
@@ -101,12 +102,12 @@ export async function configurationApps(data: SandboxConfigurationData) {
   const rows = apps.map((app) => {
     const placement = typeof placed[app.id] === "string" ? String(placed[app.id]) : "";
     const switchOn = !app.capabilities.length || app.capabilities.some((key) => resolved.effectiveByKey[key] === true);
-    const offered = isOffered(app.id) && offers.includes(app.id) && APP_OFFERS[app.id].some((key) => ceiling.effectiveByKey[key] === true);
+    const offered = isOfferableApp(app.id) && offers.includes(app.id) && offerSwitches(app.id).some((key) => ceiling.effectiveByKey[key] === true);
     const state: AppState = offered ? "offered" : switchOn && placement !== "hidden" ? "on" : "off";
     // Why an app is off, for the popover: the first of its switches and the reason the resolver gives.
     const reason = state !== "off" ? "" : placement === "hidden" && switchOn ? "hidden"
       : app.capabilities.map((key) => {
-        if (offers.some((id) => (APP_OFFERS[id] as readonly string[]).includes(key)) && ceiling.effectiveByKey[key] === true) return `offered:${offers.find((id) => (APP_OFFERS[id] as readonly string[]).includes(key))}`;
+        if (offers.some((id) => offerSwitches(id).includes(key)) && ceiling.effectiveByKey[key] === true) return `offered:${offers.find((id) => offerSwitches(id).includes(key))}`;
         return String(resolved.reasons[key] || (capabilityDefinition(key) ? "" : "unknown_flag"));
       }).find(Boolean) || "";
     const sharedWith = apps.filter((other) => other.id !== app.id && other.capabilities.some((key) => app.capabilities.includes(key))).map((other) => other.id);
@@ -119,8 +120,10 @@ export async function configurationApps(data: SandboxConfigurationData) {
       state,
       reason,
       switches: app.capabilities.map((key) => ({ key, label: capabilityDefinition(key)?.label || key, on: resolved.effectiveByKey[key] === true })),
-      offerable: isOffered(app.id),
-      offer_siblings: isOffered(app.id) ? offerSiblings(app.id).filter((id) => id !== app.id) : [],
+      offerable: isOfferableApp(app.id),
+      // What its welcome is when offered: its own app_welcome entry, or the placeholder until someone writes one.
+      welcome: !isOfferableApp(app.id) ? "" : libraryData("app_welcome", app.id) ? "configured" : "placeholder",
+      offer_siblings: isOfferableApp(app.id) ? offerSiblings(app.id).filter((id) => id !== app.id) : [],
       shared_with: sharedWith,
       placement,
       pill: app.surface === "project_modal" && typeof pilled[app.id] === "string" ? String(pilled[app.id]) : "",
@@ -214,18 +217,18 @@ export async function applyAppChange(input: SandboxConfigurationData, appId: str
   if (change.state !== undefined) {
     if (!APP_STATES.includes(change.state)) throw badRequest("sandbox_app_state", "An app's state is on, offered or off.");
     const offers = configuredOffers(data);
-    const own = isOffered(app.id) ? offerSiblings(app.id) : [];
+    const own = isOfferableApp(app.id) ? offerSiblings(app.id) : [];
     if (change.state === "offered") {
-      if (!isOffered(app.id)) throw badRequest("sandbox_app_not_offerable", `${app.title} has no welcome, so it cannot be offered.`);
+      if (!isOfferableApp(app.id)) throw badRequest("sandbox_app_not_offerable", `${app.title} has no organization switch, so it is always on and cannot be offered.`);
       // The offer's switches are on underneath (that is what starting it turns on); the offer masks them until then.
-      turnOn(APP_OFFERS[app.id]);
+      turnOn(offerSwitches(app.id));
       setOffers([...offers, ...own]);
       if (placements(data)[app.id] === "hidden") setPlacement("");
     } else if (change.state === "on") {
       if (!app.capabilities.length && placements(data)[app.id] !== "hidden") return data;
       turnOn(app.capabilities);
       // Its own offer and any other offer masking one of its switches would keep it off.
-      const masking = offers.filter((id) => own.includes(id) || (APP_OFFERS[id] as readonly string[]).some((key) => app.capabilities.some((cap) => dependencyChain(cap).has(key))));
+      const masking = offers.filter((id) => own.includes(id) || offerSwitches(id).some((key) => app.capabilities.some((cap) => dependencyChain(cap).has(key))));
       if (masking.length || Array.isArray(settings.app_offers)) setOffers(offers.filter((id) => !masking.includes(id)));
       if (placements(data)[app.id] === "hidden") setPlacement("");
     } else {

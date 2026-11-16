@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { maskOfferedCapabilities, offerSiblings, offeredAppIds } from "../platform/app-experience/offers.js";
+import { isOfferableApp, maskOfferedCapabilities, offerSiblings, offerSwitches, offeredAppIds } from "../platform/app-experience/offers.js";
+import { appDefinitions } from "../platform/app-experience/registry.js";
 import { resolveCapabilities } from "../platform/capabilities.js";
 import "../platform/capability_defs.js";
 import { resolveAppEntitlements } from "../workforce/access.js";
@@ -41,6 +42,22 @@ test("only known offers are accepted and duplicate values are removed", () => {
   assert.deepEqual(offeredAppIds(["project.docs", "project.docs", "platform.expanded_access", null]), ["project.docs"]);
   assert.deepEqual(maskOfferedCapabilities({ "platform.expanded_access": true }, ["platform.expanded_access"]),
     { "platform.expanded_access": true });
+});
+
+test("every app with an organization switch can be offered, with a placeholder welcome until it has its own", () => {
+  for (const app of appDefinitions()) assert.equal(isOfferableApp(app.id), app.capabilities.length > 0, app.id);
+  // An app outside APP_OFFERS holds back its own switches; the explicit groups keep theirs.
+  assert.deepEqual(offerSwitches("portal.stats"), ["apps.stats"]);
+  assert.deepEqual(offerSwitches("portal.financials"), ["platform.money"]);
+  assert.equal(resolveCapabilities(maskOfferedCapabilities({ "platform.expanded_access": true, "apps.stats": true }, ["portal.stats"])).effectiveByKey["apps.stats"], false);
+  assert.deepEqual(offerSiblings("portal.crew_overview").sort(), ["portal.crew_overview", "portal.crew_schedule", "project.crew_overview"]);
+  const apps = resolveAppEntitlements({ effectiveByKey: {}, offeredAppIds: ["portal.stats", "project.photos"] });
+  const stats = apps.find(app => app.id === "portal.stats");
+  assert.equal(stats?.offered, true);
+  assert.equal(stats?.welcome?.placeholder, true, "no app_welcome entry: the placeholder");
+  assert.equal(stats?.welcome?.headline.text, stats?.title);
+  assert.ok(stats?.welcome?.benefits.length);
+  assert.notEqual(apps.find(app => app.id === "project.photos")?.welcome?.placeholder, true, "an app's own welcome wins");
 });
 
 test("an offered app is discoverable while unrelated apps remain off", () => {

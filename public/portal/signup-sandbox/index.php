@@ -46,6 +46,6 @@ if (!fm_signup_sandbox_available()) {
     </div>
     <div class="sbx-menu" id="sbx-menu" hidden></div>
     <div class="sbx-toast" id="sbx-toast" hidden></div>
-    <script src="sandbox.js?v=6"></script>
+    <script src="sandbox.js?v=7"></script>
 </body>
 </html>
