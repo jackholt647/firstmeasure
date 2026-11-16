@@ -390,7 +390,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
-      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261116-fm505-customer-sharing')]
+      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261116-fm505-customer-reschedule')]
     },
     {
       id: 'portal.training',

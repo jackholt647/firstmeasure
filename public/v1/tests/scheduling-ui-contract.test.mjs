@@ -74,6 +74,7 @@ test('customer schedule visibility is explicit and defaults to internal', () => 
   assert.match(schedulingSource, /project\?\.id && customerPortalOn\(\) \? `<div class="dash-event-customer-panel">/);
   assert.match(projectScheduleSource, /canEdit && customerPortalOn\(\) \? `<div class="r-schedule-event-customer">/);
   for (const source of [schedulingSource, projectScheduleSource]) assert.match(source, /can\?\.\('platform\.customer_portal'\) === true/);
+  assert.match(schedulingSource, /can\?\.\('scheduling\.customer_rescheduling'\) !== true \|\| !customerPortalOn\(\)\) return '';/);
 });
 
 test('event creation supports production, multi-equipment assignments, and advanced type requirements', () => {
