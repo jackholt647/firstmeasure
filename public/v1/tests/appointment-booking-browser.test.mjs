@@ -269,7 +269,9 @@ test('phones book in steps: type, then project or address, then time with Create
   await page.getByRole('button',{name:'10:00 AM',exact:true}).click();await create.click();
   await page.getByRole('heading',{name:'Event created'}).waitFor();
   assert.deepEqual(await page.locator('[data-done-summary] dt').allInnerTexts(),['Type','Project','Time'].map(label=>label.toUpperCase()));
-  assert.deepEqual(await page.locator('[data-done-summary] dd').allInnerTexts(),['Sales appointment','Smith residence',(await page.evaluate(()=>new Date('2026-11-17T15:00:00Z').toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})))+'\n10:00 AM']);
+  // Delivery was switched on in Advanced, so the type is Custom and the event's own name leads.
+  assert.equal(await page.locator('.fm-booking-created-title').innerText(),'Sales appointment');
+  assert.deepEqual(await page.locator('[data-done-summary] dd').allInnerTexts(),['Custom','Smith residence',(await page.evaluate(()=>new Date('2026-11-17T15:00:00Z').toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})))+'\n10:00 AM']);
   assert.equal(await page.evaluate(()=>window.bookings.length),1);assert.equal(await page.evaluate(()=>window.bookings[0].project_id),'p1');
   assert.ok(await page.locator('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth));
   await page.getByRole('button',{name:'Done',exact:true}).click();await page.locator('dialog').waitFor({state:'detached'});
