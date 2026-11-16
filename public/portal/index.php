@@ -1267,11 +1267,17 @@ session_write_close();
         transform:translateX(0);
         box-shadow:8px 0 30px rgba(0,0,0,0.18);
       }
+      /* In the phone drawer the menu drops down under New, over the app list (FM-487). */
       .sidebar.mob-open .new-menu-popout{
         display:none;
-        position:static;
-        width:100%;
-        margin-top:8px;
+        position:absolute;
+        top:calc(100% + 8px);
+        left:0;
+        right:0;
+        width:auto;
+        max-height:var(--new-menu-max-height, 60vh);
+        overflow-y:auto;
+        overscroll-behavior:contain;
         transform:translateY(-6px) scale(.98);
         transform-origin:top center;
       }
@@ -2791,6 +2797,10 @@ session_write_close();
         if (!mobileSidebarOpen) {
           menu.style.setProperty('--new-menu-left', `${Math.round(rect.right + 10)}px`);
           menu.style.setProperty('--new-menu-top', `${Math.round(rect.top)}px`);
+        } else {
+          // The drawer's scroll area clips overflow: keep the menu inside it and let it scroll.
+          const area = btn.closest('.sidebar-scroll')?.getBoundingClientRect();
+          if (area) menu.style.setProperty('--new-menu-max-height', `${Math.max(160, Math.round(area.bottom - rect.bottom - 20))}px`);
         }
         wrap.classList.add('open');
         btn.setAttribute('aria-expanded', 'true');
