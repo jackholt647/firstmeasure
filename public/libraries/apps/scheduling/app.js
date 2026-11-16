@@ -5768,7 +5768,8 @@
   }
 
   function customerSchedulingEditorHtml(ctx, draft = {}, project = {}){
-    if (window.Portal?.can?.('scheduling.customer_rescheduling') !== true) return '';
+    // Customers reschedule from the customer portal.
+    if (window.Portal?.can?.('scheduling.customer_rescheduling') !== true || !customerPortalOn()) return '';
     if (!project?.id || isMaterialEvent(draft) || isProductionEvent(draft) || isEquipmentWindowEvent(draft) || window.PlatformScheduling?.eventIsSpan?.(draft) === true) return '';
     const policy = editorCustomerScheduling(draft);
     const open = policy.enabled === true;
