@@ -355,7 +355,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'), versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261011-voicemail-download-v2'), versionedBundle('comms/phone-tray.js', '20261101-prod-sync'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261101-prod-sync'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261116-fm474-phone-primary')]
+      bundles: [versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'), versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261116-fm497-call-center-phone'), versionedBundle('comms/phone-tray.js', '20261101-prod-sync'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261101-prod-sync'), versionedBundle('comms/workspace.js', '20261116-fm497-call-center-phone'), versionedBundle('comms/project.js', '20261116-fm474-phone-primary')]
     },
     {
       id: 'project.measurements',
@@ -519,10 +519,10 @@
         versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
-        versionedBundle('comms/communications-ui.js', '20261011-voicemail-download-v2'),
+        versionedBundle('comms/communications-ui.js', '20261116-fm497-call-center-phone'),
         versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'),
         versionedBundle('comms/phone-tray.js', '20261101-prod-sync'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261101-prod-sync'),
-        versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'),
+        versionedBundle('comms/workspace.js', '20261116-fm497-call-center-phone'),
         versionedBundle('chat/app.js', '20261111-offline-messages')
       ]
     },

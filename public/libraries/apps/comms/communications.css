@@ -189,3 +189,25 @@
 .fm-phone-tray .fm-text-private-button,.fmpm-window .fm-text-private-button{display:inline-flex;gap:6px;align-items:center;font-size:11px;background:transparent;color:var(--primary-readable,var(--primary,#d33b44));border:0;padding:6px 0;min-height:30px;white-space:normal;text-align:left}
 .fm-text-private-head [data-cancel-private]{flex:0 0 28px;padding:4px!important;min-height:28px!important;height:28px}
 .fm-text-private-button{max-width:100%}.fm-text-private-button>span{min-width:0;overflow-wrap:anywhere}
+
+/* Call Center mode bar: the settings button joins it on phones, where the shared header is hidden. */
+.fmcc-modebar{display:flex;align-items:center;gap:8px;margin-bottom:18px}.fmcc-modebar>.fmcc-switch{flex:1;margin-bottom:0}.fmcm .fmcc-settings{display:none}
+/* Phone: the portal's mobile top bar carries the title, so the call center starts with one compact control row. */
+@media(max-width:820px){
+.fmcm>[data-app-header] .app-heading{display:none}
+.fmcm:has(.fmcc)>[data-app-header]:not(:has(.app-tabs)){display:none!important}
+.fmcm .fmcc-settings{display:inline-flex;flex:none;width:44px;height:44px;min-height:44px;padding:0;border-radius:12px;font-size:16px}
+.fmcm:has(>[data-app-header] .app-tabs) .fmcc-settings{display:none}
+.fmcm-view:has(>.fmcc){padding:12px 12px 24px}
+.fmcc .fmcc-title{display:none}
+.fmcc .fmcc-top{flex-direction:row;margin:0 0 10px}.fmcc .fmcc-top:not(:has(.fmcc-department)){display:none}
+.fmcc .fmcc-department{width:100%}.fmcc .fmcc-department>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.fmcc .fmcc-department select{width:100%;min-width:0;min-height:44px;border-radius:12px}
+.fmcc .fmcc-modebar{margin-bottom:12px}
+.fmcc .fmcc-switch{max-width:none;width:auto;min-width:0;padding:3px;border-radius:12px}.fmcc .fmcc-switch button{min-height:36px;padding:6px 4px;font-size:12px;overflow:hidden;text-overflow:ellipsis}
+.fmcc .fmcc-section-head{flex-direction:row;align-items:center;justify-content:flex-end;gap:10px;margin-bottom:10px}.fmcc .fmcc-section-head h3,.fmcc .fmcc-section-head>div:not(.fmcc-meta){display:none}.fmcc .fmcc-meta{margin-right:auto;min-width:0}.fmcc .fmcc-meta p{margin:0;font-size:13px;font-weight:600}.fmcc .fmcc-section-head>button{min-height:38px;font-size:13px}
+.fmcc .fmcc-notice{margin:0 0 12px}
+.fmcc .fmcc-filters,.fmcc .fmcc-dial-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 8px;padding:12px;margin-bottom:12px}.fmcc .fmcc-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.fmcc .fmcc-filters>*,.fmcc .fmcc-dial-controls>*{min-width:0;flex:none}.fmcc .fmcc-filters .fmcc-search,.fmcc .fmcc-dial-controls>button{grid-column:1/-1}.fmcc .fmcc-filters select,.fmcc .fmcc-dial-controls select{padding:8px 6px;font-size:12px}.fmcc .fmcc-dial-controls>button{width:100%;min-height:44px}
+.fmcc .fmcc-columns,.fmcc .fmcc-stack{gap:12px}.fmcc .fmcc-card>header{padding:12px 14px}.fmcc .fmcc-lead,.fmcc .fmcc-script{padding:10px 14px}.fmcc .fmcm-empty{min-height:0;padding:22px 16px}.fmcc .fmcm-empty>i{width:38px;height:38px;font-size:16px}
+.fmcc .fmcc-stats{gap:8px;margin-bottom:12px}.fmcc .fmcc-stat{padding:10px 12px}.fmcc .fmcc-stat strong{font-size:20px;margin-top:2px}
+.fmcc .fmcc-history-row,.fmcc .fmcc-agent,.fmcc .fmcc-managed-list{padding:12px 14px}.fmcc .fmcc-row-actions button{min-height:36px;font-size:12px}.fmcc .fmcc-agent>.fmcc-row-actions{padding-left:46px}.fmcc .fmcc-managed-leads{padding:0 14px 10px}
+}
