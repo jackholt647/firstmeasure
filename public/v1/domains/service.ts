@@ -9,7 +9,8 @@ import { createPublicSite, patchSite } from "../websites/service.js";
 import { readSite } from "../websites/storage.js";
 import { createOpenSrsClient, OpenSrsError, type OpenSrsRecord } from "./opensrs.js";
 import { provisionDomainInfrastructure } from "./provisioning.js";
-import { configureOrgDomainEmailIdentity } from "../email/engine.js";
+import { configureOrgDomainEmailIdentity, retireOrgDomainEmailIdentity, setOrgDomainEmailSending } from "../email/engine.js";
+import { checkDomainEmailRecords as lookUpEmailRecords, checkNameservers, storedEmailRecords, systemResolver, type DnsResolver } from "./email-records.js";
 import type { DomainContact } from "./schemas.js";
 import {
   listRegistrations,
@@ -509,10 +510,13 @@ export async function disconnectDomainFromFirstMate(input: {
       }, input.context);
     }
   }
+  // Mail stops sending from (and arriving at) a disconnected domain; FirstMate Mail takes over.
+  await retireOrgDomainEmailIdentity(input.orgId, input.domain);
   const saved = await saveRegistration(input.orgId, input.domain, {
     ...current,
     website_id: "",
     status: current.verified_at ? "ready_to_connect" : current.status,
+    email_configuration_status: cleanText(current.email_configuration_status) === "active" ? "records_pending" : current.email_configuration_status,
     resources_disconnected_at: new Date().toISOString()
   });
   await recordDomainEvent(input.orgId, "domain.resources.disconnected", {
@@ -792,7 +796,8 @@ export async function attachDomainResources(input: {
     website_id: websiteId || cleanText(current.website_id),
     default_email_local_part: input.defaultEmailLocalPart,
     default_email: defaultEmail,
-    email_configuration_status: "pending_provider_setup",
+    // A domain whose email already works keeps it while its address changes; the check below confirms it.
+    email_configuration_status: cleanText(current.email_configuration_status) === "active" ? "active" : "pending_provider_setup",
     status: verified && (websiteId || input.website.mode === "none") ? "active" : cleanText(current.status),
     resources_connected_at: new Date().toISOString()
   });
@@ -800,7 +805,8 @@ export async function attachDomainResources(input: {
     organizationId: input.orgId,
     branchId: input.context.branchId || "default",
     domain: input.domain,
-    localPart: input.defaultEmailLocalPart
+    localPart: input.defaultEmailLocalPart,
+    verified
   });
   await recordDomainEvent(input.orgId, "domain.resources.connected", {
     domain: input.domain,
@@ -813,12 +819,62 @@ export async function attachDomainResources(input: {
     domain: input.domain,
     actorUserId: input.context.userId
   });
+  // Records already in place (a domain moving to a new address, or a simulated one) make email ready at once.
+  const checked = verified ? await checkDomainEmail(input.orgId, input.domain).catch(() => null) : null;
   return {
-    registration: publicRegistration(infrastructure.registration),
+    registration: checked?.registration ?? publicRegistration(infrastructure.registration),
     website_id: websiteId,
     default_email: defaultEmail,
     infrastructure: { simulated: infrastructure.simulated, plan: infrastructure.plan }
   };
+}
+
+/**
+ * Check the domain's email records in public DNS (FM-516) and, for a domain that stays at its registrar, that it is
+ * pointed at the zone's nameservers. When every record is found the domain's email is active: its address becomes the
+ * default sender. A domain whose records go missing falls back to FirstMate Mail until they are back. A simulated
+ * domain (bought in registry test mode) has nothing in DNS, so its records are taken as found, as its verification is.
+ */
+export async function checkDomainEmail(orgId: string, domain: string, options: { resolver?: DnsResolver } = {}) {
+  const current = await readRegistration(orgId, domain);
+  if (!current) throw notFound("domain_not_found", "The domain was not found.");
+  const at = (value: unknown) => Date.parse(cleanText(value)) || 0;
+  if (!cleanText(current.default_email) || at(current.resources_disconnected_at) > at(current.resources_connected_at)) {
+    throw conflict("domain_email_not_set", "Choose this domain's email address first.");
+  }
+  const verified = Boolean(current.verified_at) || ["ready_to_connect", "active"].includes(cleanText(current.status));
+  if (!verified) throw conflict("domain_not_verified", "Verify that you own this domain before checking its email records.");
+  const resolver = options.resolver ?? systemResolver;
+  const simulated = current.simulated === true;
+  const expected = storedEmailRecords(current, domain);
+  const records = simulated
+    ? expected.map((record) => ({ ...record, status: "found" as const, found: [record.content].filter(Boolean) }))
+    : await lookUpEmailRecords(expected, resolver);
+  const assigned = Array.isArray(current.nameservers) ? current.nameservers.map(cleanText).filter(Boolean) : [];
+  // Only a Cloudflare zone's nameservers are something to point at; a capture-mode domain has none.
+  const nameservers = cleanText(current.cloudflare_zone_id) && assigned.length
+    ? simulated ? { expected: assigned, found: assigned, status: "found" as const } : await checkNameservers(domain, assigned, resolver)
+    : null;
+  const ready = records.every((record) => record.status === "found") && (!nameservers || nameservers.status === "found");
+  const wasActive = cleanText(current.email_configuration_status) === "active";
+  const now = new Date().toISOString();
+  const saved = await saveRegistration(orgId, domain, {
+    ...current,
+    email_records: expected,
+    email_records_check: { checked_at: now, ready, simulated, records, nameservers } as unknown as JsonObject,
+    email_configuration_status: ready ? "active" : wasActive ? "records_pending" : (cleanText(current.email_configuration_status) || "records_pending"),
+    ...(ready && !wasActive ? { email_configured_at: now } : {})
+  });
+  // Always: the identity's state follows the latest check, whatever an earlier attach left.
+  await setOrgDomainEmailSending(orgId, domain, ready);
+  if (ready !== wasActive) {
+    await recordDomainEvent(orgId, ready ? "domain.email.active" : "domain.email.records_missing", {
+      domain,
+      missing: records.filter((record) => record.status !== "found").map((record) => record.key),
+      simulated
+    });
+  }
+  return { registration: publicRegistration(saved), ready, records, nameservers, checked_at: now };
 }
 
 export async function provisionExistingDomainInfrastructure(input: {

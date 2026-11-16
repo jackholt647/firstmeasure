@@ -15,6 +15,12 @@ The engine behind the project Comms tab (`docs/comms-spec.md`):
   force-rewrite override. Frontends must not duplicate either rule.
 - `inbound.ts` — `POST /v1/email/inbound/events` accepts a NORMALIZED inbound payload (token-guarded like the Postmark webhook). Routing: org by recipient inbox address → thread by References/In-Reply-To → open conversation with the sender → new conversation, with project/contact matching via `comms/matching.ts`. Fires `communication.received` and the comms notification/auto-response hook. Unroutable mail returns 202 so providers do not retry.
 - `cloudflare-email-worker/` — receives Email Routing events, stores raw MIME in private R2, and enqueues an object key. Its Queue consumer parses MIME and posts normalized input to the V1 host; repeated failures land in a DLQ.
+- A company's own domain (FM-516, `domains/README.md`): `configureOrgDomainEmailIdentity` creates its identity
+  (`info@theirdomain`) when the address is chosen. It becomes the default sender only once the domain's email records
+  check out (`setOrgDomainEmailSending`); `resolveOrgEmailSender` sends from it then, and from FirstMate Mail before
+  that or whenever its records go missing. Creating FirstMate Mail never takes the default from a domain that sends.
+  Inbound mail to the domain's address, or to any other address there with no inbox of its own (the catch-all), lands
+  in that identity's inbox once the domain's ownership is verified.
 - `tenants.ts` — enforces organization isolation and pause state locally without provider-specific tenant resources.
 - `GET /v1/email/organizations/:orgId/inbox` — provisions/returns the org inbox.
 - Organization-to-customer transactional sending (`organization_outbound.ts`) uses the same tenant-aware Cloudflare path. Feedback requests, instant estimates, documents, invoices, and proposals use this lane, including PDF attachments where applicable.

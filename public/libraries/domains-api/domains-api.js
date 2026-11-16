@@ -82,6 +82,7 @@
     }),
     checkVerification:(orgId, domain) => request(orgPath(orgId, `/domains/${enc(domain)}/verification/check`), { method:'POST', body:{} }),
     resendVerification:(orgId, domain) => request(orgPath(orgId, `/domains/${enc(domain)}/verification/resend`), { method:'POST', body:{} }),
+    checkEmailRecords:(orgId, domain) => request(orgPath(orgId, `/domains/${enc(domain)}/email-records/check`), { method:'POST', body:{} }),
     attachResources:(orgId, domain, payload) => request(orgPath(orgId, `/domains/${enc(domain)}/resources`), { method:'POST', body:payload }),
     updateManagement:(orgId, domain, payload) => request(orgPath(orgId, `/domains/${enc(domain)}/management`), { method:'PATCH', body:payload }),
     requestTransferOut:(orgId, domain) => request(orgPath(orgId, `/domains/${enc(domain)}/transfer-out`), { method:'POST', body:{attestation:true} }),
