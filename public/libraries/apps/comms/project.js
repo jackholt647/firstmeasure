@@ -361,7 +361,10 @@
     if(state.callsHandle){state.callsHandle.destroy();state.callsHandle=null;contentRoot()?.replaceChildren();}
     const allowed = visibleTabs().some((tab) => tab.id === view);
     state.view = allowed ? view : 'overview';
+    const wasCalls = state.search.calls;
     state.search.open = false;
+    state.search.calls = state.view === 'calls';
+    syncSearchBox(wasCalls !== state.search.calls);
     if (options.pushRoute) Portal.navigation?.push?.({ commsView: state.view });
     renderTabs();
     loadView().catch(() => null);
@@ -1173,6 +1176,15 @@
   }
 
   let searchTimer = 0;
+  // On Calls the one search box filters the project's calls; elsewhere it searches every message.
+  function syncSearchBox(clear){
+    const input = state.panelRoot?.querySelector('[data-co-search]');
+    if (!input) return;
+    if (clear) { input.value = ''; state.search.query = ''; if (searchTimer) clearTimeout(searchTimer); }
+    input.placeholder = state.view === 'calls'
+      ? (globalThis.PlatformLanguage?.text("comms","m_eb57b9fe518a5c",'Search calls…',{v0:'calls'}) ?? 'Search calls…')
+      : (globalThis.PlatformLanguage?.text("comms","m_ba670f4714e86b","Search all communications…") ?? "Search all communications…");
+  }
   function bindSearch(){
     const input = state.panelRoot?.querySelector('[data-co-search]');
     if (!input || input.dataset.coBound === '1') return;
@@ -1181,6 +1193,7 @@
       const query = clean(input.value);
       state.search.query = query;
       if (searchTimer) clearTimeout(searchTimer);
+      if (state.view === 'calls') { state.callsHandle?.search(query); return; }
       if (!query) { state.search.open = false; render(); return; }
       searchTimer = setTimeout(async () => {
         state.search.open = true;
@@ -1547,6 +1560,8 @@
     state.sidebarRoot?.classList?.remove('visible','mode-edit','mode-list','mode-send');
     const route = Portal.navigation?.read?.() || {};
     if (clean(route.commsView)) state.view = clean(route.commsView);
+    state.search.calls = state.view === 'calls';
+    syncSearchBox(false);
     renderTabs();
     loadView().catch(() => null);
     loadLeftData();
