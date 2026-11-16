@@ -1,7 +1,7 @@
 {
   "files": 318,
   "namespaces": 120,
-  "messages": 17416,
+  "messages": 17439,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -77,22 +77,22 @@
       "file": "public/libraries/appointment-booking/availability.js",
       "namespace": "appointment-booking",
       "references": 3,
-      "candidates": 16,
+      "candidates": 15,
       "edits": 5
     },
     {
       "file": "public/libraries/appointment-booking/booking.js",
       "namespace": "appointment-booking",
       "references": 0,
-      "candidates": 6,
-      "edits": 4
+      "candidates": 22,
+      "edits": 8
     },
     {
       "file": "public/libraries/appointment-booking/configuration.js",
       "namespace": "appointment-booking",
       "references": 0,
-      "candidates": 17,
-      "edits": 6
+      "candidates": 32,
+      "edits": 18
     },
     {
       "file": "public/libraries/appointment-booking/settings.js",
@@ -182,7 +182,7 @@
       "file": "public/libraries/apps/comms/workspace.js",
       "namespace": "comms",
       "references": 74,
-      "candidates": 79,
+      "candidates": 80,
       "edits": 29
     },
     {
@@ -1967,8 +1967,8 @@
       "file": "public/libraries/project-selector/project-selector.js",
       "namespace": "project-selector",
       "references": 0,
-      "candidates": 5,
-      "edits": 4
+      "candidates": 3,
+      "edits": 3
     },
     {
       "file": "public/libraries/project-trays/activity-presenter.js",
