@@ -261,3 +261,74 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
+
+// FM-509: on a phone the tray has the call-center phone icon, a centred title and the close button only; its tabs show
+// what is set up (texts: comms.sms, calls and voicemail: browser calling), lead into the Communications setup when the
+// person may run it, and the first new call where calling is off goes straight into that setup.
+test('phone tray shows only set-up tabs, sends the rest into the Communications setup, and has a phone header',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:433,height:870}}),errors=[];
+    page.on('pageerror',e=>errors.push(e.stack||e.message));
+    await page.route('https://phone.test/**',route=>route.fulfill({body:'<style>body{margin:0;font-family:Arial,sans-serif}.main{height:100vh;position:relative}</style><main class="main"><header id="platformTopbar" style="height:50px"></header><div id="platformPhoneSlot"><button id="platformPhoneBtn">Phone</button></div><div id="mainPanels"></div></main>',contentType:'text/html'}));
+    await page.goto('https://phone.test');
+    await page.evaluate(()=>{
+      window.__APP={orgId:'org-test',userId:'user-test'};window.setups=[];window.sms=false;window.manage=true;
+      window.voice={enabled:false};
+      window.Portal={appFlags:{has:()=>true},can:key=>key==='comms.sms'?window.sms:true,modules:{},navigation:{registerSchema(){},registerHandler(){},push(){}}};
+      window.FirstMateGuides={play:async(id,options)=>{setups.push({id,options,start:window.__fmCommsSetupStart});if(window.setupTurnsOn){window.sms=true;window.voice.enabled=true;}return {status:'dismissed'};}};
+      window.PlatformAPI={projects:{list:async()=>({documents:[]})},contacts:{settings:async()=>({settings:{tags:[]}})}};
+      window.TelnyxWebRTC={TelnyxRTC:class{constructor(){this.handlers={};}on(n,cb){this.handlers[n]=cb;}connect(){this.handlers['telnyx.ready']?.();}async setAudioSettings(){}disconnect(){}}};
+      window.CommsAPI={customer:async(_org,path)=>{
+        if(path==='voice/endpoint/token')return {token:'fixture',expires_at:new Date(Date.now()+3600000).toISOString()};
+        if(path==='voice/endpoint/presence')return {availability:'unavailable'};
+        if(path==='voice/status')return {settings:{...window.voice},permissions:{manage:window.manage},numbers:[{phone_number:'+12065550199',label:'Line',status:'active'}],sms_numbers:[],default_number:''};
+        if(path==='call-scripts')return {scripts:[]};
+        if(path==='voice/voicemails')return {voicemails:[]};
+        if(path.startsWith('voice/contacts'))return {contacts:[]};
+        if(path.startsWith('calls'))return {calls:[]};
+        return {};
+      },customerUrl:(_org,path)=>`https://phone.test/v1/comms/organizations/org-test/${path}`,inbox:async()=>({conversations:[]}),sms:{groups:{list:async()=>({items:[]})}}};
+    });
+    for(const file of ['window-manager/window-manager.js','window-manager/window-shell.js','apps/comms/communications-ui.js','apps/comms/phone-tray.js','apps/comms/calling-runtime.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+file,import.meta.url),'utf8')});
+    const tabs=()=>page.locator('.fm-phone-tray [data-tray-tab]').evaluateAll(buttons=>buttons.filter(b=>!b.hidden&&b.getClientRects().length).map(b=>b.dataset.trayTab));
+    const tray=page.locator('.fm-phone-tray');
+    // Nothing set up: the first new call is the setup (on its texts and calls page); after it the call opens with no tabs.
+    await page.evaluate(()=>Portal.CustomerPhone.open({project_id:''}));
+    assert.deepEqual(await page.evaluate(()=>setups),[{id:'comms.setup',options:{replay:true},start:'phone'}]);
+    await tray.waitFor();
+    assert.deepEqual(await tabs(),[]);
+    // Phone header: no workspace or move button, the close button, the call-center icon and a centred title.
+    assert.equal(await page.locator('.fm-phone-tray .fm-phone-open-modal').isVisible(),false);
+    assert.equal(await page.locator('.fm-phone-tray [data-phone-float]').isVisible(),false);
+    assert.equal(await page.locator('.fm-phone-tray [data-window-action=close]').isVisible(),true);
+    assert.equal(await page.locator('.fm-phone-heading').textContent(),'Phone');
+    const header=await page.evaluate(()=>{const head=document.querySelector('.fm-phone-heading').getBoundingClientRect(),shell=document.querySelector('.fm-phone-tray').getBoundingClientRect(),icon=getComputedStyle(document.querySelector('.fm-phone-title>i'));return {centre:Math.abs(head.left+head.width/2-(shell.left+shell.width/2)),bg:icon.backgroundColor,color:icon.color};});
+    assert.ok(header.centre<2,JSON.stringify(header));
+    assert.deepEqual([header.bg,header.color],['rgb(217, 48, 37)','rgb(255, 255, 255)']);
+    // A second new call on the page opens the phone without asking again.
+    await page.evaluate(()=>Portal.CustomerPhone.open({project_id:''}));
+    assert.equal(await page.evaluate(()=>setups.length),1);
+    // Texts on, calls off: Text and Contacts work; Voicemail opens the setup and leaves the open tab as it was.
+    await page.evaluate(async()=>{window.sms=true;await Portal.CustomerPhone.refreshStatus();});
+    assert.deepEqual(await tabs(),['call','text','voicemail','contacts']);
+    await page.locator('.fm-phone-tray [data-tray-tab=text]').click();
+    await page.locator('.fm-phone-tray [data-tray-tab=voicemail]').click();
+    await page.waitForFunction(()=>setups.length===2);
+    assert.equal(await page.locator('.fm-phone-tray [data-tray-tab=text]').getAttribute('aria-selected'),'true');
+    assert.equal(await page.locator('.fm-phone-tray [data-tray-pane=voicemail], .fm-phone-tray [data-tray-panel=voicemail]').first().isVisible(),false);
+    // Someone who cannot run the setup never sees tabs for what is not set up.
+    await page.evaluate(async()=>{window.manage=false;await Portal.CustomerPhone.refreshStatus();});
+    assert.deepEqual(await tabs(),['text','contacts']);
+    // Texts off too: no tabs at all.
+    await page.evaluate(async()=>{window.sms=false;await Portal.CustomerPhone.refreshStatus();});
+    assert.deepEqual(await tabs(),[]);
+    // Everything set up: every tab, and a new call opens the phone directly.
+    await page.evaluate(async()=>{window.sms=true;window.voice.enabled=true;window.manage=true;await Portal.CustomerPhone.refreshStatus();});
+    assert.deepEqual(await tabs(),['call','text','voicemail','contacts']);
+    await page.locator('.fm-phone-tray [data-tray-tab=voicemail]').click();
+    assert.equal(await page.locator('.fm-phone-tray [data-tray-tab=voicemail]').getAttribute('aria-selected'),'true');
+    assert.equal(await page.evaluate(()=>setups.length),2);
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
