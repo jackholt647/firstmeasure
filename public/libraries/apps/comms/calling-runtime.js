@@ -215,6 +215,7 @@
     if(state.call&&!terminal.has(state.call.state)&&state.call.id!==input.call_id){state.minimized=false;if(input.call_id||input.entry_id)state.error='Finish the active call before opening another contact.';render();return false;}
     if(state.call&&state.call.wrap_up_state!=='saved'&&terminal.has(state.call.state)&&state.status?.settings?.require_disposition&&state.call.id!==input.call_id){state.minimized=false;state.error='Save this call outcome before starting another call.';render();return false;}
     if(state.call&&(!Object.keys(input).length||input.call_id===state.call.id)){state.minimized=false;if(options.artifacts&&callPermission('recordings'))await artifacts();render();autoConnect();void Portal.PhoneTray?.selectTab('call');return true;}
+    if(!input.call_id&&!input.entry&&!options.fromRoute){await Portal.PhoneTray?.beforeNewCall?.();if(state.call&&!terminal.has(state.call.state))return false;}
     const ticket=++state.openSequence;
     clearTimeout(state.saveTimer);if(state.dirty&&state.call)await saveNotes();
     if(ticket!==state.openSequence)return false;
