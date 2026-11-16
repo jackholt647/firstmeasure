@@ -279,3 +279,84 @@ test('generate with nothing to build from offers to start a proposal or a work o
     assert.deepEqual(errors, []);
   } finally { await browser.close(); server.close(); }
 });
+
+// FM-490: an empty Materials column starts with buttons chosen from the project's documents. A proposal opens in the
+// Docs tab with a return, so finishing it comes back here; a scope of work is Operations' own workflow.
+test('an empty Materials column offers to generate, open or create a proposal or scope of work, and Docs comes back', async () => {
+  const server = await serve({ railGate: Promise.resolve() });
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const start = async (documents) => {
+    const page = await browser.newPage({ viewport: { width: 433, height: 870 } });
+    await page.addInitScript((documents) => { window.fixtureDocuments = documents; }, documents);
+    const errors = await open(page, server.address().port, { projectId: 'p1' });
+    await page.evaluate(() => {
+      window.currentTab = 'materials';
+      window.host.getActivePreviewTab = () => window.currentTab;
+      window.host.setActivePreviewTab = (tab) => { window.currentTab = tab; window.calls.push(['tab', tab]); };
+      const request = window.PlatformAPI.request;
+      window.PlatformAPI.request = async (path, options) => (path.endsWith('/projects/p1/documents') ? (window.calls.push(['documents']), { documents: window.fixtureDocuments }) : request(path, options));
+      window.Portal.navigation.push = (route) => window.calls.push(['route', route.projectTab]);
+      window.Portal.modules.projectDocsTab = {
+        openNewDocument: async (prefill, options) => { window.calls.push(['new-document', prefill.document_type]); window.finishDocument = options?.onFinish; return true; },
+        openEngineDocument: async (record, options) => { window.calls.push(['open-document', record.id]); window.finishDocument = options?.onFinish; return true; }
+      };
+      window.FirstMateGuides = { play: async (id, options) => { window.calls.push(['guide', id, options?.replay === true]); return { status: 'completed' }; } };
+    });
+    // The stubs above replace the fixture's after the tab mounted: come back to the tab so it reads the documents again.
+    await page.waitForTimeout(300);
+    await page.evaluate(() => { window.handle.setActive(false); window.handle.setActive(true); });
+    await page.locator('[data-mt-quick-start-panel] [data-mt-quick-start]').first().waitFor();
+    const panel = () => page.evaluate(() => {
+      const el = document.querySelector('[data-mt-quick-start-panel]'), box = el.getBoundingClientRect();
+      return { buttons: [...el.querySelectorAll('[data-mt-quick-start]')].map((button) => [button.dataset.mtQuickStart, button.textContent.trim(), button.getBoundingClientRect().right <= 433]), inside: box.right <= 433 && box.width > 200 };
+    });
+    return { page, errors, panel };
+  };
+  try {
+    // Nothing to build from: create one of either.
+    let { page, errors, panel } = await start([]);
+    let shown = await panel();
+    assert.deepEqual(shown.buttons, [['create-proposal', 'Create proposal', true], ['create-scope', 'Create scope of work', true]]);
+    assert.equal(shown.inside, true, 'the buttons fit a phone');
+    await page.locator('[data-mt-quick-start="create-proposal"]').click();
+    await page.waitForFunction(() => window.calls.some(([kind]) => kind === 'new-document'));
+    assert.deepEqual((await page.evaluate(() => window.calls)).filter(([kind]) => ['tab', 'route', 'new-document'].includes(kind)), [['tab', 'docs'], ['route', 'docs'], ['new-document', 'proposal']]);
+    // Done with the document: back to Materials, not the Docs list.
+    await page.evaluate(() => { window.calls.length = 0; window.finishDocument({ id: 'doc1' }); });
+    assert.deepEqual((await page.evaluate(() => window.calls)).filter(([kind]) => ['tab', 'route'].includes(kind)), [['tab', 'materials'], ['route', 'materials']]);
+    // Once the person has moved on to another tab, the return leaves them there.
+    await page.evaluate(() => { window.calls.length = 0; window.currentTab = 'schedule'; window.finishDocument(null); });
+    assert.deepEqual((await page.evaluate(() => window.calls)).filter(([kind]) => ['tab', 'route'].includes(kind)), []);
+    await page.evaluate(() => { window.currentTab = 'materials'; });
+    await page.locator('[data-mt-quick-start="create-scope"]').click();
+    await page.waitForFunction(() => window.calls.some(([kind]) => kind === 'guide'));
+    assert.deepEqual((await page.evaluate(() => window.calls)).find(([kind]) => kind === 'guide'), ['guide', 'operations.scope.setup', true]);
+    assert.deepEqual(errors, []);
+    await page.close();
+
+    // A proposal in progress opens (with the same return); a draft scope of work continues.
+    ({ page, errors, panel } = await start([
+      { id: 'old', document_type: 'proposal', status: 'draft', updated_at: '2026-11-01' },
+      { id: 'new', document_type: 'proposal', status: 'sent', updated_at: '2026-11-10' },
+      { id: 'gone', document_type: 'proposal', status: 'void', updated_at: '2026-11-12' },
+      { id: 'sow', document_type: 'scope_of_work', status: 'draft' }
+    ]));
+    shown = await panel();
+    assert.deepEqual(shown.buttons.map(([action, label]) => [action, label]), [['open-proposal', 'Open proposal'], ['continue-scope', 'Continue scope of work']]);
+    await page.locator('[data-mt-quick-start="open-proposal"]').click();
+    await page.waitForFunction(() => window.calls.some(([kind]) => kind === 'open-document'));
+    assert.deepEqual((await page.evaluate(() => window.calls)).find(([kind]) => kind === 'open-document'), ['open-document', 'new']);
+    assert.equal(await page.evaluate(() => typeof window.finishDocument), 'function');
+    assert.deepEqual(errors, []);
+    await page.close();
+
+    // Published materials (a signed proposal): generate from it.
+    ({ page, errors, panel } = await start([{ id: 'signed', document_type: 'proposal', status: 'signed' }]));
+    shown = await panel();
+    assert.deepEqual(shown.buttons.map(([action, label]) => [action, label]), [['generate', 'Generate from proposal']]);
+    await page.close();
+    ({ page, errors, panel } = await start([{ id: 'sow', document_type: 'scope_of_work', status: 'completed' }]));
+    assert.deepEqual((await panel()).buttons.map(([action, label]) => [action, label]), [['generate', 'Generate from scope of work']]);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); server.close(); }
+});

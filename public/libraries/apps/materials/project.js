@@ -74,6 +74,11 @@
     sidebarRoot: null,
     scopeDocuments: [],
     scopeDocumentsError: '',
+    // The project's documents, read for the empty Materials column's starting buttons (materialsQuickStart).
+    quickStartDocs: null,
+    quickStartKey: '',
+    quickStartStale: true,
+    quickStartLoading: false,
     lists: [],
     listsLoadedFor: '',
     activeListId: '',
@@ -838,6 +843,12 @@
       .mt-resource-add{margin:6px;padding:7px;border:1px dashed #d0d5dd;border-radius:6px;background:#fff;color:#475467;cursor:pointer;font-size:11px;text-align:left}
       .mt-resource-column[data-empty="true"] .mt-resource-add{white-space:normal}
       .mt-resource-scroll .mt-empty{padding:12px 2px}
+      .mt-quick-start{display:flex;flex-direction:column;align-items:center;gap:12px;padding:22px 12px;text-align:center}.mt-quick-start p{margin:0;max-width:300px;color:#667085;font-size:12px;font-weight:600;line-height:1.5}
+      .mt-quick-start-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;width:100%}
+      .mt-quick-start-actions button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:0 14px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+      .mt-quick-start-actions button.primary{background:var(--resource-color,var(--primary,#d93025));border-color:var(--resource-color,var(--primary,#d93025));color:#fff}
+      .mt-quick-start-actions button:disabled{opacity:.6;cursor:default}
+      @media (max-width:760px){.mt-quick-start{padding:28px 14px}.mt-quick-start-actions button{flex:1 1 100%;min-height:44px;font-size:14px}}
       .sw-report-icon{position:relative;display:inline-block;line-height:1;color:var(--primary,#d93025);font-size:22px;flex:none;margin-right:6px}.sw-doc-thumb .sw-report-icon i{color:inherit}.sw-report-icon-badge{position:absolute;right:-.3em;top:-.2em;font-size:.36em;background:#fff;border-radius:50%;padding:.2em;box-shadow:0 0 0 .08em #fff}.sw-report-preview{display:block;width:100%;height:calc(100% - 64px);min-height:200px;border:0;margin-top:10px}.sw-report-file{height:calc(100% - 64px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px}.sw-report-file .sw-report-icon{font-size:64px}.sw-doc-viewer a{color:var(--primary-readable,var(--primary,#d93025))}
       .sw-viewport{position:relative;flex:1;min-height:0;overflow:hidden}.sw-panel{position:absolute;inset:0;overflow:hidden}.sw-viewport>.sw-panel.fm-widget{position:absolute;inset:0;height:100%;min-height:0;aspect-ratio:auto}.sw-docs{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f9fc}.sw-doc-viewer.sw-detail{flex:1 1 0;height:auto;min-height:0}.sw-doc-viewer.sw-detail h2{font-size:16px;margin:2px 0 4px}.sw-doc-viewer .sw-total{font-size:15px}.sw-doc-viewer .sw-document-stage{margin-top:10px;border:1px solid #e4e9ef;border-radius:6px}.sw-doc-viewer.sw-detail section{margin-top:16px}.sw-doc-strip{flex:none;display:flex;align-items:center;gap:8px;min-height:62px;box-sizing:border-box;overflow-x:auto;scrollbar-width:thin;padding:8px 12px;border-top:1px solid #d5deeb;background:#f8fafc}.sw-doc-strip-empty{margin:auto;font-size:12px;color:#98a2b3}.sw-doc-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;color:#667085;font-size:12px}.sw-doc-empty i{font-size:28px;color:#c0c8d4}.sw-doc-empty strong{font-size:13px;color:#475467}.sw-measurement-start{box-sizing:border-box;padding:24px;gap:12px;overflow:auto}.sw-measurement-start .smm-btn{width:100%;max-width:260px;min-height:44px}.sw-measurement-start .smm-btn:disabled{opacity:.55;cursor:default}.sw-measurement-start>span{max-width:300px;line-height:1.5}.sw-doc-thumb{flex:0 0 auto;max-width:230px;display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #cbd8ec;border-radius:8px;background:#fff;color:#243956;text-align:left;cursor:pointer}.sw-doc-thumb:hover{border-color:#98a2b3}.sw-doc-thumb[aria-pressed=true]{border-color:var(--primary,#d93025);box-shadow:0 0 0 1px var(--primary,#d93025)}.sw-doc-thumb i{color:#4879cb}.sw-doc-thumb span{min-width:0}.sw-doc-thumb strong,.sw-doc-thumb small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sw-doc-thumb strong{font-size:12px}.sw-doc-thumb small{margin-top:1px;font-size:10px;color:#667085}.sw-panel[hidden]{display:none}.sw-tabs{display:flex;flex:0 0 36px;gap:0;border-top:1px solid #d5deeb;background:#fff}.sw-tabs button{flex:1;min-width:0;border:0;border-radius:0;background:none;cursor:pointer;color:#62718a;display:flex;align-items:center;justify-content:center;gap:6px;font-size:10px;padding:6px 2px}.sw-tabs button[aria-selected=true]{color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.1);box-shadow:inset 0 -2px var(--primary,#d93025)}.sw-tabs i{font-size:13px}.sw-tabs button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:-2px}.sw-home,.sw-detail{height:100%;overflow:auto;padding:12px;box-sizing:border-box;color:#263349;background:#f7f9fc}
       .sw-home section+section,.sw-detail section{margin-top:24px}.sw-home h3,.sw-detail h3{font-size:13px;letter-spacing:.02em;margin:0 0 12px;color:#475467}
@@ -2499,7 +2510,7 @@
   // The controls that write. On a draft their click is held, the project saved, and the click made again on the same
   // control once it is drawn for the saved project. This listens on the window, ahead of the guided setups' hold on the
   // document, so the setup that plays on the first Generate plays after the save, against the saved project.
-  const DRAFT_WRITE_CONTROLS = ['data-mt-new-category-list', 'data-mt-add-section', 'data-mt-add-custom', 'data-mt-generate-column', 'data-mt-generate-materials', 'data-mt-generate', 'data-mt-req-fix', 'data-mt-delivery-toggle', 'data-mt-add-pricebook', 'data-mt-schedule-job'];
+  const DRAFT_WRITE_CONTROLS = ['data-mt-quick-start', 'data-mt-new-category-list', 'data-mt-add-section', 'data-mt-add-custom', 'data-mt-generate-column', 'data-mt-generate-materials', 'data-mt-generate', 'data-mt-req-fix', 'data-mt-delivery-toggle', 'data-mt-add-pricebook', 'data-mt-schedule-job'];
   function holdDraftWrite(event){
     if (!state.mounted || !state.active || !draftProject()) return;
     const control = event.target?.closest?.(DRAFT_WRITE_CONTROLS.map((name) => `[${name}]`).join(','));
@@ -3158,10 +3169,112 @@
       { label: (globalThis.PlatformLanguage?.text("materials","m_f92c72190aa503","Create proposal") ?? "Create proposal"), value: 'proposal', primary: true }
     ], { title });
     if ((choice !== 'proposal' && choice !== 'work_order') || !projectOperationIsCurrent(operation)) return;
+    openSourceDocument({ document_type: choice });
+  }
+  // Opens the Docs tab's create wizard for a type ({ document_type }), or an existing document ({ document }), with a
+  // return: once the person is done with it (they leave it, or send it), they come back here, not to the Docs list.
+  async function openSourceDocument({ document_type: type = '', document: record = null } = {}){
+    const docs = rootWindow.Portal?.modules?.projectDocsTab || window.Portal?.ProjectDocsTab;
+    const operation = captureProjectOperation();
+    const onFinish = () => returnFromDocuments(operation);
     callHost('setActivePreviewTab', 'docs');
     try { rootWindow.Portal?.navigation?.push?.({ projectTab: 'docs' }, { source: 'materials-start-document', ownedKeys: ['projectTab'] }); } catch (_) {}
-    if (!(await docs.openNewDocument({ document_type: choice }).catch(() => false))) {
+    const opened = record?.id
+      ? await Promise.resolve(docs?.openEngineDocument?.(record, { onFinish })).catch(() => false)
+      : await Promise.resolve(docs?.openNewDocument?.({ document_type: type }, { onFinish })).catch(() => false);
+    if (!opened) {
       showToast((globalThis.PlatformLanguage?.text("materials","m_6175206dc77242","The new document could not be opened") ?? "The new document could not be opened"), (globalThis.PlatformLanguage?.text("materials","m_96047a0c8f68e0","Open the Documents tab to create it.") ?? "Open the Documents tab to create it."), false);
+    }
+  }
+  // Back from a document this tab started: only when the person is still on the Docs tab of the same project.
+  function returnFromDocuments(operation){
+    if (!projectOperationIsCurrent(operation)) return;
+    const route = rootWindow.Portal?.navigation?.read?.() || {};
+    const activeTab = state.host?.getActivePreviewTab?.() || route.projectTab || '';
+    if (activeTab && activeTab !== 'docs') return;
+    state.quickStartStale = true;
+    callHost('setActivePreviewTab', 'materials');
+    try { rootWindow.Portal?.navigation?.push?.({ projectTab: 'materials' }, { source: 'materials-document-return', ownedKeys: ['projectTab'] }); } catch (_) {}
+  }
+
+  // FM-490: the Materials column's first list, while it is empty, offers a way to start. Materials come from a document:
+  // a proposal (once it is signed, or published from Operations) or a scope of work (once it is finished). The project's
+  // documents decide what is offered: generate from one that has published materials, open one still in progress, or
+  // create one. A proposal is made in the Docs tab and brings the person back here; a scope of work is Operations' own
+  // workflow (operations.scope.setup), played over this tab.
+  const QUICK_START_DONE = ['signed', 'completed', 'accepted', 'paid'];
+  const QUICK_START_GONE = ['void', 'archived', 'declined', 'expired'];
+  function quickStartDocuments(){
+    const key = `${orgId()}:${projectId()}`;
+    if (!projectId() || draftProject()) return [];
+    if (state.quickStartKey !== key) { state.quickStartKey = key; state.quickStartDocs = null; state.quickStartStale = true; }
+    // Read again when asked (back on the tab, back from a document) while the last answer stays on screen.
+    if (state.quickStartStale && !state.quickStartLoading) loadQuickStartDocuments(key);
+    return state.quickStartDocs || [];
+  }
+  function loadQuickStartDocuments(key){
+    state.quickStartStale = false;
+    state.quickStartLoading = true;
+    const api = window.DocumentsAPI?.documents || rootWindow.DocumentsAPI?.documents;
+    const base = () => window.PlatformAPI.baseUrl().replace(/\/platform\/?$/, '');
+    const read = api?.listForProject
+      ? api.listForProject(orgId(), projectId())
+      : window.PlatformAPI.request(`${base()}/documents/organizations/${encodeURIComponent(orgId())}/projects/${encodeURIComponent(projectId())}/documents`);
+    Promise.resolve(read).then((result) => (Array.isArray(result?.documents) ? result.documents : []), () => []).then((docs) => {
+      state.quickStartLoading = false;
+      if (state.quickStartKey !== key) return;
+      state.quickStartDocs = docs.filter((doc) => doc?.id && ['proposal', 'scope_of_work'].includes(cleanText(doc.document_type)) && !QUICK_START_GONE.includes(cleanText(doc.status).toLowerCase()) && !doc.archived_at);
+      if (state.mounted && state.active) syncMaterialsGrid();
+    });
+  }
+  function materialsQuickStart(){
+    const docs = quickStartDocuments();
+    const newest = (type) => docs.filter((doc) => cleanText(doc.document_type) === type).sort((a, b) => String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || '')));
+    // Published: accepted, or an Operations document whose scope was published before anyone signed.
+    const published = (doc) => QUICK_START_DONE.includes(cleanText(doc.status).toLowerCase()) || !!doc.metadata?.operations_scope?.published_at;
+    const proposals = newest('proposal'), scopes = newest('scope_of_work');
+    const fromDocument = state.lists.some((list) => resourceType(list) === 'material' && list.metadata?.artifact_origin === 'document');
+    const source = proposals.find(published) ? 'proposal' : scopes.find(published) ? 'scope_of_work' : fromDocument ? 'document' : '';
+    const docsOn = documentsOn() && !!(rootWindow.Portal?.modules?.projectDocsTab || window.Portal?.ProjectDocsTab);
+    const guides = typeof (window.FirstMateGuides || rootWindow.FirstMateGuides)?.play === 'function';
+    return {
+      loading: state.quickStartLoading && !state.quickStartDocs,
+      generate: source,
+      proposal: source || !docsOn ? null : (proposals[0] ? { action: 'open-proposal', document: proposals[0] } : { action: 'create-proposal' }),
+      scope: source || !guides ? null : { action: scopes[0] ? 'continue-scope' : 'create-scope' }
+    };
+  }
+  function renderMaterialsQuickStart(){
+    const start = materialsQuickStart();
+    const T = (key, text) => globalThis.PlatformLanguage?.htmlText("materials", key, text) ?? text;
+    const button = (action, icon, label, primary) => `<button type="button" class="${primary ? 'primary' : ''}" data-mt-quick-start="${action}"${state.generatingMaterials ? ' disabled' : ''}><i class="fas ${icon}" aria-hidden="true"></i>${label}</button>`;
+    if (start.generate) {
+      const label = start.generate === 'proposal' ? T('m_983547431c9c3b', 'Generate from proposal') : start.generate === 'scope_of_work' ? T('m_a27e1339566bdc', 'Generate from scope of work') : T('m_9c8ebeff6a708a', 'Generate materials');
+      return `<div class="mt-quick-start" data-mt-quick-start-panel><p>${T('m_36965f45c0d53b', 'This project has a document to build its materials from.')}</p><div class="mt-quick-start-actions">${button('generate', 'fa-wand-magic-sparkles', label, true)}</div></div>`;
+    }
+    const actions = [
+      start.proposal ? button(start.proposal.action, 'fa-file-signature', start.proposal.action === 'open-proposal' ? T('m_cfc3604ebdac28', 'Open proposal') : T('m_f92c72190aa503', 'Create proposal'), true) : '',
+      start.scope ? button(start.scope.action, 'fa-list-check', start.scope.action === 'continue-scope' ? T('m_bf1c978df6ef43', 'Continue scope of work') : T('m_7056a60793c42d', 'Create scope of work'), !start.proposal) : ''
+    ].join('');
+    if (!actions) return '<div class="mt-empty">Empty List</div>';
+    const text = start.proposal?.action === 'open-proposal'
+      ? T('m_c27269278337ac', 'Materials are built from the proposal once it is signed, or from a scope of work.')
+      : T('m_ac62702ea23953', 'Materials are built from a proposal or a scope of work. Start one here.');
+    return `<div class="mt-quick-start" data-mt-quick-start-panel${start.loading ? ' aria-busy="true"' : ''}><p>${text}</p><div class="mt-quick-start-actions">${actions}</div></div>`;
+  }
+  async function runMaterialsQuickStart(action){
+    const start = materialsQuickStart();
+    if (action === 'generate') return regenerateMaterialListsFromScope({ resourceType: 'material' });
+    if (action === 'create-proposal') return openSourceDocument({ document_type: 'proposal' });
+    if (action === 'open-proposal' && start.proposal?.document) return openSourceDocument({ document: start.proposal.document });
+    if (action === 'create-scope' || action === 'continue-scope') {
+      // Operations' scope of work workflow: it resumes this project's draft, publishes the scope when finished and offers
+      // to generate the materials (the setup's own last screen).
+      const guides = window.FirstMateGuides || rootWindow.FirstMateGuides;
+      const outcome = await Promise.resolve(guides?.play?.('operations.scope.setup', { replay: true, force: true })).catch(() => ({ status: 'failed' }));
+      state.quickStartStale = true;
+      if (state.mounted && state.active) syncMaterialsGrid();
+      if (['unavailable', 'failed'].includes(outcome?.status)) showToast((globalThis.PlatformLanguage?.text("materials","m_043f0adb7b16cd","The scope of work could not be opened") ?? "The scope of work could not be opened"), (globalThis.PlatformLanguage?.text("materials","m_229e109b5ae5c3","Ask an administrator to turn on Operations for your account, or create a proposal instead.") ?? "Ask an administrator to turn on Operations for your account, or create a proposal instead."), false);
     }
   }
 
@@ -4457,6 +4570,7 @@
     root.querySelectorAll('[data-mt-units-toggle]').forEach(button=>button.onclick=()=>{state.unitsMode=state.unitsMode==='order'?'measured':'order';render({preserveScroll:true});});
     root.querySelectorAll('[data-mt-minimize-type],[data-mt-restore-type]').forEach(button=>button.onclick=()=>{const minimizing=!!button.dataset.mtMinimizeType,type=button.dataset.mtMinimizeType||button.dataset.mtRestoreType,source=minimizing?button.closest('.mt-resource-column'):button,from=source.getBoundingClientRect(),clone=minimizing?source.cloneNode(true):null;if(minimizing)state.minimizedTypes.add(type);else state.minimizedTypes.delete(type);syncMaterialsGrid();animateMinimize(type,from,minimizing,clone);});
     root.querySelectorAll('[data-mt-category-sources]').forEach(button=>button.onclick=()=>toggleSourcesMenu(button.dataset.mtCategorySources,button));
+    root.querySelectorAll('[data-mt-quick-start]').forEach(button=>button.onclick=()=>{if(state.generatingMaterials)return;if(button.dataset.mtQuickStart==='generate'){button.disabled=true;button.querySelector('i')?.classList.replace('fa-wand-magic-sparkles','fa-rotate');button.querySelector('i')?.classList.add('mt-spin');}runMaterialsQuickStart(button.dataset.mtQuickStart);});
     root.querySelectorAll('[data-mt-generate-column]').forEach(button=>button.onclick=()=>{if(state.generatingMaterials)return;button.disabled=true;button.querySelector('i')?.classList.replace('fa-wand-magic-sparkles','fa-rotate');button.querySelector('i')?.classList.add('mt-spin');setTimeout(()=>regenerateMaterialListsFromScope({resourceType:button.dataset.mtGenerateColumn}),0);});
     root.querySelectorAll('[data-mt-delete-type]').forEach(button=>button.onclick=()=>removeResourceCategory(button.dataset.mtDeleteType));
     root.querySelectorAll('[data-mt-new-category-list]').forEach(button=>button.onclick=()=>createInlineList(button.dataset.mtNewCategoryList));
@@ -4692,20 +4806,23 @@
       const terms = resourceTerms(type, state.lists.find((list) => resourceType(list) === type));
       const lists=state.lists.filter(list=>members.includes(resourceType(list))&&state.visibleListIds.has(cleanText(list.id))).sort((a,b)=>members.indexOf(resourceType(a))-members.indexOf(resourceType(b)));
       const listTotal=list=>listProjected(list);
+      // FM-490: an empty Materials column starts with buttons in its first list (or in place of one).
+      const quickStart=type==='material'&&!rows.length&&!state.loading?renderMaterialsQuickStart():'';
       const weight=Number(state.columnWeights?.[type])>0?Number(state.columnWeights[type]):0;
       return `<section class="mt-resource-column" data-resource-type="${escapeHtml(type)}" style="--resource-color:${escapeHtml(category.color)}${weight>0?`;--column-weight:${weight}`:''}" data-empty="${!rows.length&&!lists.length}" data-all-empty="${allEmpty}">
         <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button>${merged?'<span class="mt-column-title" title="Who does the work, what they are paid for it, and the equipment it takes">Work order</span>':`<input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name">`}<span class="mt-category-tools">${type==='material'?`<button type="button" data-mt-generate-column="material" title="Generate materials from the signed document and the scope, or from the measurement report when nothing is signed" aria-label="Generate materials"${state.generatingMaterials?' disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}" aria-hidden="true"></i></button>`:''}<button type="button" data-mt-category-sources="${escapeHtml(type)}" aria-haspopup="dialog" title="Line item sources" aria-label="Line item sources for ${escapeHtml(terms.plural)}"><i class="fas fa-gear"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="${merged?'Add a work order':'Add list'}" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${merged&&equipmentOn()?'<button type="button" data-mt-new-category-list="equipment" title="Add an equipment list" aria-label="Add an equipment list"><i class="fas fa-truck-pickup"></i><i class="fas fa-plus"></i></button>':''}<button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
-        <div class="mt-resource-scroll">${merged&&laborAssignmentOn()&&!lists.some(list=>resourceType(list)==='labor')&&projectId()?`<article class="mt-list-pane" data-mt-pane-list="project:${escapeHtml(projectId())}"><div class="mt-list-pane-inner">${renderAssignBlock({id:`project:${projectId()}`,resource_type:'labor'})}</div></article>`:''}${lists.map(list=>{
+        <div class="mt-resource-scroll">${merged&&laborAssignmentOn()&&!lists.some(list=>resourceType(list)==='labor')&&projectId()?`<article class="mt-list-pane" data-mt-pane-list="project:${escapeHtml(projectId())}"><div class="mt-list-pane-inner">${renderAssignBlock({id:`project:${projectId()}`,resource_type:'labor'})}</div></article>`:''}${lists.map((list,listIndex)=>{
           // Inside a merged column each list is still its own kind.
           const type=resourceType(list),terms=resourceTerms(type,list),category=resourceCategories().find(row=>row.id===type)||{};
           const id=cleanText(list.id),listRows=rows.filter(item=>item.__material_list_id===id),collapsed=!!state.collapsedListIds?.has(id),retired=equipmentListRetired(list);
           const sections=materialSectionDefinitions().filter(section=>(section.resource_type||'material')===type&&listRows.some(item=>lineSectionKey(item)===section.key));
           // A list named after its category is the default list; the column heading already carries that name and icon.
           const title=list.metadata?.placeholder_title||[category.name,terms.plural].some(label=>cleanText(label).toLowerCase()===cleanText(list.title).toLowerCase())?'':cleanText(list.title);
-          const tools=list.metadata?.calculus_pending?`<div class="mt-list-secondary"><button type="button" data-mt-generate="${escapeHtml(id)}">Generate materials</button></div>`:'';
+          const startHere=!!quickStart&&listIndex===0;
+          const tools=list.metadata?.calculus_pending&&!startHere?`<div class="mt-list-secondary"><button type="button" data-mt-generate="${escapeHtml(id)}">Generate materials</button></div>`:'';
           const actions=`${type==='labor'&&!list.metadata?.calculus_pending?renderLaborListControls(list,{bare:true}):''}${renderListHeaderActions(list,type,title)}`;
-          return `<article class="mt-list-pane${collapsed?' is-collapsed':''}${type==='labor'&&laborListFinalized(list)?' is-finalized':''}${retired?' is-retired':''}" data-mt-pane-list="${escapeHtml(id)}"><div class="mt-list-pane-inner"><header class="mt-list-head" data-mt-actions-head><button type="button" data-mt-collapse-list="${escapeHtml(id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'Expand':'Collapse'} ${escapeHtml(title||'Default')}" title="${collapsed?'Expand':'Collapse'} list"><i class="fas fa-chevron-${collapsed?'right':'down'}"></i></button><input data-mt-list-name="${escapeHtml(id)}" value="${escapeHtml(title)}" placeholder="${merged&&type==='equipment'?'Equipment':'Default'}" aria-label="List name"${retired?' readonly':''}>${lists.length>1||collapsed?`<span class="mt-list-total" data-mt-list-total="${escapeHtml(id)}" title="List total">${money(listTotal(list))}</span>`:''}${actions}</header>${collapsed?'':`${tools?`<div class="mt-list-tools">${tools}</div>`:''}${retired?`<p class="mt-retired-note" data-mt-retired-note>${(globalThis.PlatformLanguage?.htmlText("materials","m_equipment_off_list_kept","Equipment is turned off for your organization. This list is kept as it was and cannot be changed.") ?? "Equipment is turned off for your organization. This list is kept as it was and cannot be changed.")}</p>`:''}${sections.map(section=>renderMaterialSection(section,listRows.filter(item=>lineSectionKey(item)===section.key),id,sections.length>1)).join('')||(type==='labor'&&laborAssignmentOn()&&!assignmentWorkResourceRef(list)?.id?renderAssignBlock(list):'<div class="mt-empty">Empty List</div>')}${retired?'':`<button type="button" class="mt-resource-add mt-list-add-item" data-mt-add-section="${type==='material'?'accessories':type}" data-mt-list-id="${escapeHtml(id)}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}`}</div></article>`;
-        }).join('')||'<div class="mt-empty">Empty List</div>'}</div>
+          return `<article class="mt-list-pane${collapsed?' is-collapsed':''}${type==='labor'&&laborListFinalized(list)?' is-finalized':''}${retired?' is-retired':''}" data-mt-pane-list="${escapeHtml(id)}"><div class="mt-list-pane-inner"><header class="mt-list-head" data-mt-actions-head><button type="button" data-mt-collapse-list="${escapeHtml(id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'Expand':'Collapse'} ${escapeHtml(title||'Default')}" title="${collapsed?'Expand':'Collapse'} list"><i class="fas fa-chevron-${collapsed?'right':'down'}"></i></button><input data-mt-list-name="${escapeHtml(id)}" value="${escapeHtml(title)}" placeholder="${merged&&type==='equipment'?'Equipment':'Default'}" aria-label="List name"${retired?' readonly':''}>${lists.length>1||collapsed?`<span class="mt-list-total" data-mt-list-total="${escapeHtml(id)}" title="List total">${money(listTotal(list))}</span>`:''}${actions}</header>${collapsed?'':`${tools?`<div class="mt-list-tools">${tools}</div>`:''}${retired?`<p class="mt-retired-note" data-mt-retired-note>${(globalThis.PlatformLanguage?.htmlText("materials","m_equipment_off_list_kept","Equipment is turned off for your organization. This list is kept as it was and cannot be changed.") ?? "Equipment is turned off for your organization. This list is kept as it was and cannot be changed.")}</p>`:''}${sections.map(section=>renderMaterialSection(section,listRows.filter(item=>lineSectionKey(item)===section.key),id,sections.length>1)).join('')||(type==='labor'&&laborAssignmentOn()&&!assignmentWorkResourceRef(list)?.id?renderAssignBlock(list):startHere?quickStart:'<div class="mt-empty">Empty List</div>')}${retired?'':`<button type="button" class="mt-resource-add mt-list-add-item" data-mt-add-section="${type==='material'?'accessories':type}" data-mt-list-id="${escapeHtml(id)}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}`}</div></article>`;
+        }).join('')||quickStart||'<div class="mt-empty">Empty List</div>'}</div>
         ${lists.length?'':`<button type="button" class="mt-resource-add" data-mt-add-section="${type==='material'?'accessories':type}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}
         ${members.map(type=>(estimate=>estimate.available?`<div class="mt-delivery-row${estimate.enabled?'':' off'}" title="One delivery for this category's unordered lists, estimated from your suppliers' fees. An order replaces it with the supplier's real fee."><i class="fas fa-truck" aria-hidden="true"></i><span>Projected delivery</span><strong>${estimate.enabled?`$${Math.round(estimate.amount).toLocaleString('en-US')}`:'Off'}</strong><button type="button" data-mt-delivery-toggle="${escapeHtml(type)}" aria-pressed="${estimate.enabled}" title="${estimate.enabled?'Leave delivery out of the projection':`Include projected delivery (${money(estimate.estimate)})`}" aria-label="Projected delivery"><i class="fas fa-toggle-${estimate.enabled?'on':'off'}" aria-hidden="true"></i></button></div>`:'')(projectedDelivery(type))).join('')}
         <footer class="mt-column-total"><span>Total</span><strong>${money(members.reduce((sum,member)=>sum+categoryProjected(member,lists.filter(list=>resourceType(list)===member)),0))}</strong></footer>
@@ -8099,6 +8216,8 @@
     state.active = !!active;
     setWorkspaceChrome(state.active);
     if (state.active) {
+      // A document may have been made or signed while the tab was away: the empty column's buttons read them again.
+      state.quickStartStale = true;
       scopeWorkspace?.setSidebarVisible(leftContentRoot(),true);
       renderLeft();
       // Coming back to the tab keeps it as it was left (scroll, the list on screen, what is open) and only reads the
