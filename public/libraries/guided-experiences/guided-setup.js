@@ -142,9 +142,12 @@
     .gxs.gxs-leaving[data-kind=modal] .gxs-sheet{opacity:0;transform:scale(.97);transition:opacity .3s,transform .3s}
     @media(max-width:760px){
       .gxs-sheet,.gxs.gxs-wide .gxs-sheet{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;width:100vw;height:var(--gx-vh,100dvh);border-radius:0}
-      /* On a phone a modal setup is a sheet from the bottom edge, as tall as its step; the agentic one keeps the screen. */
+      /* On a phone a modal setup is a sheet from the bottom edge, as tall as its step but never under two-thirds of the
+         screen, so a short step (two choices) doesn't leave a sliver; the step sits in the middle of the extra room. The
+         agentic one keeps the screen. */
       .gxs[data-kind=modal]{place-items:end center}
-      .gxs[data-kind=modal] .gxs-sheet{width:100vw;height:min(var(--gxs-fit,100dvh),calc(var(--gx-vh,100dvh) - 12px));border-radius:18px 18px 0 0}
+      .gxs[data-kind=modal] .gxs-sheet{width:100vw;height:min(var(--gxs-fit,100dvh),calc(var(--gx-vh,100dvh) - 12px));min-height:calc(var(--gx-vh,100dvh) * 2 / 3);border-radius:18px 18px 0 0}
+      .gxs[data-kind=modal] .gxs-step:not([data-fill]){justify-content:flex-start;justify-content:safe center}
       .gxs[data-kind=agentic] .gxs-sheet{min-height:0}
       .gxs-chat{border-left:0;border-top:1px solid #eaecf0;max-height:48px;overflow:hidden;transition:max-height .35s cubic-bezier(.22,1,.36,1)}
       .gxs-chat[data-open=true]{max-height:calc(var(--gx-vh,100dvh) * .58)}
@@ -745,13 +748,13 @@
       };
     }
   });
-  // The first page (two choices) is as tall as it is; the workflow and the ready page fill the sheet.
+  // The first page (two choices) is as tall as it is (on a phone, at least two-thirds of the screen); the workflow and the ready page fill the sheet.
   for (const id of ['operations-path','operations-document','operations-ready']) registerWidget(id, {
     fill:id!=='operations-path', handlesNavigation:true,
     render(el,ctx){
       let disposed=false, handle=null;
       el.textContent=L('gx_operations_loading','Opening Operations…');
-      import(new URL('./operations-setup.js?v=20261110-draft-project',scriptUrl).href).then(module=>{
+      import(new URL('./operations-setup.js?v=20261116-path-centred',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mountWidget(id,el,ctx);
       }).catch(error=>{if(!disposed)el.textContent=error?.message||L('gx_operations_load_error','Could not open this step. Close and try again.');});
       return {valid:()=>handle?.valid?.()!==false,destroy(){disposed=true;handle?.destroy?.();}};
