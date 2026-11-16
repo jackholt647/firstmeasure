@@ -79,6 +79,76 @@
     if (more) more.hidden = !visible;
   }
 
+  // --- Phone header search ---------------------------------------------------
+  // An app with its own search in its content declares presentation.phoneSearch
+  // "icon" on its manifest entry (the CRM's "Search ..." field). While it is the
+  // open tab on a phone, the header search folds into an icon left of More, so
+  // the app's field is plainly the app's; the icon opens the header search under
+  // the bar. Other apps keep the header search bar. Desktop is unchanged.
+
+  let phoneSearchTabId = '';
+
+  function appForTab(tabId){
+    const runtime = window.FirstMateEmbeddableApps;
+    if (!tabId || !runtime) return null;
+    return runtime.getApp?.(`portal.${tabId}`)
+      || runtime.listApps?.({ surface:'portal_tab' })?.find?.((meta) => meta?.app?.portalTabId === tabId)?.app
+      || null;
+  }
+
+  function tabHasOwnPhoneSearch(tabId){
+    const presentation = appForTab(tabId)?.presentation;
+    return !!presentation && typeof presentation === 'object' && presentation.phoneSearch === 'icon';
+  }
+
+  function setPhoneSearchOpen(open, { focus = false } = {}){
+    const topbar = $('.mobile-topbar');
+    const toggle = $('#mobileSearchToggle');
+    if (!topbar || !toggle) return;
+    const next = !!open && topbar.classList.contains('search-icon');
+    topbar.classList.toggle('search-open', next);
+    toggle.setAttribute('aria-expanded', String(next));
+    if (!next) closeSearchResults();
+    if (next && focus) $('#mobilePlatformGlobalSearch')?.focus();
+  }
+
+  function syncPhoneSearch(tabId = phoneSearchTabId){
+    phoneSearchTabId = cleanText(tabId);
+    const topbar = $('.mobile-topbar');
+    const toggle = $('#mobileSearchToggle');
+    if (!topbar || !toggle) return;
+    const icon = tabHasOwnPhoneSearch(phoneSearchTabId);
+    if (topbar.classList.contains('search-icon') !== icon) {
+      topbar.classList.toggle('search-icon', icon);
+      setPhoneSearchOpen(false);
+    }
+    toggle.hidden = !icon;
+    toggle.setAttribute('aria-label', phrase('ptb_search', 'Search'));
+  }
+
+  function bindPhoneSearch(){
+    const toggle = $('#mobileSearchToggle');
+    const search = $('#mobilePlatformGlobalSearch');
+    if (!toggle || toggle.dataset.bound === '1') return;
+    toggle.dataset.bound = '1';
+    toggle.addEventListener('click', (event) => {
+      event.stopPropagation();
+      setPhoneSearchOpen(!$('.mobile-topbar')?.classList.contains('search-open'), { focus:true });
+    });
+    // An empty header search folds away again once it loses focus; one with a query stays until the icon closes it.
+    search?.addEventListener('blur', () => setTimeout(() => {
+      const box = search.closest('.platform-search');
+      if (cleanText(search.value) || box?.contains(document.activeElement)) return;
+      setPhoneSearchOpen(false);
+    }, 150));
+    search?.addEventListener('keydown', (event) => { if (event.key === 'Escape') { setPhoneSearchOpen(false); toggle.focus(); } });
+  }
+
+  window.addEventListener('fm:portal-tab:activated', (event) => syncPhoneSearch(event.detail?.id));
+  window.addEventListener('fm:embeddable-apps:app-registered', (event) => {
+    if (phoneSearchTabId && event.detail?.appId === `portal.${phoneSearchTabId}`) syncPhoneSearch();
+  });
+
   // --- Mobile consolidated "More" sheet -------------------------------------
   // On phones every desktop top bar action (assistant, to-do, phone, messages,
   // notifications, development tools) collapses into one button whose top
@@ -1771,7 +1841,11 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
     }
   }
 
-  document.addEventListener('DOMContentLoaded', () => bind().catch(() => setTopbarVisible(true)));
+  document.addEventListener('DOMContentLoaded', () => {
+    bindPhoneSearch();
+    syncPhoneSearch(window.Portal.mobileHeader?.current?.().tabId || '');
+    bind().catch(() => setTopbarVisible(true));
+  });
   window.addEventListener('fm:app-flags:updated', () => {
     topbarEnabled()
       .then((enabled) => setTopbarVisible(enabled))

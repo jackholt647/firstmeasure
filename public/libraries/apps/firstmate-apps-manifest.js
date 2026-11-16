@@ -107,9 +107,11 @@
       surfaces: ['portal_tab'],
       portalTabId: 'crm',
       fullBleed: true,
+      // Its "Search ..." field searches the open view; on a phone the header search folds into an icon (topbar.js).
+      presentation: { phoneSearch: 'icon' },
       params: { crmView: { history:'push' }, crmPanel: { values:['reports','duplicates','sources','settings'], history:'push' } },
       access: { capability: 'apps.crm' },
-      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261019-crm-v7')]
+      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261116-fm478-phone')]
     },
     {
       id: 'portal.contacts',

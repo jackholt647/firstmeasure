@@ -207,6 +207,15 @@ values (`icon: ''` shows none), and `actions` is a node of compact icon
 buttons shown beside the title. A setting stays with its app and applies
 whenever that app is the open one.
 
+An app whose content has its own search declares it on its manifest entry with
+`presentation: { phoneSearch: 'icon' }` (the CRM does, for "Search New leads").
+While it is the open tab on a phone, the header search folds into a search icon
+just left of More, so the bar is one row and the app's field is plainly the
+app's; the icon opens the header search under the bar, Escape or an empty field
+losing focus folds it away, and a field with a query stays open until the icon
+closes it (`topbar.js`, on `fm:portal-tab:activated`). It is presentation, not a
+setting or a permission; other apps and desktop keep the search bar.
+
 The More (⋯) button opens a menu at the top right with every desktop top bar action:
 the assistant, To Do, messages, notifications, the phone and development
 tools. Each entry is shown exactly when its desktop control is, so a phone and
