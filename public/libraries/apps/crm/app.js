@@ -28,6 +28,12 @@
   const DAY = 86400000;
   // The phone layout (crm.css, "Phone width"): sheets instead of popovers, icons instead of labels.
   const phone = () => window.matchMedia?.('(max-width: 820px)').matches === true;
+  /**
+   * An (i) holding a heading's or a field's explanation, so settings are not paragraphs of text (FM-494). Hover
+   * shows it on a desktop; a tap opens and closes it (onTip). It hangs from the left edge of its `.crm-tip-host`,
+   * never centred on the icon, so it cannot run past the panel on a phone.
+   */
+  const infoTip = (tip) => text(tip) ? `<button type="button" class="crm-hint" data-crm-tip aria-expanded="false" aria-label="${esc(tip)}"><i class="fas fa-circle-info" aria-hidden="true"></i><span class="crm-hint-tip" role="tooltip">${esc(tip)}</span></button>` : '';
   /** A time relative to now, by calendar day: "12 min ago", "Today 3:00 PM", "Tomorrow 9:30 AM", "3 days ago". */
   function when(value){
     const t = Date.parse(text(value)); if (!Number.isFinite(t)) return '';
@@ -466,6 +472,7 @@
 
     // ---- Events ----------------------------------------------------------------
     function bindShell(){
+      host.addEventListener('click', onTip, true);
       host.addEventListener('click', onClick);
       host.addEventListener('change', onChange);
       host.addEventListener('input', onInput);
@@ -479,7 +486,21 @@
       if (!host.contains(active) && active && active !== document.body && active !== document.documentElement) return;
       onKey(event);
     }
+    /** A tap on an (i) opens or closes it; settings sections stop their buttons' clicks, so this listens first. */
+    function onTip(event){
+      const tip = event.target.closest('[data-crm-tip]');
+      if (!tip || !host.contains(tip)) return;
+      event.preventDefault(); event.stopPropagation();
+      closeTips(tip);
+      tip.setAttribute('aria-expanded', String(tip.getAttribute('aria-expanded') !== 'true'));
+    }
+    function closeTips(except){
+      let closed = false;
+      host.querySelectorAll('[data-crm-tip][aria-expanded="true"]').forEach((tip) => { if (tip !== except) { tip.setAttribute('aria-expanded', 'false'); closed = true; } });
+      return closed;
+    }
     function onOutside(event){
+      if (!event.target.closest?.('[data-crm-tip]')) closeTips();
       if (!state.pop) return;
       if (state.pop.el.contains(event.target) || state.pop.anchor?.contains?.(event.target)) return;
       closePop();
@@ -497,7 +518,7 @@
     }
     function onKey(event){
       const t = event.target;
-      if (event.key === 'Escape') { if (state.pop) { closePop(); return; } if (host.classList.contains('rail-open')) { setRailOpen(false); return; } if (!host.querySelector('.crm-worklist').hidden) { closeWorklist(); return; } if (state.drawer) { closeDrawer(); return; } }
+      if (event.key === 'Escape') { if (closeTips()) return; if (state.pop) { closePop(); return; } if (host.classList.contains('rail-open')) { setRailOpen(false); return; } if (!host.querySelector('.crm-worklist').hidden) { closeWorklist(); return; } if (state.drawer) { closeDrawer(); return; } }
       if ((event.key === 'Enter' || event.key === ' ') && t.matches('[data-edit-filter], .crm-card, .crm-agenda-item')) { event.preventDefault(); t.click(); return; }
       if (t.matches('input, textarea, select, [contenteditable]')) return;
       if ((event.ctrlKey || event.metaKey || event.altKey) && event.key.toLowerCase() !== 'k') return;
@@ -1302,11 +1323,10 @@
       const pick = { industry: packs[0]?.id || 'general', employees: 5, capabilities: true };
       const render = async () => {
         let tier = null; try { tier = (await api().presets(orgId, pick.employees)).tier; } catch { /* shown without it */ }
-        section.innerHTML = `<h3 style="margin:0 0 4px;font-size:15px">${esc(L('setup', 'Set up for your business'))}</h3><p class="crm-dim" style="margin:0 0 12px">${esc(L('setup_intro', 'Adds the views, sources, funnel, cancellation rules and sales scopes that fit your kind of business. Nothing you already set is replaced.'))}</p>
+        section.innerHTML = `<h3 class="crm-h crm-tip-host">${esc(L('setup', 'Set up for your business'))}${infoTip(L('setup_intro', 'Adds the views, sources, funnel, cancellation rules and sales scopes that fit your kind of business. Nothing you already set is replaced.'))}</h3>
           <div class="crm-packs" role="radiogroup" aria-label="${esc(L('kind_of_business', 'Kind of business'))}">${packs.map((p) => `<label class="crm-pack ${pick.industry === p.id ? 'on' : ''}"><input type="radio" name="crm-pack" value="${esc(p.id)}" ${pick.industry === p.id ? 'checked' : ''}><b>${esc(p.label)}</b><span class="crm-dim">${esc(p.description)}</span></label>`).join('')}</div>
           <div class="crm-toolbar" style="margin-top:12px"><label class="crm-field" style="margin:0;max-width:200px"><span>${esc(L('team_size', 'People on the team'))}</span><input type="number" min="1" max="100000" data-su-size value="${esc(pick.employees)}"></label>
-          <label class="crm-option" style="align-self:flex-end"><input type="checkbox" data-su-caps ${pick.capabilities ? 'checked' : ''}>${esc(L('setup_features', 'Turn features on or off to fit this size'))}</label></div>
-          ${tier && pick.capabilities ? `<p class="crm-dim" style="margin:8px 0 0">${esc(L('setup_tier', 'For this size: {on}.', { on: Object.entries(tier.capabilities).filter(([, v]) => v).map(([k]) => ({ 'crm.views': L('f_views', 'views'), 'crm.sources': L('f_sources', 'sources'), 'crm.worklists': L('f_worklists', 'worklists'), 'crm.funnel': L('f_funnel', 'the funnel'), 'crm.call_lists': L('f_call_lists', 'call lists'), 'crm.source_spend': L('f_spend', 'spend and cost per lead') }[k] || k)).join(', ') }))}</p>` : ''}
+          <span class="crm-tip-host" style="display:flex;align-items:center;align-self:flex-end"><label class="crm-option"><input type="checkbox" data-su-caps ${pick.capabilities ? 'checked' : ''}>${esc(L('setup_features', 'Turn features on or off to fit this size'))}</label>${tier && pick.capabilities ? infoTip(L('setup_tier', 'For this size: {on}.', { on: Object.entries(tier.capabilities).filter(([, v]) => v).map(([k]) => ({ 'crm.views': L('f_views', 'views'), 'crm.sources': L('f_sources', 'sources'), 'crm.worklists': L('f_worklists', 'worklists'), 'crm.funnel': L('f_funnel', 'the funnel'), 'crm.call_lists': L('f_call_lists', 'call lists'), 'crm.source_spend': L('f_spend', 'spend and cost per lead') }[k] || k)).join(', ') })) : ''}</span></div>
           <div class="crm-toolbar" style="margin-top:12px"><span style="flex:1"></span><button type="button" class="crm-btn primary" data-su-apply>${esc(L('setup_apply', 'Set it up'))}</button></div>`;
       };
       await render();
@@ -1336,10 +1356,10 @@
         ${state.meta?.can_share_views ? `<section class="crm-panel" style="margin-bottom:16px" data-setup><div class="crm-loading"></div></section>` : ''}
         ${state.meta?.can_share_views ? `<section class="crm-panel" style="margin-bottom:16px" data-routing><div class="crm-loading"></div></section>` : ''}
         ${state.meta?.can_share_views ? `<section class="crm-panel" style="margin-bottom:16px" data-contact-rules><div class="crm-loading"></div></section>` : ''}
-        ${funnel ? `<section class="crm-panel" style="margin-bottom:16px"><h3 style="margin:0 0 4px;font-size:15px">${esc(term('crm.funnel', 'Funnel'))}</h3><p class="crm-dim" style="margin:0 0 12px">${esc(L('funnel_intro', 'Each step is reached when the first matching event happens on a lead. Reports count leads by the steps they reached.'))}</p>
+        ${funnel ? `<section class="crm-panel" style="margin-bottom:16px"><h3 class="crm-h crm-tip-host">${esc(term('crm.funnel', 'Funnel'))}${infoTip(L('funnel_intro', 'Each step is reached when the first matching event happens on a lead. Reports count leads by the steps they reached.'))}</h3>
           <div data-funnel></div>
           <div class="crm-toolbar" style="margin-top:12px"><button type="button" class="crm-btn" data-fn-add><i class="fas fa-plus"></i>${esc(L('add_step', 'Add a step'))}</button><span style="flex:1"></span><button type="button" class="crm-btn primary" data-fn-save>${esc(L('save', 'Save'))}</button></div></section>` : ''}
-        ${rescission ? `<section class="crm-panel"><h3 style="margin:0 0 4px;font-size:15px">${esc(L('rescission', 'Cancellation windows'))}</h3><p class="crm-dim" style="margin:0 0 12px">${esc(L('rescission_intro', 'How long a customer may cancel a sale. A scope with a cancellation step uses the first rule that matches; without one, the sale has no window.'))}</p>
+        ${rescission ? `<section class="crm-panel"><h3 class="crm-h crm-tip-host">${esc(L('rescission', 'Cancellation windows'))}${infoTip(L('rescission_intro', 'How long a customer may cancel a sale. A scope with a cancellation step uses the first rule that matches; without one, the sale has no window.'))}</h3>
           <label class="crm-option"><input type="checkbox" data-rs-enabled ${rescission.enabled ? 'checked' : ''}>${esc(L('rescission_on', 'Use cancellation windows'))}</label>
           <div data-rescission></div>
           <div class="crm-toolbar" style="margin-top:12px"><button type="button" class="crm-btn" data-rs-add><i class="fas fa-plus"></i>${esc(L('add_rule', 'Add a rule'))}</button><span style="flex:1"></span><button type="button" class="crm-btn primary" data-rs-save>${esc(L('save', 'Save'))}</button></div></section>` : ''}
@@ -1417,14 +1437,13 @@
         fieldScope = conditionFields;
         const codeOpen = section.querySelector('details[data-rt-custom]')?.open || text(custom.routing_source) || text(custom.scoring_source);
         const hint = METHODS.find(([v]) => v === r.method)?.[2] || '';
-        section.innerHTML = `<h3 style="margin:0 0 4px;font-size:15px">${esc(L('routing', 'Lead routing'))}</h3>
-          <p class="crm-dim" style="margin:0 0 12px">${esc(L('routing_intro', 'Who owns each new lead. The owner is the Lead owner field, so views, worklists and pay rules can use it.'))}</p>
+        section.innerHTML = `<h3 class="crm-h crm-tip-host">${esc(L('routing', 'Lead routing'))}${infoTip(L('routing_intro', 'Who owns each new lead. The owner is the Lead owner field, so views, worklists and pay rules can use it.'))}</h3>
           <label class="crm-option"><input type="checkbox" data-rt-enabled ${r.enabled ? 'checked' : ''}>${esc(L('routing_on', 'Route new leads automatically'))}</label>
           <div ${r.enabled ? '' : 'hidden'} style="display:grid;gap:12px;margin-top:8px">
-            <div class="crm-field"><label>${esc(L('routing_method', 'How leads are shared'))}</label><select data-rt-method>${METHODS.map(([v, l]) => `<option value="${v}" ${r.method === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select><p class="crm-dim" style="margin:4px 0 0;font-size:12px">${esc(hint)}</p></div>
+            <div class="crm-field"><label class="crm-tip-host">${esc(L('routing_method', 'How leads are shared'))}${infoTip(hint)}</label><select data-rt-method>${METHODS.map(([v, l]) => `<option value="${v}" ${r.method === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
             ${r.method === 'rules' ? `<div><div class="crm-dim" style="font-weight:700;font-size:12px">${esc(L('routing_rules', 'Rules, first match wins'))}</div>${arr(r.rules).map((rule, i) => `<div class="crm-fgroup"><div class="crm-frow" style="grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) 28px"><input type="text" data-rt-rlabel="${i}" value="${esc(rule.label)}" placeholder="${esc(L('rule_name', 'Rule name'))}">${peoplePicker(`rule:${i}`, rule.user_ids)}<button type="button" class="crm-btn icon ghost" data-rt-rremove="${i}" aria-label="${esc(L('remove', 'Remove'))}"><i class="fas fa-xmark"></i></button></div>${conditionRow('r', i, rule.conditions)}</div>`).join('')}<button type="button" class="crm-btn small" data-rt-radd><i class="fas fa-plus"></i>${esc(L('add_rule', 'Add a rule'))}</button></div>` : ''}
             <div class="crm-field"><label>${esc(r.method === 'rules' ? L('routing_people_else', 'Everyone else goes to') : L('routing_people', 'People who get leads'))}</label>${peoplePicker('pool', r.user_ids)}</div>
-            ${r.method === 'weighted' && arr(r.user_ids).length ? `<div class="crm-field"><label>${esc(L('shares', 'Shares'))}</label>${arr(r.user_ids).map((id) => `<div class="crm-pop-row"><span style="flex:1">${esc(nameOf(id))}</span><input type="number" min="0" max="100" style="width:80px" data-rt-weight="${esc(id)}" value="${esc(r.weights?.[id] ?? 1)}" aria-label="${esc(L('share_of', 'Share for {name}', { name: nameOf(id) }))}"></div>`).join('')}<p class="crm-dim" style="margin:4px 0 0;font-size:12px">${esc(L('shares_hint', 'Someone with 2 gets twice as many leads as someone with 1; 0 gets none.'))}</p></div>` : ''}
+            ${r.method === 'weighted' && arr(r.user_ids).length ? `<div class="crm-field"><label class="crm-tip-host">${esc(L('shares', 'Shares'))}${infoTip(L('shares_hint', 'Someone with 2 gets twice as many leads as someone with 1; 0 gets none.'))}</label>${arr(r.user_ids).map((id) => `<div class="crm-pop-row"><span style="flex:1">${esc(nameOf(id))}</span><input type="number" min="0" max="100" style="width:80px" data-rt-weight="${esc(id)}" value="${esc(r.weights?.[id] ?? 1)}" aria-label="${esc(L('share_of', 'Share for {name}', { name: nameOf(id) }))}"></div>`).join('')}</div>` : ''}
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
               <div class="crm-field"><label>${esc(L('max_open', 'Most open leads per person'))}</label><input type="number" min="0" data-rt-max value="${esc(r.max_open_leads || '')}" placeholder="${esc(L('no_limit', 'No limit'))}"></div>
               <div class="crm-field"><label>${esc(L('reassign_after', 'Pass on if untouched after (minutes)'))}</label><input type="number" min="0" max="10080" data-rt-reassign value="${esc(r.reassign_after_minutes || '')}" placeholder="${esc(L('never', 'Never'))}"></div>
@@ -1433,12 +1452,10 @@
             <div class="crm-field"><label>${esc(L('fallback', 'When nobody can take it'))}</label>${peoplePicker('fallback', r.fallback_user_ids)}</div>
             <label class="crm-option"><input type="checkbox" data-rt-notify ${r.notify !== false ? 'checked' : ''}>${esc(L('routing_notify', 'Tell the owner when a lead is routed to them'))}</label>
           </div>
-          <h3 style="margin:20px 0 4px;font-size:15px">${esc(L('scoring', 'Lead scoring'))}</h3>
-          <p class="crm-dim" style="margin:0 0 12px">${esc(L('scoring_intro', 'Points for each rule a lead matches, added up into the Lead score field. The score is worked out again when a lead arrives, a result is recorded, an appointment is booked or held, and when the sale is won or lost.'))}</p>
+          <h3 class="crm-h crm-tip-host" style="margin-top:20px">${esc(L('scoring', 'Lead scoring'))}${infoTip(L('scoring_intro', 'Points for each rule a lead matches, added up into the Lead score field. The score is worked out again when a lead arrives, a result is recorded, an appointment is booked or held, and when the sale is won or lost.'))}</h3>
           <label class="crm-option"><input type="checkbox" data-rt-scoring ${sc.enabled ? 'checked' : ''}>${esc(L('scoring_on', 'Score leads'))}</label>
           <div ${sc.enabled ? '' : 'hidden'}>${arr(sc.rules).map((rule, i) => `<div class="crm-fgroup"><div class="crm-frow" style="grid-template-columns:minmax(0,1fr) 90px 28px"><input type="text" data-rt-slabel="${i}" value="${esc(rule.label)}" placeholder="${esc(L('rule_name', 'Rule name'))}"><input type="number" min="-1000" max="1000" data-rt-spoints="${i}" value="${esc(rule.points)}" aria-label="${esc(L('points', 'Points'))}"><button type="button" class="crm-btn icon ghost" data-rt-sremove="${i}" aria-label="${esc(L('remove', 'Remove'))}"><i class="fas fa-xmark"></i></button></div>${conditionRow('s', i, rule.conditions)}</div>`).join('')}<button type="button" class="crm-btn small" data-rt-sadd><i class="fas fa-plus"></i>${esc(L('add_points', 'Add points'))}</button></div>
-          <details data-rt-custom style="margin-top:16px" ${codeOpen ? 'open' : ''}><summary style="cursor:pointer;font-weight:700">${esc(L('custom_code', 'Custom code'))}</summary>
-            <p class="crm-dim" style="margin:6px 0 10px;font-size:12px">${esc(L('custom_code_intro', 'The programs that do the routing and scoring. They run in the sandbox with the settings above as inputs, can select from any published data (api.data.select) and write through the lead update action. Edit one to change how it works; use the standard program to go back.'))}</p>
+          <details data-rt-custom style="margin-top:16px" ${codeOpen ? 'open' : ''}><summary class="crm-tip-host" style="cursor:pointer;font-weight:700">${esc(L('custom_code', 'Custom code'))}${infoTip(L('custom_code_intro', 'The programs that do the routing and scoring. They run in the sandbox with the settings above as inputs, can select from any published data (api.data.select) and write through the lead update action. Edit one to change how it works; use the standard program to go back.'))}</summary>
             ${[['routing_source', L('routing_program', 'Routing program')], ['scoring_source', L('scoring_program', 'Scoring program')]].map(([key, label]) => `<div class="crm-field" style="margin-bottom:10px"><label>${esc(label)}${text(custom[key]) ? ` <span class="crm-dim">· ${esc(L('customized', 'customized'))}</span>` : ''}</label><textarea data-rt-code="${key}" spellcheck="false" style="min-height:220px;font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre">${esc(text(custom[key]) ? custom[key] : text(presets[key]))}</textarea><div class="crm-toolbar" style="margin:6px 0 0"><button type="button" class="crm-btn small ghost" data-rt-reset="${key}">${esc(L('use_standard', 'Use the standard program'))}</button></div></div>`).join('')}
           </details>
           <div class="crm-toolbar" style="margin-top:12px"><span style="flex:1"></span><button type="button" class="crm-btn primary" data-rt-save>${esc(L('save', 'Save'))}</button></div>`;
@@ -1543,8 +1560,7 @@
       };
       const render = () => {
         fieldScope = fieldsList;
-        section.innerHTML = `<h3 style="margin:0 0 4px;font-size:15px">${esc(L('contact_rules', 'Contact automations'))}</h3>
-          <p class="crm-dim" style="margin:0 0 12px">${esc(L('contact_rules_intro', 'Do something when a contact is created, changed, tagged or merged, or on a date on the contact such as a birthday. Messages can use {{contact.first_name}}, {{contact.name}} and other contact fields.'))}</p>
+        section.innerHTML = `<h3 class="crm-h crm-tip-host">${esc(L('contact_rules', 'Contact automations'))}${infoTip(L('contact_rules_intro', 'Do something when a contact is created, changed, tagged or merged, or on a date on the contact such as a birthday. Messages can use {{contact.first_name}}, {{contact.name}} and other contact fields.'))}</h3>
           <datalist id="cr-tags">${tags.map((t) => `<option value="${esc(t.value)}">`).join('')}</datalist>
           ${rules.map((rule, i) => `<div class="crm-fgroup" data-cr-rule="${i}">
             <div class="crm-pop-row"><input type="text" data-cr-title="${i}" value="${esc(rule.title)}" placeholder="${esc(L('rule_name', 'Rule name'))}" style="flex:1"><label class="crm-option"><input type="checkbox" data-cr-enabled="${i}" ${rule.enabled !== false ? 'checked' : ''}>${esc(L('on', 'On'))}</label><button type="button" class="crm-btn icon ghost" data-cr-remove="${i}" aria-label="${esc(L('remove', 'Remove'))}"><i class="fas fa-trash"></i></button></div>

@@ -400,7 +400,10 @@ The tab:
 - **Duplicates**: suggested contacts and projects side by side; keep one or dismiss.
 - **Sources**: the tree with rules, and spend.
 - **CRM settings**: setup, lead routing and scoring with their custom code, contact
-  automations, the funnel steps, cancellation rules.
+  automations, the funnel steps, cancellation rules. What a section or field does is an
+  (i) beside its heading (`infoTip`), not a paragraph under it: hover shows it on a
+  desktop, a tap opens and closes it on a phone. A business kind's description shows
+  on the chosen kind only.
 - **At phone width** (820px or narrower) the CRM follows the other phone apps (My
   Contacts, Feed): the title is a view picker (icon, name, count) beside icon-only
   controls (layout, Worklist, the view menu, which also holds Display); the view's own
