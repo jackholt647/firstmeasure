@@ -3301,6 +3301,13 @@
   let advancedAppMenuOverlay = null;
   let advancedAppMenuAbort = null;
   let advancedAppMenuLauncher = null;
+  // Pin edit mode (FM-480): every tile wobbles and shows its pin, and a tap
+  // pins or unpins. Tiles keep the order they opened with until the overlay
+  // closes, so pinning never moves a tile from under a finger.
+  let advancedAppMenuEditing = false;
+  let advancedAppMenuOrder = null;
+  let advancedAppMenuPopped = '';
+  let advancedAppMenuQuietClicksUntil = 0;
 
   async function updateAdvancedAppPin(appId, pinned){
     const normalizedId = cleanText(appId).toLowerCase();
@@ -3313,6 +3320,8 @@
   function closeAdvancedAppMenu(options = {}){
     if (!advancedAppMenuOpen && !advancedAppMenuOverlay) return;
     advancedAppMenuOpen = false;
+    advancedAppMenuEditing = false;
+    advancedAppMenuOrder = null;
     advancedAppMenuAbort?.abort?.();
     advancedAppMenuAbort = null;
     const overlay = advancedAppMenuOverlay;
@@ -3413,15 +3422,23 @@
     });
 
     const entries = appLauncherEntries();
-    const enabled = [...entries]
+    const sorted = [...entries]
       .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.label.localeCompare(b.label));
-    const appTile = (entry) => {
+    if (!advancedAppMenuOrder) advancedAppMenuOrder = sorted.map((entry) => entry.key);
+    const rank = (entry) => {
+      const index = advancedAppMenuOrder.indexOf(entry.key);
+      return index < 0 ? advancedAppMenuOrder.length : index;
+    };
+    const enabled = sorted.sort((a, b) => rank(a) - rank(b));
+    const popped = advancedAppMenuPopped;
+    advancedAppMenuPopped = '';
+    const appTile = (entry, index) => {
       const setupRequired = launcherSetupPending(entry);
       const statusPills = entry.statusPills || [];
       const subviewExtras = window.FirstMateLeftColumnPins?.overlayTileExtras?.(entry) || { className:'', html:'' };
       return `
-      <article class="fm-advanced-app-tile${entry.pinned ? ' is-pinned' : ' is-unpinned'}${subviewExtras.className}" data-advanced-app-tile="${escapeHtml(entry.key)}"${entry.pinnable ? ` data-pin-drag-app="${escapeHtml(entry.appId)}"` : ''}>
-        ${!entry.pinnable ? '' : `<button type="button" class="fm-advanced-app-pin${String(entry.pinned ? ' is-pinned' : '')}" data-advanced-app-pin="${String(escapeHtml(entry.appId))}" aria-label="${((v2,v3,v4) => globalThis.PlatformLanguage?.htmlText("platform","m_be9d2ffc499cb4",`${v2} ${v3} ${v4} the sidebar`,{v2,v3,v4}) ?? `${v2} ${v3} ${v4} the sidebar`)(entry.pinned ? 'Unpin' : 'Pin',escapeHtml(entry.label),entry.pinned ? 'from' : 'to')}" title="${String(entry.pinned ? 'Unpin from sidebar' : 'Pin to sidebar')}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>`}
+      <article class="fm-advanced-app-tile${entry.pinned ? ' is-pinned' : ' is-unpinned'}${subviewExtras.className}" style="--i:${index}" data-advanced-app-tile="${escapeHtml(entry.key)}"${entry.pinnable ? ` data-pin-drag-app="${escapeHtml(entry.appId)}"` : ''}>
+        ${!entry.pinnable ? '' : `<button type="button" class="fm-advanced-app-pin${String(entry.pinned ? ' is-pinned' : '')}${entry.appId === popped ? ' is-pop' : ''}" data-advanced-app-pin="${String(escapeHtml(entry.appId))}" aria-pressed="${entry.pinned ? 'true' : 'false'}" aria-label="${((v2,v3,v4) => globalThis.PlatformLanguage?.htmlText("platform","m_be9d2ffc499cb4",`${v2} ${v3} ${v4} the sidebar`,{v2,v3,v4}) ?? `${v2} ${v3} ${v4} the sidebar`)(entry.pinned ? 'Unpin' : 'Pin',escapeHtml(entry.label),entry.pinned ? 'from' : 'to')}" title="${String(entry.pinned ? 'Unpin from sidebar' : 'Pin to sidebar')}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>`}
         ${statusPills.length ? ("<div class=\"fm-advanced-app-status-pills\" aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("platform","m_bd09496c83ccd1","App status") ?? "App status") + "\">" + String(statusPills.map((pill) => `<span class="fm-advanced-app-status-pill is-${escapeHtml(pill.tone)}" data-status-pill="${escapeHtml(pill.id)}">${escapeHtml(pill.label)}</span>`).join('')) + "</div>") : ''}
         <div class="fm-advanced-app-icon-wrap">
           <button type="button" class="fm-advanced-app-icon-button" data-advanced-app-open="${escapeHtml(entry.key)}" aria-label="${setupRequired ? 'Set up' : 'Open'} ${escapeHtml(entry.label)}">
@@ -3434,6 +3451,12 @@
     };
 
     let overlay = advancedAppMenuOverlay;
+    const firstRender = !overlay;
+    const focused = overlay?.contains(document.activeElement) && document.activeElement.matches?.(':focus-visible') ? document.activeElement : null;
+    const focusSelector = !focused ? '' : focused.dataset.advancedAppPin ? `[data-advanced-app-pin="${CSS.escape(focused.dataset.advancedAppPin)}"]`
+      : focused.dataset.advancedAppOpen ? `.${CSS.escape(focused.classList[0] || 'fm-advanced-app-open')}[data-advanced-app-open="${CSS.escape(focused.dataset.advancedAppOpen)}"]`
+      : focused.hasAttribute('data-advanced-apps-edit') ? '[data-advanced-apps-edit]' : '';
+    const scrollTop = overlay?.querySelector('.fm-advanced-apps-scroll')?.scrollTop || 0;
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.className = 'fm-advanced-apps-overlay';
@@ -3450,9 +3473,9 @@
       <section class="fm-advanced-apps-panel" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_a151b65da51bfd","All apps") ?? "All apps")}">
         <button type="button" class="fm-advanced-apps-close" data-advanced-apps-close aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_0838136c759dc3","Close apps") ?? "Close apps")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
         <div class="fm-advanced-apps-scroll">
-          <nav class="fm-advanced-apps-grid" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_290b7f9d844e1e","Active apps") ?? "Active apps")}">${String(enabled.map((entry) => appTile(entry)).join(''))}</nav>
+          <nav class="fm-advanced-apps-grid" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_290b7f9d844e1e","Active apps") ?? "Active apps")}">${String(enabled.map((entry, index) => appTile(entry, index)).join(''))}</nav>
         </div>
-        <footer><button type="button" data-advanced-apps-manage><i class="fas fa-sliders" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_1575b4a4cbcb3d"," Manage apps and features") ?? " Manage apps and features")}</button></footer>
+        <footer><span class="fm-advanced-apps-edit-hint" aria-live="polite"></span><button type="button" class="fm-advanced-apps-edit" data-advanced-apps-edit aria-pressed="false"></button><button type="button" data-advanced-apps-manage><i class="fas fa-sliders" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_1575b4a4cbcb3d"," Manage apps and features") ?? " Manage apps and features")}</button></footer>
       </section>`;
 
     overlay.addEventListener('mousedown', (event) => {
@@ -3466,24 +3489,89 @@
         { source:'advanced-app-menu', ownedKeys:['tab', 'sub', 'settingsView'] }
       );
     }, { signal });
-    overlay.querySelectorAll('[data-advanced-app-pin]').forEach((button) => button.addEventListener('click', async (event) => {
-      event.stopPropagation();
-      const pinned = !button.classList.contains('is-pinned');
-      button.disabled = true;
-      try {
-        await updateAdvancedAppPin(button.dataset.advancedAppPin, pinned);
-        window.PlatformUI?.showToast?.(((v0) => globalThis.PlatformLanguage?.text("platform","m_3619e3a723d857",`${v0} the sidebar.`,{v0}) ?? `${v0} the sidebar.`)(pinned ? 'Pinned to' : 'Removed from'));
-      } catch (error) {
-        button.disabled = false;
-        window.PlatformUI?.showToast?.(error?.message || 'Could not update the sidebar.');
+    const scroller = overlay.querySelector('.fm-advanced-apps-scroll');
+    if (scroller && scrollTop) scroller.scrollTop = scrollTop;
+    const setEditing = (editing) => {
+      advancedAppMenuEditing = editing;
+      overlay.classList.toggle('is-editing', editing);
+      const edit = overlay.querySelector('[data-advanced-apps-edit]');
+      if (edit) {
+        edit.setAttribute('aria-pressed', String(editing));
+        edit.innerHTML = editing
+          ? `<i class="fas fa-check" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_8cb6b086a0e69c","Done") ?? "Done")}`
+          : `<i class="fas fa-thumbtack" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_e29e003014f22e","Edit pins") ?? "Edit pins")}`;
       }
+      const hint = overlay.querySelector('.fm-advanced-apps-edit-hint');
+      if (hint) hint.textContent = editing ? (globalThis.PlatformLanguage?.text("platform","m_03ae7f7f0d0d32","Tap apps to pin or unpin them.") ?? "Tap apps to pin or unpin them.") : '';
+    };
+    setEditing(advancedAppMenuEditing);
+    // The tile changes before the save: the left column moves with it at
+    // once (Portal.appFlags.updatePlacements) and a failed save moves back.
+    const toggleAppPin = (appId) => {
+      const tile = [...overlay.querySelectorAll('[data-pin-drag-app]')].find((node) => node.dataset.pinDragApp === appId);
+      if (!tile) return;
+      const pinned = !tile.classList.contains('is-pinned');
+      const pin = tile.querySelector('[data-advanced-app-pin]');
+      tile.classList.toggle('is-pinned', pinned);
+      tile.classList.toggle('is-unpinned', !pinned);
+      pin?.classList.toggle('is-pinned', pinned);
+      pin?.classList.add('is-pop');
+      pin?.setAttribute('aria-pressed', String(pinned));
+      advancedAppMenuPopped = appId;
+      Promise.resolve(updateAdvancedAppPin(appId, pinned)).then(() => {
+        if (!advancedAppMenuEditing) window.PlatformUI?.showToast?.(((v0) => globalThis.PlatformLanguage?.text("platform","m_3619e3a723d857",`${v0} the sidebar.`,{v0}) ?? `${v0} the sidebar.`)(pinned ? 'Pinned to' : 'Removed from'));
+      }).catch((error) => {
+        window.PlatformUI?.showToast?.(error?.message || 'Could not update the sidebar.');
+        if (advancedAppMenuOpen) renderAdvancedAppMenu();
+      });
+    };
+    overlay.querySelectorAll('[data-advanced-app-pin]').forEach((button) => button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleAppPin(button.dataset.advancedAppPin);
     }, { signal }));
+    overlay.querySelector('[data-advanced-apps-edit]')?.addEventListener('click', () => setEditing(!advancedAppMenuEditing), { signal });
     window.FirstMateLeftColumnPins?.bindOverlay?.(overlay, { signal });
     overlay.querySelectorAll('[data-advanced-app-open]').forEach((button) => button.addEventListener('click', () => {
-      openLauncherEntry(entries.find((item) => item.key === button.dataset.advancedAppOpen));
+      const entry = entries.find((item) => item.key === button.dataset.advancedAppOpen);
+      if (advancedAppMenuEditing && entry?.pinnable) toggleAppPin(entry.appId);
+      else if (!advancedAppMenuEditing) openLauncherEntry(entry);
     }, { signal }));
+    // Touching and holding a tile starts pin edit mode, as on a phone's home
+    // screen; the tap that ends the hold does nothing.
+    let press = null;
+    const endPress = () => {
+      window.clearTimeout(press?.timer);
+      press = null;
+    };
+    overlay.addEventListener('pointerdown', (event) => {
+      endPress();
+      if (advancedAppMenuEditing || event.pointerType !== 'touch' || !event.target.closest?.('[data-pin-drag-app]')) return;
+      if (event.target.closest('.fm-advanced-app-subviews,[data-advanced-subviews-toggle]')) return;
+      press = { x:event.clientX, y:event.clientY, timer:window.setTimeout(() => {
+        press = null;
+        advancedAppMenuQuietClicksUntil = Date.now() + 800;
+        setEditing(true);
+        navigator.vibrate?.(12);
+      }, 480) };
+    }, { signal });
+    overlay.addEventListener('pointermove', (event) => {
+      if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 10) endPress();
+    }, { signal });
+    ['pointerup', 'pointercancel'].forEach((type) => overlay.addEventListener(type, endPress, { signal }));
+    overlay.querySelector('.fm-advanced-apps-scroll')?.addEventListener('scroll', endPress, { signal, passive:true });
+    overlay.addEventListener('click', (event) => {
+      if (Date.now() >= advancedAppMenuQuietClicksUntil) return;
+      advancedAppMenuQuietClicksUntil = 0;
+      event.preventDefault();
+      event.stopPropagation();
+    }, { signal, capture:true });
+    overlay.addEventListener('contextmenu', (event) => {
+      if (event.target.closest?.('.fm-advanced-app-tile')) event.preventDefault();
+    }, { signal });
     overlay.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') closeAdvancedAppMenu();
+      if (event.key !== 'Escape') return;
+      if (advancedAppMenuEditing) setEditing(false);
+      else closeAdvancedAppMenu();
     }, { signal });
     const fitAppGrid = () => {
       const viewport = overlay.querySelector('.fm-advanced-apps-scroll');
@@ -3492,6 +3580,44 @@
       const width = Math.max(0, viewport?.clientWidth || 0);
       const height = Math.max(0, viewport?.clientHeight || 0);
       if (!grid || !count || !width || !height) return;
+      // Phones and small tablets: at least three columns of large tiles that
+      // fill the width and scroll, with room for two lines of label (FM-480).
+      const compact = window.matchMedia?.('(max-width: 820px)').matches === true;
+      overlay.classList.toggle('is-compact', compact);
+      if (compact) {
+        const gap = width < 380 ? 8 : 12;
+        const columns = Math.max(3, Math.min(6, Math.floor((width + gap) / (124 + gap))));
+        const tile = Math.max(1, Math.floor(Math.min(156, (width - gap * (columns - 1)) / columns)));
+        const controlSize = Math.max(26, Math.min(32, Math.round(tile * 0.24)));
+        grid.style.setProperty('--fm-advanced-columns', String(columns));
+        grid.style.setProperty('--fm-advanced-tile-size', `${tile}px`);
+        grid.style.setProperty('--fm-advanced-tile-height', `${Math.round(tile * 1.08)}px`);
+        grid.style.setProperty('--fm-advanced-grid-gap', `${gap}px`);
+        grid.style.setProperty('--fm-advanced-icon-size', `${Math.round(tile * 0.42)}px`);
+        grid.style.setProperty('--fm-advanced-icon-font', `${Math.round(tile * 0.25)}px`);
+        grid.style.setProperty('--fm-advanced-label-size', `${tile < 112 ? 11 : 12}px`);
+        grid.style.setProperty('--fm-advanced-control-size', `${controlSize}px`);
+        grid.style.setProperty('--fm-advanced-tile-radius', `${Math.max(14, Math.round(tile * 0.14))}px`);
+        grid.style.setProperty('--fm-advanced-icon-radius', '12px');
+        grid.style.setProperty('--fm-advanced-tile-padding', '6px');
+        grid.style.setProperty('--fm-advanced-tile-top', `${controlSize + 6}px`);
+        grid.style.setProperty('--fm-advanced-tile-gap', '4px');
+        grid.style.setProperty('--fm-advanced-control-inset', '6px');
+        grid.style.setProperty('--fm-advanced-control-radius', `${Math.round(controlSize * 0.32)}px`);
+        grid.style.setProperty('--fm-advanced-control-font', `${Math.round(controlSize * 0.44)}px`);
+        grid.style.setProperty('--fm-advanced-pill-height', '18px');
+        grid.style.setProperty('--fm-advanced-pill-padding', '7px');
+        grid.style.setProperty('--fm-advanced-pill-font', '10px');
+        // A word wider than its tile ("Communications") gets a smaller font
+        // before it is ever broken mid-word.
+        grid.querySelectorAll('.fm-advanced-app-open strong').forEach((label) => {
+          label.style.removeProperty('font-size');
+          label.classList.remove('is-squeezed');
+          for (let size = tile < 112 ? 11 : 12; label.scrollWidth > label.clientWidth + 1 && size > 9.5; size -= 0.5) label.style.fontSize = `${size - 0.5}px`;
+          if (label.scrollWidth > label.clientWidth + 1) label.classList.add('is-squeezed');
+        });
+        return;
+      }
       const gapRatio = 0.5;
       const edgeRatio = 1;
       let best = { columns:1, rows:count, tile:0 };
@@ -3539,7 +3665,9 @@
     }
     syncAdvancedAppLayout();
     window.setTimeout(syncAdvancedAppLayout, 220);
-    window.setTimeout(() => overlay.querySelector('[data-advanced-app-open]')?.focus(), 0);
+    if (focusSelector) overlay.querySelector(focusSelector)?.focus({ preventScroll:true });
+    // A phone shows no focus ring but would light the first tile up.
+    else if (firstRender && !window.matchMedia?.('(pointer: coarse)').matches) window.setTimeout(() => overlay.querySelector('[data-advanced-app-open]')?.focus(), 0);
   }
 
   function openAdvancedAppMenu(launcher){
@@ -4053,9 +4181,16 @@
       .fm-advanced-apps-scroll{width:100%;height:100%;min-height:0;overflow:hidden;padding:0;box-sizing:border-box}.fm-advanced-apps-grid{width:100%;height:100%;display:grid;grid-template-columns:repeat(var(--fm-advanced-columns,1),var(--fm-advanced-tile-size,120px));grid-auto-rows:var(--fm-advanced-tile-size,120px);gap:var(--fm-advanced-grid-gap,60px);justify-content:center;align-content:center;padding:var(--fm-advanced-tile-size,120px);box-sizing:border-box}.fm-advanced-app-tile{position:relative;width:var(--fm-advanced-tile-size,120px);height:var(--fm-advanced-tile-size,120px);min-width:0;overflow:hidden;border:1px solid #dfe3e8;border-radius:var(--fm-advanced-tile-radius,16px);background:#f2f4f7;box-shadow:0 9px 22px rgba(0,0,0,.14);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--fm-advanced-tile-gap,3px);padding:var(--fm-advanced-tile-padding,7px);box-sizing:border-box;transition:transform .24s cubic-bezier(.2,.8,.2,1),background .2s ease,border-color .2s ease,box-shadow .2s ease}.fm-advanced-app-tile:hover,.fm-advanced-app-tile:focus-within{z-index:1;border-color:#fff;background:#fff;box-shadow:0 14px 29px rgba(0,0,0,.24);transform:translateY(-4px)}.fm-advanced-app-icon-wrap{display:grid;place-items:center;width:var(--fm-advanced-icon-size,65px);height:var(--fm-advanced-icon-size,65px);flex:0 0 auto}.fm-advanced-app-icon-button{width:100%;height:100%;padding:0;border:0;border-radius:var(--fm-advanced-icon-radius,12px);background:transparent;color:inherit;font:inherit;cursor:pointer}.fm-advanced-app-icon-button:focus-visible{outline:2px solid rgba(53,56,205,.42);outline-offset:2px}.fm-advanced-app-open{max-width:92%;min-width:0;min-height:1.4em;display:grid;place-items:center;padding:1px 3px;border:0;border-radius:7px;background:transparent;color:#344054;font:inherit;cursor:pointer;transition:color .18s ease}.fm-advanced-app-open:hover{color:#101828}.fm-advanced-app-open:focus-visible{outline:2px solid rgba(53,56,205,.42);outline-offset:1px}.fm-advanced-app-icon{width:100%;height:100%;display:grid;place-items:center;border-radius:inherit;background:transparent;color:#344054;font-size:var(--fm-advanced-icon-font,30px);line-height:1;transition:transform .26s cubic-bezier(.2,.9,.2,1),color .2s ease}.fm-advanced-app-tile:hover .fm-advanced-app-icon,.fm-advanced-app-tile:focus-within .fm-advanced-app-icon{color:#101828;transform:scale(1.06) rotate(-2deg)}.fm-advanced-app-open strong{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:center;font-size:var(--fm-advanced-label-size,10px);line-height:1.15;font-weight:900;text-shadow:none}
       .fm-advanced-app-pin{position:absolute;z-index:4;top:var(--fm-advanced-control-inset,7px);left:var(--fm-advanced-control-inset,7px);display:grid;place-items:center;width:var(--fm-advanced-control-size,24px);height:var(--fm-advanced-control-size,24px);margin:0;padding:0;border:0;border-radius:var(--fm-advanced-control-radius,7px);background:transparent;color:#667085;font-size:var(--fm-advanced-control-font,10px);visibility:hidden;opacity:0;pointer-events:none;cursor:pointer;transform:translateY(3px) rotate(-8deg) scale(.88);box-shadow:none;transition:visibility 0s linear .12s,opacity .12s ease,transform .18s cubic-bezier(.2,.9,.2,1),background .16s ease,color .16s ease}.fm-advanced-app-pin.is-pinned{visibility:visible;opacity:1;pointer-events:auto;background:#344054;color:#fff;box-shadow:0 4px 10px rgba(15,23,42,.22);transform:rotate(-12deg);transition-delay:0s}.fm-advanced-app-tile.is-unpinned:hover>.fm-advanced-app-pin,.fm-advanced-app-tile.is-unpinned:focus-within>.fm-advanced-app-pin{visibility:visible;opacity:1;pointer-events:auto;background:transparent;color:#667085;box-shadow:none;transform:rotate(-12deg) scale(1);transition-delay:0s}.fm-advanced-app-pin:not(.is-pinned):hover,.fm-advanced-app-pin:not(.is-pinned):focus-visible{background:transparent;color:#475467;outline:none;transform:rotate(-12deg) scale(1.1)!important}.fm-advanced-app-pin.is-pinned:hover,.fm-advanced-app-pin.is-pinned:focus-visible{background:var(--primary-readable,var(--primary,#d93025));color:#fff;outline:none;transform:rotate(-12deg) scale(1.1)!important}.fm-advanced-app-pin:disabled{opacity:.45;cursor:wait}
       .fm-advanced-app-status-pills{position:absolute;z-index:4;top:var(--fm-advanced-control-inset,7px);right:var(--fm-advanced-control-inset,7px);max-width:58%;display:flex;justify-content:flex-end;gap:4px;pointer-events:none}.fm-advanced-app-status-pill{display:inline-flex;align-items:center;min-height:var(--fm-advanced-pill-height,18px);padding:0 var(--fm-advanced-pill-padding,7px);border-radius:999px;background:#667085;color:#fff;font-size:var(--fm-advanced-pill-font,8px);font-weight:950;line-height:1;white-space:nowrap;box-shadow:0 3px 9px rgba(15,23,42,.18)}.fm-advanced-app-status-pill.is-info{background:#175cd3}.fm-advanced-app-status-pill.is-success{background:#067647}.fm-advanced-app-status-pill.is-warning{background:#b54708}.fm-advanced-app-status-pill.is-danger{background:#b42318}
-      .fm-advanced-apps-panel>footer{position:absolute;z-index:3;right:calc(-1 * clamp(10px,1.5vw,24px));bottom:calc(-1 * clamp(10px,1.5vw,24px));display:block;padding:0}.fm-advanced-apps-panel>footer button{border:1px solid rgba(255,255,255,.14);border-radius:10px;background:rgba(255,255,255,.07);padding:9px 13px;color:rgba(255,255,255,.72);font:inherit;font-size:10px;font-weight:900;cursor:pointer;transition:background .16s ease,color .16s ease,transform .16s ease}.fm-advanced-apps-panel>footer button:hover,.fm-advanced-apps-panel>footer button:focus-visible{background:rgba(255,255,255,.15);color:#fff;transform:translateY(-1px);outline:none}
+      .fm-advanced-apps-panel>footer{position:absolute;z-index:3;right:calc(-1 * clamp(10px,1.5vw,24px));bottom:calc(-1 * clamp(10px,1.5vw,24px));display:flex;align-items:center;gap:8px;padding:0}.fm-advanced-apps-panel>footer button{border:1px solid rgba(255,255,255,.14);border-radius:10px;background:rgba(255,255,255,.07);padding:9px 13px;color:rgba(255,255,255,.72);font:inherit;font-size:10px;font-weight:900;cursor:pointer;transition:background .16s ease,color .16s ease,transform .16s ease}.fm-advanced-apps-panel>footer button:hover,.fm-advanced-apps-panel>footer button:focus-visible{background:rgba(255,255,255,.15);color:#fff;transform:translateY(-1px);outline:none}
       @media(max-width:820px){.fm-advanced-apps-overlay{inset:0;padding:20px;z-index:2147483100}.fm-advanced-apps-panel{width:100%;height:100%;min-height:0}.fm-advanced-apps-close{top:-10px;right:-10px}.fm-advanced-apps-scroll{padding:2px}.fm-advanced-apps-panel>footer{right:-8px;bottom:-12px}}
-      @media(prefers-reduced-motion:reduce){.fm-advanced-apps-overlay,.fm-advanced-apps-panel,.sidebar-advanced-apps-open .fm-sidebar-app-pin{animation:none}.fm-advanced-app-tile,.fm-advanced-app-icon,.fm-advanced-app-pin{transition:none}}
+      .fm-advanced-apps-edit-hint{color:rgba(255,255,255,.88);font-size:11px;font-weight:800}.fm-advanced-apps-edit-hint:empty{display:none}.fm-advanced-apps-edit i{margin-right:6px}.fm-advanced-apps-overlay.is-editing .fm-advanced-apps-edit,.fm-advanced-apps-overlay.is-editing .fm-advanced-apps-edit:hover{border-color:#fff;background:#fff;color:#101828}.fm-advanced-app-tile{-webkit-touch-callout:none}
+      @keyframes fmAdvancedAppWobble{from{transform:rotate(-1.5deg)}to{transform:rotate(1.5deg)}}@keyframes fmAdvancedAppPinPop{0%{transform:rotate(-12deg) scale(.55)}60%{transform:rotate(-12deg) scale(1.22)}100%{transform:rotate(-12deg) scale(1)}}
+      .fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile{-webkit-user-select:none;user-select:none;animation:fmAdvancedAppWobble .26s ease-in-out infinite alternate;animation-delay:calc(var(--i,0) * -.11s)}.fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile:nth-child(2n){animation-direction:alternate-reverse}.fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile.is-unpinned .fm-advanced-app-icon-wrap,.fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile.is-unpinned .fm-advanced-app-open{opacity:.62}
+      .fm-advanced-apps-overlay.is-editing .fm-advanced-app-pin{visibility:visible;opacity:1;pointer-events:auto;background:#fff;color:#667085;box-shadow:inset 0 0 0 1.5px #d0d5dd,0 3px 8px rgba(15,23,42,.14);transform:rotate(-12deg);transition-delay:0s}.fm-advanced-apps-overlay.is-editing .fm-advanced-app-pin.is-pinned{background:#344054;color:#fff;box-shadow:0 4px 10px rgba(15,23,42,.22)}.fm-advanced-app-pin.is-pop{animation:fmAdvancedAppPinPop .26s cubic-bezier(.2,.9,.2,1)}
+      .fm-advanced-apps-overlay.is-compact{padding:14px 14px calc(12px + env(safe-area-inset-bottom,0px))}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-panel{display:flex;flex-direction:column}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-close{top:0;right:0;width:44px;height:44px}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-scroll{flex:1 1 auto;height:auto;min-height:0;margin-top:52px;padding:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-scroll::-webkit-scrollbar{display:none}
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-apps-grid{height:auto;min-height:100%;grid-template-columns:repeat(var(--fm-advanced-columns,3),minmax(0,1fr));grid-auto-rows:var(--fm-advanced-tile-height,128px);padding:6px 0 14px}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-tile{width:100%;height:var(--fm-advanced-tile-height,128px);justify-content:flex-end;padding-top:var(--fm-advanced-tile-top,34px);padding-bottom:8px}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-open{max-width:100%;min-height:2.5em;align-items:start}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-open strong{font-weight:800;overflow-wrap:normal;word-break:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-open strong.is-squeezed{overflow-wrap:anywhere}
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-apps-panel>footer{position:static;flex:0 0 auto;flex-wrap:wrap;padding:12px 0 0}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-panel>footer button{flex:1 1 auto;min-height:44px;font-size:13px;white-space:nowrap}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-panel>footer .fm-advanced-apps-edit{flex:0 0 auto;padding:9px 16px}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-edit-hint{flex:1 0 100%;text-align:center;font-size:13px}.fm-advanced-apps-overlay.is-compact.is-editing [data-advanced-apps-manage]{display:none}.fm-advanced-apps-overlay.is-compact.is-editing .fm-advanced-apps-panel>footer .fm-advanced-apps-edit{flex:1 1 auto}
+      @media(prefers-reduced-motion:reduce){.fm-advanced-apps-overlay,.fm-advanced-apps-panel,.sidebar-advanced-apps-open .fm-sidebar-app-pin,.fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile,.fm-advanced-app-pin.is-pop{animation:none}.fm-advanced-app-tile,.fm-advanced-app-icon,.fm-advanced-app-pin{transition:none}}
       @keyframes fmMoreAppsOpen{from{opacity:0;transform:translateY(10px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
       @keyframes fmMoreAppsClose{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(8px) scale(.94)}}
       .sidebar:has(.fm-more-apps-popover:not([hidden])),.sidebar-scroll:has(.fm-more-apps-popover:not([hidden])){overflow:visible}
@@ -4969,6 +5104,70 @@
     mediaId: mediaRouteId,
     resolveProject: resolveRouteProject
   };
+  // A placement change shows at once (FM-480): the left column and the apps
+  // overlay move before the save, saves run one at a time carrying the
+  // newest placements, and a failed save puts back what the server last
+  // confirmed. Every caller of the change still gets the save's outcome.
+  const placementSaves = { confirmed:null, queued:null, shown:'', running:false, waiters:[] };
+  function announcePlacements(detail){
+    window.dispatchEvent(new CustomEvent('fm:app-placements:updated', { detail: detail || {} }));
+  }
+  function savePlacementsOptimistically(placements = {}){
+    const api = window.PlatformAPI.appFlags;
+    if (!placementSaves.confirmed) placementSaves.confirmed = { ...(api.current?.()?.app_placements || {}) };
+    placementSaves.queued = { ...placements };
+    if (!api.applyPlacements(placementSaves.queued)) {
+      placementSaves.confirmed = null;
+      placementSaves.queued = null;
+      return api.updatePlacements(APP.userOrgId, placements).then((result) => {
+        lastAppFlagsKey = stableJson(result || {});
+        announcePlacements(result);
+        return result;
+      });
+    }
+    placementSaves.shown = stableJson(api.current?.()?.app_placements || {});
+    announcePlacements(api.current());
+    const saved = new Promise((resolve, reject) => placementSaves.waiters.push({ resolve, reject }));
+    drainPlacementSaves();
+    return saved;
+  }
+  async function drainPlacementSaves(){
+    if (placementSaves.running) return;
+    placementSaves.running = true;
+    const api = window.PlatformAPI.appFlags;
+    let result = null;
+    let failure = null;
+    try {
+      while (placementSaves.queued) {
+        const next = placementSaves.queued;
+        placementSaves.queued = null;
+        result = await api.updatePlacements(APP.userOrgId, next);
+        placementSaves.confirmed = { ...(result?.app_placements || next) };
+        // The save replaced the cache; keep showing changes made meanwhile.
+        if (placementSaves.queued) {
+          api.applyPlacements(placementSaves.queued);
+          placementSaves.shown = stableJson(api.current?.()?.app_placements || {});
+        }
+      }
+    } catch (error) {
+      failure = error;
+      placementSaves.queued = null;
+    }
+    const shown = placementSaves.shown;
+    const confirmed = placementSaves.confirmed || {};
+    const waiters = placementSaves.waiters.splice(0);
+    placementSaves.confirmed = null;
+    placementSaves.running = false;
+    if (failure) {
+      api.applyPlacements(confirmed);
+      announcePlacements(api.current());
+      waiters.forEach((waiter) => waiter.reject(failure));
+      return;
+    }
+    lastAppFlagsKey = stableJson(result || {});
+    if (stableJson(result?.app_placements || {}) !== shown) announcePlacements(result);
+    waiters.forEach((waiter) => waiter.resolve(result));
+  }
   window.Portal.appFlags = {
     load: loadAppFlags,
     has: (group, flag, fallback = false)=>{
@@ -4989,6 +5188,7 @@
     },
     updatePlacements: async (placements = {}) => {
       if (!APP.userOrgId || !window.PlatformAPI?.appFlags?.updatePlacements) return null;
+      if (window.PlatformAPI.appFlags.applyPlacements) return savePlacementsOptimistically(placements);
       const result = await window.PlatformAPI.appFlags.updatePlacements(APP.userOrgId, placements);
       lastAppFlagsKey = stableJson(result || {});
       window.dispatchEvent(new CustomEvent('fm:app-placements:updated', { detail: result || {} }));

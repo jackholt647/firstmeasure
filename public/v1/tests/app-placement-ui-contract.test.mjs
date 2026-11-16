@@ -78,7 +78,7 @@ test('advanced app menu is feature-flagged and supports animated sidebar pinning
   assert.match(core, /fm-advanced-apps-panel>footer\{[^}]*position:absolute[^}]+right:calc\(-1 \* clamp[^}]+bottom:calc\(-1 \* clamp/);
   // The overlay opens apps; only unfinished required setup runs a workflow (tests/apps-overlay.test.ts).
   assert.match(core, /setup\.mode === 'required' && setup\.status !== 'complete'/);
-  assert.match(core, /openLauncherEntry\(entries\.find\(\(item\) => item\.key === button\.dataset\.advancedAppOpen\)\)/);
+  assert.match(core, /const entry = entries\.find\(\(item\) => item\.key === button\.dataset\.advancedAppOpen\);[\s\S]{0,160}else if \(!advancedAppMenuEditing\) openLauncherEntry\(entry\)/);
   assert.match(core, /fm-app-catalog-overlay\.is-over-advanced-apps\{[^}]+--fm-app-catalog-sidebar-edge[^}]+background:rgba\(3,8,18,\.58\)/);
   assert.match(core, /options\.preserveAdvancedMenu === true && advancedAppMenuOpen && advancedAppMenuOverlay/);
   assert.match(core, /fm-app-catalog-modal\{[^}]+z-index:1/);

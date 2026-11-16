@@ -6979,7 +6979,8 @@
       "message": "{v0} Choose another time or someone else.",
       "format": "icu"
     },
-    "m_3857d0627a9a94": "Assignee already booked"
+    "m_3857d0627a9a94": "Assignee already booked",
+    "m_ad0f31306728f6": "Drag the bars on the event to change its length."
   },
   "projects": {
     "m_f6128467e18fe0": "Note:",
@@ -14419,7 +14420,9 @@
     "m_1098e67fa6e0a6": "Reactions to your message",
     "m_db92249b608747": "Loading your workspace…",
     "m_cade29468d2218": "Your workspace is taking longer to load. Please try again.",
-    "m_b39f2fc77d6729": "Reload workspace"
+    "m_b39f2fc77d6729": "Reload workspace",
+    "m_e29e003014f22e": "Edit pins",
+    "m_03ae7f7f0d0d32": "Tap apps to pin or unpin them."
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Office",
