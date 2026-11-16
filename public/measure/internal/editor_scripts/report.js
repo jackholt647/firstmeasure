@@ -8725,9 +8725,34 @@ function firstMeasureShowPostSubmitModal(summary = null) {
         clearInterval(timer);
         goDashboard();
     });
+    let nextCooldownTimer = null;
+    // Nothing to claim yet: the server says when to ask again (retry_after). Keep the
+    // modal open with the button counting down instead of an alert, plus a little random
+    // extra so a crowd refused together does not come back together.
+    const waitBeforeNextClaim = (btn, retryAfterSeconds) => {
+        const seconds = Math.min(120, Math.max(1, Number(retryAfterSeconds) || 5));
+        const until = Date.now() + seconds * 1000 + Math.floor(Math.random() * 2000);
+        const render = () => {
+            const left = Math.max(1, Math.ceil((until - Date.now()) / 1000));
+            btn.innerHTML = `<i class="fas fa-hourglass-half"></i> No project yet · ${left}s`;
+        };
+        btn.disabled = true;
+        btn.title = 'No project is available right now. Try again when the countdown ends.';
+        render();
+        if (nextCooldownTimer) clearInterval(nextCooldownTimer);
+        nextCooldownTimer = setInterval(() => {
+            if (Date.now() < until) { render(); return; }
+            clearInterval(nextCooldownTimer);
+            nextCooldownTimer = null;
+            btn.disabled = false;
+            btn.title = '';
+            btn.innerHTML = '<i class="fas fa-clock"></i> Start Next Project';
+        }, 1000);
+    };
     backdrop.querySelector('#fmSubmitNext')?.addEventListener('click', async (event) => {
         clearInterval(timer);
         const btn = event.currentTarget;
+        if (nextCooldownTimer) return;
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Finding Project';
         try {
@@ -8746,6 +8771,10 @@ function firstMeasureShowPostSubmitModal(summary = null) {
             alert(data?.error || data?.message || 'No project available.');
             goDashboard();
         } catch (e) {
+            if (e && e.code === 'queue_empty') {
+                waitBeforeNextClaim(btn, e.retryAfter);
+                return;
+            }
             console.error('[Submit Modal] Failed to start next project:', e);
             alert(e?.message || 'Failed to start the next project.');
             goDashboard();

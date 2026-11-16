@@ -262,6 +262,9 @@ Note: Our coverage is based on individual structure, not area - so we may have c
     queueCount: null,
     queuePollTimer: null,     // sidebar poll timer (kept running)
     queueBusy: false,
+    claimCooldownUntil: 0,          // server's retry_after after an empty claim
+    claimCooldownTimer: null,
+    queueButtonStaggerTimer: null,  // random wait before new work lights the button
     queueAdminTimer: null,
     queueAdminHasLoaded: false,
     queueAdminTeam: 'all',
@@ -5404,8 +5407,33 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         // -----------------------
         const wasDisabled = (this.lastSidebarBtnDisabled === null || typeof this.lastSidebarBtnDisabled === 'undefined') ? null : !!this.lastSidebarBtnDisabled;
         const isDisabledNow = !ready;
+        // New work (not the person's own backlog) turned claimable: wait a random moment before
+        // lighting the button, so everyone polling does not click for the same project at once.
+        const staggerNewWork = wasDisabled === true && !isDisabledNow && !showContinue && !serverOnBreak && !queueBlocked;
         if (wasDisabled === null) { this.lastSidebarBtnDisabled = isDisabledNow; }
-        else { if (wasDisabled === true && isDisabledNow === false) { this.playDing(); } this.lastSidebarBtnDisabled = isDisabledNow; }
+        else {
+          if (wasDisabled === true && isDisabledNow === false && !staggerNewWork) { this.playDing(); }
+          this.lastSidebarBtnDisabled = isDisabledNow;
+        }
+        // The person's own backlog is never held back: it ends a cooldown at once.
+        if (showContinue && this.isClaimCoolingDown()) this.endClaimCooldown();
+        if (btn && this.isClaimCoolingDown()) {
+          // The server said "ask again in N s": keep the button disabled with its countdown.
+          this.renderClaimCooldownButton();
+          return;
+        }
+        if (btn && staggerNewWork) {
+          this.scheduleQueueButtonStagger();
+          btn.disabled = true;
+          btn.classList.add('disabled');
+          btn.innerHTML = trainingOk ? `<i class="fas fa-forward"></i> Next in Queue` : `<i class="fas fa-lock"></i> Next in Queue`;
+          return;
+        }
+        if (btn && !ready) this.cancelQueueButtonStagger();
+        if (btn && ready && this.queueButtonStaggerTimer) {
+          // Still inside this poll's random wait: the timer lights the button.
+          return;
+        }
         if (btn) {
           btn.disabled = !ready;
           btn.classList.toggle('disabled', btn.disabled);
@@ -5423,6 +5451,73 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       } catch (e) {
         this.setQueueButtonState({ hasNext:false, count:this.queueCount, hint:'Error' });
       }
+    },
+    // -----------------------
+    // Next in Queue throttle: the server answers an empty claim with retry_after
+    // (seconds); until then the button stays disabled with a countdown and no alert.
+    // -----------------------
+    isClaimCoolingDown(){
+      return Date.now() < (this.claimCooldownUntil || 0);
+    },
+    renderClaimCooldownButton(){
+      const btn = document.getElementById('btnNextQueue');
+      if (!btn) return;
+      const seconds = Math.max(1, Math.ceil(((this.claimCooldownUntil || 0) - Date.now()) / 1000));
+      btn.disabled = true;
+      btn.classList.add('disabled');
+      btn.title = 'No project is available right now. The queue is checked again automatically.';
+      btn.innerHTML = `<i class="fas fa-hourglass-half"></i> No project yet · ${seconds}s`;
+    },
+    startClaimCooldown(retryAfterSeconds){
+      const seconds = Math.min(120, Math.max(1, Number(retryAfterSeconds) || 5));
+      // A little random extra so a crowd that was refused together does not come back together.
+      this.claimCooldownUntil = Date.now() + seconds * 1000 + Math.floor(Math.random() * 2000);
+      this.cancelQueueButtonStagger();
+      this.lastSidebarBtnDisabled = true;
+      if (this.claimCooldownTimer) clearInterval(this.claimCooldownTimer);
+      this.renderClaimCooldownButton();
+      this.claimCooldownTimer = setInterval(() => {
+        if (this.isClaimCoolingDown()) { this.renderClaimCooldownButton(); return; }
+        clearInterval(this.claimCooldownTimer);
+        this.claimCooldownTimer = null;
+        const btn = document.getElementById('btnNextQueue');
+        if (btn) btn.title = '';
+        this.refreshQueueButton(false).catch(()=>{});
+      }, 1000);
+    },
+    endClaimCooldown(){
+      this.claimCooldownUntil = 0;
+      if (this.claimCooldownTimer) clearInterval(this.claimCooldownTimer);
+      this.claimCooldownTimer = null;
+      const btn = document.getElementById('btnNextQueue');
+      if (btn) btn.title = '';
+    },
+    scheduleQueueButtonStagger(){
+      if (this.queueButtonStaggerTimer) return;
+      const delayMs = Math.floor(Math.random() * 3000);
+      this.queueButtonStaggerTimer = setTimeout(() => {
+        this.queueButtonStaggerTimer = null;
+        if (this.isClaimCoolingDown() || this.queueBusy || !this.queueHasNext) return;
+        const btn = document.getElementById('btnNextQueue');
+        if (!btn || !cfg().user.training_complete) return;
+        btn.disabled = false;
+        btn.classList.remove('disabled');
+        btn.innerHTML = `<i class="fas fa-forward"></i> Next in Queue`;
+        this.playDing();
+      }, delayMs);
+    },
+    cancelQueueButtonStagger(){
+      if (this.queueButtonStaggerTimer) clearTimeout(this.queueButtonStaggerTimer);
+      this.queueButtonStaggerTimer = null;
+    },
+    /** True when a claim answer means "nothing for you right now" (handled quietly with a cooldown). */
+    handleEmptyClaimAnswer(data){
+      if (!data || data.success) return false;
+      const code = String(data.error || '').trim();
+      if (code !== 'queue_empty') return false;
+      const retryAfter = Number(data.retry_after ?? data.details?.retry_after);
+      this.startClaimCooldown(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 5);
+      return true;
     },
     async handleNextInQueueClick(){
       if (!cfg().user.training_complete) return;
@@ -5465,6 +5560,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       }
 
       if (this.isDraftingTechnician()) {
+        if (this.isClaimCoolingDown()) { this.queueBusy = false; this.renderClaimCooldownButton(); return; }
         try {
           this.setQueueButtonState({ hasNext:this.queueHasNext, count:this.queueCount, hint:'Assigning...', busy:true });
           const data = await Portal.apiPost(cfg().endpoints.server, {
@@ -5479,8 +5575,9 @@ Note: Our coverage is based on individual structure, not area - so we may have c
             return;
           }
           this.queueBusy = false;
+          if (this.handleEmptyClaimAnswer(data)) return;
           await this.refreshQueueButton(true);
-          alert(data?.error || 'No project available.');
+          alert(data?.message || data?.error || 'No project available.');
         } catch (e) {
           this.queueBusy = false;
           await this.refreshQueueButton(true);
@@ -5529,6 +5626,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         const resumeReal = pickResumeId(mineProjects, { allowFiller:false });
         if (resumeReal) { window.location.href = 'editor.php?folder=' + encodeURIComponent(resumeReal); return; }
         let data = null;
+        if (this.isClaimCoolingDown()) { this.queueBusy = false; this.renderClaimCooldownButton(); return; }
         if (data === null) {
           this.setQueueButtonState({ hasNext:this.queueHasNext, count:this.queueCount, hint:'Assigning…', busy:true });
           data = await Portal.apiPost(cfg().endpoints.server, {
@@ -5536,7 +5634,13 @@ Note: Our coverage is based on individual structure, not area - so we may have c
             actor:this.fmActor(),
             queue_mode:this.getQueueMode()
           }).catch(()=>({}));
-          if (!data || !data.success) { this.queueBusy = false; await this.refreshQueueButton(true); alert(data?.error || 'No project available.'); return; }
+          if (!data || !data.success) {
+            this.queueBusy = false;
+            if (this.handleEmptyClaimAnswer(data)) return;
+            await this.refreshQueueButton(true);
+            alert(data?.message || data?.error || 'No project available.');
+            return;
+          }
           this.mineCache = { at: 0, projects: null };
           this.activeMineCache = { at: 0, projects: null };
           window.location.href = 'editor.php?folder=' + encodeURIComponent(data.folder);

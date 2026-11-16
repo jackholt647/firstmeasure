@@ -2490,7 +2490,12 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
                 throw new Error('Next project request returned an invalid response.');
             }
             if (!resp.ok || !data || data.success === false) {
-                throw new Error((data && (data.error || data.message)) || 'No project available.');
+                const error = new Error((data && (data.message || data.error)) || 'No project available.');
+                // queue_empty answers carry retry_after (seconds): the caller waits that long before asking again.
+                error.code = String((data && data.error) || '');
+                const retryAfter = Number(data && (data.retry_after ?? (data.details && data.details.retry_after)));
+                if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfter = retryAfter;
+                throw error;
             }
             return data;
         };
