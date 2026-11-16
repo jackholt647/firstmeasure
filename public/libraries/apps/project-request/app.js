@@ -10676,9 +10676,7 @@ window.PlatformCommerce.onReady(async function(){
     $('#rMobileOrder')?.addEventListener('click', () => {
       const submit = activeSubmitButton();
       if (!submit || submit.disabled) return;
-      const form = $('#rForm');
-      if (form?.requestSubmit) form.requestSubmit(submit);
-      else submit.click();
+      onSubmit({ preventDefault(){} });
     }, { signal: projectFormListeners.signal });
     $('#rContactContextBar')?.addEventListener('click', async (event) => {
       const overview = event.target.closest('[data-contact-context-overview]');
@@ -11034,7 +11032,12 @@ window.PlatformCommerce.onReady(async function(){
     $('#rCcAdd')?.addEventListener('click', () => addCcRow(''), { signal: projectFormListeners.signal });
     $('#rAddContact')?.addEventListener('click', (event) => openContactPicker(event.currentTarget), { signal: projectFormListeners.signal });
     bindDevelopmentReportControls();
-    $('#rForm')?.addEventListener('submit', onSubmit, { signal: projectFormListeners.signal });
+    // The order flow checks what an order needs itself (canSubmit, pins, credits). The browser's
+    // own checks would stop the submit silently on a field the person can't see, such as a name
+    // typed into a contact's Email on another phone page (FM-517).
+    const requestForm = $('#rForm');
+    if (requestForm) requestForm.noValidate = true;
+    requestForm?.addEventListener('submit', onSubmit, { signal: projectFormListeners.signal });
     $('#rAddress')?.addEventListener('focus', () => {
       initMapOnce();
       preferMapForNewProjectInput();
@@ -11395,7 +11398,10 @@ window.PlatformCommerce.onReady(async function(){
     if(hasReportOrdered() || isScheduleChoice() || (!hasSelectedAddons() && !window.Portal.ExteriorOrder?.active()))return submitReport(e);
     orderSubmissionPending=true;
     lockOrderSubmission(true);
-    orderSubmissionPromise=Promise.resolve().then(()=>submitReport(e)).finally(()=>{
+    orderSubmissionPromise=Promise.resolve().then(()=>submitReport(e)).catch((error)=>{
+      console.error('Order submit failed', error);
+      showToast((globalThis.PlatformLanguage?.text("project-request","m_cb54e163f7df44","Couldn’t submit order") ?? "Couldn’t submit order"), error?.message || (globalThis.PlatformLanguage?.text("project-request","connection_retry","Connection error. Please try again.") ?? "Connection error. Please try again."), false);
+    }).finally(()=>{
       orderSubmissionPending=false;orderSubmissionPromise=null;lockOrderSubmission(false);
       updateSubmitLabel();syncMobileOrderPagination();
     });
