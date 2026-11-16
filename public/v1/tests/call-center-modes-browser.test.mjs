@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
 
-async function fixture(browser,{manager=true}={}){
+async function fixture(browser,{manager=true,mount={standalone:'center'}}={}){
   const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('https://call-center.test/**',route=>route.fulfill({contentType:'text/html',body:'<style>body{margin:0;font-family:Arial;background:#f5f7fa}</style><main id="app"></main>'}));
@@ -35,7 +35,7 @@ async function fixture(browser,{manager=true}={}){
   },{manager});
   for(const file of ['communications-ui.js','workspace.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/apps/comms/'+file,import.meta.url),'utf8')});
   await page.addStyleTag({content:await readFile(new URL('../../libraries/apps/comms/communications.css',import.meta.url),'utf8')});
-  await page.evaluate(()=>window.handle=Portal.CommunicationsWorkspace.mount(document.querySelector('#app'),{standalone:'center'}));
+  await page.evaluate(options=>window.handle=Portal.CommunicationsWorkspace.mount(document.querySelector('#app'),options),mount);
   await page.waitForFunction(()=>document.querySelector('[data-content]')?.getAttribute('aria-busy')==='false');
   return {page,errors};
 }
@@ -84,4 +84,25 @@ test('three Call Center screens wire personal history, queue controls and depart
 test('caller without supervisor grant sees the two permitted screens',async()=>{
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try{const {page,errors}=await fixture(browser,{manager:false});assert.equal(await page.locator('[role=tab]').count(),2);assert.equal(await page.getByRole('tab',{name:'Manager view'}).count(),0);await page.evaluate(()=>handle.destroy());assert.deepEqual(errors,[]);}finally{await browser.close();}
+});
+
+// FM-491: a project's Calls and the call history had "Call contact" / "Log a call" beside the toolbar's "New call",
+// two buttons that opened the same phone. One New call stays, with the phone options beside it.
+test('call history offers one New call, on a project and in the workspace',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    for(const mount of [{projectId:'project-one'},{standalone:'history'},{standalone:'lists'}]){
+      const {page,errors}=await fixture(browser,{mount});
+      await page.locator('[data-action=new-call]').first().waitFor();
+      assert.equal(await page.locator('[data-action=new-call]').count(),1,JSON.stringify(mount));
+      assert.equal(await page.getByRole('button',{name:/call contact|log a call/i}).count(),0);
+      assert.equal((await page.locator('[data-action=new-call]').innerText()).trim(),'New call');
+      assert.equal(await page.locator('.fmcm-call-actions [data-action=phone-menu]').count(),1);
+      await page.locator('[data-action=new-call]').click();
+      assert.deepEqual(await page.evaluate(()=>phoneActions.at(-1).input),{project_id:mount.projectId||''});
+      await page.evaluate(()=>handle.destroy());
+      assert.deepEqual(errors,[]);
+      await page.close();
+    }
+  }finally{await browser.close();}
 });

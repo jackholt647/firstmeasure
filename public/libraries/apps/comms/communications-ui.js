@@ -27,7 +27,7 @@
     if (document.getElementById('fm-communications-css')) return;
     const link = document.createElement('link'); link.id='fm-communications-css'; link.rel='stylesheet';
     const source=new URL(document.currentScript?.src || `${location.origin}/libraries/apps/comms/communications-ui.js`);
-    link.href=new URL('communications.css?v=20261116-fm497-call-center-phone',source).href;
+    link.href=new URL('communications.css?v=20261116-fm491-call-actions',source).href;
     document.head.append(link);
   }
   css();
