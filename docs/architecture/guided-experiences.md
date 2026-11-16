@@ -179,7 +179,9 @@ fills (`data-fill`) has no fit and takes the full height; the agentic sheet keep
 at least 600px for the conversation. Under 760px a modal setup is a sheet from the
 bottom edge, as tall as its step but never under two-thirds of the visible screen
 (a short step sits in the middle of the extra room, FM-484); the agentic one fills the screen and the
-assistant folds below it behind an Agent handle. `prefers-reduced-motion` turns every animation off. Without the
+assistant folds below it behind an Agent handle. On a phone a setup has one title, in its top bar between the agent
+and the X (with the step's (i) explanation), instead of a badge row and a title row (FM-486); the step keeps only its
+title actions. `prefers-reduced-motion` turns every animation off. Without the
 assistant (or without a project) the same steps play as a modal.
 
 **One scroller.** A player that covers the page (a setup sheet, an announcement)
@@ -212,7 +214,12 @@ Widgets are registered with `FirstMateGuidedSetup.registerWidget(id, { render(el
 { step, options, selections, change, actions }) })`. `change(patch, summary)` merges a
 selection patch and gives the plain summary the agent repeats in the person's
 words (an empty summary posts nothing). `actions` is the step's title row, for a
-control such as "Use all". A widget declared `fill: true` gets the full sheet height
+control such as "Use all". `setTitle(text)` replaces the title in the top bar while the step shows something with a
+name of its own (the Operations workflow publishes its current step's title through the workflow's `onStepTitle`, so a
+phone shows "What are we working on?", not that over "What does this project need?"); an empty text restores the
+step's title. On a phone the Operations workflow also puts its step numbers in one row along the bottom
+(`phoneSteps: 'bottom'`) and folds its pinned proposal preview to a bar that opens and closes it, open by itself on
+the review step (`preview.collapsible`). A widget declared `fill: true` gets the full sheet height
 (the logo grid, supplier columns, the Operations workflow); a widget may switch it
 by toggling `data-fill` on its step (the supplier step fills only once it has
 columns). Other steps make the sheet as tall as they are and scroll with a fade at

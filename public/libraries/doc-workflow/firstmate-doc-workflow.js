@@ -17,7 +17,12 @@
  *     contract, onWrite(path,value), onStepState(state), onComplete(),
  *     preview:{ resolve():Promise<resolved>, mount(el,resolved)?, pinned? },  pinned: always shown, sharing the space
  *       after the step list equally with the questions until dragged (its own remembered width), stacked below when
- *       narrow, with no Preview toggle or hide button
+ *       narrow, with no Preview toggle or hide button; collapsible: stacked (narrow), the pinned preview folds to its
+ *       bar, which opens and closes it. It starts folded and opens by itself on the review step (a step with a
+ *       `review` item, else the last step).
+ *     onStepTitle({ id, title, index, count })?  the host shows the step's title in its own bar: on a phone the
+ *       workflow leaves its own step title out
+ *     phoneSteps: 'bottom'?  on a phone the step numbers sit in one row at the bottom, under the preview
  *     services:{ pricebook, pieceCatalog, generateScopeItems, media }, scope:{...extra}, theme,
  *     document:{ id, type }?  the document this fills; announced with `fm:doc-workflow:opened` (guided experiences)
  *   }) -> { destroy, goTo(stepId), refresh(state) }
@@ -3390,6 +3395,8 @@
     const services = obj(opts.services);
     const preview = opts.preview && typeof obj(opts.preview).resolve === 'function' ? obj(opts.preview) : null;
     const pinnedPreview = !!preview && preview.pinned === true;
+    const collapsiblePreview = pinnedPreview && preview.collapsible === true;
+    const hostTitle = typeof opts.onStepTitle === 'function';
     const extraScope = obj(opts.scope);
     const theme = firstText(opts.theme, obj(obj(workflow.audiences)[audience]).theme);
     const showWorkflowTitle = opts.showWorkflowTitle !== false;
@@ -3404,7 +3411,9 @@
       previewTimer: 0,
       previewBusy: false,
       previewHandle: null,
-      previewStale: false
+      previewStale: false,
+      // A collapsible preview: the person's choice (true open, false folded), or null for the step's default.
+      previewOpen: null
     };
 
     function scope(){
@@ -3507,7 +3516,7 @@
 
     // -------------------------------------------------------------- layout
     container.innerHTML = `
-      <div class="fmdw ${String(theme === 'portal' ? 'fmdw-portal' : '')} ${String(preview ? 'has-preview' : '')} ${String(pinnedPreview ? 'preview-pinned' : '')}" data-fmdw-root>
+      <div class="fmdw ${String(theme === 'portal' ? 'fmdw-portal' : '')} ${String(preview ? 'has-preview' : '')} ${String(pinnedPreview ? 'preview-pinned' : '')} ${String(collapsiblePreview ? 'preview-collapsible' : '')} ${String(hostTitle ? 'fmdw-host-title' : '')} ${String(cleanText(opts.phoneSteps) === 'bottom' ? 'fmdw-steps-bottom' : '')}" data-fmdw-root>
         <aside class="fmdw-rail">
           <div class="fmdw-rail-head ${String(showWorkflowTitle ? '' : 'titleless')}">
             ${String(showWorkflowTitle ? `<strong>${esc(firstText(workflow.name, 'Workflow'))}</strong>` : '')}
@@ -3539,6 +3548,7 @@
               ${String(typeof services.openFullPreview === 'function' ? `<button type="button" class="fmdw-icon-btn" data-fmdw-preview-full title="Full screen"><i class="fas fa-expand"></i></button>` : '')}
               ${String(pinnedPreview ? '' : `<button type="button" class="fmdw-icon-btn" data-fmdw-preview-hide title="Hide the preview"><i class="fas fa-xmark"></i></button>`)}
             </div>
+            ${String(collapsiblePreview ? `<button type="button" class="fmdw-icon-btn fmdw-preview-fold" data-fmdw-preview-fold aria-expanded="true" title="Show or hide the preview" aria-label="Show or hide the preview"><i class="fas fa-chevron-down"></i></button>` : '')}
           </div>
           <div class="fmdw-preview-stage" data-fmdw-preview-stage>
             <div class="fmdw-preview-empty"><i class="fas fa-file-lines"></i><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_cec49be42c7614","The preview updates as you answer.") ?? "The preview updates as you answer.")}</span></div>
@@ -3609,6 +3619,9 @@
         <div class="fmdw-step-actions" data-fmdw-step-actions></div>`;
       el.items.innerHTML = '';
       el.footNote.textContent = '';
+      if (hostTitle) { try { opts.onStepTitle({ id: st.currentId, title: firstText(step.title, prettyKey(step.id)), index, count: steps.length }); } catch (e) { /* host bar */ } }
+      // The review step opens a collapsible preview, whatever was chosen before it.
+      if (collapsiblePreview && isReviewStep(step, steps)) st.previewOpen = null;
       const sections = stepSections(step);
       const items = sections.flatMap((section) => arr(section.items));
       if (!items.length) {
@@ -3705,8 +3718,16 @@
         }
       }
       updateRail();
+      if (collapsiblePreview) applyPreviewLayout();
       // Scroll the pane back to the top on step change.
       try { el.items.scrollTop = 0; } catch (e) {}
+    }
+
+    /** The step a collapsible preview opens on: one with a `review` item, else the last. */
+    function isReviewStep(step, steps){
+      const items = stepItems(step);
+      if (items.some((item) => cleanText(item.kind) === 'review') || cleanText(step.kind) === 'review') return true;
+      return !steps.some((other) => stepItems(other).some((item) => cleanText(item.kind) === 'review')) && step === steps[steps.length - 1];
     }
 
     function validateCurrentStep(){
@@ -3800,7 +3821,7 @@
         // pane is hidden; only the page render is skipped.
         const resolved = obj(await preview.resolve());
         if (st.destroyed) return;
-        if (el.root.classList.contains('preview-hidden')) { st.lastResolved = resolved; return; }
+        if (el.root.classList.contains('preview-hidden') || el.root.classList.contains('preview-folded')) { st.lastResolved = resolved; return; }
         renderPreview(resolved);
         noteOfflineView(resolved);
       } catch (error) {
@@ -3929,14 +3950,26 @@
     function previewVisible(){
       return pinnedPreview || (!!preview && previewPref.hidden !== true && !el.root.classList.contains('narrow'));
     }
+    /** A collapsible preview folds to its bar while stacked, unless opened (by the person, or the review step). */
+    function previewFolded(){
+      if (!collapsiblePreview || !el.root.classList.contains('narrow')) return false;
+      if (st.previewOpen !== null) return !st.previewOpen;
+      const steps = visibleSteps();
+      const step = steps[currentIndex(steps)];
+      return !step || !isReviewStep(step, steps);
+    }
     function applyPreviewLayout(){
       if (!preview || st.destroyed) return;
-      const wasVisible = !el.root.classList.contains('preview-hidden');
+      const wasVisible = !el.root.classList.contains('preview-hidden') && !el.root.classList.contains('preview-folded');
       const width = el.root.clientWidth || 0;
       el.root.classList.toggle('narrow', width > 0 && width < NARROW_PX);
       el.root.classList.toggle('compact-rail', width > 0 && width < COMPACT_RAIL_PX);
-      const visible = previewVisible();
-      el.root.classList.toggle('preview-hidden', !visible);
+      const folded = previewFolded();
+      el.root.classList.toggle('preview-folded', folded);
+      const fold = el.root.querySelector('[data-fmdw-preview-fold]');
+      if (fold) fold.setAttribute('aria-expanded', String(!folded));
+      const visible = previewVisible() && !folded;
+      el.root.classList.toggle('preview-hidden', !previewVisible());
       // A pinned preview splits the space after the step list equally until the person drags it (`preview-sized`).
       el.root.classList.toggle('preview-sized', Number(previewPref.width) > 0);
       if (Number(previewPref.width) > 0) {
@@ -3956,6 +3989,13 @@
     el.root.querySelector('[data-fmdw-preview-toggle]')?.addEventListener('click', () => {
       previewPref.hidden = previewPref.hidden !== true;
       savePreviewPref();
+      applyPreviewLayout();
+    });
+    // A collapsible preview opens and closes from anywhere on its bar but the zoom buttons.
+    el.root.querySelector('[data-fmdw-preview-head]')?.addEventListener('click', (event) => {
+      if (!collapsiblePreview || !el.root.classList.contains('narrow')) return;
+      if (event.target.closest('.fmdw-preview-zoom')) return;
+      st.previewOpen = el.root.classList.contains('preview-folded');
       applyPreviewLayout();
     });
     el.root.querySelector('[data-fmdw-preview-full]')?.addEventListener('click', () => { try { services.openFullPreview(); } catch (e) { /* host preview */ } });
@@ -4592,6 +4632,16 @@
 .fmdw.compact-rail .fmdw-foot{padding:10px 14px}
 .fmdw.narrow .fmdw-preview-toggle span{display:none}
 .fmdw-preview-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--fmdw-line);background:#fff}
+/* collapsible pinned preview: stacked, it folds to its bar, which opens and closes it */
+.fmdw-preview-fold{display:none}
+.fmdw.preview-collapsible.narrow .fmdw-preview-fold{display:inline-grid}
+.fmdw.preview-collapsible.narrow .fmdw-preview-head{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.fmdw.preview-collapsible.narrow .fmdw-preview-zoom{margin-left:auto}
+.fmdw-preview-fold i{transition:transform .2s ease}
+.fmdw.preview-folded .fmdw-preview-fold i{transform:rotate(180deg)}
+.fmdw.preview-folded .fmdw-preview-zoom,.fmdw.preview-folded .fmdw-preview-stage,.fmdw.preview-folded [data-fmdw-offline-note]{display:none}
+.fmdw.preview-folded .fmdw-preview-head{border-bottom:0}
+.fmdw.preview-pinned.narrow.preview-folded{grid-template-rows:minmax(0,1fr) auto}
 .fmdw-preview-zoom{display:flex;align-items:center;gap:5px}
 .fmdw-scg-group{display:flex;flex-direction:column;gap:8px;margin-top:10px}
 .fmdw-zoom-pct{min-width:44px;height:28px;border:1px solid var(--fmdw-line);border-radius:8px;background:#fff;color:#344054;font:inherit;font-size:11px;font-weight:800;cursor:pointer;padding:0 6px}
@@ -4627,6 +4677,20 @@
   .fmdw-step-title{max-width:120px}
   .fmdw-section-items{grid-template-columns:1fr}
   .fmdw.preview-pinned.narrow{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(0,1fr)}
+  .fmdw.preview-pinned.narrow.preview-folded{grid-template-rows:auto minmax(0,1fr) auto}
+  /* The host shows the step's title in its own bar (onStepTitle): only the step's actions stay here. */
+  .fmdw.fmdw-host-title .fmdw-step-heading{display:none}
+  .fmdw.fmdw-host-title .fmdw-step-head{padding:10px 14px 0;justify-content:flex-end}
+  .fmdw.fmdw-host-title .fmdw-step-head:not(:has(.fmdw-step-actions:not(:empty))){display:none}
+  .fmdw.fmdw-host-title .fmdw-item-sole>.fmdw-field>.fmdw-field-label{display:none}
+  /* phoneSteps 'bottom': the step numbers in one row at the bottom, under the questions and the preview. */
+  .fmdw.fmdw-steps-bottom .fmdw-rail{order:9;border-bottom:0;border-top:1px solid var(--fmdw-line)}
+  .fmdw.fmdw-steps-bottom .fmdw-rail-head,.fmdw.fmdw-steps-bottom .fmdw-step-title{display:none}
+  .fmdw.fmdw-steps-bottom .fmdw-steps{gap:0;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px))}
+  .fmdw.fmdw-steps-bottom .fmdw-step,.fmdw.fmdw-steps-bottom.compact-rail .fmdw-step{flex:1 0 44px;justify-content:center;padding:6px 0}
+  .fmdw.fmdw-steps-bottom .fmdw-step-dot{width:28px;height:28px;font-size:11.5px}
+  .fmdw.preview-pinned.narrow.fmdw-steps-bottom{grid-template-rows:minmax(0,1fr) minmax(0,1fr) auto}
+  .fmdw.preview-pinned.narrow.fmdw-steps-bottom.preview-folded{grid-template-rows:minmax(0,1fr) auto auto}
 }`;
 
   function ensureStyles(){

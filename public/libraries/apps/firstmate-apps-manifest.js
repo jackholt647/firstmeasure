@@ -56,7 +56,7 @@
     versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
     versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
     versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
-    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261103-measure-sections'),
+    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261116-phone-setup'),
     versionedBundle('signatures/project.js', '20261019-forward-cert')
   ];
   const crewBundles = [

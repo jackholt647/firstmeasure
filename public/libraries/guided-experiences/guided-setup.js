@@ -58,6 +58,8 @@
     .gxs-widget{display:flex;flex-direction:column;min-width:0;min-height:0;background:linear-gradient(180deg,#fcfcfd,#fff 180px)}
     .gxs-head{display:flex;align-items:center;gap:12px;padding:16px 20px 8px}
     .gxs-badge{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.08);border-radius:999px;padding:5px 11px;white-space:nowrap}
+    .gxs-head-title{display:none;align-items:center;gap:6px;flex:1;min-width:0;margin:0;font-size:17px;line-height:1.2;letter-spacing:-.015em;font-weight:780;color:#101828}
+    .gxs-head-text{min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
     .gxs-icon{width:34px;height:34px;border:0;border-radius:10px;background:transparent;color:#667085;cursor:pointer;font-size:18px;display:inline-grid;place-items:center}
     .gxs-icon:hover{background:#f2f4f7;color:#101828}
     .gxs-stage{position:relative;flex:1;min-height:0;overflow:hidden}
@@ -154,7 +156,7 @@
       .gxs-chat-handle{display:flex;align-items:center;gap:8px;flex:none;height:48px;padding:0 16px;border:0;background:#fff;font:inherit;font-weight:700;color:#101828;cursor:pointer;text-align:left}
       .gxs-chat-handle .gxs-chevron{margin-left:auto;transition:transform .3s}
       .gxs-chat[data-open=true] .gxs-chat-handle .gxs-chevron{transform:rotate(180deg)}
-      .gxs-close{top:6px;right:6px}
+      .gxs-close{top:8px;right:6px}
       .gxs-step{padding:6px 16px 20px}
       /* The (i) tip hangs from the title, not centred on the icon: centred, it ran past the step's right edge (FM-485)
          and the step scrolled sideways even while the tip was hidden. */
@@ -162,9 +164,15 @@
       .gxs-info{position:static}
       .gxs-info-tip{left:0;max-width:100%;transform:translateY(4px)}
       .gxs-info:hover .gxs-info-tip,.gxs-info:focus-visible .gxs-info-tip,.gxs-info:focus-within .gxs-info-tip{transform:none}
-      .gxs-head{padding:12px 12px 6px}
       .gxs-badge span{display:none}
       .gxs-foot{padding:10px 12px}
+      /* One title, in the top bar between the agent and the X: the step's own (or one the step published with
+         setTitle, such as a workflow's current step). The step keeps only its title actions. */
+      .gxs-head{min-height:52px;padding:8px 52px 8px 10px;gap:10px}
+      .gxs-head-title{display:flex;position:relative}
+      .gxs-step .gxs-titlebar h2{display:none}
+      .gxs-titlebar{justify-content:flex-end;margin:0 0 10px}
+      .gxs-titlebar:has(>.gxs-title-actions:empty){display:none}
     }
     @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none!important;transition:none!important}}
   `;
@@ -222,7 +230,7 @@
         <section class="gxs-sheet" role="dialog" aria-modal="true" aria-label="${esc(L(experience.title))}">
           <button type="button" class="gxs-close" data-gxs="close" aria-label="${esc(L('gx_ui_close_setup', 'Close setup'))}" title="${esc(L('gx_ui_close_setup', 'Close setup'))}"><span class="gxs-x" aria-hidden="true">&times;</span></button>
           <div class="gxs-widget">
-            <header class="gxs-head"><span class="gxs-badge"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${H(experience.title)}</span></span></header>
+            <header class="gxs-head"><span class="gxs-badge"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${H(experience.title)}</span></span><div class="gxs-head-title" role="heading" aria-level="2"></div></header>
             <div class="gxs-stage"></div>
             <footer class="gxs-foot"><span class="gxs-status" role="status"></span>
               <button type="button" class="gxs-btn ghost" data-gxs="back">${H('gx_ui_back', 'Back')}</button>
@@ -405,6 +413,13 @@
         const observer = root.ResizeObserver ? new root.ResizeObserver(update) : null;
         requestAnimationFrame(() => { const body = pane.querySelector('.gxs-body'); if (body) observer?.observe(body); observer?.observe(pane); update(); });
       }
+      /**
+       * The title in the top bar (shown on a phone, where it replaces the step's own title row): the step's title and its
+       * explanation, or a title the step published (`setTitle`, e.g. the workflow step it is on); empty on the finish.
+       */
+      const headTitle = $('.gxs-head-title');
+      function infoHtml(step){ return step?.subtitle ? ` <span class="gxs-info" role="button" tabindex="0" data-gxs-info aria-label="${esc(L(step.subtitle))}"><span aria-hidden="true">i</span><span class="gxs-info-tip" role="tooltip">${H(step.subtitle)}</span></span>` : ''; }
+      function setHeadTitle(html, info = ''){ headTitle.innerHTML = html ? `<span class="gxs-head-text">${html}</span>${info}` : ''; refit(); }
       function show(to, direction = 1){
         const step = steps[to];
         const generation = ++paneGeneration;
@@ -415,8 +430,9 @@
         el.className = 'gxs-step' + (old && !reduced() ? (direction > 0 ? ' gxs-below' : ' gxs-above') : ''); el.dataset.gxStep = step.id;
         // A compact header: the title, and its explanation in a tooltip. A copy editor edits it in the tooltip, which
         // stays open while it has focus.
-        el.innerHTML = `<div class="gxs-titlebar"><h2>${H(step.title)}${step.subtitle ? ` <span class="gxs-info" role="button" tabindex="0" data-gxs-info aria-label="${esc(L(step.subtitle))}"><span aria-hidden="true">i</span><span class="gxs-info-tip" role="tooltip">${H(step.subtitle)}</span></span>` : ''}</h2><div class="gxs-title-actions"></div></div><div class="gxs-body"></div>`;
+        el.innerHTML = `<div class="gxs-titlebar"><h2>${H(step.title)}${infoHtml(step)}</h2><div class="gxs-title-actions"></div></div><div class="gxs-body"></div>`;
         stage.appendChild(el);
+        setHeadTitle(H(step.title), infoHtml(step));
         currentPane = el;
         index = to;
         const widget = widgets.get(step.widget);
@@ -429,7 +445,9 @@
         const global = step.setup_step || null;
         if (global && !answers[step.id]) answers[step.id] = {};
         mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, answer: global ? answers[step.id] : null, L, H, esc, money, where:here, orgId, read: readData, actions: el.querySelector('.gxs-title-actions'), priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant ? laborPaySheet : null,
-          advance:()=>next(false), complete:completeDirectly, checkpoint:()=>track('step_view',{step_id:step.id,selections}), restart(){visited.length=0;show(0,-1);},
+          advance:()=>next(false), complete:completeDirectly,
+          // The step names what is on screen now (plain text); empty goes back to the step's own title.
+          setTitle(text){ if (currentPane !== el || closed) return; const value = clean(text); if (value) setHeadTitle(esc(value)); else setHeadTitle(H(step.title), infoHtml(step)); }, checkpoint:()=>track('step_view',{step_id:step.id,selections}), restart(){visited.length=0;show(0,-1);},
           async runGuide(id,options={}){ if(!options.keepVisible){host.hidden=true;host.inert=true;}try{return await ctx.playChild?.(id,options);}finally{if(!closed){host.hidden=false;host.inert=false;}} },
           change(patch, summary){ Object.assign(global ? answers[step.id] : selections, patch); if (summary !== undefined) summaries[step.id] = summary; status.textContent = ''; status.classList.remove('err'); footer(); } }) : null;
         if (!widget) el.querySelector('.gxs-body').textContent = L('gx_ui_widget_missing', 'This step cannot be shown here.');
@@ -514,6 +532,7 @@
           done.innerHTML = `<div class="gxs-done"><svg viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="38"/><path d="M26 43l11 11 21-23"/></svg><h2>${H('gx_ui_done_title', 'Your price book is ready')}</h2><p>${H('gx_ui_done_body_2', 'New materials lists start from your defaults, and everything else is in your price book to search.')}</p></div>`;
           stage.appendChild(done);
           currentPane = done; finished = value;
+          setHeadTitle('');
           // Two ways on: look at the price book here first, or close and generate this project's materials.
           const foot = $('.gxs-foot');
           [...foot.children].forEach((child) => { child.hidden = true; });
@@ -563,6 +582,7 @@
         if (!open) {
           if (bookPane) { const pane = bookPane; bookPane = null; pane.classList.add('gxs-below'); setTimeout(() => { book?.destroy?.(); book = null; pane.remove(); }, reduced() ? 0 : 420); }
           done?.classList.remove('gxs-above'); if (done) { done.inert = false; done.removeAttribute('aria-hidden'); }
+          setHeadTitle('');
           foot.querySelector('[data-gxs=view]').focus({ preventScroll: true });
           return;
         }
@@ -571,6 +591,7 @@
         const pane = document.createElement('div'); pane.className = 'gxs-step gxs-book-step' + (reduced() ? '' : ' gxs-below'); pane.dataset.fill = ''; pane.dataset.gxStep = 'pricebook';
         pane.innerHTML = `<div class="gxs-titlebar"><h2>${H('gx_ui_book_title', 'Your price book')}</h2><div class="gxs-title-actions"><span class="gxs-book-count">${ids.size} ${H('gx_ui_book_items', 'items set up')}</span></div></div><div class="gxs-body"><div class="gxs-book"></div></div>`;
         stage.appendChild(pane); bookPane = pane;
+        setHeadTitle(H('gx_ui_book_title', 'Your price book'));
         if (done) { done.classList.add('gxs-above'); done.inert = true; done.setAttribute('aria-hidden', 'true'); }
         requestAnimationFrame(() => requestAnimationFrame(() => pane.classList.remove('gxs-below')));
         const shelf = pane.querySelector('.gxs-book');
@@ -719,7 +740,8 @@
    * on this site, loaded when the step first shows and mounted in the standard step frame. It exports
    * `mount(el, ctx)` and returns `{ valid(), hint(), summary(), answer(), escape(), destroy() }` (`escape()` closes something
    * of its own, such as a dropdown, and returns true; otherwise Escape asks to close the setup). `ctx` is what every widget gets
-   * (`step`, `options`, `answer`, `change(patch, summary)`, `advance()`, `L`, `H`, `esc`, `actions`) plus `read(provider,
+   * (`step`, `options`, `answer`, `change(patch, summary)`, `advance()`, `setTitle(text)` (the title in the top bar while
+   * the step shows something with a name of its own; empty restores the step's), `L`, `H`, `esc`, `actions`) plus `read(provider,
    * export, { path, args })`, a published data read as the person. The player saves `answer()` with the step's action.
    */
   const stepModules = new Map();
@@ -760,7 +782,7 @@
     render(el,ctx){
       let disposed=false, handle=null;
       el.textContent=L('gx_operations_loading','Opening Operations…');
-      import(new URL('./operations-setup.js?v=20261116-path-centred',scriptUrl).href).then(module=>{
+      import(new URL('./operations-setup.js?v=20261116-phone-title',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mountWidget(id,el,ctx);
       }).catch(error=>{if(!disposed)el.textContent=error?.message||L('gx_operations_load_error','Could not open this step. Close and try again.');});
       return {valid:()=>handle?.valid?.()!==false,destroy(){disposed=true;handle?.destroy?.();}};
