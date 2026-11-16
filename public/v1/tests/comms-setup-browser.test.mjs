@@ -208,6 +208,11 @@ test('Domains workflow for email: domain, TXT record, address, no website',async
     await wizard.locator('[data-attest]').check();
     await wizard.getByRole('button',{name:/Create connection/}).click();
     await wizard.getByText('_firstmate-verification.acme.com').first().waitFor();
+    // On a phone the workflow fits the screen: no wider than it, the record and the buttons in view, the step rail one short row.
+    assert.ok(await wizard.evaluate(node=>node.scrollWidth<=innerWidth&&node.querySelector('.fm-wizard-head').getBoundingClientRect().right<=innerWidth+1),'the workflow is no wider than the phone');
+    assert.ok(await wizard.getByText('token-1').evaluate(node=>node.getBoundingClientRect().right<=innerWidth));
+    assert.ok(await wizard.getByRole('button',{name:/Check/}).evaluate(node=>{const r=node.getBoundingClientRect();return r.right<=innerWidth&&r.bottom<=innerHeight;}));
+    assert.ok(await wizard.locator('.fm-wizard-rail').evaluate(node=>node.getBoundingClientRect().height<120),'the step rail is one short row');
     await wizard.getByRole('button',{name:/Check/}).click();
     await wizard.getByText('Verification complete').waitFor();
     await wizard.getByRole('button',{name:/Continue/}).click();

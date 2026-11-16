@@ -543,7 +543,7 @@
     wizard = window.FirstMateSetupWizard.open({
       id:'domain-onboarding',
       workflowKey:forEmail?'':'domain_onboarding',
-      title:(globalThis.PlatformLanguage?.text("settings","m_7e6427ce4061f4","Domains & Hosting") ?? "Domains & Hosting"),
+      title:forEmail?'Email domain':(globalThis.PlatformLanguage?.text("settings","m_7e6427ce4061f4","Domains & Hosting") ?? "Domains & Hosting"),
       icon:'fa-globe',
       initialStepId:state.step,
       state,
