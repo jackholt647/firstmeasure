@@ -1219,6 +1219,7 @@
       destroyed: false,
       active: context.active !== false,
       view: 'list',                    // 'list' | 'editor'
+      returnTo: null,                  // { onFinish, docId, armed }: the host that started a document takes the person back (finishDocumentReturn)
       docs: [],
       loading: false,
       loadError: null,
@@ -2492,6 +2493,15 @@
     async function openCreateModal(prefill = {}, options = {}){
       if (!api()) { showToast((globalThis.PlatformLanguage?.text("documents","m_5d7c7ad6033624","Documents") ?? "Documents"), (globalThis.PlatformLanguage?.text("documents","m_85a81051cef7b8","The documents service is not available.") ?? "The documents service is not available."), false); return; }
       const contentHtml = `<h2><i class="fas fa-file-medical"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_7754e23bbfc088"," New document") ?? " New document")}</h2><div data-create-body><div class="fmdx-state" style="min-height:140px"><div class="fmdx-spinner"></div></div></div>`;
+      // A host's return (options.onFinish, finishDocumentReturn): it belongs to the document this wizard starts. Closing
+      // the wizard without starting anything returns at once; a scan or an upload hands the person on without it.
+      const ret = typeof options.onFinish === 'function' ? { onFinish: options.onFinish, docId: '', armed: false } : null;
+      if (ret) state.returnTo = ret;
+      let handedOff = false;
+      const onClose = () => {
+        options.onClose?.();
+        if (ret && !handedOff && state.returnTo === ret) finishDocumentReturn(null);
+      };
       let modal;
       if (options.inlineHost) {
         ensureInlineStyles();
@@ -2503,11 +2513,16 @@
           body: el,
           close(){
             host.innerHTML = '';
-            options.onClose?.();
+            onClose();
           }
         };
       } else {
-        modal = openModal(contentHtml, { onClose: options.onClose, className: 'fmdx-create-modal' });
+        modal = openModal(contentHtml, { onClose, className: 'fmdx-create-modal' });
+      }
+      if (ret) {
+        // The wizard's own closes (the X and the scrim call onClose directly) all hand the person on.
+        const close = modal.close;
+        modal.close = () => { handedOff = true; if (!ret.armed && state.returnTo === ret) state.returnTo = null; close(); };
       }
       const body = modal.el.querySelector('[data-create-body]');
       const [catalog, templates, pinSettings, typeSettings] = await Promise.all([loadCatalog(), loadTemplates(true), api().documents.settings(orgId(), 'default').catch(() => ({})), api().documents.types(orgId()).catch(() => ({}))]);
@@ -2860,6 +2875,7 @@
           });
           const doc = objectValue(res.document || res.doc || res);
           if (!doc.id) return false;
+          if (ret) ret.armed = true;
           modal.close();
           rememberStandaloneDoc(doc);
           loadDocs({ silent: true });
@@ -2940,6 +2956,7 @@
               title: cleanText(body.querySelector('[data-create-title]')?.value) || undefined,
               params
             });
+            if (ret) ret.armed = true;
             modal.close();
             const doc = objectValue(res.document || res.doc || res);
             showToast((globalThis.PlatformLanguage?.text("documents","m_5d7c7ad6033624","Documents") ?? "Documents"), (globalThis.PlatformLanguage?.text("documents","m_07b310dcc0f93e","Document created.") ?? "Document created."), true);
@@ -2991,6 +3008,9 @@
       state.openingDoc = false;
       state.view = 'editor';
       state.doc = objectValue(docRecord);
+      // The document a host's create wizard just made is the one to come back from; any other one ends that return.
+      if (state.returnTo?.armed && !state.returnTo.docId) state.returnTo.docId = cleanText(state.doc.id);
+      else if (state.returnTo?.docId && state.returnTo.docId !== cleanText(state.doc.id)) state.returnTo = null;
       const record = objectValue(options.workflow);
       state.docWorkflow = arrayValue(objectValue(record.definition).steps).length ? record : null;
       // A document that has steps always opens on them, at the step it was
@@ -3109,6 +3129,7 @@
     }
 
     function closeDocScreen(){
+      const closing = state.doc;
       flushAutosave();
       flushWorkflowWrites();
       destroyWorkflowView();
@@ -3122,6 +3143,17 @@
       state.docView = 'editor';
       render();
       loadDocs({ silent: true });
+      if (closing?.id && cleanText(state.returnTo?.docId) === cleanText(closing.id)) finishDocumentReturn(closing);
+    }
+
+    // A host that started a document (Materials' "Create proposal") passes options.onFinish: the person goes back to it
+    // when they are done with that document (they leave its screen, or close Send's Done) instead of to the Docs list,
+    // and when they close the create wizard without starting one (onFinish(null)). Opening another document drops it.
+    function finishDocumentReturn(doc){
+      const target = state.returnTo;
+      state.returnTo = null;
+      if (typeof target?.onFinish !== 'function') return;
+      try { target.onFinish(doc ? objectValue(doc) : null); } catch (error) { console.warn('Returning from the document failed', error); }
     }
 
     function destroyEditor(){
@@ -5651,7 +5683,11 @@
         try { await navigator.clipboard.writeText(link); button.innerHTML = '<i class="fas fa-check"></i>'; button.title = 'Copied'; setTimeout(() => { button.innerHTML = '<i class="fas fa-link"></i>'; button.title = 'Copy their link'; }, 1600); }
         catch (error) { window.prompt('Copy this link', link); }
       }));
-      wrap.querySelector('[data-send-done]')?.addEventListener('click', () => modal.close());
+      wrap.querySelector('[data-send-done]')?.addEventListener('click', () => {
+        modal.close();
+        // Sent is the end of a document a host started: back to that host (finishDocumentReturn).
+        if (state.view === 'editor' && state.doc?.id && state.returnTo?.docId === cleanText(state.doc.id)) closeDocScreen();
+      });
       try { wrap.querySelector('[data-send-done]').focus(); } catch (e) {}
     }
 
@@ -5664,12 +5700,14 @@
 
     if (embedded) {
       embed.onReady?.({
-        openCreateModal: (prefill = {}, opts = {}) => openCreateModal(objectValue(prefill), { onUploadFiles: typeof opts?.onUploadFiles === 'function' ? opts.onUploadFiles : null, onAddFiles: typeof opts?.onAddFiles === 'function' ? opts.onAddFiles : null }),
+        openCreateModal: (prefill = {}, opts = {}) => openCreateModal(objectValue(prefill), { onUploadFiles: typeof opts?.onUploadFiles === 'function' ? opts.onUploadFiles : null, onAddFiles: typeof opts?.onAddFiles === 'function' ? opts.onAddFiles : null, onFinish: typeof opts?.onFinish === 'function' ? opts.onFinish : null }),
         openCreateInline: (host, prefill = {}, opts = {}) => openCreateModal(objectValue(prefill), { inlineHost: host, onClose: opts.onClose }),
-        openDocument: (doc) => {
+        openDocument: (doc, opts = {}) => {
           // Standalone sessions track their documents locally (no server list)
           // so the gallery and adopt-project handoff can see resumed drafts.
           rememberStandaloneDoc(objectValue(doc));
+          // opts.onFinish: the person goes back to the host when they leave this document (finishDocumentReturn).
+          if (typeof opts?.onFinish === 'function' && objectValue(doc).id) state.returnTo = { onFinish: opts.onFinish, docId: cleanText(objectValue(doc).id), armed: true };
           return openEditor(objectValue(doc));
         },
         openPreview: (doc, options = {}) => openPreview(objectValue(doc), options),

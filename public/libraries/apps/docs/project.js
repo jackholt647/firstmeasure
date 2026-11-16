@@ -1410,10 +1410,12 @@
   // requested prefill ({ document_type }). options.standalone allows mounting
   // with no project (org-scoped documents attached to a project later).
   // Returns false when the engine is unavailable (capability off).
+  // options.onFinish(doc|null) takes the person back to the host that asked once they are done with the document
+  // (they leave it, or close Send's Done), or close the wizard without starting one; not to this tab's list.
   async function openNewDocument(prefill = {}, options = {}){
     try { await ensureEngine({ standalone: options.standalone === true }); } catch (error) { /* denied or unavailable */ }
     if (!state.engineApi) return false;
-    state.engineApi.openCreateModal(prefill && typeof prefill === 'object' ? prefill : {});
+    state.engineApi.openCreateModal(prefill && typeof prefill === 'object' ? prefill : {}, typeof options.onFinish === 'function' ? { onFinish: options.onFinish } : {});
     return true;
   }
 
@@ -1453,12 +1455,13 @@
   }
 
   /** Open a specific engine document in the embedded editor. options.standalone
-   *  mounts the engine with no project (draft resume flows). */
+   *  mounts the engine with no project (draft resume flows); options.onFinish
+   *  as openNewDocument's, once the person leaves the document. */
   async function openEngineDocument(record, options = {}){
     if (!record || typeof record !== 'object') return false;
     try { await ensureEngine({ standalone: options.standalone === true }); } catch (error) { /* denied or unavailable */ }
     if (!state.engineApi) return false;
-    state.engineApi.openDocument(record);
+    state.engineApi.openDocument(record, typeof options.onFinish === 'function' ? { onFinish: options.onFinish } : {});
     return true;
   }
 

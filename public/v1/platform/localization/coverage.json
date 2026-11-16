@@ -1,7 +1,7 @@
 {
   "files": 318,
   "namespaces": 120,
-  "messages": 17405,
+  "messages": 17416,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -174,7 +174,7 @@
     {
       "file": "public/libraries/apps/comms/project.js",
       "namespace": "comms",
-      "references": 100,
+      "references": 101,
       "candidates": 0,
       "edits": 0
     },
@@ -356,9 +356,9 @@
     {
       "file": "public/libraries/apps/materials/project.js",
       "namespace": "materials",
-      "references": 159,
-      "candidates": 179,
-      "edits": 121
+      "references": 162,
+      "candidates": 180,
+      "edits": 122
     },
     {
       "file": "public/libraries/apps/materials/rail-media.js",

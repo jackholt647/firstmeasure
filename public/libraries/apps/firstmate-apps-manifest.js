@@ -191,7 +191,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('docs/project.js', '20261113-document-scanner')]
+      bundles: [versionedBundle('docs/project.js', '20261116-fm490-return')]
     },
     {
       id: 'project.documents',
@@ -219,7 +219,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261116-pinned-tiles')
+        versionedBundle('documents/project.js', '20261116-fm490-return')
       ]
     },
     {
@@ -284,7 +284,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261111-offline'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261113-fm434-settings-surface'), versionedBundle('materials/project.js', '20261113-fm436-pricebook-modal')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261111-offline'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261113-fm434-settings-surface'), versionedBundle('materials/project.js', '20261116-fm490-quick-start')]
     },
     {
       id: 'project.money',

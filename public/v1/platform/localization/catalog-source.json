@@ -4628,7 +4628,18 @@
     "m_f92c72190aa503": "Create proposal",
     "m_6175206dc77242": "The new document could not be opened",
     "m_96047a0c8f68e0": "Open the Documents tab to create it.",
-    "m_c478c1907a4d4f": "Category"
+    "m_c478c1907a4d4f": "Category",
+    "m_983547431c9c3b": "Generate from proposal",
+    "m_a27e1339566bdc": "Generate from scope of work",
+    "m_36965f45c0d53b": "This project has a document to build its materials from.",
+    "m_cfc3604ebdac28": "Open proposal",
+    "m_bf1c978df6ef43": "Continue scope of work",
+    "m_7056a60793c42d": "Create scope of work",
+    "m_c27269278337ac": "Materials are built from the proposal once it is signed, or from a scope of work.",
+    "m_ac62702ea23953": "Materials are built from a proposal or a scope of work. Start one here.",
+    "m_043f0adb7b16cd": "The scope of work could not be opened",
+    "m_229e109b5ae5c3": "Ask an administrator to turn on Operations for your account, or create a proposal instead.",
+    "m_7eceb93321fed4": "Empty List"
   },
   "measurements": {
     "m_aaf397f737f7b1": "Residential",
