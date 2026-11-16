@@ -142,6 +142,21 @@
       .sms-entry-facts{display:grid;grid-template-columns:1fr 1fr 1.5fr;margin:0;padding:20px 28px;gap:24px;background:#fafbfc;border-top:1px solid #eaecf0}.sms-entry-facts dt{font-size:11px;color:#667085;margin-bottom:7px}.sms-entry-facts dd{font-size:13px;line-height:1.6;font-weight:500;margin:0;overflow-wrap:anywhere}.sms-entry-progress{display:flex;align-items:center;gap:12px;margin-top:18px;font-size:11px;color:#667085}.sms-entry-progress progress{appearance:none;width:140px;height:5px;border:0;border-radius:9px;overflow:hidden;background:#eaecf0}.sms-entry-progress progress::-webkit-progress-bar{background:#eaecf0}.sms-entry-progress progress::-webkit-progress-value{background:#c85d4d;border-radius:9px}.sms-entry-progress progress::-moz-progress-bar{background:#c85d4d}
       .sms-entry-tracking>h3,.sms-entry-prep>h3{font-size:14px;font-weight:600;margin:0 0 14px}.sms-entry-tracking{padding:0 28px 24px}.sms-entry .sms-timeline{padding:0;border:0;border-radius:0;box-shadow:none}.sms-entry .sms-timeline li{align-items:center}.sms-entry-prep-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}.sms-entry-prep-grid>div{display:flex;gap:12px}.sms-entry-prep-grid>div>span{flex:0 0 26px;height:26px;display:grid;place-items:center;background:#f2f4f7;border-radius:50%;font-size:11px;color:#667085}.sms-entry-prep h4{font-size:13px;font-weight:600;margin:3px 0 6px}.sms-entry-prep p{font-size:12px;line-height:1.6;color:#667085;margin:0}.sms-entry-footnote{display:flex;align-items:baseline;gap:8px;margin:0;padding-top:18px;border-top:1px solid #eaecf0;color:#667085;font-size:11px;line-height:1.6}.sms-entry-other{font-size:13px;border-top:1px solid #eaecf0;padding-top:16px}.sms-entry-other summary{cursor:pointer;color:#475467}.sms-entry-other>div{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-top:14px}
       @media(max-width:700px){.sms-entry{gap:22px}.sms-entry-header{align-items:flex-start;flex-direction:column;gap:12px}.sms-entry-header h2{font-size:24px}.sms-entry-main{padding:20px;gap:14px}.sms-entry-icon{width:36px;height:36px;flex-basis:36px;font-size:16px;border-radius:10px}.sms-entry-copy h3{font-size:20px}.sms-entry-facts{grid-template-columns:1fr;padding:20px;gap:16px}.sms-entry-prep-grid{grid-template-columns:1fr;gap:18px}.sms-entry .sms-timeline{grid-template-columns:1fr}.sms-entry-action{gap:12px;padding:20px}.sms-entry-tracking{padding:0 20px 20px}.sms-entry-action .cs-btn{width:100%}.sms-entry-progress{flex-wrap:wrap}}
+      /* The Advanced popup (FM-510): over the workflow. */
+      .sms-advanced-backdrop{position:fixed;inset:0;z-index:2147483400;display:grid;place-items:center;padding:16px;background:rgba(15,23,42,.42)}
+      .sms-advanced{display:grid;grid-template-rows:auto minmax(0,1fr) auto;width:min(760px,100%);max-height:min(860px,calc(100dvh - 32px));background:#fff;border-radius:16px;box-shadow:0 28px 80px rgba(15,23,42,.3);color:#101828;overflow:hidden;font:400 14px/1.5 Inter,system-ui,sans-serif}
+      .sms-advanced>header{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 12px;border-bottom:1px solid #eaecf0}.sms-advanced>header>div{flex:1}
+      .sms-advanced h2{margin:0;font-size:18px;font-weight:650}.sms-advanced>header p{margin:4px 0 0;color:#667085;font-size:13px}
+      .sms-advanced-close{width:36px;height:36px;border:0;border-radius:10px;background:#f2f4f7;color:#475467;cursor:pointer}
+      .sms-advanced-body{overflow:auto;padding:16px 20px;display:grid;gap:14px;background:#f7f8fa}
+      .sms-advanced>footer{display:flex;align-items:center;gap:10px;padding:12px 20px;border-top:1px solid #eaecf0}.sms-advanced>footer span{flex:1}
+      .sms-advanced .cs-btn{min-height:40px;border-radius:9px;font-size:13px;font-weight:600;padding:9px 14px;cursor:pointer}
+      .sms-advanced .cs-btn.primary{background:var(--primary,#d93025);color:var(--on-primary,#fff);border:0}.sms-advanced .cs-btn.ghost{background:#fff;border:1px solid #d0d5dd;color:#344054}
+      .sms-program .sms-ack{margin-top:10px}
+      .sms-advanced .sms-feature-grid{gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))}.sms-advanced .sms-feature-tile{min-height:0;padding:12px;border-radius:9px;gap:0;transform:none}.sms-advanced .sms-feature-tile input{width:16px;height:16px;right:10px;top:12px}.sms-advanced .sms-feature-copy strong{font-size:13px;padding-right:20px}.sms-advanced .sms-feature-copy span{font-size:12px;line-height:1.4;margin-top:4px}
+      @media(max-width:640px){.sms-advanced .sms-feature-grid{grid-template-columns:1fr}}
+      .sms-advanced .sms-field label{font-size:13px;font-weight:600;text-transform:none;letter-spacing:0}.sms-advanced .sms-field input,.sms-advanced .sms-field select,.sms-advanced .sms-field textarea{font-size:14px;font-weight:400}
+      @media(max-width:640px){.sms-advanced-backdrop{padding:0;place-items:end stretch}.sms-advanced{width:100%;max-height:92dvh;border-radius:16px 16px 0 0}}
   `;
   function installStyle(){
     if (document.getElementById('fm-sms-registration-css')) return;
@@ -317,15 +332,16 @@
     const smsSteps = [
       { id: 'business', label: (globalThis.PlatformLanguage?.text("settings","m_8807b60e199434","Business") ?? "Business"), note: 'Legal identity' },
       { id: 'contact', label: (globalThis.PlatformLanguage?.text("settings","m_46c8aea84388c3","Contact") ?? "Contact"), note: 'Support and address' },
-      { id: 'consent', label: 'Messages & consent', note: 'Permission and policies' },
-      { id: 'messages', label: 'Message examples', note: 'What customers receive' },
+      // Filled in with FirstMate's standard wording (smsStandardWording) and edited only in the Advanced popup (FM-510).
+      { id: 'consent', label: 'Messages & consent', note: 'Permission and policies', advanced: true },
+      { id: 'messages', label: 'Message examples', note: 'What customers receive', advanced: true },
       { id: 'number', label: (globalThis.PlatformLanguage?.text("settings","m_3e7027aa9d65ed","Number") ?? "Number"), note: 'Sending line' },
       { id: 'summary', label: 'Review & submit', note: 'Final check and status' }
     ];
     function mergeSmsProfile(profile = {}){
       const campaign = { ...smsDefaults.campaign, ...(profile.campaign || {}) };
       if (!Array.isArray(campaign.enabledFeatures)) {
-        campaign.enabledFeatures = ['crm_conversations', 'operations', 'customer_growth'];
+        campaign.enabledFeatures = ['crm_conversations', 'operations'];
       }
       return {
         ...profile,
@@ -335,7 +351,7 @@
       };
     }
     function smsSelectedFeatures(profile){
-      const selected = Array.isArray(profile?.campaign?.enabledFeatures) ? profile.campaign.enabledFeatures : ['crm_conversations', 'operations', 'customer_growth'];
+      const selected = Array.isArray(profile?.campaign?.enabledFeatures) ? profile.campaign.enabledFeatures : ['crm_conversations', 'operations'];
       const known = new Set(smsFeatureOptions.map((feature) => feature.id));
       const legacyMap = {
         customer_care: 'crm_conversations',
@@ -498,9 +514,41 @@
     function smsCompanyName(profile){
       return String(profile?.brand?.displayName || profile?.brand?.companyName || window.__APP?.userCompany || 'your company').trim() || 'your company';
     }
+    /**
+     * FirstMate's standard texting program (FM-510): what a business registers unless it edits it in Advanced. Every
+     * line is something the business attests on Review (the consent process) or that FirstMate does itself (STOP, HELP,
+     * START replies); the policy links are the business's own pages. Marketing is added only when it is chosen, with
+     * the written consent it requires.
+     */
+    function smsStandardWording(base, selectedIds){
+      const brand = smsCompanyName(base), marketing = selectedIds.includes('customer_growth');
+      const c = base.campaign || {}, privacy = String(c.privacyPolicyLink || '').trim(), terms = String(c.termsAndConditionsLink || '').trim();
+      const purposes = [selectedIds.includes('crm_conversations') && 'replies to their questions', selectedIds.includes('operations') && 'appointment reminders, project updates, estimates and billing notices', marketing && 'marketing and promotional offers'].filter(Boolean);
+      const purposeText = purposes.length > 1 ? `${purposes.slice(0, -1).join(', ')} and ${purposes[purposes.length - 1]}` : purposes[0] || 'updates about their service';
+      return {
+        description: `${brand} uses FirstMate to text customers who have agreed to receive texts: ${purposeText}.${marketing ? ' Marketing and promotional texts go only to customers who gave separate written consent.' : ''} Customers can reply STOP to opt out or HELP for help.`,
+        optInMethods: ['VERBAL'], optInMethod: 'VERBAL',
+        optInDisclosure: `I agree to receive text messages from ${brand} about ${purposeText}. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for help.${marketing ? ' Consent is not a condition of purchase.' : ''} SMS opt-in data and consent will not be shared with third parties for marketing.${privacy ? ` Privacy Policy: ${privacy}.` : ''}${terms ? ` SMS Terms: ${terms}.` : ''}`,
+        messageFlow: `Customers agree by phone or in person. Before ${brand} texts a customer, a team member reads them the consent wording and records their agreement with their mobile number, the date and the wording used.${marketing ? ' Marketing and promotional texts are sent only after the customer also agrees in writing (a signed form or an unchecked-by-default checkbox).' : ''} Customers can reply STOP to opt out and HELP for help.`,
+        sample1: `${brand}: Thanks for reaching out. How can we help with your project? Reply STOP to opt out.`,
+        sample2: `${brand}: Your appointment is confirmed for tomorrow at 10:00 AM. Reply HELP for help or STOP to opt out.`,
+        sample3: marketing ? `${brand}: Our seasonal offer is available this week. Reply or call us for details. Reply STOP to opt out.` : '',
+        sample4: marketing ? `${brand}: Refer a neighbor and you both get a discount on your next project. Reply STOP to opt out.` : '',
+        sample5: ''
+      };
+    }
+    function smsUsesStandardWording(base){
+      if (smsHasProviderCampaign(base)) return false;
+      const c = base.campaign || {};
+      if (c.standardWording === true) return true;
+      if (c.standardWording === false) return false;
+      // A draft from before FM-510 keeps whatever wording it already has.
+      return !['description', 'messageFlow', 'optInDisclosure', 'sample1', 'sample2'].some((key) => String(c[key] || '').trim());
+    }
     function smsGeneratedCampaign(profile){
       const base = mergeSmsProfile(profile);
       const selectedIds = smsSelectedFeatures(base);
+      if (smsUsesStandardWording(base)) base.campaign = { ...base.campaign, ...smsStandardWording(base, selectedIds), standardWording: true };
       const selected = smsFeatureOptions.filter((feature) => selectedIds.includes(feature.id));
       const company = smsCompanyName(base);
       const companyKnown = Boolean(String(base.brand?.displayName || base.brand?.companyName || '').trim());
@@ -641,10 +689,10 @@
     }
     function smsResumeStep(profile){
       if (smsRegistrationSubmitted(profile)) return 'summary';
-      return smsSteps.find(item => smsStepIssues(item.id, profile).length)?.id || 'summary';
+      return smsVisibleSteps(profile).find(item => smsStepIssues(item.id, profile).length)?.id || 'summary';
     }
     function smsVisibleSteps(profile){
-      return smsSteps;
+      return smsSteps.filter((step) => !step.advanced);
     }
     function smsFormatDateTime(value){
       const time = Date.parse(value || '');
@@ -853,9 +901,8 @@
           requireFields(brand, [['stockSymbol', 'Stock symbol'], ['stockExchange', 'Stock exchange']]);
         }
         if (!smsValidWebsite(brand.website)) missing.push('Valid website');
-        if (String(campaign.description || '').trim().length < 40) missing.push('Campaign description of at least 40 characters');
-        if (String(campaign.description || '').length > 600) missing.push('Campaign description: maximum 600 characters');
-        if (smsSelectedFeatures(profile).includes('customer_growth') && !/marketing|promotional/i.test(String(campaign.description || ''))) missing.push('Campaign description: Your description must mention marketing and promotional texts.');
+        if (!smsValidHttpsUrl(campaign.privacyPolicyLink)) missing.push('Public HTTPS Privacy Policy URL');
+        if (!smsValidHttpsUrl(campaign.termsAndConditionsLink)) missing.push('Public HTTPS SMS Terms URL');
       } else if (step === 'contact') {
         requireFields(brand, [
           ['street', 'Street address'],
@@ -927,6 +974,7 @@
           if (!smsNoThirdPartyMarketingSharing(disclosure)) missing.push('Consent script: state that mobile or SMS opt-in data is not shared with third parties for marketing');
         }
         if (smsSelectedFeatures(profile).length < 2 && String(brand.entityType || '').toUpperCase() !== 'SOLE_PROPRIETOR') missing.push('At least two Low Volume Mixed purposes');
+        if (campaign.messageFlowConfirmed !== true) missing.push('Opt-in flow confirmation');
         if (smsSelectedFeatures(profile).includes('customer_growth')) {
           if (!smsValuePresent(campaign.sample3)) missing.push('Sample message 3: first marketing message');
           if (!smsValuePresent(campaign.sample4)) missing.push('Sample message 4: second marketing message');
@@ -945,7 +993,7 @@
       const guidance = {
         'Opt-in flow of at least 40 characters': 'Describe when and how the customer agrees, who records consent, and what confirmation follows (at least 40 characters).',
         'SMS policy confirmation': 'Review the live Privacy Policy and SMS Terms, then check the policy confirmation below.',
-        'Opt-in flow confirmation': 'Check the box confirming that the described opt-in flow is accurate.',
+        'Opt-in flow confirmation': 'Confirm that this is how your business gets permission to text customers.',
         'Marketing sample message': 'Add a real promotional sample message that matches Marketing.',
         'Public HTTPS SMS Terms URL': 'Enter the public HTTPS page containing the SMS program terms.',
         'Public HTTPS Privacy Policy URL': 'Enter the public HTTPS Privacy Policy page.'
@@ -958,9 +1006,9 @@
       if (sampleNumber) return { step: 'messages', selector: `[data-sms-field="campaign.sample${sampleNumber}"]` };
       if (/^(Business|Contact|Features|Message types|Number)$/.test(text)) return { step: ({ Business: 'business', Contact: 'contact', Features: 'features', 'Message types': 'features', Number: 'number' })[text] };
       if (/Low Volume|SMS feature|Feature confirmation/.test(text)) return { step: 'features' };
-      if (/Opt-in flow confirmation/.test(text)) return { step: 'consent', selector: '[data-sms-flow-ack]' };
+      if (/Opt-in flow confirmation/.test(text)) return { step: 'summary', selector: '[data-sms-flow-ack]' };
       const fields = [
-        [/Campaign description/i, 'description', 'business'],
+        [/Campaign description/i, 'description', 'consent'],
         [/Marketing sample/i, 'sample3', 'messages'],
         [/Sample (?:SMS )?message 1/i, 'sample1', 'messages'],
         [/Sample (?:SMS )?message 2/i, 'sample2', 'messages'],
@@ -972,8 +1020,8 @@
         [/keyword advertisement/i, 'keywordLocationUrl', 'consent'],
         [/opt-in form/i, 'optInLocationUrl', 'consent'],
         [/evidence/i, 'optInEvidenceUrl', 'consent'],
-        [/Privacy/i, 'privacyPolicyLink', 'consent'],
-        [/Terms/i, 'termsAndConditionsLink', 'consent'],
+        [/Privacy/i, 'privacyPolicyLink', 'business'],
+        [/Terms/i, 'termsAndConditionsLink', 'business'],
         [/policy confirmation/i, 'policyContentConfirmed', 'consent'],
         [/Website SMS opt-in/i, 'websiteFormConfirmed', 'consent']
       ];
@@ -1000,7 +1048,7 @@
         summary: ['Review and Submit', '']
       }[step];
       if (!copy) return '';
-      return `<header class="sms-step-heading"><span class="sms-eyebrow">STEP ${smsSteps.findIndex(item => item.id === step) + 1} OF ${smsSteps.length}</span><h2>${copy[0]}</h2>${copy[1] ? `<p>${copy[1]}</p>` : ''}</header>`;
+      return `<header class="sms-step-heading"><span class="sms-eyebrow">STEP ${smsVisibleSteps().findIndex(item => item.id === step) + 1} OF ${smsVisibleSteps().length}</span><h2>${copy[0]}</h2>${copy[1] ? `<p>${copy[1]}</p>` : ''}</header>`;
     }
     function smsSummaryMissingFields(profile){
       const issues = smsStepIssues('summary', profile);
@@ -1240,6 +1288,18 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       ];
       return `<ol class="sms-timeline">${states.map(([title, note, done, pending], i) => `<li class="${done ? 'done' : pending ? 'pending' : ''}"><span class="sms-timeline-dot">${done ? '<i class="fas fa-check" aria-hidden="true"></i>' : i + 1}</span><div><strong>${title}</strong>${compact ? '' : `<span>${note}</span>`}</div></li>`).join('')}</ol>`;
     }
+    /** One line for Review: what the business texts about, and how customers agree. */
+    function smsProgramSummary(profile){
+      const selected = smsSelectedFeatures(profile), c = profile.campaign || {};
+      const what = smsFeatureOptions.filter((feature) => selected.includes(feature.id)).map((feature) => feature.label.toLowerCase()).join(', ');
+      const how = smsOptInMethods(c).map((method) => ({ VERBAL: 'phone or in person', WEBSITE_FORM: 'a website form', PAPER_FORM: 'a paper form', KEYWORD: 'texting a keyword' })[method] || method).join(', ');
+      return `${smsUsesStandardWording(mergeSmsProfile(profile)) ? 'FirstMate standard: ' : 'Your own wording: '}${what || 'no message types'}. Customers agree by ${how || 'a method you choose in Advanced'}.`;
+    }
+    function smsConsentAttestation(profile){
+      const c = profile.campaign || {}, methods = smsOptInMethods(c), marketing = smsSelectedFeatures(profile).includes('customer_growth');
+      if (methods.length === 1 && methods[0] === 'VERBAL') return `We text only customers who agreed by phone or in person after hearing our consent wording, and we keep a record of each agreement.${marketing ? ' Marketing texts go only to customers who also agreed in writing.' : ''}`;
+      return `The consent process in Advanced is how my business gets permission to text customers, and we keep a record of each agreement.`;
+    }
     function smsSummaryContent(profile){
       const submitted = smsHasProviderCampaign(profile) && smsRegistrationLocked(profile);
       const campaign = profile.campaign || {};
@@ -1249,8 +1309,9 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         ${smsSoleProprietorOtpPanel(profile)}
         ${smsReviewRows(profile)}
         ${smsCanAddNumber(profile) ? '<button type="button" class="sms-text-button" data-sms-fix-step="number">Add another number to this campaign</button>' : ''}
-        <section class="sms-section sms-review-section"><div class="sms-section-title"><div><h3>Consent & policies</h3><p>${escapeHtml(smsOptInMethods(campaign).map(method => smsConsentLabels[method]).join(', ') || 'Consent methods not selected')}</p></div>${edit('consent', 'Review consent')}</div><div class="sms-review-links">${[['Privacy policy', campaign.privacyPolicyLink, 'privacyPolicyLink'], ['SMS terms', campaign.termsAndConditionsLink, 'termsAndConditionsLink']].map(([label, url, field]) => smsValidHttpsUrl(url) ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${label} <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a>` : `<button type="button" class="sms-review-missing" data-sms-fix-step="consent" data-sms-fix-selector='[data-sms-field="campaign.${field}"]'>Add ${label}</button>`).join('')}</div></section>
-        <section class="sms-section sms-review-section"><div class="sms-section-title"><div><h3>Message examples</h3><p>${[campaign.sample1, campaign.sample2, campaign.sample3, campaign.sample4, campaign.sample5].filter(Boolean).length} examples prepared for carrier review</p></div>${edit('messages', 'Review messages')}</div></section>
+        <section class="sms-section sms-review-section sms-program"><div class="sms-section-title"><div><h3>Texting program</h3><p>${escapeHtml(smsProgramSummary(profile))}</p></div><button type="button" class="sms-text-button" data-sms-advanced>${submitted ? 'View details' : 'Advanced'}<span aria-hidden="true"> →</span></button></div>
+          <div class="sms-review-links">${[['Privacy policy', campaign.privacyPolicyLink, 'privacyPolicyLink'], ['Texting terms', campaign.termsAndConditionsLink, 'termsAndConditionsLink']].map(([label, url, field]) => smsValidHttpsUrl(url) ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${label} <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a>` : `<button type="button" class="sms-review-missing" data-sms-fix-step="business" data-sms-fix-selector='[data-sms-field="campaign.${field}"]'>Add ${label}</button>`).join('')}</div>
+          <label class="sms-ack ${submitted ? 'locked' : ''}"><input type="checkbox" data-sms-flow-ack ${campaign.messageFlowConfirmed ? 'checked' : ''} ${submitted ? 'disabled' : ''}><span>${escapeHtml(smsConsentAttestation(profile))}</span></label></section>
         ${submitted ? '' : `<div class="sms-summary-checklist ${smsStepIssues('summary', profile).length ? '' : 'ready'}" data-sms-summary-checklist aria-live="polite">${smsSummaryChecklistHtml(profile)}</div>`}`;
     }
     function smsStepContent(step, profile, options = {}){
@@ -1279,8 +1340,9 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
             hint: '',
             ok: !!websiteNormalized
           })}
-          ${smsField('campaign.description', 'Campaign description', profile.campaign?.description, { kind: 'textarea', wide: true, required: true, maxlength: 600, inlineHelp: true, disabled: smsHasProviderCampaign(profile), hint: 'Describe your business and the messages you will send. Minimum 40 characters.' })}
-        </div>${smsExample('See an example campaign description', '[Business name] uses FirstMate CRM to text customers who have opted in. We answer customer questions and send appointment and service updates. Where customers separately agree, we also send marketing or promotional offers. Customers give permission through [actual opt-in method] before we text them.')}`;
+          ${smsField('campaign.privacyPolicyLink', 'Privacy policy link', profile.campaign?.privacyPolicyLink, { required: true, disabled: smsHasProviderCampaign(profile), inputmode: 'url', placeholder: (websiteNormalized ? websiteNormalized.replace(/^https?:\/\//, '') : 'example.com') + '/privacy' })}
+          ${smsField('campaign.termsAndConditionsLink', 'Texting terms link', profile.campaign?.termsAndConditionsLink, { required: true, disabled: smsHasProviderCampaign(profile), inputmode: 'url', placeholder: (websiteNormalized ? websiteNormalized.replace(/^https?:\/\//, '') : 'example.com') + '/sms-terms' })}
+        </div>${smsExample('What carriers need on these pages', `Both pages must be public and on your website. Privacy policy: what you collect and how customers reach you, and that mobile numbers and texting consent are never shared with third parties for marketing. Texting terms: your business name, what you text about, that message frequency varies and message and data rates may apply, reply STOP to opt out and HELP for help, and a link to your privacy policy.`)}`;
       }
       if (step === 'contact') {
         const soleProprietor = String(brand.entityType || '').toUpperCase() === 'SOLE_PROPRIETOR';
@@ -1476,7 +1538,8 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         return;
       }
       const rawRequestedStep = String(options.initialStep || readSettingsRoute().workflowStep || '').trim();
-      const requestedStep = rawRequestedStep === 'features' ? 'consent' : rawRequestedStep === 'finalize' || rawRequestedStep === 'submitted' ? 'summary' : rawRequestedStep;
+      // Consent and messages are in the Advanced popup now (FM-510): an old link to them opens Review.
+      const requestedStep = ['features', 'consent', 'messages', 'finalize', 'submitted'].includes(rawRequestedStep) ? 'summary' : rawRequestedStep;
       let developmentStatus = null;
       const carrierRegistration = smsRegistrationLiveMode;
       let profile = smsPrefillProfile(initialProfile || {});
@@ -1960,6 +2023,100 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           });
         });
       };
+      /**
+       * Advanced (FM-510): the consent process, consent wording, campaign description and example texts, which
+       * FirstMate fills in with its standard wording. A popup over the workflow, so the steps stay Business, Contact,
+       * Number, Review. Editing any wording makes it the business's own; "Use standard wording" goes back.
+       */
+      // Consent screenshots: on the Advanced popup (FM-510); `repaint(scrollTop)` redraws whichever holds them.
+      const bindEvidence = (container, { root, scroller, repaint }) => {
+        const evidenceScroll = () => scroller()?.scrollTop || 0;
+        const evidenceFeedback = message => { const el=root()?.querySelector('[data-sms-upload-status]');if(el)el.textContent=message; };
+        const saveEvidence = async (items, scrollTop) => {
+          const nextCampaign = {...profile.campaign, optInEvidence:items, optInEvidenceUrl:items[0]?.url || ''};
+          if (smsReviewerFlow(nextCampaign).length > 2048) throw new Error('Maximum screenshots submitted. Remove a screenshot before adding another.');
+          profile.campaign = nextCampaign;
+          await persistDraft();repaint(scrollTop);
+        };
+        container.querySelector('[data-sms-upload-trigger]')?.addEventListener('click',()=>container.querySelector('[data-sms-evidence-upload]').click());
+        container.querySelectorAll('[data-sms-remove-evidence]').forEach(button=>button.addEventListener('click',async()=>{
+          if(operationBusy)return;const scrollTop=evidenceScroll();const items=smsEvidence(profile.campaign);items.splice(Number(button.dataset.smsRemoveEvidence),1);operationBusy=true;
+          try{await saveEvidence(items,scrollTop);}catch(error){showToast('Could not remove evidence',error?.message || 'Try again.',false);}finally{operationBusy=false;repaint(scrollTop);}
+        }));
+        container.querySelector('[data-sms-evidence-upload]')?.addEventListener('change', async (event) => {
+          const files = Array.from(event.target.files || []); if (!files.length || operationBusy) return;
+          if (files.some(file=>!['image/png','image/jpeg'].includes(file.type))) { evidenceFeedback('Upload a PNG or JPEG screenshot.'); return; }
+          if (files.some(file=>file.size > 5 * 1024 * 1024)) { evidenceFeedback('Choose files up to 5 MB each.'); return; }
+          const scrollTop=evidenceScroll();
+          if (!(await flushDraft())) return;
+          operationBusy = true; operationMessage = 'Uploading evidence…'; repaint(scrollTop);
+          let failure='';
+          try {
+            for(const file of files){
+              const data = await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});
+              const uploaded = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/compliance-profiles/${encodeURIComponent(profile.id)}/evidence`, {method:'POST',body:{file_name:file.name,data}});
+              const items=smsEvidence(profile.campaign);items.push({url:uploaded.url,name:file.name});await saveEvidence(items,scrollTop);
+            }
+          } catch(error) { failure=error?.message || 'Evidence upload failed.'; }
+          finally { operationBusy = false; repaint(scrollTop);evidenceFeedback(failure); }
+        });
+      };
+      let advancedEl = null, advancedKeys = null;
+      const closeAdvanced = () => {
+        if (advancedKeys) window.removeEventListener('keydown', advancedKeys, true);
+        advancedEl?.remove(); advancedEl = null; advancedKeys = null;
+      };
+      const openAdvanced = (selector = '') => {
+        closeAdvanced();
+        const locked = smsRegistrationLocked(profile) || smsHasProviderCampaign(profile);
+        advancedEl = document.createElement('div');
+        advancedEl.className = 'sms-advanced-backdrop';
+        advancedEl.innerHTML = `<div class="sms-advanced" role="dialog" aria-modal="true" aria-labelledby="sms-advanced-title">
+          <header><div><h2 id="sms-advanced-title">Texting program</h2><p>${locked ? 'What you registered.' : 'FirstMate fills this in with standard wording. Change it only if your business gets permission differently.'}</p></div><button type="button" class="sms-advanced-close" aria-label="Close"><i class="fas fa-xmark" aria-hidden="true"></i></button></header>
+          <div class="sms-advanced-body"></div>
+          <footer>${locked ? '' : '<button type="button" class="cs-btn ghost" data-sms-standard>Use standard wording</button>'}<span></span><button type="button" class="cs-btn primary" data-sms-advanced-done>Done</button></footer></div>`;
+        const body = advancedEl.querySelector('.sms-advanced-body');
+        const issuesHtml = () => { const issues = [...new Set([...smsStepIssues('consent', profile), ...smsStepIssues('messages', profile)])]; return issues.length ? `<strong>Carriers will need these changed</strong><ul>${issues.map((issue) => `<li>${escapeHtml(smsSummaryIssueText(issue))}</li>`).join('')}</ul>` : ''; };
+        const paint = () => {
+          const c = profile.campaign || {};
+          body.innerHTML = `${smsConsentContent(profile)}
+            <section class="sms-section"><h3>Campaign description</h3><div class="sms-form-grid">${smsField('campaign.description', 'What your business texts customers about', c.description, { kind: 'textarea', wide: true, required: true, maxlength: 600 })}</div></section>
+            <section class="sms-section"><h3>Example texts</h3>${smsMessagesContent(profile)}</section>
+            <div class="sms-step-errors" role="alert" data-sms-advanced-issues>${issuesHtml()}</div>`;
+          body.querySelectorAll('input, select, textarea, button').forEach((input) => { if (locked) input.disabled = true; });
+          if (!locked) bindEvidence(body, { root: () => body, scroller: () => body, repaint: (top) => { if (!advancedEl) return; paint(); body.scrollTop = top; } });
+          body.querySelectorAll('[data-sms-field], [data-sms-method], [data-sms-feature]').forEach((input) => {
+            // Message types keep the standard wording (it names them); anything else the business changes is its own.
+            const wording = !input.hasAttribute('data-sms-feature');
+            const update = () => {
+              if (locked || operationBusy) return;
+              profile = smsCollect(body, wording ? { ...profile, campaign: { ...profile.campaign, standardWording: false } } : profile);
+              ctxRef?.touch?.();
+              updateSummaryValidation();
+              const issues = body.querySelector('[data-sms-advanced-issues]'); if (issues) issues.innerHTML = issuesHtml();
+            };
+            input.addEventListener('input', update);
+            input.addEventListener('change', () => { update(); if (input.type === 'checkbox') { paint(); refresh(); } });
+            if (smsLinkFields.includes(input.dataset.smsField)) input.addEventListener('blur', () => { const normalized = smsNormalizeWebsite(input.value); if (normalized && normalized !== input.value) { input.value = normalized; update(); } smsRefreshInputValidity(input); });
+          });
+        };
+        paint();
+        advancedEl.addEventListener('click', (event) => {
+          if (event.target === advancedEl || event.target.closest('.sms-advanced-close, [data-sms-advanced-done]')) { closeAdvanced(); refresh(); return; }
+          if (event.target.closest('[data-sms-standard]')) {
+            profile = prepareSmsProfileForSave({ ...profile, campaign: { ...profile.campaign, standardWording: true } });
+            ctxRef?.touch?.(); paint(); refresh();
+          }
+        });
+        // Escape closes the popup, not the workflow under it (the window hears it before the workflow's document listener).
+        advancedKeys = (event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); closeAdvanced(); refresh(); } };
+        window.addEventListener('keydown', advancedKeys, true);
+        document.body.appendChild(advancedEl);
+        const target = selector ? body.querySelector(selector) : null;
+        target?.closest('details')?.setAttribute('open', '');
+        (target || advancedEl.querySelector('.sms-advanced-close'))?.focus({ preventScroll: true });
+        target?.scrollIntoView({ block: 'center' });
+      };
       const renderStepBody = (container, shellCtx, stepId) => {
         ctxRef = shellCtx;
         if(developmentStatus?.onboarded){container.innerHTML=`<div class="sms-workspace"><h3>Fully onboarded for development</h3><p>Brand registration: mock approved</p><p>10DLC campaign: mock approved</p><p>Call center: test transport connected</p><p>All test calls route to ${escapeHtml(developmentStatus.destination)}. These are simulated registrations, not carrier approvals.</p></div>`;return;}
@@ -1970,8 +2127,10 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           ${smsStepContent(stepId, profile, { numberSearch })}
           <div class="sms-step-errors" data-sms-step-errors role="alert">${stepIssues.length ? `<strong>Finish these details to continue</strong><ul>${smsIssueLinks(stepIssues)}</ul>` : ''}</div></div>`;
         container.onclick = async (event) => {
+          if (event.target.closest('[data-sms-advanced]')) { openAdvanced(); return; }
           const button = event.target.closest('[data-sms-fix-step]');
           if (!button || operationBusy) return;
+          if (smsSteps.find((step) => step.id === button.dataset.smsFixStep)?.advanced) { openAdvanced(button.dataset.smsFixSelector); return; }
           await shellCtx.goTo(button.dataset.smsFixStep);
           const selector = button.dataset.smsFixSelector;
           const input = selector ? rootEl()?.querySelector(selector) : rootEl()?.querySelector('.sms-field input:not(:disabled), .sms-field select:not(:disabled), .sms-field textarea:not(:disabled)');
@@ -1991,36 +2150,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         container.querySelectorAll('[data-sms-choose-number]').forEach((button) => {
           button.addEventListener('click', () => chooseSmsNumber(button));
         });
-        const evidenceScroll = () => rootEl()?.querySelector('.fm-wizard-pane')?.scrollTop || 0;
-        const evidenceFeedback = message => { const el=rootEl()?.querySelector('[data-sms-upload-status]');if(el)el.textContent=message; };
-        const saveEvidence = async (items, scrollTop) => {
-          const nextCampaign = {...profile.campaign, optInEvidence:items, optInEvidenceUrl:items[0]?.url || ''};
-          if (smsReviewerFlow(nextCampaign).length > 2048) throw new Error('Maximum screenshots submitted. Remove a screenshot before adding another.');
-          profile.campaign = nextCampaign;
-          await persistDraft();refreshEvidence(scrollTop);
-        };
-        container.querySelector('[data-sms-upload-trigger]')?.addEventListener('click',()=>container.querySelector('[data-sms-evidence-upload]').click());
-        container.querySelectorAll('[data-sms-remove-evidence]').forEach(button=>button.addEventListener('click',async()=>{
-          if(operationBusy)return;const scrollTop=evidenceScroll();const items=smsEvidence(profile.campaign);items.splice(Number(button.dataset.smsRemoveEvidence),1);operationBusy=true;
-          try{await saveEvidence(items,scrollTop);}catch(error){showToast('Could not remove evidence',error?.message || 'Try again.',false);}finally{operationBusy=false;refreshEvidence(scrollTop);}
-        }));
-        container.querySelector('[data-sms-evidence-upload]')?.addEventListener('change', async (event) => {
-          const files = Array.from(event.target.files || []); if (!files.length || operationBusy) return;
-          if (files.some(file=>!['image/png','image/jpeg'].includes(file.type))) { evidenceFeedback('Upload a PNG or JPEG screenshot.'); return; }
-          if (files.some(file=>file.size > 5 * 1024 * 1024)) { evidenceFeedback('Choose files up to 5 MB each.'); return; }
-          const scrollTop=evidenceScroll();
-          if (!(await flushDraft())) return;
-          operationBusy = true; operationMessage = 'Uploading evidence…'; refreshEvidence(scrollTop);
-          let failure='';
-          try {
-            for(const file of files){
-              const data = await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});
-              const uploaded = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/compliance-profiles/${encodeURIComponent(profile.id)}/evidence`, {method:'POST',body:{file_name:file.name,data}});
-              const items=smsEvidence(profile.campaign);items.push({url:uploaded.url,name:file.name});await saveEvidence(items,scrollTop);
-            }
-          } catch(error) { failure=error?.message || 'Evidence upload failed.'; }
-          finally { operationBusy = false; refreshEvidence(scrollTop);evidenceFeedback(failure); }
-        });
+        bindEvidence(container, { root: rootEl, scroller: () => rootEl()?.querySelector('.fm-wizard-pane'), repaint: refreshEvidence });
         container.querySelector('#smsRequestOtp')?.addEventListener('click', requestSoleProprietorOtp);
         container.querySelector('#smsRefreshOtp')?.addEventListener('click', refreshSoleProprietorOtp);
         container.querySelector('#smsVerifyOtp')?.addEventListener('click', verifySoleProprietorOtp);
@@ -2140,6 +2270,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         writeRoute: (patch, routeOptions) => { if (!options.standalone) writeSettingsRoute({ sub: 'sms', ...patch }, routeOptions); },
         ...(options.standalone ? { closeRoute: () => {} } : { routeMatch: (route) => String(route?.tab || '') === 'company_settings' && String(route?.sub || '') === 'sms' }),
         onClose: () => {
+          closeAdvanced();
           stopStatusUpdates?.();
           if (numberSearchTimer) {
             clearTimeout(numberSearchTimer);

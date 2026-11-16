@@ -60,29 +60,32 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
     `});
     assert.deepEqual(await page.evaluate(()=>window.issues(window.saved)),[]);
     assert.equal(await page.evaluate(()=>window.resume({})), 'business');
-    assert.equal(await page.evaluate(()=>window.resume({...window.saved,provider_refs:{},brand_status:'draft',campaign:{...window.saved.campaign,optInDisclosure:''}})), 'consent');
+    // FM-510: consent and examples are in the Advanced popup, so a draft missing them resumes on Review.
+    assert.equal(await page.evaluate(()=>window.resume({...window.saved,provider_refs:{},brand_status:'draft',campaign:{...window.saved.campaign,optInDisclosure:''}})), 'summary');
     await page.evaluate(()=>window.start());
-    await page.getByRole('button',{name:'3. Messages & consent'}).click();
-    const disclosure=page.locator('[data-sms-field="campaign.optInDisclosure"]');
+    assert.deepEqual(await page.locator('[data-fm-step]').evaluateAll(steps=>steps.map(step=>step.dataset.fmStep)),['business','contact','number','summary']);
+    await page.locator('[data-sms-advanced]').click();
+    const disclosure=page.locator('.sms-advanced [data-sms-field="campaign.optInDisclosure"]');
     assert.equal(await disclosure.isEnabled(),true);
     await disclosure.fill('Incomplete consent');
-    await page.locator('#smsNext').click();
-    await page.locator('[data-sms-step-errors]').getByRole('button',{name:/Consent script: name FirstMate/}).waitFor();
+    await page.locator('[data-sms-advanced-issues]').getByText(/Consent script: name FirstMate/).waitFor();
     await disclosure.fill(fixture.campaign.optInDisclosure);
-    await page.locator('[data-sms-method="WEBSITE_FORM"]').check();
-    await page.locator('[data-sms-field="campaign.optInLocationUrl"]').waitFor();
+    await page.locator('.sms-advanced [data-sms-method="WEBSITE_FORM"]').check();
+    await page.locator('.sms-advanced [data-sms-field="campaign.optInLocationUrl"]').waitFor();
     assert.equal(await page.locator('.sms-signup-card li').count(),5);
     assert.equal(await page.locator('.sms-signup-card>p').last().innerText(),'Marketing consent must be explicit and not required to purchase.');
     assert.equal(await page.locator('.sms-signup-card').getByText('Your SMS signup form must include:').count(),1);
-    await page.locator('[data-sms-method="WEBSITE_FORM"]').uncheck();
+    await page.locator('.sms-advanced [data-sms-method="WEBSITE_FORM"]').uncheck();
     assert.equal(await page.locator('[data-sms-field="campaign.optInLocationUrl"]').count(),0);
     assert.equal(await disclosure.inputValue(),fixture.campaign.optInDisclosure);
-    await page.locator('#smsNext').click();
-    await page.locator('[data-sms-field="campaign.sample1"]').waitFor();
-    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/messages-desktop.png'});
+    await page.locator('.sms-advanced [data-sms-field="campaign.sample1"]').waitFor();
+    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/advanced-desktop.png'});
+    await page.locator('[data-sms-advanced-done]').click();
+    assert.equal(await page.locator('.sms-advanced').count(),0);
+    assert.equal(await page.locator('[data-sms-flow-ack]').isChecked(),true,'the business confirms its consent process on Review');
     await page.getByRole('button',{name:'1. Business'}).click();
     assert.equal(await page.locator('[data-sms-field="brand.companyName"]').isDisabled(),true);
-    await page.getByRole('button',{name:'6. Review & submit'}).click();
+    await page.getByRole('button',{name:'4. Review & submit'}).click();
     assert.equal(await page.locator('[data-sms-consent-ack]').count(),0);
     await page.locator('#smsContinueSetup').evaluate(el=>{el.click();el.click();});
     await page.locator('.sms-api-error').waitFor();
@@ -92,6 +95,8 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
     await page.locator('.sms-api-error button').click();
     await disclosure.waitFor();
     assert.equal(await disclosure.inputValue(),fixture.campaign.optInDisclosure);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.sms-advanced').count(),0);
     if(process.env.SMS_SCREENSHOTS){await mkdir(process.env.SMS_SCREENSHOTS,{recursive:true});await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-desktop.png'});}
     await page.setViewportSize({width:390,height:844});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
@@ -99,7 +104,7 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
     assert.ok(pane.height>300 && pane.width<=390,JSON.stringify(pane));
     assert.equal(await page.locator('.fm-wizard-pane').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
     if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-mobile.png'});
-    await page.getByRole('button',{name:'6. Review & submit'}).click();
+    // Still on Review: the error's link opened the Advanced popup instead of leaving it.
     await page.evaluate(()=>window.failSubmit=false);
     await page.locator('#smsRetrySubmission').click();
     await page.getByText(/Your SMS registration is under review/).waitFor();
@@ -272,10 +277,11 @@ test('business identity switches paths, formats EIN and website, and preserves u
     `});
     await page.evaluate(()=>window.start());
     assert.equal(await page.locator('[data-sms-field]').first().getAttribute('data-sms-field'),'brand.entityType');
-    assert.equal(await page.locator('[data-sms-field="campaign.description"]').count(),1);
-    assert.equal(await page.locator('[data-sms-field="campaign.description"]').getAttribute('maxlength'),'600');
-    assert.equal(await page.locator('[data-sms-field="campaign.description"]').inputValue(),'');
-    assert.equal(await page.getByText('See an example campaign description',{exact:true}).count(),1);
+    // FM-510: the description is standard wording (Advanced); Business asks for the business's own policy pages.
+    assert.equal(await page.locator('[data-sms-field="campaign.description"]').count(),0);
+    assert.equal(await page.locator('[data-sms-field="campaign.privacyPolicyLink"]').count(),1);
+    assert.equal(await page.locator('[data-sms-field="campaign.termsAndConditionsLink"]').count(),1);
+    assert.equal(await page.getByText('What carriers need on these pages',{exact:true}).count(),1);
     const copy=await page.evaluate(()=>window.generated({brand:{displayName:'x'.repeat(75)},campaign:{enabledFeatures:['crm_conversations','operations','customer_growth']}}).optinMessage);
     assert.match(copy,/Subscribed to customer care, updates, marketing texts/);assert.match(copy,/Consent is not a condition of purchase/);assert.ok(copy.length<=255);
     const frozen=await page.evaluate(()=>window.generated({provider_refs:{telnyx_campaign_id:'submitted'},campaign:{optinMessage:'Already registered reply'}}).optinMessage);assert.equal(frozen,'Already registered reply');
@@ -313,9 +319,10 @@ test('business identity switches paths, formats EIN and website, and preserves u
     await page.setViewportSize({width:390,height:844});
     assert.equal(await page.locator('.fm-wizard-pane').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
     if(process.env.SMS_SCREENSHOTS) {await mkdir(process.env.SMS_SCREENSHOTS,{recursive:true});await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/identity-mobile.png'});}
-    assert.equal(await page.evaluate(()=>window.defaultFeatures().length),3);
-    await page.getByRole('button',{name:'3. Messages & consent'}).click();
-    assert.equal(await page.getByRole('heading',{name:'Texting Policies'}).count(),1);
+    assert.deepEqual(await page.evaluate(()=>window.defaultFeatures()),['crm_conversations','operations'],'marketing needs written consent: it is chosen, never the default');
+    await page.getByRole('button',{name:'4. Review & submit'}).click();
+    await page.locator('[data-sms-advanced]').click();
+    assert.equal(await page.locator('.sms-advanced').getByRole('heading',{name:'Texting program'}).count(),1);
     assert.equal(await page.getByRole('heading',{name:'How will your business use texting?'}).count(),1);
     await page.locator('[data-sms-method="WEBSITE_FORM"]').check();
     assert.equal(await page.locator('[data-sms-method="VERBAL"]').isChecked(),true);
@@ -331,13 +338,13 @@ test('business identity switches paths, formats EIN and website, and preserves u
     assert.equal(await page.locator('[data-sms-feature-confirm]').count(),0);
     assert.equal(await page.locator('.sms-feature-icon').count(),0);
     await page.locator('.sms-evidence').scrollIntoViewIfNeeded();
-    const scrollBefore=await page.locator('.fm-wizard-pane').evaluate(el=>el.scrollTop);
+    const scrollBefore=await page.locator('.sms-advanced-body').evaluate(el=>el.scrollTop);
     assert.ok(scrollBefore>200);
     const screenshot=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlPpN8AAAAASUVORK5CYII=','base64');
     await page.locator('[data-sms-evidence-upload]').setInputFiles([{name:'example.png',mimeType:'image/png',buffer:screenshot},{name:'second.png',mimeType:'image/png',buffer:screenshot}]);
     await page.waitForFunction(()=>window.saved.campaign.optInEvidence?.length===2);
     assert.equal(await page.locator('[data-sms-add-link]').count(),0);
-    assert.ok(Math.abs(await page.locator('.fm-wizard-pane').evaluate(el=>el.scrollTop)-scrollBefore)<40);
+    assert.ok(Math.abs(await page.locator('.sms-advanced-body').evaluate(el=>el.scrollTop)-scrollBefore)<40);
     assert.equal(await page.locator('.sms-evidence-list a').count(),2);
     await page.evaluate(()=>window.longEvidenceUrl=true);
     await page.locator('[data-sms-evidence-upload]').setInputFiles([{name:'third.png',mimeType:'image/png',buffer:screenshot}]);
@@ -350,8 +357,6 @@ test('business identity switches paths, formats EIN and website, and preserves u
     await page.setViewportSize({width:1280,height:960});
     if(process.env.SMS_SCREENSHOTS){await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-new-desktop.png'});await page.locator('.sms-evidence').scrollIntoViewIfNeeded();await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/evidence-desktop.png'});}
     await page.locator('[data-sms-feature="customer_growth"]').check();
-    await page.getByRole('button',{name:'4. Message examples'}).click();
-    assert.equal(await page.locator('[data-sms-field="campaign.description"]').count(),0);
     assert.equal(await page.locator('[data-sms-field="campaign.sample4"]').isVisible(),true);
     assert.equal(await page.locator('[data-sms-field="campaign.sample4"]').inputValue(),'');
     assert.equal(await page.locator('[data-sms-field="campaign.sample4"]').count(),1);
@@ -359,11 +364,12 @@ test('business identity switches paths, formats EIN and website, and preserves u
     await page.getByText('See an example message',{exact:true}).first().click();
     assert.equal(await page.locator('[data-sms-field="campaign.sample1"]').inputValue(),'');
     await page.locator('[data-sms-field="campaign.sample1"]').fill('My actual customer conversation');
-    await page.getByRole('button',{name:'3. Messages & consent'}).click();
-    await page.getByRole('button',{name:'4. Message examples'}).click();
+    await page.locator('[data-sms-advanced-done]').click();
+    await page.locator('[data-sms-advanced]').click();
     assert.equal(await page.locator('[data-sms-field="campaign.sample1"]').inputValue(),'My actual customer conversation');
     await page.locator('[data-sms-field="campaign.sample1"]').fill('');
-    await page.getByRole('button',{name:'5. Number'}).click();
+    await page.locator('[data-sms-advanced-done]').click();
+    await page.getByRole('button',{name:'3. Number'}).click();
     await page.locator('#sms-number-search').fill('427');
     await page.getByText('No numbers found.',{exact:true}).waitFor();
     assert.ok((await page.locator('#sms-number-search').boundingBox()).width<=180);
@@ -397,15 +403,15 @@ test('business identity switches paths, formats EIN and website, and preserves u
     assert.equal(numberDialogs,0);
     await page.locator('[data-sms-summary-checklist]').waitFor();
     assert.equal(await page.locator('.sms-timeline').count(),0);
-    await page.getByRole('button',{name:'3. Messages & consent'}).click();
+    await page.getByRole('button',{name:'1. Business'}).click();
     await page.locator('[data-sms-field="campaign.termsAndConditionsLink"]').fill('');
-    await page.getByRole('button',{name:'6. Review & submit'}).click();
-    assert.equal(await page.getByRole('button',{name:'Add SMS terms'}).count(),1);
+    await page.getByRole('button',{name:'4. Review & submit'}).click();
+    assert.equal(await page.getByRole('button',{name:'Add Texting terms'}).count(),1);
     assert.match(await page.locator('[data-sms-summary-checklist]').innerText(),/missing fields/);
     assert.equal(await page.getByText('Select an item to go straight to it.',{exact:true}).count(),0);
     assert.equal(await page.locator('.sms-review-section').last().evaluate(el=>el.compareDocumentPosition(document.querySelector('[data-sms-summary-checklist]')) & Node.DOCUMENT_POSITION_FOLLOWING ? true : false),true);
     if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/summary-missing.png',fullPage:true});
-    await page.getByRole('button',{name:'Add SMS terms'}).click();
+    await page.getByRole('button',{name:'Add Texting terms'}).click();
     assert.equal(await page.locator('[data-sms-field="campaign.termsAndConditionsLink"]').isVisible(),true);
     await page.evaluate(()=>{
       document.querySelector('[data-fm-wizard="sms-workflow"]')?.remove();
@@ -422,4 +428,52 @@ test('business identity switches paths, formats EIN and website, and preserves u
     assert.equal(await page.getByText('Activating',{exact:true}).count()>0,true);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
+});
+
+// FM-510: registration is Business, Contact, Number, Review; FirstMate's standard wording fills the consent process,
+// consent wording, description and example texts. It must pass every carrier rule the wizard checks, with and without
+// marketing, follow the business's name and policy links, and never replace wording a business already wrote.
+test('standard texting wording passes the carrier checks and stays the business own once edited', async () => {
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try {
+    const page=await browser.newPage();
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.setContent('<main></main>');
+    await page.addScriptTag({content:`
+      let smsRegistrationLiveMode=true;const state={};const currentOrgId=()=> 'fixture-org';
+      const normalizeOrganizationBusinessAddress=v=>v||{};const organizationBusinessAddressFromState=()=>({});const formatOrganizationBusinessAddress=()=>'';
+      const escapeHtml=v=>String(v??'');const formatPhoneUS=v=>v;const readSettingsRoute=()=>({});const writeSettingsRoute=()=>{};const showToast=()=>{};
+      const messagingRequest=async()=>({});
+      ${envShim}${helpers}
+      window.check=(campaign={})=>{
+        const profile=prepareSmsProfileForSave({brand:{displayName:'Pioneer Roofing',companyName:'Pioneer Roofing LLC',ein:'123456789',website:'https://pioneer.example',email:'help@pioneer.example',phone:'+12065515546',street:'707 South Grady Way',city:'Renton',state:'WA',postalCode:'98057'},
+          campaign:{privacyPolicyLink:'https://pioneer.example/privacy',termsAndConditionsLink:'https://pioneer.example/sms-terms',selectedNumber:'+12065550101',messageFlowConfirmed:true,...campaign}});
+        return {issues:smsStepIssues('summary',profile),campaign:profile.campaign,steps:smsVisibleSteps(profile).map(step=>step.id),attest:smsConsentAttestation(profile)};
+      };
+      window.rename=()=>{const first=prepareSmsProfileForSave({brand:{displayName:'Old Name'},campaign:{}});return prepareSmsProfileForSave({...first,brand:{...first.brand,displayName:'New Name'}}).campaign;};
+    `});
+    const plain=await page.evaluate(()=>window.check());
+    assert.deepEqual(plain.issues,[],'the standard program is complete with no wording typed');
+    assert.deepEqual(plain.steps,['business','contact','number','summary']);
+    assert.equal(plain.campaign.standardWording,true);
+    assert.deepEqual(plain.campaign.enabledFeatures,['crm_conversations','operations']);
+    assert.deepEqual(plain.campaign.optInMethods,['VERBAL']);
+    assert.match(plain.campaign.optInDisclosure,/Pioneer Roofing.*Message frequency varies\. Message and data rates may apply\. Reply STOP to opt out or HELP for help\..*not be shared with third parties for marketing.*https:\/\/pioneer\.example\/privacy.*https:\/\/pioneer\.example\/sms-terms/);
+    assert.doesNotMatch(plain.campaign.optInDisclosure+plain.campaign.description+plain.campaign.messageFlow,/marketing and promotional|\[/,'no marketing and no placeholders unless marketing is chosen');
+    assert.match(plain.attest,/agreed by phone or in person/);
+    const marketing=await page.evaluate(()=>window.check({enabledFeatures:['crm_conversations','operations','customer_growth']}));
+    assert.deepEqual(marketing.issues,[],'with marketing, the standard wording still meets the marketing rules');
+    assert.match(marketing.campaign.optInDisclosure,/Consent is not a condition of purchase/);
+    assert.match(marketing.campaign.messageFlow,/agrees in writing/);
+    assert.ok(marketing.campaign.sample3&&marketing.campaign.sample4&&marketing.campaign.sample3!==marketing.campaign.sample4);
+    assert.match(marketing.attest,/also agreed in writing/);
+    const unconfirmed=await page.evaluate(()=>window.check({messageFlowConfirmed:false}));
+    assert.deepEqual(unconfirmed.issues,['Opt-in flow confirmation'],'the business confirms its consent process before submitting');
+    const renamed=await page.evaluate(()=>window.rename());
+    assert.match(renamed.sample1,/^New Name:/,'standard wording follows the business name');
+    const own=await page.evaluate(()=>window.check({description:'Pioneer Roofing texts customers who asked us to, about their own roofing projects only.',messageFlow:'Customers tick a box on our quote form.',optInDisclosure:'',sample1:'Pioneer Roofing: hi. Reply STOP to opt out.',sample2:''}));
+    assert.equal(own.campaign.description,'Pioneer Roofing texts customers who asked us to, about their own roofing projects only.','a draft from before keeps its own wording');
+    assert.notEqual(own.campaign.standardWording,true);
+    assert.deepEqual(errors,[]);
+  } finally { await browser.close(); }
 });
