@@ -274,6 +274,12 @@ test('phones place with a tap, pinch the hour rows and show events in one shared
   assert.match(projectScheduleSource, /onDraftCreateComplete\(next, meta = \{\}\)\{\n\s*if \(meta\.touchTap !== true/);
 });
 
+test('the phone toolbar month label fits its text and truncates only when the toolbar is full (FM-471)', () => {
+  assert.match(schedulingSource, /\.dash-shell \.prs-mobile-menu:has\(\.month\)\{flex:0 1 auto;min-width:58px\}/);
+  assert.match(schedulingSource, /\.dash-shell \.prs-mobile-control\.month\{width:100%;max-width:none;min-width:0;/);
+  assert.doesNotMatch(schedulingSource, /\.dash-shell \.prs-mobile-(menu:has\(\.month\)|control\.month)\{[^}]*(flex:0 1 \d+px|max-width:\d+px)/);
+});
+
 test('project scheduling mode uses branch-configurable Routing terminology', async () => {
   // The default label is a config library terminology entry, not scheduling code.
   const uiTerms = JSON.parse(await readSource('v1/config-library/snapshot/terminology_namespace/ui.json')).data.terms;
