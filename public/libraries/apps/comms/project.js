@@ -309,11 +309,19 @@
         .fmco-phone-only{display:inline-flex}
         .fmco-content{padding:12px}
         .fmco-content:has(>.fmco-split.thread-mode),.fmco-content:has(>.fmcm){padding:0}
-        .fmco-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}
-        .fmco-card{position:relative;padding:11px 12px;gap:3px}
+        .fmco-cards{grid-template-columns:repeat(var(--fmco-channels,2),minmax(0,1fr));gap:8px;margin-bottom:14px}
+        .fmco-card{position:relative;padding:11px 12px;gap:3px;min-width:0;grid-template-columns:minmax(0,1fr);align-content:space-between}
+        .fmco-card-top{gap:4px}
+        .fmco-card-title{min-width:0}
+        .fmco-card-title>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .fmco-cards[data-co-channels="4"] .fmco-card{padding:11px 10px}
+        .fmco-cards[data-co-channels="4"] .fmco-card-title>span{white-space:normal;line-height:1.25}
+        .fmco-cards[data-co-channels="4"] .fmco-card-title>i,.fmco-cards[data-co-channels="4"] .fmco-card-open>i{display:none}
+        .fmco-setup-card{grid-column:1/-1}
         .fmco-card-open::after{content:'';position:absolute;inset:0;border-radius:12px}
         .fmco-card-count{font-size:20px}
         .fmco-card-sub{font-size:11px}
+        .fmco-card:not(.fmco-setup-card) .fmco-card-sub{display:none}
         .fmco-feed-row{grid-template-columns:32px minmax(0,1fr) auto;padding:10px 12px}
         .fmco-feed-ico{width:32px;height:32px;border-radius:9px}
         .fmco-draft-actions .fmco-btn{min-height:36px}
@@ -667,20 +675,18 @@
     const recent = Array.isArray(overview.recent) ? overview.recent : [];
     root.innerHTML = `
       ${String(errorHtml())}
-      <div class="fmco-cards">
+      <div class="fmco-cards" data-co-channels="${cards.length}" style="--fmco-channels:${Math.max(1, cards.length)}">
         ${String(cards.map((card) => {
           const bucket = object(channels[card.id]);
           const last = object(bucket.last_message);
           return `
             <div class="fmco-card">
               <div class="fmco-card-top">
-                <span class="fmco-card-title"><i class="fa-solid ${card.icon}"></i>${esc(card.label)}</span>
+                <span class="fmco-card-title"><i class="fa-solid ${card.icon}"></i><span>${esc(card.label)}</span></span>
                 <button type="button" class="fmco-card-open" data-co-open="${card.tab || card.id}" title="${(globalThis.PlatformLanguage?.htmlText("comms","m_c25cc66b28cc9d","Open") ?? "Open")}"><i class="fa-solid fa-arrow-right"></i></button>
               </div>
               <div class="fmco-card-count">${Number(bucket.total || 0)}</div>
-              <div class="fmco-card-sub">${bucket.total
-                ? `${Number(bucket.inbound || 0)} received · last ${esc(timeLabel(last.created_at) || '—')}`
-                : 'No messages yet'}</div>
+              ${bucket.total ? `<div class="fmco-card-sub">${Number(bucket.inbound || 0)} received · last ${esc(timeLabel(last.created_at) || '—')}</div>` : ''}
             </div>
           `;
         }).join(''))}

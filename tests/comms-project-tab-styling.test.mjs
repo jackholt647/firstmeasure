@@ -60,3 +60,15 @@ test('the new-text group hint is a tip on the To line', () => {
   assert.match(rule('.fmco-tip-host'), /position:relative/);
   assert.match(rule('.fmco-hint-tip'), /position:absolute;[^}]*top:calc\(100% \+ 6px\)/);
 });
+
+// FM-514: on a phone the overview's channel cards (Email, Texts, Calls) share one row, and an
+// empty channel shows its 0 without a "No messages yet" line under it.
+test('the overview channel cards share one row on a phone and say nothing when empty', () => {
+  const start = css.indexOf('@media(max-width:760px){');
+  const phone = css.slice(start, css.indexOf('\n      }\n', start));
+  assert.ok(phone.includes('.fmco-cards{grid-template-columns:repeat(var(--fmco-channels,2),minmax(0,1fr))'), 'phone cards are not one column per channel');
+  assert.ok(phone.includes('.fmco-setup-card{grid-column:1/-1}'), 'a setup card squeezes into a channel column');
+  assert.ok(phone.includes('.fmco-card:not(.fmco-setup-card) .fmco-card-sub{display:none}'), 'the received/last line is back in a narrow card');
+  assert.match(source, /<div class="fmco-cards" data-co-channels="\$\{cards\.length\}" style="--fmco-channels:\$\{Math\.max\(1, cards\.length\)\}">/);
+  assert.doesNotMatch(source, /No messages yet/);
+});
