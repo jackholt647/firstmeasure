@@ -56,10 +56,10 @@
     style.id = 'fm-setup-wizard-css';
     style.textContent = `
       .fm-wizard-backdrop{position:fixed;inset:0;z-index:2147483300;display:flex;align-items:stretch;justify-content:center;background:rgba(15,23,42,.46);backdrop-filter:blur(5px);padding:14px}
-      .fm-wizard{display:grid;grid-template-rows:auto minmax(0,1fr) auto;width:min(1180px,100%);overflow:hidden;border:1px solid rgba(15,23,42,.12);border-radius:18px;background:#fff;box-shadow:0 28px 90px rgba(15,23,42,.3);color:#101828}
+      .fm-wizard{display:grid;grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr);width:min(1180px,100%);overflow:hidden;border:1px solid rgba(15,23,42,.12);border-radius:18px;background:#fff;box-shadow:0 28px 90px rgba(15,23,42,.3);color:#101828}
       .fm-wizard *{box-sizing:border-box}
       .fm-wizard-head{height:66px;display:flex;align-items:center;justify-content:space-between;gap:14px;border-bottom:3px solid var(--primary-readable,var(--primary,#d93025));padding:0 18px}
-      .fm-wizard-title{display:flex;align-items:center;gap:11px;min-width:0}
+      .fm-wizard-title{display:flex;align-items:center;gap:11px;min-width:0}.fm-wizard-title>div{min-width:0}
       .fm-wizard-title-icon{display:grid;place-items:center;width:36px;height:36px;flex:0 0 36px;border-radius:10px;background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025));font-size:15px}
       .fm-wizard-title strong{display:block;color:#101828;font-size:17px;font-weight:1000}
       .fm-wizard-subtitle{display:block;margin-top:3px;overflow:hidden;color:#667085;font-size:11px;font-weight:900;text-overflow:ellipsis;white-space:nowrap}
@@ -91,7 +91,7 @@
       .fm-wizard-issues{display:flex;align-items:flex-start;gap:9px;margin:0 0 16px;border:1px solid #fecdca;border-radius:10px;background:#fef3f2;padding:11px 12px;color:#912018;font-size:10px;font-weight:800;line-height:1.5}
       .fm-wizard-issues i{margin-top:2px}
       .fm-wizard-issues ul{margin:4px 0 0;padding-left:16px;display:grid;gap:3px}
-      @media(max-width:860px){.fm-wizard-backdrop{padding:0}.fm-wizard{border-radius:0}.fm-wizard-body{grid-template-columns:1fr}.fm-wizard-rail{border-right:0;border-bottom:1px solid #eaecf0}.fm-wizard-steps{display:flex;overflow-x:auto}.fm-wizard-step{min-width:180px}.fm-wizard-head{height:auto;min-height:66px}.fm-wizard-foot{height:auto;min-height:62px}}
+      @media(max-width:860px){.fm-wizard-backdrop{padding:0}.fm-wizard{border-radius:0}.fm-wizard-body{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}.fm-wizard-rail{border-right:0;border-bottom:1px solid #eaecf0;padding:8px 10px}.fm-wizard-rail-foot{display:none}.fm-wizard-steps{display:flex;overflow-x:auto}.fm-wizard-step{min-width:150px;padding:8px 10px}.fm-wizard-step-status{display:none}.fm-wizard-head{height:auto;min-height:66px}.fm-wizard-foot{height:auto;min-height:62px}}
     `;
     document.head.appendChild(style);
   }
@@ -391,6 +391,9 @@
         const target = clean(button.dataset.fmStep);
         if (target && target !== currentStepId) goTo(target);
       }));
+      // Where the steps are one scrolling row (a phone), the current one is in view.
+      const rail = overlay.querySelector('.fm-wizard-steps'), current = rail?.querySelector('.fm-wizard-step.active');
+      if (rail && current && rail.scrollWidth > rail.clientWidth) rail.scrollLeft = Math.max(0, current.offsetLeft - rail.offsetLeft - 12);
     }
 
     /* ---- modal + route registration ----------------------------------- */
