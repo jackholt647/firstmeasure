@@ -617,10 +617,10 @@ test("Portal queue rejects commercial reports with more than ten pins", async ()
   assert.equal(body.pin_count, 11);
 });
 
-test("Portal queue rejects residential reports with more than ten pins", async () => {
+test("Portal queue rejects residential reports with more than five pins", async () => {
   const client = createSessionClient();
   const { orgId, email } = await register(client, false);
-  const pins = Array.from({ length: 11 }, (_, index) => ({
+  const pins = Array.from({ length: 6 }, (_, index) => ({
     lat: 47.62 + index * 0.0001,
     lng: -122.34 - index * 0.0001
   }));
@@ -640,8 +640,8 @@ test("Portal queue rejects residential reports with more than ten pins", async (
   assert.equal(response.statusCode, 400);
   assert.equal(body.success, false);
   assert.equal(body.error, "pin_limit_exceeded");
-  assert.equal(body.max_pins, 10);
-  assert.equal(body.pin_count, 11);
+  assert.equal(body.max_pins, 5);
+  assert.equal(body.pin_count, 6);
 });
 
 test("Portal queue applies additional structure time to commercial expedite deadlines", async () => {

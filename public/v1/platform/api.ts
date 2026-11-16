@@ -350,7 +350,8 @@ const GENERIC_PLATFORM_COLLECTIONS = new Set([
   CUSTOMER_PORTAL_COLLECTION,
   "calendar_events"
 ]);
-const MAX_PORTAL_PINS_PER_REPORT = 10;
+const MAX_PORTAL_RESIDENTIAL_PINS = 5;
+const MAX_PORTAL_STRUCTURE_PINS = 10;
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const PLATFORM_SEARCH_CACHE_TTL_MS = 15_000;
 const PLATFORM_CONTACT_PROJECT_CACHE_TTL_MS = 60_000;
@@ -12011,7 +12012,9 @@ function isPortalStructurePinLimitedType(projectType: string) {
 
 function portalPinLimitForType(projectType: string) {
   const normalized = cleanText(projectType).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-  if (normalized === "residential" || isPortalStructurePinLimitedType(normalized)) return MAX_PORTAL_PINS_PER_REPORT;
+  // Matches the portal map: no type or residential 5 pins, commercial and multi-family 10.
+  if (!normalized || normalized === "residential") return MAX_PORTAL_RESIDENTIAL_PINS;
+  if (isPortalStructurePinLimitedType(normalized)) return MAX_PORTAL_STRUCTURE_PINS;
   return 0;
 }
 
