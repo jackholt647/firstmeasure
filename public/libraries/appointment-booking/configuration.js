@@ -120,9 +120,15 @@
       all('[data-remove-rule]').forEach(b=>b.onclick=()=>{config.requirements.splice(Number(b.dataset.removeRule),1);markCustom();render();notify();});
     }
     function setDuration(value,emit=true){if(config.timing_mode==='days')config.duration_days=value;else{const exact=config.window_minutes===config.duration_minutes;config.duration_minutes=value;config.window_minutes=exact?value:Math.max(value,config.window_minutes);}render();if(emit)notify();}
+    // A booking is named after the project as people see it (the branch's title mode, by default its contacts), not a stored title that is only the address.
+    function projectName(data){
+      const shown=(Array.isArray(data.contacts)&&data.contacts.length)||data.address?String(window.Portal?.modules?.request?.projectDisplayTitle?.(data)||'').trim():'';
+      const stored=String(data.title||'').trim();
+      return shown||(stored&&stored!==String(projectAddress||'').trim()?stored:'')||String(data.customer_name||'').trim()||stored;
+    }
     async function setProject(id,emit=true){
       const ticket=++projectSequence;projectAddress='';projectTitle='';
-      if(id){try{const result=await window.PlatformAPI.projects.get(orgId,id),data=result.document?.data||{};if(ticket!==projectSequence||disposed)return;projectAddress=typeof data.address==='string'?data.address:typeof data.project_address==='string'?data.project_address:'';projectTitle=String(data.title||data.customer_name||'').trim().slice(0,200);}catch{}}
+      if(id){try{const result=await window.PlatformAPI.projects.get(orgId,id),data=result.document?.data||{};if(ticket!==projectSequence||disposed)return;projectAddress=typeof data.address==='string'?data.address:typeof data.project_address==='string'?data.project_address:'';projectTitle=projectName(data).slice(0,200);}catch{}}
       if(disposed||ticket!==projectSequence)return;
       if(config.location.mode==='project'){const input=$('[data-address]');if(input)input.value=projectAddress;}
       if(!settingsMode&&!titleEdited){const next=projectTitle||defaultTitle;if(config.title!==next){config.title=next;const field=$('[data-title]'),label=$('[data-title-label]');if(field)field.value=next;if(label)label.textContent=next;if(emit)notify();}}

@@ -748,18 +748,44 @@ test('switching an untouched event type replaces its previous default title', ()
 
 test('appointment editor separates event, project, address, and all-day time', () => {
   assert.match(schedulingSource, /const projectNameHtml = norm\(projectLabel\) === norm\(projectAddressLabel\)[\s\S]*?<div class="dash-event-pop-project-name">\$\{escapeHtml\(projectLabel\)\}<\/div>/);
-  assert.match(schedulingSource, /const clearableProjectNameHtml = projectNameHtml \|\| \(canClearProject[\s\S]*?const projectNameRowHtml = clearableProjectNameHtml \|\| canClearProject[\s\S]*?class="dash-event-pop-meta">\s*\$\{projectNameRowHtml\}\s*<div class="dash-event-pop-address">\$\{escapeHtml\(projectAddressLabel\)\}<\/div>\s*<div class="dash-event-pop-time">\$\{escapeHtml\(formatEventDraftTime\(draft\)\)\}<\/div>/);
+  assert.match(schedulingSource, /const clearableProjectNameHtml = projectNameHtml \|\| \(canClearProject[\s\S]*?const projectNameRowHtml = clearableProjectNameHtml \|\| canClearProject \|\| salesBadgeHtml[\s\S]*?class="dash-event-pop-meta">\s*\$\{String\(equipmentWindow \? '' : projectNameRowHtml\)\}\s*\$\{String\(equipmentWindow \? '' : `<div class="dash-event-pop-address">\$\{escapeHtml\(projectAddressLabel\)\}<\/div>`\)\}\s*<div class="dash-event-pop-time-row"><div class="dash-event-pop-time">\$\{String\(escapeHtml\(formatEventDraftTime\(draft\)\)\)\}<\/div>/);
   assert.match(schedulingSource, /\.dash-event-pop-meta\{display:grid;gap:7px;margin-top:13px;/);
   assert.match(schedulingSource, /function formatEventDraftTime\(event\)\{\s*if \(event\?\.all_day === true \|\| clean\(event\?\.schedule_granularity\)\.toLowerCase\(\) === 'date'\) return 'All day';/);
   assert.doesNotMatch(schedulingSource, /formatEventDraftTime\(draft\)\)\}\$\{assigned/);
 });
 
-test('appointment editor keeps all-day and recurrence switches with the non-overlapping time row', () => {
-  assert.match(schedulingSource, /class="dash-event-time-fields"[\s\S]*?data-event-start[\s\S]*?data-event-end[\s\S]*?class="dash-event-time-options"[\s\S]*?data-event-allday[\s\S]*?data-event-recurring[\s\S]*?data-event-recurrence-fields/);
+test('appointment editor keeps all-day beside the time line and recurrence after the non-overlapping time row', () => {
+  // FM-506: All day sits beside the time line under the address; Start and End
+  // share one row; Recurring (new items only) follows them.
+  assert.match(schedulingSource, /<div class="dash-event-pop-time-row"><div class="dash-event-pop-time">[^\n]*?data-event-allday[^\n]*?<\/div>\n\s*<\/div>\n\s*<div class="dash-event-time-fields">[\s\S]*?data-event-start[\s\S]*?data-event-end[\s\S]*?class="dash-event-time-options"><label class="dash-event-switch"><input type="checkbox" data-event-recurring[\s\S]*?data-event-recurrence-fields/);
+  // Phones keep Start and End on one line too (no single-column override).
+  assert.doesNotMatch(schedulingSource, /\.dash-event-time-fields\{grid-template-columns:minmax\(0,1fr\)\}/);
   assert.match(schedulingSource, /\.dash-event-time-fields\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\);[^}]*min-width:0/);
   assert.match(schedulingSource, /\.dash-event-time-field\{[^}]*min-width:0/);
   assert.match(schedulingSource, /\.dash-event-time-field input\{[^}]*min-width:0;max-width:100%/);
   assert.doesNotMatch(schedulingSource, /Make this a recurring item|Make all day/);
+});
+
+test('FM-506: stored appointments show a sales badge, not a generic type pill, and assignees are one scrolling row', () => {
+  // A sales appointment (by department, type, or the built-in Sales preset) is
+  // marked as sales; a plain "Appointment"/"Event"/"Other" pill is not drawn.
+  assert.match(schedulingSource, /const salesKind = ctx\.kind !== 'floating' && \(isSalesEvent\(draft\) \|\| \['sales_appointment', 'sales_follow_up'\]\.includes\(eventKind\(draft\)\) \|\| clean\(draft\.appointment_configuration\?\.preset_id\) === 'sales'\)/);
+  assert.match(schedulingSource, /class="dash-event-sales-badge" data-event-sales-badge>/);
+  assert.match(schedulingSource, /salesKind \|\| \['', 'appointment', 'custom'\]\.includes\(norm\(activeType\)\) \? '' : `<span class="dash-event-type-pill">/);
+  assert.doesNotMatch(schedulingSource, /<div class="dash-event-type-pills"><span class="dash-event-type-pill">\$\{escapeHtml\(typeMeta\.label\)\}<\/span>/);
+  // Assignees: label, chips that scroll sideways without wrapping, then a
+  // round add button the height of a chip that stays in view.
+  assert.match(schedulingSource, /<div class="dash-event-assignees-row"><strong class="dash-event-assignees-label">[\s\S]*?<div class="dash-event-assignee-chips" data-event-assignee-chips>[\s\S]*?<\/div><button type="button" class="dash-event-assign-add" data-event-assign-add aria-expanded="false" aria-label="\$\{addLabel\}"/);
+  assert.match(schedulingSource, /\.dash-event-assignee-chips\{[^}]*flex-wrap:nowrap;[^}]*overflow-x:auto/);
+  assert.match(schedulingSource, /\.dash-event-assign-add\{flex:0 0 28px;width:28px;height:28px;[^}]*border-radius:999px/);
+  assert.match(schedulingSource, /\.dash-event-assignee-chip\{flex:0 0 auto;white-space:nowrap;[^}]*height:28px/);
+});
+
+test('FM-506: a booking is named after the project as people see it, not a title that is only its address', async () => {
+  const configurationSource = await readSource('libraries/appointment-booking/configuration.js');
+  assert.match(configurationSource, /function projectName\(data\)\{[\s\S]*?projectDisplayTitle\?\.\(data\)[\s\S]*?stored!==String\(projectAddress\|\|''\)\.trim\(\)/);
+  assert.match(configurationSource, /projectAddress=typeof data\.address==='string'[^;]*;projectTitle=projectName\(data\)\.slice\(0,200\);/);
+  assert.doesNotMatch(configurationSource, /projectTitle=String\(data\.title\|\|data\.customer_name/);
 });
 
 test('project labels honor the branch title mode instead of stale event snapshots', () => {
