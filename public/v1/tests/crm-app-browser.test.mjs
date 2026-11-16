@@ -218,6 +218,8 @@ test('the CRM tab: views, filters, the board, the drawer, a worklist, reports, s
     await page.locator('[data-open-panel="sources"]').first().click();
     await page.waitForSelector('.crm-tree');
     await shot(page, '07-sources');
+    assert.equal(await page.locator('.crm-intro [data-crm-tip]').isVisible(), true, 'the sources intro is an (i) (FM-493)');
+    assert.equal(await page.locator('.crm-intro .crm-hint-tip').isVisible(), false, 'not a paragraph');
     await page.locator('[data-open-panel="duplicates"]').first().click();
     await page.waitForSelector('.crm-content .crm-empty, .crm-content .crm-dup');
     await shot(page, '08-duplicates');
@@ -354,6 +356,24 @@ test('the CRM tab: views, filters, the board, the drawer, a worklist, reports, s
     assert.equal(await phone.page.locator('details[data-rt-custom]').evaluate((el) => el.open), false, 'the (i) in Custom code does not open the code');
     await phone.page.locator('[data-routing] h3').first().click({ position: { x: 2, y: 2 } });
     assert.equal(await phone.page.locator('[data-crm-tip][aria-expanded="true"]').count(), 0, 'a tap elsewhere closes it');
+    // On a phone the Sources intro is an (i) at the right under the picker, beside the toolbar, and its tip hangs from it (FM-493).
+    await phone.page.locator('.crm-view-pick').click();
+    await phone.page.waitForFunction(() => document.querySelector('.crm').classList.contains('rail-open'));
+    await phone.page.locator('.crm-rail [data-open-panel="sources"]').click();
+    await phone.page.waitForSelector('.crm-tree');
+    const info = phone.page.locator('.crm-intro [data-crm-tip]');
+    assert.equal(await phone.page.locator('.crm-intro .crm-hint-tip').isVisible(), false, 'the sources intro is hidden until asked for');
+    const pick = await box('.crm-view-pick'), icon = await box('.crm-intro [data-crm-tip]'), add = await box('[data-src-add]');
+    assert.ok(icon.top >= pick.bottom && Math.abs(icon.right - pick.right) < 2, `the (i) is under the picker, at its right: ${JSON.stringify({ pick, icon })}`);
+    assert.ok(Math.abs(add.top - icon.top) < 2, 'beside the toolbar, taking no row of its own');
+    await info.click();
+    assert.equal(await info.getAttribute('aria-expanded'), 'true', 'a tap opens the tip');
+    const tip = await box('.crm-intro .crm-hint-tip');
+    assert.ok(tip.top >= icon.bottom && Math.abs(tip.right - icon.right) < 2 && tip.left >= 0 && tip.right - tip.left > 200, `the tip hangs under the (i), right-aligned, inside the screen: ${JSON.stringify({ icon, tip })}`);
+    assert.equal(await phone.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'the tip does not widen the page');
+    await shot(phone.page, '14-phone-sources-tip');
+    await phone.page.mouse.click(20, 800);
+    assert.equal(await info.getAttribute('aria-expanded'), 'false', 'a tap elsewhere closes it');
     assert.deepEqual(phone.errors, [], 'no page errors on a phone');
   } catch (error) {
     if (current) await shot(current, 'failure').catch(() => null);
