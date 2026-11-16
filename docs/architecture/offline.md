@@ -851,8 +851,9 @@ entry without a file.
 - **Camera.** An entry is `pending`, `uploading`, `waiting` (kept on the device: a cloud mark, no Retry),
   `done` or `failed`. The queue is the one record of a waiting photo; its tile follows the queue's `synced`,
   `failed` and `discarded` events. Retry is shown only for a refused photo: `PlatformOffline.retry` for one the
-  queue holds, a new upload of the same file (the same id) for one that never got there. Done does not wait
-  for uploads while there is no connection.
+  queue holds, a new upload of the same file (the same id) for one that never got there. Done never waits
+  (FM-473): the camera closes at once, photos still encoding or uploading finish behind it, and the caller is
+  told when each has an outcome (`entry.settled`); nothing calls a photo saved before then.
 - **Feed.** The phone camera's photos wait with no project and are listed under Unassigned; the "Add to a
   project?" step works with their ids, and its pairing waits behind them.
 
