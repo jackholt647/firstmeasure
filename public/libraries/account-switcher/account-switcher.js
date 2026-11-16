@@ -351,7 +351,7 @@
       }
       const wording = account?.active ? 'Sign out of this account?' : 'Remove this account from this device?';
       if (account?.active) { if (!(await confirmOfflineSignOut(wording))) return; }
-      else if (!window.confirm(wording)) return;
+      else if (!(await window.confirm(wording))) return;   // the portal's confirm is PlatformUI's, a promise
       try {
         if (accountId) await this.request('/auth/accounts/remove', { method: 'POST', body: JSON.stringify({ account_id: accountId }) });
         // The session this page runs as ends whether or not the device remembered it.
