@@ -10,6 +10,10 @@ const selector = await readFile(new URL('../../libraries/project-selector/projec
 const configuration = await readFile(new URL('../../libraries/appointment-booking/configuration.js', import.meta.url), 'utf8');
 const booking = await readFile(new URL('../../libraries/appointment-booking/booking.js', import.meta.url), 'utf8');
 const scheduling = await readFile(new URL('../../libraries/apps/scheduling/app.js', import.meta.url), 'utf8');
+test('booking styles never use a font shorthand with inherit as the family (FM-503)',()=>{
+  // `font:16px/1.2 inherit` is invalid CSS: the browser drops the whole declaration, so older Inter rules won.
+  assert.doesNotMatch(styles,/font:[^;}]*\sinherit\s*[;}]/);
+});
 test('presets request a named assignee up front; advanced changes become Custom and keep independent flags',async()=>{
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try{
@@ -216,7 +220,8 @@ test('phones book in steps: type, then project or address, then time with Create
  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  try{
   const page=await browser.newPage({viewport:{width:390,height:844},hasTouch:true});page.setDefaultTimeout(5000);
-  await page.route('http://localhost/**',r=>r.fulfill({body:'<html><body></body></html>',contentType:'text/html'}));await page.goto('http://localhost/');await page.addStyleTag({content:styles});
+  // The portal's fonts.css names its font on elements (div, button, input, ...), not on body.
+  await page.route('http://localhost/**',r=>r.fulfill({body:'<html><head><style>div,p,h3,button,input,select{font-family:Georgia}</style></head><body></body></html>',contentType:'text/html'}));await page.goto('http://localhost/');await page.addStyleTag({content:styles});
   for(const content of [picker,selector,configuration,booking])await page.addScriptTag({content});
   await page.emulateMedia({reducedMotion:'reduce'});
   await page.evaluate(()=>{
@@ -239,6 +244,8 @@ test('phones book in steps: type, then project or address, then time with Create
   await page.waitForFunction(()=>document.querySelector('[data-step=project]:not([hidden])'));
   await page.getByRole('option',{name:/Smith residence/}).waitFor();
   assert.equal(await page.locator('.fm-project-results').isVisible(),true);
+  for(const selector of ['.fm-project-selector input','.fm-project-results [role=option]'])assert.equal(await page.locator(selector).first().evaluate(el=>getComputedStyle(el).fontFamily),'Georgia',selector);
+  assert.equal(await page.getByRole('option',{name:/Smith residence/}).locator('small').innerText(),'123 Maple Street');
   // Typing an address finds the project; an unknown address can be used on its own.
   const search=page.getByRole('combobox',{name:'Search projects or type an address'});
   await search.fill('42 Unknown Road');await page.getByRole('option',{name:/Use “42 Unknown Road”/}).click();
@@ -261,6 +268,8 @@ test('phones book in steps: type, then project or address, then time with Create
   const create=page.getByRole('button',{name:'Create event',exact:true});assert.equal(await create.isDisabled(),true);
   await page.getByRole('button',{name:'10:00 AM',exact:true}).click();await create.click();
   await page.getByRole('heading',{name:'Event created'}).waitFor();
+  assert.deepEqual(await page.locator('[data-done-summary] dt').allInnerTexts(),['Type','Project','Time'].map(label=>label.toUpperCase()));
+  assert.deepEqual(await page.locator('[data-done-summary] dd').allInnerTexts(),['Sales appointment','Smith residence',(await page.evaluate(()=>new Date('2026-11-17T15:00:00Z').toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})))+'\n10:00 AM']);
   assert.equal(await page.evaluate(()=>window.bookings.length),1);assert.equal(await page.evaluate(()=>window.bookings[0].project_id),'p1');
   assert.ok(await page.locator('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth));
   await page.getByRole('button',{name:'Done',exact:true}).click();await page.locator('dialog').waitFor({state:'detached'});

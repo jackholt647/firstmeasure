@@ -44,8 +44,18 @@
 
 #fm-booking-dialog .fm-range-head>div{text-align:center}#fm-booking-dialog [data-range-loading]{display:block;font-size:10px;color:#98a2b3;font-weight:400;height:14px;margin-top:2px}
 
-/* Dialog typography follows the active portal theme, including branded fonts. */
-#fm-booking-dialog,#fm-booking-dialog h2{font-family:inherit}
+/* Dialog typography follows the active portal theme, including branded fonts. Inter is not loaded in the
+   portal, so naming it here dropped project search and other controls to the system font (FM-503). */
+#fm-booking-dialog,#fm-booking-dialog :is(h2,.fm-booking-options,.fm-ap-advanced>summary,.fm-project-selector input,.fm-project-results,.fm-project-results button,.fm-range){font-family:inherit}
+#fm-booking-dialog .fm-booking-options select{-webkit-appearance:none;appearance:none;padding-right:28px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23667085' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 4.5 3 3 3-3'/%3E%3C/svg%3E") right 9px center/12px no-repeat;cursor:pointer}
+#fm-booking-dialog:not(.fm-booking-steps) .fm-ap-project .fm-ap-popover{width:340px;padding:8px}
+#fm-booking-dialog:not(.fm-booking-steps) .fm-project-selector input{height:36px;padding:7px 10px;border-radius:8px;font-size:13px}
+#fm-booking-dialog:not(.fm-booking-steps) .fm-project-results{display:grid;gap:1px;margin-top:6px;max-height:280px;font-size:13px}
+#fm-booking-dialog:not(.fm-booking-steps) .fm-project-results [role=status]{padding:8px 10px 4px;font-size:11px;font-weight:500;color:#98a2b3;text-transform:uppercase;letter-spacing:.05em}
+#fm-booking-dialog:not(.fm-booking-steps) .fm-project-results button{display:grid;gap:1px;padding:8px 10px;border-radius:7px;font-size:13px;line-height:1.35;color:#101828}
+#fm-booking-dialog:not(.fm-booking-steps) .fm-project-results small{font-size:12px;color:#667085}
+#fm-booking-dialog:not(.fm-booking-steps) .fm-project-results [aria-selected=true]:not([data-project-id=""]){background:#fff1f0;color:#b42318}
+#fm-booking-dialog:not(.fm-booking-steps) .fm-project-results [data-project-id=""]{color:#475467}
 .fm-ap-picker:not([open])>.fm-ap-popover{display:none}
 
 /* Phone steps (FM-499): type → project or address → time, with Previous/Next and an Advanced sheet. */
@@ -55,11 +65,11 @@
 #fm-booking-dialog.fm-booking-steps .fm-booking-head{flex:none;gap:8px;margin:0;padding:16px 16px 10px}
 #fm-booking-dialog.fm-booking-steps h2{flex:1;font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #fm-booking-dialog.fm-booking-steps [data-close]{width:36px;height:36px;font-size:24px;flex:none}
-.fm-booking-advanced{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px 0 11px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;color:#344054;font:500 13px/1 inherit;cursor:pointer;flex:none;transition:background .15s,border-color .15s,transform .15s}
+.fm-booking-advanced{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px 0 11px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;color:#344054;font-weight:500;font-size:13px;line-height:1;cursor:pointer;flex:none;transition:background .15s,border-color .15s,transform .15s}
 .fm-booking-advanced:hover{background:#f9fafb;border-color:#cbd5e1}.fm-booking-advanced:active{transform:scale(.96)}.fm-booking-advanced[aria-expanded=true]{border-color:#f3b3ad;background:#fff1f0;color:#b42318}
 .fm-booking-sliders{display:grid;gap:3px;width:14px}.fm-booking-sliders i{position:relative;display:block;height:1.5px;border-radius:2px;background:currentColor}.fm-booking-sliders i:after{content:'';position:absolute;top:-2.5px;width:5px;height:5px;border:1.5px solid currentColor;border-radius:50%;background:#fff;box-sizing:border-box}.fm-booking-sliders i:nth-child(1):after{left:2px}.fm-booking-sliders i:nth-child(2):after{left:8px}.fm-booking-sliders i:nth-child(3):after{left:4px}
 .fm-booking-progress{flex:none;display:flex;gap:6px;list-style:none;margin:0;padding:0 16px 12px}
-.fm-booking-progress li{flex:1;min-width:0}.fm-booking-progress button{width:100%;display:grid;gap:6px;justify-items:start;border:0;background:none;padding:0;color:#98a2b3;font:500 12px/1.2 inherit;cursor:pointer;text-align:left}
+.fm-booking-progress li{flex:1;min-width:0}.fm-booking-progress button{width:100%;display:grid;gap:6px;justify-items:start;border:0;background:none;padding:0;color:#98a2b3;font-weight:500;font-size:12px;line-height:1.2;cursor:pointer;text-align:left}
 .fm-booking-progress button:disabled{cursor:default}.fm-booking-progress button:before{content:'';display:block;width:100%;height:4px;border-radius:4px;background:linear-gradient(var(--fm-bk-accent),var(--fm-bk-accent)) left/0 100% no-repeat #eaecf0;transition:background-size .4s var(--fm-bk-ease)}
 .fm-booking-progress button>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .fm-booking-progress [data-state=done] button{color:#475467}.fm-booking-progress [data-state=done] button:not(:disabled):hover{color:#101828}.fm-booking-progress [data-state=done] button:before,.fm-booking-progress [data-state=current] button:before{background-size:100% 100%}
@@ -67,7 +77,7 @@
 #fm-booking-dialog.fm-booking-steps .fm-booking-form{flex:1;min-height:0;display:flex;flex-direction:column;gap:0}
 .fm-booking-stage{flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;display:grid;align-items:start;padding:6px 16px 20px;-webkit-overflow-scrolling:touch}
 .fm-booking-step{grid-area:1/1;min-width:0}.fm-booking-step.fm-step-leaving{pointer-events:none}
-.fm-booking-step h3{font:600 20px/1.3 inherit;color:#101828;margin:2px 0 14px;letter-spacing:-.01em}.fm-booking-step h3:focus{outline:none}
+.fm-booking-step h3{font-weight:600;font-size:20px;line-height:1.3;color:#101828;margin:2px 0 14px;letter-spacing:-.01em}.fm-booking-step h3:focus{outline:none}
 .fm-booking-hint{margin:-8px 0 14px;color:#667085;font-size:13.5px}
 .fm-step-in-forward{animation:fmBkInForward .3s var(--fm-bk-ease) both}.fm-step-in-back{animation:fmBkInBack .3s var(--fm-bk-ease) both}.fm-step-out-forward{animation:fmBkOutForward .22s ease-in both}.fm-step-out-back{animation:fmBkOutBack .22s ease-in both}
 @keyframes fmBkInForward{from{opacity:0;transform:translateX(36px)}to{opacity:1;transform:none}}@keyframes fmBkInBack{from{opacity:0;transform:translateX(-36px)}to{opacity:1;transform:none}}
@@ -91,19 +101,21 @@
 .fm-ap-more-types[open]>summary .fm-ap-chevron{transform:rotate(225deg);margin-top:5px}.fm-ap-more-body{display:grid;gap:8px;padding:0 10px 10px;animation:fmBkRise .25s var(--fm-bk-ease,ease) both}
 .fm-booking-options .fm-ap-more-body input[type=search]{height:42px;font-size:16px;border-radius:10px}.fm-ap-more-body .fm-ap-menu{max-height:none}.fm-booking-options .fm-ap-more-body .fm-ap-menu button{border-radius:10px;padding:10px;font-size:14px}.fm-ap-more-body .fm-ap-menu small{color:#667085;font-size:12px}.fm-booking-options .fm-ap-more-body .fm-ap-menu [aria-pressed=true]{background:#fff1f0;color:#b42318}
 /* Step 2: project search, always open */
-#fm-booking-dialog.fm-booking-steps .fm-project-selector input{height:48px;padding:0 14px 0 40px;border:1px solid #d0d5dd;border-radius:12px;font:16px/1.2 inherit;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%23667085' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='8' cy='8' r='6'/%3E%3Cpath d='m13 13 3.5 3.5'/%3E%3C/svg%3E") 13px 50%/17px no-repeat;transition:border-color .15s,box-shadow .15s}
+#fm-booking-dialog.fm-booking-steps .fm-project-selector input{height:48px;padding:0 14px 0 40px;border:1px solid #d0d5dd;border-radius:12px;font-size:16px;line-height:1.2;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%23667085' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='8' cy='8' r='6'/%3E%3Cpath d='m13 13 3.5 3.5'/%3E%3C/svg%3E") 13px 50%/17px no-repeat;transition:border-color .15s,box-shadow .15s}
 #fm-booking-dialog.fm-booking-steps .fm-project-selector input:focus{outline:none;border-color:#98a2b3;box-shadow:0 0 0 4px #f2f4f7}
-#fm-booking-dialog.fm-booking-steps .fm-project-results{max-height:none;margin-top:10px;padding:0;display:grid;gap:2px;font:14px/1.35 inherit;background:transparent}
-#fm-booking-dialog.fm-booking-steps .fm-project-results [role=status]{padding:6px 2px;font-size:12px;font-weight:500;color:#98a2b3;text-transform:uppercase;letter-spacing:.04em}
-#fm-booking-dialog.fm-booking-steps .fm-project-results button{display:grid;gap:2px;min-height:52px;padding:10px 12px;border:1px solid transparent;border-radius:12px;font:14px/1.35 inherit;color:#101828;background:transparent;animation:fmBkRise .25s var(--fm-bk-ease) both;transition:background .15s,border-color .15s}
+#fm-booking-dialog.fm-booking-steps .fm-project-results{max-height:none;margin-top:16px;padding:0;display:grid;gap:4px;font-size:14px;line-height:1.35;background:transparent}
+#fm-booking-dialog.fm-booking-steps .fm-project-results [role=status]{padding:0 4px 6px;font-size:12px;font-weight:500;color:#98a2b3;text-transform:uppercase;letter-spacing:.05em}
+/* Each result: a round mark, the name, then the address when it says something new (FM-503). */
+#fm-booking-dialog.fm-booking-steps .fm-project-results button{display:grid;grid-template-columns:40px minmax(0,1fr);column-gap:12px;row-gap:1px;align-content:center;min-height:60px;padding:9px 10px;border:1px solid transparent;border-radius:14px;font-size:15px;line-height:1.3;color:#101828;background:transparent;animation:fmBkRise .25s var(--fm-bk-ease) both;transition:background .15s,border-color .15s}
+#fm-booking-dialog.fm-booking-steps .fm-project-results button:before{content:'';grid-row:span 2;align-self:center;width:40px;height:40px;border-radius:12px;background:#f2f4f7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z'/%3E%3C/svg%3E") 50%/20px no-repeat}
 #fm-booking-dialog.fm-booking-steps .fm-project-results button:hover,#fm-booking-dialog.fm-booking-steps .fm-project-results button:focus-visible{background:#f9fafb;outline:none}
-#fm-booking-dialog.fm-booking-steps .fm-project-results button>span{font-weight:500;overflow:hidden;text-overflow:ellipsis}#fm-booking-dialog.fm-booking-steps .fm-project-results small{font-size:12.5px;color:#667085}
-#fm-booking-dialog.fm-booking-steps .fm-project-results [aria-selected=true]{background:#fff1f0;border-color:#f3b3ad}
-#fm-booking-dialog.fm-booking-steps .fm-project-results [data-extra-row]{margin-top:6px;border:1px dashed #d0d5dd;color:#b42318}#fm-booking-dialog.fm-booking-steps .fm-project-results [data-extra-row]>span:before{content:'⌖ '}
-#fm-booking-dialog.fm-booking-steps .fm-project-results [data-project-id=""]:not([data-extra-row])>span{color:#475467;font-weight:400}
+#fm-booking-dialog.fm-booking-steps .fm-project-results button>span{overflow-wrap:anywhere}#fm-booking-dialog.fm-booking-steps .fm-project-results small{font-size:13px;color:#667085;overflow-wrap:anywhere}
+#fm-booking-dialog.fm-booking-steps .fm-project-results [aria-selected=true]{background:#fff1f0;border-color:#f3b3ad}#fm-booking-dialog.fm-booking-steps .fm-project-results [aria-selected=true]:before{background-color:#fff;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b42318' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z'/%3E%3C/svg%3E")}
+#fm-booking-dialog.fm-booking-steps .fm-project-results [data-extra-row]{margin-top:6px;border:1px dashed #d0d5dd;color:#b42318}#fm-booking-dialog.fm-booking-steps .fm-project-results [data-extra-row]:before{background-color:#fff1f0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b42318' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21s-6.5-5.8-6.5-11a6.5 6.5 0 0 1 13 0c0 5.2-6.5 11-6.5 11z'/%3E%3Ccircle cx='12' cy='10' r='2.3'/%3E%3C/svg%3E")}
+#fm-booking-dialog.fm-booking-steps .fm-project-results [data-project-id=""]:not([data-extra-row]){margin-top:2px;color:#475467}#fm-booking-dialog.fm-booking-steps .fm-project-results [data-project-id=""]:not([data-extra-row]):before{background-color:transparent;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2398a2b3' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='7.5' stroke-dasharray='2.6 2.6'/%3E%3C/svg%3E")}
 /* Step 3: when */
 .fm-booking-summary{display:flex;flex-wrap:wrap;gap:6px;margin:-6px 0 14px}
-.fm-booking-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;height:30px;padding:0 11px;border:0;border-radius:999px;background:#f2f4f7;color:#344054;font:500 13px/1 inherit}.fm-booking-chip>span:first-child{color:#98a2b3;font-size:11px}.fm-booking-chip>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fm-booking-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;height:30px;padding:0 11px;border:0;border-radius:999px;background:#f2f4f7;color:#344054;font-weight:500;font-size:13px;line-height:1}.fm-booking-chip>span:first-child{color:#98a2b3;font-size:11px}.fm-booking-chip>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 button.fm-booking-chip{cursor:pointer;transition:background .15s}button.fm-booking-chip:hover{background:#eaecf0}
 .fm-ap-step-quick{gap:12px;margin-bottom:14px}.fm-ap-step-row{display:grid;gap:7px}.fm-ap-step-row>.fm-ap-caption{font-size:12px}
 .fm-ap-step-quick .fm-ap-duration{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.fm-booking-options.fm-ap-step-quick .fm-ap-duration>button,.fm-ap-step-quick .fm-ap-duration>.fm-ap-picker>summary{height:38px;justify-content:center;font-size:13.5px;border-radius:10px;transition:background .15s,border-color .15s,color .15s}
@@ -120,7 +132,7 @@ button.fm-booking-chip{cursor:pointer;transition:background .15s}button.fm-booki
 /* Footer */
 #fm-booking-dialog.fm-booking-steps [data-status]{flex:none;margin:0;padding:8px 16px 0;font-size:13px}
 .fm-booking-footer{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px max(12px,env(safe-area-inset-bottom));border-top:1px solid #eaecf0;background:#fff}
-#fm-booking-dialog .fm-booking-nav{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:46px;min-width:112px;padding:0 18px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;color:#344054;font:600 15px/1 inherit;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .2s,transform .12s,opacity .15s}
+#fm-booking-dialog .fm-booking-nav{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:46px;min-width:112px;padding:0 18px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;color:#344054;font-weight:600;font-size:15px;line-height:1;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .2s,transform .12s,opacity .15s}
 @media(hover:hover){#fm-booking-dialog .fm-booking-nav:hover:not(:disabled){background:#f9fafb}#fm-booking-dialog .fm-booking-nav.primary:hover:not(:disabled){background:#c5281e}}#fm-booking-dialog .fm-booking-nav:active:not(:disabled){transform:scale(.97)}#fm-booking-dialog .fm-booking-nav:focus-visible{outline:2px solid var(--fm-bk-accent);outline-offset:2px}
 #fm-booking-dialog .fm-booking-nav.primary{min-width:140px;border-color:var(--fm-bk-accent);background:var(--fm-bk-accent);color:#fff;box-shadow:0 6px 16px #d9302533}
 #fm-booking-dialog .fm-booking-nav:disabled,#fm-booking-dialog .fm-booking-nav.primary:disabled{background:#f2f4f7;border-color:#eaecf0;color:#98a2b3;box-shadow:none;cursor:not-allowed}
@@ -130,8 +142,8 @@ button.fm-booking-chip{cursor:pointer;transition:background .15s}button.fm-booki
 .fm-booking-scrim{position:absolute;inset:0;z-index:50;background:#10182873;opacity:0;transition:opacity .28s}.fm-booking-scrim.open{opacity:1}
 .fm-booking-sheet{position:absolute;left:0;right:0;bottom:0;z-index:51;display:flex;flex-direction:column;max-height:calc(100% - 48px);background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -12px 40px #1018282e;transform:translateY(100%);transition:transform .3s var(--fm-bk-ease)}.fm-booking-sheet.open{transform:none}
 .fm-booking-sheet-grip{width:38px;height:4px;border-radius:4px;background:#d0d5dd;margin:8px auto 0;flex:none}
-.fm-booking-sheet-head{flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 16px 10px;border-bottom:1px solid #f2f4f7}.fm-booking-sheet-head h3{margin:0;font:600 17px/1.3 inherit}.fm-booking-sheet-head h3:focus{outline:none}
-.fm-booking-sheet-head [data-sheet-done]{height:36px;padding:0 14px;border:0;border-radius:10px;background:#fff1f0;color:#b42318;font:600 14px/1 inherit;cursor:pointer}
+.fm-booking-sheet-head{flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 16px 10px;border-bottom:1px solid #f2f4f7}.fm-booking-sheet-head h3{margin:0;font-weight:600;font-size:17px;line-height:1.3}.fm-booking-sheet-head h3:focus{outline:none}
+.fm-booking-sheet-head [data-sheet-done]{height:36px;padding:0 14px;border:0;border-radius:10px;background:#fff1f0;color:#b42318;font-weight:600;font-size:14px;line-height:1;cursor:pointer}
 .fm-booking-sheet-body{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:14px 16px max(20px,env(safe-area-inset-bottom))}
 .fm-ap-sheet-fields{gap:16px;font-size:14px}.fm-booking-options.fm-ap-sheet-fields :is(input:not([type=checkbox]),select){height:42px;font-size:16px;border-radius:10px;padding:6px 10px}
 .fm-ap-sheet-fields>.fm-ap-field{font-size:12px;gap:6px}.fm-ap-sheet-fields .fm-ap-location{height:44px;border-color:#d0d5dd;border-radius:10px}.fm-booking-options.fm-ap-sheet-fields .fm-ap-location input[data-address]{height:40px;border:0;padding:0 2px}.fm-ap-sheet-fields .fm-ap-location .fm-ap-popover{width:min(310px,calc(100vw - 48px))}
@@ -141,7 +153,12 @@ button.fm-booking-chip{cursor:pointer;transition:background .15s}button.fm-booki
 .fm-ap-save-type.fm-ap-highlight{border-color:#f3b3ad;background:#fff8f7;animation:fmBkPulse 1.2s ease-out 1}
 @keyframes fmBkPulse{0%{box-shadow:0 0 0 0 #d9302540}100%{box-shadow:0 0 0 12px #d9302500}}
 /* Created */
-.fm-booking-done{display:grid;justify-items:center;text-align:center;padding:48px 8px 0}.fm-booking-done h3{margin:18px 0 6px}.fm-booking-done p{margin:0;color:#475467;font-size:14px}
+.fm-booking-done{display:grid;justify-items:center;text-align:center;padding:40px 0 0}.fm-booking-done h3{margin:18px 0 6px}.fm-booking-done>[data-done-summary]{width:100%;display:grid;justify-items:center}
+/* What was booked: one labelled line each, in both layouts (FM-503). */
+.fm-booking-created-title{margin:0;color:#475467;font-size:14px;overflow-wrap:anywhere}.fm-booking-created-details{box-sizing:border-box;width:min(100%,420px);margin:18px 0 0;padding:2px 16px;border:1px solid #eaecf0;border-radius:14px;background:#fff;text-align:left}
+.fm-booking-created-details>div{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;align-items:baseline;padding:12px 0}.fm-booking-created-details>div+div{border-top:1px solid #f2f4f7}.fm-booking-created-details dt{font-size:12px;font-weight:500;color:#667085;text-transform:uppercase;letter-spacing:.05em}
+.fm-booking-created-details dd{margin:0;display:grid;gap:2px;font-size:15px;line-height:1.35;color:#101828;overflow-wrap:anywhere}.fm-booking-created-details dd>span+span{color:#475467;font-size:14px}
+.fm-booking-created-inline{display:grid;justify-items:center;text-align:center;padding:28px 12px}.fm-booking-created-inline>p{margin:0;font-size:15px;font-weight:600;color:#027a48}
 .fm-booking-check svg{width:72px;height:72px;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.fm-booking-check circle{fill:#ecfdf3;stroke:#12b76a;stroke-dasharray:151;stroke-dashoffset:151;animation:fmBkDraw .5s .05s var(--fm-bk-ease) forwards}.fm-booking-check path{stroke:#12b76a;stroke-dasharray:36;stroke-dashoffset:36;animation:fmBkDraw .35s .45s ease-out forwards}
 @keyframes fmBkDraw{to{stroke-dashoffset:0}}
 @media(max-width:720px){#fm-booking-dialog.fm-booking-steps{width:100%;height:100dvh;padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left)}#fm-booking-dialog.fm-booking-steps .fm-booking-head{padding-top:max(14px,env(safe-area-inset-top))}}
