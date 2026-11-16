@@ -12,7 +12,7 @@ const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&
 import { trackerClient, composeIssue, groupIssues, DEFAULT_WORKSPACE, TRACKER } from './tracker-client.js?v=20261112-tray3';
 import { watchShake, requestMotionPermission } from './shake.js?v=20261112-tray3';
 
-const VERSION = '20261116-shot1';
+const VERSION = '20261116-shot2';
 const DRAFT = 'fm-dev-tray-draft';
 const REFRESH_MS = 20000;
 const tracker = trackerClient();
@@ -172,6 +172,7 @@ async function capture() {
     scale, ignoreElements: (el) => windows.includes(el) || (el.hasAttribute?.('data-fmr-ignore') && el.classList?.contains('fm-qt'))
   });
   const g = canvas.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0); // html2canvas leaves its scale on the context; boxes below are scaled by hand
   for (const layer of windows.filter(shown)) {
     paint(g, layer, scale);
     for (const panel of layer.querySelectorAll('.fm-project-frame')) if (shown(panel)) paint(g, panel, scale);
