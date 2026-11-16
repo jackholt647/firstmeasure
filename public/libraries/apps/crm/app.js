@@ -255,6 +255,14 @@
         <i class="fas fa-chevron-down crm-pick-caret" aria-hidden="true"></i></button></h2></div>`;
     }
 
+    /** A panel's intro: a line of text under the title, and on a phone an (i) at the right under the picker that shows it as a tip (FM-493). */
+    function introHtml(text){
+      return `<div class="crm-intro"><button type="button" class="crm-info" data-intro-toggle aria-expanded="false" aria-label="${esc(L('about_page', 'About this page'))}"><i class="fas fa-circle-info" aria-hidden="true"></i></button><p class="crm-dim crm-intro-text">${esc(text)}</p></div>`;
+    }
+    function closeIntroTips(except){
+      host.querySelectorAll('.crm-intro.open').forEach((el) => { if (el !== except) { el.classList.remove('open'); el.querySelector('[data-intro-toggle]')?.setAttribute('aria-expanded', 'false'); } });
+    }
+
     // ---- Filters -------------------------------------------------------------
     function ruleSummary(rule){
       const field = fieldByKey(rule.field);
@@ -480,6 +488,7 @@
       onKey(event);
     }
     function onOutside(event){
+      if (!event.target.closest?.('.crm-intro')) closeIntroTips();
       if (!state.pop) return;
       if (state.pop.el.contains(event.target) || state.pop.anchor?.contains?.(event.target)) return;
       closePop();
@@ -497,7 +506,7 @@
     }
     function onKey(event){
       const t = event.target;
-      if (event.key === 'Escape') { if (state.pop) { closePop(); return; } if (host.classList.contains('rail-open')) { setRailOpen(false); return; } if (!host.querySelector('.crm-worklist').hidden) { closeWorklist(); return; } if (state.drawer) { closeDrawer(); return; } }
+      if (event.key === 'Escape') { if (host.querySelector('.crm-intro.open')) { closeIntroTips(); return; } if (state.pop) { closePop(); return; } if (host.classList.contains('rail-open')) { setRailOpen(false); return; } if (!host.querySelector('.crm-worklist').hidden) { closeWorklist(); return; } if (state.drawer) { closeDrawer(); return; } }
       if ((event.key === 'Enter' || event.key === ' ') && t.matches('[data-edit-filter], .crm-card, .crm-agenda-item')) { event.preventDefault(); t.click(); return; }
       if (t.matches('input, textarea, select, [contenteditable]')) return;
       if ((event.ctrlKey || event.metaKey || event.altKey) && event.key.toLowerCase() !== 'k') return;
@@ -525,6 +534,7 @@
       const t = event.target.closest('button, [data-row], [data-edit-filter], [role="button"]');
       if (!t || !host.contains(t)) return;
       const d = t.dataset;
+      if (d.introToggle !== undefined) { const intro = t.closest('.crm-intro'); closeIntroTips(intro); t.setAttribute('aria-expanded', String(intro.classList.toggle('open'))); return; }
       if (d.railToggle !== undefined) { setRailOpen(!host.classList.contains('rail-open')); return; }
       if (d.openView) return openView(d.openView);
       if (d.openPanel) return openPanel(d.openPanel);
@@ -1203,7 +1213,7 @@
         const r = await window.PlatformAPI.projects.get(orgId, id).catch(() => null); const p = obj(r?.document?.data); return { title: p.title || p.address || id, sub: [p.customer_name, p.address].filter(Boolean).join(' · ') };
       };
       const rows = await Promise.all(list.slice(0, 50).map(async (d) => ({ ...d, a: await describe(d.kind, d.first_id), b: await describe(d.kind, d.second_id) })));
-      content.innerHTML = `<div class="crm-page"><p class="crm-dim" style="margin-top:0">${esc(L('dups_intro', 'Pick which record to keep; the other is merged into it. Merging cannot be undone.'))}</p>${rows.map((d, i) => `<div class="crm-dup"><div><b>${esc(d.a.title)}</b><div class="crm-dim">${esc(d.a.sub)}</div></div><div><b>${esc(d.b.title)}</b><div class="crm-dim">${esc(d.b.sub)}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="crm-btn small" data-dup-keep="${i}:a">${esc(L('keep_left', 'Keep left'))}</button><button type="button" class="crm-btn small" data-dup-keep="${i}:b">${esc(L('keep_right', 'Keep right'))}</button><button type="button" class="crm-btn small ghost" data-dup-dismiss="${i}">${esc(L('not_duplicates', 'Not the same'))}</button></div><div class="crm-dim" style="grid-column:1/-1;font-size:12px">${esc(d.kind === 'project' ? L('same_sale', 'Possibly one sale that came in twice') : L('same_person', 'Possibly the same person'))}${arr(d.reasons).length ? ` · ${esc(arr(d.reasons).join(', ').replace(/_/g, ' '))}` : ''}</div></div>`).join('')}</div>`;
+      content.innerHTML = `<div class="crm-page">${introHtml(L('dups_intro', 'Pick which record to keep; the other is merged into it. Merging cannot be undone.'))}${rows.map((d, i) => `<div class="crm-dup"><div><b>${esc(d.a.title)}</b><div class="crm-dim">${esc(d.a.sub)}</div></div><div><b>${esc(d.b.title)}</b><div class="crm-dim">${esc(d.b.sub)}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="crm-btn small" data-dup-keep="${i}:a">${esc(L('keep_left', 'Keep left'))}</button><button type="button" class="crm-btn small" data-dup-keep="${i}:b">${esc(L('keep_right', 'Keep right'))}</button><button type="button" class="crm-btn small ghost" data-dup-dismiss="${i}">${esc(L('not_duplicates', 'Not the same'))}</button></div><div class="crm-dim" style="grid-column:1/-1;font-size:12px">${esc(d.kind === 'project' ? L('same_sale', 'Possibly one sale that came in twice') : L('same_person', 'Possibly the same person'))}${arr(d.reasons).length ? ` · ${esc(arr(d.reasons).join(', ').replace(/_/g, ' '))}` : ''}</div></div>`).join('')}</div>`;
       content.onclick = async (e) => {
         const keep = e.target.closest('[data-dup-keep]'), dismiss = e.target.closest('[data-dup-dismiss]');
         if (!keep && !dismiss) return;
@@ -1235,7 +1245,7 @@
         return [field, SOURCE_OPERATORS[r.operator] || text(r.operator).replace(/_/g, ' '), value].filter(Boolean).join(' ');
       }).join(` ${s.rules?.match === 'any' ? L('or', 'or') : L('and', 'and')} `);
       content.innerHTML = `<div class="crm-page">
-        <p class="crm-dim" style="margin-top:0">${esc(L('sources_intro', 'Where leads come from. A new lead gets the most specific source whose rules match it; a person can correct it on the lead.'))}</p>
+        ${introHtml(L('sources_intro', 'Where leads come from. A new lead gets the most specific source whose rules match it; a person can correct it on the lead.'))}
         ${canEdit ? `<div class="crm-toolbar"><button type="button" class="crm-btn" data-src-add><i class="fas fa-plus"></i>${esc(L('add_source', 'Add a source'))}</button></div>` : ''}
         <ul class="crm-tree">${sources.map((s) => `<li style="padding-left:${10 + (s.depth || 0) * 22}px"><i class="fas ${s.depth ? 'fa-turn-up fa-rotate-90' : 'fa-circle-dot'} crm-dim"></i><div style="flex:1;min-width:0"><b>${esc(s.label)}</b> <span class="crm-tag">${esc(s.channel.replace(/_/g, ' '))}</span>${s.active ? '' : ` <span class="crm-tag">${esc(L('inactive', 'Off'))}</span>`}<div class="crm-dim" style="font-size:12px">${esc(ruleText(s) || L('no_rules', 'Matched by hand only'))}</div></div>${canEdit ? `<button type="button" class="crm-btn small" data-src-child="${esc(s.id)}">${esc(L('add_sub', 'Add under'))}</button><button type="button" class="crm-btn small" data-src-edit="${esc(s.id)}">${esc(L('edit', 'Edit'))}</button>` : ''}</li>`).join('') || `<li class="crm-dim">${esc(L('no_sources', 'No sources yet.'))}</li>`}</ul>
         ${feature('source_spend') && canEdit ? `<h3 style="margin:24px 0 8px;font-size:14px">${esc(L('spend', 'Spend'))}</h3><div class="crm-toolbar"><button type="button" class="crm-btn" data-spend-add ${sources.length ? '' : 'disabled'}><i class="fas fa-plus"></i>${esc(L('add_spend', 'Add spend'))}</button></div><div class="crm-report"><table><thead><tr><th>${esc(term('crm.source', 'Source'))}</th><th>${esc(L('period', 'Period'))}</th><th>${esc(L('amount', 'Amount'))}</th><th></th></tr></thead><tbody>${spend.map((x) => `<tr><td>${esc(byId.get(x.source_id)?.path_label || x.source_id)}</td><td>${esc(x.period_start)} – ${esc(x.period_end)}</td><td>${esc(money(x.amount_cents))}</td><td><button type="button" class="crm-btn small ghost" data-spend-del="${esc(x.id)}" aria-label="${esc(L('delete', 'Delete'))}"><i class="fas fa-trash"></i></button></td></tr>`).join('') || `<tr><td colspan="4" class="crm-dim" style="text-align:left">${esc(L('no_spend', 'No spend entered yet.'))}</td></tr>`}</tbody></table></div>` : ''}
