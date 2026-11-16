@@ -273,6 +273,14 @@ export async function listSmsComplianceProfiles(messagingOrganizationId: string)
   return profiles.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
 }
 
+/** An organization's SMS registrations from the database, without creating its messaging organization (reads only). */
+export async function findSmsComplianceProfiles(externalOrganizationIdValue: string) {
+  await ensureMessagingStorage();
+  const id = messagingOrgId(sanitizeId(externalOrganizationIdValue, "organization_id"));
+  const rows = (await getCommunicationsDatabase().prepare("SELECT data_json FROM sms_compliance_profiles WHERE messaging_organization_id = ? ORDER BY updated_at DESC").all(id));
+  return rows.map(profileFromRow);
+}
+
 export async function readSmsComplianceProfile(messagingOrganizationId: string, profileId: string) {
   await ensureMessagingStorage();
   const row = (await getCommunicationsDatabase().prepare("SELECT data_json FROM sms_compliance_profiles WHERE messaging_organization_id = ? AND id = ?")

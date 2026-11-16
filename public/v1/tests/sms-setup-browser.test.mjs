@@ -5,10 +5,12 @@ import {chromium} from 'playwright-core';
 
 // Exercise the real settings renderers and shared shell without placing paid
 // orders or sending a carrier registration from the development account.
-const source = await readFile(process.env.SMS_COMPANY_SOURCE || new URL('../../libraries/apps/settings/company.js', import.meta.url), 'utf8');
+const source = await readFile(process.env.SMS_COMPANY_SOURCE || new URL('../../libraries/apps/settings/sms-registration.js', import.meta.url), 'utf8');
 const helpers = source.slice(source.indexOf('    const smsDefaults ='), source.indexOf('    async function renderSmsSettings()'));
-const wizard = source.slice(source.indexOf('    function openSmsWizard('), source.indexOf('    function renderPricebook()'));
-const styles = source.slice(source.indexOf('      .sms-card{'), source.indexOf('      .li-subtabs{'));
+const wizard = source.slice(source.indexOf('    function openSmsWizard('), source.indexOf('    /** The workflow on its own'));
+const styles = source.slice(source.indexOf('      .sms-card{'), source.indexOf('\n  `;'));
+// The registration reads Settings' pane, tab and company record through env (sms-registration.js, FM-510).
+const envShim = "const env={paneSms:()=>typeof paneSms==='undefined'?null:paneSms,activeTab:()=>typeof activeTab==='undefined'?'':activeTab,state:()=>state};";
 const shell = await readFile(new URL('../../libraries/setup-wizard/setup-wizard.js', import.meta.url), 'utf8');
 const fixture = {
   id:'fixture', status:'draft', brand_status:'verified',
@@ -50,7 +52,7 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
         }
         return {profile:structuredClone(window.saved)};
       };
-      ${helpers}
+      ${envShim}${helpers}
       ${wizard}
       window.start=(profile=window.saved,initialStep='summary')=>openSmsWizard(profile,{initialStep});
       window.issues=p=>smsStepIssues('summary',smsPrefillProfile(p));
@@ -133,7 +135,7 @@ test('registration landing page has one primary action, truthful states, and res
       window.setup={profiles:[],telnyx:{configured:true,registration_live:true}};
       const messagingRequest=async path=>path.endsWith('/sms/setup') ? window.setup : {profile:window.latestProfile || window.setup.profiles[0]};
       const openSmsWizard=(profile,options)=>window.opened={profile,options};
-      ${helpers}
+      ${envShim}${helpers}
       ${registration}
       window.renderEntry=renderEntry;
     `});
@@ -194,7 +196,7 @@ test('automatic registration checks poll the provider, pause when hidden, back o
         if(window.defer)await new Promise(resolve=>window.releaseRequest=resolve);
         return {profile:structuredClone(window.remote)};
       };
-      ${helpers}
+      ${envShim}${helpers}
       window.begin=()=>smsWatchRegistrationStatus({root:document.querySelector('#watch'),getProfile:()=>window.current,
         onProfile:profile=>{window.current=profile;window.applied++;document.querySelector('#watch').textContent=profile.campaign_status;},onError:message=>window.error=message});
       window.stop=window.begin();
@@ -261,7 +263,7 @@ test('business identity switches paths, formats EIN and website, and preserves u
         if(path.endsWith('/evidence'))return {url:window.longEvidenceUrl ? 'https://example.com/'+'x'.repeat(2000) : 'https://example.com/'+options.body.file_name};
         return {profile:structuredClone(window.saved)};
       };
-      ${helpers}
+      ${envShim}${helpers}
       ${wizard}
       window.start=()=>openSmsWizard(window.saved,{initialStep:'business'});
       window.usecase=brand=>smsGeneratedCampaign(mergeSmsProfile({brand})).usecase;

@@ -1,49 +1,72 @@
-// The Communications setup (guided experience `comms.setup`, docs/architecture/guided-experiences.md, FM-491).
-// One step that keeps its own pages: what Communications does (texts, calls, email), which to set up first, a simple
-// page for each, the texting plan, then the other one or on to Communications. Every write is a published action run
-// as the person (comms.setup.start); the texting plan is bought through platform billing's own quote and checkout
-// (FirstMatePlatformBilling.review: the card on file, else Stripe). Copy is gx_ keys with English fallbacks; the
-// library entry's options may replace the opening headline and say which channel a place starts with (`first`).
+// The Communications setup (guided experience `comms.setup`, docs/architecture/guided-experiences.md, FM-491, FM-510).
+// One step that keeps its own pages, as few as it can: the start (texts, calls and email in a row, each explained in its
+// tooltip, and where to start), then one done page. Choosing texts and calls turns them on and goes straight into carrier
+// registration (10DLC): the same workflow as Phone Settings (settings/sms-registration.js), simulated on development.
+// Choosing email turns it on at once. The done page says where each channel stands and offers the other one there; the
+// texting plan is platform billing's own quote and checkout (FirstMatePlatformBilling.review). Every write is a published
+// action run as the person (comms.setup.start). Copy is gx_ keys with English fallbacks; the library entry's options
+// may replace the title (`headline`) and the line under it (`subtitle`), and say which channel a place starts with (`first`).
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
+const REGISTRATION_SRC = '/libraries/apps/settings/sms-registration.js?v=20261116-fm510';
+const WIZARD_SRC = '/libraries/setup-wizard/setup-wizard.js';
 
 const css = `
 .gxc{display:flex;flex-direction:column;gap:18px;min-width:0;padding:2px 0 8px;color:#101828}
-.gxc p{margin:0;color:#475467;line-height:1.55}
-.gxc-ways{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.gxc-way{position:relative;display:flex;flex-direction:column;gap:8px;padding:16px;border:1px solid #e4e7ec;border-radius:16px;background:#fff;animation:gxcIn .3s cubic-bezier(.22,1,.36,1) both}
-.gxc-way strong{font-size:15px}.gxc-way p{font-size:13px}
+.gxc p{margin:0;color:#475467;line-height:1.5}
+.gxc-lead{font-size:15px}
+.gxc-ways{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.gxc-way{position:static;display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px 14px;border:1px solid #e4e7ec;border-radius:16px;background:#fff;font:inherit;color:#101828;cursor:help;animation:gxcFade .3s ease both}
+.gxc-way:hover{border-color:#d0d5dd}
+.gxc-way:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+.gxc-way strong{font-size:14px;line-height:1.2}
+.gxc-way .gxc-icon{width:44px;height:44px;font-size:19px}
+.gxc-way-name{display:inline-flex;align-items:center;gap:6px}
+.gxc-i{width:16px;height:16px;border-radius:50%;border:1px solid #d0d5dd;color:#667085;font:italic 700 10px/14px Georgia,serif;text-align:center;flex:none}
+.gxc-way-on{font-size:11px;font-weight:750;color:#067647;display:inline-flex;align-items:center;gap:4px}
+.gxc-tip{position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:3;background:#101828;color:#fff;font-size:13px;font-weight:400;line-height:1.45;text-align:left;border-radius:10px;padding:9px 12px;opacity:0;pointer-events:none;transform:translateY(4px);transition:opacity .15s,transform .15s;box-shadow:0 12px 30px rgba(16,24,40,.25)}
+.gxc-way:hover .gxc-tip,.gxc-way:focus .gxc-tip{opacity:1;transform:none}
 .gxc-icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary,#d93025);font-size:17px;flex:none}
-.gxc-on{position:absolute;top:14px;right:14px;font-size:11px;font-weight:750;color:#067647;background:#ecfdf3;border-radius:999px;padding:2px 8px}
 .gxc-choose{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.gxc-choice{display:flex;align-items:center;gap:14px;min-height:76px;padding:14px 16px;border:1px solid #d0d5dd;border-radius:16px;background:#fff;font:inherit;text-align:left;color:#101828;cursor:pointer;transition:border-color .15s,box-shadow .2s,transform .15s}
+.gxc-choice{display:flex;align-items:center;gap:14px;min-height:72px;padding:14px 16px;border:1px solid #d0d5dd;border-radius:16px;background:#fff;font:inherit;text-align:left;color:#101828;cursor:pointer;transition:border-color .15s,box-shadow .2s,transform .15s}
 .gxc-choice:hover{border-color:var(--primary,#d93025);transform:translateY(-1px)}
 .gxc-choice:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+.gxc-choice:disabled{opacity:.6;cursor:default;transform:none}
 .gxc-choice strong{display:block;font-size:15px}.gxc-choice small{display:block;font-size:13px;color:#667085;margin-top:2px}
+.gxc-choice>span:last-child{flex:1;min-width:0}
 .gxc-choice[data-first]{border-color:var(--primary,#d93025);box-shadow:0 0 0 1px var(--primary,#d93025)}
 .gxc-label{font-size:13px;font-weight:750;color:#344054}
-.gxc-list{display:grid;gap:10px;margin:0;padding:0;list-style:none}
-.gxc-list li{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid #eaecf0;border-radius:14px;background:#fcfcfd}
-.gxc-list strong{display:block;font-size:14px;margin-bottom:2px}.gxc-list p{font-size:13px}
-.gxc-done{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:14px;background:#ecfdf3;color:#05603a}
-.gxc-done strong{display:block;font-size:15px;color:#05603a}.gxc-done p{color:#067647;font-size:13px}
-.gxc-check{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#12b76a;color:#fff;font-size:13px}
-.gxc-address{font:600 15px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:#101828;word-break:break-all}
+.gxc-rows{display:grid;gap:10px}
+.gxc-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid #e4e7ec;border-radius:16px;background:#fff}
+.gxc-row>div{flex:1;min-width:0}
+.gxc-row strong{display:block;font-size:15px}.gxc-row p{font-size:13px}
+.gxc-row[data-state=done]{background:#f6fef9;border-color:#d1fadf}
+.gxc-row[data-state=wait]{background:#fffcf5;border-color:#fedf89}
+.gxc-row[data-state=offer]{border-style:dashed;border-color:#d0d5dd}
+.gxc-mark{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;color:#fff;background:#12b76a}
+.gxc-row[data-state=wait] .gxc-mark{background:#f79009}
+.gxc-row[data-state=todo] .gxc-mark{background:#f04438}
+.gxc-row[data-state=offer] .gxc-mark{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary,#d93025)}
+.gxc-address{font:600 14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:#101828;word-break:break-all}
 .gxc-plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .gxc-plan{display:flex;flex-direction:column;gap:8px;padding:16px;border:1px solid #e4e7ec;border-radius:16px;background:#fff}
 .gxc-plan h4{margin:0;font-size:15px}.gxc-plan b{font-size:18px}.gxc-plan p{font-size:13px}
+.gxc-on{font-size:11px;font-weight:750;color:#067647;background:#ecfdf3;border-radius:999px;padding:2px 8px;align-self:flex-start}
 .gxc-pay{display:flex;gap:10px;align-items:center;font-size:13px;color:#475467}
 .gxc-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:4px}
 .gxc-actions .gxc-spacer{flex:1}
-.gxc-btn{height:40px;padding:0 16px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.gxc-btn{height:40px;padding:0 16px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:none;white-space:nowrap}
 .gxc-btn:hover{background:#f9fafb}.gxc-btn:disabled{opacity:.55;cursor:default}
 .gxc-btn.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:var(--on-primary,#fff)}
 .gxc-btn.primary:hover{filter:brightness(.95)}
+.gxc-btn.small{height:34px;padding:0 12px;font-size:13px}
+.gxc-busy{display:flex;align-items:center;gap:12px;padding:18px 16px;border-radius:16px;background:#f9fafb;color:#475467}
 .gxc-error{color:#b42318;font-size:13px;min-height:1em}
 .gxc-note{font-size:12.5px;color:#667085}
-@media(max-width:640px){.gxc-ways,.gxc-choose{grid-template-columns:minmax(0,1fr)}.gxc-way{flex-direction:row;align-items:flex-start;gap:12px;padding:14px}.gxc-way>div{min-width:0}.gxc-hero h3{font-size:19px}.gxc-actions .gxc-btn{flex:1 1 auto;justify-content:center}.gxc-actions .gxc-spacer{display:none}}
-@keyframes gxcIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(max-width:640px){.gxc-choose{grid-template-columns:minmax(0,1fr)}.gxc-ways{gap:8px}.gxc-way{padding:14px 4px 12px}.gxc-way strong{font-size:13px}.gxc-row{flex-wrap:wrap}.gxc-row>div{flex-basis:calc(100% - 40px)}.gxc-row .gxc-btn{margin-left:40px}.gxc-actions .gxc-btn{flex:1 1 auto}.gxc-actions .gxc-spacer{display:none}}
+/* Opacity only: a transform would make each channel the tooltip's box, and the tooltip spans the row. */
+@keyframes gxcFade{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.gxc *{animation:none!important;transition:none!important}}
 `;
 
@@ -54,8 +77,22 @@ function installStyle(){
   style.textContent = css;
   document.head.appendChild(style);
 }
-function loadScript(src){
-  return new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = src; script.onload = resolve; script.onerror = () => { script.remove(); reject(new Error('load failed')); }; document.head.append(script); });
+function loadScript(src, win = window){
+  return new Promise((resolve, reject) => { const doc = win.document, script = doc.createElement('script'); script.src = src; script.onload = resolve; script.onerror = () => { script.remove(); reject(new Error('load failed')); }; doc.head.append(script); });
+}
+// The registration workflow opens over the whole page: the portal's window when the setup plays in a project window.
+async function registrationWindow(){
+  const wins = [];
+  try { if (window.top !== window && window.top.location.origin === location.origin) wins.push(window.top); } catch {}
+  wins.push(window);
+  for (const win of wins) {
+    try {
+      if (!win.FirstMateSetupWizard?.open) await loadScript(WIZARD_SRC, win);
+      if (!win.FirstMateSmsRegistration?.open) await loadScript(REGISTRATION_SRC, win);
+      if (win.FirstMateSetupWizard?.open && win.FirstMateSmsRegistration?.open) return win;
+    } catch {}
+  }
+  throw new Error('Registration could not load. Close the setup and try again.');
 }
 async function syncSessions(orgId){
   const wins = new Set([window]);
@@ -76,22 +113,19 @@ export function mount(el, ctx){
   const orgId = String(window.__APP?.userOrgId || window.Portal?.currentUser?.orgId || ctx.orgId || '');
   const options = object(ctx.options);
   const first = options.first === 'email' ? 'email' : 'phone';
-  let alive = true, busy = false, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, last = '';
+  let alive = true, busy = false, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, registering = false;
 
   const invoke = async (action, input = {}) => {
     const key = action === 'comms.setup.start' ? `comms.setup.start:${orgId}:${input.channel}:${Date.now()}` : undefined;
     const result = await window.PlatformAPI.publication.invoke(orgId, action, { scope: 'organization', organizationId: orgId }, input, key ? { idempotencyKey: key } : {});
     return object(result.value ?? result.result ?? result);
   };
-  const names = {
-    phone: () => L('gx_comms_phone_name', 'Texts and calls'),
-    email: () => L('gx_comms_email_name', 'Email')
-  };
   const icon = (name) => `<span class="gxc-icon" aria-hidden="true"><i class="fas ${name}"></i></span>`;
-  const check = '<span class="gxc-check" aria-hidden="true"><i class="fas fa-check"></i></span>';
+  const mark = (name) => `<span class="gxc-mark" aria-hidden="true"><i class="fas ${name}"></i></span>`;
   const errorLine = '<p class="gxc-error" role="alert" data-gxc-error></p>';
   const fail = (error) => { const node = el.querySelector('[data-gxc-error]'); if (node) node.textContent = clean(error?.message) || L('gx_comms_error', 'That didn’t work. Try again.'); };
-  const working = (button, on) => { busy = on; if (button) button.disabled = on; };
+  const registration = () => clean(object(status.phone).registration) || 'none';
+  const registered = () => ['submitted', 'approved'].includes(registration());
 
   // One title per page: the step's heading on a wide screen and the top bar on a phone (setTitle) name the page.
   const heading = el.closest('.gxs-step')?.querySelector('.gxs-titlebar h2'), stepHeading = heading?.innerHTML || '';
@@ -99,76 +133,80 @@ export function mount(el, ctx){
     ctx.setTitle?.(value);
     if (heading) heading.innerHTML = value ? esc(value) : stepHeading;
   }
-
   function show(next){ page = next; draw(); el.closest('.gxs-step')?.scrollTo?.({ top: 0 }); }
 
   function drawIntro(){
     title(text(options.headline));
     const done = object(status.done);
     const ways = [
-      ['sms', 'fa-comment-sms', L('gx_comms_way_texts', 'Texts'), L('gx_comms_way_texts_body', 'Text customers from any project. Their replies come back to the project.'), done.phone],
-      ['calls', 'fa-phone', L('gx_comms_way_calls', 'Calls'), L('gx_comms_way_calls_body', 'Call from FirstMate with the customer’s details beside you. Notes and outcomes are saved.'), done.phone],
-      ['email', 'fa-envelope', L('gx_comms_way_email', 'Email'), L('gx_comms_way_email_body', 'A company inbox. Email customers from a project and see every reply there.'), done.email]
+      ['texts', 'fa-comment-sms', L('gx_comms_way_texts', 'Texts'), L('gx_comms_way_texts_tip', 'Text customers from their project. Replies come back to the same project.'), done.phone],
+      ['calls', 'fa-phone', L('gx_comms_way_calls', 'Calls'), L('gx_comms_way_calls_tip', 'Call with the customer’s details beside you. Notes, outcomes and recordings are saved.'), done.phone],
+      ['email', 'fa-envelope', L('gx_comms_way_email', 'Email'), L('gx_comms_way_email_tip', 'A company inbox. Every email with a customer lands on their project.'), done.email]
     ];
-    const choice = (id, iconName, body) => `<button type="button" class="gxc-choice" data-gxc-start="${id}" ${id === first ? 'data-first' : ''}>${icon(iconName)}<span><strong>${esc(done[id] ? L('gx_comms_review', 'Review {name}', { name: names[id]() }) : L('gx_comms_setup_name', 'Set up {name}', { name: names[id]().toLowerCase() }))}</strong><small>${esc(body)}</small></span></button>`;
-    const order = first === 'email' ? ['email', 'phone'] : ['phone', 'email'];
+    const choices = {
+      phone: [L('gx_comms_choice_phone_title', 'Texts and calls'), L('gx_comms_choice_phone', 'Your business number'), 'fa-comment-sms'],
+      email: [L('gx_comms_choice_email_title', 'Email'), L('gx_comms_choice_email', 'Your company inbox'), 'fa-envelope-open-text']
+    };
+    const choice = (id) => { const [name, body, iconName] = choices[id]; return `<button type="button" class="gxc-choice" data-gxc-start="${id}" ${id === first && !done[id] ? 'data-first' : ''}>${icon(iconName)}<span><strong>${esc(name)}</strong><small>${esc(done[id] ? L('gx_comms_choice_on', 'On · review') : body)}</small></span></button>`; };
     el.innerHTML = `<div class="gxc">
-      <div class="gxc-hero"><p>${esc(text(options.body, L('gx_comms_intro_body', 'Text, call and email customers from FirstMate. Everything you send and receive is saved on the project, so anyone on your team can pick it up.')))}</p></div>
-      <div class="gxc-ways">${ways.map(([id, iconName, title, body, on], index) => `<div class="gxc-way" data-gxc-way="${id}" style="animation-delay:${index * 50}ms">${icon(iconName)}<div><strong>${esc(title)}</strong><p>${esc(body)}</p></div>${on ? `<span class="gxc-on">${esc(L('gx_comms_on', 'On'))}</span>` : ''}</div>`).join('')}</div>
+      <p class="gxc-lead">${esc(text(options.subtitle || options.body, L('gx_comms_subtitle', 'Every conversation with your customers in one place.')))}</p>
+      <div class="gxc-ways">${ways.map(([id, iconName, name, tip, on], index) => `<button type="button" class="gxc-way" data-gxc-way="${id}" aria-describedby="gxc-tip-${id}" style="animation-delay:${index * 50}ms">${icon(iconName)}<span class="gxc-way-name"><strong>${esc(name)}</strong><span class="gxc-i" aria-hidden="true">i</span></span>${on ? `<span class="gxc-way-on"><i class="fas fa-check" aria-hidden="true"></i>${esc(L('gx_comms_on', 'On'))}</span>` : ''}<span class="gxc-tip" role="tooltip" id="gxc-tip-${id}">${esc(tip)}</span></button>`).join('')}</div>
       <span class="gxc-label">${esc(L('gx_comms_where_start', 'Where do you want to start?'))}</span>
-      <div class="gxc-choose">${order.map((id) => id === 'phone' ? choice('phone', 'fa-comment-sms', L('gx_comms_choice_phone', 'Your business number for texting and calling')) : choice('email', 'fa-envelope-open-text', L('gx_comms_choice_email', 'Your company inbox for customer email'))).join('')}</div>
+      <div class="gxc-choose">${(first === 'email' ? ['email', 'phone'] : ['phone', 'email']).map(choice).join('')}</div>
       ${done.phone && done.email ? `<div class="gxc-actions"><span class="gxc-spacer"></span><button type="button" class="gxc-btn primary" data-gxc-finish>${esc(L('gx_comms_go', 'Go to Communications'))}</button></div>` : ''}
       ${errorLine}
     </div>`;
-    el.querySelectorAll('[data-gxc-start]').forEach((button) => button.addEventListener('click', () => show(button.dataset.gxcStart)));
+    el.querySelectorAll('[data-gxc-start]').forEach((button) => button.addEventListener('click', () => {
+      const id = button.dataset.gxcStart;
+      if (object(status.done)[id] && (id === 'email' || registered())) return show('done');
+      void (id === 'email' ? startEmail(button) : startPhone(button));
+    }));
   }
 
-  function drawPhone(){
-    title(names.phone());
-    const phone = object(status.phone), on = !!phone.texts;
+  function drawBusy(message){
+    el.innerHTML = `<div class="gxc"><div class="gxc-busy" role="status"><span class="gxs-spin" aria-hidden="true"></span><span>${esc(message)}</span></div>${errorLine}</div>`;
+  }
+
+  // Where each channel stands, and the other one offered right here.
+  function drawDone(){
+    const phone = object(status.phone), email = object(status.email), done = object(status.done), state = registration();
     const number = array(phone.numbers)[0] || array(phone.texting_numbers)[0] || '';
+    title(done.phone && !registered() ? L('gx_comms_done_title_register', 'Finish registering your business') : L('gx_comms_done_title', 'You’re set up'));
+    const row = (rowState, markIcon, name, body, action = '', extra = '') => `<div class="gxc-row" data-state="${rowState}">${mark(markIcon)}<div><strong>${esc(name)}</strong>${body ? `<p>${esc(body)}</p>` : ''}${extra}</div>${action}</div>`;
+    const button = (attr, label, primary = false) => `<button type="button" class="gxc-btn small ${primary ? 'primary' : ''}" ${attr}>${esc(label)}</button>`;
+    const phoneName = L('gx_comms_phone_name', 'Texts and calls');
+    const phoneRow = !done.phone
+      ? row('offer', 'fa-plus', L('gx_comms_offer_phone', 'Add texts and calls'), L('gx_comms_offer_phone_body', 'Your business number for texting and calling customers.'), button('data-gxc-phone', L('gx_comms_set_up', 'Set up'), true))
+      : state === 'approved'
+        ? row('done', 'fa-check', phoneName, number ? L('gx_comms_phone_ready_number', 'Ready on {number}.', { number }) : L('gx_comms_phone_ready', 'Ready to text and call.'))
+        : state === 'submitted'
+          ? row('wait', 'fa-clock', phoneName, L('gx_comms_phone_review', 'Carriers are reviewing your business, usually for a few days. Texts start once it’s approved.'))
+          : row('todo', 'fa-exclamation', phoneName, state === 'attention' ? L('gx_comms_phone_attention', 'Your registration needs changes before you can text.') : L('gx_comms_phone_register', 'Register your business with the carriers to start texting.'), button('data-gxc-phone', state === 'attention' ? L('gx_comms_fix', 'Fix it') : L('gx_comms_continue_registration', 'Continue'), true));
+    const emailRow = done.email
+      ? row('done', 'fa-check', L('gx_comms_email_name', 'Email'), email.address ? '' : L('gx_comms_email_ready', 'Your company inbox is on.'), '', email.address ? `<p class="gxc-address" data-gxc-address>${esc(email.address)}</p>` : '')
+      : row('offer', 'fa-plus', L('gx_comms_offer_email', 'Try email too'), L('gx_comms_offer_email_body', 'A company inbox: every customer email lands on their project.'), button('data-gxc-email', L('gx_comms_email_turn_on', 'Turn on email'), !done.phone || registered()));
     el.innerHTML = `<div class="gxc">
-      ${on ? `<div class="gxc-done">${check}<div><strong>${esc(L('gx_comms_phone_on', 'Texts are on'))}</strong><p>${esc(L('gx_comms_phone_on_body', 'Every project now has a Texts tab. Calls and texts are saved on the project.'))}</p></div></div>` : `<p>${esc(L('gx_comms_phone_intro', 'Here’s what we’ll set up. Turning it on takes a second; your number takes a few minutes more.'))}</p>`}
-      <ul class="gxc-list">
-        <li>${icon('fa-comment-sms')}<div><strong>${esc(L('gx_comms_phone_texts', 'Texts on every project'))}</strong><p>${esc(L('gx_comms_phone_texts_body', 'Text a customer from their project. Replies come back to the same project.'))}</p></div></li>
-        <li>${icon('fa-phone')}<div><strong>${esc(L('gx_comms_phone_calls', 'Calls from FirstMate'))}</strong><p>${esc(phone.calls ? L('gx_comms_phone_calls_ready', 'Calls are ready: press New call on any project.') : L('gx_comms_phone_calls_body', 'Call from your browser or your phone, with notes, outcomes and recordings saved to the project.'))}</p></div></li>
-        <li>${icon('fa-id-card')}<div><strong>${esc(L('gx_comms_phone_number', 'Your business number'))}</strong><p>${esc(number ? L('gx_comms_phone_number_ready', 'Texts and calls use {number}.', { number }) : L('gx_comms_phone_number_body', 'Phone carriers ask every business to register before it texts customers. It takes about 10 minutes, then a few days to be approved; we’ll walk you through it.'))}</p></div></li>
-      </ul>
+      <div class="gxc-rows">${(done.phone || !done.email ? [phoneRow, emailRow] : [emailRow, phoneRow]).join('')}<div data-gxc-plan-row hidden></div></div>
       ${errorLine}
       <div class="gxc-actions">
         <button type="button" class="gxc-btn" data-gxc-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>
         <span class="gxc-spacer"></span>
-        ${on ? `${number ? '' : `<button type="button" class="gxc-btn" data-gxc-register>${esc(L('gx_comms_register', 'Register my business'))}</button>`}<button type="button" class="gxc-btn primary" data-gxc-continue>${esc(L('gx_ui_continue', 'Continue'))}</button>` : `<button type="button" class="gxc-btn primary" data-gxc-turn-on="phone">${esc(L('gx_comms_phone_turn_on', 'Turn on texts and calls'))}</button>`}
+        <button type="button" class="gxc-btn primary" data-gxc-finish>${esc(L('gx_comms_go', 'Go to Communications'))}</button>
       </div>
     </div>`;
     el.querySelector('[data-gxc-back]').addEventListener('click', () => show('intro'));
-    el.querySelector('[data-gxc-turn-on]')?.addEventListener('click', (event) => turnOn('phone', event.currentTarget));
-    el.querySelector('[data-gxc-continue]')?.addEventListener('click', async (event) => { working(event.currentTarget, true); try { show(await billingAvailable() ? 'billing' : 'next'); } finally { busy = false; } });
-    el.querySelector('[data-gxc-register]')?.addEventListener('click', () => finish('register'));
+    el.querySelector('[data-gxc-phone]')?.addEventListener('click', (event) => startPhone(event.currentTarget));
+    el.querySelector('[data-gxc-email]')?.addEventListener('click', (event) => startEmail(event.currentTarget));
+    // The texting plan, where platform billing sells one and the organization has none yet.
+    if (done.phone) void billingAvailable().then((available) => {
+      const slot = el.querySelector('[data-gxc-plan-row]');
+      if (!available || !slot || !alive || page !== 'done' || currentPlan()) return;
+      slot.outerHTML = row('offer', 'fa-credit-card', L('gx_comms_plan_row', 'Texting plan'), L('gx_comms_plan_row_body', 'Pick a monthly plan now, or later in Settings › Billing.'), button('data-gxc-plans', L('gx_comms_plan_choose', 'Choose a plan')));
+      el.querySelector('[data-gxc-plans]')?.addEventListener('click', () => show('billing'));
+    });
   }
 
-  function drawEmail(){
-    title(names.email());
-    const email = object(status.email), on = !!email.on;
-    el.innerHTML = `<div class="gxc">
-      ${on ? `<div class="gxc-done">${check}<div><strong>${esc(L('gx_comms_email_on', 'Email is on'))}</strong><p>${esc(L('gx_comms_email_on_body', 'Every project now has an Email tab. Customers can write to your company address:'))}</p>${email.address ? `<p class="gxc-address" data-gxc-address>${esc(email.address)}</p>` : ''}</div></div>` : `<p>${esc(L('gx_comms_email_intro', 'Your company gets its own FirstMate inbox. There’s nothing to install.'))}</p>`}
-      <ul class="gxc-list">
-        <li>${icon('fa-inbox')}<div><strong>${esc(L('gx_comms_email_inbox', 'A company inbox'))}</strong><p>${esc(L('gx_comms_email_inbox_body', 'Customer email lands on the right project, so your whole team sees the conversation.'))}</p></div></li>
-        <li>${icon('fa-paper-plane')}<div><strong>${esc(L('gx_comms_email_send', 'Send from any project'))}</strong><p>${esc(L('gx_comms_email_send_body', 'Write to a customer from their project; replies come back to it.'))}</p></div></li>
-      </ul>
-      ${errorLine}
-      <div class="gxc-actions">
-        <button type="button" class="gxc-btn" data-gxc-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>
-        <span class="gxc-spacer"></span>
-        ${on ? `<button type="button" class="gxc-btn primary" data-gxc-continue>${esc(L('gx_ui_continue', 'Continue'))}</button>` : `<button type="button" class="gxc-btn primary" data-gxc-turn-on="email">${esc(L('gx_comms_email_turn_on', 'Turn on email'))}</button>`}
-      </div>
-    </div>`;
-    el.querySelector('[data-gxc-back]').addEventListener('click', () => show('intro'));
-    el.querySelector('[data-gxc-turn-on]')?.addEventListener('click', (event) => turnOn('email', event.currentTarget));
-    el.querySelector('[data-gxc-continue]')?.addEventListener('click', () => show('next'));
-  }
-
-  // The texting plan: platform billing's SMS prices. Where billing is not offered (or nothing is for sale), no page.
+  // The texting plan: platform billing's SMS prices. Where billing is not offered (or nothing is for sale), no row.
   async function billingAvailable(){
     if (billing) return billing.plans.length > 0;
     billing = { plans: [], data: null };
@@ -187,29 +225,28 @@ export function mount(el, ctx){
     } catch { billing = { plans: [], data: null }; }
     return billing.plans.length > 0;
   }
+  function currentPlan(){
+    const now = new Date().toISOString();
+    return array(object(billing?.data).subscriptions).find((sub) => sub.product_id === 'sms' && (!sub.ends_at || sub.ends_at > now));
+  }
   function drawBilling(){
     title(L('gx_comms_billing_title', 'Add a texting plan'));
-    const data = object(billing?.data), now = new Date().toISOString();
-    const current = array(data.subscriptions).find((sub) => sub.product_id === 'sms' && (!sub.ends_at || sub.ends_at > now));
+    const data = object(billing?.data), current = currentPlan();
     const card = object(data.payment_details).has_payment_method === true;
     const money = (plan) => new Intl.NumberFormat(undefined, { style: 'currency', currency: plan.currency || 'USD' }).format(Number(plan.monthly_cents || 0) / 10 ** (plan.minor_digits ?? 2));
     el.innerHTML = `<div class="gxc">
-      <p>${esc(L('gx_comms_billing_body', 'Texting is a monthly plan on your FirstMate subscription. Pick one now, or later in Settings › Billing.'))}</p>
-      ${current ? `<div class="gxc-done">${check}<div><strong>${esc(L('gx_comms_billing_current', 'You’re on {plan}', { plan: current.price?.name || current.name || 'SMS' }))}</strong></div></div>` : ''}
-      <div class="gxc-plans">${array(billing?.plans).map((plan) => { const mine = current && (current.price?.id === plan.id || current.price_id === plan.id); return `<div class="gxc-plan"><h4>${esc(plan.name)}</h4><b>${esc(L('gx_comms_billing_price', '{price} / month', { price: money(plan) }))}</b><p>${esc(plan.description || '')}</p>${data.can_manage && !mine ? `<button type="button" class="gxc-btn primary" data-gxc-plan="${esc(plan.id)}">${esc(current ? L('gx_comms_billing_change', 'Switch to this plan') : L('gx_comms_billing_add', 'Add this plan'))}</button>` : mine ? `<span class="gxc-on" style="position:static;align-self:flex-start">${esc(L('gx_comms_billing_yours', 'Your plan'))}</span>` : ''}</div>`; }).join('')}</div>
-      <p class="gxc-pay">${icon(card ? 'fa-credit-card' : 'fa-lock')}<span>${esc(card ? L('gx_comms_billing_card', 'We’ll charge the card you already have on file.') : L('gx_comms_billing_stripe', 'You’ll add a card securely with Stripe, then come back to Settings › Billing.'))}</span></p>
+      <div class="gxc-plans">${array(billing?.plans).map((plan) => { const mine = current && (current.price?.id === plan.id || current.price_id === plan.id); return `<div class="gxc-plan"><h4>${esc(plan.name)}</h4><b>${esc(L('gx_comms_billing_price', '{price} / month', { price: money(plan) }))}</b><p>${esc(plan.description || '')}</p>${data.can_manage && !mine ? `<button type="button" class="gxc-btn primary" data-gxc-plan="${esc(plan.id)}">${esc(current ? L('gx_comms_billing_change', 'Switch to this plan') : L('gx_comms_billing_add', 'Add this plan'))}</button>` : mine ? `<span class="gxc-on">${esc(L('gx_comms_billing_yours', 'Your plan'))}</span>` : ''}</div>`; }).join('')}</div>
+      <p class="gxc-pay">${icon(card ? 'fa-credit-card' : 'fa-lock')}<span>${esc(card ? L('gx_comms_billing_card', 'We’ll charge the card you already have on file.') : L('gx_comms_billing_stripe', 'You’ll add a card securely with Stripe.'))}</span></p>
       ${data.can_manage ? '' : `<p class="gxc-note">${esc(L('gx_comms_billing_ask', 'Ask whoever manages billing to add a texting plan.'))}</p>`}
       ${errorLine}
       <div class="gxc-actions">
-        <button type="button" class="gxc-btn" data-gxc-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>
         <span class="gxc-spacer"></span>
         <button type="button" class="gxc-btn ${current ? 'primary' : ''}" data-gxc-continue>${esc(current ? L('gx_ui_continue', 'Continue') : L('gx_comms_billing_later', 'Not now'))}</button>
       </div>
     </div>`;
-    el.querySelector('[data-gxc-back]').addEventListener('click', () => show('phone'));
-    el.querySelector('[data-gxc-continue]').addEventListener('click', () => show('next'));
+    el.querySelector('[data-gxc-continue]').addEventListener('click', () => show('done'));
     el.querySelectorAll('[data-gxc-plan]').forEach((button) => button.addEventListener('click', async () => {
-      if (busy) return; working(button, true);
+      if (busy) return; busy = true; button.disabled = true;
       try {
         const paid = await window.FirstMatePlatformBilling.review({ orgId, priceId: button.dataset.gxcPlan });
         if (paid && alive) { billing = null; await billingAvailable(); if (alive) drawBilling(); }
@@ -217,60 +254,64 @@ export function mount(el, ctx){
     }));
   }
 
-  function drawNext(){
-    title(L('gx_comms_next_title', 'What’s next?'));
-    const done = object(status.done), other = last === 'email' ? 'phone' : 'email';
-    el.innerHTML = `<div class="gxc">
-      <div class="gxc-done">${check}<div><strong>${esc((last || 'phone') === 'email' ? L('gx_comms_next_done_email', 'Email is set up') : L('gx_comms_next_done_phone', 'Texts and calls are set up'))}</strong><p>${esc(L('gx_comms_next_body', 'You can change it any time in Settings.'))}</p></div></div>
-      ${done[other] ? '' : `<span class="gxc-label">${esc(L('gx_comms_next_other', 'Set up {name} too?', { name: names[other]().toLowerCase() }))}</span>
-      <div class="gxc-choose" style="grid-template-columns:minmax(0,1fr)"><button type="button" class="gxc-choice" data-gxc-start="${other}">${icon(other === 'email' ? 'fa-envelope-open-text' : 'fa-comment-sms')}<span><strong>${esc(L('gx_comms_setup_name', 'Set up {name}', { name: names[other]().toLowerCase() }))}</strong><small>${esc(other === 'email' ? L('gx_comms_choice_email', 'Your company inbox for customer email') : L('gx_comms_choice_phone', 'Your business number for texting and calling'))}</small></span></button></div>`}
-      ${errorLine}
-      <div class="gxc-actions"><span class="gxc-spacer"></span><button type="button" class="gxc-btn primary" data-gxc-finish>${esc(L('gx_comms_go', 'Go to Communications'))}</button></div>
-    </div>`;
-    el.querySelector('[data-gxc-start]')?.addEventListener('click', (event) => show(event.currentTarget.dataset.gxcStart));
+  async function turnOn(channel){
+    status = await invoke('comms.setup.start', { channel });
+    ctx.change({ comms_setup: ['phone', 'email'].filter((id) => object(status.done)[id]) }, channel === 'email' ? L('gx_comms_email_name', 'Email') : L('gx_comms_phone_name', 'Texts and calls'));
+    await syncSessions(orgId);
   }
-
-  async function turnOn(channel, button){
-    if (busy) return; working(button, true);
-    try {
-      status = await invoke('comms.setup.start', { channel });
-      last = channel;
-      ctx.change({ comms_setup: ['phone', 'email'].filter((id) => object(status.done)[id]) }, names[channel]());
-      await syncSessions(orgId);
-      if (alive) draw();
-    } catch (error) { fail(error); } finally { busy = false; if (button?.isConnected) button.disabled = false; }
+  // Email: on at once, then the done page (with its address and texts and calls offered).
+  async function startEmail(button){
+    if (busy) return; busy = true; if (button) button.disabled = true;
+    try { await turnOn('email'); if (alive) show('done'); }
+    catch (error) { fail(error); }
+    finally { busy = false; if (button?.isConnected) button.disabled = false; }
   }
-
-  async function finish(then){
-    if (busy) return; busy = true;
+  // Texts and calls: on at once, then straight into carrier registration; when it closes, the done page.
+  async function startPhone(button){
+    if (busy) return; busy = true; if (button) button.disabled = true;
     try {
-      await ctx.complete?.();
-      if (then === 'register') {
-        // Carrier registration is the 10DLC workflow in Phone Settings; it opens in the portal, not in a project.
-        const portal = (() => { try { return window.top.Portal || window.Portal; } catch { return window.Portal; } })();
-        portal?.navigation?.push?.({ tab: 'company_settings', sub: 'sms', workflow: '10dlc', project: null, projectTab: null });
-        void portal?.navigation?.applyCurrent?.({ source: 'comms-setup' });
+      if (!object(status.done).phone) await turnOn('phone');
+      if (!registered()) {
+        title(L('gx_comms_registering_title', 'Register your business'));
+        drawBusy(L('gx_comms_registering', 'Registering your business with the carriers…'));
+        registering = true;
+        const win = await registrationWindow();
+        await win.FirstMateSmsRegistration.open({ orgId });
+        registering = false;
+        if (!alive) return;
+        // Starting phone again reads where registration stands (on development it connects the test line once submitted).
+        await turnOn('phone');
       }
-    } catch (error) { fail(error); } finally { busy = false; }
+      if (alive) show('done');
+    } catch (error) {
+      registering = false;
+      if (alive) { show(object(status.done).phone ? 'done' : 'intro'); fail(error); }
+    } finally { busy = false; if (button?.isConnected) button.disabled = false; }
+  }
+  async function finish(){
+    if (busy) return; busy = true;
+    try { await ctx.complete?.(); } catch (error) { fail(error); } finally { busy = false; }
   }
 
   function draw(){
     if (!alive) return;
-    if (page === 'phone') drawPhone();
-    else if (page === 'email') drawEmail();
+    if (page === 'done') drawDone();
     else if (page === 'billing') drawBilling();
-    else if (page === 'next') drawNext();
     else drawIntro();
     el.querySelector('[data-gxc-finish]')?.addEventListener('click', () => finish());
   }
 
   el.innerHTML = '<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>';
-  // Where the setup was asked for a channel (an Overview button), it opens on that channel's page.
+  // Where the setup was asked for a channel (an Overview button), it starts that channel at once.
   const top = (() => { try { return window.top.__fmCommsSetupStart !== undefined ? window.top : window; } catch { return window; } })();
   const asked = window.__fmCommsSetupStart || top.__fmCommsSetupStart;
   const start = ['phone', 'email'].includes(asked) ? asked : '';
   window.__fmCommsSetupStart = ''; try { top.__fmCommsSetupStart = ''; } catch {}
-  invoke('comms.setup.status').then((value) => { status = value; if (start) page = start; draw(); }).catch((error) => { draw(); fail(error); });
-  return { valid: () => true, destroy(){ alive = false; } };
+  invoke('comms.setup.status').then((value) => {
+    status = value; draw();
+    if (start === 'email') void (object(status.done).email ? show('done') : startEmail());
+    else if (start === 'phone') void (object(status.done).phone && registered() ? show('done') : startPhone());
+  }).catch((error) => { draw(); fail(error); });
+  return { valid: () => true, escape: () => registering, destroy(){ alive = false; } };
 }
 export default mount;
