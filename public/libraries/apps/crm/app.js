@@ -146,8 +146,9 @@
       const view = viewById(id); if (!view) return;
       fieldScope = null; state.panel = 'view'; state.saved = clone(view); state.draft = clone(view); state.offset = 0; state.selected.clear(); state.search = ''; closeDrawer(false);
       if (options.history !== false && !navigation?.applying) navigation?.push?.({ tab:'crm', crmView:id, crmPanel:null }, { source:'crm-view', ownedKeys:['crmView', 'crmPanel'] });
-      renderShell(); query();
+      renderShell(); const loaded = query();
       host.classList.remove('rail-open');
+      return loaded;
     }
 
     function openPanel(panel){
@@ -756,15 +757,56 @@
       try { const saved = await api().createView(orgId, { name: text(name), collection: state.draft.collection, definition: normalizedDefinition(state.draft.definition), visibility:'private' }); afterSave(saved.view); }
       catch (error) { toast(error?.message || L('save_failed', 'The view could not be saved.'), false); }
     }
+    /**
+     * New view (FM-508): a small dialog that asks for the view's name and what it lists, and says filters come
+     * next. Create saves it as the person's own view (createView, the same writer as Save as new view), opens it
+     * and opens the filter editor on it; applying the filters saves them into the view.
+     */
     function openNewView(anchor){
       const collections = arr(state.meta?.collections);
+      if (!collections.length) return;
       // On a phone the rail is itself a sheet: this one takes its place rather than opening under it (FM-492).
       if (phone()) setRailOpen(false);
-      const el = openPop(anchor, `<h5>${esc(L('new_view', 'New view'))}</h5>${collections.map((c) => `<button type="button" class="crm-pop-item" data-nv="${esc(c.id)}"><i class="fas ${esc(c.icon)}"></i>${esc(term(c.term, c.label))}</button>`).join('')}`, { width: 260, role:'menu' });
-      el.addEventListener('click', (e) => {
-        const b = e.target.closest('[data-nv]'); if (!b) return;
-        closePop(); state.panel = 'view'; state.saved = null; state.draft = blankDraft(b.dataset.nv); state.draft.name = term(collectionInfo(b.dataset.nv).term, collectionInfo(b.dataset.nv).label);
-        state.result = null; renderShell(); query(); host.classList.remove('rail-open');
+      const hints = { opportunities: L('nv_hint_opportunities', 'New leads and open sales'), contacts: L('nv_hint_contacts', 'People and companies'), follow_ups: L('nv_hint_follow_ups', 'Calls and to-dos that are due'), appointments: L('nv_hint_appointments', 'Booked appointments') };
+      let chosen = collections.some((c) => c.id === state.draft?.collection) ? state.draft.collection : collections[0].id;
+      const el = openPop(anchor, `<form class="crm-newview" data-nv-form novalidate>
+          <h5>${esc(L('new_view', 'New view'))}</h5>
+          <label class="crm-field"><span>${esc(L('nv_name', 'Name'))}</span><input type="text" data-nv-name maxlength="120" required autocomplete="off" placeholder="${esc(L('nv_name_placeholder', 'For example: Hot roofing leads'))}" aria-describedby="crm-nv-error" autofocus></label>
+          <p class="crm-nv-error" id="crm-nv-error" hidden>${esc(L('nv_name_needed', 'Give the view a name.'))}</p>
+          <fieldset class="crm-nv-kinds"><legend>${esc(L('nv_lists', 'What it lists'))}</legend>
+            ${collections.map((c) => `<label class="crm-option crm-nv-kind"><input type="radio" name="crm-nv-collection" value="${esc(c.id)}" data-nv="${esc(c.id)}" ${c.id === chosen ? 'checked' : ''}><i class="fas ${esc(c.icon)}" aria-hidden="true"></i><span><b>${esc(term(c.term, c.label))}</b>${hints[c.id] ? `<small>${esc(hints[c.id])}</small>` : ''}</span></label>`).join('')}
+          </fieldset>
+          <p class="crm-nv-next"><i class="fas fa-filter" aria-hidden="true"></i><span>${esc(L('nv_next', 'Next you add filters to choose which of them it shows. You can change them any time.'))}</span></p>
+          <div class="crm-pop-foot"><button type="button" class="crm-btn small ghost" data-nv-cancel>${esc(L('cancel', 'Cancel'))}</button><button type="submit" class="crm-btn small primary" data-nv-create>${esc(L('nv_create', 'Create view'))}</button></div>
+        </form>`, { width: 380, role:'dialog' });
+      el.setAttribute('aria-label', L('new_view', 'New view'));
+      // It opens from the rail's New view, which can sit low in the rail: keep the whole dialog on the page.
+      if (!phone()) el.style.top = `${Math.max(12, Math.min(parseFloat(el.style.top) || 0, host.clientHeight - el.offsetHeight - 12))}px`;
+      const nameInput = el.querySelector('[data-nv-name]'), error = el.querySelector('.crm-nv-error');
+      el.addEventListener('change', (e) => { if (e.target.dataset.nv) chosen = e.target.dataset.nv; });
+      nameInput.addEventListener('input', () => { error.hidden = true; nameInput.removeAttribute('aria-invalid'); });
+      el.addEventListener('click', (e) => { if (e.target.closest('[data-nv-cancel]')) closePop(); });
+      el.querySelector('[data-nv-form]').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = text(nameInput.value);
+        if (!name) { error.hidden = false; nameInput.setAttribute('aria-invalid', 'true'); nameInput.focus(); return; }
+        const button = el.querySelector('[data-nv-create]'); button.disabled = true;
+        let view = null;
+        try { view = (await api().createView(orgId, { name, collection: chosen, definition: normalizedDefinition(blankDraft(chosen).definition), visibility:'private' })).view; }
+        catch (failure) { button.disabled = false; toast(failure?.message || L('save_failed', 'The view could not be saved.'), false); return; }
+        closePop();
+        await reloadViews();
+        await openView(view.id);
+        loadCounts();
+        // The new view lists everything until it has filters: open the filter editor on it straight away.
+        const filterButton = host.querySelector('[data-add-filter]');
+        if (!filterButton || state.draft?.id !== view.id || !fields().length || state.pop) return;
+        const info = collectionInfo(view.collection);
+        openFilterEditor(filterButton, 0, {
+          title: L('nv_filters_title', 'Which {things} does {name} show?', { things: term(info.term, info.label).toLowerCase(), name: view.name }),
+          filter: normalizedDefinition(state.draft.definition).filter,
+          onApply: (filter) => { changeDraft((def) => { def.filter = filter; }); if (state.saved?.id === view.id) saveView(); }
+        });
       });
     }
     async function openShare(anchor){

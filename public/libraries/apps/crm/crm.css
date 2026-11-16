@@ -146,6 +146,21 @@
 .crm-option{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:7px;cursor:pointer}
 .crm-option:hover{background:var(--crm-hover)}
 .crm-option input{accent-color:var(--crm-accent)}
+/* New view (FM-508): name, what it lists, and a note that filters come next. */
+.crm-newview{display:block;margin:0;padding:0 4px}
+.crm-newview .crm-field{margin-top:8px}
+.crm-nv-kinds{display:flex;flex-direction:column;gap:2px;border:0;padding:0;margin:12px 0 0;min-width:0}
+.crm-nv-kinds legend{padding:0;margin-bottom:4px;font-size:12px;font-weight:700;color:var(--crm-soft)}
+.crm-nv-kind{align-items:flex-start;border:1px solid transparent}
+.crm-nv-kind:has(input:checked){border-color:var(--crm-line-strong);background:var(--crm-hover)}
+.crm-nv-kind input{margin-top:3px}
+.crm-nv-kind>i{width:16px;margin-top:3px;text-align:center;color:var(--crm-muted)}
+.crm-nv-kind>span{display:flex;flex-direction:column;min-width:0}
+.crm-nv-kind small{color:var(--crm-faint);font-size:12px}
+.crm-nv-next{display:flex;gap:8px;align-items:flex-start;margin:10px 0 0;padding:8px 10px;border-radius:8px;background:var(--crm-hover);color:var(--crm-soft);font-size:12.5px;line-height:1.4}
+.crm-nv-next i{margin-top:2px;color:var(--crm-muted)}
+.crm-nv-error{margin:4px 0 0;color:#b42318;font-size:12px}
+.crm-newview input[aria-invalid="true"]{border-color:#b42318}
 .crm-fgroup{border:1px solid var(--crm-line);border-radius:10px;padding:6px;margin:6px 0;background:var(--crm-bg)}
 .crm-frow{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr) minmax(0,1.2fr) 28px;gap:6px;align-items:center;margin:4px 0}
 .crm-frow select,.crm-frow input{height:30px}

@@ -312,12 +312,26 @@ test('the CRM tab: views, filters, the board, the drawer, a worklist, reports, s
     await shot(phone.page, '11a-phone-views');
     // New view (FM-492): its sheet takes the rail's place instead of opening underneath it.
     await phone.page.locator('.crm-rail [data-new-view]').click();
-    await phone.page.waitForSelector('.crm-pop [data-nv]');
+    await phone.page.waitForSelector('.crm-pop [data-nv-name]');
     await phone.page.waitForFunction(() => !document.querySelector('.crm').classList.contains('rail-open'));
     await phone.page.waitForTimeout(350);
-    assert.equal(await phone.page.locator('.crm-pop [data-nv]').first().evaluate((el) => { const r = el.getBoundingClientRect(); return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)); }), true, 'the New view sheet is on top, not under the rail');
+    assert.equal(await phone.page.locator('.crm-pop [data-nv-name]').evaluate((el) => { const r = el.getBoundingClientRect(); return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)); }), true, 'the New view sheet is on top, not under the rail');
+    // FM-508: New view asks for a name and what the view lists, says filters come next, and saves the view.
+    assert.deepEqual(await phone.page.locator('.crm-pop [data-nv]').evaluateAll((els) => els.map((el) => el.value)), ['opportunities', 'contacts', 'follow_ups', 'appointments']);
+    assert.match(await phone.page.locator('.crm-pop .crm-nv-next').innerText(), /filters/i, 'it says filters come next');
     await shot(phone.page, '11a2-phone-new-view');
-    await phone.page.locator('.crm-pop [data-nv]').first().click();
+    await phone.page.locator('.crm-pop [data-nv-create]').click();
+    assert.equal(await phone.page.locator('.crm-pop .crm-nv-error').isVisible(), true, 'a view needs a name');
+    await phone.page.locator('.crm-pop [data-nv-name]').fill('Homeowners to call back');
+    await phone.page.locator('.crm-pop [data-nv="contacts"]').check();
+    await phone.page.locator('.crm-pop [data-nv-create]').click();
+    await phone.page.waitForFunction(() => document.querySelector('.crm-pop h5')?.textContent.includes('Homeowners to call back'));
+    assert.equal(await phone.page.locator('.crm-pick-name').innerText(), 'Homeowners to call back', 'the new view is open');
+    assert.ok(await phone.page.locator('.crm-pop [data-frow]').count() >= 1, 'the filter editor opens on it');
+    const created = (await inject('GET', `/v1/crm/organizations/${orgId}/views`)).views.find((v) => v.name === 'Homeowners to call back');
+    assert.equal(created?.collection, 'contacts');
+    assert.equal(created?.pinned, true, 'pinned to the rail');
+    await phone.page.locator('.crm-pop [data-fcancel]').click();
     await phone.page.waitForFunction(() => !document.querySelector('.crm-pop'));
     await phone.page.locator('.crm-view-pick').click();
     await phone.page.waitForFunction(() => document.querySelector('.crm').classList.contains('rail-open'));
