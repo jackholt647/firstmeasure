@@ -6,6 +6,9 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const source = document.currentScript?.src || new URL('/libraries/appointment-booking/booking.js', location.href).href;
   const STEP_LABELS = {type:'Type', project:'Project', when:'Time'};
+  /* The device's zone: the server books in it when the organization has none of its own (FM-504). */
+  const deviceTimezone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } };
+  const zoned = body => { const timezone = deviceTimezone(); return timezone ? {...body, timezone} : body; };
   /* What was booked, one fact per line under the step names (FM-503). */
   function createdDetails(configuration, slot, where){
     const when = new Date(slot?.start_at || slot?.start);
@@ -74,7 +77,7 @@
         unavailableMessage:configuration.availabilityHint,
         onDurationChange:days=>{configuration.setDuration(days,false);eventId=`appointment_${crypto.randomUUID()}`;},
         date,
-        loadAvailability: (date,days) => api.appointments.preview(orgId, {...(select.value ? {project_id:select.value} : {}), date, configuration:{...configuration.value,...(dayMode?{duration_days:days}:{})}}),
+        loadAvailability: (date,days) => api.appointments.preview(orgId, zoned({...(select.value ? {project_id:select.value} : {}), date, configuration:{...configuration.value,...(dayMode?{duration_days:days}:{})}})),
         onChange: slot => { selected = slot; submit.disabled = !slot || saving; }
       });
     };
@@ -85,7 +88,7 @@
       target.inert = true; target.querySelector('[type=submit]').disabled = true;
       status.textContent = 'Creating event…';
       try {
-        await api.appointments.book(orgId, {...(select.value ? {project_id:select.value} : {}), start_at:selected.start_at || selected.start, event_id:eventId, configuration:configuration.value});
+        await api.appointments.book(orgId, zoned({...(select.value ? {project_id:select.value} : {}), start_at:selected.start_at || selected.start, event_id:eventId, configuration:configuration.value}));
         window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
         options.onBooked?.();
         const where = select.value ? clean(projectControl.querySelector('input')?.value) || configuration.project.title : configuration.value.location?.address;
@@ -226,7 +229,7 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
         unavailableMessage:configuration.availabilityHint,
         onDurationChange:days => { configuration.setDuration(days, false); newEvent(); },
         date,
-        loadAvailability:(date, days) => api.appointments.preview(orgId, {...(projectId() ? {project_id:projectId()} : {}), date, configuration:{...configuration.value, ...(dayMode ? {duration_days:days} : {})}}),
+        loadAvailability:(date, days) => api.appointments.preview(orgId, zoned({...(projectId() ? {project_id:projectId()} : {}), date, configuration:{...configuration.value, ...(dayMode ? {duration_days:days} : {})}})),
         onChange:slot => { selected = slot; sync(); }
       });
     }
@@ -266,7 +269,7 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
       saving = true; select?.setDisabled(true); stage.inert = true; advancedButton.disabled = true; sync();
       status.textContent = 'Creating event…';
       try {
-        await api.appointments.book(orgId, {...(projectId() ? {project_id:projectId()} : {}), start_at:selected.start_at || selected.start, event_id:eventId, configuration:configuration.value});
+        await api.appointments.book(orgId, zoned({...(projectId() ? {project_id:projectId()} : {}), start_at:selected.start_at || selected.start, event_id:eventId, configuration:configuration.value}));
         window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
         options.onBooked?.();
         $('[data-done-summary]').innerHTML = createdDetails(configuration, selected, whereText());

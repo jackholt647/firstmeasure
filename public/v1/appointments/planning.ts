@@ -13,7 +13,7 @@ import {withProjectDocumentLock} from '../platform/project_document_mutation.js'
 import {appointmentAvailability,subjectMemberIds} from './availability.js';
 import {resolveAssignableSubjects} from '../workforce/service.js';
 import {filterAssignableSubjects} from '../workforce/assignability.js';
-import {resolveOrganizationTimezone,zonedParts,zonedInstant} from '../platform/timezone.js';
+import {adoptOrganizationTimezone,resolveOrganizationTimezone,zonedParts,zonedInstant} from '../platform/timezone.js';
 import {occurrenceDate,createRecurrenceSeries,materializeRecurrenceSeries} from '../platform/recurrence.js';
 import {isFirstMeasurePostgresEnabled,withPostgresTransaction,withPlatformPostgresClient} from '../src/database/postgres.js';
 
@@ -125,11 +125,11 @@ export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<t
   const resources=bundle.resources.filter(r=>hasResourcePermission(ctx,hasResourcePermission(ctx,'manage_schedule',config)?'manage_schedule':SCHEDULE_VIEW,{department_ids:r.department_ids,branch_id:ctx.branchId}));
   if(config.department_ids.some(id=>!catalog.departments.some(d=>d.id===id)))throw badRequest('unknown_department','A selected department no longer exists.');
   if(config.requirements.some(r=>r.department_id&&!config.department_ids.includes(r.department_id)))throw badRequest('department_requirement','Staffing departments must also be selected for this appointment.');
-  const zone=await resolveOrganizationTimezone(ctx.orgId,ctx.branchId||'default');
+  const zone=await resolveOrganizationTimezone(ctx.orgId,ctx.branchId||'default',input.timezone);
   const location=await bookingLocation(ctx,config,input.project_id);
   const cache=new Map<string,Awaited<ReturnType<typeof appointmentAvailability>>>();
   const daily=async(date:string)=>{
-    if(!cache.has(date))cache.set(date,await appointmentAvailability(ctx.orgId,ctx.branchId||'default',{project_id:input.project_id,event_type_id:'appointment',start_date:date,end_date:date,duration_minutes:config.duration_minutes,address:location,limit:500},{assignmentPolicy:{allow_unassigned:true,rules:[]},slotMinutes:config.slot_minutes,fullDay:config.timing_mode==='days'}));
+    if(!cache.has(date))cache.set(date,await appointmentAvailability(ctx.orgId,ctx.branchId||'default',{project_id:input.project_id,event_type_id:'appointment',start_date:date,end_date:date,duration_minutes:config.duration_minutes,address:location,limit:500},{assignmentPolicy:{allow_unassigned:true,rules:[]},slotMinutes:config.slot_minutes,fullDay:config.timing_mode==='days',timezone:zone}));
     return cache.get(date)!;
   };
   const day=await daily(input.date),slots:JsonObject[]=[];
@@ -191,8 +191,8 @@ export async function bookPlannedAppointment(ctx:PlatformAuthContext,input:z.inf
     const fingerprint=createHash('sha256').update(JSON.stringify(input)).digest('hex');
     const prior=await readDocument(ctx.orgId,'appointment_bookings',input.event_id).catch((error)=>{if(error.statusCode===404)return null;throw error;});
     if(prior){if(prior.data.fingerprint!==fingerprint||prior.data.actor!==ctx.userId)throw conflict('appointment_booking_conflict','This booking ID has already been used.');if(prior.data.result)return prior.data.result;throw conflict('appointment_booking_pending','This booking is still being saved. Refresh the calendar before trying again.');}
-    const zone=await resolveOrganizationTimezone(ctx.orgId,ctx.branchId||'default');
-    const preview=await previewAppointment(ctx,{project_id:input.project_id,date:dayKey(new Date(input.start_at),zone),configuration:input.configuration});
+    const zone=await adoptOrganizationTimezone(ctx.orgId,ctx.branchId||'default',input.timezone);
+    const preview=await previewAppointment(ctx,{project_id:input.project_id,date:dayKey(new Date(input.start_at),zone),configuration:input.configuration,timezone:zone});
     const slot=preview.slots.find(s=>s.start_at===new Date(input.start_at).toISOString()&&s.available);
     if(!slot)throw conflict('appointment_slot_unavailable','The requirements are no longer available at that time. Choose another slot.');
     const plan=object(slot.plan),resources=list(plan.resources),config=input.configuration;

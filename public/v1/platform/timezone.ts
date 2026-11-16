@@ -3,8 +3,11 @@
 // availability.timezone, the organization/global record's timezone, then the
 // server's own zone — so every feature that promises "the company's local
 // time" (appointment confirmations, agent wakeups) agrees on what that means.
+// An organization nobody gave a zone to uses the zone of the person's device
+// (when the request carries one) before the server's zone, and adopts it on its
+// first booking (FM-504: a dev server in UTC turned a 1 PM booking into 5 AM).
 
-import { readBranchModule, readGlobal, readOrganization } from "./storage.js";
+import { patchOrganization, readBranchModule, readGlobal, readOrganization } from "./storage.js";
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -77,18 +80,31 @@ export function zonedInstant(year: number, month: number, day: number, hour: num
   return new Date(instant);
 }
 
-/** The organization's local IANA timezone (never empty; falls back to the server's). */
-export async function resolveOrganizationTimezone(orgId: string, branchId: string) {
+/** The zone an organization has been given, or "" when nobody has set one. */
+export async function configuredOrganizationTimezone(orgId: string, branchId: string) {
   const normalizedBranch = text(branchId) || "default";
   const scheduling = await readBranchModule(orgId, normalizedBranch, "scheduling").catch(() => null);
   const availability = record(record(record(scheduling?.data).availability));
-  let timezone = safeTimezone(availability.timezone, "");
-  if (!timezone) {
-    const [organization, global] = await Promise.all([
-      readOrganization(orgId).catch(() => ({} as Record<string, unknown>)),
-      readGlobal(orgId).catch(() => null)
-    ]);
-    timezone = safeTimezone(record(organization).timezone || record(global?.data).timezone, "");
-  }
-  return timezone || systemTimezone();
+  const timezone = safeTimezone(availability.timezone, "");
+  if (timezone) return timezone;
+  const [organization, global] = await Promise.all([
+    readOrganization(orgId).catch(() => ({} as Record<string, unknown>)),
+    readGlobal(orgId).catch(() => null)
+  ]);
+  return safeTimezone(record(organization).timezone || record(global?.data).timezone, "");
+}
+
+/** The organization's local IANA timezone (never empty): its own, else the caller's device zone, else the server's. */
+export async function resolveOrganizationTimezone(orgId: string, branchId: string, deviceTimezone: unknown = "") {
+  return (await configuredOrganizationTimezone(orgId, branchId)) || safeTimezone(deviceTimezone, "") || systemTimezone();
+}
+
+/** resolveOrganizationTimezone for a write: an organization without a zone keeps the device zone it was given from now on. */
+export async function adoptOrganizationTimezone(orgId: string, branchId: string, deviceTimezone: unknown) {
+  const configured = await configuredOrganizationTimezone(orgId, branchId);
+  if (configured) return configured;
+  const timezone = safeTimezone(deviceTimezone, "");
+  if (!timezone) return systemTimezone();
+  await patchOrganization(orgId, { timezone });
+  return timezone;
 }
