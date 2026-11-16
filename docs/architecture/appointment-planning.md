@@ -20,6 +20,8 @@ Authenticated routes under `/v1/appointments/organizations/:orgId`:
 
 Typed publications are `scheduling.appointment.catalog`, `.configure`, `.preview` and `.create`. The original `.book` contract remains compatible. Strict schemas live in `planning-contracts.ts`; services live in `planning.ts`. Booking requires schedule management, appointment capability and the correct project branch. PostgreSQL serializes configured bookings with an organization advisory lock and commits their records atomically. SQLite uses an in-process lock and a durable booking receipt; an interrupted save remains pending rather than being blindly repeated. Other legacy scheduling writers retain their existing concurrency guarantees.
 
+A booking made by staff (Scheduling, the project Schedule tab, the `.create` and `.book` publications) is saved with `customer_visible: false`, like any other event: it is shared only when someone turns on Share with customer, and that panel is shown only when `platform.customer_portal` is on. An appointment a customer books from a website form is saved shared, since the customer made it.
+
 The internal `appointment_bookings` receipt collection is not added to the generic browser collection API. Replays check the actor and full request fingerprint before returning the saved result.
 
 Validation covers attendance thresholds, crew rosters, named selection, department combinations, arrival-window persistence, recurrence, retry safety, catalog revisions, optional projects and browser interaction. Public forms retain their existing contact collection and public endpoint boundary while sharing the calendar/time-slot component.
