@@ -3,7 +3,7 @@ import type { LibraryKind } from "../contracts.js";
 import { describeAction } from "../../platform/publication/actions.js";
 import { validateJson } from "../../platform/publication/validation.js";
 import { appDefinition } from "../../platform/app-experience/registry.js";
-import { APP_OFFERS } from "../../platform/app-experience/offers.js";
+import { isOfferableApp } from "../../platform/app-experience/offers.js";
 import { capabilityValuesErrors, capabilityValueSchema, CAPABILITY_KEY } from "./capability_values.js";
 
 /**
@@ -77,7 +77,7 @@ function settingErrors(settings: Record<string, unknown>) {
   const offers = settings.app_offers;
   if (offers !== undefined && offers !== USER_CHOICE) {
     if (!Array.isArray(offers)) errors.push("defaults.settings.app_offers: a list of offered app ids.");
-    else for (const id of offers) if (!Object.prototype.hasOwnProperty.call(APP_OFFERS, String(id))) errors.push(`defaults.settings.app_offers: ${String(id)} is not an app that can be offered.`);
+    else for (const id of offers) if (!isOfferableApp(id)) errors.push(`defaults.settings.app_offers: ${String(id)} is not an app that can be offered.`);
   }
   // A page may let the person choose them ("$user"); a configuration never sets an organization's money.
   for (const [path, value] of Object.entries(settings)) {

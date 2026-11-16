@@ -1,4 +1,4 @@
-import { APP_OFFERS, offerSiblings, offeredAppIds } from './offers.js';
+import { offerSiblings, offerSwitches, offeredAppIds } from './offers.js';
 import { capabilityDefaultValues, capabilityValuesForUser, flattenGroupedValues, resolveCapabilities } from '../capabilities.js';
 import { forbidden, notFound } from '../errors.js';
 import { mutateGlobal, readGlobal, type JsonObject } from '../storage.js';
@@ -19,7 +19,7 @@ export async function startOfferedApp(ctx: PlatformAuthContext, appId: string) {
   const configuredFlags = object(snapshot.app_flags || snapshot.feature_flags);
   const ceiling = resolveCapabilities(await capabilityValuesForUser(ctx.orgId, ctx.userId,
     { ...capabilityDefaultValues(), ...flattenGroupedValues(configuredFlags) }, true)).effectiveByKey;
-  if (!APP_OFFERS[id].some(key => ceiling[key] === true)) throw forbidden('app_offer_unavailable', 'This app is no longer offered by your organization.');
+  if (!offerSwitches(id).some(key => ceiling[key] === true)) throw forbidden('app_offer_unavailable', 'This app is no longer offered by your organization.');
   // Membership, commercial eligibility and rollout were resolved from this request's verified session.
   // Recheck configured switches under the write lock; accepting an offer never changes those switches.
   await mutateGlobal(ctx.orgId, current => {

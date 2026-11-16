@@ -55,7 +55,9 @@ test("tab_promo and app_welcome: capabilities, assets and offered apps", () => {
   assert.equal(libraryKind("tab_promo")!.browser, true, "pages read promos directly");
   assert.deepEqual(libraryKind("tab_promo")!.assetsOf!(promo).length, 2);
   const welcome = libraryCopy<any>("app_welcome", "project.money")!;
-  assert.match(errors("app_welcome", "project.nope", welcome), /not an offered app/);
+  assert.match(errors("app_welcome", "project.nope", welcome), /not an offerable app/);
+  assert.match(errors("app_welcome", "project.field_customer", welcome), /not an offerable app/, "a view with no switch is never offered");
+  assert.equal(errors("app_welcome", "portal.stats", { ...welcome, setup: undefined, setup_note: undefined, theme: "generic" }), "", "any app with a switch may have its own welcome");
   assert.match(errors("app_welcome", "project.money", { ...welcome, setup: "platform.nope" }), /not a registered capability/);
   assert.match(errors("app_welcome", "project.money", { ...welcome, theme: "rainbow" }), /theme/);
 });

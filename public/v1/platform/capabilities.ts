@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { badRequest, notFound } from "./errors.js";
 import { OTHER_PERMISSION_CATEGORY, PERMISSION_CATEGORIES, WILDCARD_PERMISSION, permissionSubcategory } from "./permission_categories.js";
 import { readGlobal, mutateGlobal, readPlatformConfiguration, mutatePlatformConfiguration, type JsonObject } from "./storage.js";
-import { APP_OFFERS, maskOfferedCapabilities, offeredAppIds, offersWithPrerequisitesMet } from "./app-experience/offers.js";
+import { maskOfferedCapabilities, offerSwitches, offeredAppIds, offersWithPrerequisitesMet } from "./app-experience/offers.js";
 import { libraryData, libraryEntries, libraryEntry, libraryVersion } from "../config-library/library.js";
 import type { LibraryEntry } from "../config-library/contracts.js";
 import type { Author } from "../config-library/contracts.js";
@@ -741,7 +741,7 @@ export async function capabilityAccessState(orgId: string, userId?: string) {
   const pending = offeredAppIds(asObject(global.data).app_offers);
   const ceiling = pending.length ? resolveCapabilities(values).effectiveByKey : {};
   // A pending offer stays masked either way; one whose prerequisite setup is not reached is just not advertised yet.
-  const advertised = await offersWithPrerequisitesMet(orgId, pending.filter(id => APP_OFFERS[id].some(key => ceiling[key] === true)));
+  const advertised = await offersWithPrerequisitesMet(orgId, pending.filter(id => offerSwitches(id).some(key => ceiling[key] === true)));
   return { capabilities: resolveCapabilities(maskOfferedCapabilities(values, pending)), offeredAppIds: advertised };
 }
 
