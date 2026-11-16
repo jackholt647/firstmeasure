@@ -3922,16 +3922,30 @@
     if (shown.at(-1)?.classList.contains('sidebar-launcher-divider')) shown.at(-1).remove();
   }
 
+  // The left column's order: by placement, then apps in use, then apps still waiting on setup ("Setup required"),
+  // then apps not started yet ("New"), each by the tab's order (FM-479). A new app never sits above one people use.
+  function portalTabUseRank(tab){
+    const kind = portalAppPill(tab?.appId)?.kind;
+    return kind === 'new' ? 2 : kind === 'setup' ? 1 : 0;
+  }
+  function sortPortalTabs(tabs){
+    const placementOrder = { sidebar:0, more:1, settings:2 };
+    const rank = new Map(tabs.map((tab) => [tab, portalTabUseRank(tab)]));
+    return [...tabs].sort((a, b) => (
+      (placementOrder[a.placement] ?? 3) - (placementOrder[b.placement] ?? 3)
+      || rank.get(a) - rank.get(b)
+      || a.order - b.order
+    ));
+  }
+
   // Pinned app subviews are personal (left-column-pins.js). Each follows its
   // app's link, or the last link before it when the app is not pinned.
   function insertSidebarSubviewLinks(mainLinks = document.getElementById('sidebarMainLinks'), list = null){
     const pins = window.FirstMateLeftColumnPins;
     if (!mainLinks || !pins?.pinnedSubviews) return;
     mainLinks.querySelectorAll('.fm-link-subview').forEach((node) => node.remove());
-    const placementOrder = { sidebar:0, more:1, settings:2 };
-    const tabs = list || [...TabRegistry.tabs.values()]
-      .filter((tab) => tab.placement !== 'hidden' && (tab.placement !== 'settings' || tab.id === 'company_settings'))
-      .sort((a, b) => (placementOrder[a.placement] ?? 3) - (placementOrder[b.placement] ?? 3) || a.order - b.order);
+    const tabs = list || sortPortalTabs([...TabRegistry.tabs.values()]
+      .filter((tab) => tab.placement !== 'hidden' && (tab.placement !== 'settings' || tab.id === 'company_settings')));
     let cursor = null;
     tabs.forEach((tab) => {
       const own = [...mainLinks.children].find((node) => node.dataset?.tab === tab.id);
@@ -3957,12 +3971,9 @@
     const panels = document.getElementById('mainPanels');
     if (!links || !panels) return;
 
-    const placementOrder = { sidebar:0, more:1, settings:2 };
-    const list = [...TabRegistry.tabs.values()].filter((tab) => (
+    const list = sortPortalTabs([...TabRegistry.tabs.values()].filter((tab) => (
       tab.placement !== 'hidden' && (tab.placement !== 'settings' || tab.id === 'company_settings')
-    )).sort((a,b) => (
-      (placementOrder[a.placement] ?? 3) - (placementOrder[b.placement] ?? 3) || a.order - b.order
-    ));
+    )));
     const availableIds = new Set(list.map((tab) => tab.id));
     let currentRoute = routeState();
     // A tab we do not recognise yet may belong to a project modal — but not
