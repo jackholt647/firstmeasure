@@ -121,9 +121,9 @@ button.fm-booking-chip{cursor:pointer;transition:background .15s}button.fm-booki
 #fm-booking-dialog.fm-booking-steps [data-status]{flex:none;margin:0;padding:8px 16px 0;font-size:13px}
 .fm-booking-footer{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px max(12px,env(safe-area-inset-bottom));border-top:1px solid #eaecf0;background:#fff}
 #fm-booking-dialog .fm-booking-nav{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:46px;min-width:112px;padding:0 18px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;color:#344054;font:600 15px/1 inherit;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .2s,transform .12s,opacity .15s}
-#fm-booking-dialog .fm-booking-nav:hover{background:#f9fafb}#fm-booking-dialog .fm-booking-nav:active:not(:disabled){transform:scale(.97)}#fm-booking-dialog .fm-booking-nav:focus-visible{outline:2px solid var(--fm-bk-accent);outline-offset:2px}
-#fm-booking-dialog .fm-booking-nav.primary{min-width:140px;border-color:var(--fm-bk-accent);background:var(--fm-bk-accent);color:#fff;box-shadow:0 6px 16px #d9302533}#fm-booking-dialog .fm-booking-nav.primary:hover{background:#c5281e}
-#fm-booking-dialog .fm-booking-nav:disabled{background:#f2f4f7;border-color:#eaecf0;color:#98a2b3;box-shadow:none;cursor:not-allowed}
+@media(hover:hover){#fm-booking-dialog .fm-booking-nav:hover:not(:disabled){background:#f9fafb}#fm-booking-dialog .fm-booking-nav.primary:hover:not(:disabled){background:#c5281e}}#fm-booking-dialog .fm-booking-nav:active:not(:disabled){transform:scale(.97)}#fm-booking-dialog .fm-booking-nav:focus-visible{outline:2px solid var(--fm-bk-accent);outline-offset:2px}
+#fm-booking-dialog .fm-booking-nav.primary{min-width:140px;border-color:var(--fm-bk-accent);background:var(--fm-bk-accent);color:#fff;box-shadow:0 6px 16px #d9302533}
+#fm-booking-dialog .fm-booking-nav:disabled,#fm-booking-dialog .fm-booking-nav.primary:disabled{background:#f2f4f7;border-color:#eaecf0;color:#98a2b3;box-shadow:none;cursor:not-allowed}
 #fm-booking-dialog .fm-booking-nav[data-create]{flex:1;max-width:260px}
 #fm-booking-dialog .fm-booking-arrow{width:8px;height:8px;border-top:2px solid currentColor;border-right:2px solid currentColor;transform:rotate(45deg);margin-left:-2px}#fm-booking-dialog .fm-booking-arrow.back{transform:rotate(-135deg);margin:0 -2px 0 2px}
 /* Advanced sheet */
