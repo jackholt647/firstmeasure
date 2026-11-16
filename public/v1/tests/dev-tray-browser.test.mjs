@@ -7,7 +7,7 @@ import {chromium} from 'playwright-core';
 // issues, files the next issue to Ready in General platform work with a screenshot of the page without the tray,
 // closes on Go, and opens the full dev console from its header. A desktop keeps the strip.
 const lib=file=>readFile(new URL('../../libraries/'+file,import.meta.url));
-const PAGE=`<!doctype html><meta charset="utf-8"><style>body{margin:0;font:14px Arial;background:#e8f0ff}main{padding:20px}</style><main><h1>Projects</h1><p>Underneath</p></main>
+const PAGE=`<!doctype html><meta charset="utf-8"><style>body{margin:0;font:14px Arial;background:#e8f0ff}main{padding:20px}h1{color:color-mix(in srgb,#123 70%,#fff);border-bottom:2px solid color-mix(in oklab,#e8f0ff,#000 10%)}</style><main><h1>Projects</h1><p>Underneath</p></main>
 <div id="mobilePlatformMoreMenu"></div>`;
 const NOW=new Date().toISOString();
 const ISSUES=[
@@ -16,12 +16,13 @@ const ISSUES=[
  {id:'i3',key:'FM-3',title:'Needs Jack',status:{name:'Ready',category:'unstarted',color:'#2e90fa'},updated_at:NOW,needs_input:{}}
 ];
 
-async function page(browser,{width=390,height=844,app=true}={}){
- const tab=await browser.newPage({viewport:{width,height},hasTouch:width<700}),errors=[],tracker=[];
+async function page(browser,{width=390,height=844,app=true,scale=1}={}){
+ const tab=await browser.newPage({viewport:{width,height},hasTouch:width<700,deviceScaleFactor:scale}),errors=[],tracker=[];
  tab.on('pageerror',e=>errors.push(e.message));
  await tab.route('http://tray.test/**',async route=>{const p=new URL(route.request().url()).pathname;
   if(p.startsWith('/libraries/'))return route.fulfill({contentType:p.endsWith('.css')?'text/css':'application/javascript',body:await lib(p.replace(/^\/libraries\//,''))});
   if(p==='/v1/signup-sandbox/development/console')return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,sections:{guided:false}})});
+  if(p==='/project-window')return route.fulfill({contentType:'text/html',body:'<!doctype html><style>body{margin:0;background:#fff}p{color:color-mix(in srgb,#000 80%,#fff)}</style><p>Comms</p>'});
   return route.fulfill({contentType:'text/html',body:PAGE});
  });
  await tab.route('https://tracker.1m8.ai/**',async route=>{
@@ -126,7 +127,7 @@ test('dev tray in the app: shake, sign in, see issues, screenshot without the tr
 test('dev tray in a phone browser: devicemotion opens it, the screenshot is drawn from the page; a desktop keeps the strip',async()=>{
  const browser=await launch();
  try{
-  const {tab,errors,tracker}=await page(browser,{app:false});
+  const {tab,errors,tracker}=await page(browser,{app:false,scale:2});
   assert.equal(await tab.locator('.fm-dc-strip').isVisible(),false);
   // Ordinary handling: a bump and its rebound.
   await tab.evaluate(()=>{for(const [t,x] of [[0,30],[40,-18],[80,0]]){const e=new Event('devicemotion');Object.defineProperty(e,'acceleration',{value:{x,y:0,z:0}});Object.defineProperty(e,'timeStamp',{value:1000+t});window.dispatchEvent(e);}});
@@ -143,6 +144,25 @@ test('dev tray in a phone browser: devicemotion opens it, the screenshot is draw
   // The drawn page has the page's colour at the bottom, where the tray is: the tray is not in it.
   const bottom=await tab.evaluate(async()=>{const img=document.querySelector('.fm-qt-thumb img'),c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const g=c.getContext('2d');g.drawImage(img,0,0);return [...g.getImageData(10,img.naturalHeight-20,1,1).data].slice(0,3);});
   assert.ok(Math.abs(bottom[0]-0xe8)<8&&Math.abs(bottom[2]-0xff)<8,'page colour under the tray: '+bottom);
+  // FM-475: the page's CSS uses color-mix() (Chrome reports color(srgb ...), which html2canvas 1.4 could not parse),
+  // and an open project window is a same-origin iframe: it is drawn as it is on screen, over its backdrop, from its
+  // own document (its green is set after it loaded, so a reload of its URL would come out white).
+  await tab.click('.fm-qt-unshot');
+  await tab.evaluate(async()=>{
+   const layer=document.createElement('div');layer.className='fm-project-window-layer';layer.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2147483100';
+   const panel=document.createElement('section');panel.className='fm-project-frame';panel.style.cssText='position:fixed;left:0;top:300px;width:100%;height:300px;background:#fff';
+   const frame=document.createElement('iframe');frame.src='/project-window';frame.style.cssText='display:block;width:100%;height:100%;border:0';
+   panel.append(frame);layer.append(panel);document.querySelector('main').append(layer);
+   await new Promise(r=>frame.addEventListener('load',r,{once:true}));
+   frame.contentDocument.body.style.background='#10c060';
+  });
+  await tab.click('.fm-qt-shot');
+  await tab.locator('.fm-qt-thumb img').waitFor({timeout:15000});
+  const drawn=await tab.evaluate(async()=>{const img=document.querySelector('.fm-qt-thumb img');await img.decode();const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const g=c.getContext('2d');g.drawImage(img,0,0);const k=img.naturalWidth/innerWidth,at=y=>[...g.getImageData(20*k,y*k,1,1).data].slice(0,3);return {backdrop:at(150),window:at(450),global:typeof window.html2canvas};});
+  assert.ok(drawn.backdrop[0]<0x80&&drawn.backdrop[2]<0x90,'the page is dimmed behind the window: '+drawn.backdrop);
+  assert.ok(Math.abs(drawn.window[0]-0x10)<24&&Math.abs(drawn.window[1]-0xc0)<24&&Math.abs(drawn.window[2]-0x60)<24,'the window as it is on screen: '+drawn.window);
+  assert.equal(drawn.global,'undefined','the page keeps its own window.html2canvas (none here)');
+  await tab.evaluate(()=>document.querySelector('.fm-project-window-layer').remove());
   await tab.fill('.fm-qt-text','Long note\nwith two lines');
   await tab.click('.fm-qt-compose .fm-qt-go');
   await tab.locator('.fm-dc-toast',{hasText:'Filed FM-9'}).waitFor();

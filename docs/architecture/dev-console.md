@@ -79,8 +79,12 @@ first opening is from the ⋯ sheet's **Dev tray**, which asks.
 
 **Screenshot.** In the app, `PhoneFeatures.screenshot()` (capability `screenshot`): the tray
 and its backdrop are hidden for two frames and the host captures the web view as on screen
-(WebGL included). In a browser the page is drawn with html2canvas from `<body>` (the tray
-lives on `<html>`, outside it): frames from other origins and some effects do not draw.
+(WebGL included). In a browser the page is drawn with html2canvas-pro
+(`libraries/vendor/html2canvas-pro-2.6.4`; html2canvas 1.4 threw on the `color(...)` Chrome
+reports for every `color-mix()`, FM-475) from `<body>` (the tray lives on `<html>`, outside
+it). html2canvas reloads an iframe's URL in its copy of the page, so the page is drawn without
+its project windows and each open one is painted over it, backdrop and panel, from its own
+document. Frames from other origins and some effects (backdrop blur) do not draw.
 
 **Tracker.** The tray talks to `https://tracker.1m8.ai/api/v1` from the page. Tracker's web
 session is a SameSite=Lax cookie on its own origin and its API allows any origin only
