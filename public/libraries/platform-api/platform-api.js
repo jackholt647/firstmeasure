@@ -1891,6 +1891,13 @@
         cache = stateFromResult(normalizedOrgId, result);
         return cache;
       },
+      // Shows placements before they are saved (the portal saves them right
+      // after, and puts the confirmed ones back if that fails). Local only.
+      applyPlacements(placements = {}){
+        if (!cache) return null;
+        cache = { ...cache, app_placements: normalizePlacements(placements) };
+        return cache;
+      },
       projectTabs(){
         return cache?.project_tabs || { order: [], pills: {} };
       },

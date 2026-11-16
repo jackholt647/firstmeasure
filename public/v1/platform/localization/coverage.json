@@ -1,7 +1,7 @@
 {
   "files": 318,
   "namespaces": 120,
-  "messages": 17402,
+  "messages": 17405,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -139,9 +139,9 @@
     {
       "file": "public/libraries/apps/checklists/app.js",
       "namespace": "checklists",
-      "references": 135,
-      "candidates": 18,
-      "edits": 12
+      "references": 153,
+      "candidates": 3,
+      "edits": 2
     },
     {
       "file": "public/libraries/apps/comms/calling-runtime.js",
@@ -671,9 +671,9 @@
     {
       "file": "public/libraries/apps/project-schedule/panel.js",
       "namespace": "project-schedule",
-      "references": 184,
-      "candidates": 79,
-      "edits": 74
+      "references": 190,
+      "candidates": 80,
+      "edits": 75
     },
     {
       "file": "public/libraries/apps/projects/map-view.js",
@@ -734,7 +734,7 @@
     {
       "file": "public/libraries/apps/scheduling/app.js",
       "namespace": "scheduling",
-      "references": 367,
+      "references": 368,
       "candidates": 119,
       "edits": 108
     },
@@ -2197,7 +2197,7 @@
     {
       "file": "public/portal/scripts/core.js",
       "namespace": "platform",
-      "references": 48,
+      "references": 51,
       "candidates": 1,
       "edits": 1
     },
