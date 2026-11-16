@@ -11,7 +11,7 @@
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
-const REGISTRATION_SRC = '/libraries/apps/settings/sms-registration.js?v=20261116-fm510';
+const REGISTRATION_SRC = '/libraries/apps/settings/sms-registration.js?v=20261116-fm510b';
 const WIZARD_SRC = '/libraries/setup-wizard/setup-wizard.js';
 const DOMAINS_SRCS = ['/libraries/domains-api/domains-api.js?v=20260731-domains-v10', '/libraries/apps/settings/domains.js?v=20261116-fm513b'];
 
