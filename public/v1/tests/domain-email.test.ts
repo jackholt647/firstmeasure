@@ -108,7 +108,7 @@ test('a company domain sends and receives once its records check out, with First
   const mail = await engine.ensureOrgEmailInbox(orgId);
   const sender = async () => {
     const sent = await engine.sendEngineEmail(orgId, { recipients: [{ address: 'customer@example.com' }], subject: 'Hello', text: 'Hi' }) as any;
-    return (await readMessageRecord(orgId, sent.message.id)).sender.address as string;
+    return (await readMessageRecord(orgId, sent.message.id) as any).sender.address as string;
   };
   const defaults = async () => (await listSenderIdentities(orgId, 'default', 'email')).filter((identity) => identity.is_default).map((identity) => identity.address);
 
