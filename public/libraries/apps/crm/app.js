@@ -735,6 +735,8 @@
     }
     function openNewView(anchor){
       const collections = arr(state.meta?.collections);
+      // On a phone the rail is itself a sheet: this one takes its place rather than opening under it (FM-492).
+      if (phone()) setRailOpen(false);
       const el = openPop(anchor, `<h5>${esc(L('new_view', 'New view'))}</h5>${collections.map((c) => `<button type="button" class="crm-pop-item" data-nv="${esc(c.id)}"><i class="fas ${esc(c.icon)}"></i>${esc(term(c.term, c.label))}</button>`).join('')}`, { width: 260, role:'menu' });
       el.addEventListener('click', (e) => {
         const b = e.target.closest('[data-nv]'); if (!b) return;
