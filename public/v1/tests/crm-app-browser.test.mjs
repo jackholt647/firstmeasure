@@ -223,7 +223,15 @@ test('the CRM tab: views, filters, the board, the drawer, a worklist, reports, s
     await shot(page, '08-duplicates');
     await page.locator('[data-open-panel="settings"]').first().click();
     await page.waitForSelector('[data-setup] .crm-packs');
+    await page.waitForSelector('[data-routing] h3');
     await shot(page, '09-settings');
+    // FM-494: each section's explanation is an (i) beside its heading, not a paragraph under it; hover shows it.
+    assert.equal(await page.locator('.crm-page p.crm-dim', { hasText: /Adds the views|Who owns each new lead|Points for each rule|Do something when a contact/ }).count(), 0, 'no intro paragraphs under the settings headings');
+    const routingTip = page.locator('[data-routing] h3 [data-crm-tip]').first();
+    assert.equal(await routingTip.locator('.crm-hint-tip').isVisible(), false, 'the tip is hidden until asked for');
+    await routingTip.hover();
+    assert.match(await routingTip.locator('.crm-hint-tip').innerText(), /Who owns each new lead/, 'hovering the (i) shows the routing explanation');
+    await page.mouse.move(0, 0);
 
     // Lead routing: by rules, a rule with conditions edited in the filter editor, people, saved as organization rules.
     const routing = page.locator('[data-routing]');
@@ -327,6 +335,25 @@ test('the CRM tab: views, filters, the board, the drawer, a worklist, reports, s
     await phone.page.locator('.crm-content [data-row]').first().click();
     await phone.page.waitForSelector('.crm-drawer:not([hidden]) .crm-drawer-actions');
     await shot(phone.page, '12-phone-drawer');
+    // CRM settings on a phone (FM-494): a tap opens an (i) tip inside the panel and a tap elsewhere closes it.
+    await phone.page.keyboard.press('Escape');
+    await phone.page.locator('.crm-view-pick').click();
+    await phone.page.waitForFunction(() => document.querySelector('.crm').classList.contains('rail-open'));
+    await phone.page.locator('.crm-rail [data-open-panel="settings"]').first().click();
+    await phone.page.waitForSelector('[data-routing] h3 [data-crm-tip]');
+    const phoneTip = phone.page.locator('[data-routing] h3 [data-crm-tip]').first();
+    await phoneTip.click();
+    assert.equal(await phoneTip.getAttribute('aria-expanded'), 'true', 'a tap opens the tip');
+    const tipBox = await phoneTip.locator('.crm-hint-tip').evaluate((el) => { const r = el.getBoundingClientRect(), p = el.closest('.crm-panel').getBoundingClientRect(); return { left: r.left, right: r.right, panelLeft: p.left, panelRight: p.right }; });
+    assert.ok(tipBox.left >= tipBox.panelLeft && tipBox.right <= tipBox.panelRight, `the tip stays inside the panel: ${JSON.stringify(tipBox)}`);
+    assert.equal(await phone.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'an open tip does not widen the page');
+    await shot(phone.page, '13-phone-settings-tip');
+    const customTip = phone.page.locator('details[data-rt-custom] summary [data-crm-tip]');
+    await customTip.click();
+    assert.equal(await phoneTip.getAttribute('aria-expanded'), 'false', 'opening another tip closes the first');
+    assert.equal(await phone.page.locator('details[data-rt-custom]').evaluate((el) => el.open), false, 'the (i) in Custom code does not open the code');
+    await phone.page.locator('[data-routing] h3').first().click({ position: { x: 2, y: 2 } });
+    assert.equal(await phone.page.locator('[data-crm-tip][aria-expanded="true"]').count(), 0, 'a tap elsewhere closes it');
     assert.deepEqual(phone.errors, [], 'no page errors on a phone');
   } catch (error) {
     if (current) await shot(current, 'failure').catch(() => null);
