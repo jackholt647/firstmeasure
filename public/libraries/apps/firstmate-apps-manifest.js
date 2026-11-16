@@ -390,7 +390,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
-      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261116-fm503-booking-font')]
+      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261116-fm507-advanced-toggle')]
     },
     {
       id: 'portal.training',
