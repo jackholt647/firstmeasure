@@ -356,6 +356,24 @@ test('the CRM tab: views, filters, the board, the drawer, a worklist, reports, s
     assert.equal(await phone.page.locator('details[data-rt-custom]').evaluate((el) => el.open), false, 'the (i) in Custom code does not open the code');
     await phone.page.locator('[data-routing] h3').first().click({ position: { x: 2, y: 2 } });
     assert.equal(await phone.page.locator('[data-crm-tip][aria-expanded="true"]').count(), 0, 'a tap elsewhere closes it');
+    // Settings on a phone (FM-495): every dropdown is drawn with its own chevron at a finger's height, nothing is
+    // wider than the phone, and a funnel step stacks its event under its name.
+    await phone.page.waitForSelector('[data-funnel] .crm-step');
+    if (await phone.page.locator('[data-rs-add]').count()) await phone.page.locator('[data-rs-add]').click();
+    const controls = await phone.page.evaluate(() => [...document.querySelectorAll('.crm-page select:not(.crm-btn), .crm-page input[type=text]:not(.crm-btn)')].filter((el) => el.offsetParent).map((el) => { const s = getComputedStyle(el); return { name: el.outerHTML.slice(0, 60), select: el.tagName === 'SELECT', appearance: s.appearance, chevron: s.backgroundImage.includes('svg'), border: s.borderTopWidth, height: el.getBoundingClientRect().height, right: el.getBoundingClientRect().right }; }));
+    assert.ok(controls.some((c) => c.select), 'settings has dropdowns');
+    for (const c of controls) {
+      assert.equal(c.border, '1px', `${c.name} has a border`);
+      assert.ok(c.height >= 44, `${c.name} is ${c.height}px high`);
+      assert.ok(c.right <= 390, `${c.name} fits the phone`);
+      if (c.select) assert.ok(c.appearance === 'none' && c.chevron, `${c.name} is a drawn dropdown`);
+    }
+    assert.equal(await phone.page.evaluate(() => document.querySelector('.crm-page').scrollWidth <= document.querySelector('.crm-page').clientWidth), true, 'nothing wider than the phone in settings');
+    const step = await phone.page.locator('[data-funnel] .crm-step').first().evaluate((row) => { const r = (el) => el.getBoundingClientRect(); return { name: r(row.querySelector('[data-fl]')), event: r(row.querySelector('[data-fe]')), remove: r(row.querySelector('[data-fx]')) }; });
+    assert.ok(step.event.top >= step.name.bottom - 1, 'the event sits under the step name');
+    assert.ok(Math.abs(step.remove.top + step.remove.height / 2 - (step.name.top + step.name.height / 2)) < 4, 'remove is on the name row');
+    await phone.page.locator('[data-funnel]').scrollIntoViewIfNeeded();
+    await shot(phone.page, '13b-phone-settings-funnel');
     // On a phone the Sources intro is an (i) at the right under the picker, beside the toolbar, and its tip hangs from it (FM-493).
     await phone.page.locator('.crm-view-pick').click();
     await phone.page.waitForFunction(() => document.querySelector('.crm').classList.contains('rail-open'));

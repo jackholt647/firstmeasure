@@ -225,6 +225,28 @@ a.crm-btn{text-decoration:none}
 .crm-tree{list-style:none;margin:0;padding:0}
 .crm-tree li{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--crm-line)}
 .crm-dup{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid var(--crm-line);border-radius:12px;padding:12px;margin-bottom:10px}
+/* Settings controls (FM-495): every text box and dropdown on a CRM page is drawn, never left to the browser,
+   and a dropdown shows its own chevron and cuts a long choice short. */
+.crm-page input:is([type=text],[type=number],[type=date],[type=email],[type=search],[type=url],[type=tel]):not(.crm-btn),.crm-page select:not(.crm-btn),.crm-page textarea{height:32px;min-width:0;max-width:100%;border:1px solid var(--crm-line-strong);border-radius:8px;padding:0 9px;font:inherit;background-color:#fff;color:var(--crm-text);transition:border-color .12s,box-shadow .12s}
+.crm-page textarea{height:auto;padding:8px 9px}
+.crm-page :is(input,select,textarea):not(.crm-btn):not([type=checkbox]):not([type=radio]):focus{outline:0;border-color:rgba(var(--crm-accent-rgb),.6);box-shadow:0 0 0 3px rgba(var(--crm-accent-rgb),.12)}
+.crm-page select:not(.crm-btn):not([multiple]),.crm-pop select:not([multiple]),.crm-field select:not([multiple]){-webkit-appearance:none;appearance:none;padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23667085' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:12px 12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.crm-page .crm-multi>summary.crm-btn{display:flex;height:32px;padding:0 10px 0 9px;font-weight:500;font-size:inherit;color:var(--crm-text)}
+.crm-page .crm-multi>summary.crm-btn>i{color:var(--crm-muted);font-size:12px}
+/* Funnel steps and cancellation rules: one row each on a desktop. */
+.crm-step{grid-template-columns:24px minmax(0,1fr) minmax(0,1.2fr) minmax(0,1fr) 28px;grid-template-areas:"n name event note x"}
+.crm-step>.crm-step-n{grid-area:n;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:99px;background:rgba(var(--crm-accent-rgb),.09);color:var(--crm-accent-ink);font-size:11px;font-weight:800}
+.crm-step>input{grid-area:name}
+.crm-step>select{grid-area:event}
+.crm-step>.crm-step-note{grid-area:note;display:inline-flex;align-items:center;gap:5px;min-width:0;color:var(--crm-muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crm-step>.crm-step-note i{font-size:10px;color:var(--crm-faint)}
+.crm-step>.crm-btn.icon{grid-area:x}
+.crm-rrow{grid-template-columns:minmax(0,1.4fr) 70px minmax(0,1fr) minmax(0,1fr) 28px}
+.crm-rwhen{flex-wrap:wrap}
+.crm-rwhen>span.crm-dim{white-space:nowrap}
+.crm-rwhen>select[data-rcf]{flex:0 1 200px}
+.crm-rwhen>select[data-rco]{flex:0 1 130px}
+.crm-rwhen>input{flex:1 1 140px}
 .crm-toast{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:60;background:#101828;color:#fff;border-radius:10px;padding:8px 14px;font-weight:600;box-shadow:0 10px 24px rgba(16,24,40,.25)}
 
 /* Phone width: the patterns of the other phone apps (My Contacts, Feed): one row of icon controls under the
@@ -338,6 +360,26 @@ a.crm-btn{text-decoration:none}
   .crm-frow>.crm-btn.icon,.crm-frow>span.crm-dim:first-child{flex:0 0 auto}
   .crm-frow select,.crm-frow input{height:44px}
   .crm-frow .crm-btn.icon{width:44px;height:44px}
+  .crm-page input:is([type=text],[type=number],[type=date],[type=email],[type=search],[type=url],[type=tel]):not(.crm-btn),.crm-page select:not(.crm-btn),.crm-page textarea{height:44px;border-radius:10px;padding-left:12px;font-size:16px}
+  .crm-page textarea{height:auto}
+  .crm-page .crm-multi>summary.crm-btn{height:44px;border-radius:10px;padding:0 14px 0 12px;font-size:16px}
+  .crm-page select:not(.crm-btn):not([multiple]){padding-right:34px;background-position:right 12px center}
+  /* A funnel step is a card: number, name and remove on top, the event that reaches it under the name. */
+  .crm-frow.crm-step{display:grid;grid-template-columns:28px minmax(0,1fr) 44px;grid-template-areas:"n name x" ". event ." ". note note";gap:8px 6px;align-items:center;margin:0 0 8px;padding:8px 6px 8px 8px;border:1px solid var(--crm-line);border-radius:12px;background:var(--crm-bg)}
+  .crm-step>.crm-step-n{width:24px;height:24px;font-size:12px}
+  .crm-step>.crm-step-note{white-space:normal;margin-top:-2px}
+  /* A cancellation rule: name and remove, then days and how they count, then holidays. */
+  .crm-frow.crm-rrow{display:grid;grid-template-columns:76px minmax(0,1fr) 44px;grid-template-areas:"label label x" "days count count" "hol hol hol";gap:8px 6px;margin:2px 0 8px}
+  .crm-rrow>[data-rl]{grid-area:label}
+  .crm-rrow>[data-rdays]{grid-area:days}
+  .crm-rrow>[data-rc]{grid-area:count}
+  .crm-rrow>[data-rh]{grid-area:hol}
+  .crm-rrow>.crm-btn.icon{grid-area:x}
+  .crm-rwhen{gap:8px;padding:4px 0}
+  .crm-rwhen>span.crm-dim{flex-basis:100%}
+  .crm-rwhen>select[data-rcf],.crm-rwhen>select[data-rco]{flex:1 1 40%}
+  .crm-rwhen>input{flex:1 1 100%}
+  .crm-fgroup{padding:8px;border-radius:12px}
   /* The record is a full sheet: actions as round icons with a label. */
   .crm-drawer{width:100%;border-left:0;box-shadow:none;animation:crm-slide-in .24s cubic-bezier(.22,1,.36,1)}
   .crm-drawer-head{padding:12px 12px 12px 16px}
