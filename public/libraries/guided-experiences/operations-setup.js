@@ -76,7 +76,7 @@ async function ensureProject(env){
   if(!env.projectId)throw required();
   return env.projectId;
 }
-// Reaching the ready step is what offers Equipment (APP_OFFER_PREREQUISITES): show it in this and the top window's sidebar now.
+// Refresh this and the top window's session, so an offer started here (Equipment) shows in both sidebars now.
 async function syncSessions(){const wins=new Set([window]);try{if(window.top.location.origin===location.origin)wins.add(window.top);}catch{}await Promise.all([...wins].map(win=>win.Portal?.auth?.syncPlatformSession?.()?.catch?.(()=>null)));}
 async function activate(appId,orgId){
   const offered=()=>(window.Portal?.currentUser?.appEntitlements||[]).find(entry=>entry.id===appId)?.offered;
