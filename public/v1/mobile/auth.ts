@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { FastifyInstance } from "fastify";
-import { requirePlatformAuth, loginPlatformVerifiedIdentity, setPlatformAuthCookies, type PlatformAuthContext } from "../platform/auth.js";
+import { requirePlatformAuth, loginPlatformVerifiedIdentity, setPlatformAuthCookies, rememberPlatformAccount, type PlatformAuthContext } from "../platform/auth.js";
 import { createAuthSession, consumeMobileAuthSession, readIdentity, readDocument } from "../platform/storage.js";
 import { badRequest, forbidden, unauthorized, PlatformError } from "../platform/errors.js";
 
@@ -13,6 +13,8 @@ export function browserSignInPage(ctx: PlatformAuthContext, challenge: string, s
   const email = String(ctx.identity.email || ctx.user.email || "").trim();
   const organization = String(ctx.organization.name || "").trim();
   const initial = (name || email || "?").charAt(0).toUpperCase();
+  // Adding an account in the app while this browser is signed in to another one (FM-476): sign in here, then come back.
+  const otherAccount = "/portal/login.php?redirect=" + encodeURIComponent(`/v1/mobile/auth/browser?challenge=${challenge}&state=${state}`);
   const account = `<div class="account"><span class="avatar" aria-hidden="true">${escapeHtml(initial)}</span><span class="who"><strong>${escapeHtml(name || email)}</strong>${name && email ? `<span>${escapeHtml(email)}</span>` : ""}${organization ? `<span>${escapeHtml(organization)}</span>` : ""}</span></div>`;
   return `<!doctype html>
 <html lang="en">
@@ -47,6 +49,8 @@ p{margin:0;color:#5f6368;font-size:14px}
 .btn:disabled{background:#e4837c;cursor:default}
 .status{min-height:20px;margin-top:12px;color:#d93025;font-size:13px;text-align:center}
 .done{margin-top:4px;color:#137333;font-size:13px;text-align:center}
+.other{display:block;margin-top:12px;color:#d93025;font-size:14px;font-weight:600;text-align:center;text-decoration:none}
+.other:hover{text-decoration:underline}
 .note{margin-top:6px;color:#8a9099;font-size:12px;text-align:center}
 @media(max-width:360px){body{padding:16px 12px}.body{padding:24px 20px}}
 </style>
@@ -59,6 +63,7 @@ p{margin:0;color:#5f6368;font-size:14px}
 <p>You're signed in. Continue only if you started this sign-in from the FirstMate app on your phone.</p>
 ${account}
 <button class="btn" id="continue" type="button">Continue to FirstMate</button>
+<a class="other" id="other" href="${escapeHtml(otherAccount)}">Use a different account</a>
 <p class="status" id="status" role="status"></p>
 <p class="done" id="done" hidden>The app should be open now. You can close this page.</p>
 <p class="note">Didn't start this? Close this page; nothing happens until you continue.</p>
@@ -100,7 +105,11 @@ export function registerMobileAuth(app: FastifyInstance) {
     if (!member || (member.data as any)?.status === "disabled") throw forbidden("membership_required", "Your organization access has changed. Please sign in again.");
     const ctx = await loginPlatformVerifiedIdentity({ identity, organizationId: String(ticket.organization_id), metadata: { mobile_login: true } });
     if (ctx.orgId !== String(ticket.organization_id)) throw forbidden("membership_required", "Your organization access has changed.");
+    // Adding an account in the app (FM-476): the account it was signed in to stays in its account switcher.
+    const previous = await requirePlatformAuth(request).catch(() => null);
     setPlatformAuthCookies(request, reply, ctx.sessionId, ctx.csrfToken);
+    const remembered = previous && previous.sessionId !== ctx.sessionId ? await rememberPlatformAccount(request, reply, previous) : null;
+    await rememberPlatformAccount(request, reply, ctx, remembered?.deviceId);
     return reply.code(303).redirect("/portal/");
   });
 }

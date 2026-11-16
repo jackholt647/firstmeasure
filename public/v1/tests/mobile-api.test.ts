@@ -60,6 +60,24 @@ test("mobile configuration and private builds preserve tenant and deployment bou
     const exchanged=await Promise.all([exchange(code,verifier),exchange(code,verifier)]);assert.deepEqual(exchanged.map(r=>r.statusCode).sort(),[303,401]);
     assert.ok(exchanged.find(r=>r.statusCode===303)?.headers['set-cookie']);
     assert.equal((await exchange(code,verifier)).statusCode,401);
+    // FM-476: adding a second account. The browser offers another account, and the app's exchange (a WebView postUrl: Origin null)
+    // carries the first account's cookie; it is let through on this route only, and both accounts stay in the app's switcher.
+    assert.match(page.body,/id="other" href="\/portal\/login\.php\?redirect=%2Fv1%2Fmobile%2Fauth%2Fbrowser%3Fchallenge%3D/, "The sign-in page offers a different account");
+    const second=await app.inject({method:"POST",url:"/v1/platform/auth/register",payload:{phone:"+12025550883",email:"mobile-second@example.test",password:"mobile-test-password",name:"Second Mobile",company:"Second Company"}});
+    assert.equal(second.statusCode,201,second.body);
+    const cookiesOf=(response:any,base='')=>{const jar=new Map(base?base.split('; ').map(v=>[v.split('=')[0]!,v] as [string,string]):[]);const set=response.headers['set-cookie']||[];for(const v of (Array.isArray(set)?set:[set])){const pair=String(v).split(';')[0]!;jar.set(pair.split('=')[0]!,pair);}return [...jar.values()].join('; ');};
+    const secondCookie=cookiesOf(second);const secondCsrf=decodeURIComponent(secondCookie.split('; ').find(v=>v.startsWith('fm_platform_session_csrf='))!.split('=')[1]!);
+    const secondApproved=await authorize({cookie:secondCookie,'x-platform-csrf':secondCsrf});assert.equal(secondApproved.statusCode,200,secondApproved.body);
+    const secondCode=new URL(secondApproved.json().callback).searchParams.get('code')!;
+    const crossSite=await app.inject({method:'POST',url:'/v1/mobile/auth/exchange',headers:{cookie,origin:'https://evil.example'},payload:{code:secondCode,verifier}});
+    assert.equal(crossSite.json().error,'cross_site_request', "Another site still cannot post the exchange with a session");
+    const nullElsewhere=await app.inject({method:'POST',url:'/v1/mobile/auth/authorize',headers:{cookie,origin:'null','x-platform-csrf':csrf},payload:{challenge,state}});
+    assert.equal(nullElsewhere.json().error,'cross_site_request', "Origin null is accepted on the app's exchange only");
+    const added=await app.inject({method:'POST',url:'/v1/mobile/auth/exchange',headers:{cookie,origin:'null','content-type':'application/x-www-form-urlencoded'},payload:`code=${secondCode}&verifier=${verifier}`});
+    assert.equal(added.statusCode,303,added.body);
+    const accounts=await app.inject({method:'GET',url:'/v1/platform/auth/accounts',headers:{cookie:cookiesOf(added,cookie)}});assert.equal(accounts.statusCode,200,accounts.body);
+    assert.deepEqual(accounts.json().accounts.map((a:any)=>a.email).sort(),["mobile-second@example.test","mobile@example.test"], "The app keeps the account it was signed in to");
+    assert.equal(accounts.json().accounts.find((a:any)=>a.active)?.email,"mobile-second@example.test");
     const revoked=await authorize({cookie,'x-platform-csrf':csrf});const revokedCode=new URL(revoked.json().callback).searchParams.get('code')!;
     const ticket=await platform.readAuthSession(revokedCode);await platform.upsertDocument(org,'users',{id:String(ticket.user_id),data:{status:'disabled'}},{replace:false});
     assert.equal((await exchange(revokedCode,verifier)).statusCode,403);

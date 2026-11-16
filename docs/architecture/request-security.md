@@ -222,6 +222,11 @@ that may read the project.
   `Referer`) in the allowed origins. This covers every route, including those
   that predate `csrf: true`, without changing clients. `csrf: true` stays where
   it is.
+  One exception: `POST /v1/mobile/auth/exchange` accepts `Origin: null`. The
+  app finishes browser sign-in with a WebView `postUrl`, which Chromium sends
+  with `Origin: null`, and the WebView carries a session cookie whenever the
+  app is adding another account (FM-476). The one-time PKCE code authorizes
+  the exchange, never the cookie; another site's `Origin` is still refused.
 - **Security headers** on every Node response: `X-Content-Type-Options:
   nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`. Framing is
   left to each page (forms and the chat widget are embedded on customers'
