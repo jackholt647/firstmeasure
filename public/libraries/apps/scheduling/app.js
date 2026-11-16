@@ -76,8 +76,6 @@
   let mobileTrayClosing = false;
   let mobileTrayCloseTimer = null;
   let mobileScheduleMenuOpen = false;
-  let mobileCalendarSwipeDirection = '';
-  let mobileCalendarSwipeTimer = null;
   let mobileLayout = null;
   let filterMenuOpen = false;
   let modeMenuOpen = false;
@@ -715,10 +713,6 @@
       .dash-schedule-view,.dash-schedule-view .prs-wrap{min-height:0;min-width:0}
       .dash-schedule-view .prs-surface,.dash-schedule-view .prs-resource-scroll{border:0;border-radius:0;box-shadow:none;background:#fff}
       .dash-body.events-mode .dash-schedule-view .prs-surface{touch-action:none;overscroll-behavior:contain}
-      .dash-schedule-view.mobile-swipe-next{animation:dash-calendar-enter-next .24s ease-out both}
-      .dash-schedule-view.mobile-swipe-prev{animation:dash-calendar-enter-prev .24s ease-out both}
-      @keyframes dash-calendar-enter-next{from{opacity:.45;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-      @keyframes dash-calendar-enter-prev{from{opacity:.45;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
       .dash-schedule-view .prs-month,.dash-schedule-view .prs-month-head-row,.dash-schedule-view .prs-month-week,.dash-schedule-view .prs-month-item-track{min-width:100%!important;grid-template-columns:repeat(7,minmax(0,1fr))!important}
       .dash-schedule-view .prs-month-head-row{height:28px}
       .dash-schedule-view .prs-month-head{height:28px;font-size:9px}
@@ -985,16 +979,6 @@
       mobileTrayCloseTimer = null;
       render();
     }, 210);
-  }
-  function animateMobileCalendarSwipe(delta){
-    if (!isMobileScheduleLayout()) return;
-    mobileCalendarSwipeDirection = delta > 0 ? 'next' : 'prev';
-    if (mobileCalendarSwipeTimer) window.clearTimeout(mobileCalendarSwipeTimer);
-    mobileCalendarSwipeTimer = window.setTimeout(() => {
-      mobileCalendarSwipeDirection = '';
-      mobileCalendarSwipeTimer = null;
-      render();
-    }, 260);
   }
   function mobileMonthChoices(){
     return Array.from({ length:25 }, (_, index) => new Date(anchorDate.getFullYear(), anchorDate.getMonth() + index - 12, 1));
@@ -7675,10 +7659,10 @@
       onLockedDragAttempt: scheduleLockedDragAttempt,
       // View-only sessions: a drag or drag-create attempt says why nothing moves.
       onReadOnlyDragAttempt: scheduleReadOnlyDragAttempt,
-      onNavigate(nextDate, delta, meta = {}){
+      // A swipe already moved the page with the finger (FM-472).
+      onNavigate(nextDate){
         anchorDate = validDate(nextDate) || anchorDate;
         expandedMonthDates = [];
-        if (meta.source === 'swipe') animateMobileCalendarSwipe(delta);
         // Swipes and in-calendar paging keep date= in step like the header.
         syncScheduleRoute({ date:routeDate() }, { history:'replace', source:'scheduling-date', ownedKeys:['date'] });
         render();
@@ -8728,7 +8712,7 @@
     return `<div class="dash-card dash-schedule-card">${tabs}${placementBannerHtml('routing')}<div class="dash-schedule-split mobile-routing">${routingPane(activePane.label, activePane.mount, activePane.scale)}</div>${renderMobileRoutingPlacementDock(activePane.id)}</div>${additionalDepartments}`;
   }
   function renderEventCalendarShell(){
-    return `<div class="dash-card dash-schedule-card">${placementBannerHtml('calendar')}<div id="dashEventCalendarView" class="dash-schedule-view ${mobileCalendarSwipeDirection ? `mobile-swipe-${mobileCalendarSwipeDirection}` : ''}"></div></div>`;
+    return `<div class="dash-card dash-schedule-card">${placementBannerHtml('calendar')}<div id="dashEventCalendarView" class="dash-schedule-view"></div></div>`;
   }
   // Sales appointments on the Routing day that overlap another appointment
   // of the same salesperson.
