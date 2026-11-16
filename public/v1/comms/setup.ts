@@ -80,7 +80,8 @@ export async function commsSetupStatus(ctx: PublicationContext) {
       calls: settings.enabled === true && activeNumbers.length > 0,
       numbers: activeNumbers.map((number) => String(number.phone_number || number.id || "")),
       texting_numbers: smsNumbers.filter((identity) => identity.status === "active").map((identity) => identity.address),
-      registration,
+      // On development, "fully onboarded" is a simulated approval (Phone Settings shows its registration as done).
+      registration: development?.onboarded ? "approved" : registration,
       ...(development ? { development: { onboarded: development.onboarded } } : {})
     },
     email: { on: email, address: inbox?.address || "" },

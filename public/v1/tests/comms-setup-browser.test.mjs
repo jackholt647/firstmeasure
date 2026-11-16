@@ -15,7 +15,7 @@ test('Communications setup: start, carrier registration, one done page with emai
     await page.route('https://comms-setup.test/**',async route=>{
       const url=new URL(route.request().url());
       if(url.pathname.startsWith('/libraries/'))return route.fulfill({contentType:'text/javascript',body:await readFile(new URL('../..'+url.pathname,import.meta.url),'utf8')});
-      return route.fulfill({contentType:'text/html',body:'<main id="step"></main>'});
+      return route.fulfill({contentType:'text/html',body:'<div class="gxs"><main id="step"></main></div>'});
     });
     await page.goto('https://comms-setup.test/');
     await page.evaluate(()=>{
@@ -51,9 +51,11 @@ test('Communications setup: start, carrier registration, one done page with emai
     await page.waitForFunction(()=>calls.some(c=>c.action==='registration.open'));
     assert.deepEqual(await page.evaluate(()=>calls.map(c=>c.action)),['comms.setup.status','comms.setup.start','registration.open']);
     assert.equal(await page.getByText('Turn on texts and calls').count(),0);
+    assert.equal(await page.locator('.gxs').evaluate(sheet=>getComputedStyle(sheet).visibility+(sheet.inert?' inert':'')),'hidden inert','the setup steps aside while the workflow is open');
     await page.evaluate(()=>submitRegistration());
     // One done page: texts and calls ready, email offered right there, and the texting plan.
     await page.getByText('Ready on +12025550100.').waitFor();
+    assert.equal(await page.locator('.gxs').evaluate(sheet=>getComputedStyle(sheet).visibility),'visible');
     await page.getByRole('button',{name:'Turn on email'}).waitFor();
     await page.getByRole('button',{name:'Choose a plan'}).click();
     await page.getByText('SMS Basic').waitFor();

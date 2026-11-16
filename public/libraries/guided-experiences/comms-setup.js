@@ -276,7 +276,11 @@ export function mount(el, ctx){
         drawBusy(L('gx_comms_registering', 'Registering your business with the carriers…'));
         registering = true;
         const win = await registrationWindow();
-        await win.FirstMateSmsRegistration.open({ orgId });
+        // The workflow is its own full-screen dialog: the setup steps aside while it is open, and comes back to finish.
+        const sheet = el.closest('.gxs');
+        if (sheet) { sheet.style.visibility = 'hidden'; sheet.inert = true; }
+        try { await win.FirstMateSmsRegistration.open({ orgId }); }
+        finally { if (sheet) { sheet.style.visibility = ''; sheet.inert = false; } }
         registering = false;
         if (!alive) return;
         // Starting phone again reads where registration stands (on development it connects the test line once submitted).
