@@ -67,7 +67,8 @@ export function createCloudflareClient(options: {
     if (existing) return { zone: existing, created: false };
     const zone = await request<CloudflareZone>("/zones", {
       method: "POST",
-      body: JSON.stringify({ name: domain, account: { id: accountId }, type: "full" })
+      // jump_start imports the records the domain already serves, so pointing a registrar at the zone keeps them.
+      body: JSON.stringify({ name: domain, account: { id: accountId }, type: "full", jump_start: true })
     });
     return { zone, created: true };
   }
@@ -112,5 +113,67 @@ export function createCloudflareClient(options: {
     return await replaceProxyRecord(zoneId, { type: "CNAME", name, content, proxied: true });
   }
 
-  return { ensureZone, findZone, upsertDnsRecord, replaceProxyRecord, upsertWebsiteCname };
+  async function listDnsRecords(zoneId: string, type: CloudflareDnsRecord["type"], name: string) {
+    return await request<CloudflareRecord[]>(`/zones/${encodeURIComponent(zoneId)}/dns_records?type=${encodeURIComponent(type)}&name=${encodeURIComponent(name)}`);
+  }
+
+  /** Add a record only when the name has none of its kind yet (a customer's own DMARC policy is kept). */
+  async function addDnsRecordIfMissing(zoneId: string, record: CloudflareDnsRecord, sameKind: (existing: CloudflareRecord) => boolean) {
+    const existing = (await listDnsRecords(zoneId, record.type, record.name)).find(sameKind);
+    if (existing) return { record: existing, created: false };
+    const created = await request<CloudflareRecord>(`/zones/${encodeURIComponent(zoneId)}/dns_records`, {
+      method: "POST",
+      body: JSON.stringify({ type: record.type, name: record.name, content: record.content, ttl: record.ttl ?? 1 })
+    });
+    return { record: created, created: true };
+  }
+
+  // Email Routing (inbound, FM-516): enabling it adds and locks the root MX and SPF records; the catch-all rule sends
+  // every address at the domain to the shared Email Worker, which posts it to FirstMate's inbound endpoint.
+  async function enableEmailRouting(zoneId: string, domain: string) {
+    return await request<Record<string, unknown>>(`/zones/${encodeURIComponent(zoneId)}/email/routing/dns`, {
+      method: "POST",
+      body: JSON.stringify({ name: domain })
+    });
+  }
+
+  async function emailRoutingDnsRecords(zoneId: string) {
+    const result = await request<unknown>(`/zones/${encodeURIComponent(zoneId)}/email/routing/dns`);
+    return dnsList(result);
+  }
+
+  async function routeAllMailToWorker(zoneId: string, workerName: string) {
+    return await request<Record<string, unknown>>(`/zones/${encodeURIComponent(zoneId)}/email/routing/rules/catch_all`, {
+      method: "PUT",
+      body: JSON.stringify({ name: "FirstMate inbox", enabled: true, matchers: [{ type: "all" }], actions: [{ type: "worker", value: [workerName] }] })
+    });
+  }
+
+  // Email Sending (outbound): a sending subdomain per domain; its DNS list carries the cf-bounce MX/SPF and DKIM key.
+  async function ensureEmailSendingDomain(zoneId: string, domain: string) {
+    const base = `/zones/${encodeURIComponent(zoneId)}/email/sending/subdomains`;
+    const existing = dnsList(await request<unknown>(base)).find((entry) => String(entry.name ?? "").toLowerCase() === domain.toLowerCase());
+    if (existing && existing.enabled !== false) return existing;
+    return await request<Record<string, unknown>>(base, { method: "POST", body: JSON.stringify({ name: domain }) });
+  }
+
+  async function emailSendingDnsRecords(zoneId: string, tag: string) {
+    const result = await request<unknown>(`/zones/${encodeURIComponent(zoneId)}/email/sending/subdomains/${encodeURIComponent(tag)}/dns`);
+    return dnsList(result);
+  }
+
+  return {
+    ensureZone, findZone, upsertDnsRecord, replaceProxyRecord, upsertWebsiteCname, listDnsRecords, addDnsRecordIfMissing,
+    enableEmailRouting, emailRoutingDnsRecords, routeAllMailToWorker, ensureEmailSendingDomain, emailSendingDnsRecords
+  };
+}
+
+/** Cloudflare returns DNS lists either as an array or wrapped (`{ record: [...] }`, `{ records: [...] }`). */
+function dnsList(value: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(value)) return value.filter((entry) => entry && typeof entry === "object") as Array<Record<string, unknown>>;
+  if (value && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    for (const key of ["record", "records", "result"]) if (Array.isArray(object[key])) return dnsList(object[key]);
+  }
+  return [];
 }

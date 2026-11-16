@@ -6,7 +6,7 @@ import { backendImplementationDigest } from "../platform/publication/implementat
 import { forbidden } from "../platform/errors.js";
 import { hasPermission } from "../platform/auth.js";
 import { isCapabilityEnabled, saveCapabilityValues } from "../platform/capabilities.js";
-import { ensureOrgEmailInbox, FIRSTMATE_MAIL_IDENTITY_ID } from "../email/engine.js";
+import { domainIdentitySends, ensureOrgEmailInbox, FIRSTMATE_MAIL_IDENTITY_ID } from "../email/engine.js";
 import { listRegistrations } from "../domains/storage.js";
 import { listSenderIdentities } from "../messaging/communications_storage.js";
 import { findSmsComplianceProfiles, type SmsComplianceProfile } from "../messaging/storage.js";
@@ -22,7 +22,8 @@ import * as voice from "./calls/storage.js";
  * the Email inbox and creates the company's FirstMate Mail address. Billing is the platform billing SMS plan, bought in
  * the browser through the existing quote and checkout. The person chooses how email starts (FM-513): FirstMate Mail, or
  * their own domain (connected or bought in the Domains workflow, settings/domains.js); the status says where that
- * domain stands. Mail is sent from FirstMate Mail until the domain's email records are set up (email_configuration_status).
+ * domain stands. Mail is sent from FirstMate Mail until the domain's email records check out (FM-516,
+ * domains/email-records.ts), which sets email_configuration_status active and makes the domain's address the sender.
  */
 const channel = z.enum(["phone", "email"]);
 const startInput = z.object({ channel }).strict();
@@ -92,9 +93,9 @@ export async function commsSetupStatus(ctx: PublicationContext) {
     developmentCallStatus(orgId),
     registrationState(orgId)
   ]);
-  // The address mail is sent from: FirstMate Mail's, while it is the sender (FM-513), else the default identity's.
+  // The address mail is sent from: the company's domain once its email records check out (FM-516), else FirstMate Mail.
   const identities = email ? (await listSenderIdentities(orgId, ctx.auth?.branchId || "default", "email")).filter((identity) => identity.status !== "disabled" && identity.address) : [];
-  const inbox = identities.find((identity) => identity.id === FIRSTMATE_MAIL_IDENTITY_ID) || identities[0];
+  const inbox = identities.find(domainIdentitySends) || identities.find((identity) => identity.id === FIRSTMATE_MAIL_IDENTITY_ID) || identities[0];
   const domain = await emailDomainStatus(orgId);
   const activeNumbers = numbers.filter((number) => number.status === "active");
   return {

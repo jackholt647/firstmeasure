@@ -13,7 +13,7 @@ const object = (value) => value && typeof value === 'object' && !Array.isArray(v
 const clean = (value) => String(value ?? '').trim();
 const REGISTRATION_SRC = '/libraries/apps/settings/sms-registration.js?v=20261116-fm510b';
 const WIZARD_SRC = '/libraries/setup-wizard/setup-wizard.js';
-const DOMAINS_SRCS = ['/libraries/domains-api/domains-api.js?v=20260731-domains-v10', '/libraries/apps/settings/domains.js?v=20261116-fm513b'];
+const DOMAINS_SRCS = ['/libraries/domains-api/domains-api.js?v=20261116-fm516', '/libraries/apps/settings/domains.js?v=20261116-fm516'];
 
 const css = `
 .gxc{display:flex;flex-direction:column;gap:18px;min-width:0;padding:2px 0 8px;color:#101828}

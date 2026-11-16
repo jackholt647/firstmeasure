@@ -14,6 +14,7 @@ import {
 } from "./schemas.js";
 import {
   attachDomainResources,
+  checkDomainEmail,
   connectExistingDomain,
   disconnectDomainFromFirstMate,
   domainsConfiguration,
@@ -161,6 +162,13 @@ export const registerDomainsApi: FastifyPluginAsync = async (app) => {
     const orgId = param(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
     return { ok: true, registration: await refreshDomainVerification(orgId, param(request.params, "domain").toLowerCase()) };
+  });
+
+  // FM-516: look the domain's email records up and turn its email on once they are all there.
+  app.post("/organizations/:orgId/domains/:domain/email-records/check", async (request) => {
+    const orgId = param(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    return { ok: true, ...(await checkDomainEmail(orgId, param(request.params, "domain").toLowerCase())) };
   });
 
   app.post("/organizations/:orgId/domains/:domain/verification/resend", async (request) => {

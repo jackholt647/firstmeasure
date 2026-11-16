@@ -797,3 +797,17 @@ Either must leave the stored list exactly as the per-photo saves do.
 **Why it can wait.** The reads are small beside the uploads they follow (a project document against a photo of
 several megabytes), they happen in the background, and the merge is what keeps another person's change to a photo
 from being undone.
+
+## Inbound mail for an address with no inbox of its own scans that domain's sender identities
+
+**Today.** `findEmailInboxOwner` in `public/v1/email/engine.ts` (FM-516) looks an inbound recipient up by exact
+address first. When nothing matches and the address is at a company's own domain (the domain's catch-all sends every
+address to FirstMate), it reads the email sender identities whose address ends in `@<domain>` with a `LIKE '%@domain'`
+query, which no index serves, and picks the domain's identity in Node.
+
+**Where the change goes.** Store the address's domain in its own indexed column (or an expression index on it) and
+look the domain identity up by `domain = ?`.
+
+**Why it can wait.** It runs only for mail to an address that has no inbox of its own, the identities table holds a
+few rows per organization, and the exact-address path (every FirstMate Mail address, every domain's own address) is
+unchanged.

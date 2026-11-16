@@ -23,6 +23,7 @@
       .dm-test-indicator{display:inline-flex;align-items:center;gap:5px;margin-bottom:8px;border:1px solid #fedf89;border-radius:999px;background:#fffaeb;padding:4px 7px;color:#93370d;font-size:8px;font-weight:950;letter-spacing:.04em;text-transform:uppercase}.dm-test-indicator i{font-size:7px}
       .dm-required{margin-left:5px;color:#b42318;font-size:8px;font-style:normal;font-weight:950;text-transform:uppercase}.dm-field.invalid .dm-input{border-color:#f04438;background:#fffafa}.dm-field-error{color:#b42318;font-size:9px;font-weight:800}.dm-error-panel{display:flex;align-items:flex-start;gap:9px;margin:0 0 16px;border:1px solid #fecdca;border-radius:10px;background:#fef3f2;padding:11px 12px;color:#912018;font-size:10px;font-weight:800;line-height:1.5}.dm-error-panel i{margin-top:2px}
       .dm-site-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.dm-site-tile{display:grid;align-content:start;gap:7px;min-height:120px;border:1.5px solid #e4e7ec;border-radius:12px;background:#fff;padding:14px;color:#344054;text-align:left;cursor:pointer}.dm-site-tile:hover,.dm-site-tile.selected{border-color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.035);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.07)}.dm-site-tile .icon{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#f2f4f7;color:var(--primary-readable,var(--primary,#d93025))}.dm-site-tile strong{font-size:12px}.dm-site-tile small{color:#667085;font-size:9px;line-height:1.4}.dm-email-builder{display:grid;grid-template-columns:minmax(120px,240px) auto;align-items:center;max-width:560px}.dm-email-builder .dm-input{border-radius:9px 0 0 9px}.dm-email-domain{display:flex;align-items:center;height:40px;border:1px solid #d0d5dd;border-left:0;border-radius:0 9px 9px 0;background:#f9fafb;padding:0 11px;color:#475467;font-size:11px;font-weight:900}
+      .dm-records-card{grid-column:1/-1}.dm-records{width:100%;border-collapse:collapse;font-size:10px;table-layout:fixed}.dm-records th{padding:6px 8px;border-bottom:1px solid #e4e7ec;color:#667085;font-size:9px;font-weight:900;text-align:left;text-transform:uppercase}.dm-records td{padding:7px 8px;border-bottom:1px solid #f2f4f7;color:#344054;vertical-align:top;overflow-wrap:anywhere}.dm-records td code{font:600 10px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:#101828}.dm-records .dm-col-type{width:56px}.dm-records .dm-col-pri{width:64px}.dm-records .dm-col-status{width:96px}.dm-records-ns{display:grid;gap:4px;margin:0;padding:0;list-style:none}.dm-badge.found{background:#ecfdf3;color:#067647}.dm-badge.missing{background:#fffaeb;color:#93370d}.dm-badge.conflict{background:#fef3f2;color:#b42318}
       @media(max-width:860px){.dm-site-grid{grid-template-columns:1fr}.dm-email-builder{grid-template-columns:minmax(100px,1fr) auto}}
     `;
     document.head.appendChild(style);
@@ -346,7 +347,7 @@
         ${String(state.websiteMode==='create'?`<label class="dm-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_e64a543b1d8328","New website name ") ?? "New website name ")}<em class="dm-required">${(globalThis.PlatformLanguage?.htmlText("settings","m_db97f048cd99aa","Required") ?? "Required")}</em></span><input class="dm-input" name="website_name" value="${esc(state.websiteName)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_99786b12078773","Main Website") ?? "Main Website")}" required></label>`:'')}
         <div><h4 style="margin:0 0 5px;font-size:13px">${(globalThis.PlatformLanguage?.htmlText("settings","m_715488f4d0b6d4","Default email address") ?? "Default email address")}</h4><p class="dm-note" style="margin-bottom:9px">${(globalThis.PlatformLanguage?.htmlText("settings","m_33079737eef674","FirstMate will use this address for incoming email and as the default sender for automated website email. Provider and DNS activation will be completed during email setup.") ?? "FirstMate will use this address for incoming email and as the default sender for automated website email. Provider and DNS activation will be completed during email setup.")}</p><label class="dm-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4327ac34fcf20c","Email address ") ?? "Email address ")}<em class="dm-required">${(globalThis.PlatformLanguage?.htmlText("settings","m_db97f048cd99aa","Required") ?? "Required")}</em></span><div class="dm-email-builder"><input class="dm-input" name="default_email_local_part" value="${String(esc(state.defaultEmailLocalPart))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_e7e9c2f0efc1df","Default email name") ?? "Default email name")}" required><span class="dm-email-domain">@${String(esc(state.domain))}</span></div></label></div></div>`;
       }
-      if (forEmail) return `<div class="dm-success"><div class="icon"><i class="fas fa-check"></i></div><h3>${esc(`${state.defaultEmailLocalPart}@${state.domain}`)}</h3><p>${esc('Mail sends from this address once its email records are set up.')}</p></div>`;
+      if (forEmail) return `<div class="dm-success"><div class="icon"><i class="fas fa-check"></i></div><h3>${esc(`${state.defaultEmailLocalPart}@${state.domain}`)}</h3><p>${esc(state.registration?.email_configuration_status==='active'?'Mail now sends from this address.':'Mail sends from this address once its email records are found. Settings › Domains lists them and checks them.')}</p></div>`;
       return `<div class="dm-success"><div class="icon"><i class="fas fa-check"></i></div><h3>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_4ce45455f4515a",`${v0} is ready`,{v0}) ?? `${v0} is ready`)(esc(state.domain))}</h3><p>${String(state.registration?.website_id?'The domain and default email address are attached to your website. Open Web Editor to continue building.':'The domain setup has been saved.')}</p></div>`;
     }
 
@@ -677,6 +678,41 @@
         <section class="dm-card"><div class="dm-card-head"><div><h4>${String(options.embedded?'Domain portfolio':'Your domains')}</h4><p class="dm-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_1e4516f36d3029","Each card shows the website currently served on that domain.") ?? "Each card shows the website currently served on that domain.")}</p></div></div>
           <div class="dm-owned">${String(domains.length?domains.map(domainCard).join(''):`<p class="dm-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_6e11ef5cf54adb","No domains have been added yet.") ?? "No domains have been added yet.")}</p>`)}</div>
         </section></div>`;
+      // FM-516: the records a domain needs for FirstMate email, what the last check found, and a check button.
+      const emailStatusLabel=(domain)=>({active:'Active',records_pending:'Waiting for records',cloudflare_onboarding_pending:'Setting up'})[clean(domain.email_configuration_status)]||'Pending setup';
+      const recordStatusLabel={found:'Found',missing:'Missing',conflict:'Conflict'};
+      const emailRecordsHtml=(domain)=>{
+        if(!clean(domain.default_email))return '';
+        const check=obj(domain.email_records_check);
+        const checked=new Map((Array.isArray(check.records)?check.records:[]).map((record)=>[clean(record.key),record]));
+        const records=Array.isArray(domain.email_records)?domain.email_records:[];
+        const nameservers=Array.isArray(domain.nameservers)?domain.nameservers.map(clean).filter(Boolean):[];
+        const external=domain.acquisition_type==='existing';
+        const active=domain.email_configuration_status==='active';
+        const nsCheck=obj(check.nameservers);
+        const badge=(status)=>status?`<span class="dm-badge ${esc(status)}">${esc(recordStatusLabel[status]||status)}</span>`:`<span class="dm-badge">Not checked</span>`;
+        const value=(record)=>clean(record.content)?`<code>${esc(record.content)}</code>`:'<span class="dm-note">Issued by Cloudflare when sending is set up</span>';
+        const rows=records.map((record)=>{
+          const result=obj(checked.get(clean(record.key)));
+          const found=Array.isArray(result.found)&&result.status==='conflict'?`<div class="dm-note">Also found: ${esc(result.found.join(', '))}</div>`:'';
+          return `<tr data-email-record="${esc(record.key)}"><td>${esc(record.type)}</td><td><code>${esc(record.name)}</code></td><td>${value(record)}${found}</td><td>${esc(record.priority??'')}</td><td>${badge(clean(result.status))}</td></tr>`;
+        }).join('');
+        const lead=active
+          ?`Email on this domain is active: mail is sent from ${esc(domain.default_email)}.`
+          :external&&nameservers.length
+            ?'At the registrar where this domain is registered, change its nameservers to the two below. FirstMate then serves these records for you.'
+            :external
+              ?'Add these records with the DNS provider for this domain, then check them. Until they are found, mail is sent from your FirstMate Mail address.'
+              :'FirstMate adds these records for you. Until they are found, mail is sent from your FirstMate Mail address.';
+        const nsList=external&&nameservers.length?`<div class="dm-setting-row"><div class="dm-setting-copy"><strong>Nameservers</strong><ul class="dm-records-ns">${nameservers.map((name)=>`<li><code>${esc(name)}</code></li>`).join('')}</ul></div>${badge(clean(nsCheck.status))}</div>`:'';
+        const checkedAt=Date.parse(clean(check.checked_at));
+        return `<section class="dm-manage-card dm-records-card" data-email-records><h4><i class="fas fa-envelope-circle-check"></i> Email records</h4>
+          <p class="dm-note">${lead} DNS changes can take up to a day to appear.</p>
+          ${nsList}
+          <table class="dm-records"><thead><tr><th class="dm-col-type">Type</th><th>Name</th><th>Value</th><th class="dm-col-pri">Priority</th><th class="dm-col-status">Status</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="dm-note">The records appear once this domain\'s email address is set up.</td></tr>'}</tbody></table>
+          <div class="dm-card-actions"><button class="dm-btn primary" data-check-email-records ${busy?'disabled':''}><i class="fas fa-rotate"></i> Check records</button>${Number.isFinite(checkedAt)?`<span class="dm-note">Last checked ${esc(new Date(checkedAt).toLocaleString())}</span>`:''}</div>
+        </section>`;
+      };
       const detailHtml=(domain)=>{
         const external=domain.acquisition_type==='existing';
         const nameservers=Array.isArray(domain.nameservers)?domain.nameservers.join('\n'):'';
@@ -687,8 +723,9 @@
           <div class="dm-manage-grid">
             <section class="dm-manage-card"><h4><i class="fas fa-window-maximize"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_341b4942338454"," Website & email") ?? " Website & email")}</h4>
               <div class="dm-setting-row"><div class="dm-setting-copy"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_902cd6598c5257","Connected website") ?? "Connected website")}</strong><p>${String(esc(domain.website?.name||'No website connected'))}</p></div>${String(domain.website_id?`<button class="dm-btn" data-open-website="${esc(domain.website_id)}">${(globalThis.PlatformLanguage?.htmlText("settings","m_c25cc66b28cc9d","Open") ?? "Open")}</button>`:`<span class="dm-badge">${(globalThis.PlatformLanguage?.htmlText("settings","m_cd62fc8a4b19b2","Not connected") ?? "Not connected")}</span>`)}</div>
-              <div class="dm-setting-row"><div class="dm-setting-copy"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_715488f4d0b6d4","Default email address") ?? "Default email address")}</strong><p>${String(esc(domain.default_email||'Not configured'))}</p></div><span class="dm-badge">${String(domain.email_configuration_status==='active'?'Active':'Pending setup')}</span></div>
+              <div class="dm-setting-row"><div class="dm-setting-copy"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_715488f4d0b6d4","Default email address") ?? "Default email address")}</strong><p>${String(esc(domain.default_email||'Not configured'))}</p></div><span class="dm-badge ${String(domain.email_configuration_status==='active'?'active':'')}">${String(esc(emailStatusLabel(domain)))}</span></div>
             </section>
+${String(emailRecordsHtml(domain))}
             <section class="dm-manage-card"><h4><i class="fas fa-shield-halved"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_12ca16778536e1"," Protection & renewal") ?? " Protection & renewal")}</h4>
               <div class="dm-setting-row"><div class="dm-setting-copy"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_4d5a168f5fd12e","Domain privacy") ?? "Domain privacy")}</strong><p>${String(external?'Managed at the current registrar.':'Registrant information stays private where supported.')}</p></div><button class="dm-switch on" disabled aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_d391c915a7335b","Domain privacy enabled") ?? "Domain privacy enabled")}"></button></div>
               <div class="dm-setting-row"><div class="dm-setting-copy"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_7acab65048e339","Auto-renew") ?? "Auto-renew")}</strong><p>${String(external?'Managed at the current registrar.':'Renew automatically before expiration.')}</p></div><button class="dm-switch ${String(domain.auto_renew!==false?'on':'')}" data-domain-toggle="auto_renew" ${String(external||busy?'disabled':'')}></button></div>
@@ -731,6 +768,16 @@
           catch(error){message=error?.message||'Could not update the domain.';}
           busy=false;render();
         }));
+        pane.querySelector('[data-check-email-records]')?.addEventListener('click',async()=>{
+          busy=true;message='';render();
+          try{
+            const response=await window.DomainsAPI.checkEmailRecords(orgId,selectedDomain);
+            replaceDomain(response.registration);
+            const waiting=(Array.isArray(response.records)?response.records:[]).filter((record)=>record.status!=='found').length+(response.nameservers?.status==='missing'?1:0);
+            message=response.ready?`Email on ${selectedDomain} is active. Mail is now sent from ${clean(response.registration?.default_email)}.`:`${waiting} ${waiting===1?'record is':'records are'} not there yet. Mail keeps going out from FirstMate Mail until they are.`;
+          }catch(error){message=error?.message||'Could not check the email records.';}
+          busy=false;render();
+        });
         pane.querySelector('[data-save-nameservers]')?.addEventListener('click',async()=>{
           const nameservers=clean(pane.querySelector('[data-domain-nameservers]')?.value).split(/\s+/).map(clean).filter(Boolean);
           if(nameservers.length<2){message='Enter at least two valid nameserver hostnames.';render();return;}
