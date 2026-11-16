@@ -36,7 +36,7 @@ const css = `
 .gxk-add button:disabled{opacity:.5;cursor:default}
 .gxk-loading{display:grid;place-items:center;min-height:160px}
 .gxk-error{color:#b42318;font-size:13px;margin:0}
-@media(max-width:560px){.gxk-row{flex-wrap:wrap;gap:6px 10px}.gxk-pills{margin-left:32px}}
+@media(max-width:560px){.gxk-row{flex-wrap:wrap;gap:6px 10px}.gxk-pick{flex-basis:100%}.gxk-pills{margin-left:32px}}
 @media(prefers-reduced-motion:reduce){.gxk *{transition:none!important}}
 `;
 const box = '<span class="gxk-box" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>';
@@ -64,7 +64,7 @@ export function mount(el, ctx){
     categories = array(catalog.categories);
   }
   const pillsHtml = (row) => `<span class="gxk-pills" role="radiogroup" aria-label="${esc(L('gx_appt_kind_category', 'Kind of appointment'))}">${categories.map((entry) => `<button type="button" class="gxk-pill" role="radio" data-category="${esc(entry.id)}" aria-checked="${row.category === entry.id}">${esc(L(entry.label))}</button>`).join('')}</span>`;
-  const rowHtml = (row) => `<div class="gxk-row" data-kind="${esc(row.id)}" data-on="${row.on}"><button type="button" class="gxk-pick" role="checkbox" aria-checked="${row.on}">${box}<strong>${esc(row.label)}</strong></button>${pillsHtml(row)}</div>`;
+  const rowHtml = (row) => `<div class="gxk-row" data-gxk-kind="${esc(row.id)}" data-on="${row.on}"><button type="button" class="gxk-pick" role="checkbox" aria-checked="${row.on}">${box}<strong>${esc(row.label)}</strong></button>${pillsHtml(row)}</div>`;
   function draw(){
     el.innerHTML = `<div class="gxk"><p class="gxk-lead">${esc(L('gx_appt_kinds_lead', 'Pick everything you schedule, and say whether each is for sales or production.'))}</p>
       <div class="gxk-list" data-list>${rows.map(rowHtml).join('')}</div>
@@ -86,14 +86,14 @@ export function mount(el, ctx){
     if (!words || !fold(words)) return;
     const id = `custom_${fold(words)}`;
     const existing = rows.find((row) => row.id === id || row.label.toLowerCase() === words.toLowerCase());
-    if (existing) { existing.on = true; sync(el.querySelector(`[data-kind="${CSS.escape(existing.id)}"]`), existing); }
+    if (existing) { existing.on = true; sync(el.querySelector(`[data-gxk-kind="${CSS.escape(existing.id)}"]`), existing); }
     else { const row = { id, label: words, category: 'production', on: true, custom: true }; rows.push(row); el.querySelector('[data-list]').insertAdjacentHTML('beforeend', rowHtml(row)); report(); }
     input.value = ''; el.querySelector('[data-add]').disabled = true; input.focus();
   }
   const onClick = (event) => {
-    const node = event.target.closest('[data-kind]');
+    const node = event.target.closest('[data-gxk-kind]');
     if (node) {
-      const row = rows.find((entry) => entry.id === node.dataset.kind); if (!row) return;
+      const row = rows.find((entry) => entry.id === node.dataset.gxkKind); if (!row) return;
       const pill = event.target.closest('[data-category]');
       // A pill picks the kind too: saying what it is means you schedule it.
       if (pill) { row.category = pill.dataset.category; row.on = true; }
