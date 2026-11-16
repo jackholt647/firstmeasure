@@ -13,9 +13,9 @@ const core=await read('libraries/guided-experiences/guided-experiences.js'),setu
 const t=(key,text)=>({key,text});
 const CATALOG=publishedCatalog();
 const MODULE='/libraries/setup-steps/company-profile.js?v=test';
-const injected=(id,part,title,forStep)=>({id,widget:'module',module:MODULE,title,subtitle:t('gx_test_sub','Why we ask.'),options:{part},say:[],selects:[],required:true,next:null,setup_step:{id,version:1,writes:{action:'company-profile.save',target:'organization'},injected_for:forStep}});
+const injected=(id,part,title,forStep)=>({id,widget:'module',module:MODULE,title,subtitle:t('gx_test_sub','We use this to suggest the work, materials and setup that fit your business. You can change it later in Settings.'),options:{part},say:[],selects:[],required:true,next:null,setup_step:{id,version:1,writes:{action:'company-profile.save',target:'organization'},injected_for:forStep}});
 const SETUP={id:'ops.test',version:1,kind:'modal',scope:'organization',title:t('gx_test_title','Set up Operations'),tab:'project.materials',replayable:true,variant:{id:'default',bucket:0.2,unit:'organization:o'},triggers:[],
-  steps:[{id:'path',widget:'test-choice',title:t('gx_test_path','Start with the work you’re planning'),options:{},say:[],selects:['picked'],required:true,next:null},
+  steps:[{id:'path',widget:'test-choice',title:t('gx_test_path','Start with the work you’re planning'),subtitle:t('gx_test_path_sub','Your proposal tells us what the job needs, so we can build your materials and work order. Not ready for a proposal? Build a quick scope of work instead.'),options:{},say:[],selects:['picked'],required:true,next:null},
     injected('company.type','type',t('gx_step_company_type_title','What kind of company are you?'),'document'),
     injected('company.services','services',t('gx_step_company_services_title','What kind of work do you do?'),'document'),
     {id:'document',widget:'test-choice',title:t('gx_test_doc','What does this project need?'),options:{},say:[],selects:['picked'],required:true,next:null}],
@@ -155,13 +155,20 @@ test('phone: the company step fits the screen without sideways scrolling',async(
   try{
     const {page,errors}=await load(browser,{width:390,height:844});
     page.evaluate(()=>FirstMateGuides.play('ops.test')).catch(()=>{});
+    // The title's (i) tip, hidden or shown, stays inside the step: centred on the icon it ran past the edge (FM-485).
+    const fits=()=>page.evaluate(()=>{const step=document.querySelector('.gxs-step:not(.gxs-above)'),box=step.getBoundingClientRect(),tip=step.querySelector('.gxs-info-tip').getBoundingClientRect();return step.scrollWidth<=step.clientWidth+1&&document.documentElement.scrollWidth<=innerWidth&&tip.left>=box.left-1&&tip.right<=box.right+1;});
     await onStep(page,'Start with the work');
+    assert.equal(await fits(),true,'the first step does not scroll sideways');
     await page.click('[data-test-pick]');await next(page);
     await onStep(page,'What kind of company are you?');
     await page.waitForSelector('.gxc [data-search]');
     await page.click('[data-type=roofing_contractor]');
     await page.waitForTimeout(350);await shot(page,'company-type-phone');
-    assert.equal(await page.evaluate(()=>{const step=document.querySelector('.gxs-step:not(.gxs-above)');return step.scrollWidth<=step.clientWidth+1&&document.documentElement.scrollWidth<=innerWidth;}),true);
+    assert.equal(await fits(),true,'the company step does not scroll sideways');
+    await page.focus('.gxs-step:not(.gxs-above) [data-gxs-info]');
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.gxs-step:not(.gxs-above) .gxs-info-tip')).opacity==='1');
+    assert.equal(await fits(),true,'the tip, shown, fits too');
+    await page.locator('.gxs-step:not(.gxs-above) [data-gxs-info]').blur();
     const columns=await page.locator('.gxc-grid').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length);
     assert.equal(columns,2,'two tiles a row on a phone');
     await next(page);
