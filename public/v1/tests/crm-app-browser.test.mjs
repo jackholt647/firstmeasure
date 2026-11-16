@@ -300,6 +300,17 @@ test('the CRM tab: views, filters, the board, the drawer, a worklist, reports, s
     await phone.page.waitForFunction(() => { const r = document.querySelector('.crm-rail').getBoundingClientRect(); return Math.abs(r.bottom - innerHeight) < 2 && getComputedStyle(document.querySelector('.crm-rail')).visibility === 'visible'; });
     assert.equal(await phone.page.locator('.crm-view-pick').getAttribute('aria-expanded'), 'true');
     await shot(phone.page, '11a-phone-views');
+    // New view (FM-492): its sheet takes the rail's place instead of opening underneath it.
+    await phone.page.locator('.crm-rail [data-new-view]').click();
+    await phone.page.waitForSelector('.crm-pop [data-nv]');
+    await phone.page.waitForFunction(() => !document.querySelector('.crm').classList.contains('rail-open'));
+    await phone.page.waitForTimeout(350);
+    assert.equal(await phone.page.locator('.crm-pop [data-nv]').first().evaluate((el) => { const r = el.getBoundingClientRect(); return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)); }), true, 'the New view sheet is on top, not under the rail');
+    await shot(phone.page, '11a2-phone-new-view');
+    await phone.page.locator('.crm-pop [data-nv]').first().click();
+    await phone.page.waitForFunction(() => !document.querySelector('.crm-pop'));
+    await phone.page.locator('.crm-view-pick').click();
+    await phone.page.waitForFunction(() => document.querySelector('.crm').classList.contains('rail-open'));
     await phone.page.locator('.crm-rail').getByText('New leads', { exact: true }).click();
     await phone.page.waitForFunction(() => !document.querySelector('.crm').classList.contains('rail-open'));
     await settle(phone.page);
