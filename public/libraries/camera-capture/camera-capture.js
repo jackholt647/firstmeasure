@@ -29,10 +29,18 @@
  * Without a connection (docs/architecture/offline.md): `upload` still resolves, because the offline queue
  * keeps the photo on the device and sends it later. The entry is then 'waiting' (a cloud mark, no Retry) and
  * the queue is the one record of it: its tile follows the queue's events, and Retry appears only when the
- * server refused the photo, where it asks the queue to send it again. Done never waits for uploads while
- * there is no connection.
+ * server refused the photo, where it asks the queue to send it again.
  *
- * An entry is { id, file, thumbnail, status: 'pending'|'uploading'|'waiting'|'done'|'failed', error, result, queued }.
+ * Done never waits (FM-473): the camera closes (or shows the "what next" step) the moment it is tapped, and
+ * photos still encoding or uploading finish in the background. onDone and `next` get the entries as they are:
+ * `entry.ready` resolves to the file once it is encoded (null when it could not be), and `entry.settled` resolves
+ * once its upload has an outcome (status 'done', 'waiting' or 'failed'). Nothing may call a photo saved before
+ * then. A photo that fails after the camera closed is reported in a toast; the page asks before it is left while
+ * an upload still runs.
+ *
+ * An entry is { id, session, file, thumbnail, status: 'pending'|'uploading'|'waiting'|'done'|'failed'|'dropped', error, result,
+ * queued, ready, settled }. `session` names the camera session (one per opening) it was taken in; 'dropped' is a
+ * photo that could not be encoded and has left the session.
  *
  * "What next": when the person taps Done and `next` is given, the camera stops and shows a step panel
  * over the viewport. `next(entries, step)` renders into `step.body` (step.setTitle(text) sets its
@@ -165,7 +173,10 @@
     const entries = await Promise.race([offline.pending({ record: id }).catch(() => []), new Promise((resolve) => setTimeout(() => resolve([]), 2000))]);
     return (entries || []).find((entry) => entry.kind === 'upload') || null;
   }
-  const isOffline = () => root.navigator?.onLine === false || root.PlatformOffline?.state?.().online === false;
+  // Uploads still running on this page, across sessions: leaving the page would lose them.
+  let running = 0;
+  root.addEventListener?.('beforeunload', (event) => { if (running > 0) { event.preventDefault(); event.returnValue = ''; } });
+  const toast = (title, text) => { try { root.Portal?.ui?.showToast?.(title, text, false); } catch (_) {} };
 
   // One camera session UI: viewport, controls, strip, uploads. `shell` is created here; the caller places it.
   function createSession(options = {}){
@@ -203,7 +214,7 @@
     const $ = (sel) => shell.querySelector(sel);
     const video = $('video'), stage = $('.fmc-stage'), strip = $('.fmc-strip'), zoomGroup = $('.fmc-zoom'), status = $('.fmc-status');
     const shutter = $('[data-fmc-shutter]'), torchBtn = $('[data-fmc-torch]'), flip = $('[data-fmc-switch]'), doneBtn = $('[data-fmc-done]'), input = $('[data-fmc-input]');
-    let stream = null, facing = 'environment', starting = false, torchOn = false, zoom = null, devices = 0, active = false, closing = false;
+    let stream = null, facing = 'environment', starting = false, torchOn = false, zoom = null, devices = 0, active = false, sessionId = '';
     let entries = [], sessionEntries = [], queue = Promise.resolve(), statusTimer = 0, step = null;
     const upload = typeof options.upload === 'function' ? options.upload : (options.orgId && options.projectId ? projectUploader(options.orgId, options.projectId) : null);
     let removeOverlay = null;
@@ -331,8 +342,9 @@
       })
     ];
     function send(entry){
-      if (!upload) { entry.status = 'done'; renderTile(entry); return Promise.resolve(); }
+      if (!upload) { entry.status = 'done'; renderTile(entry); entry.settled = Promise.resolve(entry); return entry.settled; }
       entry.status = 'pending'; entry.error = ''; renderTile(entry);
+      running++;
       queue = queue.then(async () => {
         // A photo just taken may still be encoding; the queue keeps the order they were taken in.
         if (!(await entry.ready)) return;
@@ -347,18 +359,20 @@
         renderTile(entry);
         if (entry.status === 'waiting') say(T('waiting_upload', 'Saved on this device. Uploads when you are back online.'));
         else if (!entries.some((item) => item.status === 'failed')) say('');
-      });
-      return queue;
+      }).finally(() => { running--; });
+      entry.settled = queue.then(() => entry, () => entry);
+      return entry.settled;
     }
     // file is a File, or a promise of one for a photo still encoding (capture): the entry shows at once and its file
     // is filled in when ready (entry.ready resolves to it, or to null when encoding failed and the entry was dropped).
     function add(file, thumbnail){
-      const entry = { id: 'fmc' + (++sequence), file: null, thumbnail, status: 'pending', error: '', result: null };
+      const entry = { id: 'fmc' + (++sequence), session: sessionId, file: null, thumbnail, status: 'pending', error: '', result: null };
       entry.ready = Promise.resolve(file).then((ready) => {
         entry.file = ready;
         try { options.onCapture?.(entry); } catch (error) { console.warn('Camera onCapture failed', error); }
         return ready;
       }, () => {
+        entry.status = 'dropped';
         entries = entries.filter((item) => item !== entry); sessionEntries = sessionEntries.filter((item) => item !== entry);
         strip.querySelector(`[data-fmc-entry="${entry.id}"]`)?.remove(); syncControls();
         say(T('capture_failed', 'That photo could not be taken. Try again.'));
@@ -411,10 +425,9 @@
     flip.onclick = async () => { facing = facing === 'environment' ? 'user' : 'environment'; stop(); await start(); };
     zoomGroup.onclick = (event) => { const button = event.target.closest('[data-zoom]'); if (button) void setZoom(Number(button.dataset.zoom)); };
 
+    // Done closes at once (FM-473): photos still encoding or uploading are handed on as they are and finish behind it.
     async function finish(){
-      if (closing) return;
-      // Photos still encoding are part of this session: hand them on with their files.
-      await Promise.all(sessionEntries.map((entry) => entry.ready));
+      if (!active || step) return;
       const taken = sessionEntries.slice();
       let nextResult;
       if (typeof options.next === 'function' && taken.length) {
@@ -436,15 +449,25 @@
         step?.remove(); step = null;
         if (nextResult === false) { void start(); return; }
       }
-      closing = true;
-      // Without a connection the photos are kept on this device as they are taken; Done does not wait for them.
-      if (!isOffline()) await queue.catch(() => null);
       hide();
       sessionEntries = [];
       syncControls();
-      closing = false;
+      reportLate(taken);
       try { options.onDone?.(taken, nextResult); } catch (error) { console.warn('Camera onDone failed', error); }
       options.onFinished?.(taken, nextResult);
+    }
+    // A photo still uploading when the camera closed that then fails is told in a toast, since its Retry tile is
+    // out of sight (and, full screen, gone with the camera). Reopened by then, the strip shows it instead.
+    function reportLate(taken){
+      const late = taken.filter((entry) => entry.status === 'pending' || entry.status === 'uploading');
+      if (!late.length) return;
+      void Promise.all(late.map((entry) => entry.settled)).then(() => {
+        const failed = late.filter((entry) => entry.status === 'failed').length;
+        if (!failed || active) return;
+        toast(T('upload_failed', 'Upload failed'), fullscreen
+          ? (failed === 1 ? T('late_failed_one', 'A photo did not upload. Take it again.') : T('late_failed', '{count} photos did not upload. Take them again.', { count: failed }))
+          : (failed === 1 ? T('late_failed_retry_one', 'A photo did not upload. Open the camera and tap it to retry.') : T('late_failed_retry', '{count} photos did not upload. Open the camera and tap them to retry.', { count: failed })));
+      });
     }
     $('[data-fmc-back]').onclick = finish;
     doneBtn.onclick = finish;
@@ -454,6 +477,7 @@
     function show(){
       if (active) return;
       active = true;
+      sessionId = 'fmcs' + (++sequence);
       shell.inert = false;
       requestAnimationFrame(() => shell.classList.add('open'));
       root.addEventListener('keydown', onKey, true);
@@ -535,5 +559,5 @@
     };
   }
 
-  root.FirstMateCamera = { mount, open, version: '20261113-scanner' };
+  root.FirstMateCamera = { mount, open, version: '20261116-done-at-once' };
 })(window);

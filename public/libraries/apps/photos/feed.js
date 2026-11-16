@@ -170,7 +170,7 @@
     canAssignMedia: false,
     camera: null,
     cameraNext: false,
-    cameraBatchId: '',
+    cameraBatches: new Map(),
     reloadAfterLoad: false
   };
 
@@ -3791,16 +3791,19 @@
     const random = (globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).replace(/-/g, '').slice(0, 12);
     return `feed_${Date.now().toString(36)}_${random}`;
   }
-  async function uploadFeedCameraPhoto(file){
+  async function uploadFeedCameraPhoto(file, entry){
     const media = window.PlatformAPI?.media;
     if (!media?.upload) throw new Error(feedText('feed_camera_upload_unavailable','Uploading is not available here.'));
-    if (!state.cameraBatchId) state.cameraBatchId = newFeedBatchId();
     // An unpaired photo: owned by the organization, in the photos slot, naming no project. The server records who
-    // took it and their branch. One batch id per camera session makes the burst one Feed post.
+    // took it and their branch. One batch id per camera session makes the burst one Feed post, also for the photos
+    // that upload after the camera closed (FM-473).
+    const session = cleanText(entry?.session);
+    if (!state.cameraBatches.has(session)) state.cameraBatches.set(session, newFeedBatchId());
+    const batchId = state.cameraBatches.get(session);
     const result = await media.upload(orgId(), file, {
       ownerType:'organization', slot:'photos', replaceSlot:false, thumbnails:true,
       compression:{ quality:0.88, max_width:2400, max_height:2400 },
-      metadata:{ field:'photos', source:'feed_camera_capture', media_type:'image', mime_type:file.type || 'image/jpeg', upload_batch_id:state.cameraBatchId, uploaded_at:new Date().toISOString() }
+      metadata:{ field:'photos', source:'feed_camera_capture', media_type:'image', mime_type:file.type || 'image/jpeg', upload_batch_id:batchId, uploaded_at:new Date().toISOString() }
     });
     const item = result?.media || result;
     if (!cleanText(item?.id)) throw new Error(feedText('feed_camera_not_uploaded','This photo was not uploaded.'));
@@ -3833,12 +3836,13 @@
       mediaIds: (say) => cameraMediaIds(entries, say)
     });
   }
-  function feedCameraDone(entries = [], outcome){
-    state.cameraBatchId = '';
+  // The camera closes at once (FM-473); photos still uploading are only called saved once they are.
+  async function feedCameraDone(entries = [], outcome){
     if (!entries.length) return;
     if (outcome?.kind === 'assigned') { afterAssigned(outcome); return; }
+    await Promise.all(entries.map((entry) => entry.settled));
     const saved = entries.filter((entry) => entry.status === 'done' || entry.status === 'waiting').length;
-    if (saved) showToast?.(feedText('feed_camera_saved_title','Saved to Unassigned'), feedText('feed_camera_saved','{photos} saved. Add them to a project from the Unassigned group.',{photos:photoCountText(saved)}), true);
+    if (saved && !entries.some((entry) => entry.status === 'failed')) showToast?.(feedText('feed_camera_saved_title','Saved to Unassigned'), feedText('feed_camera_saved','{photos} saved. Add them to a project from the Unassigned group.',{photos:photoCountText(saved)}), true);
     refreshFeed();
   }
   // The bar is there from the first render, so it never appears late over a loaded list. Until the catalog says
@@ -3858,7 +3862,6 @@
       label: feedText('feed_camera_bar','Take photos'),
       upload: uploadFeedCameraPhoto,
       onOpen: () => {
-        state.cameraBatchId = newFeedBatchId();
         host.style.setProperty('--pf-feed-camera-top', `${Math.max(0, Math.round(host.getBoundingClientRect().top))}px`);
       },
       ...(next ? { next:feedCameraNextStep } : {}),
@@ -5548,7 +5551,7 @@
         if (!state.loaded) load();
         startFeedPolling();
       },
-      onHide:()=>{if(state.camera?.isOpen?.()){state.camera.destroy();state.camera=null;state.cameraBatchId='';refreshFeed();}clearInterval(state.feedTimer);state.mosaicObserver?.disconnect();state.noteObserver?.disconnect();state.mediaResizeObserver?.disconnect();if(state.mosaicResizeHandler)window.removeEventListener('resize',state.mosaicResizeHandler);}
+      onHide:()=>{if(state.camera?.isOpen?.()){state.camera.destroy();state.camera=null;refreshFeed();}clearInterval(state.feedTimer);state.mosaicObserver?.disconnect();state.noteObserver?.disconnect();state.mediaResizeObserver?.disconnect();if(state.mosaicResizeHandler)window.removeEventListener('resize',state.mosaicResizeHandler);}
     });
     window.Portal.tabs.renderTabs?.();
     if (window.Portal?.routeState?.get?.().tab === TAB_ID) {
