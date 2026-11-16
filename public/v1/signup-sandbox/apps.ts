@@ -21,9 +21,10 @@ import { appFlagBaseOverrides, USER_CHOICE } from "./service.js";
  *   offered; one with no app_welcome entry shows the placeholder welcome (`welcome: "placeholder"`).
  * - **Off**: anything else (a switch off, a dependency off, a switch masked by another app's offer, or `hidden`).
  *
- * Writing a state changes only those fields: switches (with what they depend on, when turning on) in
- * `defaults.app_flags`, the offer list and the app's placement. A flag that ends up equal to what the configuration's
- * base gives anyway is removed rather than written. Nothing here depends on which configuration it is.
+ * Writing a state changes only those fields: switches (with what they depend on, when turning on, and, when the app
+ * was off, the features under them that are on by default) in `defaults.app_flags`, the offer list and the app's
+ * placement. A flag that ends up equal to what the configuration's base gives anyway is removed rather than written.
+ * Nothing here depends on which configuration it is.
  */
 
 export const APP_STATES = ["on", "offered", "off"] as const;
@@ -213,6 +214,23 @@ export async function applyAppChange(input: SandboxConfigurationData, appId: str
       if (node?.stores_value && node.type === "boolean") setFlag(needed, true);
     }
   };
+  // An app turned on (or offered) from off starts with the features the platform turns on by default
+  // (capability_defaults), not only its switch: a base such as expanded_access_off has them all off, and an app
+  // started without them is an empty shell (FM-470: CRM started with its views off). A feature the configuration
+  // names keeps its value, and one turned off while the app is on stays off.
+  const turnOnApp = (keys: readonly string[]) => {
+    const before = resolveCapabilities(configuredValues(data, base)).effectiveByKey;
+    const wasOff = !keys.some((key) => before[key] === true);
+    turnOn(keys);
+    if (!wasOff) return;
+    const own = new Set(keys);
+    for (const node of capabilityDefinitions()) {
+      if (!node.stores_value || node.type !== "boolean" || node.default !== true || own.has(node.key)) continue;
+      if (!node.ancestors.some((key) => own.has(key)) || Object.prototype.hasOwnProperty.call(flags, node.key)) continue;
+      if (Object.prototype.hasOwnProperty.call(EQUIPMENT_SIMPLE_CAPABILITIES, node.key)) continue;
+      setFlag(node.key, true);
+    }
+  };
 
   if (change.state !== undefined) {
     if (!APP_STATES.includes(change.state)) throw badRequest("sandbox_app_state", "An app's state is on, offered or off.");
@@ -221,12 +239,12 @@ export async function applyAppChange(input: SandboxConfigurationData, appId: str
     if (change.state === "offered") {
       if (!isOfferableApp(app.id)) throw badRequest("sandbox_app_not_offerable", `${app.title} has no organization switch, so it is always on and cannot be offered.`);
       // The offer's switches are on underneath (that is what starting it turns on); the offer masks them until then.
-      turnOn(offerSwitches(app.id));
+      turnOnApp(offerSwitches(app.id));
       setOffers([...offers, ...own]);
       if (placements(data)[app.id] === "hidden") setPlacement("");
     } else if (change.state === "on") {
       if (!app.capabilities.length && placements(data)[app.id] !== "hidden") return data;
-      turnOn(app.capabilities);
+      turnOnApp(app.capabilities);
       // Its own offer and any other offer masking one of its switches would keep it off.
       const masking = offers.filter((id) => own.includes(id) || offerSwitches(id).some((key) => app.capabilities.some((cap) => dependencyChain(cap).has(key))));
       if (masking.length || Array.isArray(settings.app_offers)) setOffers(offers.filter((id) => !masking.includes(id)));
