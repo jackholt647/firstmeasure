@@ -762,6 +762,25 @@ current collection reads are recorded in the [optimization backlog](../optimizat
 This Labor visibility check shares the existing full material-list scan recorded
 in the [optimization backlog](../optimization-backlog.md#the-labor-column-reads-every-material-list-when-nobody-does-labor).
 
+## Communications setup
+
+`comms.setup` (modal, organization, replayable; library entry with its copy) plays the first time someone who manages
+company settings opens a project's Comms tab (`project.comms`) or the Communications page (`portal.chat`, whose variant
+starts with texts and calls). One step, widget `comms-setup` (`guided-experiences/comms-setup.js`, its own pages and
+buttons like Operations): what Communications does (texts, calls, email), where to start, then a simple page per
+channel. **Texts and calls** runs `comms.setup.start { channel: phone }`: Texts (`comms.sms`) and SMS settings
+(`apps.messaging`, `platform.sms_settings`) on; carrier registration and the number stay the 10DLC workflow in Phone
+Settings ("Register my business" finishes the setup and opens it). On development the shared test line stands in, as
+Phone Settings' "Skip to fully onboarded". Then the **texting plan**: platform billing's `comms.sms` prices, bought with
+`FirstMatePlatformBilling.review` (the card on file, else Stripe Checkout); no page where platform billing is off or
+nothing is for sale. **Email** runs `comms.setup.start { channel: email }`: the Email inbox (`comms.email`) on and the
+company's FirstMate Mail address created (`ensureOrgEmailInbox`), shown on the page. After either, the other one or
+"Go to Communications", which completes (`comms.setup.complete`) and plays `comms.tab_tutorial` (Texts, Email and Calls,
+each step only where its channel is on). The actions are in `comms/setup.ts`; a channel turned on dispatches
+`fm:comms:setup-changed` so the Comms tab shows its tab at once. The project Overview offers a "Set up" card for each
+channel that is off, and the call center's "Browser calling is off" notice a button, both replaying the setup on that
+channel's page. Tests: `tests/comms-setup.test.ts`, `tests/comms-setup-browser.test.mjs`.
+
 ## Limits (prototype)
 
 - The scripted turns are stored in English; the person sees their own language.

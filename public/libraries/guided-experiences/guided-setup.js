@@ -788,6 +788,18 @@
       return {valid:()=>handle?.valid?.()!==false,destroy(){disposed=true;handle?.destroy?.();}};
     }
   });
+  // The Communications setup (FM-491): one step with its own pages and buttons (intro, texts and calls, email, plan).
+  registerWidget('comms-setup', {
+    handlesNavigation:true,
+    render(el,ctx){
+      let disposed=false, handle=null;
+      el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
+      import(new URL('./comms-setup.js?v=20261116-fm491',scriptUrl).href).then(module=>{
+        if(!disposed)handle=module.mount(el,ctx);
+      }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
+      return {valid:()=>true,destroy(){disposed=true;handle?.destroy?.();}};
+    }
+  });
   const widgetCss = `
     /* The grid takes the step's height from the top; its rows stay a tile's shape and leftover space falls below. */
     .gxs-logos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(108px,150px);align-content:start;gap:12px;flex:1 1 auto;min-height:0;padding-bottom:24px}

@@ -160,6 +160,7 @@
       .fmco-auto-chip{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:900;letter-spacing:.05em;color:#0369a1;background:#e0f2fe;border:1px solid #bae6fd;border-radius:999px;padding:1px 7px;text-transform:uppercase;vertical-align:1px}
       .fmco-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
       .fmco-card{background:#fff;border:1px solid #e4e7ec;border-radius:12px;padding:14px 16px;display:grid;gap:6px}
+      .fmco-setup-card{border-style:dashed;background:#fcfcfd;align-content:start}.fmco-setup-card .fmco-btn{justify-self:start;margin-top:4px}.fmco-setup-card [data-co-setup-note]:empty{display:none}
       .fmco-card-top{display:flex;align-items:center;justify-content:space-between}
       .fmco-card-title{font-size:10.5px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:#98a2b3;display:flex;align-items:center;gap:7px}
       .fmco-card-title i{color:#667085}
@@ -584,6 +585,44 @@
 
   // Overview -----------------------------------------------------------------
 
+  // FM-491: a channel that is not on yet (Texts, Email) is offered here; its button opens the Communications setup
+  // (guided experience comms.setup) on that channel's page. Whether the person may set it up is the setup's own check.
+  function setupCards(){
+    if (typeof (rootWindow.FirstMateGuides || rootWindow.top?.FirstMateGuides)?.play !== 'function') return '';
+    const cards = [
+      !can('comms.sms') && { id:'phone', icon:'fa-comment-sms', label:'Texts and calls', body:'Text and call customers from their project.' },
+      !can('comms.email') && { id:'email', icon:'fa-envelope', label:'Email', body:'Email customers from their project.' }
+    ].filter(Boolean);
+    return cards.map((card) => `
+      <div class="fmco-card fmco-setup-card" data-co-setup-card="${card.id}">
+        <span class="fmco-card-title"><i class="fa-solid ${card.icon}"></i>${esc(card.label)}</span>
+        <div class="fmco-card-sub">${esc(card.body)}</div>
+        <button type="button" class="fmco-btn primary" data-co-setup="${card.id}">${card.id === 'email' ? 'Set up email' : 'Set up texts and calls'}</button>
+        <div class="fmco-card-sub" data-co-setup-note role="status"></div>
+      </div>`).join('');
+  }
+
+  async function setUpChannel(channel, button){
+    const guides = rootWindow.FirstMateGuides;
+    if (!guides?.play) return;
+    button.disabled = true;
+    const windows = [rootWindow];
+    try { if (rootWindow.top !== rootWindow && rootWindow.top.location.origin === rootWindow.location.origin) windows.push(rootWindow.top); } catch (_) {}
+    windows.forEach((win) => { win.__fmCommsSetupStart = channel; });
+    try {
+      const outcome = await guides.play('comms.setup', { replay:true });
+      if (outcome?.status === 'unavailable') {
+        const note = button.parentElement?.querySelector('[data-co-setup-note]');
+        if (note) note.textContent = 'Ask someone who manages company settings to set this up.';
+      }
+    } catch (_) {
+      /* the setup reports its own errors */
+    } finally {
+      windows.forEach((win) => { win.__fmCommsSetupStart = ''; });
+      if (button.isConnected) button.disabled = false;
+    }
+  }
+
   function renderOverview(root){
     if (state.loading && !state.overview) { root.innerHTML = loadingHtml(); return; }
     const overview = object(state.overview);
@@ -615,6 +654,7 @@
             </div>
           `;
         }).join(''))}
+        ${String(setupCards())}
       </div>
       ${String(drafts.length ? `
         <p class="fmco-section-title">${(globalThis.PlatformLanguage?.htmlText("comms","m_d9605e0a2440b7","AI drafts waiting for review") ?? "AI drafts waiting for review")}</p>
@@ -654,6 +694,9 @@
     `;
     root.querySelectorAll('[data-co-open]').forEach((button) => {
       button.addEventListener('click', () => setView(button.dataset.coOpen, { pushRoute:true }));
+    });
+    root.querySelectorAll('[data-co-setup]').forEach((button) => {
+      button.addEventListener('click', () => { void setUpChannel(button.dataset.coSetup, button); });
     });
     root.querySelectorAll('[data-co-jump]').forEach((row) => {
       row.addEventListener('click', () => {
@@ -1604,6 +1647,13 @@
       if (conversation && state.view === 'sms') { state.activeSmsId = conversation; state.smsComposeOpen = false; loadView().catch(() => null); }
       if (conversation && state.view === 'chat') { state.activeChatId = conversation; render(); }
     }
+  });
+
+  // The Communications setup turned a channel on: show its tab and drop its setup card.
+  rootWindow.addEventListener('fm:comms:setup-changed', () => {
+    if (!state.mounted) return;
+    renderTabs();
+    if (state.view === 'overview') render();
   });
 
   // Deep link from notifications (topbar routes open_project_comms here).
