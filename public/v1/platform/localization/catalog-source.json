@@ -20507,7 +20507,39 @@
     "m_ed1357aa1f5b40": {
       "message": "Staffing {v25}",
       "format": "icu"
-    }
+    },
+    "m_a51b9cfec0d249": "Creating event…",
+    "m_1816c8c4a8bd69": "Event created.",
+    "m_c47ee58a05a68f": "What kind of appointment?",
+    "m_36c57326e298b5": "When?",
+    "m_061af9ddcf3caa": "Event created",
+    "m_bb31fd73cbfe3b": "Previous",
+    "m_5e03a7c216f500": "Next",
+    "m_2ba8f5c071ca3d": "Create event",
+    "m_8cb6b086a0e69c": "Done",
+    "m_579f2d1738030b": "Steps",
+    "m_8bb7c52ea90060": {
+      "message": "Use “{v0}”",
+      "format": "icu"
+    },
+    "m_430557d38e973d": "Just the address — link a project later",
+    "m_6edcf7d7d41112": "Custom",
+    "m_ead6d3b487e677": "More",
+    "m_340c23300fa694": "Search appointment presets",
+    "m_b73185deef6d79": "Delivery",
+    "m_da77ec5485a2a2": {
+      "message": "{v0}h arrival window",
+      "format": "icu"
+    },
+    "m_21207d2489602d": {
+      "message": "Staffing {v8}",
+      "format": "icu"
+    },
+    "m_e7d92ad0b1c599": "Set it up just for this event",
+    "m_4b99865b7d9e8d": "Appointment types",
+    "m_a2e9ffbd217929": "Location",
+    "m_f28a5a7b8b35f8": "Name the type first.",
+    "m_ea600c018fb36c": "Saving…"
   },
   "partners": {
     "m_a5cfb1805161b3": "Partner workspace",

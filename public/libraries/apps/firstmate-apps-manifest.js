@@ -24,7 +24,7 @@
       mobileFullscreenControl: false
     }
   };
-  const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261005-appointment-picker-v1');
+  const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261116-appointment-steps-v1');
   const priorityFieldsBundle = versionedBundle('../priority-fields/priority-fields.js', '20261015-ready-event');
   const gifDisplayBundle=versionedBundle('../platform-widgets/gifs.js','20261012-composer-media-fixes-v1');
   const widgetBundles = [gifDisplayBundle,...['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js',name==='runtime'?'20261012-composer-media-fixes-v1':name==='project-widgets'?'20261113-fm455-line-totals':'20261003-project-widgets-v1'))];

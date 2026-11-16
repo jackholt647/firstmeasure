@@ -101,8 +101,8 @@ test('shared picker rejects stale responses, books once, and public embeds retai
     assert.deepEqual(await page.locator('dialog').boundingBox(),{x:0,y:0,width:390,height:844});
     await page.setViewportSize({width:1100,height:850});
     if (process.env.BOOKING_SCREENSHOT) await page.screenshot({path:process.env.BOOKING_SCREENSHOT});
-    await page.getByRole('button',{name:'Book appointment',exact:true}).click();
-    await page.getByText('Appointment booked.',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Create event',exact:true}).click();
+    await page.getByText('Event created.',{exact:true}).waitFor();
     assert.equal(await page.evaluate(() => window.bookings.length),1);
     assert.equal(await page.evaluate(() => window.bookings[0].start_at),'2026-10-05T15:00:00Z');
     assert.equal(await page.evaluate(() => 'project_id' in window.bookings[0]),false);
@@ -195,11 +195,11 @@ test('versioned booking loads the new UI when old lazy scripts remain in the bro
 });
 test('multi-day ranges cross months, exclude crew conflicts and book an inclusive end date',async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
- try{const page=await browser.newPage({viewport:{width:1280,height:800}});await page.route('http://localhost/**',r=>r.fulfill({body:'<html></html>',contentType:'text/html'}));await page.goto('http://localhost/');await page.addStyleTag({content:styles});for(const content of [picker,selector,configuration,booking])await page.addScriptTag({content});
+ try{const page=await browser.newPage({viewport:{width:1280,height:800}});await page.clock.setFixedTime(new Date('2026-10-20T12:00:00'));await page.route('http://localhost/**',r=>r.fulfill({body:'<html></html>',contentType:'text/html'}));await page.goto('http://localhost/');await page.addStyleTag({content:styles});for(const content of [picker,selector,configuration,booking])await page.addScriptTag({content});
  await page.evaluate(async()=>{const base={title:'Installation',department_ids:[],delivery:false,timing_mode:'days',duration_days:2,location:{mode:'none',address:''},duration_minutes:60,window_minutes:60,slot_minutes:30,requirements:[],recurrence:null};window.booked=[];window.PlatformAPI={projects:{list:async()=>({documents:[]})},appointments:{catalog:async()=>({catalog:{departments:[],groups:[],presets:[{id:'installation',label:'Installation',configuration:base}]},resources:[]}),preview:async(org,input)=>{const start=new Date(input.date+'T00:00:00Z'),end=new Date(+start+input.configuration.duration_days*86400000),blocked=new Date('2026-11-03T00:00:00Z');return {slots:[{start_at:start.toISOString(),available:!(start<=blocked&&end>blocked),window_end_at:end.toISOString()}]};},book:async(org,input)=>window.booked.push(input)}};await FirstMateBooking.open({orgId:'org',date:'2026-10-30'});});
  await page.locator('[data-preset-button=installation]').first().click();assert.equal(await page.locator('.fmle-time-panel').count(),0);assert.equal(await page.locator('[data-duration-preset="7"]').innerText(),'1 week');await page.locator('[data-range-date="2026-10-30"]').click();await page.waitForFunction(()=>!document.querySelector('.fm-range [type=submit]').disabled);assert.match(await page.locator('[data-range-end]').innerText(),/Oct 31/);
  await page.locator('[data-range-field=end]').click();await page.locator('[data-range-month="1"]').click();await page.locator('[data-range-date="2026-11-02"]').click();await page.waitForFunction(()=>!document.querySelector('.fm-range [type=submit]').disabled);assert.match(await page.locator('[data-range-end]').innerText(),/Nov 2/);assert.equal(await page.locator('[data-days]').inputValue(),'4');assert.equal(await page.locator('[data-range-date="2026-11-03"]').isDisabled(),true);assert.equal(await page.locator('[data-range-date="2026-11-01"]').evaluate(el=>el.classList.contains('in-range')),true);
- await page.setViewportSize({width:390,height:844});assert.ok(await page.locator('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth&&el.scrollHeight<=el.clientHeight+1));await page.locator('.fm-range [type=submit]').click();await page.getByText('Appointment booked.',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.booked[0].configuration.duration_days),4);assert.equal(await page.evaluate(()=>window.booked[0].start_at),'2026-10-30T00:00:00.000Z');
+ await page.setViewportSize({width:390,height:844});assert.ok(await page.locator('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth&&el.scrollHeight<=el.clientHeight+1));await page.locator('.fm-range [type=submit]').click();await page.getByText('Event created.',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.booked[0].configuration.duration_days),4);assert.equal(await page.evaluate(()=>window.booked[0].start_at),'2026-10-30T00:00:00.000Z');
  }finally{await browser.close();}
 });
 test('project defaults supply the title, manual names survive, and project popovers fully dismiss',async()=>{
@@ -209,5 +209,67 @@ test('project defaults supply the title, manual names survive, and project popov
  const summary=page.locator('.fm-ap-project>summary');await summary.click();await page.getByRole('option',{name:'Oak roof project',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-title-label]').textContent==='Oak roof project');assert.equal(await page.locator('.fm-ap-project').getAttribute('open'),null);assert.equal(await page.locator('.fm-ap-project .fm-ap-popover').isVisible(),false);
  await summary.click();await page.getByRole('heading',{name:'New appointment'}).click();assert.equal(await page.locator('.fm-ap-project .fm-ap-popover').isVisible(),false);await summary.click();await page.keyboard.press('Escape');assert.equal(await page.locator('dialog').isVisible(),true);assert.equal(await page.locator('.fm-ap-project .fm-ap-popover').isVisible(),false);
  await page.locator('.fm-ap-name>summary').click();await page.locator('[data-title]').fill('Roof walk');await page.locator('[data-title]').press('Tab');await summary.click();await page.getByRole('combobox').fill('Pine');await page.getByRole('option',{name:'Pine siding project',exact:true}).click();await page.locator('[data-preset-button=sales]').first().click();assert.equal(await page.locator('[data-title-label]').innerText(),'Roof walk');await page.locator('.fm-ap-name>summary').click();await page.locator('[data-title]').fill('');await page.locator('[data-title]').press('Tab');assert.equal(await page.locator('[data-title]').inputValue(),'Pine siding project');assert.equal(await page.locator('[data-title]').evaluate(el=>el.checkValidity()),true);assert.equal(await page.locator('#fm-booking-title').evaluate(el=>getComputedStyle(el).fontFamily),await page.locator('body').evaluate(el=>getComputedStyle(el).fontFamily));
+ }finally{await browser.close();}
+});
+
+test('phones book in steps: type, then project or address, then time with Create event',async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:390,height:844},hasTouch:true});page.setDefaultTimeout(5000);
+  await page.route('http://localhost/**',r=>r.fulfill({body:'<html><body></body></html>',contentType:'text/html'}));await page.goto('http://localhost/');await page.addStyleTag({content:styles});
+  for(const content of [picker,selector,configuration,booking])await page.addScriptTag({content});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.evaluate(()=>{
+   const base={department_ids:[],delivery:false,timing_mode:'timed',duration_days:2,location:{mode:'project',address:''},window_minutes:90,slot_minutes:30,requirements:[],recurrence:null};
+   let catalog={departments:[],groups:[],presets:[{id:'sales',label:'Sales appointment',configuration:{...base,title:'Sales appointment',duration_minutes:90,window_minutes:90}}]};
+   window.previews=[];window.bookings=[];window.saved=[];
+   window.PlatformAPI={projects:{get:async(o,id)=>({document:{id,data:{title:'Smith residence',address:'123 Maple Street'}}})},
+    search:{projectsAndContacts:async(o,{query})=>({results:query&&!'123 maple street smith residence'.includes(query.toLowerCase())?[]:[{id:'p1',title:'Smith residence',subtitle:'123 Maple Street'}]})},
+    appointments:{catalog:async()=>({can_manage:true,revision:4,resources:[],catalog}),saveCatalog:async(o,input)=>{window.saved.push(input);catalog=input.catalog;return {can_manage:true,revision:5,resources:[],catalog};},
+     preview:async(o,input)=>{window.previews.push(input);return {slots:[{available:true,start_at:'2026-11-17T15:00:00Z',label:'10:00 AM'}]};},book:async(o,input)=>{window.bookings.push(input);return {ok:true};}}};
+   return FirstMateBooking.open({orgId:'org'});
+  });
+  const visibleStep=()=>page.evaluate(()=>document.querySelector('[data-step]:not([hidden])').dataset.step);
+  assert.equal(await page.locator('dialog.fm-booking-steps').isVisible(),true);
+  assert.equal(await visibleStep(),'type');assert.equal(await page.locator('[data-prev]').isVisible(),false);
+  assert.equal(await page.locator('.fm-ap-type-custom').getAttribute('aria-pressed'),'false');
+  assert.equal(await page.evaluate(()=>window.previews.length),0,'availability waits for the time step');
+  // A type moves on by itself; the project search is already open with results.
+  await page.locator('.fm-ap-type[data-preset-button=sales]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-step=project]:not([hidden])'));
+  await page.getByRole('option',{name:/Smith residence/}).waitFor();
+  assert.equal(await page.locator('.fm-project-results').isVisible(),true);
+  // Typing an address finds the project; an unknown address can be used on its own.
+  const search=page.getByRole('combobox',{name:'Search projects or type an address'});
+  await search.fill('42 Unknown Road');await page.getByRole('option',{name:/Use “42 Unknown Road”/}).click();
+  assert.equal(await visibleStep(),'when');
+  await page.waitForFunction(()=>window.previews.length);
+  assert.deepEqual(await page.evaluate(()=>window.previews.at(-1).configuration.location),{mode:'custom',address:'42 Unknown Road'});
+  assert.equal(await page.evaluate(()=>'project_id' in window.previews.at(-1)),false);
+  assert.equal(await page.locator('.fm-ap-step-quick [data-duration-preset="90"]').getAttribute('aria-pressed'),'true');
+  await page.locator('[data-prev]').click();assert.equal(await visibleStep(),'project');
+  await search.fill('maple');await page.getByRole('option',{name:/Smith residence/}).click();
+  await page.waitForFunction(()=>window.previews.at(-1)?.project_id==='p1');
+  assert.equal(await page.evaluate(()=>window.previews.at(-1).configuration.location.mode),'project');
+  assert.match(await page.locator('[data-summary]').innerText(),/Sales appointment[\s\S]*Smith residence/);
+  // Advanced settings float over any step.
+  await page.getByRole('button',{name:'Advanced'}).click();assert.equal(await page.locator('#fm-booking-sheet').isVisible(),true);
+  await page.locator('label:has(>[data-delivery])').click();await page.keyboard.press('Escape');
+  await page.waitForFunction(()=>document.querySelector('#fm-booking-sheet').hidden);assert.equal(await page.locator('dialog').isVisible(),true);
+  assert.equal(await page.evaluate(()=>window.previews.at(-1).configuration.delivery),true);
+  assert.equal(await page.getByRole('button',{name:'Book appointment'}).count(),0);
+  const create=page.getByRole('button',{name:'Create event',exact:true});assert.equal(await create.isDisabled(),true);
+  await page.getByRole('button',{name:'10:00 AM',exact:true}).click();await create.click();
+  await page.getByRole('heading',{name:'Event created'}).waitFor();
+  assert.equal(await page.evaluate(()=>window.bookings.length),1);assert.equal(await page.evaluate(()=>window.bookings[0].project_id),'p1');
+  assert.ok(await page.locator('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth));
+  await page.getByRole('button',{name:'Done',exact:true}).click();await page.locator('dialog').waitFor({state:'detached'});
+  // New type saves the settings to the catalog for everyone, then continues.
+  await page.evaluate(()=>FirstMateBooking.open({orgId:'org',projectId:'p1',lockProject:true}));
+  assert.equal(await page.locator('[data-progress]').count(),2);
+  await page.locator('[data-new-type]').click();await page.locator('[data-type-name]').fill('Gutter check');await page.locator('[data-save-type]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-step=when]:not([hidden])'));
+  assert.equal(await page.evaluate(()=>window.saved[0].revision),4);assert.deepEqual(await page.evaluate(()=>window.saved[0].catalog.presets.map(p=>p.label)),['Sales appointment','Gutter check']);
+  assert.match(await page.locator('[data-summary]').innerText(),/Gutter check/);
  }finally{await browser.close();}
 });

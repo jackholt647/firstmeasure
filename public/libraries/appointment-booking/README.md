@@ -5,7 +5,7 @@ slots. Hosts supply transport and submission; the picker never saves a booking.
 
 ```js
 target.classList.add('fm-availability');
-target.innerHTML = FirstMateAvailability.markup({ submitLabel: 'Book appointment' });
+target.innerHTML = FirstMateAvailability.markup({ submitLabel: 'Create event' });
 const picker = FirstMateAvailability.mount(target, {
   loadAvailability: async date => ({ slots: await fetchSlots(date) }),
   onChange: slot => { /* null clears a stale selection */ }
@@ -20,7 +20,15 @@ responses. The surrounding form owns the submit action. The public forms embed
 slots from the form-scoped, credential-free availability endpoint.
 
 Load `booking.js` to call `FirstMateBooking.open({orgId, projectId?, onBooked?})`
-from any authenticated portal surface. It lazily loads the shared picker. Staff
+from any authenticated portal surface. It lazily loads the shared picker. On a
+phone (720 px or narrower when it opens) the dialog is a stepped flow: pick an
+appointment type (or Custom, or build and save a New type when the person can
+manage the catalog) → search for the project, or type an address and use it
+without one (skipped when the caller passes `lockProject`) → duration, day and
+time with **Create event**. Previous/Next sit in the footer, and the Advanced
+sheet (name, location, departments, staffing, recurrence) opens from the top
+right of any step. Wider screens keep the one-page form. Pass `steps:true|false`
+to force either layout. Staff
 can choose a project or lead with the shared searchable selector, or book without
 a project and link one later from the calendar event editor. The server
 chooses an available resource and the configured duration. Its authenticated
