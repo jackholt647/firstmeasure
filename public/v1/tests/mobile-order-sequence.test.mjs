@@ -12,7 +12,8 @@ test('entering final review recomputes submit readiness and preserves in-flight 
   const order = { style: {}, disabled: true };
   const elements = { '#rOverlay': { classList: { toggle() {} } }, '#rMobileOrder': order };
   const state = {
-    $: selector => elements[selector], mobileOrderPage: 'final',
+    $: selector => elements[selector], mobileOrderPage: 'final', orderSubmissionPending: false, activePreviewTab: 'map',
+    placeOverviewDetails() {}, renderAfterHoursNotice() {}, instantDevelopmentReport: () => false, setSubmitBusyLabel() {},
     shouldUseMobileOrderPagination: () => true, mobileOrderReadyForDetails: () => true,
     mobileOrderUsesFinalPage: () => true, mobileOrderReadyForFinal: () => true,
     activeSubmitButton: () => submit,
@@ -39,7 +40,7 @@ test('entering final review recomputes submit readiness and preserves in-flight 
 test('full structure goes map, guided photos and summary, details, then review; roof keeps its existing sequence',()=>{
  const navigation=request.slice(request.indexOf('  function mobileOrderGoBack(){'),request.indexOf('  function handleMobileOrderSwipeStart'));
  let full=true,summary=false,photos=false,details=true,feedback=0;
- const state={mobileOrderPage:'location',shouldUseMobileOrderPagination:()=>true,mobileOrderReadyForDetails:()=>true,mobileOrderReadyForFinal:()=>!full||(photos&&details),shakeMissingMobileOrderRequirement(){},setMobileOrderPage:p=>state.mobileOrderPage=p,window:{Portal:{ExteriorOrder:{active:()=>full,mobilePhotoSummary:()=>summary,mobilePhotosReady:()=>photos,mobileDetailsReady:()=>details,explainMissingPhotos:()=>feedback++,mobilePhotoBack:()=>false}}}};
+ const state={mobileOrderPage:'location',orderSubmissionPending:false,shouldUseMobileOrderPagination:()=>true,mobileOrderReadyForDetails:()=>true,mobileOrderReadyForFinal:()=>!full||(photos&&details),shakeMissingMobileOrderRequirement(){},setMobileOrderPage:p=>state.mobileOrderPage=p,window:{Portal:{ExteriorOrder:{active:()=>full,mobilePhotoSummary:()=>summary,mobilePhotosReady:()=>photos,mobileDetailsReady:()=>details,explainMissingPhotos:()=>feedback++,mobilePhotoBack:()=>false}}}};
  vm.createContext(state);vm.runInContext(navigation,state);
  state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'photos');
  state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'photos');
@@ -89,4 +90,36 @@ test('mobile location requires scope only where two report scopes are available'
   assert.equal(state.mobileOrderReadyForDetails(), true, 'a disabled Full Structure flag skips the scope step');
   state.pins = 0;
   assert.equal(state.mobileOrderReadyForDetails(), false);
+});
+
+test('an invalid hidden contact field never stops the phone Order button (FM-517)', () => {
+  // A name typed into a contact's Email made form.requestSubmit() fail browser validation on a field
+  // the phone order page hides: no submit event, no request, no message.
+  const binding = request.slice(request.indexOf("    const requestForm = $('#rForm');"), request.indexOf("    $('#rAddress')?.addEventListener('focus'"));
+  assert.match(binding, /requestForm\.noValidate = true;[\s\S]*addEventListener\('submit', onSubmit/);
+  const mobileOrder = request.slice(request.indexOf("    $('#rMobileOrder')?.addEventListener('click'"), request.indexOf("    $('#rContactContextBar')?.addEventListener('click'"));
+  assert.match(mobileOrder, /onSubmit\(\{ preventDefault\(\)\{\} \}\)/);
+  assert.doesNotMatch(mobileOrder, /requestSubmit|\.click\(\)/);
+});
+
+test('an order that fails unexpectedly shows a toast and unlocks the button (FM-517)', async () => {
+  const toasts = [], locks = [];
+  const state = {
+    $: () => null, activeSubmitButton: () => null, setSubmitBusyLabel() {},
+    hasReportOrdered: () => false, isScheduleChoice: () => false, hasSelectedAddons: () => true,
+    submitReport: async () => { throw new Error('boom'); },
+    showToast: (...args) => toasts.push(args), updateSubmitLabel() {}, syncMobileOrderPagination() {},
+    console: { error() {} }, window: { Portal: {} }, globalThis: {}, Promise,
+  };
+  vm.createContext(state);
+  vm.runInContext(request.slice(request.indexOf('  let orderSubmissionPending=false'), request.indexOf('  async function submitReport(')) + '\nthis.pending = () => orderSubmissionPending;', state);
+  const lock = state.lockOrderSubmission;
+  state.lockOrderSubmission = value => { locks.push(value); lock(value); };
+  const pending = state.onSubmit({ preventDefault() {} });
+  assert.equal(state.pending(), true, 'the button locks on the tap, before any request');
+  await pending;
+  assert.equal(state.pending(), false);
+  assert.equal(toasts.length, 1);
+  assert.equal(toasts[0][1], 'boom');
+  assert.equal(toasts[0][2], false);
 });
