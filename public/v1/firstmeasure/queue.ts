@@ -1101,6 +1101,41 @@ async function readInternalUserByEmail(email: string): Promise<Record<string, un
   return await readInternalUser(email).catch(() => null);
 }
 
+/** Seconds a person waits after a claim found nothing before claiming again (0 turns it off). */
+export const DEFAULT_EMPTY_CLAIM_COOLDOWN_SECONDS = 8;
+const EMPTY_CLAIM_COOLDOWN_CACHE_MS = 30_000;
+let emptyClaimCooldownCache: { at: number; seconds: number } | null = null;
+let emptyClaimCooldownOverride: number | null = null;
+
+/**
+ * The `production_queue_empty_claim_cooldown_seconds` setting (0–120), read
+ * from the same server settings as the queue priorities and cached briefly,
+ * since every empty claim asks for it.
+ */
+export async function readEmptyClaimCooldownSeconds(now = Date.now()): Promise<number> {
+  if (emptyClaimCooldownOverride !== null) return emptyClaimCooldownOverride;
+  if (emptyClaimCooldownCache && now - emptyClaimCooldownCache.at < EMPTY_CLAIM_COOLDOWN_CACHE_MS) {
+    return emptyClaimCooldownCache.seconds;
+  }
+  let seconds = DEFAULT_EMPTY_CLAIM_COOLDOWN_SECONDS;
+  try {
+    const parsed = asRecord(JSON.parse(await readFile(SERVER_CONFIG_PATH, "utf8")));
+    const raw = asRecord(parsed.settings).production_queue_empty_claim_cooldown_seconds;
+    const value = raw === undefined || raw === null || raw === "" ? Number.NaN : Number(raw);
+    if (Number.isFinite(value) && value >= 0 && value <= 120) seconds = Math.round(value);
+  } catch {
+    // Defaults are intentionally usable without a config file.
+  }
+  emptyClaimCooldownCache = { at: now, seconds };
+  return seconds;
+}
+
+/** Test seam: a fixed cooldown (null reads the setting again). */
+export function overrideEmptyClaimCooldownSeconds(seconds: number | null) {
+  emptyClaimCooldownOverride = seconds;
+  emptyClaimCooldownCache = null;
+}
+
 export async function readProductionQueuePrioritySettings(): Promise<ProductionQueuePrioritySettings> {
   const defaults: ProductionQueuePrioritySettings = {
     windowMinutes: DEFAULT_QUEUE_PRIORITY_WINDOW_MINUTES,

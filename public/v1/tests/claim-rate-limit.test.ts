@@ -9,6 +9,7 @@ import {
   CLAIM_LIMIT,
   LONG_BLOCK_MS,
   SHORT_BLOCK_MS,
+  noteEmptyClaim,
   recordClaimAttempt,
   resetClaimRateLimits,
   stepClaimLimit,
@@ -92,6 +93,32 @@ test("recordClaimAttempt logs one warning per block, with the email, length and 
   resetClaimRateLimits();
 });
 
+test("after an empty claim the person waits out a cooldown, refused without counting; hot swap is not stopped", async () => {
+  resetClaimRateLimits();
+  const log = { warn: () => undefined } as any;
+  assert.equal((await recordClaimAttempt("tech@example.test", log, 1_000)).allowed, true);
+  await noteEmptyClaim("Tech@Example.test", 8_000, 1_000);
+  const refused = await recordClaimAttempt("tech@example.test", log, 1_500);
+  assert.equal(refused.allowed, false);
+  assert.equal(refused.reason, "cooldown");
+  assert.equal(refused.retryAfterSeconds, 8, "rounded up to whole seconds");
+  assert.equal((await recordClaimAttempt("tech@example.test", log, 8_900)).retryAfterSeconds, 1);
+  // A targeted claim (hot swap) ignores the cooldown.
+  assert.equal((await recordClaimAttempt("tech@example.test", log, 2_000, { honorCooldown: false })).allowed, true);
+  // Another person is not affected.
+  assert.equal((await recordClaimAttempt("other@example.test", log, 2_000)).allowed, true);
+  // Hammering during the cooldown is answered locally and does not count toward a flood block.
+  for (let index = 0; index < 50; index += 1) {
+    assert.equal((await recordClaimAttempt("tech@example.test", log, 3_000 + index)).reason, "cooldown");
+  }
+  const after = await recordClaimAttempt("tech@example.test", log, 9_001);
+  assert.equal(after.allowed, true, "allowed again the moment the cooldown ends");
+  // A cooldown of zero (the setting turned off) starts nothing.
+  assert.equal(await noteEmptyClaim("tech@example.test", 0, 10_000), null);
+  assert.equal((await recordClaimAttempt("tech@example.test", log, 10_001)).allowed, true);
+  resetClaimRateLimits();
+});
+
 let app: FastifyInstance;
 let root = "";
 /** Every request the app handled, in-process ones included. */
@@ -127,6 +154,9 @@ after(async () => {
 
 test("every claim path refuses a flood with exactly the empty-queue answer, counted once per claim", async () => {
   resetClaimRateLimits();
+  // The empty-claim cooldown off, so every claim reaches the queue and the flood limit is what refuses.
+  const { overrideEmptyClaimCooldownSeconds } = await import("../firstmeasure/queue.js");
+  overrideEmptyClaimCooldownSeconds(0);
   const { staffFixture } = await import("./helpers/security-fixture.js");
   const technician = await staffFixture({ role: "technician", training_complete: true, queue_mode: "hot_swap" });
   const admin = await staffFixture({ role: "admin" });
@@ -167,5 +197,57 @@ test("every claim path refuses a flood with exactly the empty-queue answer, coun
   // Queue status polling is not limited.
   const status = await send("/v1/internal/legacy-action", { action: "my_active_projects" }, technician.headers);
   assert.equal(status.statusCode, 200, status.body);
+  overrideEmptyClaimCooldownSeconds(null);
   resetClaimRateLimits();
+});
+
+test("an empty claim starts the cooldown: the next claim is refused before any queue work, with retry_after", async () => {
+  resetClaimRateLimits();
+  const { overrideEmptyClaimCooldownSeconds } = await import("../firstmeasure/queue.js");
+  overrideEmptyClaimCooldownSeconds(8);
+  try {
+    const { staffFixture } = await import("./helpers/security-fixture.js");
+    const technician = await staffFixture({ role: "technician", training_complete: true, queue_mode: "hot_swap" });
+    const other = await staffFixture({ role: "technician", training_complete: true, queue_mode: "hot_swap" });
+    const send = (url: string, payload: Record<string, unknown>, headers: Record<string, string>) =>
+      app.inject({ method: "POST", url, payload, headers });
+    // The body names someone else: the cooldown belongs to the verified caller only.
+    const nextForMe = (headers: Record<string, string>) =>
+      send("/v1/internal/legacy-action", { action: "claim_next_for_me", actor_email: "someone-else@example.test" }, headers);
+
+    const empty = await nextForMe(technician.headers);
+    assert.equal(empty.statusCode, 404, empty.body);
+    assert.equal(empty.json().error, "queue_empty");
+    assert.equal(empty.json().retry_after, 8);
+    assert.equal(empty.json().details.retry_after, 8);
+
+    seen.length = 0;
+    const cooling = await nextForMe(technician.headers);
+    assert.deepEqual(seen, ["/v1/internal/legacy-action"], "refused before the queue status read or the claim");
+    assert.equal(cooling.statusCode, 404);
+    assert.equal(cooling.json().error, "queue_empty");
+    assert.ok(cooling.json().retry_after >= 1 && cooling.json().retry_after <= 8, cooling.body);
+
+    // The direct route is refused the same way for the same person.
+    seen.length = 0;
+    const direct = await send("/v1/firstmeasure/queue/claim-next/compat", {}, technician.headers);
+    assert.equal(direct.statusCode, 404);
+    assert.equal(direct.json().error, "queue_empty");
+    assert.ok(direct.json().details.retry_after >= 1, direct.body);
+    assert.deepEqual(seen, ["/v1/firstmeasure/queue/claim-next/compat"]);
+
+    // A targeted hot swap still reaches the queue during the cooldown.
+    seen.length = 0;
+    await send("/v1/internal/legacy-action", { action: "execute_hot_swap", target_folder: "x" }, technician.headers);
+    assert.ok(seen.includes("/v1/firstmeasure/queue/claim-next/compat"), seen.join(", "));
+
+    // Someone else is not cooling down: their claim reaches the queue.
+    seen.length = 0;
+    const otherEmpty = await nextForMe(other.headers);
+    assert.equal(otherEmpty.json().retry_after, 8);
+    assert.ok(seen.includes("/v1/firstmeasure/queue/claim-next/compat"), seen.join(", "));
+  } finally {
+    overrideEmptyClaimCooldownSeconds(null);
+    resetClaimRateLimits();
+  }
 });
