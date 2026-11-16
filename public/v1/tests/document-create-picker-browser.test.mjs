@@ -26,11 +26,13 @@ const TEMPLATES = [
   template('tpl_old', 'contract', 'Retired contract', { status: 'archived' })
 ];
 
-async function open(browser, { pinned = null } = {}) {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+async function open(browser, { pinned = null, viewport = { width: 1280, height: 860 } } = {}) {
+  const page = await browser.newPage({ viewport });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.setContent(`<style>${css}</style><main></main>`);
+  // project.js sets this on a phone (syncPhoneFlag); the harness loads only the picker.
+  if (viewport.width <= 760) await page.evaluate(() => document.documentElement.setAttribute('data-fm-doc-phone', ''));
   await page.evaluate(({ typeCode, modalCode, createCode, TEMPLATES, pinned }) => {
     window.calls = [];
     const helpers = `
@@ -59,6 +61,7 @@ async function open(browser, { pinned = null } = {}) {
       const openWorkflowView = (doc) => window.calls.push(['openWorkflow', doc.id]);
       const templateDefinition = async () => ({ params: {} });
       const paramFieldHtml = () => '';
+      const capabilityEnabled = () => false;
     `;
     window.__templates = TEMPLATES; window.__pinned = pinned;
     const kinds = [['proposal','Proposal'],['contract','Contract'],['change_order','Change Order'],['invoice','Invoice'],['completion_certificate','Completion Certificate'],['generic','Plain document']];
@@ -124,6 +127,47 @@ test('New document shows the everyday templates pinned, the user\'s departments,
     await page.waitForFunction(() => window.calls.some((call) => call[0] === 'create'));
     assert.deepEqual(await page.evaluate(() => window.calls.find((call) => call[0] === 'create')), ['create', 'proposal', 'tpl_quick']);
     assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('on a phone the pinned templates are a grid of tiles and the library folds away until asked for', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await open(browser, { pinned: ['tpl_roof', 'tpl_contract', 'tpl_co', 'tpl_inv'], viewport: { width: 433, height: 870 } });
+    // Every pinned tile is in view: three across, wrapping, never a sideways scroll.
+    const grid = await page.evaluate(() => {
+      const row = document.querySelector('.fmdx-tpl-row');
+      const tiles = [...row.querySelectorAll('.fmdx-tpl')].map((el) => el.getBoundingClientRect());
+      const box = row.getBoundingClientRect();
+      return { columns: getComputedStyle(row).gridTemplateColumns.split(' ').length, rows: new Set(tiles.map((r) => Math.round(r.top))).size, inside: tiles.every((r) => r.left >= box.left - 1 && r.right <= box.right + 1), sideScroll: row.scrollWidth > row.clientWidth };
+    });
+    assert.deepEqual(grid, { columns: 3, rows: 2, inside: true, sideScroll: false });
+    // The library is one button with its count until it is opened.
+    assert.equal(await page.locator('.fmdx-tpl-grid').count(), 0, 'library folded');
+    assert.equal(await page.locator('[data-pick-type]').count(), 0, 'type filters fold with it');
+    const toggle = page.locator('[data-library-toggle]');
+    assert.match(await toggle.innerText(), /Show all templates\s*7/);
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+    if (process.env.PHONE_SHOT) await page.screenshot({ path: process.env.PHONE_SHOT });
+    await toggle.click();
+    assert.ok((await names(page, '.fmdx-tpl-grid')).includes('Quick roof quote'), 'library open');
+    assert.equal(await page.locator('[data-library-toggle]').getAttribute('aria-expanded'), 'true');
+    await page.locator('[data-library-toggle]').click();
+    assert.equal(await page.locator('.fmdx-tpl-grid').count(), 0, 'folds again');
+    // A search shows its results whether or not the library is open.
+    await page.locator('[data-tpl-search]').pressSequentially('inv');
+    assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Invoice']);
+    assert.equal(await page.locator('[data-library-toggle]').count(), 0);
+    await page.locator('[data-tpl-search]').fill('');
+    assert.equal(await page.locator('.fmdx-tpl-grid').count(), 0, 'folded again once the search is cleared');
+    await page.locator('.fmdx-tpl-row [data-pick-template="tpl_inv"]').click();
+    await page.waitForFunction(() => window.calls.some((call) => call[0] === 'create'));
+    assert.deepEqual(errors, []);
+    await page.close();
+    // With nothing pinned there is nothing to fold behind.
+    const bare = await open(browser, { pinned: [], viewport: { width: 433, height: 870 } });
+    assert.equal(await bare.page.locator('[data-library-toggle]').count(), 0);
+    assert.ok((await names(bare.page, '.fmdx-tpl-grid')).length > 0);
   } finally { await browser.close(); }
 });
 

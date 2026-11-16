@@ -2616,6 +2616,11 @@
         const library = visible.filter((tpl) => !picker.type || viewOf(tpl).id === picker.type)
           .sort((a, b) => (place.get(viewOf(a).id) - place.get(viewOf(b).id)) || cleanText(a.name).localeCompare(cleanText(b.name)));
         const pinned = query ? [] : pins().map((id) => activeTemplates().find((tpl) => cleanText(tpl.id) === id)).filter(Boolean).filter(inDepartments);
+        // On a phone the pinned tiles and search are the way in: the whole
+        // library folds behind one button until it is asked for. A search
+        // always shows its results.
+        const foldable = isPhone() && !query && pinned.length > 0;
+        const folded = foldable && !picker.libraryOpen;
         const deptChips = departments().length > 1 ? `
           <div class="fmdx-fchips" role="group" aria-label="${esc(state.departmentContext.departments_label || 'Departments')}">
             ${departments().map((entry) => `<button type="button" class="fmdx-fchip ${selectedDepartments().has(entry.id) ? 'on' : ''}" data-pick-department="${esc(entry.id)}" aria-pressed="${selectedDepartments().has(entry.id)}">${esc(entry.label)}</button>`).join('')}
@@ -2642,16 +2647,18 @@
             <p class="fmdx-section-label">Pinned</p>
             <div class="fmdx-tpl-row">${pinned.map((tpl) => tileHtml(tpl, true)).join('')}</div>` : ''}
           <div class="fmdx-create-library-head">
-            <p class="fmdx-section-label">${query ? 'Results' : 'Library'}</p>
-            ${deptChips}
+            ${foldable
+              ? `<button type="button" class="fmdx-library-toggle" data-library-toggle aria-expanded="${!folded}">${folded ? 'Show all templates' : 'Hide all templates'} <small>${visible.length}</small><i class="fas fa-chevron-down"></i></button>`
+              : `<p class="fmdx-section-label">${query ? 'Results' : 'Library'}</p>`}
+            ${folded ? '' : deptChips}
           </div>
-          ${typeChips.length > 1 ? `
+          ${folded ? '' : typeChips.length > 1 ? `
             <div class="fmdx-fchips">
               <button type="button" class="fmdx-fchip ${picker.type ? '' : 'on'}" data-pick-type="">All <small>${visible.length}</small></button>
               ${typeChips.map((meta) => `<button type="button" class="fmdx-fchip ${picker.type === meta.id ? 'on' : ''}" data-pick-type="${esc(meta.id)}" style="--fmdx-type:${esc(meta.color)}"><i class="fmdx-fchip-dot"></i>${esc(meta.label)} <small>${counts.get(meta.id)}</small></button>`).join('')}
               <button type="button" class="fmdx-fchip quiet" data-manage-types title="Rename, color, add or retire document types, and choose their departments"><i class="fas fa-sliders"></i> Edit types</button>
             </div>` : `<div class="fmdx-fchips"><button type="button" class="fmdx-fchip quiet" data-manage-types><i class="fas fa-sliders"></i> Edit types</button></div>`}
-          ${library.length
+          ${folded ? '' : library.length
             ? `<div class="fmdx-tpl-scroll">${types.filter((type) => library.some((tpl) => viewOf(tpl).id === type.id)).map((type) => { const group = library.filter((tpl) => viewOf(tpl).id === type.id); return `
                 <section class="fmdx-tpl-group" style="--fmdx-type:${esc(type.color)}">
                   <h3><i class="fas ${esc(type.icon)}"></i>${esc(type.label)}<small>${group.length}</small></h3>
@@ -2668,6 +2675,7 @@
           renderStepOne();
         }));
         body.querySelectorAll('[data-pick-type]').forEach((btn) => btn.addEventListener('click', () => { picker.type = btn.dataset.pickType; renderStepOne(); }));
+        body.querySelector('[data-library-toggle]')?.addEventListener('click', () => { picker.libraryOpen = !picker.libraryOpen; renderStepOne(); });
         body.querySelector('[data-manage-types]')?.addEventListener('click', () => renderTypeEditor());
         body.querySelectorAll('[data-pin-template]').forEach((btn) => btn.addEventListener('click', () => togglePin(btn.dataset.pinTemplate)));
         body.querySelectorAll('[data-pick-template]').forEach((btn) => btn.addEventListener('click', () => {
