@@ -57,7 +57,7 @@
     emailThreads:[], emailThread:null, emailComposeOpen:false,
     emailDraft:{ to:'', cc:'', bcc:'' },
     sms:null, activeSmsId:'', smsComposeOpen:false, smsDraft:{ to:'' },
-    chatConversations:[], activeChatId:'',
+    chatConversations:[], activeChatId:'', chatPicking:false,
     chatVoice:{ mode:'attachment', max_seconds:120 },
     search:{ open:false, query:'', results:[], busy:false },
     agent:{ open:false, threadId:'', messages:[], busy:false, error:'' },
@@ -135,17 +135,20 @@
     const text = `
       .fmco-shell{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f8fa;color:#101828}
       .fmco-head{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #e4e7ec;background:#fff;flex:0 0 auto;flex-wrap:wrap}
-      .fmco-tabs{display:flex;gap:4px;flex:0 0 auto}
-      .fmco-tab{border:1px solid transparent;background:transparent;border-radius:8px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:800;color:#667085;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+      .fmco-tabs{display:flex;gap:4px;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
+      .fmco-tabs::-webkit-scrollbar{display:none}
+      .fmco-tab{flex:none;white-space:nowrap;border:1px solid transparent;background:transparent;border-radius:8px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:800;color:#667085;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
       .fmco-tab:hover{background:#f2f4f7}
-      .fmco-tab.active{background:#101828;color:#fff}
+      .fmco-tab.active,.fmco-tab.active:hover{background:var(--primary,#d93025);color:var(--on-primary,#fff)}
       .fmco-head-spacer{flex:1}
       .fmco-search{display:flex;align-items:center;gap:6px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:0 10px;min-width:210px}
+      .fmco-search:focus-within{border-color:var(--primary,#d93025);box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.12)}
       .fmco-search i{color:#98a2b3;font-size:12px}
       .fmco-search input{border:0;outline:none;font:inherit;font-size:12.5px;padding:7px 0;background:transparent;flex:1;min-width:0}
       .fmco-ai-btn{border:1px solid #d8dee8;background:#fff;border-radius:9px;padding:7px 12px;font:inherit;font-size:12.5px;font-weight:800;color:#344054;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
       .fmco-ai-btn:hover{background:#f8fafc}
-      .fmco-ai-btn.active{background:var(--primary-readable,var(--primary,#d93025));border-color:transparent;color:#fff}
+      .fmco-ai-btn.active{background:var(--primary,#d93025);border-color:transparent;color:var(--on-primary,#fff)}
+      .fmco-head-icon,.fmco-phone-only,.fmco-ai-btn[hidden]{display:none}
       .fmco-body{flex:1;min-height:0;display:flex}
       .fmco-content{flex:1;min-width:0;min-height:0;overflow-y:auto;padding:16px}
       .fmco-agent-col{width:340px;flex:0 0 auto;border-left:1px solid #e4e7ec;background:#fff;display:flex;flex-direction:column;min-height:0}
@@ -163,7 +166,7 @@
       .fmco-card-count{font-size:22px;font-weight:900;color:#101828}
       .fmco-card-sub{font-size:11.5px;color:#667085;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .fmco-card-open{border:0;background:transparent;color:#667085;font-size:12px;cursor:pointer;padding:4px}
-      .fmco-card-open:hover{color:#101828}
+      .fmco-card-open:hover{color:var(--primary-readable,var(--primary,#d93025))}
       .fmco-section-title{font-size:10.5px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:#98a2b3;margin:0 0 8px}
       .fmco-feed{display:grid;gap:6px}
       .fmco-feed-row{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;background:#fff;border:1px solid #e4e7ec;border-radius:10px;padding:9px 12px;cursor:pointer}
@@ -186,8 +189,8 @@
       .fmco-draft-actions{display:flex;gap:6px;justify-content:flex-end}
       .fmco-btn{border:1px solid #d8dee8;background:#fff;border-radius:8px;cursor:pointer;font:inherit;font-size:12px;font-weight:800;padding:6px 12px;color:#344054;display:inline-flex;align-items:center;gap:6px}
       .fmco-btn:hover{background:#f8fafc}
-      .fmco-btn.primary{background:#101828;border-color:#101828;color:#fff}
-      .fmco-btn.primary:hover{background:#232f47}
+      .fmco-btn.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:var(--on-primary,#fff)}
+      .fmco-btn.primary:hover{background:var(--primary,#d93025);filter:brightness(.94)}
       .fmco-btn:disabled{opacity:.5;cursor:default}
       .fmco-split{display:grid;grid-template-columns:300px minmax(0,1fr);gap:14px;height:100%;min-height:0}
       .fmco-list-col{display:flex;flex-direction:column;gap:6px;min-height:0;overflow-y:auto}
@@ -204,7 +207,7 @@
       .fmco-msgs{flex:1;min-height:0;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:6px}
       .fmco-msg{max-width:76%;border-radius:13px;padding:10px 13px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word}
       .fmco-msg.inbound{align-self:flex-start;background:#f2f4f7;border-bottom-left-radius:5px}
-      .fmco-msg.outbound{align-self:flex-end;background:#101828;color:#fff;border-bottom-right-radius:5px}
+      .fmco-msg.outbound{align-self:flex-end;background:var(--primary,#d93025);color:var(--on-primary,#fff);border-bottom-right-radius:5px}
       .fmco-msg.outbound.ai{background:#6d28d9}
       .fmco-msg-subject{font-weight:900;margin-bottom:4px}
       .fmco-msg-meta{font-size:10.5px;color:#98a2b3;font-weight:700;margin:1px 4px 6px;display:flex;align-items:center;gap:6px}
@@ -225,7 +228,7 @@
       .fmco-contact-chip:hover{border-color:#98a2b3;background:#fff}
       .fmco-contact-chip:disabled{opacity:.48;cursor:not-allowed;text-decoration:line-through}
       .fmco-recipient-summary{font-size:11px;color:#667085;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .fmco-input,.fmco-textarea{border:1px solid #d0d5dd;border-radius:9px;padding:8px 12px;font:inherit;font-size:13px;outline:none;width:100%}
+      .fmco-input,.fmco-textarea{box-sizing:border-box;border:1px solid #d0d5dd;border-radius:9px;padding:8px 12px;font:inherit;font-size:13px;outline:none;width:100%}
       .fmco-input:focus,.fmco-textarea:focus{border-color:var(--primary-readable,var(--primary,#d93025))}
       .fmco-textarea{resize:vertical;min-height:64px;max-height:220px}
       .fmco-composer-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -236,12 +239,12 @@
       .fmco-agent-title i{color:var(--primary-readable,var(--primary,#d93025))}
       .fmco-agent-msgs{flex:1;min-height:0;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
       .fmco-agent-msg{border-radius:11px;padding:9px 12px;font-size:12.5px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word}
-      .fmco-agent-msg.user{align-self:flex-end;background:#101828;color:#fff;max-width:85%}
+      .fmco-agent-msg.user{align-self:flex-end;background:var(--primary,#d93025);color:var(--on-primary,#fff);max-width:85%}
       .fmco-agent-msg.assistant{align-self:flex-start;background:#f2f4f7;max-width:95%}
       .fmco-agent-msg.pending{opacity:.6;font-style:italic}
       .fmco-agent-composer{border-top:1px solid #eef1f4;padding:10px 12px;display:flex;gap:7px;flex:0 0 auto}
       .fmco-agent-composer textarea{flex:1;border:1px solid #d0d5dd;border-radius:9px;padding:8px 11px;font:inherit;font-size:12.5px;resize:none;min-height:38px;max-height:120px;outline:none}
-      .fmco-agent-send{width:38px;height:38px;border:0;border-radius:9px;background:var(--primary-readable,var(--primary,#d93025));color:#fff;cursor:pointer;flex:0 0 auto}
+      .fmco-agent-send{width:38px;height:38px;border:0;border-radius:9px;background:var(--primary,#d93025);color:var(--on-primary,#fff);cursor:pointer;flex:0 0 auto}
       .fmco-agent-send:disabled{opacity:.5;cursor:default}
       .fmco-result-snippet{font-size:11.5px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .fmco-result-snippet b{color:#101828}
@@ -262,6 +265,50 @@
       .fmco-left-save{justify-self:end}
       @media(max-width:1180px){.fmco-agent-col{position:absolute;right:0;top:0;bottom:0;z-index:30;box-shadow:-14px 0 30px rgba(16,24,40,.12)}}
       @media(max-width:900px){.fmco-split{grid-template-columns:1fr}.fmco-split .fmco-thread-view{display:none}.fmco-split.thread-mode .fmco-thread-view{display:flex}.fmco-split.thread-mode .fmco-list-col{display:none}}
+      /* Phone (the platform's 760px window breakpoint), like Photos and Docs:
+         one header row (the tab icon, a flexible search, Ask AI and settings
+         as icons), the channels as a strip that scrolls sideways, and an open
+         thread or the AI panel takes the whole tab. */
+      @media(max-width:760px){
+        .fmco-head{gap:8px;padding:10px 12px 0;flex-wrap:wrap}
+        .fmco-head-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;height:32px;border-radius:9px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font-size:14px}
+        .fmco-head-spacer{display:none}
+        .fmco-search{order:1;flex:1 1 auto;min-width:0;height:36px;border-radius:10px}
+        .fmco-search input{font-size:13px;padding:0}
+        .fmco-head>.fmco-ai-btn,.fmco-head>[data-co-settings]{order:2;flex:none;width:36px;height:36px;padding:0;justify-content:center;border-radius:10px}
+        .fmco-ai-btn>span{display:none}
+        .fmco-tabs{order:3;flex:1 1 100%;gap:6px;margin:0 -12px;padding:2px 12px 10px;scroll-padding:0 12px}
+        .fmco-tab{height:34px;padding:0 13px;border-color:#e4e7ec;background:#fff;border-radius:999px;font-size:12.5px}
+        .fmco-tab.active{border-color:var(--primary,#d93025)}
+        .fmco-phone-only{display:inline-flex}
+        .fmco-content{padding:12px}
+        .fmco-content:has(>.fmco-split.thread-mode),.fmco-content:has(>.fmcm){padding:0}
+        .fmco-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}
+        .fmco-card{position:relative;padding:11px 12px;gap:3px}
+        .fmco-card-open::after{content:'';position:absolute;inset:0;border-radius:12px}
+        .fmco-card-count{font-size:20px}
+        .fmco-card-sub{font-size:11px}
+        .fmco-feed-row{grid-template-columns:32px minmax(0,1fr) auto;padding:10px 12px}
+        .fmco-feed-ico{width:32px;height:32px;border-radius:9px}
+        .fmco-draft-actions .fmco-btn{min-height:36px}
+        .fmco-list-col{gap:8px}
+        .fmco-list-col>.fmco-btn.primary{min-height:40px;border-radius:10px;font-size:13px}
+        .fmco-thread-row{padding:12px;border-radius:12px}
+        .fmco-split.thread-mode .fmco-thread-view{border:0;border-radius:0}
+        .fmco-thread-head{padding:10px 12px}
+        .fmco-thread-head .fmco-btn{flex:none;width:36px;height:36px;padding:0;justify-content:center;border-radius:10px}
+        .fmco-msgs{padding:12px}
+        .fmco-msg{max-width:86%}
+        .fmco-composer{padding:10px 12px calc(10px + var(--fm-safe-bottom,env(safe-area-inset-bottom,0px)))}
+        .fmco-composer-row{flex-wrap:wrap;justify-content:flex-end}
+        .fmco-composer-row>.fmco-composer-hint{order:9;flex:1 1 100%;min-width:0;overflow-wrap:anywhere}
+        .fmco-composer .fmco-btn{min-height:38px}
+        .fmco-input,.fmco-textarea,.fmco-recipient-input,.fmco-agent-composer textarea{font-size:16px}
+        .fmco-recipient-row{grid-template-columns:50px minmax(0,1fr)}
+        .fmco-agent-col{position:absolute;inset:0;width:auto;z-index:30;border-left:0;box-shadow:none}
+        .fmco-agent-head{padding:10px 12px}
+        .fmco-agent-head .fmco-btn{width:36px;height:36px;padding:0;justify-content:center;border-radius:10px}
+      }
     `;
     util.injectCSS ? util.injectCSS('project_comms', text) : document.head.appendChild(Object.assign(document.createElement('style'), { textContent:text }));
   }
@@ -272,10 +319,11 @@
     return `
       <div class="fmco-shell" data-comms-root style="position:relative">
         <div class="fmco-head">
+          <span class="fmco-head-icon" aria-hidden="true"><i class="fa-solid fa-comments"></i></span>
           <div class="fmco-tabs" data-co-tabs></div>
           <div class="fmco-head-spacer"></div>
           <label class="fmco-search"><i class="fa-solid fa-magnifying-glass"></i><input type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_ba670f4714e86b","Search all communications…") ?? "Search all communications…")}" data-co-search></label>
-          <button type="button" class="fmco-ai-btn" data-co-ai-toggle hidden><i class="fa-solid fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_fe8a5736f9bbac","Ask AI") ?? "Ask AI")}</button>
+          <button type="button" class="fmco-ai-btn" data-co-ai-toggle hidden><i class="fa-solid fa-wand-magic-sparkles"></i><span>${(globalThis.PlatformLanguage?.htmlText("comms","m_fe8a5736f9bbac","Ask AI") ?? "Ask AI")}</span></button>
           <button type="button" class="fmco-btn" data-co-settings aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_c4955421e825c8","Project communication settings") ?? "Project communication settings")}"><i class="fa-solid fa-gear"></i></button>
         </div>
         <div class="fmco-body">
@@ -357,7 +405,7 @@
         const result = await api2().chat.conversations(orgId(), projectId());
         state.chatConversations = Array.isArray(result.conversations) ? result.conversations : [];
         state.chatVoice = { ...state.chatVoice, ...object(result.voice) };
-        if (!state.activeChatId && state.chatConversations.length) state.activeChatId = clean(state.chatConversations[0].id);
+        if (!state.activeChatId && !state.chatPicking && state.chatConversations.length) state.activeChatId = clean(state.chatConversations[0].id);
       }
     } catch (error) {
       state.error = error?.message || 'Could not load communications.';
@@ -458,7 +506,7 @@
         if (listSignature !== state.sync.chatList) {
           state.sync.chatList = listSignature;
           state.chatConversations = conversations;
-          if (!state.activeChatId && conversations.length) state.activeChatId = clean(conversations[0].id);
+          if (!state.activeChatId && !state.chatPicking && conversations.length) state.activeChatId = clean(conversations[0].id);
           patchContainer('[data-co-list]', chatListHtml(), { bind: bindChatList });
           const active = chatActiveConversation();
           const msgsSignature = signatureOf((Array.isArray(active?.messages) ? active.messages : []).map((message) => message.id));
@@ -971,7 +1019,7 @@
 
   function bindChatList(scope){
     scope.querySelectorAll('[data-co-chat]').forEach((button) => {
-      button.addEventListener('click', () => { state.activeChatId = button.dataset.coChat; render(); });
+      button.addEventListener('click', () => { state.activeChatId = button.dataset.coChat; state.chatPicking = false; render(); });
     });
   }
 
@@ -994,6 +1042,7 @@
           ${active ? `
             <div class="fmco-thread-head">
               <span class="fmco-thread-title">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_b968d55aeebd47",`Portal chat · ${v0}`,{v0}) ?? `Portal chat · ${v0}`)(esc(clean(active.status) || 'open'))}</span>
+              <button type="button" class="fmco-btn fmco-phone-only" data-co-chat-close aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_3742924668fb10","Close") ?? "Close")}"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="fmco-msgs" data-co-scroll>${String(chatMsgsHtml(active))}</div>
             <div class="fmco-composer">
@@ -1010,6 +1059,9 @@
       </div>
     `;
     bindChatList(root.querySelector('[data-co-list]') || root);
+    // Phone: an open chat fills the tab, so this goes back to the list (and
+    // keeps the poll from opening the first chat again).
+    root.querySelector('[data-co-chat-close]')?.addEventListener('click', () => { state.activeChatId = ''; state.chatPicking = true; render(); });
     root.querySelector('[data-co-chat-voice]')?.addEventListener('click', () => recordComposerVoice(root, 'chat', root.querySelector('[data-co-chat-input]')));
     restoreComposerVoice(root, 'chat');
     root.querySelector('[data-co-chat-send]')?.addEventListener('click', async (event) => {
@@ -1495,6 +1547,7 @@
     state.chatConversations = [];
     state.chatVoice = { mode:'attachment', max_seconds:120 };
     state.activeChatId = '';
+    state.chatPicking = false;
     state.search = { open:false, query:'', results:[], busy:false };
     state.agent = { open:false, threadId:'', messages:[], busy:false };
     state.settings = { overrides:null, saving:false, loaded:false };
