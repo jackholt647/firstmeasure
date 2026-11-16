@@ -8312,8 +8312,9 @@ window.PlatformCommerce.onReady(async function(){
     })) syncProjectViewerTabs();
   }
 
-  // A setup's status changed: the "Setup required" pill follows it (tab-guides.js).
+  // A setup's status changed, or the person launched an app: the "New" / "Setup required" pill follows it (tab-guides.js).
   window.addEventListener('fm:app-setup:updated', () => { if ($('#rOverlay')?.classList.contains('active')) syncProjectViewerTabs(); });
+  window.addEventListener('fm:tab-guides:updated', () => { if ($('#rOverlay')?.classList.contains('active')) syncProjectViewerTabs(); });
   // A guided experience finished: a tab it held back may now show (docs/architecture/guided-experiences.md).
   window.addEventListener('fm:guides:tabs-changed', () => { if ($('#rOverlay')?.classList.contains('active')) refreshProjectModalAppsForOrderTransition(); });
   function refreshProjectModalAppsForOrderTransition(previousTab = activePreviewTab){

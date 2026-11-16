@@ -5225,12 +5225,14 @@
     if (event?.detail?.source === 'session') TabRegistry.preferDefaultHome = true;
     renderTabs();
   });
-  // A setup's status arrived or changed: the "Setup required" pills follow it.
+  // A setup's status arrived or changed, or the person launched an app (tab-guides.js): the pills follow it.
   let appSetupPillSignature = '';
-  window.addEventListener('fm:app-setup:updated', () => {
+  const syncAppPills = () => {
     const signature = [...TabRegistry.tabs.values()].map((tab) => `${tab.appId}:${portalAppPill(tab.appId)?.kind || ''}`).join('|');
     if (signature === appSetupPillSignature) return;
     appSetupPillSignature = signature;
     renderTabs();
-  });
+  };
+  window.addEventListener('fm:app-setup:updated', syncAppPills);
+  window.addEventListener('fm:tab-guides:updated', syncAppPills);
 })();
