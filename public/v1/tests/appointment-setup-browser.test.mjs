@@ -13,7 +13,7 @@ async function open(browser,width=960){
   await page.route('https://appointment-setup.test/**',async route=>{
     const url=new URL(route.request().url());
     if(url.pathname.startsWith('/libraries/'))return route.fulfill({contentType:'text/javascript',body:await readFile(new URL('../..'+url.pathname,import.meta.url),'utf8')});
-    return route.fulfill({contentType:'text/html',body:'<div class="gxs"><div class="gxs-step"><div class="gxs-titlebar"><h2>Step</h2></div><main id="step"></main></div></div>'});
+    return route.fulfill({contentType:'text/html',body:'<div class="gxs" data-kind="modal"><div class="gxs-step"><div class="gxs-titlebar"><h2>Step</h2></div><main id="step"></main></div></div>'});
   });
   await page.goto('https://appointment-setup.test/');
   await page.addScriptTag({content:`window.esc=${esc.toString()};`});
@@ -55,17 +55,17 @@ test('the kinds: suggestions picked, pills say sales or production, the person a
     await page.getByText('Team meeting').waitFor();
     assert.deepEqual(await page.evaluate(()=>handle.answer()),{kinds:[{id:'sales',category:'sales'},{id:'repair',category:'production'}]},'the suggestions start picked');
     // A pill picks the kind it belongs to.
-    await page.locator('[data-kind="meeting"] [data-category="production"]').click();
-    assert.equal(await page.locator('[data-kind="meeting"]').getAttribute('data-on'),'true');
-    await page.locator('[data-kind="sales"] .gxk-pick').click();
+    await page.locator('[data-gxk-kind="meeting"] [data-category="production"]').click();
+    assert.equal(await page.locator('[data-gxk-kind="meeting"]').getAttribute('data-on'),'true');
+    await page.locator('[data-gxk-kind="sales"] .gxk-pick').click();
     await page.getByRole('textbox').fill('Estimate');
     await page.getByRole('textbox').press('Enter');
-    await page.locator('[data-kind="custom_estimate"] [data-category="sales"]').click();
+    await page.locator('[data-gxk-kind="custom_estimate"] [data-category="sales"]').click();
     assert.deepEqual(await page.evaluate(()=>handle.answer()),{kinds:[{id:'repair',category:'production'},{id:'meeting',category:'production'},{id:'custom_estimate',label:'Estimate',category:'sales'}]});
-    await page.locator('[data-kind="repair"] .gxk-pick').click(); await page.locator('[data-kind="meeting"] .gxk-pick').click(); await page.locator('[data-kind="custom_estimate"] .gxk-pick').click();
+    await page.locator('[data-gxk-kind="repair"] .gxk-pick').click(); await page.locator('[data-gxk-kind="meeting"] .gxk-pick').click(); await page.locator('[data-gxk-kind="custom_estimate"] .gxk-pick').click();
     assert.equal(await page.evaluate(()=>handle.valid()),false,'at least one kind');
     // On a phone the pills sit under the name, inside the row.
-    const row=await page.locator('[data-kind="repair"]').boundingBox(),pills=await page.locator('[data-kind="repair"] .gxk-pills').boundingBox();
+    const row=await page.locator('[data-gxk-kind="repair"]').boundingBox(),pills=await page.locator('[data-gxk-kind="repair"] .gxk-pills').boundingBox();
     assert.ok(pills.x+pills.width<=row.x+row.width+0.5,'the pills fit the row');
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
