@@ -175,7 +175,7 @@ test('phone: the company step fits the screen without sideways scrolling',async(
 
 // The sheet follows its step (guided-setup.js fit): a landscape rectangle as tall as the step, footer close below the
 // content, growing when a taller step comes and capped (the step scrolls) at the screen; on a phone a modal setup is a
-// sheet from the bottom edge, as tall as its step.
+// sheet from the bottom edge, as tall as its step but at least two-thirds of the screen, a short step in the middle (FM-484).
 const sheetFit=page=>page.evaluate(()=>{
   const sheet=document.querySelector('.gxs-sheet').getBoundingClientRect(),pane=document.querySelector('.gxs-step:not(.gxs-above)');
   let bottom=pane.querySelector('.gxs-titlebar').getBoundingClientRect().bottom;
@@ -203,16 +203,32 @@ test('the sheet is as tall as its step: landscape, footer close to the content, 
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
-test('phone: a modal setup is a sheet from the bottom edge, as tall as its step',async()=>{
+test('phone: a modal setup is a sheet from the bottom edge, at least two-thirds of the screen, a short step in the middle',async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try{
-    const {page,errors}=await load(browser,{width:390,height:844});
+    // The size FM-484 was filed from: two choices left the sheet a third of the screen.
+    const {page,errors}=await load(browser,{width:433,height:582});
     page.evaluate(()=>FirstMateGuides.play('ops.test')).catch(()=>{});
     await onStep(page,'Start with the work');
     await page.waitForTimeout(700);
     const box=await sheetFit(page);
-    assert.ok(Math.abs(box.width-390)<1&&Math.abs(box.bottom-844)<1,`full width, on the bottom edge (${JSON.stringify(box)})`);
-    assert.ok(box.height<400&&box.gap<40,`as tall as the step (${JSON.stringify(box)})`);
+    assert.ok(Math.abs(box.width-433)<1&&Math.abs(box.bottom-582)<1,`full width, on the bottom edge (${JSON.stringify(box)})`);
+    assert.ok(Math.abs(box.height-582*2/3)<2,`a short step keeps two-thirds of the screen (${JSON.stringify(box)})`);
+    const room=await page.evaluate(()=>{
+      const pane=document.querySelector('.gxs-step:not(.gxs-above)'),stage=pane.getBoundingClientRect(),title=pane.querySelector('.gxs-titlebar').getBoundingClientRect();
+      let bottom=title.bottom;for(const el of pane.querySelectorAll('.gxs-body *')){const r=el.getBoundingClientRect();if(r.width&&r.height)bottom=Math.max(bottom,r.bottom);}
+      return {above:title.top-stage.top,below:stage.bottom-bottom};
+    });
+    assert.ok(room.above>20&&Math.abs(room.above-room.below)<40,`the extra height is padding around the step, not a gap under it (${JSON.stringify(room)})`);
+    // A step taller than two-thirds grows the sheet as before and starts at its top.
+    await page.click('[data-test-pick]');await next(page);
+    await onStep(page,'What kind of company are you?');
+    await page.waitForSelector('.gxc-tile');
+    await page.waitForTimeout(700);
+    const tall=await sheetFit(page);
+    assert.ok(tall.height>582*2/3+20&&tall.height<=582-12+1,`a taller step grows the sheet, within the screen (${JSON.stringify(tall)})`);
+    const top=await page.evaluate(()=>{const pane=document.querySelector('.gxs-step:not(.gxs-above)');return {scroll:pane.scrollTop,title:pane.querySelector('.gxs-titlebar').getBoundingClientRect().top-pane.getBoundingClientRect().top};});
+    assert.ok(top.scroll===0&&top.title<20,`a step that scrolls starts at its title (${JSON.stringify(top)})`);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

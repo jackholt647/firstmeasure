@@ -177,7 +177,8 @@ the stage's bottom edge) into `--gxs-fit` whenever it changes size, and the CSS
 caps it at `min(760px, --gx-vh - 32px)` (the visible height, below), past which the step scrolls. A step that
 fills (`data-fill`) has no fit and takes the full height; the agentic sheet keeps
 at least 600px for the conversation. Under 760px a modal setup is a sheet from the
-bottom edge, as tall as its step; the agentic one fills the screen and the
+bottom edge, as tall as its step but never under two-thirds of the visible screen
+(a short step sits in the middle of the extra room, FM-484); the agentic one fills the screen and the
 assistant folds below it behind an Agent handle. `prefers-reduced-motion` turns every animation off. Without the
 assistant (or without a project) the same steps play as a modal.
 
