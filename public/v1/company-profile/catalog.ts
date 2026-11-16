@@ -121,6 +121,28 @@ export const COMPANY_TYPES: readonly CompanyType[] = Object.freeze([
     ["lawn_care", "landscape_design", "hardscaping", "irrigation", "tree_service", "snow_removal"])
 ]);
 
+/**
+ * Who sells and who does the work (FM-515): how the organization is staffed, asked once and read by any setup that needs
+ * it (the appointment setup decides who goes to each kind of appointment from these). A choice each, from these lists.
+ * `team` says the answer is a group of people (a sales team, crews), which the appointment setup gives a group type.
+ */
+export type TeamAnswer = { id: string; label: CatalogCopy; hint: CatalogCopy; team: boolean };
+const answer = (prefix: string, id: string, text: string, hint: string, team: boolean): TeamAnswer => ({ id, label: c(prefix, id, text), hint: c(prefix, `${id}_hint`, hint), team });
+export const SALES_TEAMS: readonly TeamAnswer[] = Object.freeze([
+  answer("sales_team", "just_me", "Just me", "I meet the customers and sell the work myself.", false),
+  answer("sales_team", "small_team", "A small sales team", "A few salespeople run the appointments.", true),
+  answer("sales_team", "managed_team", "A sales team with managers", "Salespeople, and managers who oversee them.", true),
+  answer("sales_team", "no_sales", "We don’t do sales appointments", "Work comes to us already sold, or by phone.", false)
+]);
+export const WORKFORCES: readonly TeamAnswer[] = Object.freeze([
+  answer("workforce", "just_me", "Just me", "I do the work myself.", false),
+  answer("workforce", "crews", "Our own crews", "Teams of our own people do the work.", true),
+  answer("workforce", "subcontractors", "Subcontractors", "Outside companies do the work for us.", false),
+  answer("workforce", "crews_and_subs", "Crews and subcontractors", "Some work is ours, some goes to outside companies.", true)
+]);
+export const salesTeamOf = (id: string) => SALES_TEAMS.find((entry) => entry.id === id) || null;
+export const workforceOf = (id: string) => WORKFORCES.find((entry) => entry.id === id) || null;
+
 /** "Other": a kind of company the list does not have yet, in the person's own words. */
 export const OTHER_COMPANY_TYPE = "other";
 export const OTHER_LABEL = c("company_type", "other", "Other");
@@ -138,5 +160,6 @@ export const serviceOf = (id: string) => serviceById.get(id) || null;
     ids.add(entry);
   }
   for (const entry of COMPANY_TYPES) for (const id of entry.services) if (!serviceById.has(id)) throw new Error(`Company type ${entry.id} names service ${id}, which is not in the catalog.`);
+  for (const [name, list] of [["sales team", SALES_TEAMS], ["workforce", WORKFORCES]] as const) if (new Set(list.map((entry) => entry.id)).size !== list.length) throw new Error(`Company profile catalog repeats a ${name} answer.`);
   if (typeById.has(OTHER_COMPANY_TYPE)) throw new Error("\"other\" is reserved for a company type in the person's own words.");
 })();

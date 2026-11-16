@@ -1332,6 +1332,9 @@ async function resolveVisitWorkflow(orgId: string, branchId: string, projectId: 
   }
   const eventType = cleanText(event.event_type_default_id || event.type_id || event.kind).toLowerCase();
   const salesVisit = ["sales", "estimate", "consultation"].some((token) => eventType.includes(token));
+  // The appointment type can turn the on-my-way text off (FM-515, the appointment setup); the step stays.
+  const texts = asObject(asObject(event.appointment_configuration).customer_texts);
+  const onMyWayText = texts.on_my_way !== false;
   const commonSteps: JsonObject[] = [
     {
       id: "en_route",
@@ -1342,7 +1345,7 @@ async function resolveVisitWorkflow(orgId: string, branchId: string, projectId: 
       action: {
         label: "I'm on my way",
         transition: "en_route",
-        notify: { channel: "sms", message: "Hi {{customer.name}}, {{technician.name}} is on the way to your appointment at {{project.address}}." }
+        ...(onMyWayText ? { notify: { channel: "sms", message: "Hi {{customer.name}}, {{technician.name}} is on the way to your appointment at {{project.address}}." } } : {})
       }
     },
     {

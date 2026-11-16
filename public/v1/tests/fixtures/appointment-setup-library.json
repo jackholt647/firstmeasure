@@ -1,0 +1,215 @@
+{
+  "setup_step": [
+    {
+      "id": "company.sales_team",
+      "version": 1,
+      "scope": "organization",
+      "title": {
+        "key": "gx_step_company_sales_team_title",
+        "text": "Who does the sales in your company?"
+      },
+      "subtitle": {
+        "key": "gx_step_company_sales_team_subtitle",
+        "text": "This decides who goes to sales appointments. You can change it later."
+      },
+      "description": {
+        "key": "gx_step_company_sales_team_description",
+        "text": "Who sells for the organization: the owner, a small sales team, a sales team with managers, or no sales appointments."
+      },
+      "ui": {
+        "widget": "module",
+        "module": "/libraries/setup-steps/company-profile.js?v=20261116-fm515"
+      },
+      "options": {
+        "part": "sales_team"
+      },
+      "requires": [
+        "company.type"
+      ],
+      "eligibility": {
+        "capabilities": [],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "satisfied": {
+        "provider": "company-profile",
+        "export": "profile",
+        "path": "/answered/sales_team"
+      },
+      "writes": {
+        "action": "company-profile.save",
+        "target": "organization"
+      }
+    },
+    {
+      "id": "company.workforce",
+      "version": 1,
+      "scope": "organization",
+      "title": {
+        "key": "gx_step_company_workforce_title",
+        "text": "Who does most of the work?"
+      },
+      "subtitle": {
+        "key": "gx_step_company_workforce_subtitle",
+        "text": "This decides who goes to the work itself, and which teams FirstMate sets up for you."
+      },
+      "description": {
+        "key": "gx_step_company_workforce_description",
+        "text": "Who does most of the organization's work: the owner, its own crews, subcontractors, or both."
+      },
+      "ui": {
+        "widget": "module",
+        "module": "/libraries/setup-steps/company-profile.js?v=20261116-fm515"
+      },
+      "options": {
+        "part": "workforce"
+      },
+      "requires": [
+        "company.type"
+      ],
+      "eligibility": {
+        "capabilities": [],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "satisfied": {
+        "provider": "company-profile",
+        "export": "profile",
+        "path": "/answered/workforce"
+      },
+      "writes": {
+        "action": "company-profile.save",
+        "target": "organization"
+      }
+    },
+    {
+      "id": "appointments.kinds",
+      "version": 1,
+      "scope": "organization",
+      "title": {
+        "key": "gx_step_appointments_kinds_title",
+        "text": "What kinds of appointments will you schedule?"
+      },
+      "subtitle": {
+        "key": "gx_step_appointments_kinds_subtitle",
+        "text": "Each one becomes an appointment type you can book. You can change them later in Settings."
+      },
+      "description": {
+        "key": "gx_step_appointments_kinds_description",
+        "text": "The kinds of appointments the organization schedules, each marked sales, production or other, and made an appointment type."
+      },
+      "ui": {
+        "widget": "module",
+        "module": "/libraries/setup-steps/appointment-kinds.js?v=20261116-fm515"
+      },
+      "options": {},
+      "requires": [
+        "company.services",
+        "company.sales_team"
+      ],
+      "eligibility": {
+        "capabilities": [
+          "platform.scheduling"
+        ],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "satisfied": {
+        "provider": "appointment-setup",
+        "export": "status",
+        "path": "/answered/kinds"
+      },
+      "writes": {
+        "action": "appointments.kinds.save",
+        "target": "organization"
+      }
+    }
+  ],
+  "guided_experience": [
+    {
+      "id": "appointments.setup",
+      "version": 1,
+      "kind": "modal",
+      "scope": "organization",
+      "salt": "appointments-v1",
+      "title": {
+        "key": "gx_appt_setup_title",
+        "text": "Set up your appointments"
+      },
+      "description": {
+        "key": "gx_appt_setup_description",
+        "text": "The kinds of appointments you schedule, the texts your customers get, and who goes."
+      },
+      "eligibility": {
+        "capabilities": [
+          "platform.scheduling"
+        ],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "triggers": [
+        {
+          "kind": "before_action",
+          "action": "appointment.new",
+          "selector": "[data-new-appointment]",
+          "once": true
+        },
+        {
+          "kind": "manual"
+        }
+      ],
+      "variants": [
+        {
+          "id": "default",
+          "weight": 1
+        }
+      ],
+      "requires": [
+        "company.type",
+        "company.services",
+        "company.sales_team",
+        "company.workforce",
+        "appointments.kinds"
+      ],
+      "steps": [
+        {
+          "id": "types",
+          "widget": "appointments-setup",
+          "title": {
+            "key": "gx_appt_types_title",
+            "text": "Your appointment types"
+          },
+          "subtitle": {
+            "key": "gx_appt_types_subtitle",
+            "text": "A few questions about each kind of appointment: the texts your customer gets, and who goes."
+          },
+          "say": [],
+          "options": {},
+          "selects": [
+            "appointment_types"
+          ],
+          "required": true
+        }
+      ],
+      "completion": {
+        "action": {
+          "id": "appointments.setup.apply",
+          "target": "organization",
+          "input": {}
+        },
+        "screen": "none",
+        "say": [],
+        "then": [
+          {
+            "resume": true
+          }
+        ]
+      },
+      "replayable": true
+    }
+  ]
+}

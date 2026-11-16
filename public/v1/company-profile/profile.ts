@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { readBranchModule, saveBranchModule, type JsonObject } from "../platform/storage.js";
 import { PlatformError, badRequest, conflict } from "../platform/errors.js";
-import { COMPANY_TYPES, OTHER_COMPANY_TYPE, SERVICES, companyType, serviceOf } from "./catalog.js";
+import { COMPANY_TYPES, OTHER_COMPANY_TYPE, SALES_TEAMS, SERVICES, WORKFORCES, companyType, salesTeamOf, serviceOf, workforceOf } from "./catalog.js";
 
 /**
  * The organization's company profile: what kind of company it is and the kinds of work it does
@@ -18,6 +18,10 @@ export const companyProfilePatchSchema = z.object({
   company_type_other: words.optional(),
   services: z.array(z.string().trim().max(60)).max(60).optional(),
   services_other: z.array(words).max(20).optional(),
+  /** Who sells (FM-515): an id from the catalog's sales teams. */
+  sales_team: z.string().trim().max(60).optional(),
+  /** Who does most of the work (FM-515): an id from the catalog's workforces. */
+  workforce: z.string().trim().max(60).optional(),
   expected_revision: z.number().int().min(0).optional()
 }).strict();
 export type CompanyProfilePatch = z.infer<typeof companyProfilePatchSchema>;
@@ -29,8 +33,11 @@ export type CompanyProfile = {
   services_other: string[];
   /** Measurement schema ids of the services picked, for scopes and measurements that bind to a kind of work. */
   work_kinds: string[];
+  /** Who sells and who does most of the work, ids from the catalog (FM-515); `*_team` says the answer is a group of people. */
+  sales_team: string | null; sales_team_label: string | null; sales_is_team: boolean;
+  workforce: string | null; workforce_label: string | null; workforce_is_team: boolean;
   /** Whether each part has been answered: what setup steps read to know they are satisfied. */
-  answered: { type: boolean; services: boolean };
+  answered: { type: boolean; services: boolean; sales_team: boolean; workforce: boolean };
   updated_at: string | null;
   revision: number;
 };
@@ -45,6 +52,7 @@ export function profileFrom(data: Record<string, unknown>, revision = 0, updated
   const other = typeId === OTHER_COMPANY_TYPE ? String(data.company_type_other || "").trim() || null : null;
   const services = [...new Set(strings(data.services))].map(serviceOf).filter((entry) => !!entry).map((entry) => ({ id: entry!.id, label: entry!.label.text, work_kind: entry!.work_kind || null }));
   const servicesOther = [...new Set(strings(data.services_other))].slice(0, 20);
+  const sales = salesTeamOf(String(data.sales_team || "")), workforce = workforceOf(String(data.workforce || ""));
   return {
     company_type: type ? type.id : other ? OTHER_COMPANY_TYPE : null,
     company_type_label: type ? type.label.text : other,
@@ -53,7 +61,9 @@ export function profileFrom(data: Record<string, unknown>, revision = 0, updated
     crm_pack: type ? type.crm_pack : other ? "general" : null,
     services, services_other: servicesOther,
     work_kinds: [...new Set(services.map((entry) => entry.work_kind as string | null).filter((kind): kind is string => !!kind))],
-    answered: { type: !!type || !!other, services: services.length + servicesOther.length > 0 },
+    sales_team: sales ? sales.id : null, sales_team_label: sales ? sales.label.text : null, sales_is_team: !!sales?.team,
+    workforce: workforce ? workforce.id : null, workforce_label: workforce ? workforce.label.text : null, workforce_is_team: !!workforce?.team,
+    answered: { type: !!type || !!other, services: services.length + servicesOther.length > 0, sales_team: !!sales, workforce: !!workforce },
     updated_at: updatedAt,
     revision
   };
@@ -88,6 +98,14 @@ export async function saveCompanyProfile(orgId: string, input: unknown, userId: 
     if (unknown.length) throw badRequest("company_service_unknown", `${unknown.join(", ")} is not a kind of work in the list.`);
     next.services = [...new Set(patch.services)];
   }
+  if (patch.sales_team !== undefined) {
+    if (!salesTeamOf(patch.sales_team)) throw badRequest("company_sales_team_unknown", "Choose who does your sales from the list.");
+    next.sales_team = patch.sales_team;
+  }
+  if (patch.workforce !== undefined) {
+    if (!workforceOf(patch.workforce)) throw badRequest("company_workforce_unknown", "Choose who does your work from the list.");
+    next.workforce = patch.workforce;
+  }
   if (patch.services_other !== undefined) next.services_other = [...new Set(patch.services_other.filter(Boolean))];
   next.updated_by = userId;
   const saved = await saveBranchModule(orgId, "default", COMPANY_PROFILE_MODULE, { data: next, expected_revision: revision }, { replace: true });
@@ -99,6 +117,8 @@ export function publishedCatalog() {
   return {
     company_types: COMPANY_TYPES.map((entry) => ({ id: entry.id, label: entry.label, terms: [...entry.terms], industry: entry.industry, services: [...entry.services] })),
     services: SERVICES.map((entry) => ({ id: entry.id, label: entry.label, terms: [...entry.terms], work_kind: entry.work_kind || null })),
-    other: { id: OTHER_COMPANY_TYPE }
+    other: { id: OTHER_COMPANY_TYPE },
+    sales_teams: SALES_TEAMS.map((entry) => ({ id: entry.id, label: entry.label, hint: entry.hint, team: entry.team })),
+    workforces: WORKFORCES.map((entry) => ({ id: entry.id, label: entry.label, hint: entry.hint, team: entry.team }))
   };
 }

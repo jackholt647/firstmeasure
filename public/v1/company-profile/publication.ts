@@ -18,13 +18,17 @@ const profileSchema = z.object({
   industry: z.string().nullable(), crm_pack: z.string().nullable(),
   services: z.array(z.object({ id: z.string(), label: z.string(), work_kind: z.string().nullable() }).strict()),
   services_other: z.array(z.string()), work_kinds: z.array(z.string()),
-  answered: z.object({ type: z.boolean(), services: z.boolean() }).strict(),
+  sales_team: z.string().nullable(), sales_team_label: z.string().nullable(), sales_is_team: z.boolean(),
+  workforce: z.string().nullable(), workforce_label: z.string().nullable(), workforce_is_team: z.boolean(),
+  answered: z.object({ type: z.boolean(), services: z.boolean(), sales_team: z.boolean(), workforce: z.boolean() }).strict(),
   updated_at: z.string().nullable(), revision: z.number().int()
 }).strict();
+const teamAnswer = z.object({ id: z.string(), label: copy, hint: copy, team: z.boolean() }).strict();
 const catalogSchema = z.object({
   company_types: z.array(z.object({ id: z.string(), label: copy, terms: z.array(z.string()), industry: z.string(), services: z.array(z.string()) }).strict()),
   services: z.array(z.object({ id: z.string(), label: copy, terms: z.array(z.string()), work_kind: z.string().nullable() }).strict()),
-  other: z.object({ id: z.string() }).strict()
+  other: z.object({ id: z.string() }).strict(),
+  sales_teams: z.array(teamAnswer), workforces: z.array(teamAnswer)
 }).strict();
 const json = (schema: z.ZodTypeAny) => zodToJsonSchema(schema, { $refStrategy: "none", target: "jsonSchema7" }) as JsonSchema;
 
@@ -36,16 +40,16 @@ export function registerCompanyProfilePublication() {
   if (registered) return;
   registered = true;
   registerDataProvider({ id: "company-profile", version: "1", apps: ["onboarding"], exports: {
-    profile: { description: "What kind of company the organization is (its company type, industry and CRM pack) and the kinds of work it does, with the measurement schema of each. `answered` says which parts have been answered.",
+    profile: { description: "What kind of company the organization is (its company type, industry and CRM pack), the kinds of work it does, with the measurement schema of each, and who sells and who does most of the work. `answered` says which parts have been answered.",
       schema: json(profileSchema), schemaVersion: "1", access: readAccess,
       read: async (ctx) => { const value = await readCompanyProfile(ctx.organizationId); return { value, revision: String(value.revision) }; } },
-    catalog: { description: "The kinds of company and kinds of work a company profile can name, with their copy keys, search terms and each type's suggested services. Data that only grows.",
+    catalog: { description: "The kinds of company and kinds of work a company profile can name, with their copy keys, search terms and each type's suggested services, and the answers to who sells and who does the work. Data that only grows.",
       schema: json(catalogSchema), schemaVersion: "1", access: readAccess,
       read: async () => ({ value: publishedCatalog() }) }
   } });
   const input = companyProfilePatchSchema;
   registerAction({ id: "company-profile.save", version: "1", domain: "organization", implementation: backendImplementationDigest(),
-    description: "Save part of the company profile: the kind of company (an id from the catalog, or other with the person's words) and/or the kinds of work it does. Parts not given are kept.",
+    description: "Save part of the company profile: the kind of company (an id from the catalog, or other with the person's words), the kinds of work it does, who does its sales (sales_team) and who does most of its work (workforce). Parts not given are kept.",
     inputSchema: json(input) as Record<string, unknown>, outputSchema: json(profileSchema) as Record<string, unknown>,
     effect: "write", idempotency: "required", executionKinds: ["api", "agent", "module"],
     policy: { scopes: ["organization"], permissions: ["manage_company_settings"] },

@@ -770,7 +770,7 @@ starts with texts and calls). One step, widget `comms-setup` (`guided-experience
 buttons like Operations): what Communications does (texts, calls, email), where to start, then a simple page per
 channel. **Texts and calls** runs `comms.setup.start { channel: phone }`: Texts (`comms.sms`) and SMS settings
 (`apps.messaging`, `platform.sms_settings`) on; carrier registration and the number stay the 10DLC workflow in Phone
-Settings ("Register my business" finishes the setup and opens it). On development the shared test line stands in, as
+Settings ("Register my business" finishes the setup and opens it). Turning texts on and registration are `texting-setup.js`, shared with the appointment setup. On development the shared test line stands in, as
 Phone Settings' "Skip to fully onboarded". Then the **texting plan**: platform billing's `comms.sms` prices, bought with
 `FirstMatePlatformBilling.review` (the card on file, else Stripe Checkout); no page where platform billing is off or
 nothing is for sale. **Email** runs `comms.setup.start { channel: email }`: the Email inbox (`comms.email`) on and the
@@ -780,6 +780,30 @@ each step only where its channel is on). The actions are in `comms/setup.ts`; a 
 `fm:comms:setup-changed` so the Comms tab shows its tab at once. The project Overview offers a "Set up" card for each
 channel that is off, and the call center's "Browser calling is off" notice a button, both replaying the setup on that
 channel's page. Tests: `tests/comms-setup.test.ts`, `tests/comms-setup-browser.test.mjs`.
+
+## Appointment setup
+
+`appointments.setup` (modal, organization, replayable; library entry with its copy, FM-515) plays the first time
+someone who manages company settings books an appointment: its trigger is `before_action` on `[data-new-appointment]`
+(Scheduling's Appointment and + buttons, the project Schedule panel), so the click is held, the setup plays and then
+the New appointment dialog opens (`then: resume`) with the types it made. It `requires` the
+[setup steps](setup-steps.md) `company.type`, `company.services` ("the kinds of projects we do"),
+`company.sales_team`, `company.workforce` and `appointments.kinds`, each asked only while unanswered, so a company
+that answered them in another setup goes straight to its own step. That one step, widget `appointments-setup`
+(`guided-experiences/appointments-setup.js`, its own pages like the Communications setup), asks for each kind chosen:
+text the customer before it starts, text them when we're on the way, and who goes (me, our sales team, a crew, a
+subcontractor, whoever is free; the teams offered and the default come from who sells and who does the work). When a
+text was asked for and texting is not set up (`comms.setup.status`; not offered where Communications is off), it
+offers to set it up or skip: **the same flow as the Communications setup**, `guided-experiences/texting-setup.js`
+(`setUpTexting`: texts and calls on with `comms.setup.start`, then carrier registration over the page). Both setups
+call it; do not copy it. The finish runs `appointments.setup.apply` with `appointment_types`: each type's
+`customer_texts` (`{ reminder, on_my_way }` on the appointment configuration) and staffing requirements (me: that
+person; sales team: one person of the Sales department where there is one; a crew: one group with all its members;
+a subcontractor: none, chosen when booked; whoever is free: one person), and the group and company types the answers
+name (`sales_team`, `crew`, `subcontractor`, through `saveAssigneeType`; groups and their members are added in
+People). A type with `on_my_way: false` drops the text from the visit's "On my way" step (`workforce/crew_api.ts`);
+`reminder` is recorded on the type but no reminder is sent yet. Tests: `tests/appointment-setup.test.ts`,
+`tests/appointment-setup-browser.test.mjs`.
 
 ## Limits (prototype)
 
