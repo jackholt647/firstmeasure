@@ -6580,7 +6580,7 @@ function buildDefaultDiagramLabels(state, options = {}) {
     const faceSig = getLocalFaceSignatureReport(face.points);
     const isExcluded = (typeof window.reportExcludedSignatures !== 'undefined' && window.reportExcludedSignatures.has(faceSig));
 
-    const areaPx = Math.abs(getSignedArea(face.points));
+    const areaPx = getPdfFaceNetAreaPx(face);
     const areaM2 = areaPx * (metersPerPx * metersPerPx);
 
     const riseExact = getRise12(face);
