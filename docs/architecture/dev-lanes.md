@@ -245,13 +245,37 @@ by `firstmeasure` like every release before it; unchanged files hard-linked to
 the running release), `fm-release finish` checks the staged tree is exactly the
 manifest and carries the running release's runtime data (`public/storage`,
 `public/v1/storage`), changed PHP is linted on legacy (`fm-release check`), then
-`fm-release activate` runs on every role together: switch `current`, restart
-the role's services (web; worker, platform worker, payment browser; legacy)
-and reload PHP, wait for readiness (the old deploy script's checks), and
+`fm-release activate` runs on every role together: switch `current`, move
+the role's services onto it (web; worker, platform worker, payment browser;
+legacy) and reload PHP, wait for readiness (the old deploy script's checks), and
 finally `https://dev.1m8.ai/v1/health/ready` must report the release twice. Any
 role not ready rolls every role back. Old release directories are pruned
 (newest 10 and anything under 3 days kept, and never the one a running service
 started in).
+
+**No gap on web (FM-500).** A restart stopped every Node worker on the web node
+at once, so nginx and the load balancer had nothing to send to while the new
+ones started, and a rollback did it twice: every push was a burst of 502/503s
+and often minutes of a dev.1m8.ai the load balancer had taken out. Web and legacy
+run a Node cluster primary (`public/v1/src/server.ts`), so `fm-release` hands
+over instead: SIGHUP, and the primary replaces its workers one at a time from
+the release `current` names, starting each new worker before retiring an old
+one (the rolling replace of FM-389), and `fm-release` waits for its log to say
+the replace onto the release is complete. The primary keeps running the code it
+started with, so this is only for a running primary whose `dist/src/server.js`
+is the release's; a release that changes it, a stopped service or a new pool
+node restarts as before. A rollback hands back the same way. Readiness is the
+server's own answer for the release (`release_id`), not its primary's
+environment, which keeps the release the primary started in. The worker role's
+services restart: a restart systemd reports failed (the worker's start
+preflight hit a slow Spaces call) is retried by the unit's `Restart=` and
+judged by readiness, which waits up to 120 s, rather than rolling every role
+back at once. Readiness itself (`runtime_health.ts`) tries artifact storage
+three times, keeps a server that reached it within two minutes ready (with a
+warning) while a retry fails, keeps a failed answer only 5 s, and answers a
+health check with the last result while a slow check runs, so one hung Spaces
+request no longer takes dev's only web node out of the load balancer. Run
+`tests/dev-push-fm-release.test.mjs` for changes to `fm-release`.
 
 **Fast paths.** A role whose running release is the router's previous one gets
 only the changed files: a tar over SSH that `fm-release assemble` applies to a

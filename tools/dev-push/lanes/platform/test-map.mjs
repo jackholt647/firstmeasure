@@ -11,6 +11,8 @@ export const AREAS = [
   [["tools/live-layer/", `${LIB}live-assets/`, `${V1}platform/live_assets.ts`], ["root:tests/live-layer.test.mjs"]],
   [["tools/frontend-bridge/"], ["root:tests/frontend-bridge.test.mjs"]],
   [["tools/dev-push/"], ["root:tests/dev-push-router.test.mjs"]],
+  [["tools/dev-push/host/"], ["root:tests/dev-push-fm-release.test.mjs"]],
+  [[`${V1}src/runtime_health.ts`], ["v1:tests/runtime-health.test.ts"]],
   [[`${V1}forms/`, `${LIB}forms-api/`, `${LIB}forms-embed/`, `${LIB}forms-staff/`, `${LIB}apps/settings/forms.js`], ["v1:tests/forms-api.test.ts"]],
   [[`${V1}documents/inputs.ts`, `${V1}documents/render.ts`, `${LIB}doc-sent-editor/`], ["v1:tests/document-as-sent-editing.test.ts"]],
   [[`${V1}platform/app-experience/`, `${LIB}apps/firstmate-apps-manifest.js`], ["v1:tests/app-experience.test.ts", "v1:tests/app-experience-registry.test.ts", "v1:tests/access-gates.test.ts"]],
