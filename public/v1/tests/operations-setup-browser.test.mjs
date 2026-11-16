@@ -21,7 +21,7 @@ async function open(browser,path='scope',width=1100){
     window.PlatformAPI={request:async(url)=>{activations.push(url);return {};},capabilities:{load:async()=>{}},appFlags:{load:async()=>{}},publication:{
       invoke:async(org,action,target,input)=>{
         calls.push({action,target,input:structuredClone(input)});
-        if(action==='operations.document.prepare')return {value:{document:structuredClone(record),workflow:{schema_version:1,name:'Shared scope',contract:{params:{scope_pieces:{type:'list',default:[]}},outputs:{}},steps:[{id:'work',title:'What work?',items:[{kind:'piece_select',writes:'params.scope_pieces',required:true,multi:true}]}]},piece_catalog:[{id:'roof_replacement',name:'Roof replacement'},{id:'gutters',name:'Gutter replacement'},{id:'siding_replacement',name:'Siding replacement'}],measurement_fields_by_piece:{}}};
+        if(action==='operations.document.prepare')return {value:{document:structuredClone(record),workflow:{schema_version:1,name:'Shared scope',contract:{params:{scope_pieces:{type:'list',default:[]}},outputs:{}},steps:window.workflowSteps||[{id:'work',title:'What work?',items:[{kind:'piece_select',writes:'params.scope_pieces',required:true,multi:true}]}]},piece_catalog:[{id:'roof_replacement',name:'Roof replacement'},{id:'gutters',name:'Gutter replacement'},{id:'siding_replacement',name:'Siding replacement'}],measurement_fields_by_piece:{}}};
         if(action==='operations.document.save'){record={...record,revision:record.revision+1,params:input.params};return {value:{document:structuredClone(record)}};}
         if(action==='operations.scope.complete'){if(window.failPublication)throw Error('Please review your quantities.');return {value:{document:structuredClone(record),published:true}};}
         if(action==='operations.document.resolve')return {value:{}};
@@ -324,5 +324,72 @@ test('Operations scope and checklist layouts fit desktop and mobile',async()=>{
       await page.screenshot({path:new URL(`checklist-${width}.png`,output).pathname.replace(/^\/([A-Z]:)/,'$1'),fullPage:true});
       await page.close();
     }
+  }finally{await browser.close();}
+});
+
+// FM-486: on a phone the setup has one title, in its top bar between the agent and the X, which the workflow's current
+// step publishes; the workflow's step numbers sit in one row along the bottom of the screen; the proposal preview is
+// folded to its bar (open and close it there) and opens by itself on the review step. The desktop layout is unchanged.
+test('phone: one title in the top bar, the step numbers along the bottom, the preview folded until the review step',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await open(browser,'proposal',433);
+    await page.setViewportSize({width:433,height:582});
+    await page.evaluate(()=>{
+      window.workflowSteps=[
+        {id:'work',title:'What are we working on?',items:[{kind:'piece_select',label:'Choose everything included in this project',writes:'params.scope_pieces',required:true,multi:true}]},
+        {id:'notes',title:'Anything else?',items:[{kind:'text',label:'Notes',writes:'params.notes'}]},
+        {id:'review',title:'Review your proposal',items:[{kind:'review'}]}];
+      Portal.navigation={read:()=>({project:'p1',projectTab:'materials'})};
+      window.fetch=async(url)=>{
+        const step={id:'document',widget:'operations-document',title:{key:'gx_test_doc',text:'What does this project need?'},options:{path:'proposal'},say:[],selects:[],required:true,next:null};
+        const value=String(url).includes('/experiences?')?{experiences:[{id:'ops.phone',version:1,kind:'modal',scope:'organization',title:{key:'gx_test',text:'Set up Operations'},steps:[step],variant:{id:'default'},completion:{}}],reveals:[]}:{};
+        return {ok:true,status:200,text:async()=>JSON.stringify({ok:true,...value})};
+      };
+    });
+    await page.addScriptTag({url:'https://operations.test/libraries/guided-experiences/guided-experiences.js'});
+    await page.addScriptTag({url:'https://operations.test/libraries/guided-experiences/guided-setup.js'});
+    page.evaluate(()=>FirstMateGuides.play('ops.phone')).catch(()=>{});
+    await page.waitForSelector('[data-fmdw-piece-type=roof_replacement]');
+    const title=()=>page.evaluate(()=>document.querySelector('.gxs-head-title').innerText.trim());
+    await page.waitForFunction(()=>document.querySelector('.gxs-head-title').innerText.trim()==='What are we working on?');
+    const layout=()=>page.evaluate(()=>{
+      const box=selector=>{const el=document.querySelector(selector);if(!el)return null;const r=el.getBoundingClientRect();return r.width&&r.height?{top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height}:null;};
+      const visibleTitles=[...document.querySelectorAll('.gxs h2,.gxs [role=heading],.fmdw-field-label')].filter(el=>el.getBoundingClientRect().height>0).map(el=>el.innerText.trim());
+      return {head:box('.gxs-head'),headTitle:box('.gxs-head-title'),badge:box('.gxs-badge'),close:box('.gxs-close'),rail:box('.fmdw-rail'),preview:box('[data-fmdw-preview]'),stage:box('[data-fmdw-preview-stage]'),sheet:box('.gxs-sheet'),cards:[...document.querySelectorAll('[data-fmdw-piece-type]')].map(el=>el.getBoundingClientRect().top),items:box('[data-fmdw-items]'),visibleTitles,folded:document.querySelector('[data-fmdw-preview-fold]').getAttribute('aria-expanded')==='false',sideways:document.documentElement.scrollWidth>innerWidth};
+    });
+    let box=await layout();
+    assert.deepEqual(box.visibleTitles,['What are we working on?'],'one title: the workflow step\'s, in the top bar; no second title row or field label');
+    assert.ok(box.headTitle.left>=box.badge.right&&box.headTitle.right<=box.close.left,`the title sits between the agent and the X (${JSON.stringify([box.badge,box.headTitle,box.close])})`);
+    assert.ok(box.folded&&!box.stage&&box.preview.height<70,`the preview starts folded to its bar (${JSON.stringify(box.preview)})`);
+    assert.ok(box.rail.top>=box.preview.bottom-1&&Math.abs(box.rail.bottom-box.sheet.bottom)<=2,`the step numbers are one row along the bottom (${JSON.stringify({rail:box.rail,preview:box.preview,sheet:box.sheet})})`);
+    assert.ok(box.rail.height<70,'one row of step numbers');
+    const middle=(box.cards[0]+box.cards.at(-1))/2,itemsMiddle=(box.items.top+box.items.bottom)/2;
+    assert.equal(box.cards.length,3);
+    assert.ok(Math.abs(middle-itemsMiddle)<90,`the work cards sit in the middle (${middle} in ${JSON.stringify(box.items)})`);
+    assert.equal(box.sideways,false);
+    // The bar opens and closes the preview.
+    await page.click('[data-fmdw-preview-head]');
+    await page.waitForFunction(()=>document.querySelector('[data-fmdw-preview-stage]').getBoundingClientRect().height>100);
+    assert.equal(await page.locator('[data-fmdw-preview-fold]').getAttribute('aria-expanded'),'true');
+    await page.click('[data-fmdw-preview-fold]');
+    await page.waitForFunction(()=>document.querySelector('[data-fmdw-root]').classList.contains('preview-folded'));
+    // Each step publishes its title; the review step opens the preview.
+    await page.locator('[data-fmdw-piece-type=roof_replacement]').click();
+    await page.locator('[data-fmdw-continue]').click();
+    await page.waitForFunction(()=>document.querySelector('.gxs-head-title').innerText.trim()==='Anything else?');
+    assert.equal(await page.evaluate(()=>document.querySelector('[data-fmdw-root]').classList.contains('preview-folded')),true,'still folded before the review step');
+    await page.locator('[data-fmdw-continue]').click();
+    await page.waitForFunction(()=>document.querySelector('.gxs-head-title').innerText.trim()==='Review your proposal');
+    await page.waitForFunction(()=>!document.querySelector('[data-fmdw-root]').classList.contains('preview-folded')&&document.querySelector('[data-fmdw-preview-stage]').getBoundingClientRect().height>100);
+    assert.equal(await title(),'Review your proposal');
+    // The desktop layout keeps its titles, the step list beside the questions and the preview open.
+    await page.setViewportSize({width:1280,height:850});
+    await page.waitForFunction(()=>!document.querySelector('[data-fmdw-root]').classList.contains('narrow'));
+    box=await layout();
+    assert.ok(!box.headTitle,'no title in the top bar on a desktop');
+    assert.ok(box.visibleTitles.includes('What does this project need?')&&box.visibleTitles.includes('Review your proposal'),JSON.stringify(box.visibleTitles));
+    assert.ok(box.rail.right<=box.preview.left&&box.stage,'steps beside, preview open');
+    assert.equal(await page.locator('[data-fmdw-preview-fold]').isVisible(),false);
   }finally{await browser.close();}
 });

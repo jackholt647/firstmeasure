@@ -155,8 +155,9 @@ test('phone: the company step fits the screen without sideways scrolling',async(
   try{
     const {page,errors}=await load(browser,{width:390,height:844});
     page.evaluate(()=>FirstMateGuides.play('ops.test')).catch(()=>{});
-    // The title's (i) tip, hidden or shown, stays inside the step: centred on the icon it ran past the edge (FM-485).
-    const fits=()=>page.evaluate(()=>{const step=document.querySelector('.gxs-step:not(.gxs-above)'),box=step.getBoundingClientRect(),tip=step.querySelector('.gxs-info-tip').getBoundingClientRect();return step.scrollWidth<=step.clientWidth+1&&document.documentElement.scrollWidth<=innerWidth&&tip.left>=box.left-1&&tip.right<=box.right+1;});
+    // The title's (i) tip, hidden or shown, stays on screen: centred on the icon it ran past the edge (FM-485). On a phone
+    // the title and its tip are in the top bar (FM-486).
+    const fits=()=>page.evaluate(()=>{const step=document.querySelector('.gxs-step:not(.gxs-above)'),box=document.querySelector('.gxs-sheet').getBoundingClientRect(),tip=document.querySelector('.gxs-head-title .gxs-info-tip').getBoundingClientRect();return step.scrollWidth<=step.clientWidth+1&&document.documentElement.scrollWidth<=innerWidth&&tip.width>0&&tip.left>=box.left-1&&tip.right<=box.right+1;});
     await onStep(page,'Start with the work');
     assert.equal(await fits(),true,'the first step does not scroll sideways');
     await page.click('[data-test-pick]');await next(page);
@@ -165,10 +166,10 @@ test('phone: the company step fits the screen without sideways scrolling',async(
     await page.click('[data-type=roofing_contractor]');
     await page.waitForTimeout(350);await shot(page,'company-type-phone');
     assert.equal(await fits(),true,'the company step does not scroll sideways');
-    await page.focus('.gxs-step:not(.gxs-above) [data-gxs-info]');
-    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.gxs-step:not(.gxs-above) .gxs-info-tip')).opacity==='1');
+    await page.focus('.gxs-head-title [data-gxs-info]');
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.gxs-head-title .gxs-info-tip')).opacity==='1');
     assert.equal(await fits(),true,'the tip, shown, fits too');
-    await page.locator('.gxs-step:not(.gxs-above) [data-gxs-info]').blur();
+    await page.locator('.gxs-head-title [data-gxs-info]').blur();
     const columns=await page.locator('.gxc-grid').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length);
     assert.equal(columns,2,'two tiles a row on a phone');
     await next(page);
@@ -221,11 +222,15 @@ test('phone: a modal setup is a sheet from the bottom edge, at least two-thirds 
     const box=await sheetFit(page);
     assert.ok(Math.abs(box.width-433)<1&&Math.abs(box.bottom-582)<1,`full width, on the bottom edge (${JSON.stringify(box)})`);
     assert.ok(Math.abs(box.height-582*2/3)<2,`a short step keeps two-thirds of the screen (${JSON.stringify(box)})`);
-    const room=await page.evaluate(()=>{
-      const pane=document.querySelector('.gxs-step:not(.gxs-above)'),stage=pane.getBoundingClientRect(),title=pane.querySelector('.gxs-titlebar').getBoundingClientRect();
-      let bottom=title.bottom;for(const el of pane.querySelectorAll('.gxs-body *')){const r=el.getBoundingClientRect();if(r.width&&r.height)bottom=Math.max(bottom,r.bottom);}
-      return {above:title.top-stage.top,below:stage.bottom-bottom};
+    // On a phone the step's title is in the top bar (FM-486): the step is its content.
+    const content=()=>page.evaluate(()=>{
+      const pane=document.querySelector('.gxs-step:not(.gxs-above)'),stage=pane.getBoundingClientRect();
+      let top=Infinity,bottom=-Infinity;for(const el of pane.querySelectorAll('.gxs-body *')){const r=el.getBoundingClientRect();if(r.width&&r.height){top=Math.min(top,r.top);bottom=Math.max(bottom,r.bottom);}}
+      return {above:top-stage.top,below:stage.bottom-bottom,scroll:pane.scrollTop,title:document.querySelector('.gxs-head-title .gxs-head-text').innerText.trim(),stepTitle:pane.querySelector('.gxs-titlebar h2').getBoundingClientRect().height};
     });
+    const room=await content();
+    assert.equal(room.title,'Start with the work you’re planning','the title is in the top bar');
+    assert.equal(room.stepTitle,0,'and not again in the step');
     assert.ok(room.above>20&&Math.abs(room.above-room.below)<40,`the extra height is padding around the step, not a gap under it (${JSON.stringify(room)})`);
     // A step taller than two-thirds grows the sheet as before and starts at its top.
     await page.click('[data-test-pick]');await next(page);
@@ -234,8 +239,8 @@ test('phone: a modal setup is a sheet from the bottom edge, at least two-thirds 
     await page.waitForTimeout(700);
     const tall=await sheetFit(page);
     assert.ok(tall.height>582*2/3+20&&tall.height<=582-12+1,`a taller step grows the sheet, within the screen (${JSON.stringify(tall)})`);
-    const top=await page.evaluate(()=>{const pane=document.querySelector('.gxs-step:not(.gxs-above)');return {scroll:pane.scrollTop,title:pane.querySelector('.gxs-titlebar').getBoundingClientRect().top-pane.getBoundingClientRect().top};});
-    assert.ok(top.scroll===0&&top.title<20,`a step that scrolls starts at its title (${JSON.stringify(top)})`);
+    const top=await content();
+    assert.ok(top.scroll===0&&top.above<30,`a step that scrolls starts at its top (${JSON.stringify(top)})`);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
