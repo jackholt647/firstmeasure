@@ -3,9 +3,11 @@ import test from 'node:test';
 import { mkdir, readFile } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
 
-const source = await readFile(process.env.SMS_SETTINGS_SOURCE || new URL('../../libraries/apps/settings/company.js', import.meta.url), 'utf8');
-const workflow = source.slice(source.indexOf('    function formatPhoneUS(raw){'), source.indexOf('    function renderPricebook(){'));
-const css = source.slice(source.indexOf('      .sms-card{'), source.indexOf('      .li-subtabs{'));
+const source = await readFile(process.env.SMS_SETTINGS_SOURCE || new URL('../../libraries/apps/settings/sms-registration.js', import.meta.url), 'utf8');
+const workflow = source.slice(source.indexOf('    function formatPhoneUS(raw){'), source.indexOf('    /** The workflow on its own'));
+const css = source.slice(source.indexOf('      .sms-card{'), source.indexOf('\n  `;'));
+// The registration reads Settings' pane, tab and company record through env (sms-registration.js, FM-510).
+const envShim = "const env={paneSms:()=>typeof paneSms==='undefined'?null:paneSms,activeTab:()=>typeof activeTab==='undefined'?'':activeTab,state:()=>state};";
 const wizard = await readFile(new URL('../../libraries/setup-wizard/setup-wizard.js', import.meta.url), 'utf8');
 
 test('carrier registration remains a real wizard after simulated phone onboarding', async () => {
@@ -41,7 +43,7 @@ test('carrier registration remains a real wizard after simulated phone onboardin
         window.saved.push({url,body:options.body});
         return {profile:{id:'draft_test',...options.body,events:[]}};
       };
-      ${workflow}
+      ${envShim}${workflow}
       window.renderSmsFixture=renderSmsSettings;
       window.carrierDefaults=()=>mergeSmsProfile({});
     ` });

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { closePlatformFixtureStores, enableExpandedPlatformFixture } from './helpers/platform-fixture.js';
 const dir = await mkdtemp(path.join(os.tmpdir(), 'comms-setup-'));
-Object.assign(process.env, { NODE_ENV: 'test', PLATFORM_STORAGE_ROOT: path.join(dir, 'platform'), PRICEBOOK_STORAGE_ROOT: path.join(dir, 'pricebook'), FIRSTMEASURE_STORAGE_ROOT: path.join(dir, 'firstmeasure'), FIRSTMEASURE_INDEX_DB_PATH: path.join(dir, 'index.sqlite'), PLATFORM_HEARTBEAT_DISABLED: '1', FIRSTMEASURE_JOB_WORKERS: '0' });
+Object.assign(process.env, { NODE_ENV: 'test', PLATFORM_STORAGE_ROOT: path.join(dir, 'platform'), PRICEBOOK_STORAGE_ROOT: path.join(dir, 'pricebook'), MESSAGING_STORAGE_ROOT: path.join(dir, 'messaging'), FIRSTMEASURE_STORAGE_ROOT: path.join(dir, 'firstmeasure'), FIRSTMEASURE_INDEX_DB_PATH: path.join(dir, 'index.sqlite'), PLATFORM_HEARTBEAT_DISABLED: '1', FIRSTMEASURE_JOB_WORKERS: '0' });
 after(async () => { await closePlatformFixtureStores(); await rm(dir, { recursive: true, force: true }); });
 
 // FM-491: the Communications setup turns texts (and SMS settings) or the email inbox on through published actions,
@@ -32,6 +32,14 @@ test('Communications setup turns on texts or email as the person, and reports wh
   assert.equal(phone.value.phone.texts, true);
   for (const key of ['comms.sms', 'apps.messaging', 'platform.sms_settings']) assert.equal(await capabilities.isCapabilityEnabled(orgId, key), true, key);
   assert.equal(await capabilities.isCapabilityEnabled(orgId, 'comms.email'), false, 'texts and calls leave email alone');
+  // FM-510: the setup runs carrier registration next, and the status says where it stands (read without creating anything).
+  assert.equal(phone.value.phone.registration, 'none');
+  const messaging = await import('../messaging/storage.js');
+  const draft = await messaging.createSmsComplianceProfile(await messaging.ensureMessagingOrganization(orgId), { brand: { displayName: 'Comms setup test' }, campaign: {} });
+  const read = async () => (await invokeAction({ ...owner, mode: 'evaluate' }, { action: 'comms.setup.status', target }, {}) as any).value.phone.registration;
+  assert.equal(await read(), 'draft');
+  await messaging.updateSmsComplianceProfile(draft, { status: 'campaign_submitted', provider_refs: { telnyx_brand_id: 'brand-1', telnyx_campaign_id: 'campaign-1' }, brand: { ...draft.brand, mock: true } });
+  assert.equal(await read(), 'approved', 'a simulated registration on development is complete once its campaign is submitted');
 
   const email = await invokeAction(owner, { action: 'comms.setup.start', target }, { channel: 'email' }, { idempotencyKey: 'comms-setup-email' }) as any;
   assert.equal(email.value.email.on, true);
@@ -41,4 +49,15 @@ test('Communications setup turns on texts or email as the person, and reports wh
   await assert.rejects(() => invokeAction(owner, { action: 'comms.setup.start', target }, { channel: 'fax' }, { idempotencyKey: 'comms-setup-fax' }));
   const viewer = userPublicationContext(auth({ view_comms: true }, 'member'), { mode: 'command' });
   await assert.rejects(() => invokeAction(viewer, { action: 'comms.setup.start', target }, { channel: 'email' }, { idempotencyKey: 'comms-setup-viewer' }));
+});
+
+test('carrier registration state reads like Phone Settings', async () => {
+  const { smsRegistrationState } = await import('../comms/setup.js');
+  const profile = (patch: Record<string, unknown>) => ({ id: 'p', brand: {}, campaign: {}, provider_refs: {}, events: [], ...patch }) as any;
+  assert.equal(smsRegistrationState(null), 'none');
+  assert.equal(smsRegistrationState(profile({ status: 'draft' })), 'draft');
+  assert.equal(smsRegistrationState(profile({ status: 'brand_pending', provider_refs: { telnyx_brand_id: 'b' } })), 'submitted');
+  assert.equal(smsRegistrationState(profile({ status: 'campaign_submitted', provider_refs: { telnyx_brand_id: 'b', telnyx_campaign_id: 'c' } })), 'submitted', 'a real campaign waits for the carriers');
+  assert.equal(smsRegistrationState(profile({ status: 'active', campaign_status: 'mno_provisioned', provider_refs: { telnyx_campaign_id: 'c' } })), 'approved');
+  assert.equal(smsRegistrationState(profile({ status: 'campaign_submitted', campaign_status: 'mno_rejected', provider_refs: { telnyx_campaign_id: 'c' } })), 'attention');
 });
