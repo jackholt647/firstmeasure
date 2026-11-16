@@ -196,6 +196,31 @@ test("project notes remain isolated from channel messages, pins and sharing acro
   assert.equal((await crew.client.raw('POST',`${base}/messages/${restricted.id}/pin`,{})).statusCode,404);
 });
 
+test("project notes keep working with the Channels app off, on project threads only (FM-482)", async () => {
+  const {client,orgId} = await registerOwner();
+  const {saveCapabilityValues} = await import('../platform/capabilities.js');
+  const base = `/v1/channels/organizations/${orgId}`;
+  const team = (await client.request('POST',`${base}/channels`,{type:'public',name:'Team channel'})).channel;
+  const project = (await client.request('POST',`/v1/platform/organizations/${orgId}/projects`,{data:{title:'Notes without Channels'}})).document;
+  await saveCapabilityValues(orgId,{'apps.channels':false});
+  const channel = (await client.request('POST',`${base}/channels/project/${project.id}`)).channel;
+  const messages = `${base}/channels/${channel.id}/messages`;
+  const note = (await client.request('POST',messages,{text:'Gate code 4411',project_note:true})).message;
+  assert.deepEqual((await client.request('GET',messages+'?view=notes')).messages.map((row:any)=>row.id),[note.id]);
+  await client.request('PATCH',`${base}/messages/${note.id}`,{text:'Gate code 4412'});
+  await client.request('POST',`${base}/messages/${note.id}/pin`,{});
+  assert.equal((await client.request('GET',`${base}/channels/${channel.id}/pins?view=notes`)).messages[0].id,note.id);
+  const offline = (await client.request('POST',`${base}/channels/project/${project.id}/messages`,{text:'Written offline',project_note:true,client_msg_id:'fm482-offline'})).message;
+  assert.equal(offline.metadata.project_note,true);
+  assert.equal((await client.raw('GET',`${base}/channels/${team.id}/messages`)).statusCode,404, 'other channels stay out of reach');
+  assert.equal((await client.raw('POST',`${base}/channels/${team.id}/messages`,{text:'Still Channels'})).statusCode,404);
+  assert.equal((await client.raw('GET',`${base}/channels`)).statusCode,403, 'the Channels app itself stays off');
+  await saveCapabilityValues(orgId,{'channels.project_notes':false});
+  assert.equal((await client.raw('GET',messages+'?view=notes')).statusCode,403, 'Notes switched off by the organization is off');
+  await saveCapabilityValues(orgId,{'apps.channels':true,'channels.project_notes':true});
+  assert.equal((await client.request('GET',`${base}/channels/${team.id}/messages`)).ok,true);
+});
+
 test("project assistant uses the global agent with personal durable threads and fresh authorization", async () => {
   const {client,orgId,suffix} = await registerOwner();
   const project = (await client.request('POST',`/v1/platform/organizations/${orgId}/projects`,{data:{title:'Scope focused project'}})).document;

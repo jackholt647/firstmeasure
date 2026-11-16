@@ -5,7 +5,7 @@ import { appDefinitions } from "../platform/app-experience/registry.js";
 import { resolveCapabilities } from "../platform/capabilities.js";
 import "../platform/capability_defs.js";
 import { resolveAppEntitlements } from "../workforce/access.js";
-import { hasAppAccess, hasAppEntitlement, type PlatformAuthContext } from "../platform/auth.js";
+import { can, hasAppAccess, hasAppEntitlement, type PlatformAuthContext } from "../platform/auth.js";
 import { containsAppFlagMutation } from '../platform/app_flags.js';
 
 test("offers mask the operational capabilities and their dependent features", () => {
@@ -18,6 +18,25 @@ test("offers mask the operational capabilities and their dependent features", ()
   assert.equal(resolved["platform.customer_portal"], false);
   assert.equal(resolved["platform.customer_portal_media"], false);
   assert.equal(configured["platform.project_photos"], true);
+});
+
+test("project Notes stays on whether Channels is on, off or offered; only the Messages tray waits for Channels (FM-482)", async () => {
+  const configured = { "platform.expanded_access": true, "apps.projects": true, "apps.channels": true, "channels.project_notes": true,
+    "channels.separate_project_notes": true, "channels.project_messages_tray": true };
+  const states: Array<[string, Record<string, unknown>, string[], boolean]> = [
+    ["on", configured, [], true],
+    ["off", { ...configured, "apps.channels": false }, [], false],
+    ["offered, not started", configured, ["portal.channels"], false]
+  ];
+  for (const [label, values, offers, channelsOn] of states) {
+    const resolution = resolveCapabilities(maskOfferedCapabilities(values, offers) as any);
+    assert.equal(resolution.effectiveByKey["apps.channels"], channelsOn, `Channels ${label}`);
+    assert.equal(resolution.effectiveByKey["channels.project_notes"], true, `Notes with Channels ${label}`);
+    assert.equal(resolution.effectiveByKey["channels.project_messages_tray"], channelsOn, `Messages tray with Channels ${label}`);
+    const appEntitlements = resolveAppEntitlements({ effectiveByKey: resolution.effectiveByKey, offeredAppIds: offers });
+    const ctx = { orgId: "org", userId: "user", capabilities: resolution, appEntitlements } as unknown as PlatformAuthContext;
+    assert.equal(await can(ctx, "channels.project_notes"), true, `Notes routes with Channels ${label}`);
+  }
 });
 
 test("an enabled Feed remains operational while project Photos is offered", () => {

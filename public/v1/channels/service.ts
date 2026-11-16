@@ -296,9 +296,21 @@ export function canManageChannels(ctx: PlatformAuthContext) {
   return hasPermission(ctx, "manage_channels");
 }
 
+// Callers who reach project notes without the Channels app (off, or offered and not yet started; FM-482): they
+// see project threads and photo discussions, the places notes live, and no other channel.
+const projectNotesOnly = new WeakSet<PlatformAuthContext>();
+export function limitToProjectNotes(ctx: PlatformAuthContext) {
+  projectNotesOnly.add(ctx);
+  return ctx;
+}
+export function limitedToProjectNotes(ctx: PlatformAuthContext) {
+  return projectNotesOnly.has(ctx);
+}
+
 export async function requireChannelAccess(ctx: PlatformAuthContext, channelId: string, options: { write?: boolean; post?: boolean } = {}) {
   const channel = (await readChannelRecord(ctx.orgId, channelId));
   if (!channel) throw notFound("channel_not_found", "This channel does not exist.");
+  if (projectNotesOnly.has(ctx) && channel.type !== "project" && !channel.settings.photo_media_id) throw notFound("channel_not_found", "This channel does not exist.");
   const membership = (await readChannelMember(channel.id, ctx.userId));
   const departmentMembers=await departmentChannelMembers(channel);
   if(departmentMembers&&!departmentMembers.includes(ctx.userId))throw forbidden('channel_forbidden','You are not a member of this department channel.');

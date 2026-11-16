@@ -3,7 +3,7 @@ import { platformBackgroundAllowed } from "../platform/runtime.js";
 import type { FastifyPluginAsync } from "fastify";
 import { z, ZodError } from "zod";
 
-import { requirePlatformAuth } from "../platform/auth.js";
+import { can, requireCapability, requirePlatformAuth } from "../platform/auth.js";
 import { PlatformError, badRequest, conflict } from "../platform/errors.js";
 import { readDocument, readMediaMetadata, storeMediaUpload, upsertDocument } from "../platform/storage.js";
 import {
@@ -62,7 +62,7 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
   registerFeedRoutes(app);
 
   app.get("/organizations/:orgId/gifs/config", async request => {
-    try { await auth(request,getParam(request.params,"orgId")); }
+    try { await noteAuth(request,getParam(request.params,"orgId")); }
     catch(error){const ctx=await auth(request,getParam(request.params,"orgId"),{capability:"platform.photos_feed"});if(!feedPermission(ctx,"view_feed") || !feedPermission(ctx,"comment_feed"))throw error;}
     // GIPHY's browser SDK requires its web application key in the client.
     // This is not an account credential; keep it out of source and logs.
@@ -90,11 +90,21 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     });
   }
 
+  // Project notes are stored in each project's thread but are not part of the Channels app (FM-482). The routes
+  // the Notes tray uses take either: with Channels off, or offered and not yet started, a caller who has project
+  // notes reaches project threads and photo discussions only (service.limitToProjectNotes).
+  async function noteAuth(request: Parameters<typeof requirePlatformAuth>[0], orgId: string, options: { csrf?: boolean; permission?: string } = {}) {
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: options.csrf, permission: options.permission });
+    if (await can(ctx, APP_CAPABILITY)) return ctx;
+    await requireCapability(ctx, "channels.project_notes");
+    return service.limitToProjectNotes(ctx);
+  }
+
   // --- channels ---------------------------------------------------------------
 
   app.get("/organizations/:orgId/directory", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId);
+    const ctx = await noteAuth(request, orgId);
     const users = await service.listDirectoryUsers(ctx);
     const structure=await (await import('../workforce/organization-structure.js')).resolveOrganizationStructure(ctx.orgId);
     const selection=(await import('../workforce/department-access.js')).relevantDepartmentContext(ctx);
@@ -125,20 +135,20 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/organizations/:orgId/channels/photo/:mediaId", async request => {
-    const ctx=await auth(request,getParam(request.params,"orgId"),{csrf:true});
+    const ctx=await noteAuth(request,getParam(request.params,"orgId"),{csrf:true});
     return {ok:true,channel:await (await import('./photo-comments.js')).ensurePhotoDiscussion(ctx,getParam(request.params,"mediaId"))};
   });
 
   app.post("/organizations/:orgId/channels/project/:projectId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId, { csrf: true });
+    const ctx = await noteAuth(request, orgId, { csrf: true });
     const channel = await service.ensureProjectChannel(ctx, getParam(request.params, "projectId"));
     return { ok: true, channel };
   });
 
   // The project's channel, read only: nothing is created or joined (the POST above does that).
   app.get("/organizations/:orgId/channels/project/:projectId", async (request) => {
-    const ctx = await auth(request, getParam(request.params, "orgId"));
+    const ctx = await noteAuth(request, getParam(request.params, "orgId"));
     const channel = await service.findProjectChannel(ctx, getParam(request.params, "projectId"));
     if (!channel) throw new PlatformError("channel_not_found", 404, "This project has no channel for you yet.");
     return { ok: true, channel };
@@ -148,7 +158,7 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
   // written on a device before the project's channel exists is sent here (docs/architecture/offline.md);
   // `client_msg_id` makes a repeat the same message.
   app.post("/organizations/:orgId/channels/project/:projectId/messages", async (request, reply) => {
-    const ctx = await auth(request, getParam(request.params, "orgId"), { csrf: true });
+    const ctx = await noteAuth(request, getParam(request.params, "orgId"), { csrf: true });
     const body = postMessageSchema.parse(request.body ?? {});
     const channel = await service.ensureProjectChannel(ctx, getParam(request.params, "projectId"));
     const result = await service.postMessage(ctx, String(channel.id), body);
@@ -235,14 +245,14 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/channels/:channelId/messages", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId);
+    const ctx = await noteAuth(request, orgId);
     const query = listMessagesQuerySchema.parse(request.query ?? {});
     const result = await service.listMessages(ctx, getParam(request.params, "channelId"), query);
     return { ok: true, ...result };
   });
 
   app.get('/organizations/:orgId/channels/:channelId/note-authors',async request=>{
-    const ctx=await auth(request,getParam(request.params,'orgId'));
+    const ctx=await noteAuth(request,getParam(request.params,'orgId'));
     return {ok:true,...await service.listProjectNoteAuthors(ctx,getParam(request.params,'channelId'))};
   });
 
@@ -274,11 +284,11 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, preferences: await service.translationPreferences(ctx) };
   });
 
-  app.post('/organizations/:orgId/channels/:channelId/compose/polish',async request=>{const ctx=await auth(request,getParam(request.params,'orgId'),{csrf:true});return {ok:true,...await polishChannelDraft(ctx,getParam(request.params,'channelId'),polishDraftSchema.parse(request.body ?? {}))};});
+  app.post('/organizations/:orgId/channels/:channelId/compose/polish',async request=>{const ctx=await noteAuth(request,getParam(request.params,'orgId'),{csrf:true});return {ok:true,...await polishChannelDraft(ctx,getParam(request.params,'channelId'),polishDraftSchema.parse(request.body ?? {}))};});
 
   app.post("/organizations/:orgId/channels/:channelId/messages", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId, { csrf: true });
+    const ctx = await noteAuth(request, orgId, { csrf: true });
     const body = postMessageSchema.parse(request.body ?? {});
     const result = await service.postMessage(ctx, getParam(request.params, "channelId"), body);
     reply.code(result.deduplicated ? 200 : 201);
@@ -287,27 +297,27 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/messages/:messageId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId);
+    const ctx = await noteAuth(request, orgId);
     const result = await service.listThread(ctx, getParam(request.params, "messageId"), { limit: 1 });
     return { ok: true, message: result.root };
   });
 
   app.post("/organizations/:orgId/messages/:messageId/translation", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId, { csrf: true });
+    const ctx = await noteAuth(request, orgId, { csrf: true });
     const translation = await service.translateMessage(ctx, getParam(request.params, "messageId"));
     return { ok: true, translation };
   });
 
   app.patch('/organizations/:orgId/messages/:messageId/visibility',async request=>{
-    const orgId=getParam(request.params,'orgId'),ctx=await auth(request,orgId,{csrf:true});
+    const orgId=getParam(request.params,'orgId'),ctx=await noteAuth(request,orgId,{csrf:true});
     const message=await service.updateMessageVisibility(ctx,getParam(request.params,'messageId'),messageVisibilitySchema.parse(request.body ?? {}));
     return {ok:true,message};
   });
 
   app.patch("/organizations/:orgId/messages/:messageId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId, { csrf: true });
+    const ctx = await noteAuth(request, orgId, { csrf: true });
     const body = editMessageSchema.parse(request.body ?? {});
     const message = await service.editMessage(ctx, getParam(request.params, "messageId"), body);
     return { ok: true, message };
@@ -315,28 +325,28 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
 
   app.delete("/organizations/:orgId/messages/:messageId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId, { csrf: true });
+    const ctx = await noteAuth(request, orgId, { csrf: true });
     const message = await service.deleteMessage(ctx, getParam(request.params, "messageId"));
     return { ok: true, message };
   });
 
   app.post("/organizations/:orgId/messages/:messageId/restore", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId, { csrf: true });
+    const ctx = await noteAuth(request, orgId, { csrf: true });
     const message = await service.restoreMessage(ctx, getParam(request.params, "messageId"));
     return { ok: true, message };
   });
 
   app.get("/organizations/:orgId/messages/:messageId/revisions", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId);
+    const ctx = await noteAuth(request, orgId);
     const result = await service.messageRevisions(ctx, getParam(request.params, "messageId"));
     return { ok: true, ...result };
   });
 
   app.get("/organizations/:orgId/messages/:messageId/thread", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId);
+    const ctx = await noteAuth(request, orgId);
     const query = listMessagesQuerySchema.parse(request.query ?? {});
     const result = await service.listThread(ctx, getParam(request.params, "messageId"), query);
     return { ok: true, ...result };
@@ -358,21 +368,21 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/messages/:messageId/pin", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId, { csrf: true });
+    const ctx = await noteAuth(request, orgId, { csrf: true });
     const message = await service.setPinned(ctx, getParam(request.params, "messageId"), true);
     return { ok: true, message };
   });
 
   app.post("/organizations/:orgId/messages/:messageId/unpin", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId, { csrf: true });
+    const ctx = await noteAuth(request, orgId, { csrf: true });
     const message = await service.setPinned(ctx, getParam(request.params, "messageId"), false);
     return { ok: true, message };
   });
 
   app.get("/organizations/:orgId/channels/:channelId/pins", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId);
+    const ctx = await noteAuth(request, orgId);
     const query = listMessagesQuerySchema.parse(request.query ?? {});
     const messages = await service.pinnedMessages(ctx, getParam(request.params, "channelId"), query.view);
     return { ok: true, messages };
@@ -816,7 +826,7 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/uploads", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await auth(request, orgId, { csrf: true });
+    const ctx = await noteAuth(request, orgId, { csrf: true });
 
     const typed = request as unknown as {
       parts?: () => AsyncIterable<{
@@ -856,6 +866,7 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     if (attachmentId && !/^att_[a-z0-9-]{16,64}$/.test(attachmentId)) throw badRequest("invalid_attachment_id", "An attachment id is att_ and 16 to 64 lowercase letters, digits or hyphens.");
     if (givenMediaId && !/^media_[a-f0-9]{16}$/.test(givenMediaId)) throw badRequest("invalid_media_id", "A media id is media_ and 16 hexadecimal digits.");
     if (!attachmentId !== !givenMediaId) throw badRequest("upload_ids_required", "A device names both the attachment and its media, or neither.");
+    if (!channelId && service.limitedToProjectNotes(ctx)) throw badRequest("channel_required", "A note's upload names its project thread.");
     const channelAccess = channelId ? await service.requireChannelAccess(ctx, channelId, { write: true }) : null;
     const projectId = channelAccess?.channel.project_id || "";
     if (attachmentId) {
