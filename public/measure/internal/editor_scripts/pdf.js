@@ -2411,20 +2411,27 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
                 ['Opening area', `${pdfMeasure(exterior.totals.openingArea, 'sf', `${Math.round(exterior.totals.openingArea)} sq ft`)}`]
             ];
             rows.forEach(([label, value]) => {
-                doc.text(pdfLabel(label) + ':', box2X + pad, yCursor);
-                doc.text(value, box2X + boxWidth - pad, yCursor, { align: 'right' });
-                yCursor += 6;
+                yCursor += 6 + drawPdfLabelValueRow(doc, pdfLabel(label) + ':', value, box2X + pad, box2X + boxWidth - pad, yCursor).height;
             });
-        } else Object.keys(state.report.materials.linear || {}).forEach(key => {
-            if (key.toLowerCase() === 'unknown' || key.toLowerCase() === 'skylight back' || key.toLowerCase() === 'skylight sides') return;
-            if (yCursor > box2Y + coverBoxH - 5) return;
-            const val = Math.round(state.report.materials.linear[key]);
-
-            doc.text(pdfLineTypeLabel(key) + ':', box2X + pad, yCursor);
-            doc.text(pdfLabel("{value1}", {value1: pdfMeasure(state.report.materials.linear[key], 'ft', `${val}'`)}), box2X + boxWidth - pad, yCursor, { align: 'right' });
-
-            yCursor += 5;
-        });
+        } else {
+            // A label too long to stop short of its value wraps (FM-518: "Babero de encuentro con paramento" ran into
+            // its length). Rows are 5 apart; when a label wraps they close up (down to 4.2) so the extra line does not push
+            // a row out of the box. Rows that would still leave it are not drawn, as before.
+            const left = box2X + pad, right = box2X + boxWidth - pad, lastY = box2Y + coverBoxH - 5;
+            const rows = Object.keys(state.report.materials.linear || {}).filter(key => !['unknown', 'skylight back', 'skylight sides'].includes(key.toLowerCase())).map(key => {
+                const val = Math.round(state.report.materials.linear[key]);
+                const label = pdfLineTypeLabel(key) + ':';
+                const value = pdfLabel("{value1}", {value1: pdfMeasure(state.report.materials.linear[key], 'ft', `${val}'`)});
+                return { label, value, height: drawPdfLabelValueRow(doc, label, value, left, right, 0, { draw: false }).height };
+            });
+            const wrapped = rows.reduce((sum, r) => sum + r.height, 0);
+            const step = wrapped > 0 && rows.length > 1 ? Math.max(4.2, Math.min(5, (lastY - yCursor - wrapped) / (rows.length - 1))) : 5;
+            for (const row of rows) {
+                if (yCursor + row.height > lastY) break;
+                drawPdfLabelValueRow(doc, row.label, row.value, left, right, yCursor);
+                yCursor += step + row.height;
+            }
+        }
     } else {
         if (landscape) drawDynamicCoverPage(doc, state, s, sideX, mapTopY, sideW, mapH, { stacked: true });
         else drawDynamicCoverPage(doc, state, s, marginLeft, boxTopY, availableW, boxHeight);
@@ -2524,7 +2531,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         
         let maxTextW = 0;
         elevLabels.forEach(label => {
-            const tw = doc.getTextWidth(label);
+            const tw = doc.getTextWidth(pdfLabel(label));
             if (tw > maxTextW) maxTextW = tw;
         });
         const uniformPillW = (maxTextW + 6) * 3;
@@ -2791,9 +2798,9 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
                 rowX += textW + 8;
             });
             const contentH = 16 + layoutLayerTotals(detailsX + pad, detailsX + detailsW - pad).height + 8 + Math.max(0, flowRows - 1) * 8 + 7;
-            let detailsH = landscape ? contentH : Math.max(50, contentH), bottomBoxY = pageHeight - 25 - detailsH, legendY = bottomBoxY - 20;
+            let detailsH = landscape ? contentH : Math.max(50, contentH), bottomBoxY = pageHeight - 25 - detailsH, legendY = pdfLegendTop(doc, state.report, detailsX, bottomBoxY);
             if (landscape) {
-                const blockH = detailsH + 8 + pdfLegendGridHeight(state.report, 2);
+                const blockH = detailsH + 8 + pdfLegendGridHeight(doc, state.report, detailsW, 2);
                 bottomBoxY = Math.max(topY - 10, topY - 10 + (pageHeight - 25 - (topY - 10) - blockH) / 2);
                 legendY = bottomBoxY + detailsH + 8;
             }
@@ -3141,6 +3148,12 @@ function drawDynamicCoverPage(doc, state, settings, x, y, w, h, options = {}) {
             rightColX = rightX + boxPad;
         }
         let statsEndY = rightY + 14;
+        // How far right the stats reach, in the fonts they are drawn in (the lines column may start right after them).
+        let statsRight = leftColX;
+        const statText = (text, ty) => {
+            doc.text(text, leftColX, ty);
+            statsRight = Math.max(statsRight, leftColX + doc.getTextWidth(text));
+        };
 
         if (showStats) {
             let cy = rightY + 14;
@@ -3153,18 +3166,17 @@ function drawDynamicCoverPage(doc, state, settings, x, y, w, h, options = {}) {
                 doc.setFontSize(10);
                 doc.setTextColor(50);
                 doc.setFont("Montserrat", "bold");
-                doc.text(
+                statText(
                     settings.cover_show_waste
                         ? pdfLabel("{value1} (+{value2}% Waste)", {value1: pdfAreaHeading("Total Squares"), value2: wastePct})
                         : pdfAreaHeading("Total Squares"),
-                    leftColX,
                     cy
                 );
                 
                 cy += 9;
                 doc.setFontSize(28); 
                 doc.setTextColor(pColor.r, pColor.g, pColor.b);
-                doc.text(pdfLabel("{value1}", {value1: pdfMeasure(val, "sq", Math.round(val * 100) / 100, false)}), leftColX, cy);
+                statText(pdfLabel("{value1}", {value1: pdfMeasure(val, "sq", Math.round(val * 100) / 100, false)}), cy);
                 
                 cy += 7;
             }
@@ -3182,13 +3194,13 @@ function drawDynamicCoverPage(doc, state, settings, x, y, w, h, options = {}) {
                     const val = squaresData[p];
                     if (typeof val === 'number' && val > maxArea) { maxArea = val; domPitch = p; }
                 });
-                doc.text(pdfLabel("Pitch: {value1}", {value1: pdfPitch(domPitch)}), leftColX, cy); cy += statLineH;
+                statText(pdfLabel("Pitch: {value1}", {value1: pdfPitch(domPitch)}), cy); cy += statLineH;
             }
             if (settings.cover_show_waste) {
-                doc.text(pdfLabel("Waste: {value1}%", {value1: wastePct}), leftColX, cy); cy += statLineH;
+                statText(pdfLabel("Waste: {value1}%", {value1: wastePct}), cy); cy += statLineH;
             }
             if (settings.cover_show_facets) {
-                doc.text(pdfLabel("Facets: {value1}", {value1: state.manualTotalFacets}), leftColX, cy); cy += statLineH;
+                statText(pdfLabel("Facets: {value1}", {value1: state.manualTotalFacets}), cy); cy += statLineH;
             }
             statsEndY = cy + 4;
         }
@@ -3209,23 +3221,48 @@ function drawDynamicCoverPage(doc, state, settings, x, y, w, h, options = {}) {
                 { key: 'parapet',   label: 'Parapet' }
             ];
 
-            doc.setFontSize(9);
-            const lineH = 5;
-
-            types.forEach(t => {
+            const rows = types.map(t => {
                 const matchKey = Object.keys(lin).find(k => k.toLowerCase().includes(t.key));
                 const val = matchKey ? Math.round(lin[matchKey]) : 0;
-                if (val > 0) {
-                    doc.setTextColor(80);
-                    doc.setFont("Montserrat", "normal");
-                    doc.text(pdfLabel(t.label), rightColX + 2, cy);
+                return val > 0 ? { label: pdfLabel(t.label), value: pdfLabel("{value1}", {value1: pdfMeasure(lin[matchKey], 'ft', `${val}'`)}) } : null;
+            }).filter(Boolean);
 
-                    doc.setTextColor(0);
-                    doc.setFont("Montserrat", "bold");
-                    doc.text(pdfLabel("{value1}", {value1: pdfMeasure(lin[matchKey], 'ft', `${val}'`)}), rightX + rightW - boxPad, cy, { align: 'right' });
-
-                    cy += lineH;
+            // Labels never run into their values (FM-518). Beside the stats, the column starts at 62% as before, or
+            // further left (never into the stats) when its labels need the room. A label that still does not fit wraps
+            // between words; while one needs more than two lines, or the wrapped rows would leave the box, every row
+            // gets smaller together (down to 7.5 pt, then words break inside). Rows that fit at 9 pt are drawn as before.
+            const right = rightX + rightW - boxPad, bottom = rightY + rightH - 3;
+            let labelX = rightColX + 2;
+            if (showStats && !stacked && rows.length) {
+                doc.setFontSize(9);
+                doc.setFont("Montserrat", "normal");
+                const labelW = Math.max(...rows.map(r => doc.getTextWidth(r.label)));
+                doc.setFont("Montserrat", "bold");
+                const valueW = Math.max(...rows.map(r => doc.getTextWidth(r.value)));
+                labelX = Math.min(labelX, Math.max(statsRight + 5, right - valueW - 3 - labelW));
+            }
+            const layoutAt = (size, breakWords) => {
+                doc.setFontSize(size);
+                const step = 5 * size / 9;
+                const laid = rows.map(r => ({ ...r, ...drawPdfLabelValueRow(doc, r.label, r.value, labelX, right, 0, { valueStyle: 'bold', breakWords, draw: false }) }));
+                const height = Math.max(0, laid.length - 1) * step + laid.reduce((sum, r) => sum + r.height, 0);
+                const wraps = laid.some(r => r.lines.length > 1);
+                return { size, step, laid, ok: laid.every(r => r.fits) && (!wraps || (laid.every(r => r.lines.length <= 2) && cy + height <= bottom)) };
+            };
+            let layout = null;
+            for (const breakWords of [false, true]) {
+                for (let size = 9; size >= 7.5 && !layout; size -= 0.5) {
+                    const at = layoutAt(size, breakWords);
+                    if (at.ok) layout = at;
                 }
+                if (layout) break;
+            }
+            if (!layout) layout = layoutAt(7.5, true);
+
+            doc.setFontSize(layout.size);
+            layout.laid.forEach(r => {
+                drawPdfLabelValueRow(doc, r.label, r.value, labelX, right, cy, { labelColor: 80, valueStyle: 'bold', valueColor: 0 });
+                cy += layout.step + r.height;
             });
         }
     }
@@ -6253,6 +6290,30 @@ function drawPdfStatRow(doc, row, x, y, width, size) {
     doc.text(row.value, x + width, y, { align: 'right' });
 }
 
+/** A label at `x` and its value right-aligned at `right`, on baseline `y` at the current type size (FM-518, the cover's
+ * measurements boxes). The value keeps its width; a label that would reach it wraps onto more lines below (as
+ * wrapPdfStatLabel), so a long translated label never runs into its value. Returns { lines, height }, `height` being
+ * what the label's extra lines add to the row, and `fits` whether every line stops short of the value (a word wider than
+ * that, with `breakWords: false`, does not). `draw: false` only measures; `breakWords: false` wraps only between words. */
+function drawPdfLabelValueRow(doc, label, value, x, right, y, opts = {}) {
+    const { labelStyle = 'normal', valueStyle = 'normal', labelColor = null, valueColor = null, breakWords = true, draw = true } = opts;
+    const shown = String(value ?? ''), lineH = doc.getFontSize() * 0.3528 * 1.15;
+    doc.setFont("Montserrat", valueStyle);
+    const valueW = doc.getTextWidth(shown);
+    doc.setFont("Montserrat", labelStyle);
+    const labelW = Math.max(8, right - x - valueW - 3);
+    const lines = wrapPdfStatLabel(doc, String(label ?? '').trim(), labelW, breakWords);
+    const fits = lines.every(line => doc.getTextWidth(line) <= labelW + 0.01);
+    if (draw) {
+        if (labelColor != null) doc.setTextColor(labelColor);
+        lines.forEach((line, i) => doc.text(line, x, y + i * lineH));
+        doc.setFont("Montserrat", valueStyle);
+        if (valueColor != null) doc.setTextColor(valueColor);
+        doc.text(shown, right, y, { align: 'right' });
+    }
+    return { lines, fits, height: Math.max(0, lines.length - 1) * lineH };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Gutter PDF Page
 // ─────────────────────────────────────────────────────────────────────────────
@@ -6952,7 +7013,7 @@ async function drawGutterPage(doc, state, metrics, x, y, w, h, brandingColors) {
         }
         doc.setTextColor(100);
         doc.text(pdfLabel(item.label), legendX, legendY + 1.3);
-        legendX += doc.getTextWidth(item.label) + 8;
+        legendX += doc.getTextWidth(pdfLabel(item.label)) + 8;
     });
 
     const gutterCanvas = await createGutterCanvas(state, metrics);
@@ -8818,103 +8879,76 @@ function pdfLegendItems(report) {
     });
 }
 const PDF_LEGEND_GRID_ROW = 7;
-function pdfLegendGridHeight(report, cols = 2) {
-    return Math.ceil(pdfLegendItems(report).length / cols) * PDF_LEGEND_GRID_ROW;
+// The landscape key's rows (FM-518): each label wraps inside its column, and a row grows by a line for each extra line
+// its longest label needs. The height and the drawing share this layout.
+function layoutPdfLegendGrid(doc, report, w, cols = 2) {
+    const colW = w / cols, boxSize = 4, lineH = 9 * 0.3528 * 1.15;
+    doc.setFontSize(9);
+    doc.setFont("Montserrat", "normal");
+    const cells = pdfLegendItems(report).map(t => ({ t, lines: wrapPdfStatLabel(doc, pdfLabel(t.label), colW - boxSize - 2 - 3, true) }));
+    const rows = [];
+    for (let i = 0; i < cells.length; i += cols) {
+        const row = cells.slice(i, i + cols);
+        rows.push({ cells: row, height: PDF_LEGEND_GRID_ROW + (Math.max(...row.map(c => c.lines.length)) - 1) * lineH });
+    }
+    return { rows, colW, boxSize, lineH, height: rows.reduce((sum, r) => sum + r.height, 0) };
+}
+function pdfLegendGridHeight(doc, report, w, cols = 2) {
+    return layoutPdfLegendGrid(doc, report, w, cols).height;
 }
 // The legend as an aligned grid `cols` wide across `w` (the landscape layer page, under the details box).
 // Same swatches and labels as drawLegend; items run across each row in the legend's order.
 function drawLegendGrid(doc, report, x, y, w, cols = 2) {
-    const items = pdfLegendItems(report), colW = w / cols, boxSize = 4;
-    doc.setFontSize(9);
+    const grid = layoutPdfLegendGrid(doc, report, w, cols);
     doc.setTextColor(0);
-    doc.setFont("Montserrat", "normal");
-    items.forEach((t, i) => {
-        const cx = x + (i % cols) * colW, cy = y + Math.floor(i / cols) * PDF_LEGEND_GRID_ROW;
-        const color = hexToRgbReport(t.color);
-        doc.setFillColor(color.r, color.g, color.b);
-        doc.rect(cx, cy, boxSize, boxSize, 'F');
-        doc.text(pdfLabel(t.label), cx + boxSize + 2, cy + 2.8);
+    let cy = y;
+    grid.rows.forEach(row => {
+        row.cells.forEach(({ t, lines }, i) => {
+            const cx = x + i * grid.colW;
+            const color = hexToRgbReport(t.color);
+            doc.setFillColor(color.r, color.g, color.b);
+            doc.rect(cx, cy, grid.boxSize, grid.boxSize, 'F');
+            lines.forEach((line, n) => doc.text(line, cx + grid.boxSize + 2, cy + 2.8 + n * grid.lineH));
+        });
+        cy += row.height;
     });
-    return y + Math.ceil(items.length / cols) * PDF_LEGEND_GRID_ROW;
+    return cy;
 }
 
-function drawLegend(doc, report, x, y) {
-    doc.setFontSize(9); 
-    doc.setTextColor(0);
+// The portrait key under the layer drawing: swatches and labels in a row, wrapping to the next row at the right
+// margin. Each item is as wide as its label as printed (FM-518: measuring the English label let a longer Spanish one
+// run into the next swatch). Returns the items with their places and how many rows they take.
+const PDF_LEGEND_ROW = 10;
+function layoutPdfLegend(doc, report, x) {
+    doc.setFontSize(9);
     doc.setFont("Montserrat", "normal");
-    
-    const types = Object.values(getPdfLineTypes());
-    const boxSize = 4;
-    const padding = 2; // Space between box and text
-    const itemGap = 15; // Space between items
-    const lineHeight = 10; // Vertical spacing for new lines
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const rightMargin = 15; // Keep 15mm away from the edge
-    
-    // Helper to get total length safely
-    const getLen = (id) => {
-        if (!report || !report.materials || !report.materials.linear) return 0;
-        return report.materials.linear[id] || 0;
-    };
-
-    // 1. Prepare list of visible items
-    // We filter first so we can calculate layout accurately before drawing
-    const visibleItems = types.filter(t => {
-        // Skip hardcoded hidden types
-        if(['skylight', 'chimney_back', 'chimney_edge', 'chimney_front', 'unknown'].includes(t.id.toLowerCase())) { 
-            return false; 
-        }
-
-        // Skip if total length is 0 (rounded) - logic preserved from original
-        const totalLen = getLen(t.id);
-        if (Math.round(totalLen) <= 0) return false;
-
-        return true;
+    const boxSize = 4, padding = 2, itemGap = 15;
+    const right = doc.internal.pageSize.getWidth() - 15; // Keep 15mm away from the edge
+    let currX = x, row = 0;
+    const items = pdfLegendItems(report).map(t => {
+        const label = pdfLabel(t.label), width = boxSize + padding + doc.getTextWidth(label);
+        if (currX + width > right && currX > x) { currX = x; row++; }
+        const item = { t, label, x: currX, row, boxSize, padding };
+        currX += width + itemGap;
+        return item;
     });
-
-    // 2. Pre-calculation: Check if items fit on a single line
-    let isSingleLine = true;
-    let testX = x;
-
-    for (const t of visibleItems) {
-        const textWidth = doc.getTextWidth(t.label);
-        const itemWidth = boxSize + padding + textWidth;
-
-        // Check boundary
-        if (testX + itemWidth > pageWidth - rightMargin) {
-            isSingleLine = false;
-            break; // Stop checking, we know it wraps
-        }
-        testX += itemWidth + itemGap;
-    }
-
-    // 3. Modify starting Y if it is only one line
-    if (isSingleLine && visibleItems.length > 0) {
-        y += lineHeight;
-    }
-
-    // 4. Draw
-    let currX = x;
-    let currY = y;
-
-    visibleItems.forEach(t => {
-        // Calculate layout
-        const textWidth = doc.getTextWidth(t.label);
-        const itemWidth = boxSize + padding + textWidth;
-
-        // Wrap if needed
-        if (currX + itemWidth > pageWidth - rightMargin) {
-            currX = x;       
-            currY += lineHeight; 
-        }
-
+    return { items, rows: items.length ? row + 1 : 0 };
+}
+// Where the portrait key starts above the details box at `boxY`: two rows fit in the usual 20; more rows start higher.
+function pdfLegendTop(doc, report, x, boxY) {
+    return boxY - 20 - Math.max(0, layoutPdfLegend(doc, report, x).rows - 2) * PDF_LEGEND_ROW;
+}
+function drawLegend(doc, report, x, y) {
+    const legend = layoutPdfLegend(doc, report, x);
+    doc.setTextColor(0);
+    // One row only: it sits a row lower, nearer the details box.
+    if (legend.rows === 1) y += PDF_LEGEND_ROW;
+    legend.items.forEach(({ t, label, x: ix, row, boxSize, padding }) => {
+        const iy = y + row * PDF_LEGEND_ROW;
         const color = hexToRgbReport(t.color);
         doc.setFillColor(color.r, color.g, color.b);
-        
-        doc.rect(currX, currY, boxSize, boxSize, 'F');
-        doc.text(pdfLabel(t.label), currX + boxSize + padding, currY + 2.8);
-
-        currX += itemWidth + itemGap;
+        doc.rect(ix, iy, boxSize, boxSize, 'F');
+        doc.text(label, ix + boxSize + padding, iy + 2.8);
     });
 }
 
