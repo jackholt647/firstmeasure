@@ -108,10 +108,12 @@ platform offers both. Offers with the same switches are one app: starting
 either Money offer starts both. A welcome may name a `setup` switch (Money:
 `platform.money`); Get Started then continues into that switch's required
 setup workflow (`Portal.appSetup.run`, mode `post_add`), which for Money starts
-with payments onboarding. Its welcome says "Setup required". Once started, an
-app whose required setup (its switch's, or the nearest parent switch's, so
-Financials follows Money) is not complete shows a "Setup required" pill on its
-project tab and left-column link (`Portal.appSetup.pendingFor`, `tab-guides.js`).
+with payments onboarding. Its welcome says "Setup required". Once the person
+has launched it (Get Started, or opening it), an app whose required setup (its
+switch's, or the nearest parent switch's, so Financials follows Money) is not
+complete shows a "Setup required" pill on its project tab and left-column link
+(`Portal.appSetup.pendingFor`, `tab-guides.js`); before that it shows "New"
+(FM-469).
 
 `capabilityAccessState` resolves offered discovery and operational capabilities
 from the same organization snapshot. Pending capability groups are masked before

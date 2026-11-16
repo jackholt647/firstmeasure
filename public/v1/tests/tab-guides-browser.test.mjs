@@ -178,3 +178,46 @@ test('a tab that appears late (a draft saved, a late registration) still takes i
     await browser.close();
   }
 });
+
+test('an app switched on with its setup unfinished says New until the person launches it, then Setup required (FM-469)',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const setup=async store=>{
+      const page=await browser.newPage();
+      await page.setContent('<div class="stage"></div>');
+      await page.evaluate(store=>{
+        window.saved=store;
+        // Money and Financials wait on the same required setup (platform.money); Photos has none.
+        const pending={'project.money':{key:'platform.money',mode:'required',status:'in_progress'},'portal.financials':{key:'platform.money',mode:'required',status:'in_progress'}};
+        window.Portal={util:{injectCSS(){}},currentUser:{identity:{preferences:JSON.parse(JSON.stringify(store))}},appSetup:{pendingFor:id=>pending[id]||null}};
+        window.PlatformAPI={appFlags:{projectTabs:()=>({order:[],pills:{}})},preferences:{get:async()=>({preferences:window.saved}),patch:async patch=>{Object.assign(window.saved,patch);return {preferences:window.saved};}}};
+        window.updates=0;window.addEventListener('fm:tab-guides:updated',()=>window.updates++);
+      },store);
+      await page.addScriptTag({content:sources.guides});
+      return page;
+    };
+    const pills=page=>page.evaluate(()=>Object.fromEntries(['project.money','portal.financials','project.photos'].map(id=>[id,window.FirstMateTabGuides.pill(id)?.label||''])));
+    let page=await setup({});
+    // Switched on (an instant full org) but never launched: New, not Setup required.
+    assert.deepEqual(await pills(page),{'project.money':'New','portal.financials':'New','project.photos':''});
+    // Opening Money launches it, and Financials with it (the same setup); the host redraws.
+    assert.equal(await page.evaluate(()=>window.FirstMateTabGuides.opened({appId:'project.money',container:document.querySelector('.stage')})),true);
+    assert.deepEqual(await pills(page),{'project.money':'Setup required','portal.financials':'Setup required','project.photos':''});
+    assert.ok(await page.evaluate(()=>window.updates)>0,'the pills redraw');
+    await page.waitForFunction(()=>window.saved.seen_tabs?.includes('setup:platform.money'));
+    assert.equal(await page.evaluate(()=>window.FirstMateTabGuides.opened({appId:'project.money',container:document.querySelector('.stage')})),false,'nothing more to clear');
+    const store=await page.evaluate(()=>window.saved);
+    await page.close();
+    // The same person after a reload: still Setup required.
+    page=await setup(JSON.parse(JSON.stringify(store)));
+    assert.deepEqual(await pills(page),{'project.money':'Setup required','portal.financials':'Setup required','project.photos':''});
+    await page.close();
+    // Get Started on a welcome launches it without opening anything else.
+    page=await setup({});
+    assert.equal(await page.evaluate(()=>window.FirstMateTabGuides.launch('portal.financials','platform.money')),true);
+    assert.deepEqual(await pills(page),{'project.money':'Setup required','portal.financials':'Setup required','project.photos':''});
+    await page.close();
+  }finally{
+    await browser.close();
+  }
+});

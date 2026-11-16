@@ -24,9 +24,12 @@ it is not writable through `/global`.
   (`apps/tab-promos/project.js`) keep their own `promoBadge`.
 
 Two pills come from state, not from this list: an offered app always shows
-"New", and a started app whose required setup is unfinished shows "Setup
-required" (kind `setup`), on project tabs and left-column links alike
-([app experience](app-experience.md#offered-apps)).
+"New", and an app whose required setup is unfinished shows "Setup required"
+(kind `setup`) once the person has launched it, on project tabs and left-column
+links alike ([app experience](app-experience.md#offered-apps)). Until then (an
+app switched on without an offer, as in an instant full org) it shows "New"
+(FM-469). Get Started on its welcome (`launch(appId, setupKey)`) or opening it
+launches it.
 
 Whether a view is a tab at all is App experience (the "Project window tab"
 option, `show_as_tab`). The window opens on the first tab in this order unless
@@ -39,7 +42,9 @@ the `sandbox_configuration` library entry `swf_mvp_platform`.
 
 `seen_tabs` on `/me/preferences`: app ids whose "New" pill the person cleared
 by opening the tab. Only tabs carrying a `new` pill are recorded, so a pill
-added later still shows to everyone.
+added later still shows to everyone. Launching an app with an unfinished
+required setup records its id and `setup:<switch>`, so every app waiting on the
+same setup (Money's tab and Financials) says "Setup required" together.
 
 ## Browser
 

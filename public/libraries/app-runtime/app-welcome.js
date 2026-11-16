@@ -89,13 +89,18 @@ function installStyles(){
   const style = document.createElement('style'); style.id='fm-app-welcome-style'; style.textContent=css; document.head.append(style);
 }
 
-async function refreshOrganization(orgId){
+// This window, the portal around it and the portal's other frames (the project window).
+function portalWindows(){
   const windows = new Set([window]);
   try { if (window.top.location.origin === window.location.origin) windows.add(window.top); } catch {}
   for (const win of [...windows]) for (const frame of win.document.querySelectorAll('iframe')) {
     try { if (frame.contentWindow?.Portal && frame.contentWindow.location.origin === location.origin) windows.add(frame.contentWindow); } catch {}
   }
-  await Promise.all([...windows].map(async win => {
+  return [...windows];
+}
+
+async function refreshOrganization(orgId){
+  await Promise.all(portalWindows().map(async win => {
     if ((win.__APP?.userOrgId || win.Portal?.currentUser?.orgId) !== orgId) return;
     // Load guide eligibility before the new session redraws the active tab.
     await Promise.all([win.PlatformAPI.capabilities.load(orgId,{refresh:true}),win.PlatformAPI.appFlags.load(orgId,{refresh:true}),win.FirstMateGuides?.refresh?.()]);
@@ -166,6 +171,8 @@ export function mountWelcome(context){
       started=true;
       await preload;
       if(!destroyed)finishTransition=transitionFrom(root,context.appId);
+      // Get Started launched it for this person: an unfinished required setup now says "Setup required", not "New" (FM-469).
+      for (const win of portalWindows()) { try { win.FirstMateTabGuides?.launch?.(context.appId, welcome.setup); } catch {} }
       window.dispatchEvent(new CustomEvent('fm:app-offer:starting',{detail:{appId:context.appId}}));
       await refreshOrganization(context.orgId);
       // Refreshing the session may already replace this welcome; still re-arm the newly available guide.

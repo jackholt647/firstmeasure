@@ -6,6 +6,9 @@
  *   { order: [<app id>, ...], pills: { <app id>: 'new' | 'coming_soon' } }.
  *   A "New" pill clears for a person the first time they open the tab
  *   (`seen_tabs` on /me/preferences); "Coming soon" stays.
+ * - An app switched on whose required setup is unfinished shows "New" until the
+ *   person launches it (Get Started on its welcome, or opening it), then
+ *   "Setup required" (FM-469); the launch is kept in `seen_tabs` too.
  * - A tab declares a tutorial with registerTutorial(), or with `tutorial` on its
  *   manifest entry. It plays the first time the person opens the tab, is
  *   remembered in `seen_tutorials`, and replays from the tab's help button.
@@ -131,11 +134,26 @@
     return false;
   }
 
+  // An app whose required setup is unfinished is "launched" for a person once they press Get Started on its welcome or
+  // open it (FM-469). Apps waiting on the same setup (Money's tab and Financials) launch together: `setup:<switch>`.
+  const setupMark = (key) => 'setup:' + lower(key);
+  function launched(id, setup){
+    return hasSeen(SEEN_TABS, id) || (!!setup?.key && hasSeen(SEEN_TABS, setupMark(setup.key)));
+  }
+  function launch(appId, setupKey){
+    const marks = [lower(appId), setupKey ? setupMark(setupKey) : ''].filter((value) => ID_PATTERN.test(value) && !hasSeen(SEEN_TABS, value));
+    return Promise.all(marks.map((value) => remember(SEEN_TABS, value))).then(() => marks.length > 0);
+  }
+
   function pill(appId){
     const id = lower(appId);
     if (offered(id)) return { kind:'new', label:text('tg_pill_new', 'New') };
-    // Started, but its required setup (Money's payments onboarding) is not finished.
-    if (root.Portal?.appSetup?.pendingFor?.(id)) return { kind:'setup', label:text('tg_pill_setup_required', 'Setup required') };
+    // Switched on, but its required setup (Money's payments onboarding) is not finished: "New" until the person launches
+    // it, then "Setup required".
+    const setup = root.Portal?.appSetup?.pendingFor?.(id);
+    if (setup) return launched(id, setup)
+      ? { kind:'setup', label:text('tg_pill_setup_required', 'Setup required') }
+      : { kind:'new', label:text('tg_pill_new', 'New') };
     const kind = lower(settings().pills[id]).replace(/[\s-]+/g, '_');
     if (kind === 'new') return hasSeen(SEEN_TABS, id) ? null : { kind:'new', label:text('tg_pill_new', 'New') };
     if (kind === 'coming_soon') return { kind:'coming_soon', label:text('tg_pill_coming_soon', 'Coming soon') };
@@ -266,6 +284,11 @@
       }, delay);
       pendingTimers.add(timer);
     }
+    const setup = root.Portal?.appSetup?.pendingFor?.(id);
+    if (setup && !launched(id, setup)) {
+      launch(id, setup.key);
+      return true;
+    }
     if (lower(settings().pills[id]) === 'new' && !hasSeen(SEEN_TABS, id)) {
       remember(SEEN_TABS, id);
       return true;
@@ -279,6 +302,7 @@
     order,
     pill,
     opened,
+    launch,
     registerTutorial,
     tutorialFor,
     play,
