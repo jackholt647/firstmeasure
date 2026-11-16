@@ -110,7 +110,8 @@ import {
 import { createPublicFirstMeasureKeyDelivery } from "../public-firstmeasure/key_delivery.js";
 import { hasPublicFirstMeasureApiKeySecret } from "../public-firstmeasure/key_secret_vault.js";
 import { knownPrincipal, principalActor, systemPrincipal } from "../platform/security/principal.js";
-import { admitClaimAttempt, legacyQueueEmptyResult } from "../firstmeasure/claim-rate-limit.js";
+import { QUEUE_EMPTY_CODE, admitClaimAttempt, legacyQueueEmptyResult, noteEmptyClaimForRequest } from "../firstmeasure/claim-rate-limit.js";
+import { readEmptyClaimCooldownSeconds } from "../firstmeasure/queue.js";
 import { serviceInject } from "../platform/security/service.js";
 import { impersonationMark, recordSecurityEvent, startImpersonation, stopImpersonation } from "../platform/security/impersonation.js";
 import { identityIsStaffMember, staffAuthority } from "../platform/security/staff.js";
@@ -5746,8 +5747,10 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
       return { ok: true, success: true, projects, count: projects.length, source: "queue_status" };
     }
     case "claim_next_for_me": {
-      // Flood protection (FM-387): counted before the status read; refused like an empty queue.
-      if (!(await admitClaimAttempt(request))) return legacyQueueEmptyResult();
+      // Flood protection (FM-387) and the empty-claim cooldown: checked before the status read;
+      // refused like an empty queue, with retry_after.
+      const admission = await admitClaimAttempt(request);
+      if (!admission.allowed) return legacyQueueEmptyResult(admission.retryAfterSeconds);
       // "Next" must first resume work already owned by this actor. The legacy
       // bridge previously skipped this and claimed only from the unassigned queue,
       // which stranded active work whenever the new-work queue was empty.
@@ -5784,17 +5787,29 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
           project: resumeProject
         };
       }
-      return await injectJson(app, "POST", "/v1/firstmeasure/queue/claim-next/compat", { ...body, actor });
+      const claimed = await injectJson(app, "POST", "/v1/firstmeasure/queue/claim-next/compat", { ...body, actor });
+      const claimedResult = asObject(claimed);
+      if (claimedResult.success === false && claimedResult.error === QUEUE_EMPTY_CODE) {
+        // Nothing to claim: this person waits a few seconds before asking again (the setting
+        // production_queue_empty_claim_cooldown_seconds), so a crowd that all clicked for the
+        // same new project does not keep asking in a loop.
+        const retryAfter = await noteEmptyClaimForRequest(request, await readEmptyClaimCooldownSeconds()).catch(() => null);
+        if (retryAfter) return { ...claimedResult, retry_after: retryAfter, details: { ...asObject(claimedResult.details), retry_after: retryAfter } };
+      }
+      return claimed;
     }
     case "check_hot_swap":
       return { ok: true, success: true, has_swap: false, reason: "node_monitor_no_swap_needed" };
-    case "execute_hot_swap":
-      if (!(await admitClaimAttempt(request))) return legacyQueueEmptyResult();
+    case "execute_hot_swap": {
+      // A targeted claim: counted against flooding, but an empty-claim cooldown does not stop it.
+      const admission = await admitClaimAttempt(request, { honorCooldown: false });
+      if (!admission.allowed) return legacyQueueEmptyResult(admission.retryAfterSeconds);
       return await injectJson(app, "POST", "/v1/firstmeasure/queue/claim-next/compat", {
         ...body,
         actor,
         project_id: body.target_folder ?? body.folder ?? body.project_id
       });
+    }
     case "record_reopened_project_claim": {
       const projectId = String(body.folder ?? body.project_id ?? body.id ?? "").trim();
       if (!projectId) return { ok: false, success: false, error: "missing_project_id" };

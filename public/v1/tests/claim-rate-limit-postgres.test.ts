@@ -44,6 +44,19 @@ test("the PostgreSQL claim limit matches the reference and is shared between pro
     const results = await Promise.all(Array.from({ length: 25 }, () => limit.recordClaimAttempt("racer@example.test", undefined, 1_000_000)));
     assert.equal(results.filter((result) => result.allowed).length, limit.CLAIM_LIMIT);
     assert.equal(results.filter((result) => result.started).length, 1);
+
+    // The empty-claim cooldown is shared too: started by one process, honored by another.
+    limit.resetClaimRateLimits();
+    await limit.noteEmptyClaim("Cooler@Example.test", 8_000, 2_000_000);
+    limit.resetClaimRateLimits();
+    const cooling = await limit.recordClaimAttempt("cooler@example.test", undefined, 2_001_000);
+    assert.equal(cooling.allowed, false);
+    assert.equal(cooling.reason, "cooldown");
+    assert.equal(cooling.retryAfterSeconds, 7);
+    limit.resetClaimRateLimits();
+    assert.equal((await limit.recordClaimAttempt("cooler@example.test", undefined, 2_002_000, { honorCooldown: false })).allowed, true);
+    limit.resetClaimRateLimits();
+    assert.equal((await limit.recordClaimAttempt("cooler@example.test", undefined, 2_008_001)).allowed, true, "over when it ends");
   } finally {
     await database.closePostgresPools();
   }

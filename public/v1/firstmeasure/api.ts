@@ -85,7 +85,7 @@ import {
 } from "./qa_shifts.js";
 
 import { FirstMeasureError, badRequest, conflict, notFound } from "./errors.js";
-import { QUEUE_EMPTY_CODE, QUEUE_EMPTY_MESSAGE, admitClaimAttempt } from "./claim-rate-limit.js";
+import { QUEUE_EMPTY_CODE, QUEUE_EMPTY_MESSAGE, admitClaimAttempt, noteEmptyClaimForRequest } from "./claim-rate-limit.js";
 
 import { buildReportExpediteOptions, isExpeditedReportExpediteKey, normalizeReportExpediteKey, reportExpeditePriorityLevel, REPORT_EXPEDITE_1_3_KEY, REPORT_EXPEDITE_STANDARD_KEY, REPORT_EXPEDITE_UNDER_1_KEY } from "./expedite.js";
 
@@ -188,6 +188,8 @@ import {
   getQueueOverview,
 
   getQueueStatus,
+
+  readEmptyClaimCooldownSeconds,
 
   releaseAssignment,
 
@@ -3899,9 +3901,10 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   app.post("/queue/claim-next", async (request) => {
 
-    // Flood protection (FM-387): counted before any queue or database work; refused like an empty queue.
+    // Flood protection (FM-387) and the empty-claim cooldown: checked before any queue or
+    // database work; refused like an empty queue, with retry_after.
 
-    if (!(await admitClaimAttempt(request))) throw notFound(QUEUE_EMPTY_CODE, QUEUE_EMPTY_MESSAGE);
+    await refuseClaimWhenLimited(request);
 
     const input = queueClaimNextSchema.parse(request.body ?? {});
 
@@ -3911,13 +3914,13 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
       ok: true,
 
-      ...(await claimNextInQueue({
+      ...(await withEmptyClaimCooldown(request, () => claimNextInQueue({
 
         ...input,
 
         queue_mode: input.queue_mode === "disabled" ? "all" : input.queue_mode
 
-      }))
+      })))
 
     };
 
@@ -3927,7 +3930,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   app.post("/queue/claim-next/compat", async (request) => {
 
-    if (!(await admitClaimAttempt(request))) throw notFound(QUEUE_EMPTY_CODE, QUEUE_EMPTY_MESSAGE);
+    await refuseClaimWhenLimited(request);
 
     const input = asRecord(request.body);
 
@@ -3937,7 +3940,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     const queueModeValue = await resolveQueueModeValue(actor.email, input.queue_mode);
 
-    const claimed = await claimNextInQueue({
+    const claimed = await withEmptyClaimCooldown(request, () => claimNextInQueue({
 
       actor,
 
@@ -3951,7 +3954,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
       team_id: toOptionalString(input.team_id)
 
-    });
+    }));
 
     const manifest = buildLegacyManifest(claimed.project);
 
@@ -24811,5 +24814,25 @@ function mapAppleKeyError(error: unknown) {
 
   }
 
+}
+
+/** Refuse a queue claim during a flood block or an empty-claim cooldown, with retry_after. */
+async function refuseClaimWhenLimited(request: FastifyRequest) {
+  const admission = await admitClaimAttempt(request);
+  if (admission.allowed) return;
+  throw notFound(QUEUE_EMPTY_CODE, QUEUE_EMPTY_MESSAGE, admission.retryAfterSeconds ? { retry_after: admission.retryAfterSeconds } : undefined);
+}
+
+/** Run a queue claim; when it finds nothing, start the caller's empty-claim cooldown and say when to ask again. */
+async function withEmptyClaimCooldown<T>(request: FastifyRequest, claim: () => Promise<T>): Promise<T> {
+  try {
+    return await claim();
+  } catch (error) {
+    if (error instanceof FirstMeasureError && error.code === QUEUE_EMPTY_CODE) {
+      const retryAfter = await noteEmptyClaimForRequest(request, await readEmptyClaimCooldownSeconds()).catch(() => null);
+      if (retryAfter) throw notFound(QUEUE_EMPTY_CODE, error.message, { retry_after: retryAfter });
+    }
+    throw error;
+  }
 }
 

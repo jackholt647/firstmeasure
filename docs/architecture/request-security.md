@@ -259,6 +259,21 @@ it holds across workers and hosts; the system principal (our in-process call
 from the legacy action) is not counted again. Queue status polling is not
 limited.
 
+**Empty-claim cooldown** (2026-11-16, same module): when a person's claim finds
+nothing (`queue_empty`), `noteEmptyClaimForRequest` starts a cooldown for the
+verified caller, `production_queue_empty_claim_cooldown_seconds` in the server
+settings (default 8, 0 turns it off; `readEmptyClaimCooldownSeconds` in
+`firstmeasure/queue.ts`). The empty answer and every claim refused during the
+cooldown carry `retry_after` (seconds, top level for legacy actions and in
+`details`), and the refusal happens in `admitClaimAttempt` before any queue
+work, without counting toward a flood block. It is stored in the same table
+(`cooldown_until_ms`), so it holds across processes. `execute_hot_swap`, a
+targeted claim, passes `honorCooldown: false`. Flood-block refusals stay
+identical to an empty queue. The portal's Next in Queue button and the
+editor's Start Next Project button honor `retry_after` with a countdown and no
+alert, and the portal waits a random 0–3 s before lighting the button for new
+work, so the technicians polling do not all claim the same new project at once.
+
 ## Fetching URLs
 
 Anything that fetches a URL a person or a record supplied uses
