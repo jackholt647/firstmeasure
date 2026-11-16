@@ -314,6 +314,8 @@ test('the CRM tab: views, filters, the board, the drawer, a worklist, reports, s
     await phone.page.locator('.crm-rail').getByText('New leads', { exact: true }).click();
     await phone.page.waitForFunction(() => !document.querySelector('.crm').classList.contains('rail-open'));
     await settle(phone.page);
+    // The filter count badge (FM-496): the accent's on-colour, not the chip's dark label colour.
+    assert.deepEqual(await phone.page.locator('[data-add-filter] .crm-filter-count').evaluate((el) => { const s = getComputedStyle(el); return { display: s.display, color: s.color }; }), { display: 'grid', color: 'rgb(255, 255, 255)' }, 'white count on the red filter badge');
     await phone.page.locator('[data-add-filter]').click();
     await phone.page.waitForSelector('.crm-pop');
     await phone.page.waitForTimeout(350);
