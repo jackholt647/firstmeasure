@@ -150,6 +150,7 @@ test('staff booking validates authority, rechecks availability, and retries with
   assert.equal((await client.raw('POST',url,{...body,assigned_user_id:'arbitrary'})).statusCode,400);
   const booked = await client.request('POST',url,body);
   assert.equal(booked.event.start_at,slot.start_at);
+  assert.equal(booked.event.customer_visible,false,'a staff booking is not shared with the customer until someone shares it');
   const again = await client.request('POST',url,body);
   assert.equal(again.event.id,booked.event.id);
   const stored = await readDocument(orgId,'projects','booking_project');
@@ -215,6 +216,7 @@ test('configured appointments preserve departments, delivery, staffing and recur
   assert.deepEqual(booked.event.department_ids,[]);
   assert.equal(booked.event.delivery,false);
   assert.equal(booked.event.event_type_default_id,'appointment');
+  assert.equal(booked.event.customer_visible,false,'a planned booking is not shared with the customer until someone shares it');
 });
 
 
