@@ -344,7 +344,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('project-schedule/panel.js', '20261113-fm454-instant-placement')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20261116-fm505-customer-sharing')]
     },
     {
       id: 'project.comms',
@@ -390,7 +390,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
-      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261113-fm454-instant-placement')]
+      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261116-fm505-customer-sharing')]
     },
     {
       id: 'portal.training',
