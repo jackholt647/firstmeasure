@@ -415,3 +415,10 @@ details[data-rt-custom][open]>summary{margin-bottom:10px}
 .crm-packs{align-items:start}
 .crm-pack:not(.on) .crm-dim{display:none}
 @media (max-width:820px){.crm .crm-hint{width:36px;height:36px;margin:-10px -4px;font-size:16px}}
+/* A panel's intro (introTip): an (i) floated right under the title, beside the toolbar, so the text takes no
+   rows; its tip hangs from the right edge instead of the left (FM-493). */
+.crm-intro{float:right;z-index:5;margin:0 0 6px 8px}
+.crm-intro+:not(.crm-toolbar){clear:right}
+.crm .crm-intro .crm-hint{width:32px;height:32px;margin:0;font-size:15px}
+.crm-intro .crm-hint-tip{left:auto;right:0;max-width:min(360px,calc(100vw - 24px))}
+@media (max-width:820px){.crm .crm-intro .crm-hint{width:40px;height:40px;font-size:17px}}
