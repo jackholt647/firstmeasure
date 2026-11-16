@@ -952,11 +952,15 @@
       rootEl.classList.remove('fm-app-welcome-host');
     }
     const handle = policy.entitlement?.offered
-      ? await (await import(new URL('./app-welcome.js?v=20261116-fm469-launch', runtimeScriptUrl).href)).mountWelcome(context)
+      ? await (await import(new URL('./app-welcome.js?v=20261116-fm481-edge', runtimeScriptUrl).href)).mountWelcome(context)
       : await (typeof app.mount === 'function'
       ? app.mount(context)
       : (typeof app.render === 'function' ? app.render(context) : null)) || {};
     if(!isCurrent()){handle.destroy?.();return null;}
+    // An app that adds its page beside the host's "Loading…" placeholder instead of replacing the root (Feedback,
+    // Pricebook) would sit under it: a blank screen above the app, or no app at all in a full-bleed tab (FM-481).
+    const placeholders=[...(rootEl.children||[])].filter(node=>node.matches?.('.fm-tab-loading:not(.is-overlay)'));
+    if(placeholders.length&&rootEl.children.length>placeholders.length)placeholders.forEach(node=>node.remove());
     const destroySource = typeof handle.destroy === 'function'
       ? handle.destroy
       : (typeof handle.unmount === 'function' ? handle.unmount : noop);

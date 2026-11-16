@@ -36,6 +36,8 @@ const css = `
    Proposals) is empty until the app is started, so it is hidden while the welcome shows and the welcome takes the width. */
 .r-tab-content:has(.fm-app-welcome-host)>.r-tab-sidebar{display:none!important}
 .r-tab-content:has(.fm-app-welcome-host)>.r-tab-main{flex:1 1 auto!important;width:100%!important;max-width:none!important;min-width:0}
+/* On a phone the portal tab is the advertisement, edge to edge: no shell padding around it and one scroller, its own (FM-481). */
+@media(max-width:820px){.main-panels:has(>.fm-tabpanel.active.fm-app-welcome-host){padding:0;overflow:hidden}}
 /* layout: page. One full-width page: the copy centred on top, the benefits side by side, the illustration as a wide band below. */
 .fm-app-welcome[data-layout=page] .faw-wrap{max-width:1040px;justify-content:flex-start;gap:30px}
 .fm-app-welcome[data-layout=page] .faw-hero{grid-template-columns:minmax(0,1fr);justify-items:center;gap:30px}

@@ -11,7 +11,14 @@
     const feedback = window.FirstMateFeedbackSettings;
     const view = (route = {}) => ['delivery', 'workflow', 'responses'].includes(route.feedbackView) ? route.feedbackView : 'responses';
     const host = document.createElement('div');
-    host.style.cssText = 'padding:24px;max-width:1600px;margin:0 auto;width:100%;box-sizing:border-box';
+    host.className = 'fm-feedback-host';
+    // On a phone the portal's own inset is the only margin, as in every other app (FM-481).
+    if (!document.getElementById('fm-feedback-host-style')) {
+      const style = document.createElement('style');
+      style.id = 'fm-feedback-host-style';
+      style.textContent = '.fm-feedback-host{padding:24px;max-width:1600px;margin:0 auto;width:100%;box-sizing:border-box}@media(max-width:820px){.fm-feedback-host{padding:0}}';
+      document.head.appendChild(style);
+    }
     root.appendChild(host);
     feedback.mount(host, {
       orgId: context.orgId || window.__APP?.userOrgId || window.__APP?.orgId,

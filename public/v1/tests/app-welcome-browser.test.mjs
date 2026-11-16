@@ -163,3 +163,42 @@ test('the advertisement is gone once the real app mounts, and the cover ends if 
     }
   }finally{await browser.close();}
 });
+
+// FM-481: on a phone the advertisement is the whole portal tab (no shell padding around it, one scroller), and an app
+// that adds its page beside the host's "Loading…" placeholder never sits under it.
+test('on a phone the advertisement fills the portal tab and no app is left under the loading placeholder',async()=>{
+  const runtime=await readFile(new URL('../../libraries/app-runtime/firstmate-embeddable-apps.js',import.meta.url),'utf8');
+  const module=await readFile(new URL('../../libraries/app-runtime/app-welcome.js',import.meta.url),'utf8');
+  const shell='<html><body style="margin:0"><style>.main-panels{height:100vh;box-sizing:border-box;overflow:auto;padding:22px}@media(max-width:820px){.main-panels{padding:12px}}.fm-tabpanel{display:none}.fm-tabpanel.active{display:block;height:100%}.fm-tab-loading{height:100%;min-height:220px}</style>'
+    +'<div class="main-panels" id="mainPanels"><div class="fm-tabpanel active" id="tab_feedback"><div class="fm-tab-loading" role="status">Loading Feedback…</div></div></div></body></html>';
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    for(const offered of [true,false]) for(const width of [412,1100]){
+      const page=await browser.newPage({viewport:{width,height:800}});
+      await page.route('https://welcome.test/**',route=>{
+        const url=new URL(route.request().url());
+        const body=url.pathname.endsWith('app-welcome.js')?module:url.pathname.endsWith('runtime.js')?runtime:shell;
+        return route.fulfill({contentType:url.pathname.endsWith('.js')?'text/javascript':'text/html',body});
+      });
+      await page.goto('https://welcome.test/');
+      await page.evaluate(({welcome,offered})=>{
+        window.__APP={userOrgId:'org_test'};
+        window.PlatformAPI={request:async()=>({}),capabilities:{load:async()=>{}},appFlags:{load:async()=>{}}};
+        window.Portal={currentUser:{appEntitlements:[{id:'portal.feedback',allowed:true,offered,...(offered?{welcome}:{}),visible:{desktop:true,mobile:true}}]},auth:{syncPlatformSession:async()=>{}}};
+      },{welcome:APP_WELCOMES['project.photos'],offered});
+      await page.addScriptTag({url:'https://welcome.test/runtime.js'});
+      await page.evaluate(async()=>{
+        FirstMateEmbeddableApps.registerApp({id:'portal.feedback',surfaces:['portal_tab'],mount(context){const host=document.createElement('div');host.id='actual-app';host.textContent='Ready';context.roots.main.appendChild(host);return {destroy(){host.remove();}};}});
+        await FirstMateEmbeddableApps.mount(document.getElementById('tab_feedback'),'portal.feedback',{surface:'portal_tab',orgId:'org_test'});
+      });
+      const label=`${offered?'offered':'started'} at ${width}px`;
+      assert.equal(await page.locator('.fm-tab-loading').count(),0,`${label}: the loading placeholder is gone`);
+      if(!offered){assert.equal(await page.locator('#actual-app').count(),1,`${label}: the app shows`);await page.close();continue;}
+      const layout=await page.evaluate(()=>{const panels=document.getElementById('mainPanels'),rect=document.querySelector('.fm-app-welcome').getBoundingClientRect();return {left:rect.left,right:rect.right,top:rect.top,padding:getComputedStyle(panels).paddingLeft,scrolls:panels.scrollHeight>panels.clientHeight};});
+      assert.equal(layout.scrolls,false,`${label}: the advertisement scrolls itself; the shell never adds a second scroll`);
+      if(width<=820)assert.deepEqual([layout.left,layout.top,layout.right,layout.padding],[0,0,width,'0px'],`${label}: edge to edge`);
+      else assert.equal(layout.padding,'22px',`${label}: the desktop shell keeps its padding`);
+      await page.close();
+    }
+  }finally{await browser.close();}
+});
