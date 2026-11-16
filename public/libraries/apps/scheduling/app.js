@@ -542,21 +542,22 @@
     .dash-event-customer-details-toggle{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:#667085;cursor:pointer}.dash-event-customer-details-toggle:hover{background:#eaecf0;color:#344054}
     .dash-event-customer-share input{position:absolute;opacity:0;pointer-events:none}.dash-event-share-switch{position:relative;width:34px;height:20px;border-radius:999px;background:#d0d5dd;transition:.18s ease}.dash-event-share-switch:after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.22);transition:.18s ease}.dash-event-customer-share input:checked+.dash-event-share-switch{background:var(--primary,#d93025)}.dash-event-customer-share input:checked+.dash-event-share-switch:after{transform:translateX(14px)}.dash-event-customer-share strong{display:block;color:#344054;font-size:12px;font-weight:1000}.dash-event-customer-share small{display:block;margin-top:2px;color:#667085;font-size:10px;font-weight:800;line-height:1.35}
     .dash-event-customer-options{display:none;gap:9px;padding:0 11px 11px;border-top:1px solid rgba(15,23,42,.08)}.dash-event-customer-options.open{display:grid}.dash-event-customer-option{display:flex;align-items:flex-start;gap:8px;color:#344054;font-size:11px;font-weight:900;line-height:1.35}.dash-event-customer-option:first-child{margin-top:10px}.dash-event-customer-option input{margin:1px 0 0;accent-color:var(--primary,#d93025)}.dash-event-customer-note{display:grid;gap:5px;color:#667085;font-size:9px;font-weight:1000;letter-spacing:.05em;text-transform:uppercase}.dash-event-customer-note textarea{min-height:64px;resize:vertical;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;padding:8px 9px;color:#101828;font:inherit;font-size:11px;font-weight:800;line-height:1.45;letter-spacing:0;text-transform:none;outline:none}.dash-event-customer-note textarea:focus{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb),.08)}
-    .dash-event-pop-head{position:relative;padding-right:30px}.dash-event-pop-meta{display:grid;gap:7px;margin-top:13px;line-height:1.3}.dash-event-pop-project-name-row{display:flex;align-items:center;gap:7px;min-width:0}.dash-event-pop-project-name{min-width:0;flex:1;font-size:13px;font-weight:1000;color:#344054;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dash-event-project-clear{width:22px;height:22px;flex:0 0 auto;border:0;border-radius:7px;background:#f2f4f7;color:#667085;display:inline-grid;place-items:center;cursor:pointer}.dash-event-project-clear:hover,.dash-event-project-clear:focus-visible{background:#fee4e2;color:#b42318;outline:none}.dash-event-pop-address,.dash-event-pop-time{font-size:12px;font-weight:850;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dash-event-pop-time{color:#475467}.dash-event-time-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;min-width:0;margin-top:11px}.dash-event-time-field{display:grid;gap:4px;min-width:0;color:#667085;font-size:9px;font-weight:1000;letter-spacing:.05em;text-transform:uppercase}.dash-event-time-field input{display:block;width:100%;min-width:0;max-width:100%;height:34px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;padding:0 7px;color:#101828;font:inherit;font-size:10.5px;font-weight:900;letter-spacing:0;text-transform:none;outline:none}.dash-event-time-field input:focus{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb),.08)}
+    .dash-event-pop-head{position:relative;padding-right:30px}.dash-event-pop-meta{display:grid;gap:7px;margin-top:13px;line-height:1.3}.dash-event-pop-project-name-row{display:flex;align-items:center;gap:7px;min-width:0}.dash-event-pop-project-name{min-width:0;flex:1;font-size:13px;font-weight:1000;color:#344054;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dash-event-project-clear{width:22px;height:22px;flex:0 0 auto;border:0;border-radius:7px;background:#f2f4f7;color:#667085;display:inline-grid;place-items:center;cursor:pointer}.dash-event-project-clear:hover,.dash-event-project-clear:focus-visible{background:#fee4e2;color:#b42318;outline:none}.dash-event-pop-address,.dash-event-pop-time{font-size:12px;font-weight:850;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dash-event-pop-time{color:#475467}.dash-event-pop-time-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}.dash-event-pop-time-row .dash-event-pop-time{min-width:0;flex:1 1 auto}.dash-event-pop-time-row .dash-event-switch{flex:0 0 auto;white-space:nowrap}.dash-event-sales-badge{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;height:22px;border-radius:999px;background:#ecfdf3;color:#067647;padding:0 9px;font-size:10.5px;font-weight:1000;white-space:nowrap}.dash-event-sales-badge i{font-size:10px}.dash-event-time-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;min-width:0;margin-top:11px}.dash-event-time-field{display:grid;gap:4px;min-width:0;color:#667085;font-size:9px;font-weight:1000;letter-spacing:.05em;text-transform:uppercase}.dash-event-time-field input{display:block;width:100%;min-width:0;max-width:100%;height:34px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;padding:0 7px;color:#101828;font:inherit;font-size:10.5px;font-weight:900;letter-spacing:0;text-transform:none;outline:none}.dash-event-time-field input:focus{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb),.08)}
     .dash-event-close{position:absolute;right:-3px;top:-3px;width:26px;height:26px;border:0;border-radius:8px;background:#f2f4f7;color:#667085;display:flex;align-items:center;justify-content:center;cursor:pointer}
     .dash-event-close:hover{background:#e4e7ec;color:#101828}
     .dash-event-type-pills{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
-    .dash-event-assignees{margin-top:10px;border:1px solid rgba(15,23,42,.08);border-radius:12px;padding:10px;background:#fbfcfe}
-    .dash-event-assignees-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
-    .dash-event-assignees-head strong{font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.03em;color:#475467}
-    .dash-event-assign-add{height:26px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#344054;padding:0 9px;font-size:11px;font-weight:1000;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
-    .dash-event-assign-add:hover{border-color:rgba(15,23,42,.26);background:#f8fafc}
-    .dash-event-assignee-chips{display:flex;flex-wrap:wrap;gap:6px}
-    .dash-event-assignee-chip{display:inline-flex;align-items:center;gap:6px;height:28px;border-radius:999px;background:#eef2f6;color:#101828;padding:0 6px 0 11px;font-size:11px;font-weight:950}
+    .dash-event-assignees{border:1px solid rgba(15,23,42,.08);border-radius:12px;padding:8px 10px;background:#fbfcfe}
+    .dash-event-assignees-row{display:flex;align-items:center;gap:8px;min-width:0}
+    .dash-event-assignees-label{flex:0 0 auto;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.03em;color:#475467}
+    .dash-event-assign-add{flex:0 0 28px;width:28px;height:28px;border:1px solid rgba(15,23,42,.12);border-radius:999px;background:#fff;color:#344054;padding:0;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+    .dash-event-assign-add:hover{border-color:rgba(15,23,42,.26);background:#f8fafc}.dash-event-assign-add[aria-expanded="true"]{border-color:var(--primary,#d93025);color:var(--primary,#d93025)}
+    .dash-event-assignee-chips{flex:1 1 auto;min-width:0;display:flex;flex-wrap:nowrap;align-items:center;gap:6px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch}.dash-event-assignee-chips::-webkit-scrollbar{display:none}
+    .dash-event-assignee-chips.more-after{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 22px),transparent)}.dash-event-assignee-chips.more-before{-webkit-mask-image:linear-gradient(90deg,transparent,#000 22px);mask-image:linear-gradient(90deg,transparent,#000 22px)}.dash-event-assignee-chips.more-before.more-after{-webkit-mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent)}
+    .dash-event-assignee-chip{flex:0 0 auto;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;height:28px;box-sizing:border-box;border-radius:999px;background:#eef2f6;color:#101828;padding:0 6px 0 11px;font-size:11px;font-weight:950}
     .dash-event-assignee-chip.warn{background:#fee2e2;color:#b42318}
     .dash-event-assignee-chip button{width:18px;height:18px;border:0;border-radius:999px;background:rgba(15,23,42,.08);color:inherit;font-size:12px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
     .dash-event-assignee-chip button:hover{background:rgba(15,23,42,.16)}
-    .dash-event-assignee-empty{color:#98a2b3;font-size:11px;font-weight:850}
+    .dash-event-assignee-empty{color:#98a2b3;font-size:11px;font-weight:850;white-space:nowrap}
     .dash-event-assign-menu{margin-top:8px;border:1px solid rgba(15,23,42,.10);border-radius:10px;background:#fff;max-height:180px;overflow:auto;padding:4px}
     .dash-event-assign-menu button{width:100%;border:0;border-radius:8px;background:transparent;color:#344054;text-align:left;padding:7px 9px;font-size:12px;font-weight:950;cursor:pointer}
     .dash-event-assign-menu button:hover{background:#f8fafc}
@@ -790,7 +791,6 @@
       .dash-event-pop-head>.dash-event-time-fields,.dash-event-pop-head>.dash-event-time-options,.dash-event-pop-head>.dash-event-recurrence-fields{grid-column:1/-1}
 
       .dash-mobile-toolbar-placeholder{height:50px;background:#fff}
-      .dash-event-time-fields{grid-template-columns:minmax(0,1fr)}
       .dash-event-pop-head{display:grid;grid-template-columns:minmax(0,1fr) 38px;column-gap:8px;align-items:center;padding-right:0}
       .dash-event-title-input{height:40px;padding:0 11px;font-size:15px}
       .dash-event-close{position:static;width:38px;height:38px}
@@ -6988,9 +6988,11 @@
       .sort((a, b) => ((isPerson(a) === crewsFirst ? 1 : 0) - (isPerson(b) === crewsFirst ? 1 : 0)) || clean(a.name).localeCompare(clean(b.name), undefined, { sensitivity:'base' }))
       .map((resource) => `<button type="button" data-event-assign-id="${escapeHtml(resource.id)}">${escapeHtml(resource.name)}${clean(resource.subject_type || resource.resource_kind) === 'organization_user' ? '' : ` <small>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d3cad057a8d23c","(assigns the whole team as one unit)") ?? "(assigns the whole team as one unit)")}</small>`}</button>`)
       .join('');
+    // One row: who is on it, scrolling sideways when it is long, and a
+    // round add button the height of a chip that never scrolls away.
+    const addLabel = clean(globalThis.PlatformLanguage?.htmlText("scheduling","m_8803dece55359d"," Add") ?? " Add");
     return `<div class="dash-event-assignees">
-      <div class="dash-event-assignees-head"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2f9d72baaebef0","Assigned") ?? "Assigned")}</strong><button type="button" class="dash-event-assign-add" data-event-assign-add aria-expanded="false"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8803dece55359d"," Add") ?? " Add")}</button></div>
-      <div class="dash-event-assignee-chips">${String(chips || `<span class="dash-event-assignee-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8a993ed9b573b4","Unassigned") ?? "Unassigned")}</span>`)}</div>
+      <div class="dash-event-assignees-row"><strong class="dash-event-assignees-label">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2f9d72baaebef0","Assigned") ?? "Assigned")}</strong><div class="dash-event-assignee-chips" data-event-assignee-chips>${String(chips || `<span class="dash-event-assignee-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8a993ed9b573b4","Unassigned") ?? "Unassigned")}</span>`)}</div><button type="button" class="dash-event-assign-add" data-event-assign-add aria-expanded="false" aria-label="${addLabel}" title="${addLabel}"><i class="fas fa-plus" aria-hidden="true"></i></button></div>
       <div class="dash-event-assign-menu" data-event-assign-menu hidden>${String(options || `<div class="dash-event-assignee-empty" style="padding:7px 9px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0a906f5bfd87a7","Nobody else is eligible for this event type.") ?? "Nobody else is eligible for this event type.")}</div>`)}</div>
     </div>`;
   }
@@ -7039,10 +7041,25 @@
       && (draft.__draft === true || clean(draft.status).toLowerCase() === 'draft');
     const canClearProject = disposableFloatingDraft && !!clean(draft.project_id);
     const clearableProjectNameHtml = projectNameHtml || (canClearProject ? `<div class="dash-event-pop-project-name">${escapeHtml(projectLabel)}</div>` : '');
-    const projectNameRowHtml = clearableProjectNameHtml || canClearProject
-      ? `<div class="dash-event-pop-project-name-row">${clearableProjectNameHtml}${canClearProject ? `<button type="button" class="dash-event-project-clear" data-event-project-clear aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_998fea4513bf2a","Remove selected project") ?? "Remove selected project")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_998fea4513bf2a","Remove selected project") ?? "Remove selected project")}"><i class="fas fa-xmark"></i></button>` : ''}</div>`
+    // A stored item names its type only when it says something: a sales
+    // appointment or follow-up is marked as sales; a plain "Appointment" or
+    // "Event" label says nothing the editor doesn't already show. A booking
+    // from the built-in Sales preset is sales even where the organization has
+    // no sales department and the preset names no sales type.
+    const salesKind = ctx.kind !== 'floating' && (isSalesEvent(draft) || ['sales_appointment', 'sales_follow_up'].includes(eventKind(draft)) || clean(draft.appointment_configuration?.preset_id) === 'sales')
+      ? (eventKind(draft) === 'sales_follow_up' ? 'sales_follow_up' : 'sales_appointment')
+      : '';
+    const salesBadgeHtml = salesKind ? `<span class="dash-event-sales-badge" data-event-sales-badge><i class="fas fa-handshake" aria-hidden="true"></i>${escapeHtml(eventTypeMeta(salesKind).label)}</span>` : '';
+    const projectNameRowHtml = clearableProjectNameHtml || canClearProject || salesBadgeHtml
+      ? `<div class="dash-event-pop-project-name-row">${clearableProjectNameHtml}${salesBadgeHtml}${canClearProject ? `<button type="button" class="dash-event-project-clear" data-event-project-clear aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_998fea4513bf2a","Remove selected project") ?? "Remove selected project")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_998fea4513bf2a","Remove selected project") ?? "Remove selected project")}"><i class="fas fa-xmark"></i></button>` : ''}</div>`
       : '';
     const materialNotOrdered = isMaterialEvent(draft) && !materialEventIsOrdered(draft);
+    const typePillsHtml = [
+      salesKind || ['', 'appointment', 'custom'].includes(norm(activeType)) ? '' : `<span class="dash-event-type-pill">${escapeHtml(typeMeta.label)}</span>`,
+      materialNotOrdered ? `<span class="dash-event-status-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0c10cb9ccabd39","Not ordered yet") ?? "Not ordered yet")}</span>` : '',
+      confirmationPillHtml(draft)
+    ].join('');
+    const typePillsRowHtml = typePillsHtml ? `<div class="dash-event-type-pills">${typePillsHtml}</div>` : '';
     const canSave = ctx.kind === 'floating' || ctx.editorOnly === true || !!draft.start || !!productionScheduleDraft?.start || !!appointmentScheduleDraft?.start;
     const persistedFloatingEvent = ctx.kind === 'floating'
       && clean(draft.status).toLowerCase() === 'scheduled'
@@ -7107,16 +7124,13 @@
         <div class="dash-event-pop-meta">
           ${String(equipmentWindow ? '' : projectNameRowHtml)}
           ${String(equipmentWindow ? '' : `<div class="dash-event-pop-address">${escapeHtml(projectAddressLabel)}</div>`)}
-          <div class="dash-event-pop-time">${String(escapeHtml(formatEventDraftTime(draft)))}</div>
+          <div class="dash-event-pop-time-row"><div class="dash-event-pop-time">${String(escapeHtml(formatEventDraftTime(draft)))}</div>${String(equipmentWindow && !editorAllDay ? '' : `<label class="dash-event-switch"><input type="checkbox" data-event-allday ${String(editorAllDay ? 'checked' : '')}><span class="dash-event-switch-track" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_42b02bf1587e27","All day") ?? "All day")}</span></label>`)}</div>
         </div>
         <div class="dash-event-time-fields">
           <label class="dash-event-time-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_5a35275926b722","Start") ?? "Start")}<input type="${String(timeInputType)}" data-event-start value="${String(escapeHtml(timeValue(eventStart(draft))))}"></label>
           <label class="dash-event-time-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_80cfdb09a78f4b","End") ?? "End")}<input type="${String(timeInputType)}" data-event-end value="${String(escapeHtml(timeValue(editorDisplayEnd(draft))))}"></label>
         </div>
-        <div class="dash-event-time-options">
-          ${String(equipmentWindow && !editorAllDay ? '' : `<label class="dash-event-switch"><input type="checkbox" data-event-allday ${String(editorAllDay ? 'checked' : '')}><span class="dash-event-switch-track" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_42b02bf1587e27","All day") ?? "All day")}</span></label>`)}
-          ${String(ctx.kind === 'floating' && !equipmentWindow ? `<label class="dash-event-switch"><input type="checkbox" data-event-recurring ${recurrenceEnabled ? 'checked' : ''}><span class="dash-event-switch-track" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_14bec9b094ca21","Recurring") ?? "Recurring")}</span></label>` : '')}
-        </div>
+        ${String(ctx.kind === 'floating' && !equipmentWindow ? `<div class="dash-event-time-options"><label class="dash-event-switch"><input type="checkbox" data-event-recurring ${recurrenceEnabled ? 'checked' : ''}><span class="dash-event-switch-track" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_14bec9b094ca21","Recurring") ?? "Recurring")}</span></label></div>` : '')}
         ${String(ctx.kind === 'floating' ? `<div class="dash-event-recurrence-fields ${recurrenceEnabled ? 'open' : ''}" data-event-recurrence-fields>
           <label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_477ebb1c6c5f83","Repeats") ?? "Repeats")}<select data-event-recurrence-frequency><option value="weekly" ${recurrenceFrequency === 'weekly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_093d55e6272fc0","Weekly") ?? "Weekly")}</option><option value="monthly" ${recurrenceFrequency === 'monthly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d7014f792d2583","Monthly") ?? "Monthly")}</option><option value="quarterly" ${recurrenceFrequency === 'quarterly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_03e59d03617275","Quarterly") ?? "Quarterly")}</option><option value="yearly" ${recurrenceFrequency === 'yearly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_ef289ba5429ef5","Yearly") ?? "Yearly")}</option><option value="daily" ${recurrenceFrequency === 'daily' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_aa2628166dd6f2","Daily") ?? "Daily")}</option></select></label>
           <label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_b25bba33f32e79","Every") ?? "Every")}<input type="number" min="1" max="120" value="${escapeHtml(recurrenceInterval)}" data-event-recurrence-interval></label>
@@ -7135,7 +7149,7 @@
           ${typeButton('project_work', 'Work')}
           ${typeButton('delivery', 'Delivery')}
           ${['', 'sales_appointment', 'project_work', 'delivery'].includes(activeType) ? typeButton('custom', 'Other') : `<button type="button" class="dash-event-type-btn active" data-event-type="${escapeHtml(activeType)}">${escapeHtml(typeMeta.label)}</button>`}
-        </div>` : `${equipmentWindowHtml}<div class="dash-event-type-pills"><span class="dash-event-type-pill">${escapeHtml(typeMeta.label)}</span>${materialNotOrdered ? `<span class="dash-event-status-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0c10cb9ccabd39","Not ordered yet") ?? "Not ordered yet")}</span>` : ''}${confirmationPillHtml(draft)}</div>`)}
+        </div>` : `${equipmentWindowHtml}${String(typePillsRowHtml)}`)}
       ${String(requirementAlertHtml(draft))}
       ${String(eventAssigneeSectionHtml(ctx, draft))}
       <textarea class="dash-event-desc" data-event-description placeholder="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_aa136ecb65672f","Description") ?? "Description")}">${String(escapeHtml(draft.description || draft.notes || ''))}</textarea>
@@ -7285,6 +7299,16 @@
       updateEditorAllDay(event.target.checked === true);
       setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.id)), 0);
     });
+    // A long assignee row fades at the side that has more to scroll to.
+    const assigneeChips = pop.querySelector('[data-event-assignee-chips]');
+    const markAssigneeOverflow = () => {
+      if (!assigneeChips) return;
+      const more = assigneeChips.scrollWidth - assigneeChips.clientWidth;
+      assigneeChips.classList.toggle('more-after', more > 1 && assigneeChips.scrollLeft < more - 1);
+      assigneeChips.classList.toggle('more-before', more > 1 && assigneeChips.scrollLeft > 1);
+    };
+    assigneeChips?.addEventListener('scroll', markAssigneeOverflow, { passive:true });
+    requestAnimationFrame(markAssigneeOverflow);
     pop.querySelector('[data-event-assign-add]')?.addEventListener('click', (event) => {
       const menu = pop.querySelector('[data-event-assign-menu]');
       if (!menu) return;
