@@ -384,7 +384,8 @@ consumer outside the CRM tab reads the module or a published provider, not these
 The tab:
 
 - **Rail**: pinned views with live counts, more views, New view, then Funnel,
-  Duplicates, Sources and CRM settings. At phone width it slides over the page.
+  Duplicates, Sources and CRM settings. At phone width it is a sheet from the bottom,
+  opened by the view picker.
 - **View header**: name and count, layout switch, filter chips and Add filter,
   Display (group, sort, columns), search, Worklist, the view menu (pin, rename,
   duplicate, share, hide, delete), and the save bar when changed.
@@ -400,6 +401,16 @@ The tab:
 - **Sources**: the tree with rules, and spend.
 - **CRM settings**: setup, lead routing and scoring with their custom code, contact
   automations, the funnel steps, cancellation rules.
+- **At phone width** (820px or narrower) the CRM follows the other phone apps (My
+  Contacts, Feed): the title is a view picker (icon, name, count) beside icon-only
+  controls (layout, Worklist, the view menu, which also holds Display); the view's own
+  search ("Search New leads") sits under them beside an icon Filter button with a count,
+  and filter chips scroll sideways. List rows are cards; the board scrolls a column at a
+  time; the drawer is a full sheet with round icon actions; every popover (filter
+  editor, Display, view menu, bulk choices) is a sheet from the bottom and does not
+  focus a field, so no keyboard opens over it. The manifest entry declares
+  `presentation: { phoneSearch: 'icon' }`, so the portal's header search folds into an
+  icon left of More while the CRM is open ([the mobile top bar](app-experience.md#the-mobile-top-bar)).
 - Keyboard while the CRM is on screen: `/` search, `f` filter, `j`/`k` next and
   previous row, `Esc` close, `Ctrl+K` command menu, `S` skip in a worklist.
 

@@ -1203,6 +1203,21 @@ session_write_close();
         height:36px;
         font-size:14px;
       }
+      /* An app with its own search (presentation.phoneSearch "icon", e.g. the CRM) folds the
+         header search into an icon left of More; the icon opens it under the bar. */
+      .mobile-topbar .mob-search-toggle{display:none}
+      .mobile-topbar.topbar-enabled.search-icon{grid-template-columns:40px minmax(0,1fr) 40px 40px;grid-template-rows:40px;height:56px;padding:8px 14px}
+      .mobile-topbar.topbar-enabled.search-icon.search-open{grid-template-rows:40px 36px;height:104px}
+      .mobile-topbar.topbar-enabled.search-icon:not(.search-open) .mobile-platform-search{display:none}
+      .mobile-topbar.topbar-enabled.search-icon .mob-search-toggle{
+        display:grid;place-items:center;grid-column:3;grid-row:1;width:40px;height:40px;padding:0;
+        border:0;border-radius:12px;background:transparent;color:#333;font-size:19px;cursor:pointer;
+        -webkit-tap-highlight-color:transparent;transition:background-color .16s ease;
+      }
+      .mobile-topbar.topbar-enabled.search-icon .mob-search-toggle[hidden]{display:none}
+      .mobile-topbar.topbar-enabled.search-icon .mob-search-toggle[aria-expanded="true"]{background:rgba(0,0,0,.06)}
+      .mobile-topbar.topbar-enabled.search-icon .mob-search-toggle:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:2px}
+      .mobile-topbar.topbar-enabled.search-icon .mob-notifications{grid-column:4}
       .mobile-platform-search .ptb-search-results{
         top:42px;
         max-height:calc(var(--fm-visual-vh, 100dvh) - 120px);
@@ -2101,6 +2116,11 @@ session_write_close();
       <input id="mobilePlatformGlobalSearch" data-platform-search-input type="search" placeholder="Search" aria-label="Search" autocomplete="off">
       <div class="ptb-search-results" id="mobilePlatformSearchResults"></div>
     </div>
+    <!-- Shown while the open app has its own search (presentation.phoneSearch "icon"):
+         the header search folds into this button, left of More (topbar.js). -->
+    <button type="button" class="mob-search-toggle" id="mobileSearchToggle" aria-label="Search" aria-expanded="false" aria-controls="mobilePlatformGlobalSearch" data-fm-tooltip="Search" hidden>
+      <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+    </button>
     <div class="mob-notifications platform-assistant" id="mobilePlatformAssistantSlot" hidden>
       <button type="button" class="ptb-bell" id="mobilePlatformAssistantBtn" data-fm-tooltip="AI Assistant" aria-label="AI Assistant">
         <i class="fas fa-wand-magic-sparkles"></i>

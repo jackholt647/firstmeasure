@@ -283,11 +283,34 @@ test('the CRM tab: views, filters, the board, the drawer, a worklist, reports, s
     await shot(page, '10-appointments');
     assert.deepEqual(errors, [], 'no page errors');
 
-    // A phone: the list becomes cards and the drawer a sheet.
+    // A phone (FM-478): one row of icon controls under a view picker, the view's own search beneath it,
+    // the rail and popovers as sheets from the bottom, the list as cards and the drawer a full sheet.
     const phone = await openPage(browser, { width: 390, height: 844 });
     current = phone.page;
     await settle(phone.page);
     await shot(phone.page, '11-phone-list');
+    const box = (selector) => phone.page.locator(selector).first().evaluate((el) => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height }; });
+    assert.equal(await phone.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'nothing wider than the phone');
+    assert.equal(await phone.page.locator('.crm-head [data-display]').isVisible(), false, 'Display moves into the view menu');
+    assert.equal(await phone.page.locator('.crm-head .crm-seg button span').first().isVisible(), false, 'icons, not words');
+    const picker = await box('.crm-view-pick'), more = await box('[data-view-menu]'), search = await box('.crm-search');
+    assert.ok(Math.abs(picker.top - more.top) < 2, 'the picker and the controls share one row');
+    assert.ok(search.top >= picker.bottom, 'the view search sits under the controls');
+    await phone.page.locator('.crm-view-pick').click();
+    await phone.page.waitForFunction(() => { const r = document.querySelector('.crm-rail').getBoundingClientRect(); return Math.abs(r.bottom - innerHeight) < 2 && getComputedStyle(document.querySelector('.crm-rail')).visibility === 'visible'; });
+    assert.equal(await phone.page.locator('.crm-view-pick').getAttribute('aria-expanded'), 'true');
+    await shot(phone.page, '11a-phone-views');
+    await phone.page.locator('.crm-rail').getByText('New leads', { exact: true }).click();
+    await phone.page.waitForFunction(() => !document.querySelector('.crm').classList.contains('rail-open'));
+    await settle(phone.page);
+    await phone.page.locator('[data-add-filter]').click();
+    await phone.page.waitForSelector('.crm-pop');
+    await phone.page.waitForTimeout(350);
+    const sheet = await box('.crm-pop');
+    assert.ok(Math.abs(sheet.bottom - 844) < 2, `a filter opens as a sheet from the bottom: ${JSON.stringify(sheet)}`);
+    assert.notEqual(await phone.page.evaluate(() => document.activeElement?.tagName), 'INPUT', 'no keyboard thrown up over the sheet');
+    await shot(phone.page, '11b-phone-filter');
+    await phone.page.keyboard.press('Escape');
     await phone.page.locator('.crm-content [data-row]').first().click();
     await phone.page.waitForSelector('.crm-drawer:not([hidden]) .crm-drawer-actions');
     await shot(phone.page, '12-phone-drawer');

@@ -345,3 +345,59 @@ test('a photo mention in Messages opens that project photo rather than its Notes
   }finally{await browser.close();}
 });
 
+
+// An app with its own search (presentation.phoneSearch "icon" on its manifest entry, the CRM's) folds the
+// header search into an icon left of More on a phone; the icon opens it under the bar (FM-478).
+test('phone: an app with its own search folds the header search into an icon left of More', async () => {
+  const manifest = await read('libraries/apps/firstmate-apps-manifest.js');
+  assert.match(between(manifest, "id: 'portal.crm'", 'bundles:'), /presentation: \{ phoneSearch: 'icon' \}/, 'the CRM declares its own phone search');
+  const browser = await launch();
+  try {
+    for (const viewport of [{ width: 433, height: 814 }, { width: 360, height: 740 }]) {
+      const { context, page, errors } = await openShell(browser, viewport);
+      await page.evaluate(() => {
+        window.FirstMateEmbeddableApps = { getApp: (id) => id === 'portal.crm' ? { id, presentation: { phoneSearch: 'icon' } } : { id } };
+        window.dispatchEvent(new CustomEvent('fm:portal-tab:activated', { detail: { id: 'crm' } }));
+      });
+      const search = page.locator('#mobilePlatformGlobalSearch');
+      const toggle = page.getByRole('button', { name: 'Search', exact: true });
+      assert.equal(await search.isVisible(), false, 'no header search bar');
+      assert.equal(await toggle.isVisible(), true);
+      const bar = await rect(page, '.mobile-topbar'), icon = await rect(page, '#mobileSearchToggle'), more = await rect(page, '#mobilePlatformMoreBtn');
+      assert.ok(bar.height <= 57, `one row: ${bar.height}`);
+      assert.ok(icon.right <= more.left && more.left - icon.right < 16 && Math.abs(icon.top - more.top) < 1, `left of More: ${JSON.stringify({ icon, more })}`);
+      await shot(page, `search-icon-${viewport.width}`);
+      await toggle.click();
+      assert.equal(await search.isVisible(), true, 'the icon opens the header search');
+      assert.equal(await search.evaluate((el) => el === document.activeElement), true);
+      assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
+      assert.ok((await rect(page, '#mobilePlatformGlobalSearch')).top >= icon.bottom, 'under the bar');
+      await shot(page, `search-icon-open-${viewport.width}`);
+      await search.press('Escape');
+      assert.equal(await search.isVisible(), false, 'Escape folds it away');
+      assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+      await toggle.click();
+      await search.fill('Elm');
+      await page.locator('#mobilePlatformMoreBtn').focus();
+      await page.waitForTimeout(250);
+      assert.equal(await search.isVisible(), true, 'a search with a query stays open');
+      // Any other app keeps the search bar.
+      await page.evaluate(() => window.dispatchEvent(new CustomEvent('fm:portal-tab:activated', { detail: { id: 'projects' } })));
+      assert.equal(await search.isVisible(), true);
+      assert.equal(await toggle.isVisible(), false);
+      assert.ok((await rect(page, '.mobile-topbar')).height > 100, 'two rows again');
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      assert.deepEqual(errors, []);
+      await context.close();
+    }
+    // Desktop: the header search is always the bar.
+    const desktop = await openShell(browser, { width: 1280, height: 900 }, { mobile: false });
+    await desktop.page.evaluate(() => {
+      window.FirstMateEmbeddableApps = { getApp: (id) => ({ id, presentation: { phoneSearch: 'icon' } }) };
+      window.dispatchEvent(new CustomEvent('fm:portal-tab:activated', { detail: { id: 'crm' } }));
+    });
+    assert.equal(await desktop.page.locator('#platformGlobalSearch').isVisible(), true);
+    assert.equal(await desktop.page.locator('#mobileSearchToggle').isVisible(), false);
+    await desktop.context.close();
+  } finally { await browser.close(); }
+});

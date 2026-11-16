@@ -26,6 +26,8 @@
   const money = (cents) => Number.isFinite(Number(cents)) && Number(cents) ? (Number(cents) / 100).toLocaleString(undefined, { style:'currency', currency:'USD', maximumFractionDigits:0 }) : '';
   const initials = (name) => text(name).split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || '?';
   const DAY = 86400000;
+  // The phone layout (crm.css, "Phone width"): sheets instead of popovers, icons instead of labels.
+  const phone = () => window.matchMedia?.('(max-width: 820px)').matches === true;
   /** A time relative to now, by calendar day: "12 min ago", "Today 3:00 PM", "Tomorrow 9:30 AM", "3 days ago". */
   function when(value){
     const t = Date.parse(text(value)); if (!Number.isFinite(t)) return '';
@@ -208,7 +210,7 @@
           <i class="fas ${esc(v.definition?.icon || collectionInfo(v.collection).icon || 'fa-list')}" aria-hidden="true"></i><span class="crm-rail-name">${esc(v.name)}</span><span class="crm-rail-count">${state.counts[v.id] ?? ''}</span></button>`;
       const panelItem = (panel, icon, label, visible = true) => visible ? `<button type="button" class="crm-rail-item" data-open-panel="${panel}" aria-current="${state.panel === panel}"><i class="fas ${icon}" aria-hidden="true"></i><span class="crm-rail-name">${esc(label)}</span></button>` : '';
       rail.innerHTML = `
-        <div class="crm-rail-head"><h1>${esc(term('crm.portal_tab', 'CRM'))}</h1></div>
+        <div class="crm-rail-head"><h1>${esc(term('crm.portal_tab', 'CRM'))}</h1><button type="button" class="crm-btn icon ghost crm-rail-close" data-rail-toggle aria-label="${esc(L('close', 'Close'))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>
         <div class="crm-rail-scroll">
           <div class="crm-rail-section"><span>${esc(term('crm.views', 'Views'))}</span></div>
           ${pinned.map(viewItem).join('') || `<p class="crm-dim" style="padding:4px 10px">${esc(L('no_pinned', 'Pin a view to keep it here.'))}</p>`}
@@ -226,7 +228,8 @@
       const head = host.querySelector('.crm-head'); if (!head) return;
       if (state.panel !== 'view') {
         const titles = { reports: term('crm.funnel', 'Funnel'), duplicates: L('duplicates', 'Duplicates'), sources: term('crm.sources', 'Sources'), settings: L('crm_settings', 'CRM settings') };
-        head.innerHTML = `<div class="crm-title"><button type="button" class="crm-btn icon ghost crm-menu-toggle" data-rail-toggle aria-label="${esc(L('menu', 'Views'))}"><i class="fas fa-bars"></i></button><h2>${esc(titles[state.panel] || '')}</h2></div>`;
+        const icons = { reports: 'fa-chart-bar', duplicates: 'fa-clone', sources: 'fa-sitemap', settings: 'fa-sliders' };
+        head.innerHTML = titleHtml(icons[state.panel] || 'fa-list', titles[state.panel] || '');
         return;
       }
       const draft = state.draft; if (!draft) return;
@@ -234,18 +237,22 @@
       const info = collectionInfo(draft.collection);
       const layouts = draft.collection === 'appointments' ? [['list', 'fa-list', L('list', 'List')], ['calendar', 'fa-calendar-day', L('agenda', 'Agenda')], ['board', 'fa-table-columns', L('board', 'Board')]] : [['list', 'fa-list', L('list', 'List')], ['board', 'fa-table-columns', L('board', 'Board')]];
       const total = state.result?.total;
+      const worklist = term('crm.worklist', 'Work this list');
       head.innerHTML = `
-        <div class="crm-title">
-          <button type="button" class="crm-btn icon ghost crm-menu-toggle" data-rail-toggle aria-label="${esc(L('menu', 'Views'))}"><i class="fas fa-bars"></i></button>
-          <h2 title="${esc(draft.name)}">${esc(draft.name)}</h2>
-          <span class="crm-count">${total == null ? '' : esc(countLabel(draft.collection, total))}</span>
-        </div>
+        ${titleHtml(draft.definition?.icon || info.icon || 'fa-list', draft.name, total == null ? '' : countLabel(draft.collection, total))}
         <div class="crm-head-actions">
-          <div class="crm-seg" role="group" aria-label="${esc(L('layout', 'Layout'))}">${layouts.map(([id, icon, label]) => `<button type="button" data-layout="${id}" aria-pressed="${def.layout === id}" title="${esc(label)}"><i class="fas ${icon}" aria-hidden="true"></i><span>${esc(label)}</span></button>`).join('')}</div>
-          <button type="button" class="crm-btn" data-display><i class="fas fa-sliders" aria-hidden="true"></i>${esc(L('display', 'Display'))}</button>
-          ${feature('worklists') ? `<button type="button" class="crm-btn primary" data-worklist ${total ? '' : 'disabled'}><i class="fas fa-play" aria-hidden="true"></i>${esc(term('crm.worklist', 'Work this list'))}</button>` : ''}
-          <button type="button" class="crm-btn icon" data-view-menu aria-label="${esc(L('view_options', 'View options'))}"><i class="fas fa-ellipsis"></i></button>
+          <div class="crm-seg" role="group" aria-label="${esc(L('layout', 'Layout'))}">${layouts.map(([id, icon, label]) => `<button type="button" data-layout="${id}" aria-pressed="${def.layout === id}" title="${esc(label)}" aria-label="${esc(label)}"><i class="fas ${icon}" aria-hidden="true"></i><span>${esc(label)}</span></button>`).join('')}</div>
+          <button type="button" class="crm-btn" data-display title="${esc(L('display', 'Display'))}"><i class="fas fa-sliders" aria-hidden="true"></i><span>${esc(L('display', 'Display'))}</span></button>
+          ${feature('worklists') ? `<button type="button" class="crm-btn primary" data-worklist title="${esc(worklist)}" aria-label="${esc(worklist)}" ${total ? '' : 'disabled'}><i class="fas fa-play" aria-hidden="true"></i><span>${esc(worklist)}</span></button>` : ''}
+          <button type="button" class="crm-btn icon" data-view-menu aria-label="${esc(L('view_options', 'View options'))}" title="${esc(L('view_options', 'View options'))}"><i class="fas fa-ellipsis"></i></button>
         </div>`;
+    }
+    /** The title. On a phone it is the view picker (icon, name, count, caret) that opens the rail as a sheet. */
+    function titleHtml(icon, name, count = ''){
+      return `<div class="crm-title"><h2><button type="button" class="crm-view-pick" data-rail-toggle aria-haspopup="true" aria-expanded="${host.classList.contains('rail-open')}" title="${esc(name)}">
+        <span class="crm-pick-icon" aria-hidden="true"><i class="fas ${esc(icon)}"></i></span>
+        <span class="crm-pick-text"><span class="crm-pick-name">${esc(name)}</span>${count ? `<span class="crm-count">${esc(count)}</span>` : ''}</span>
+        <i class="fas fa-chevron-down crm-pick-caret" aria-hidden="true"></i></button></h2></div>`;
     }
 
     // ---- Filters -------------------------------------------------------------
@@ -273,11 +280,11 @@
       bar.hidden = false;
       const filter = normalizedDefinition(state.draft.definition).filter;
       const rules = arr(filter.rules);
-      bar.innerHTML = `
+      bar.innerHTML = `<div class="crm-chips${rules.length ? '' : ' is-empty'}">
         ${rules.length > 1 ? `<button type="button" class="crm-match" data-filter-match title="${esc(L('match_hint', 'Whether a row must match every condition or any one'))}">${esc(filter.match === 'any' ? L('match_any', 'Any of') : L('match_all', 'All of'))} <i class="fas fa-caret-down"></i></button>` : ''}
-        ${rules.map((rule, i) => `<span class="crm-chip" data-edit-filter="${i}" role="button" tabindex="0"><span class="crm-chip-text">${rule.rules || rule.conditions ? esc(L('filter_group', '{n} conditions, {match}', { n: arr(rule.rules || rule.conditions).length, match: rule.match === 'any' ? L('any', 'any') : L('all', 'all') })) : ruleSummary(rule)}</span><button type="button" class="crm-chip-x" data-remove-filter="${i}" aria-label="${esc(L('remove_filter', 'Remove filter'))}"><i class="fas fa-xmark"></i></button></span>`).join('')}
-        <button type="button" class="crm-chip add" data-add-filter><i class="fas fa-plus" aria-hidden="true"></i>${esc(L('filter', 'Filter'))}</button>
-        <label class="crm-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-search value="${esc(state.search)}" placeholder="${esc(L('search_view', 'Search this view'))}" aria-label="${esc(L('search_view', 'Search this view'))}"></label>`;
+        ${rules.map((rule, i) => `<span class="crm-chip" data-edit-filter="${i}" role="button" tabindex="0"><span class="crm-chip-text">${rule.rules || rule.conditions ? esc(L('filter_group', '{n} conditions, {match}', { n: arr(rule.rules || rule.conditions).length, match: rule.match === 'any' ? L('any', 'any') : L('all', 'all') })) : ruleSummary(rule)}</span><button type="button" class="crm-chip-x" data-remove-filter="${i}" aria-label="${esc(L('remove_filter', 'Remove filter'))}"><i class="fas fa-xmark"></i></button></span>`).join('')}</div>
+        <button type="button" class="crm-chip add" data-add-filter title="${esc(L('add_filter', 'Add a filter'))}" aria-label="${esc(L('add_filter', 'Add a filter'))}"><i class="fas fa-plus" aria-hidden="true"></i><i class="fas fa-filter" aria-hidden="true"></i><span>${esc(L('filter', 'Filter'))}</span>${rules.length ? `<b class="crm-filter-count">${rules.length}</b>` : ''}</button>
+        <label class="crm-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-search value="${esc(state.search)}" placeholder="${esc(L('search_in_view', 'Search {name}', { name: state.draft.name }))}" aria-label="${esc(L('search_view', 'Search this view'))}" enterkeyhint="search"></label>`;
     }
 
     function renderSavebar(){
@@ -490,7 +497,7 @@
     }
     function onKey(event){
       const t = event.target;
-      if (event.key === 'Escape') { if (state.pop) { closePop(); return; } if (!host.querySelector('.crm-worklist').hidden) { closeWorklist(); return; } if (state.drawer) { closeDrawer(); return; } }
+      if (event.key === 'Escape') { if (state.pop) { closePop(); return; } if (host.classList.contains('rail-open')) { setRailOpen(false); return; } if (!host.querySelector('.crm-worklist').hidden) { closeWorklist(); return; } if (state.drawer) { closeDrawer(); return; } }
       if ((event.key === 'Enter' || event.key === ' ') && t.matches('[data-edit-filter], .crm-card, .crm-agenda-item')) { event.preventDefault(); t.click(); return; }
       if (t.matches('input, textarea, select, [contenteditable]')) return;
       if ((event.ctrlKey || event.metaKey || event.altKey) && event.key.toLowerCase() !== 'k') return;
@@ -499,6 +506,10 @@
       else if (event.key === 'f') { event.preventDefault(); host.querySelector('[data-add-filter]')?.click(); }
       else if (event.key === 'j' || event.key === 'k') { event.preventDefault(); stepRow(event.key === 'j' ? 1 : -1); }
       else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openCommand(); }
+    }
+    function setRailOpen(open){
+      host.classList.toggle('rail-open', open);
+      host.querySelectorAll('.crm-view-pick').forEach((b) => b.setAttribute('aria-expanded', String(open)));
     }
     function stepRow(delta){
       const rows = arr(state.result?.rows); if (!rows.length) return;
@@ -510,11 +521,11 @@
 
     async function onClick(event){
       // On a phone the rail slides over the page; a tap anywhere else closes it.
-      if (host.classList.contains('rail-open') && !event.target.closest('.crm-rail, [data-rail-toggle]')) host.classList.remove('rail-open');
+      if (host.classList.contains('rail-open') && !event.target.closest('.crm-rail, [data-rail-toggle]')) setRailOpen(false);
       const t = event.target.closest('button, [data-row], [data-edit-filter], [role="button"]');
       if (!t || !host.contains(t)) return;
       const d = t.dataset;
-      if (d.railToggle !== undefined) { host.classList.toggle('rail-open'); return; }
+      if (d.railToggle !== undefined) { setRailOpen(!host.classList.contains('rail-open')); return; }
       if (d.openView) return openView(d.openView);
       if (d.openPanel) return openPanel(d.openPanel);
       if (d.newView !== undefined) return openNewView(t);
@@ -552,7 +563,8 @@
       left = Math.max(12, Math.min(left, h.width - width - 12));
       el.style.left = `${left}px`; el.style.top = `${Math.min(a.bottom - h.top + 6, h.height - 80)}px`;
       state.pop = { el, anchor };
-      setTimeout(() => el.querySelector('[autofocus], input, select, button')?.focus(), 0);
+      if (phone()) { el.tabIndex = -1; setTimeout(() => el.focus({ preventScroll:true }), 0); }
+      else setTimeout(() => el.querySelector('[autofocus], input, select, button')?.focus(), 0);
       return el;
     }
     function closePop(){ state.pop?.el.remove(); state.pop = null; }
@@ -621,7 +633,8 @@
           ${groupHtml(working, '')}
           <div class="crm-pop-row"><button type="button" class="crm-btn small ghost" data-fadd=""><i class="fas fa-plus"></i>${esc(L('add_condition', 'Add condition'))}</button><button type="button" class="crm-btn small ghost" data-faddgroup><i class="fas fa-layer-group"></i>${esc(L('add_group', 'Add group'))}</button></div>
           <div class="crm-pop-foot"><button type="button" class="crm-btn small ghost" data-fcancel>${esc(L('cancel', 'Cancel'))}</button><button type="button" class="crm-btn small primary" data-fapply>${esc(L('apply', 'Apply'))}</button></div>`;
-        if (focusIndex >= 0) { el.querySelector(`[data-frow="${focusIndex}"] select[data-fop]`)?.focus(); focusIndex = -1; }
+        if (focusIndex >= 0 && !phone()) el.querySelector(`[data-frow="${focusIndex}"] select[data-fop]`)?.focus();
+        focusIndex = -1;
       };
       const at = (path) => { const parts = text(path) === '' ? [] : String(path).split('.').map(Number); let node = working, parent = null, idx = -1; for (const p of parts) { parent = node; idx = p; node = arr(node.rules)[p]; } return { node, parent, idx }; };
       const el = openPop(anchor, '', { width: Math.min(680, host.clientWidth - 24) });
@@ -678,6 +691,7 @@
       const view = state.saved;
       const can = view?.editable;
       const el = openPop(anchor, `
+        <button type="button" class="crm-pop-item crm-phone-only" data-vm="display"><i class="fas fa-sliders"></i>${esc(L('display', 'Display'))}</button>
         ${view?.id ? `<button type="button" class="crm-pop-item" data-vm="pin"><i class="fas fa-thumbtack"></i>${esc(viewById(view.id)?.pinned ? L('unpin', 'Unpin from the rail') : L('pin', 'Pin to the rail'))}</button>` : ''}
         ${can ? `<button type="button" class="crm-pop-item" data-vm="rename"><i class="fas fa-pen"></i>${esc(L('rename', 'Rename'))}</button>` : ''}
         <button type="button" class="crm-pop-item" data-vm="duplicate"><i class="fas fa-copy"></i>${esc(L('duplicate_view', 'Save a copy'))}</button>
@@ -687,6 +701,7 @@
       el.addEventListener('click', async (e) => {
         const b = e.target.closest('[data-vm]'); if (!b) return;
         const action = b.dataset.vm; closePop();
+        if (action === 'display') return openDisplay(anchor);
         try {
           if (action === 'pin') { const pinned = !viewById(view.id)?.pinned; await api().setViewPreference(orgId, view.id, { pinned, hidden: false }); await reloadViews(); toast(pinned ? L('pinned', 'Pinned') : L('unpinned', 'Unpinned')); }
           else if (action === 'hide') { await api().setViewPreference(orgId, view.id, { pinned:false, hidden:true }); await reloadViews(); toast(L('hidden', 'Hidden')); }
@@ -779,7 +794,8 @@
       const actions = c === 'opportunities' ? [['assign', 'fa-user-plus', L('assign', 'Assign')], ['scope', 'fa-diagram-project', L('start_scope', 'Start a scope')], ['follow_up', 'fa-clock', L('follow_up', 'Follow up')], ['lost', 'fa-circle-xmark', L('mark_lost', 'Mark lost')], ...(n === 2 ? [['merge_projects', 'fa-code-merge', L('merge', 'Merge')]] : [])]
         : c === 'contacts' ? [['tag', 'fa-tag', L('tag', 'Tag')], ...(n === 2 ? [['merge_contacts', 'fa-code-merge', L('merge', 'Merge')]] : [])]
         : [];
-      bar.innerHTML = `<span class="crm-bulk-count">${esc(L('selected', '{n} selected', { n }))}</span>${feature('worklists') ? `<button type="button" class="crm-btn small" data-bulk="work"><i class="fas fa-play"></i>${esc(L('work_these', 'Work these'))}</button>` : ''}${actions.map(([id, icon, label]) => `<button type="button" class="crm-btn small" data-bulk="${id}"><i class="fas ${icon}"></i>${esc(label)}</button>`).join('')}<button type="button" class="crm-btn small" data-clear-selection aria-label="${esc(L('clear_selection', 'Clear selection'))}"><i class="fas fa-xmark"></i></button>`;
+      const action = (id, icon, label) => `<button type="button" class="crm-btn small" data-bulk="${id}" title="${esc(label)}" aria-label="${esc(label)}"><i class="fas ${icon}" aria-hidden="true"></i><span>${esc(label)}</span></button>`;
+      bar.innerHTML = `<span class="crm-bulk-count">${esc(L('selected', '{n} selected', { n }))}</span>${feature('worklists') ? action('work', 'fa-play', L('work_these', 'Work these')) : ''}${actions.map(([id, icon, label]) => action(id, icon, label)).join('')}<button type="button" class="crm-btn small" data-clear-selection aria-label="${esc(L('clear_selection', 'Clear selection'))}"><i class="fas fa-xmark"></i></button>`;
     }
     const selectedRows = () => arr(state.result?.rows).filter((r) => state.selected.has(r.id));
     async function runEach(rows, label, fn){
