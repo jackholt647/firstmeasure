@@ -104,7 +104,11 @@ Checklists (`project.checklists`) can also be offered,
 but no new organization starts with them (`NEW_ORGANIZATION_APP_OFFERS`). A
 signup sandbox configuration names its own offers as data
 (`settings.app_offers`, written after the demo content is seeded); the MVP
-platform offers both. Offers with the same switches are one app: starting
+platform offers both. Marking an app offered (or on) in the sandbox Apps tab
+when it was off also turns on the features under its switches that are on by
+default (`capability_defaults`), since a base such as `expanded_access_off`
+turns them all off (FM-470: CRM started with its views off); a feature
+turned off while the app is on stays off. Offers with the same switches are one app: starting
 either Money offer starts both. A welcome may name a `setup` switch (Money:
 `platform.money`); Get Started then continues into that switch's required
 setup workflow (`Portal.appSetup.run`, mode `post_add`), which for Money starts

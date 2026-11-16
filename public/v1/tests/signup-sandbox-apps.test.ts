@@ -92,6 +92,23 @@ test("changing a state writes only the switches, offers and placement it means",
   for (const group of model.groups) for (const app of group.apps) assert.equal(app.offerable, app.switches.length > 0, `${app.id} is offerable when it has a switch`);
   await assert.rejects(applyAppChange(start, "project.field_customer", { state: "offered" }), /cannot be offered/);
 
+  // An app offered or turned on from off starts with the features the platform has on by default, not only its switch:
+  // the expanded_access_off base has them all off (FM-470: CRM started with "CRM views are turned off").
+  const views = (data: any) => find(data, "portal.crm").features.find((entry: any) => entry.key === "crm.views");
+  assert.equal(views(await configurationApps(start)).effective, false);
+  for (const state of ["offered", "on"] as const) {
+    const crm = await applyAppChange(start, "portal.crm", { state });
+    assert.equal(crm.defaults.app_flags["apps.crm"], true);
+    assert.equal(crm.defaults.app_flags["crm.views"], true, `crm.views on when CRM is ${state}`);
+    assert.equal(crm.defaults.app_flags["crm.worklists"], true);
+    assert.equal(crm.defaults.app_flags["crm.source_spend"], undefined, "a feature off by default stays off");
+    assert.equal(views(await configurationApps(await applyAppChange(crm, "portal.crm", { state: "on" }))).effective, true);
+  }
+  // A feature turned off while the app is on stays off when its state changes again.
+  const crmOn = await applyAppChange(start, "portal.crm", { state: "on" });
+  const viewsOff = await applyAppChange(crmOn, "portal.crm", { features: { "crm.views": false } });
+  assert.equal((await applyAppChange(viewsOff, "portal.crm", { state: "offered" })).defaults.app_flags["crm.views"], undefined);
+
   // On from off turns on what the switch depends on; a hidden app is shown again.
   const scheduling = await applyAppChange(start, "portal.scheduling", { state: "on" });
   assert.equal(scheduling.defaults.app_flags["platform.scheduling"], true);
