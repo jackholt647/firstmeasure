@@ -160,7 +160,7 @@
       .fmco-auto-chip{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:900;letter-spacing:.05em;color:#0369a1;background:#e0f2fe;border:1px solid #bae6fd;border-radius:999px;padding:1px 7px;text-transform:uppercase;vertical-align:1px}
       .fmco-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
       .fmco-card{background:#fff;border:1px solid #e4e7ec;border-radius:12px;padding:14px 16px;display:grid;gap:6px}
-      .fmco-setup-card{border-style:dashed;background:#fcfcfd;align-content:start}.fmco-setup-card .fmco-btn{justify-self:start;margin-top:4px}.fmco-setup-card [data-co-setup-note]:empty{display:none}
+      .fmco-setup-card{border-style:dashed;background:#fcfcfd;align-content:start}.fmco-setup-card .fmco-btn{justify-self:start;margin-top:4px}.fmco-setup-card [data-co-setup-note]:empty{display:none}.fmco-setup-card .fmco-card-sub{white-space:normal;overflow:visible;text-overflow:clip}
       .fmco-card-top{display:flex;align-items:center;justify-content:space-between}
       .fmco-card-title{font-size:10.5px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:#98a2b3;display:flex;align-items:center;gap:7px}
       .fmco-card-title i{color:#667085}
