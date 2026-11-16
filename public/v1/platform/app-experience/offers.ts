@@ -30,8 +30,8 @@ export type OfferedAppId = string;
 
 /** The switches an offer of this app holds back until it is started; empty when the app cannot be offered. */
 export function offerSwitches(id: string): readonly string[] {
-  if (Object.prototype.hasOwnProperty.call(APP_OFFERS, id)) return APP_OFFERS[id];
-  return appDefinition(id)?.capabilities || [];
+  const named = Object.prototype.hasOwnProperty.call(APP_OFFERS, id) ? APP_OFFERS[id] : undefined;
+  return named ?? appDefinition(id)?.capabilities ?? [];
 }
 
 /** Whether an app can be offered: an app without an organization switch is always on, so there is nothing to hold back. */
