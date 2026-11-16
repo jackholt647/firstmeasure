@@ -88,11 +88,11 @@
     return normalized === 'commercial' || normalized === 'multifamily' || normalized === 'multi_family';
   }
 
-  // Before a project type is chosen, allow the most any type allows; picking residential lowers it.
+  // No type chosen yet or residential: 5 pins. Commercial and multi-family: 10, one per structure.
+  // Switching type re-checks the pins already placed against the new limit.
   function maxPinsForType(type){
     const normalized = normalizedProjectType(type);
-    if (!normalized) return MAX_PINS_PER_STRUCTURE_REPORT;
-    if (normalized === 'residential') return MAX_PINS_RESIDENTIAL;
+    if (!normalized || normalized === 'residential') return MAX_PINS_RESIDENTIAL;
     if (isPerStructureType(normalized)) return MAX_PINS_PER_STRUCTURE_REPORT;
     return 0;
   }
