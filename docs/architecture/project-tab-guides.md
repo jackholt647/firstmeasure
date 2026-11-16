@@ -18,7 +18,11 @@ it is not writable through `/global`.
 ```
 
 - `order`: project tab app ids. Listed tabs come first, in that order; every
-  other tab keeps its default order after them.
+  other tab keeps its default order after them. This orders tabs within their
+  use: tabs in use come first, then tabs with "Setup required", then tabs not
+  started yet ("New"), then "Coming soon" (a pill here or a tab-promos
+  `promoBadge`), on desktop and phone alike (FM-502; the left column does the
+  same since FM-479). A "New" tab moves to its place once the person opens it.
 - `pills`: `new` shows "New" until the person first opens the tab;
   `coming_soon` always shows "Coming soon". The tab-promos replacements
   (`apps/tab-promos/project.js`) keep their own `promoBadge`.
