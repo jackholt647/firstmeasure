@@ -424,3 +424,10 @@ test('mention notifications are not consumed as empty celebration records', asyn
   assert.equal(statePatches.length, 1);
   assert.equal(statePatches[0].patch.completed, false);
 });
+
+test('Browse channels puts each topic on its own line under the channel name (FM-498)', async () => {
+  const ui = await readFile(new URL('libraries/channels-ui/channels-ui.js', root), 'utf8');
+  assert.match(ui, /el\('div','fm-ch-member-row fm-ch-directory-row',`<span class="name"><strong># \$\{esc\(channel\.name\)\}<\/strong><small>/);
+  assert.match(ui, /\.fm-ch-directory-row \.name\{display:flex;flex-direction:column;/);
+  assert.match(ui, /\.fm-ch-directory-row \.name small\{[^}]*color:var\(--ch-muted\)/);
+});

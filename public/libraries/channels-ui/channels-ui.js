@@ -1164,6 +1164,7 @@
 .fm-ch-member-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:8px}
 .fm-ch-member-row:hover{background:var(--ch-hover)}
 .fm-ch-member-row .name{flex:1}
+.fm-ch-directory-row{align-items:flex-start;padding:8px 4px}.fm-ch-directory-row .name{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;line-height:1.35}.fm-ch-directory-row .name strong{font-weight:700;overflow-wrap:anywhere}.fm-ch-directory-row .name small{font-size:12px;color:var(--ch-muted);overflow-wrap:anywhere}.fm-ch-directory-row .name small:empty{display:none}.fm-ch-directory-row .fm-ch-btn{flex:0 0 auto}
 .fm-ch-modal-body .fm-ch-section-conversation{display:flex;align-items:center;gap:10px;margin:0;padding:10px 8px;border-radius:8px;cursor:pointer}.fm-ch-section-conversation:hover{background:var(--ch-hover)}.fm-ch-section-conversation input[type=checkbox]{width:17px;height:17px;flex:0 0 17px;margin:0;accent-color:var(--ch-accent)}.fm-ch-section-conversation .name{flex:1;min-width:0;font-size:13px;font-weight:500;line-height:1.4;overflow-wrap:anywhere}
 .fm-ch-member-choice{width:100%;min-height:46px;padding:7px 9px;border:1px solid transparent;text-align:left;transition:background .14s ease,border-color .14s ease,color .14s ease}
 .fm-ch-member-choice+.fm-ch-member-choice{margin-top:5px}
@@ -6030,7 +6031,7 @@
           results.replaceChildren();
           const matches = channels.filter(channel=>(!channelSharing || channelSharing.matches(channel)) && `${channel.name} ${channel.topic || ''}`.toLowerCase().includes(search.value.toLowerCase()));
           for (const channel of matches) {
-            const row = el('div','fm-ch-member-row',`<span class="name"><strong># ${esc(channel.name)}</strong><small>${esc(channel.topic || '')}</small>${channelSharing?.badge(channel)||''}</span>`);
+            const row = el('div','fm-ch-member-row fm-ch-directory-row',`<span class="name"><strong># ${esc(channel.name)}</strong><small>${esc(channel.topic || '')}</small>${channelSharing?.badge(channel)||''}</span>`);
             const join = el('button','fm-ch-btn',channel._shared||channel.is_member?'Open':'Join channel');
             join.onclick=async()=>{ if(channel._shared){close();openSharedConversation(channel);return;}join.disabled=true; try {if(!channel.is_member)await api.channels.join(orgId,channel.id);await loadChannels();close();await setChannel(channel.id);}catch(error){join.disabled=false;showError(error);} };
             row.append(join);results.append(row);
