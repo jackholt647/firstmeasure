@@ -56,5 +56,7 @@ test('desk controls, filters and cards are compact on a phone', () => {
 });
 
 test('the stylesheet version moved with the phone layout', () => {
-  assert.match(ui, /communications\.css\?v=20261116-fm497-call-center-phone/);
+  // Later issues bump it again (FM-491, FM-511); it must be at least the FM-497 one.
+  const [, day, issue] = /communications\.css\?v=(\d{8})-fm-?(\d+)/.exec(ui) || [];
+  assert.ok(day >= '20261116' && Number(issue) >= 497, 'communications.css ?v= is older than FM-497');
 });

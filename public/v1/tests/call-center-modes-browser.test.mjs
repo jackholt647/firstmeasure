@@ -96,10 +96,26 @@ test('call history offers one New call, on a project and in the workspace',async
       await page.locator('[data-action=new-call]').first().waitFor();
       assert.equal(await page.locator('[data-action=new-call]').count(),1,JSON.stringify(mount));
       assert.equal(await page.getByRole('button',{name:/call contact|log a call/i}).count(),0);
-      assert.equal((await page.locator('[data-action=new-call]').innerText()).trim(),'New call');
+      // FM-511: on a project New call is an icon (named for screen readers) and the toolbar has no title or own search.
+      if(mount.projectId){
+        assert.equal((await page.locator('[data-action=new-call]').innerText()).trim(),'');
+        assert.equal(await page.getByRole('button',{name:'New call'}).count(),1);
+        assert.equal(await page.locator('.fmcm-toolbar h3, .fmcm-toolbar [data-search]').count(),0);
+      }else{
+        assert.equal((await page.locator('[data-action=new-call]').innerText()).trim(),'New call');
+        assert.equal(await page.locator('.fmcm-toolbar h3').count(),1);
+      }
+      // The phone button says what it is: your phone's status, not a bare headset.
       assert.equal(await page.locator('.fmcm-call-actions [data-action=phone-menu]').count(),1);
+      assert.equal((await page.locator('.fmcm-call-actions [data-action=phone-menu]').innerText()).trim(),'Phone off');
+      assert.equal(await page.getByRole('button',{name:/^Your phone: Phone off/}).count(),1);
       await page.locator('[data-action=new-call]').click();
       assert.deepEqual(await page.evaluate(()=>phoneActions.at(-1).input),{project_id:mount.projectId||''});
+      if(mount.projectId){
+        // The project's Comms tab search filters these calls through the handle.
+        await page.evaluate(()=>handle.search('ada'));
+        await page.waitForFunction(()=>requests.some(path=>path.startsWith('calls?')&&path.includes('query=ada')&&path.includes('project_id=project-one')));
+      }
       await page.evaluate(()=>handle.destroy());
       assert.deepEqual(errors,[]);
       await page.close();
