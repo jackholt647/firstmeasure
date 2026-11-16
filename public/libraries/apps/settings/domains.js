@@ -28,7 +28,7 @@
     document.head.appendChild(style);
   }
 
-  const stepsFor = (path) => path === 'existing'
+  const domainSteps = (path) => path === 'existing'
     ? [{id:'choose',label:(globalThis.PlatformLanguage?.text("settings","m_797ea31cc00ed3","Choose a path") ?? "Choose a path")},{id:'domain',label:(globalThis.PlatformLanguage?.text("settings","m_63d6dcd088fd76","Domain details") ?? "Domain details")},{id:'review',label:(globalThis.PlatformLanguage?.text("settings","m_b0bb1e74e2a6d3","Review") ?? "Review")},{id:'verify',label:(globalThis.PlatformLanguage?.text("settings","m_e49e0037c107f5","Verify ownership") ?? "Verify ownership")},{id:'resources',label:(globalThis.PlatformLanguage?.text("settings","m_87a25ad6dd9349","Website & email") ?? "Website & email")},{id:'done',label:(globalThis.PlatformLanguage?.text("settings","m_e8e493437c1a17","Complete") ?? "Complete")}]
     : [{id:'choose',label:(globalThis.PlatformLanguage?.text("settings","m_797ea31cc00ed3","Choose a path") ?? "Choose a path")},{id:'domain',label:path === 'transfer' ? 'Transfer details' : 'Find a domain'},{id:'contact',label:(globalThis.PlatformLanguage?.text("settings","m_32daa8835c1999","Registrant details") ?? "Registrant details")},{id:'billing',label:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing")},{id:'review',label:(globalThis.PlatformLanguage?.text("settings","m_b0bb1e74e2a6d3","Review") ?? "Review")},{id:'verify',label:(globalThis.PlatformLanguage?.text("settings","m_731c0ec8f6eb3c","Verification") ?? "Verification")},{id:'resources',label:(globalThis.PlatformLanguage?.text("settings","m_87a25ad6dd9349","Website & email") ?? "Website & email")},{id:'done',label:(globalThis.PlatformLanguage?.text("settings","m_e8e493437c1a17","Complete") ?? "Complete")}];
 
@@ -196,15 +196,19 @@
   function openWizard(options, initialPath = '', initialStep = ''){
     const orgId = clean(options.orgId);
     const orderTestMode = options.config?.order_test_mode === true;
+    // Email only (the Communications setup, FM-513): no path choice, no website, and closing hands back to the setup.
+    const forEmail = options.purpose === 'email';
+    const stepsFor = (path) => domainSteps(path).filter((entry) => !forEmail || entry.id !== 'choose')
+      .map((entry) => forEmail && entry.id === 'resources' ? { ...entry, label:'Email address' } : entry);
     const state = {
       path: initialPath,
       step: initialPath ? 'domain' : 'choose',
-      domain: '',
+      domain: clean(options.domain).toLowerCase(),
       quote: null,
       item: null,
       contact: { ...obj(options.registrantDefaults) },
       authCode: '',
-      registration: null,
+      registration: options.registration || null,
       busy: false,
       error: '',
       sites: [],
@@ -218,7 +222,7 @@
     // Honor a deep-linked workflow_step when it exists for the current path.
     const requestedStep = clean(initialStep);
     if (requestedStep && requestedStep !== state.step) {
-      const stepIds = stepsFor(state.path).map((entry) => entry.id);
+      const stepIds = domainSteps(state.path).map((entry) => entry.id);
       const requestedIndex = stepIds.indexOf(requestedStep);
       if (requestedIndex >= 0) {
         state.step = requestedStep;
@@ -271,8 +275,8 @@
         billing:['Billing','Review how payment will fit into this workflow.'],
         review:['Review & confirm',state.path==='existing'?'Create the connection without moving the domain.':'Nothing is submitted until you confirm below.'],
         verify:['Verify the domain','Complete the required ownership or registrant verification.'],
-        resources:['Website & email','Choose the website and its default email address.'],
-        done:['Domain setup complete','The domain has been added to FirstMate.']
+        resources:forEmail?['Your email address','The name before the @.']:['Website & email','Choose the website and its default email address.'],
+        done:forEmail?['Email address saved',`${state.defaultEmailLocalPart}@${state.domain}`]:['Domain setup complete','The domain has been added to FirstMate.']
       }[state.step] || ['Domain setup',''];
     }
 
@@ -328,24 +332,27 @@
       </div>`;
       if (state.step === 'verify') {
         const verification = obj(state.registration?.verification);
-        if (state.registration?.status === 'ready_to_connect' || state.registration?.verified_at) return `<div class="dm-success"><div class="icon"><i class="fas fa-check"></i></div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_3e37522560abc5","Verification complete") ?? "Verification complete")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_a34714579052b0","Continue to choose the website and default email address for this domain.") ?? "Continue to choose the website and default email address for this domain.")}</p></div>`;
+        if (state.registration?.status === 'ready_to_connect' || state.registration?.verified_at) return `<div class="dm-success"><div class="icon"><i class="fas fa-check"></i></div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_3e37522560abc5","Verification complete") ?? "Verification complete")}</h3>${forEmail?'':`<p>${(globalThis.PlatformLanguage?.htmlText("settings","m_a34714579052b0","Continue to choose the website and default email address for this domain.") ?? "Continue to choose the website and default email address for this domain.")}</p>`}</div>`;
         return state.path === 'existing'
           ? `<div class="dm-stack"><div class="dm-callout"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_15d09fc348b12e","Add this TXT record in your DNS:") ?? "Add this TXT record in your DNS:")}</strong></div><div class="dm-summary"><div class="dm-summary-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_523563ae2fd488","Host") ?? "Host")}</span><strong>${String(esc(verification.host||''))}</strong></div><div class="dm-summary-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ec6b76d100b0ec","Value") ?? "Value")}</span><strong style="word-break:break-all">${String(esc(verification.value||''))}</strong></div></div><p class="dm-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_2316222487e5d5","DNS changes can take time to appear. You can close this workflow and return later.") ?? "DNS changes can take time to appear. You can close this workflow and return later.")}</p></div>`
           : state.registration?.simulated
             ? `<div class="dm-stack"><div class="dm-callout warn"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_8b24faed53b69a","Test verification is pending.") ?? "Test verification is pending.")}</strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_74c889fbc5e08d"," In live mode FirstMate waits for the registrar to confirm the registrant. Use the test control below to simulate that confirmation and inspect the end-user experience.") ?? " In live mode FirstMate waits for the registrar to confirm the registrant. Use the test control below to simulate that confirmation and inspect the end-user experience.")}</div><p class="dm-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_7ced1188e01de2","No verification or reminder email is sent by this test workflow.") ?? "No verification or reminder email is sent by this test workflow.")}</p></div>`
             : `<div class="dm-stack"><div class="dm-callout"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_93a318cf3fe7c1","Waiting for registrar confirmation.") ?? "Waiting for registrar confirmation.")}</strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_62a9f6ffb8e41b"," FirstMate will keep checking the registrant verification status. A reminder option becomes available only if it is still incomplete after one hour.") ?? " FirstMate will keep checking the registrant verification status. A reminder option becomes available only if it is still incomplete after one hour.")}</div><p class="dm-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_b4e522c39f6665","You can close this workflow and return later without losing progress.") ?? "You can close this workflow and return later without losing progress.")}</p></div>`;
       }
+      if (state.step === 'resources' && forEmail) return `<div class="dm-stack"><label class="dm-field"><span>${esc('Email address')}</span><div class="dm-email-builder"><input class="dm-input" name="default_email_local_part" value="${esc(state.defaultEmailLocalPart)}" aria-label="${esc('Email name')}" required><span class="dm-email-domain">@${esc(state.domain)}</span></div></label></div>`;
       if (state.step === 'resources') {
         const sites = state.sites.filter((site)=>clean(site.site_kind)!=='customer_portal'&&clean(site.status)!=='archived');
         return `<div class="dm-stack"><div><h4 style="margin:0 0 5px;font-size:13px">${(globalThis.PlatformLanguage?.htmlText("settings","m_9dc897dcba7a79","Choose a website") ?? "Choose a website")}</h4><p class="dm-note" style="margin-bottom:10px">${(globalThis.PlatformLanguage?.htmlText("settings","m_d9cc78af9742bf","This domain will become the selected website’s primary domain.") ?? "This domain will become the selected website’s primary domain.")}</p><div class="dm-site-grid">${String(sites.map((site)=>`<button type="button" class="dm-site-tile ${state.websiteMode===`existing:${site.id}`?'selected':''}" data-website-choice="existing:${esc(site.id)}"><span class="icon"><i class="fas fa-window-maximize"></i></span><strong>${esc(site.name||'Website')}</strong><small>${esc(clean(site.status||'draft').replace(/_/g,' '))}</small></button>`).join(''))}<button type="button" class="dm-site-tile ${String(state.websiteMode==='create'?'selected':'')}" data-website-choice="create"><span class="icon"><i class="fas fa-plus"></i></span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_a7b6365a404298","Create a new website") ?? "Create a new website")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_30e9f05dba7fa9","Start a fresh hosted website for this domain.") ?? "Start a fresh hosted website for this domain.")}</small></button></div></div>
         ${String(state.websiteMode==='create'?`<label class="dm-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_e64a543b1d8328","New website name ") ?? "New website name ")}<em class="dm-required">${(globalThis.PlatformLanguage?.htmlText("settings","m_db97f048cd99aa","Required") ?? "Required")}</em></span><input class="dm-input" name="website_name" value="${esc(state.websiteName)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_99786b12078773","Main Website") ?? "Main Website")}" required></label>`:'')}
         <div><h4 style="margin:0 0 5px;font-size:13px">${(globalThis.PlatformLanguage?.htmlText("settings","m_715488f4d0b6d4","Default email address") ?? "Default email address")}</h4><p class="dm-note" style="margin-bottom:9px">${(globalThis.PlatformLanguage?.htmlText("settings","m_33079737eef674","FirstMate will use this address for incoming email and as the default sender for automated website email. Provider and DNS activation will be completed during email setup.") ?? "FirstMate will use this address for incoming email and as the default sender for automated website email. Provider and DNS activation will be completed during email setup.")}</p><label class="dm-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4327ac34fcf20c","Email address ") ?? "Email address ")}<em class="dm-required">${(globalThis.PlatformLanguage?.htmlText("settings","m_db97f048cd99aa","Required") ?? "Required")}</em></span><div class="dm-email-builder"><input class="dm-input" name="default_email_local_part" value="${String(esc(state.defaultEmailLocalPart))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_e7e9c2f0efc1df","Default email name") ?? "Default email name")}" required><span class="dm-email-domain">@${String(esc(state.domain))}</span></div></label></div></div>`;
       }
+      if (forEmail) return `<div class="dm-success"><div class="icon"><i class="fas fa-check"></i></div><h3>${esc(`${state.defaultEmailLocalPart}@${state.domain}`)}</h3><p>${esc('Mail sends from this address once its email records are set up.')}</p></div>`;
       return `<div class="dm-success"><div class="icon"><i class="fas fa-check"></i></div><h3>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_4ce45455f4515a",`${v0} is ready`,{v0}) ?? `${v0} is ready`)(esc(state.domain))}</h3><p>${String(state.registration?.website_id?'The domain and default email address are attached to your website. Open Web Editor to continue building.':'The domain setup has been saved.')}</p></div>`;
     }
 
     function footerActionsHtml(){
       if (state.busy) return '';
+      if (state.step === 'done' && forEmail) return `<button class="dm-btn primary" data-finish>${esc('Done')}</button>`;
       if (state.step === 'done') return `<button class="dm-btn primary" data-finish><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_c600b08bd97509"," Open Web Editor") ?? " Open Web Editor")}</button>`;
       if (state.step === 'verify') {
         const verified=state.registration?.verified_at||state.registration?.status==='ready_to_connect'||state.registration?.status==='active';
@@ -355,7 +362,7 @@
         if (state.registration?.simulated) return `<button class="dm-btn" data-back>${(globalThis.PlatformLanguage?.htmlText("settings","m_121372231b5699","Back") ?? "Back")}</button><button class="dm-btn primary" data-check><i class="fas fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_357b27f0dd099b"," Complete test verification") ?? " Complete test verification")}</button>`;
         return `<button class="dm-btn" data-back>${(globalThis.PlatformLanguage?.htmlText("settings","m_121372231b5699","Back") ?? "Back")}</button>${String(state.path==='existing'?`<button class="dm-btn" data-resend>${(globalThis.PlatformLanguage?.htmlText("settings","m_0007afaec666fd","Copy DNS values") ?? "Copy DNS values")}</button>`:reminderReady?`<button class="dm-btn" data-resend>${(globalThis.PlatformLanguage?.htmlText("settings","m_4ce77002a418e4","Send reminder email") ?? "Send reminder email")}</button>`:'')}<button class="dm-btn primary" data-check><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_ffb92d3f243a29"," Check status") ?? " Check status")}</button>`;
       }
-      return `${state.step==='choose'?'':`<button class="dm-btn" data-back>${(globalThis.PlatformLanguage?.htmlText("settings","m_121372231b5699","Back") ?? "Back")}</button>`}<button class="dm-btn primary" data-next>${state.step==='review'?(state.path==='existing'?'Create connection':state.path==='transfer'?'Start transfer':'Register domain'):'Continue'} <i class="fas fa-arrow-right"></i></button>`;
+      return `${state.step==='choose'||(forEmail&&state.step==='domain')?'':`<button class="dm-btn" data-back>${(globalThis.PlatformLanguage?.htmlText("settings","m_121372231b5699","Back") ?? "Back")}</button>`}<button class="dm-btn primary" data-next>${state.step==='review'?(state.path==='existing'?'Create connection':state.path==='transfer'?'Start transfer':'Register domain'):'Continue'} <i class="fas fa-arrow-right"></i></button>`;
     }
 
     function renderStep(container){
@@ -460,14 +467,14 @@
         const values=readVisibleFields();
         state.websiteName=clean(values.website_name||state.websiteName);
         state.defaultEmailLocalPart=clean(values.default_email_local_part||state.defaultEmailLocalPart).toLowerCase();
-        if (!state.websiteMode) { state.error='Choose an existing website or create a new one.'; render(); return; }
-        if (state.websiteMode==='create'&&!state.websiteName) { state.error='Enter a name for the new website.'; render(); return; }
+        if (!forEmail&&!state.websiteMode) { state.error='Choose an existing website or create a new one.'; render(); return; }
+        if (!forEmail&&state.websiteMode==='create'&&!state.websiteName) { state.error='Enter a name for the new website.'; render(); return; }
         if (!/^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/.test(state.defaultEmailLocalPart)) {
           state.error='Enter a valid default email name using letters, numbers, periods, underscores, or hyphens.';
           render();
           return;
         }
-        const website=state.websiteMode==='create'?{mode:'create',name:state.websiteName}:{mode:'existing',id:state.websiteMode.slice(9)};
+        const website=forEmail?{mode:'none'}:state.websiteMode==='create'?{mode:'create',name:state.websiteName}:{mode:'existing',id:state.websiteMode.slice(9)};
         setBusy(true);
         try {
           const response=await window.DomainsAPI.attachResources(orgId,state.domain,{website,default_email_local_part:state.defaultEmailLocalPart});
@@ -499,6 +506,7 @@
       catch(error) { setBusy(false,error?.message||'Could not send the verification reminder.'); }
     }
     async function loadResources(){
+      if (forEmail) return;
       try {
         const sites=await (window.WebsitesAPI?.sites?.list?.(orgId).catch(()=>({sites:[]}))||{sites:[]});
         state.sites=Array.isArray(sites?.sites)?sites.sites:[];
@@ -510,6 +518,7 @@
       } catch(_error) {}
     }
     async function finishWizard(){
+      if (forEmail) { close(); return; }
       const websiteId=clean(state.connectedWebsiteId||state.registration?.website_id);
       if (!websiteId) {
         state.error='The website connection is missing. Go back to Website & email and select or create a website before opening Web Editor.';
@@ -533,7 +542,7 @@
     loadResources();
     wizard = window.FirstMateSetupWizard.open({
       id:'domain-onboarding',
-      workflowKey:'domain_onboarding',
+      workflowKey:forEmail?'':'domain_onboarding',
       title:(globalThis.PlatformLanguage?.text("settings","m_7e6427ce4061f4","Domains & Hosting") ?? "Domains & Hosting"),
       icon:'fa-globe',
       initialStepId:state.step,
@@ -557,12 +566,34 @@
         state.visitedSteps.add(stepId);
       },
       writeRoute:(patch, routeOptions) => {
+        if (forEmail) return;
         if (options.writeRoute) { options.writeRoute(patch, routeOptions); return; }
         window.Portal?.navigation?.write?.({ tab:'company_settings', sub:'domains', ...patch }, { ...routeOptions, ownedKeys:['tab','sub','workflow','workflow_step'] });
       },
-      closeRoute:options.closeRoute
+      closeRoute:forEmail?() => {}:options.closeRoute,
+      onClose:() => options.onClose?.({ domain:state.domain, registration:state.registration })
     });
     return { close };
+  }
+
+  /**
+   * The domain workflow for a company's email address (the Communications setup, FM-513): connect a domain the company
+   * owns ('existing') or buy one ('register'), then choose its address; no website. Picks up a domain already started.
+   * Resolves when it closes.
+   */
+  async function openForEmail(options = {}){
+    ensureCss();
+    const orgId = clean(options.orgId);
+    const path = options.path === 'register' ? 'register' : 'existing';
+    const [config, list, registrantDefaults] = await Promise.all([
+      window.DomainsAPI.config(),
+      window.DomainsAPI.list(orgId).catch(() => ({ domains:[] })),
+      path === 'register' ? loadRegistrantDefaults(orgId) : {}
+    ]);
+    const registration = (Array.isArray(list?.domains) ? list.domains : []).find((entry) => clean(entry.domain) === clean(options.domain).toLowerCase()) || null;
+    const verified = !!(registration?.verified_at || ['ready_to_connect','active'].includes(clean(registration?.status)));
+    const resumePath = registration ? (clean(registration.acquisition_type) === 'existing' ? 'existing' : clean(registration.acquisition_type) === 'transfer' ? 'transfer' : 'register') : path;
+    return new Promise((resolve) => openWizard({ orgId, config:config || {}, registrantDefaults, purpose:'email', domain:registration?.domain || '', registration, onClose:resolve }, resumePath, registration ? (verified ? 'resources' : 'verify') : ''));
   }
 
   async function legacyMount(options = {}){
@@ -731,5 +762,5 @@
     }
   }
 
-  window.FirstMateDomainsSettings={ mount, open:openWizard };
+  window.FirstMateDomainsSettings={ mount, open:openWizard, openForEmail };
 })();

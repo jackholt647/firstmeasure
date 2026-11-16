@@ -2,7 +2,9 @@
 // One step that keeps its own pages, as few as it can: the start (texts, calls and email in a row, each explained in its
 // tooltip, and where to start), then one done page. Choosing texts and calls turns them on and goes straight into carrier
 // registration (10DLC): the same workflow as Phone Settings (settings/sms-registration.js), simulated on development.
-// Choosing email turns it on at once. The done page says where each channel stands and offers the other one there; the
+// Choosing email asks how it starts (FM-513): the company's own domain or a new one (the Domains workflow,
+// settings/domains.js, full screen like registration), or FirstMate Mail, on at once. The done page says where each
+// channel stands and offers the other one there; the
 // texting plan is platform billing's own quote and checkout (FirstMatePlatformBilling.review). Every write is a published
 // action run as the person (comms.setup.start). Copy is gx_ keys with English fallbacks; the library entry's options
 // may replace the title (`headline`) and the line under it (`subtitle`), and say which channel a place starts with (`first`).
@@ -11,6 +13,7 @@ const object = (value) => value && typeof value === 'object' && !Array.isArray(v
 const clean = (value) => String(value ?? '').trim();
 const REGISTRATION_SRC = '/libraries/apps/settings/sms-registration.js?v=20261116-fm510';
 const WIZARD_SRC = '/libraries/setup-wizard/setup-wizard.js';
+const DOMAINS_SRCS = ['/libraries/domains-api/domains-api.js?v=20260731-domains-v10', '/libraries/apps/settings/domains.js?v=20261116-fm513'];
 
 const css = `
 .gxc{display:flex;flex-direction:column;gap:18px;min-width:0;padding:2px 0 8px;color:#101828}
@@ -36,6 +39,7 @@ const css = `
 .gxc-choice strong{display:block;font-size:15px}.gxc-choice small{display:block;font-size:13px;color:#667085;margin-top:2px}
 .gxc-choice>span:last-child{flex:1;min-width:0}
 .gxc-choice[data-first]{border-color:var(--primary,#d93025);box-shadow:0 0 0 1px var(--primary,#d93025)}
+.gxc-emails{display:grid;gap:10px}
 .gxc-label{font-size:13px;font-weight:750;color:#344054}
 .gxc-rows{display:grid;gap:10px}
 .gxc-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid #e4e7ec;border-radius:16px;background:#fff}
@@ -80,20 +84,23 @@ function installStyle(){
 function loadScript(src, win = window){
   return new Promise((resolve, reject) => { const doc = win.document, script = doc.createElement('script'); script.src = src; script.onload = resolve; script.onerror = () => { script.remove(); reject(new Error('load failed')); }; doc.head.append(script); });
 }
-// The registration workflow opens over the whole page: the portal's window when the setup plays in a project window.
-async function registrationWindow(){
+// A full-screen workflow (carrier registration, domains) opens over the whole page: the portal's window when the setup
+// plays in a project window.
+async function workflowWindow(sources, ready){
   const wins = [];
   try { if (window.top !== window && window.top.location.origin === location.origin) wins.push(window.top); } catch {}
   wins.push(window);
   for (const win of wins) {
     try {
       if (!win.FirstMateSetupWizard?.open) await loadScript(WIZARD_SRC, win);
-      if (!win.FirstMateSmsRegistration?.open) await loadScript(REGISTRATION_SRC, win);
-      if (win.FirstMateSetupWizard?.open && win.FirstMateSmsRegistration?.open) return win;
+      for (const src of sources) if (!ready(win)) await loadScript(src, win);
+      if (win.FirstMateSetupWizard?.open && ready(win)) return win;
     } catch {}
   }
-  throw new Error('Registration could not load. Close the setup and try again.');
+  throw new Error('This could not load. Close the setup and try again.');
 }
+const registrationWindow = () => workflowWindow([REGISTRATION_SRC], (win) => !!win.FirstMateSmsRegistration?.open);
+const domainsWindow = () => workflowWindow(DOMAINS_SRCS, (win) => !!(win.DomainsAPI && win.FirstMateDomainsSettings?.openForEmail));
 async function syncSessions(orgId){
   const wins = new Set([window]);
   try { if (window.top.location.origin === location.origin) wins.add(window.top); } catch {}
@@ -113,7 +120,7 @@ export function mount(el, ctx){
   const orgId = String(window.__APP?.userOrgId || window.Portal?.currentUser?.orgId || ctx.orgId || '');
   const options = object(ctx.options);
   const first = options.first === 'email' ? 'email' : 'phone';
-  let alive = true, busy = false, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, registering = false;
+  let alive = true, busy = false, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, domains = null, registering = false;
 
   const invoke = async (action, input = {}) => {
     const key = action === 'comms.setup.start' ? `comms.setup.start:${orgId}:${input.channel}:${Date.now()}` : undefined;
@@ -159,7 +166,8 @@ export function mount(el, ctx){
     el.querySelectorAll('[data-gxc-start]').forEach((button) => button.addEventListener('click', () => {
       const id = button.dataset.gxcStart;
       if (object(status.done)[id] && (id === 'email' || registered())) return show('done');
-      void (id === 'email' ? startEmail(button) : startPhone(button));
+      if (id === 'email') return show('email');
+      void startPhone(button);
     }));
   }
 
@@ -182,9 +190,14 @@ export function mount(el, ctx){
         : state === 'submitted'
           ? row('wait', 'fa-clock', phoneName, L('gx_comms_phone_review', 'Carriers are reviewing your business, usually for a few days. Texts start once it’s approved.'))
           : row('todo', 'fa-exclamation', phoneName, state === 'attention' ? L('gx_comms_phone_attention', 'Your registration needs changes before you can text.') : L('gx_comms_phone_register', 'Register your business with the carriers to start texting.'), button('data-gxc-phone', state === 'attention' ? L('gx_comms_fix', 'Fix it') : L('gx_comms_continue_registration', 'Continue'), true));
+    // Email on a domain whose email records are not set up yet still sends from FirstMate Mail: the row says so.
+    const domain = object(email.domain), domainWaits = !!domain.address && domain.state !== 'ready';
+    const address = (value) => `<p class="gxc-address" data-gxc-address>${esc(value)}</p>`;
     const emailRow = done.email
-      ? row('done', 'fa-check', L('gx_comms_email_name', 'Email'), email.address ? '' : L('gx_comms_email_ready', 'Your company inbox is on.'), '', email.address ? `<p class="gxc-address" data-gxc-address>${esc(email.address)}</p>` : '')
-      : row('offer', 'fa-plus', L('gx_comms_offer_email', 'Try email too'), L('gx_comms_offer_email_body', 'A company inbox: every customer email lands on their project.'), button('data-gxc-email', L('gx_comms_email_turn_on', 'Turn on email'), !done.phone || registered()));
+      ? domainWaits
+        ? row('wait', 'fa-clock', L('gx_comms_email_name', 'Email'), email.address ? L('gx_comms_email_domain_wait', 'Sends from {address} until its email records are set up.', { address: email.address }) : '', '', address(domain.address))
+        : row('done', 'fa-check', L('gx_comms_email_name', 'Email'), '', '', address(domain.state === 'ready' ? domain.address : email.address))
+      : row('offer', 'fa-plus', L('gx_comms_offer_email', 'Add email'), '', button('data-gxc-email', L('gx_comms_set_up', 'Set up'), !done.phone || registered()));
     el.innerHTML = `<div class="gxc">
       <div class="gxc-rows">${(done.phone || !done.email ? [phoneRow, emailRow] : [emailRow, phoneRow]).join('')}<div data-gxc-plan-row hidden></div></div>
       ${errorLine}
@@ -196,7 +209,7 @@ export function mount(el, ctx){
     </div>`;
     el.querySelector('[data-gxc-back]').addEventListener('click', () => show('intro'));
     el.querySelector('[data-gxc-phone]')?.addEventListener('click', (event) => startPhone(event.currentTarget));
-    el.querySelector('[data-gxc-email]')?.addEventListener('click', (event) => startEmail(event.currentTarget));
+    el.querySelector('[data-gxc-email]')?.addEventListener('click', () => show('email'));
     // The texting plan, where platform billing sells one and the organization has none yet.
     if (done.phone) void billingAvailable().then((available) => {
       const slot = el.querySelector('[data-gxc-plan-row]');
@@ -204,6 +217,58 @@ export function mount(el, ctx){
       slot.outerHTML = row('offer', 'fa-credit-card', L('gx_comms_plan_row', 'Texting plan'), L('gx_comms_plan_row_body', 'Pick a monthly plan now, or later in Settings › Billing.'), button('data-gxc-plans', L('gx_comms_plan_choose', 'Choose a plan')));
       el.querySelector('[data-gxc-plans]')?.addEventListener('click', () => show('billing'));
     });
+  }
+
+  // How email starts: the company's own domain, a new one, or FirstMate Mail. Nothing is turned on until one is picked.
+  async function domainsOffered(){
+    if (domains) return domains;
+    domains = { buy: false };
+    try { const win = await domainsWindow(); const config = object(await win.DomainsAPI.config()); domains = { buy: config.configured === true && config.encryption_configured === true }; }
+    catch { domains = { buy: false }; }
+    return domains;
+  }
+  function drawEmail(){
+    title(L('gx_comms_email_title', 'Your email address'));
+    const domain = object(object(status.email).domain), started = domain.name && !domain.address;
+    const card = (id, iconName, name, body, disabled = false) => `<button type="button" class="gxc-choice" data-gxc-email-way="${id}" ${disabled ? 'disabled' : ''}>${icon(iconName)}<span><strong>${esc(name)}</strong><small>${esc(body)}</small></span></button>`;
+    const buy = domains?.buy !== false;
+    el.innerHTML = `<div class="gxc">
+      <div class="gxc-emails">
+        ${card('existing', 'fa-globe', L('gx_comms_email_own', 'Use my domain'), domain.address || (started ? L('gx_comms_email_own_resume', 'Finish connecting {domain}', { domain: domain.name }) : L('gx_comms_email_own_body', 'you@yourcompany.com')))}
+        ${card('register', 'fa-cart-shopping', L('gx_comms_email_buy', 'Buy a domain'), buy ? L('gx_comms_email_buy_body', 'Find a new one') : L('gx_comms_email_buy_soon', 'Not available yet'), !buy)}
+        ${card('firstmate', 'fa-paper-plane', L('gx_comms_email_firstmate', 'FirstMate Mail'), L('gx_comms_email_firstmate_body', 'Ready now, on firstmatemail.com'))}
+      </div>
+      ${errorLine}
+      <div class="gxc-actions">
+        <button type="button" class="gxc-btn" data-gxc-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>
+      </div>
+    </div>`;
+    el.querySelector('[data-gxc-back]').addEventListener('click', () => show(object(status.done).phone ? 'done' : 'intro'));
+    el.querySelectorAll('[data-gxc-email-way]').forEach((button) => button.addEventListener('click', () => {
+      const way = button.dataset.gxcEmailWay;
+      // A domain that already has its address (connected in Settings › Domains) only needs email turned on.
+      void (way === 'firstmate' || (way === 'existing' && domain.address) ? startEmail(button) : startDomain(way, button));
+    }));
+    if (!domains) void domainsOffered().then(() => { if (alive && page === 'email' && !busy) drawEmail(); });
+  }
+  // The domain workflow, full screen over the page like registration; when it closes, email turns on once the domain
+  // has its address (mail sends from FirstMate Mail until the domain's email records are set up), else back here.
+  async function startDomain(path, button){
+    if (busy) return; busy = true; if (button) button.disabled = true;
+    try {
+      const win = await domainsWindow();
+      const sheet = el.closest('.gxs');
+      if (sheet) { sheet.style.visibility = 'hidden'; sheet.inert = true; }
+      registering = true;
+      // "Use my domain" picks up a domain already started; "Buy a domain" always starts a new one.
+      try { await win.FirstMateDomainsSettings.openForEmail({ orgId, path, domain: path === 'existing' ? object(object(status.email).domain).name || '' : '' }); }
+      finally { registering = false; if (sheet) { sheet.style.visibility = ''; sheet.inert = false; } }
+      if (!alive) return;
+      status = await invoke('comms.setup.status');
+      if (object(object(status.email).domain).address) { await turnOn('email'); if (alive) show('done'); }
+      else if (alive) show('email');
+    } catch (error) { if (alive) { show('email'); fail(error); } }
+    finally { busy = false; if (button?.isConnected) button.disabled = false; }
   }
 
   // The texting plan: platform billing's SMS prices. Where billing is not offered (or nothing is for sale), no row.
@@ -259,7 +324,7 @@ export function mount(el, ctx){
     ctx.change({ comms_setup: ['phone', 'email'].filter((id) => object(status.done)[id]) }, channel === 'email' ? L('gx_comms_email_name', 'Email') : L('gx_comms_phone_name', 'Texts and calls'));
     await syncSessions(orgId);
   }
-  // Email: on at once, then the done page (with its address and texts and calls offered).
+  // FirstMate Mail: on at once, then the done page (with its address and texts and calls offered).
   async function startEmail(button){
     if (busy) return; busy = true; if (button) button.disabled = true;
     try { await turnOn('email'); if (alive) show('done'); }
@@ -300,6 +365,7 @@ export function mount(el, ctx){
   function draw(){
     if (!alive) return;
     if (page === 'done') drawDone();
+    else if (page === 'email') drawEmail();
     else if (page === 'billing') drawBilling();
     else drawIntro();
     el.querySelector('[data-gxc-finish]')?.addEventListener('click', () => finish());
@@ -313,7 +379,7 @@ export function mount(el, ctx){
   window.__fmCommsSetupStart = ''; try { top.__fmCommsSetupStart = ''; } catch {}
   invoke('comms.setup.status').then((value) => {
     status = value; draw();
-    if (start === 'email') void (object(status.done).email ? show('done') : startEmail());
+    if (start === 'email') show(object(status.done).email ? 'done' : 'email');
     else if (start === 'phone') void (object(status.done).phone && registered() ? show('done') : startPhone());
   }).catch((error) => { draw(); fail(error); });
   return { valid: () => true, escape: () => registering, destroy(){ alive = false; } };

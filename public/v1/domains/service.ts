@@ -751,7 +751,7 @@ export async function resendDomainVerification(orgId: string, domain: string) {
 export async function attachDomainResources(input: {
   orgId: string;
   domain: string;
-  website: { mode: "existing"; id: string } | { mode: "create"; name: string };
+  website: { mode: "existing"; id: string } | { mode: "create"; name: string } | { mode: "none" };
   defaultEmailLocalPart: string;
   context: PlatformAuthContext;
 }) {
@@ -793,7 +793,7 @@ export async function attachDomainResources(input: {
     default_email_local_part: input.defaultEmailLocalPart,
     default_email: defaultEmail,
     email_configuration_status: "pending_provider_setup",
-    status: verified && websiteId ? "active" : cleanText(current.status),
+    status: verified && (websiteId || input.website.mode === "none") ? "active" : cleanText(current.status),
     resources_connected_at: new Date().toISOString()
   });
   await configureOrgDomainEmailIdentity({

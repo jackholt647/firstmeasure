@@ -52,3 +52,7 @@ tested. Set it back to `false` and restart the backend to restore live orders.
 - `POST /organizations/:orgId/domains/:domain/verification/check`
 - `POST /organizations/:orgId/domains/:domain/verification/resend`
 - `POST /organizations/:orgId/domains/:domain/resources`
+
+Resources take `website: { mode: "none" }` for an email address with no website: the Communications setup
+(FM-513) connects or buys a domain for the company's email this way (`FirstMateDomainsSettings.openForEmail`).
+Customer mail keeps sending from FirstMate Mail until the domain's email records are set up (FM-516).

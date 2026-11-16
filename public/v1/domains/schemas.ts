@@ -54,7 +54,9 @@ const emailLocalPartSchema = z.string().trim().toLowerCase()
 export const attachDomainResourcesSchema = z.object({
   website: z.discriminatedUnion("mode", [
     z.object({ mode: z.literal("existing"), id: z.string().trim().min(1).max(160) }),
-    z.object({ mode: z.literal("create"), name: z.string().trim().min(1).max(200) })
+    z.object({ mode: z.literal("create"), name: z.string().trim().min(1).max(200) }),
+    // Email only (the Communications setup, FM-513): the domain gets its default email address and no website.
+    z.object({ mode: z.literal("none") })
   ]),
   default_email_local_part: emailLocalPartSchema.optional(),
   // Accepted temporarily so an already-open onboarding modal can finish after deployment.
