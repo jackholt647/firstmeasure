@@ -6,6 +6,14 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const source = document.currentScript?.src || new URL('/libraries/appointment-booking/booking.js', location.href).href;
   const STEP_LABELS = {type:'Type', project:'Project', when:'Time'};
+  /* What was booked, one fact per line under the step names (FM-503). */
+  function createdDetails(configuration, slot, where){
+    const when = new Date(slot?.start_at || slot?.start);
+    const day = Number.isFinite(when.getTime()) ? when.toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'}) : '';
+    const type = configuration.presetLabel || 'Custom', title = clean(configuration.value.title);
+    const row = (label, ...values) => (values = values.map(clean).filter(Boolean)).length ? `<div><dt>${esc(label)}</dt><dd>${values.map(value => `<span>${esc(value)}</span>`).join('')}</dd></div>` : '';
+    return `${title && title !== clean(where) && title !== type ? `<p class="fm-booking-created-title">${esc(title)}</p>` : ''}<dl class="fm-booking-created-details">${row(STEP_LABELS.type, type)}${row(STEP_LABELS.project, where)}${row(STEP_LABELS.when, day, configuration.value.timing_mode === 'days' ? '' : slot?.label)}</dl>`;
+  }
   let loading, active;
   async function ensurePicker(){
     if (window.FirstMateAvailability && window.FirstMateProjectSelector && window.FirstMateAppointmentConfiguration) return;
@@ -80,7 +88,9 @@
         await api.appointments.book(orgId, {...(select.value ? {project_id:select.value} : {}), start_at:selected.start_at || selected.start, event_id:eventId, configuration:configuration.value});
         window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
         options.onBooked?.();
-        picker?.destroy(); target.innerHTML = '<p role="status">Event created.</p>';
+        const where = select.value ? clean(projectControl.querySelector('input')?.value) || configuration.project.title : configuration.value.location?.address;
+        const details = createdDetails(configuration, selected, where);
+        picker?.destroy(); target.innerHTML = `<div class="fm-booking-created fm-booking-created-inline"><p role="status">Event created.</p>${details}</div>`;
         status.textContent = ''; select.setDisabled(true);
       } catch (error) {
         status.textContent = error.message || 'Could not create this event.';
@@ -109,7 +119,7 @@
 <section class="fm-booking-step" data-step="type" aria-labelledby="fm-booking-step-type"><h3 id="fm-booking-step-type" tabindex="-1">What kind of appointment?</h3><div data-slot-type></div></section>
 ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" aria-labelledby="fm-booking-step-project" hidden><h3 id="fm-booking-step-project" tabindex="-1">Which project?</h3><p class="fm-booking-hint">Search by name, or type the address to find it.</p><div data-project></div></section>`}
 <section class="fm-booking-step" data-step="when" aria-labelledby="fm-booking-step-when" hidden><h3 id="fm-booking-step-when" tabindex="-1">When?</h3><div class="fm-booking-summary" data-summary></div><div data-slot-quick></div><div class="fm-availability"></div></section>
-<section class="fm-booking-step fm-booking-done" data-step="done" hidden><div class="fm-booking-check" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg></div><h3 tabindex="-1">Event created</h3><p data-done-summary></p></section>
+<section class="fm-booking-step fm-booking-done" data-step="done" hidden><div class="fm-booking-check" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg></div><h3 tabindex="-1">Event created</h3><div class="fm-booking-created" data-done-summary></div></section>
 </div>
 <div role="status" data-status></div>
 <footer class="fm-booking-footer"><button type="button" class="fm-booking-nav" data-prev><span class="fm-booking-arrow back" aria-hidden="true"></span><span>Previous</span></button><button type="button" class="fm-booking-nav primary" data-next><span>Next</span><span class="fm-booking-arrow" aria-hidden="true"></span></button><button type="submit" class="fm-booking-nav primary" data-create hidden disabled>Create event</button><button type="button" class="fm-booking-nav primary" data-finish hidden>Done</button></footer>
@@ -129,10 +139,10 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
     const newEvent = () => { eventId = `appointment_${crypto.randomUUID()}`; };
     const projectId = () => lockedProject || select?.value || '';
 
+    const whereText = () => projectId() ? (lockedProject ? configuration.project.title : clean(select?.input?.value)) || 'Project' : addressOverride ? configuration.value.location.address : 'No project';
     function summary(){
       if (!configuration) return '';
-      const type = configuration.presetLabel || 'Custom';
-      const where = projectId() ? (lockedProject ? configuration.project.title : clean(select?.input?.value)) || 'Project' : addressOverride ? configuration.value.location.address : 'No project';
+      const type = configuration.presetLabel || 'Custom', where = whereText();
       const chip = (goto, icon, text) => goto ? `<button type="button" class="fm-booking-chip" data-goto="${goto}"><span aria-hidden="true">${icon}</span><span>${esc(text)}</span></button>` : `<span class="fm-booking-chip"><span aria-hidden="true">${icon}</span><span>${esc(text)}</span></span>`;
       return chip('type', '◆', type) + chip(lockedProject ? '' : 'project', projectId() ? '▱' : '⌖', where);
     }
@@ -259,9 +269,7 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
         await api.appointments.book(orgId, {...(projectId() ? {project_id:projectId()} : {}), start_at:selected.start_at || selected.start, event_id:eventId, configuration:configuration.value});
         window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
         options.onBooked?.();
-        const when = new Date(selected.start_at || selected.start);
-        const day = Number.isFinite(when.getTime()) ? when.toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'}) : '';
-        $('[data-done-summary]').textContent = [configuration.value.title, day, configuration.value.timing_mode === 'days' ? '' : selected.label].filter(Boolean).join(' · ');
+        $('[data-done-summary]').innerHTML = createdDetails(configuration, selected, whereText());
         saving = false; stage.inert = false; done = true; status.textContent = '';
         picker?.destroy(); picker = null;
         go('done');
