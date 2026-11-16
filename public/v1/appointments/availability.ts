@@ -273,10 +273,10 @@ type AvailabilityOptions = {
   limit?: number;
 };
 
-export async function appointmentAvailability(orgId: string, branchIdValue: string, options: AvailabilityOptions = {}, internal: { assignmentPolicy?:JsonObject; slotMinutes?:number; fullDay?:boolean } = {}) {
+export async function appointmentAvailability(orgId: string, branchIdValue: string, options: AvailabilityOptions = {}, internal: { assignmentPolicy?:JsonObject; slotMinutes?:number; fullDay?:boolean; timezone?:string } = {}) {
   const branchId = cleanText(branchIdValue) || "default";
   const { scheduling, settings } = await readSchedulingAvailabilitySettings(orgId, branchId);
-  const timezone = await resolveOrganizationTimezone(orgId, branchId);
+  const timezone = internal.timezone || await resolveOrganizationTimezone(orgId, branchId);
   const projectId = cleanText(options.project_id);
   const eventId = cleanText(options.event_id);
   const projectDocument = projectId ? await readDocument(orgId, "projects", projectId).catch(() => null) : null;

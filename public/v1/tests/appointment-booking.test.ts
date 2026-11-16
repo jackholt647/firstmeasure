@@ -220,6 +220,33 @@ test('configured appointments preserve departments, delivery, staffing and recur
 });
 
 
+// FM-504: an organization nobody gave a zone to booked in the server's zone (UTC on dev), so a 1:00 PM slot
+// picked on a phone in Seattle was saved as 1:00 PM UTC and shown as 5 AM.
+test('an organization without a time zone books in the device zone and keeps it',async()=>{
+  const client=createSessionClient();const {orgId}=await registerOwner(client);
+  const storage=await import('../platform/storage.js');
+  const {saveCapabilityValues}=await import('../platform/capabilities.js');
+  const {configuredOrganizationTimezone}=await import('../platform/timezone.js');
+  await saveCapabilityValues(orgId,{'platform.scheduling':true,'scheduling.appointment_slots':true});
+  await storage.saveBranchModule(orgId,'default','scheduling',{data:{self_service:{default_policy:{min_notice_minutes:0}}}},{replace:true});
+  await storage.patchOrganization(orgId,{timezone:''});
+  assert.equal(await configuredOrganizationTimezone(orgId,'default'),'');
+  const base=`/v1/appointments/organizations/${orgId}`,zone='America/Los_Angeles';
+  const wall=(iso:string)=>new Intl.DateTimeFormat('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'}).format(new Date(iso));
+  const date=new Date(Date.now()+96*3600000).toISOString().slice(0,10);
+  const configuration={title:'Sales appointment',department_ids:[],requirements:[],delivery:false,duration_minutes:60,window_minutes:60,slot_minutes:30};
+  const preview=await client.request('POST',base+'/preview',{date,configuration,timezone:zone});
+  assert.equal(preview.timezone,zone);
+  const slot=preview.slots.find((s:any)=>s.label==='1:00 PM');assert.ok(slot,'business hours are the device zone\'s, not the server\'s');
+  assert.equal(wall(slot.start_at),'1:00 PM');
+  assert.equal(await configuredOrganizationTimezone(orgId,'default'),'','a preview never writes the organization');
+  const booked=await client.request('POST',base+'/book',{event_id:'appointment_devicezone0123456789',start_at:slot.start_at,configuration,timezone:zone});
+  assert.equal(booked.event.start_at,slot.start_at);assert.equal(wall(booked.event.start_at),'1:00 PM');
+  assert.equal(await configuredOrganizationTimezone(orgId,'default'),zone,'the first booking keeps the zone for reminders and later bookings');
+  const later=await client.request('POST',base+'/preview',{date,configuration});assert.equal(later.timezone,zone);
+  const elsewhere=await client.request('POST',base+'/preview',{date,configuration,timezone:'Asia/Tokyo'});assert.equal(elsewhere.timezone,zone,'the organization\'s zone wins over a device\'s');
+});
+
 test('Instant Full presets use day installations, quarterly maintenance and office meetings; days check every date',async()=>{
   const client=createSessionClient();const {orgId}=await registerOwner(client);
   const storage=await import('../platform/storage.js');

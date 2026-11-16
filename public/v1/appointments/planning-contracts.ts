@@ -19,8 +19,10 @@ export type AppointmentConfiguration=z.infer<typeof appointmentConfigurationSche
 const catalogDepartmentSchema=z.preprocess(value=>{if(!value||typeof value!=='object'||Array.isArray(value))return value;const {group_id:_group,division_id:_division,...rest}=value as Record<string,unknown>;return rest;},departmentSchema);
 // `groups` held department categories, which no longer exist: it is accepted and always empty.
 export const appointmentCatalogSchema=z.object({departments:z.array(catalogDepartmentSchema).max(500),groups:z.array(z.object({id,label:z.string().trim().min(1).max(100)}).strict()).max(100).transform(()=>[] as Array<{id:string;label:string}>).default([]),presets:z.array(z.object({id,label:z.string().trim().min(1).max(100),configuration:appointmentConfigurationSchema}).strict()).max(200)}).strict();
-export const previewSchema=z.object({project_id:id.optional(),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),configuration:appointmentConfigurationSchema}).strict();
-export const plannedBookingSchema=z.object({project_id:id.optional(),event_id:z.string().regex(/^appointment_[a-zA-Z0-9-]{16,80}$/),start_at:z.string().datetime({offset:true}),configuration:appointmentConfigurationSchema}).strict();
+// The person's device zone; used only when the organization has none of its own (FM-504).
+const deviceTimezone=z.string().trim().max(80).optional();
+export const previewSchema=z.object({project_id:id.optional(),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),configuration:appointmentConfigurationSchema,timezone:deviceTimezone}).strict();
+export const plannedBookingSchema=z.object({project_id:id.optional(),event_id:z.string().regex(/^appointment_[a-zA-Z0-9-]{16,80}$/),start_at:z.string().datetime({offset:true}),configuration:appointmentConfigurationSchema,timezone:deviceTimezone}).strict();
 
 
 /**
