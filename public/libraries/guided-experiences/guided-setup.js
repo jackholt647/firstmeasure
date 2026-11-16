@@ -156,6 +156,12 @@
       .gxs-chat[data-open=true] .gxs-chat-handle .gxs-chevron{transform:rotate(180deg)}
       .gxs-close{top:6px;right:6px}
       .gxs-step{padding:6px 16px 20px}
+      /* The (i) tip hangs from the title, not centred on the icon: centred, it ran past the step's right edge (FM-485)
+         and the step scrolled sideways even while the tip was hidden. */
+      .gxs-step h2{position:relative}
+      .gxs-info{position:static}
+      .gxs-info-tip{left:0;max-width:100%;transform:translateY(4px)}
+      .gxs-info:hover .gxs-info-tip,.gxs-info:focus-visible .gxs-info-tip,.gxs-info:focus-within .gxs-info-tip{transform:none}
       .gxs-head{padding:12px 12px 6px}
       .gxs-badge span{display:none}
       .gxs-foot{padding:10px 12px}
