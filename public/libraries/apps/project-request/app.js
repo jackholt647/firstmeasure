@@ -35,8 +35,7 @@ window.PlatformCommerce.onReady(async function(){
   function gutterReportAddonPrice(){ const value=reportExpeditePropertyKey===reportPropertyKey()?reportPropertyPrices?.gutters:null; return value!=null && Number.isFinite(Number(value))?Number(value):window.PlatformCommerce.price('gutters'); }
   const WEATHER_REPORT_ADDON = window.PlatformCommerce.price('weather');
   const EXPEDITE_FEE_PERCENT = 115;
-  const MAX_PINS_RESIDENTIAL = 5;
-  const MAX_PINS_PER_STRUCTURE_REPORT = 10;
+  const MAX_PINS_PER_REPORT = 10;
   const PENDING_ORDER_KEY = 'fm_pending_order_v1';
   const PDF_PREVIEW_QUERY_FLAGS = ['disablePdfPreview', 'mobileDebug', 'noPdfPreview'];
   const FIRST_REPORT_CHECKOUT_FORCE_FLAGS = ['fm_force_first_report_checkout'];
@@ -2965,12 +2964,11 @@ window.PlatformCommerce.onReady(async function(){
 
   function pinCount(){ return getMarkersData().length; }
 
-  // Before a project type is chosen, allow the most any type allows; picking residential lowers it.
+  // Every report takes up to 10 pins, whichever type is chosen (or none yet), so the pin
+  // count, the notice and the limit never disagree when the type changes.
   function maxPinsForType(type){
     const normalized = normalizedProjectType(type);
-    if (!normalized) return MAX_PINS_PER_STRUCTURE_REPORT;
-    if (normalized === 'residential') return MAX_PINS_RESIDENTIAL;
-    if (isPerStructureType(normalized)) return MAX_PINS_PER_STRUCTURE_REPORT;
+    if (!normalized || normalized === 'residential' || isPerStructureType(normalized)) return MAX_PINS_PER_REPORT;
     return 0;
   }
 
@@ -2986,7 +2984,7 @@ window.PlatformCommerce.onReady(async function(){
   function showStructurePinLimitNotice(maxPins = maxPinsForType(selectedType)){
     structurePinLimitNoticeActive = true;
     renderPinInfo();
-    showToast((globalThis.PlatformLanguage?.text("project-request","m_21b024a2811c3a","Pin limit") ?? "Pin limit"), pinLimitMessage(maxPins || MAX_PINS_PER_STRUCTURE_REPORT), false);
+    showToast((globalThis.PlatformLanguage?.text("project-request","m_21b024a2811c3a","Pin limit") ?? "Pin limit"), pinLimitMessage(maxPins || MAX_PINS_PER_REPORT), false);
     return true;
   }
 
@@ -7239,7 +7237,7 @@ window.PlatformCommerce.onReady(async function(){
     const el = $('#rPinInfo');
     const count = pinCount();
     const maxPins = maxPinsForType(selectedType);
-    // Over the limit (residential picked after more pins were placed) always shows the notice.
+    // Over the limit (pins kept from a project saved with more) always shows the notice.
     const showLimitNotice = !!maxPins && (count > maxPins || (structurePinLimitNoticeActive && count >= maxPins));
     if (!showLimitNotice && (!maxPins || count < maxPins)) {
       structurePinLimitNoticeActive = false;
