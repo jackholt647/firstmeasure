@@ -4,6 +4,7 @@ import { env } from '../src/config/env.js';
 import { queryPostgres, isFirstMeasurePostgresEnabled } from '../src/database/postgres.js';
 import { forbidden, badRequest } from '../platform/errors.js';
 import { canManageTestAppFlags, canManageSandboxOrgFlags } from '../platform/app_flags.js';
+import { sandboxStore } from '../signup-sandbox/storage.js';
 import { createProject, readManifest, readArtifact, listProjectFiles, saveArtifact, saveManifest, type JsonObject } from './storage.js';
 
 // Developer grants include authenticated sandbox operators, never ordinary org admins.
@@ -12,7 +13,16 @@ export async function developmentReportsAllowed(auth: PlatformAuthContext) {
   const email = String(auth.identity.email || '').trim().toLowerCase();
   const allowed = `${process.env.FIRSTMEASURE_DEVELOPER_EMAILS || ''},${process.env.EXPERIMENTAL_ACCOUNTS_ADMIN_EMAILS || ''}`.split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
   if (allowed.includes(email)) return true;
-  return canManageTestAppFlags(auth) || canManageSandboxOrgFlags(auth);
+  return canManageTestAppFlags(auth) || canManageSandboxOrgFlags(auth) || await sandboxOrgAdmin(auth);
+}
+// A sandbox test organization's owner or admin, however they signed in (the mobile app's login
+// is not a sandbox session). Metadata alone is not trusted: the sandbox's own record must name the org.
+async function sandboxOrgAdmin(auth: PlatformAuthContext) {
+  const meta = (auth.organization?.metadata || {}) as JsonObject;
+  if (meta.sandbox_test_org !== true || !meta.sandbox_instance_id || auth.organization?.id !== auth.orgId) return false;
+  if (!['owner', 'admin', 'super_admin'].includes(String(auth.role || '').toLowerCase())) return false;
+  const record = await sandboxStore.readTestOrg(String(meta.sandbox_instance_id)).catch(() => null);
+  return !!record && record.org_id === auth.orgId;
 }
 export async function requireDevelopmentReports(auth: PlatformAuthContext) {
   if (!await developmentReportsAllowed(auth)) throw forbidden('development_reports_disabled', 'Development reports require developer access in development.');

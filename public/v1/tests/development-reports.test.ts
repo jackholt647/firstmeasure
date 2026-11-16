@@ -22,6 +22,17 @@ test('development copies require a developer, matching signed selection and comp
   assert.equal(await service.developmentReportsAllowed({...sandbox,session:{metadata:{source:'signup_sandbox_instance',sandbox_instance_id:'sbi_other'}}}),false);
   assert.equal(await service.developmentReportsAllowed({...sandbox,role:'member'}),false);
   assert.equal(await service.developmentReportsAllowed({...sandbox,session:{}}),false);
+  // FM-488: a sandbox org's owner signed in another way (the mobile app) once the sandbox's own record names the org.
+  const {sandboxStore}=await import('../signup-sandbox/storage.js');
+  await sandboxStore.saveTestOrg({schema_version:sandboxStore.schemaVersion,kind:'signup_sandbox_test_org',id:'sbi_test',org_id:'dev-org',created_at:new Date().toISOString()});
+  const mobile={...sandbox,session:{metadata:{mobile_login:true}}};
+  assert.equal(await service.developmentReportsAllowed(mobile),true);
+  assert.equal(await service.developmentReportsAllowed({...mobile,role:'member'}),false);
+  assert.equal(await service.developmentReportsAllowed({...mobile,organization:{id:'dev-org',metadata:{sandbox_test_org:true,sandbox_instance_id:'sbi_other'}}}),false);
+  assert.equal(await service.developmentReportsAllowed({...mobile,orgId:'other-org',organization:{...mobile.organization,id:'other-org'}}),false);
+  assert.equal(await service.developmentReportsAllowed({...mobile,organization:{id:'dev-org',metadata:{sandbox_instance_id:'sbi_test'}}}),false);
+  const {canManageSandboxOrgFlags}=await import('../platform/app_flags.js');
+  assert.equal(canManageSandboxOrgFlags(mobile),false);
 
   await assert.rejects(service.copyDevelopmentReport(ordinary,{}),/developer access/);
   assert.throws(()=>service.developmentCriteria({project_type:'invalid'}));
@@ -31,7 +42,7 @@ test('development copies require a developer, matching signed selection and comp
     await assert.rejects(requireExteriorAccess('dev-org',project_type),/not enabled/);
   }
   assert.deepEqual(service.developmentCriteria({project_type:'residential',measurement_scope:'full_house'}),{type:'residential',scope:'full_house'});
-  Object.assign(env,{isDevelopment:false});assert.equal(await service.developmentReportsAllowed(auth),false);assert.equal(await service.developmentReportsAllowed(sandbox),false);Object.assign(env,{isDevelopment:true});
+  Object.assign(env,{isDevelopment:false});assert.equal(await service.developmentReportsAllowed(auth),false);assert.equal(await service.developmentReportsAllowed(sandbox),false);assert.equal(await service.developmentReportsAllowed(mobile),false);Object.assign(env,{isDevelopment:true});
   Object.assign(env,{dataEnvironment:'production'});assert.equal(await service.developmentReportsAllowed(auth),false);Object.assign(env,{dataEnvironment:'development'});
   const source='development-source';
   await storage.saveManifest(source,{id:source,status:'completed',schema_version:1,project_type:'residential',address:'10 Test Street',lat:40,lng:-90,pins:[{lat:40,lng:-90}],timestamps:{},organization_ref:{id:'source-org'},resident:{email:'private@example.test'}} as any);
