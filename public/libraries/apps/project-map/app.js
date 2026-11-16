@@ -16,7 +16,8 @@
   }[match])));
   const showToast = Portal?.ui?.showToast || window.showToast || (() => {});
 
-  const MAX_PINS_PER_REPORT = 10;
+  const MAX_PINS_RESIDENTIAL = 5;
+  const MAX_PINS_PER_STRUCTURE_REPORT = 10;
   const DEFAULT_US_MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
   const DEFAULT_US_MAP_ZOOM = 4;
   const ICON_PATHS = {
@@ -87,11 +88,12 @@
     return normalized === 'commercial' || normalized === 'multifamily' || normalized === 'multi_family';
   }
 
-  // Every report takes up to 10 pins, whichever type is chosen (or none yet), so the pin
-  // count, the notice and the limit never disagree when the type changes.
+  // No type chosen yet or residential: 5 pins. Commercial and multi-family: 10, one per structure.
+  // Switching type re-checks the pins already placed against the new limit.
   function maxPinsForType(type){
     const normalized = normalizedProjectType(type);
-    if (!normalized || normalized === 'residential' || isPerStructureType(normalized)) return MAX_PINS_PER_REPORT;
+    if (!normalized || normalized === 'residential') return MAX_PINS_RESIDENTIAL;
+    if (isPerStructureType(normalized)) return MAX_PINS_PER_STRUCTURE_REPORT;
     return 0;
   }
 
