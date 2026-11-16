@@ -41,3 +41,19 @@ Rollback removes only the two named incident override files on each affected
 development host, runs `systemctl daemon-reload`, and restarts one development
 service at a time after another public-serving node is confirmed available.
 Do not remove unrelated drop-ins or modify production configuration.
+
+## November 16: the worker gets the same override
+
+From 16:31 UTC every platform release to development was rolled back because
+`systemctl restart firstmeasure-development-worker.service` failed: the
+worker's start-up preflight (`inspectRuntimeReadiness({fresh:true})`) aborted
+its first Spaces `ListObjectsV2` at the two-second dependency timeout ("Worker
+dependency preflight failed: Request aborted"). Measured on the worker, a fresh
+process's first list took 0.6–15 s, a second one 0.3–0.8 s; the service came up
+on its own automatic restart a few seconds later, too late for the router.
+Applied the same override on the worker (FM-499):
+`/etc/firstmeasure/development-readiness-latency-20261007.env` (the two values
+above) and the drop-in
+`firstmeasure-development-worker.service.d/zzzzz-development-readiness-latency-20261007.conf`
+that loads it. Both are new files; rollback removes them, `daemon-reload`,
+restart the worker. Production is unchanged.
