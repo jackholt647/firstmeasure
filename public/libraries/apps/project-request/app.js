@@ -862,8 +862,10 @@ window.PlatformCommerce.onReady(async function(){
     .r-window-identity.fm-shell-identity{max-width:none!important;gap:10px!important}
     :is(#rProjectIdentityTrigger,.r-project-identity-trigger){display:flex;align-items:center;min-width:0;flex:0 1 auto;border:0;background:none;color:inherit;padding:4px 0;font:inherit;text-align:left;cursor:pointer}
     :is(#rWindowProjectTitle,.r-window-project-title){display:flex;align-items:baseline;gap:12px;min-width:0;overflow:hidden;font-size:13px}
-    :is(#rWindowProjectTitle,.r-window-project-title) strong{font-weight:800;overflow:hidden;text-overflow:ellipsis}
-    .r-project-identity-secondary{font-weight:400;color:#667085;overflow:hidden;text-overflow:ellipsis}
+    /* The name keeps its full width and the address beside it is what clips; the name clips only when it alone is
+       wider than the header. */
+    :is(#rWindowProjectTitle,.r-window-project-title) strong{flex:0 0 auto;max-width:100%;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .r-project-identity-secondary{flex:0 1 auto;min-width:0;font-weight:400;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .r-window-identity :is(#rProjectStageBar,.r-project-stage-bar){flex:0 1 auto;min-width:0;margin:0;padding:0;border:0;background:none;overflow:auto}
     .r-window-identity .r-project-tags{flex-wrap:nowrap;margin:0;padding:0;gap:9px}
     .r-window-identity :is(#rProjectStageBar,.r-project-stage-bar){margin-left:6px}
