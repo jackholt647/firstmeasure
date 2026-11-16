@@ -174,7 +174,9 @@ async function start() {
   const retire = () => {
     if (retired || stopping) return;
     retired = true;
-    beginRuntimeDrain();
+    // Not draining: the node is not going away, and its ready replacement listens on the same port. A health check
+    // that reaches this worker on a kept-alive connection (nginx keeps some) answers ready, so a release's handover
+    // never shows the load balancer a 503 (FM-500). The stop that follows drains as usual.
     for (const response of inFlight) {
       if (!response.headersSent) response.setHeader("Connection", "close");
     }

@@ -27,7 +27,7 @@ async function buildTestApp(){
  const server=http.createServer(async(req,res)=>{
   if(req.url==='/slow'){await new Promise(r=>setTimeout(r,1400));res.end('completed');return;}
   if(req.url==='/release'){await new Promise(r=>setTimeout(r,5));res.end(env.releaseId+' '+process.pid);return;}
-  res.statusCode=draining?503:200;res.end('ready');
+  await new Promise(r=>setTimeout(r,5));res.statusCode=draining?503:200;res.end('ready');
  });
  return {server,log:{info(){},warn(){},error:console.error},listen:({host,port})=>new Promise(resolve=>server.listen(port,host,()=>{console.log('TEST_READY '+JSON.stringify({pid:process.pid,port:server.address().port,release:env.releaseId}));resolve();})),close:()=>new Promise(resolve=>{server.close(()=>resolve());server.closeIdleConnections();})};
 }

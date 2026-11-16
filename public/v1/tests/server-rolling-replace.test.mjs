@@ -52,9 +52,11 @@ function load(base,concurrency){
  const loops=Array.from({length:concurrency},async(_,index)=>{
   while(running){
    try{
-    const response=await fetch(base+(index===0?'/slow':'/release'));
+    // One loop asks for readiness as a load balancer does: a retiring worker must not answer 503 (FM-500).
+    const url=index===0?'/slow':index===1?'/ready':'/release';
+    const response=await fetch(base+url);
     const text=await response.text();
-    if(response.status===200){results.ok++;if(index)results.releases.add(text.split(' ')[0]);}
+    if(response.status===200){results.ok++;if(url==='/release')results.releases.add(text.split(' ')[0]);}
     else results.bad.push(response.status+' '+text);
    }catch(error){results.bad.push(String(error.cause?.code||error.message));}
   }

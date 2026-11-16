@@ -261,7 +261,9 @@ run a Node cluster primary (`public/v1/src/server.ts`), so `fm-release` hands
 over instead: SIGHUP, and the primary replaces its workers one at a time from
 the release `current` names, starting each new worker before retiring an old
 one (the rolling replace of FM-389), and `fm-release` waits for its log to say
-the replace onto the release is complete. The primary keeps running the code it
+the replace onto the release is complete. A retiring worker still answers
+readiness as ready (its replacement is serving), so nginx's kept-alive
+connections never show the load balancer a 503. The primary keeps running the code it
 started with, so this is only for a running primary whose `dist/src/server.js`
 is the release's; a release that changes it, a stopped service or a new pool
 node restarts as before. A rollback hands back the same way. Readiness is the
