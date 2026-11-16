@@ -48,3 +48,15 @@ test('an open portal chat can go back to the list on a phone', () => {
   assert.match(source, /\[data-co-chat-close\]'\)\?\.addEventListener\('click', \(\) => \{ state\.activeChatId = ''; state\.chatPicking = true;/);
   assert.equal((source.match(/!state\.activeChatId && !state\.chatPicking &&/g) || []).length, 2, 'both auto-selects respect chatPicking');
 });
+
+// FM-512: the group-text hint is an (i) on the To line of a new text, not a line under Send.
+test('the new-text group hint is a tip on the To line', () => {
+  const start = source.indexOf('${state.smsComposeOpen ? `');
+  const compose = source.slice(start, source.indexOf('` : active ? `', start));
+  const to = compose.slice(compose.indexOf('<div class="fmco-recipient-row has-tip">'), compose.indexOf('</div>', compose.indexOf('data-co-sms-to')));
+  assert.match(to, /data-co-sms-to>\$\{String\(hintTip\(globalThis\.PlatformLanguage\?\.text\("comms","m_6530a8d89e9c93"/);
+  assert.doesNotMatch(compose, /fmco-composer-hint[^]*m_6530a8d89e9c93/, 'the hint is back under the composer');
+  assert.match(source, /bindHintTips\(root\);/);
+  assert.match(rule('.fmco-tip-host'), /position:relative/);
+  assert.match(rule('.fmco-hint-tip'), /position:absolute;[^}]*top:calc\(100% \+ 6px\)/);
+});

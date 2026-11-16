@@ -26,6 +26,21 @@
     if (date.toDateString() === today.toDateString()) return time;
     return `${date.toLocaleDateString([], { month:'short', day:'numeric' })} ${time}`;
   };
+  /** An (i) whose tip shows on hover on a desktop and opens and closes with a tap (bindHintTips). */
+  const hintTip = (tip) => clean(tip) ? `<button type="button" class="fmco-hint-btn" data-co-tip aria-expanded="false" aria-label="${esc(tip)}"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span class="fmco-hint-tip" role="tooltip">${esc(tip)}</span></button>` : '';
+  const boundTipDocs = new WeakSet();
+  function bindHintTips(scope){
+    const closeTips = (except) => scope.ownerDocument.querySelectorAll('[data-co-tip][aria-expanded="true"]').forEach((tip) => { if (tip !== except) tip.setAttribute('aria-expanded', 'false'); });
+    scope.querySelectorAll('[data-co-tip]').forEach((tip) => tip.addEventListener('click', (event) => {
+      event.preventDefault();
+      closeTips(tip);
+      tip.setAttribute('aria-expanded', String(tip.getAttribute('aria-expanded') !== 'true'));
+    }));
+    const doc = scope.ownerDocument;
+    if (boundTipDocs.has(doc)) return;
+    boundTipDocs.add(doc);
+    doc.addEventListener('pointerdown', (event) => { if (!event.target.closest?.('[data-co-tip]')) closeTips(); }, true);
+  }
 
   function can(key){
     const fn = Portal.can;
@@ -222,6 +237,7 @@
       .fmco-recipient-box{border:1px solid #d0d5dd;border-radius:10px;background:#fff;overflow:hidden}
       .fmco-recipient-row{display:grid;grid-template-columns:42px minmax(0,1fr);align-items:center;border-bottom:1px solid #eef1f4}
       .fmco-recipient-row:last-child{border-bottom:0}
+      .fmco-recipient-row.has-tip{grid-template-columns:42px minmax(0,1fr) auto}
       .fmco-recipient-label{padding-left:12px;font-size:11px;font-weight:900;color:#667085}
       .fmco-recipient-input{border:0;outline:0;padding:9px 10px 9px 0;font:inherit;font-size:13px;min-width:0;width:100%}
       .fmco-contact-options{display:flex;gap:6px;flex-wrap:wrap}
@@ -234,6 +250,15 @@
       .fmco-textarea{resize:vertical;min-height:64px;max-height:220px}
       .fmco-composer-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
       .fmco-composer-hint{font-size:11px;color:#98a2b3;font-weight:700}
+      /* An (i) on a field: hover shows its tip on a desktop, a tap opens and closes it (aria-expanded).
+         The tip hangs under the field from .fmco-tip-host, outside the recipient box's overflow. */
+      .fmco-tip-host{position:relative}
+      .fmco-hint-btn{display:inline-grid;place-items:center;width:32px;height:32px;margin-right:4px;padding:0;border:0;border-radius:99px;background:none;color:#98a2b3;font:inherit;font-size:14px;cursor:help}
+      .fmco-hint-btn:hover,.fmco-hint-btn[aria-expanded="true"]{color:#475467}
+      .fmco-hint-btn:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:-2px}
+      .fmco-hint-tip{display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:20;width:max-content;max-width:min(320px,100%);box-sizing:border-box;padding:8px 10px;border-radius:9px;background:#344054;color:#fff;font-size:12.5px;font-weight:400;line-height:1.45;text-align:left;white-space:normal;cursor:auto;box-shadow:0 8px 24px rgba(16,24,40,.18)}
+      .fmco-hint-btn[aria-expanded="true"] .fmco-hint-tip,.fmco-hint-btn:focus-visible .fmco-hint-tip{display:block}
+      @media (hover:hover){.fmco-hint-btn:hover .fmco-hint-tip{display:block}}
       .fmco-voice{height:38px;display:inline-flex;align-items:center;gap:5px}.fmco-voice small{font-size:9px}.fmco-voice-mount:empty{display:none}.fmco-msg-audio{margin-top:6px;min-width:220px}
       .fmco-agent-head{padding:11px 14px;border-bottom:1px solid #eef1f4;display:flex;align-items:center;justify-content:space-between;flex:0 0 auto}
       .fmco-agent-title{font-size:12px;font-weight:900;display:flex;align-items:center;gap:8px;color:#101828}
@@ -306,6 +331,8 @@
         .fmco-composer .fmco-btn{min-height:38px}
         .fmco-input,.fmco-textarea,.fmco-recipient-input,.fmco-agent-composer textarea{font-size:16px}
         .fmco-recipient-row{grid-template-columns:50px minmax(0,1fr)}
+        .fmco-recipient-row.has-tip{grid-template-columns:50px minmax(0,1fr) auto}
+        .fmco-hint-btn{width:40px;height:40px;margin-right:0;font-size:16px}
         .fmco-agent-col{position:absolute;inset:0;width:auto;z-index:30;border-left:0;box-shadow:none}
         .fmco-agent-head{padding:10px 12px}
         .fmco-agent-head .fmco-btn{width:36px;height:36px;padding:0;justify-content:center;border-radius:10px}
@@ -977,13 +1004,12 @@
           ${state.smsComposeOpen ? `
             <div class="fmco-thread-head"><span class="fmco-thread-title">${(globalThis.PlatformLanguage?.htmlText("comms","m_3c10edbba72365","New text") ?? "New text")}</span><button type="button" class="fmco-btn" data-co-sms-close><i class="fa-solid fa-xmark"></i></button></div>
             <div class="fmco-composer" style="border-top:0">
-              <div class="fmco-recipient-box" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_9cdf1c6f55699f","Text recipients") ?? "Text recipients")}">
-                <label class="fmco-recipient-row"><span class="fmco-recipient-label">${(globalThis.PlatformLanguage?.htmlText("comms","m_af8bc9e774b68c","To") ?? "To")}</span><input class="fmco-recipient-input" type="text" value="${String(esc(state.smsDraft.to))}" placeholder="+1 206 555 1234" data-co-sms-to></label>
-              </div>
+              <div class="fmco-tip-host"><div class="fmco-recipient-box" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_9cdf1c6f55699f","Text recipients") ?? "Text recipients")}">
+                <div class="fmco-recipient-row has-tip"><label class="fmco-recipient-label" for="fmcoSmsTo">${(globalThis.PlatformLanguage?.htmlText("comms","m_af8bc9e774b68c","To") ?? "To")}</label><input id="fmcoSmsTo" class="fmco-recipient-input" type="text" value="${String(esc(state.smsDraft.to))}" placeholder="+1 206 555 1234" data-co-sms-to>${String(hintTip(globalThis.PlatformLanguage?.text("comms","m_6530a8d89e9c93","Separate multiple phone numbers with commas to start a group thread") ?? "Separate multiple phone numbers with commas to start a group thread"))}</div>
+              </div></div>
               ${String(contactChipsHtml('sms', 'to'))}
               <textarea class="fmco-textarea" style="min-height:110px" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_00e2352d42e80c","Write a text message…") ?? "Write a text message…")}" data-co-sms-input></textarea>
-              <div class="fmco-composer-row">
-                <span class="fmco-composer-hint">${(globalThis.PlatformLanguage?.htmlText("comms","m_6530a8d89e9c93","Separate multiple phone numbers with commas to start a group thread") ?? "Separate multiple phone numbers with commas to start a group thread")}</span>
+              <div class="fmco-composer-row" style="justify-content:flex-end">
                 <div class="fmco-voice-mount" data-co-sms-voice-mount></div>${String(clean(state.voiceSettings.sms) !== 'off' ? `<button type="button" class="fmco-btn fmco-voice" data-co-sms-voice><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/${clean(state.voiceSettings.sms) === 'dictation' ? 'dictation' : 'record'}.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/${clean(state.voiceSettings.sms) === 'dictation' ? 'dictation' : 'record'}.svg) center/contain no-repeat"></span><small>${clean(state.voiceSettings.sms) === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '')}
                 <button type="button" class="fmco-btn primary" data-co-sms-send><i class="fa-solid fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_c23a056552a09f","Send") ?? "Send")}</button>
               </div>
@@ -1014,6 +1040,7 @@
       render();
     });
     root.querySelector('[data-co-sms-to]')?.addEventListener('input', (event) => { state.smsDraft.to = event.target.value; });
+    bindHintTips(root);
     root.querySelectorAll('[data-co-add-sms]').forEach((button) => {
       button.addEventListener('click', () => {
         state.smsDraft.to = addRecipient(state.smsDraft.to, clean(button.dataset.coAddSms));
