@@ -251,17 +251,20 @@ function calculateMaterials(lines, facesSource) {
         areaPx += (p1.x * p2.y - p2.x * p1.y);
       }
 
+      // Each hole takes its own area off, whichever way its ring winds (FM-520).
+      areaPx = Math.abs(areaPx * 0.5);
       if (face.holes && Array.isArray(face.holes)) {
         face.holes.forEach(hole => {
+          let holePx = 0;
           for (let i = 0; i < hole.length; i++) {
             const p1 = hole[i];
             const p2 = hole[(i + 1) % hole.length];
-            areaPx -= (p1.x * p2.y - p2.x * p1.y);
+            holePx += (p1.x * p2.y - p2.x * p1.y);
           }
+          areaPx -= Math.abs(holePx * 0.5);
         });
       }
-
-      areaPx = Math.abs(areaPx * 0.5);
+      areaPx = Math.max(0, areaPx);
       
       // SKIP if area is effectively zero
       if (areaPx < 1.0) return;
@@ -1379,17 +1382,20 @@ function calculateMaterials(lines, facesSource) {
       }
 
       // Subtract Holes
+      // Each hole takes its own area off, whichever way its ring winds (FM-520).
+      areaPx = Math.abs(areaPx * 0.5);
       if (face.holes && Array.isArray(face.holes)) {
         face.holes.forEach(hole => {
+          let holePx = 0;
           for (let i = 0; i < hole.length; i++) {
             const p1 = hole[i];
             const p2 = hole[(i + 1) % hole.length];
-            areaPx -= (p1.x * p2.y - p2.x * p1.y);
+            holePx += (p1.x * p2.y - p2.x * p1.y);
           }
+          areaPx -= Math.abs(holePx * 0.5);
         });
       }
-
-      areaPx = Math.abs(areaPx * 0.5);
+      areaPx = Math.max(0, areaPx);
 
       const areaM2_Flat = areaPx * (metersPerPx * metersPerPx);
 
