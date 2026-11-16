@@ -29,6 +29,11 @@
   const TOUCH_GLIDE_MAX_VELOCITY = 6;
   const TOUCH_GLIDE_STOP_VELOCITY = 0.02;
   const TOUCH_GLIDE_DECAY_MS = 325;
+  // Swipe navigation (FM-472): a release past this share of the page, or a
+  // flick at least this fast (px/ms), turns the page.
+  const SWIPE_COMMIT_SHARE = 0.3;
+  const SWIPE_FLICK_VELOCITY = 0.35;
+  const SWIPE_FLICK_MIN_PX = 24;
   const DRAG_AUTO_SCROLL_EDGE_PX = 44;
   const DRAG_AUTO_SCROLL_MAX_STEP_PX = 22;
   // Timed items lasting a day or more read as spans (all-day band / month
@@ -1237,6 +1242,13 @@
       .prs-event-tray.prs-event-tray-enter{animation:prs-event-tray-up .26s cubic-bezier(.2,.8,.2,1)}
       @keyframes prs-event-tray-up{from{transform:translateY(100%)}to{transform:none}}
       @media (prefers-reduced-motion:reduce){.prs-event-tray.prs-event-tray-enter{animation:none}}
+      .prs-wrap.prs-swiping > .prs-surface :is(.prs-time-header-grid,.prs-time-body,.prs-all-day-grid > :not(.prs-all-day-label-cell)),.prs-wrap.prs-swiping > .prs-surface .prs-month > :not(.prs-month-head-row){transform:translate3d(var(--prs-swipe-x,0px),0,0)}
+      .prs-wrap.prs-swiping > .prs-surface :is(.prs-time-head,.prs-time-label){transform:translate3d(calc(-1 * var(--prs-swipe-x,0px)),0,0)}
+      .prs-wrap.prs-swiping > .prs-surface .prs-time-head{z-index:9}
+      .prs-wrap.prs-swiping > .prs-surface .prs-all-day-label-cell{position:relative;z-index:20}
+      .prs-wrap.prs-swiping > .prs-surface .prs-time-label{position:relative;z-index:61}
+      .prs-swipe-peek{position:absolute;z-index:30;overflow:hidden;pointer-events:none}
+      .prs-swipe-peek > .prs-wrap{height:100%;min-height:0;will-change:transform}
     `;
     const existing = document.getElementById(STYLE_ID);
     if (existing) {
@@ -3619,6 +3631,154 @@
       touchGlide = glide;
       glide.frame = window.requestAnimationFrame(step);
     };
+    /* Swipe navigation follows the finger (FM-472). The day columns (in
+     * Month, the weeks) move with it while the hour gutter stays, and the
+     * next or previous period, rendered for real into a peek layer, slides
+     * in beside them. On release the page settles: it turns when the finger
+     * went far enough or flicked, and springs back otherwise. */
+    let swipeTrack = null;
+    let swipeSettle = null;
+    const swipeTargetDate = (delta) => {
+      const next = new Date(anchor);
+      if (mode === 'month') next.setMonth(next.getMonth() + delta);
+      else next.setDate(next.getDate() + delta * navDayCount);
+      return next;
+    };
+    const beginSwipeTrack = () => {
+      const wrap = container.querySelector(':scope > .prs-wrap');
+      const surface = touchGestureScroller;
+      if (!wrap || !surface?.isConnected || !surface.clientWidth) return null;
+      stopTouchGlide();
+      const gutter = mode === 'month' ? 0 : Number(surface.querySelector('.prs-time-head')?.offsetWidth || 0);
+      const top = mode === 'month' ? Number(surface.querySelector('.prs-month-head-row')?.offsetHeight || 0) : 0;
+      wrap.classList.add('prs-swiping');
+      return { wrap, surface, width:surface.clientWidth, gutter, top, pages:surface.clientWidth - gutter, x:0, peeks:new Map(), containerPosition:null };
+    };
+    const disposeSwipePeek = (peek) => {
+      const host = peek?.host;
+      if (!host) return;
+      try { host.__prsListenerAbort?.abort?.(); } catch {}
+      if (host.__prsNowTimer) clearInterval(host.__prsNowTimer);
+      host.__prsNowTimer = null;
+      setContainerKeyHandler(host, null);
+      host.remove();
+    };
+    // The neighbouring period, rendered once per direction with the same
+    // options (no callbacks: it is only looked at), over the surface.
+    const swipePeek = (track, delta) => {
+      if (track.peeks.has(delta)) return track.peeks.get(delta);
+      let peek = null;
+      try {
+        if (track.containerPosition === null) {
+          track.containerPosition = container.style.position;
+          if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
+        }
+        const surfaceRect = track.surface.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const host = document.createElement('div');
+        host.className = 'prs-swipe-peek';
+        host.setAttribute('aria-hidden', 'true');
+        host.inert = true;
+        host.style.left = `${surfaceRect.left - containerRect.left - container.clientLeft + container.scrollLeft}px`;
+        host.style.top = `${surfaceRect.top - containerRect.top - container.clientTop + container.scrollTop}px`;
+        host.style.width = `${surfaceRect.width}px`;
+        host.style.height = `${surfaceRect.height}px`;
+        container.appendChild(host);
+        peek = { host, wrap:null };
+        const peekOptions = { ...options, date:swipeTargetDate(delta), stateKey:'', showToolbar:false, placementHint:false, touchSwipeNavigation:false, touchHoldToPlace:false };
+        Object.keys(peekOptions).forEach((key) => { if (/^on[A-Z]/.test(key)) delete peekOptions[key]; });
+        renderProjectRangeScheduler(host, peekOptions);
+        peek.wrap = host.querySelector(':scope > .prs-wrap');
+        const peekSurface = host.querySelector('.prs-surface');
+        // Timed views keep the time of day: line the hour rows up even when
+        // the two periods' all-day bands differ in height.
+        const ownBody = track.surface.querySelector('.prs-time-body');
+        const peekBody = peekSurface?.querySelector('.prs-time-body');
+        if (peekSurface && ownBody && peekBody) peekSurface.scrollTop = Math.max(0, track.surface.scrollTop + peekBody.offsetTop - ownBody.offsetTop);
+      } catch (error) {
+        console.warn('Schedule swipe preview failed', error);
+        disposeSwipePeek(peek);
+        peek = null;
+      }
+      track.peeks.set(delta, peek);
+      return peek;
+    };
+    const paintSwipeTrack = (track, x) => {
+      track.x = x;
+      track.wrap.style.setProperty('--prs-swipe-x', `${x}px`);
+      const delta = x < 0 ? 1 : -1;
+      const peek = x ? swipePeek(track, delta) : null;
+      track.peeks.forEach((entry, key) => { if (entry?.host) entry.host.style.visibility = entry === peek && key === delta ? '' : 'hidden'; });
+      if (!peek?.wrap) return;
+      const { width, gutter, pages, top } = track;
+      peek.wrap.style.transform = `translate3d(${x + (delta > 0 ? pages : -pages)}px,0,0)`;
+      peek.host.style.clipPath = delta > 0
+        ? `inset(${top}px 0 0 ${Math.max(gutter, Math.min(width, gutter + pages + x))}px)`
+        : `inset(${top}px ${Math.max(0, width - gutter - x)}px 0 ${gutter}px)`;
+    };
+    const endSwipeTrack = (track) => {
+      if (!track) return;
+      if (swipeTrack === track) swipeTrack = null;
+      track.wrap.classList.remove('prs-swiping');
+      track.wrap.style.removeProperty('--prs-swipe-x');
+      track.peeks.forEach(disposeSwipePeek);
+      track.peeks.clear();
+      if (track.containerPosition !== null) container.style.position = track.containerPosition;
+    };
+    // Ease out from the finger's speed to the resting place, then turn the
+    // page (delta) or just tidy up (0).
+    const settleSwipeTrack = (track, delta, velocity) => {
+      const target = delta > 0 ? -track.pages : delta < 0 ? track.pages : 0;
+      const from = track.x;
+      const distance = target - from;
+      const duration = Math.max(120, Math.min(300, 3 * Math.abs(distance) / Math.max(1.5, Math.abs(velocity))));
+      const settle = { frame:0, startedAt:performance.now(), track };
+      swipeSettle = settle;
+      const finish = () => {
+        if (swipeSettle === settle) swipeSettle = null;
+        cancelTouchHold();
+        if (!delta || listenerSignal?.aborted) {
+          endSwipeTrack(track);
+          return;
+        }
+        options.onNavigate?.(swipeTargetDate(delta), delta, { source:'swipe', tracked:true });
+        // Hosts re-render on navigate; one that did not keeps this page.
+        window.requestAnimationFrame(() => endSwipeTrack(track));
+      };
+      const step = (now) => {
+        if (swipeSettle !== settle) return;
+        if (!track.wrap.isConnected) { swipeSettle = null; endSwipeTrack(track); return; }
+        const progress = Math.min(1, (now - settle.startedAt) / duration);
+        paintSwipeTrack(track, from + distance * (1 - Math.pow(1 - progress, 3)));
+        if (progress < 1) settle.frame = window.requestAnimationFrame(step);
+        else finish();
+      };
+      if (!distance) { finish(); return; }
+      settle.frame = window.requestAnimationFrame(step);
+    };
+    const cancelSwipeTrack = () => {
+      if (!swipeTrack) return;
+      endSwipeTrack(swipeTrack);
+    };
+    // Replaced mid-swipe (a re-render): drop the peek renders with it.
+    listenerSignal?.addEventListener('abort', () => {
+      if (swipeSettle) {
+        window.cancelAnimationFrame(swipeSettle.frame);
+        const { track } = swipeSettle;
+        swipeSettle = null;
+        endSwipeTrack(track);
+      }
+      cancelSwipeTrack();
+    }, { once:true });
+    const swipeVelocity = (gesture) => {
+      const now = performance.now();
+      const samples = gesture.samples.filter((sample) => now - sample.t <= TOUCH_GLIDE_SAMPLE_MS && Number.isFinite(sample.x));
+      if (samples.length < 2) return 0;
+      const first = samples[0];
+      const last = samples[samples.length - 1];
+      if (now - last.t > TOUCH_GLIDE_SAMPLE_MS / 2) return 0;
+      return (last.x - first.x) / Math.max(1, last.t - first.t);
+    };
     const beginTouchGesture = (event) => {
       if (!touchSwipeNavigation || event.pointerType !== 'touch') return;
       const stoppedGlide = stopTouchGlide();
@@ -3629,14 +3789,16 @@
         lastY:event.clientY,
         startedAt:Date.now(),
         startScrollTop:Number(touchGestureScroller?.scrollTop || 0),
-        samples:[{ t:performance.now(), y:Number(event.clientY) }],
-        stoppedGlide,
-        intent:''
+        samples:[{ t:performance.now(), x:Number(event.clientX), y:Number(event.clientY) }],
+        // A touch while a page is still settling only waits for it.
+        stoppedGlide:stoppedGlide || !!swipeSettle,
+        intent:swipeSettle ? 'settling' : ''
       };
     };
     const updateTouchGesture = (event) => {
       if (!touchGesture || touchGesture.pointerId !== event.pointerId) return;
       if (drag?.touchHeld) {
+        if (touchGesture.intent === 'navigate') cancelSwipeTrack();
         touchGesture.intent = 'drag';
         event.preventDefault();
         return;
@@ -3648,15 +3810,21 @@
         suppressTouchGestureClickUntil = Date.now() + 350;
         if (touchGesture.intent !== 'navigate') cancelTouchHold();
       }
+      const now = performance.now();
+      if (touchGesture.intent === 'scroll' || touchGesture.intent === 'navigate') {
+        touchGesture.samples.push({ t:now, x:Number(event.clientX), y:Number(event.clientY) });
+        while (touchGesture.samples.length > 2 && now - touchGesture.samples[0].t > TOUCH_GLIDE_SAMPLE_MS) touchGesture.samples.shift();
+      }
       if (touchGesture.intent === 'scroll') {
         if (touchGestureScroller) touchGestureScroller.scrollTop = Math.max(0, touchGesture.startScrollTop - dy);
         touchGesture.lastY = event.clientY;
-        const now = performance.now();
-        touchGesture.samples.push({ t:now, y:Number(event.clientY) });
-        while (touchGesture.samples.length > 2 && now - touchGesture.samples[0].t > TOUCH_GLIDE_SAMPLE_MS) touchGesture.samples.shift();
         event.preventDefault();
       } else if (touchGesture.intent === 'navigate') {
         cancelTouchHold();
+        event.preventDefault();
+        if (!swipeTrack) swipeTrack = beginSwipeTrack();
+        if (swipeTrack) paintSwipeTrack(swipeTrack, dx);
+      } else if (touchGesture.intent === 'settling') {
         event.preventDefault();
       }
     };
@@ -3670,15 +3838,33 @@
       }
       // A touch that only stopped a glide is not a tap on what lies under it.
       if (gesture.stoppedGlide && !gesture.intent && !drag) suppressTouchGestureClickUntil = Date.now() + 350;
-      if (gesture.intent !== 'navigate' || drag) return false;
+      if (gesture.intent === 'settling') {
+        suppressTouchGestureClickUntil = Date.now() + 350;
+        return true;
+      }
+      if (gesture.intent !== 'navigate' || drag) {
+        cancelSwipeTrack();
+        return false;
+      }
       const dx = Number(event.clientX) - gesture.startX;
       const dy = Number(event.clientY) - gesture.startY;
-      if (Date.now() - gesture.startedAt > 700 || Math.abs(dx) < 52 || Math.abs(dx) <= Math.abs(dy) * 1.15) return false;
-      const delta = dx < 0 ? 1 : -1;
-      const next = new Date(anchor);
-      if (mode === 'month') next.setMonth(next.getMonth() + delta);
-      else next.setDate(next.getDate() + delta * navDayCount);
-      options.onNavigate?.(next, delta, { source:'swipe' });
+      const track = swipeTrack;
+      swipeTrack = null;
+      if (!track) {
+        if (Date.now() - gesture.startedAt > 700 || Math.abs(dx) < 52 || Math.abs(dx) <= Math.abs(dy) * 1.15) return false;
+        const delta = dx < 0 ? 1 : -1;
+        options.onNavigate?.(swipeTargetDate(delta), delta, { source:'swipe' });
+        return true;
+      }
+      paintSwipeTrack(track, dx);
+      const velocity = swipeVelocity(gesture);
+      let delta = 0;
+      // A flick decides by its direction (back toward the start springs
+      // back); a slow release by how far the page moved.
+      if (Math.abs(velocity) >= SWIPE_FLICK_VELOCITY && Math.abs(dx) >= SWIPE_FLICK_MIN_PX) delta = Math.sign(velocity) === Math.sign(dx) ? (dx < 0 ? 1 : -1) : 0;
+      else if (Math.abs(dx) >= track.pages * SWIPE_COMMIT_SHARE) delta = dx < 0 ? 1 : -1;
+      suppressTouchGestureClickUntil = Date.now() + 350;
+      settleSwipeTrack(track, delta, velocity);
       return true;
     };
     /* Two-finger pinch (touchControls, timed views): the hour rows follow
@@ -3703,6 +3889,7 @@
       if (!touchZoom || !grid || !touchGestureScroller || drag || touchPoints.size < 2) return false;
       cancelTouchHold();
       stopTouchGlide();
+      cancelSwipeTrack();
       touchTap = null;
       touchGesture = null;
       const { distance, midY } = pinchGeometry();
@@ -5225,7 +5412,15 @@
       if (pinch) endPinch(event);
       touchPoints.delete(event.pointerId);
       if (pendingTouchHold?.pointerId === event.pointerId) cancelTouchHold();
-      if (touchGesture?.pointerId === event.pointerId) touchGesture = null;
+      if (touchGesture?.pointerId === event.pointerId) {
+        // A page the finger was moving springs back.
+        if (touchGesture.intent === 'navigate' && swipeTrack) {
+          const track = swipeTrack;
+          swipeTrack = null;
+          settleSwipeTrack(track, 0, 0);
+        }
+        touchGesture = null;
+      }
       if (drag && (drag.touchHeld || drag.pointerId === event.pointerId)) cancelDrag();
     }, { signal:listenerSignal });
     container.querySelectorAll('[data-prs-confirm]').forEach((btn) => btn.addEventListener('click', (event) => {

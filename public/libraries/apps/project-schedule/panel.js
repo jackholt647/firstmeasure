@@ -30,8 +30,6 @@
   let projectMobilePickerMonth = scheduleAnchorDate.getMonth();
   let projectMobilePickerYear = scheduleAnchorDate.getFullYear();
   let projectMobileControlsDocHandler = null;
-  let projectMobileCalendarSwipeDirection = '';
-  let projectMobileCalendarSwipeTimer = null;
   let scheduleDraft = null;
   let schedulePreferredSalesUserId = '';
   let workScheduleDrafts = new Map();
@@ -311,7 +309,7 @@
         .r-project-mobile-control:hover,.r-project-mobile-control[aria-expanded="true"]{background:#f2f4f7}.r-project-mobile-control.view{width:34px;padding:0;font-size:13px}.r-project-mobile-control.view .fa-chevron-down{font-size:8px;margin-left:1px}.r-project-mobile-control.month{width:112px;max-width:112px;overflow:hidden;text-overflow:ellipsis}.r-project-mobile-control.month span{overflow:hidden;text-overflow:ellipsis}.r-project-mobile-control.today{width:32px;padding:0;margin-left:auto;color:#475467}.r-project-mobile-control.nav{width:25px;padding:0;font-size:10px}
         .r-project-mobile-today-date{width:19px;height:20px;border:1.5px solid currentColor;border-radius:3px;display:grid;place-items:center;padding-top:5px;box-sizing:border-box;font-size:9px;line-height:1;font-weight:1000;position:relative}.r-project-mobile-today-date:before{content:"";position:absolute;left:-1.5px;right:-1.5px;top:4px;border-top:1.5px solid currentColor}
         .r-project-mobile-popover{position:absolute;top:calc(100% + 6px);left:0;width:190px;max-height:min(420px,calc(100vh - 70px));overflow:auto;padding:6px;border:1px solid rgba(15,23,42,.10);border-radius:12px;background:#fff;box-shadow:0 18px 45px rgba(15,23,42,.18);box-sizing:border-box}.r-project-mobile-popover.months{width:min(334px,calc(100vw - 16px));padding:10px}.r-project-mobile-month-picker{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-height:280px}.r-project-mobile-month-picker section{min-width:0;overflow:auto;border:1px solid rgba(15,23,42,.08);border-radius:9px;padding:3px}.r-project-mobile-month-picker button{height:31px;font-size:11px}.r-project-mobile-popover button{width:100%;height:36px;border:0;border-radius:8px;background:transparent;color:#344054;display:flex;align-items:center;gap:10px;padding:0 9px;font:inherit;font-size:12px;font-weight:950;text-align:left;cursor:pointer}.r-project-mobile-popover button:hover,.r-project-mobile-popover button.active{background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025))}.r-project-mobile-popover button i{width:15px;text-align:center}
-        .r-schedule-panel.work-mode .r-schedule-calendar{min-width:0;overflow:hidden;background:#fff}.r-schedule-panel.work-mode .r-schedule-calendar.mobile-swipe-next{animation:r-project-calendar-enter-next .24s ease-out both}.r-schedule-panel.work-mode .r-schedule-calendar.mobile-swipe-prev{animation:r-project-calendar-enter-prev .24s ease-out both}@keyframes r-project-calendar-enter-next{from{opacity:.45;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}@keyframes r-project-calendar-enter-prev{from{opacity:.45;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+        .r-schedule-panel.work-mode .r-schedule-calendar{min-width:0;overflow:hidden;background:#fff}
         .r-schedule-panel.work-mode .prs-wrap.mobile-layout{min-width:0;height:100%}
         .r-schedule-panel.work-mode .prs-wrap.mobile-layout .prs-surface{width:100%;max-width:100%;overflow-x:hidden!important}
         .r-schedule-panel.work-mode .prs-wrap.mobile-layout .prs-time-grid,.r-schedule-panel.work-mode .prs-wrap.mobile-layout .prs-all-day-grid{width:100%!important;max-width:100%!important;box-sizing:border-box;grid-template-columns:40px repeat(var(--prs-days),minmax(0,1fr));min-width:100%!important}
@@ -3647,17 +3645,6 @@
     renderSchedulePanel();
   }
 
-  function animateProjectMobileCalendarSwipe(delta){
-    if (window.matchMedia?.('(max-width:720px)').matches !== true) return;
-    projectMobileCalendarSwipeDirection = delta > 0 ? 'next' : 'prev';
-    if (projectMobileCalendarSwipeTimer) window.clearTimeout(projectMobileCalendarSwipeTimer);
-    projectMobileCalendarSwipeTimer = window.setTimeout(() => {
-      projectMobileCalendarSwipeDirection = '';
-      projectMobileCalendarSwipeTimer = null;
-      renderSchedulePanel();
-    }, 260);
-  }
-
   function renderProjectScheduleView(target, eventType = {}, config = {}){
     if (!target) return;
     const Scheduling = window.PlatformScheduling;
@@ -3695,9 +3682,8 @@
       workEndMinute: 24 * 60,
       initialScrollMinute: 8 * 60,
       date: scheduleAnchorDate,
-      onNavigate(nextDate, delta, meta = {}){
+      onNavigate(nextDate){
         scheduleAnchorDate = nextDate;
-        if (meta.source === 'swipe') animateProjectMobileCalendarSwipe(delta);
         renderSchedulePanel();
       }
     });
@@ -5844,9 +5830,8 @@
           __schedule_natural_range: true
         };
       },
-      onNavigate(nextDate, delta, meta = {}){
+      onNavigate(nextDate){
         scheduleAnchorDate = nextDate;
-        if (meta.source === 'swipe') animateProjectMobileCalendarSwipe(delta);
         renderSchedulePanel();
       },
       onModeChange(nextMode){
@@ -6088,7 +6073,7 @@
       ${String(isScheduling ? '' : projectMobileToolbarHtml())}
       ${String(scheduleWaitingStripHtml())}
       ${String(schedulePlacementBannerHtml())}
-      <div class="r-schedule-calendar work-calendar ${String(projectMobileCalendarSwipeDirection ? `mobile-swipe-${projectMobileCalendarSwipeDirection}` : '')}"></div>
+      <div class="r-schedule-calendar work-calendar"></div>
     `;
     bindScheduleViewSwitch(panel);
     bindSchedulePlacementBanner(panel);
@@ -7974,9 +7959,6 @@
     projectMobileMonthMenuOpen = false;
     projectMobilePickerMonth = scheduleAnchorDate.getMonth();
     projectMobilePickerYear = scheduleAnchorDate.getFullYear();
-    projectMobileCalendarSwipeDirection = '';
-    if (projectMobileCalendarSwipeTimer) window.clearTimeout(projectMobileCalendarSwipeTimer);
-    projectMobileCalendarSwipeTimer = null;
     scheduleDraft = null;
     clearAllWorkDrafts();
     workScheduleModeActive = false;
