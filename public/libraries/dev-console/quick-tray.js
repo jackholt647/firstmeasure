@@ -12,7 +12,7 @@ const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&
 import { trackerClient, composeIssue, groupIssues, DEFAULT_WORKSPACE, TRACKER } from './tracker-client.js?v=20261112-tray3';
 import { watchShake, requestMotionPermission } from './shake.js?v=20261112-tray3';
 
-const VERSION = '20261112-tray3';
+const VERSION = '20261116-shot1';
 const DRAFT = 'fm-dev-tray-draft';
 const REFRESH_MS = 20000;
 const tracker = trackerClient();
@@ -160,14 +160,63 @@ async function capture() {
     } finally { document.documentElement.classList.remove('fm-qt-capturing'); }
   }
   // A browser: draw the page (not the tray, which is outside <body>) into a canvas. Frames from other origins and
-  // some effects do not draw; the app's capture has neither limit.
-  if (!window.html2canvas) await script('/libraries/chat-embed/html2canvas.min.js');
-  const canvas = await window.html2canvas(document.body, {
+  // some effects do not draw; the app's capture has neither limit. html2canvas copies the page and reloads every
+  // iframe's URL in the copy, so an open project window (a same-origin iframe) would come out as a fresh page, or
+  // blank: the page is drawn without its windows, and each one shown is painted over it from its own document.
+  const draw = await html2canvas();
+  const scale = Math.min(2, window.devicePixelRatio || 1);
+  const windows = [...document.querySelectorAll('.fm-project-window-layer')];
+  const canvas = await draw(document.body, {
     backgroundColor: getComputedStyle(document.body).backgroundColor || '#fff', logging: false, useCORS: true,
     x: window.scrollX, y: window.scrollY, width: window.innerWidth, height: window.innerHeight, windowWidth: window.innerWidth, windowHeight: window.innerHeight,
-    scale: Math.min(2, window.devicePixelRatio || 1), ignoreElements: (el) => el.hasAttribute?.('data-fmr-ignore') && el.classList?.contains('fm-qt')
+    scale, ignoreElements: (el) => windows.includes(el) || (el.hasAttribute?.('data-fmr-ignore') && el.classList?.contains('fm-qt'))
   });
+  const g = canvas.getContext('2d');
+  for (const layer of windows.filter(shown)) {
+    paint(g, layer, scale);
+    for (const panel of layer.querySelectorAll('.fm-project-frame')) if (shown(panel)) paint(g, panel, scale);
+    for (const frame of layer.querySelectorAll('iframe')) {
+      const doc = shown(frame) && sameOrigin(frame);
+      if (!doc?.body) continue;
+      const box = frame.getBoundingClientRect(), view = doc.defaultView;
+      try {
+        const inner = await draw(doc.body, {
+          backgroundColor: view.getComputedStyle(doc.body).backgroundColor || '#fff', logging: false, useCORS: true,
+          x: view.scrollX, y: view.scrollY, width: box.width, height: box.height, windowWidth: box.width, windowHeight: box.height, scale
+        });
+        g.drawImage(inner, box.left * scale, box.top * scale, box.width * scale, box.height * scale);
+      } catch (_) { /* the window's panel stays as painted */ }
+    }
+  }
   return new Promise((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(T('dc_tray_screenshot_failed', 'The screenshot could not be taken.')))), 'image/jpeg', 0.85));
+}
+/** html2canvas-pro: html2canvas 1.4 throws on CSS color(), which Chrome reports for every color-mix(). Loaded once,
+ * without replacing a page's own window.html2canvas. */
+let drawing = null;
+function html2canvas() {
+  drawing ||= (async () => {
+    const before = window.html2canvas, beforeExports = window.html2canvasExports;
+    await script(`/libraries/vendor/html2canvas-pro-2.6.4/html2canvas-pro.min.js?v=${VERSION}`);
+    const draw = window.html2canvas;
+    window.html2canvas = before; window.html2canvasExports = beforeExports;
+    if (before === undefined) delete window.html2canvas;
+    if (beforeExports === undefined) delete window.html2canvasExports;
+    if (typeof draw !== 'function') throw new Error(T('dc_tray_screenshot_failed', 'The screenshot could not be taken.'));
+    return draw;
+  })().catch((error) => { drawing = null; throw error; });
+  return drawing;
+}
+function shown(el) {
+  const style = getComputedStyle(el), box = el.getBoundingClientRect();
+  return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0 && box.width > 0 && box.height > 0;
+}
+function sameOrigin(frame) { try { return frame.contentDocument; } catch (_) { return null; } }
+/** An element's background, as a plain box: a project window's backdrop and its panel. */
+function paint(g, el, scale) {
+  const color = getComputedStyle(el).backgroundColor, box = el.getBoundingClientRect();
+  if (!color || color === 'transparent' || color === 'rgba(0, 0, 0, 0)') return;
+  g.fillStyle = color;
+  g.fillRect(box.left * scale, box.top * scale, box.width * scale, box.height * scale);
 }
 const frames = (n) => new Promise((resolve) => { const step = () => (--n <= 0 ? resolve() : requestAnimationFrame(step)); requestAnimationFrame(step); });
 function script(src) {
