@@ -6,7 +6,8 @@ import { backendImplementationDigest } from "../platform/publication/implementat
 import { forbidden } from "../platform/errors.js";
 import { hasPermission } from "../platform/auth.js";
 import { isCapabilityEnabled, saveCapabilityValues } from "../platform/capabilities.js";
-import { ensureOrgEmailInbox } from "../email/engine.js";
+import { ensureOrgEmailInbox, FIRSTMATE_MAIL_IDENTITY_ID } from "../email/engine.js";
+import { listRegistrations } from "../domains/storage.js";
 import { listSenderIdentities } from "../messaging/communications_storage.js";
 import { findSmsComplianceProfiles, type SmsComplianceProfile } from "../messaging/storage.js";
 import { voiceSettings } from "./calls/settings.js";
@@ -19,7 +20,9 @@ import * as voice from "./calls/storage.js";
  * calls turn on the organization's Texts and SMS settings; the setup then runs carrier registration (10DLC), the same
  * workflow as Phone Settings (settings/sms-registration.js, FM-510), and the status says where it stands. Email turns on
  * the Email inbox and creates the company's FirstMate Mail address. Billing is the platform billing SMS plan, bought in
- * the browser through the existing quote and checkout.
+ * the browser through the existing quote and checkout. The person chooses how email starts (FM-513): FirstMate Mail, or
+ * their own domain (connected or bought in the Domains workflow, settings/domains.js); the status says where that
+ * domain stands. Mail is sent from FirstMate Mail until the domain's email records are set up (email_configuration_status).
  */
 const channel = z.enum(["phone", "email"]);
 const startInput = z.object({ channel }).strict();
@@ -60,6 +63,23 @@ function requireManager(ctx: PublicationContext) {
   return ctx.auth;
 }
 
+/**
+ * The domain the company's email is moving to, if any (FM-513): the newest one with its address chosen, else the newest
+ * one still being verified. `state` is verify (ownership not proved yet), address (no address chosen), records (the
+ * address is set; its email records are not) or ready.
+ */
+export async function emailDomainStatus(orgId: string) {
+  const at = (value: unknown) => Date.parse(String(value ?? "")) || 0;
+  const registrations = (await listRegistrations(orgId).catch(() => [])).filter((entry) => !["failed", "cancelled", "transferred_out"].includes(text(entry.status)));
+  const connected = (entry: Record<string, unknown>) => !!entry.default_email && at(entry.resources_connected_at) >= at(entry.resources_disconnected_at);
+  const newest = (list: Array<Record<string, unknown>>) => list.sort((a, b) => at(b.resources_connected_at || b.submitted_at) - at(a.resources_connected_at || a.submitted_at))[0];
+  const domain = newest(registrations.filter(connected)) || newest(registrations.filter((entry) => !entry.resources_disconnected_at));
+  if (!domain) return null;
+  const verified = !!domain.verified_at || ["ready_to_connect", "active"].includes(text(domain.status));
+  const state = !verified ? "verify" : !connected(domain) ? "address" : text(domain.email_configuration_status) === "active" ? "ready" : "records";
+  return { name: String(domain.domain || ""), address: connected(domain) ? String(domain.default_email) : "", state };
+}
+
 /** What is on: read only. Nothing is created (the inbox address is shown once email is on and has one). */
 export async function commsSetupStatus(ctx: PublicationContext) {
   const orgId = ctx.organizationId;
@@ -72,7 +92,10 @@ export async function commsSetupStatus(ctx: PublicationContext) {
     developmentCallStatus(orgId),
     registrationState(orgId)
   ]);
-  const inbox = email ? (await listSenderIdentities(orgId, ctx.auth?.branchId || "default", "email")).find((identity) => identity.status !== "disabled" && identity.address) : null;
+  // The address mail is sent from: FirstMate Mail's, while it is the sender (FM-513), else the default identity's.
+  const identities = email ? (await listSenderIdentities(orgId, ctx.auth?.branchId || "default", "email")).filter((identity) => identity.status !== "disabled" && identity.address) : [];
+  const inbox = identities.find((identity) => identity.id === FIRSTMATE_MAIL_IDENTITY_ID) || identities[0];
+  const domain = await emailDomainStatus(orgId);
   const activeNumbers = numbers.filter((number) => number.status === "active");
   return {
     phone: {
@@ -84,7 +107,7 @@ export async function commsSetupStatus(ctx: PublicationContext) {
       registration: development?.onboarded ? "approved" : registration,
       ...(development ? { development: { onboarded: development.onboarded } } : {})
     },
-    email: { on: email, address: inbox?.address || "" },
+    email: { on: email, address: inbox?.address || "", domain },
     done: { phone: texts, email }
   };
 }

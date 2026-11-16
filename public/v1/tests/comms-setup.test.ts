@@ -8,7 +8,7 @@ const dir = await mkdtemp(path.join(os.tmpdir(), 'comms-setup-'));
 Object.assign(process.env, { NODE_ENV: 'test', PLATFORM_STORAGE_ROOT: path.join(dir, 'platform'), PRICEBOOK_STORAGE_ROOT: path.join(dir, 'pricebook'), MESSAGING_STORAGE_ROOT: path.join(dir, 'messaging'), FIRSTMEASURE_STORAGE_ROOT: path.join(dir, 'firstmeasure'), FIRSTMEASURE_INDEX_DB_PATH: path.join(dir, 'index.sqlite'), PLATFORM_HEARTBEAT_DISABLED: '1', FIRSTMEASURE_JOB_WORKERS: '0' });
 after(async () => { await closePlatformFixtureStores(); await rm(dir, { recursive: true, force: true }); });
 
-// FM-491: the Communications setup turns texts (and SMS settings) or the email inbox on through published actions,
+// FM-491, FM-513: the Communications setup turns texts (and SMS settings) or the email inbox on through published actions,
 // only for someone who manages company settings.
 test('Communications setup turns on texts or email as the person, and reports what is set up', async () => {
   await import('../chat/capabilities.js'); await import('../comms/capabilities.js');
@@ -45,6 +45,24 @@ test('Communications setup turns on texts or email as the person, and reports wh
   assert.equal(email.value.email.on, true);
   assert.match(email.value.email.address, /@/, 'the company inbox address is created');
   assert.deepEqual(email.value.done, { phone: true, email: true });
+
+  // FM-513: email on the company's own domain: connected and verified, its address chosen with no website, the status
+  // says where the domain stands, and mail is still sent from FirstMate Mail until its email records are set up.
+  const domains = await import('../domains/service.js');
+  const domainStorage = await import('../domains/storage.js');
+  const { attachDomainResourcesSchema } = await import('../domains/schemas.js');
+  const status = async () => (await invokeAction({ ...owner, mode: 'evaluate' }, { action: 'comms.setup.status', target }, {}) as any).value.email;
+  await domains.connectExistingDomain({ orgId, domain: 'acme-roofing.test', actorUserId: 'owner' });
+  assert.deepEqual((await status()).domain, { name: 'acme-roofing.test', address: '', state: 'verify' });
+  await domainStorage.saveRegistration(orgId, 'acme-roofing.test', { ...(await domainStorage.readRegistration(orgId, 'acme-roofing.test')), status: 'ready_to_connect', verified_at: new Date().toISOString() });
+  assert.equal((await status()).domain.state, 'address');
+  const body = attachDomainResourcesSchema.parse({ website: { mode: 'none' }, default_email_local_part: 'office' });
+  const attached = await domains.attachDomainResources({ orgId, domain: 'acme-roofing.test', website: body.website, defaultEmailLocalPart: body.default_email_local_part, context: auth({ '*': true }) });
+  assert.equal(attached.website_id, '', 'email only: no website');
+  assert.equal(attached.registration.status, 'active');
+  const withDomain = await status();
+  assert.deepEqual(withDomain.domain, { name: 'acme-roofing.test', address: 'office@acme-roofing.test', state: 'records' });
+  assert.equal(withDomain.address, email.value.email.address, 'mail is sent from FirstMate Mail until the domain is ready');
 
   await assert.rejects(() => invokeAction(owner, { action: 'comms.setup.start', target }, { channel: 'fax' }, { idempotencyKey: 'comms-setup-fax' }));
   const viewer = userPublicationContext(auth({ view_comms: true }, 'member'), { mode: 'command' });
