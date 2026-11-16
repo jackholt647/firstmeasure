@@ -271,7 +271,7 @@ a.crm-btn{text-decoration:none}
   .crm-filterbar .crm-chip.add{order:2;grid-column:2;position:relative;width:44px;height:44px;padding:0;justify-content:center;border-radius:12px;border-style:solid;background:#fff;color:var(--crm-soft);font-size:15px}
   .crm-filterbar .crm-chip.add>span,.crm-filterbar .crm-chip.add .fa-plus{display:none}
   .crm-filterbar .crm-chip.add .fa-filter{display:inline-block}
-  .crm-filter-count{display:grid;place-items:center;position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:var(--crm-accent);color:var(--on-primary,#fff);font-size:11px;font-weight:800;line-height:1}
+  .crm-chip .crm-filter-count{display:grid;place-items:center;position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:var(--crm-accent);color:var(--on-primary,#fff);font-size:11px;font-weight:800;line-height:1}
   .crm-chips{order:3;grid-column:1/-1;display:flex;align-items:center;gap:6px;overflow-x:auto;margin:0 -12px;padding:0 12px;scrollbar-width:none;overscroll-behavior-x:contain}
   .crm-chips::-webkit-scrollbar{display:none}
   .crm-chips.is-empty{display:none}
