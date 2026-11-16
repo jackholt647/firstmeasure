@@ -12,6 +12,42 @@ import { assertRuntimeEnvironmentSafety, inspectEnvironmentSafety } from "./envi
 const startedAt = new Date().toISOString();
 let draining = false;
 let readinessCache: { expiresAt: number; value: RuntimeReadiness } | null = null;
+let inspecting: Promise<RuntimeReadiness> | null = null;
+let lastReadiness: RuntimeReadiness | null = null;
+// A failed check is kept only briefly, so a node the load balancer took out comes back as soon as it can.
+const FAILED_READINESS_CACHE_MS = 5_000;
+
+/**
+ * Artifact storage (DigitalOcean Spaces) sometimes leaves one list request in several hanging (FM-500). One hung
+ * request made a node not ready, so the load balancer took dev's only web node out for minutes, and a worker's
+ * start preflight failed. The check is tried again, and a server that reached storage within `graceMs` stays ready
+ * (with a warning) while a retry fails; storage that stays unreachable still fails, and a server that never reached
+ * it (a start preflight) fails after its attempts.
+ */
+export function createArtifactStorageProbe(
+  check: () => Promise<unknown>,
+  { attempts = 3, graceMs = 120_000, now = Date.now }: { attempts?: number; graceMs?: number; now?: () => number } = {}
+) {
+  let reachedAt = 0;
+  return async (): Promise<{ ok: boolean; error?: string; warning?: string }> => {
+    let error = "";
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        await check();
+        reachedAt = now();
+        return attempt > 1 ? { ok: true, warning: `Artifact storage answered on attempt ${attempt} of ${attempts}.` } : { ok: true };
+      } catch (cause) {
+        error = cause instanceof Error ? cause.message : String(cause);
+      }
+    }
+    if (reachedAt && now() - reachedAt < graceMs) {
+      return { ok: true, warning: `Artifact storage did not answer (${error}); it last answered ${Math.round((now() - reachedAt) / 1000)} s ago.` };
+    }
+    return { ok: false, error };
+  };
+}
+
+const probeArtifactStorage = createArtifactStorageProbe(() => checkProjectArtifactStorage(env.readinessDependencyTimeoutMs));
 
 export type RuntimeReadiness = {
   ok: boolean;
@@ -60,9 +96,21 @@ export function isRuntimeDraining() {
 }
 
 export async function inspectRuntimeReadiness(options: { fresh?: boolean } = {}): Promise<RuntimeReadiness> {
-  const now = Date.now();
-  if (!options.fresh && readinessCache && readinessCache.expiresAt > now) return readinessCache.value;
+  if (!options.fresh && readinessCache && readinessCache.expiresAt > Date.now()) return readinessCache.value;
+  // A check is already running (a dependency is slow): answer with the last one rather than pile up behind it, so a
+  // load balancer's health check is not timed out by a slow storage call.
+  if (!options.fresh && !draining && inspecting) return lastReadiness ?? inspecting;
+  const running = inspect();
+  if (!options.fresh) inspecting = running;
+  try {
+    return await running;
+  } finally {
+    if (inspecting === running) inspecting = null;
+  }
+}
 
+async function inspect(): Promise<RuntimeReadiness> {
+  const now = Date.now();
   const identity = runtimeIdentity();
   const clusterDatabase = env.deploymentTopology !== "cluster" || isFirstMeasurePostgresEnabled();
   const clusterArtifactStorage = env.deploymentTopology !== "cluster" || isSpacesArtifactStorageEnabled();
@@ -98,12 +146,12 @@ export async function inspectRuntimeReadiness(options: { fresh?: boolean } = {})
     }
   }
 
-  try {
-    await checkProjectArtifactStorage(env.readinessDependencyTimeoutMs);
-  } catch (cause) {
+  const storage = await probeArtifactStorage();
+  if (!storage.ok) {
     artifactStorage = false;
-    if (!error) error = cause instanceof Error ? cause.message : String(cause);
+    if (!error) error = storage.error ?? "Artifact storage did not answer.";
   }
+  if (storage.warning) warnings.push(storage.warning);
 
   if (env.deploymentTopology === "cluster" && env.clusterNodeRole === "web" && env.legacyServiceUrl) {
     try {
@@ -144,9 +192,10 @@ export async function inspectRuntimeReadiness(options: { fresh?: boolean } = {})
     ...(warnings.length ? { warnings } : {})
   };
   readinessCache = {
-    expiresAt: now + env.readinessCacheMs,
+    expiresAt: now + (ok || draining ? env.readinessCacheMs : Math.min(env.readinessCacheMs, FAILED_READINESS_CACHE_MS)),
     value
   };
+  lastReadiness = value;
   return value;
 }
 

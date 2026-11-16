@@ -6,7 +6,7 @@ only this (forced command `fm-release ssh`), so a dev host activates nothing but
 
   rsync --server ... <releases root>/<sha>.staging/     receive a release tree (validated, then run as rsync)
   fm-release finish <lane> <sha>      < manifest.json   check the staged tree is exactly the manifest, make it a release
-  fm-release activate <lane> <sha> [--expect <sha>|-]   switch `current`, restart, wait for readiness, roll back on failure
+  fm-release activate <lane> <sha> [--expect <sha>|-]   switch `current`, hand Node over (or restart), wait for readiness, roll back on failure
   fm-release rollback <lane> <sha>                      switch back to an existing release
   fm-release status [<lane>]                            JSON: current release, receipts, free space
   fm-release tree <lane>                                JSON: every file of the current release with its sha256
@@ -33,16 +33,19 @@ import sys
 import time
 import urllib.request
 
-ROOT = pathlib.Path("/opt/firstmeasure")
+ROOT = pathlib.Path(os.environ.get("FM_RELEASE_ROOT", "/opt/firstmeasure"))
 CONFIG = pathlib.Path(os.environ.get("FM_RELEASE_CONFIG", "/etc/firstmeasure/dev-push-role.json"))
-LOCK = pathlib.Path("/run/lock/fm-release.lock")
+PROC = pathlib.Path(os.environ.get("FM_RELEASE_PROC", "/proc"))
+LOCK = pathlib.Path(os.environ.get("FM_RELEASE_LOCK", "/run/lock/fm-release.lock"))
 SHA = re.compile(r"^[0-9a-f]{40}(-dp)?$")  # release name: the commit, or <commit>-dp beside an old-tool directory
 LANE = re.compile(r"^[a-z][a-z0-9-]{1,31}$")
 RECEIPT = "dev-push-release.json"
-AWAITING = pathlib.Path("/var/lib/dev-push/awaiting-release")  # units a new pool node keeps stopped until its first release
+AWAITING = pathlib.Path(os.environ.get("FM_RELEASE_AWAITING", "/var/lib/dev-push/awaiting-release"))  # units a new pool node keeps stopped until its first release
 # Never part of a release tree: runtime data carried from the running release, and the router's receipt.
 HOST_PATHS = ("public/storage", "public/v1/storage", "public/v1/output")
 SKIP_IN_TREE = set(HOST_PATHS) | {RECEIPT, "channels-release.json"}
+ROLLING_MARK = "v1-rolling-replace"  # dist/src/server.js of a Node cluster primary that hands over on SIGHUP (FM-389)
+ROLLING_TIMEOUT = int(os.environ.get("FM_RELEASE_ROLLING_TIMEOUT", "300"))
 
 
 def out(value, code=0):
@@ -140,11 +143,15 @@ def tree_digest(files, links):
     return digest.hexdigest()
 
 
+def main_pid(service):
+    return subprocess.run(["systemctl", "show", service, "-p", "MainPID", "--value"], capture_output=True, text=True).stdout.strip()
+
+
 def environment(service):
-    pid = subprocess.check_output(["systemctl", "show", service, "-p", "MainPID", "--value"], text=True).strip()
+    pid = main_pid(service)
     if pid in ("", "0"):
         raise RuntimeError(f"{service} is not running")
-    env = dict(item.split("=", 1) for item in pathlib.Path("/proc", pid, "environ").read_text().split("\0") if "=" in item)
+    env = dict(item.split("=", 1) for item in (PROC / pid / "environ").read_text().split("\0") if "=" in item)
     if env.get("FIRSTMEASURE_DATA_ENVIRONMENT") != "development":
         raise RuntimeError(f"{service} is not a development process")
     return env
@@ -155,9 +162,9 @@ def ready(expected):
     settings = config()
     service = settings["services"][0]
     env = environment(service)
-    if env.get("RELEASE_ID") != expected:
-        raise RuntimeError(f"{service} runs RELEASE_ID {env.get('RELEASE_ID')}, not {expected}")
     if settings.get("readiness") == "worker":
+        if env.get("RELEASE_ID") != expected:
+            raise RuntimeError(f"{service} runs RELEASE_ID {env.get('RELEASE_ID')}, not {expected}")
         code = ("const {inspectRuntimeReadiness}=await import('./dist/src/runtime_health.js');"
                 "const r=await inspectRuntimeReadiness({fresh:true});"
                 "console.log(JSON.stringify({ok:r.ok,env:r.data_environment,safe:r.outbound_safety?.ok,enforced:r.outbound_safety?.enforced}));process.exit(r.ok?0:1);")
@@ -169,6 +176,8 @@ def ready(expected):
         request = urllib.request.Request(f"http://127.0.0.1:{env.get('V1_PORT', '3201')}/v1/health/ready")
         if env.get("LEGACY_PROXY_SECRET"):
             request.add_header("x-firstmeasure-legacy-proxy", env["LEGACY_PROXY_SECRET"])
+        # The release a server answers for, not its primary's environment: after a rolling replace the primary still
+        # has the environment it started with, and its workers run the new release.
         with urllib.request.urlopen(request, timeout=8) as response:
             data = json.load(response)
         if not (data.get("ok") and data.get("release_id") == expected and data.get("data_environment") == "development"
@@ -232,12 +241,66 @@ def swap(link, target):
             seal(True)
 
 
-def restart(lane, settings):
+def rolling_possible(service, target):
+    """Whether `service` can move onto `target` without a gap (FM-500). A Node cluster primary (dist/src/server.js)
+    replaces its workers one at a time on SIGHUP from the release `current` names, starting each new worker before
+    retiring an old one (FM-389), while a restart stops every worker and leaves nginx and the load balancer with
+    nothing for the seconds a cold start takes. The primary keeps running the code it started with, so this is only
+    for a running primary that has the rolling replace and whose server.js is the target's; otherwise it restarts."""
+    if target is None or AWAITING.is_file():
+        return False
+    if subprocess.run(["systemctl", "is-active", "--quiet", service]).returncode != 0:
+        return False
+    pid = main_pid(service)
+    if pid in ("", "0"):
+        return False
+    try:
+        children = (PROC / pid / "task" / pid / "children").read_text().split()
+        started = pathlib.Path(os.readlink(PROC / pid / "cwd"))
+        running = (started / "dist/src/server.js").read_bytes()
+        wanted = (pathlib.Path(target) / "public/v1/dist/src/server.js").read_bytes()
+    except OSError:
+        return False
+    return bool(children) and ROLLING_MARK.encode() in running and running == wanted
+
+
+def rolling_replace(service, target):
+    """SIGHUP to the primary, then wait for its log to say the replace onto `target` finished (or failed)."""
+    expected = release_id_of(target)
+    pid = main_pid(service)
+    time.sleep(1)  # journalctl --since has whole seconds: leave the second of an earlier replace's last line
+    since = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+    subprocess.run(["systemctl", "kill", "--kill-whom=main", "--signal=SIGHUP", service], check=True)
+    deadline = time.time() + ROLLING_TIMEOUT
+    while time.time() < deadline:
+        time.sleep(2)
+        if main_pid(service) != pid:
+            raise RuntimeError(f"{service} restarted during its rolling replace")
+        journal = subprocess.run(["journalctl", "-u", service, "--since", since, "--no-pager", "-o", "cat"], capture_output=True, text=True).stdout
+        lines = [line for line in journal.splitlines() if "v1 HTTP cluster rolling replace" in line]
+        if any(f"rolling replace complete: release={expected} " in line for line in lines):
+            return
+        failed = [line for line in lines if "rolling replace failed" in line]
+        if failed:
+            raise RuntimeError(f"{service}: {failed[-1].strip()[-300:]}")
+    raise RuntimeError(f"{service}: the rolling replace onto {expected} did not finish within {ROLLING_TIMEOUT} s")
+
+
+def restart(lane, settings, target=None):
+    """Put the role's services on `target` (the release `current` now names). Returns the services moved by a rolling
+    replace; the others restart. A restart that systemd reports failed (a worker whose dependency preflight hit a slow
+    Spaces call) is not the end: the unit's Restart= tries again, and readiness, which waits, decides (FM-500)."""
+    rolled = []
     if lane == "platform":
         for service in settings["services"]:
-            subprocess.run(["systemctl", "restart", service], check=True)
+            if rolling_possible(service, target):
+                rolling_replace(service, target)
+                rolled.append(service)
+            else:
+                subprocess.run(["systemctl", "restart", service], capture_output=True)
     for service in settings.get("reload", []) if lane == "platform" else settings.get("lane_reload", {}).get(lane, []):
         subprocess.run(["systemctl", "reload", service], check=True)
+    return rolled
 
 
 def locked():
@@ -368,13 +431,14 @@ def cmd_activate(lane, sha, expect, wait_jobs, keep_server=False):
                 fail("worker has running jobs", busy=True, previous=previous.name if previous else None)
             time.sleep(5)
     swap(link, target)
+    rolled = []
     try:
         if keep_server:
             for service in settings.get("reload", []):
                 subprocess.run(["systemctl", "reload", service], check=True)
             error = wait_ready(release_id_of(target), 15)
         else:
-            restart(lane, settings)
+            rolled = restart(lane, settings, target)
             error = wait_ready(release_id_of(target), 120) if lane == "platform" else None
         if error:
             raise RuntimeError(error)
@@ -382,7 +446,10 @@ def cmd_activate(lane, sha, expect, wait_jobs, keep_server=False):
         reason = str(exc)
         if previous:
             swap(link, previous)
-            restart(lane, settings)
+            try:
+                restart(lane, settings, previous)
+            except Exception:  # noqa: BLE001  a rolling replace back that failed: restart instead
+                restart(lane, settings)
             back = wait_ready(release_id_of(previous), 120) if lane == "platform" else None
             fail(f"activation failed: {reason}", rolled_back=back is None, rollback_error=back, previous=previous.name)
         fail(f"activation failed: {reason}", rolled_back=False)
@@ -393,7 +460,7 @@ def cmd_activate(lane, sha, expect, wait_jobs, keep_server=False):
         AWAITING.unlink()
         joined = True
     handle.close()
-    out({"ok": True, "release": sha, "previous": previous.name if previous else None, "joined": joined, "kept_server": keep_server})
+    out({"ok": True, "release": sha, "previous": previous.name if previous else None, "joined": joined, "kept_server": keep_server, "rolling": rolled})
 
 
 def cmd_rollback(lane, sha):
@@ -405,7 +472,11 @@ def cmd_rollback(lane, sha):
     if not target.is_dir():
         fail(f"no release {target}")
     swap(link, target)
-    restart(lane, config())
+    settings = config()
+    try:
+        restart(lane, settings, target)
+    except Exception:  # noqa: BLE001  a rolling replace back that failed: restart instead
+        restart(lane, settings)
     error = wait_ready(release_id_of(target), 120) if lane == "platform" else None
     handle.close()
     out({"ok": error is None, "release": sha, "error": error}, 0 if error is None else 1)
@@ -447,9 +518,9 @@ def cmd_prune(lane, keep, days):
     keepers = {current.name} if current else set()
     # A release that kept the server leaves Node running in an older release directory: never remove that one.
     for service in config().get("services", []):
-        pid = subprocess.run(["systemctl", "show", service, "-p", "MainPID", "--value"], capture_output=True, text=True).stdout.strip()
+        pid = main_pid(service)
         try:
-            cwd = pathlib.Path(os.readlink(f"/proc/{pid}/cwd"))
+            cwd = pathlib.Path(os.readlink(PROC / pid / "cwd"))
             if releases in cwd.parents:
                 keepers.add(cwd.relative_to(releases).parts[0])
         except (OSError, ValueError):
