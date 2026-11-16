@@ -13,7 +13,7 @@ import { commsAction, isRegistered, loadScript, registrationOf, setUpTexting, sy
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
-const DOMAINS_SRCS = ['/libraries/domains-api/domains-api.js?v=20261116-fm516', '/libraries/apps/settings/domains.js?v=20261116-fm516'];
+const DOMAINS_SRCS = ['/libraries/domains-api/domains-api.js?v=20261116-fm516', '/libraries/apps/settings/domains.js?v=20261116-fm516b'];
 
 const css = `
 .gxc{display:flex;flex-direction:column;gap:18px;min-width:0;padding:2px 0 8px;color:#101828}

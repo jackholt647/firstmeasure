@@ -707,7 +707,7 @@
         const nsList=external&&nameservers.length?`<div class="dm-setting-row"><div class="dm-setting-copy"><strong>Nameservers</strong><ul class="dm-records-ns">${nameservers.map((name)=>`<li><code>${esc(name)}</code></li>`).join('')}</ul></div>${badge(clean(nsCheck.status))}</div>`:'';
         const checkedAt=Date.parse(clean(check.checked_at));
         return `<section class="dm-manage-card dm-records-card" data-email-records><h4><i class="fas fa-envelope-circle-check"></i> Email records</h4>
-          <p class="dm-note">${lead} DNS changes can take up to a day to appear.</p>
+          <p class="dm-note">${lead}${active?'':' DNS changes can take up to a day to appear.'}</p>
           ${nsList}
           <table class="dm-records"><thead><tr><th class="dm-col-type">Type</th><th>Name</th><th>Value</th><th class="dm-col-pri">Priority</th><th class="dm-col-status">Status</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="dm-note">The records appear once this domain\'s email address is set up.</td></tr>'}</tbody></table>
           <div class="dm-card-actions"><button class="dm-btn primary" data-check-email-records ${busy?'disabled':''}><i class="fas fa-rotate"></i> Check records</button>${Number.isFinite(checkedAt)?`<span class="dm-note">Last checked ${esc(new Date(checkedAt).toLocaleString())}</span>`:''}</div>
