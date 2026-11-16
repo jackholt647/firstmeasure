@@ -9,6 +9,8 @@
  * - An app switched on whose required setup is unfinished shows "New" until the
  *   person launches it (Get Started on its welcome, or opening it), then
  *   "Setup required" (FM-469); the launch is kept in `seen_tabs` too.
+ * - Order: tabs in use, then "Setup required", then "New", then "Coming soon" (FM-502); within each, the
+ *   organization's listed order.
  * - A tab declares a tutorial with registerTutorial(), or with `tutorial` on its
  *   manifest entry. It plays the first time the person opens the tab, is
  *   remembered in `seen_tutorials`, and replays from the tab's help button.
@@ -160,14 +162,22 @@
     return null;
   }
 
-  // Listed tabs first, in the listed order; the rest keep their order after them.
+  // Tabs in use first, then tabs waiting on setup ("Setup required"), then tabs not started yet ("New"), then "Coming
+  // soon" (FM-502, as the left column does since FM-479). Within each, listed tabs first, in the listed order; the rest
+  // keep their order after them.
+  function useRank(item, id){
+    const kind = pill(id)?.kind || (item?.app?.promoBadge ? 'coming_soon' : '');
+    return kind === 'coming_soon' ? 3 : kind === 'new' ? 2 : kind === 'setup' ? 1 : 0;
+  }
   function order(items = [], idOf = (item) => item?.appId || item?.id){
     const listed = settings().order;
-    if (!listed.length) return [...items];
     const rank = new Map(listed.map((id, index) => [id, index]));
     return items
-      .map((item, index) => ({ item, index, rank: rank.has(lower(idOf(item))) ? rank.get(lower(idOf(item))) : listed.length }))
-      .sort((a, b) => (a.rank - b.rank) || (a.index - b.index))
+      .map((item, index) => {
+        const id = lower(idOf(item));
+        return { item, index, use: useRank(item, id), rank: rank.has(id) ? rank.get(id) : listed.length };
+      })
+      .sort((a, b) => (a.use - b.use) || (a.rank - b.rank) || (a.index - b.index))
       .map((entry) => entry.item);
   }
 
