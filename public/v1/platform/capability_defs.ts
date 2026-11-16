@@ -522,12 +522,15 @@ const definitions: CapabilityDefinition[] = [
     label: "Message Search",
     description: "Full-text search across channel messages."
   },
+  // Project notes are stored as each project's thread in Channels but are not part of the Channels app (FM-482):
+  // they stay in the project window whether Channels is on, off, or offered and not yet started. Only the
+  // channel views of them (the Messages tray) wait for Channels.
   {
     key: "channels.project_notes",
     kind: "feature",
-    parent: "apps.channels",
-    label: "Project Messages",
-    description: "The project notes surfaces run on channels: per-project message threads with replies and history."
+    parent: "apps.projects",
+    label: "Project Notes",
+    description: "The project Notes tray: per-project notes with replies and history, stored in the project's thread. Works with Channels on or off."
   },
 
   {
@@ -541,6 +544,7 @@ const definitions: CapabilityDefinition[] = [
     key: "channels.project_messages_tray",
     kind: "feature",
     parent: "channels.project_notes",
+    requires: ["apps.channels"],
     label: "Project Messages Tray",
     description: "Show the project's message channel as a Messages tray in the project window. Off: the Notes tray stays."
   },

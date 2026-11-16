@@ -4,6 +4,8 @@
 
 The Notes, Activity and Agent icon tabs appear under the window controls. Enable the organization capability `channels.separate_project_notes` in company settings to add Messages and the project channel Notes tab. The default keeps project notes and messages together.
 
+Notes (`channels.project_notes`) belongs to Projects, not to the Channels app: it shows whether Channels is on, off, or offered and not yet started, and its routes reach only project threads while Channels is not on. Only the Messages tray (`channels.project_messages_tray`) requires Channels (FM-482).
+
 Notes use Channels messages with reserved `metadata.project_note: true`. Split mode filters these records before pagination and excludes them from message unread counts and notifications. Sharing explicitly posts an audience-preserving forwarded note to the channel and marks the original as shared. Switching the flag off exposes the same stored notes as messages again. Older untagged messages remain messages in split mode; no historical data is rewritten.
 
 The shared Notes workspace supports atomic create-and-pin, pinned notes with expandable content, history pagination, search, audience selection, attachments, audio, replies, editing and revision history, remove/restore, copy, save and explicit channel sharing. Registered `project.note.*` work events feed Activity in split mode; ordinary messages do not.
