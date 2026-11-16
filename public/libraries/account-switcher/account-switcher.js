@@ -338,8 +338,12 @@
     }
 
     async remove(accountId) {
-      const account = this.accounts.find((item) => item.account_id === accountId);
-      if (!accountId || !account) {
+      /* The signed-in account may not be remembered on this device (an app sign-in before FM-476, or a lost
+         device cookie): it is listed without an id, and Sign out still ends its session (FM-477). */
+      const account = accountId
+        ? this.accounts.find((item) => item.account_id === accountId)
+        : this.accounts.find((item) => item.active && !item.account_id);
+      if (!account) {
         this.actionAccountKey = '';
         await this.refreshAccounts();
         this.renderList();
@@ -349,7 +353,9 @@
       if (account?.active) { if (!(await confirmOfflineSignOut(wording))) return; }
       else if (!window.confirm(wording)) return;
       try {
-        await this.request('/auth/accounts/remove', { method: 'POST', body: JSON.stringify({ account_id: accountId }) });
+        if (accountId) await this.request('/auth/accounts/remove', { method: 'POST', body: JSON.stringify({ account_id: accountId }) });
+        // The session this page runs as ends whether or not the device remembered it.
+        if (account?.active) await this.request('/auth/logout', { method: 'POST', body: '{}' });
         if (account?.active) await offlineSignedOut();
         this.accounts = this.accounts.filter((item) => item.account_id !== accountId);
         writeCachedAccounts(this.accounts);
