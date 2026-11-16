@@ -401,6 +401,13 @@
     return permissions.manage_schedule === true || (permissions['*'] === true && permissions.manage_schedule !== false);
   }
 
+  // Sharing with the customer needs a customer portal; fails closed until
+  // the organization's capabilities say it is on.
+  function customerPortalOn(){
+    const capabilities = window.Portal?.capabilities || window.PlatformAPI?.capabilities;
+    return capabilities?.can?.('platform.customer_portal') === true;
+  }
+
   function scheduleReadOnlyMessage(){
     return (globalThis.PlatformLanguage?.text("scheduling","m_readonly_schedule","You can view the schedule, but you don't have permission to change it.") ?? "You can view the schedule, but you don't have permission to change it.");
   }
@@ -2584,7 +2591,7 @@
       ${String(confirmationBlock)}
       ${String(assignmentField)}
       ${String(lockAction)}
-      <div class="r-schedule-event-customer" ${canEdit ? '' : 'hidden'}>
+      ${String(canEdit && customerPortalOn() ? `<div class="r-schedule-event-customer">
         <label class="r-schedule-event-share">
           <input type="checkbox" data-schedule-event-customer-visible ${String(event.customer_visible === true ? 'checked' : '')}>
           <span class="r-schedule-event-share-toggle" aria-hidden="true"></span>
@@ -2597,7 +2604,7 @@
           ${String(window.Portal?.can?.('scheduling.customer_rescheduling') === true ? `<label class="r-schedule-event-customer-option"><input type="checkbox" data-schedule-event-customer-reschedule ${event.customer_scheduling?.enabled === true ? 'checked' : ''}><span>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_afdcb90e88cf30","Allow the customer to choose another live available time") ?? "Allow the customer to choose another live available time")}</span></label>` : '')}
         </div>
         <button type="button" class="r-schedule-event-customer-save" data-schedule-event-customer-save>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_d2ad3eac5a7c69","Save customer view") ?? "Save customer view")}</button>
-      </div>
+      </div>` : '')}
     `;
     }
     schedulePopoverHost(anchor).appendChild(popover);

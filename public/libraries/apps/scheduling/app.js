@@ -4707,6 +4707,12 @@
       assignmentMenuDocHandler = bindOutsidePointerDismiss(menu, closeAssignmentMenu, [anchor]);
     }, 0);
   }
+  // Sharing an event with the customer only means something with a customer
+  // portal; fails closed until the organization's capabilities say it is on.
+  function customerPortalOn(){
+    const capabilities = window.Portal?.capabilities || window.PlatformAPI?.capabilities;
+    return capabilities?.can?.('platform.customer_portal') === true;
+  }
   /* --- Equipment on events (equipment.scheduling capability) ------------- */
   function equipmentSchedulingOn(){
     const has = window.Portal?.appFlags?.has || window.PlatformAPI?.appFlags?.has;
@@ -5778,7 +5784,7 @@
         <span><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3917e5ee30f080","Customer can reschedule") ?? "Customer can reschedule")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_cd1d07a489e034","Uses live crew, group, buffer, travel, and capacity rules.") ?? "Uses live crew, group, buffer, travel, and capacity rules.")}</small></span>
       </label>
       <div class="dash-event-confirm-options ${String(open ? 'open' : '')}" data-event-self-schedule-options>
-        ${String(draft.customer_visible === true ? '' : `<div class="dash-event-confirm-status warning"><i class="fas fa-eye-slash"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_746250c5372a9a"," Share this appointment with the customer to show the portal action.") ?? " Share this appointment with the customer to show the portal action.")}</div>`)}
+        ${String(draft.customer_visible === true || !customerPortalOn() ? '' : `<div class="dash-event-confirm-status warning"><i class="fas fa-eye-slash"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_746250c5372a9a"," Share this appointment with the customer to show the portal action.") ?? " Share this appointment with the customer to show the portal action.")}</div>`)}
         <div class="dash-event-confirm-detail">
           <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3eb3bf7ffda86b","Minimum notice") ?? "Minimum notice")}<input data-event-self-notice type="number" min="0" max="43200" step="15" value="${String(escapeHtml(policy.min_notice_minutes))}"></label>
           <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_5cd440b771cd4f","Book ahead (days)") ?? "Book ahead (days)")}<input data-event-self-horizon type="number" min="1" max="365" value="${String(escapeHtml(policy.booking_horizon_days))}"></label>
@@ -7122,7 +7128,7 @@
       ${String(requirementAlertHtml(draft))}
       ${String(eventAssigneeSectionHtml(ctx, draft))}
       <textarea class="dash-event-desc" data-event-description placeholder="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_aa136ecb65672f","Description") ?? "Description")}">${String(escapeHtml(draft.description || draft.notes || ''))}</textarea>
-      ${String(project?.id ? `<div class="dash-event-customer-panel">
+      ${String(project?.id && customerPortalOn() ? `<div class="dash-event-customer-panel">
           <div class="dash-event-customer-head">
             <label class="dash-event-customer-share">
               <input type="checkbox" data-event-customer-visible ${draft.customer_visible === true ? 'checked' : ''}>

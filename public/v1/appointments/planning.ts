@@ -182,7 +182,9 @@ export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<t
   }
   return {ok:true,timezone:zone,slots};
 }
-export async function bookPlannedAppointment(ctx:PlatformAuthContext,input:z.infer<typeof plannedBookingSchema>){
+// A staff booking is internal until someone shares it; a customer who books
+// it themselves (a website form) already knows about it.
+export async function bookPlannedAppointment(ctx:PlatformAuthContext,input:z.infer<typeof plannedBookingSchema>,options:{customerBooked?:boolean}={}){
   assertAppointmentDepartmentPermission(ctx,input.configuration,'manage_schedule');
   const work=()=>withProjectDocumentLock(ctx.orgId,'\u0000appointment_bookings',async()=>{
     await projectAccess(ctx,input.project_id);
@@ -196,7 +198,7 @@ export async function bookPlannedAppointment(ctx:PlatformAuthContext,input:z.inf
     const plan=object(slot.plan),resources=list(plan.resources),config=input.configuration;
     const people=resources.filter(r=>r.subject_type==='organization_user').map(r=>r.id);
     const location=await bookingLocation(ctx,config,input.project_id);
-    const event:JsonObject={id:input.event_id,title:config.title,type:'appointment',event_type_default_id:config.event_type_id||'appointment',department_ids:config.department_ids,delivery:config.delivery,appointment_configuration:config,start_at:plan.start_at,end_at:plan.end_at,duration_minutes:config.timing_mode==='days'?config.duration_days*1440:config.duration_minutes,all_day:config.timing_mode==='days',duration_days:config.timing_mode==='days'?config.duration_days:undefined,location,location_mode:config.location.mode,address:location.address,arrival_window_start_at:slot.start_at,arrival_window_end_at:slot.window_end_at,status:'scheduled',branch_id:ctx.branchId||'default',booking_actor:ctx.userId,assigned_user_ids:people,assigned_user_id:people[0]||'',resource_refs:resources.map(r=>({kind:r.subject_type,id:r.id,name:r.name})),customer_visible:true};
+    const event:JsonObject={id:input.event_id,title:config.title,type:'appointment',event_type_default_id:config.event_type_id||'appointment',department_ids:config.department_ids,delivery:config.delivery,appointment_configuration:config,start_at:plan.start_at,end_at:plan.end_at,duration_minutes:config.timing_mode==='days'?config.duration_days*1440:config.duration_minutes,all_day:config.timing_mode==='days',duration_days:config.timing_mode==='days'?config.duration_days:undefined,location,location_mode:config.location.mode,address:location.address,arrival_window_start_at:slot.start_at,arrival_window_end_at:slot.window_end_at,status:'scheduled',branch_id:ctx.branchId||'default',booking_actor:ctx.userId,assigned_user_ids:people,assigned_user_id:people[0]||'',resource_refs:resources.map(r=>({kind:r.subject_type,id:r.id,name:r.name})),customer_visible:options.customerBooked===true};
     await upsertDocument(ctx.orgId,'appointment_bookings',{id:input.event_id,data:{fingerprint,actor:ctx.userId,status:'saving'}},{replace:true});
     let result:JsonObject;
     if(config.recurrence){

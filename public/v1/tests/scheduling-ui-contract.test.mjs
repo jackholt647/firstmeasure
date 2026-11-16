@@ -70,6 +70,10 @@ test('customer schedule visibility is explicit and defaults to internal', () => 
   assert.match(schedulingSource, /customer_visible: event\.customer_visible === true/);
   assert.match(projectScheduleSource, /data-schedule-event-customer-visible/);
   assert.match(projectScheduleSource, /saveScheduleEventCustomerSettings/);
+  // Sharing is offered only with a customer portal (FM-505).
+  assert.match(schedulingSource, /project\?\.id && customerPortalOn\(\) \? `<div class="dash-event-customer-panel">/);
+  assert.match(projectScheduleSource, /canEdit && customerPortalOn\(\) \? `<div class="r-schedule-event-customer">/);
+  for (const source of [schedulingSource, projectScheduleSource]) assert.match(source, /can\?\.\('platform\.customer_portal'\) === true/);
 });
 
 test('event creation supports production, multi-equipment assignments, and advanced type requirements', () => {

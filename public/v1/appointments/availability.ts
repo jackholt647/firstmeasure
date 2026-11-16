@@ -501,7 +501,7 @@ export async function bookStaffAppointment(ctx: import('../platform/auth.js').Pl
         id:input.event_id, title:'Appointment', event_type_default_id:'sales_appointment', type:'sales_appointment',
         start_at:held.hold.start_at, end_at:held.hold.end_at,
         duration_minutes:(Date.parse(held.hold.end_at) - Date.parse(held.hold.start_at)) / 60000,
-        status:'scheduled', branch_id:branchId, customer_visible:true, booking_actor:ctx.userId
+        status:'scheduled', branch_id:branchId, customer_visible:false, booking_actor:ctx.userId
       }, held.hold.resource_key, asArray(asObject(held.slot).candidates).map(asObject));
       if (projectId) return await saveProjectScheduleEvent(ctx.orgId, projectId, ctx, { branch_id:branchId, event });
       const document = await saveCalendarEventDocument(ctx.orgId, input.event_id, {data:event, metadata:{kind:'calendar_event',branch_id:branchId}}, true,ctx);

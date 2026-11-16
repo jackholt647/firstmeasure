@@ -723,7 +723,7 @@ async function submitLiveFormAs(form: LiveForm, body: JsonObject, meta: Submissi
     if (appointmentItem && requestedStart) {
       const label = await describeAppointment(orgId, branchId, requestedStart);
       try {
-        const booked = await bookPlannedAppointment(actor, { project_id: projectId, event_id: `appointment_${submissionId.slice(4)}`, start_at: requestedStart, configuration: await presetConfiguration(actor, appointmentItem.preset_id) });
+        const booked = await bookPlannedAppointment(actor, { project_id: projectId, event_id: `appointment_${submissionId.slice(4)}`, start_at: requestedStart, configuration: await presetConfiguration(actor, appointmentItem.preset_id) }, { customerBooked: true });
         appointment = { status: "booked", start_at: requestedStart, label, event_id: str(obj(obj(booked).event).id) };
       } catch (error) {
         // The lead is already captured; staff confirm the time rather than losing the visitor.
