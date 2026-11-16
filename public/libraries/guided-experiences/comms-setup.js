@@ -11,7 +11,6 @@ const clean = (value) => String(value ?? '').trim();
 const css = `
 .gxc{display:flex;flex-direction:column;gap:18px;min-width:0;padding:2px 0 8px;color:#101828}
 .gxc p{margin:0;color:#475467;line-height:1.55}
-.gxc-hero h3{margin:0 0 6px;font-size:22px;line-height:1.25;font-weight:800;letter-spacing:-.01em}
 .gxc-ways{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .gxc-way{position:relative;display:flex;flex-direction:column;gap:8px;padding:16px;border:1px solid #e4e7ec;border-radius:16px;background:#fff;animation:gxcIn .3s cubic-bezier(.22,1,.36,1) both}
 .gxc-way strong{font-size:15px}.gxc-way p{font-size:13px}
@@ -94,10 +93,17 @@ export function mount(el, ctx){
   const fail = (error) => { const node = el.querySelector('[data-gxc-error]'); if (node) node.textContent = clean(error?.message) || L('gx_comms_error', 'That didn’t work. Try again.'); };
   const working = (button, on) => { busy = on; if (button) button.disabled = on; };
 
+  // One title per page: the step's heading on a wide screen and the top bar on a phone (setTitle) name the page.
+  const heading = el.closest('.gxs-step')?.querySelector('.gxs-titlebar h2'), stepHeading = heading?.innerHTML || '';
+  function title(value){
+    ctx.setTitle?.(value);
+    if (heading) heading.innerHTML = value ? esc(value) : stepHeading;
+  }
+
   function show(next){ page = next; draw(); el.closest('.gxs-step')?.scrollTo?.({ top: 0 }); }
 
   function drawIntro(){
-    ctx.setTitle?.('');
+    title(text(options.headline));
     const done = object(status.done);
     const ways = [
       ['sms', 'fa-comment-sms', L('gx_comms_way_texts', 'Texts'), L('gx_comms_way_texts_body', 'Text customers from any project. Their replies come back to the project.'), done.phone],
@@ -107,11 +113,10 @@ export function mount(el, ctx){
     const choice = (id, iconName, body) => `<button type="button" class="gxc-choice" data-gxc-start="${id}" ${id === first ? 'data-first' : ''}>${icon(iconName)}<span><strong>${esc(done[id] ? L('gx_comms_review', 'Review {name}', { name: names[id]() }) : L('gx_comms_setup_name', 'Set up {name}', { name: names[id]().toLowerCase() }))}</strong><small>${esc(body)}</small></span></button>`;
     const order = first === 'email' ? ['email', 'phone'] : ['phone', 'email'];
     el.innerHTML = `<div class="gxc">
-      <div class="gxc-hero"><h3>${esc(text(options.headline, L('gx_comms_intro_headline', 'Every conversation with your customers, in one place')))}</h3>
-        <p>${esc(text(options.body, L('gx_comms_intro_body', 'Text, call and email customers from FirstMate. Everything you send and receive is saved on the project, so anyone on your team can pick it up.')))}</p></div>
+      <div class="gxc-hero"><p>${esc(text(options.body, L('gx_comms_intro_body', 'Text, call and email customers from FirstMate. Everything you send and receive is saved on the project, so anyone on your team can pick it up.')))}</p></div>
       <div class="gxc-ways">${ways.map(([id, iconName, title, body, on], index) => `<div class="gxc-way" data-gxc-way="${id}" style="animation-delay:${index * 50}ms">${icon(iconName)}<div><strong>${esc(title)}</strong><p>${esc(body)}</p></div>${on ? `<span class="gxc-on">${esc(L('gx_comms_on', 'On'))}</span>` : ''}</div>`).join('')}</div>
       <span class="gxc-label">${esc(L('gx_comms_where_start', 'Where do you want to start?'))}</span>
-      <div class="gxc-choose">${order.map((id) => id === 'phone' ? choice('phone', 'fa-mobile-screen', L('gx_comms_choice_phone', 'Your business number for texting and calling')) : choice('email', 'fa-envelope-open-text', L('gx_comms_choice_email', 'Your company inbox for customer email'))).join('')}</div>
+      <div class="gxc-choose">${order.map((id) => id === 'phone' ? choice('phone', 'fa-comment-sms', L('gx_comms_choice_phone', 'Your business number for texting and calling')) : choice('email', 'fa-envelope-open-text', L('gx_comms_choice_email', 'Your company inbox for customer email'))).join('')}</div>
       ${done.phone && done.email ? `<div class="gxc-actions"><span class="gxc-spacer"></span><button type="button" class="gxc-btn primary" data-gxc-finish>${esc(L('gx_comms_go', 'Go to Communications'))}</button></div>` : ''}
       ${errorLine}
     </div>`;
@@ -119,7 +124,7 @@ export function mount(el, ctx){
   }
 
   function drawPhone(){
-    ctx.setTitle?.(names.phone());
+    title(names.phone());
     const phone = object(status.phone), on = !!phone.texts;
     const number = array(phone.numbers)[0] || array(phone.texting_numbers)[0] || '';
     el.innerHTML = `<div class="gxc">
@@ -143,7 +148,7 @@ export function mount(el, ctx){
   }
 
   function drawEmail(){
-    ctx.setTitle?.(names.email());
+    title(names.email());
     const email = object(status.email), on = !!email.on;
     el.innerHTML = `<div class="gxc">
       ${on ? `<div class="gxc-done">${check}<div><strong>${esc(L('gx_comms_email_on', 'Email is on'))}</strong><p>${esc(L('gx_comms_email_on_body', 'Every project now has an Email tab. Customers can write to your company address:'))}</p>${email.address ? `<p class="gxc-address" data-gxc-address>${esc(email.address)}</p>` : ''}</div></div>` : `<p>${esc(L('gx_comms_email_intro', 'Your company gets its own FirstMate inbox. There’s nothing to install.'))}</p>`}
@@ -183,7 +188,7 @@ export function mount(el, ctx){
     return billing.plans.length > 0;
   }
   function drawBilling(){
-    ctx.setTitle?.(L('gx_comms_billing_title', 'Add a texting plan'));
+    title(L('gx_comms_billing_title', 'Add a texting plan'));
     const data = object(billing?.data), now = new Date().toISOString();
     const current = array(data.subscriptions).find((sub) => sub.product_id === 'sms' && (!sub.ends_at || sub.ends_at > now));
     const card = object(data.payment_details).has_payment_method === true;
@@ -213,12 +218,12 @@ export function mount(el, ctx){
   }
 
   function drawNext(){
-    ctx.setTitle?.('');
+    title(L('gx_comms_next_title', 'What’s next?'));
     const done = object(status.done), other = last === 'email' ? 'phone' : 'email';
     el.innerHTML = `<div class="gxc">
-      <div class="gxc-done">${check}<div><strong>${esc(L('gx_comms_next_done', '{name} is set up', { name: names[last || 'phone']() }))}</strong><p>${esc(L('gx_comms_next_body', 'You can change it any time in Settings.'))}</p></div></div>
+      <div class="gxc-done">${check}<div><strong>${esc((last || 'phone') === 'email' ? L('gx_comms_next_done_email', 'Email is set up') : L('gx_comms_next_done_phone', 'Texts and calls are set up'))}</strong><p>${esc(L('gx_comms_next_body', 'You can change it any time in Settings.'))}</p></div></div>
       ${done[other] ? '' : `<span class="gxc-label">${esc(L('gx_comms_next_other', 'Set up {name} too?', { name: names[other]().toLowerCase() }))}</span>
-      <div class="gxc-choose" style="grid-template-columns:minmax(0,1fr)"><button type="button" class="gxc-choice" data-gxc-start="${other}">${icon(other === 'email' ? 'fa-envelope-open-text' : 'fa-mobile-screen')}<span><strong>${esc(L('gx_comms_setup_name', 'Set up {name}', { name: names[other]().toLowerCase() }))}</strong><small>${esc(other === 'email' ? L('gx_comms_choice_email', 'Your company inbox for customer email') : L('gx_comms_choice_phone', 'Your business number for texting and calling'))}</small></span></button></div>`}
+      <div class="gxc-choose" style="grid-template-columns:minmax(0,1fr)"><button type="button" class="gxc-choice" data-gxc-start="${other}">${icon(other === 'email' ? 'fa-envelope-open-text' : 'fa-comment-sms')}<span><strong>${esc(L('gx_comms_setup_name', 'Set up {name}', { name: names[other]().toLowerCase() }))}</strong><small>${esc(other === 'email' ? L('gx_comms_choice_email', 'Your company inbox for customer email') : L('gx_comms_choice_phone', 'Your business number for texting and calling'))}</small></span></button></div>`}
       ${errorLine}
       <div class="gxc-actions"><span class="gxc-spacer"></span><button type="button" class="gxc-btn primary" data-gxc-finish>${esc(L('gx_comms_go', 'Go to Communications'))}</button></div>
     </div>`;

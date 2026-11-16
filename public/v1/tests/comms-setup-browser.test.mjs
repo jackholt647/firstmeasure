@@ -32,7 +32,7 @@ test('Communications setup walks texts and calls, the texting plan and email, th
       window.completed=0;
       window.handle=module.mount(document.querySelector('#step'),{options:{},orgId:'org-test',L:(key,fallback)=>fallback,esc:value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),change(){},setTitle(){},complete:async()=>{completed++;}});
     });
-    await page.getByText('Every conversation with your customers, in one place').waitFor();
+    await page.getByText('Text, call and email customers from FirstMate.',{exact:false}).waitFor();
     for(const way of ['Texts','Calls','Email'])assert.equal(await page.locator('.gxc-way strong',{hasText:way}).count(),1,way);
     await page.getByRole('button',{name:/Set up texts and calls/}).click();
     await page.getByRole('button',{name:'Turn on texts and calls'}).click();
@@ -43,7 +43,7 @@ test('Communications setup walks texts and calls, the texting plan and email, th
     await page.getByText('We’ll charge the card you already have on file.').waitFor();
     await page.getByRole('button',{name:'Add this plan'}).click();
     await page.getByRole('button',{name:'Not now'}).click();
-    await page.getByText('Texts and calls is set up').waitFor();
+    await page.getByText('Texts and calls are set up').waitFor();
     await page.getByRole('button',{name:/Set up email/}).click();
     await page.getByRole('button',{name:'Turn on email'}).click();
     await page.locator('[data-gxc-address]',{hasText:'acme@mail.test'}).waitFor();

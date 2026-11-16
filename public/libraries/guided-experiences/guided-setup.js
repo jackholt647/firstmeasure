@@ -794,7 +794,7 @@
     render(el,ctx){
       let disposed=false, handle=null;
       el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      import(new URL('./comms-setup.js?v=20261116-fm491',scriptUrl).href).then(module=>{
+      import(new URL('./comms-setup.js?v=20261116-fm491b',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mount(el,ctx);
       }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
       return {valid:()=>true,destroy(){disposed=true;handle?.destroy?.();}};
