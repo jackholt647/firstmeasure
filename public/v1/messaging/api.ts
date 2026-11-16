@@ -147,7 +147,7 @@ const EDITABLE_CAMPAIGN_FIELDS = [
   "numberPool", "directLending", "ageGated", "termsAndConditions", "termsAndConditionsLink", "privacyPolicyLink",
   "autoRenewal", "enabledFeatures", "featuresConfirmed", "consentAcknowledged", "standardizationVersion",
   "messageFlowConfirmed", "selectedNumberSearch", "selectedNumberAreaCode", "optInMethod", "optInLocationUrl",
-  "optInMethods", "keywordLocationUrl", "optInEvidence", "optInEvidenceUrl", "optInDisclosure", "policyContentConfirmed", "websiteFormConfirmed", "autoSubmitCampaign"
+  "optInMethods", "keywordLocationUrl", "optInEvidence", "optInEvidenceUrl", "optInDisclosure", "policyContentConfirmed", "websiteFormConfirmed", "autoSubmitCampaign", "standardWording"
 ] as const;
 
 function editableBrand(value: unknown, organizationId: string) {
