@@ -8339,7 +8339,7 @@ window.PlatformCommerce.onReady(async function(){
         className: 'r-mobile-info-tab'
       });
     }
-    // The organization's tab order: listed tabs first, the rest after them in their own order.
+    // The organization's tab order, tabs not started yet last (tab-guides.js order()).
     const apps = projectModalApps(options).filter((tab) => projectModalAppIsTab(tab) || (!options.opening && tab.id === activePreviewTab));
     (window.FirstMateTabGuides?.order?.(apps) || apps).forEach((tab) => {
       if (!tabs.some((entry) => entry.id === tab.id)) {
