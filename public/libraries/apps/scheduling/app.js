@@ -663,8 +663,10 @@
       .dash-gantt-shown-menu{left:auto;right:0}
       .dash-toolbar{display:none}
       .dash-shell .prs-mobile-toolbar{flex:0 0 50px;gap:2px}
-      .dash-shell .prs-mobile-menu:has(.month){flex:0 1 112px;min-width:58px}
-      .dash-shell .prs-mobile-control.month{width:100%;max-width:112px;min-width:0;padding:0 4px;box-sizing:border-box}
+      /* The month label is as wide as its text and only truncates when the
+       * toolbar runs out of room (FM-471). */
+      .dash-shell .prs-mobile-menu:has(.month){flex:0 1 auto;min-width:58px}
+      .dash-shell .prs-mobile-control.month{width:100%;max-width:none;min-width:0;padding:0 4px;box-sizing:border-box}
       .dash-shell .prs-mobile-control.today,.dash-shell .prs-mobile-control.nav{flex-shrink:0}
       .dash-shell .dash-mobile-appointment{display:inline-flex;align-items:center;justify-content:center;flex:0 0 40px;width:40px;height:40px;padding:0;margin-left:2px;border-radius:10px;font-size:20px;line-height:1}
       .dash-mobile-appointment:focus-visible{outline:2px solid #b42318;outline-offset:2px}
