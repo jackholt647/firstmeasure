@@ -97,7 +97,7 @@ test("Operations asks the company steps before the project, only while they are 
   const typed = await save(owner, { company_type: "roofing_contractor" }, "type-1");
   assert.equal(typed.company_type, "roofing_contractor");
   assert.equal(typed.industry, "roofing");
-  assert.deepEqual(typed.answered, { type: true, services: false });
+  assert.deepEqual(typed.answered, { type: true, services: false, sales_team: false, workforce: false });
   assert.deepEqual(ids(await operations()), ["path", "company.services", "document", "ready"]);
 
   // Answering the services: the setup goes straight from the path to the project.

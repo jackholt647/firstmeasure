@@ -8,11 +8,11 @@
 // texting plan is platform billing's own quote and checkout (FirstMatePlatformBilling.review). Every write is a published
 // action run as the person (comms.setup.start). Copy is gx_ keys with English fallbacks; the library entry's options
 // may replace the title (`headline`) and the line under it (`subtitle`), and say which channel a place starts with (`first`).
+// Texts and calls are set up by texting-setup.js, shared with the appointment setup (FM-515), so both work the same.
+import { commsAction, isRegistered, loadScript, registrationOf, setUpTexting, syncSessions, workflowWindow } from './texting-setup.js?v=20261116-fm515';
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
-const REGISTRATION_SRC = '/libraries/apps/settings/sms-registration.js?v=20261116-fm510b';
-const WIZARD_SRC = '/libraries/setup-wizard/setup-wizard.js';
 const DOMAINS_SRCS = ['/libraries/domains-api/domains-api.js?v=20261116-fm516', '/libraries/apps/settings/domains.js?v=20261116-fm516'];
 
 const css = `
@@ -81,37 +81,7 @@ function installStyle(){
   style.textContent = css;
   document.head.appendChild(style);
 }
-function loadScript(src, win = window){
-  return new Promise((resolve, reject) => { const doc = win.document, script = doc.createElement('script'); script.src = src; script.onload = resolve; script.onerror = () => { script.remove(); reject(new Error('load failed')); }; doc.head.append(script); });
-}
-// A full-screen workflow (carrier registration, domains) opens over the whole page: the portal's window when the setup
-// plays in a project window.
-async function workflowWindow(sources, ready){
-  const wins = [];
-  try { if (window.top !== window && window.top.location.origin === location.origin) wins.push(window.top); } catch {}
-  wins.push(window);
-  for (const win of wins) {
-    try {
-      if (!win.FirstMateSetupWizard?.open) await loadScript(WIZARD_SRC, win);
-      for (const src of sources) if (!ready(win)) await loadScript(src, win);
-      if (win.FirstMateSetupWizard?.open && ready(win)) return win;
-    } catch {}
-  }
-  throw new Error('This could not load. Close the setup and try again.');
-}
-const registrationWindow = () => workflowWindow([REGISTRATION_SRC], (win) => !!win.FirstMateSmsRegistration?.open);
 const domainsWindow = () => workflowWindow(DOMAINS_SRCS, (win) => !!(win.DomainsAPI && win.FirstMateDomainsSettings?.openForEmail));
-async function syncSessions(orgId){
-  const wins = new Set([window]);
-  try { if (window.top.location.origin === location.origin) wins.add(window.top); } catch {}
-  await Promise.all([...wins].map(async (win) => {
-    await Promise.all([win.PlatformAPI?.capabilities?.load?.(orgId, { refresh: true }), win.PlatformAPI?.appFlags?.load?.(orgId, { refresh: true })].map((p) => Promise.resolve(p).catch(() => null)));
-    await Promise.resolve(win.Portal?.auth?.syncPlatformSession?.()).catch(() => null);
-    // The project Comms tab and the Communications page redraw their channels (Texts, Email) from the new switches.
-    win.dispatchEvent(new CustomEvent('fm:comms:setup-changed'));
-  }));
-}
-
 export function mount(el, ctx){
   installStyle();
   const { esc } = ctx;
@@ -122,17 +92,13 @@ export function mount(el, ctx){
   const first = options.first === 'email' ? 'email' : 'phone';
   let alive = true, busy = false, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, domains = null, registering = false;
 
-  const invoke = async (action, input = {}) => {
-    const key = action === 'comms.setup.start' ? `comms.setup.start:${orgId}:${input.channel}:${Date.now()}` : undefined;
-    const result = await window.PlatformAPI.publication.invoke(orgId, action, { scope: 'organization', organizationId: orgId }, input, key ? { idempotencyKey: key } : {});
-    return object(result.value ?? result.result ?? result);
-  };
+  const invoke = (action, input = {}) => commsAction(orgId, action, input);
   const icon = (name) => `<span class="gxc-icon" aria-hidden="true"><i class="fas ${name}"></i></span>`;
   const mark = (name) => `<span class="gxc-mark" aria-hidden="true"><i class="fas ${name}"></i></span>`;
   const errorLine = '<p class="gxc-error" role="alert" data-gxc-error></p>';
   const fail = (error) => { const node = el.querySelector('[data-gxc-error]'); if (node) node.textContent = clean(error?.message) || L('gx_comms_error', 'That didn’t work. Try again.'); };
-  const registration = () => clean(object(status.phone).registration) || 'none';
-  const registered = () => ['submitted', 'approved'].includes(registration());
+  const registration = () => registrationOf(status);
+  const registered = () => isRegistered(status);
 
   // One title per page: the step's heading on a wide screen and the top bar on a phone (setTitle) name the page.
   const heading = el.closest('.gxs-step')?.querySelector('.gxs-titlebar h2'), stepHeading = heading?.innerHTML || '';
@@ -319,9 +285,10 @@ export function mount(el, ctx){
     }));
   }
 
+  function report(channel){ ctx.change({ comms_setup: ['phone', 'email'].filter((id) => object(status.done)[id]) }, channel === 'email' ? L('gx_comms_email_name', 'Email') : L('gx_comms_phone_name', 'Texts and calls')); }
   async function turnOn(channel){
     status = await invoke('comms.setup.start', { channel });
-    ctx.change({ comms_setup: ['phone', 'email'].filter((id) => object(status.done)[id]) }, channel === 'email' ? L('gx_comms_email_name', 'Email') : L('gx_comms_phone_name', 'Texts and calls'));
+    report(channel);
     await syncSessions(orgId);
   }
   // FirstMate Mail: on at once, then the done page (with its address and texts and calls offered).
@@ -335,22 +302,12 @@ export function mount(el, ctx){
   async function startPhone(button){
     if (busy) return; busy = true; if (button) button.disabled = true;
     try {
-      if (!object(status.done).phone) await turnOn('phone');
-      if (!registered()) {
-        title(L('gx_comms_registering_title', 'Register your business'));
-        drawBusy(L('gx_comms_registering', 'Registering your business with the carriers…'));
-        registering = true;
-        const win = await registrationWindow();
-        // The workflow is its own full-screen dialog: the setup steps aside while it is open, and comes back to finish.
-        const sheet = el.closest('.gxs');
-        if (sheet) { sheet.style.visibility = 'hidden'; sheet.inert = true; }
-        try { await win.FirstMateSmsRegistration.open({ orgId }); }
-        finally { if (sheet) { sheet.style.visibility = ''; sheet.inert = false; } }
-        registering = false;
-        if (!alive) return;
-        // Starting phone again reads where registration stands (on development it connects the test line once submitted).
-        await turnOn('phone');
-      }
+      await setUpTexting({ orgId, status, sheet: el.closest('.gxs'), alive: () => alive,
+        onStatus: (value) => { status = value; report('phone'); },
+        onRegistering: (on) => {
+          registering = on;
+          if (on) { title(L('gx_comms_registering_title', 'Register your business')); drawBusy(L('gx_comms_registering', 'Registering your business with the carriers…')); }
+        } });
       if (alive) show('done');
     } catch (error) {
       registering = false;

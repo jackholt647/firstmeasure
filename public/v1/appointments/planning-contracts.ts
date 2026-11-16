@@ -11,6 +11,8 @@ export const appointmentConfigurationSchema=z.object({
   location:z.object({mode:z.enum(['project','company_office','custom','none']).default('project'),address:z.string().trim().max(1000).default('')}).strict().default({mode:'project',address:''}),
   duration_minutes:z.number().int().min(5).max(1440).default(60),window_minutes:z.number().int().min(5).max(1440).default(60),slot_minutes:z.number().int().min(5).max(240).default(30),
   requirements:z.array(staffingSchema).max(12).default([]),
+  // What the customer is texted (FM-515, set by the appointment setup): before it starts, and when someone is on the way. Absent is the old behaviour (no reminder; the on-my-way step texts).
+  customer_texts:z.object({reminder:z.boolean().default(false),on_my_way:z.boolean().default(true)}).strict().optional(),
   recurrence:z.object({frequency:z.enum(['daily','weekly','monthly','quarterly','yearly']),interval:z.number().int().min(1).max(52).default(1),occurrence_count:z.number().int().min(2).max(52).default(8)}).strict().nullable().default(null)
 }).strict().refine(v=>v.timing_mode==='days'||v.window_minutes>=v.duration_minutes,{message:'Arrival window must be at least the appointment duration.',path:['window_minutes']});
 export type AppointmentConfiguration=z.infer<typeof appointmentConfigurationSchema>;

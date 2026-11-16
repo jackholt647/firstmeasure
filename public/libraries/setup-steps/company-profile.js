@@ -1,5 +1,6 @@
-// The company setup steps' own code (docs/architecture/setup-steps.md): "What kind of company are you?" (part `type`)
-// and "What kind of work do you do?" (part `services`). A setup-step module: the player loads it, mounts it in the
+// The company setup steps' own code (docs/architecture/setup-steps.md): "What kind of company are you?" (part `type`),
+// "What kind of work do you do?" (part `services`), and who does the sales and who does the work (parts `sales_team`
+// and `workforce`, FM-515: one choice each). A setup-step module: the player loads it, mounts it in the
 // standard step frame and saves `answer()` with the step's action (company-profile.save). Everything it shows is read
 // through the publication layer: the catalog (company-profile.catalog) and what was answered before
 // (company-profile.profile). It writes nothing itself.
@@ -31,6 +32,7 @@ const css = `
 .gxc-tick svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:3;opacity:0;transition:opacity .15s}
 [aria-selected=true]>.gxc-tick,[aria-pressed=true]>.gxc-tick{background:var(--primary,#d93025);border-color:var(--primary,#d93025)}
 [aria-selected=true]>.gxc-tick svg,[aria-pressed=true]>.gxc-tick svg{opacity:1}
+.gxc-grid.gxc-team{grid-template-columns:repeat(2,minmax(0,1fr))}
 .gxc-tile.gxc-other-tile{border-style:dashed}
 .gxc-tile.gxc-service{min-height:54px;justify-content:center}
 .gxc-other{display:flex;flex-direction:column;gap:6px;animation:gxcIn .25s ease both}
@@ -54,6 +56,7 @@ const css = `
 .gxc-error{color:#b42318;font-size:13px;margin:0}
 @keyframes gxcIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media(max-width:560px){.gxc-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.gxc-tile{min-height:64px;padding:10px 34px 10px 12px}.gxc-tile.gxc-service{min-height:56px}.gxc-tile small{display:none}.gxc-tick{top:8px;right:8px;width:20px;height:20px}}
+@media(max-width:560px){.gxc-grid.gxc-team{grid-template-columns:1fr}.gxc-team .gxc-tile small{display:block}}
 @media(prefers-reduced-motion:reduce){.gxc *{animation:none!important;transition:none!important}}
 `;
 const searchIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
@@ -84,7 +87,7 @@ export function mount(el, ctx){
   const L = ctx.L, esc = ctx.esc;
   const t = (key, fallback) => esc(L(`gx_step_${key}`, fallback));
   const label = (entry) => L(entry.label);
-  const part = ctx.options.part === 'services' ? 'services' : 'type';
+  const part = ['services', 'sales_team', 'workforce'].includes(ctx.options.part) ? ctx.options.part : 'type';
   const answer = object(ctx.answer);
   let alive = true, catalog = null, profile = null, ui = null;
   el.innerHTML = '<div class="gxc-loading"><span class="gxs-spin" aria-hidden="true"></span></div>';
@@ -92,7 +95,7 @@ export function mount(el, ctx){
   Promise.all([ctx.read('company-profile', 'catalog'), ctx.read('company-profile', 'profile').catch(() => null)]).then(([read, current]) => {
     if (!alive) return;
     catalog = object(read); profile = object(current);
-    ui = part === 'type' ? typePart() : servicesPart();
+    ui = part === 'type' ? typePart() : part === 'services' ? servicesPart() : teamPart(part);
     ctx.change({}, ui.summary());
   }).catch((error) => {
     if (!alive) return;
@@ -157,6 +160,30 @@ export function mount(el, ctx){
       hint: () => chosen === OTHER ? L('gx_step_company_type_other_hint_required', 'Say what kind of company you are.') : L('gx_step_company_type_hint', 'Choose the kind of company you are.'),
       answer: () => chosen === OTHER ? { company_type: OTHER, company_type_other: clean(otherInput.value) } : { company_type: chosen },
       destroy(){ el.removeEventListener('click', onClick); el.removeEventListener('input', onInput); el.removeEventListener('keydown', onKey); }
+    };
+  }
+
+  // ── Who does the sales? Who does the work? (one choice each) ──────────
+  function teamPart(name){
+    const choices = array(name === 'sales_team' ? catalog.sales_teams : catalog.workforces);
+    let chosen = clean(answer[name]) || clean(profile[name]);
+    el.innerHTML = `<div class="gxc"><div class="gxc-grid gxc-team" role="radiogroup" aria-label="${esc(L(`gx_step_company_${name}_title`, name === 'sales_team' ? 'Who does the sales?' : 'Who does the work?'))}">${choices.map((entry) => `<button type="button" class="gxc-tile" role="radio" data-team="${esc(entry.id)}" aria-checked="${chosen === entry.id}" aria-selected="${chosen === entry.id}"><strong>${esc(L(entry.label))}</strong><small>${esc(L(entry.hint))}</small>${tick}</button>`).join('')}</div></div>`;
+    const summary = () => { const entry = choices.find((row) => row.id === chosen); return entry ? L(entry.label) : ''; };
+    const report = () => ctx.change(chosen ? { [name]: chosen } : {}, summary());
+    const onClick = (event) => {
+      const tile = event.target.closest('[data-team]'); if (!tile) return;
+      chosen = tile.dataset.team;
+      el.querySelectorAll('[data-team]').forEach((node) => { const on = node.dataset.team === chosen; node.setAttribute('aria-checked', String(on)); node.setAttribute('aria-selected', String(on)); });
+      report();
+    };
+    el.addEventListener('click', onClick);
+    if (chosen) report();
+    return {
+      summary,
+      valid: () => choices.some((entry) => entry.id === chosen),
+      hint: () => L('gx_step_company_team_hint', 'Choose the answer that fits best.'),
+      answer: () => ({ [name]: chosen }),
+      destroy(){ el.removeEventListener('click', onClick); }
     };
   }
 

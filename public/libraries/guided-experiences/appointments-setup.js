@@ -1,0 +1,193 @@
+// The appointment setup's own pages (guided experience `appointments.setup`, FM-515, docs/architecture/guided-experiences.md).
+// It plays the first time someone books an appointment, after the setup steps it requires (company type, kinds of work,
+// who sells, who does the work, the kinds of appointments), each asked only while unanswered. One step that keeps its own
+// pages: one per kind of appointment chosen (a text before it starts, a text when someone is on the way, who goes),
+// then, when a text was asked for and texting is not set up, the offer to set it up (texting-setup.js, the same flow as
+// the Communications setup) or skip, then the finish, which runs the completion action (appointments.setup.apply)
+// with the answers. Everything it shows is read through the publication layer (appointment-setup.status, .catalog).
+import { commsAction, setUpTexting, textingReady } from './texting-setup.js?v=20261116-fm515';
+const array = (value) => Array.isArray(value) ? value : [];
+const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+const clean = (value) => String(value ?? '').trim();
+
+const css = `
+.gxa{display:flex;flex-direction:column;gap:16px;min-width:0;padding:2px 0 8px;color:#101828}
+.gxa p{margin:0;color:#475467;line-height:1.5}
+.gxa-kinds{display:flex;flex-wrap:wrap;gap:6px}
+.gxa-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;border:1px solid #e4e7ec;background:#fff;font-size:12px;font-weight:650;color:#667085}
+.gxa-chip[data-state=current]{border-color:var(--primary,#d93025);color:#101828;box-shadow:0 0 0 1px var(--primary,#d93025)}
+.gxa-chip[data-state=done]{color:#344054}
+.gxa-chip i{font-size:10px;color:#067647}
+.gxa-cat{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:700;background:#f2f4f7;color:#475467}
+.gxa-cat[data-category=sales]{background:#ecfdf3;color:#067647}
+.gxa-cat[data-category=production]{background:#eff8ff;color:#175cd3}
+.gxa-q{display:flex;flex-direction:column;gap:8px}
+.gxa-label{font-size:13px;font-weight:700;color:#344054}
+.gxa-toggle{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border:1px solid #e4e7ec;border-radius:13px;background:#fff;font:inherit;text-align:left;color:#101828;cursor:pointer;transition:border-color .15s,background .15s}
+.gxa-toggle:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+.gxa-toggle span{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+.gxa-toggle strong{font-size:14px}
+.gxa-toggle small{font-size:12px;color:#667085}
+.gxa-switch{flex:none;position:relative;width:38px;height:22px;border-radius:999px;background:#d0d5dd;transition:background .15s}
+.gxa-switch::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.2);transition:transform .15s}
+.gxa-toggle[aria-checked=true]{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.04)}
+.gxa-toggle[aria-checked=true] .gxa-switch{background:var(--primary,#d93025)}
+.gxa-toggle[aria-checked=true] .gxa-switch::after{transform:translateX(16px)}
+.gxa-who{display:flex;flex-wrap:wrap;gap:8px}
+.gxa-who button{height:36px;padding:0 14px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;font:inherit;font-size:13px;font-weight:650;color:#344054;cursor:pointer;transition:border-color .15s,background .15s,color .15s}
+.gxa-who button[aria-checked=true]{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.06);color:#101828;box-shadow:0 0 0 1px var(--primary,#d93025)}
+.gxa-who button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+.gxa-rows{display:flex;flex-direction:column;gap:8px}
+.gxa-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid #e4e7ec;border-radius:13px;background:#fff}
+.gxa-row div{flex:1 1 auto;min-width:0}
+.gxa-row strong{display:block;font-size:14px}
+.gxa-row small{display:block;font-size:12px;color:#667085;margin-top:2px}
+.gxa-icon{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary,#d93025);font-size:17px}
+.gxa-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.gxa-spacer{flex:1 1 auto}
+.gxa-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;padding:0 18px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;font:inherit;font-size:14px;font-weight:650;color:#344054;cursor:pointer}
+.gxa-btn.primary{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:#fff}
+.gxa-btn:disabled{opacity:.55;cursor:default}
+.gxa-btn:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+.gxa-busy{display:flex;align-items:center;gap:10px;min-height:120px;justify-content:center;color:#475467}
+.gxa-error{color:#b42318;font-size:13px;margin:0}
+.gxa-error:empty{display:none}
+@media(max-width:560px){.gxa-actions .gxa-btn{flex:1 1 auto}}
+@media(prefers-reduced-motion:reduce){.gxa *{transition:none!important}}
+`;
+function installStyle(){
+  if (document.getElementById('gxa-css')) return;
+  const style = document.createElement('style'); style.id = 'gxa-css'; style.textContent = css; document.head.append(style);
+}
+
+export function mount(el, ctx){
+  installStyle();
+  const { esc } = ctx;
+  const L = (key, fallback, values) => { let text = ctx.L(key, fallback); for (const [name, value] of Object.entries(values || {})) text = text.split(`{${name}}`).join(String(value)); return text; };
+  const orgId = String(window.__APP?.userOrgId || window.Portal?.currentUser?.orgId || ctx.orgId || '');
+  let alive = true, busy = false, page = 0, kinds = [], attendees = [], labels = {}, categories = {}, comms = null, textingOffered = false;
+
+  const errorLine = '<p class="gxa-error" role="alert" data-gxa-error></p>';
+  const fail = (error) => { const node = el.querySelector('[data-gxa-error]'); if (node) node.textContent = clean(error?.message) || L('gx_appt_error', 'That didn’t work. Try again.'); };
+  const heading = el.closest('.gxs-step')?.querySelector('.gxs-titlebar h2'), stepHeading = heading?.innerHTML || '';
+  function title(value){ ctx.setTitle?.(value); if (heading) heading.innerHTML = value ? esc(value) : stepHeading; }
+  const icon = (name) => `<span class="gxa-icon" aria-hidden="true"><i class="fas ${name}"></i></span>`;
+  const wantsTexts = () => kinds.some((kind) => kind.reminder || kind.on_my_way);
+  // The pages: one per kind, then texting (only when a text was asked for and texting is not ready), then the finish.
+  const pages = () => [...kinds.map((_, at) => `kind:${at}`), ...(wantsTexts() && textingOffered && !textingReady(comms) ? ['texting'] : []), 'done'];
+  function report(){ ctx.change({ appointment_types: kinds.map(({ id, reminder, on_my_way, attendee }) => ({ id, reminder, on_my_way, attendee })) }, kinds.map((kind) => kind.label).join(', ')); }
+  function go(to){ page = Math.max(0, Math.min(to, pages().length - 1)); draw(); el.closest('.gxs-step')?.scrollTo?.({ top: 0 }); }
+  const category = (id) => `<span class="gxa-cat" data-category="${esc(id)}">${esc(categories[id] || id)}</span>`;
+
+  function drawKind(at){
+    const kind = kinds[at];
+    title(kind.label);
+    const toggle = (name, label, hint) => `<button type="button" class="gxa-toggle" role="switch" data-gxa-toggle="${name}" aria-checked="${!!kind[name]}"><span><strong>${esc(label)}</strong><small>${esc(hint)}</small></span><i class="gxa-switch" aria-hidden="true"></i></button>`;
+    const chips = kinds.map((entry, index) => `<span class="gxa-chip" data-state="${index === at ? 'current' : index < at ? 'done' : 'next'}">${index < at ? '<i class="fas fa-check" aria-hidden="true"></i>' : ''}${esc(entry.label)}</span>`).join('');
+    el.innerHTML = `<div class="gxa" data-gxa-kind="${esc(kind.id)}">
+      ${kinds.length > 1 ? `<div class="gxa-kinds" aria-hidden="true">${chips}</div>` : ''}
+      <p>${category(kind.category)} ${esc(L('gx_appt_kind_lead', 'A few questions about this kind of appointment.'))}</p>
+      <div class="gxa-q"><span class="gxa-label">${esc(L('gx_appt_texts_label', 'Texts to the customer'))}</span>
+        ${toggle('reminder', L('gx_appt_reminder', 'Text them before it starts'), L('gx_appt_reminder_hint', 'A reminder with the time and who’s coming.'))}
+        ${toggle('on_my_way', L('gx_appt_on_my_way', 'Text them when we’re on the way'), L('gx_appt_on_my_way_hint', 'Sent when whoever goes taps “I’m on my way”.'))}
+      </div>
+      <div class="gxa-q"><span class="gxa-label" id="gxa-who-label">${esc(L('gx_appt_who', 'Who goes to these?'))}</span>
+        <div class="gxa-who" role="radiogroup" aria-labelledby="gxa-who-label">${attendees.map((id) => `<button type="button" role="radio" data-gxa-who="${esc(id)}" aria-checked="${kind.attendee === id}">${esc(labels[id] || id)}</button>`).join('')}</div>
+      </div>
+      ${errorLine}
+      <div class="gxa-actions">
+        ${at > 0 ? `<button type="button" class="gxa-btn" data-gxa-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>` : ''}
+        <span class="gxa-spacer"></span>
+        <button type="button" class="gxa-btn primary" data-gxa-next>${esc(L('gx_ui_continue', 'Continue'))}</button>
+      </div>
+    </div>`;
+    // A press changes its own state in place; nothing it landed on is drawn again.
+    el.querySelectorAll('[data-gxa-toggle]').forEach((button) => button.addEventListener('click', () => {
+      const name = button.dataset.gxaToggle; kind[name] = !kind[name]; button.setAttribute('aria-checked', String(kind[name])); report();
+    }));
+    el.querySelectorAll('[data-gxa-who]').forEach((button) => button.addEventListener('click', () => {
+      kind.attendee = button.dataset.gxaWho;
+      el.querySelectorAll('[data-gxa-who]').forEach((node) => node.setAttribute('aria-checked', String(node === button)));
+      report();
+    }));
+    el.querySelector('[data-gxa-back]')?.addEventListener('click', () => go(page - 1));
+    el.querySelector('[data-gxa-next]').addEventListener('click', () => go(page + 1));
+  }
+
+  function drawTexting(){
+    title(L('gx_appt_texting_title', 'Set up texting'));
+    el.innerHTML = `<div class="gxa">
+      <p>${esc(L('gx_appt_texting_lead', 'To text your customers, FirstMate needs your business number, registered with the carriers. It takes a few minutes, or do it later in Settings.'))}</p>
+      <div class="gxa-rows"><div class="gxa-row">${icon('fa-comment-sms')}<div><strong>${esc(L('gx_appt_texting_row', 'Texts from your business number'))}</strong><small>${esc(L('gx_appt_texting_row_hint', 'Replies come back to the customer’s project.'))}</small></div></div></div>
+      ${errorLine}
+      <div class="gxa-actions">
+        <button type="button" class="gxa-btn" data-gxa-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>
+        <span class="gxa-spacer"></span>
+        <button type="button" class="gxa-btn" data-gxa-skip>${esc(L('gx_appt_texting_skip', 'Skip for now'))}</button>
+        <button type="button" class="gxa-btn primary" data-gxa-texting>${esc(L('gx_appt_texting_start', 'Set up texting'))}</button>
+      </div>
+    </div>`;
+    el.querySelector('[data-gxa-back]').addEventListener('click', () => go(page - 1));
+    el.querySelector('[data-gxa-skip]').addEventListener('click', () => go(pages().indexOf('done')));
+    el.querySelector('[data-gxa-texting]').addEventListener('click', (event) => startTexting(event.currentTarget));
+  }
+  async function startTexting(button){
+    if (busy) return; busy = true; button.disabled = true;
+    try {
+      await setUpTexting({ orgId, status: comms || {}, sheet: el.closest('.gxs'), alive: () => alive,
+        onStatus: (value) => { comms = value; },
+        onRegistering: (on) => { if (on) { title(L('gx_comms_registering_title', 'Register your business')); el.innerHTML = `<div class="gxa"><div class="gxa-busy" role="status"><span class="gxs-spin" aria-hidden="true"></span><span>${esc(L('gx_comms_registering', 'Registering your business with the carriers…'))}</span></div>${errorLine}</div>`; } } });
+      if (alive) go(pages().indexOf('done'));
+    } catch (error) { if (alive) { draw(); fail(error); } }
+    finally { busy = false; if (button.isConnected) button.disabled = false; }
+  }
+
+  function drawDone(){
+    title(L('gx_appt_done_title', 'Your appointment types are ready'));
+    const who = (kind) => labels[kind.attendee] || kind.attendee;
+    const texts = (kind) => kind.reminder && kind.on_my_way ? L('gx_appt_done_texts_both', 'Reminder and on-my-way texts') : kind.reminder ? L('gx_appt_done_texts_reminder', 'Reminder text') : kind.on_my_way ? L('gx_appt_done_texts_way', 'On-my-way text') : L('gx_appt_done_texts_none', 'No texts');
+    const textingNote = wantsTexts() && textingOffered && !textingReady(comms) ? `<p>${esc(L('gx_appt_done_texting_later', 'Texts start once texting is set up in Settings › Phone.'))}</p>` : '';
+    el.innerHTML = `<div class="gxa">
+      <div class="gxa-rows">${kinds.map((kind) => `<div class="gxa-row" data-gxa-type="${esc(kind.id)}">${icon('fa-calendar-check')}<div><strong>${esc(kind.label)} ${category(kind.category)}</strong><small>${esc(who(kind))} · ${esc(texts(kind))}</small></div></div>`).join('')}</div>
+      ${textingNote}
+      ${errorLine}
+      <div class="gxa-actions">
+        <button type="button" class="gxa-btn" data-gxa-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>
+        <span class="gxa-spacer"></span>
+        <button type="button" class="gxa-btn primary" data-gxa-finish>${esc(L('gx_appt_done', 'Book an appointment'))}</button>
+      </div>
+    </div>`;
+    el.querySelector('[data-gxa-back]').addEventListener('click', () => go(page - 1));
+    el.querySelector('[data-gxa-finish]').addEventListener('click', (event) => finish(event.currentTarget));
+  }
+  async function finish(button){
+    if (busy) return; busy = true; button.disabled = true;
+    report();
+    try { await ctx.complete?.(); } catch (error) { fail(error); } finally { busy = false; if (button.isConnected) button.disabled = false; }
+  }
+
+  function draw(){
+    if (!alive) return;
+    const name = pages()[page] || 'done';
+    if (name.startsWith('kind:')) drawKind(Number(name.slice(5)));
+    else if (name === 'texting') drawTexting();
+    else drawDone();
+  }
+
+  el.innerHTML = '<div class="gxa"><div class="gxa-busy"><span class="gxs-spin" aria-hidden="true"></span></div></div>';
+  // Where texting stands is read once; where the Communications app is off the setup simply does not offer it.
+  const commsRead = commsAction(orgId, 'comms.setup.status').then((value) => { comms = value; textingOffered = true; }).catch(() => { textingOffered = false; });
+  Promise.all([ctx.read('appointment-setup', 'status'), ctx.read('appointment-setup', 'catalog'), commsRead]).then(([status, catalog]) => {
+    if (!alive) return;
+    status = object(status); catalog = object(catalog);
+    for (const entry of array(catalog.attendees)) labels[entry.id] = ctx.L(object(entry.label).key, clean(object(entry.label).text));
+    for (const entry of array(catalog.categories)) categories[entry.id] = ctx.L(object(entry.label).key, clean(object(entry.label).text));
+    const names = new Map(array(catalog.kinds).map((entry) => [entry.id, ctx.L(object(entry.label).key, clean(object(entry.label).text))]));
+    attendees = array(status.attendees);
+    kinds = array(status.kinds).map((kind) => ({ id: kind.id, label: kind.custom ? clean(kind.label) : names.get(kind.id) || clean(kind.label), category: kind.category, reminder: !!kind.reminder, on_my_way: !!kind.on_my_way, attendee: attendees.includes(kind.attendee) ? kind.attendee : attendees[attendees.length - 1] || 'anyone' }));
+    if (!kinds.length) { el.innerHTML = `<div class="gxa"><p class="gxa-error" role="alert">${esc(L('gx_appt_no_kinds', 'Choose the kinds of appointments you schedule first. Close the setup and try again.'))}</p></div>`; return; }
+    report(); draw();
+  }).catch((error) => { if (alive) { el.innerHTML = `<div class="gxa">${errorLine}</div>`; fail(error); } });
+  return { valid: () => true, escape: () => busy, destroy(){ alive = false; } };
+}
+export default mount;

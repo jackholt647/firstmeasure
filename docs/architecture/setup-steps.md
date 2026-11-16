@@ -21,7 +21,9 @@ with the same progress and events.
 | `public/v1/company-profile/` | The first steps' data: `catalog.ts` (kinds of company and kinds of work), `profile.ts` (read, save), `publication.ts` (`company-profile` provider, `company-profile.save`). |
 | `public/libraries/guided-experiences/guided-setup.js` | The player: the `module` widget, saving a step on Continue, `entryOf`, no step count. |
 | `public/libraries/guided-experiences/guided-experiences.js` | `FirstMateGuides.require(stepId)`. |
-| `public/libraries/setup-steps/company-profile.js` | The company steps' own code (a setup-step module). |
+| `public/libraries/setup-steps/company-profile.js` | The company steps' own code (a setup-step module), who sells and who does the work included. |
+| `public/v1/appointments/setup.ts` | The appointment steps' data (FM-515): the kinds of appointment, the `appointment-setup` provider, `appointments.kinds.save` and `appointments.setup.apply`. |
+| `public/libraries/setup-steps/appointment-kinds.js` | "What kinds of appointments will you schedule?" (a setup-step module). |
 
 ## Declaring a step
 
@@ -140,10 +142,36 @@ branch-module route needs the same permission). It is read through
 (how-to `set_company_profile`). `chooserContext` exposes `organization.industry`,
 `organization.company_type` and `organization.services` to conditions.
 
+## Who sells, who does the work, and the kinds of appointments (FM-515)
+
+Three more steps, asked first by the [appointment setup](guided-experiences.md#appointment-setup) and by anything
+else that needs the answer:
+
+- `company.sales_team`, "Who does the sales in your company?": just me, a small sales team, a sales team with
+  managers, or no sales appointments. `company.workforce`, "Who does most of the work?": just me, our own crews,
+  subcontractors, or crews and subcontractors. One choice each (parts `sales_team` and `workforce` of
+  `company-profile.js`), both requiring `company.type`, saved in the company profile with `company-profile.save`
+  (`sales_team`, `workforce`) and read from `company-profile.profile` (`answered.sales_team`, `answered.workforce`,
+  and `sales_is_team` / `workforce_is_team`, whether the answer is a group of people). The answers are catalog data
+  (`SALES_TEAMS`, `WORKFORCES` in `company-profile/catalog.ts`) that only grows.
+- `appointments.kinds`, "What kinds of appointments will you schedule?" (`appointment-kinds.js`): the kinds in the
+  `appointment-setup.catalog` (sales appointment, inspection, installation, repair, service call, maintenance,
+  delivery, final walkthrough, team meeting; data that only grows), the ones suggested for this company already
+  picked, each with pills that say sales, production or other, and the person's own kinds by name. It requires
+  `company.services` and `company.sales_team` (the suggestions read them). `appointments.kinds.save` makes each kind
+  an appointment type (a scheduling catalog preset, written with `saveAppointmentCatalog` in the person's branch): a
+  catalog nobody saved (the built-in Sales and Production) becomes exactly the kinds picked; a saved one keeps
+  every type it has and gains the kinds it lacks. Answered is `appointment-setup.status` `/answered/kinds`.
+
+What was answered about appointments is kept in the default branch's `appointment_setup` module, apart from the
+catalog: the catalog says what can be booked, this what the organization told us.
+
 ## Tests
 
 `tests/setup-steps.test.ts` (schema, graph, injection and removal as answers arrive,
 eligibility, events, the provider, the action, the chooser) and
+`tests/appointment-setup.test.ts` and `tests/appointment-setup-browser.test.mjs` (the FM-515 steps and the
+appointment setup; their library entries are `tests/fixtures/appointment-setup-library.json`, as put on dev) and
 `tests/setup-steps-browser.test.mjs` (the frame with no count, search and pick, save
 on Continue, a failed save, the services dropdown and Escape, Back, require when
 answered, phone width). Run them with the guided-experiences tests in AGENTS.md.
