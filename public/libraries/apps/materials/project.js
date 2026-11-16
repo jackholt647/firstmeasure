@@ -8218,6 +8218,7 @@
     if (state.active) {
       // A document may have been made or signed while the tab was away: the empty column's buttons read them again.
       state.quickStartStale = true;
+      if (materialRoot()?.querySelector('[data-mt-quick-start-panel]')) quickStartDocuments();
       scopeWorkspace?.setSidebarVisible(leftContentRoot(),true);
       renderLeft();
       // Coming back to the tab keeps it as it was left (scroll, the list on screen, what is open) and only reads the
