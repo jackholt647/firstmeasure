@@ -149,6 +149,12 @@
       width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center;
       min-width: 0; padding: 0; border: 0; background: transparent;
     }
+    /* The app's browser sign-in replaces the Google button (firstmate-google-auth.js). */
+    .fm-native-signin {
+      appearance: none; width: 100%; min-height: 44px; padding: 12px; border: 1px solid #d93025; border-radius: 8px;
+      background: #fff; color: #d93025; cursor: pointer; font: inherit; font-size: 15px; font-weight: 700; line-height: 1.2;
+    }
+    .fm-native-signin:hover { background: #fff5f4; }
     /* GIS owns its descendants, including a placeholder beside its iframe.
        Turning that wrapper into flex or overriding iframe width shifts/clips
        the personalized button. Center the untouched widget as a single item. */

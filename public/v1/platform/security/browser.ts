@@ -59,6 +59,16 @@ export function corsDelegator(request: FastifyRequest, callback: (error: Error |
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
+/**
+ * The app finishes its browser sign-in with a WebView postUrl, which Chromium
+ * sends with `Origin: null`. The exchange is authorized by its one-time PKCE
+ * code, never by the cookie it carries, and that cookie is there whenever the
+ * app is adding a second account (FM-476).
+ */
+function isAppSignInExchange(request: FastifyRequest) {
+  return request.method === "POST" && (request.url.split("?", 1)[0] ?? "") === "/v1/mobile/auth/exchange";
+}
+
 function carriesSessionCookie(request: FastifyRequest) {
   const cookie = String(request.headers.cookie ?? "");
   return cookie.split(";").some((part) => part.trim().startsWith(`${env.platformSessionCookieName}=`));
@@ -74,6 +84,7 @@ export function assertSameOriginWrite(request: FastifyRequest) {
   if (!carriesSessionCookie(request)) return;
   const origin = String(request.headers.origin ?? "").trim();
   if (origin) {
+    if (origin === "null" && isAppSignInExchange(request)) return;
     if (origin === "null" || !isCredentialedOrigin(request, origin)) throw forbidden("cross_site_request", "This request came from another site.");
     return;
   }
