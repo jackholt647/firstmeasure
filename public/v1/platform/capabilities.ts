@@ -740,9 +740,10 @@ export async function capabilityAccessState(orgId: string, userId?: string) {
   const values = await capabilityValuesForUser(orgId, userId, capabilityValuesFromGlobal(global), true, global);
   const pending = offeredAppIds(asObject(global.data).app_offers);
   const ceiling = pending.length ? resolveCapabilities(values).effectiveByKey : {};
-  // A pending offer stays masked either way; one whose prerequisite setup is not reached is just not advertised yet.
-  const advertised = await offersWithPrerequisitesMet(orgId, pending.filter(id => offerSwitches(id).some(key => ceiling[key] === true)));
-  return { capabilities: resolveCapabilities(maskOfferedCapabilities(values, pending)), offeredAppIds: advertised };
+  const capabilities = resolveCapabilities(maskOfferedCapabilities(values, pending));
+  // A pending offer stays masked either way; one whose prerequisite app is not on yet is just not advertised yet.
+  const advertised = offersWithPrerequisitesMet(pending.filter(id => offerSwitches(id).some(key => ceiling[key] === true)), capabilities.effectiveByKey);
+  return { capabilities, offeredAppIds: advertised };
 }
 
 /** Only configured and commercially available offers may be shown. */

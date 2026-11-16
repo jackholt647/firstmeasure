@@ -56,28 +56,23 @@ export function offerSiblings(id: OfferedAppId): OfferedAppId[] {
 }
 
 /**
- * An offer that only makes sense after another app is set up. It is advertised
- * once the organization's setup guide has reached `step` or completed, read from
- * the guide's own recorded events (so a later replay does not withdraw it).
- * This gates only the offer: an app already started, or switched on without an
- * offer, is unaffected.
+ * An offer that only makes sense once another app is on. It is advertised while
+ * the organization has that app on (started from its own offer, or on without
+ * one), however it was set up: through its setup guide, its quick start or by
+ * hand (FM-501). This gates only the offer: an app already started, or switched
+ * on without an offer, is unaffected.
  */
-export const APP_OFFER_PREREQUISITES: Partial<Record<OfferedAppId, { experience: string; step: string }>> = {
+export const APP_OFFER_PREREQUISITES: Partial<Record<OfferedAppId, OfferedAppId>> = {
   // Equipment is matched to the requirements an Operations scope of work publishes.
-  "portal.equipment": { experience: "operations.setup", step: "ready" }
+  "portal.equipment": "project.materials"
 };
 
-/** The pending offers whose prerequisite setup has been reached. */
-export async function offersWithPrerequisitesMet(orgId: string, ids: readonly OfferedAppId[]) {
-  const gated = ids.filter(id => APP_OFFER_PREREQUISITES[id]);
-  if (!gated.length) return [...ids];
-  const { setupReached } = await import("../../guided-experiences/store.js");
-  const met = new Set<OfferedAppId>();
-  for (const id of gated) {
-    const { experience, step } = APP_OFFER_PREREQUISITES[id]!;
-    if (await setupReached(orgId, experience, step)) met.add(id);
-  }
-  return ids.filter(id => !APP_OFFER_PREREQUISITES[id] || met.has(id));
+/** The pending offers whose prerequisite app is on, read from the organization's resolved (offer-masked) capabilities. */
+export function offersWithPrerequisitesMet(ids: readonly OfferedAppId[], effectiveByKey: Record<string, boolean | undefined>) {
+  return ids.filter(id => {
+    const prerequisite = APP_OFFER_PREREQUISITES[id];
+    return !prerequisite || offerSwitches(prerequisite).every(key => effectiveByKey[key] === true);
+  });
 }
 
 /**

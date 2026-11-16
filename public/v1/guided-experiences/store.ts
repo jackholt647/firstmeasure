@@ -59,12 +59,6 @@ export async function readProgress(orgId: string, subjectId: string, experienceI
   const row = await guidedStore().prepare("SELECT * FROM guided_progress WHERE organization_id=? AND subject_id=? AND experience_id=?").get(orgId, subjectId, experienceId);
   return row ? fromRow(row) : null;
 }
-/** Whether the organization ever reached `stepId` of a setup or completed it; replays and going back do not undo it. */
-export async function setupReached(orgId: string, experienceId: string, stepId: string) {
-  const row = await guidedStore().prepare(`SELECT 1 AS hit FROM guided_events WHERE organization_id=? AND experience_id=?
-    AND (type='complete' OR (type IN ('step_view','step_done') AND step_id=?)) LIMIT 1`).get(orgId, experienceId, stepId);
-  return !!row;
-}
 /** How many people in the organization finished a per-person experience. */
 export async function countFinishedPeople(orgId: string, experienceId: string) {
   const row = await guidedStore().prepare("SELECT COUNT(*) AS n FROM guided_progress WHERE organization_id=? AND experience_id=? AND subject_id<>'' AND status<>'started'").get(orgId, experienceId);

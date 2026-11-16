@@ -307,14 +307,10 @@ test('offered apps stay new for the organization until an eligible person starts
   assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['platform.materials'],false);
   const fresh=await owner.request('GET','/v1/platform/auth/session');
   assert.notEqual(fresh.app_entitlements.find((app:any)=>app.id==='project.docs').offered,true);
-  // Equipment is offered only once Operations setup has reached its ready step (APP_OFFER_PREREQUISITES).
+  // Equipment is offered only once Operations is on (APP_OFFER_PREREQUISITES), however Operations was set up (FM-501).
   assert.equal(fresh.app_entitlements.some((app:any)=>app.id==='portal.equipment'),false);
   assert.equal((await person.client.raw('POST',`${base}/app-offers/portal.equipment/start`,{})).statusCode,403);
-  const {recordEvent}=await import('../guided-experiences/store.js');
-  const opsEvent={experience_id:'operations.setup',experience_version:1,variant_id:'default',bucket:0,unit_id:orgId,user_id:person.userId};
-  await recordEvent(orgId,{...opsEvent,type:'step_view',step_id:'document'});
-  assert.equal((await owner.request('GET','/v1/platform/auth/session')).app_entitlements.some((app:any)=>app.id==='portal.equipment'),false);
-  await recordEvent(orgId,{...opsEvent,type:'step_view',step_id:'ready'});
+  await owner.request('POST',`${base}/app-offers/project.materials/start`,{});
   const reached=await owner.request('GET','/v1/platform/auth/session');
   assert.equal(reached.app_entitlements.find((app:any)=>app.id==='portal.equipment').offered,true);
   assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['apps.equipment'],false);
@@ -322,7 +318,7 @@ test('offered apps stay new for the organization until an eligible person starts
   const equipmentSession=await owner.request('GET','/v1/platform/auth/session');
   assert.notEqual(equipmentSession.app_entitlements.find((app:any)=>app.id==='portal.equipment').offered,true);
   assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['apps.equipment'],true);
-  assert.deepEqual((await readGlobal(orgId)).data.app_offers,['project.materials']);
+  assert.deepEqual((await readGlobal(orgId)).data.app_offers,[]);
   // Money's project tab and its Financials page are one app: starting either starts both.
   await (await import('../platform/capabilities.js')).saveCapabilityValues(orgId,{'platform.money':true});
   await saveGlobal(orgId,{data:{app_offers:['project.materials','project.money','portal.financials']}});
