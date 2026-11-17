@@ -105,10 +105,14 @@ test('call history offers one New call, on a project and in the workspace',async
         assert.equal((await page.locator('[data-action=new-call]').innerText()).trim(),'New call');
         assert.equal(await page.locator('.fmcm-toolbar h3').count(),1);
       }
-      // The phone button says what it is: your phone's status, not a bare headset.
-      assert.equal(await page.locator('.fmcm-call-actions [data-action=phone-menu]').count(),1);
-      assert.equal((await page.locator('.fmcm-call-actions [data-action=phone-menu]').innerText()).trim(),'Phone off');
-      assert.equal(await page.getByRole('button',{name:/^Your phone: Phone off/}).count(),1);
+      // FM-536: the phone connects when you call, so no connection state is shown. A project shows only New call;
+      // the workspace's phone button is about taking incoming calls.
+      assert.equal(await page.getByText(/Phone off|Connecting…/).count(),0);
+      if(mount.projectId)assert.equal(await page.locator('[data-action=phone-menu]').count(),0);
+      else{
+        assert.equal((await page.locator('.fmcm-call-actions [data-action=phone-menu]').innerText()).trim(),'Not taking calls');
+        assert.equal(await page.getByRole('button',{name:/^Incoming calls: Not taking calls/}).count(),1);
+      }
       await page.locator('[data-action=new-call]').click();
       assert.deepEqual(await page.evaluate(()=>phoneActions.at(-1).input),{project_id:mount.projectId||''});
       if(mount.projectId){

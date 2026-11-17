@@ -33,7 +33,8 @@ test('phone connects automatically and closing cancels late token and SDK readin
     assert.equal(await page.locator('[data-phone=connect]').count(),0);
     assert.equal(await page.locator('[name=mode]').inputValue(),'browser');
     await page.locator('[data-phone=start]').click();
-    assert.match(await page.locator('[data-phone=start]').textContent(),/Connecting/);
+    assert.match(await page.locator('[data-phone=start]').textContent(),/Calling/);
+    assert.equal(await page.getByText('Connecting…').count(),0);
     assert.equal(await page.evaluate(()=>requests.filter(r=>r.path==='voice/endpoint/token').length),1);
     await page.locator('[data-phone=close]').click();
     await page.waitForFunction(()=>document.querySelector('.fmcp').hidden);
