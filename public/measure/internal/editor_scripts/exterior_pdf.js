@@ -136,9 +136,10 @@ function surfaceColor(face,camera,muted=false){
 }
 const EDGE=[34,41,49,255],BACKGROUND=255,CONTEXT_FACE=[243,244,246],CONTEXT_EDGE=[203,207,212,255];
 // Colors, edges and dividers come from the owner buffer, so a scene can be repainted
-// (for example to mute faces counted elsewhere) without rasterizing it again.
-function paintScene(scene,muted=null){
- const {width,height,owners,surfaces,camera,at}=scene,pixels=scene.pixels,dim=scene.dim,colors=surfaces.map((face,id)=>dim?.[id]?CONTEXT_FACE:surfaceColor(face,camera,!!muted&&!!face.id&&!face.featureType&&muted(face)));
+// (for example to mute faces counted elsewhere) without rasterizing it again. `background` faces
+// are drawn as dimmed context, exactly like a context render's (rasterScene `focus`).
+function paintScene(scene,muted=null,background=null){
+ const {width,height,owners,surfaces,camera,at}=scene,pixels=scene.pixels,dim=background?surfaces.map((face,id)=>!!scene.dim?.[id]||!!background(face)):scene.dim,colors=surfaces.map((face,id)=>dim?.[id]?CONTEXT_FACE:surfaceColor(face,camera,!!muted&&!!face.id&&!face.featureType&&muted(face)));
  for(let index=0;index<width*height;index++){const id=owners[index],n=index*4;if(id<0){pixels[n]=pixels[n+1]=pixels[n+2]=BACKGROUND;}else{const c=colors[id];pixels[n]=c[0];pixels[n+1]=c[1];pixels[n+2]=c[2];}pixels[n+3]=255;}
  // Two-pixel edges wherever the visible surface changes, including the silhouette. In a context
  // render, edges between context surfaces (or context and background) are light; any edge of the
@@ -164,6 +165,13 @@ function roofDepthBias(a,b,c,den){
  const gx=((b.y-c.y)*(a.z-c.z)+(c.y-a.y)*(b.z-c.z))/den,gy=((c.x-b.x)*(a.z-c.z)+(a.x-c.x)*(b.z-c.z))/den;
  return ROOF_DEPTH_BIAS+Math.min(ROOF_SLOPE_CAP,ROOF_SLOPE_PX*Math.max(Math.abs(gx),Math.abs(gy)));
 }
+/* A wall (or an opening or trim on it) whose outward normal points away from the viewer is seen from
+ inside: it is on the far side of the house, showing through a gap such as an open porch or carport.
+ Elevations draw it as dimmed context (FM-402). Only saved normals count (never the winding), and the
+ roof and roof trim are left as they are. No elevation counts such a face (elevationPlan needs it facing
+ the viewer), and this only repaints, so which elevation counts each wall does not change. */
+const FAR_SIDE=-.01;
+function farSide(face,camera){const n=face.normal;if(!n||!camera||face.surface==='roof'||face.roofTrim)return false;const len=Math.hypot(n.x,n.y,n.z||0);return len>0&&(n.x*camera.x+n.y*camera.y+(n.z||0)*camera.z)/len<FAR_SIDE;}
 // Resolve depth at each pixel, including holes, openings and curved triangles.
 // A single average depth per wall cannot resolve intersecting/overlapping faces.
 /* A face seen edge-on (exactly or within EDGE_ON of 90 degrees to the view: a soffit or flat roof in an
@@ -501,7 +509,7 @@ function drawExteriorReportPages(doc,model,settings,begin,colors,pages={}){
   let drawing=planned,scene=plannedScene;
   if(even){drawing={x,y:33,w,h:blockTop-sideGap-33};scene=rasterScene(houseFaces(model),direction,Math.ceil(drawing.w*DENSITY),Math.ceil(drawing.h*DENSITY),false,5*DENSITY);}
   begin(title);drawElevationKey(doc,model,settings,headerKeyRect(doc,title),direction,colors);
-  paintScene(scene,face=>!counted.has(face.id));drawDiagram(doc,houseFaces(model),drawing,direction,{scene,labelIds:counted});
+  paintScene(scene,face=>!counted.has(face.id),face=>!counted.has(face.id)&&farSide(face,scene.camera));drawDiagram(doc,houseFaces(model),drawing,direction,{scene,labelIds:counted});
   if(!rows.length){note(reportText('No wall face is counted on this elevation. Its walls are counted on the neighboring elevations that face them more directly.'),landscape?33:drawing.y+drawing.h+10,landscape?w-drawW-sideGap:w,landscape?x+drawW+sideGap:x);continue;}
   if(landscape)sideTable(headers,rows,x+drawW+sideGap,33,side.pw,side.widths,totalRow(all),more);
   else columns(headers,rows,even?blockTop:drawing.y+drawing.h+4,widths,totalRow(all),more);
@@ -656,6 +664,6 @@ async function drawReportImagery(doc,state,begin,colors){
   doc.addImage(r.aspect>aspects[index]+1e-6?reportImageData(img,r.aspect):item.dataUrl||reportImageData(img),'JPEG',r.x,r.y,r.w,r.h);
  });}
 }
-const api={trimTotals,openingTrimLength,openingSize,directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,mosaicPlace,mosaicRows,mosaicLayout,mosaicPages,fitHeight,rasterScene,paintScene,placeLabels,elevationPlan,elevationViews,houseFaces,roofDepthBias,ROOF_DEPTH_BIAS,dimensionContext,reportOrientation,evenBottom,writer,coverView,drawDiagram,drawOrientationKey,drawElevationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
+const api={trimTotals,openingTrimLength,openingSize,directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,mosaicPlace,mosaicRows,mosaicLayout,mosaicPages,fitHeight,rasterScene,paintScene,farSide,placeLabels,elevationPlan,elevationViews,houseFaces,roofDepthBias,ROOF_DEPTH_BIAS,dimensionContext,reportOrientation,evenBottom,writer,coverView,drawDiagram,drawOrientationKey,drawElevationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
 if(typeof module==='object'&&module.exports)module.exports=api;else {root.ExteriorPDF=api;Object.assign(root,{drawExteriorReportPages,drawExteriorNotes,drawExteriorCover,drawReportImagery});}
 })(typeof window==='undefined'?globalThis:window);
