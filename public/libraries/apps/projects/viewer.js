@@ -1409,6 +1409,13 @@
   const PAGE_SIZE = 25;
   const STAGE_COLUMN_PAGE_SIZE = 15;
   const STAGE_COLUMN_PREFETCH_PX = 140;
+  // Phone stages swipe (FM-540), tuned like the calendar's swipe: a flick at
+  // least this fast (board px/ms) over this many px turns to the next stage in
+  // its direction; a slow release turns once the stage moved this share.
+  const STAGE_SWIPE_SAMPLE_MS = 100;
+  const STAGE_SWIPE_FLICK_VELOCITY = 0.25;
+  const STAGE_SWIPE_FLICK_MIN_PX = 16;
+  const STAGE_SWIPE_COMMIT_SHARE = 0.3;
   let currentPage = 1;
   let totalPages = 1;
   let totalCount = 0;
@@ -5582,6 +5589,7 @@
     const goTo = (index, smooth = true) => {
       const stops = centers();
       if (stops[index] === undefined) return;
+      switcher.__stopStageSettle?.();
       if (smooth) mobileStageChosen = true;
       switcher.scrollTo({ left:stops[index], behavior:smooth ? 'smooth' : 'instant' });
       if (!smooth) paint();
@@ -5612,39 +5620,120 @@
       });
       let start = null;
       let suppressClick = false;
-      const finish = () => {
-        if (!start) return;
-        const horizontal = start.horizontal;
-        start = null;
-        if (!horizontal) return;
-        const stops = switcher.__carousel.centers();
-        const index = stops.reduce((best, stop, i) => Math.abs(stop - switcher.scrollLeft) < Math.abs(stops[best] - switcher.scrollLeft) ? i : best, 0);
-        switcher.style.scrollSnapType = '';
-        switcher.__carousel.goTo(index);
+      // After release the board eases from the finger's speed to its stage
+      // (FM-540): a flick turns to the next stage in its direction however
+      // short it was, a slow release turns once the stage moved far enough.
+      let settle = null;
+      const stopSettle = (keepSnapOff = false) => {
+        if (!settle) return;
+        cancelAnimationFrame(settle.frame);
+        settle = null;
+        if (!keepSnapOff) switcher.style.scrollSnapType = '';
       };
+      switcher.__stopStageSettle = () => stopSettle();
+      // One stage of board movement, in board px (the column plus its gap).
+      const boardStep = () => Math.max(1, board.clientWidth - 4 + 14);
+      // Times are the touch events' own, so a busy page handling them late
+      // does not make a flick look like a finger that stopped.
+      const eventTime = (event) => Number(event?.timeStamp) || performance.now();
+      const fingerVelocity = (samples, now) => {
+        const recent = samples.filter((sample) => now - sample.t <= STAGE_SWIPE_SAMPLE_MS);
+        if (recent.length < 2) return 0;
+        const first = recent[0];
+        const last = recent[recent.length - 1];
+        // The finger stopped before lifting: no flick.
+        if (now - last.t > STAGE_SWIPE_SAMPLE_MS / 2) return 0;
+        return (last.x - first.x) / Math.max(1, last.t - first.t);
+      };
+      const finish = (event) => {
+        if (!start) return;
+        const gesture = start;
+        start = null;
+        // A touch that caught a moving board and did not drag it still
+        // brings it to rest on a stage.
+        if (!gesture.horizontal && gesture.caught === null) return;
+        const stops = switcher.__carousel.centers();
+        const step = stops.length > 1 ? stops[1] - stops[0] : 0;
+        if (!step) { switcher.style.scrollSnapType = ''; switcher.__carousel.goTo(0); return; }
+        const from = switcher.scrollLeft;
+        const position = (from - stops[0]) / step;
+        const velocity = gesture.horizontal ? fingerVelocity(gesture.samples, eventTime(event)) : 0;
+        const dx = gesture.samples[gesture.samples.length - 1].x - gesture.x;
+        let target;
+        if (!gesture.horizontal) target = gesture.caught;
+        else if (Math.abs(velocity) >= STAGE_SWIPE_FLICK_VELOCITY && Math.abs(dx) >= STAGE_SWIPE_FLICK_MIN_PX) {
+          // Finger moving left shows the next stage; a flick back toward
+          // where it started lands back there.
+          target = velocity < 0 ? Math.ceil(position - 0.02) : Math.floor(position + 0.02);
+        } else {
+          const moved = position - gesture.index;
+          target = Math.abs(moved) >= 1 ? Math.round(position)
+            : Math.abs(moved) >= STAGE_SWIPE_COMMIT_SHARE ? gesture.index + Math.sign(moved)
+            : gesture.index;
+        }
+        target = Math.max(0, Math.min(stops.length - 1, target));
+        mobileStageChosen = true;
+        const to = stops[target];
+        const distance = Math.abs(to - from) * boardStep() / step;
+        if (distance < 1) {
+          switcher.scrollLeft = to;
+          switcher.style.scrollSnapType = '';
+          switcher.__carousel.paint();
+          return;
+        }
+        // A cubic ease-out starts at 3 * distance / duration: start at the
+        // finger's speed, within limits that keep a slow release brisk.
+        const duration = Math.max(160, Math.min(380, 3 * distance / Math.max(1.2, Math.abs(velocity))));
+        const glide = { frame:0, startedAt:performance.now(), target };
+        settle = glide;
+        const frame = (now) => {
+          if (settle !== glide) return;
+          if (!switcher.isConnected) { settle = null; return; }
+          const progress = Math.min(1, (now - glide.startedAt) / duration);
+          switcher.scrollLeft = from + (to - from) * (1 - Math.pow(1 - progress, 3));
+          switcher.__carousel.paint();
+          if (progress < 1) glide.frame = requestAnimationFrame(frame);
+          else stopSettle();
+        };
+        glide.frame = requestAnimationFrame(frame);
+      };
+      switcher.addEventListener('touchstart', () => stopSettle(), { passive:true });
       board.addEventListener('touchstart', (event) => {
         if (event.touches.length !== 1 || !matchMedia('(max-width: 820px)').matches) return;
-        // Stop an in-flight tap animation at its current, shared position.
+        // Stop an in-flight tap or release animation at its current, shared position.
+        const caught = settle ? settle.target : null;
+        stopSettle(true);
         switcher.scrollTo({ left:switcher.scrollLeft, behavior:'instant' });
-        start = { x:event.touches[0].clientX, y:event.touches[0].clientY, scroll:switcher.scrollLeft, horizontal:false };
-        suppressClick = false;
+        const stops = switcher.__carousel.centers();
+        const step = stops.length > 1 ? stops[1] - stops[0] : 0;
+        const index = step ? Math.max(0, Math.min(stops.length - 1, Math.round((switcher.scrollLeft - stops[0]) / step))) : 0;
+        const x = event.touches[0].clientX;
+        start = { x, y:event.touches[0].clientY, scroll:switcher.scrollLeft, index, caught, horizontal:false, samples:[{ t:eventTime(event), x }] };
+        // Catching a moving board is not a tap on the card under the finger.
+        suppressClick = caught !== null;
       }, { passive:true });
       board.addEventListener('touchmove', (event) => {
         if (!start || event.touches.length !== 1) return;
         const dx = event.touches[0].clientX - start.x;
         const dy = event.touches[0].clientY - start.y;
-        if (!start.horizontal && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { start = null; return; }
+        if (!start.horizontal && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) {
+          if (start.caught !== null) finish(event);
+          start = null;
+          return;
+        }
         if (!start.horizontal && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
           start.horizontal = true;
           suppressClick = true;
           mobileStageChosen = true;
           switcher.style.scrollSnapType = 'none';
         }
+        start.samples.push({ t:eventTime(event), x:event.touches[0].clientX });
+        if (start.samples.length > 12) start.samples.shift();
         if (!start.horizontal) return;
         event.preventDefault();
         const stops = switcher.__carousel.centers();
         const step = stops.length > 1 ? stops[1] - stops[0] : 0;
-        switcher.scrollLeft = start.scroll - dx * step / Math.max(1, board.clientWidth - 4 + 14);
+        switcher.scrollLeft = start.scroll - dx * step / boardStep();
         switcher.__carousel.paint();
       }, { passive:false });
       board.addEventListener('touchend', finish, { passive:true });
