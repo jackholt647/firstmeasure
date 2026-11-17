@@ -89,7 +89,12 @@ it; a face no view shows at all is listed on **Hidden Wall Faces**. Faces under 
 are one **Small pieces** row on the view they face. Elevation totals plus hidden
 faces therefore equal the gross wall area. Every face in an elevation's table is
 labeled in its drawing (inside, smaller, or beside it with a leader line) and every
-label is in the table; faces counted elsewhere are drawn pale and unlabeled. The
+label is in the table; faces counted elsewhere are drawn pale and unlabeled. Walls on
+the far side of the house that show through a gap (an open porch or carport), with
+their openings and trim, are seen from inside (`farSide`: the saved normal points away
+from the viewer) and are drawn as dimmed context, exactly like the house context behind
+wall dimension drawings: very light grey, light-grey edges, no labels (FM-402). This
+only repaints the drawing; which elevation counts each face does not change. The
 Wall Dimensions headings name the elevation each face is counted on.
 
 An elevation page has no explanatory note. Its header carries a small key beside the
