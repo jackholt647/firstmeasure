@@ -1065,6 +1065,7 @@
       this._setPriorityEligibility(null);
       document.getElementById('uQueueMode').value = 'disabled';
       document.getElementById('uQaTrainee').checked = false;
+      document.getElementById('uQaTraineeExteriors').checked = false;
       document.getElementById('uTrainingComplete').checked = false;
       document.getElementById('uShiftRate').value = 940;
       this._syncAllSegmentedControls();
@@ -1094,6 +1095,7 @@
         this._setPriorityEligibility(user);
         document.getElementById('uQueueMode').value = user.queue_mode || 'disabled';
         document.getElementById('uQaTrainee').checked = !!user.is_qa_trainee;
+        document.getElementById('uQaTraineeExteriors').checked = user.is_qa_trainee_exteriors === true;
         document.getElementById('uFullHouseDraft').checked = user.can_draft_full_house === true;
         document.getElementById('uFullHouseQa').checked = user.can_qa_full_house === true;
         document.getElementById('uShiftRate').value = (typeof user.shift_rate === 'number') ? user.shift_rate : 940;
@@ -1275,6 +1277,7 @@
         role: document.getElementById('uRoleLabel').value,
         permissions: perms,
         is_qa_trainee: !!document.getElementById('uQaTrainee').checked,
+        is_qa_trainee_exteriors: !!document.getElementById('uQaTraineeExteriors').checked,
         can_draft_full_house: document.getElementById('uFullHouseDraft').checked,
         can_qa_full_house: document.getElementById('uFullHouseQa').checked,
         training_complete: !!document.getElementById('uTrainingComplete').checked,
