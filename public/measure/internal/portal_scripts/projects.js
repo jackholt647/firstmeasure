@@ -71,10 +71,11 @@
     { id: 'obscured_visibility', label: 'Obscured visibility', icon: 'fas fa-cloud' },
     { id: 'invalid_pin_placement', label: 'Invalid pin placement', icon: 'fas fa-map-pin' },
     { id: 'incorrect_structure_type', label: 'Incorrect Structure Type', icon: 'fas fa-building' },
-    { id: 'insufficient_footage', label: 'Insufficient footage', icon: 'fas fa-video' }
+    { id: 'insufficient_footage', label: 'Insufficient footage', icon: 'fas fa-video' },
+    { id: 'incorrect_footage', label: 'Incorrect footage uploaded', icon: 'fas fa-house-circle-xmark' }
   ];
-  // Insufficient footage is a Full Exterior reason; the API refuses it for a roof order.
-  const FULL_EXTERIOR_ONLY_REJECTION_REASONS = new Set(['insufficient_footage']);
+  // Footage reasons are Full Exterior reasons; the API refuses them for a roof order.
+  const FULL_EXTERIOR_ONLY_REJECTION_REASONS = new Set(['insufficient_footage', 'incorrect_footage']);
   const COVERAGE_REJECTION_DISCLAIMER =
 `We do not currently have coverage for this address. We currently cover 95% of all buildings in the United States and we are actively working on increasing our area to cover more of the remaining buildings. We've logged your interest in structures like this and will prioritize being able to cover these in the near future.
 Note: Our coverage is based on individual structure, not area - so we may have coverage for other properties in this same neighborhood.`;
