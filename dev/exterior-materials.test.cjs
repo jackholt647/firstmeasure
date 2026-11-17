@@ -54,9 +54,11 @@ test('the wall material picker offers Cedar shake and both textured modes draw i
   const rendered=ExteriorRendered.materialFor({material:'cedar-shake',finishColor:'#a8784e'},false),canvas=F.wallCanvas('cedar-shake'),d=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
   // Keyways: dark runs along one row in the middle of the first course.
   let keyways=0,dark=false;const y=Math.round(canvas.height/8);for(let x=0;x<canvas.width;x++){const now=d[(y*canvas.width+x)*4]<90;if(now&&!dark)keyways++;dark=now;}
-  return {plainIsShake:plain.map===own,renderedIsShake:rendered.map===own,normal:!!rendered.normalMap,repeat:own.repeat.toArray(),keyways,seeded:canvas.toDataURL()===F.wallCanvas('cedar-shake').toDataURL()};
+  // Rendered keeps the stain colour as the average (its map is scaled to a mean of 1, not squeezed like paint grain).
+  const avg=f=>ExteriorRendered.averageFinishColor(f).getHexString();
+  return {plainIsShake:plain.map===own,renderedIsShake:rendered.map===own,normal:!!rendered.normalMap,fullContrast:rendered.customProgramCacheKey().startsWith('rendered:cedar-shake')&&avg({material:'cedar-shake',finishColor:'#a8784e'})===avg({material:'unassigned',finishColor:'#a8784e'}),repeat:own.repeat.toArray(),keyways,seeded:canvas.toDataURL()===F.wallCanvas('cedar-shake').toDataURL()};
  });
- const {keyways,...maps}=r;assert.deepEqual(maps,{plainIsShake:true,renderedIsShake:true,normal:true,repeat:[.5,.6096/.7112],seeded:true});
+ const {keyways,...maps}=r;assert.deepEqual(maps,{plainIsShake:true,renderedIsShake:true,normal:true,fullContrast:true,repeat:[.5,.6096/.7112],seeded:true});
  assert.ok(keyways>=5&&keyways<=16,'3-10 in shakes: 5-16 keyways per 4 ft course, got '+keyways);
  assert.equal(errors.length,0,errors.join('\n'));
 });
