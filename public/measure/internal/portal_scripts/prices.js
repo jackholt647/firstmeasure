@@ -22,7 +22,7 @@
     ['ramp_end_minute', 'Wind-down ends', 'Pacific', 3, 1440, 1, 'Return to off-peak wait. 24:00 means midnight at the end of the day.']
   ];
   const exteriorFields = [
-    ['exteriors_base_price','Full house standard / structure','$',0,1000,.01,'24-hour delivery. Includes roof and gutters.'],
+    ['exteriors_base_price','Full house standard / structure','$',0,1000,.01,'12-hour delivery. Includes roof and gutters.'],
     ['exteriors_same_day_fee','Full house under 6 hours / structure','$',0,1000,.01,'Added to the standard full-house price.'],
     ['exteriors_priority_fee','Full house under 3 hours / structure','$',0,1000,.01,'Added to the standard full-house price.']
   ];
