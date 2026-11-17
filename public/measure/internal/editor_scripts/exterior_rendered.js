@@ -49,6 +49,7 @@ function averageFinishColor(finish){
  const f=root.ExteriorFinishes.resolve(finish),type=f.material;if(['unassigned','chimney-top','shingles'].includes(type))return color(f.color);
  const name=packName(type),procedural=!!root.ExteriorFinishes.wallTiles?.[type],mean=procedural?root.ExteriorFinishes.wallTextureMean(type):PACK_MEANS[name];if(!mean||(!procedural&&errors.has(name+'-albedo.jpg')))return color(f.color);
  if(['brick','masonry','stone'].includes(type)&&!finish.color)return new THREE.Color(...mean.linear);
+ if(type==='cedar-shake')return color(f.color);
  return color(f.color).multiplyScalar(mean.grain*(type.startsWith('siding')?.97:1));
 }
 // A chimney's cap is plain, in the average color of its sides; the dominant side finish by area wins.
@@ -76,6 +77,9 @@ function materialFor(finish,base,context){
  if(type==='shingles'&&!base){const F=root.ExteriorFinishes,spec=F.roofMaterials[f.category],m=new THREE.MeshStandardMaterial({color:color(f.color),roughness:spec.roughness,metalness:spec.metalness,side:THREE.DoubleSide,envMapIntensity:spec.metalness>.1?.5:.8});m.map=F.roofTexture(f.category);const normal=F.roofNormalMap(f.category);if(normal){m.normalMap=normal;m.normalScale=new THREE.Vector2(.9,.9);}return m;}
  let name=packName(type);
  const natural=['brick','masonry','stone'].includes(type)&&!finish.color;
+ // Cedar shake keeps its whole map scaled to a mean of 1, so keyways and butt shadows read under light and the stain
+ // colour stays the average; the paint-grain squeeze below would flatten it.
+ const shakeGain=type==='cedar-shake'?1/(root.ExteriorFinishes.wallTextureMean?.(type)?.linear[0]||.43):0;
  const c=base?(finish.color||'#b3afa7'):natural?'#ffffff':f.color;
  const m=new THREE.MeshStandardMaterial({color:color(c),roughness:.82,metalness:0,side:THREE.DoubleSide,envMapIntensity:.7});
  if(!['unassigned','chimney-top'].includes(type)&&!base){
@@ -88,7 +92,7 @@ function materialFor(finish,base,context){
    const uv=vertical?'vUv.x':'vUv.y';
    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#ifdef USE_MAP
     vec4 texelColor=mapTexelToLinear(texture2D(map,vUv));
-    ${natural?'diffuseColor*=texelColor;':`float grain=dot(texelColor.rgb,vec3(.2126,.7152,.0722));diffuseColor.rgb*=mix(.82,1.06,clamp(grain*2.0,0.0,1.0));`}
+    ${natural?'diffuseColor*=texelColor;':shakeGain?`diffuseColor.rgb*=clamp(texelColor.rgb*${shakeGain.toFixed(4)},0.0,1.5);`:`float grain=dot(texelColor.rgb,vec3(.2126,.7152,.0722));diffuseColor.rgb*=mix(.82,1.06,clamp(grain*2.0,0.0,1.0));`}
     ${siding||roof?`float coord=${uv}*4.0;float course=fract(coord);float aa=max(fwidth(coord)*.75,.002);float seam=1.0-smoothstep(.009-aa,.009+aa,min(course,1.0-course));float lap=mix(.90,1.0,smoothstep(.025,.22,course));diffuseColor.rgb*=lap*(1.0-.28*seam);`:''}
     #endif`);
   };
