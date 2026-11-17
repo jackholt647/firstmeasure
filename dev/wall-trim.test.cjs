@@ -120,7 +120,7 @@ test('material filtering trims only enabled owners without changing corner or di
  assert.equal(T.partition([{...siding,material:'default'}],[pair],0,.1524,[pair],null,{materials:['brick'],defaults:{material:'siding'}}).replacements.length,0);
  assert.equal(T.partition([{...siding,material:'default'}],[pair],0,.1524,[pair],null,{materials:['siding'],defaults:{material:'siding'}}).replacements.length,1);
  const walls=shell([[0,0],[4,0],[4,4],[0,4]]).map(f=>({...f,material:'brick'}));assert.equal(T.candidates(walls,{materials:['siding']}).length,0);assert.equal(T.candidates(walls,{materials:['brick']}).length,4);
- for(const id of ['siding','siding-vertical','soffit','unassigned'])assert.equal(T.defaultMaterial(id),true);for(const id of ['brick','stone','masonry','stucco','chimney-top'])assert.equal(T.defaultMaterial(id),false);
+ for(const id of ['siding','siding-vertical','cedar-shake','soffit','unassigned'])assert.equal(T.defaultMaterial(id),true);for(const id of ['brick','stone','masonry','stucco','chimney-top'])assert.equal(T.defaultMaterial(id),false);
 });
 
 test('meeting trim runs fill the outside corner and removing either run removes its join',()=>{

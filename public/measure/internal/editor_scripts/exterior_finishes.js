@@ -212,9 +212,10 @@ function doorNormalMap(outline,type,rectangle){
  for(const [k,old]of doorMaps){if(doorMaps.size<=48)break;doorMaps.delete(k);old.dispose();}
  return t;
 }
-// Stone and masonry have no photo set, so they get seeded procedural maps in natural colour (the photo brick stays
-// brick). size is one tile in metres; wall UVs run in 2 ft units, so the map repeats at 0.6096/size.
-const wallTiles={stone:{size:[1.2192,1.2192],description:'Fieldstone: irregular rubble, about 20-35 cm stones, recessed mortar'},masonry:{size:[1.2192,.6096],description:'CMU block: 16 x 8 in units, running bond, 3/8 in mortar'}};
+// Stone, masonry and cedar shake have no photo set, so they get seeded procedural maps: stone and masonry in natural
+// colour (the photo brick stays brick), cedar shake neutral so the wall colour stains it. size is one tile in metres;
+// wall UVs run in 2 ft units, so the map repeats at 0.6096/size.
+const wallTiles={stone:{size:[1.2192,1.2192],description:'Fieldstone: irregular rubble, about 20-35 cm stones, recessed mortar'},masonry:{size:[1.2192,.6096],description:'CMU block: 16 x 8 in units, running bond, 3/8 in mortar'},'cedar-shake':{size:[1.2192,.7112],description:'Cedar shakes: 7 in courses of random 3-10 in shakes, dark keyways, split grain'}};
 function wallCanvas(type){
  const spec=wallTiles[type];if(!spec)return null;const ppm=420,W=Math.round(spec.size[0]*ppm),H=Math.round(spec.size[1]*ppm),canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const c=canvas.getContext('2d');
  let seed=[...('wall'+type)].reduce((s,ch)=>s*31+ch.charCodeAt(0)|0,17);const rnd=()=>{seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};
@@ -232,6 +233,19 @@ function wallCanvas(type){
    const bevel=Math.min(1,(edge-mortar/2)/(mortar*1.6)),shade=.72+.28*bevel,fleck=(noise(x,y,best.grain)-.5)*.12,k=255*shade;
    put(i,(best.r+fleck)*k,(best.g+fleck)*k,(best.b+fleck)*k);
   }
+ }else if(type==='cedar-shake'){
+  // Four 7 in courses (canvas top is up). Each course is a row of shakes that wraps the tile edge, with a keyway at
+  // its left edge, grain along the shake, a lit butt at its foot and the shadow of the butt above across its head.
+  const rows=4,ch=H/rows,key=Math.max(2,Math.round(.005*ppm)),noise=(x,y,s)=>{const v=Math.sin(x*12.9898+y*78.233+s)*43758.5453;return v-Math.floor(v);},courses=[];
+  for(let r=0;r<rows;r++){const at=new Int32Array(W),pos=new Int32Array(W),shakes=[];let x=Math.floor(rnd()*W);const end=x+W;
+   while(x<end){let w=Math.round((.076+rnd()*.178)*ppm);if(end-x-w<.05*ppm)w=end-x;const id=shakes.push({tone:.64+rnd()*.16,grain:rnd()*1000,shade:.5+rnd()*.15})-1;for(let k=0;k<w;k++){at[(x+k)%W]=id;pos[(x+k)%W]=k;}x+=w;}
+   courses.push({at,pos,shakes});}
+  for(let y=0;y<H;y++){const row=Math.min(rows-1,Math.floor(y/ch)),yy=y-row*ch,course=courses[row],above=courses[(row+rows-1)%rows];for(let x=0;x<W;x++){
+   const i=(y*W+x)*4,s=course.shakes[course.at[x]],p=course.pos[x];
+   if(p<key){const k=255*.3;put(i,k,k,k);continue;}
+   const head=Math.min(1,yy/(ch*.24)),shadow=above.shakes[above.at[x]].shade,lit=yy>ch-3?1.07:1;
+   const grain=(noise(p,0,s.grain)-.5)*.13+(noise(p,Math.floor(yy/7),s.grain)-.5)*.04,k=255*(s.tone+grain)*(shadow+(1-shadow)*Math.sqrt(head))*lit;put(i,k,k,k);
+  }}
  }else{
   // CMU: 16 x 8 in blocks in running bond with thin recessed mortar; concrete pores, slight per-block tone.
   const bw=.4064*ppm,bh=.2032*ppm,mortar=Math.max(2,Math.round(.0095*ppm)),rows=Math.round(H/bh),cols=Math.round(W/bw),tones=[];for(let k=0;k<rows*cols;k++)tones.push(.68+rnd()*.1);
@@ -248,7 +262,7 @@ function wallTexture(type){
  if(!wallTiles[type])return null;if(!wallMaps.has(type)){const t=srgb(new THREE.CanvasTexture(wallCanvas(type))),s=wallTiles[type].size;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(.6096/s[0],.6096/s[1]);t.anisotropy=8;t.userData||={};t.userData.wallType=type;wallMaps.set(type,t);}return wallMaps.get(type);
 }
 function wallNormalMap(type){
- if(!wallTiles[type])return null;if(!wallNormals.has(type)){const map=wallTexture(type),t=normalFromCanvas(map.image,type==='stone'?5:3);if(t)t.repeat.copy(map.repeat);wallNormals.set(type,t);}return wallNormals.get(type);
+ if(!wallTiles[type])return null;if(!wallNormals.has(type)){const map=wallTexture(type),t=normalFromCanvas(map.image,type==='stone'?5:type==='cedar-shake'?4:3);if(t)t.repeat.copy(map.repeat);wallNormals.set(type,t);}return wallNormals.get(type);
 }
 // Mean albedo in linear light and the mean paint-grain factor (see ExteriorRendered), for chimney caps.
 function wallTextureMean(type){

@@ -46,7 +46,7 @@ function materialKey(face,defaults={}){
  const material=face.material;
  return !material||material==='default'?(face.chimney?.cap&&!face.chimney.derived&&!face.trim?'chimney-top':defaults.material||'unassigned'):material;
 }
-const defaultMaterial=id=>['default','unassigned','siding','siding-vertical','soffit'].includes(id);
+const defaultMaterial=id=>['default','unassigned','siding','siding-vertical','cedar-shake','soffit'].includes(id);
 const eligibleMaterial=(face,options)=>!Array.isArray(options.materials)||options.materials.includes(materialKey(face,options.defaults));
 function candidates(faces,options={}){const {roof,base,ground}=options;
  const eligible=faces.filter(f=>!f.deleted&&!f.snapOnly&&!f.feature&&!f.curvedSurface).map((f,i)=>({...f,id:i})).filter(f=>{const frame=W.faceFrame(f);return !!frame;});

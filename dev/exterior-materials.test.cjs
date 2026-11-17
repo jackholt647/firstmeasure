@@ -26,3 +26,37 @@ test('the wall material picker offers Concrete for faces and as the default text
  await page.getByRole('button',{name:'Default texture',exact:true}).click();await page.getByRole('menuitemradio',{name:'Concrete',exact:true}).click();
  assert.deepEqual(await page.evaluate(()=>defaults),{material:'concrete',color:'#123456',trimColor:'#abcdef'});
 });
+
+// FM-528: cedar shake siding is a wall material of its own, with a shake texture the wall colour stains.
+test('cedar shake is an editor wall material, named Cedar shake in the report and trimmed like siding',()=>{
+ const M=materials();assert.deepEqual({label:M['cedar-shake']?.label,color:M['cedar-shake']?.color},{label:'Cedar shake',color:'#b08a64'});
+ assert.deepEqual(R.build({faces:[{points:rect(0,0,4,2),material:'cedar-shake'}]}).walls.map(w=>w.material),['Cedar shake']);
+ assert.equal(require('../'+SCRIPTS+'wall_trim.js').defaultMaterial('cedar-shake'),true,'corner trim by default, like siding');
+ const ctx={THREE:{}};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync(SCRIPTS+'exterior_finishes.js','utf8'),ctx);const F=ctx.ExteriorFinishes;
+ assert.deepEqual([...F.wallTiles['cedar-shake'].size],[1.2192,.7112],'one tile is 4 ft by four 7 in courses');
+ assert.deepEqual(JSON.parse(JSON.stringify(F.resolve({material:'cedar-shake'},{material:'siding',color:'#a8784e'}))),{material:'cedar-shake',color:'#a8784e'});
+ assert.deepEqual(JSON.parse(JSON.stringify(F.resolve({},{material:'cedar-shake',color:'#123456'}))),{material:'cedar-shake',color:'#123456'},'the default texture');
+});
+test('the wall material picker offers Cedar shake and both textured modes draw its shake map',{skip:!chromiumPath&&'no Chromium on this host'},async t=>{
+ const {chromium}=require('../public/v1/node_modules/playwright-core'),path=require('node:path');
+ const browser=await chromium.launch({headless:true,executablePath:chromiumPath,args:['--no-sandbox','--use-angle=swiftshader']});t.after(()=>browser.close());
+ const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('http://walls.test/**',async route=>{const u=new URL(route.request().url());if(u.pathname==='/')return route.fulfill({contentType:'text/html',body:'<body class="wall-mode-active"><button id="btnToggleTypes">Types</button><div id="three-view-wrapper" style="position:relative;height:900px"></div></body>'});await route.fulfill({path:path.resolve('public/measure/internal',u.pathname.slice(1))});});
+ await page.goto('http://walls.test/');await page.addScriptTag({path:'public/v1/node_modules/three/build/three.min.js'});
+ for(const name of ['vendor/clipper-lib-6.4.2-clipper','exterior_geometry','wall_solid_geometry','wall_features','exterior_finishes','exterior_scene_cache','exterior_rendered'])await page.addScriptTag({url:'http://walls.test/editor_scripts/'+name+'.js'});
+ await page.evaluate(()=>{window.painted=[];window.defaults={material:'siding',color:'#123456',trimColor:'#abcdef'};WallFeatures.mountUI(()=>{},()=>null,()=>false,{defaults:value=>value?(window.defaults=value):window.defaults,paint:id=>painted.push(id)});});
+ await page.getByRole('button',{name:'Wall materials',exact:true}).click();
+ await page.getByRole('group',{name:'Face materials'}).getByRole('button',{name:'Cedar shake',exact:true}).click();assert.deepEqual(await page.evaluate(()=>painted),['cedar-shake']);
+ await page.getByRole('button',{name:'Default texture',exact:true}).click();await page.getByRole('menuitemradio',{name:'Cedar shake',exact:true}).click();
+ assert.deepEqual(await page.evaluate(()=>defaults),{material:'cedar-shake',color:'#123456',trimColor:'#abcdef'});
+ const r=await page.evaluate(()=>{
+  const F=ExteriorFinishes,own=F.wallTexture('cedar-shake'),plain=new THREE.MeshBasicMaterial();F.apply({userData:{exteriorFinish:{material:'cedar-shake',finishColor:'#a8784e'}}},plain);
+  const rendered=ExteriorRendered.materialFor({material:'cedar-shake',finishColor:'#a8784e'},false),canvas=F.wallCanvas('cedar-shake'),d=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+  // Keyways: dark runs along one row in the middle of the first course.
+  let keyways=0,dark=false;const y=Math.round(canvas.height/8);for(let x=0;x<canvas.width;x++){const now=d[(y*canvas.width+x)*4]<90;if(now&&!dark)keyways++;dark=now;}
+  return {plainIsShake:plain.map===own,renderedIsShake:rendered.map===own,normal:!!rendered.normalMap,repeat:own.repeat.toArray(),keyways,seeded:canvas.toDataURL()===F.wallCanvas('cedar-shake').toDataURL()};
+ });
+ const {keyways,...maps}=r;assert.deepEqual(maps,{plainIsShake:true,renderedIsShake:true,normal:true,repeat:[.5,.6096/.7112],seeded:true});
+ assert.ok(keyways>=5&&keyways<=16,'3-10 in shakes: 5-16 keyways per 4 ft course, got '+keyways);
+ assert.equal(errors.length,0,errors.join('\n'));
+});

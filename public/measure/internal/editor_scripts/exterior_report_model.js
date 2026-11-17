@@ -6,7 +6,7 @@ const kinds={window:'Window',door:'Door',garage:'Garage door',garageDoor:'Garage
 const compass=n=>Math.abs(n.x)>Math.abs(n.y)?n.x>0?'East':'West':n.y>0?'South':'North';
 function frame(face){const n=W.normal(face.points);if(!n)return null;const len=Math.hypot(n.x,n.y);if(len<.98)return null;return {origin:face.points[0],u:{x:-n.y/len,y:n.x/len,z:0},v:{x:0,y:0,z:1},n:{x:n.x/len,y:n.y/len,z:0}};}
 const local=(fr,p)=>({x:dot(sub(p,fr.origin),fr.u),y:p.z-fr.origin.z,z:0}),world=(fr,p)=>({x:fr.origin.x+fr.u.x*p.x,y:fr.origin.y+fr.u.y*p.x,z:fr.origin.z+p.y});
-const materialNames={soffit:'Soffit',siding:'Horizontal siding','siding-vertical':'Vertical siding','trim-horizontal':'Horizontal trim','trim-vertical':'Vertical trim',brick:'Brick',masonry:'Masonry',stucco:'Stucco',concrete:'Concrete',stone:'Stone',other:'Other'};
+const materialNames={soffit:'Soffit',siding:'Horizontal siding','siding-vertical':'Vertical siding','cedar-shake':'Cedar shake','trim-horizontal':'Horizontal trim','trim-vertical':'Vertical trim',brick:'Brick',masonry:'Masonry',stucco:'Stucco',concrete:'Concrete',stone:'Stone',other:'Other'};
 // build()'s rule for a face it reports as wall cladding (flat or curved), so the editor can find the faces the
 // material warning counts. Takes a face with its finish already resolved, as build() does.
 function reportsAsWall(f){if(f.constructionOnly||f.deleted||f.drafted||f.solidId||f.boundaryHole||f.feature)return false;if(f.material==='chimney-top'||f.chimney?.cap&&!f.chimney.derived&&!f.trim&&(!f.material||['default','unassigned'].includes(f.material)))return false;return f.points?.length>=3&&f.points.every(K.finite3)&&!!(f.curvedSurface?.logical||frame(f));}

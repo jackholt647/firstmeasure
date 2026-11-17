@@ -247,7 +247,8 @@ face boundaries. It adds no thickness.
 `material` identifies the surface treatment; optional `finishColor` is a separate
 hex color. Both survive subdivision, clipboard transforms and sweeps. Face
 merging also compares color. Existing `siding` assignments mean horizontal
-siding; `siding-vertical`, `trim-horizontal`, and `trim-vertical` are distinct.
+siding; `siding-vertical`, `cedar-shake`, `trim-horizontal`, and `trim-vertical` are
+distinct. Cedar shake, stone and masonry use seeded procedural tiles (`wallTiles`).
 
 `displayMode` is translucent, opaque, or textured. The legacy `translucent`
 boolean remains synchronized for visibility-aware picking. `exterior_finishes.js`
