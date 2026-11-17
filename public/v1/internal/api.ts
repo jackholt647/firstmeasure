@@ -5249,6 +5249,7 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
         ...(typeof body.p1_eligible === "boolean" ? { p1_eligible: body.p1_eligible } : {}),
         ...(typeof body.p2_eligible === "boolean" ? { p2_eligible: body.p2_eligible } : {}),
         is_qa_trainee: body.is_qa_trainee === "1" || body.is_qa_trainee === true,
+        ...(body.is_qa_trainee_exteriors !== undefined ? { is_qa_trainee_exteriors: body.is_qa_trainee_exteriors === "1" || body.is_qa_trainee_exteriors === true } : {}),
         ...(typeof body.can_draft_full_house === "boolean" ? { can_draft_full_house: body.can_draft_full_house } : {}),
         ...(typeof body.can_qa_full_house === "boolean" ? { can_qa_full_house: body.can_qa_full_house } : {}),
         queue_mode: body.queue_mode,
