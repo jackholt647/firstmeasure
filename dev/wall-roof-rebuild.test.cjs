@@ -336,3 +336,18 @@ test('FM-527: walls that left a plane out for a stray hole follow it once when t
  h.toRoof();h.toWalls();assert.deepEqual(copy(h.saved()).alignedWalls,after.alignedWalls);
  h.ctx.WallMode.restore('ce52',{exteriorsWalls:after});h.toRoof();h.toWalls();assert.deepEqual(copy(h.saved()).alignedWalls,after.alignedWalls);
 });
+
+test('FM-541: walls kept from an earlier roof still give roof trim on every line the roof now calls a rake',()=>{
+ const h=house(),onCricket=(roof,p)=>CRICKET.some(i=>{const c=roof.connections.find(c=>c.id==='R'+(i+1))||roof.connections[i];return G.onEdge(p.a,roof.points[c.startIdx],roof.points[c.endIdx],.01)&&G.onEdge(p.b,roof.points[c.startIdx],roof.points[c.endIdx],.01);});
+ // The walls follow the cricket to valleys and back to rakes; Undo then keeps the valley walls while the roof says rake.
+ h.toRoof();for(const i of CRICKET)h.connections[i].type='valley';h.toWalls();
+ h.toRoof();for(const i of CRICKET)h.connections[i].type='rake';h.toWalls();h.key('z');h.toRoof();h.toWalls();
+ const kept=copy(h.saved());assert.ok(kept.keptRoofSignature,'the walls are kept from the earlier roof');
+ assert.deepEqual(CRICKET.map(i=>kept.roof.connections.find(c=>c.id==='R'+(i+1)).type),['valley','valley'],'the walls\' roof still has the valleys');
+ assert.ok(!T.perimeter(kept.roof).some(p=>onCricket(kept.roof,p)),'that roof alone gives the cricket no trim');
+ // The report's trim (and the trim drawn in wall mode) reads the roof's current line types; the walls' roof is untouched.
+ let scene=null;h.ctx.ExteriorReportModel={build:s=>{scene=s;return {};}};h.ctx.WallMode.reportSnapshot();
+ assert.equal(T.perimeter(scene.roof).filter(p=>p.type==='rake'&&onCricket(scene.roof,p)).length,CRICKET.length,'both cricket rakes take trim');
+ assert.deepEqual(copy(scene.roof.faces),kept.roof.faces);assert.deepEqual(copy(h.saved()).roof,kept.roof,'the walls\' roof is unchanged');
+ assert.match(fs.readFileSync(dir+'wall_mode.js','utf8'),/let roof=state\?\.roof&&roofLines\(\);/,'wall mode draws the roof lines and trim from roofLines()');
+});
