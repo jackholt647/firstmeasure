@@ -305,6 +305,8 @@ function fm_default_rejection_reasons() {
         ['id' => 'incorrect_structure_type', 'label' => 'Incorrect Structure Type', 'icon' => 'fas fa-building'],
         // Full Exterior orders only (Node refuses it for a roof): the photos and video do not show enough of the house.
         ['id' => 'insufficient_footage', 'label' => 'Insufficient footage', 'icon' => 'fas fa-video'],
+        // Full Exterior orders only (FM-532): the footage is of another house than the one at the order's address.
+        ['id' => 'incorrect_footage', 'label' => 'Incorrect footage uploaded', 'icon' => 'fas fa-house-circle-xmark'],
     ];
 }
 
