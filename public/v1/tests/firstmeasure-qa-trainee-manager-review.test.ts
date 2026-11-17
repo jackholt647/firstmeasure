@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -19,18 +20,26 @@ test("VIP projects and projects approved by trainee QA both require manager revi
   try {
     const storage = await import("../firstmeasure/storage.js");
     const index = await import("../firstmeasure/project_index.js");
+    const jobs = await import("../firstmeasure/job_queue.js");
     const internalStorage = await import("../internal/storage.js");
     const { buildApp } = await import("../src/app.js");
     await index.ensureFirstMeasureProjectIndexReady();
 
     const trainee = { email: "trainee-qa@example.test", name: "Trainee QA" };
     const experienced = { email: "experienced-qa@example.test", name: "Experienced QA" };
+    const exteriorsTrainee = { email: "exteriors-trainee-qa@example.test", name: "Exteriors Trainee QA" };
     await internalStorage.saveInternalUser({ ...trainee, role: "qa", is_qa_trainee: true });
     await internalStorage.saveInternalUser({ ...experienced, role: "qa", is_qa_trainee: false });
     assert.equal((await internalStorage.readInternalUser(trainee.email))?.is_qa_trainee, true);
     assert.equal((await internalStorage.readInternalUser(experienced.email))?.is_qa_trainee, false);
+    // FM-523: "Trainee Exteriors QA" sends only full exterior orders to a manager.
+    await internalStorage.saveInternalUser({ ...exteriorsTrainee, role: "qa", is_qa_trainee_exteriors: true, can_qa_full_house: true });
+    assert.equal((await internalStorage.readInternalUser(exteriorsTrainee.email))?.is_qa_trainee_exteriors, true);
+    assert.equal((await internalStorage.readInternalUser(experienced.email))?.is_qa_trainee_exteriors, false);
+    // Exteriors reach a manager who is qualified to QA them, as manager sign-off requires.
+    await internalStorage.saveInternalUser({ email: "manager@example.test", name: "Manager", role: "manager", can_qa_full_house: true });
 
-    const saveClaimedProject = async (id: string, qa: typeof trainee, isVip: boolean) => {
+    const saveClaimedProject = async (id: string, qa: typeof trainee, isVip: boolean, extra: Record<string, unknown> = {}) => {
       const now = new Date().toISOString();
       await storage.saveManifest(id, {
         id,
@@ -48,7 +57,8 @@ test("VIP projects and projects approved by trainee QA both require manager revi
           qa_claim: { email: qa.email, name: qa.name, claimed_at: now },
           history: []
         },
-        timestamps: { created_at: now, queued_at: now, updated_at: now }
+        timestamps: { created_at: now, queued_at: now, updated_at: now },
+        ...extra
       } as unknown as ProjectManifest);
       // Approval requires a previously reviewed PDF. This test covers routing,
       // not rendering, and background workers remain disabled.
@@ -57,6 +67,21 @@ test("VIP projects and projects approved by trainee QA both require manager revi
 
     await saveClaimedProject("trainee-standard-project", trainee, false);
     await saveClaimedProject("experienced-vip-project", experienced, true);
+    const exteriorId = "exteriors_0123456789abcdef0123456789abcdef";
+    await saveClaimedProject(exteriorId, exteriorsTrainee, false, { measurement_scope: "full_house", include_gutter_measurements: true });
+    {
+      // A full exterior is approved only against a completed full-house PDF sync.
+      const pdf = Buffer.from("%PDF-1.4\nsynthetic full exterior fixture\n%%EOF");
+      const revision = "reviewed-full-exterior";
+      const snapshot = { folderId: exteriorId, report: { lines: [{ type: "eave" }] }, exteriorReport: { walls: [{ id: "wall", gross: 100 }], roof: [{ id: "roof" }], totals: { gross: 100 } }, exteriorSettings: { include: true }, gutterSettings: { stories: { north: "1", south: "1", east: "1", west: "1" } } };
+      const sync = await jobs.enqueueFirstMeasureJob("pdf.sync", { project_id: exteriorId, revision, snapshot, outputs: [{ slot: "main", mode: "full", persist: true }] });
+      const claimed = await jobs.claimNextFirstMeasureJob("fixture-worker", ["pdf.sync"]);
+      assert.ok(claimed);
+      await storage.saveStoredPdf(exteriorId, "main", pdf);
+      await jobs.completeFirstMeasureJob(sync, { outputs: [{ slot: "main", mode: "full", sha256: createHash("sha256").update(pdf).digest("hex") }] }, claimed);
+      await storage.patchManifest(exteriorId, { pdf_sync: { latest_job_id: sync, latest_revision: revision, status: "completed", checksum_match: true } });
+    }
+    await saveClaimedProject("exteriors-trainee-roof-project", exteriorsTrainee, false);
 
     const app = await buildApp();
     await app.ready();
@@ -84,6 +109,20 @@ test("VIP projects and projects approved by trainee QA both require manager revi
       assert.deepEqual(vipApproval.json().manifest.manager_review_reasons, ["vip"]);
       assert.equal(vipApproval.json().manifest.qa_reviewer_was_trainee, false);
 
+      const exteriorApproval = await approve(exteriorId, exteriorsTrainee);
+      assert.equal(exteriorApproval.statusCode, 200, exteriorApproval.body);
+      assert.equal(exteriorApproval.json().manifest.status, "awaiting_manager_review");
+      assert.equal(exteriorApproval.json().manifest.manager_review_required, true);
+      assert.deepEqual(exteriorApproval.json().manifest.manager_review_reasons, ["qa_trainee_exteriors"]);
+      assert.equal(exteriorApproval.json().manifest.qa_reviewer_was_trainee, true);
+
+      const roofApproval = await approve("exteriors-trainee-roof-project", exteriorsTrainee);
+      assert.equal(roofApproval.statusCode, 200, roofApproval.body);
+      assert.notEqual(roofApproval.json().manifest.status, "awaiting_manager_review");
+      assert.equal(roofApproval.json().manifest.manager_review_required, false);
+      assert.deepEqual(roofApproval.json().manifest.manager_review_reasons, []);
+      assert.equal(roofApproval.json().manifest.qa_reviewer_was_trainee, false);
+
       // The approval response is not what the manager queue renders. Exercise
       // its compact bootstrap projection, which previously dropped the reasons.
       const bootstrap = await staffInject({
@@ -97,6 +136,10 @@ test("VIP projects and projects approved by trainee QA both require manager revi
       assert.deepEqual(traineeRow.manager_review_reasons, ["qa_trainee"]);
       assert.equal(traineeRow.qa_reviewer_was_trainee, true);
       assert.deepEqual(vipRow.manager_review_reasons, ["vip"]);
+      const exteriorRow = managerRows.find((row: { id: string }) => row.id === exteriorId);
+      assert.deepEqual(exteriorRow.manager_review_reasons, ["qa_trainee_exteriors"]);
+      assert.equal(exteriorRow.qa_reviewer_was_trainee, true);
+      assert.equal(managerRows.some((row: { id: string }) => row.id === "exteriors-trainee-roof-project"), false);
     } finally {
       await app.close();
     }
