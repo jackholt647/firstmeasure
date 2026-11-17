@@ -1922,8 +1922,8 @@
       "message": "{v2}時間の予測",
       "format": "icu"
     },
-    "m_1d63663ae56e2a": "18時間",
-    "m_e731322b674a97": "24時間",
+    "m_70bebe3d5e1c4a": "9時間",
+    "m_a5dd2a1c20d0a5": "12時間",
     "m_e7f79de4539e22": {
       "message": "構造物1件あたり{v5} + 選択した納期料金{v6}",
       "format": "icu"
@@ -2087,7 +2087,7 @@
     "angle_back_right": "右後ろ",
     "angle_right": "右側",
     "angle_front_right": "右前",
-    "exteriors_standard_label": "標準 · 24時間",
+    "exteriors_standard_label": "標準 · 12時間",
     "exteriors_same_day_label": "当日 · 6時間未満",
     "exteriors_priority_label": "優先 · 3時間未満",
     "delivery_very_busy": "大変混み合っています",

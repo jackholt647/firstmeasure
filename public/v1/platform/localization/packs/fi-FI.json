@@ -1922,8 +1922,8 @@
       "message": "Arvio: {v2} tuntia",
       "format": "icu"
     },
-    "m_1d63663ae56e2a": "18 tuntia",
-    "m_e731322b674a97": "24 tuntia",
+    "m_70bebe3d5e1c4a": "9 tuntia",
+    "m_a5dd2a1c20d0a5": "12 tuntia",
     "m_e7f79de4539e22": {
       "message": "{v5} rakennusta kohden + valittu toimitusmaksu{v6}",
       "format": "icu"
@@ -2087,7 +2087,7 @@
     "angle_back_right": "Oikea takaviisto",
     "angle_right": "Oikea sivu",
     "angle_front_right": "Oikea etuviisto",
-    "exteriors_standard_label": "Vakiotoimitus · 24 tuntia",
+    "exteriors_standard_label": "Vakiotoimitus · 12 tuntia",
     "exteriors_same_day_label": "Saman päivän toimitus · alle 6 tuntia",
     "exteriors_priority_label": "Pikatoimitus · alle 3 tuntia",
     "delivery_very_busy": "Meillä on erittäin ruuhkaista",

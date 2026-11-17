@@ -23,7 +23,7 @@ const ORDERS = {
     report_url: `/v1/firstmeasure/projects/${ID}/artifacts/Report.pdf`, summary_url: `/v1/firstmeasure/projects/${ID}/artifacts/Summary.pdf` },
   cancelled: { status: 'cancelled', cancelled_at: '2026-10-22T19:00:00Z' },
   exterior: { status: 'processing', measurement_scope: 'full_house', include_gutter_measurements: true, report_expedite_option: 'exteriors_standard',
-    report_expedite_label: 'Standard · 24 hours', report_due_window_end: '2099-10-23T00:00:00Z', amount_charged: 25,
+    report_expedite_label: 'Standard · 12 hours', report_due_window_end: '2099-10-23T00:00:00Z', amount_charged: 25,
     manifest: { measurement_scope: 'full_house', report_expedite_option: 'exteriors_standard' } }
 };
 
@@ -55,7 +55,7 @@ async function openOrder(browser, kind, options = {}) {
         postAction: async (action, fields) => {
           (window.__actions ||= []).push({ action, ...fields });
           if (action === 'exteriors_quote' && options.exteriorQuote) return { data: { success: true, pricing_revision: 3, options: [
-            { key: 'exteriors_standard', label: 'Standard · 24 hours', minutes: 1440, amount: 25 },
+            { key: 'exteriors_standard', label: 'Standard · 12 hours', minutes: 720, amount: 25 },
             { key: 'exteriors_same_day', label: 'Under 6 hours', minutes: 360, amount: 30 },
             { key: 'exteriors_priority', label: 'Under 3 hours', minutes: 180, amount: 35 }] } };
           return { data: { success: false } };
@@ -325,7 +325,7 @@ test('A Full Exterior order says what was ordered and offers the faster deliveri
     await page.waitForTimeout(300);
     const card = (await visibleText(page, '#rOverlay .r-report-pending-card'))[0] || await page.evaluate(() => document.querySelector('#rOverlay')?.innerText.slice(0, 1500) || 'no overlay');
     assert.match(card, /Full Exterior Report Processing/, card);
-    assert.match(card, /Ordered Full Exterior · Standard · 24 hours/i, card);
+    assert.match(card, /Ordered Full Exterior · Standard · 12 hours/i, card);
     assert.match(card, /Roof, walls, windows, doors and gutters included\./, card);
     const offers = await page.evaluate(() => [...document.querySelectorAll('#rOverlay [data-select-upgrade-expedite]')].filter(b => b.offsetParent)
       .map(b => [b.dataset.selectUpgradeExpedite, b.innerText.replace(/\s+/g, ' ').trim(), b.disabled]).slice(0, 2));

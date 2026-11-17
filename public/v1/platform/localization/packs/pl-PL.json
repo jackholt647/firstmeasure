@@ -1874,8 +1874,8 @@
       "message": "Szacunkowo {v2} godz.",
       "format": "icu"
     },
-    "m_1d63663ae56e2a": "18 godz.",
-    "m_e731322b674a97": "24 godz.",
+    "m_70bebe3d5e1c4a": "9 godz.",
+    "m_a5dd2a1c20d0a5": "12 godz.",
     "m_e7f79de4539e22": {
       "message": "{v5} za konstrukcję + wybrana opłata za dostawę{v6}",
       "format": "icu"
@@ -2039,7 +2039,7 @@
     "angle_back_right": "Tył z prawej",
     "angle_right": "Prawa strona",
     "angle_front_right": "Przód z prawej",
-    "exteriors_standard_label": "Standardowa · 24 godziny",
+    "exteriors_standard_label": "Standardowa · 12 godzin",
     "exteriors_same_day_label": "Tego samego dnia · poniżej 6 godzin",
     "exteriors_priority_label": "Priorytetowa · poniżej 3 godzin",
     "delivery_very_busy": "Mamy bardzo dużo pracy",

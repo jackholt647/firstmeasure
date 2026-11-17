@@ -2175,12 +2175,12 @@
       "source_hash": "b248b7247301058b8bba74975f92c2f049b9662440272a8f80bc4401b08ff169"
     },
     "firstmeasure/exteriors_standard_label": {
-      "meaning": "Customer-facing firstmeasure interface text: Standard · 24 hours",
+      "meaning": "Customer-facing firstmeasure interface text: Standard · 12 hours",
       "placeholders": {},
       "constraints": [
         "Translate interface copy only; preserve customer data and currency amounts."
       ],
-      "source_hash": "eb65d5bb51e6254cc53da019fdcf6d54ef5f12bda9acdc8f8d924e1caefbfd47"
+      "source_hash": "fe547db44d0d39b6462490d588bbf4ac573a9571dc9e39f3f4d8bc277d699e25"
     },
     "firstmeasure/exteriors_same_day_label": {
       "meaning": "Customer-facing firstmeasure interface text: Same day · under 6 hours",
@@ -4287,9 +4287,9 @@
         }
       ]
     },
-    "firstmeasure/m_1d63663ae56e2a": {
-      "source_hash": "b6614ef94021a7407695a5ba79b610658eb3a58760c94c9a1d760247d6088f2f",
-      "meaning": "Exterior report ordering/photo capture interface: 18 hrs",
+    "firstmeasure/m_70bebe3d5e1c4a": {
+      "source_hash": "b0340ae1792ffd7555c0367979ce9edd358af92807e311e5025e8585a1e7b0e9",
+      "meaning": "Exterior report ordering/photo capture interface: 9 hrs",
       "placeholders": {},
       "constraints": [
         "Translate product copy, not addresses, customer names, entered notes or currency values.",
@@ -4302,9 +4302,9 @@
         }
       ]
     },
-    "firstmeasure/m_e731322b674a97": {
-      "source_hash": "1d655bee010306412b57d8bbe485d950e5935d9cef18dff5cc65b45354173fe6",
-      "meaning": "Exterior report ordering/photo capture interface: 24 hrs",
+    "firstmeasure/m_a5dd2a1c20d0a5": {
+      "source_hash": "7bdbf926ab397915b752b7e3d1ee6b724fe2304572b891bb835df707d641a55d",
+      "meaning": "Exterior report ordering/photo capture interface: 12 hrs",
       "placeholders": {},
       "constraints": [
         "Translate product copy, not addresses, customer names, entered notes or currency values.",
