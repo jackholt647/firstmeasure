@@ -247,6 +247,44 @@ test('a phone opens Stages on the first stage that has projects, and keeps a sta
   } finally { await browser.close(); }
 });
 
+test('a phone Stages board turns on a short quick flick and springs back from a short slow drag (FM-540)', async () => {
+  const { browser, page, errors } = await setup({ view:'stages', scenario:'mixed' });
+  try {
+    await page.locator('.v-stage-col.is-mobile-active .v-stage-card[data-id="p1"]').waitFor();
+    const cdp = await page.context().newCDPSession(page);
+    const box = await page.locator('.v-stages-board').boundingBox();
+    const y = box.y + box.height / 2;
+    // Each touch carries the time a finger would have made it, so the test's own
+    // pace does not change the swipe's speed.
+    const swipe = async (from, to, moves, msPerMove, holdMs = 8) => {
+      let clock = Date.now() / 1000 - 2;
+      const touch = (type, x) => cdp.send('Input.dispatchTouchEvent', { type, timestamp:clock, touchPoints:type === 'touchEnd' ? [] : [{ x, y, id:1 }] });
+      await touch('touchStart', from);
+      for (let i = 1; i <= moves; i++) { clock += msPerMove / 1000; await touch('touchMove', from + (to - from) * i / moves); }
+      clock += holdMs / 1000;
+      await touch('touchEnd');
+    };
+    const settledOn = async (stage) => {
+      await page.waitForFunction((stage) => {
+        const active = document.querySelector('.v-stage-col.is-mobile-active');
+        // At rest: the scroller rounds to a device pixel.
+        return active?.dataset.stage === stage && Math.abs(Number(active.style.getPropertyValue('--stage-offset'))) < 0.01;
+      }, stage, { timeout:3000 });
+      assert.equal(await page.locator('.v-mobile-stage-option[aria-selected="true"]').getAttribute('data-stage'), stage);
+    };
+    // 60px in 45ms: well short of half the board, but a flick.
+    await swipe(300, 240, 4, 15);
+    await settledOn('won');
+    await swipe(120, 180, 4, 15);
+    await settledOn('lead');
+    // The same 60px, slowly, with the finger stopping before it lifts: back where it was.
+    await swipe(300, 240, 10, 40, 200);
+    await page.waitForTimeout(600);
+    await settledOn('lead');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
 test('a phone List shows the stages with projects first and folds the empty ones into one line', async () => {
   const { browser, page, errors } = await setup({ view:'list', scenario:'mixed' });
   try {
