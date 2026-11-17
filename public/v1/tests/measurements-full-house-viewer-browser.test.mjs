@@ -263,8 +263,9 @@ test('every editor wall finish survives the saved design, the customer model and
   const viewer=await readFile(new URL('../../libraries/apps/measurements/roof-viewer.js',import.meta.url),'utf8');
   const wall=(id,material)=>({id,points:[{x:0,y:0,z:0},{x:1,y:0,z:0},{x:1,y:0,z:1},{x:0,y:0,z:1}],holes:[],material,elevation:'North',gross:10.76,net:10.76,openingArea:0,width:3.28,height:3.28,openings:[]});
   const finishes=Object.entries(ctx.ExteriorMaterials).filter(([id])=>!['default','chimney-top','soffit'].includes(id)&&!id.startsWith('trim-'));
-  // Canonical's editor copy can lag the measure-internal lane, so concrete is also named here.
-  for(const [id,def] of [...finishes.filter(([id])=>id!=='concrete'),['concrete',{label:'Concrete'}]]){
+  // Canonical's editor copy can lag the measure-internal lane, so concrete and cedar shake (FM-528) are also named here.
+  const named=[['concrete',{label:'Concrete'}],['cedar-shake',{label:'Cedar shake'}]];
+  for(const [id,def] of [...finishes.filter(([id])=>!named.some(([n])=>n===id)),...named]){
     assert.ok(WALL_MATERIALS.includes(id),id+' is a design wall material');
     assert.deepEqual(sanitizeExteriorDesign({defaults:{material:id},walls:{W01:{material:id}}}).walls,{W01:{material:id}},id);
     assert.ok(viewer.includes(`['${id}','${def.label}']`),id+' is a viewer wall choice');
