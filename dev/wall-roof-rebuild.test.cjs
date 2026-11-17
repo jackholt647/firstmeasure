@@ -286,3 +286,53 @@ test('FM-347: what a follow discards, and a roof that moved as one',()=>{
  assert.equal(R.roofShift(roof,{points:roof.points.map((p,i)=>lower(p,i,i+1))}),null,'points that each moved differently');
  assert.equal(R.roofShift(roof,copy(roof)),null,'a roof that did not move');
 });
+
+// FM-527 (16424 126th Pl SE, Renton): the face resolver gave a shed roof, as a hole, a triangle drawn as its own face
+// that only touched one corner of it. With that hole the shed could not be triangulated, so the walls left the whole
+// plane out: following the roof edit removed the shed's walls and added none, and nothing on the Wall page changed.
+// strayHoled(faces) gives the house's first face the same kind of hole, outside it against a convex corner.
+const strayHoled=faces=>{
+ const next=faces.map(f=>({points:f.points,holes:f.holes||[]})),f=next[0],ps=f.points,n=ps.length,turn=ps.reduce((s,p,i)=>s+p.x*ps[(i+1)%n].y-ps[(i+1)%n].x*p.y,0);
+ const i=ps.findIndex((v,k)=>{const a=ps[(k+n-1)%n],b=ps[(k+1)%n];return Math.sign((v.x-a.x)*(b.y-v.y)-(v.y-a.y)*(b.x-v.x))===Math.sign(turn);}),v=ps[i],a=ps[(i+n-1)%n],b=ps[(i+1)%n];
+ const unit=p=>{const l=Math.hypot(p.x,p.y);return {x:p.x/l,y:p.y/l};},ua=unit({x:a.x-v.x,y:a.y-v.y}),ub=unit({x:b.x-v.x,y:b.y-v.y}),out=unit({x:-(ua.x+ub.x),y:-(ua.y+ub.y)}),side={x:-out.y,y:out.x};
+ f.holes=[...f.holes,[v,{x:v.x+out.x*8+side.x*3,y:v.y+out.y*8+side.y*3,z:v.z},{x:v.x+out.x*8-side.x*3,y:v.y+out.y*8-side.y*3,z:v.z}]];
+ return next;
+};
+test('FM-527: a hole outside its face is no hole of it; a hole inside it, or the face as its own hole, is kept',()=>{
+ const sq=[{x:0,y:0},{x:4,y:0},{x:4,y:4},{x:0,y:4}],inside=[{x:1,y:1},{x:2,y:1},{x:2,y:2}],touching=[{x:4,y:4},{x:5,y:4.5},{x:4.5,y:5}],onEdge=[{x:0,y:1},{x:1,y:2},{x:0,y:3}];
+ assert.deepEqual(G.holesInside({points:sq,holes:[inside,touching,onEdge,sq]}),[inside,onEdge,sq]);
+ assert.deepEqual(G.holesInside({points:sq}),[]);
+});
+test('FM-527: following a roof edit keeps a roof plane whose resolved face carries a stray hole, with its walls',()=>{
+ const h=house(),K=req('exterior_geometry.js'),resolved=strayHoled(h.manualFaces),shed=resolved[0];
+ assert.throws(()=>K.triangles(shed.points.map(p=>({x:p.x,y:p.y})),shed.holes.map(r=>r.map(p=>({x:p.x,y:p.y})))),/valid planar region/,'the face cannot be triangulated with the hole');
+ h.ctx.lastResolvedFacesCache=resolved;const before=copy(h.saved());
+ // The same drawing with walls that have the plane: nothing to follow.
+ h.toRoof();h.toWalls();assert.deepEqual(copy(h.saved()).alignedWalls,before.alignedWalls);
+ // A roof edit elsewhere: the plane and the walls it drives are kept.
+ const roof=h.W.roof,line=roof.connections[UNDER_EAVE];h.toRoof();h.movePoints([line.startIdx,line.endIdx],.1,0);h.toWalls();
+ const after=copy(h.saved()),report=h.ctx.WallMode.roofRebuild;
+ assert.equal(after.roof.faces.length,before.roof.faces.length,'no roof plane was left out');
+ assert.ok(after.roof.faces.every(f=>!(f.holes||[]).length||!f.holes.some(r=>r.length===3&&r[0].x===f.points[0].x&&r[0].y===f.points[0].y)));
+ assert.ok(report.removedWalls.length<=report.addedWalls.length+2,'the edit did not take a plane of walls with it: '+JSON.stringify(report.removedWalls));
+});
+test('FM-527: walls that left a plane out for a stray hole follow it once when the project opens again',()=>{
+ const h=house(),resolved=strayHoled(h.manualFaces),without=resolved.slice(1);
+ // Walls built while the plane was left out: From Roof on the roof without it, then a drawn face (wall work to keep).
+ h.ctx.lastResolvedFacesCache=without;h.elements.get('wall-rebuild').onclick();
+ const lacking=copy(h.saved());assert.equal(lacking.roof.faces.length,h.W.roof.faces.length-1);
+ lacking.wallEdits.$surfaces=[...(lacking.wallEdits.$surfaces||[]),{id:'fm527-drawn',points:[{x:40,y:40,z:1},{x:41,y:40,z:1},{x:41,y:40,z:2}],holes:[]}];
+ // The roof drawing is unchanged (same signature); the resolver now gives the plane with its stray hole.
+ h.ctx.lastResolvedFacesCache=resolved;h.ctx.WallMode.restore('ce52',{exteriorsWalls:lacking});h.toRoof();h.toWalls();
+ const after=copy(h.saved()),report=h.ctx.WallMode.roofRebuild;
+ assert.equal(after.roof.faces.length,h.W.roof.faces.length,'the plane is in the walls\' roof');
+ // The plane comes back as an added face: the walls it drives follow it and nothing else is touched.
+ assert.equal(report.faces.added,1);assert.equal(report.lines.unchanged,lacking.roof.connections.length);
+ assert.ok(report.walls.added+report.walls.moved>0,'the walls under the plane changed: '+JSON.stringify(report.walls));
+ assert.deepEqual([report.drafts.removed,report.features||[],report.surfaces.removed],[0,[],0],'no wall work was removed');
+ assert.ok(after.wallEdits.$surfaces.some(f=>f.id==='fm527-drawn'),'wall work is kept');assert.equal(after.roofSignature,lacking.roofSignature);
+ assert.match(h.note(),/new walls?; everything else was kept/);
+ // Once: switching again changes nothing, and walls that have the plane are left alone on the next open.
+ h.toRoof();h.toWalls();assert.deepEqual(copy(h.saved()).alignedWalls,after.alignedWalls);
+ h.ctx.WallMode.restore('ce52',{exteriorsWalls:after});h.toRoof();h.toWalls();assert.deepEqual(copy(h.saved()).alignedWalls,after.alignedWalls);
+});
