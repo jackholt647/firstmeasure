@@ -121,6 +121,18 @@ saved (`keptRoofSignature`, as for a declined full rebuild); changing the roof a
 A follow that only moves walls, and every roof edit made in the session, is applied without
 asking, as above.
 
+## A roof face with a stray hole
+
+The face resolver can give a face, as a hole, a small face beside it that only touches its outline
+(FM-527: a triangle drawn as its own face against one corner of a shed roof). With that hole the face
+cannot be triangulated, and the walls used to leave the whole roof plane out: a follow removed the
+plane's walls and built none, so the walls did not take the roof change. A hole none of whose points
+is inside its face, and some outside, is no hole of that face (`WallGeometry.holesInside`): the walls
+drop it and keep the face. A face that is its own hole (FM-320) still has no surface. Walls saved
+without such a plane, with the drawing unchanged since, follow it once when the project is opened
+again (`leftOutRoofPlane` in `wall_mode.js`): the follow adds the walls it drives and keeps the rest.
+Roof mode's resolver still attaches the hole (`classifyAndRemoveHoleFacesAlt`, `scene_3d.js`).
+
 ## When it still falls back
 
 The smart rebuild is tried whenever the walls carry edits. It is not tried, and the earlier
