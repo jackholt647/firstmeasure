@@ -1290,6 +1290,8 @@
     const targetZoom = Math.min(Number(desiredZoom) || maxDesiredZoom, maxDesiredZoom);
     const fallbackZoom = Math.min(targetZoom, maxDesiredZoom);
     const finish = (zoom) => {
+      // The max-zoom answer can arrive after the map was taken down (the window moved on to another view).
+      if (!state.map) return;
       state.map.setZoom(Math.max(4, Math.min(Number(zoom) || fallbackZoom, targetZoom)));
       if (typeof after === 'function') after();
     };

@@ -305,7 +305,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261111-offline'), versionedBundle('project-request/app.js', '20261116-fm517-order-submit')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261111-offline'), versionedBundle('project-request/app.js', '20261117-fm532-rejected-orders')]
     },
     {
       id: 'firstmeasure.order',
@@ -324,7 +324,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('project-map/app.js', '20261027-viewer-2')]
+      bundles: [versionedBundle('project-map/app.js', '20261117-fm532-zoom-guard')]
     },
     {
       id: 'project.customer_portal',
@@ -365,7 +365,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261113-fm455-line-totals'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261113-fm455-roof-lines')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261113-fm455-line-totals'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261117-fm532-incorrect-footage')]
     },
     {
       id: 'project.checklists',

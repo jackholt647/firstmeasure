@@ -5076,6 +5076,8 @@ window.PlatformCommerce.onReady(async function(){
       else if('cancelReportOrder' in data)action=['cancelPendingReportOrder',[button]];
       else if('reorderReportOrder' in data)action=['reorderCancelledReportOrder',[]];
       else if('reorderRejectedReport' in data)action=['reorderRejectedReportOrder',[]];
+      else if('reorderRejectedExterior' in data)action=['reorderRejectedExteriorReport',[data.reorderRejectedExterior]];
+      else if('rejectionWhy' in data){event.preventDefault();projectMeasurementsInvoke('showRejectionWhy',[button]);return;}
       if(!action)return;
       busy=true;
       try{await projectMeasurementsInvoke(action[0],action[1]);}
@@ -10133,9 +10135,9 @@ window.PlatformCommerce.onReady(async function(){
         ? (globalThis.PlatformLanguage?.text("project-request","audit_c5e665c57bc2e0","The standard report is currently being worked.") ?? "The standard report is currently being worked.")
         : (stage === 'review' ? (globalThis.PlatformLanguage?.text("project-request","audit_2612ba1829868e","The standard report is being reviewed.") ?? "The standard report is being reviewed.") : (globalThis.PlatformLanguage?.text("project-request","audit_901358a2916ff7","The standard report is pending.") ?? "The standard report is pending."));
       const addOns = [];
-      if (reportOrderState.includeGutters) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_gutters','gutters') ?? 'gutters');
-      if (reportOrderState.includeWeather) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_weather','weather') ?? 'weather');
-      if (reportOrderState.includeInspection) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_instant','instant report') ?? 'instant report');
+      if (reportOrderState?.includeGutters) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_gutters','gutters') ?? 'gutters');
+      if (reportOrderState?.includeWeather) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_weather','weather') ?? 'weather');
+      if (reportOrderState?.includeInspection) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_instant','instant report') ?? 'instant report');
       const dueText = reportOrderCustomerDeliveryText();
       const due = dueText
         ? (globalThis.PlatformLanguage?.htmlText('project-request','target_delivery',' Target: {time}.',{time:dueText}) ?? ` Target: ${escapeHtml(dueText)}.`)
@@ -11262,6 +11264,30 @@ window.PlatformCommerce.onReady(async function(){
     ));
   }
 
+  // The FirstMeasure-only board opens an order as its own record, with no workflow state. A rejected one is still
+  // this project's order: the window says why it was rejected and what can be done, never an empty order form.
+  // projectHasReportOrder answers whether an order is open, so it says no for it (FM-532).
+  function adoptBoardRejectedOrder(project = {}){
+    if (projectText(project.workflow_state)) return false;
+    const measurement = (project.measurement_project && typeof project.measurement_project === 'object')
+      ? project.measurement_project
+      : ((project.measurement && typeof project.measurement === 'object') ? project.measurement : {});
+    if (!isRejectedStatus(project.status, measurement.status, measurement.raw?.status)) return false;
+    const id = firstMeasurementId(measurement.id, measurement.project_id, measurement.folder, project.measurement_project_id, project.project_id, project.folder, project.id);
+    if (!id) return false;
+    // The bare record is the order itself: it becomes the project's measurement, as a cached order's would be.
+    if (!Object.keys(measurement).length) {
+      project.measurement_project = project.measurement = {
+        id, project_id: id, folder: id,
+        status: projectText(project.status),
+        measurement_scope: projectText(project.measurement_scope),
+        report_mode: projectText(project.report_mode),
+        raw: { ...project }
+      };
+    }
+    return true;
+  }
+
   function projectHasReportOrder(project = {}){
     const measurement = (project.measurement_project && typeof project.measurement_project === 'object')
       ? project.measurement_project
@@ -11639,7 +11665,7 @@ window.PlatformCommerce.onReady(async function(){
     typePickerExpanded = false;
     mobileTypeTransitioning = false;
     if (mobileTypeTransitionTimer) clearTimeout(mobileTypeTransitionTimer);
-    const hasBaseMeasurement = projectHasReportOrder(base);
+    const hasBaseMeasurement = projectHasReportOrder(base) || adoptBoardRejectedOrder(base);
     reportSelection = hasBaseMeasurement || (requestedWorkflow === 'report' && isUnfinishedReportDraft(base))
       ? 'roof'
       : (base.workflow_state === 'proposal_only' ? 'proposal' : reportSelection);
@@ -12399,6 +12425,13 @@ window.PlatformCommerce.onReady(async function(){
     }
   });
   window.Portal.modules = window.Portal.modules || {};
+  // What a FirstMeasure order says about itself after it was placed (see mergeProjectForViewing).
+  const ORDER_STATE_KEYS = [
+    'status', 'rejection_reason', 'rejection_reason_details', 'rejection_message', 'customer_rejection_title', 'customer_rejection_message',
+    'correct_project_type', 'rejection_correct_project_type', 'rejection_reorder', 'reorder_url',
+    'refund_issued', 'refund_pending', 'refund_amount', 'refund_reason', 'measurement_scope'
+  ];
+
   function mergeProjectForViewing(base = {}, incoming = {}){
     if (!base || base === incoming) return base || incoming;
     const merged = { ...base };
@@ -12464,6 +12497,20 @@ window.PlatformCommerce.onReady(async function(){
       ? incoming.measurement_project
       : ((incoming.measurement && typeof incoming.measurement === 'object') ? incoming.measurement : {});
     const mergedMeasurement = { ...baseMeasurement, ...incomingMeasurement };
+    // The FirstMeasure-only board passes an order as its own flat record. When it is this project's order it is
+    // newer than the copy this browser cached when it was placed: its status, rejection and refund are the order's
+    // now. A cached "queued" order the board lists as rejected otherwise opens as still pending (FM-532).
+    const incomingOrderId = Object.keys(incomingMeasurement).length ? '' : firstMeasurementId(incoming.id);
+    const baseRaw = baseMeasurement.raw && typeof baseMeasurement.raw === 'object' ? baseMeasurement.raw : {};
+    if (incomingOrderId && [baseMeasurement.id, baseMeasurement.project_id, baseMeasurement.folder, baseMeasurement.measurement_project_id, baseRaw.folder, baseRaw.id, baseRaw.project?.id]
+      .some((value) => projectText(value) === incomingOrderId)) {
+      ORDER_STATE_KEYS.forEach((key) => {
+        const value = incoming[key];
+        if (value === undefined || value === null) return;
+        mergedMeasurement[key] = value;
+        merged[key] = value;
+      });
+    }
     if (Object.keys(mergedMeasurement).length) {
       merged.measurement = mergedMeasurement;
       merged.measurement_project = mergedMeasurement;
