@@ -1363,6 +1363,9 @@ window.PlatformCommerce.onReady(function(){
     if (key === 'insufficient_footage') {
       return (globalThis.PlatformLanguage?.text("measurements","m_242477ea5edf74","We were not able to complete this Full Exterior report because the photos and video do not show enough of the house for us to draw every wall, window and door. We have reimbursed the original report.") ?? "We were not able to complete this Full Exterior report because the photos and video do not show enough of the house for us to draw every wall, window and door. We have reimbursed the original report.");
     }
+    if (key === 'incorrect_footage') {
+      return (globalThis.PlatformLanguage?.text("measurements","m_3c747882dbf3aa","The uploaded footage doesn't seem to match the provided address. We have reimbursed the original report.") ?? "The uploaded footage doesn't seem to match the provided address. We have reimbursed the original report.");
+    }
     if (key === 'obscured_visibility') {
       return (globalThis.PlatformLanguage?.text("measurements","m_20daf0329c6bb5","This report was rejected because the structure is too obscured in the available imagery. This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. We have reimbursed the original report.") ?? "This report was rejected because the structure is too obscured in the available imagery. This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. We have reimbursed the original report.");
     }
@@ -1451,6 +1454,7 @@ window.PlatformCommerce.onReady(function(){
   // rejected_no_coverage, so only the reason tells a coverage gap from footage, a pin or the project type.
   function rejectionReasonLabel(reason){
     if (reason === 'insufficient_footage') return (globalThis.PlatformLanguage?.text("measurements","m_9e8786e455a382","Not enough footage of the house") ?? "Not enough footage of the house");
+    if (reason === 'incorrect_footage') return (globalThis.PlatformLanguage?.text("measurements","m_1079f5ae806b32","Incorrect footage uploaded") ?? "Incorrect footage uploaded");
     if (reason === 'obscured_visibility') return (globalThis.PlatformLanguage?.text("measurements","m_afb458b5fb6b21","The structure is hidden in the imagery") ?? "The structure is hidden in the imagery");
     if (reason === 'invalid_pin_placement') return (globalThis.PlatformLanguage?.text("measurements","m_e61de280fd24e7","The pin is not on a structure we can measure") ?? "The pin is not on a structure we can measure");
     if (reason === 'incorrect_structure_type') return (globalThis.PlatformLanguage?.text("measurements","m_b77e788dcf9d7d","It needs a different project type") ?? "It needs a different project type");
@@ -1470,7 +1474,9 @@ window.PlatformCommerce.onReady(function(){
     const exterior = reportOrderIsExterior();
     // A Full Exterior turned down for its footage can be tried again with more of it, or ordered as the roof alone.
     // No other reason offers these: a coverage gap, a hidden structure or a wrong pin would fail the roof too.
-    const footage = exterior && reason === 'insufficient_footage';
+    // Footage of the wrong house can be replaced the same way: a new order with footage of this one (FM-532).
+    const footage = exterior && ['insufficient_footage', 'incorrect_footage'].includes(reason);
+    const wrongHouse = reason === 'incorrect_footage';
     const retryExterior = footage && !!window.Portal?.ExteriorOrder?.offersChoice?.('residential');
     const reasonLabel = rejectionReasonLabel(reason);
     const copy = customerRejectionCopy(activeBaseProject?.customer_rejection_message)
@@ -1484,7 +1490,9 @@ window.PlatformCommerce.onReady(function(){
     const tip = (text) => `data-fm-tooltip="${escapeHtml(text)}"`;
     const action = (attrs, icon, label, help, secondary = false) => `<button type="button" class="r-pending-reorder${secondary ? ' is-secondary' : ''}" ${attrs} ${tip(help)}><span class="fas ${icon}" aria-hidden="true"></span><span>${escapeHtml(label)}</span></button>`;
     const actions = footage
-      ? [retryExterior ? action('data-reorder-rejected-exterior="full_house"', 'fa-video', (globalThis.PlatformLanguage?.text("measurements","m_61916e37809bd1","Try again with more footage") ?? "Try again with more footage"), (globalThis.PlatformLanguage?.text("measurements","m_c04a8c55885f01","Step back to get the whole house in view, and add photos of every side so we can draw all of it.") ?? "Step back to get the whole house in view, and add photos of every side so we can draw all of it.")) : '',
+      ? [retryExterior ? (wrongHouse
+          ? action('data-reorder-rejected-exterior="full_house"', 'fa-upload', (globalThis.PlatformLanguage?.text("measurements","m_5da395be24d920","Upload the correct footage") ?? "Upload the correct footage"), (globalThis.PlatformLanguage?.text("measurements","m_48e31022ec1dd5","Starts a new Full Exterior order for this address. Record or upload footage of this house.") ?? "Starts a new Full Exterior order for this address. Record or upload footage of this house."))
+          : action('data-reorder-rejected-exterior="full_house"', 'fa-video', (globalThis.PlatformLanguage?.text("measurements","m_61916e37809bd1","Try again with more footage") ?? "Try again with more footage"), (globalThis.PlatformLanguage?.text("measurements","m_c04a8c55885f01","Step back to get the whole house in view, and add photos of every side so we can draw all of it.") ?? "Step back to get the whole house in view, and add photos of every side so we can draw all of it."))) : '',
         action('data-reorder-rejected-exterior="roof"', 'fa-house-chimney', (globalThis.PlatformLanguage?.text("measurements","m_2a8fbfcefaed16","Order just the roof") ?? "Order just the roof"), (globalThis.PlatformLanguage?.text("measurements","m_b688bd49aa30b3","A roof report is measured from aerial imagery and needs no photos.") ?? "A roof report is measured from aerial imagery and needs no photos."), retryExterior)].join('')
       : (reorderType ? action('data-reorder-rejected-report', 'fa-rotate-right', ((v0) => globalThis.PlatformLanguage?.text("measurements","m_a76ca37eaaae8e",`Reorder as ${v0}`,{v0}) ?? `Reorder as ${v0}`)(reorderLabel.charAt(0).toUpperCase() + reorderLabel.slice(1)), (globalThis.PlatformLanguage?.text("measurements","m_1b6fb2f8bf15dc","Starts a new order for this project as the right project type.") ?? "Starts a new order for this project as the right project type.")) : '');
     return `
@@ -1530,6 +1538,10 @@ window.PlatformCommerce.onReady(function(){
 
   function reorderRejectedReportOrder(){
     reorderCurrentReportOrder(reportOrderReorderType());
+  }
+
+  function showRejectionWhy(button){
+    window.PlatformUI?.showTooltip?.(button.querySelector('.fas') || button, { text: button.dataset.fmTooltip || '' });
   }
 
   // Trying a rejected Full Exterior again, or ordering only its roof, starts a new order with that scope chosen.
@@ -4356,19 +4368,22 @@ window.PlatformCommerce.onReady(function(){
     document.querySelectorAll('[data-reorder-report-order]').forEach((button) => {
       button.addEventListener('click', () => reorderCancelledReportOrder());
     });
+    // The left column's order status redraws its own card and handles these clicks itself (project-request,
+    // mountMeasurementOrderStatus); binding them here too would run a reorder twice, or not at all after a redraw.
+    const outsideOrderStatus = (button) => !button.closest('[data-measure-order-status]');
     document.querySelectorAll('[data-reorder-rejected-report]').forEach((button) => {
-      button.addEventListener('click', () => reorderRejectedReportOrder());
+      if (outsideOrderStatus(button)) button.addEventListener('click', () => reorderRejectedReportOrder());
     });
     // Touch has no hover: a tap on the reason's (i) shows its tooltip (anchored on the icon, which the platform's
     // tooltip has not just hidden for that tap); the next tap anywhere hides it.
     document.querySelectorAll('[data-rejection-why]').forEach((button) => {
-      button.addEventListener('click', (event) => {
+      if (outsideOrderStatus(button)) button.addEventListener('click', (event) => {
         event.preventDefault();
-        window.PlatformUI?.showTooltip?.(button.querySelector('.fas') || button, { text: button.dataset.fmTooltip || '' });
+        showRejectionWhy(button);
       });
     });
     document.querySelectorAll('[data-reorder-rejected-exterior]').forEach((button) => {
-      button.addEventListener('click', () => reorderRejectedExteriorReport(button.dataset.reorderRejectedExterior));
+      if (outsideOrderStatus(button)) button.addEventListener('click', () => reorderRejectedExteriorReport(button.dataset.reorderRejectedExterior));
     });
     document.querySelectorAll('[data-order-weather-report]').forEach((button) => {
       button.addEventListener('click', () => orderWeatherReport(button));
@@ -4510,6 +4525,7 @@ window.PlatformCommerce.onReady(function(){
     reorderCancelledReportOrder,
     reorderRejectedReportOrder,
     reorderRejectedExteriorReport,
+    showRejectionWhy,
     reportFrameHtml,
     xmlDownloadFileName,
     xmlDownloadPanelHtml,

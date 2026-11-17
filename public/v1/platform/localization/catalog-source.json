@@ -1211,6 +1211,20 @@
     "m_d651d8630ec789": {
       "message": "Approved test phones ring directly. Other calls route to {v1}. Brand and 10DLC registrations are simulated.",
       "format": "icu"
+    },
+    "m_c7c42f4318b166": "Texts and calls",
+    "m_4ead439d2495be": "Ask someone who manages company settings to set this up.",
+    "m_de4251a5e8c647": {
+      "message": "{v0} received · last {v1}",
+      "format": "icu"
+    },
+    "m_b0ac7e1d973a3f": {
+      "message": "Your phone: {v1}. Availability and audio devices",
+      "format": "icu"
+    },
+    "m_1dbeb3226b6daa": {
+      "message": "Your phone: {v2}. Availability and audio devices",
+      "format": "icu"
     }
   },
   "contacts": {
@@ -5108,6 +5122,10 @@
     "m_861f518127ff5b": "Full Exterior report rejected",
     "m_61916e37809bd1": "Try again with more footage",
     "m_c04a8c55885f01": "Step back to get the whole house in view, and add photos of every side so we can draw all of it.",
+    "m_1079f5ae806b32": "Incorrect footage uploaded",
+    "m_3c747882dbf3aa": "The uploaded footage doesn't seem to match the provided address. We have reimbursed the original report.",
+    "m_5da395be24d920": "Upload the correct footage",
+    "m_48e31022ec1dd5": "Starts a new Full Exterior order for this address. Record or upload footage of this house.",
     "m_6396ccf961d884": "Why it was rejected",
     "m_1b6fb2f8bf15dc": "Starts a new order for this project as the right project type."
   },
@@ -13583,7 +13601,21 @@
     "pitch_notation_degrees": "Degrees (26.6°)",
     "rp_section_units": "Units",
     "rp_section_units_sub": "How new reports write measurements.",
-    "rp_tip_pitch_notation": "Rise over a 12 run (6/12), as US roofers write it, or degrees (26.6°), as roofers elsewhere do. Reports already ordered keep theirs."
+    "rp_tip_pitch_notation": "Rise over a 12 run (6/12), as US roofers write it, or degrees (26.6°), as roofers elsewhere do. Reports already ordered keep theirs.",
+    "m_2fbb4b11eb7b6f": "Email address",
+    "m_e442cc35703f4c": "Not checked",
+    "m_c942e554920dd5": "Issued by Cloudflare when sending is set up",
+    "m_8efaa4f6ac7246": "Nameservers",
+    "m_0c340323e64f02": " Email records",
+    "m_6484e03a4531ae": "Priority",
+    "m_e156aa0491d1a0": " Check records",
+    "m_3ad54b327ff695": {
+      "message": "{v0} uses FirstMate to text customers who have agreed to receive texts: {v1}.{v2} Customers can reply STOP to opt out or HELP for help.",
+      "format": "icu"
+    },
+    "m_abc1a51fe9a688": "Texting program",
+    "m_f1ec1e5a20b923": "Carriers will need these changed",
+    "m_233716eae29bbf": "Example texts"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Add Work",
@@ -20256,7 +20288,14 @@
     "invalid_media_id": "A media id is media_ and 16 hexadecimal digits.",
     "upload_ids_required": "A device names both the attachment and its media, or neither.",
     "attachment_id_taken": "This attachment id is already in use.",
-    "acquisition_export_running": "An acquisition export is already being prepared. Try again when it has downloaded."
+    "acquisition_export_running": "An acquisition export is already being prepared. Try again when it has downloaded.",
+    "appointment_kinds_missing": "Choose the kinds of appointments you schedule first.",
+    "appointment_setup_person": "The appointment setup is answered by a person.",
+    "comms_setup_denied": "Company settings access is required to set up communications.",
+    "company_sales_team_unknown": "Choose who does your sales from the list.",
+    "company_workforce_unknown": "Choose who does your work from the list.",
+    "domain_email_not_set": "Choose this domain's email address first.",
+    "domain_not_verified": "Verify that you own this domain before checking its email records."
   },
   "notifications": {
     "document_greeting": {
