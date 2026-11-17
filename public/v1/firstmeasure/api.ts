@@ -15446,7 +15446,7 @@ async function sendProjectRejectionEmail(projectId: string, force: boolean) {
 
   const address = String(legacy.address ?? "Project");
 
-  const subject = `Unable to complete roof report - ${address}`;
+  const subject = `${rejectionEmailTitle(legacy)} - ${address}`;
 
   const textBody = buildRejectionEmailTextBody(legacy);
 
@@ -16232,6 +16232,26 @@ function buildRejectionMessageParagraphs(project: Record<string, unknown>) {
 
   const rejectionReason = String(project.rejection_reason ?? "").trim().toLowerCase();
 
+  if (rejectionReason === "incorrect_footage") {
+
+    return [
+
+      "We were not able to complete this Full Exterior report because the uploaded footage doesn't seem to match the provided address.",
+
+      "You can upload footage of the correct house, or order just the roof report."
+
+    ];
+
+  }
+
+  if (isFullExteriorRejection(project)) {
+
+    const fullExterior = fullExteriorRejectionParagraphs(rejectionReason);
+
+    if (fullExterior) return fullExterior;
+
+  }
+
   if (rejectionReason === "insufficient_footage") {
 
     return [
@@ -16320,6 +16340,95 @@ function buildRejectionMessageParagraphs(project: Record<string, unknown>) {
 
 
 
+// A Full Exterior is drawn from the customer's footage and its roof measured from aerial imagery: its rejection
+// says so, rather than describing a roof report (FM-532).
+
+function isFullExteriorRejection(project: Record<string, unknown>) {
+
+  return project.measurement_scope === "full_house" || isCustomerExteriorId(project.id);
+
+}
+
+
+
+// Reasons a Full Exterior shares with a roof report, in Full Exterior words. Null: the shared copy fits.
+
+function fullExteriorRejectionParagraphs(rejectionReason: string): string[] | null {
+
+  if (rejectionReason === "obscured_visibility") {
+
+    return [
+
+      "We were not able to complete this Full Exterior report because the house is too obscured in the available aerial imagery for us to measure its roof. This can happen when trees, shadows, image quality, or other visual obstructions hide the roof.",
+
+      "We apologize for any inconvenience this may have caused."
+
+    ];
+
+  }
+
+  if (rejectionReason === "invalid_pin_placement") {
+
+    return [
+
+      "We were not able to complete this Full Exterior report because the selected pin does not appear to be placed on the house. This can happen if the pin is on a yard, driveway, nearby object, or another structure.",
+
+      "You can place a new order with the pin on the house."
+
+    ];
+
+  }
+
+  if (["incorrect_structure_type", "api_insufficient_credits", "insufficient_footage", "incorrect_footage"].includes(rejectionReason)) return null;
+
+  return [
+
+    "We were not able to complete this Full Exterior report because we do not currently have aerial imagery coverage for this address. A Full Exterior report measures the roof from aerial imagery, so it needs coverage of the house as well as your footage.",
+
+    "We've logged your interest in structures like this and will prioritize being able to cover these in the near future. Our coverage is based on individual structure, not area - so we may have coverage for other properties in this same neighborhood."
+
+  ];
+
+}
+
+
+
+function rejectionEmailTitle(project: Record<string, unknown>) {
+
+  return isFullExteriorRejection(project) ? "Unable to complete Full Exterior report" : "Unable to complete roof report";
+
+}
+
+
+
+// Footage of a Full Exterior can be replaced: the email opens the project, whose card starts the new order.
+
+function rejectionEmailFootageAction(project: Record<string, unknown>) {
+
+  const reason = String(project.rejection_reason ?? "").trim().toLowerCase();
+
+  const projectId = String(project.id ?? "").trim();
+
+  if (!projectId || !["insufficient_footage", "incorrect_footage"].includes(reason)) return null;
+
+  const url = new URL(APP_ORDER_REPORT_URL + "/");
+
+  url.searchParams.set("tab", "viewer");
+
+  url.searchParams.set("project", projectId);
+
+  return {
+
+    label: reason === "incorrect_footage" ? "Upload the correct footage" : "Try again with more footage",
+
+    url: url.toString()
+
+  };
+
+}
+
+
+
 function buildRejectionRefundText(project: Record<string, unknown>) {
 
   const amount = Number(project.refund_amount ?? 0);
@@ -16350,9 +16459,11 @@ function buildRejectionEmailTextBody(project: Record<string, unknown>) {
 
   const reorderUrl = String(project.reorder_url ?? asRecord(project.rejection_reorder).url ?? "").trim();
 
+  const footageAction = rejectionEmailFootageAction(project);
+
   return [
 
-    "Unable to complete roof report",
+    rejectionEmailTitle(project),
 
     `Address: ${address}`,
 
@@ -16361,6 +16472,8 @@ function buildRejectionEmailTextBody(project: Record<string, unknown>) {
     ...buildRejectionMessageParagraphs(project),
 
     reorderUrl ? `Reorder this project: ${reorderUrl}` : "",
+
+    footageAction ? `${footageAction.label}: ${footageAction.url}` : "",
 
     refundText
 
@@ -16406,15 +16519,17 @@ function buildRejectionEmailHtmlBody(project: Record<string, unknown>) {
 
     : "";
 
-  const reorderHtml = reorderUrl
+  const footageAction = rejectionEmailFootageAction(project);
 
-    ? `<p style="margin:20px 0 16px;"><a href="${escapeHtml(reorderUrl)}" style="display:inline-block;padding:11px 16px;border-radius:10px;background:#db0000;color:#ffffff;text-decoration:none;font-weight:700;">${escapeHtml(reorderLabel)}</a></p>`
+  const reorderHtml = reorderUrl || footageAction
+
+    ? `<p style="margin:20px 0 16px;"><a href="${escapeHtml(reorderUrl || footageAction?.url || "")}" style="display:inline-block;padding:11px 16px;border-radius:10px;background:#db0000;color:#ffffff;text-decoration:none;font-weight:700;">${escapeHtml(reorderUrl ? reorderLabel : footageAction?.label || "")}</a></p>`
 
     : "";
 
   return [
 
-    "<p style=\"margin:0 0 14px;font-size:17px;line-height:1.45;font-weight:700;\">Unable to complete roof report</p>",
+    `<p style="margin:0 0 14px;font-size:17px;line-height:1.45;font-weight:700;">${escapeHtml(rejectionEmailTitle(project))}</p>`,
 
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.5;"><strong>Address:</strong> ${escapeHtml(address)}</p>`,
 
@@ -16560,9 +16675,19 @@ const DEFAULT_REJECTION_REASONS = [
 
   // Full Exterior orders only: the customer's photos and video do not show enough of the house to draw it.
 
-  { id: "insufficient_footage", label: "Insufficient footage", icon: "fas fa-video" }
+  { id: "insufficient_footage", label: "Insufficient footage", icon: "fas fa-video" },
+
+  // Full Exterior orders only: the footage is of another house than the one at the order's address (FM-532).
+
+  { id: "incorrect_footage", label: "Incorrect footage uploaded", icon: "fas fa-house-circle-xmark" }
 
 ];
+
+
+
+// Reasons about a Full Exterior's own footage; a roof report has none, so they are refused for it.
+
+const FULL_EXTERIOR_REJECTION_REASONS = new Set(["insufficient_footage", "incorrect_footage"]);
 
 
 
@@ -23535,8 +23660,8 @@ async function rejectCoverageProject(projectId: string, body: Record<string, unk
     const existingLegacy = buildLegacyManifest(existingManifest);
 
     if (["rejected", "rejected_no_coverage", "cancelled"].includes(String(existingManifest.status))) return {ok:true,success:true,manifest:existingLegacy};
-    if (rejectionReason === "insufficient_footage" && existingManifest.measurement_scope !== "full_house") {
-      throw badRequest("invalid_rejection_reason", "Insufficient footage applies to Full Exterior orders only.");
+    if (FULL_EXTERIOR_REJECTION_REASONS.has(rejectionReason) && existingManifest.measurement_scope !== "full_house") {
+      throw badRequest("invalid_rejection_reason", "Footage reasons apply to Full Exterior orders only.");
     }
 
     let structureReorder: StructureTypeReorderPayload | null = null;
