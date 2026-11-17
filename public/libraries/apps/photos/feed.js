@@ -3912,9 +3912,10 @@
         .pf-wrap[data-pf-page="feed"] .pf-selection-actions:has([data-selection-assign]) [data-selection-download]{width:44px;padding:0;font-size:0}
         .pf-wrap[data-pf-page="feed"] .pf-selection-actions:has([data-selection-assign]) [data-selection-download] i{font-size:15px}
         .main-panels:has(>.pf-feed-camera-host.active){padding-bottom:0}
-        .pf-feed-camera-host>.fmc-bar{left:0;right:0;bottom:max(12px,env(safe-area-inset-bottom,0px))}
+        .pf-feed-camera-host{--fm-safe-bottom:var(--fm-window-safe-bottom,env(safe-area-inset-bottom,0px))}
+        .pf-feed-camera-host>.fmc-bar{left:0;right:0;bottom:max(12px,var(--fm-safe-bottom))}
         .pf-feed-camera-host>.fmc-shell{position:fixed;top:var(--pf-feed-camera-top,0px);left:0;right:0;bottom:0}
-        .pf-feed-camera-host.fmc-host .pf-wrap>[data-photo-feed-dynamic]>.pf-scroll{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+        .pf-feed-camera-host.fmc-host .pf-wrap>[data-photo-feed-dynamic]>.pf-scroll{padding-bottom:calc(76px + var(--fm-safe-bottom))}
         .pf-feed-camera-host:not(.pf-feed-camera-again)>.fmc-bar{animation:pfFeedBarIn .28s ease both}
         .pf-feed-camera-host:is(:has(.pf-shown-menu),:has(.pf-feed-scope-menu),:has(.pf-overlay),:has(.pf-selectionbar))>.fmc-bar{transform:translateY(calc(100% + 24px));opacity:0;pointer-events:none}
       }
