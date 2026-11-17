@@ -406,3 +406,20 @@ test('a face seen exactly edge-on still prints its edge line (FM-323): an overha
  for(const p of [P(0,-.2,2.9),P(0,4.2,2.9)])assert.equal(pixel(s,p).owner?.surface,'roof','the rake overhang past the gable wall is drawn');
  assert.equal(pixel(s,P(0,2,1.5)).owner?.id,'G');
 });
+test('walls on the far side of the house, seen through a gap on an elevation, are drawn as dimmed context like the wall dimension context (FM-402)',()=>{
+ // The back wall (W01) is open below 1.5 m, like a carport, so the Back elevation sees through to the inside of the front wall (W03) and its door.
+ const model=()=>{const m=boxHouse();m.walls[0]=box('W01',{x:0,y:0},{x:10,y:0},1.5,3,{x:0,y:-1,z:0});const door={id:'W03-1',type:'door',points:[P(7,6,0),P(6,6,0),P(6,6,2),P(7,6,2)]};m.walls[2].openings=[door];m.openings=[door];return m;};
+ const images=[];let title='';const ctx=loadPDF({document:{createElement:()=>({getContext:()=>({createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData:d=>images.push({title,data:d.data})}),toDataURL:()=>'data:image/png,test'})}});
+ const doc=new Proxy({internal:{pageSize:{getWidth:()=>210,getHeight:()=>297}},getTextWidth:s=>String(s).length,splitTextToSize:s=>[s]},{get:(o,k)=>k in o?o[k]:()=>{}});
+ ctx.drawExteriorReportPages(doc,model(),{frontBearing:180},t=>{title=t;},{},{summary:false,dimensions:false,openings:false,quantities:false,allowances:false});
+ const count=(name,test)=>{const image=images.find(i=>i.title===name+' Elevation');assert.ok(image,name+' Elevation drawn');let n=0;for(let i=0;i<image.data.length;i+=4)if(test(image.data[i],image.data[i+1],image.data[i+2]))n++;return n;};
+ const context=(r,g,b)=>r===243&&g===244&&b===246,tan=(r,g,b)=>r-b>25;
+ assert.ok(count('Back',context)>1000,'the far wall seen under the open back wall is very light grey');
+ assert.equal(count('Back',tan),0,'its door is dimmed too');
+ assert.ok(count('Front',tan)>100,'on its own elevation the door keeps its colour');assert.equal(count('Front',context),0,'nothing is seen through on the front');
+ // Only far-side faces dim: the counted near wall and walls counted elsewhere but facing the viewer keep their look.
+ const plan=PDF.elevationPlan(model(),{frontBearing:180},{x:25,y:33,w:170,h:110}),back=plan.views.find(v=>v.view.name==='Back');
+ assert.deepEqual(back.ids,['W01']);assert.ok(plan.views.find(v=>v.view.name==='Front').ids.includes('W03'),'repainting never changes which elevation counts a wall');
+ const far=back.scene.surfaces.filter(f=>PDF.farSide(f,back.scene.camera)).map(f=>f.id);assert.deepEqual(far.filter(Boolean).sort(),['W03','W03-1','W05','W06','W07']);
+ assert.ok(!PDF.farSide({id:'',surface:'roof',points:[],normal:{x:0,y:1,z:0}},back.scene.camera),'the roof is never dimmed');assert.ok(!PDF.farSide({id:'X',points:[]},back.scene.camera),'nor a face with no saved normal');
+});
