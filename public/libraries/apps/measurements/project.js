@@ -3856,6 +3856,10 @@ window.PlatformCommerce.onReady(function(){
     return activeMeasurementTab;
   }
 
+  const REJECTION_MANIFEST_KEYS = ['rejection_reason', 'rejection_reason_details', 'rejection_message', 'customer_rejection_title',
+    'customer_rejection_message', 'correct_project_type', 'rejection_correct_project_type', 'rejection_reorder',
+    'refund_issued', 'refund_amount', 'refund_reason', 'measurement_scope'];
+
   function mergeReportManifestIntoActiveProject(manifest = {}){
     if (!activeBaseProject || !manifest || typeof manifest !== 'object') return;
     const measurement = activeBaseProject.measurement_project || activeBaseProject.measurement || {};
@@ -3922,6 +3926,16 @@ window.PlatformCommerce.onReady(function(){
     activeBaseProject.weather_report_error = nextMeasurement.weather_report_error;
     activeBaseProject.weather_report_generated_at = nextMeasurement.weather_report_generated_at;
     activeBaseProject.status = manifest.status || activeBaseProject.status;
+    // A rejected order's reason, copy and refund, as the order states them now. A project this browser cached when
+    // the order was placed has them empty, and the rejected card reads them from the project (FM-532).
+    let rejectionChanged = false;
+    if (isRejectedStatus(manifest.status)) REJECTION_MANIFEST_KEYS.forEach((key) => {
+      const value = manifest[key];
+      if (value === undefined || value === null) return;
+      if (JSON.stringify(value) !== JSON.stringify(nextMeasurement[key]) || (key !== 'measurement_scope' && JSON.stringify(value) !== JSON.stringify(activeBaseProject[key]))) rejectionChanged = true;
+      nextMeasurement[key] = value;
+      if (key !== 'measurement_scope') activeBaseProject[key] = value;
+    });
     activeBaseProject.measurement = nextMeasurement;
     activeBaseProject.measurement_project = nextMeasurement;
     if (reportOrderState) {
@@ -3941,6 +3955,11 @@ window.PlatformCommerce.onReady(function(){
       reportOrderState.amountCharged = nextMeasurement.amount_charged;
     }
     persistActiveBaseProject();
+    // The Reports cards and the left column's order status (project-request, mountMeasurementOrderStatus) redraw.
+    if (rejectionChanged) {
+      renderMeasurementsPanel();
+      document.dispatchEvent(new CustomEvent('fm:measure-order-status'));
+    }
   }
 
   function snapshotReportExpediteState(){

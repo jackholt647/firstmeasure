@@ -262,3 +262,47 @@ test('every reorder of a rejected Full Exterior is a new order; the footage choi
   assert.match(reorder, /callHost\('orderMeasurements'\)/);
   assert.match(measurements, /\[data-reorder-rejected-exterior\][\s\S]{0,200}reorderRejectedExteriorReport\(button\.dataset\.reorderRejectedExterior\)/);
 });
+
+test("re-reading the order's manifest brings its rejection and refund into the project, and redraws the cards", () => {
+  const body = [
+    'const isRejectedStatus = (...v) => v.some((s) => ["rejected", "rejected_no_coverage"].includes(String(s ?? "").toLowerCase()));',
+    'let reportOrderState = null; const calls = [];',
+    'const persistActiveBaseProject = () => calls.push("persist"); const renderMeasurementsPanel = () => calls.push("render");',
+    'const document = {dispatchEvent: (event) => calls.push(event.type)}; const CustomEvent = class { constructor(type){ this.type = type; } };',
+    measurements.match(/  const REJECTION_MANIFEST_KEYS = \[[\s\S]*?\];/)![0],
+    fn(measurements, 'mergeReportManifestIntoActiveProject'),
+    'mergeReportManifestIntoActiveProject(manifest); return calls;',
+  ].join('\n');
+  // The copy this browser cached when the order was placed: queued, nothing rejected, nothing refunded.
+  const project: any = {id: 'project_local', rejection_reason: '', customer_rejection_message: '', refund_amount: 0,
+    measurement_project: {id: EXTERIOR, status: 'queued', raw: {}}};
+  const manifest = {status: 'rejected', rejection_reason: 'incorrect_footage', customer_rejection_message: 'Footage of another house.',
+    refund_issued: true, refund_amount: 25, measurement_scope: 'full_house'};
+  const calls = new Function('activeBaseProject', 'manifest', body)(project, manifest);
+  assert.equal(project.rejection_reason, 'incorrect_footage');
+  assert.equal(project.customer_rejection_message, 'Footage of another house.');
+  assert.equal(project.refund_amount, 25);
+  assert.equal(project.measurement_project.rejection_reason, 'incorrect_footage');
+  assert.equal(project.measurement_project.measurement_scope, 'full_house');
+  assert.deepEqual(calls, ['persist', 'render', 'fm:measure-order-status']);
+  // An order still in progress keeps the project's fields as they are.
+  const open: any = {id: 'project_local', rejection_reason: '', measurement_project: {id: EXTERIOR, status: 'queued', raw: {}}};
+  assert.deepEqual(new Function('activeBaseProject', 'manifest', body)(open, {status: 'processing', rejection_reason: 'stale'}), ['persist']);
+  assert.equal(open.rejection_reason, '');
+});
+
+test("a route naming the open project's order is that project (its window keeps the order under a local id)", () => {
+  const body = [
+    'const $ = () => ({classList: {contains: () => true}});',
+    'const localIsPlatformProjectId = (v) => /^(project|base|__optimistic)_/i.test(String(v || ""));',
+    'const projectOpenId = () => "project_local"; const activeMeasurementProjectId = () => order;',
+    fn(request, 'activeModalMatchesProject'),
+    'return activeModalMatchesProject;',
+  ].join('\n');
+  const matches = new Function('order', body)(EXTERIOR);
+  assert.equal(matches('project_local'), true);
+  assert.equal(matches(EXTERIOR), true);
+  assert.equal(matches('exteriors_' + 'f'.repeat(32)), false);
+  assert.equal(matches('project_other'), false);
+  assert.equal(new Function('order', body)('')(''), false);
+});
