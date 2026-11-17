@@ -120,7 +120,7 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function pendingReportModeLabel(fields){
-    if(fields?.measurement_scope === 'full_house') return ({exteriors_standard:'24 hours',exteriors_same_day:'Under 6 hours',exteriors_priority:'Under 3 hours'})[fields.report_expedite_option] || 'Full House';
+    if(fields?.measurement_scope === 'full_house') return ({exteriors_standard:'12 hours',exteriors_same_day:'Under 6 hours',exteriors_priority:'Under 3 hours'})[fields.report_expedite_option] || 'Full House';
     const mode = pendingReportMode(fields);
     if (mode === 'both') return 'Standard + Instant Preview';
     return (globalThis.PlatformLanguage?.text("billing","standard","Standard") ?? "Standard");

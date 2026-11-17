@@ -1922,8 +1922,8 @@
       "message": "Anslået {v2} timer",
       "format": "icu"
     },
-    "m_1d63663ae56e2a": "18 timer",
-    "m_e731322b674a97": "24 timer",
+    "m_70bebe3d5e1c4a": "9 timer",
+    "m_a5dd2a1c20d0a5": "12 timer",
     "m_e7f79de4539e22": {
       "message": "{v5} pr. struktur + valgt leveringsgebyr{v6}",
       "format": "icu"
@@ -2087,7 +2087,7 @@
     "angle_back_right": "Bagfra til højre",
     "angle_right": "Højre",
     "angle_front_right": "Forfra til højre",
-    "exteriors_standard_label": "Standard · 24 timer",
+    "exteriors_standard_label": "Standard · 12 timer",
     "exteriors_same_day_label": "Samme dag · under 6 timer",
     "exteriors_priority_label": "Prioritet · under 3 timer",
     "delivery_very_busy": "Vi har meget travlt",

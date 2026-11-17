@@ -1922,8 +1922,8 @@
       "message": "Εκτίμηση {v2} ωρών",
       "format": "icu"
     },
-    "m_1d63663ae56e2a": "18 ώρες",
-    "m_e731322b674a97": "24 ώρες",
+    "m_70bebe3d5e1c4a": "9 ώρες",
+    "m_a5dd2a1c20d0a5": "12 ώρες",
     "m_e7f79de4539e22": {
       "message": "{v5} ανά κατασκευή + επιλεγμένη χρέωση παράδοσης{v6}",
       "format": "icu"
@@ -2087,7 +2087,7 @@
     "angle_back_right": "Πίσω δεξιά",
     "angle_right": "Δεξιά",
     "angle_front_right": "Μπροστά δεξιά",
-    "exteriors_standard_label": "Κανονική · 24 ώρες",
+    "exteriors_standard_label": "Κανονική · 12 ώρες",
     "exteriors_same_day_label": "Αυθημερόν · κάτω από 6 ώρες",
     "exteriors_priority_label": "Προτεραιότητα · κάτω από 3 ώρες",
     "delivery_very_busy": "Έχουμε πολύ φόρτο",
