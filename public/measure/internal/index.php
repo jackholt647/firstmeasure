@@ -6519,6 +6519,13 @@ $ver = time(); // cache busting
                                 <span class="user-switch-slider" aria-hidden="true"></span>
                             </span>
                         </label>
+                        <label class="user-switch-row">
+                            <span class="user-switch-copy">Trainee Exteriors QA — send every approved full exterior project to manager review</span>
+                            <span class="user-switch">
+                                <input class="user-switch-input" type="checkbox" role="switch" id="uQaTraineeExteriors">
+                                <span class="user-switch-slider" aria-hidden="true"></span>
+                            </span>
+                        </label>
                     </div>
                     
                     <div class="form-row">
