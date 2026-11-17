@@ -140,7 +140,11 @@ function trimFaces(points,feature){
  // Placement used to copy the wall trim colour in, so a trim equal to it is the default too.
  const baked=['#f5f3ef',String(root.WallMode?.finishDefaults?.trimColor||'').toLowerCase()],own=typeof feature.trim.color==='string'&&/^#[0-9a-f]{6}$/i.test(feature.trim.color)&&!baked.includes(feature.trim.color.toLowerCase())?feature.trim.color.toLowerCase():null;
  const outer=ps.map((p,i)=>{const a=edges[(i+ps.length-1)%ps.length],b=edges[i],det=a.x*b.y-a.y*b.x;if(Math.abs(det)<1e-8)return {...p,x:p.x+b.x*b.width,y:p.y+b.y*b.width};return {...p,x:p.x+(a.width*b.y-a.y*b.width)/det,y:p.y+(a.x*b.width-a.width*b.x)/det};});
- return ps.flatMap((p,i)=>{if(!edges[i].width)return [];const j=(i+1)%ps.length;return [{points:[p,ps[j],outer[j],outer[i]].map(p=>W.fromFrame(fr,p)),trim:true,stickerType:feature.type,trimOwnColor:own,finishColor:own||root.ExteriorFinishes?.stickerColor?.(feature.type,'trim')||'#f5f3ef',material:Math.abs(ps[j].y-p.y)>Math.abs(ps[j].x-p.x)?'trim-vertical':'trim-horizontal'}];});
+ // An edge shorter than the trim beside an inside corner (where an arch meets a straight top, FM-533) mitres
+ // past itself: its two mitre lines cross and the board would fold into a bow-tie no face can be made of.
+ // Its outside edge is covered by the neighbouring boards, so it keeps the triangle up to the crossing.
+ const crossing=(p,a,q,b)=>{const r={x:a.x-p.x,y:a.y-p.y},s={x:b.x-q.x,y:b.y-q.y},d=r.x*s.y-r.y*s.x;if(Math.abs(d)<1e-12)return null;const w={x:q.x-p.x,y:q.y-p.y},t=(w.x*s.y-w.y*s.x)/d,u=(w.x*r.y-w.y*r.x)/d;return t>1e-9&&t<1-1e-9&&u>1e-9&&u<1-1e-9?{...p,x:p.x+r.x*t,y:p.y+r.y*t}:null;};
+ return ps.flatMap((p,i)=>{if(!edges[i].width)return [];const j=(i+1)%ps.length,fold=crossing(p,outer[i],ps[j],outer[j]);return [{points:(fold?[p,ps[j],fold]:[p,ps[j],outer[j],outer[i]]).map(p=>W.fromFrame(fr,p)),trim:true,stickerType:feature.type,trimOwnColor:own,finishColor:own||root.ExteriorFinishes?.stickerColor?.(feature.type,'trim')||'#f5f3ef',material:Math.abs(ps[j].y-p.y)>Math.abs(ps[j].x-p.x)?'trim-vertical':'trim-horizontal'}];});
 }
 // Divided stickers use real faces with a shared identity. Geometry, rather than
 // a saved list of cuts, defines the current sections and their internal seams.
