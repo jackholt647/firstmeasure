@@ -1942,6 +1942,12 @@
       return { key:'very-slow', label:'Very Slow', points };
     },
 
+    // A customer full exterior order (exteriors_ id) or a full-house scope; staff drafts (fullhouse_) are not.
+    isFullExteriorProject(project){
+      const id = String(project?.id || project?.folder || project?.project_id || '');
+      return /^exteriors_[a-f0-9]{32}$/.test(id) || (project?.measurement_scope === 'full_house' && !id.startsWith('fullhouse_'));
+    },
+
     activeProjectTagsHtml(project, kind){
       const p = project || {};
       const priority = this.activeProjectPriority(p);
@@ -1953,6 +1959,7 @@
         `<span class="sh-work-tag complexity">${'●'.repeat(complexity)}${'○'.repeat(5-complexity)} ${complexity}</span>`,
         `<span class="sh-work-tag type">${Portal.escapeHtml(typeLabel)}</span>`,
       ];
+      if (this.isFullExteriorProject(p)) tags.push('<span class="sh-work-tag exterior">EXT</span>');
       if (p.qa_priority || p.manual_priority || p.prioritized) tags.push('<span class="sh-work-tag urgent">PRIORITY</span>');
       if (p.is_vip) tags.push('<span class="sh-work-tag vip">⭐ VIP</span>');
       if (p.is_filler) tags.push('<span class="sh-work-tag filler">FILLER</span>');
@@ -2850,6 +2857,7 @@
         .sh-work-tag.priority.p3{ background:#5f6368; border-color:#5f6368; color:#fff; }
         .sh-work-tag.complexity{ background:#fff8e1; border-color:#f6cf65; color:#9a6700; letter-spacing:.08em; }
         .sh-work-tag.type{ background:#1a73e8; border-color:#1a73e8; color:#fff; }
+        .sh-work-tag.exterior{ background:#1e3a8a; border-color:#1e3a8a; color:#fff; }
         .sh-work-tag.vip{ background:#f9ab00; border-color:#e37400; color:#fff; }
         .sh-work-tag.filler{ background:#4b5563; border-color:#374151; color:#fff; }
         .sh-work-tag.rework{ background:#fff3e0; border-color:#ffcc80; color:#e65100; }
