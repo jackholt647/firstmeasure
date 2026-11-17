@@ -2781,8 +2781,9 @@ window.PlatformCommerce.onReady(async function(){
     return false;
   }
 
+  // A Full Exterior is ordered from its delivery page, with no review page after it (FM-530).
   function mobileOrderUsesFinalPage(){
-    return !!(window.Portal.ExteriorOrder?.active() || (reportExpediteOptionsEnabled() && hasSelectedAddons()));
+    return !window.Portal.ExteriorOrder?.active() && !!(reportExpediteOptionsEnabled() && hasSelectedAddons());
   }
 
   function mobileOrderReadyForFinal(){
@@ -6103,7 +6104,7 @@ window.PlatformCommerce.onReady(async function(){
     if (key === 'full_house') return {
       title: (globalThis.PlatformLanguage?.text("project-request","full_exterior_report","Full Exterior report") ?? "Full Exterior report"),
       body: (globalThis.PlatformLanguage?.text("project-request","m_0d21d7d3136fc9","Exterior measurements for the whole house, including the roof.") ?? "Exterior measurements for the whole house, including the roof."),
-      bullets: [(globalThis.PlatformLanguage?.text("project-request","m_97e57acb52769a","Walls, windows, doors, and siding areas.") ?? "Walls, windows, doors, and siding areas."), (globalThis.PlatformLanguage?.text("project-request","full_exterior_roof_included","Roof measurements included.") ?? "Roof measurements included."), (globalThis.PlatformLanguage?.text("project-request","full_exterior_gutters_included","Gutters are always included.") ?? "Gutters are always included.")],
+      bullets: [(globalThis.PlatformLanguage?.text("project-request","full_exterior_roof_gutter_measurements","Roof & gutter measurements") ?? "Roof & gutter measurements"), (globalThis.PlatformLanguage?.text("project-request","full_exterior_door_window_measurements","Door & window measurements") ?? "Door & window measurements"), (globalThis.PlatformLanguage?.text("project-request","full_exterior_siding_trim_measurements","Siding & trim measurements") ?? "Siding & trim measurements")],
       sample: {label: (globalThis.PlatformLanguage?.text("project-request","full_exterior_sample_download","Download sample Full Exterior report") ?? "Download sample Full Exterior report"), url: 'samples/full_house_sample.pdf?v=20261102'}
     };
     if (key === 'roof') return {
