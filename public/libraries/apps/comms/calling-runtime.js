@@ -9,7 +9,10 @@
   const ourParticipant=()=>state.detail?.participants?.find(p=>p.user_id===ui.user()&&participantActive(p));
   const formatPhone=value=>Portal.PhoneTray?.formatPhone(value)||value;
   const state={call:null,detail:null,entry:null,scripts:[],status:null,client:null,sdkCall:null,registered:false,available:false,
-    busy:false,error:'',dirty:false,notes:'',answers:{},panel:null,minimized:false,muted:false,localId:uid(),prepared:{},poll:0,saveTimer:0,tokenTimer:0,heartbeat:0,readyPromise:null,connectionSequence:0,connecting:false,disconnectPromise:null,openSequence:0};
+    busy:false,error:'',dirty:false,notes:'',answers:{},panel:null,minimized:false,muted:false,localId:uid(),prepared:{},poll:0,saveTimer:0,tokenTimer:0,heartbeat:0,readyPromise:null,connectionSequence:0,connecting:false,disconnectPromise:null,openSequence:0,takingCalls:false,idleTimer:0};
+  // FM-536: the phone connects when a call needs it and disconnects once it has been idle this long,
+  // unless the person chose to take incoming calls (routing only offers calls to a connected, available phone).
+  const idleDisconnectMs=2*60_000;
   const audioKey='fm-customer-phone-audio';
   function audioPreferences(){try{return JSON.parse(localStorage.getItem(`${audioKey}:${scope()}`)||'{}');}catch{return {};}}
   const checkKey=()=>`fm-customer-phone-check:${scope()}:${deviceId}`;
@@ -38,7 +41,7 @@
   }
   const identityReady=ownIdentity();
   const callPath=suffix=>`calls/${encodeURIComponent(state.call.id)}${suffix||''}`;
-  function changed(){queueMicrotask(()=>void advanceDialer());window.dispatchEvent(new CustomEvent('fm:customer-calls:changed',{detail:{call:state.call,registered:state.registered,available:state.available}}));}
+  function changed(){queueMicrotask(()=>void advanceDialer());idleCheck();window.dispatchEvent(new CustomEvent('fm:customer-calls:changed',{detail:{call:state.call,registered:state.registered,available:state.available}}));}
   // A document-lifetime lock prevents two tabs from running a list for this caller.
   // Each call still uses the server's atomic entry/phone claim and operation ID.
   const dialer={active:false,listId:'',listIds:[],fast:false,title:'',seen:new Set(),timer:0,deadline:0,working:false,generation:0,release:null,message:''};
@@ -165,7 +168,7 @@
     const capture=c?.metadata?.capture?.state;
     const nextSteps=[['none','Keep open — no work completed'],['complete','Complete selected work'],...(c?.project_id?[['scheduled','Link booked appointment']]:[]),...(state.followupOptions?.follow_up_node_ids?.length?(state.followupOptions.outcomes||[]).filter(o=>o.action==='lost').map(o=>[`outcome:${o.id}`,o.label]):[])];
     el.innerHTML=`<header class="fmcp-header"><div class="fmcm-avatar">${String(icon('phone'))}</div><div><strong>${String(esc(title))}</strong><small>${String(esc(number))}${String(number?' · ':'')}<span data-call-status>${String(esc(c?`${label(c.state)}${c.mode==='external'?' · External phone':''}`:'Ready when you are'))}</span></small></div><button data-phone="minimize" aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("comms","m_21406d49c2fdb5",`${v5} call`,{v5}) ?? `${v5} call`)(state.minimized?'Expand':'Minimize')}">${String(icon(state.minimized?'expand':'minus'))}</button><button data-phone="close" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_314202e0941af2","Close call workspace") ?? "Close call workspace")}">${String(icon('xmark'))}</button></header>
-      <div class="fmcp-body">${!c&&state.connecting?'<p class="fmcm-help" role="status" aria-live="polite">Connecting…</p>':''}${c&&(terminal.has(c.state)||c.mode==='external')&&(saved||!state.status?.settings?.require_disposition)?'<button data-phone="new-call">New call</button>':''}${String(state.error?`<div data-phone-error class="fmcm-error" role="alert">${esc(state.error)}</div>`:'')}
+      <div class="fmcp-body">${c&&(terminal.has(c.state)||c.mode==='external')&&(saved||!state.status?.settings?.require_disposition)?'<button data-phone="new-call">New call</button>':''}${String(state.error?`<div data-phone-error class="fmcm-error" role="alert">${esc(state.error)}</div>`:'')}
       ${state.deviceCheckRequired&&!c?`<section data-phone-readiness role="status"><p class="fmcm-help">${esc(state.checkMessage||'Run the microphone and network check before calling on this device. Your call details will stay here.')}</p><button data-phone="diagnose" class="fmcm-primary">${state.busy?'Checking microphone and network…':'Run checks'}</button></section>`:''}
       ${state.deviceChecked&&state.checkMessage&&!c?`<p data-phone-check-success class="fmcm-help" role="status">${esc(state.checkMessage)} Click Start call when you are ready.</p>`:''}
       ${state.outcomeRequested&&c&&!saved?`<p class="fmcm-help" role="status">${active?'Ending the call…':'Choose the call outcome, then click Save outcome to finish.'}</p>`:''}
@@ -179,7 +182,7 @@
       ${connected&&(state.status?.settings?.recording_enabled||['recording','paused'].includes(capture))?`<button data-phone="record">${icon('circle-dot')} ${capture==='recording'?'Pause recording':capture==='paused'?'Resume recording':'Record with consent'}</button>${['recording','paused'].includes(capture)?`<button data-phone="record_stop">${(globalThis.PlatformLanguage?.htmlText("comms","m_71ef1099bbe0fc","Stop recording") ?? "Stop recording")}</button>`:''}`:''}</div>`:
       `${field('Phone number or contact','customer_number',values.customer_number??number,'text','required autocomplete="off"')}
       <div class="fmcm-form-grid">${select('Call method','mode',state.status?.settings?.enabled?[['browser','FirstMate phone'],['external','My external phone']]:[['external','My external phone']],values.mode||(state.status?.settings?.enabled?'browser':'external'))}${select('Call script','script_id',[['','No script'],...state.scripts.filter(s=>s.status==='published').map(s=>[s.id,s.title])],values.script_id||'')}</div>
-      <p class="fmcm-help">External phone lets you record call notes without browser audio.</p><button data-phone="start" class="fmcm-primary">${icon('phone')} ${state.waitingToCall?'Connecting…':(values.mode|| (state.status?.settings?.enabled?'browser':'external'))==='browser'?'Start call':'Start call notes'}</button>`)}
+      <p class="fmcm-help">External phone lets you record call notes without browser audio.</p><button data-phone="start" class="fmcm-primary">${icon('phone')} ${state.waitingToCall?'Calling…':(values.mode|| (state.status?.settings?.enabled?'browser':'external'))==='browser'?'Start call':'Start call notes'}</button>`)}
       ${c?conferenceMarkup(observer||!!guest):''}
       ${String(script?.title?`<details class="fmcp-script" open><summary>${esc(script.title)} <span class="fmcm-pill">v${esc(script.version)}</span></summary>${(scriptData.sections||[]).map(s=>`<h4>${esc(s.title)}</h4><p>${esc(s.body)}</p>`).join('')}${(scriptData.questions||[]).map((q,i)=>`<label class="fmcm-field">${esc(q)}<input data-question="${i}" value="${esc(state.answers[i]||'')}"></label>`).join('')}</details>`:'')}
       ${String(c?.mode==='external'?`<p class="fmcm-help"><a href="tel:${esc(number)}">${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_4b023574d976a1",`Open ${v1} in your phone app`,{v1}) ?? `Open ${v1} in your phone app`)(esc(number))}</a></p>`:'')}
@@ -399,7 +402,7 @@
         render();return;
       }
       try{await saveNotes();}catch(error){state.error=error.message;render();return;}
-      state.openSequence++;state.loadingCall=false;state.panel.hidden=true;state.call=null;state.entry=null;state.prepared={};void disconnect().catch(()=>{});clearTimeout(state.poll);Portal.navigation?.backOrClose?.(['customerCall','communicationsEntry'],{customerCall:null,communicationsEntry:null});return;
+      state.openSequence++;state.loadingCall=false;state.panel.hidden=true;state.call=null;state.entry=null;state.prepared={};if(!state.takingCalls)void disconnect().catch(()=>{});clearTimeout(state.poll);Portal.navigation?.backOrClose?.(['customerCall','communicationsEntry'],{customerCall:null,communicationsEntry:null});return;
     }
     if(state.busy)return;state.busy=true;state.error='';state.panel?.querySelectorAll('input,textarea,select,[data-phone]').forEach(e=>{if(!['minimize','close','pause-dialer'].includes(e.dataset.phone))e.disabled=true;});
     try{
@@ -442,12 +445,21 @@
   }
   async function heartbeat(){
     if(!state.client||!ui.org())return;const client=state.client,requestedScope=scope();const valid=()=>client===state.client&&requestedScope===scope();
-    try{const result=await request('voice/endpoint/presence',{device_id:deviceId,registered:state.registered,availability:state.available?'available':'unavailable'});if(!valid())return;state.available=result.availability==='available';changed();
+    try{const result=await request('voice/endpoint/presence',{device_id:deviceId,registered:state.registered,availability:state.takingCalls?'available':'unavailable'});if(!valid())return;state.available=result.availability==='available';changed();
       if(state.registered&&(!state.call||terminal.has(state.call.state))){const calls=await request(`calls?active=true&owner_user_id=${encodeURIComponent(ui.user())}`);if(!valid())return;const incoming=calls.calls?.find(c=>c.direction==='inbound'||c.owner_user_id===ui.user());const offered=result.offered_call_id||incoming?.id;if(offered)await open({call_id:offered});}}
     catch(error){if(valid()){state.available=false;state.error=error.message;changed();}}
   }
   function connectionChanged(){changed();if(state.panel&&!state.panel.hidden)render();}
-  function autoConnect(){if(state.status?.settings?.enabled&&!state.registered&&!state.readyPromise)void connect().catch(error=>{if(error.name!=='AbortError'&&state.panel&&!state.panel.hidden){state.error=error.message;render();}});}
+  function idle(){
+    const supervising=state.detail?.supervision?.session&&!['ended','failed','taken_over'].includes(state.detail.supervision.session.state);
+    return !state.takingCalls&&!state.diagnosing&&!state.waitingToCall&&!state.sdkCall&&!dialer.active&&!supervising&&!ourParticipant()&&!(state.call&&!terminal.has(state.call.state));
+  }
+  function idleCheck(restart=false){
+    if(restart||!(state.registered||state.readyPromise)||!idle()){clearTimeout(state.idleTimer);state.idleTimer=0;}
+    if(state.idleTimer||!(state.registered||state.readyPromise)||!idle())return;
+    state.idleTimer=setTimeout(()=>{state.idleTimer=0;if(idle()&&(state.registered||state.readyPromise))void disconnect().catch(()=>{}).finally(connectionChanged);else idleCheck();},idleDisconnectMs);
+  }
+  function autoConnect(){idleCheck(true);if(state.status?.settings?.enabled&&!state.registered&&!state.readyPromise)void connect().catch(error=>{if(error.name!=='AbortError'&&state.panel&&!state.panel.hidden){state.error=error.message;render();}});}
   function stopConnection(){
     ++state.connectionSequence;state.cancelConnection?.();state.cancelConnection=null;state.readyPromise=null;
     const client=state.client;state.client=null;state.registered=false;state.available=false;state.connecting=false;
@@ -491,7 +503,7 @@
       });guard();
       clearInterval(state.heartbeat);state.heartbeat=setInterval(()=>void heartbeat(),12000);await heartbeat();guard();
       const delay=Math.max(30000,Date.parse(token.expires_at)-Date.now()-120000);
-      const renew=()=>{if(!valid())return;if(state.call&&!terminal.has(state.call.state)){state.tokenTimer=setTimeout(renew,30000);return;}void disconnect().then(()=>{if(state.panel&&!state.panel.hidden)autoConnect();}).catch(()=>{});};
+      const renew=()=>{if(!valid())return;if(state.call&&!terminal.has(state.call.state)){state.tokenTimer=setTimeout(renew,30000);return;}void disconnect().then(()=>{if(state.takingCalls)autoConnect();}).catch(()=>{});};
       state.tokenTimer=setTimeout(renew,Number.isFinite(delay)?delay:45*60000);
     })().catch(error=>{if(valid()){stopConnection();connectionChanged();}throw error;}).finally(()=>{if(valid()){state.readyPromise=null;state.connecting=false;connectionChanged();}});
     state.readyPromise=operation;return operation;
@@ -503,11 +515,11 @@
     const cleanup=Promise.resolve(pending).catch(()=>{}).then(()=>{if(requestedScope===scope())return request('voice/endpoint/disconnect',{device_id:deviceId});});
     state.disconnectPromise=cleanup.catch(()=>{});return cleanup;
   }
-  async function availability(value){state.available=value;await heartbeat();return state.available;}
+  async function availability(value){state.takingCalls=!!value;if(value)try{await connect();}catch(error){state.takingCalls=false;changed();throw error;}await heartbeat();changed();return state.takingCalls;}
   async function diagnose(options={}){
     if(state.diagnosing)throw new Error('An audio check is already running.');
     if(state.call&&!terminal.has(state.call.state))throw new Error('Run the audio check between calls.');
-    state.diagnosing=true;const wasAvailable=state.available;state.available=false;const samples=[];let microphone='unavailable',connected=false,providerFailed=false;
+    state.diagnosing=true;const wasTaking=state.takingCalls;state.takingCalls=false;const samples=[];let microphone='unavailable',connected=false,providerFailed=false;
     const names=['Connect browser phone','Check microphone access','Connect test audio','Measure audio quality','Save device result'];
     const checks=names.map(()=> 'Waiting');let step=0,finished=false;
     const inline=options.inline&&state.panel&&!state.panel.hidden;
@@ -565,7 +577,7 @@
     }finally{
       clearInterval(elapsed);if(!finished&&el)el.querySelector('[data-check-progress]').textContent='Check stopped. Retry when you are ready.';
       if(state.diagnosticId){await request(`calls/${encodeURIComponent(state.diagnosticId)}/actions`,{operation_id:uid(),action:'hangup'}).catch(()=>{});await Promise.resolve(state.sdkCall?.hangup()).catch(()=>{});}
-      state.diagnosticId='';state.diagnosing=false;state.sdkCall=null;state.available=wasAvailable;await heartbeat();el?.querySelector('[data-check-retry]')?.removeAttribute('disabled');
+      state.diagnosticId='';state.diagnosing=false;state.sdkCall=null;state.takingCalls=wasTaking;await heartbeat();changed();el?.querySelector('[data-check-retry]')?.removeAttribute('disabled');
     }
   }
   async function devices(){
@@ -589,13 +601,13 @@
   }});
   // Do not send a delayed server disconnect that could revoke the reloaded tab.
   window.addEventListener('pagehide',()=>{pauseDialer();stopConnection();});
-  window.addEventListener('pageshow',event=>{if(event.persisted&&state.panel&&!state.panel.hidden)autoConnect();});
+  window.addEventListener('pageshow',event=>{if(event.persisted&&(state.takingCalls||state.panel&&!state.panel.hidden))autoConnect();});
   window.addEventListener('beforeunload',event=>{if((state.call?.mode==='browser'&&!terminal.has(state.call.state))||state.dirty){event.preventDefault();event.returnValue='';}});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&state.panel&&!state.panel.hidden&&!document.querySelector('dialog[open]')){state.minimized=true;render();}});
   window.addEventListener('fm:platform-session:updated',()=>{
     if(!ui.org()||(state.boundScope&&state.boundScope!==scope())){
       pauseDialer();dialer.listId='';state.openSequence++;state.loadingCall=false;
-      if(state.dirty)persistLocal();stopConnection();state.deviceChecked=false;state.deviceCheckRequired=false;state.client=null;state.sdkCall=null;state.registered=false;state.available=false;
+      if(state.dirty)persistLocal();stopConnection();clearTimeout(state.idleTimer);state.idleTimer=0;state.takingCalls=false;state.deviceChecked=false;state.deviceCheckRequired=false;state.client=null;state.sdkCall=null;state.registered=false;state.available=false;
       clearInterval(state.heartbeat);clearTimeout(state.poll);clearTimeout(state.tokenTimer);clearTimeout(state.saveTimer);
       if(state.panel)state.panel.hidden=true;state.call=null;state.status=null;Portal.PhoneTray?.reset?.();state.dirty=false;state.notes='';state.answers={};state.boundScope='';changed();
     }
@@ -603,6 +615,6 @@
   });
   Portal.CustomerPhone={startDialer,pauseDialer,supervise,get dialer(){return dialer;},open,connect,disconnect,availability,diagnose,devices,refreshStatus,saveNotes,get state(){return state;},get deviceId(){return deviceId;},
     get diagnostic(){return state.diagnostic;},
-    get connecting(){return state.connecting;},get status(){return state.status;},get connected(){return state.registered;},get available(){return state.available;},get currentCall(){return state.call;},get currentEntry(){return state.panel&&!state.panel.hidden?state.entry?.id:null;}};
+    get connecting(){return state.connecting;},get status(){return state.status;},get connected(){return state.registered;},get available(){return state.available;},get takingCalls(){return state.takingCalls;},get currentCall(){return state.call;},get currentEntry(){return state.panel&&!state.panel.hidden?state.entry?.id:null;}};
   Portal.Communications=Portal.Communications||{};Portal.Communications.open=open;
 })();
