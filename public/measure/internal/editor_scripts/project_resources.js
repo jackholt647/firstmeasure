@@ -34,7 +34,8 @@
   add('tech','submission',sources.notes,sources.images);
   for(const scope of ['qa','manager']){
    const threads=new Map();for(const t of [...(manifest[scope+'_threads']||[]),...(meta.qa_thread_drafts?.[scope]?.threads||[])])threads.set(t.id,t);
-   for(const [id,t]of threads)for(const [i,m]of (t.history||[]).entries())add(m.role==='drafter'||m.role==='tech'?'tech':'qa',scope+'-'+id+'-'+i,m.text,m.images);
+   // QA's message text stays in the QA thread; Files lists only what QA attached (FM-524).
+   for(const [id,t]of threads)for(const [i,m]of (t.history||[]).entries()){const role=m.role==='drafter'||m.role==='tech'?'tech':'qa';add(role,scope+'-'+id+'-'+i,role==='qa'?'':m.text,m.images);}
   }
   return result;
  }
