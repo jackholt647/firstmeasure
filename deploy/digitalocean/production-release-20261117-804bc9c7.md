@@ -55,8 +55,8 @@ landed first:
   (HTTP worker 3404126; its last log line was 04:53:44, before the switch command started, and compatibility's switch
   and PHP-FPM reload came at 04:54:27; unfinished requests `legacy-action`, `queue/status/compat`,
   `referrals/publicAcquisitionLookup`, the known referrals stall in Node code this release does not change, also seen
-  today at 00:51, 00:54, 01:59 and 04:17 ×2). It caused the only new 5xx: 13 `legacy-action` and 2 `/v1/internal/users`
-  500s across the web nodes, all at 04:54:11, plus two `acquisition` 500s at 04:54:05/04:54:48. From 04:55 to 05:05 the
+  today at 00:51, 00:54, 01:59 and 04:17 ×2). It caused the only new 5xx: 10 `legacy-action` and 2 `/v1/internal/users`
+  500s across the web nodes, all at 04:54:11, plus three acquisition 500s (`event`/`track`) at 04:54:05–04:54:48. From 04:55 to 05:05 the
   only 5xx on all 7 NGINX hosts is the long-standing `/measure/internal/top_view_reroll_proxy.php`. Compatibility Node
   since the switch: 0 Node 500s, 0 pool timeouts, primary MainPID 2990601 unchanged. Worker: MainPID unchanged; its
   only error lines before and after are the known Maps Static 403 (`google.png`), 6 in the 12 minutes before, 4 after.
