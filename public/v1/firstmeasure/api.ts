@@ -6753,13 +6753,18 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
       const isQaTrainee = Boolean(qaUser?.is_qa_trainee);
 
-      const requiresManagerReview = isVip || isQaTrainee;
+      // "Trainee Exteriors QA": only full exterior orders go to a manager.
+      const isExteriorsQaTrainee = !isQaTrainee && qaUser?.is_qa_trainee_exteriors === true && isCustomerFullHouse(manifest);
+
+      const requiresManagerReview = isVip || isQaTrainee || isExteriorsQaTrainee;
 
       const managerReviewReasons = [
 
         ...(isVip ? ["vip"] : []),
 
-        ...(isQaTrainee ? ["qa_trainee"] : [])
+        ...(isQaTrainee ? ["qa_trainee"] : []),
+
+        ...(isExteriorsQaTrainee ? ["qa_trainee_exteriors"] : [])
 
       ];
 
@@ -6818,7 +6823,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
         manager_review_reasons: managerReviewReasons,
 
-        qa_reviewer_was_trainee: isQaTrainee,
+        qa_reviewer_was_trainee: isQaTrainee || isExteriorsQaTrainee,
 
         qa_threads: threads,
 

@@ -166,6 +166,7 @@ export function normalizeInternalUser(input: JsonObject = {}, existing: JsonObje
     drafter_rank: String(input.drafter_rank ?? existing.drafter_rank ?? "standard"),
     training_complete: Boolean(input.training_complete ?? existing.training_complete ?? false),
     is_qa_trainee: Boolean(input.is_qa_trainee ?? existing.is_qa_trainee ?? false),
+    is_qa_trainee_exteriors: Boolean(input.is_qa_trainee_exteriors ?? existing.is_qa_trainee_exteriors ?? false),
     can_draft_full_house: (input.can_draft_full_house ?? existing.can_draft_full_house) === true,
     can_qa_full_house: (input.can_qa_full_house ?? existing.can_qa_full_house) === true,
     qa_fix_only_mode: Boolean(input.qa_fix_only_mode ?? existing.qa_fix_only_mode ?? false),
