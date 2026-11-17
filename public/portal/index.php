@@ -73,6 +73,9 @@ session_write_close();
   // before any loading chrome paints, without waiting for the native bridge.
   if (/Android.*FirstMateMobile\//i.test(navigator.userAgent)) {
     document.documentElement.style.setProperty('--fm-window-safe-top', '0px');
+    // Its WebView still reports the bars as env(safe-area-inset-*), so loading
+    // chrome in this document would pad them twice (FM-535).
+    document.documentElement.style.setProperty('--fm-window-safe-bottom', '0px');
   }
 </script>
 <script src="/libraries/apps/partners/invite-continuation.js?v=20260930-v2"></script>
