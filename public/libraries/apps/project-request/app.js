@@ -11957,9 +11957,14 @@ window.PlatformCommerce.onReady(async function(){
     overlay.querySelector('.r-preview-stage')?.toggleAttribute('inert', projectShellLoading);
   }
 
+  // A route or link may name the open project by its FirstMeasure order: My Projects without expanded access opens
+  // an order, which the window keeps as a project under an id of its own. Otherwise the route restore would reopen
+  // it by the order's id and wait for a project that is not stored under it (FM-532).
   function activeModalMatchesProject(projectId){
     const overlay = $('#rOverlay');
-    return !!(overlay?.classList.contains('active') && projectId && projectOpenId() === String(projectId || '').trim());
+    const id = String(projectId || '').trim();
+    return !!(overlay?.classList.contains('active') && id
+      && (projectOpenId() === id || (!localIsPlatformProjectId(id) && activeMeasurementProjectId() === id)));
   }
 
   function applyProjectOpenRouteOptions(options = {}){
