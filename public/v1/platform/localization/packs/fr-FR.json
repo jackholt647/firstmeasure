@@ -1838,8 +1838,8 @@
       "message": "Estimation : {v2} h",
       "format": "icu"
     },
-    "m_1d63663ae56e2a": "18 h",
-    "m_e731322b674a97": "24 h",
+    "m_70bebe3d5e1c4a": "9 h",
+    "m_a5dd2a1c20d0a5": "12 h",
     "m_e7f79de4539e22": {
       "message": "{v5} par structure + frais de livraison sélectionnés{v6}",
       "format": "icu"
@@ -2003,7 +2003,7 @@
     "angle_back_right": "Arrière droit",
     "angle_right": "Droite",
     "angle_front_right": "Avant droit",
-    "exteriors_standard_label": "Standard · 24 heures",
+    "exteriors_standard_label": "Standard · 12 heures",
     "exteriors_same_day_label": "Le jour même · moins de 6 heures",
     "exteriors_priority_label": "Prioritaire · moins de 3 heures",
     "delivery_very_busy": "Nous sommes très occupés",

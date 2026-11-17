@@ -842,7 +842,7 @@
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_831d8d28763333","Billing") ?? "Billing"),
       kind: 'modal_app',
       surfaces: ['modal', 'service'],
-      bundles: [versionedBundle('billing/app.js', '20261101-full-exterior-label')]
+      bundles: [versionedBundle('billing/app.js', '20261117-fm531-12h-standard')]
     },
     {
       id: 'help',

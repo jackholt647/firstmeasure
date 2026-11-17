@@ -12,14 +12,20 @@ export async function requireExteriorAccess(orgId:string, projectType:string) {
     throw new FirstMeasureError("exteriors_disabled",403,"Full-house reports are not enabled for this property type.");
   }
 }
+// Standard Full Exterior delivery. The order's deadline is now + this, and a finished
+// standard report is held until just before that deadline (buildReportReleaseHoldPlan).
+export const EXTERIOR_STANDARD_MINUTES = 12*60;
+// The wait estimate spans the last quarter of the standard window (9-12 h), the range
+// the order form's expedite bar draws.
+export const EXTERIOR_WAIT_RANGE_MINUTES = [EXTERIOR_STANDARD_MINUTES*3/4, EXTERIOR_STANDARD_MINUTES] as const;
 export function exteriorQuote(count=1) {
   const raw=currentExpeditePricing(), config={...raw,exteriors_base_price:reportPrice(raw.exteriors_base_price),exteriors_same_day_fee:reportPrice(raw.exteriors_same_day_fee),exteriors_priority_fee:reportPrice(raw.exteriors_priority_fee)}, now=pricingContext.getStore()?.now ?? new Date();
   const orderingClosed=false; // Reports are processed 24/7.
   const roof=buildReportExpediteOptions({now}).options[0]!;
   const ratio=Math.max(0,Math.min(1,((roof.estimated_wait_minutes ?? 240)-240)/180));
   return {ordering_closed:orderingClosed,pricing_revision:pricingContext.getStore()?.revision ?? 0,structure_count:count,base_price:config.exteriors_base_price,
-    busy_label:roof.busy_label,estimated_wait_minutes:Math.round((18+6*ratio)*60),
-    options:[{key:"exteriors_standard",label:"Standard · 24 hours",minutes:1440,fee:0},
+    busy_label:roof.busy_label,estimated_wait_minutes:Math.round(EXTERIOR_WAIT_RANGE_MINUTES[0]+(EXTERIOR_WAIT_RANGE_MINUTES[1]-EXTERIOR_WAIT_RANGE_MINUTES[0])*ratio),
+    options:[{key:"exteriors_standard",label:"Standard · 12 hours",minutes:EXTERIOR_STANDARD_MINUTES,fee:0},
       {key:"exteriors_same_day",label:"Under 6 hours",minutes:360,fee:config.exteriors_same_day_fee},
       {key:"exteriors_priority",label:"Under 3 hours",minutes:180,fee:config.exteriors_priority_fee}]
       .filter(o=>o.key==="exteriors_standard" || reportExpeditingAllowed())

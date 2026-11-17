@@ -1922,8 +1922,8 @@
       "message": "Geschatte levertijd: {v2} uur",
       "format": "icu"
     },
-    "m_1d63663ae56e2a": "18 uur",
-    "m_e731322b674a97": "24 uur",
+    "m_70bebe3d5e1c4a": "9 uur",
+    "m_a5dd2a1c20d0a5": "12 uur",
     "m_e7f79de4539e22": {
       "message": "{v5} per structuur + gekozen bezorgtarief{v6}",
       "format": "icu"
@@ -2087,7 +2087,7 @@
     "angle_back_right": "Rechtsachter",
     "angle_right": "Rechts",
     "angle_front_right": "Rechtsvoor",
-    "exteriors_standard_label": "Standaard · 24 uur",
+    "exteriors_standard_label": "Standaard · 12 uur",
     "exteriors_same_day_label": "Dezelfde dag · binnen 6 uur",
     "exteriors_priority_label": "Prioriteit · binnen 3 uur",
     "delivery_very_busy": "We hebben het erg druk",
