@@ -3,7 +3,7 @@
  */
 (function(){
   const contactsModuleUrl = new URL('../contacts/modal.js?v=20261101-prod-sync', document.currentScript.src);
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261118-fm542-spare-frame', document.currentScript.src);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261118-fm542-pin-after-load', document.currentScript.src);
   const layoutUrl = new URL('../../window-manager/project-layout.js?v=20261025-split-close-width-v1', document.currentScript.src);
   const shellUrl = new URL('../../window-manager/window-shell.js?v=20261026-phone-tab-labels', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
