@@ -14,6 +14,7 @@ import { cancelSaleInWindow, readRescission, saveRescission } from "./rescission
 import { applyCrmPreset, ensureBaseViews, INDUSTRY_PACKS, isIndustryPack, sizeTier } from "./presets.js";
 import { readRouting, saveRouting, ROUTING_PROGRAM, SCORING_PROGRAM, ROUTING_FIELDS } from "./routing.js";
 import { readContactRules, saveContactRules } from "./contact-rules.js";
+import { ensureCrmConversation } from "./assistant.js";
 
 // The CRM routes (docs/architecture/crm.md). Every collection row is filtered by the
 // caller's branch scope and department access before a view's filter runs; nothing here
@@ -70,7 +71,7 @@ export async function registerCrmAppApi(app: FastifyInstance) {
     const orgId = param(request, "orgId");
     const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, capability: "crm.views" });
     const collections = CRM_COLLECTIONS.filter(c => hasPermission(ctx, collectionPermission(c))).map(id => ({ id, ...COLLECTION_INFO[id] }));
-    return { ok: true, collections, features: await features(ctx), can_share_views: canManageSharedViews(ctx), outcomes: await resultOutcomes(orgId, ctx.branchId || "default"), user_id: ctx.userId };
+    return { ok: true, collections, features: await features(ctx), can_share_views: canManageSharedViews(ctx), assistant: await can(ctx, "apps.assistant").catch(() => false), outcomes: await resultOutcomes(orgId, ctx.branchId || "default"), user_id: ctx.userId };
   });
 
   app.get("/organizations/:orgId/views", async request => {
@@ -101,6 +102,13 @@ export async function registerCrmAppApi(app: FastifyInstance) {
     const orgId = param(request, "orgId");
     const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, capability: "crm.views" });
     return { ok: true, ...(await setViewPreference(ctx, param(request, "viewId"), request.body)) };
+  });
+
+  /** The person's private assistant conversation behind the CRM tab's magic button (crm/assistant.ts). */
+  app.post("/organizations/:orgId/assistant/conversation", async request => {
+    const orgId = param(request, "orgId");
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, capability: "crm.views" });
+    return { ok: true, thread: await ensureCrmConversation(ctx) };
   });
 
   /** Rows of a collection through a saved view, a definition sent by the browser (an unsaved change), or both. */

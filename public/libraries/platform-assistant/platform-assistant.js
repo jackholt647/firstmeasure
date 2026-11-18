@@ -2367,6 +2367,8 @@
       updateComposer();
       if (array(object(state.messages.at(-1)?.data).renders).some(render => render.type === 'appointment_booking')) openAppointmentBooking();
       if (array(object(state.messages.at(-1)?.data).renders).some(render => render.type === 'payment_setup')) openPaymentSetup();
+      // A host that acts on the reply (the CRM tab applies the view the assistant shows); nothing else passes it.
+      if (surface.onReply && clean(state.messages.at(-1)?.role) === 'assistant') { try { surface.onReply(state.messages.at(-1)); } catch (error) { console.warn('[assistant] reply hook failed', error); } }
       if (surface.workflow?.onReply && clean(state.messages.at(-1)?.role) === 'assistant') { try { surface.workflow.onReply(state.messages.at(-1)); } catch (error) { console.warn('[assistant] workflow reply hook failed', error); } }
     }
   }

@@ -36,6 +36,8 @@
   /** A panel's intro (Sources, Duplicates): an (i) at the right under the title, its tip hanging from the right (FM-493). */
   const introTip = (tip) => `<div class="crm-intro crm-tip-host">${infoTip(tip)}</div>`;
   const infoTip = (tip) => text(tip) ? `<button type="button" class="crm-hint" data-crm-tip aria-expanded="false" aria-label="${esc(tip)}"><i class="fas fa-circle-info" aria-hidden="true"></i><span class="crm-hint-tip" role="tooltip">${esc(tip)}</span></button>` : '';
+  /** The magic tag on a view the assistant made (FM-551). */
+  const aiTag = (view) => view?.definition?.origin === 'ai' ? `<i class="fas fa-wand-magic-sparkles crm-ai-tag" title="${esc(L('ai_made', 'Made by the AI'))}" aria-label="${esc(L('ai_made', 'Made by the AI'))}" role="img"></i>` : '';
   /** A time relative to now, by calendar day: "12 min ago", "Today 3:00 PM", "Tomorrow 9:30 AM", "3 days ago". */
   function when(value){
     const t = Date.parse(text(value)); if (!Number.isFinite(t)) return '';
@@ -87,7 +89,9 @@
     const state = {
       meta: null, views: [], viewId: '', saved: null, draft: null, panel: 'view',
       result: null, offset: 0, loading: false, error: '', search: '',
-      selected: new Set(), openRow: '', drawer: null, worklist: null, pop: null, sequence: 0, counts: {}, report: null, reportInput: null
+      selected: new Set(), openRow: '', drawer: null, worklist: null, pop: null, sequence: 0, counts: {}, report: null, reportInput: null,
+      // The draft on screen came from the assistant (FM-551): Save as new view keeps it marked as made by the AI.
+      aiDraft: false
     };
     const viewById = (id) => state.views.find((v) => v.id === id) || null;
     const collectionInfo = (id) => arr(state.meta?.collections).find((c) => c.id === id) || { id, label: id };
@@ -144,7 +148,7 @@
 
     function openView(id, options = {}){
       const view = viewById(id); if (!view) return;
-      fieldScope = null; state.panel = 'view'; state.saved = clone(view); state.draft = clone(view); state.offset = 0; state.selected.clear(); state.search = ''; closeDrawer(false);
+      fieldScope = null; state.panel = 'view'; state.saved = clone(view); state.draft = clone(view); state.aiDraft = false; state.offset = 0; state.selected.clear(); state.search = ''; closeDrawer(false);
       if (options.history !== false && !navigation?.applying) navigation?.push?.({ tab:'crm', crmView:id, crmPanel:null }, { source:'crm-view', ownedKeys:['crmView', 'crmPanel'] });
       renderShell(); const loaded = query();
       host.classList.remove('rail-open');
@@ -216,7 +220,7 @@
       const pinned = state.views.filter((v) => v.pinned);
       const others = state.views.filter((v) => !v.pinned && !v.hidden);
       const viewItem = (v) => `<button type="button" class="crm-rail-item" data-open-view="${esc(v.id)}" aria-current="${state.panel === 'view' && state.draft?.id === v.id}">
-          <i class="fas ${esc(v.definition?.icon || collectionInfo(v.collection).icon || 'fa-list')}" aria-hidden="true"></i><span class="crm-rail-name">${esc(v.name)}</span><span class="crm-rail-count">${state.counts[v.id] ?? ''}</span></button>`;
+          <i class="fas ${esc(v.definition?.icon || collectionInfo(v.collection).icon || 'fa-list')}" aria-hidden="true"></i><span class="crm-rail-name">${esc(v.name)}</span>${aiTag(v)}<span class="crm-rail-count">${state.counts[v.id] ?? ''}</span></button>`;
       const panelItem = (panel, icon, label, visible = true) => visible ? `<button type="button" class="crm-rail-item" data-open-panel="${panel}" aria-current="${state.panel === panel}"><i class="fas ${icon}" aria-hidden="true"></i><span class="crm-rail-name">${esc(label)}</span></button>` : '';
       rail.innerHTML = `
         <div class="crm-rail-head"><h1>${esc(term('crm.portal_tab', 'CRM'))}</h1><button type="button" class="crm-btn icon ghost crm-rail-close" data-rail-toggle aria-label="${esc(L('close', 'Close'))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>
@@ -248,7 +252,7 @@
       const total = state.result?.total;
       const worklist = term('crm.worklist', 'Work this list');
       head.innerHTML = `
-        ${titleHtml(draft.definition?.icon || info.icon || 'fa-list', draft.name, total == null ? '' : countLabel(draft.collection, total))}
+        ${titleHtml(draft.definition?.icon || info.icon || 'fa-list', draft.name, total == null ? '' : countLabel(draft.collection, total), aiTag(draft))}
         <div class="crm-head-actions">
           <div class="crm-seg" role="group" aria-label="${esc(L('layout', 'Layout'))}">${layouts.map(([id, icon, label]) => `<button type="button" data-layout="${id}" aria-pressed="${def.layout === id}" title="${esc(label)}" aria-label="${esc(label)}"><i class="fas ${icon}" aria-hidden="true"></i><span>${esc(label)}</span></button>`).join('')}</div>
           <button type="button" class="crm-btn" data-display title="${esc(L('display', 'Display'))}"><i class="fas fa-sliders" aria-hidden="true"></i><span>${esc(L('display', 'Display'))}</span></button>
@@ -257,10 +261,10 @@
         </div>`;
     }
     /** The title. On a phone it is the view picker (icon, name, count, caret) that opens the rail as a sheet. */
-    function titleHtml(icon, name, count = ''){
+    function titleHtml(icon, name, count = '', tag = ''){
       return `<div class="crm-title"><h2><button type="button" class="crm-view-pick" data-rail-toggle aria-haspopup="true" aria-expanded="${host.classList.contains('rail-open')}" title="${esc(name)}">
         <span class="crm-pick-icon" aria-hidden="true"><i class="fas ${esc(icon)}"></i></span>
-        <span class="crm-pick-text"><span class="crm-pick-name">${esc(name)}</span>${count ? `<span class="crm-count">${esc(count)}</span>` : ''}</span>
+        <span class="crm-pick-text"><span class="crm-pick-name">${esc(name)}${tag}</span>${count ? `<span class="crm-count">${esc(count)}</span>` : ''}</span>
         <i class="fas fa-chevron-down crm-pick-caret" aria-hidden="true"></i></button></h2></div>`;
     }
 
@@ -287,11 +291,13 @@
       const bar = host.querySelector('.crm-filterbar'); if (!bar) return;
       if (state.panel !== 'view' || !state.draft) { bar.innerHTML = ''; bar.hidden = true; return; }
       bar.hidden = false;
+      bar.classList.toggle('has-ai', agentAvailable());
       const filter = normalizedDefinition(state.draft.definition).filter;
       const rules = arr(filter.rules);
       bar.innerHTML = `<div class="crm-chips${rules.length ? '' : ' is-empty'}">
         ${rules.length > 1 ? `<button type="button" class="crm-match" data-filter-match title="${esc(L('match_hint', 'Whether a row must match every condition or any one'))}">${esc(filter.match === 'any' ? L('match_any', 'Any of') : L('match_all', 'All of'))} <i class="fas fa-caret-down"></i></button>` : ''}
         ${rules.map((rule, i) => `<span class="crm-chip" data-edit-filter="${i}" role="button" tabindex="0"><span class="crm-chip-text">${rule.rules || rule.conditions ? esc(L('filter_group', '{n} conditions, {match}', { n: arr(rule.rules || rule.conditions).length, match: rule.match === 'any' ? L('any', 'any') : L('all', 'all') })) : ruleSummary(rule)}</span><button type="button" class="crm-chip-x" data-remove-filter="${i}" aria-label="${esc(L('remove_filter', 'Remove filter'))}"><i class="fas fa-xmark"></i></button></span>`).join('')}</div>
+        ${agentAvailable() ? `<button type="button" class="crm-chip crm-ai" data-ai-open aria-pressed="${agentOpen()}" title="${esc(L('ai_button', 'Ask the AI to change this view'))}" aria-label="${esc(L('ai_button', 'Ask the AI to change this view'))}"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${esc(L('ai_short', 'AI'))}</span></button>` : ''}
         <button type="button" class="crm-chip add" data-add-filter title="${esc(L('add_filter', 'Add a filter'))}" aria-label="${esc(L('add_filter', 'Add a filter'))}"><i class="fas fa-plus" aria-hidden="true"></i><i class="fas fa-filter" aria-hidden="true"></i><span>${esc(L('filter', 'Filter'))}</span>${rules.length ? `<b class="crm-filter-count">${rules.length}</b>` : ''}</button>
         <label class="crm-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-search value="${esc(state.search)}" placeholder="${esc(L('search_in_view', 'Search {name}', { name: state.draft.name }))}" aria-label="${esc(L('search_view', 'Search this view'))}" enterkeyhint="search"></label>`;
     }
@@ -299,7 +305,7 @@
     function renderSavebar(){
       const bar = host.querySelector('.crm-savebar'); if (!bar) return;
       const view = state.saved;
-      const show = state.panel === 'view' && (dirty() || (!state.draft?.id && arr(normalizedDefinition(state.draft?.definition).filter.rules).length));
+      const show = state.panel === 'view' && (dirty() || (!state.draft?.id && (state.aiDraft || arr(normalizedDefinition(state.draft?.definition).filter.rules).length)));
       bar.hidden = !show; if (!show) return;
       const canSaveHere = view?.id && view.editable;
       bar.innerHTML = `<span>${esc(view?.id ? L('changed_view', 'You changed this view. The change is only yours until you save it.') : L('unsaved_view', 'This view is not saved yet.'))}</span>
@@ -521,7 +527,7 @@
     }
     function onKey(event){
       const t = event.target;
-      if (event.key === 'Escape') { if (closeTips()) return; if (state.pop) { closePop(); return; } if (host.classList.contains('rail-open')) { setRailOpen(false); return; } if (!host.querySelector('.crm-worklist').hidden) { closeWorklist(); return; } if (state.drawer) { closeDrawer(); return; } }
+      if (event.key === 'Escape') { if (closeTips()) return; if (state.pop) { closePop(); return; } if (agentOpen()) { closeAgent(); return; } if (host.classList.contains('rail-open')) { setRailOpen(false); return; } if (!host.querySelector('.crm-worklist').hidden) { closeWorklist(); return; } if (state.drawer) { closeDrawer(); return; } }
       if ((event.key === 'Enter' || event.key === ' ') && t.matches('[data-edit-filter], .crm-card, .crm-agenda-item')) { event.preventDefault(); t.click(); return; }
       if (t.matches('input, textarea, select, [contenteditable]')) return;
       if ((event.ctrlKey || event.metaKey || event.altKey) && event.key.toLowerCase() !== 'k') return;
@@ -557,6 +563,7 @@
       if (d.display !== undefined) return openDisplay(t);
       if (d.viewMenu !== undefined) return openViewMenu(t);
       if (d.worklist !== undefined) return openWorklist();
+      if (d.aiOpen !== undefined) return toggleAgent();
       if (d.addFilter !== undefined) return openFieldPicker(t);
       if (d.removeFilter !== undefined) { event.stopPropagation(); return changeDraft((def) => { def.filter = { ...def.filter, rules: arr(def.filter?.rules).filter((_, i) => i !== Number(d.removeFilter)) }; }); }
       if (d.editFilter !== undefined) return openFilterEditor(t, Number(d.editFilter));
@@ -564,7 +571,7 @@
       if (d.sortBy) return changeDraft((def) => { const cur = def.sort[0]; def.sort = [{ key: d.sortBy, dir: cur?.key === d.sortBy && cur.dir === 'asc' ? 'desc' : 'asc' }]; });
       if (d.loadMore !== undefined) { state.offset = arr(state.result?.rows).length; return query({ append:true }); }
       if (d.requery !== undefined) return query();
-      if (d.discard !== undefined) { state.draft = clone(state.saved); state.search = ''; renderShell(); return query(); }
+      if (d.discard !== undefined) { state.draft = clone(state.saved); state.aiDraft = false; state.search = ''; renderShell(); return query(); }
       if (d.saveAs !== undefined) return saveAsNew(t);
       if (d.save !== undefined) return saveView();
       if (d.bulk) return bulkAction(d.bulk, t);
@@ -742,7 +749,7 @@
     }
     async function reloadViews(){ state.views = arr((await api().views(orgId)).views); renderRail(); }
     function afterSave(view){
-      state.saved = clone(view); state.draft = clone(view);
+      state.saved = clone(view); state.draft = clone(view); state.aiDraft = false;
       reloadViews().then(() => { renderShell(); loadCounts(); });
       if (!navigation?.applying) navigation?.replace?.({ tab:'crm', crmView: view.id }, { source:'crm-view-save', ownedKeys:['crmView'] });
       toast(L('saved', 'Saved'));
@@ -754,7 +761,8 @@
     async function saveAsNew(anchor, suggested){
       const name = await promptDialog(L('name_prompt', 'Name the new view'), suggested || (state.saved?.id ? `${state.draft.name} ${L('copy', '(copy)')}` : state.draft.name), { title: L('save_as_new', 'Save as new view') });
       if (!text(name)) return;
-      try { const saved = await api().createView(orgId, { name: text(name), collection: state.draft.collection, definition: normalizedDefinition(state.draft.definition), visibility:'private' }); afterSave(saved.view); }
+      const origin = state.aiDraft || (!state.saved?.id && state.draft.definition?.origin === 'ai') ? { origin:'ai' } : {};
+      try { const saved = await api().createView(orgId, { name: text(name), collection: state.draft.collection, definition: { ...normalizedDefinition(state.draft.definition), ...origin }, visibility:'private' }); afterSave(saved.view); }
       catch (error) { toast(error?.message || L('save_failed', 'The view could not be saved.'), false); }
     }
     /**
@@ -1665,6 +1673,102 @@
       });
     }
 
+    // ---- The assistant bar (FM-551) --------------------------------------------
+    // The magic button beside Filter opens the shared assistant as a bar at the bottom of the CRM, the same bar
+    // as the project window's Agent on a phone (FirstMateAgentBar, project-trays.js), in the person's private
+    // `crm` conversation (crm/assistant.ts). What the tab shows goes with every message as UI context; a view the
+    // assistant shows arrives as a `crm_view` render and becomes an unsaved change (or opens the view it saved).
+    const agent = { host:null, element:null, panel:null, surface:null, controller:null, voice:false };
+    function agentAvailable(){
+      return state.meta?.assistant === true && typeof window.PlatformAssistant?.mountSurface === 'function' && !!window.FirstMateAgentBar?.create && !!window.FirstMateAgentBar.css && typeof api()?.assistantConversation === 'function';
+    }
+    const agentOpen = () => agent.host?.dataset.trayOpen === 'true';
+    function agentBar(){
+      if (agent.host) return agent;
+      if (!document.getElementById('crm-agent-bar-style')) {
+        const style = document.createElement('style');
+        style.id = 'crm-agent-bar-style';
+        style.textContent = window.FirstMateAgentBar.css({ host:'.crm-agent-host', bar:'.crm-agent-bar', panel:'.crm-agent-panel' });
+        document.head.append(style);
+      }
+      const main = host.querySelector('.crm-main'); if (!main) return null;
+      agent.host = document.createElement('div');
+      agent.host.className = 'crm-agent-host';
+      agent.host.dataset.agentCompact = 'true'; agent.host.dataset.trayOpen = 'false';
+      agent.element = document.createElement('aside');
+      agent.element.className = 'crm-agent-bar'; agent.element.dataset.agentCompact = 'true';
+      agent.element.setAttribute('aria-label', L('ai_bar', 'AI assistant for this view'));
+      agent.element.inert = true;
+      agent.panel = document.createElement('div'); agent.panel.className = 'crm-agent-panel';
+      agent.element.append(agent.panel); agent.host.append(agent.element); main.append(agent.host);
+      agent.sync = () => agent.controller?.update(agent.element, { open:agentOpen(), voice:agent.voice });
+      agent.controller = window.FirstMateAgentBar.create({ drawer:() => agent.panel.querySelector('.fma-drawer'), sync:agent.sync });
+      return agent;
+    }
+    function agentContext(){
+      const draft = state.draft;
+      if (state.panel !== 'view' || !draft) return { surface:'crm', tab:'crm', crm:{ panel: state.panel } };
+      const total = state.result?.total;
+      return { surface:'crm', tab:'crm', crm:{
+        panel:'view', ...(draft.id ? { view_id: draft.id } : {}), view_name: draft.name, collection: draft.collection,
+        definition: normalizedDefinition(draft.definition), ...(state.search ? { search: state.search } : {}),
+        ...(Number.isInteger(total) ? { matching: total } : {}), unsaved_changes: !!(dirty() || !draft.id),
+        editable: state.saved?.editable === true, ai_generated: draft.definition?.origin === 'ai'
+      } };
+    }
+    function openAgent(){
+      if (!agentAvailable()) return;
+      const bar = agentBar(); if (!bar) return;
+      closePop(); if (phone()) setRailOpen(false);
+      if (!bar.surface) {
+        bar.surface = window.PlatformAssistant.mountSurface(bar.panel, {
+          orgId,
+          welcome: L('ai_welcome', 'Tell me what you want to see: I can filter, sort, group and lay out this view, work out numbers from your data, and save it as a view.'),
+          suggestions: [L('ai_ask_1', 'Only leads from the last 30 days, newest first'), L('ai_ask_2', 'Which sources bring the most won value?'), L('ai_ask_3', 'Group by stage and show the value column')],
+          getContext: agentContext,
+          loadContext: async () => { const { thread } = await api().assistantConversation(orgId); return { main_thread:thread, threads:[thread], agents:[], dashboard:[] }; },
+          onClose: closeAgent,
+          onTurn: (phase) => bar.controller.turn(phase),
+          onState: (s) => { bar.voice = !!s?.voice; bar.sync(); },
+          onReply: (message) => { for (const render of arr(obj(message?.data).renders).filter((r) => obj(r).type === 'crm_view')) applyAssistantView(render); }
+        });
+        Promise.resolve(bar.surface?.ready).then(() => bar.sync()).catch(() => null);
+      } else bar.surface.refresh?.();
+      bar.element.inert = false; bar.host.dataset.trayOpen = 'true'; host.dataset.agentOpen = 'true';
+      bar.sync(); syncAgentButton();
+      setTimeout(() => { if (!phone()) bar.panel.querySelector('textarea, [data-fma=input]')?.focus({ preventScroll:true }); }, 60);
+    }
+    function closeAgent(){
+      if (!agentOpen()) return;
+      agent.surface?.endVoice?.();
+      agent.host.dataset.trayOpen = 'false'; agent.element.inert = true; host.dataset.agentOpen = 'false';
+      agent.sync(); syncAgentButton();
+    }
+    function toggleAgent(){ if (agentOpen()) closeAgent(); else openAgent(); }
+    function syncAgentButton(){ host.querySelectorAll('[data-ai-open]').forEach((b) => b.setAttribute('aria-pressed', String(agentOpen()))); }
+    /** What the assistant showed: a saved view opens; a definition becomes an unsaved change of the view on screen. */
+    async function applyAssistantView(render){
+      if (text(render.view_id)) {
+        await reloadViews().catch(() => null);
+        if (viewById(render.view_id)) { await openView(text(render.view_id)); loadCounts(); }
+        return;
+      }
+      const collection = text(render.collection), definition = normalizedDefinition(obj(render.definition));
+      if (!arr(state.meta?.collections).some((c) => c.id === collection)) return;
+      if (state.panel === 'view' && state.draft?.collection === collection) {
+        state.aiDraft = true;
+        changeDraft((def) => { Object.assign(def, definition); });
+        return;
+      }
+      // Another collection: a new view that is not saved yet.
+      fieldScope = null; closeDrawer(false); state.selected.clear(); state.search = ''; state.offset = 0;
+      state.panel = 'view'; state.saved = null; state.aiDraft = true;
+      state.draft = blankDraft(collection);
+      if (text(render.title)) state.draft.name = text(render.title);
+      Object.assign(state.draft.definition, definition);
+      renderShell(); query();
+    }
+
     boot();
     const unregisterRoute = navigation?.registerHandler?.(`crm:${context.instanceId || 'main'}`, {
       priority: 400,
@@ -1674,7 +1778,7 @@
         else if (text(route.crmView) && text(route.crmView) !== state.draft?.id) openView(text(route.crmView), { history:false });
       }
     });
-    return { destroy(){ unregisterRoute?.(); document.removeEventListener('keydown', onDocumentKey); document.removeEventListener('mousedown', onOutside, true); host.remove(); } };
+    return { destroy(){ unregisterRoute?.(); agent.surface?.destroy?.(); document.removeEventListener('keydown', onDocumentKey); document.removeEventListener('mousedown', onOutside, true); host.remove(); } };
   }
 
   function ensureStyles(){

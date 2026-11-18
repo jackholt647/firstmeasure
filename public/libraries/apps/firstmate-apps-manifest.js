@@ -38,7 +38,7 @@
     versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'),
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
-    versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent'),
+    versionedBundle('../platform-assistant/platform-assistant.js', '20261118-fm551-reply'),
     versionedBundle('photos/feed.js', '20261117-feed-bar-inset'),
     versionedBundle('../markup/firstmate-markup.js', '20261111-offline-photos'),
     versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'),
@@ -111,7 +111,7 @@
       presentation: { phoneSearch: 'icon' },
       params: { crmView: { history:'push' }, crmPanel: { values:['reports','duplicates','sources','settings'], history:'push' } },
       access: { capability: 'apps.crm' },
-      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261116-fm508-new-view')]
+      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261118-fm551-ai-views')]
     },
     {
       id: 'portal.contacts',
@@ -544,7 +544,7 @@
         versionedBundle('../window-manager/window-manager.js', '20261117-fm538-phone-sheet'),
         versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
-        ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent'),
+        ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261118-fm551-reply'),
         versionedBundle('photos/feed.js', '20261117-feed-bar-inset'),
     versionedBundle('../markup/firstmate-markup.js', '20261111-offline-photos'),
     versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'),
@@ -566,7 +566,7 @@
       order: 45,
       placement: 'more',
       fullBleed: true,
-      bundles: [...widgetBundles, bookingBundle, priorityFieldsBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'), versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent')]
+      bundles: [...widgetBundles, bookingBundle, priorityFieldsBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'), versionedBundle('../platform-assistant/platform-assistant.js', '20261118-fm551-reply')]
     },
     {
       id: 'portal.canvassing',

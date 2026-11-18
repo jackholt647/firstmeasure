@@ -70,7 +70,9 @@ export const viewDefinitionSchema = z.object({
   columns: z.array(z.string().trim().min(1).max(200)).max(40).default([]),
   search: z.string().max(200).default(""),
   description: z.string().max(1000).default(""),
-  icon: z.string().max(60).default("")
+  icon: z.string().max(60).default(""),
+  /** "ai" when the assistant made the view (FM-551). It stays with the view through later edits by hand. */
+  origin: z.enum(["", "ai"]).default("")
 }).strict();
 export type ViewDefinition = z.infer<typeof viewDefinitionSchema>;
 const viewInputSchema = z.object({
@@ -164,6 +166,8 @@ export async function saveView(ctx: PlatformAuthContext, id: string, value: unkn
       const view = viewFromRow(existing);
       if (!canEdit(ctx, view)) throw forbidden("crm_view_edit_denied", "You can save your changes as a new view.");
       if (input.expected_revision && input.expected_revision !== view.revision) throw conflict("crm_view_changed", "Someone changed this view. Reload it before saving.");
+      // A view the assistant made stays marked as one when a person edits it.
+      if (view.definition.origin) input.definition.origin = view.definition.origin;
       await db.prepare(`UPDATE crm_views SET name=?,collection=?,definition_json=?,visibility=?,role_ids_json=?,default_role_ids_json=?,position=?,revision=revision+1,updated_at=? WHERE organization_id=? AND id=?`)
         .run(input.name, input.collection, JSON.stringify(input.definition), input.visibility, JSON.stringify(input.role_ids), JSON.stringify(input.default_role_ids), input.position ?? view.position, time, ctx.orgId, id);
       return viewFromRow((await db.prepare("SELECT * FROM crm_views WHERE organization_id=? AND id=?").get(ctx.orgId, id))!);

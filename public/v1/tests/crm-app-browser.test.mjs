@@ -39,7 +39,7 @@ before(async () => {
   orgId = JSON.parse(registered.body).organization.id;
   userId = JSON.parse(registered.body).user?.id || '';
   session = { session: cookieValue(registered.headers['set-cookie'], 'fm_platform_session'), csrf: cookieValue(registered.headers['set-cookie'], 'fm_platform_session_csrf') };
-  await enableExpandedPlatformFixture(orgId);
+  await enableExpandedPlatformFixture(orgId, { 'apps.assistant': true });
   await seed();
 });
 after(async () => {
@@ -118,6 +118,11 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"><meta name="vi
 <script src="/libraries/platform-language/platform-language.js"></script>
 <script src="/libraries/platform-terminology/platform-terminology.js"></script>
 <script src="/libraries/platform-api/platform-api.js"></script>
+<script src="/libraries/project-trays/project-trays.js"></script>
+<script>
+// The shared assistant stands in for itself (FM-551): the CRM's bar mounts it with these options.
+window.PlatformAssistant={mountSurface(container,options){window.__agent=options;container.innerHTML='<div class="fma-drawer fma-embedded"><div class="fma-head"><span class="fma-head-title"></span><button type="button" data-fma="closeSurface">x</button></div><div class="fma-body"><div class="fma-stage"></div><div class="fma-composer"><textarea data-fma="input" placeholder="Ask"></textarea></div></div></div>';container.querySelector('[data-fma=closeSurface]').onclick=()=>options.onClose?.();return {ready:Promise.resolve(),refresh(){},destroy(){},endVoice(){}};}};
+</script>
 <script src="/libraries/apps/crm/app.js?v=test"></script>
 </head><body><div id="main"><div data-portal-loading>Loading CRM...</div></div><script>window.__mounted=window.__crm.mount({roots:{main:document.getElementById('main')},orgId:'__ORG__'});</script></body></html>`;
 
@@ -409,6 +414,83 @@ test('the CRM tab: views, filters, the board, the drawer, a worklist, reports, s
     assert.deepEqual(phone.errors, [], 'no page errors on a phone');
   } catch (error) {
     if (current) await shot(current, 'failure').catch(() => null);
+    throw error;
+  } finally { await browser.close(); }
+});
+
+test('the CRM tab: the magic button opens the assistant bar, which changes and saves views (FM-551)', async () => {
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+  let current = null;
+  try {
+    const phone = await openPage(browser, { width: 433, height: 870 });
+    const { page, errors } = phone;
+    current = page;
+    await page.locator('.crm-view-pick').click();
+    await page.waitForFunction(() => document.querySelector('.crm').classList.contains('rail-open'));
+    await page.locator('.crm-rail').getByText('New leads', { exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('.crm').classList.contains('rail-open'));
+    await settle(page);
+    // The magic button sits beside Filter, to its left, on the search row.
+    const box = (selector) => page.locator(selector).first().evaluate((el) => { const r = el.getBoundingClientRect(); return { top: r.top, left: r.left, right: r.right, bottom: r.bottom }; });
+    const search = await box('.crm-search'), magic = await box('[data-ai-open]'), filter = await box('[data-add-filter]');
+    assert.ok(magic.left >= search.right && magic.right <= filter.left && Math.abs(magic.top - filter.top) < 2, `search, magic, filter in one row: ${JSON.stringify({ search, magic, filter })}`);
+    assert.equal(await page.locator('.crm-agent-host').count(), 0, 'nothing is mounted until it is asked for');
+    await page.locator('[data-ai-open]').click();
+    await page.waitForFunction(() => document.querySelector('.crm-agent-host')?.dataset.trayOpen === 'true');
+    await page.waitForTimeout(500);
+    const bar = await box('.crm-agent-bar');
+    assert.ok(Math.abs(bar.bottom - 870) < 2 && bar.top > 435, `the bar sits at the bottom: ${JSON.stringify(bar)}`);
+    assert.equal(await page.locator('[data-ai-open]').getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('.crm-agent-bar .fm-project-agent-history').count(), 1, 'the project agent bar, with its Conversation control');
+    await shot(page, '15-phone-ai-bar');
+    // It runs in the person's private CRM conversation and sends what is on screen.
+    const thread = await page.evaluate(async () => (await window.__agent.loadContext()).main_thread);
+    assert.equal(thread.subject_id, 'crm');
+    const context = await page.evaluate(() => window.__agent.getContext());
+    assert.equal(context.surface, 'crm');
+    assert.equal(context.crm.collection, 'opportunities');
+    assert.equal(context.crm.view_name, 'New leads');
+    assert.equal(context.crm.unsaved_changes, false);
+    // A view the assistant shows is an unsaved change of the view on screen.
+    await page.evaluate(() => window.__agent.onReply({ role: 'assistant', data: { renders: [{ type: 'crm_view', collection: 'opportunities', definition: { filter: { match: 'all', rules: [{ field: 'source_kind', operator: 'in', value: ['web_form'] }] }, sort: [{ key: 'created_at', dir: 'desc' }], group_by: '', layout: 'list', columns: [] } }] } }));
+    await settle(page);
+    await page.waitForSelector('.crm-savebar:not([hidden])');
+    assert.match(await page.locator('.crm-chips').innerText(), /Source type/);
+    assert.equal(await page.evaluate(() => window.__agent.getContext().crm.unsaved_changes), true);
+    // Saved as a new view, it carries the magic tag in the views list and the title.
+    page.once('dialog', (dialog) => dialog.accept('Web form leads'));
+    await page.locator('[data-save-as]').click();
+    await page.waitForFunction(() => document.querySelector('.crm-pick-name')?.textContent.includes('Web form leads'));
+    const saved = (await inject('GET', `/v1/crm/organizations/${orgId}/views`)).views.find((v) => v.name === 'Web form leads');
+    assert.equal(saved?.definition.origin, 'ai', 'the view is marked as made by the AI');
+    assert.equal(await page.locator(`.crm-rail [data-open-view="${saved.id}"] .crm-ai-tag`).count(), 1, 'the magic tag in the views list');
+    assert.equal(await page.locator('.crm-pick-name .crm-ai-tag').count(), 1, 'and by the title');
+    assert.equal(await page.locator('.crm-rail [data-open-view] .crm-ai-tag').count(), 1, 'only on views the AI made');
+    // A view the assistant saved opens.
+    const pipeline = (await inject('GET', `/v1/crm/organizations/${orgId}/views`)).views.find((v) => v.name === 'Pipeline');
+    await page.evaluate((id) => window.__agent.onReply({ role: 'assistant', data: { renders: [{ type: 'crm_view', view_id: id, saved: true }] } }), pipeline.id);
+    await page.waitForFunction(() => document.querySelector('.crm-pick-name')?.textContent.includes('Pipeline'));
+    await shot(page, '16-phone-ai-applied');
+    // Escape (or the bar's own close) puts it away.
+    await page.locator('.crm-agent-bar textarea').focus();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.querySelector('.crm-agent-host').dataset.trayOpen === 'false');
+    assert.equal(await page.locator('[data-ai-open]').getAttribute('aria-pressed'), 'false');
+    // On a desktop the button is beside Filter and the bar is a bottom bar over the view.
+    const desk = await openPage(browser, { width: 1440, height: 900 });
+    current = desk.page;
+    await settle(desk.page);
+    const deskMagic = await desk.page.locator('[data-ai-open]').evaluate((el) => { const r = el.getBoundingClientRect(), f = el.nextElementSibling.getBoundingClientRect(); return { right: r.right, filterLeft: f.left, filter: el.nextElementSibling.matches('[data-add-filter]') }; });
+    assert.ok(deskMagic.filter && deskMagic.right <= deskMagic.filterLeft, 'left of Filter');
+    await desk.page.locator('[data-ai-open]').click();
+    await desk.page.waitForFunction(() => document.querySelector('.crm-agent-host')?.dataset.trayOpen === 'true');
+    await desk.page.waitForTimeout(500);
+    const deskBar = await desk.page.locator('.crm-agent-bar').evaluate((el) => { const r = el.getBoundingClientRect(); return { width: r.width, bottom: r.bottom }; });
+    assert.ok(deskBar.width <= 681 && Math.abs(deskBar.bottom - 900) < 2, `a bottom bar: ${JSON.stringify(deskBar)}`);
+    await shot(desk.page, '17-desktop-ai-bar');
+    assert.deepEqual([...errors, ...desk.errors], [], 'no page errors');
+  } catch (error) {
+    if (current) await shot(current, 'failure-ai').catch(() => null);
     throw error;
   } finally { await browser.close(); }
 });
