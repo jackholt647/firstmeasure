@@ -2259,9 +2259,16 @@
   function openPaymentSettings(){
     closeModal();
     paymentsHostWindow().Portal?.navigation?.navigate?.(
-      { tab:'company_settings', sub:'money', settingsView:'payments' },
-      { source:'project-money-payment-setup', ownedKeys:['tab', 'sub', 'settingsView'] }
+      { tab:'company_settings', sub:'money', settingsView:'payments', settingsEntity:'' },
+      { source:'project-money-payment-setup', ownedKeys:['tab', 'sub', 'settingsView', 'settingsEntity'] }
     );
+    // Settings opens in the portal behind this project window: close it, as opening a contact from it does.
+    try {
+      const name = String(rootWindow.name || '');
+      const windows = rootWindow.parent !== rootWindow ? rootWindow.parent.FirstMateProjectWindows : null;
+      const token = name.startsWith('fm-project-window:') ? name.slice(18) : '';
+      if (token && windows?.accepts?.(token, rootWindow)) windows.close(token);
+    } catch (_) { /* not in a project window */ }
   }
 
   function startPaymentSetup(){
