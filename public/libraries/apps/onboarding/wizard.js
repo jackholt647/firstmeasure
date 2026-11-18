@@ -3655,9 +3655,13 @@
       try {
         const companyName = isPlaceholderOrgName(ORG_NAME) && !isPlaceholderOrgName(profileState.companyName) ? profileState.companyName : '';
         const fullName = savedFullName() ? '' : profileState.fullName;
+        // The company website is kept (contact.website) so later setups start with it, e.g. texting registration (FM-595).
+        const typedWebsite = String(brandState.website || '').trim();
+        const website = !brandState.noWebsite && parseDomain(typedWebsite) ? (/^https?:\/\//i.test(typedWebsite) ? typedWebsite : 'https://' + typedWebsite) : '';
         const { data } = await postAction('org_update_my', {
           accent: brandState.primary,
           secondary: brandState.secondary,
+          ...(website ? { website } : {}),
           ...(companyName ? { name: companyName } : {}),
           ...(fullName ? { full_name: fullName } : {}),
         });

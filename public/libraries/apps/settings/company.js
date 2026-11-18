@@ -613,6 +613,7 @@
       logo_display: normalizeLogoDisplay(o?.branding?.logo_display),
       company_email: contact.email || '',
       company_phone: contact.phone || '',
+      company_website: contact.website || '',
       // The organization's country of record (FM-576): the company phone starts at its calling code.
       country: String(portalState?.country || o.country || '').toUpperCase(),
       company_address: formatOrganizationBusinessAddress(businessAddress) || (typeof contact.address === 'string' ? contact.address : ''),
