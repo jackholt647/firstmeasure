@@ -239,15 +239,23 @@ test('phones book in steps: type, then project or address, then time with Create
   assert.equal(await visibleStep(),'type');assert.equal(await page.locator('[data-prev]').isVisible(),false);
   assert.equal(await page.locator('.fm-ap-type-custom').getAttribute('aria-pressed'),'false');
   assert.equal(await page.evaluate(()=>window.previews.length),0,'availability waits for the time step');
-  // A type moves on by itself; the project search is already open with results.
+  // A type moves on by itself. With nothing typed the step offers New project and No project, not a recent list,
+  // and Next waits for a choice; New project stays in the footer while results show (FM-556).
   await page.locator('.fm-ap-type[data-preset-button=sales]').click();
   await page.waitForFunction(()=>document.querySelector('[data-step=project]:not([hidden])'));
-  await page.getByRole('option',{name:/Smith residence/}).waitFor();
-  assert.equal(await page.locator('.fm-project-results').isVisible(),true);
+  assert.equal(await page.locator('[data-step=project] .fm-booking-hint').count(),0);
+  assert.equal(await page.locator('.fm-project-results').isVisible(),false);assert.equal(await page.getByRole('option').count(),0);
+  assert.equal(await page.locator('.fm-booking-choices').isVisible(),true);
+  assert.equal(await page.locator('[data-next]').isDisabled(),true);
+  const search=page.getByRole('combobox',{name:'Search projects or type an address'});
+  await search.fill('maple');await page.getByRole('option',{name:/Smith residence/}).waitFor();
+  assert.equal(await page.locator('.fm-booking-choices').isVisible(),false);
+  assert.equal(await page.locator('.fm-booking-footer [data-new-project]').isVisible(),true);
+  assert.equal(await page.locator('[data-next]').isDisabled(),true);
   for(const selector of ['.fm-project-selector input','.fm-project-results [role=option]'])assert.equal(await page.locator(selector).first().evaluate(el=>getComputedStyle(el).fontFamily),'Georgia',selector);
   assert.equal(await page.getByRole('option',{name:/Smith residence/}).locator('small').innerText(),'123 Maple Street');
+  assert.ok(await page.locator('.fm-booking-footer').evaluate(el=>el.scrollWidth<=el.clientWidth),'three footer buttons fit a phone');
   // Typing an address finds the project; an unknown address can be used on its own.
-  const search=page.getByRole('combobox',{name:'Search projects or type an address'});
   await search.fill('42 Unknown Road');await page.getByRole('option',{name:/Use “42 Unknown Road”/}).click();
   assert.equal(await visibleStep(),'when');
   await page.waitForFunction(()=>window.previews.length);
@@ -282,5 +290,60 @@ test('phones book in steps: type, then project or address, then time with Create
   await page.waitForFunction(()=>document.querySelector('[data-step=when]:not([hidden])'));
   assert.equal(await page.evaluate(()=>window.saved[0].revision),4);assert.deepEqual(await page.evaluate(()=>window.saved[0].catalog.presets.map(p=>p.label)),['Sales appointment','Gutter check']);
   assert.match(await page.locator('[data-summary]').innerText(),/Gutter check/);
+ }finally{await browser.close();}
+});
+
+test('phones make a new project in its own step, every field optional, or book with No project on purpose (FM-556)',async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:360,height:740},hasTouch:true});page.setDefaultTimeout(5000);
+  await page.route('http://localhost/**',r=>r.fulfill({body:'<html><body></body></html>',contentType:'text/html'}));await page.goto('http://localhost/');await page.addStyleTag({content:styles});
+  for(const content of [picker,selector,configuration,booking])await page.addScriptTag({content});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.evaluate(()=>{
+   const base={department_ids:[],delivery:false,timing_mode:'timed',duration_days:2,location:{mode:'project',address:''},window_minutes:60,slot_minutes:30,requirements:[],recurrence:null};
+   const catalog={departments:[],groups:[],presets:[{id:'sales',label:'Sales appointment',configuration:{...base,title:'Sales appointment',duration_minutes:60}}]};
+   window.previews=[];window.saves=[];window.links=[];window.failNextSave=true;const stored={};
+   window.PlatformAPI={projects:{get:async(o,id)=>({document:{id,data:stored[id]||{}}}),save:async(o,id,data,metadata,options)=>{window.saves.push({id,data,options});if(window.failNextSave){window.failNextSave=false;throw new Error('Network down');}stored[id]=data;return {ok:true,document:{id,data}};}},
+    contacts:{setProjectContacts:async(o,id,links)=>{window.links.push({id,links});return {ok:true};}},
+    search:{projectsAndContacts:async()=>({results:[]})},
+    appointments:{catalog:async()=>({can_manage:false,revision:1,resources:[],catalog}),preview:async(o,input)=>{window.previews.push(input);return {slots:[]};},book:async()=>({ok:true})}};
+   return FirstMateBooking.open({orgId:'org'});
+  });
+  const visibleStep=()=>page.evaluate(()=>document.querySelector('[data-step]:not([hidden])').dataset.step);
+  const footerNew=page.locator('.fm-booking-footer [data-new-project]'),next=page.locator('[data-next]'),search=page.getByRole('combobox',{name:'Search projects or type an address'});
+  await page.locator('.fm-ap-type[data-preset-button=sales]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-step=project]:not([hidden])'));
+  assert.ok(await page.locator('.fm-booking-footer').evaluate(el=>el.scrollWidth<=el.clientWidth));
+  // What was typed in the search starts the new project; it is its own step under Project.
+  await search.fill('15 Elm Street');await footerNew.click();
+  assert.equal(await visibleStep(),'new');assert.equal(await page.locator('[data-progress=project]').getAttribute('data-state'),'current');
+  assert.equal(await footerNew.isVisible(),false);assert.equal(await next.isDisabled(),false);
+  assert.equal(await page.locator('[data-new-field=address]').inputValue(),'15 Elm Street');
+  await page.locator('[data-new-field=name]').fill('Jane Roe');await page.locator('[data-new-field=phone]').fill('555 0100');
+  // A failed save keeps the step and the project id, so trying again never makes two.
+  await next.click();await page.locator('[data-status]',{hasText:'Network down'}).waitFor();assert.equal(await visibleStep(),'new');
+  await next.click();await page.waitForFunction(()=>document.querySelector('[data-step=when]:not([hidden])'));
+  const saves=await page.evaluate(()=>window.saves);assert.equal(saves.length,2);assert.equal(saves[0].id,saves[1].id);
+  assert.deepEqual(saves[1].options,{createOnly:true});assert.equal(saves[1].data.address,'15 Elm Street');assert.equal(saves[1].data.title,'Jane Roe');
+  assert.deepEqual(await page.evaluate(()=>window.links),[{id:saves[1].id,links:[{name:'Jane Roe',phone:'555 0100',email:'',primary:true}]}]);
+  await page.waitForFunction(id=>window.previews.at(-1)?.project_id===id,saves[1].id);
+  assert.match(await page.locator('[data-summary]').innerText(),/Jane Roe/);
+  // Back on Project the new project is the choice, so Next can go on.
+  await page.locator('[data-prev]').click();assert.equal(await visibleStep(),'project');
+  assert.equal(await search.inputValue(),'Jane Roe');assert.equal(await next.isDisabled(),false);
+  // Skipping every field still makes a (blank) project, without a contact.
+  await footerNew.click();assert.equal(await page.locator('[data-new-field=address]').inputValue(),'');
+  await next.click();await page.waitForFunction(()=>document.querySelector('[data-step=when]:not([hidden])'));
+  const blank=await page.evaluate(()=>window.saves.at(-1));assert.notEqual(blank.id,saves[1].id);assert.equal(blank.data.title,'New Project');assert.equal(blank.data.address,'');
+  assert.equal(await page.evaluate(()=>window.links.length),1);
+  // No project is a choice of its own; typing again undoes it.
+  await page.locator('[data-prev]').click();await search.fill('');
+  assert.equal(await next.isDisabled(),true);
+  await page.locator('[data-no-project]').click();assert.equal(await visibleStep(),'when');
+  await page.waitForFunction(()=>window.previews.length&&!('project_id' in window.previews.at(-1)));
+  assert.match(await page.locator('[data-summary]').innerText(),/No project/);
+  await page.locator('[data-prev]').click();assert.equal(await page.locator('[data-no-project]').getAttribute('aria-pressed'),'true');assert.equal(await next.isDisabled(),false);
+  await search.fill('x');assert.equal(await next.isDisabled(),true);
  }finally{await browser.close();}
 });
