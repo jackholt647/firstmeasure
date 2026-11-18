@@ -3,6 +3,7 @@ import { registerChecklistsSetupPublication } from '../../workforce/checklists-s
 import { registerCommsSetupPublication } from '../../comms/setup.js';
 import { registerCompanyProfilePublication } from '../../company-profile/publication.js';
 import { registerAppointmentSetupPublication } from '../../appointments/setup.js';
+import { registerDocumentSetupPublication } from '../../documents/setup.js';
 import { registerSetupStepPublication } from '../../guided-experiences/publication.js';
 import { registerSandboxSetupActions } from '../../signup-sandbox/setup-actions.js';
 import {registerPhoneMarketingPublication} from '../../comms/phone/marketing-publication.js';
@@ -89,6 +90,7 @@ export function initializePublication() {
   registerCommsSetupPublication();
   registerCompanyProfilePublication();
   registerAppointmentSetupPublication();
+  registerDocumentSetupPublication();
   registerSetupStepPublication();
   registerSandboxSetupActions();
   initialized = true;

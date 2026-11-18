@@ -1,0 +1,288 @@
+{
+  "setup_step": [
+    {
+      "id": "company.sales_team",
+      "version": 1,
+      "scope": "organization",
+      "title": {
+        "key": "gx_step_company_sales_team_title",
+        "text": "Who does the sales in your company?"
+      },
+      "subtitle": {
+        "key": "gx_step_company_sales_team_subtitle",
+        "text": "This decides who goes to sales appointments. You can change it later."
+      },
+      "description": {
+        "key": "gx_step_company_sales_team_description",
+        "text": "Who sells for the organization: the owner, a small sales team, a sales team with managers, or no sales appointments."
+      },
+      "ui": {
+        "widget": "module",
+        "module": "/libraries/setup-steps/company-profile.js?v=20261116-fm515"
+      },
+      "options": {
+        "part": "sales_team"
+      },
+      "requires": [
+        "company.type"
+      ],
+      "eligibility": {
+        "capabilities": [],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "satisfied": {
+        "provider": "company-profile",
+        "export": "profile",
+        "path": "/answered/sales_team"
+      },
+      "writes": {
+        "action": "company-profile.save",
+        "target": "organization"
+      }
+    }
+  ],
+  "guided_experience": [
+    {
+      "id": "documents.setup",
+      "version": 1,
+      "kind": "modal",
+      "scope": "organization",
+      "salt": "documents-setup-v1",
+      "title": {
+        "key": "gx_docs_setup_title",
+        "text": "Set up your documents"
+      },
+      "description": {
+        "key": "gx_docs_setup_description",
+        "text": "Which document you make first, how you write your proposals, your prices and your style."
+      },
+      "intro": {
+        "key": "gx_docs_setup_intro",
+        "text": "You can make all sorts of documents here. Tell us which one you want to make first and we’ll set it up the way you work."
+      },
+      "skip_note": {
+        "key": "gx_docs_setup_skip_note",
+        "text": "You can still make documents from our templates and change them any time."
+      },
+      "eligibility": {
+        "capabilities": [
+          "platform.documents"
+        ],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "triggers": [
+        {
+          "kind": "before_action",
+          "action": "document.new",
+          "selector": "[data-gallery-toolbar-action=\"new_document\"], [data-fmdx-new], [data-fmdx-empty-new]",
+          "once": true
+        },
+        {
+          "kind": "manual"
+        }
+      ],
+      "variants": [
+        {
+          "id": "default",
+          "weight": 1,
+          "content": {}
+        }
+      ],
+      "requires": [],
+      "steps": [
+        {
+          "id": "kind",
+          "widget": "module",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582",
+          "requires": [],
+          "title": {
+            "key": "gx_docs_setup_kind_title",
+            "text": "What do you want to make?"
+          },
+          "subtitle": {
+            "key": "gx_docs_setup_kind_subtitle",
+            "text": "Each kind of document has its own setup. You can set up the others later."
+          },
+          "say": [],
+          "options": {
+            "part": "kind"
+          },
+          "selects": [
+            "document_kind"
+          ],
+          "required": true,
+          "next": {
+            "branches": [
+              {
+                "when": {
+                  "selections.document_kind": "proposal"
+                },
+                "to": "presentation"
+              }
+            ],
+            "otherwise": "style"
+          }
+        },
+        {
+          "id": "presentation",
+          "widget": "module",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582",
+          "requires": [
+            "company.type",
+            "company.services",
+            "company.sales_team"
+          ],
+          "title": {
+            "key": "gx_docs_setup_presentation_title",
+            "text": "How do you present a proposal?"
+          },
+          "subtitle": {
+            "key": "gx_docs_setup_presentation_subtitle",
+            "text": "This decides the layout of your proposals. You can change it later."
+          },
+          "say": [],
+          "options": {
+            "part": "presentation"
+          },
+          "selects": [
+            "presentation"
+          ],
+          "required": true
+        },
+        {
+          "id": "changes",
+          "widget": "module",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582",
+          "requires": [],
+          "title": {
+            "key": "gx_docs_setup_changes_title",
+            "text": "Can your customer change their estimate?"
+          },
+          "subtitle": {
+            "key": "gx_docs_setup_changes_subtitle",
+            "text": "Whether customers adjust the proposal themselves before they sign."
+          },
+          "say": [],
+          "options": {
+            "part": "changes"
+          },
+          "selects": [
+            "customer_changes"
+          ],
+          "required": true
+        },
+        {
+          "id": "detail",
+          "widget": "module",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582",
+          "requires": [],
+          "title": {
+            "key": "gx_docs_setup_detail_title",
+            "text": "How much detail goes in your estimates?"
+          },
+          "subtitle": {
+            "key": "gx_docs_setup_detail_subtitle",
+            "text": "Every line item, or a broad estimate from a few factors."
+          },
+          "say": [],
+          "options": {
+            "part": "detail"
+          },
+          "selects": [
+            "detail"
+          ],
+          "required": true
+        },
+        {
+          "id": "scope",
+          "widget": "module",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582",
+          "requires": [],
+          "title": {
+            "key": "gx_docs_setup_scope_title",
+            "text": "Do you write up a scope of work?"
+          },
+          "subtitle": {
+            "key": "gx_docs_setup_scope_subtitle",
+            "text": "Photos and descriptions from the estimating appointment, shown before the pricing."
+          },
+          "say": [],
+          "options": {
+            "part": "scope"
+          },
+          "selects": [
+            "scope_write_up"
+          ],
+          "required": true
+        },
+        {
+          "id": "prices",
+          "widget": "module",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582",
+          "requires": [],
+          "title": {
+            "key": "gx_docs_setup_prices_title",
+            "text": "Set up your prices"
+          },
+          "subtitle": {
+            "key": "gx_docs_setup_prices_subtitle",
+            "text": "What you charge for the main parts of a roof. Skip this to use the prices in your price book."
+          },
+          "say": [],
+          "options": {
+            "part": "prices",
+            "skip_sets": {
+              "prices": []
+            }
+          },
+          "selects": [
+            "prices"
+          ],
+          "required": false
+        },
+        {
+          "id": "style",
+          "widget": "module",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582",
+          "requires": [],
+          "title": {
+            "key": "gx_docs_setup_style_title",
+            "text": "Choose your style"
+          },
+          "subtitle": {
+            "key": "gx_docs_setup_style_subtitle",
+            "text": "The one you pick becomes your template. You can change it later in Documents."
+          },
+          "say": [],
+          "options": {
+            "part": "style"
+          },
+          "selects": [
+            "theme_id"
+          ],
+          "required": true
+        }
+      ],
+      "completion": {
+        "action": {
+          "id": "documents.setup.apply",
+          "target": "organization",
+          "input": {}
+        },
+        "screen": "none",
+        "say": [],
+        "then": [
+          {
+            "resume": true
+          }
+        ]
+      },
+      "replayable": true,
+      "reveal": []
+    }
+  ]
+}
