@@ -4428,11 +4428,16 @@
       let handle = null;
       let lastScale = 0;
       const scaleFor = (mode) => {
-        const byWidth = Math.min(1.6, Math.max(0.2, (scroll.clientWidth - 48) / pageWidth));
+        // Fit inside the scroll's own padding (the phone Preview pads more).
+        const pad = getComputedStyle(scroll);
+        const padX = (parseFloat(pad.paddingLeft) || 0) + (parseFloat(pad.paddingRight) || 0) + 16;
+        const padY = (parseFloat(pad.paddingTop) || 0) + (parseFloat(pad.paddingBottom) || 0) + 8;
+        const byWidth = Math.min(1.6, Math.max(0.2, (scroll.clientWidth - padX) / pageWidth));
         if (mode === 'width') return byWidth;
-        if (mode === 'page') return Math.min(byWidth, Math.max(0.2, (scroll.clientHeight - 56) / pageHeight));
+        if (mode === 'page') return Math.min(byWidth, Math.max(0.2, (scroll.clientHeight - padY) / pageHeight));
         return mode;
       };
+      const clampZoom = (value) => Math.min(2.5, Math.max(0.25, value));
       const render = () => {
         const scale = scaleFor(zoom);
         fitButton.textContent = zoom === 'page' ? 'Fit' : `${Math.round(scale * 100)}%`;
@@ -4448,7 +4453,64 @@
           stage.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_315a295c7205d8","Render failed") ?? "Render failed")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
         }
       };
-      const step = (delta) => { zoom = Math.min(2.5, Math.max(0.25, scaleFor(zoom) + delta)); render(); };
+      const step = (delta) => { zoom = clampZoom(scaleFor(zoom) + delta); render(); };
+      // Two-finger pinch (the portal turns off page zoom, so the viewer zooms
+      // itself): the stage follows the fingers as a transform, then renders
+      // at the new scale with the point under the fingers kept in place.
+      let pinch = null;
+      const touchMid = (a, b) => ({ x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 });
+      const onTouchStart = (event) => {
+        if (event.touches.length !== 2) return;
+        const [a, b] = event.touches;
+        const mid = touchMid(a, b);
+        const rect = stage.getBoundingClientRect();
+        pinch = { d0: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, mid0: mid, mid, z0: scaleFor(zoom), s: 1, fx: rect.width ? (mid.x - rect.left) / rect.width : 0.5, fy: rect.height ? (mid.y - rect.top) / rect.height : 0.5, raf: 0 };
+        stage.style.transformOrigin = `${mid.x - rect.left}px ${mid.y - rect.top}px`;
+        host.classList.add('is-pinching');
+        if (event.cancelable) event.preventDefault();
+      };
+      const onTouchMove = (event) => {
+        const pin = pinch;
+        if (!pin || event.touches.length < 2) return;
+        if (event.cancelable) event.preventDefault();
+        const [a, b] = event.touches;
+        pin.mid = touchMid(a, b);
+        pin.s = clampZoom(pin.z0 * (Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1) / pin.d0) / pin.z0;
+        if (!pin.raf) pin.raf = requestAnimationFrame(() => {
+          pin.raf = 0;
+          if (pinch === pin) stage.style.transform = `translate(${pin.mid.x - pin.mid0.x}px,${pin.mid.y - pin.mid0.y}px) scale(${pin.s})`;
+        });
+      };
+      const onTouchEnd = (event) => {
+        const pin = pinch;
+        if (!pin || event.touches.length >= 2) return;
+        cancelAnimationFrame(pin.raf);
+        pinch = null;
+        stage.style.transform = '';
+        stage.style.transformOrigin = '';
+        host.classList.remove('is-pinching');
+        const next = clampZoom(pin.z0 * pin.s);
+        if (Math.abs(next - pin.z0) < 0.005) return;
+        zoom = next;
+        render();
+        const rect = stage.getBoundingClientRect();
+        scroll.scrollLeft += rect.left + pin.fx * rect.width - pin.mid.x;
+        scroll.scrollTop += rect.top + pin.fy * rect.height - pin.mid.y;
+      };
+      scroll.addEventListener('touchstart', onTouchStart, { passive: false });
+      scroll.addEventListener('touchmove', onTouchMove, { passive: false });
+      scroll.addEventListener('touchend', onTouchEnd);
+      scroll.addEventListener('touchcancel', onTouchEnd);
+      // Safari's own pinch events (trackpads; iOS also sends touches).
+      let gestureZoom = 0;
+      const onGesture = (event) => {
+        event.preventDefault();
+        if (pinch) return;
+        if (event.type === 'gesturestart') gestureZoom = scaleFor(zoom);
+        else if (event.type === 'gesturechange' && gestureZoom) { zoom = clampZoom(gestureZoom * event.scale); render(); }
+        else gestureZoom = 0;
+      };
+      ['gesturestart', 'gesturechange', 'gestureend'].forEach((type) => scroll.addEventListener(type, onGesture));
       host.querySelector('[data-viewer-zoom-out]').addEventListener('click', () => step(-0.15));
       host.querySelector('[data-viewer-zoom-in]').addEventListener('click', () => step(0.15));
       fitButton.addEventListener('click', () => { zoom = 'page'; render(); });
