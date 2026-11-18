@@ -34,54 +34,28 @@
     const orgId=String(options.orgId||currentOrgId()),previousFocus=document.activeElement;
     const overlay=document.createElement('div');
     overlay.innerHTML=`<style>
-      .fmp-modal{position:fixed;inset:0;z-index:2147483100;background:rgba(11,16,24,.78);display:grid;place-items:center;box-sizing:border-box}.fmp-modal-dialog{position:relative;width:min(1720px,96vw);height:min(1180px,calc(var(--fm-visual-vh,100vh) * .92));min-width:0;min-height:0;background:white;border-radius:14px;box-shadow:0 24px 80px #0004;display:flex;flex-direction:column;overflow:hidden;font:14px/1.5 system-ui;color:#182230}.fmp-modal-header{position:absolute;inset:0 0 auto 0;z-index:3;display:flex;justify-content:space-between;align-items:flex-start;padding:12px;pointer-events:none}.fmp-modal-header>*{pointer-events:auto}.fmp-modal-title{padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.92);box-shadow:0 2px 10px #1018281f;font-weight:600;font-size:13px;color:#344054}.fmp-modal-header button{box-shadow:0 2px 10px #1018281f}.fmp-modal button{cursor:pointer;font:inherit;padding:8px 12px;border:1px solid #d0d5dd;border-radius:8px;background:white;color:#182230}.fmp-modal iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:white}.fmp-modal-status{padding:32px;white-space:pre-line;margin:auto;max-width:600px;text-align:center}.fmp-modal-status:empty{display:none}.fmp-test{position:absolute;top:56px;left:12px;z-index:2;max-width:min(440px,calc(100% - 24px));background:#fffaeb;border:1px solid #fedf89;border-radius:12px;padding:8px;box-shadow:0 4px 16px #10182820}.fmp-test[hidden]{display:none}.fmp-test summary{cursor:pointer;font-weight:600}.fmp-test p{white-space:pre-line;overflow-wrap:anywhere;margin:8px 0}.fmp-test-actions{display:flex;gap:6px;flex-wrap:wrap}.fmp-test a{color:#175cd3}.fmp-modal button:disabled{opacity:.55;cursor:default}
-    </style><section class="fmp-modal"><div class="fmp-modal-dialog" role="dialog" aria-modal="true" aria-label="Payment setup" tabindex="-1"><header class="fmp-modal-header"><span class="fmp-modal-title" aria-hidden="true">Set up payments</span><button data-close aria-label="Close payment setup">Close</button></header><details class="fmp-test" hidden open><summary>DEV · Redirect test</summary><p data-evidence></p><div class="fmp-test-actions"><button data-mode="with_redirect">With redirect</button><button data-mode="without_redirect">Without redirect</button></div><p><a href="/portal/signup-sandbox/" target="_blank" rel="noopener">Open signup sandbox</a> · Launch “Instant full org” for each case.</p></details><div class="fmp-modal-status" role="status">Checking payment setup…</div><iframe aria-label="Forward payment application" hidden></iframe></div></section>`;
+      .fmp-modal{position:fixed;inset:0;z-index:2147483100;background:rgba(11,16,24,.78);display:grid;place-items:center;box-sizing:border-box}.fmp-modal-dialog{position:relative;width:min(1720px,96vw);height:min(1180px,calc(var(--fm-visual-vh,100vh) * .92));min-width:0;min-height:0;background:white;border-radius:14px;box-shadow:0 24px 80px #0004;display:flex;flex-direction:column;overflow:hidden;font:14px/1.5 system-ui;color:#182230}.fmp-modal-header{position:absolute;inset:0 0 auto 0;z-index:3;display:flex;justify-content:space-between;align-items:flex-start;padding:12px;pointer-events:none}.fmp-modal-header>*{pointer-events:auto}.fmp-modal-title{padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.92);box-shadow:0 2px 10px #1018281f;font-weight:600;font-size:13px;color:#344054}.fmp-modal-header button{box-shadow:0 2px 10px #1018281f}.fmp-modal button{cursor:pointer;font:inherit;padding:8px 12px;border:1px solid #d0d5dd;border-radius:8px;background:white;color:#182230}.fmp-modal iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:white}.fmp-modal-status{padding:32px;white-space:pre-line;margin:auto;max-width:600px;text-align:center}.fmp-modal-status:empty{display:none}
+    </style><section class="fmp-modal"><div class="fmp-modal-dialog" role="dialog" aria-modal="true" aria-label="Payment setup" tabindex="-1"><header class="fmp-modal-header"><span class="fmp-modal-title" aria-hidden="true">Set up payments</span><button data-close aria-label="Close payment setup">Close</button></header><div class="fmp-modal-status" role="status">Opening secure application…</div><iframe aria-label="Forward payment application" hidden></iframe></div></section>`;
     document.body.appendChild(overlay);
     const background=[...document.body.children].filter(node=>node!==overlay).map(node=>[node,node.inert]);
     background.forEach(([node])=>{node.inert=true;});
     const previousOverflow=document.body.style.overflow;document.body.style.overflow='hidden';
-    const dialog=overlay.querySelector('[role=dialog]'),frame=overlay.querySelector('iframe'),status=overlay.querySelector('[role=status]'),testPanel=overlay.querySelector('details'),evidence=overlay.querySelector('[data-evidence]');
-    let closed=false,busy=false;
+    const dialog=overlay.querySelector('[role=dialog]'),frame=overlay.querySelector('iframe'),status=overlay.querySelector('[role=status]');
+    let closed=false;
     function close(){closed=true;root.removeEventListener('message',returned);document.removeEventListener('keydown',keydown);overlay.remove();background.forEach(([node,inert])=>{node.inert=inert;});document.body.style.overflow=previousOverflow;modal=null;previousFocus?.focus?.();root.PlatformBanners?.load?.(orgId);announce(orgId);}
     function returned(event){if(event.origin===root.location.origin&&event.source===frame.contentWindow&&event.data?.type==='firstmate:payments-setup-return')close();}
     function keydown(event){if(event.key==='Escape'){event.preventDefault();close();}else if(event.key==='Tab'&&event.target===dialog){event.preventDefault();overlay.querySelector('[data-close]').focus();}}
     root.addEventListener('message',returned);document.addEventListener('keydown',keydown);
     overlay.querySelector('[data-close]').onclick=close;modal={dialog,close};dialog.focus();
-    const modes=[...overlay.querySelectorAll('[data-mode]')];
-    async function start(mode){
-      if(busy||closed)return;busy=true;modes.forEach(button=>button.disabled=true);status.textContent='Opening secure application…';
-      try{
-        const result=await root.PaymentsAPI.merchantBoarding.hostedSignup(orgId,mode?{redirect_mode:mode}:{});
-        if(closed)return;
-        if(result.already_submitted){status.textContent='This application has already been submitted. Use a fresh test organization for another recording.';return;}
-        const url=new URL(result.link?.url||'');
-        if(!(url.origin===root.location.origin||(url.protocol==='https:'&&url.hostname.endsWith('.getfwd.com'))))throw new Error('The provider returned an unsupported application URL.');
-        if(mode){
-          const proof=result.redirect_test;
-          if(!proof)throw new Error('The server did not return redirect verification. Update the development backend before testing.');
-          evidence.textContent+=`\nCase: ${mode==='with_redirect'?'With redirect':'Without redirect'}\nApplication: ${proof.application_id}\nForward saved redirect: ${proof.redirect_url||'(none)'}`;
-          if((mode==='without_redirect'&&proof.redirect_url)||(mode==='with_redirect'&&!proof.redirect_url))throw new Error('Forward’s saved redirect does not match this test case. The application was not opened. Use a fresh org after investigating.');
-          testPanel.open=false;
-        }
-        status.textContent='';frame.hidden=false;frame.src=url.href;
-      }catch(error){if(!closed)status.textContent=error?.message||'Unable to open payment setup. Close and reopen to retry.';}
-      finally{busy=false;}
-    }
+    // Forward's application opens straight away; it returns to /portal/payments-setup-complete.html.
     try{
-      const result=await root.PaymentsAPI.merchantConfig.get(orgId);
+      const result=await root.PaymentsAPI.merchantBoarding.hostedSignup(orgId,{});
       if(closed)return true;
-      if(result.redirect_test?.fresh){
-        testPanel.hidden=false;
-        const context=result.redirect_test;
-        evidence.textContent=`Organization: ${context.org_name}\nOrg ID: ${context.org_id}\nFresh payment setup: ${context.fresh?'Yes — no prior business, application or account':'No — use a fresh org'}`;
-        const banks=await root.PaymentsAPI.merchantBoarding.bankAccounts(orgId);
-        if(closed)return true;
-        evidence.textContent+=`\nLinked bank accounts before test: ${banks.count}\nChecked: ${new Date().toLocaleString()}`;
-        const fresh=context.fresh&&banks.count===0&&!banks.payout_bank_account_id;
-        modes.forEach(button=>{button.disabled=!fresh;button.onclick=()=>void start(button.dataset.mode);});
-        status.textContent=fresh?'Choose With redirect or Without redirect using the DEV button at the top left.':'This organization already has payment setup history. Launch a fresh Instant full org for a clean comparison.';
-      }else{await start();}
-    }catch(error){if(!closed)status.textContent=error?.message||'Unable to verify payment setup.';modes.forEach(button=>button.disabled=true);}
+      if(result.already_submitted){status.textContent='This application has already been submitted.';return true;}
+      const url=new URL(result.link?.url||'');
+      if(!(url.origin===root.location.origin||(url.protocol==='https:'&&url.hostname.endsWith('.getfwd.com'))))throw new Error('The provider returned an unsupported application URL.');
+      status.textContent='';frame.hidden=false;frame.src=url.href;
+    }catch(error){if(!closed)status.textContent=error?.message||'Unable to open payment setup. Close and reopen to retry.';}
     return true;
   }
   function mount(container,options={}){

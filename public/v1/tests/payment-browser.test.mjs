@@ -31,6 +31,30 @@ test('Set up payments suggestion opens a persistent browser beside the global ch
   } finally {await browser.close();}
 });
 
+test('payment setup window opens Forward\'s application straight away with our redirect, even for a fresh dev test org',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:1200,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.route('https://boarding.sandbox.getfwd.com/**',route=>route.fulfill({contentType:'text/html',body:'<p>Forward application</p>'}));
+    await page.goto('about:blank');await page.setContent('<main></main>');
+    await page.evaluate(()=>{
+      window.signups=[];
+      window.PaymentsAPI={
+        merchantConfig:{get:async()=>({merchant_config:{forward:{}},redirect_test:{org_id:'org_test',org_name:'Test Co',fresh:true}})},
+        merchantBoarding:{hostedSignup:async(orgId,payload)=>{window.signups.push({orgId,payload});return {link:{url:'https://boarding.sandbox.getfwd.com/apply/abc'}};},bankAccounts:async()=>({count:0})},
+      };
+    });
+    await page.addScriptTag({content:await readFile(new URL('../../libraries/payments-setup/payments-setup.js',import.meta.url),'utf8')});
+    await page.evaluate(()=>window.FirstMatePaymentsSetup.open({orgId:'org_test'}));
+    await page.waitForFunction(()=>document.querySelector('.fmp-modal iframe')?.src==='https://boarding.sandbox.getfwd.com/apply/abc');
+    assert.equal(await page.locator('.fmp-modal iframe').isVisible(),true);
+    assert.deepEqual(await page.evaluate(()=>window.signups),[{orgId:'org_test',payload:{}}],'no redirect_mode: the server keeps our redirect');
+    assert.equal(await page.getByRole('button',{name:/redirect/i}).count(),0,'no With/Without redirect selector');
+    assert.equal(await page.locator('.fmp-modal details').count(),0);
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
 test('signup URL and egress reject production, credentials, private and metadata addresses',()=>{
   for(const url of ['http://boarding.sandbox.getfwd.com/a','https://boarding.getfwd.com/a','https://sandbox.getfwd.com.evil.test/a','https://user:pass@boarding.sandbox.getfwd.com/a','https://localhost/a']) assert.throws(()=>signupUrl(url));
   assert.equal(signupUrl('https://boarding.sandbox.getfwd.com/a'),'https://boarding.sandbox.getfwd.com/a');
