@@ -17,6 +17,12 @@
   const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const text = (...values) => String(values.find((value) => value != null && String(value).trim()) ?? '').trim();
   const controllers = new WeakMap();
+  /**
+   * An (i) holding a heading's explanation, so the screens are not paragraphs of text (FM-548). Hover shows it on a
+   * desktop; a tap opens and closes it (onTip in mount). It hangs from the left edge of its `.fb-tip-host`.
+   * `html` is already escaped (PlatformLanguage.htmlText).
+   */
+  const hint = (html) => html ? `<button type="button" class="fb-hint" data-fb-tip aria-expanded="false" aria-label="${html}"><i class="fas fa-circle-info" aria-hidden="true"></i><span class="fb-hint-tip" role="tooltip">${html}</span></button>` : '';
 
   const DESTINATION_PRESETS = [
     { id:'google', label:(globalThis.PlatformLanguage?.text("settings","m_de640c90c8d483","Google") ?? "Google"), icon:'fab fa-google', hint:'https://search.google.com/local/writereview?placeid=…' },
@@ -45,7 +51,6 @@
       .fb-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
       .fb-head-copy h3{margin:0;font-size:24px;line-height:1.15;letter-spacing:-.02em;display:flex;align-items:center;gap:11px}
       .fb-head-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:11px;background:var(--primary-readable,var(--primary,#d93025));color:#fff;font-size:16px;flex:0 0 auto}
-      .fb-head-copy p{margin:7px 0 0;color:#667085;font-size:12.5px;line-height:1.5;max-width:560px}
       .fb-subtabs{display:inline-flex;gap:2px;border:1px solid #e4e7ec;border-radius:12px;background:#f4f6f9;padding:3px;margin:16px 0}
       .fb-subtabs button{appearance:none;border:0;border-radius:9px;background:transparent;padding:9px 16px;color:#667085;font:850 12px/1 inherit;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:background .12s ease,color .12s ease}
       .fb-subtabs button.on{background:#fff;color:#101828;box-shadow:0 1px 3px rgba(16,24,40,.12)}
@@ -57,7 +62,6 @@
       .fb-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
       .fb-card-head strong{font-size:13.5px;color:#101828;display:flex;align-items:center;gap:8px}
       .fb-card-head strong i{color:var(--primary-readable,var(--primary,#d93025));font-size:12px}
-      .fb-card-head p, .fb-card > p.fb-sub{margin:5px 0 0;color:#667085;font-size:11.5px;line-height:1.5;font-weight:650}
       .fb-field{margin-top:14px;min-width:0}
       .fb-field label{display:block;font-size:10px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;color:#667085;margin-bottom:6px}
       .fb-field input[type=text], .fb-field input[type=url], .fb-field textarea{width:100%;border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:10px 12px;color:#344054;font:700 12.5px/1.5 inherit;outline:0;resize:vertical}
@@ -69,12 +73,12 @@
       .fb-pill{appearance:none;display:inline-flex;align-items:center;gap:8px;border:1.5px solid #e4e7ec;border-radius:11px;background:#fff;padding:10px 14px;color:#475467;font:850 12px/1 inherit;cursor:pointer;transition:border-color .13s ease,box-shadow .13s ease}
       .fb-pill i{font-size:12px}
       .fb-pill.on{border-color:var(--primary-readable,var(--primary,#d93025));color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.05);box-shadow:0 0 0 2px rgba(var(--primary-rgb,217,48,37),.08)}
-      .fb-page-intro{display:flex;align-items:flex-start;gap:12px;border-radius:14px;padding:16px 17px;background:linear-gradient(135deg,rgba(var(--primary-rgb,217,48,37),.08),rgba(var(--primary-rgb,217,48,37),.025));border:1px solid rgba(var(--primary-rgb,217,48,37),.16)}
-      .fb-page-intro .icon{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--primary-readable,var(--primary,#d93025));color:#fff;flex:0 0 auto}.fb-page-intro h4{margin:0;color:#101828;font-size:14px}.fb-page-intro p{margin:4px 0 0;color:#667085;font-size:11.5px;line-height:1.5;font-weight:650}
+      .fb-page-intro{display:flex;align-items:center;gap:12px;border-radius:14px;padding:16px 17px;background:linear-gradient(135deg,rgba(var(--primary-rgb,217,48,37),.08),rgba(var(--primary-rgb,217,48,37),.025));border:1px solid rgba(var(--primary-rgb,217,48,37),.16)}
+      .fb-page-intro .icon{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--primary-readable,var(--primary,#d93025));color:#fff;flex:0 0 auto}.fb-page-intro h4{margin:0;color:#101828;font-size:14px}
       .fb-choice-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:14px}.fb-choice{appearance:none;display:flex;align-items:center;gap:10px;border:1.5px solid #e4e7ec;border-radius:12px;background:#fff;padding:12px;text-align:left;color:#475467;cursor:pointer;transition:.14s ease}.fb-choice:hover{border-color:#cbd3dd;transform:translateY(-1px)}.fb-choice.on{border-color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.045);box-shadow:0 0 0 2px rgba(var(--primary-rgb,217,48,37),.07)}.fb-choice .choice-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:#f2f4f7;color:#667085;flex:0 0 auto}.fb-choice.on .choice-icon{background:var(--primary-readable,var(--primary,#d93025));color:#fff}.fb-choice b{display:block;font-size:11.5px;color:#101828}.fb-choice span:not(.choice-icon){display:block;margin-top:3px;font-size:9.5px;line-height:1.35;color:#667085;font-weight:700}.fb-choice .check{margin-left:auto;color:var(--primary-readable,var(--primary,#d93025));font-size:12px}
       .fb-trigger-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px}.fb-trigger{appearance:none;display:flex;align-items:flex-start;gap:10px;border:1px solid #e4e7ec;border-radius:11px;background:#fff;padding:12px;text-align:left;cursor:pointer;color:#475467}.fb-trigger:hover{border-color:#cbd3dd}.fb-trigger.on{border-color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.045);box-shadow:0 0 0 2px rgba(var(--primary-rgb,217,48,37),.07)}.fb-trigger i{width:20px;margin-top:1px;text-align:center;color:#98a2b3}.fb-trigger.on i{color:var(--primary-readable,var(--primary,#d93025))}.fb-trigger b{display:block;color:#101828;font-size:11px}.fb-trigger span{display:block;margin-top:3px;color:#667085;font-size:9.5px;line-height:1.4;font-weight:650}
-      .fb-scope-todo{display:flex;align-items:flex-start;gap:9px;margin-top:12px;border:1px dashed #b2ccff;border-radius:10px;background:#f5f8ff;padding:10px 11px;color:#344054;font-size:10px;font-weight:750;line-height:1.5}.fb-scope-todo i{margin-top:2px;color:#4e5ba6}.fb-scope-todo strong{color:#3538cd}
-      .fb-message-list{display:grid;gap:12px}.fb-message-card{border:1px solid #e4e7ec;border-radius:14px;background:#fff;box-shadow:0 1px 3px rgba(16,24,40,.04);padding:17px;transition:opacity .16s ease,background .16s ease}.fb-message-card.off{background:#f5f6f8;border-color:#e7eaee;box-shadow:none;opacity:.62}.fb-message-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.fb-message-title{display:flex;align-items:center;gap:9px}.fb-message-title .icon{display:grid;place-items:center;width:31px;height:31px;border-radius:9px;background:#f2f4f7;color:#475467;font-size:11px}.fb-message-title b{font-size:12.5px;color:#101828}.fb-channel-state{display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:#ecfdf3;color:#067647;padding:4px 8px;font-size:8.5px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.fb-channel-state.off{background:#e9edf2;color:#667085}.fb-message-card.off input,.fb-message-card.off textarea,.fb-message-card.off button{cursor:not-allowed}.fb-message-note{margin:7px 0 0 40px;color:#667085;font-size:10px;line-height:1.45;font-weight:650}
+      .fb-scope-todo{display:flex;align-items:center;gap:9px;margin-top:12px;border:1px dashed #b2ccff;border-radius:10px;background:#f5f8ff;padding:10px 11px;color:#344054;font-size:10px;font-weight:750;line-height:1.5}.fb-scope-todo i{margin-top:2px;color:#4e5ba6}.fb-scope-todo strong{color:#3538cd}
+      .fb-message-list{display:grid;gap:12px}.fb-message-card{border:1px solid #e4e7ec;border-radius:14px;background:#fff;box-shadow:0 1px 3px rgba(16,24,40,.04);padding:17px;transition:opacity .16s ease,background .16s ease}.fb-message-card.off{background:#f5f6f8;border-color:#e7eaee;box-shadow:none;opacity:.62}.fb-message-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.fb-message-title{display:flex;align-items:center;gap:9px}.fb-message-title .icon{display:grid;place-items:center;width:31px;height:31px;border-radius:9px;background:#f2f4f7;color:#475467;font-size:11px}.fb-message-title b{font-size:12.5px;color:#101828}.fb-channel-state{display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:#ecfdf3;color:#067647;padding:4px 8px;font-size:8.5px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.fb-channel-state.off{background:#e9edf2;color:#667085}.fb-message-card.off input,.fb-message-card.off textarea,.fb-message-card.off button{cursor:not-allowed}
       .fb-message-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;border-radius:10px;background:#f2f4f7;padding:3px;margin:-5px -5px 16px}.fb-message-tabs button{appearance:none;border:0;border-radius:8px;background:transparent;padding:9px;color:#667085;font:850 11px/1 inherit;cursor:pointer}.fb-message-tabs button.on{background:#fff;color:#101828;box-shadow:0 1px 3px rgba(16,24,40,.12)}.fb-message-card.off .fb-message-tabs button{cursor:pointer}
       .fb-seg{display:inline-flex;border:1px solid #e4e7ec;border-radius:11px;background:#f4f6f9;padding:3px;gap:2px;margin-top:12px}
       .fb-seg button{appearance:none;border:0;border-radius:8px;background:transparent;padding:8px 13px;color:#667085;font:850 11.5px/1 inherit;cursor:pointer;transition:background .12s ease,color .12s ease}
@@ -194,6 +198,57 @@
       .fb-btn.ghost:hover{color:#17212b}
       @media(max-width:760px){.fb-choice-grid{grid-template-columns:1fr}.fb-trigger-grid{grid-template-columns:1fr}}
       @media(max-width:1080px){.fb-layout{grid-template-columns:1fr}.fb-preview{position:static;max-width:370px;margin:0 auto;width:100%}}
+      /* (i) tips (hint): explanations live here, not in paragraphs (FM-548) */
+      .fb-tip-host{position:relative}
+      .fb-root .fb-hint{appearance:none;display:inline-grid;place-items:center;flex:none;width:26px;height:26px;margin:-6px 0;padding:0;border:0;border-radius:99px;background:none;color:#98a2b3;font:inherit;font-size:13px;cursor:help;vertical-align:middle}
+      .fb-root .fb-hint i{color:inherit;font-size:inherit}
+      .fb-root .fb-hint:hover,.fb-root .fb-hint[aria-expanded="true"]{color:#475467}
+      .fb-hint:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:-2px}
+      .fb-hint-tip{display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:20;width:max-content;max-width:min(360px,100%);padding:8px 10px;border-radius:9px;background:#101828;color:#fff;font-size:12px;font-weight:600;line-height:1.45;letter-spacing:0;text-align:left;text-transform:none;white-space:normal;cursor:auto;box-shadow:0 8px 24px rgba(16,24,40,.18)}
+      .fb-hint[aria-expanded="true"] .fb-hint-tip,.fb-hint:focus-visible .fb-hint-tip{display:block}
+      @media(hover:hover){.fb-hint:hover .fb-hint-tip{display:block}}
+      .fb-head-copy h3 .fb-hint{font-size:15px}
+      /* Phone (FM-548). In the portal tab the portal's phone header already names the app, so the app's own
+         heading goes; each view's intro repeats its sub-tab; option notes give way to labels. */
+      @media(max-width:820px){
+        .fb-in-tab .fb-head{display:none}
+        .fb-root .fb-hint{width:34px;height:34px;margin:-10px -4px;font-size:15px}
+      }
+      @media(max-width:640px){
+        .fb-root{min-height:0}
+        .fb-head-copy h3{font-size:19px;gap:9px}.fb-head-icon{width:32px;height:32px;border-radius:9px;font-size:13px}
+        .fb-subtabs{display:flex;width:100%;margin:12px 0}
+        .fb-in-tab .fb-subtabs{margin-top:0}
+        .fb-subtabs button{flex:1 1 0;justify-content:center;padding:10px 6px;min-width:0}
+        .fb-page-intro{display:none}
+        .fb-layout,.fb-col,.fb-resp-wrap{gap:12px}
+        .fb-resp-wrap{grid-template-columns:minmax(0,1fr)}
+        .fb-card,.fb-message-card{padding:14px;border-radius:12px}
+        .fb-trigger-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px}
+        .fb-trigger{padding:11px 10px;align-items:center}
+        .fb-trigger > span > span{display:none}
+        .fb-choice-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+        .fb-choice{position:relative;flex-direction:column;justify-content:center;gap:7px;padding:12px 6px;text-align:center}
+        .fb-choice > span:not(.choice-icon) > span{display:none}
+        .fb-choice .check{position:absolute;top:6px;right:6px;margin:0}
+        .fb-scope-todo{padding:6px 6px 6px 11px}
+        .fb-message-tabs{margin:-4px -4px 14px}
+        .fb-dest-fields{grid-template-columns:1fr}
+        .fb-seg{display:flex}.fb-seg button{flex:1 1 0}
+        .fb-preview{max-width:330px}
+        .fb-phone{border-width:6px;border-radius:28px;min-height:380px}
+        .fb-preview.workflow-preview .fb-phone{min-height:440px}
+        .fb-savebar{padding:9px 10px}.fb-savebar:not(.show){display:none}
+        .fb-savebar span{font-size:11px}
+        .fb-btn{padding:10px 12px}
+        .fb-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+        .fb-stat{padding:10px 11px;border-radius:11px}.fb-stat b{font-size:18px}.fb-stat span{font-size:8.5px}
+        .fb-search{flex-basis:100%;min-width:0}
+        .fb-filters{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;max-width:100%}.fb-filters::-webkit-scrollbar{display:none}
+        .fb-chip{flex:none;white-space:nowrap}
+        .fb-row{gap:10px;padding:12px}
+        .fb-row-stars{min-width:0}
+      }
     `;
     document.head.appendChild(style);
   }
@@ -227,6 +282,7 @@
     controllers.set(host, {
       destroy(){
         destroyed = true;
+        document.removeEventListener('click', onTip, true);
         deliveryTimingInsight?.destroy?.();
         controllers.delete(host);
         delete host.dataset.feedbackMounted;
@@ -274,8 +330,15 @@
       return `${(value >> 16) & 255},${(value >> 8) & 255},${value & 255}`;
     }
 
-    host.innerHTML = `<div class="fb-root"><div class="fb-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2799365eb998f2"," Loading your feedback system…") ?? " Loading your feedback system…")}</span></div></div>`;
+    host.innerHTML = `<div class="fb-root ${options.surface === 'settings' ? 'fb-in-settings' : 'fb-in-tab'}"><div class="fb-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2799365eb998f2"," Loading your feedback system…") ?? " Loading your feedback system…")}</span></div></div>`;
     const rootEl = host.querySelector('.fb-root');
+    // A tap on an (i) opens or closes it; a tap anywhere else closes any open one.
+    function onTip(event){
+      const tip = event.target.closest?.('[data-fb-tip]');
+      rootEl.querySelectorAll('[data-fb-tip][aria-expanded="true"]').forEach((open) => { if (open !== tip) open.setAttribute('aria-expanded', 'false'); });
+      if (tip && rootEl.contains(tip)) tip.setAttribute('aria-expanded', String(tip.getAttribute('aria-expanded') !== 'true'));
+    }
+    document.addEventListener('click', onTip, true);
     render();
 
     async function load(){
@@ -388,9 +451,8 @@
       const respondedCount = state.requests.filter((request) => Number(request.rating) > 0).length;
       return `
         <div class="fb-head">
-          <div class="fb-head-copy">
-            <h3><span class="fb-head-icon"><i class="fas fa-star"></i></span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5ed41495facc6a"," Feedback System") ?? " Feedback System")}</h3>
-            <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_27c91807f153a9","Ask every customer how the job went, capture the rating on the project, and invite your happiest customers to share it where it counts.") ?? "Ask every customer how the job went, capture the rating on the project, and invite your happiest customers to share it where it counts.")}</p>
+          <div class="fb-head-copy fb-tip-host">
+            <h3><span class="fb-head-icon"><i class="fas fa-star"></i></span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5ed41495facc6a"," Feedback System") ?? " Feedback System")}${hint((globalThis.PlatformLanguage?.htmlText("settings","m_27c91807f153a9","Ask every customer how the job went, capture the rating on the project, and invite your happiest customers to share it where it counts.") ?? "Ask every customer how the job went, capture the rating on the project, and invite your happiest customers to share it where it counts."))}</h3>
           </div>
         </div>
         <div class="fb-subtabs">
@@ -403,7 +465,7 @@
     // ---------------- setup cards ----------------
     function deliveryView(){
       return `
-        <div class="fb-page-intro"><span class="icon"><i class="fas fa-paper-plane"></i></span><div><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_44d90cd58e1f59","Choose when and where the request is delivered") ?? "Choose when and where the request is delivered")}</h4><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_40a101d3dc3cec","Set the moment that starts the request, then tailor the message for every channel your customer can receive it through.") ?? "Set the moment that starts the request, then tailor the message for every channel your customer can receive it through.")}</p></div></div>
+        <div class="fb-page-intro fb-tip-host"><span class="icon"><i class="fas fa-paper-plane"></i></span><div><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_44d90cd58e1f59","Choose when and where the request is delivered") ?? "Choose when and where the request is delivered")}${hint((globalThis.PlatformLanguage?.htmlText("settings","m_40a101d3dc3cec","Set the moment that starts the request, then tailor the message for every channel your customer can receive it through.") ?? "Set the moment that starts the request, then tailor the message for every channel your customer can receive it through."))}</h4></div></div>
         ${String(deliveryTimingCard())}
         ${String(channelChooserCard())}
         ${String(channelMessagesCard())}
@@ -412,7 +474,7 @@
 
     function workflowView(scale){
       return `
-        <div class="fb-page-intro"><span class="icon"><i class="fas fa-route"></i></span><div><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_37583c5f088fe4","Design the customer feedback journey") ?? "Design the customer feedback journey")}</h4><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_1b03ec923f1e15","Control the first question, the follow-up prompt, and what happens after each possible rating.") ?? "Control the first question, the follow-up prompt, and what happens after each possible rating.")}</p></div></div>
+        <div class="fb-page-intro fb-tip-host"><span class="icon"><i class="fas fa-route"></i></span><div><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_37583c5f088fe4","Design the customer feedback journey") ?? "Design the customer feedback journey")}${hint((globalThis.PlatformLanguage?.htmlText("settings","m_1b03ec923f1e15","Control the first question, the follow-up prompt, and what happens after each possible rating.") ?? "Control the first question, the follow-up prompt, and what happens after each possible rating."))}</h4></div></div>
         ${String(surveyCard())}
         ${String(reviewCard(scale))}
       `;
@@ -429,10 +491,9 @@
         { key:'manual', icon:'fas fa-hand-pointer', label:(globalThis.PlatformLanguage?.text("settings","m_5832abd7cf0637","Manually only") ?? "Manually only"), note:'Only send when a team member explicitly requests it.' }
       ];
       return `<div class="fb-card wide">
-        <div class="fb-card-head"><strong><i class="fas fa-clock"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4dcdaed478d0bf"," When should this be sent?") ?? " When should this be sent?")}</strong><span data-feedback-timing-insight></span></div>
-        <p class="fb-sub">${(globalThis.PlatformLanguage?.htmlText("settings","m_456f88328e8a58","Choose the event that makes the feedback request available. Each project receives one request, so repeat events will not send duplicates.") ?? "Choose the event that makes the feedback request available. Each project receives one request, so repeat events will not send duplicates.")}</p>
+        <div class="fb-card-head fb-tip-host"><strong><i class="fas fa-clock"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4dcdaed478d0bf"," When should this be sent?") ?? " When should this be sent?")}${hint((globalThis.PlatformLanguage?.htmlText("settings","m_456f88328e8a58","Choose the event that makes the feedback request available. Each project receives one request, so repeat events will not send duplicates.") ?? "Choose the event that makes the feedback request available. Each project receives one request, so repeat events will not send duplicates."))}</strong><span data-feedback-timing-insight></span></div>
         <div class="fb-trigger-grid">${String(options.map((option) => `<button type="button" class="fb-trigger ${selected === option.key ? 'on' : ''}" data-fb-trigger="${option.key}"><i class="${option.icon}"></i><span><b>${option.label}</b><span>${option.note}</span></span></button>`).join(''))}</div>
-        <div class="fb-scope-todo"><i class="fas fa-diagram-project"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_479768d58a038e","Scope-aware timing is still being connected.") ?? "Scope-aware timing is still being connected.")}</strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_75c3ffbc0df087"," Workflows and scope sets can already request feedback with the feedback automation action; their triggers are configured in the workflow, not with a button here. This list will later reflect the triggers available to this branch.") ?? " Workflows and scope sets can already request feedback with the feedback automation action; their triggers are configured in the workflow, not with a button here. This list will later reflect the triggers available to this branch.")}</span></div>
+        <div class="fb-scope-todo fb-tip-host"><i class="fas fa-diagram-project"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_479768d58a038e","Scope-aware timing is still being connected.") ?? "Scope-aware timing is still being connected.")}</strong></span>${hint((globalThis.PlatformLanguage?.htmlText("settings","m_75c3ffbc0df087"," Workflows and scope sets can already request feedback with the feedback automation action; their triggers are configured in the workflow, not with a button here. This list will later reflect the triggers available to this branch.") ?? " Workflows and scope sets can already request feedback with the feedback automation action; their triggers are configured in the workflow, not with a button here. This list will later reflect the triggers available to this branch."))}</div>
       </div>`;
     }
 
@@ -443,8 +504,7 @@
         return `<button class="fb-choice ${on ? 'on' : ''}" type="button" data-fb-channel="${key}" aria-pressed="${on}"><span class="choice-icon"><i class="${icon}"></i></span><span><b>${label}</b><span>${note}</span></span>${on ? '<i class="fas fa-circle-check check"></i>' : ''}</button>`;
       };
       return `<div class="fb-card wide">
-        <div class="fb-card-head"><strong><i class="fas fa-share-nodes"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9a5412305bd598"," How do you want to send the message?") ?? " How do you want to send the message?")}</strong></div>
-        <p class="fb-sub">${(globalThis.PlatformLanguage?.htmlText("settings","m_0f43e2feaab957","Use any combination. A channel is only used when the customer has the required contact information or portal access.") ?? "Use any combination. A channel is only used when the customer has the required contact information or portal access.")}</p>
+        <div class="fb-card-head fb-tip-host"><strong><i class="fas fa-share-nodes"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9a5412305bd598"," How do you want to send the message?") ?? " How do you want to send the message?")}${hint((globalThis.PlatformLanguage?.htmlText("settings","m_0f43e2feaab957","Use any combination. A channel is only used when the customer has the required contact information or portal access.") ?? "Use any combination. A channel is only used when the customer has the required contact information or portal access."))}</strong></div>
         <div class="fb-choice-grid">
           ${String(choice('sms', 'fas fa-message', 'Text message', 'Send a short link to their mobile phone.'))}
           ${String(choice('email', 'fas fa-envelope', 'Email', 'Send a branded request to their inbox.'))}
@@ -468,18 +528,15 @@
       </div>`;
       let editor = '';
       if (active === 'email') {
-        editor = `<div class="fb-message-head"><div class="fb-message-title"><span class="icon"><i class="fas fa-envelope"></i></span><b>${(globalThis.PlatformLanguage?.htmlText("settings","m_dd8addd86a5eb5","Email message") ?? "Email message")}</b></div>${String(status('email'))}</div>
-          <p class="fb-message-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_1c1074d948b624","The subject and full message customers receive in their inbox.") ?? "The subject and full message customers receive in their inbox.")}</p>
+        editor = `<div class="fb-message-head fb-tip-host"><div class="fb-message-title"><span class="icon"><i class="fas fa-envelope"></i></span><b>${(globalThis.PlatformLanguage?.htmlText("settings","m_dd8addd86a5eb5","Email message") ?? "Email message")}</b>${hint((globalThis.PlatformLanguage?.htmlText("settings","m_1c1074d948b624","The subject and full message customers receive in their inbox.") ?? "The subject and full message customers receive in their inbox."))}</div>${String(status('email'))}</div>
           <div class="fb-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_bfb9f300f17496","Subject") ?? "Subject")}</label><input type="text" data-fb-set="messages.email_subject" data-fb-input="email_subject" value="${String(esc(messageState.email_subject))}" ${String(off ? 'disabled' : '')}></div>
           <div class="fb-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_63ea7578d93f41","Email body") ?? "Email body")}</label><textarea rows="7" data-fb-set="messages.email_body" data-fb-input="email_body" ${String(off ? 'disabled' : '')}>${String(esc(messageState.email_body))}</textarea>${String(tags('email_body', off))}</div>`;
       } else if (active === 'portal') {
-        editor = `<div class="fb-message-head"><div class="fb-message-title"><span class="icon"><i class="fas fa-window-maximize"></i></span><b>${(globalThis.PlatformLanguage?.htmlText("settings","m_8f4e084f019658","Customer portal message") ?? "Customer portal message")}</b></div>${String(status('portal'))}</div>
-          <p class="fb-message-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_fd3cea1c6a9d1b","The feedback card displayed on the customer's project overview.") ?? "The feedback card displayed on the customer's project overview.")}</p>
+        editor = `<div class="fb-message-head fb-tip-host"><div class="fb-message-title"><span class="icon"><i class="fas fa-window-maximize"></i></span><b>${(globalThis.PlatformLanguage?.htmlText("settings","m_8f4e084f019658","Customer portal message") ?? "Customer portal message")}</b>${hint((globalThis.PlatformLanguage?.htmlText("settings","m_fd3cea1c6a9d1b","The feedback card displayed on the customer's project overview.") ?? "The feedback card displayed on the customer's project overview."))}</div>${String(status('portal'))}</div>
           <div class="fb-grid2"><div class="fb-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_f2b1764fc05842","Headline") ?? "Headline")}</label><input type="text" data-fb-set="messages.portal_title" data-fb-input="portal_title" value="${String(esc(text(messageState.portal_title, 'How did we do?')))}" ${String(off ? 'disabled' : '')}>${String(tags('portal_title', off))}</div><div class="fb-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_f709f2734ba4ad","Button label") ?? "Button label")}</label><input type="text" data-fb-set="messages.portal_cta" value="${String(esc(text(messageState.portal_cta, 'Leave feedback')))}" ${String(off ? 'disabled' : '')}></div></div>
           <div class="fb-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_dd88bd427da29a","Supporting message") ?? "Supporting message")}</label><textarea rows="3" data-fb-set="messages.portal_body" data-fb-input="portal_body" ${String(off ? 'disabled' : '')}>${String(esc(text(messageState.portal_body, 'Tell us how everything went — it only takes a few seconds.')))}</textarea>${String(tags('portal_body', off))}</div>`;
       } else {
-        editor = `<div class="fb-message-head"><div class="fb-message-title"><span class="icon"><i class="fas fa-message"></i></span><b>${(globalThis.PlatformLanguage?.htmlText("settings","m_def279b4381c15","Text message") ?? "Text message")}</b></div>${String(status('sms'))}</div>
-          <p class="fb-message-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_8dee195d1a2ca6","Keep it personal and concise. The feedback link is inserted automatically with the link tag.") ?? "Keep it personal and concise. The feedback link is inserted automatically with the link tag.")}</p>
+        editor = `<div class="fb-message-head fb-tip-host"><div class="fb-message-title"><span class="icon"><i class="fas fa-message"></i></span><b>${(globalThis.PlatformLanguage?.htmlText("settings","m_def279b4381c15","Text message") ?? "Text message")}</b>${hint((globalThis.PlatformLanguage?.htmlText("settings","m_8dee195d1a2ca6","Keep it personal and concise. The feedback link is inserted automatically with the link tag.") ?? "Keep it personal and concise. The feedback link is inserted automatically with the link tag."))}</div>${String(status('sms'))}</div>
           <div class="fb-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_a16cfd85cfd122","Message") ?? "Message")}</label><textarea rows="6" data-fb-set="messages.sms_text" data-fb-input="sms" ${String(off ? 'disabled' : '')}>${String(esc(messageState.sms_text))}</textarea>${String(tags('sms', off))}</div>`;
       }
       return `<div class="fb-message-card ${off ? 'off' : ''}">${tabs}${editor}</div>`;
@@ -488,8 +545,7 @@
     function surveyCard(){
       const surveyState = survey();
       return `<div class="fb-card">
-        <div class="fb-card-head"><strong><i class="fas fa-star-half-stroke"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_417595701f5efd"," Rating page") ?? " Rating page")}</strong></div>
-        <p class="fb-sub">${(globalThis.PlatformLanguage?.htmlText("settings","m_aded7846960631","The branded page your customer lands on — your colors and logo, automatically.") ?? "The branded page your customer lands on — your colors and logo, automatically.")}</p>
+        <div class="fb-card-head fb-tip-host"><strong><i class="fas fa-star-half-stroke"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_417595701f5efd"," Rating page") ?? " Rating page")}${hint((globalThis.PlatformLanguage?.htmlText("settings","m_aded7846960631","The branded page your customer lands on — your colors and logo, automatically.") ?? "The branded page your customer lands on — your colors and logo, automatically."))}</strong></div>
         <div class="fb-field">
           <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_bc5c2002760d4b","Question") ?? "Question")}</label>
           <input type="text" data-fb-set="survey.question" value="${String(esc(surveyState.question))}">
@@ -524,8 +580,7 @@
         </div>`;
       };
       return `<div class="fb-card wide">
-        <div class="fb-card-head"><strong><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_586f8486ebf025"," Review invitations") ?? " Review invitations")}</strong></div>
-        <p class="fb-sub">${(globalThis.PlatformLanguage?.htmlText("settings","m_876704370a30a6","After a customer rates you, invite them to post it publicly. Choose who sees the invitation and where it sends them.") ?? "After a customer rates you, invite them to post it publicly. Choose who sees the invitation and where it sends them.")}</p>
+        <div class="fb-card-head fb-tip-host"><strong><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_586f8486ebf025"," Review invitations") ?? " Review invitations")}${hint((globalThis.PlatformLanguage?.htmlText("settings","m_876704370a30a6","After a customer rates you, invite them to post it publicly. Choose who sees the invitation and where it sends them.") ?? "After a customer rates you, invite them to post it publicly. Choose who sees the invitation and where it sends them."))}</strong></div>
         <div class="fb-seg" data-fb-mode>
           <button type="button" data-fb-mode-value="threshold" class="${String(mode === 'threshold' ? 'on' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_ee49d54fa637c1","At a rating") ?? "At a rating")}</button>
           <button type="button" data-fb-mode-value="always" class="${String(mode === 'always' ? 'on' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</button>
