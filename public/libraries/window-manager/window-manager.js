@@ -17,6 +17,8 @@
 [data-fm-backdrop]{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 [data-fm-backdrop="active"],dialog[data-fm-native-backdrop="active"]::backdrop{background:rgba(11,16,24,.58)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 html[data-fm-backdrop-effect="blur"] [data-fm-backdrop="active"],html[data-fm-backdrop-effect="blur"] dialog[data-fm-native-backdrop="active"]::backdrop{background:rgba(11,16,24,.58)!important;backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important}
+[data-fm-child-backdrop]{border-color:var(--fm-child-backdrop)!important;background-color:var(--fm-child-backdrop)!important}
+[data-fm-child-backdrop]>iframe{opacity:.999}
 dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 @media(prefers-reduced-transparency:reduce){html[data-fm-backdrop-effect] [data-fm-backdrop="active"],html[data-fm-backdrop-effect] dialog[data-fm-native-backdrop="active"]::backdrop{background:rgba(11,16,24,.58)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}}
 `;
@@ -82,6 +84,35 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       dialogs.sort((a,b) => nativeOrder.get(a)-nativeOrder.get(b));
       dialogs.forEach(el => el.dataset.fmNativeBackdrop = el === dialogs.at(-1) ? 'active' : 'inactive');
       if (overlays.length || dialogs.length) document.documentElement.dataset.fmBackdropEffect = effect();
+      const host = ownerHost();
+      if (host) tellOwner(host, onWhite(edgeTint(dialogs.at(-1), foremost)));
+    }
+    // A child document's backdrop stops at its own viewport, so the owner's frame around the iframe (a project
+    // window's border and background) would stay bright around a dimmed workspace (FM-609). Tell the owner the
+    // tint on this document's edge; it paints the frame in it. Apps' own scrims (a guided setup's) count as well
+    // as managed ones. The tint goes as one opaque colour, over the frame's white, and the iframe is drawn as one
+    // surface (opacity): otherwise the rounded clip anti-aliases each of its layers and the corners keep a light seam.
+    function onWhite(tint){
+      const rgba = tint.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/);
+      if (!rgba) return '';
+      const alpha = rgba[4] === undefined ? 1 : Number(rgba[4]);
+      return `rgb(${[1,2,3].map(i => Math.round(Number(rgba[i]) * alpha + 255 * (1 - alpha))).join(',')})`;
+    }
+    function edgeTint(dialog, foremost){
+      if (dialog) return root.getComputedStyle(dialog,'::backdrop').backgroundColor;
+      for (let el = document.elementFromPoint(0, root.innerHeight / 2); el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+        const css = root.getComputedStyle(el), box = el.getBoundingClientRect();
+        if (!['fixed','absolute'].includes(css.position) || box.width < root.innerWidth * .85 || box.height < root.innerHeight * .85) continue;
+        const alpha = css.backgroundColor.match(/rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/);
+        if (alpha && Number(alpha[1]) > 0 && Number(alpha[1]) < 1) return css.backgroundColor;
+      }
+      return foremost ? root.getComputedStyle(foremost).backgroundColor : '';
+    }
+    function ownerHost(){ try { return root.frameElement?.parentElement || null; } catch (_) { return null; } }
+    function tellOwner(host, tint){
+      if (tint === (host.hasAttribute('data-fm-child-backdrop') ? host.style.getPropertyValue('--fm-child-backdrop') : '')) return;
+      if (tint) { host.setAttribute('data-fm-child-backdrop',''); host.style.setProperty('--fm-child-backdrop',tint); }
+      else { host.removeAttribute('data-fm-child-backdrop'); host.style.removeProperty('--fm-child-backdrop'); }
     }
     function schedule(){ if (!scheduled) { scheduled = true; root.requestAnimationFrame(refresh); } }
     const observer = new MutationObserver(records => {
@@ -102,6 +133,7 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
     if (document.body) start(); else document.addEventListener('DOMContentLoaded',start,{once:true});
     root.addEventListener('fm:modal-stack:changed',schedule);
     root.addEventListener('resize',schedule);
+    root.addEventListener('pagehide',() => { const host = ownerHost(); if (host) tellOwner(host, ''); });
     preference.addEventListener('change',schedule);
     root.addEventListener('storage',event => { if (event.key === 'fm-backdrop-effect') { override = event.newValue || 'auto'; schedule(); } });
     return {refresh:schedule, setEffect(value){
