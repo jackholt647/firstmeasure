@@ -251,7 +251,9 @@ function readyWidget(el,ctx){
         tour=new AbortController();await ctx.runGuide?.('equipment.tab_tutorial',{keepVisible:true,signal:tour.signal});
       }else{
         if(id==='workforce'){
-          await env.invoke('operations.workforce.setup.start',{},`operations.workforce.start:${env.orgId}`);
+          // A key of its own each time: a receipt holds the backend release and the person, so one key per organization
+          // is refused after the next release or for anyone else (FM-619). Turning the apps on again changes nothing.
+          await env.invoke('operations.workforce.setup.start',{},`operations.workforce.start:${env.orgId}:${crypto.randomUUID()}`);
           await Promise.all([window.PlatformAPI.capabilities.load(env.orgId,{refresh:true}),window.PlatformAPI.appFlags.load(env.orgId,{refresh:true})]);
           await window.Portal.auth.syncPlatformSession();await window.FirstMateGuides?.refresh?.();
         }

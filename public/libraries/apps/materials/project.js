@@ -4863,9 +4863,10 @@
     let outcome=null;
     try{
       if(typeof guides?.play!=='function')throw new Error('guides_unavailable');
-      // The workforce setup needs groups and People turned on first, as Operations' Workforce card does.
+      // The workforce setup needs groups and People turned on first, as Operations' Workforce card does (a fresh key: a
+      // receipt holds the backend release and the person, so a reused one is refused after the next release).
       if(type==='labor'){
-        await window.PlatformAPI.publication.invoke(org,'operations.workforce.setup.start',{scope:'project',organizationId:org,projectId:projectId()},{},{idempotencyKey:`operations.workforce.start:${org}`});
+        await window.PlatformAPI.publication.invoke(org,'operations.workforce.setup.start',{scope:'project',organizationId:org,projectId:projectId()},{},{idempotencyKey:`operations.workforce.start:${org}:${crypto.randomUUID()}`});
         await Promise.all([window.PlatformAPI.capabilities?.load?.(org,{refresh:true}),window.PlatformAPI.appFlags?.load?.(org,{refresh:true})]);
         await window.Portal?.auth?.syncPlatformSession?.();
       }

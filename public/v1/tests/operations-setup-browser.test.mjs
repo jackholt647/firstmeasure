@@ -279,6 +279,31 @@ test('one card on its own opens at once and Done finishes the setup',async()=>{
   }finally{await browser.close();}
 });
 
+// FM-619: a receipt holds the backend release and the person, so the Workforce card starts with a key of its own each
+// time; one key per organization was refused after the next release ("already used with different input").
+test('the Workforce card starts the workforce apps with a new idempotency key each time',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await open(browser);
+    await page.evaluate(()=>{
+      Object.assign(selections,{operations_project_id:'p1',operations_document_id:'doc1'});
+      window.startKeys=[];window.Portal.auth.syncPlatformSession=async()=>{};
+      const invoke=PlatformAPI.publication.invoke;
+      PlatformAPI.publication.invoke=async(...args)=>{if(args[1]==='operations.workforce.setup.start')startKeys.push(args[4]?.idempotencyKey);return invoke(...args);};
+      window.widget=operations.mountWidget('operations-ready',document.getElementById('host'),widgetContext);
+    });
+    for(let i=0;i<2;i++){
+      await page.waitForSelector('[data-setup=workforce]');
+      await page.locator('[data-setup=workforce]').click();
+      await page.waitForFunction(count=>startKeys.length===count&&nested.length===count,i+1);
+    }
+    const keys=await page.evaluate(()=>startKeys);
+    assert.equal(keys.length,2);
+    assert.ok(keys.every(key=>key.startsWith('operations.workforce.start:org1:')),JSON.stringify(keys));
+    assert.notEqual(keys[0],keys[1]);
+  }finally{await browser.close();}
+});
+
 // FM-606: a setup step can take back a tour it started (its page closed while the tour starts or plays): the tour
 // ends, is not recorded as seen, and a signal already aborted never shows it.
 test('a nested tour started with a signal ends when the signal aborts and stays to do',async()=>{
