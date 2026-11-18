@@ -5001,11 +5001,12 @@ window.PlatformCommerce.onReady(async function(){
   // desktop only: on a phone the tray is a sheet that is not open there anyway. Opening or closing the tray by hand on
   // Operations holds for the rest of that visit, and the tray then stays as the person left it. This is not a choice
   // (`detailsTrayUserChoice` is untouched), and nothing is kept in the browser. Its state is `detailsTrayOperations`.
-  // Set up: the organization finished Operations setup (`operations.setup`, organization-wide), or it is not offered to
-  // this person, who then has nothing to set up first. A skipped or unfinished setup is not set up.
+  // Set up: Operations is on (an app only offered shows its welcome) and the organization finished its setup
+  // (`operations.setup`, organization-wide), or the setup is not offered to this person, who then has nothing to set up
+  // first. A skipped or unfinished setup is not set up.
   async function operationsSetUp(){
     const guides=window.FirstMateGuides;
-    if(typeof guides?.preload!=='function')return false;
+    if(typeof guides?.preload!=='function' || window.PlatformAPI?.capabilities?.can?.('platform.materials')!==true)return false;
     const snapshot=await Promise.resolve(guides.preload(projectOpenId() || '')).catch(()=>null);
     if(!snapshot?.experiences?.get)return false;
     const setup=snapshot.experiences.get('operations.setup');
