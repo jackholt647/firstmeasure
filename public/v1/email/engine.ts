@@ -271,6 +271,20 @@ export async function retireOrgDomainEmailIdentity(organizationId: string, domai
   }
 }
 
+/**
+ * The address a business's public pages give for email (FM-584, the hosted SMS policy pages), without creating
+ * anything: the company's domain once it sends, else its FirstMate Mail inbox; empty when it has neither yet. Mail to
+ * either lands in the Communications inbox. Every branch counts unless `branchId` is given.
+ */
+export async function orgPublicEmailAddress(organizationId: string, branchId = "") {
+  const identities = (await listSenderIdentities(organizationId, branchId, "email")).filter((identity) => cleanText(identity.status) !== "disabled" && cleanText(identity.address));
+  const identity = identities.find((candidate) => domainIdentitySends(candidate) && candidate.is_default === true)
+    || identities.find(domainIdentitySends)
+    || identities.find((candidate) => cleanText(candidate.id) === FIRSTMATE_MAIL_IDENTITY_ID && cleanText(candidate.branch_id) === "default")
+    || identities.find((candidate) => cleanText(candidate.id) === FIRSTMATE_MAIL_IDENTITY_ID);
+  return cleanText(identity?.address);
+}
+
 /** The identity customer mail is sent from: the company's domain once it sends, else FirstMate Mail. */
 export async function resolveOrgEmailSender(organizationId: string, branchId = "default") {
   const identities = await listSenderIdentities(organizationId, branchId, "email");

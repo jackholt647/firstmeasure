@@ -31,6 +31,7 @@ import {
   simulateMessageStatus
 } from "./communications_service.js";
 import { renderCommunicationsDeveloperPage } from "./developer_page.js";
+import { orgPublicEmailAddress } from "../email/engine.js";
 import { hostedSmsPolicyProblems, isHostedSmsPolicyUrl, renderHostedSmsPolicyPage, SMS_POLICY_PAGES, usesHostedSmsPolicies, withHostedSmsPolicyLinks } from "./policy_pages.js";
 import { createSmsGroup, groupPage, readGroup, groupProjection, sendSmsGroup, sendGroupSchema, replySmsGroupPrivately, privateReplySchema } from "./group_service.js";
 import { smsGroup } from "./group_mms.js";
@@ -1769,7 +1770,8 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     if (page !== "privacy" && page !== "terms") throw missing();
     if (!/^[A-Za-z0-9_-]{1,120}$/.test(orgId) || !/^[A-Za-z0-9_-]{1,120}$/.test(profileId)) throw missing();
     const profile = (await findSmsComplianceProfiles(orgId)).find((candidate) => candidate.id === profileId);
-    const html = profile ? renderHostedSmsPolicyPage(profile, page) : null;
+    // FM-584: "contact us" is the company inbox (its domain, else FirstMate Mail), so replies reach Communications.
+    const html = profile ? renderHostedSmsPolicyPage(profile, page, { supportEmail: await orgPublicEmailAddress(orgId).catch(() => "") }) : null;
     if (!html) throw missing();
     reply.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
       .header("X-Robots-Tag", "noindex").header("Cache-Control", "no-cache");

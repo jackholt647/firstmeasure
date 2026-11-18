@@ -2855,6 +2855,15 @@ test("FirstMate hosts a registration's privacy policy and SMS terms only when it
   const termsNoPhone = await app.inject({ method: "GET", url: new URL(hosted.terms).pathname });
   assert.doesNotMatch(termsNoPhone.body, /Phone:/);
 
+  // FM-584: once the company has an inbox (FirstMate Mail here; its own domain once that sends), the pages give it as
+  // the contact address instead of the typed email, so mail reaches Communications.
+  const { ensureOrgEmailInbox } = await import("../email/engine.js");
+  const inboxAddress = String((await ensureOrgEmailInbox(orgId)).address);
+  assert.match(inboxAddress, /@/);
+  const privacyInbox = await app.inject({ method: "GET", url: new URL(hosted.privacy).pathname });
+  assert.ok(privacyInbox.body.includes(`<a href="mailto:${inboxAddress}">${inboxAddress}</a>`), "the contact email is the company inbox");
+  assert.doesNotMatch(privacyInbox.body, /help@ridgeline\.test/);
+
   for (const bad of ["notes", "../privacy"]) {
     const response = await app.inject({ method: "GET", url: `/v1/messaging/sms/policies/${orgId}/${profile.id}/${bad}` });
     assert.equal(response.statusCode, 404);
