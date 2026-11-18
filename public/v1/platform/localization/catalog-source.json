@@ -5530,7 +5530,20 @@
     "m_4420b0058ee405": "Review & apply",
     "m_54006129c09b01": "No scheduled payments.",
     "m_4ff2334846d39b": "This file matches an existing receipt. Confirm it is a separate expense before applying.",
-    "m_f1a988cdd500c6": "Apply Receipt"
+    "m_f1a988cdd500c6": "Apply Receipt",
+    "m_e28623b06e54fa": "Record a cash or check payment",
+    "m_ee79dc11b89d27": "Online payments could not be checked",
+    "m_e1a5ebb81bdc45": "Close this and try again in a moment.",
+    "m_f36100a458bee9": "Set up online payments",
+    "m_a228986f574138": "To take card and bank payments here, set up your payment account first. You only do this once.",
+    "m_ed20a1fba9e02d": "Online payments are not set up yet. Ask an administrator to set them up in Settings, Payments.",
+    "m_95c81d9a92d972": "Set up payments",
+    "m_bd23780eab3341": "Payment setup is in review",
+    "m_e688d7fb796e90": "Payments are paused",
+    "m_b752fc50bd294b": "Online payments are not available yet.",
+    "m_6a00152380cdc8": "View payment setup",
+    "m_7a8078bb2d8ed0": "Online payments are not available",
+    "m_c2c26759407079": "Online payments are not available right now."
   },
   "onboarding": {
     "m_a0d673c98d109b": "Order Reports",
