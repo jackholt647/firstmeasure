@@ -3495,11 +3495,17 @@
     const targetButton = (id, label) => `<button type="button" class="r-schedule-view-btn ${scheduleSchedulingTarget === id ? 'active' : ''}" data-schedule-target="${id}">${label}</button>`;
     const button = ([id, label]) => `<button type="button" class="r-schedule-view-btn ${scheduleViewMode === id || (id === 'scheduling-week' && scheduleViewMode === 'scheduling') ? 'active' : ''}" data-schedule-view="${id}"${shortModes[id] ? ` title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"` : ''}>${escapeHtml(shortModes[id] || label)}</button>`;
     const modes = isScheduling ? schedulingModes : calendarModes;
+    // Routing and Timeline are organization features (scheduling.routing, scheduling.gantt); with neither on there is nothing to switch to, so no switcher (FM-618).
+    const surfaces = [
+      ['calendar', terminology('scheduling.calendar_view', 'Calendar')],
+      ...(projectRoutingViewEnabled() || surfaceActive('scheduling') ? [['scheduling', routingLabel]] : []),
+      ...(projectGanttViewEnabled() || surfaceActive('gantt') ? [['gantt', ganttLabel]] : [])
+    ];
     return `<div class="r-schedule-view-switch">
       ${canEditSchedule() && !scheduleIsWidget() ? '<button type="button" class="r-schedule-new-appointment" data-project-new-appointment data-new-appointment><i class="fas fa-plus" aria-hidden="true"></i> Appointment</button>' : ''}
       ${String(isScheduling && !isGantt ? `<span class="r-schedule-view-group target"><span class="r-schedule-view-label">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</span>${targetButton('production', escapeHtml(terminology('scheduling.production_view', 'Production')))}${targetButton('sales', escapeHtml(terminology('scheduling.sales_view', 'Sales')))}</span>` : '')}
       ${String(isGantt ? (!canEditSchedule() ? '' : `<span class="r-schedule-view-group"><button type="button" class="r-schedule-view-btn" data-gantt-add-group><i class="fas fa-layer-group"></i> Add section</button></span>`) : `<span class="r-schedule-view-group ${isScheduling ? 'scheduling' : ''}"><span class="r-schedule-view-label">${isScheduling ? escapeHtml(routingLabel) : 'Calendar'}</span>${modes.map(button).join('')}</span>`)}
-      <span class="r-schedule-view-group surface">${String(surfaceButton('calendar', escapeHtml(terminology('scheduling.calendar_view', 'Calendar'))))}${String(projectRoutingViewEnabled() ? surfaceButton('scheduling', escapeHtml(routingLabel)) : '')}${String(projectGanttViewEnabled() ? surfaceButton('gantt', escapeHtml(ganttLabel)) : '')}</span>
+      ${String(surfaces.length > 1 ? `<span class="r-schedule-view-group surface">${surfaces.map(([id, label]) => surfaceButton(id, escapeHtml(label))).join('')}</span>` : '')}
       <span class="r-schedule-view-group navigation"><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="-1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button><button type="button" class="r-schedule-anchor-nav today" data-schedule-anchor-nav="0">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_23929ba4ba84dd","Today") ?? "Today")}</button><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button></span>
     </div>`;
   }

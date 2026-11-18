@@ -297,7 +297,7 @@ test('project scheduling mode uses branch-configurable Routing terminology', asy
   assert.deepEqual(uiTerms.find((term) => term.key === 'routing_mode'), { key: 'routing_mode', label: 'Routing', kind: 'view' });
   assert.match(platformSchedulingSource, /Object\.fromEntries\(Object\.entries\(\{ \.\.\.defaultLabels, \.\.\.inputLabels \}\)/);
   assert.match(projectScheduleSource, /terminology\('scheduling\.routing_view', window\.PlatformScheduling\?\.labelFor\?\.\(scheduleCachedConfig, 'ui', 'routing_mode'\) \|\| 'Routing'\)/);
-  assert.match(projectScheduleSource, /surfaceButton\('scheduling', escapeHtml\(routingLabel\)\)/);
+  assert.match(projectScheduleSource, /\['scheduling', routingLabel\]/);
   assert.match(schedulingSource, /\['month',window\.Portal\?\.terminology\?\.get\?\.\('scheduling\.month_view', 'Month'\)[\s\S]*?\['appointment_schedule',routingLabel[,\]]/);
   assert.match(schedulingSource, /viewMode === 'appointment_schedule'[\s\S]*?renderAppointmentSchedule\(\)/);
   assert.match(schedulingSource, /\['day','4day','week','month','appointment_schedule','gantt'\]\.includes\(route\.scheduleView\)/);
@@ -1359,4 +1359,10 @@ test('scheduling actions are drawn and felt before their save answers, and put b
   assert.match(shown, /clearPlacementSelection\(\);\n    releasePlacementSave\(\);\n    render\(\);\n    scheduleHaptic\(\);/);
   // The shared view ticks on a drop with the item already drawn where it landed.
   assert.match(scheduleViewSource, /upsertCalendarItem\(updatedItem, monthMarginTop \? \{ monthMarginTop \} : \{\}\);\n        applyTouchSelection\(\);\n[^\n]*\n[^\n]*\n        dropHaptic\(\);\n        options\.onEventRangeChange\?\.\(updatedItem, payload\);/);
+});
+
+test('the project schedule shows its surface switcher only when there is another surface to switch to (FM-618)', () => {
+  assert.match(projectScheduleSource, /projectRoutingViewEnabled\(\) \|\| surfaceActive\('scheduling'\) \? \[\['scheduling', routingLabel\]\] : \[\]/);
+  assert.match(projectScheduleSource, /projectGanttViewEnabled\(\) \|\| surfaceActive\('gantt'\) \? \[\['gantt', ganttLabel\]\] : \[\]/);
+  assert.match(projectScheduleSource, /surfaces\.length > 1 \? `<span class="r-schedule-view-group surface">/);
 });

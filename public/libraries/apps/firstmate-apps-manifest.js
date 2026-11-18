@@ -344,7 +344,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('project-schedule/panel.js', '20261118-fm597-setup-trigger')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20261118-fm618-surface-switcher')]
     },
     {
       id: 'project.comms',
