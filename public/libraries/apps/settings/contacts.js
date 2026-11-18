@@ -172,6 +172,7 @@
       tags: [],
       catalog: [],
       trackTimeZones: false,
+      autoAttachExact: true,
       importPhotos: false,
       catalogError: '',
       duplicateAction: 'skip',
@@ -606,7 +607,7 @@
       });
       host.querySelector('[data-catalog-save]')?.addEventListener('click',async event=>{
         collectCatalog();event.target.disabled=true;
-         try{const result=await root.PlatformAPI.contacts.saveSettings(orgId,{version:2,tags:state.catalog,track_time_zones:state.trackTimeZones});state.catalog=result.settings.tags;state.catalogError='';toast('Contact tags','Saved.',true);root.dispatchEvent(new CustomEvent('fm:contact-tags:updated'));}
+         try{const result=await root.PlatformAPI.contacts.saveSettings(orgId,{version:2,tags:state.catalog,track_time_zones:state.trackTimeZones,auto_attach_exact:state.autoAttachExact});state.catalog=result.settings.tags;state.autoAttachExact=result.settings.auto_attach_exact!==false;state.catalogError='';toast('Contact tags','Saved.',true);root.dispatchEvent(new CustomEvent('fm:contact-tags:updated'));}
         catch(error){state.catalogError=error.message;}finally{render();}
       });
     }
@@ -618,8 +619,8 @@
     function renderContent(){
       if(state.subtab==='tags' && canManageTags){page.innerHTML=subTabs()+tagsMarkup();bindSubTabs();bindCatalog();return;}
       if(state.subtab==='preferences' && canManageTags){
-        page.innerHTML=subTabs()+`<div class="cti-head"><div><h3>Contact preferences</h3><p>Choose which details your organization tracks on every contact.</p></div></div><div class="cti-block"><h4>Contact time zones</h4><p>Show a time-zone dropdown in the contact editor.</p><label class="cti-field"><span><input type="checkbox" data-cti-time-zones ${state.trackTimeZones?'checked':''}> Track individual contact time zones</span></label><div class="cti-actions"><button class="cti-btn primary" type="button" data-cti-save-preferences>Save preferences</button></div>${state.catalogError?`<div class="cti-error">${esc(state.catalogError)}</div>`:''}</div>`;
-        bindSubTabs();page.querySelector('[data-cti-save-preferences]').onclick=async event=>{event.target.disabled=true;try{const result=await root.PlatformAPI.contacts.saveSettings(orgId,{version:2,tags:state.catalog,track_time_zones:page.querySelector('[data-cti-time-zones]').checked});state.trackTimeZones=result.settings.track_time_zones===true;state.catalog=result.settings.tags;state.catalogError='';root.dispatchEvent(new CustomEvent('fm:contact-settings:updated',{detail:{track_time_zones:state.trackTimeZones}}));toast('Contact preferences','Saved.',true);}catch(error){state.catalogError=error.message;}finally{render();}};
+        page.innerHTML=subTabs()+`<div class="cti-head"><div><h3>Contact preferences</h3><p>Choose what your organization tracks on every contact and how new contacts are matched.</p></div></div><div class="cti-block"><h4>Contact time zones</h4><p>Show a time-zone dropdown in the contact editor.</p><label class="cti-field"><span><input type="checkbox" data-cti-time-zones ${state.trackTimeZones?'checked':''}> Track individual contact time zones</span></label></div><div class="cti-block"><h4>Matching existing contacts</h4><p>When a new lead or contact has the same email or phone number as an existing contact, use that contact instead of creating another one.</p><label class="cti-field"><span><input type="checkbox" data-cti-auto-attach ${state.autoAttachExact?'checked':''}> Use existing contacts with the same email or phone</span></label><div class="cti-actions"><button class="cti-btn primary" type="button" data-cti-save-preferences>Save preferences</button></div>${state.catalogError?`<div class="cti-error">${esc(state.catalogError)}</div>`:''}</div>`;
+        bindSubTabs();page.querySelector('[data-cti-save-preferences]').onclick=async event=>{event.target.disabled=true;try{const result=await root.PlatformAPI.contacts.saveSettings(orgId,{version:2,tags:state.catalog,track_time_zones:page.querySelector('[data-cti-time-zones]').checked,auto_attach_exact:page.querySelector('[data-cti-auto-attach]').checked});state.trackTimeZones=result.settings.track_time_zones===true;state.autoAttachExact=result.settings.auto_attach_exact!==false;state.catalog=result.settings.tags;state.catalogError='';root.dispatchEvent(new CustomEvent('fm:contact-settings:updated',{detail:{track_time_zones:state.trackTimeZones}}));toast('Contact preferences','Saved.',true);}catch(error){state.catalogError=error.message;}finally{render();}};
         return;
       }
 
@@ -671,7 +672,7 @@
     }
 
     render();
-    root.PlatformAPI?.contacts?.settings(orgId).then(result=>{state.catalog=result.settings?.tags || [];state.trackTimeZones=result.settings?.track_time_zones===true;render();}).catch(error=>{state.catalogError=error.message;render();});
+    root.PlatformAPI?.contacts?.settings(orgId).then(result=>{state.catalog=result.settings?.tags || [];state.trackTimeZones=result.settings?.track_time_zones===true;state.autoAttachExact=result.settings?.auto_attach_exact!==false;render();}).catch(error=>{state.catalogError=error.message;render();});
 
     const unregisterRoute = root.Portal?.navigation?.registerHandler?.(`contacts-settings-view:${routeScope}:${options.instanceId || 'default'}`, {
       priority: 450,
