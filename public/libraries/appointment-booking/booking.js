@@ -110,7 +110,8 @@
     return dialog;
   }
 
-  /* Phone steps: what kind → which project or address → when. Rarely used settings live in the Advanced sheet. */
+  /* Phone steps: what kind → which project or address → when. Rarely used settings live in the Advanced sheet.
+     A booking names a project, a new one (its own step, every field optional; FM-556), an address, or No project on purpose. */
   async function openSteps(dialog, {api, orgId, options}){
     const lockedProject = options.lockProject && options.projectId ? options.projectId : '';
     const order = lockedProject ? ['type','when'] : ['type','project','when'];
@@ -120,12 +121,13 @@
 <form class="fm-booking-form" novalidate>
 <div class="fm-booking-stage" data-stage>
 <section class="fm-booking-step" data-step="type" aria-labelledby="fm-booking-step-type"><h3 id="fm-booking-step-type" tabindex="-1">What kind of appointment?</h3><div data-slot-type></div></section>
-${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" aria-labelledby="fm-booking-step-project" hidden><h3 id="fm-booking-step-project" tabindex="-1">Which project?</h3><p class="fm-booking-hint">Search by name, or type the address to find it.</p><div data-project></div></section>`}
+${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" aria-labelledby="fm-booking-step-project" hidden><h3 id="fm-booking-step-project" tabindex="-1">Which project?</h3><div data-project></div><div class="fm-booking-choices" data-choices><button type="button" class="fm-booking-choice new" data-new-project><span class="fm-booking-choice-icon" aria-hidden="true"></span><span>New project</span></button><button type="button" class="fm-booking-choice none" data-no-project aria-pressed="false"><span class="fm-booking-choice-icon" aria-hidden="true"></span><span>No project</span></button></div></section>
+<section class="fm-booking-step" data-step="new" aria-labelledby="fm-booking-step-new" hidden><h3 id="fm-booking-step-new" tabindex="-1">New project</h3><p class="fm-booking-hint">All optional. Add what you have, or tap Next to skip.</p><div class="fm-booking-fields">${[['address','Address','text','Street, city'],['name','Customer name','text',''],['phone','Phone','tel',''],['email','Email','email','']].map(([key, label, type, placeholder]) => `<label class="fm-booking-field"><span>${label}</span><input type="${type}" data-new-field="${key}" autocomplete="off"${type === 'tel' ? ' inputmode="tel"' : ''}${placeholder ? ` placeholder="${placeholder}"` : ''} enterkeyhint="next"></label>`).join('')}</div></section>`}
 <section class="fm-booking-step" data-step="when" aria-labelledby="fm-booking-step-when" hidden><h3 id="fm-booking-step-when" tabindex="-1">When?</h3><div class="fm-booking-summary" data-summary></div><div data-slot-quick></div><div class="fm-availability"></div></section>
 <section class="fm-booking-step fm-booking-done" data-step="done" hidden><div class="fm-booking-check" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg></div><h3 tabindex="-1">Event created</h3><div class="fm-booking-created" data-done-summary></div></section>
 </div>
 <div role="status" data-status></div>
-<footer class="fm-booking-footer"><button type="button" class="fm-booking-nav" data-prev><span class="fm-booking-arrow back" aria-hidden="true"></span><span>Previous</span></button><button type="button" class="fm-booking-nav primary" data-next><span>Next</span><span class="fm-booking-arrow" aria-hidden="true"></span></button><button type="submit" class="fm-booking-nav primary" data-create hidden disabled>Create event</button><button type="button" class="fm-booking-nav primary" data-finish hidden>Done</button></footer>
+<footer class="fm-booking-footer"><button type="button" class="fm-booking-nav" data-prev aria-label="Previous"><span class="fm-booking-arrow back" aria-hidden="true"></span><span>Previous</span></button><button type="button" class="fm-booking-nav new" data-new-project hidden><span class="fm-booking-plus" aria-hidden="true"></span><span>New project</span></button><button type="button" class="fm-booking-nav primary" data-next><span>Next</span><span class="fm-booking-arrow" aria-hidden="true"></span></button><button type="submit" class="fm-booking-nav primary" data-create hidden disabled>Create event</button><button type="button" class="fm-booking-nav primary" data-finish hidden>Done</button></footer>
 </form>
 <div class="fm-booking-scrim" data-sheet-scrim hidden></div>
 <section class="fm-booking-sheet" id="fm-booking-sheet" role="dialog" aria-modal="true" aria-labelledby="fm-booking-sheet-title" hidden><div class="fm-booking-sheet-grip" aria-hidden="true"></div><div class="fm-booking-sheet-head"><h3 id="fm-booking-sheet-title" tabindex="-1">Advanced</h3><button type="button" data-sheet-done>Done</button></div><div class="fm-booking-sheet-body" data-slot-advanced></div></section>`;
@@ -134,13 +136,19 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
     $('[data-step="type"] h3').focus({preventScroll:true});
     const stage = $('[data-stage]'), status = $('[data-status]'), target = $('.fm-availability'), sheet = $('#fm-booking-sheet'), scrim = $('[data-sheet-scrim]');
     const prev = $('[data-prev]'), next = $('[data-next]'), create = $('[data-create]'), finish = $('[data-finish]'), advancedButton = $('[data-advanced-open]');
+    const newFooter = $('.fm-booking-footer [data-new-project]'), choices = $('[data-choices]'), newFields = [...dialog.querySelectorAll('[data-new-field]')];
     const reduceMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     let step = 'type', picker, selected = null, configuration, select = null, saving = false, done = false, stale = true;
     let addressOverride = null, sheetAdvances = false, advanceTimer, sheetTimer;
+    /* noProject: No project was chosen on purpose. draft: the project the New project step makes (its id is kept so a retry never makes two). */
+    let noProject = false, draft = null, creating = false;
     let eventId = `appointment_${crypto.randomUUID()}`;
     const visited = new Set(['type']);
     const newEvent = () => { eventId = `appointment_${crypto.randomUUID()}`; };
     const projectId = () => lockedProject || select?.value || '';
+    const chosen = () => !!(projectId() || addressOverride || noProject);
+    /* The New project step sits inside Project: it has no place of its own in the progress. */
+    const rank = name => name === 'done' ? order.length : order.indexOf(name === 'new' ? 'project' : name) + (name === 'new' ? .5 : 0);
 
     const whereText = () => projectId() ? (lockedProject ? configuration.project.title : clean(select?.input?.value)) || 'Project' : addressOverride ? configuration.value.location.address : 'No project';
     function summary(){
@@ -150,10 +158,13 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
       return chip('type', '◆', type) + chip(lockedProject ? '' : 'project', projectId() ? '▱' : '⌖', where);
     }
     function sync(){
-      const index = order.indexOf(step);
+      const index = order.indexOf(step === 'new' ? 'project' : step), busy = saving || creating;
       prev.style.visibility = index > 0 && !done ? '' : 'hidden';
-      prev.disabled = saving;
+      prev.disabled = busy;
       next.hidden = done || step === 'when';
+      next.disabled = busy || (step === 'project' && !chosen());
+      newFooter.hidden = done || step !== 'project'; newFooter.disabled = busy;
+      if (choices) { choices.hidden = !!clean(select?.input?.value); $('[data-no-project]').setAttribute('aria-pressed', String(noProject)); }
       create.hidden = done || step !== 'when';
       create.disabled = !selected || saving;
       finish.hidden = !done;
@@ -165,16 +176,18 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
         item.dataset.state = position < index ? 'done' : position === index ? 'current' : 'todo';
         const button = item.querySelector('button');
         if (position === index) button.setAttribute('aria-current', 'step'); else button.removeAttribute('aria-current');
-        button.disabled = saving || !visited.has(item.dataset.progress) || position === index;
+        button.disabled = busy || !visited.has(item.dataset.progress) || position === index || (item.dataset.progress === 'when' && !chosen());
       });
       if (step === 'when') $('[data-summary]').innerHTML = summary();
     }
     function go(name, {focus = true} = {}){
       clearTimeout(advanceTimer);
-      if (name === step || saving) return;
+      if (name === step || saving || creating) return;
+      if (name === 'when' && !chosen()) name = 'project';
+      if (name === step) return;
       const from = $(`[data-step="${step}"]`), to = $(`[data-step="${name}"]`);
       if (!to) return;
-      const forward = name === 'done' || order.indexOf(name) > order.indexOf(step);
+      const forward = rank(name) > rank(step);
       step = name; visited.add(name);
       if (reduceMotion()) from.hidden = true;
       else {
@@ -190,10 +203,11 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
       if (name === 'when' && stale) refresh();
       if (!focus) return;
       if (name === 'project' && !select?.value) select?.input?.focus({preventScroll:true});
+      else if (name === 'new') (newFields.find(field => !field.value) || newFields[0]).focus({preventScroll:true});
       else to.querySelector('h3')?.focus({preventScroll:true});
     }
-    const goNext = () => { const following = order[order.indexOf(step) + 1]; if (following) go(following); };
-    const goPrev = () => { const preceding = order[order.indexOf(step) - 1]; if (preceding) go(preceding); };
+    const goNext = () => { if (step === 'new') { void createProject(); return; } const following = order[order.indexOf(step) + 1]; if (following) go(following); };
+    const goPrev = () => { if (step === 'new') { go('project'); return; } const preceding = order[order.indexOf(step) - 1]; if (preceding) go(preceding); };
     const advanceFromType = () => { if (step !== 'type') return; clearTimeout(advanceTimer); advanceTimer = setTimeout(goNext, reduceMotion() ? 0 : 200); };
 
     function openSheet({saveType = false} = {}){
@@ -235,9 +249,62 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
     }
     function changed(){ newEvent(); stale = true; if (step === 'when') refresh(); else sync(); }
     function useAddress(address){
+      noProject = false;
       addressOverride ||= {before:configuration.value.location};
       configuration.setLocation({mode:'custom', address}, false);
       changed(); go('when');
+    }
+    function useProject(value){
+      if (!configuration) return;
+      if (addressOverride) { configuration.setLocation(addressOverride.before, false); addressOverride = null; }
+      configuration.setProject(value); changed();
+    }
+    function chooseNoProject(){
+      if (!configuration || saving) return;
+      if (select?.value) select.setValue(null);
+      useProject(''); noProject = true; sync(); go('when');
+    }
+    /* New project: a fresh form each time, started from what was typed in the search. */
+    function startNewProject(){
+      if (saving || creating || !configuration) return;
+      draft = {id:`project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`, created:false};
+      newFields.forEach(field => { field.value = ''; });
+      const typed = select?.value ? '' : clean(select?.input?.value);
+      if (typed) dialog.querySelector(`[data-new-field="${/^\d/.test(typed) ? 'address' : 'name'}"]`).value = typed;
+      go('new');
+    }
+    /* Creates the project through the projects API (create only: the server starts its scope, projects/create.ts),
+       then links its contact. Every field may be blank. */
+    async function createProject(){
+      if (creating || saving || !draft) return;
+      const field = key => clean(dialog.querySelector(`[data-new-field="${key}"]`)?.value);
+      const address = field('address'), name = field('name'), phone = field('phone'), email = field('email');
+      const section = $('[data-step="new"]');
+      creating = true; section.inert = true; status.textContent = 'Creating project…'; sync();
+      try {
+        if (!api.projects?.save) throw new Error('Projects are unavailable in this session.');
+        if (!draft.created) {
+          const now = new Date().toISOString(), title = name || (address ? '' : 'New Project');
+          const saved = await api.projects.save(orgId, draft.id, {id:draft.id, title, project_title:title, address, project_type:'residential', workflow_state:'draft',
+            has_meaningful_activity:true, last_activity_at:now, measurement:{}, measurement_project:{}, events:[], proposals:[], updated_at:now}, {}, {createOnly:true})
+            .catch(error => { if (error?.code === 'project_exists') return {document:{id:draft.id}}; throw error; });
+          if (!saved?.document || saved.missing) throw new Error('Could not create the project.');
+          draft.created = true;
+        }
+        if (name || phone || email) {
+          try { await api.contacts.setProjectContacts(orgId, draft.id, [{name, phone, email, primary:true}]); }
+          catch (error) { throw new Error(`The project was created, but its contact was not saved: ${error.message || 'try again.'}`); }
+        }
+        const id = draft.id; draft = null; noProject = false;
+        window.dispatchEvent(new CustomEvent('fm:projects:refresh', {detail:{redraw:true}}));
+        select.setValue({id, title:name || address || 'New Project'});
+        useProject(id);
+        creating = false; section.inert = false; status.textContent = '';
+        go('when');
+      } catch (error) {
+        creating = false; section.inert = false; sync();
+        status.textContent = error.message || 'Could not create the project.';
+      }
     }
 
     const close = () => { if (!saving) dialog.close(); };
@@ -245,6 +312,13 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
     finish.onclick = close;
     prev.onclick = goPrev;
     next.onclick = goNext;
+    dialog.querySelectorAll('[data-new-project]').forEach(button => { button.onclick = startNewProject; });
+    $('[data-no-project]')?.addEventListener('click', chooseNoProject);
+    newFields.forEach((input, index) => input.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' || event.isComposing) return;
+      event.preventDefault();
+      if (newFields[index + 1]) newFields[index + 1].focus(); else goNext();
+    }));
     advancedButton.onclick = () => openSheet();
     $('[data-sheet-done]').onclick = closeSheet;
     scrim.onclick = closeSheet;
@@ -253,19 +327,18 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
     dialog.addEventListener('close', () => { clearTimeout(advanceTimer); clearTimeout(sheetTimer); picker?.destroy(); configuration?.destroy(); select?.destroy(); }, {once:true});
 
     if (!lockedProject) {
-      select = window.FirstMateProjectSelector.mount($('[data-project]'), {orgId, projectId:options.projectId, inline:true,
+      select = window.FirstMateProjectSelector.mount($('[data-project]'), {orgId, projectId:options.projectId, inline:true, recent:false,
         extraRows:query => query.length >= 4 && configuration ? [{title:`Use “${query}”`, subtitle:'Just the address — link a project later', onSelect:() => useAddress(query)}] : [],
-        onChange:value => {
-          if (!configuration) return;
-          if (addressOverride) { configuration.setLocation(addressOverride.before, false); addressOverride = null; }
-          configuration.setProject(value); changed();
-        },
-        onSelect:() => go('when')});
+        onChange:useProject,
+        onSelect:value => { noProject = !value; sync(); go('when'); }});
+      /* Typing undoes the last choice (No project, or an address), so Next waits for a new one. */
+      select.input.addEventListener('input', () => { noProject = false; if (addressOverride && configuration) { configuration.setLocation(addressOverride.before, false); addressOverride = null; changed(); } else sync(); });
+      select.ready.then(() => { if (dialog.isConnected) sync(); });
     }
 
     $('form').addEventListener('submit', async event => {
       event.preventDefault();
-      if (step !== 'when' || saving || !selected) return;
+      if (step !== 'when' || saving || !selected || !chosen()) return;
       saving = true; select?.setDisabled(true); stage.inert = true; advancedButton.disabled = true; sync();
       status.textContent = 'Creating event…';
       try {
