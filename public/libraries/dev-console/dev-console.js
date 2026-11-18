@@ -14,7 +14,7 @@
  */
 import { dock, windowWidth } from './dock.js?v=20261112-tray3';
 
-const VERSION = '20261118-fm552-leads2';
+const VERSION = '20261118-fm571-setup';
 const NS = 'dev-console';
 const STORE = 'fm-dev-console';
 // The page keeps at least APP_MIN px beside the console.
@@ -57,6 +57,7 @@ function writeStore(patch) { try { localStorage.setItem(STORE, JSON.stringify({ 
  * (its module says when what it needs is not on dev yet).
  */
 const SECTIONS = [
+  { id: 'setup', icon: 'fa-list-check', label: ['dc_section_setup', 'Setup'], when: (s) => s.setup, load: () => import(`./sections/setup.js?v=${VERSION}`) },
   { id: 'test-run', icon: 'fa-flask', label: ['dc_section_test_run', 'Test run'], when: (s) => s.test_run, load: () => import(`./sections/test-run.js?v=${VERSION}`) },
   { id: 'leads', icon: 'fa-user-plus', label: ['dc_section_leads', 'Leads'], when: (s) => s.synthetic_leads, load: () => import(`./sections/leads.js?v=${VERSION}`) },
   { id: 'org-state', icon: 'fa-toggle-on', label: ['dc_section_org_state', 'Flags and settings'], load: () => import(`./sections/org-state.js?v=${VERSION}`) },

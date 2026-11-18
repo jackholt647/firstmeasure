@@ -83,6 +83,11 @@ missing, in the standard frame, and closes. A signup or main onboarding flow req
 a step by calling this or by naming it in its own definition's `requires`. Neither the
 signup sandbox pages nor the MVP configuration call it yet.
 
+**Where a step was answered.** The player records `step_view`, `step_done` and `step_skip` events with the step's id
+under the experience that asked it, so the newest `step_done` naming a step is where it was answered (and by whom).
+An answer saved outside a guided setup (Settings, signup, an agent) has no event. The dev console's Setup section
+(FM-571, [dev console](dev-console.md)) shows this beside each step.
+
 ## The standard step frame
 
 Every setup step, wherever it is injected, is drawn in the setup player's frame

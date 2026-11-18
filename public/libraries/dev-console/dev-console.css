@@ -65,6 +65,17 @@
 .fm-dc-link:hover strong{color:var(--dc-accent)}
 .fm-dc-toast{position:fixed;right:16px;bottom:16px;max-width:min(360px,calc(100vw - 32px));background:#101828;color:#fff;border-radius:999px;padding:8px 14px;font:12.5px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;z-index:2147483646;box-shadow:0 8px 20px rgba(0,0,0,.25)}
 .fm-dc .fm-dc-toast{position:absolute;right:12px;bottom:12px}
+/* Setup (FM-571): a checklist; the row's title is the hover hint, a tap opens it in place (phones have no hover). */
+.fm-dc-setup-row{cursor:pointer;align-items:flex-start}
+.fm-dc-setup-row:hover,.fm-dc-setup-row:focus-visible{background:#f9fafb;outline:none}
+.fm-dc-setup-row .fm-dc-badge{margin-top:2px}
+.fm-dc-setup-icon{flex:none;width:14px;margin-top:3px;text-align:center;font-size:12px}
+.fm-dc-setup-icon.fm-dc-ok{color:#079455}.fm-dc-setup-icon.fm-dc-changed{color:#dc6803}.fm-dc-setup-icon.fm-dc-skipped{color:#98a2b3}.fm-dc-setup-icon.fm-dc-todo{color:#d0d5dd}
+.fm-dc-badge.fm-dc-skipped{background:#f2f4f7;color:#475467}
+.fm-dc-badge.fm-dc-todo{background:transparent;color:var(--dc-muted);border:1px solid var(--dc-line)}
+.fm-dc-setup-more{margin-top:4px;padding-top:4px;border-top:1px dashed var(--dc-line)}
+.fm-dc-setup-tours>summary{cursor:pointer}
+@media (max-width:640px){.fm-dc .fm-dc-setup-row{flex-wrap:nowrap}}
 
 @media (max-width:640px){
   /* A phone's top bar and search reach the right edge: the strip is a tab in the middle of it. */

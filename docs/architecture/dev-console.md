@@ -106,6 +106,7 @@ out) and no tray. The answer lists which sections apply here:
 
 | Field | Section | Applies when |
 |---|---|---|
+| `setup` | Setup | always for this audience |
 | `test_run` | Test run | the organization is running a sandbox workflow |
 | `synthetic_data`, `synthetic_leads`, `software_layers` | Synthetic data, Leads, Software layers | the organization is a sandbox test organization (their endpoints' own gate) |
 | `guided` | Guided experiences | always for this audience (the page must load the guided library) |
@@ -124,6 +125,7 @@ library's editor flag); `readAccess` in `dev-console.js` says so.
 
 | Section | What | Where it came from |
 |---|---|---|
+| Setup | first in the rail: a checklist of every setup this organization has been through, each Done, Started, Skipped or Not started. **Questions asked once** are the [setup steps](setup-steps.md) (answered is read as setups read it); hovering or tapping one says where it was answered, asked or skipped (the newest guided event naming the step: the setup, or "on its own" for `FirstMateGuides.require`, who and when), or that no guided setup saved it (Settings, signup, an agent or an import), and which setups ask it. **Guided setups** (modal and agentic guided experiences) and **Tours** (overlays and announcements, folded) show their progress: where it stopped, who finished or skipped it. **App setups** are the app catalog's setup workflows (`FirstMateAppSetupWorkflows`, read from the page). Reads only | new (FM-571); `GET /v1/signup-sandbox/development/console/setup` (`devConsoleSetup`) |
 | Test run | the sandbox workflow's stages, the showing one, Open, the workflow builder | the bottom test-run bar (`portal/signup-sandbox/devbar.js` still runs the stages and exposes `window.SignupSandboxRun`) |
 | Leads | add 1 to 25 made-up leads, choosing what each has (name, phone, email, address, source, note) and, when the organization has a source catalog, which source or a random one. Each is sent through `receiveLead`, so contact matching, source stamping, intake routing and the organization's `lead.received` rules run as for a real lead. Phones are 555-01xx and emails `@example.com`; the source carries `synthetic: true` | new (FM-552); `GET`/`POST /v1/signup-sandbox/development/synthetic-leads` (`development/synthetic-leads.ts`) |
 | Flags and settings | this test organization's flags, scope flags and settings beside what it started with; flip one, Restore one, or **Restore initial state** (which also replays every Get Started tour and setup); record a start when none was | new; the config library's `/v1/config-library/organizations/:orgId/state` (`PATCH`, `/restore`, `/capture`) |
@@ -161,7 +163,7 @@ app and in a phone browser: shake, sign-in, the list, the screenshot without the
 the full menu, and a desktop keeping the strip); Android's `ShakeDetectorTest` runs the
 same shake cases.
 
-`public/v1/tests/dev-console.test.ts` (the endpoint), `public/v1/tests/development-leads.test.ts` (the Leads route),
+`public/v1/tests/dev-console.test.ts` (the endpoint and the Setup read: asked, answered, skipped, answered outside a setup), `public/v1/tests/development-leads.test.ts` (the Leads route),
 `tests/guided-experiences-flow-browser.test.mjs` (the guided section, folding,
 remembering, the phone tab and More entry, resizing across the project frame) and
 `tests/development-layers-browser.test.mjs` (software layers and synthetic data at
