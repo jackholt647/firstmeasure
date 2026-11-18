@@ -291,11 +291,12 @@ export async function resetDocumentCopy(asset: Asset, ctx: PlatformAuthContext, 
 }
 
 /**
- * A library template or workflow as an organization would get it (its price book rates in the parameter defaults),
+ * A library theme, template or workflow as an organization would get it (its brand in a theme, its price book rates
+ * in the parameter defaults),
  * without making a copy: what the document setup (documents/setup.ts) builds an organization's own template from
  * when the organization has no copy of that entry yet.
  */
-export async function libraryAssetDefinition(asset: "template" | "workflow", orgId: string, id: string) {
+export async function libraryAssetDefinition(asset: Asset, orgId: string, id: string) {
   const entry = libraryEntry(KIND[asset], text(id)) as AnyEntry | null;
   if (!entry) return null;
   return { data: clone(entry.data) as unknown as JsonObject, definition: await copyDefinition(asset, orgId, entry) };
