@@ -328,7 +328,7 @@
     state.current = { experience, control }; state.playing = experience.id;
     try {
       track(experience, replay?'replay':'exposure'); if(!replay)track(experience, 'start');
-      const outcome = await player({ experience, api, track:(type, extra)=>track(experience,type,extra), where, L, esc, reducedMotion, options:{ nested:true,replay }, control, playChild });
+      const outcome = await player({ experience, api, track:(type, extra)=>track(experience,type,extra), where, L, esc, reducedMotion, options:{ nested:true,replay,...(childOptions.selections?{selections:childOptions.selections}:{}),...(childOptions.start?{start:childOptions.start}:{}) }, control, playChild });
       if (['completed','dismissed'].includes(outcome?.status)) markFinished(experience.id,outcome.status);
       return outcome || { status:'ended' };
     } finally {

@@ -194,7 +194,9 @@
       const orgId = clean(root.__APP?.userOrgId);
       // The agent is the platform assistant itself, in the person's own project conversation (the one the tray shows).
       let agentic = kind === 'agentic' && !!here.projectId && !!orgId && !!root.AssistantAPI && typeof root.PlatformAssistant?.mountProject === 'function';
-      const selections = { ...object(experience.progress?.data) };
+      // A setup opened from another one for a known answer (Operations' Proposals card opens the document setup for a
+      // proposal, FM-607) starts with that answer and at the step after the question it answers; Back stops there.
+      const selections = { ...object(experience.progress?.data), ...object(ctx.options?.selections) };
       const summaries = {};
       // A setup step this experience requires (docs/architecture/setup-steps.md) is answered on its own, through its
       // published action: its answer is kept here per step and never mixed into the experience's selections.
@@ -225,7 +227,10 @@
       }
       // Setup steps saved in this run: going back to one and on again does not ask the steps before it again.
       const answered = new Set();
+      const start = clean(ctx.options?.start) ? indexOf(clean(ctx.options.start)) : -1;
+      if (start >= 0) index = start;
       index = entryOf(index);
+      const first = start >= 0 ? index : 0;
 
       const host = document.createElement('div');
       host.className = 'gxs'; host.dataset.kind = agentic ? 'agentic' : 'modal'; host.setAttribute('data-fmr-ignore', ''); host.setAttribute('data-gx-setup', experience.id);
@@ -251,7 +256,7 @@
       // one more that leaves the first step. Back on the finish closes it, as the X does. A step with steps of its own
       // (the Operations workflow) adds one per step of its own behind the one it shows (`backDepth`, FM-604).
       const backHistory = root.Portal?.navigation?.steps?.({ onBack: (count) => { for (let n = 0; n < count && !closed; n += 1) pressBack(); syncBack(); } }) || null;
-      const syncBack = () => backHistory?.depth(closed || (finished && !doneWaiter) ? 0 : doneWaiter ? (bookPane ? 2 : 1) : (visited.length || index) + 1 + Math.max(0, Number(mounted?.backDepth?.()) || 0));
+      const syncBack = () => backHistory?.depth(closed || (finished && !doneWaiter) ? 0 : doneWaiter ? (bookPane ? 2 : 1) : (visited.length || index - first) + 1 + Math.max(0, Number(mounted?.backDepth?.()) || 0));
       const $ = (selector) => host.querySelector(selector);
       const stage = $('.gxs-stage'), status = $('.gxs-status'), chat = $('.gxs-chat');
       /**
@@ -397,7 +402,7 @@
         const step = steps[index];
         $('.gxs-foot').hidden = !!widgets.get(step.widget)?.handlesNavigation;
         const last = after(index) >= steps.length;
-        $('[data-gxs=back]').hidden = !visited.length && index === 0;
+        $('[data-gxs=back]').hidden = !visited.length && index <= first;
         // An optional last page (labor prices) can be skipped too; skipping it finishes without its part.
         $('[data-gxs=skip]').hidden = step.required !== false || (last && !Object.keys(object(step.options?.skip_sets)).length);
         const next = $('[data-gxs=next]');
@@ -458,7 +463,7 @@
           advance:()=>next(false), complete:completeDirectly,
           // A step that hides the sheet's footer (handlesNavigation) has its own Back: to the step before this one; and
           // says when its own steps change, so the phone's back walks them first (FM-604).
-          back(){ if (currentPane === el && !closed && !busy && (visited.length || index > 0)) back(); }, syncBack(){ if (currentPane === el) syncBack(); },
+          back(){ if (currentPane === el && !closed && !busy && (visited.length || index > first)) back(); }, syncBack(){ if (currentPane === el) syncBack(); },
           // The step names what is on screen now (plain text); empty goes back to the step's own title.
           setTitle(text){ if (currentPane !== el || closed) return; const value = clean(text); if (value) setHeadTitle(esc(value)); else setHeadTitle(H(step.title), infoHtml(step)); }, checkpoint:()=>track('step_view',{step_id:step.id,selections}), restart(){visited.length=0;show(0,-1);},
           async runGuide(id,options={}){ if(!options.keepVisible){host.hidden=true;host.inert=true;}try{return await ctx.playChild?.(id,options);}finally{if(!closed){host.hidden=false;host.inert=false;}} },
@@ -658,7 +663,7 @@
         const action = event.target.closest?.('[data-gxs]')?.dataset.gxs;
         if (action === 'next') next(false);
         else if (action === 'skip') next(true);
-        else if (action === 'back' && !doneWaiter && (visited.length || index > 0)) back();
+        else if (action === 'back' && !doneWaiter && (visited.length || index > first)) back();
         else if (action === 'generate' && doneWaiter) { const go = doneWaiter; doneWaiter = null; go('generate'); }
         else if (action === 'view' && doneWaiter) showPricebook(true);
         else if (action === 'book-back' && doneWaiter) showPricebook(false);
@@ -679,7 +684,7 @@
         else if (doneWaiter) { const go = doneWaiter; doneWaiter = null; go(); }
         else if (busy || mounted?.escape?.() === true) return;
         else if (mounted?.back?.() === true) return;
-        else if (visited.length || index > 0) back();
+        else if (visited.length || index > first) back();
         else confirmSkip();
       }
       // Escape never reaches the page (the project window closes on it). A step that has something of its own open
@@ -818,7 +823,7 @@
     render(el,ctx){
       let disposed=false, handle=null;
       el.textContent=L('gx_operations_loading','Opening Operations…');
-      import(new URL('./operations-setup.js?v=20261118-fm605',scriptUrl).href).then(module=>{
+      import(new URL('./operations-setup.js?v=20261118-fm607',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mountWidget(id,el,ctx);
       }).catch(error=>{if(!disposed)el.textContent=error?.message||L('gx_operations_load_error','Could not open this step. Close and try again.');});
       return {valid:()=>handle?.valid?.()!==false,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};

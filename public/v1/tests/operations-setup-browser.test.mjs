@@ -164,6 +164,65 @@ test('the checklist refreshes saved completion after an optional setup and gener
   }finally{await browser.close();}
 });
 
+// FM-607: one proposal setup. The Proposals card opens the Docs tab's document setup already answered for a proposal,
+// at its first proposal question, and a card done anywhere in the app shows its tick.
+test('the Proposals card opens the document setup for a proposal and ticks when proposals are set up elsewhere',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await open(browser);
+    await page.evaluate(()=>{
+      Object.assign(selections,{operations_project_id:'p1',operations_document_id:'doc1'});
+      window.guideCalls=[];
+      const ctx={...widgetContext,options:{setups:[{id:'proposals',minutes:10,experience:'documents.setup',appId:'project.docs',selections:{document_kind:'proposal'},start:'presentation'}]},
+        runGuide:async(id,options)=>{guideCalls.push({id,options});setupState.setup.proposals.complete=true;return {status:'completed'};}};
+      operations.mountWidget('operations-ready',document.getElementById('host'),ctx);
+    });
+    await page.waitForSelector('[data-setup=proposals]');
+    assert.equal(await page.locator('[data-setup=proposals] .ops-check').count(),0);
+    await page.locator('[data-setup=proposals]').click();
+    await page.waitForSelector('[data-setup=proposals] .ops-check');
+    assert.deepEqual(await page.evaluate(()=>guideCalls),[{id:'documents.setup',options:{selections:{document_kind:'proposal'},start:'presentation'}}]);
+    assert.deepEqual(await page.evaluate(()=>activations),['/organizations/org1/app-offers/project.docs/start'],'Docs is started before its setup');
+  }finally{await browser.close();}
+});
+
+test('a nested setup opened with an answer starts after its question and Back stops there',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await open(browser);
+    await page.evaluate(()=>{
+      const text=value=>({key:value,text:value});
+      const step=id=>({id,widget:'test-step',title:text('Step '+id)});
+      window.guideEvents=[];
+      window.fetch=async(url,options={})=>{
+        const path=String(url),body=options.body?JSON.parse(options.body):{};
+        if(path.endsWith('/events'))guideEvents.push({path,...body});
+        const value=path.includes('/experiences?')?{experiences:[
+          {id:'parent',version:1,kind:'modal',scope:'organization',title:text('parent'),steps:[{id:'one',widget:'test-parent',title:text('parent')}],variant:{id:'default'},completion:{}},
+          {id:'child',version:1,kind:'modal',scope:'organization',replayable:true,title:text('child'),steps:[step('kind'),step('presentation'),step('style')],variant:{id:'default'},completion:{}}
+        ],reveals:[]}:{};
+        return {ok:true,status:200,text:async()=>JSON.stringify({ok:true,...value})};
+      };
+    });
+    await page.addScriptTag({url:'https://operations.test/libraries/guided-experiences/guided-experiences.js'});
+    await page.addScriptTag({url:'https://operations.test/libraries/guided-experiences/guided-setup.js'});
+    await page.evaluate(()=>{
+      FirstMateGuidedSetup.registerWidget('test-parent',{handlesNavigation:true,render(el,ctx){el.innerHTML='<button id="child">Proposals</button>';el.querySelector('#child').onclick=()=>ctx.runGuide('child',{selections:{document_kind:'proposal'},start:'presentation'});return {};}});
+      FirstMateGuidedSetup.registerWidget('test-step',{render(el,ctx){el.innerHTML=`<p class="seen">${ctx.step.id}:${ctx.selections.document_kind||''}</p>`;return {valid:()=>true};}});
+      FirstMateGuides.play('parent');
+    });
+    await page.locator('#child').click();
+    await page.waitForSelector('[data-gx-setup=child] .seen');
+    assert.equal(await page.locator('[data-gx-setup=child] .seen').innerText(),'presentation:proposal','the answered question is not asked');
+    assert.equal(await page.locator('[data-gx-setup=child] [data-gxs=back]').isHidden(),true,'Back does not return to the answered question');
+    await page.locator('[data-gx-setup=child] [data-gxs=next]').click();
+    await page.getByText('style:proposal',{exact:true}).waitFor();
+    await page.locator('[data-gx-setup=child] [data-gxs=back]').click();
+    await page.getByText('presentation:proposal',{exact:true}).waitFor();
+    assert.equal(await page.locator('[data-gx-setup=child] [data-gxs=back]').isHidden(),true);
+  }finally{await browser.close();}
+});
+
 test('a nested setup retains the page lock and returns to the same checklist',async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try{
