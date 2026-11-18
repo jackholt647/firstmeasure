@@ -295,14 +295,16 @@ test('Documents keeps delivered reports when the legacy document list is unavail
   } finally { await browser.close(); }
 });
 
-test('on a phone New fills the screen and offers one Upload, no Blank or Scan paper', async () => {
+test('on a phone New is a tray from the bottom and offers one Upload, no Blank or Scan paper', async () => {
   const browser = await launch();
   try {
     const { page, errors, context } = await pageFor(browser, PHONE);
     await openNewDialog(page, { phone: true });
     await page.waitForTimeout(400);
+    // FM-570: the first step is a tray, full width on the bottom, the top of the page left in view.
     const box = await page.locator('.fmdx-create-modal').boundingBox();
-    assert.deepEqual([Math.round(box.x), Math.round(box.y), Math.round(box.width), Math.round(box.height)], [0, 0, 390, 844], 'full screen');
+    assert.deepEqual([Math.round(box.x), Math.round(box.width), Math.round(box.y + box.height)], [0, 390, 844], 'full width on the bottom');
+    assert.ok(box.y >= Math.max(56, Math.round(844 * 0.12)), `the top of the page stays in view (top ${Math.round(box.y)})`);
     const buttons = await page.locator('.fmdx-create-top > .fmdx-btn').evaluateAll((list) => list.filter((b) => b.getClientRects().length).map((b) => b.innerText.trim()));
     assert.deepEqual(buttons, ['Upload']);
     assert.ok(await page.locator('.fmdx-create-body, [data-create-body]').evaluate((el) => el.scrollWidth <= el.clientWidth), 'nothing scrolls sideways');
