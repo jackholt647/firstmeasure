@@ -2722,6 +2722,7 @@ test("FirstMate hosts a registration's privacy policy and SMS terms only when it
   assert.match(privacy.body, /replies to your questions and appointment reminders/);
   assert.match(privacy.body, /<a href="mailto:help@ridgeline.test">help@ridgeline.test<\/a>/);
   assert.match(privacy.body, /100 Main Street, Boise, ID 83702/);
+  assert.match(privacy.body, /Phone: \(206\) 555-0100/);
   const terms = await app.inject({ method: "GET", url: new URL(hosted.terms).pathname });
   assert.equal(terms.statusCode, 200, terms.body);
   assert.match(terms.body, /Ridgeline Roofing SMS Terms/);
