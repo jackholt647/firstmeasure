@@ -97,7 +97,7 @@
         {
           "id": "kind",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582i",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_kind_title",
@@ -130,7 +130,7 @@
         {
           "id": "presentation",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582i",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
           "requires": [
             "company.type",
             "company.services",
@@ -156,7 +156,7 @@
         {
           "id": "changes",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582i",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_changes_title",
@@ -178,7 +178,7 @@
         {
           "id": "detail",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582i",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_detail_title",
@@ -200,7 +200,7 @@
         {
           "id": "scope",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582i",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_scope_title",
@@ -222,7 +222,7 @@
         {
           "id": "prices",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582i",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_prices_title",
@@ -247,7 +247,7 @@
         {
           "id": "style",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582i",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_style_title",
