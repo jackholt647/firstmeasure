@@ -11,8 +11,9 @@ import { readCompanyProfile } from "../company-profile/profile.js";
 import {
   createDocumentTemplate, createDocumentWorkflow, listDocumentTemplates, listDocumentThemes, patchDocumentTemplate,
   publishDocumentTemplate, publishDocumentWorkflow, readDocumentTemplate, readDocumentTemplateVersion,
-  readDocumentWorkflow, readDocumentWorkflowVersion
+  readDocumentThemeVersion, readDocumentWorkflow, readDocumentWorkflowVersion
 } from "./storage.js";
+import { FMDocModel } from "./schemas.js";
 import { ensureDefaultDocumentAssets, libraryAssetDefinition } from "./library-copies.js";
 import { DEFAULT_PINNED_TEMPLATE_IDS, readPinnedTemplateIds, savePinnedTemplateIds } from "./settings.js";
 
@@ -153,6 +154,13 @@ async function source(asset: "template" | "workflow", orgId: string, id: string)
   return entry ? { data: entry.data, definition: clone(entry.definition) } : null;
 }
 
+/** A style's definition: the organization's copy, else the library's adapted to it. */
+async function themeDefinition(orgId: string, themeId: string): Promise<JsonObject | null> {
+  const version = await readDocumentThemeVersion(orgId, themeId).catch(() => null);
+  if (version && Object.keys(object(version.definition)).length) return object(version.definition);
+  return (await libraryAssetDefinition("theme", orgId, themeId))?.definition || null;
+}
+
 /** The kind's current default (never the setup's own template), for a kind other than a proposal. */
 async function currentDefault(orgId: string, kind: DocumentSetupKind) {
   const own = setupTemplateId(kind);
@@ -173,9 +181,14 @@ async function buildDocument(orgId: string, answers: Answers, themeId: string) {
   }
   const template = await source("template", orgId, plan.base);
   if (!template) throw badRequest("document_setup_template", `There is no ${KIND_NAME[plan.kind].toLowerCase()} template to start from.`);
-  const definition = template.definition;
+  let definition = template.definition;
   definition.theme_ref = { theme_id: themeId };
   setParamDefaults(object(definition.params), plan.params);
+  // The template's page regions were placed for its own style (the itemized proposal's body clears the Margin rail):
+  // they move to the margins of the style chosen, as choosing a style in the editor does.
+  const theme = await themeDefinition(orgId, themeId);
+  const ops = theme ? FMDocModel.pageSetupOverrides(definition, theme) : [];
+  if (ops.length) definition = FMDocModel.applyOverrides(definition, ops).document as JsonObject;
   const metadata = object(template.data.metadata);
   const workflowId = text(metadata.default_workflow_id || object(template.data.initial_metadata).default_workflow_id);
   const workflow = workflowId ? await source("workflow", orgId, workflowId) : null;
@@ -281,7 +294,8 @@ export async function documentSetupPreviews(orgId: string, args: unknown) {
   const { themes } = await readDocumentSetup(orgId);
   const previews = [];
   for (const theme of themes) {
-    const resolved = await resolveDocumentInstance(orgId, document, { definition: { ...definition, theme_ref: { theme_id: theme.id } }, themeRef: { theme_id: theme.id }, target: "static" });
+    const styled = theme.id === DOCUMENT_SETUP_THEMES[0] ? definition : (await buildDocument(orgId, answers, theme.id)).definition;
+    const resolved = await resolveDocumentInstance(orgId, document, { definition: styled, themeRef: { theme_id: theme.id }, target: "static" });
     previews.push({ theme_id: theme.id, name: theme.name, description: theme.description, resolved_definition: resolved.resolved_definition, widget_data: resolved.widget_data, theme: resolved.theme, theme_vars: resolved.theme_vars });
   }
   return { kind: plan.kind, name: plan.name, description: plan.description, base: plan.base, previews };

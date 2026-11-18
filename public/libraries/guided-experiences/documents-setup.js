@@ -50,22 +50,31 @@ const css = `
 .gxd-money input{width:96px;height:34px;padding:0 10px;border:1px solid #d0d5dd;border-radius:9px;font:inherit;font-size:14px;text-align:right;color:#101828}
 .gxd-money input:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.14)}
 .gxd-note{font-size:12px!important;color:#667085!important}
-.gxd-styles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.gxd-style{display:flex;flex-direction:column;gap:8px;padding:8px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,box-shadow .2s}
+.gxd.gxd-fill{flex:1 1 auto;min-height:0;padding-bottom:0}
+.gxd-styles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:minmax(0,1fr);gap:16px;flex:1 1 auto;min-height:0}
+.gxd-style{display:flex;flex-direction:column;gap:10px;min-height:0;padding:10px;border:1px solid #e4e7ec;border-radius:16px;background:#fff;font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,box-shadow .2s}
+.gxd-style:hover{border-color:#c4c9d2}
 .gxd-style:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
 .gxd-style[aria-checked=true]{border-color:var(--primary,#d93025);box-shadow:0 0 0 2px var(--primary,#d93025)}
-.gxd-page{position:relative;display:block;width:100%;aspect-ratio:8.5/11;overflow:hidden auto;scrollbar-width:thin;border-radius:8px;background:#f2f4f7;box-shadow:inset 0 0 0 1px #eaecf0}
-.gxd-page>div{position:relative}
-.gxd-style-name{display:flex;align-items:center;gap:8px;padding:0 4px 2px}
-.gxd-style-name strong{flex:1 1 auto;font-size:14px;color:#101828}
-.gxd-style-name small{display:block;font-size:12px;color:#667085;font-weight:400}
+/* One page at a time, as large as the card allows; the page never scrolls inside the card (the pager turns it). */
+.gxd-page{position:relative;flex:1 1 auto;min-height:260px;overflow:clip;border-radius:10px;background:#f2f4f7}
+.gxd-page>[data-page]{position:absolute;top:0;left:0;box-shadow:0 1px 3px rgba(16,24,40,.12),0 6px 18px rgba(16,24,40,.08);background:#fff;overflow:clip}
+.gxd-page>[data-page]>div{position:relative;transition:transform .25s cubic-bezier(.22,1,.36,1)}
+.gxd-pager{position:absolute;right:10px;bottom:10px;z-index:2;display:flex;align-items:center;gap:2px;padding:3px;border-radius:999px;background:rgba(16,24,40,.78);color:#fff;font-size:12px;font-weight:650}
+.gxd-pager button{width:26px;height:26px;border:0;border-radius:50%;background:transparent;color:#fff;font:inherit;font-size:15px;line-height:1;cursor:pointer}
+.gxd-pager button:disabled{opacity:.35;cursor:default}
+.gxd-pager button:not(:disabled):hover{background:rgba(255,255,255,.16)}
+.gxd-pager span{min-width:34px;text-align:center}
+.gxd-style-name{display:flex;align-items:center;gap:10px;padding:0 4px 2px}
+.gxd-style-name strong{flex:1 1 auto;font-size:15px;color:#101828}
+.gxd-style-name small{display:block;font-size:12.5px;color:#667085;font-weight:400}
 .gxd-style .gxd-tick{position:static;flex:none}
 .gxd-busy{display:grid;place-items:center;min-height:180px}
 .gxd-error{color:#b42318!important}
 .gxd-error:empty{display:none}
-/* A preview that can scroll (a second page, the phone's row of styles) passes the wheel on at its ends. */
-.gxs .gxd-page,.gxs .gxd-styles{overscroll-behavior:auto}
-@media(max-width:640px){.gxd-grid,.gxd-grid.gxd-small{grid-template-columns:1fr}.gxd-tile.gxd-feature{min-height:96px;padding:16px 44px 16px 16px}.gxd-feature .gxd-icon{width:46px;height:46px;font-size:20px}.gxd-feature strong{font-size:17px}.gxd-styles{grid-template-columns:repeat(3,minmax(200px,1fr));overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px}.gxd-style{scroll-snap-align:start}}
+/* The phone's row of styles scrolls sideways and passes the vertical wheel on (the setup frame contains overscroll). */
+.gxs .gxd-styles{overscroll-behavior:auto}
+@media(max-width:640px){.gxd-grid,.gxd-grid.gxd-small{grid-template-columns:1fr}.gxd-tile.gxd-feature{min-height:96px;padding:16px 44px 16px 16px}.gxd-feature .gxd-icon{width:46px;height:46px;font-size:20px}.gxd-feature strong{font-size:17px}.gxd-styles{grid-template-columns:repeat(3,82%);overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px}.gxd-style{scroll-snap-align:center}}
 @media(prefers-reduced-motion:reduce){.gxd *{transition:none!important}}
 `;
 function installStyle(){
@@ -203,13 +212,19 @@ export function mount(el, ctx){
 
   // ── Three styles, previewed with what the answers make ────────────────
   function stylePart(){
-    let alive = true, chosen = clean(selections.theme_id), previews = [];
-    const handles = [];
+    let alive = true, chosen = clean(selections.theme_id), previews = [], Renderer = null, timer = 0, lastSize = '';
+    const cards = [];
     const args = { document_kind: clean(selections.document_kind) || 'proposal' };
     if (args.document_kind === 'proposal') for (const name of ['presentation', 'customer_changes', 'detail', 'scope_write_up']) if (selections[name] !== undefined) args[name] = selections[name];
+    // The previews want room: the sheet widens (the player's wide sheet) and this step fills it.
+    const sheet = el.closest('.gxs'), wasWide = !!sheet?.classList.contains('gxs-wide');
+    sheet?.classList.add('gxs-wide');
+    el.closest('.gxs-step')?.setAttribute('data-fill', '');
     el.innerHTML = '<div class="gxd"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div></div>';
     const report = () => { const entry = previews.find((preview) => preview.theme_id === chosen); ctx.change(entry ? { theme_id: chosen } : {}, entry ? entry.name : ''); };
     const onClick = (event) => {
+      const turn = event.target.closest('[data-turn]');
+      if (turn) { event.stopPropagation(); const card = cards.find((entry) => entry.el.contains(turn)); if (card) showPage(card, card.page + Number(turn.dataset.turn)); return; }
       const card = event.target.closest('[data-theme]'); if (!card) return;
       chosen = card.dataset.theme;
       el.querySelectorAll('[data-theme]').forEach((node) => node.setAttribute('aria-checked', String(node.dataset.theme === chosen)));
@@ -219,34 +234,72 @@ export function mount(el, ctx){
     const onKey = (event) => { if ((event.key === 'Enter' || event.key === ' ') && event.target.matches?.('[data-theme]')) { event.preventDefault(); onClick(event); } };
     el.addEventListener('click', onClick);
     el.addEventListener('keydown', onKey);
-    Promise.all([ctx.read('document-setup', 'previews', { args }), renderer()]).then(([value, Renderer]) => {
+    const PAGE_W = 612 * 96 / 72, PAGE_H = 792 * 96 / 72;
+    function showPage(card, page){
+      const pages = card.handle?.pageElements?.() || [];
+      card.page = Math.max(0, Math.min(page, pages.length - 1));
+      const inner = card.holder.firstElementChild;
+      if (inner && pages[card.page]) inner.style.transform = `translateY(${-((pages[card.page].offsetTop || 0) - (pages[0].offsetTop || 0))}px)`;
+      const pager = card.el.querySelector('.gxd-pager');
+      if (pager) {
+        pager.hidden = pages.length < 2;
+        pager.querySelector('span').textContent = `${card.page + 1} / ${pages.length}`;
+        pager.querySelector('[data-turn="-1"]').disabled = card.page === 0;
+        pager.querySelector('[data-turn="1"]').disabled = card.page >= pages.length - 1;
+      }
+    }
+    /** Each preview is the real render, one page as large as its card allows, centred. */
+    function draw(){
+      if (!alive || !Renderer) return;
+      for (const card of cards) {
+        const box = card.el.querySelector('.gxd-page');
+        const scale = Math.max(0.15, Math.min((box.clientWidth - 16) / PAGE_W, (box.clientHeight - 16) / PAGE_H));
+        try { card.handle?.destroy?.(); } catch (_) {}
+        card.holder.innerHTML = '<div></div>';
+        Object.assign(card.holder.style, { width: `${Math.floor(PAGE_W * scale)}px`, height: `${Math.floor(PAGE_H * scale)}px`, left: `${Math.max(0, (box.clientWidth - PAGE_W * scale) / 2)}px`, top: `${Math.max(0, (box.clientHeight - PAGE_H * scale) / 2)}px` });
+        try {
+          const preview = card.preview;
+          card.handle = Renderer.render(card.holder.firstElementChild, { document: preview.resolved_definition, theme: preview.theme, themeContext: { overrides: object(preview.theme_vars) }, widgetData: object(preview.widget_data), mode: 'static', scale });
+        } catch (error) { card.holder.textContent = clean(error?.message); }
+        showPage(card, card.page || 0);
+      }
+    }
+    // Drawn again when the cards change size (the sheet widening, the window resized), once they have settled.
+    const observer = window.ResizeObserver ? new ResizeObserver(() => {
+      const box = el.querySelector('.gxd-page'); const size = box ? `${box.clientWidth}x${box.clientHeight}` : '';
+      if (!size || size === lastSize) return;
+      lastSize = size; clearTimeout(timer); timer = setTimeout(draw, 160);
+    }) : null;
+    Promise.all([ctx.read('document-setup', 'previews', { args }), renderer()]).then(([value, loaded]) => {
       if (!alive) return;
+      Renderer = loaded;
       value = object(value);
       previews = array(value.previews);
       if (!previews.some((preview) => preview.theme_id === chosen)) chosen = '';
-      el.innerHTML = `<div class="gxd">
+      el.innerHTML = `<div class="gxd gxd-fill">
         <p>${esc(t('style_lead', 'Here is your {name} in three styles, with a sample customer. Pick the one you like.').replace('{name}', clean(value.name) || t('style_document', 'document')))}</p>
         <div class="gxd-styles" role="radiogroup" aria-label="${esc(ctx.L(ctx.step.title))}">${previews.map((preview) => `
           <div class="gxd-style" role="radio" tabindex="0" data-theme="${esc(preview.theme_id)}" aria-checked="${preview.theme_id === chosen}" aria-label="${esc(preview.name)}">
-            <div class="gxd-page" aria-hidden="true"><div data-page></div></div>
+            <div class="gxd-page"><div data-page aria-hidden="true"></div><span class="gxd-pager" hidden><button type="button" data-turn="-1" aria-label="${esc(t('page_previous', 'Previous page'))}">‹</button><span></span><button type="button" data-turn="1" aria-label="${esc(t('page_next', 'Next page'))}">›</button></span></div>
             <span class="gxd-style-name"><strong>${esc(preview.name)}<small>${esc(preview.description)}</small></strong>${tick}</span>
           </div>`).join('')}</div>
       </div>`;
-      // Each preview is the real render at the card's width; a second page scrolls inside the card.
-      el.querySelectorAll('[data-theme]').forEach((card, at) => {
-        const preview = previews[at], holder = card.querySelector('[data-page]');
-        const width = card.querySelector('.gxd-page').clientWidth || 220;
-        try {
-          handles.push(Renderer.render(holder, { document: preview.resolved_definition, theme: preview.theme, themeContext: { overrides: object(preview.theme_vars) }, widgetData: object(preview.widget_data), mode: 'static', scale: width / (612 * 96 / 72) }));
-        } catch (error) { holder.textContent = clean(error?.message); }
-      });
+      el.querySelectorAll('[data-theme]').forEach((node, at) => cards.push({ el: node, holder: node.querySelector('[data-page]'), preview: previews[at], handle: null, page: 0 }));
+      lastSize = (() => { const box = el.querySelector('.gxd-page'); return box ? `${box.clientWidth}x${box.clientHeight}` : ''; })();
+      draw();
+      el.querySelectorAll('.gxd-page').forEach((box) => observer?.observe(box));
       report();
     }).catch((error) => { if (alive) el.innerHTML = `<div class="gxd"><p class="gxd-error" role="alert">${esc(clean(error?.message) || t('preview_failed', 'The previews didn’t load. Close the setup and try again.'))}</p></div>`; });
     return {
       valid: () => previews.some((preview) => preview.theme_id === chosen),
       hint: () => t('style_hint', 'Choose a style.'),
       summary: () => previews.find((preview) => preview.theme_id === chosen)?.name || '',
-      destroy(){ alive = false; el.removeEventListener('click', onClick); el.removeEventListener('keydown', onKey); handles.forEach((handle) => { try { handle?.destroy?.(); } catch (_) {} }); }
+      destroy(){
+        alive = false; clearTimeout(timer); observer?.disconnect();
+        if (!wasWide) sheet?.classList.remove('gxs-wide');
+        el.removeEventListener('click', onClick); el.removeEventListener('keydown', onKey);
+        cards.forEach((card) => { try { card.handle?.destroy?.(); } catch (_) {} });
+      }
     };
   }
 }
