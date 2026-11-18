@@ -72,3 +72,27 @@ test('the overview channel cards share one row on a phone and say nothing when e
   assert.match(source, /<div class="fmco-cards" data-co-channels="\$\{cards\.length\}" style="--fmco-channels:\$\{Math\.max\(1, cards\.length\)\}">/);
   assert.doesNotMatch(source, /No messages yet/);
 });
+
+// FM-587: the email composer is the notes rich editor (format bar, attach, dictate and audio), the
+// comma hint is an (i) on the To line, and the sending address is a gray subtitle by "New email".
+test('the email composer is the shared rich editor with attachments and no always-visible hints', () => {
+  const start = source.indexOf('  function renderEmail(root){');
+  const view = source.slice(start, source.indexOf('  // SMS ----', start));
+  assert.doesNotMatch(view, /fmco-composer-hint|<textarea/, 'a plain textarea or an always-visible hint is back in the email view');
+  assert.match(view, /<div class="fmco-thread-title">\$\{\(globalThis\.PlatformLanguage\?\.htmlText\("comms","m_71e31660564d5a","New email"\)[^\n]*<div class="fmco-thread-sub"[^\n]*"m_75109744834b1c",`Sending as \$\{v1\}`/);
+  assert.match(view, /emailComposerHtml\('reply'\)/);
+  assert.match(view, /emailComposerHtml\('compose'\)/);
+  const recipients = source.slice(source.indexOf('function emailRecipientFieldsHtml(){'), source.indexOf('function bindEmailList('));
+  assert.match(recipients, /<div class="fmco-recipient-row has-tip">[^\n]*data-co-email-to>\$\{String\(hintTip\(\(globalThis\.PlatformLanguage\?\.text\("comms","m_275d433a1ef093","Separate multiple addresses with commas"\)/);
+  assert.match(recipients, /<div class="fmco-tip-host">/);
+  const composer = source.slice(source.indexOf('function emailComposerHtml(kind){'), source.indexOf('function emailAttachmentsHtml('));
+  for (const piece of ['data-co-email-attach', 'type="file" multiple hidden', 'data-co-email-dictate', 'data-co-email-audio', "voiceIcon('dictation')", "voiceIcon('record')"]) assert.ok(composer.includes(piece), `composer lacks ${piece}`);
+  assert.match(composer, /widgets\?\.createEditor \? widgets\.createEditor\(placeholder\)/);
+  assert.match(composer, /if \(widgets\?\.formatBar\) mount\.append\(widgets\.formatBar\(editor\)\);/);
+  // Files go up as the sender's own media in the slot the send route accepts, and are sent by id with the Markdown body.
+  assert.match(composer, /slot:'email_attachment'/);
+  assert.match(fs.readFileSync(path.join(root, 'public/v1/comms/email-attachments.ts'), 'utf8'), /EMAIL_ATTACHMENT_SLOT = "email_attachment"/);
+  assert.match(composer, /format:'markdown', \.\.\.\(html \? \{ html \} : \{\}\), \.\.\.\(attachments\.length \? \{ attachments \} : \{\}\)/);
+  assert.match(rule('.fmco-email-box'), /border:1px solid #d0d5dd/);
+  assert.match(rule('.fmco-msg-rich'), /white-space:normal/);
+});

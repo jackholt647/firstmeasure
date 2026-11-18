@@ -51,6 +51,7 @@ import { loadCommsSettings, saveCommsSettings, loadProjectCommsOverrides, savePr
 import { loadChatSettings, teamSendMessage } from "../chat/service.js";
 import { ensureDefaultSenderIdentities, sendCommunication } from "../messaging/communications_service.js";
 import { resources as voiceResources } from './calls/storage.js';
+import { loadEmailAttachments, MAX_EMAIL_ATTACHMENTS } from "./email-attachments.js";
 
 const objectSchema = z.object({}).passthrough();
 const emailAddressListSchema = z.array(z.string().trim().min(1).max(500)).max(100);
@@ -62,6 +63,9 @@ const sendEmailSchema = z.object({
   subject: z.string().trim().min(1).max(998),
   text: z.string().min(1).max(100_000),
   html: z.string().max(500_000).optional(),
+  // Files the sender uploaded for this email (comms/email-attachments.ts); Markdown marks a body from the rich editor.
+  attachments: z.array(z.object({ media_id: z.string().trim().min(1).max(180) })).max(MAX_EMAIL_ATTACHMENTS).optional(),
+  format: z.enum(["text", "markdown"]).optional(),
   conversation_id: z.string().trim().max(180).optional(),
   idempotency_key: z.string().trim().max(500).optional()
 });
@@ -206,9 +210,16 @@ export const registerCommsApi: FastifyPluginAsync = async (app) => {
   app.post("/organizations/:orgId/projects/:projectId/email/send", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: SEND_PERMISSION, capability: "comms.email" });
-    const body = sendEmailSchema.parse(request.body ?? {});
+    const { attachments: attached, format, ...body } = sendEmailSchema.parse(request.body ?? {});
+    const files = attached?.length ? await loadEmailAttachments(orgId, attached.map((item) => item.media_id), ctx.userId) : null;
+    const metadata = {
+      ...(format === "markdown" ? { email_format: "markdown" } : {}),
+      ...(files ? { email_attachments: files.summaries } : {})
+    };
     const result = await sendProjectEmail(orgId, ctx.branchId || "default", getParam(request.params, "projectId"), {
       ...body,
+      ...(files ? { attachments: files.files } : {}),
+      ...(Object.keys(metadata).length ? { metadata } : {}),
       source: { type: "user", user_id: ctx.userId }
     }, ctx);
     return { ok: true, ...result };

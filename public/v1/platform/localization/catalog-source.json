@@ -1238,7 +1238,20 @@
     },
     "m_6ef4fdc13f90e7": "Personal",
     "m_16fcf42d6263d1": "Call center",
-    "m_df03a31df3227e": "Calls connect when you place them. Take incoming calls to have customers' calls ring here while this page is open."
+    "m_df03a31df3227e": "Calls connect when you place them. Take incoming calls to have customers' calls ring here while this page is open.",
+    "m_275d433a1ef093": "Separate multiple addresses with commas",
+    "m_032133d04a761e": "Attach files",
+    "m_eb0aa857e4778b": "Record an audio note",
+    "m_50479360308f51": "Uploading…",
+    "m_3ea0f07c7208c2": "Remove attachment",
+    "m_cd26f253a37e4b": "Attachments can add up to 10 MB per email.",
+    "m_17232c58b8f7af": "Attach up to 10 files to one email.",
+    "m_7a8f2e380417f3": "Could not upload this file.",
+    "m_52eac0531af849": "Audio note",
+    "m_75109744834b1c": {
+      "message": "Sending as {v1}",
+      "format": "icu"
+    }
   },
   "contacts": {
     "m_bdd2018a2c9640": {
@@ -20351,7 +20364,10 @@
     "crm_views_off": "CRM views are turned off for this company.",
     "setup_step_missing": "That setup step does not exist.",
     "guided_defer_unavailable": "This guided experience cannot be put off for later.",
-    "media_pinned_invalid": "pinned must be true or false."
+    "media_pinned_invalid": "pinned must be true or false.",
+    "email_attachment_owner": "Choose a file you attached to this email.",
+    "email_attachments_too_large": "Attachments can add up to 10 MB per email.",
+    "too_many_email_attachments": "Attach up to 10 files to one email."
   },
   "notifications": {
     "document_greeting": {

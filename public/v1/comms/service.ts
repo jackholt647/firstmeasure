@@ -424,8 +424,8 @@ export async function sendProjectEmail(
   orgId: string,
   branchId: string,
   projectId: string,
-  // Attachments come only from server callers (a purchase order's PDF); the HTTP route does not accept them.
-  input: { to?: string | string[]; cc?: string[]; bcc?: string[]; subject: string; text: string; html?: string; conversation_id?: string; source?: Json; idempotency_key?: string; attachments?: Array<{ name: string; content_type: string; content: Uint8Array | string }> },
+  // Attachments are bytes: a server caller's own file (a purchase order's PDF) or the sender's uploads, read by the route (email-attachments.ts).
+  input: { to?: string | string[]; cc?: string[]; bcc?: string[]; subject: string; text: string; html?: string; conversation_id?: string; source?: Json; metadata?: Json; idempotency_key?: string; attachments?: Array<{ name: string; content_type: string; content: Uint8Array | string }> },
   ctx?: Partial<PlatformAuthContext>
 ) {
   const contact = await projectPrimaryContact(orgId, projectId);
@@ -489,6 +489,7 @@ export async function sendProjectEmail(
     ...(input.attachments?.length ? { attachments: input.attachments } : {}),
     context: { project_id: projectId, ...(contactIds.length === 1 ? { contact_id: contactIds[0] } : {}) },
     source: input.source,
+    ...(input.metadata ? { metadata: input.metadata } : {}),
     idempotency_key: input.idempotency_key,
     in_reply_to: threading.in_reply_to || undefined,
     references: threading.references.length ? threading.references : undefined
