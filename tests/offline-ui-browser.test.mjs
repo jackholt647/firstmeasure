@@ -512,13 +512,15 @@ test('waitingBadge shows only while its record waits, fails or is in conflict', 
   await context.close();
 });
 
-test('the project window offers "Available offline", and lists mark saved projects only while offline', async () => {
+test('the project window offers to keep a project offline, and lists mark saved projects only while offline', async () => {
   const { tab, context, errors, shot } = await open({ path: '/portal/host' });
   const frame = tab.frameLocator('#projectFrame');
   const button = frame.locator('.fmo-proj');
   await button.waitFor();
   assert.equal(await button.getAttribute('data-state'), 'none');
-  assert.match(await button.getAttribute('aria-label'), /^Available offline\. This project is not saved on this device\.$/);
+  // Its name says the state: never "Available offline" for a project that is not (FM-583).
+  assert.match(await button.getAttribute('aria-label'), /^Not available offline\. This project is not saved on this device\.$/);
+  assert.equal(await button.getAttribute('data-fm-tooltip'), 'Not available offline: This project is not saved on this device.');
   assert.ok(await frame.locator('.r-window-identity').evaluate((n) => n.querySelector('#rProjectIdentityTrigger').nextElementSibling.classList.contains('fmo-slot')), 'beside the project title');
 
   await tab.frames()[1].evaluate(() => { window.fake.pinMs = 400; });
@@ -526,6 +528,7 @@ test('the project window offers "Available offline", and lists mark saved projec
   const panel = tab.locator('.fmo-pop');                    // drawn in the top page, above the window
   await panel.waitFor();
   assert.equal(await panel.locator('[data-project-status]').innerText(), 'This project is not saved on this device.');
+  assert.equal(await panel.locator('h2').innerText(), 'Not available offline');
   await shot('project-not-saved');
   await panel.locator('button', { hasText: 'Keep on this device' }).click();
   await tab.waitForFunction(() => document.querySelector('.fmo-pop [data-project-status]')?.dataset.projectStatus === 'downloading');
@@ -533,6 +536,8 @@ test('the project window offers "Available offline", and lists mark saved projec
   await tab.waitForFunction(() => document.querySelector('.fmo-pop [data-project-status]')?.dataset.projectStatus === 'saved');
   assert.match(await panel.innerText(), /Saved on this device just now\.[^]*You chose to keep this project on this device\./);
   assert.equal(await button.getAttribute('data-state'), 'saved');
+  assert.equal(await panel.locator('h2').innerText(), 'Available offline');
+  assert.match(await button.getAttribute('data-fm-tooltip'), /^Available offline: Saved on this device just now\.$/);
   assert.deepEqual(await tab.frames()[1].evaluate(() => window.fake.calls.filter((call) => call[0] === 'pin')), [['pin', 'org_1', 'p1', false]]);
   await shot('project-saved');
   await panel.locator('button', { hasText: 'Remove from this device' }).click();

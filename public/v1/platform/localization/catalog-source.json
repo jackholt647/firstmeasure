@@ -1393,7 +1393,8 @@
     "m_ead6d3b487e677": "More",
     "m_bf18bbe92ba310": "More actions",
     "m_ea57e48c6efe7a": "Add employer",
-    "m_37d730ce887bee": "Add spouse"
+    "m_37d730ce887bee": "Add spouse",
+    "m_1435886b385a13": "Upload PDFs or files for this contact."
   },
   "crew": {
     "m_b0bb1e74e2a6d3": "Review",
@@ -2947,7 +2948,8 @@
     "m_32923c20e947de": "Confirm that you are presenting this in person.",
     "m_9ba5134ee5d0df": "Preparing the agreement…",
     "m_a612df7f675c3f": "Preview what they see (nothing can be signed or paid)",
-    "m_18d3d018740a11": "Scan paper"
+    "m_18d3d018740a11": "Scan paper",
+    "m_0d2436e05946ee": "A PDF or photo of a paper document; add fields during review"
   },
   "equipment": {
     "m_f326bdcd77881a": "Available",
@@ -3157,7 +3159,18 @@
     },
     "m_e7335dc464c357": "Capacity",
     "m_c930fda0aa203e": "What this unit holds. Leave blank to use what its type holds.",
-    "m_42ec18e25e1259": "Functions"
+    "m_42ec18e25e1259": "Functions",
+    "m_b3c3eac1651940": "Cancel work order",
+    "m_7839757fa5e4ee": "Starts",
+    "m_949158d13efad4": "Ends",
+    "m_4b91b73dae1ff3": "Unit",
+    "m_8cc05dc8159612": "What needs doing",
+    "m_9bc25b9a45d94c": " Create",
+    "m_3742924668fb10": "Close",
+    "m_3145040bc7fc6d": "e.g. Replace brake pads",
+    "m_3d416befe4dad6": "Clear filters",
+    "m_44c82777dd6847": "No units match",
+    "m_f2cc0ed86a5a55": " Clear search and filters"
   },
   "feedback": {
     "m_d77e00c8c3f0b8": "Feedback"
@@ -13648,7 +13661,11 @@
     },
     "m_abc1a51fe9a688": "Texting program",
     "m_f1ec1e5a20b923": "Carriers will need these changed",
-    "m_233716eae29bbf": "Example texts"
+    "m_233716eae29bbf": "Example texts",
+    "m_98a3f5bdc69262": "Choose what your organization tracks on every contact and how new contacts are matched.",
+    "m_06a2317739ea3c": "Matching existing contacts",
+    "m_d5eba28c84286a": "When a new lead or contact has the same email or phone number as an existing contact, use that contact instead of creating another one.",
+    "m_743229a58a522f": " Use existing contacts with the same email or phone"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Add Work",
@@ -18935,7 +18952,7 @@
     "password_required": "A password is required.",
     "missing_charge_token": "A charge token is required.",
     "charge_token_not_found": "No refundable charge was found for that token.",
-    "media_update_required": "A tags array or a name is required.",
+    "media_update_required": "A tags array, a name or pinned is required.",
     "private_media": "Only organization logo media can be fetched publicly.",
     "equipment_conflict": "One or more equipment assignments conflict with existing bookings.",
     "equipment_operator_required": "One or more equipment assignments are missing a qualified operator.",
@@ -20328,7 +20345,11 @@
     "company_sales_team_unknown": "Choose who does your sales from the list.",
     "company_workforce_unknown": "Choose who does your work from the list.",
     "domain_email_not_set": "Choose this domain's email address first.",
-    "domain_not_verified": "Verify that you own this domain before checking its email records."
+    "domain_not_verified": "Verify that you own this domain before checking its email records.",
+    "crm_views_off": "CRM views are turned off for this company.",
+    "setup_step_missing": "That setup step does not exist.",
+    "guided_defer_unavailable": "This guided experience cannot be put off for later.",
+    "media_pinned_invalid": "pinned must be true or false."
   },
   "notifications": {
     "document_greeting": {
@@ -20611,7 +20632,20 @@
     "m_4b99865b7d9e8d": "Appointment types",
     "m_a2e9ffbd217929": "Location",
     "m_f28a5a7b8b35f8": "Name the type first.",
-    "m_ea600c018fb36c": "Saving…"
+    "m_ea600c018fb36c": "Saving…",
+    "m_491241b9a33521": "New project",
+    "m_d07cfa0d99ee9b": "New appointment type",
+    "m_cbef679b21abb4": "Cancel",
+    "m_86f1a7988db047": "Saved for everyone. You book one next.",
+    "m_253685b0f94ed3": "Save type",
+    "m_d2da77452877dd": "Loading…",
+    "m_542ccfc413c915": "Creating project…",
+    "m_7bb8e1765735e0": {
+      "message": "Staffing {v9}",
+      "format": "icu"
+    },
+    "m_5d78aa9d5de77b": "Type name",
+    "m_88a8f4911ba635": "e.g. Roof inspection"
   },
   "partners": {
     "m_a5cfb1805161b3": "Partner workspace",
@@ -21753,6 +21787,7 @@
     "badge_conflict": "Needs your choice",
     "badge_conflict_tip": "This was also changed on the server. Open to choose what to keep.",
     "project_title": "Available offline",
+    "project_title_not_saved": "Not available offline",
     "project_not_saved": "This project is not saved on this device.",
     "project_downloading": "Saving this project on this device…",
     "project_saved": {
