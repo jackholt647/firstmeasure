@@ -516,8 +516,9 @@
   }
 
   function portalSelectionActions(){
-    if (!window.customerPortalMediaEnabled?.()) return [];
+    if (!window.customerPortalMediaEnabled?.()) return [topPinSelectionAction()];
     return [
+      topPinSelectionAction(),
       {
         id: 'share_customer_portal',
         label: (globalThis.PlatformLanguage?.text("photos","m_a39840b5c977a8","Share to Portal") ?? "Share to Portal"),
@@ -810,7 +811,7 @@
   // the cover). They live in the viewer's action list, which
   // the viewer keeps by reference, so syncPinViewerActions can swap them in place once the fields are known.
   function pinViewerActions(){
-    return pinnedFields().flatMap((field) => isCoverField(field) ? [
+    return [...topPinViewerActions(), ...pinnedFields().flatMap((field) => isCoverField(field) ? [
       {
         id:`pin_field:${field.path}`,
         pinField:true,
@@ -844,7 +845,7 @@
         visible:({ photo }) => field.writable !== false && pinnedIds(field).includes(projectPhotoId(photo)),
         onClick:({ photo, viewer }) => unpinPhoto(field, projectPhotoId(photo), viewer)
       }
-    ]);
+    ])];
   }
 
   function syncPinViewerActions(){
@@ -865,6 +866,117 @@
       icon:'thumbtack',
       tone:'info',
       visible:({ photo }) => pinnedLabelsFor(projectPhotoId(photo)).length > 0
+    };
+  }
+
+  // ---- Pinned to the top ----
+  // Any photo or video in the library can be pinned to the top of the tab: the gallery shows pinned items first, in
+  // one "Pinned" group, the latest pinned first (feed.js, options.pinnedAt). The pin is on the media record
+  // (metadata.pinned and pinned_at, PATCH .../media/:id {pinned}), so everyone sees the same order. `changed` keeps
+  // this session's pins by media id for the gallery's and the viewer's own copies of the photos.
+  const topPins = { projectId:'', changed:new Map() };
+
+  function topPinId(photo){
+    return String(photo?.media_id || photo?.mediaId || '').trim();
+  }
+
+  function topPinEligible(photo){
+    const id = topPinId(photo);
+    return !!id && !photo?.uploading && !id.startsWith('local_') && !isTrashedPhoto(photo);
+  }
+
+  function topPinnedAt(photo){
+    const id = topPinId(photo);
+    if (!id) return '';
+    if (topPins.projectId === activeProjectId() && topPins.changed.has(id)) return topPins.changed.get(id);
+    const meta = photo?.metadata || {};
+    return meta.pinned === true ? String(meta.pinned_at || '0') : '';
+  }
+
+  async function setTopPinned(photos, pin, viewer = null){
+    const orgId = firstMeasurePhotoOptions().orgId;
+    const projectId = activeProjectId();
+    const ids = [...new Set(photos.filter((photo) => topPinEligible(photo) && !!topPinnedAt(photo) !== pin).map(topPinId))];
+    if (!ids.length || !orgId || !projectId) return;
+    const title = pin ? pinText('top_pinned_title', 'Pinned to the top') : pinText('top_unpinned_title', 'Unpinned');
+    try {
+      if (typeof window.PlatformAPI?.media?.setPinned !== 'function') throw new Error(pinText('top_pin_unavailable', 'Pinning is not available.'));
+      const results = await Promise.allSettled(ids.map((id) => window.PlatformAPI.media.setPinned(orgId, id, pin)));
+      if (topPins.projectId !== projectId) { topPins.projectId = projectId; topPins.changed.clear(); }
+      const saved = new Map();
+      results.forEach((result, index) => {
+        if (result.status !== 'fulfilled') return;
+        const meta = result.value?.media?.metadata || {};
+        saved.set(ids[index], meta.pinned === true ? String(meta.pinned_at || '0') : '');
+      });
+      saved.forEach((at, id) => topPins.changed.set(id, at));
+      if (saved.size) {
+        const next = projectPhotosList().map((entry) => {
+          const id = topPinId(entry);
+          if (!saved.has(id)) return entry;
+          const { pinned_at: _at, ...metadata } = entry.metadata || {};
+          return { ...entry, metadata: saved.get(id) ? { ...metadata, pinned:true, pinned_at:saved.get(id) } : { ...metadata, pinned:false } };
+        });
+        setProjectPhotosList(next);
+        const project = activeProject();
+        if (project) project.photos = next.filter((photo) => !photo?.uploading).map(serializablePhoto);
+        callHost('persistProject') || window.persistActiveBaseProject?.();
+        state.gallery?.refresh?.();
+        (viewer || state.activeViewer)?.refreshActions?.();
+        (viewer || state.activeViewer)?.refreshIndicators?.({ pulseId:'pinned_top' });
+      }
+      const failed = results.find((result) => result.status === 'rejected');
+      if (failed) throw failed.reason;
+      showToast(title, saved.size === 1 ? '' : pinText('top_pin_count', `${saved.size} items`, { v0:saved.size }), true);
+    } catch (error) {
+      showToast(pinText('top_pin_not_changed', 'Pin not changed'), error?.message || '', false);
+    }
+  }
+
+  function topPinViewerActions(){
+    return [
+      {
+        id:'pin_top',
+        pinField:true,
+        label:pinText('top_pin_action', 'Pin to top'),
+        icon:'thumbtack',
+        visible:({ photo }) => topPinEligible(photo) && !topPinnedAt(photo),
+        onClick:({ photo, viewer }) => setTopPinned([photo], true, viewer)
+      },
+      {
+        id:'unpin_top',
+        pinField:true,
+        label:pinText('top_unpin_action', 'Unpin from top'),
+        icon:'xmark',
+        visible:({ photo }) => topPinEligible(photo) && !!topPinnedAt(photo),
+        onClick:({ photo, viewer }) => setTopPinned([photo], false, viewer)
+      }
+    ];
+  }
+
+  function topPinIndicator(){
+    return {
+      id:'pinned_top',
+      label:pinText('top_pinned_title', 'Pinned to the top'),
+      detail:pinText('top_pinned_detail', 'Shown first in Photos'),
+      icon:'thumbtack',
+      tone:'info',
+      visible:({ photo }) => !!topPinnedAt(photo)
+    };
+  }
+
+  // The selection toolbar's pin: unpins when every selected item is pinned, else pins them all.
+  function topPinSelectionAction(){
+    const allPinned = (items) => items.length > 0 && items.every((item) => topPinnedAt(item.photo || item));
+    return {
+      id:'pin_top',
+      label:(items = []) => allPinned(items) ? pinText('top_unpin_action', 'Unpin from top') : pinText('top_pin_action', 'Pin to top'),
+      icon:'fa-thumbtack',
+      onClick:async (items, helpers = {}) => {
+        await setTopPinned(items.map((item) => item.photo || item), !allPinned(items));
+        helpers.clearSelection?.();
+        helpers.render?.();
+      }
     };
   }
 
@@ -1145,7 +1257,7 @@
       tone:'info',
       visible:({ photo }) => String(photo?.metadata?.source || '').toLowerCase() === 'project_notes'
     }];
-    indicators.push(pinnedIndicator());
+    indicators.push(topPinIndicator(), pinnedIndicator());
     if (!window.customerPortalMediaEnabled?.()) return indicators;
     indicators.push({
       id: 'customer_portal_shared',
@@ -1228,7 +1340,8 @@
       bindPinnedControls(root);
       closePinnedMenu();
       const viewerActions = state.viewerActionList = portalViewerActions();
-      Portal.PhotoFeed.mountProjectGallery(root.querySelector('#rPhotoFeedMount'), {
+      if (topPins.projectId !== state.galleryProjectId) { topPins.projectId = state.galleryProjectId; topPins.changed.clear(); }
+      state.gallery = Portal.PhotoFeed.mountProjectGallery(root.querySelector('#rPhotoFeedMount'), {
         project,
         photos,
         title: '',
@@ -1241,6 +1354,7 @@
         initialPhotoId: window.pendingRoutePhotoId,
         selectionActions: portalSelectionActions(),
         pinnedTiles: pinnedGalleryTiles,
+        pinnedAt: (item) => topPinnedAt(item?.photo),
         renderTileBadge: renderPinnedTileBadge,
         viewerActions,
         viewerIndicators: portalViewerIndicators(),

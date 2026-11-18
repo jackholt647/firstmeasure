@@ -39,7 +39,7 @@
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20261118-fm551-reply'),
-    versionedBundle('photos/feed.js', '20261117-feed-bar-inset'),
+    versionedBundle('photos/feed.js', '20261118-fm560-pinned'),
     versionedBundle('../markup/firstmate-markup.js', '20261111-offline-photos'),
     versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'),
     versionedBundle('../project-notes/project-notes.js', '20261111-offline-uploads'),
@@ -132,7 +132,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'), versionedBundle('photos/feed.js', '20261117-feed-bar-inset')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'), versionedBundle('photos/feed.js', '20261118-fm560-pinned')]
     },
     {
       id: 'portal.receipts',
@@ -143,7 +143,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'receipts',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261117-feed-bar-inset'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261118-fm560-pinned'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
     },
     {
       // DEPRECATED (2026-08): legacy proposals surface — hidden by its bundle
@@ -166,7 +166,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261118-fm559-on-started'), versionedBundle('photos/project.js', '20261118-fm559-photos-uploaded')]
+      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261118-fm559-on-started'), versionedBundle('photos/project.js', '20261118-fm560-pin-top')]
     },
     {
       // DEPRECATED (2026-08): legacy Proposals project tab — hidden by its
@@ -215,7 +215,7 @@
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261113-touch-gestures'),
         versionedBundle('../doc-sent-editor/firstmate-doc-sent-editor.js', '20261026-mobile-documents-2'),
-        versionedBundle('photos/feed.js', '20261117-feed-bar-inset'),
+        versionedBundle('photos/feed.js', '20261118-fm560-pinned'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -243,7 +243,7 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261113-touch-gestures'),
-        versionedBundle('photos/feed.js', '20261117-feed-bar-inset'),
+        versionedBundle('photos/feed.js', '20261118-fm560-pinned'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -296,7 +296,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261117-feed-bar-inset'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261103-metrics-one-row')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261118-fm560-pinned'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261103-metrics-one-row')]
     },
     {
       id: 'project.request',
@@ -545,7 +545,7 @@
         versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261118-fm551-reply'),
-        versionedBundle('photos/feed.js', '20261117-feed-bar-inset'),
+        versionedBundle('photos/feed.js', '20261118-fm560-pinned'),
     versionedBundle('../markup/firstmate-markup.js', '20261111-offline-photos'),
     versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'),
     versionedBundle('../project-notes/project-notes.js', '20261111-offline-uploads'),

@@ -192,6 +192,17 @@ with the field's name. All of it writes the field's ordinary value through
 portal and documents read the same value. A `cardinality: many` field adds to
 its list. When a pinned photo is trashed, Photos reads the `values` export again
 rather than guessing what the server kept.
+
+Pinning a photo **to the top** is not a field: any photo or video in the
+library can be pinned ("Pin to top" / "Unpin from top" in the viewer and the
+selection toolbar), and the gallery shows pinned items first, in one "Pinned"
+group, the latest pinned first (`photos/feed.js`, `options.pinnedAt`). The pin
+is on the media record, `PATCH .../media/:id {pinned}`, which writes
+`metadata.pinned` (always, `false` when unpinned, so a copy kept in the
+project's `photos[]` cannot bring an unpin back) and `metadata.pinned_at`
+(`platform/storage.ts`, `setMediaPinned`). It needs a connection: there is no
+offline contract for it.
+
 Trashing or removing the selected photo clears the cover during storage
 preparation on both backends; restoring a photo does not reselect it. Other
 reference fields retain unavailable values for recovery. Changed references to

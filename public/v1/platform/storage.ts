@@ -1576,6 +1576,23 @@ export async function updateMediaTags(orgId: string, mediaId: string, tagsValue:
   });
 }
 
+/* Pins a media item to the top of its project's Photos tab, or unpins it. `metadata.pinned` is always written
+ * (false when unpinned) so a copy of the photo kept in the project's `photos[]` cannot outlive an unpin;
+ * `pinned_at` orders the pinned items, the latest first. */
+export async function setMediaPinned(orgId: string, mediaId: string, pinned: boolean) {
+  const normalizedOrgId = sanitizeId(orgId, "organization_id");
+  const normalizedMediaId = sanitizeId(mediaId, "media_id");
+  return await mutateMediaMetadata(normalizedOrgId, normalizedMediaId, (media) => {
+    const { pinned: _pinned, pinned_at: _pinnedAt, ...metadata } = asObject(media.metadata);
+    const now = nowIso();
+    return {
+      ...media,
+      metadata: pinned ? { ...metadata, pinned: true, pinned_at: now } : { ...metadata, pinned: false },
+      updated_at: now
+    };
+  });
+}
+
 /** Moves a media item to another owner of the same type, as a contact or project merge does. */
 export async function reassignMediaOwner(orgId: string, mediaId: string, ownerId: string) {
   const normalizedOrgId = sanitizeId(orgId, "organization_id");
