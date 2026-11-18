@@ -104,6 +104,8 @@ export async function devConsoleSetup(ctx: PlatformAuthContext) {
   }
 
   const events = await listStepEvents(ctx.orgId, steps.map((step) => step.id));
+  const { listSetupTests } = await import("./setup-tests.js");
+  const tests = new Map((await listSetupTests(ctx.orgId)).map((test) => [test.step_id, test]));
   const cache: SatisfactionCache = new Map();
   const stepRows = [];
   for (const step of steps) {
@@ -115,7 +117,8 @@ export async function devConsoleSetup(ctx: PlatformAuthContext) {
       id: step.id, scope: step.scope, title: step.title.text, requires: [...step.requires], status,
       answered_in: await where(mine.find((event) => event.type === "step_done")),
       last: await where(latest), last_type: latest?.type || null,
-      asked_by: askedBy.get(step.id) || []
+      asked_by: askedBy.get(step.id) || [],
+      test: tests.get(step.id) || null
     });
   }
 
@@ -137,4 +140,12 @@ export async function devConsoleSetup(ctx: PlatformAuthContext) {
     });
   }
   return { ok: true, steps: stepRows, guides: guideRows };
+}
+
+/** The Setup section's tests (development/setup-tests.ts): start one (play the step), end it, roll it back. */
+export async function devConsoleSetupTest(ctx: PlatformAuthContext, stepId: string, what: "start" | "end" | "rollback") {
+  await devConsoleAccess(ctx);
+  const tests = await import("./setup-tests.js");
+  const id = String(stepId || "").trim();
+  return { ok: true, ...(what === "start" ? await tests.startSetupTest(ctx, id) : what === "end" ? await tests.endSetupTest(ctx, id) : await tests.rollbackSetupTest(ctx, id)) };
 }

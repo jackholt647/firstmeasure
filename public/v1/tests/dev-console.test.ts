@@ -79,6 +79,43 @@ test('the dev console answers the development tools audience with its sections a
   assert.deepEqual([stepOf(state,'company.services').status,stepOf(state,'company.services').answered_in,stepOf(state,'company.services').last_type],['done',null,'step_skip']);
   await service.recordGuidedEvent(ctx,'test.fm571_setup',{type:'dismiss',step_id:'company.services'});
   assert.equal(guideOf(await setupState(),'test.fm571_setup').status,'skipped');
+  // Setup tests: a step is asked again even when answered, saved for real, and rolled back to before the first test.
+  const post=async(url:string)=>{const r=await app.inject({method:'POST',url,headers:{cookie,'x-platform-csrf':ctx.csrfToken},payload:{}});assert.equal(r.statusCode,200,r.body);return r.json();};
+  const profile=async()=>(await import('../company-profile/profile.js')).readCompanyProfile(ctx.orgId);
+  const steps='/v1/signup-sandbox/development/console/setup/steps';
+  assert.equal((await profile()).company_type,'roofing_contractor');
+  const started=await post(`${steps}/company.type/test`);
+  assert.deepEqual(started.experience.steps.map((s:any)=>s.id),['company.type'],'answered, and still asked');
+  assert.equal(started.experience.steps[0].setup_step.id,'company.type');
+  assert.equal(started.test.status,'open');
+  await invokeAction(userPublicationContext(ctx,{mode:'command'}),{action:'company-profile.save',target:{scope:'organization',organizationId:ctx.orgId}},{company_type:'other',company_type_other:'Chimney sweep'},{idempotencyKey:'fm571-test-1'});
+  await service.recordGuidedEvent(ctx,'setup_step.company.type',{type:'step_done',step_id:'company.type'});
+  const ended=await post(`${steps}/company.type/test/end`);
+  assert.deepEqual(ended.test.changes.filter((c:any)=>c.module==='company_profile').map((c:any)=>c.key).sort(),['company_type','company_type_other']);
+  state=await setupState();
+  assert.equal(stepOf(state,'company.type').answered_in.on_its_own,true,'a test answers the step on its own');
+  assert.equal(stepOf(state,'company.type').test.tests,1);
+  // A second test keeps the value from before the first.
+  await post(`${steps}/company.type/test`);
+  await invokeAction(userPublicationContext(ctx,{mode:'command'}),{action:'company-profile.save',target:{scope:'organization',organizationId:ctx.orgId}},{company_type:'gutter_contractor'},{idempotencyKey:'fm571-test-2'});
+  const rolled=await post(`${steps}/company.type/rollback`);
+  assert.ok(rolled.restored.includes('company_profile.company_type'));
+  assert.ok(rolled.events>=1,'the test\'s events are forgotten');
+  assert.deepEqual([(await profile()).company_type,(await profile()).company_type_other],['roofing_contractor',null],'back to before the first test');
+  state=await setupState();
+  assert.equal(stepOf(state,'company.type').test,null);
+  assert.equal(stepOf(state,'company.type').answered_in.experience_id,'test.fm571_setup','where it was answered before the test');
+  // A step nobody answered: a test answers it, roll back leaves it unanswered again.
+  (await import('../guided-experiences/setup-steps.js')).registerSetupStepForTests({id:'test.fm571_workforce',version:1,title:{key:'gx_test_fm571_w',text:'Who works?'},description:{key:'gx_test_fm571_wd',text:'W'},ui:{widget:'brand-cards'},satisfied:{provider:'company-profile',export:'profile',path:'/answered/workforce'},writes:{action:'company-profile.save'}});
+  assert.equal(stepOf(await setupState(),'test.fm571_workforce').status,'not_started');
+  assert.deepEqual((await post(`${steps}/test.fm571_workforce/test`)).experience.steps.map((s:any)=>s.id),['test.fm571_workforce']);
+  await invokeAction(userPublicationContext(ctx,{mode:'command'}),{action:'company-profile.save',target:{scope:'organization',organizationId:ctx.orgId}},{workforce:'crews'},{idempotencyKey:'fm571-test-3'});
+  assert.equal(stepOf(await setupState(),'test.fm571_workforce').status,'done');
+  await post(`${steps}/test.fm571_workforce/rollback`);
+  assert.equal((await profile()).answered.workforce,false,'as if it was never answered');
+  assert.equal(stepOf(await setupState(),'test.fm571_workforce').status,'not_started');
+  assert.equal((await app.inject({method:'POST',url:`${steps}/company.type/rollback`,headers:{cookie,'x-platform-csrf':ctx.csrfToken},payload:{}})).statusCode,404,'nothing to roll back');
+  assert.equal((await app.inject({method:'POST',url:`${steps}/company.type/test`,headers:{cookie},payload:{}})).statusCode,403,'writes need the CSRF token');
   // An ordinary organization's owner is not the audience.
   const storage=await import('../platform/storage.js');
   const devConsole=await import('../development/console.js');
@@ -86,5 +123,6 @@ test('the dev console answers the development tools audience with its sections a
   await assert.rejects(devConsole.devConsoleAccess({...ctx,orgId:String(real.id)}),/development tools audience/);
   await assert.rejects(devConsole.devConsoleLive({...ctx,orgId:String(real.id)}),/development tools audience/);
   await assert.rejects(devConsole.devConsoleSetup({...ctx,orgId:String(real.id)}),/development tools audience/);
+  await assert.rejects(devConsole.devConsoleSetupTest({...ctx,orgId:String(real.id)},'company.type','start'),/development tools audience/);
  }finally{await app.close();}
 });

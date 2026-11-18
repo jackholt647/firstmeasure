@@ -7,6 +7,7 @@
  *     preload(projectId)            read once what may play on a project's tabs, so a tab's tour starts at once
  *     play(id, { replay })          play one now (a tutorial replay, a setup from a button)
  *     preview(id)                   play one as if seen for the first time, recording nothing (trying an announcement)
+ *     test(resolved)                development: play one the server resolved for a test (dev console Setup tests)
  *     require(stepId)               ask a setup step (and what it requires) only if the data says it is unanswered
  *     faqs(tab)                     the assistant's suggested questions for a project tab
  *     attachAssistant(drawer, api)  draws those questions above an assistant composer (platform-assistant.js)
@@ -287,6 +288,19 @@
       if (shared.active === token) shared.active = null;
       nextInQueue();
     }
+  }
+
+  /**
+   * Development: plays an experience the server already resolved for a test (the dev console's Setup tests play a
+   * setup step even when it is answered, in their own frame). Its events and saves are the real ones; it does not wait
+   * for, or hold, the page's one-at-a-time lock, since it plays in a frame of its own.
+   */
+  async function test(resolved){
+    const experience = object(resolved);
+    const player = kinds.get(experience.kind);
+    if (!player) return { status: 'unavailable' };
+    track(experience, 'start');
+    return await player({ experience, api, track: (type, extra) => track(experience, type, extra), where, L, esc, reducedMotion, options: { replay: true, test: true }, control: {}, playChild: async () => ({ status: 'unavailable' }) }) || { status: 'ended' };
   }
 
   // A setup may open another existing guide and return to its checklist. The page's lock
@@ -1223,7 +1237,7 @@
     /** Development: draws the guided experiences tools into a dev console section (development editors only). */
     devPanel: (container) => devState.editor ? devPanel(container) : null,
     filterProjectTabs, projectFacts,
-    refresh: () => refresh(true), play, preview, faqs, attachAssistant, overlay, where, follow,
+    refresh: () => refresh(true), play, preview, test, faqs, attachAssistant, overlay, where, follow,
     /**
      * Makes sure a setup step is answered (docs/architecture/setup-steps.md): asks it, and the steps it requires, in
      * the standard setup frame when the data says it is not answered yet; does nothing when it is. Resolves

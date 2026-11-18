@@ -14,7 +14,7 @@
  */
 import { dock, windowWidth } from './dock.js?v=20261112-tray3';
 
-const VERSION = '20261118-fm571-setup';
+const VERSION = '20261118-fm571-test';
 const NS = 'dev-console';
 const STORE = 'fm-dev-console';
 // The page keeps at least APP_MIN px beside the console.
@@ -201,7 +201,7 @@ async function select(id) {
 }
 
 function context() {
-  return { api, T, esc, access: state.access, orgId: () => String(window.__APP?.userOrgId || window.Portal?.currentUser?.orgId || ''), open: (id) => setOpen(true, id), toast };
+  return { api, T, esc, access: state.access, orgId: () => String(window.__APP?.userOrgId || window.Portal?.currentUser?.orgId || ''), open: (id) => setOpen(true, id), toast, phone, VERSION };
 }
 
 /** A short line at the bottom of the tray (or the page when folded). */

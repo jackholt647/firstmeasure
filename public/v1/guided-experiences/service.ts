@@ -13,6 +13,7 @@ import { lastEvent, listProgress, readProgress, recordEvent, wasExposed, writePr
 import { ensureGuidedSources } from "./sources.js";
 import { checkSetupStepGraph, injectedStep, missingSetupSteps, setupStep, setupStepsVersion, type SatisfactionCache } from "./setup-steps.js";
 import { readCompanyProfile } from "../company-profile/profile.js";
+import { SETUP_STEP_EXPERIENCE_PREFIX } from "./library-checks.js";
 import { introductionRequested } from "../platform/flag-introductions.js";
 import { readGlobal } from "../platform/storage.js";
 
@@ -247,6 +248,22 @@ export async function previewExperience(ctx: PlatformAuthContext, experienceId: 
   const chooser = await chooserContext(ctx, surface);
   const resolved = await resolve(definition, ctx, chooser, null);
   if (!resolved) throw forbidden("guided_experience_no_variant", "No version of this guided experience suits you.");
+  return resolved;
+}
+
+/**
+ * Development (the dev console's Setup tests, development/setup-tests.ts): a setup step played on its own even when it
+ * is answered, so it can be tried again. Its unanswered requirements come first as usual; the step itself is always
+ * asked. Events and saves are the real ones.
+ */
+export async function setupStepTestExperience(ctx: PlatformAuthContext, stepId: string) {
+  ensureGuidedDefinitions();
+  const step = setupStep(stepId);
+  const definition = experience(`${SETUP_STEP_EXPERIENCE_PREFIX}${stepId}`);
+  if (!step || !definition) throw notFound("setup_step_missing", "That setup step does not exist.");
+  const resolved = await resolve(definition, ctx, await chooserContext(ctx), null);
+  if (!resolved) throw forbidden("guided_experience_no_variant", "No version of this setup step suits you.");
+  if (!resolved.steps.some((entry) => (entry as { id?: string }).id === step.id)) resolved.steps.push(injectedStep(step, ""));
   return resolved;
 }
 

@@ -111,6 +111,13 @@ export const registerSignupSandboxApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request);
     return (await import("../development/console.js")).devConsoleSetup(ctx);
   });
+  // A setup step tested from the Setup section: play it (answered or not), end the test, roll it back.
+  for (const [suffix, what] of [["test", "start"], ["test/end", "end"], ["rollback", "rollback"]] as const) {
+    app.post(`/development/console/setup/steps/:stepId/${suffix}`, async (request) => {
+      const ctx = await requirePlatformAuth(request, { csrf: true });
+      return (await import("../development/console.js")).devConsoleSetupTest(ctx, String((request.params as { stepId?: string }).stepId || ""), what);
+    });
+  }
   app.get("/development/software-layers", async (request) => {
     const ctx = await requirePlatformAuth(request, { permission: "manage_company_settings" });
     return (await import("../development/software-layers.js")).softwareLayers(ctx, request.query);
