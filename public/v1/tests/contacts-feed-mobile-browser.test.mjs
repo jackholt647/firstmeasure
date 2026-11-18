@@ -108,7 +108,7 @@ test('My Contacts on a phone: no doubled title, one control row, tappable rows, 
  }finally{await browser.close();}
 });
 
-test('contact window on a phone: one scrolling column, fixed Call/Text/Email bar, More sheet; desktop unchanged',async()=>{
+test('contact window on a phone: one scrolling column, the project window\'s footer bar (Call/Text/Email, no More), relationships in Details; desktop unchanged',async()=>{
  const browser=await chromium.launch({executablePath:CHROME,headless:true});
  try{
   for(const options of [PHONE,{viewport:{width:1600,height:1000}}]){
@@ -125,39 +125,35 @@ test('contact window on a phone: one scrolling column, fixed Call/Text/Email bar
    await page.evaluate(()=>Portal.modules.contacts.open({id:'c1',name:'Avery Morgan',phone:'5552013344',email:'avery@example.test'},{projects:[{id:'p1',title:'Oak Street roof',address:'1 Oak Street'}],projectsComplete:true}));
    await page.waitForSelector('#fmContactOverlay.active');
    await page.waitForTimeout(400);
-   const more=page.locator('[data-fm-contact-more]');
+   assert.equal(await page.locator('[data-fm-contact-more]').count(),0,'there is no More button (FM-547)');
    if(!phone){
-    assert.equal(await more.isVisible(),false,'More is phone-only');
     assert.equal(await page.locator('#fmContactNewProject').isVisible(),true);
     assert.equal(await page.locator('.fm-contact-actions').evaluate(e=>getComputedStyle(e).position),'static');
     assert.equal(await page.locator('[data-add-relationship="employer"]').isVisible(),true);
     await context.close();continue;
    }
-   const bar=await page.locator('.fm-contact-actions').evaluate(e=>{const r=e.getBoundingClientRect();return{position:getComputedStyle(e).position,bottom:Math.round(r.bottom),width:Math.round(r.width)};});
-   assert.deepEqual(bar,{position:'fixed',bottom:844,width:390},'actions are a bar along the bottom');
+   const bar=await page.locator('.fm-contact-actions').evaluate(e=>{const r=e.getBoundingClientRect();return{position:getComputedStyle(e).position,bottom:Math.round(r.bottom),width:Math.round(r.width),height:Math.round(r.height),paddingBottom:getComputedStyle(e).paddingBottom};});
+   assert.deepEqual(bar,{position:'fixed',bottom:844,width:390,height:53,paddingBottom:'0px'},'actions are the project footer bar along the bottom, with no extra padding');
+   assert.deepEqual(await page.locator('.fm-contact-actions button').allTextContents(),['Call','Text','Email'],'quick actions only');
    for(const name of ['Call','Text','Email'])assert.equal(await page.locator('.fm-contact-actions').getByRole('button',{name}).isEnabled(),true);
-   assert.ok(await page.locator('.fm-contact-actions button').evaluateAll(b=>b.every(e=>e.getBoundingClientRect().height>=48)),'thumb-sized actions');
+   // The same buttons as the project window's footer (project-trays.js): 52px, the icon in a 48x26 pill, a 10.5px label.
+   const look=await page.locator('#fmContactCall').evaluate(b=>{const i=b.querySelector('i').getBoundingClientRect();return{height:Math.round(b.getBoundingClientRect().height),icon:[Math.round(i.width),Math.round(i.height)],font:getComputedStyle(b).fontSize,color:getComputedStyle(b).color};});
+   assert.deepEqual(look,{height:52,icon:[48,26],font:'10.5px',color:'rgb(102, 112, 133)'});
+   // In the Android app the WebView is already padded for the system bars; the bar must not pad them again (FM-535).
+   await page.evaluate(()=>document.documentElement.style.setProperty('--fm-window-safe-bottom','0px'));
+   assert.equal(await page.locator('.fm-contact-actions').evaluate(e=>getComputedStyle(e).paddingBottom),'0px');
    assert.equal(await page.locator('#fmContactEmail').evaluate(e=>getComputedStyle(e).fontSize),'16px','inputs do not zoom the page on focus');
-   assert.equal(await page.locator('#fmContactNewProject').isVisible(),false,'New Project moves into More');
-   assert.equal(await page.locator('#fmContactRelationships').isVisible(),false,'empty relationships wait in More');
+   assert.equal(await page.locator('[data-add-relationship="employer"]').isVisible(),true,'Add employer is part of Details');
+   assert.equal(await page.locator('[data-add-relationship="spouse"]').isVisible(),true,'Add spouse is part of Details');
    const scroller=await page.locator('.fm-contact-content').evaluate(e=>({overflow:getComputedStyle(e).overflowY,fieldsOverflow:getComputedStyle(e.querySelector('.fm-contact-fields')).overflowY}));
    assert.deepEqual(scroller,{overflow:'auto',fieldsOverflow:'visible'},'one scrolling column');
    assert.ok(await noOverflow(page));
    await shot(page,'contact-detail-390');
-   await more.click();
-   await page.waitForSelector('.fm-contact-sheet.open');
-   await page.waitForTimeout(300);
-   assert.deepEqual(await page.locator('.fm-contact-sheet [role=menuitem]').allTextContents(),['New Project','Add employer','Add spouse']);
-   await shot(page,'contact-more-390');
-   await page.getByRole('menuitem',{name:'Add employer'}).click();
+   await page.locator('[data-add-relationship="employer"]').click();
    await page.waitForSelector('#fmContactRelationshipPanel:not([hidden])');
-   assert.equal(await page.locator('#fmContactRelationships').isVisible(),true,'the employer form opens in place');
-   await page.waitForFunction(()=>!document.querySelector('.fm-contact-sheet'));
-   await more.click();
-   await page.waitForSelector('.fm-contact-sheet.open');
-   await page.keyboard.press('Escape');
-   await page.waitForFunction(()=>!document.querySelector('.fm-contact-sheet'));
-   assert.equal(await page.locator('#fmContactOverlay.active').count(),1,'Escape closes only the sheet');
+   assert.equal(await page.locator('#fmContactRelationshipPanel').isVisible(),true,'the employer form opens in place');
+   await page.locator('#fmContactProjectsTab').click();
+   assert.equal(await page.locator('#fmContactNewProject').isVisible(),true,'New Project is on the Projects tab');
    assert.deepEqual(errors,[]);
    await context.close();
   }
@@ -170,7 +166,8 @@ async function contactWindowPage(browser,options){
  await page.route('https://contact.test/**',r=>r.fulfill({contentType:'text/html',body:'<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}main{position:relative;width:100vw;height:100vh}</style><main class="main"><div id="mainPanels"></div></main>'}));
  await page.goto('https://contact.test/');
  await page.evaluate(()=>{
-  window.Portal={cfg:{orgId:'org'},modules:{},ui:{showToast(){}},PhotoFeed:{mountProjectGallery(node){node.innerHTML='<p class="media-mounted">Media</p>';}}};
+  window.Portal={cfg:{orgId:'org'},modules:{},ui:{showToast(){}},PhotoFeed:{mountProjectGallery(node,options){window.galleryOptions=options;node.innerHTML='<p class="media-mounted">Media</p>';}},
+   ProjectDocsTab:{mountFileGallery(node,options){window.docsOptions=options;node.innerHTML='<p class="docs-mounted">Docs</p>';}}};
   window.PlatformAPI={contacts:{settings:async()=>({settings:{tags:[{id:'vip',label:'VIP'},{id:'referral',label:'Referral partner'}]}}),projects:async()=>({projects:[]}),media:async()=>({media:[]}),get:async(_o,id)=>({contact:{id,name:'Avery Morgan'}}),update:async(_o,id,changes)=>{(window.saved=window.saved||[]).push(changes);return {contact:{id,...changes}};}},media:{fileUrl:()=>''}};
  });
  for(const file of ['window-manager/window-manager.js','window-manager/window-shell.js','apps/contacts/modal.js'])await page.addScriptTag({content:await readFile(new URL(file,lib),'utf8')});
@@ -179,7 +176,7 @@ async function contactWindowPage(browser,options){
  await page.waitForTimeout(400);
  return {context,page,errors};
 }
-const tabBoxes=page=>page.locator('.fm-contact-tabs>button').evaluateAll(list=>list.filter(b=>b.getClientRects().length).map(b=>{const r=b.getBoundingClientRect();return{text:b.textContent.trim(),height:Math.round(r.height),right:Math.round(r.right),fontSize:parseFloat(getComputedStyle(b).fontSize),selected:b.getAttribute('aria-selected')};}));
+const tabBoxes=page=>page.locator('.fm-contact-tabs>button').evaluateAll(list=>list.filter(b=>b.getClientRects().length).map(b=>{const r=b.getBoundingClientRect(),label=b.querySelector('.pv-tab-label');return{text:b.textContent.trim(),height:Math.round(r.height),right:Math.round(r.right),icon:!!b.querySelector('i.fas'),labelSize:label?parseFloat(getComputedStyle(label).fontSize):0,selected:b.getAttribute('aria-selected')};}));
 
 test('contact window on a phone: Details is its own tab, each tab shows only its content, no keyboard on open, the dropdown for selects; desktop unchanged',async()=>{
  const browser=await chromium.launch({executablePath:CHROME,headless:true});
@@ -188,7 +185,8 @@ test('contact window on a phone: Details is its own tab, each tab shows only its
   assert.equal(await page.evaluate(()=>document.activeElement?.tagName),'BODY','nothing is focused, so the keyboard stays down');
   let tabs=await tabBoxes(page);
   assert.deepEqual(tabs.map(t=>t.text),['Details','Projects','Photos & Media','Docs']);
-  assert.ok(tabs.every(t=>t.height>=44&&t.fontSize>=14&&t.right<=390),`thumb-sized tabs that fit: ${JSON.stringify(tabs)}`);
+  // The project window's phone tabs (window-shell.js): equal columns, an icon over a 10px label.
+  assert.ok(tabs.every(t=>t.height===42&&t.icon&&t.labelSize===10&&t.right<=390),`project-style tabs that fit: ${JSON.stringify(tabs)}`);
   assert.deepEqual(tabs.map(t=>t.selected),['true','false','false','false'],'a contact opens on Details');
   assert.equal(await page.locator('#fmContactFirstName').isVisible(),true);
   assert.equal(await page.locator('.fm-contact-right').isVisible(),false,'no view under the form');
@@ -221,11 +219,15 @@ test('contact window on a phone: Details is its own tab, each tab shows only its
    assert.deepEqual(tabs.filter(t=>t.selected==='true').map(t=>t.text),[tab]);
   }
   await shot(page,'contact-tab-docs-390');
-  await page.locator('[data-fm-contact-more]').tap();
-  await page.waitForSelector('.fm-contact-sheet.open');
-  await page.getByRole('menuitem',{name:'Add employer'}).tap();
+  // FM-547: Photos & Media is the project Photos tab's gallery, Docs the project Docs tab's.
+  const gallery=await page.evaluate(()=>({title:window.galleryOptions.title,mobileGrid:window.galleryOptions.mobileGrid,deleteEnabled:window.galleryOptions.deleteEnabled,selection:window.galleryOptions.selectionEnabled}));
+  assert.deepEqual(gallery,{title:'',mobileGrid:'dense',deleteEnabled:false,selection:undefined},'the project Photos tab options; selection on, no delete (contact media has no trash)');
+  assert.equal(await page.locator('.docs-mounted').isVisible(),true,'Docs is the project Docs gallery');
+  assert.equal(await page.evaluate(()=>typeof window.docsOptions.onUpload),'function');
+  await page.locator('.fm-contact-tabs>button',{hasText:'Details'}).tap();
+  await page.locator('[data-add-relationship="employer"]').tap();
   await page.waitForSelector('#fmContactRelationshipPanel:not([hidden])');
-  assert.equal(await page.locator('#fmContactRelationshipPanel').isVisible(),true,'Add employer goes back to Details, where its form is');
+  assert.equal(await page.locator('#fmContactRelationshipPanel').isVisible(),true,'Add employer is in Details, with its form');
   await page.setViewportSize({width:360,height:740});
   await page.waitForFunction(()=>document.querySelector('.fm-contact-win').getBoundingClientRect().width<=360);
   await page.waitForTimeout(200);

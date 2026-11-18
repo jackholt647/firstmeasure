@@ -122,7 +122,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261111-offline-uploads'), versionedBundle('settings/crm.js', '20261019-payroll-closeout-v1'), versionedBundle('settings/contacts.js', '20261118-fm545-preferences'), versionedBundle('contacts/app.js', '20261118-fm544-import-sheet')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261118-fm547-phone-parity'), versionedBundle('settings/crm.js', '20261019-payroll-closeout-v1'), versionedBundle('settings/contacts.js', '20261118-fm545-preferences'), versionedBundle('contacts/app.js', '20261118-fm544-import-sheet')]
     },
     {
       id: 'portal.photos_feed',

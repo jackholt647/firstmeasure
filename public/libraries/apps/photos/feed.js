@@ -5003,6 +5003,7 @@
       const count = local.selected.size;
       const total = filtered().length;
       // The host's own actions (the project tab's portal sharing) sit together as one group of icon buttons.
+      // deleteEnabled:false (a contact's media, which has no trash) leaves Delete out.
       const hostActions = options.trashMode || !Array.isArray(options.selectionActions) ? [] : options.selectionActions.filter((action) => cleanText(action?.id));
       const hostGroup = hostActions.length ? `<span class="pf-seldock-sep"></span><div class="pf-seldock-group" role="group">${hostActions.map((action) => {
         const id = escapeHtml(cleanText(action.id));
@@ -5019,7 +5020,7 @@
       const destroy = options.trashMode
         ? `<button type="button" class="pf-seldock-icon danger" data-selection-hard-delete ${dockTip(T('pf_dock_delete_forever', 'Delete forever'))}><i class="fas fa-trash"></i></button>`
         : `<button type="button" class="pf-seldock-icon danger" data-selection-delete ${dockTip(T('pf_dock_delete', 'Delete'))}><i class="fas fa-trash"></i></button>`;
-      return `<div class="pf-seldock-count"><button type="button" class="pf-seldock-icon" data-selection-clear ${dockTip(T('pf_dock_clear', 'Clear selection'))}><i class="fas fa-xmark"></i></button><strong data-selection-count>${escapeHtml(T('m_4b740d0b3ec319', `${count} selected`, { v0: count }))}</strong>${count < total ? `<button type="button" class="pf-seldock-link" data-selection-all${compact ? ` ${dockTip(T('pf_dock_select_all', `Select all ${total}`, { v0: total }))}` : ''}><i class="fas fa-check-double"></i><span>${escapeHtml(T('pf_dock_select_all', `Select all ${total}`, { v0: total }))}</span></button>` : ''}</div>${hostGroup}<span class="pf-seldock-sep"></span>${primary}<span class="pf-seldock-sep"></span>${destroy}`;
+      return `<div class="pf-seldock-count"><button type="button" class="pf-seldock-icon" data-selection-clear ${dockTip(T('pf_dock_clear', 'Clear selection'))}><i class="fas fa-xmark"></i></button><strong data-selection-count>${escapeHtml(T('m_4b740d0b3ec319', `${count} selected`, { v0: count }))}</strong>${count < total ? `<button type="button" class="pf-seldock-link" data-selection-all${compact ? ` ${dockTip(T('pf_dock_select_all', `Select all ${total}`, { v0: total }))}` : ''}><i class="fas fa-check-double"></i><span>${escapeHtml(T('pf_dock_select_all', `Select all ${total}`, { v0: total }))}</span></button>` : ''}</div>${hostGroup}<span class="pf-seldock-sep"></span>${primary}${options.deleteEnabled === false && !options.trashMode ? '' : `<span class="pf-seldock-sep"></span>${destroy}`}`;
     };
     const dock = { el: null, timer: 0 };
     const reducedMotion = () => { try { return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true; } catch (error) { return false; } };
