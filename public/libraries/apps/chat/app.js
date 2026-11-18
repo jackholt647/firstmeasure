@@ -556,7 +556,7 @@
       const inbound = message.direction === 'inbound';
       const ai = message.source_kind === 'ai';
       parts.push(`<div class="fmchat-msg ${inbound ? 'inbound' : `outbound ${ai ? 'ai' : ''}`}">${message.subject && inbound ? `<strong>${esc(message.subject)}</strong><br>` : ''}${esc(message.text || '')}${audioHtml(message)}</div>`);
-      parts.push(`<div class="fmchat-msg-meta ${inbound ? 'inbound' : 'outbound'}">${esc(commsMessageWho(message))} • ${clock(message.created_at)}${message.test_mode ? (" • <i class=\"fas fa-flask\" title=\"" + (globalThis.PlatformLanguage?.htmlText("chat","m_4ee0964bb70748","Test mode") ?? "Test mode") + "\"></i>") : ''}</div>`);
+      parts.push(`<div class="fmchat-msg-meta ${inbound ? 'inbound' : 'outbound'}">${esc(commsMessageWho(message))} • ${clock(message.created_at)}</div>`);
     }
     const renderKey = JSON.stringify(messages.map((message) => message.id));
     if (mount.dataset.renderKey === renderKey) return;

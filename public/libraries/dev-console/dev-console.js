@@ -14,7 +14,7 @@
  */
 import { dock, windowWidth } from './dock.js?v=20261112-tray3';
 
-const VERSION = '20261116-shot2';
+const VERSION = '20261117-fm538-comms';
 const NS = 'dev-console';
 const STORE = 'fm-dev-console';
 // The page keeps at least APP_MIN px beside the console.
@@ -64,6 +64,7 @@ const SECTIONS = [
   { id: 'synthetic', icon: 'fa-wand-magic-sparkles', label: ['dc_section_synthetic', 'Synthetic data'], when: (s) => s.synthetic_data, load: () => import(`./sections/synthetic-data.js?v=${VERSION}`) },
   { id: 'users', icon: 'fa-users', label: ['dc_section_users', 'Test users'], when: () => !!window.PlatformAPI?.users?.list, load: () => import(`./sections/test-users.js?v=${VERSION}`) },
   { id: 'layers', icon: 'fa-layer-group', label: ['dc_section_layers', 'Software layers'], when: (s) => s.software_layers, load: () => import(`./sections/software-layers.js?v=${VERSION}`) },
+  { id: 'comms', icon: 'fa-phone', label: ['dc_section_comms', 'Phone and messages'], when: () => !!window.Portal?.CustomerPhone, load: () => import(`./sections/comms.js?v=${VERSION}`) },
   { id: 'live', icon: 'fa-bolt', label: ['dc_section_live', 'Live layer'], when: (s) => s.live, load: () => import(`./sections/live-layer.js?v=${VERSION}`) },
   { id: 'push', icon: 'fa-code-merge', label: ['dc_section_push', 'Dev push queue'], load: () => import(`./sections/push-queue.js?v=${VERSION}`) }
 ];
