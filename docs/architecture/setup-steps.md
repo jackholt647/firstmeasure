@@ -151,7 +151,8 @@ branch-module route needs the same permission). It is read through
 ## Who sells, who does the work, and the kinds of appointments (FM-515)
 
 Three more steps, asked first by the [appointment setup](guided-experiences.md#appointment-setup) and by anything
-else that needs the answer:
+else that needs the answer (the [document setup](guided-experiences.md#document-setup) asks `company.sales_team` before a
+proposal's questions):
 
 - `company.sales_team`, "Who does the sales in your company?": just me, a small sales team, a sales team with
   managers, or no sales appointments. `company.workforce`, "Who does most of the work?": just me, our own crews,

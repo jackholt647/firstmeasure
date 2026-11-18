@@ -1855,6 +1855,8 @@ export async function resolveDocumentInstance(
     templateVersion?: number;
     /** Keep where each bound value came from (editing as sent); renders the same. */
     trace?: boolean;
+    /** Render this definition instead of the document's template (a template not saved yet: the document setup's previews). */
+    definition?: JsonObject;
   } = {}
 ) {
   if (cleanText(asObject(documentValue.module_ref).execution_id) && Object.keys(asObject(documentValue.module_resolved)).length) {
@@ -1888,7 +1890,7 @@ export async function resolveDocumentInstance(
     return captured;
   }
   const capabilityState = await documentCapabilityState(orgId);
-  const definition = filterDocumentDefinitionByCapabilities(await templateDefinitionFor(orgId, documentValue, options.templateVersion), capabilityState);
+  const definition = filterDocumentDefinitionByCapabilities(options.definition ? cloneJson(options.definition) as JsonObject : await templateDefinitionFor(orgId, documentValue, options.templateVersion), capabilityState);
   const rawWorkflowDefinition = await workflowDefinitionForDocument(orgId, documentValue).catch(() => null);
   const workflowDefinition = rawWorkflowDefinition ? filterWorkflowByCapabilities(rawWorkflowDefinition, capabilityState) : null;
   const overrides = options.overrides !== undefined ? asArray(options.overrides) : asArray(documentValue.overrides);

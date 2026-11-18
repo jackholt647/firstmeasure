@@ -289,3 +289,14 @@ export async function resetDocumentCopy(asset: Asset, ctx: PlatformAuthContext, 
   const copy = await writeCopy(asset, ctx.orgId, entry, await readCopy(asset, ctx.orgId, id), ctx);
   return { id, version: Number(obj(copy).current_version || 0) };
 }
+
+/**
+ * A library template or workflow as an organization would get it (its price book rates in the parameter defaults),
+ * without making a copy: what the document setup (documents/setup.ts) builds an organization's own template from
+ * when the organization has no copy of that entry yet.
+ */
+export async function libraryAssetDefinition(asset: "template" | "workflow", orgId: string, id: string) {
+  const entry = libraryEntry(KIND[asset], text(id)) as AnyEntry | null;
+  if (!entry) return null;
+  return { data: clone(entry.data) as unknown as JsonObject, definition: await copyDefinition(asset, orgId, entry) };
+}
