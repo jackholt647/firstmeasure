@@ -27,7 +27,7 @@
     if (document.getElementById('fm-communications-css')) return;
     const link = document.createElement('link'); link.id='fm-communications-css'; link.rel='stylesheet';
     const source=new URL(document.currentScript?.src || `${location.origin}/libraries/apps/comms/communications-ui.js`);
-    link.href=new URL('communications.css?v=20261116-fm511-calls-tab',source).href;
+    link.href=new URL('communications.css?v=20261118-fm550-tab-strip',source).href;
     document.head.append(link);
   }
   css();
