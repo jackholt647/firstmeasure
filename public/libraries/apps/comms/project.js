@@ -73,6 +73,7 @@
     emailDraft:{ to:'', cc:'', bcc:'', subject:'', body:'', files:[] },
     emailReply:{ threadId:'', body:'', files:[] },
     sms:null, activeSmsId:'', smsComposeOpen:false, smsDraft:{ to:'' },
+    phone:null,
     chatConversations:[], activeChatId:'', chatPicking:false,
     chatVoice:{ mode:'attachment', max_seconds:120 },
     search:{ open:false, query:'', results:[], busy:false },
@@ -176,6 +177,8 @@
       .fmco-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
       .fmco-card{background:#fff;border:1px solid #e4e7ec;border-radius:12px;padding:14px 16px;display:grid;gap:6px;align-content:start}
       .fmco-setup-card{border-style:dashed;background:#fcfcfd;align-content:start}.fmco-setup-card .fmco-btn{justify-self:start;margin-top:4px}.fmco-setup-card [data-co-setup-note]:empty{display:none}.fmco-setup-card .fmco-card-sub{white-space:normal;overflow:visible;text-overflow:clip}
+      .fmco-phone-setup{border:1px dashed #d0d5dd;border-radius:12px;background:#fcfcfd;padding:14px 16px;display:grid;gap:6px;justify-items:start;text-align:left}.fmco-phone-setup strong{display:flex;align-items:center;gap:8px;font-size:13.5px;color:#101828}.fmco-phone-setup strong i{color:#667085}.fmco-phone-setup p{margin:0;font-size:12.5px;line-height:1.45;color:#667085}.fmco-phone-setup .fmco-btn{margin-top:4px}.fmco-phone-setup [data-co-setup-note]{font-size:12px;color:#667085}.fmco-phone-setup [data-co-setup-note]:empty{display:none}
+      .fmco-phone-setup[data-co-phone-setup="pending"]{border-style:solid;border-color:#fedf89;background:#fffcf5}.fmco-phone-setup[data-co-phone-setup="pending"] strong i{color:#dc6803}.fmco-phone-setup[data-co-phone-setup="attention"] strong i{color:#d92d20}.fmco-phone-setup-page{max-width:460px;margin:28px auto;padding:0 12px}.fmco-composer[hidden]{display:none!important}
       .fmco-card-top{display:flex;align-items:center;justify-content:space-between}
       .fmco-card-title{font-size:10.5px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:#98a2b3;display:flex;align-items:center;gap:7px}
       .fmco-card-title i{color:#667085}
@@ -461,7 +464,8 @@
       } else if (state.view === 'sms') {
         const [result, overviewResult] = await Promise.all([
           api2().sms.conversation(orgId(), projectId(), state.activeSmsId),
-          state.overview ? Promise.resolve(null) : api2().overview(orgId(), projectId())
+          state.overview ? Promise.resolve(null) : api2().overview(orgId(), projectId()),
+          loadPhoneStatus()
         ]);
         setOverview(overviewResult);
         state.sms = result;
@@ -687,6 +691,8 @@
       windows.forEach((win) => { win.__fmCommsSetupStart = ''; });
       if (button.isConnected) button.disabled = false;
     }
+    // FM-588: Texts show where setup stands now.
+    if (channel === 'phone' && state.mounted && state.view === 'sms') loadView().catch(() => null);
   }
 
   function renderOverview(root){
@@ -1198,21 +1204,48 @@
     return smsConversations().find((conversation) => clean(conversation.id) === state.activeSmsId) || null;
   }
 
+  // FM-588: Texts offer New text only once texting works (voice/status `channels`, comms/setup.ts phoneChannels).
+  // Until then the tab says where setup stands. Without an answer it behaves as before.
+  async function loadPhoneStatus(){
+    try {
+      const phone = Portal.CustomerPhone;
+      const status = typeof phone?.refreshStatus === 'function' ? await phone.refreshStatus() : await api2().customer(orgId(), 'voice/status');
+      state.phone = object(status);
+    } catch (_) { state.phone = state.phone || {}; }
+  }
+
+  function phoneChannel(channel){ return clean(object(state.phone?.channels)[channel]) || 'ready'; }
+
+  function phoneSetupHtml(channel){
+    const status = phoneChannel(channel);
+    const setUp = status !== 'pending' && typeof rootWindow.FirstMateGuides?.play === 'function';
+    const copy = status === 'pending'
+      ? `<strong><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_2285049db07c36","Texts are pending approval") ?? "Texts are pending approval")}</strong><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_8517b659bbefd9","Carriers are reviewing your texting registration. This can take a few days, so check back later.") ?? "Carriers are reviewing your texting registration. This can take a few days, so check back later.")}</p>`
+      : status === 'attention'
+        ? `<strong><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_856e6f0aa78a99","Texting registration needs changes") ?? "Texting registration needs changes")}</strong><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_6a5f5a12429e2d","Carriers did not approve your texting registration. Continue setup to fix it and send it again.") ?? "Carriers did not approve your texting registration. Continue setup to fix it and send it again.")}</p>`
+        : `<strong><i class="fa-solid fa-comment-sms" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_976928725a48f4","Texts are not set up yet") ?? "Texts are not set up yet")}</strong><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_53db3de27dfd79","Finish setting up texts and calls to text customers from their project.") ?? "Finish setting up texts and calls to text customers from their project.")}</p>`;
+    return `<div class="fmco-phone-setup" data-co-phone-setup="${esc(status)}" role="status">${copy}${setUp ? `<button type="button" class="fmco-btn primary" data-co-setup="phone">${(globalThis.PlatformLanguage?.htmlText("comms","m_00f67583b123a0","Continue setup") ?? "Continue setup")}</button><div data-co-setup-note></div>` : ''}</div>`;
+  }
+
   function smsListHtml(){
     const active = activeSmsConversation();
+    const ready = phoneChannel('texts') === 'ready';
     return `
-      <button type="button" class="fmco-btn primary" data-co-sms-compose style="justify-content:center"><i class="fa-solid fa-pen"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_3c10edbba72365","New text") ?? "New text")}</button>
+      ${String(ready ? `<button type="button" class="fmco-btn primary" data-co-sms-compose style="justify-content:center"><i class="fa-solid fa-pen"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_3c10edbba72365","New text") ?? "New text")}</button>` : phoneSetupHtml('texts'))}
       ${String(smsConversations().length ? smsConversations().map((conversation) => `
         <button type="button" class="fmco-thread-row${active && clean(active.id) === clean(conversation.id) ? ' active' : ''}" data-co-sms-thread="${esc(clean(conversation.id))}">
           <span class="fmco-thread-subject"><span>${esc(recipientNames(conversation.participants))}</span></span>
           <span class="fmco-thread-meta"><span>${((v4,v5) => globalThis.PlatformLanguage?.htmlText("comms","m_2de5206655064d",`${v4} message${v5}`,{v4,v5}) ?? `${v4} message${v5}`)(Number(conversation.message_count || 0),Number(conversation.message_count || 0) === 1 ? '' : 's')}</span><span>${esc(timeLabel(conversation.last_message_at))}</span></span>
         </button>
-      `).join('') : `<div class="fmco-empty"><i class="fa-solid fa-comment-sms"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_25af8c4f012bc1","No text threads yet.") ?? "No text threads yet.")}</p></div>`)}
+      `).join('') : ready ? `<div class="fmco-empty"><i class="fa-solid fa-comment-sms"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_25af8c4f012bc1","No text threads yet.") ?? "No text threads yet.")}</p></div>` : '')}
     `;
   }
 
   function bindSmsList(scope){
     scope.querySelector('[data-co-sms-compose]')?.addEventListener('click', () => { beginSmsDraft(); render(); });
+    scope.querySelectorAll('[data-co-setup]').forEach((button) => {
+      button.addEventListener('click', () => { void setUpChannel(button.dataset.coSetup, button); });
+    });
     scope.querySelectorAll('[data-co-sms-thread]').forEach((button) => {
       button.addEventListener('click', () => {
         state.activeSmsId = clean(button.dataset.coSmsThread);
@@ -1232,6 +1265,13 @@
 
   function renderSms(root){
     if (state.loading && !state.sms) { root.innerHTML = loadingHtml(); return; }
+    const ready = phoneChannel('texts') === 'ready';
+    if (!ready) state.smsComposeOpen = false;
+    if (!ready && !smsConversations().length) {
+      root.innerHTML = `${errorHtml()}<div class="fmco-phone-setup-page">${phoneSetupHtml('texts')}</div>`;
+      bindSmsList(root);
+      return;
+    }
     const active = activeSmsConversation();
     const hasWorkspace = state.smsComposeOpen || active;
     root.innerHTML = `
@@ -1258,7 +1298,8 @@
               <button type="button" class="fmco-btn" data-co-sms-close><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="fmco-msgs" data-co-scroll>${String(smsMsgsHtml(active))}</div>
-            <div class="fmco-composer">
+            ${String(ready ? '' : `<div class="fmco-composer" data-co-sms-off><span class="fmco-composer-hint">${phoneChannel('texts') === 'pending' ? (globalThis.PlatformLanguage?.htmlText("comms","m_651562ad9e13ae","You can reply once texting is approved.") ?? "You can reply once texting is approved.") : (globalThis.PlatformLanguage?.htmlText("comms","m_537214cee9376e","You can reply once texts are set up.") ?? "You can reply once texts are set up.")}</span></div>`)}
+            <div class="fmco-composer"${ready ? '' : ' hidden'}>
               <div style="display:flex;gap:8px;align-items:flex-end">
                 <textarea class="fmco-textarea" style="min-height:44px" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_00e2352d42e80c","Write a text message…") ?? "Write a text message…")}" data-co-sms-input></textarea>
                 ${String(clean(state.voiceSettings.sms) !== 'off' ? `<button type="button" class="fmco-btn fmco-voice" data-co-sms-voice><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/${clean(state.voiceSettings.sms) === 'dictation' ? 'dictation' : 'record'}.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/${clean(state.voiceSettings.sms) === 'dictation' ? 'dictation' : 'record'}.svg) center/contain no-repeat"></span><small>${clean(state.voiceSettings.sms) === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '')}
@@ -1267,7 +1308,7 @@
               <div class="fmco-voice-mount" data-co-sms-voice-mount></div>
               <div class="fmco-composer-row"><span class="fmco-composer-hint">${(globalThis.PlatformLanguage?.htmlText("comms","m_d28416ff3f0c41","Sends to everyone shown above from your business number") ?? "Sends to everyone shown above from your business number")}</span></div>
             </div>
-          ` : `<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-comment-sms"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_bd100abbcef202","Select a text thread or start a new one.") ?? "Select a text thread or start a new one.")}</p></div>`}
+          ` : `<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-comment-sms"></i><p>${ready ? (globalThis.PlatformLanguage?.htmlText("comms","m_bd100abbcef202","Select a text thread or start a new one.") ?? "Select a text thread or start a new one.") : (globalThis.PlatformLanguage?.htmlText("comms","m_5e1987c94b5e12","Select a text thread to read it.") ?? "Select a text thread to read it.")}</p></div>`}
         </div>
       </div>
     `;
@@ -1834,6 +1875,7 @@
     state.emailDraft = { to:'', cc:'', bcc:'', subject:'', body:'', files:[] };
     state.emailReply = { threadId:'', body:'', files:[] };
     state.sms = null;
+    state.phone = null;
     state.activeSmsId = '';
     state.smsComposeOpen = false;
     state.smsDraft = { to:'' };
@@ -1914,6 +1956,7 @@
     if (!state.mounted) return;
     renderTabs();
     if (state.view === 'overview') render();
+    else if (state.view === 'sms') loadView().catch(() => null);
   });
 
   // Deep link from notifications (topbar routes open_project_comms here).

@@ -1251,7 +1251,23 @@
     "m_75109744834b1c": {
       "message": "Sending as {v1}",
       "format": "icu"
-    }
+    },
+    "m_2285049db07c36": "Texts are pending approval",
+    "m_8517b659bbefd9": "Carriers are reviewing your texting registration. This can take a few days, so check back later.",
+    "m_856e6f0aa78a99": "Texting registration needs changes",
+    "m_6a5f5a12429e2d": "Carriers did not approve your texting registration. Continue setup to fix it and send it again.",
+    "m_976928725a48f4": "Texts are not set up yet",
+    "m_53db3de27dfd79": "Finish setting up texts and calls to text customers from their project.",
+    "m_00f67583b123a0": "Continue setup",
+    "m_5e1987c94b5e12": "Select a text thread to read it.",
+    "m_651562ad9e13ae": "You can reply once texting is approved.",
+    "m_537214cee9376e": "You can reply once texts are set up.",
+    "m_748e352ef077a9": "Calls are pending approval",
+    "m_7bff6794554ee0": "Calls start once your phone registration is approved. This can take a few days, so check back later.",
+    "m_c86359d50b2274": "Phone registration needs changes",
+    "m_eded85269964ec": "Carriers did not approve your phone registration. Continue setup to fix it and send it again.",
+    "m_cf18ee3aa79b4e": "Calls are not set up yet",
+    "m_cd72267b997a5b": "Finish setting up texts and calls to call customers from their project."
   },
   "contacts": {
     "m_bdd2018a2c9640": {
