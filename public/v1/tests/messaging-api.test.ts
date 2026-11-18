@@ -868,7 +868,7 @@ test("development carrier registration is scoped independently of captured messa
     const otherSetup = await otherClient.request("GET", `/v1/messaging/organizations/${otherOrgId}/sms/setup`);
     assert.equal(otherSetup.telnyx.registration_live, false);
     const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, {
-      brand: { country: "US", displayName: "FirstMate", companyName: "FirstMate Test LLC", entityType: "PRIVATE_PROFIT", vertical: "TECHNOLOGY", email: "support@example.test", ein: "123456789", phone: "2065550100", street: "100 Main Street", city: "Boise", state: "ID", postalCode: "83702", website: "example.test", mock: true },
+      brand: { country: "US", displayName: "FirstMate", companyName: "FirstMate Test LLC", entityType: "PRIVATE_PROFIT", vertical: "TECHNOLOGY", email: "support@example.com", ein: "123456789", phone: "2065550100", street: "100 Main Street", city: "Boise", state: "ID", postalCode: "83702", website: "example.test", mock: true },
       campaign: { usecase: "LOW_VOLUME", mock: true, brandId: "UNTRUSTED", enabledFeatures: ["crm_conversations"] }
     });
     assert.equal(created.profile.brand.mock, undefined);
@@ -918,6 +918,23 @@ test("10DLC compliance profile workflow saves drafts and builds dry-run provider
   await saveGlobal(orgId, { data: { contact: { website: "ridgeline-roofing.test" } } });
   const websiteSetup = await client.request("GET", `/v1/messaging/organizations/${orgId}/sms/setup`);
   assert.deepEqual(websiteSetup.organization.contact, { website: "https://ridgeline-roofing.test" });
+  // GP-6: the support email starts as the company's contact email: a saved one that receives mail (Settings › Company
+  // saves it on the branch), else its inbox (FirstMate Mail here), never a login at a reserved name such as
+  // signup-sandbox.test, which carriers reject.
+  const { deliverableEmailAddress, ensureOrgEmailInbox } = await import("../email/engine.js");
+  assert.equal(deliverableEmailAddress("sandbox-1@signup-sandbox.test"), "");
+  assert.equal(deliverableEmailAddress("Office@Ridgeline.example"), "");
+  assert.equal(deliverableEmailAddress("Office@Ridgeline-Roofing.com"), "office@ridgeline-roofing.com");
+  await saveGlobal(orgId, { data: { contact: { website: "ridgeline-roofing.test", email: "sandbox-1@signup-sandbox.test" } } });
+  assert.equal((await client.request("GET", `/v1/messaging/organizations/${orgId}/sms/setup`)).organization.contact.email, undefined, "no inbox yet: nothing rather than the .test login");
+  const inbox = String((await ensureOrgEmailInbox(orgId)).address);
+  assert.match(inbox, /@firstmatemail\.com$/);
+  assert.equal((await client.request("GET", `/v1/messaging/organizations/${orgId}/sms/setup`)).organization.contact.email, inbox);
+  const { upsertDocument } = await import("../platform/storage.js");
+  await upsertDocument(orgId, "branch", { id: "default", data: { contact: { email: "office@ridgeline-roofing.com" } } }, { replace: false });
+  assert.equal((await client.request("GET", `/v1/messaging/organizations/${orgId}/sms/setup`)).organization.contact.email, "office@ridgeline-roofing.com");
+  const portalState = await client.request("GET", `/v1/platform/organizations/${orgId}/portal-state`);
+  assert.equal(portalState.contact_defaults.email, inbox, "Settings › Company shows the inbox until the company saves its own");
 
   const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, {
     brand: {
@@ -926,7 +943,7 @@ test("10DLC compliance profile workflow saves drafts and builds dry-run provider
       companyName: "FirstMate Test LLC",
       entityType: "PRIVATE_PROFIT",
       vertical: "CONSTRUCTION",
-      email: "support@example.test",
+      email: "support@example.com",
       ein: "123456789",
       phone: "(206) 555-0100",
       street: "100 Main Street",
@@ -1037,7 +1054,7 @@ test("10DLC brand submit rejects invalid NANP phone numbers before Telnyx", asyn
       companyName: "Bad Phone Test LLC",
       entityType: "PRIVATE_PROFIT",
       vertical: "CONSTRUCTION",
-      email: "support@example.test",
+      email: "support@example.com",
       ein: "123456789",
       phone: "1234567890",
       street: "100 Main Street",
@@ -1070,7 +1087,7 @@ test("10DLC brand submit accepts ten digit NANP numbers with valid area codes", 
       companyName: "Phone Format Test LLC",
       entityType: "PRIVATE_PROFIT",
       vertical: "CONSTRUCTION",
-      email: "support@example.test",
+      email: "support@example.com",
       ein: "123456789",
       phone: "2061234567",
       street: "100 Main Street",
@@ -1100,7 +1117,7 @@ test("a rejected 10DLC brand is corrected with idempotent PUT and no duplicate r
       companyName: "Brand Correction Test LLC",
       entityType: "PRIVATE_PROFIT",
       vertical: "CONSTRUCTION",
-      email: "support@example.test",
+      email: "support@example.com",
       ein: "123456789",
       phone: "2061234567",
       street: "100 Main Street",
@@ -1193,7 +1210,7 @@ test("10DLC mock number search and selection saves selected sending number", asy
       companyName: "Number Selection Test LLC",
       entityType: "PRIVATE_PROFIT",
       vertical: "CONSTRUCTION",
-      email: "support@example.test",
+      email: "support@example.com",
       ein: "123456789",
       phone: "2061234567",
       street: "100 Main Street",
@@ -1956,7 +1973,7 @@ test("10DLC campaign submit waits for brand readiness", async () => {
       companyName: "Pending Brand Test LLC",
       entityType: "PRIVATE_PROFIT",
       vertical: "CONSTRUCTION",
-      email: "support@example.test",
+      email: "support@example.com",
       ein: "123456789",
       phone: "2061234567",
       street: "100 Main Street",
@@ -2065,7 +2082,7 @@ test("10DLC mock campaign submit records qualification failure and still calls T
         companyName: "Mock Pending Brand LLC",
         entityType: "PRIVATE_PROFIT",
         vertical: "CONSTRUCTION",
-        email: "support@example.test",
+        email: "support@example.com",
         ein: "123456789",
         phone: "2061234567",
         street: "100 Main Street",
@@ -2743,7 +2760,7 @@ test("sole proprietor identity omits stale company fields and retains the addres
   const client = createSessionClient();
   const { orgId } = await register(client, true);
   const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, {
-    brand: {country:"US",entityType:"SOLE_PROPRIETOR",displayName:"Jane Smith",firstName:"Jane",lastName:"Smith",vertical:"PROFESSIONAL",email:"jane@example.test",phone:"2065550100",mobilePhone:"2065550101",street:"100 Main Street",address2:"Suite 200",city:"Seattle",state:"WA",postalCode:"98101",website:"example.test",companyName:"Previous LLC",ein:"123456789",sameAsLegalName:true},campaign:{}
+    brand: {country:"US",entityType:"SOLE_PROPRIETOR",displayName:"Jane Smith",firstName:"Jane",lastName:"Smith",vertical:"PROFESSIONAL",email:"jane@example.com",phone:"2065550100",mobilePhone:"2065550101",street:"100 Main Street",address2:"Suite 200",city:"Seattle",state:"WA",postalCode:"98101",website:"example.test",companyName:"Previous LLC",ein:"123456789",sameAsLegalName:true},campaign:{}
   });
   const endpoint = `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}`;
   const dry = await client.request("POST",`${endpoint}/submit-brand`,{dry_run:true});
@@ -2803,7 +2820,7 @@ test("FirstMate hosts a registration's privacy policy and SMS terms only when it
   const { orgId } = await register(client, true);
   const brand = {
     country: "US", displayName: "Ridgeline Roofing", companyName: "Ridgeline Holdings LLC", entityType: "PRIVATE_PROFIT",
-    vertical: "CONSTRUCTION", email: "help@ridgeline.test", phone: "(206) 555-0100", street: "100 Main Street", city: "Boise",
+    vertical: "CONSTRUCTION", email: "help@ridgeline-roofing.com", phone: "(206) 555-0100", street: "100 Main Street", city: "Boise",
     state: "ID", postalCode: "83702", website: "ridgeline.test", mock: true
   };
   const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, {
@@ -2827,7 +2844,7 @@ test("FirstMate hosts a registration's privacy policy and SMS terms only when it
   assert.match(privacy.body, /trade name of Ridgeline Holdings LLC/);
   assert.match(privacy.body, /will not be sold or shared with any third parties/);
   assert.match(privacy.body, /replies to your questions and appointment reminders/);
-  assert.match(privacy.body, /<a href="mailto:help@ridgeline.test">help@ridgeline.test<\/a>/);
+  assert.match(privacy.body, /<a href="mailto:help@ridgeline-roofing.com">help@ridgeline-roofing.com<\/a>/);
   assert.match(privacy.body, /100 Main Street, Boise, ID 83702/);
   assert.match(privacy.body, /Phone: \(206\) 555-0100/);
   const terms = await app.inject({ method: "GET", url: new URL(hosted.terms).pathname });
@@ -2878,7 +2895,7 @@ test("FirstMate hosts a registration's privacy policy and SMS terms only when it
   assert.match(inboxAddress, /@/);
   const privacyInbox = await app.inject({ method: "GET", url: new URL(hosted.privacy).pathname });
   assert.ok(privacyInbox.body.includes(`<a href="mailto:${inboxAddress}">${inboxAddress}</a>`), "the contact email is the company inbox");
-  assert.doesNotMatch(privacyInbox.body, /help@ridgeline\.test/);
+  assert.doesNotMatch(privacyInbox.body, /help@ridgeline-roofing\.com/);
 
   for (const bad of ["notes", "../privacy"]) {
     const response = await app.inject({ method: "GET", url: `/v1/messaging/sms/policies/${orgId}/${profile.id}/${bad}` });

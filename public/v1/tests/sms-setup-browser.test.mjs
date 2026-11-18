@@ -506,7 +506,7 @@ test('standard texting wording passes the carrier checks and stays the business 
       const messagingRequest=async()=>({});
       ${envShim}${helpers}
       window.check=(campaign={})=>{
-        const profile=prepareSmsProfileForSave({brand:{displayName:'Pioneer Roofing',companyName:'Pioneer Roofing LLC',ein:'123456789',website:'https://pioneer.example',email:'help@pioneer.example',phone:'+12065515546',street:'707 South Grady Way',city:'Renton',state:'WA',postalCode:'98057'},
+        const profile=prepareSmsProfileForSave({brand:{displayName:'Pioneer Roofing',companyName:'Pioneer Roofing LLC',ein:'123456789',website:'https://pioneer.example',email:'help@pioneer-roofing.com',phone:'+12065515546',street:'707 South Grady Way',city:'Renton',state:'WA',postalCode:'98057'},
           campaign:{privacyPolicyLink:'https://pioneer.example/privacy',termsAndConditionsLink:'https://pioneer.example/sms-terms',selectedNumber:'+12065550101',messageFlowConfirmed:true,...campaign}});
         return {issues:smsStepIssues('summary',profile),campaign:profile.campaign,steps:smsVisibleSteps(profile).map(step=>step.id),attest:smsConsentAttestation(profile),summary:smsProgramSummary(profile)};
       };

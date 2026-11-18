@@ -679,7 +679,10 @@
         next.brand.companyName = next.brand.companyName || company;
         next.brand.displayName = next.brand.displayName || company;
       }
-      next.brand.email = next.brand.email || orgContact.email || env.state()?.company_email || currentUser.email || window.__APP?.userEmail || '';
+      // GP-6: the company's contact email (the server falls back to its domain or FirstMate Mail inbox), never an
+      // address that cannot receive mail, such as a sandbox login at signup-sandbox.test; a draft holding one gets it.
+      if (smsUndeliverableEmail(next.brand.email) && !smsHasProviderBrand(profile)) next.brand.email = '';
+      next.brand.email = next.brand.email || [orgContact.email, env.state()?.company_email, currentUser.email, window.__APP?.userEmail].map((value) => String(value || '').trim()).find(smsValidEmail) || '';
       next.brand.phone = next.brand.phone || orgContact.phone || env.state()?.company_phone || '';
       const setupAddress = normalizeOrganizationBusinessAddress(orgContact.business_address || orgContact.businessAddress || orgContact.address);
       const businessAddress = Object.values(setupAddress).some(Boolean) ? setupAddress : organizationBusinessAddressFromState();
@@ -839,6 +842,7 @@
       }
       if (name === 'brand.email') {
         if (!raw) return { error: 'Support email is required.' };
+        if (smsUndeliverableEmail(raw)) return { error: 'Use an email address that receives mail.' };
         if (!smsValidEmail(raw)) return { error: 'Enter a valid support email.' };
         return { ok: true };
       }
@@ -935,8 +939,14 @@
       const digits = raw.replace(/\D/g, '');
       return (digits.length === 10 && validNanp(digits)) || (digits.length === 11 && digits.startsWith('1') && validNanp(digits.slice(1)));
     }
+    // GP-6: reserved top-level names (.test, .example, .invalid, .localhost, .local) never receive mail and carriers
+    // reject them; the server's check is deliverableEmailAddress (email/engine.ts).
+    function smsUndeliverableEmail(value){
+      const domain = String(value || '').trim().toLowerCase().split('@')[1] || '';
+      return /\.(?:test|example|invalid|localhost|local)$/.test(domain);
+    }
     function smsValidEmail(value){
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim()) && !smsUndeliverableEmail(value);
     }
     function smsNoThirdPartyMarketingSharing(value){
       const disclosure = String(value || '');
@@ -1450,7 +1460,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         return `<div class="sms-form-grid">
           ${!soleProprietor ? smsField('brand.firstName', 'Contact first name', brand.firstName, { disabled: locked }) : ''}
           ${!soleProprietor ? smsField('brand.lastName', 'Contact last name', brand.lastName, { disabled: locked }) : ''}
-          ${smsField('brand.email', 'Support Email', brand.email, { type: 'email', required: true, disabled: locked, error: !brand.email ? 'Support email is required.' : brand.email && !emailValid ? 'Enter a valid support email.' : '', ok: emailValid })}
+          ${smsField('brand.email', 'Support Email', brand.email, { type: 'email', required: true, disabled: locked, error: !brand.email ? 'Support email is required.' : smsUndeliverableEmail(brand.email) ? 'Use an email address that receives mail.' : !emailValid ? 'Enter a valid support email.' : '', ok: emailValid })}
           ${publicCompany ? smsField('brand.businessContactEmail', 'Business Contact Email', brand.businessContactEmail, { type: 'email', required: true, disabled: locked, error: !smsValidEmail(brand.businessContactEmail) ? 'A valid business contact email is required.' : '' }) : ''}
           ${smsField('brand.phone', 'Business Phone', brand.phone, {
             required: true,

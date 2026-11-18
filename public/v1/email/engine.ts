@@ -285,6 +285,29 @@ export async function orgPublicEmailAddress(organizationId: string, branchId = "
   return cleanText(identity?.address);
 }
 
+/**
+ * GP-6: an address mail can actually reach. Reserved top-level names (RFC 2606/6761: .test, .example, .invalid,
+ * .localhost, and mDNS .local) never deliver and carriers reject them, e.g. a sandbox owner's login
+ * `sandbox-…@signup-sandbox.test`.
+ */
+export function deliverableEmailAddress(value: unknown) {
+  const email = normalizeEmailAddress(value);
+  const domain = email.split("@").pop() || "";
+  return !email || /\.(?:test|example|invalid|localhost|local)$/.test(domain) ? "" : email;
+}
+
+/**
+ * GP-6: the company's contact email: the one it saved, else the address its public pages give (its domain once it
+ * sends, else its FirstMate Mail inbox), never a login or an address that cannot receive mail. Creates nothing;
+ * `source` says where it came from ("" when there is none yet).
+ */
+export async function organizationContactEmail(organizationId: string, saved: unknown = "") {
+  const own = deliverableEmailAddress(saved);
+  if (own) return { email: own, source: "saved" as const };
+  const inbox = deliverableEmailAddress(await orgPublicEmailAddress(organizationId).catch(() => ""));
+  return inbox ? { email: inbox, source: "inbox" as const } : { email: "", source: "" as const };
+}
+
 /** The identity customer mail is sent from: the company's domain once it sends, else FirstMate Mail. */
 export async function resolveOrgEmailSender(organizationId: string, branchId = "default") {
   const identities = await listSenderIdentities(organizationId, branchId, "email");

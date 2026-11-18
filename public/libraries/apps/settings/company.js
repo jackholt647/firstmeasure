@@ -612,6 +612,7 @@
       title_font: o?.branding?.typography?.display_font_family || '',
       logo_display: normalizeLogoDisplay(o?.branding?.logo_display),
       company_email: contact.email || '',
+      ...(contact.email_default ? { company_email_default: contact.email } : {}),
       company_phone: contact.phone || '',
       company_website: contact.website || '',
       // The organization's country of record (FM-576): the company phone starts at its calling code.
@@ -680,11 +681,24 @@
         if (shouldReplaceLogo(result.logo, styleLogo)) result.logo = styleLogo;
       }
     } catch(e) {}
+    // GP-6: with no deliverable email saved, the company email is its inbox (its domain, else FirstMate Mail), never a
+    // login that cannot receive mail; saving it unchanged keeps it a default (saveOrg).
+    const defaultEmail = String(portalState?.contact_defaults?.email || '').trim();
+    if (defaultEmail && !deliverableCompanyEmail(result.company_email)) {
+      result.company_email = defaultEmail;
+      result.company_email_default = defaultEmail;
+    }
     result.palette = normalizeBrandPalette(result.palette, result.primary, result.secondary);
     result.font_family = result.font_family || 'Montserrat';
     result.logo_display = normalizeLogoDisplay(result.logo_display);
     if (portalState) organizationNameOnServer = String(portalState?.organization?.name || '').trim();
     return result;
+  }
+  // GP-6: reserved top-level names (.test, .example, .invalid, .localhost, .local) never receive mail.
+  function deliverableCompanyEmail(value){
+    const email = String(value || '').trim().toLowerCase();
+    const domain = email.split('@')[1] || '';
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !/\.(?:test|example|invalid|localhost|local)$/.test(domain);
   }
   async function saveOrg({ name, primary, secondary, palette, font_family, title_font, logo_display, company_email, company_phone, company_address, company_business_address, report_preferences }){
     const orgId = currentOrgId();
@@ -714,7 +728,7 @@
         name: branch.name ?? '',
         contact: {
           ...(branch.contact || {}),
-          email: company_email ?? '',
+          email: company_email && company_email === state?.company_email_default ? '' : company_email ?? '',
           phone: company_phone ?? '',
           address: company_address ?? '',
           business_address: normalizeOrganizationBusinessAddress(company_business_address || company_address)
