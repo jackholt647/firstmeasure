@@ -68,12 +68,22 @@ test('dev console: scope-filtered nested contracts and synthetic data fit deskto
   assert.deepEqual(testCalls,['company.type test','company.type test/end']);
   assert.ok(saved.some(body=>JSON.stringify(body).includes('roofing_contractor')),'the answer was saved through its action');
   await overlay.locator('[data-test-rollback]:not([hidden])').waitFor();
-  page.once('dialog',dialog=>{assert.match(dialog.message(),/company_profile \(company_type\)/);dialog.accept();});
+  // The first press says what it restores (in place: the portal's confirm dialog could be under the overlay).
   await overlay.locator('[data-test-rollback]').click();
-  await overlay.locator('[data-test-state]').filter({hasText:'Rolled back.'}).waitFor();
+  assert.match(await overlay.locator('[data-test-state]').innerText(),/Roll back restores company_profile \(company_type\)/);
+  assert.deepEqual(testCalls,['company.type test','company.type test/end'],'nothing rolled back yet');
+  await overlay.locator('[data-test-rollback]').click();
+  await overlay.locator('[data-test-state]').filter({hasText:'Rolled back'}).waitFor();
   assert.equal(testCalls.at(-1),'company.type rollback');
   await overlay.locator('[data-test-close]').click();
   assert.equal(await page.locator('.fm-dc-test').count(),0);
+  setupState.steps[0].test={step_id:'company.type',status:'ended',first_started_at:at,tests:2,ended_at:at,changes:[{branch_id:'default',module:'company_profile',key:'company_type'}]};
+  await page.locator('[data-dc-setup-reload]').click();
+  await page.locator('[data-dc-setup-rollback="company.type"]').click();
+  assert.match(await page.locator('.fm-dc-setup-confirm').innerText(),/Roll back restores company_profile \(company_type\)/);
+  await page.locator('[data-dc-setup-rollback-now="company.type"]').click();
+  await page.waitForFunction(()=>!document.querySelector('[data-dc-setup-rollback="company.type"]'));
+  assert.equal(testCalls.at(-1),'company.type rollback');
   await page.locator('[data-dc-section="layers"]').click();await page.getByText('5 of 5 declarations',{exact:true}).waitFor();
   assert.equal(await page.locator('[data-namespace="doc"]').count(),1);
   assert.equal(await page.getByText('doc.audio',{exact:true}).count(),0);
