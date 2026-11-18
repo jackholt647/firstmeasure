@@ -1096,6 +1096,8 @@
     if (!modal?.type) return;
     const manageOnly = ['take_payment', 'add_payment', 'add_expense', 'invoice', 'settings', 'autopay'];
     if (manageOnly.includes(modal.type) && !canManageMoney()) return;
+    // Not ready last time: setup may have moved on since, so ask again.
+    if (modal.type === 'take_payment' && state.paymentIntakeConfig?.config?.ready !== true) state.paymentIntakeConfig = null;
     state.modal = modal;
     if (modal.type === 'reports' && state.reports === null) void loadReports();
     if (modal.type === 'settings') state.modal.draft = moneyCategories().map((category) => ({ ...category }));
@@ -2241,15 +2243,83 @@
     return cleanText(contact.id, contact.contact_id, String(contact.email || '').toLowerCase());
   }
 
+  // Payment setup runs in the portal that holds this project window (its
+  // Money setup turns on processing and opens Forward's application).
+  function paymentsHostWindow(){
+    let target = rootWindow;
+    try { while (target.parent !== target && target.parent.Portal?.appSetup) target = target.parent; } catch (_) { /* foreign parent */ }
+    return target;
+  }
+
+  function canSetUpPayments(){
+    const host = paymentsHostWindow();
+    return (host.Portal?.util?.hasPerm || rootWindow.Portal?.util?.hasPerm)?.('manage_company_settings') === true;
+  }
+
+  function openPaymentSettings(){
+    closeModal();
+    paymentsHostWindow().Portal?.navigation?.navigate?.(
+      { tab:'company_settings', sub:'money', settingsView:'payments' },
+      { source:'project-money-payment-setup', ownedKeys:['tab', 'sub', 'settingsView'] }
+    );
+  }
+
+  function startPaymentSetup(){
+    const host = paymentsHostWindow();
+    closeModal();
+    const setup = host.Portal?.appSetup?.has?.('platform.money')
+      ? host.Portal.appSetup.run('platform.money')
+      : host.FirstMatePaymentsSetup?.open?.();
+    if (!setup) { openPaymentSettings(); return; }
+    Promise.resolve(setup).catch(() => openPaymentSettings());
+  }
+
+  // When payments are not ready, Take a Payment is a way into setup: whoever
+  // can set payments up gets the setup (or its status once applied); anyone
+  // else is told who can, and can still record a cash or check payment.
+  function paymentNotReadyOptions(config){
+    const reason = cleanText(config?.not_ready_reason);
+    const record = { label: (globalThis.PlatformLanguage?.text("money","m_e28623b06e54fa","Record a cash or check payment") ?? "Record a cash or check payment"), onClick: () => { closeModal(); openModal({ type:'add_payment' }); } };
+    const setUp = canSetUpPayments();
+    if (!config) {
+      return {
+        notReadyTitle: (globalThis.PlatformLanguage?.text("money","m_ee79dc11b89d27","Online payments could not be checked") ?? "Online payments could not be checked"),
+        notReadyMessage: (globalThis.PlatformLanguage?.text("money","m_e1a5ebb81bdc45","Close this and try again in a moment.") ?? "Close this and try again in a moment."),
+        notReadyActions: [record]
+      };
+    }
+    if (['online_processing_off', 'no_merchant_account'].includes(reason)) {
+      return {
+        notReadyTitle: (globalThis.PlatformLanguage?.text("money","m_f36100a458bee9","Set up online payments") ?? "Set up online payments"),
+        notReadyMessage: setUp
+          ? (globalThis.PlatformLanguage?.text("money","m_a228986f574138","To take card and bank payments here, set up your payment account first. You only do this once.") ?? "To take card and bank payments here, set up your payment account first. You only do this once.")
+          : (globalThis.PlatformLanguage?.text("money","m_ed20a1fba9e02d","Online payments are not set up yet. Ask an administrator to set them up in Settings, Payments.") ?? "Online payments are not set up yet. Ask an administrator to set them up in Settings, Payments."),
+        notReadyActions: setUp ? [{ label: (globalThis.PlatformLanguage?.text("money","m_95c81d9a92d972","Set up payments") ?? "Set up payments"), primary: true, onClick: startPaymentSetup }, record] : [record]
+      };
+    }
+    if (['not_approved', 'processing_disabled'].includes(reason)) {
+      return {
+        notReadyTitle: reason === 'not_approved' ? (globalThis.PlatformLanguage?.text("money","m_bd23780eab3341","Payment setup is in review") ?? "Payment setup is in review") : (globalThis.PlatformLanguage?.text("money","m_e688d7fb796e90","Payments are paused") ?? "Payments are paused"),
+        notReadyMessage: cleanText(config.message) || (globalThis.PlatformLanguage?.text("money","m_b752fc50bd294b","Online payments are not available yet.") ?? "Online payments are not available yet."),
+        notReadyActions: setUp ? [{ label: (globalThis.PlatformLanguage?.text("money","m_6a00152380cdc8","View payment setup") ?? "View payment setup"), primary: true, onClick: openPaymentSettings }, record] : [record]
+      };
+    }
+    return {
+      notReadyTitle: (globalThis.PlatformLanguage?.text("money","m_7a8078bb2d8ed0","Online payments are not available") ?? "Online payments are not available"),
+      notReadyMessage: cleanText(config.message) || (globalThis.PlatformLanguage?.text("money","m_c2c26759407079","Online payments are not available right now.") ?? "Online payments are not available right now."),
+      notReadyActions: [record]
+    };
+  }
+
   function paymentIntakeProviderOptions(){
     // The payment form offers card or bank entry only when the organization
     // can take payments (the server's readiness answer). Otherwise it says
-    // why, and nothing in it can record a payment.
+    // why and leads to payment setup; nothing in it can record a payment.
     const entry = state.paymentIntakeConfig;
     const config = entry && entry.key === `${orgId()}:${projectId()}` ? entry.config : null;
     if (!config || config.ready !== true || !config.provider) {
       return {
-        notReadyMessage: cleanText(config?.message) || 'Online payments are not set up yet. Finish payment setup in Settings, Payments.',
+        ...paymentNotReadyOptions(config),
         refundPolicy: cleanText(config?.refund_policy)
       };
     }
