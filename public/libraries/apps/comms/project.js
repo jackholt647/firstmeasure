@@ -72,7 +72,7 @@
     emailThreads:[], emailThread:null, emailComposeOpen:false,
     emailDraft:{ to:'', cc:'', bcc:'', subject:'', body:'', files:[] },
     emailReply:{ threadId:'', body:'', files:[] },
-    sms:null, activeSmsId:'', smsComposeOpen:false, smsDraft:{ to:'' },
+    sms:null, activeSmsId:'', smsComposeOpen:false, smsDraft:{ to:'', body:'', files:[] }, smsReply:{ threadId:'', body:'', files:[] },
     phone:null,
     chatConversations:[], activeChatId:'', chatPicking:false,
     chatVoice:{ mode:'attachment', max_seconds:120 },
@@ -84,7 +84,7 @@
     sync:{ overview:'', emailList:'', emailMsgs:'', sms:'', chatList:'', chatMsgs:'' },
     settings:{ overrides:null, saving:false, loaded:false },
     voiceSettings:{ sms:'attachment', email:'dictation' },
-    pendingVoice:{ sms:null, chat:null },
+    pendingVoice:{ chat:null },
     inboxAddress:'',
     sending:false,
     simulateBusy:false,
@@ -141,7 +141,7 @@
 
   function beginSmsDraft(){
     const contact = primaryContact();
-    state.smsDraft = { to:clean(contact.phone) };
+    state.smsDraft = { to:clean(contact.phone), body:'', files:[] };
     state.smsComposeOpen = true;
     state.activeSmsId = '';
   }
@@ -263,23 +263,27 @@
       .fmco-hint-btn[aria-expanded="true"] .fmco-hint-tip,.fmco-hint-btn:focus-visible .fmco-hint-tip{display:block}
       @media (hover:hover){.fmco-hint-btn:hover .fmco-hint-tip{display:block}}
       .fmco-thread-sub{font-size:11px;color:#98a2b3;font-weight:700;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      /* FM-587: the email body is the notes rich editor (channels-ui) in one box with its format bar, files and actions. */
-      .fmco-email-box{border:1px solid #d0d5dd;border-radius:10px;padding:8px 10px;background:#fff;min-width:0;display:grid;gap:6px}
-      .fmco-email-box:focus-within{border-color:var(--primary-readable,var(--primary,#d93025))}
-      .fmco-email-box .fm-ch-formatbar{gap:2px;margin:0;padding-bottom:6px;flex-wrap:wrap}
-      .fmco-email-box .fm-ch-formatbar button{border:0;background:transparent;min-width:28px;height:28px;padding:4px!important;cursor:pointer}
-      .fmco-email-box .fm-ch-rich-editor,.fmco-email-plain{box-sizing:border-box;display:block;width:100%;min-height:150px;max-height:360px;overflow:auto;border:0;outline:none;resize:none;padding:6px 2px;font:inherit;font-size:13px;line-height:1.5;background:transparent;color:#101828;white-space:pre-wrap;overflow-wrap:anywhere}
-      .fmco-email-box[data-co-email-box="reply"] .fm-ch-rich-editor,.fmco-email-box[data-co-email-box="reply"] .fmco-email-plain{min-height:64px;max-height:220px}
-      .fmco-email-box .fm-ch-rich-editor:empty:before{content:attr(data-placeholder);color:#98a2b3;pointer-events:none}
-      .fmco-email-box .fm-ch-rich-editor p{margin:0}
-      .fmco-email-files{display:flex;flex-wrap:wrap;gap:6px}.fmco-email-files:empty{display:none}
-      .fmco-email-file{display:inline-flex;align-items:center;gap:6px;max-width:100%;box-sizing:border-box;border:1px solid #e4e7ec;background:#f8fafc;border-radius:8px;padding:3px 3px 3px 9px;font-size:12px;color:#344054}
-      .fmco-email-file>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
-      .fmco-email-file>small{color:#98a2b3;font-size:11px;white-space:nowrap}
-      .fmco-email-file.failed{border-color:#fecdca;background:#fef3f2;color:#b42318}.fmco-email-file.failed>small{color:#b42318;white-space:normal}
-      .fmco-email-file>button{display:grid;place-items:center;flex:none;width:22px;height:22px;padding:0;border:0;border-radius:5px;background:transparent;color:#667085;cursor:pointer}.fmco-email-file>button:hover{background:#eaecf0}
-      .fmco-email-actions{display:flex;align-items:center;gap:4px}
-      .fmco-email-actions>.fmco-email-send{margin-left:auto}
+      /* FM-587: email and texts use the notes rich editor (channels-ui) in one box with its format bar, files and actions. */
+      .fmco-rich-box{border:1px solid #d0d5dd;border-radius:10px;padding:8px 10px;background:#fff;min-width:0;display:grid;gap:6px}
+      .fmco-rich-box{position:relative}
+      .fmco-emoji-pop{position:absolute;left:0;right:0;bottom:calc(100% + 6px);z-index:40;background:#fff;border:1px solid #e4e7ec;border-radius:10px;box-shadow:0 8px 24px rgba(16,24,40,.12);max-height:320px;overflow:auto}.fmco-emoji-pop[hidden]{display:none}.fmco-emoji-pop.below{top:calc(100% + 6px);bottom:auto}
+      .fmco-rich-file>img{width:22px;height:22px;object-fit:cover;border-radius:4px;flex:none}
+      .fmco-msg-image{display:block;margin-top:6px}.fmco-msg-image img{display:block;max-width:220px;max-height:220px;border-radius:9px}
+      .fmco-rich-box:focus-within{border-color:var(--primary-readable,var(--primary,#d93025))}
+      .fmco-rich-box .fm-ch-formatbar{gap:2px;margin:0;padding-bottom:6px;flex-wrap:wrap}
+      .fmco-rich-box .fm-ch-formatbar button{border:0;background:transparent;min-width:28px;height:28px;padding:4px!important;cursor:pointer}
+      .fmco-rich-box .fm-ch-rich-editor,.fmco-rich-plain{box-sizing:border-box;display:block;width:100%;min-height:150px;max-height:360px;overflow:auto;border:0;outline:none;resize:none;padding:6px 2px;font:inherit;font-size:13px;line-height:1.5;background:transparent;color:#101828;white-space:pre-wrap;overflow-wrap:anywhere}
+      .fmco-rich-box:not([data-co-composer="compose"]) .fm-ch-rich-editor,.fmco-rich-box:not([data-co-composer="compose"]) .fmco-rich-plain{min-height:64px;max-height:220px}
+      .fmco-rich-box .fm-ch-rich-editor:empty:before{content:attr(data-placeholder);color:#98a2b3;pointer-events:none}
+      .fmco-rich-box .fm-ch-rich-editor p{margin:0}
+      .fmco-rich-files{display:flex;flex-wrap:wrap;gap:6px}.fmco-rich-files:empty{display:none}
+      .fmco-rich-file{display:inline-flex;align-items:center;gap:6px;max-width:100%;box-sizing:border-box;border:1px solid #e4e7ec;background:#f8fafc;border-radius:8px;padding:3px 3px 3px 9px;font-size:12px;color:#344054}
+      .fmco-rich-file>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+      .fmco-rich-file>small{color:#98a2b3;font-size:11px;white-space:nowrap}
+      .fmco-rich-file.failed{border-color:#fecdca;background:#fef3f2;color:#b42318}.fmco-rich-file.failed>small{color:#b42318;white-space:normal}
+      .fmco-rich-file>button{display:grid;place-items:center;flex:none;width:22px;height:22px;padding:0;border:0;border-radius:5px;background:transparent;color:#667085;cursor:pointer}.fmco-rich-file>button:hover{background:#eaecf0}
+      .fmco-rich-actions{display:flex;align-items:center;gap:4px}
+      .fmco-rich-actions>.fmco-rich-send{margin-left:auto}
       .fmco-icon-btn{display:grid;place-items:center;flex:none;width:30px;height:30px;padding:0;border:0;border-radius:6px;background:transparent;color:#667085;font-size:14px;cursor:pointer}
       .fmco-icon-btn:hover{background:#f2f4f7;color:var(--primary-readable,var(--primary,#d93025))}
       .fmco-icon-btn.voice-active{background:#fef3f2;color:#d92d20}
@@ -368,7 +372,7 @@
         .fmco-composer-row>.fmco-composer-hint{order:9;flex:1 1 100%;min-width:0;overflow-wrap:anywhere}
         .fmco-composer .fmco-btn{min-height:38px}
         .fmco-input,.fmco-textarea,.fmco-recipient-input,.fmco-agent-composer textarea{font-size:16px}
-        .fmco-email-box .fm-ch-rich-editor,.fmco-email-plain{font-size:16px}
+        .fmco-rich-box .fm-ch-rich-editor,.fmco-rich-plain{font-size:16px}
         .fmco-icon-btn{width:38px;height:38px;font-size:16px}
         .fmco-recipient-row{grid-template-columns:50px minmax(0,1fr)}
         .fmco-recipient-row.has-tip{grid-template-columns:50px minmax(0,1fr) auto}
@@ -894,24 +898,36 @@
     });
   }
 
-  // Email composer (FM-587) ---------------------------------------------------
-  // The rich editor project notes use (channels-ui composerWidgets) with its format bar, attach, dictate and audio
-  // buttons. Its value is Markdown: the email's text part, and rendered (renderBody) its HTML part. Files are uploaded
-  // as the sender's own media in the email_attachment slot and sent by id; the route reads them
-  // (v1/comms/email-attachments.ts). A draft lives in state, so a re-render never loses it.
+  // Rich composers (FM-587) --------------------------------------------------
+  // Email and texts use the rich editor project notes use (channels-ui composerWidgets) in one box with the same
+  // controls: format bar, attach, emoji, dictate, audio and Send. The editor's value is Markdown.
+  // Email: the Markdown is the text part and, rendered (renderBody), the HTML part; files are uploaded as the sender's
+  // own media in the email_attachment slot and sent by id (v1/comms/email-attachments.ts).
+  // Texts: a shorter format bar (lists and links, which read well as plain text), flattened to plain text on send;
+  // one image (the phone tray's MMS preparation, slot sms_image) or one audio note.
+  // A draft lives in state, so a re-render never loses it.
   const EMAIL_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const EMAIL_ATTACHMENT_COUNT = 10;
+  const SMS_TEXT_LIMIT = 1600;
+  const SMS_FORMATS = ['Bulleted list', 'Numbered list', 'Link'];
+  const COMPOSERS = {
+    compose:{ channel:'email', draft:() => state.emailDraft, send:'data-co-email-send' },
+    reply:{ channel:'email', draft:() => state.emailReply, send:'data-co-email-reply-send' },
+    'sms-compose':{ channel:'sms', draft:() => state.smsDraft, send:'data-co-sms-send' },
+    'sms-reply':{ channel:'sms', draft:() => state.smsReply, send:'data-co-sms-send' }
+  };
   const voiceIcon = (mode) => `<span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:18px;height:18px;background:currentColor;mask:url(/libraries/voice-icons/${mode}.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/${mode}.svg) center/contain no-repeat"></span>`;
   const composerWidgets = () => rootWindow.FirstMateChannels?.composerWidgets || null;
   const currentUserId = () => clean(rootWindow.__APP?.userId || Portal.currentUser?.id || '');
-  const emailDraftFor = (kind) => kind === 'reply' ? state.emailReply : state.emailDraft;
-  const emailBox = (kind) => contentRoot()?.querySelector(`[data-co-email-box="${kind}"]`) || null;
+  const draftFor = (kind) => COMPOSERS[kind].draft();
+  const composerBox = (kind) => contentRoot()?.querySelector(`[data-co-composer="${kind}"]`) || null;
   const fileSize = (bytes) => { const value = Number(bytes) || 0; return value >= 1048576 ? `${(value / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(value / 1024))} KB`; };
   const fileKey = () => `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  const withoutTableWidths = (markdown) => String(markdown || '').replace(/^<!--fm-table-widths:[\d.,]+-->$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
 
   /** The email as sent: Markdown without the editor's table-width notes, and the same body as inline-styled HTML. */
   function emailBodies(markdown){
-    const text = String(markdown || '').replace(/^<!--fm-table-widths:[\d.,]+-->$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+    const text = withoutTableWidths(markdown);
     const render = composerWidgets()?.renderBody;
     if (!render || !text) return { text, html:'' };
     const box = document.createElement('div');
@@ -928,192 +944,286 @@
     return { text, html:`<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#101828">${box.innerHTML}</div>` };
   }
 
-  function emailComposerHtml(kind){
-    const voice = clean(state.voiceSettings.email) !== 'off';
-    return `<div class="fmco-email-box" data-co-email-box="${kind}">
-      <div class="fmco-email-editor" data-co-email-editor></div>
-      <div class="fmco-email-files" data-co-email-files></div>
-      <div class="fmco-voice-mount" data-co-email-voice-mount></div>
-      <div class="fmco-email-actions">
-        <button type="button" class="fmco-icon-btn" data-co-email-attach title="${(globalThis.PlatformLanguage?.htmlText("comms","m_032133d04a761e","Attach files") ?? "Attach files")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_032133d04a761e","Attach files") ?? "Attach files")}"><i class="fa-solid fa-paperclip" aria-hidden="true"></i></button><input type="file" multiple hidden data-co-email-file>
-        ${voice ? `<button type="button" class="fmco-icon-btn" data-co-email-dictate title="${(globalThis.PlatformLanguage?.htmlText("comms","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}" aria-pressed="false">${voiceIcon('dictation')}</button><button type="button" class="fmco-icon-btn" data-co-email-audio title="${(globalThis.PlatformLanguage?.htmlText("comms","m_eb0aa857e4778b","Record an audio note") ?? "Record an audio note")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_eb0aa857e4778b","Record an audio note") ?? "Record an audio note")}" aria-pressed="false">${voiceIcon('record')}</button>` : ''}
-        <button type="button" class="fmco-btn primary fmco-email-send" ${kind === 'reply' ? 'data-co-email-reply-send' : 'data-co-email-send'}${kind === 'reply' && state.inboxAddress ? ` title="${String(esc(state.inboxAddress))}"` : ''}><i class="fa-solid fa-paper-plane" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_c23a056552a09f","Send") ?? "Send")}</button>
+  /** A text as sent: lists stay as typed ("- ", "1. "), a link becomes "label (url)", and emphasis a pasted or
+   *  keyboard-shortcut format left behind is dropped, since a text message shows only plain text. */
+  function smsText(markdown){
+    return withoutTableWidths(markdown)
+      .replace(/\[((?:\\.|[^\]\\\n])+)\]\((https?:\/\/[^\s)]+)\)/g, (_, label, url) => { const text = label.replace(/\\([\[\]\\])/g, '$1'); const href = url.replace(/%28/g, '(').replace(/%29/g, ')'); return text === href ? href : `${text} (${href})`; })
+      .replace(/\*\*([^*\n]+)\*\*/g, '$1').replace(/~~([^~\n]+)~~/g, '$1').replace(/(^|[\s(])_([^_\n]+)_/g, '$1$2')
+      .replace(/^```.*$/gm, '').replace(/`([^`\n]+)`/g, '$1').replace(/\\\|/g, '|').trim();
+  }
+
+  function composerHtml(kind){
+    const { channel, send } = COMPOSERS[kind];
+    const sms = channel === 'sms';
+    const voice = clean(state.voiceSettings[channel]) !== 'off';
+    const attachLabel = sms ? (globalThis.PlatformLanguage?.htmlText("comms","m_fda32e5e3fa3a8","Attach an image") ?? "Attach an image") : (globalThis.PlatformLanguage?.htmlText("comms","m_032133d04a761e","Attach files") ?? "Attach files");
+    const sendTitle = kind === 'reply' && state.inboxAddress ? String(esc(state.inboxAddress)) : kind === 'sms-reply' ? (globalThis.PlatformLanguage?.htmlText("comms","m_d28416ff3f0c41","Sends to everyone shown above from your business number") ?? "Sends to everyone shown above from your business number") : '';
+    return `<div class="fmco-rich-box" data-co-composer="${kind}">
+      <div class="fmco-rich-editor" data-co-composer-editor></div>
+      <div class="fmco-rich-files" data-co-composer-files></div>
+      <div class="fmco-voice-mount" data-co-composer-voice></div>
+      <div class="fmco-rich-actions">
+        <button type="button" class="fmco-icon-btn" data-co-composer-attach title="${attachLabel}" aria-label="${attachLabel}"><i class="fa-solid ${sms ? 'fa-image' : 'fa-paperclip'}" aria-hidden="true"></i></button><input type="file" ${sms ? 'accept="image/jpeg,image/png,image/gif,image/webp"' : 'multiple'} hidden data-co-composer-file>
+        <button type="button" class="fmco-icon-btn" data-co-composer-emoji title="${(globalThis.PlatformLanguage?.htmlText("comms","m_1832447bbc385c","Insert emoji") ?? "Insert emoji")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_1832447bbc385c","Insert emoji") ?? "Insert emoji")}" aria-expanded="false"><i class="fa-solid fa-face-smile" aria-hidden="true"></i></button>
+        ${voice ? `<button type="button" class="fmco-icon-btn" data-co-composer-dictate title="${(globalThis.PlatformLanguage?.htmlText("comms","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}" aria-pressed="false">${voiceIcon('dictation')}</button><button type="button" class="fmco-icon-btn" data-co-composer-audio title="${(globalThis.PlatformLanguage?.htmlText("comms","m_eb0aa857e4778b","Record an audio note") ?? "Record an audio note")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_eb0aa857e4778b","Record an audio note") ?? "Record an audio note")}" aria-pressed="false">${voiceIcon('record')}</button>` : ''}
+        <button type="button" class="fmco-btn primary fmco-rich-send" ${send}${sendTitle ? ` title="${sendTitle}"` : ''}><i class="fa-solid fa-paper-plane" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_c23a056552a09f","Send") ?? "Send")}</button>
       </div>
+      <div class="fmco-emoji-pop" data-co-composer-emoji-pop hidden></div>
     </div>`;
   }
 
-  function mountEmailComposer(root, kind){
-    const box = root.querySelector(`[data-co-email-box="${kind}"]`);
+  function mountComposer(root, kind){
+    const box = root.querySelector(`[data-co-composer="${kind}"]`);
     if (!box) return null;
-    const draft = emailDraftFor(kind);
+    const { channel } = COMPOSERS[kind];
+    const draft = draftFor(kind);
     const widgets = composerWidgets();
-    const placeholder = kind === 'reply' ? (globalThis.PlatformLanguage?.text("comms","m_cecfa49a90d03c","Write a reply…") ?? "Write a reply…") : (globalThis.PlatformLanguage?.text("comms","m_a2585fc6c21d1a","Write your email…") ?? "Write your email…");
-    const editor = widgets?.createEditor ? widgets.createEditor(placeholder) : Object.assign(document.createElement('textarea'), { className:'fmco-email-plain' });
+    const placeholder = channel === 'sms' ? (globalThis.PlatformLanguage?.text("comms","m_00e2352d42e80c","Write a text message…") ?? "Write a text message…") : kind === 'reply' ? (globalThis.PlatformLanguage?.text("comms","m_cecfa49a90d03c","Write a reply…") ?? "Write a reply…") : (globalThis.PlatformLanguage?.text("comms","m_a2585fc6c21d1a","Write your email…") ?? "Write your email…");
+    const editor = widgets?.createEditor ? widgets.createEditor(placeholder) : Object.assign(document.createElement('textarea'), { className:'fmco-rich-plain' });
     editor.setAttribute('aria-label', placeholder);
     editor.placeholder = placeholder;
-    editor.dataset.coEmailInput = kind;
-    const mount = box.querySelector('[data-co-email-editor]');
-    if (widgets?.formatBar) mount.append(widgets.formatBar(editor));
+    editor.dataset.coComposerInput = kind;
+    const mount = box.querySelector('[data-co-composer-editor]');
+    if (widgets?.formatBar) mount.append(widgets.formatBar(editor, channel === 'sms' ? SMS_FORMATS : undefined));
     mount.append(editor);
     if (draft.body) editor.value = draft.body;
     editor.addEventListener('input', () => { draft.body = editor.value; });
-    const picker = box.querySelector('[data-co-email-file]');
-    box.querySelector('[data-co-email-attach]')?.addEventListener('click', () => picker?.click());
-    picker?.addEventListener('change', () => { const files = [...(picker.files || [])]; picker.value = ''; files.forEach((file) => attachEmailFile(kind, file)); });
-    box.querySelector('[data-co-email-dictate]')?.addEventListener('click', () => recordEmailVoice(kind, 'dictation'));
-    box.querySelector('[data-co-email-audio]')?.addEventListener('click', () => recordEmailVoice(kind, 'record'));
-    paintEmailFiles(kind);
+    // A text is plain: the browser's bold, italic and underline shortcuts would show formatting it never sends.
+    if (channel === 'sms') editor.addEventListener('keydown', (event) => { if ((event.ctrlKey || event.metaKey) && !event.altKey && ['b', 'i', 'u'].includes(event.key.toLowerCase())) event.preventDefault(); });
+    const picker = box.querySelector('[data-co-composer-file]');
+    box.querySelector('[data-co-composer-attach]')?.addEventListener('click', () => picker?.click());
+    picker?.addEventListener('change', () => { const files = [...(picker.files || [])]; picker.value = ''; files.forEach((file) => attachComposerFile(kind, file)); });
+    bindComposerEmoji(box, editor);
+    box.querySelector('[data-co-composer-dictate]')?.addEventListener('click', () => recordComposerNote(kind, 'dictation'));
+    box.querySelector('[data-co-composer-audio]')?.addEventListener('click', () => recordComposerNote(kind, 'record'));
+    paintComposerFiles(kind);
     return editor;
   }
 
-  function syncEmailSend(kind){
-    const box = emailBox(kind);
+  function bindComposerEmoji(box, editor){
+    const button = box.querySelector('[data-co-composer-emoji]'), pop = box.querySelector('[data-co-composer-emoji-pop]');
+    const mountPicker = rootWindow.FirstMateChannels?.mountEmojiPicker;
+    if (!button || !pop || !mountPicker) { button?.remove(); return; }
+    let picker = null;
+    const close = () => { picker?.destroy?.(); picker = null; pop.hidden = true; pop.replaceChildren(); button.setAttribute('aria-expanded', 'false'); };
+    button.addEventListener('mousedown', () => editor.saveSelection?.());
+    button.addEventListener('click', () => {
+      if (!pop.hidden) { close(); return; }
+      // Open on the side of the box with more room in the thread panel (a new text's box sits near its top).
+      const panel = (box.closest('.fmco-thread-view') || box).getBoundingClientRect(), rect = box.getBoundingClientRect();
+      pop.classList.toggle('below', panel.bottom - rect.bottom > rect.top - panel.top);
+      pop.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+      picker = mountPicker(pop, (emoji) => {
+        if (editor.insertText) editor.insertText(emoji); else editor.setRangeText(emoji, editor.selectionStart, editor.selectionEnd, 'end');
+        editor.dispatchEvent(new Event('input', { bubbles:true }));
+        close();
+        editor.focus();
+      });
+      picker?.focus?.();
+    });
+    box.ownerDocument.addEventListener('pointerdown', (event) => { if (!pop.hidden && !pop.contains(event.target) && !button.contains(event.target)) close(); }, true);
+  }
+
+  function syncComposerSend(kind){
+    const box = composerBox(kind);
     if (!box) return;
-    const draft = emailDraftFor(kind);
-    const send = box.querySelector('.fmco-email-send');
+    const draft = draftFor(kind);
+    const sms = COMPOSERS[kind].channel === 'sms';
+    const media = draft.files.some((file) => file.status !== 'failed');
+    const send = box.querySelector('.fmco-rich-send');
     if (send) send.disabled = state.sending || !!draft.recording || draft.files.some((file) => file.status !== 'ready');
-    box.querySelector('[data-co-email-attach]')?.toggleAttribute('disabled', state.sending);
-    for (const [mode, selector] of [['dictation', '[data-co-email-dictate]'], ['record', '[data-co-email-audio]']]) {
+    const attach = box.querySelector('[data-co-composer-attach]');
+    if (attach) attach.disabled = state.sending || (sms && media);
+    for (const [mode, selector] of [['dictation', '[data-co-composer-dictate]'], ['record', '[data-co-composer-audio]']]) {
       const button = box.querySelector(selector);
       if (!button) continue;
       const active = draft.recording === mode;
       button.classList.toggle('voice-active', active);
       button.setAttribute('aria-pressed', String(active));
-      button.disabled = state.sending || (!!draft.recording && !active) || (mode === 'record' && !draft.recording && draft.files.some((file) => file.audio));
+      button.disabled = state.sending || (!!draft.recording && !active) || (mode === 'record' && !draft.recording && (sms ? media : draft.files.some((file) => file.audio)));
     }
   }
 
-  function paintEmailFiles(kind){
-    const box = emailBox(kind);
+  function paintComposerFiles(kind){
+    const box = composerBox(kind);
     if (!box) return;
-    const draft = emailDraftFor(kind);
-    const list = box.querySelector('[data-co-email-files]');
-    list.innerHTML = draft.files.filter((file) => !file.audio).map((file) => `<span class="fmco-email-file${file.status === 'failed' ? ' failed' : ''}" title="${esc(file.error || file.name)}"><i class="fa-solid ${file.status === 'uploading' ? 'fa-circle-notch fa-spin' : file.status === 'failed' ? 'fa-triangle-exclamation' : 'fa-paperclip'}" aria-hidden="true"></i><span>${esc(file.name)}</span><small>${file.status === 'uploading' ? (globalThis.PlatformLanguage?.htmlText("comms","m_50479360308f51","Uploading…") ?? "Uploading…") : file.status === 'failed' ? esc(file.error) : fileSize(file.size)}</small><button type="button" data-co-email-file-remove="${esc(file.key)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_3ea0f07c7208c2","Remove attachment") ?? "Remove attachment")}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></span>`).join('');
-    list.querySelectorAll('[data-co-email-file-remove]').forEach((button) => button.addEventListener('click', () => removeEmailFile(kind, button.dataset.coEmailFileRemove)));
+    const draft = draftFor(kind);
+    const list = box.querySelector('[data-co-composer-files]');
+    list.innerHTML = draft.files.filter((file) => !file.audio).map((file) => `<span class="fmco-rich-file${file.status === 'failed' ? ' failed' : ''}" title="${esc(file.error || file.name)}">${file.preview && file.status !== 'failed' ? `<img src="${esc(file.preview)}" alt="">` : `<i class="fa-solid ${file.status === 'uploading' ? 'fa-circle-notch fa-spin' : file.status === 'failed' ? 'fa-triangle-exclamation' : 'fa-paperclip'}" aria-hidden="true"></i>`}<span>${esc(file.name)}</span><small>${file.status === 'uploading' ? (globalThis.PlatformLanguage?.htmlText("comms","m_50479360308f51","Uploading…") ?? "Uploading…") : file.status === 'failed' ? esc(file.error) : fileSize(file.size)}</small><button type="button" data-co-composer-file-remove="${esc(file.key)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_3ea0f07c7208c2","Remove attachment") ?? "Remove attachment")}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></span>`).join('');
+    list.querySelectorAll('[data-co-composer-file-remove]').forEach((button) => button.addEventListener('click', () => removeComposerFile(kind, button.dataset.coComposerFileRemove)));
     const audio = draft.files.find((file) => file.audio);
-    const voiceMount = box.querySelector('[data-co-email-voice-mount]');
+    const voiceMount = box.querySelector('[data-co-composer-voice]');
     if (audio && voiceMount && !voiceMount.firstChild && !draft.recording) {
-      rootWindow.FirstMateAudioNotes?.mountPrepared?.(voiceMount, { url:audio.url, duration:audio.duration, peaks:audio.peaks, onRemove:() => removeEmailFile(kind, audio.key) });
+      rootWindow.FirstMateAudioNotes?.mountPrepared?.(voiceMount, { url:audio.url, duration:audio.duration, peaks:audio.peaks, onRemove:() => removeComposerFile(kind, audio.key) });
     }
-    syncEmailSend(kind);
+    syncComposerSend(kind);
   }
 
-  function removeEmailFile(kind, fileId){
-    const draft = emailDraftFor(kind);
+  function removeComposerFile(kind, fileId){
+    const draft = draftFor(kind);
     const removed = draft.files.find((file) => file.key === fileId);
     draft.files = draft.files.filter((file) => file.key !== fileId);
-    if (removed?.audio) emailBox(kind)?.querySelector('[data-co-email-voice-mount]')?.replaceChildren();
-    paintEmailFiles(kind);
+    if (removed?.audio) composerBox(kind)?.querySelector('[data-co-composer-voice]')?.replaceChildren();
+    if (removed?.preview) URL.revokeObjectURL(removed.preview);
+    paintComposerFiles(kind);
   }
 
-  async function uploadEmailFile(file){
+  async function uploadComposerFile(file, slot){
     const media = rootWindow.PlatformAPI?.media;
     if (!media?.upload) throw new Error((globalThis.PlatformLanguage?.text("comms","m_7a8f2e380417f3","Could not upload this file.") ?? "Could not upload this file."));
-    const result = await media.upload(orgId(), file, { ownerType:'user', ownerId:currentUserId(), slot:'email_attachment', scope:'communications' });
+    const result = await media.upload(orgId(), file, { ownerType:'user', ownerId:currentUserId(), slot, scope:'communications' });
     const stored = object(result?.media || result);
     if (!clean(stored.id)) throw new Error((globalThis.PlatformLanguage?.text("comms","m_7a8f2e380417f3","Could not upload this file.") ?? "Could not upload this file."));
     return stored;
   }
 
-  async function attachEmailFile(kind, file){
-    const draft = emailDraftFor(kind);
-    const kept = draft.files.filter((item) => item.status !== 'failed');
-    const item = { key:fileKey(), name:clean(file.name) || 'Attachment', size:Number(file.size) || 0, status:'uploading', media_id:'', error:'' };
-    if (kept.length >= EMAIL_ATTACHMENT_COUNT) Object.assign(item, { status:'failed', error:(globalThis.PlatformLanguage?.text("comms","m_17232c58b8f7af","Attach up to 10 files to one email.") ?? "Attach up to 10 files to one email.") });
-    else if (kept.reduce((sum, entry) => sum + entry.size, 0) + item.size > EMAIL_ATTACHMENT_BYTES) Object.assign(item, { status:'failed', error:(globalThis.PlatformLanguage?.text("comms","m_cd26f253a37e4b","Attachments can add up to 10 MB per email.") ?? "Attachments can add up to 10 MB per email.") });
-    draft.files.push(item);
-    paintEmailFiles(kind);
-    if (item.status === 'failed') return;
-    try { item.media_id = clean((await uploadEmailFile(file)).id); item.status = 'ready'; }
-    catch (error) { Object.assign(item, { status:'failed', error:error?.message || (globalThis.PlatformLanguage?.text("comms","m_7a8f2e380417f3","Could not upload this file.") ?? "Could not upload this file.") }); }
-    paintEmailFiles(kind);
+  // The phone tray's preparation (comms/phone-tray.js): JPG, PNG, GIF or WebP, made a JPEG under the MMS limit.
+  async function prepareTextImage(file){
+    const prepare = Portal.PhoneTexting?.prepareImage;
+    if (prepare) return prepare(file);
+    if (!['image/jpeg', 'image/png', 'image/gif'].includes(file.type) || file.size > 900 * 1024) throw new Error('Attach a JPG, PNG, or GIF image under 900 KB.');
+    return file;
   }
 
-  // Dictation types into the editor; an audio note is recorded as a WAV (every mail client plays it) and attached.
-  async function recordEmailVoice(kind, mode){
+  async function attachComposerFile(kind, file){
+    const draft = draftFor(kind);
+    const sms = COMPOSERS[kind].channel === 'sms';
+    const kept = draft.files.filter((item) => item.status !== 'failed');
+    const item = { key:fileKey(), name:clean(file.name) || 'Attachment', size:Number(file.size) || 0, status:'uploading', media_id:'', error:'' };
+    if (sms && kept.length) Object.assign(item, { status:'failed', error:(globalThis.PlatformLanguage?.text("comms","m_454c8c95547f52","A text can carry one image or one audio note.") ?? "A text can carry one image or one audio note.") });
+    else if (kept.length >= EMAIL_ATTACHMENT_COUNT) Object.assign(item, { status:'failed', error:(globalThis.PlatformLanguage?.text("comms","m_17232c58b8f7af","Attach up to 10 files to one email.") ?? "Attach up to 10 files to one email.") });
+    else if (!sms && kept.reduce((sum, entry) => sum + entry.size, 0) + item.size > EMAIL_ATTACHMENT_BYTES) Object.assign(item, { status:'failed', error:(globalThis.PlatformLanguage?.text("comms","m_cd26f253a37e4b","Attachments can add up to 10 MB per email.") ?? "Attachments can add up to 10 MB per email.") });
+    draft.files.push(item);
+    paintComposerFiles(kind);
+    if (item.status === 'failed') return;
+    try {
+      let upload = file;
+      if (sms) {
+        upload = await prepareTextImage(file);
+        Object.assign(item, { image:true, name:clean(upload.name) || item.name, size:Number(upload.size) || item.size, preview:URL.createObjectURL(upload) });
+      }
+      item.media_id = clean((await uploadComposerFile(upload, sms ? 'sms_image' : 'email_attachment')).id);
+      item.status = 'ready';
+    } catch (error) { Object.assign(item, { status:'failed', error:error?.message || (globalThis.PlatformLanguage?.text("comms","m_7a8f2e380417f3","Could not upload this file.") ?? "Could not upload this file.") }); }
+    paintComposerFiles(kind);
+  }
+
+  // Dictation types into the editor. An email's audio note is recorded as a WAV (every mail client plays it) and
+  // attached; a text's is the audio note texts have always sent (a short 8 kHz WAV, sent as MMS media).
+  async function recordComposerNote(kind, mode){
     const library = rootWindow.FirstMateAudioNotes;
-    const draft = emailDraftFor(kind);
+    const draft = draftFor(kind);
+    const sms = COMPOSERS[kind].channel === 'sms';
     if (draft.recording) { if (draft.recording === mode) draft.recorder?.stop?.(); return; }
-    const mount = emailBox(kind)?.querySelector('[data-co-email-voice-mount]');
+    const mount = composerBox(kind)?.querySelector('[data-co-composer-voice]');
     if (!library?.prepareInline || !mount) return;
     const key = fileKey();
     const name = `${(globalThis.PlatformLanguage?.text("comms","m_52eac0531af849","Audio note") ?? "Audio note")} ${new Date().toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }).replace(/[/:]/g, '-')}.wav`;
     let size = 0, url = '';
     draft.recording = mode;
-    syncEmailSend(kind);
+    syncComposerSend(kind);
     try {
       const prepared = await library.prepareInline(orgId(), '', {
-        mount, mode, maxSeconds:120,
+        mount, mode, maxSeconds:sms ? 30 : 120,
         onRecordingState:(control) => { draft.recorder = control; },
-        ...(mode === 'record' ? {
+        ...(mode === 'record' && sms ? { format:'wav', sampleRate:8000 } : {}),
+        ...(mode === 'record' && !sms ? {
           format:'wav', sampleRate:16000,
           upload:async (recorded) => {
             const file = new File([recorded], name, { type:'audio/wav' });
             size = file.size;
             if (draft.files.filter((item) => item.status !== 'failed').reduce((sum, item) => sum + item.size, 0) + size > EMAIL_ATTACHMENT_BYTES) throw new Error((globalThis.PlatformLanguage?.text("comms","m_cd26f253a37e4b","Attachments can add up to 10 MB per email.") ?? "Attachments can add up to 10 MB per email."));
-            const stored = await uploadEmailFile(file);
+            const stored = await uploadComposerFile(file, 'email_attachment');
             url = URL.createObjectURL(file);
             return { media_id:clean(stored.id), file_name:name, content_type:'audio/wav', url };
           }
         } : {}),
-        onRemove:() => removeEmailFile(kind, key)
+        onRemove:() => removeComposerFile(kind, key)
       });
       if (mode === 'dictation') {
-        const editor = emailBox(kind)?.querySelector('[data-co-email-input]');
+        const editor = composerBox(kind)?.querySelector('[data-co-composer-input]');
         draft.body = [clean(editor ? editor.value : draft.body), clean(prepared.text)].filter(Boolean).join(' ');
         if (editor) { editor.value = draft.body; editor.focus(); }
       } else if (prepared.attachment?.media_id) {
-        draft.files.push({ key, audio:true, status:'ready', name, size, media_id:prepared.attachment.media_id, url, duration:prepared.metadata?.duration_seconds, peaks:prepared.metadata?.peaks });
+        draft.files.push({ key, audio:true, status:'ready', name, size, media_id:prepared.attachment.media_id, url:url || clean(prepared.attachment.public_url || prepared.attachment.url), duration:prepared.metadata?.duration_seconds, peaks:prepared.metadata?.peaks, note:sms ? { ...prepared.metadata, ...prepared.attachment } : null });
       }
     } catch (error) {
       if (!/cancelled/i.test(clean(error?.message))) { state.error = error?.message || 'Voice recording failed.'; draft.recording = ''; draft.recorder = null; render(); return; }
     }
     draft.recording = '';
     draft.recorder = null;
-    syncEmailSend(kind);
+    syncComposerSend(kind);
   }
 
-  async function sendEmail(kind, thread){
-    const draft = emailDraftFor(kind);
-    const box = emailBox(kind);
+  async function sendComposer(kind, conversation){
+    const draft = draftFor(kind);
+    const box = composerBox(kind);
     if (!box || state.sending || draft.recording || draft.files.some((file) => file.status !== 'ready')) return;
-    const editor = box.querySelector('[data-co-email-input]');
+    const editor = box.querySelector('[data-co-composer-input]');
     if (editor) draft.body = editor.value;
-    const { text, html } = emailBodies(draft.body);
-    const attachments = draft.files.map((file) => ({ media_id:file.media_id }));
-    const body = text || (attachments.length ? draft.files.map((file) => file.name).join('\n') : '');
-    let payload;
-    if (kind === 'reply') {
-      if (!body || !thread) { editor?.focus(); return; }
-      payload = { subject:`Re: ${clean(thread.subject) || 'your message'}`.replace(/^Re: Re:/i, 'Re:'), conversation_id:clean(thread.id) };
+    const sms = COMPOSERS[kind].channel === 'sms';
+    let request;
+    if (sms) {
+      const text = smsText(draft.body);
+      const image = draft.files.find((file) => file.image);
+      const audio = draft.files.find((file) => file.audio);
+      const to = kind === 'sms-compose' ? splitRecipients(state.smsDraft.to) : [];
+      if (kind === 'sms-compose' && !to.length) { contentRoot()?.querySelector('[data-co-sms-to]')?.focus(); return; }
+      if (!text && !image && !audio) { editor?.focus(); return; }
+      if (text.length > SMS_TEXT_LIMIT) { state.error = (globalThis.PlatformLanguage?.text("comms","m_0af52926f42dbe","Texts can be up to 1600 characters.") ?? "Texts can be up to 1600 characters."); render(); return; }
+      const media = { ...(image ? { image:{ media_id:image.media_id } } : {}), ...(audio ? { audio_note:audio.note || { media_id:audio.media_id } } : {}) };
+      request = () => api2().sms.send(orgId(), projectId(), kind === 'sms-compose' ? { to, text, ...media } : { conversation_id:clean(conversation?.id), text, ...media });
     } else {
-      const to = splitRecipients(state.emailDraft.to);
-      const subject = clean(state.emailDraft.subject);
-      const missing = !to.length ? '[data-co-email-to]' : !subject ? '[data-co-email-subject]' : '';
-      if (missing || !body) { (missing ? contentRoot()?.querySelector(missing) : editor)?.focus(); return; }
-      payload = { to, cc:splitRecipients(state.emailDraft.cc), bcc:splitRecipients(state.emailDraft.bcc), subject };
+      const { text, html } = emailBodies(draft.body);
+      const attachments = draft.files.map((file) => ({ media_id:file.media_id }));
+      const body = text || (attachments.length ? draft.files.map((file) => file.name).join('\n') : '');
+      let payload;
+      if (kind === 'reply') {
+        if (!body || !conversation) { editor?.focus(); return; }
+        payload = { subject:`Re: ${clean(conversation.subject) || 'your message'}`.replace(/^Re: Re:/i, 'Re:'), conversation_id:clean(conversation.id) };
+      } else {
+        const to = splitRecipients(state.emailDraft.to);
+        const subject = clean(state.emailDraft.subject);
+        const missing = !to.length ? '[data-co-email-to]' : !subject ? '[data-co-email-subject]' : '';
+        if (missing || !body) { (missing ? contentRoot()?.querySelector(missing) : editor)?.focus(); return; }
+        payload = { to, cc:splitRecipients(state.emailDraft.cc), bcc:splitRecipients(state.emailDraft.bcc), subject };
+      }
+      request = () => api2().email.send(orgId(), projectId(), { ...payload, text:body, format:'markdown', ...(html ? { html } : {}), ...(attachments.length ? { attachments } : {}) });
     }
     state.sending = true;
-    syncEmailSend(kind);
+    syncComposerSend(kind);
     try {
-      const sent = await api2().email.send(orgId(), projectId(), { ...payload, text:body, format:'markdown', ...(html ? { html } : {}), ...(attachments.length ? { attachments } : {}) });
-      draft.files.forEach((file) => { if (file.url) URL.revokeObjectURL(file.url); });
+      const sent = await request();
+      draft.files.forEach((file) => { if (file.url?.startsWith('blob:')) URL.revokeObjectURL(file.url); if (file.preview) URL.revokeObjectURL(file.preview); });
       state.sending = false;
+      const conversationId = clean(object(sent.message).conversation_id);
       if (kind === 'reply') {
-        state.emailReply = { threadId:clean(thread.id), body:'', files:[] };
-        await openEmailThread(clean(thread.id));
-      } else {
-        const conversationId = clean(object(sent.message).conversation_id);
+        state.emailReply = { threadId:clean(conversation.id), body:'', files:[] };
+        await openEmailThread(clean(conversation.id));
+      } else if (kind === 'compose') {
         state.emailDraft = { to:'', cc:'', bcc:'', subject:'', body:'', files:[] };
         state.emailComposeOpen = false;
         await loadView();
         if (conversationId) await openEmailThread(conversationId);
+      } else {
+        state.activeSmsId = conversationId || clean(conversation?.id);
+        if (kind === 'sms-compose') { state.smsDraft = { to:'', body:'', files:[] }; state.smsComposeOpen = false; }
+        state.smsReply = { threadId:state.activeSmsId, body:'', files:[] };
+        await loadView();
       }
     } catch (error) {
       state.sending = false;
-      state.error = error?.message || (kind === 'reply' ? 'Could not send the reply.' : 'Could not send the email.');
+      state.error = error?.message || (sms ? 'Could not send the text.' : kind === 'reply' ? 'Could not send the reply.' : 'Could not send the email.');
       render();
     }
+  }
+
+  function smsImageHtml(message){
+    const id = clean(object(object(message?.metadata).sms_image).media_id);
+    const url = id && rootWindow.PlatformAPI?.media?.fileUrl ? rootWindow.PlatformAPI.media.fileUrl(orgId(), id, 'original') : '';
+    return url ? `<a class="fmco-msg-image" href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="" loading="lazy"></a>` : '';
   }
 
   function emailAttachmentsHtml(message){
@@ -1157,13 +1267,13 @@
               <button type="button" class="fmco-btn" data-co-thread-close><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="fmco-msgs" data-co-scroll>${String(emailMsgsHtml(thread))}</div>
-            <div class="fmco-composer">${String(emailComposerHtml('reply'))}</div>
+            <div class="fmco-composer">${String(composerHtml('reply'))}</div>
           ` : state.emailComposeOpen ? `
             <div class="fmco-thread-head"><div style="min-width:0"><div class="fmco-thread-title">${(globalThis.PlatformLanguage?.htmlText("comms","m_71e31660564d5a","New email") ?? "New email")}</div>${String(state.inboxAddress ? `<div class="fmco-thread-sub" title="${esc(state.inboxAddress)}">${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_75109744834b1c",`Sending as ${v1}`,{v1}) ?? `Sending as ${v1}`)(esc(state.inboxAddress))}</div>` : '')}</div><button type="button" class="fmco-btn" data-co-thread-close><i class="fa-solid fa-xmark"></i></button></div>
             <div class="fmco-composer fmco-email-compose" style="border-top:0">
               ${String(emailRecipientFieldsHtml())}
               <input type="text" class="fmco-input" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_bfb9f300f17496","Subject") ?? "Subject")}" value="${String(esc(state.emailDraft.subject))}" data-co-email-subject>
-              ${String(emailComposerHtml('compose'))}
+              ${String(composerHtml('compose'))}
             </div>
           ` : `
             <div class="fmco-empty" style="align-self:center;margin:auto"><i class="fa-solid fa-envelope"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_ee23091a29828f","Select a thread or start a new email.") ?? "Select a thread or start a new email.")}</p></div>
@@ -1188,8 +1298,8 @@
     if (thread && state.emailReply.threadId !== clean(thread.id)) state.emailReply = { threadId:clean(thread.id), body:'', files:[] };
     const composer = thread ? 'reply' : state.emailComposeOpen ? 'compose' : '';
     if (composer) {
-      mountEmailComposer(root, composer);
-      root.querySelector('.fmco-email-send')?.addEventListener('click', () => sendEmail(composer, thread));
+      mountComposer(root, composer);
+      root.querySelector('.fmco-rich-send')?.addEventListener('click', () => sendComposer(composer, thread));
     }
     scrollBottom(root);
   }
@@ -1259,7 +1369,7 @@
     const messages = Array.isArray(conversation?.messages) ? conversation.messages : [];
     return messages.length ? messages.map((message) => `
       <div class="fmco-msg-meta ${message.direction}">${esc(messageWho(message))} · ${esc(timeLabel(message.created_at))} ${badges(message)}</div>
-      <div class="fmco-msg ${message.direction}${message.source_kind === 'ai' ? ' ai' : ''}">${esc(clean(message.text))}${audioHtml(message)}</div>
+      <div class="fmco-msg ${message.direction}${message.source_kind === 'ai' ? ' ai' : ''}">${esc(clean(message.text))}${smsImageHtml(message)}${audioHtml(message)}</div>
     `).join('') : `<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-comment-sms"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_06fc4f53d27077","No text messages yet.") ?? "No text messages yet.")}</p></div>`;
   }
 
@@ -1286,11 +1396,7 @@
                 <div class="fmco-recipient-row has-tip"><label class="fmco-recipient-label" for="fmcoSmsTo">${(globalThis.PlatformLanguage?.htmlText("comms","m_af8bc9e774b68c","To") ?? "To")}</label><input id="fmcoSmsTo" class="fmco-recipient-input" type="text" value="${String(esc(state.smsDraft.to))}" placeholder="+1 206 555 1234" data-co-sms-to>${String(hintTip(globalThis.PlatformLanguage?.text("comms","m_6530a8d89e9c93","Separate multiple phone numbers with commas to start a group thread") ?? "Separate multiple phone numbers with commas to start a group thread"))}</div>
               </div></div>
               ${String(contactChipsHtml('sms', 'to'))}
-              <textarea class="fmco-textarea" style="min-height:110px" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_00e2352d42e80c","Write a text message…") ?? "Write a text message…")}" data-co-sms-input></textarea>
-              <div class="fmco-composer-row" style="justify-content:flex-end">
-                <div class="fmco-voice-mount" data-co-sms-voice-mount></div>${String(clean(state.voiceSettings.sms) !== 'off' ? `<button type="button" class="fmco-btn fmco-voice" data-co-sms-voice><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/${clean(state.voiceSettings.sms) === 'dictation' ? 'dictation' : 'record'}.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/${clean(state.voiceSettings.sms) === 'dictation' ? 'dictation' : 'record'}.svg) center/contain no-repeat"></span><small>${clean(state.voiceSettings.sms) === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '')}
-                <button type="button" class="fmco-btn primary" data-co-sms-send><i class="fa-solid fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_c23a056552a09f","Send") ?? "Send")}</button>
-              </div>
+              ${String(composerHtml('sms-compose'))}
             </div>
           ` : active ? `
             <div class="fmco-thread-head">
@@ -1299,15 +1405,7 @@
             </div>
             <div class="fmco-msgs" data-co-scroll>${String(smsMsgsHtml(active))}</div>
             ${String(ready ? '' : `<div class="fmco-composer" data-co-sms-off><span class="fmco-composer-hint">${phoneChannel('texts') === 'pending' ? (globalThis.PlatformLanguage?.htmlText("comms","m_651562ad9e13ae","You can reply once texting is approved.") ?? "You can reply once texting is approved.") : (globalThis.PlatformLanguage?.htmlText("comms","m_537214cee9376e","You can reply once texts are set up.") ?? "You can reply once texts are set up.")}</span></div>`)}
-            <div class="fmco-composer"${ready ? '' : ' hidden'}>
-              <div style="display:flex;gap:8px;align-items:flex-end">
-                <textarea class="fmco-textarea" style="min-height:44px" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_00e2352d42e80c","Write a text message…") ?? "Write a text message…")}" data-co-sms-input></textarea>
-                ${String(clean(state.voiceSettings.sms) !== 'off' ? `<button type="button" class="fmco-btn fmco-voice" data-co-sms-voice><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/${clean(state.voiceSettings.sms) === 'dictation' ? 'dictation' : 'record'}.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/${clean(state.voiceSettings.sms) === 'dictation' ? 'dictation' : 'record'}.svg) center/contain no-repeat"></span><small>${clean(state.voiceSettings.sms) === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '')}
-                <button type="button" class="fmco-btn primary" style="height:38px" data-co-sms-send><i class="fa-solid fa-paper-plane"></i></button>
-              </div>
-              <div class="fmco-voice-mount" data-co-sms-voice-mount></div>
-              <div class="fmco-composer-row"><span class="fmco-composer-hint">${(globalThis.PlatformLanguage?.htmlText("comms","m_d28416ff3f0c41","Sends to everyone shown above from your business number") ?? "Sends to everyone shown above from your business number")}</span></div>
-            </div>
+            <div class="fmco-composer"${ready ? '' : ' hidden'}>${String(composerHtml('sms-reply'))}</div>
           ` : `<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-comment-sms"></i><p>${ready ? (globalThis.PlatformLanguage?.htmlText("comms","m_bd100abbcef202","Select a text thread or start a new one.") ?? "Select a text thread or start a new one.") : (globalThis.PlatformLanguage?.htmlText("comms","m_5e1987c94b5e12","Select a text thread to read it.") ?? "Select a text thread to read it.")}</p></div>`}
         </div>
       </div>
@@ -1326,28 +1424,12 @@
         render();
       });
     });
-    root.querySelector('[data-co-sms-voice]')?.addEventListener('click', () => recordComposerVoice(root, 'sms', root.querySelector('[data-co-sms-input]')));
-    restoreComposerVoice(root, 'sms');
-    root.querySelector('[data-co-sms-send]')?.addEventListener('click', async (event) => {
-      const input = root.querySelector('[data-co-sms-input]');
-      const text = clean(input?.value);
-      const to = state.smsComposeOpen ? splitRecipients(root.querySelector('[data-co-sms-to]')?.value) : [];
-      if (!text || (state.smsComposeOpen && !to.length) || state.sending) return;
-      state.sending = true; event.currentTarget.disabled = true;
-      try {
-        const voice = state.pendingVoice.sms;
-        const audioNote = voice?.attachment ? { audio_note:{ ...voice.metadata, ...voice.attachment } } : {};
-        const sent = await api2().sms.send(orgId(), projectId(), state.smsComposeOpen
-          ? { to, text, ...audioNote }
-          : { conversation_id:clean(active?.id), text, ...audioNote });
-        state.activeSmsId = clean(object(sent.message).conversation_id) || clean(active?.id);
-        state.smsComposeOpen = false;
-        if (input) input.value = '';
-        state.pendingVoice.sms = null;
-        await loadView();
-      } catch (error) { state.error = error?.message || 'Could not send the text.'; render(); }
-      state.sending = false;
-    });
+    if (active && state.smsReply.threadId !== clean(active.id)) state.smsReply = { threadId:clean(active.id), body:'', files:[] };
+    const composer = state.smsComposeOpen ? 'sms-compose' : active && ready ? 'sms-reply' : '';
+    if (composer) {
+      mountComposer(root, composer);
+      root.querySelector('.fmco-rich-send')?.addEventListener('click', () => sendComposer(composer, active));
+    }
     scrollBottom(root);
     rootWindow.FirstMateAudioNotes?.hydrate?.(root);
   }
@@ -1878,7 +1960,8 @@
     state.phone = null;
     state.activeSmsId = '';
     state.smsComposeOpen = false;
-    state.smsDraft = { to:'' };
+    state.smsDraft = { to:'', body:'', files:[] };
+    state.smsReply = { threadId:'', body:'', files:[] };
     state.chatConversations = [];
     state.chatVoice = { mode:'attachment', max_seconds:120 };
     state.activeChatId = '';
@@ -1887,7 +1970,7 @@
     state.agent = { open:false, threadId:'', messages:[], busy:false };
     state.settings = { overrides:null, saving:false, loaded:false };
     state.voiceSettings = { sms:'attachment', email:'dictation' };
-    state.pendingVoice = { sms:null, chat:null };
+    state.pendingVoice = { chat:null };
     state.sync = { overview:'', emailList:'', emailMsgs:'', sms:'', chatList:'', chatMsgs:'' };
     state.inboxAddress = '';
     state.error = '';

@@ -1267,7 +1267,10 @@
     "m_c86359d50b2274": "Phone registration needs changes",
     "m_eded85269964ec": "Carriers did not approve your phone registration. Continue setup to fix it and send it again.",
     "m_cf18ee3aa79b4e": "Calls are not set up yet",
-    "m_cd72267b997a5b": "Finish setting up texts and calls to call customers from their project."
+    "m_cd72267b997a5b": "Finish setting up texts and calls to call customers from their project.",
+    "m_fda32e5e3fa3a8": "Attach an image",
+    "m_0af52926f42dbe": "Texts can be up to 1600 characters.",
+    "m_454c8c95547f52": "A text can carry one image or one audio note."
   },
   "contacts": {
     "m_bdd2018a2c9640": {
