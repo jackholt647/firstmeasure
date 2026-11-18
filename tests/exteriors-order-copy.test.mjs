@@ -18,6 +18,8 @@
 // FM-569: on a phone, "View sample" sits under the steps of the walkaround and photo intros (the sample video, or the
 // whole sample gallery); each angle's Example shows just that angle. Once every angle has a photo (Add photos from the
 // review), the guide's forward button says "Review" and goes back to the review instead of on to the next angle.
+// FM-573: the phone "View sample" opens above the tip (never over Start recording / Add photos) with a close X at the
+// top right, and the walkaround intro's button says "Record another video" once a video exists.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -168,11 +170,30 @@ test('phone intros show "View sample" under the steps, and Add photos from the r
   assert.match(fn('photoIntroUI'), /<\/li><\/ol>\$\{introSampleUI\('sample-photos'\)\}<\/div><div class="ext-orbit-actions">/);
   assert.match(source, /const introSampleUI=key=>`<div class="ext-intro-sample"><button type="button" class="ext-example-tip" data-intro-sample="\$\{key\}"[^`]*"ext_view_sample","View sample"/);
   const show = fn('showIntroSample');
-  assert.match(show, /pop\.innerHTML=deskSampleHtml\(key,true\)/, 'the phone popover reuses the desktop sample card');
+  assert.match(show, /pop\.innerHTML=`<button[^`]*data-intro-sample-close[^`]*`\+deskSampleHtml\(key,true\)/, 'the phone popover reuses the desktop sample card');
   // On a phone the gallery enlarges in place: the app opens target=_blank links in place of the order.
   assert.match(fn('deskSampleHtml'), /const item=\(src,name=''\)=>phone\?`<button type="button" data-sample-zoom/);
   assert.match(fn('fillExample'), /img\.src=sampleImage\(view\)/, 'the angle Example shows only that angle');
   assert.match(source, /const everyAngleTaken=\(\)=>!!ctx\?\.count&&Array\.from\(\{length:ctx\.count\*8\}/);
   assert.match(fn('mountGuide'), /\[data-guide-forward\]'\)\.onclick=\(\)=>guideIndex\+1<ctx\.count\*8&&!everyAngleTaken\(\)\?visitGuide\(guideIndex\+1\):finishGuide\(\);/);
   assert.match(fn('updateGuide'), /\[data-guide-forward\]'\)\.textContent=everyAngleTaken\(\)\?\(globalThis\.PlatformLanguage\?\.text\("firstmeasure","ext_aff0766a5290e1","Review"\)/);
+});
+
+test('the phone sample opens above the tip with a close X and never covers the primary button', () => {
+  const show = fn('showIntroSample');
+  assert.match(show, /class="ext-intro-sample-close" data-intro-sample-close aria-label="\$\{[^`]*"ext_close_sample"[^`]*<i class="fas fa-xmark"/);
+  assert.match(show, /if\(e\.target\.closest\('\[data-intro-sample-close\]'\)\)\{showIntroSample\(null\);/, 'the X closes it');
+  assert.match(source, /\.ext-intro-sample-close\{position:sticky;top:0;[^}]*float:right/, 'the X stays at the top right while the sample scrolls');
+  // The space below ends at the action buttons, the popover prefers above, and its height never reaches past either.
+  assert.match(show, /querySelector\('\.ext-orbit-actions'\)\?\.getBoundingClientRect\(\)/);
+  assert.match(show, /bottom=Math\.min\(window\.innerHeight,scroller\?\.bottom\?\?Infinity,actions\?\.height\?actions\.top:Infinity\)/);
+  assert.match(show, /up=above>=below\|\|pop\.offsetHeight<=above;/);
+  assert.match(show, /pop\.style\.maxHeight=Math\.max\(0,up\?above:below\)\+'px'/);
+  assert.doesNotMatch(show, /Math\.max\(160,/, 'no minimum height that could spill over the buttons');
+});
+
+test('the walkaround intro says "Record another video" once a video exists', () => {
+  const intro = fn('videoIntroUI');
+  assert.match(intro, /\$\{have\?\(globalThis\.PlatformLanguage\?\.htmlText\("firstmeasure","ext_record_another_video","Record another video"\)/);
+  assert.doesNotMatch(source, /Record another segment/);
 });
