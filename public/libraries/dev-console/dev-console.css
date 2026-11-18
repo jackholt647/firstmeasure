@@ -79,6 +79,9 @@
 
 .fm-dc-setup-acts{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
 .fm-dc-setup-acts .fm-dc-btn{padding:3px 9px;font-size:11.5px;min-height:0}
+.fm-dc-setup-confirm{display:block;margin-top:6px;padding:6px 8px;border-radius:6px;background:#fef3f2}
+.fm-dc-setup-confirm small{color:#912018}
+.fm-dc-test .fm-dc-btn.fm-dc-danger{border-color:#fda29b;color:#b42318;background:#fef3f2}
 /* The Setup test overlay: over the page beside the console (desktop), over everything on a phone. */
 .fm-dc-test{position:fixed;inset:0;z-index:2147483600;display:flex;flex-direction:column;background:rgba(16,24,40,.72);font:13px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#101828}
 .fm-dc-test.fm-dc-test-phone{z-index:2147483645}

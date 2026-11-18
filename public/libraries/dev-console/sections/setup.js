@@ -78,7 +78,9 @@ export function mount(root, { api, T, esc, toast, phone, VERSION }) {
     return `${T('dc_setup_restores', 'Roll back restores')} ${[...byModule].map(([module, keys]) => `${module} (${keys.join(', ')})`).join('; ')}.`;
   }
   /** Test and Roll back under a question. */
-  const stepActions = (step) => `<span class="fm-dc-setup-acts"><button type="button" class="fm-dc-btn" data-dc-setup-test="${esc(step.id)}"><i class="fas fa-play" aria-hidden="true"></i> ${esc(T('dc_setup_test', 'Test'))}</button>${step.test ? `<button type="button" class="fm-dc-btn" data-dc-setup-rollback="${esc(step.id)}"><i class="fas fa-rotate-left" aria-hidden="true"></i> ${esc(T('dc_setup_rollback', 'Roll back'))}</button>` : ''}</span>`;
+  const stepActions = (step) => confirming === step.id && step.test
+    ? `<span class="fm-dc-setup-confirm"><small>${esc(confirmText(step))}</small><span class="fm-dc-setup-acts"><button type="button" class="fm-dc-btn fm-dc-danger" data-dc-setup-rollback-now="${esc(step.id)}"><i class="fas fa-rotate-left" aria-hidden="true"></i> ${esc(T('dc_setup_rollback_now', 'Roll back now'))}</button><button type="button" class="fm-dc-btn" data-dc-setup-rollback-cancel>${esc(T('dc_setup_cancel', 'Cancel'))}</button></span></span>`
+    : `<span class="fm-dc-setup-acts"><button type="button" class="fm-dc-btn" data-dc-setup-test="${esc(step.id)}"><i class="fas fa-play" aria-hidden="true"></i> ${esc(T('dc_setup_test', 'Test'))}</button>${step.test ? `<button type="button" class="fm-dc-btn" data-dc-setup-rollback="${esc(step.id)}"><i class="fas fa-rotate-left" aria-hidden="true"></i> ${esc(T('dc_setup_rollback', 'Roll back'))}</button>` : ''}</span>`;
 
   function row(kind, id, title, status, { short, lines }, actions = '') {
     const [icon, tone, label] = STATUS[status] || STATUS.not_started;
@@ -139,7 +141,10 @@ export function mount(root, { api, T, esc, toast, phone, VERSION }) {
     const test = event.target.closest('[data-dc-setup-test]');
     if (test) { openTest(test.dataset.dcSetupTest); return; }
     const back = event.target.closest('[data-dc-setup-rollback]');
-    if (back) { rollback(back.dataset.dcSetupRollback); return; }
+    if (back) { arm(back.dataset.dcSetupRollback); return; }
+    const now = event.target.closest('[data-dc-setup-rollback-now]');
+    if (now) { rollback(now.dataset.dcSetupRollbackNow); return; }
+    if (event.target.closest('[data-dc-setup-rollback-cancel]')) { confirming = ''; render(); return; }
     const rowEl = event.target.closest('[data-dc-setup-row]');
     if (rowEl) toggle(rowEl);
   });
@@ -150,17 +155,21 @@ export function mount(root, { api, T, esc, toast, phone, VERSION }) {
   const stepOf = (id) => data?.steps.find((step) => step.id === id) || null;
   const base = (id) => `/v1/signup-sandbox/development/console/setup/steps/${encodeURIComponent(id)}`;
 
-  async function rollback(id, after) {
-    const step = stepOf(id);
-    if (!step?.test) return;
-    const ok = await Promise.resolve(window.confirm(`${T('dc_setup_rollback_confirm', 'Roll back')} “${step.title}”? ${restores(step.test)} ${T('dc_setup_rollback_events', 'Its progress and the events its tests recorded go too.')}`));
-    if (!ok) return;
+  /**
+   * Rolls a tested step back. The portal draws window.confirm as its own dialog, which an overlay can cover, so the
+   * console asks in place: the first press says what it restores, the second within a few seconds does it.
+   */
+  let confirming = '', confirmTimer = 0;
+  const confirmText = (step) => `${restores(step.test)} ${T('dc_setup_rollback_events', 'Its progress and the events its tests recorded go too.')}`;
+  function arm(id) { confirming = id; clearTimeout(confirmTimer); confirmTimer = setTimeout(() => { confirming = ''; render(); }, 8000); render(); }
+  async function rollback(id) {
+    confirming = ''; clearTimeout(confirmTimer);
     try {
       const result = await api(`${base(id)}/rollback`, { method: 'POST', body: {} });
       toast(result.restored?.length ? T('dc_setup_rolled_back', 'Rolled back. Reload the page to see it everywhere.') : T('dc_setup_rolled_back_nothing', 'Rolled back; the test had saved nothing.'));
-    } catch (error) { toast(error.message); }
-    await load();
-    after?.();
+      return true;
+    } catch (error) { toast(error.message); return false; }
+    finally { await load(); }
   }
 
   /**
@@ -186,8 +195,9 @@ export function mount(root, { api, T, esc, toast, phone, VERSION }) {
     // Over the page beside the console on a desktop (the docked body holds fixed layers); over everything on a phone.
     (small ? document.documentElement : document.body).append(shell);
     const frame = shell.querySelector('iframe'), stateEl = shell.querySelector('[data-test-state]');
-    const tested = () => { shell.querySelector('[data-test-rollback]').hidden = !stepOf(id)?.test; };
     let playing = false;
+    // Roll back waits until the step is closed: a save after it would not be undone.
+    const tested = () => { shell.querySelector('[data-test-rollback]').hidden = playing || !stepOf(id)?.test; };
     const onMessage = (event) => {
       if (event.origin !== location.origin || event.source !== frame.contentWindow || event.data?.type !== 'fm-dc-setup-test' || event.data.step !== id) return;
       const { state, outcome, message } = event.data;
@@ -217,7 +227,18 @@ export function mount(root, { api, T, esc, toast, phone, VERSION }) {
       }
       if (event.target.closest('[data-test-close]')) close();
       if (event.target.closest('[data-test-again]')) { playing = false; stateEl.textContent = T('dc_setup_test_loading', 'Loading…'); frame.src = src(); }
-      if (event.target.closest('[data-test-rollback]')) rollback(id, () => { tested(); stateEl.textContent = T('dc_setup_test_rolled_back', 'Rolled back.'); });
+      const back = event.target.closest('[data-test-rollback]');
+      if (back && back.dataset.armed !== '1') {
+        const step = stepOf(id);
+        if (!step?.test) return;
+        back.dataset.armed = '1'; back.classList.add('fm-dc-danger');
+        back.lastChild.textContent = ` ${T('dc_setup_rollback_confirm_now', 'Press again to roll back')}`;
+        stateEl.textContent = confirmText(step);
+        setTimeout(() => { if (back.isConnected && back.dataset.armed === '1') { back.dataset.armed = ''; back.classList.remove('fm-dc-danger'); back.lastChild.textContent = ` ${T('dc_setup_rollback', 'Roll back')}`; } }, 8000);
+      } else if (back) {
+        back.dataset.armed = ''; back.classList.remove('fm-dc-danger'); back.lastChild.textContent = ` ${T('dc_setup_rollback', 'Roll back')}`;
+        rollback(id).then((ok) => { tested(); if (ok) stateEl.textContent = T('dc_setup_test_rolled_back', 'Rolled back: as before the first test.'); });
+      }
     });
     tested();
   }
