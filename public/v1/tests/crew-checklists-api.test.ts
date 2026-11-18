@@ -689,6 +689,22 @@ test("A checklist is written out as a printable document in the project's Docume
     || await owner.request("GET", `/v1/documents/organizations/${orgId}/documents`);
   assert.ok(listed.documents.some((document: Json) => document.id === first.document.id), "the document is in the project's Documents");
 
+  // It takes the organization's style for new documents (the first proposal style, FM-612), its page fitted to that
+  // style's margins (Margin's rail), and keeps a style someone chose on the document.
+  assert.equal(first.document.theme_ref?.theme_id || "thm_clean", "thm_clean", "no style chosen yet: the template's own");
+  const { saveBranchModule } = await import("../platform/storage.js");
+  await saveBranchModule(orgId, "default", "document_setup", { data: { default_theme_id: "thm_margin" } }, { replace: true });
+  const styled = await owner.request("POST", `${base}/${checklistId}/document`, {});
+  assert.equal(styled.document.theme_ref.theme_id, "thm_margin");
+  const bodyFit = (document: Json) => (document.overrides || []).filter((op: Json) => op.op === "node.set" && op.prop === "frame");
+  assert.equal(bodyFit(styled.document).length, 1, "the body region is re-fitted once");
+  assert.equal(bodyFit(styled.document)[0].value.x, 104, "the body clears Margin's rail");
+  const restyled = await owner.request("POST", `${base}/${checklistId}/document`, {});
+  assert.equal(bodyFit(restyled.document).length, 1, "writing it again does not pile up fits");
+  await owner.request("PATCH", `/v1/documents/organizations/${orgId}/documents/${first.document.id}`, { theme_ref: { theme_id: "thm_triangles" } });
+  const kept = await owner.request("POST", `${base}/${checklistId}/document`, {});
+  assert.equal(kept.document.theme_ref.theme_id, "thm_triangles", "a style chosen on the document stays");
+
   // Field users without checklist management cannot write documents.
   const refused = await member.client.raw("POST", `${base}/${checklistId}/document`, {});
   assert.equal(refused.statusCode, 403);

@@ -2,7 +2,8 @@
  * Checklist documents: a project checklist written out as a real document of the built-in `checklist` type (template
  * `tpl_checklist_default`, a config library entry made on request), so it shows in the project's Documents tab and
  * can be emailed, downloaded or printed for anyone without the crew app. A checklist that asks for a sign-off
- * (`signature_required`) gets a signature line, filled with the crew app sign-off when there is one.
+ * (`signature_required`) gets a signature line, filled with the crew app sign-off when there is one. It takes the
+ * organization's style for new documents (the first proposal style chosen in the document setup, FM-612).
  *
  * Each checklist has one document with a stable id, `doc_checklist_<checklist id>`: writing it again updates that
  * document in place (prepareTemplatedArtifact, which saves through saveDocumentInstance), never a second copy.
@@ -13,6 +14,7 @@ import type { JsonObject } from "../platform/storage.js";
 import { readDocument } from "../platform/storage.js";
 import { prepareTemplatedArtifact } from "../documents/artifacts.js";
 import { documentInstanceId, readDocumentInstance } from "../documents/storage.js";
+import { readDefaultDocumentThemeId } from "../documents/settings.js";
 import { readProjectChecklistDetail } from "./crew_storage.js";
 
 export const CHECKLIST_TEMPLATE_ID = "tpl_checklist_default";
@@ -61,12 +63,13 @@ export async function generateChecklistDocument(orgId: string, projectId: string
   const documentId = checklistDocumentId(checklist.id);
   const existing = await readDocumentInstance(orgId, documentId).catch(() => null);
   if (existing && obj(existing.metadata).source_system !== SOURCE_SYSTEM) throw badRequest("checklist_document_id_taken", "Another document already uses this checklist's id.");
-  const project = await readDocument(orgId, "projects", projectId).catch(() => null);
+  const [project, themeId] = await Promise.all([readDocument(orgId, "projects", projectId).catch(() => null), readDefaultDocumentThemeId(orgId)]);
   const { document } = await prepareTemplatedArtifact({
     orgId, documentId, documentType: "checklist", templateId: CHECKLIST_TEMPLATE_ID, projectId,
     branchId: text(obj(obj(project).data).branch_id) || text(ctx.branchId) || "default", actorUserId: text(ctx.userId) || undefined,
     title: `Checklist: ${checklist.title}`,
     params: checklistDocumentParams(checklist, names),
+    themeId,
     metadata: {
       source_system: SOURCE_SYSTEM, source_checklist_id: checklist.id, source_project_id: projectId,
       source_checklist_revision: checklist.revision, generated_at: new Date().toISOString(), generated_by_user_id: text(ctx.userId)
