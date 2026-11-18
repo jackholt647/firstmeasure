@@ -255,6 +255,30 @@ test('the Equipment card shows the Equipment app with Back at the bottom left, a
   }finally{await browser.close();}
 });
 
+// FM-619: the Operations tab's Equipment Setup tag plays operations.equipment.setup, the ready step with
+// `options.card`: the Equipment page opens at once (no status read, no scope check, no cards), and Done finishes it.
+test('one card on its own opens at once and Done finishes the setup',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await open(browser);
+    await page.evaluate(()=>{
+      Portal.currentUser.appEntitlements.push({id:'portal.equipment',offered:true});
+      window.mounted=[];window.destroyed=0;
+      FirstMateEmbeddableApps.mount=async(host,id,context)=>{mounted.push(id);host.innerHTML='<button data-eq-add-unit>Add unit</button>';return {destroy(){destroyed++;}};};
+      const ctx={...widgetContext,options:{card:'equipment'},setTitle:()=>{},syncBack:()=>{},runGuide:async()=>({status:'dismissed'})};
+      window.widget=operations.mountWidget('operations-ready',document.getElementById('host'),ctx);
+    });
+    await page.waitForSelector('.ops-app [data-eq-add-unit]');
+    assert.deepEqual(await page.evaluate(()=>mounted),['portal.equipment']);
+    assert.equal(await page.locator('[data-setup]').count(),0,'no cards');
+    assert.equal(await page.evaluate(()=>calls.some(call=>call.action==='operations.setup.status')),false,'no scope check');
+    assert.equal((await page.locator('[data-return]').innerText()).trim(),'Done');
+    await page.locator('[data-return]').click();
+    await page.waitForFunction(()=>completed.length===1);
+    assert.deepEqual(await page.evaluate(()=>[destroyed,document.querySelectorAll('[data-setup]').length]),[1,0],'it finishes instead of showing the cards');
+  }finally{await browser.close();}
+});
+
 // FM-606: a setup step can take back a tour it started (its page closed while the tour starts or plays): the tour
 // ends, is not recorded as seen, and a signal already aborted never shows it.
 test('a nested tour started with a signal ends when the signal aborts and stays to do',async()=>{

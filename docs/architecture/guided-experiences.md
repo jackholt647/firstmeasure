@@ -800,6 +800,15 @@ Optional setup returns to the hub; skipping it does not mark it complete.
 The hub derives supplier and fleet completion from their domain readers; the
 current collection reads are recorded in the [optimization backlog](../optimization-backlog.md#operations-setup-checklist-lists-suppliers-and-equipment).
 
+The Operations tab keeps a way back into these setups (FM-619): for someone who may run them, each kind
+of resource whose card `operations.setup.status` does not mark done (materials: suppliers, labor:
+workforce, equipment) shows a Setup badge, on its column's heading or, with no column showing (labor
+before its setup, a minimized column, equipment inside the work order), on a tag in the header like a
+minimized column's. It plays the card's own setup: `operations.suppliers.setup`,
+`operations.workforce.setup` (after `operations.workforce.setup.start`, as the card does) or
+`operations.equipment.setup`, the hub's ready step with `options.card: equipment`, which opens that one
+card at once and finishes when it is left.
+
 This Labor visibility check shares the existing full material-list scan recorded
 in the [optimization backlog](../optimization-backlog.md#the-labor-column-reads-every-material-list-when-nobody-does-labor).
 
