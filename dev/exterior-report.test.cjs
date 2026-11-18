@@ -64,6 +64,19 @@ test('report configuration warns about wall faces without a material',()=>{
  assert.equal(R.materialWarning(R.build({faces:[{points:rect(0,0,4,2),material:'siding'}]})),null);
  const many=R.build({faces:Array.from({length:10},(_,i)=>({points:rect(i*5,0,i*5+4,2)}))});assert.match(R.materialWarning(many).text,/No wall face has a material assigned \(W01, .*W08, \+2 more\)/);
 });
+test('FM-581: invisible slivers an edit leaves are neither walls nor unassigned faces',()=>{
+ // Saved shapes from the Renton order: a zero-area triangle and a 7.5 ft strip a hundredth of a millimetre wide, both unassigned.
+ const flat=[{x:1,y:0,z:1},{x:1,y:0,z:1},{x:3,y:0,z:1}],strip=[{x:4,y:0,z:0},{x:4.00001,y:0,z:0},{x:4.00001,y:0,z:2.29},{x:4,y:0,z:2.29}],wall={points:rect(0,0,4,2.29),material:'siding'};
+ const m=R.build({faces:[wall,{points:flat},{points:strip},{points:[{x:0,y:1,z:0},{x:0,y:1.00001,z:0},{x:0,y:1,z:3.18}]}]});
+ assert.equal(m.walls.length,1);assert.equal(R.materialWarning(m),null);assert.equal(m.walls[0].material,'Horizontal siding');
+ assert.equal(R.unassignedFace({points:strip,material:'unassigned'}),false);assert.equal(R.unassignedFace({points:flat}),false);
+ // The sliver no longer splits the wall's edge, so its corner is still a corner.
+ const corner=R.build({faces:[wall,{points:[{x:4,y:0,z:0},{x:4,y:4,z:0},{x:4,y:4,z:2.29},{x:4,y:0,z:2.29}],material:'siding'},{points:[{x:4,y:0,z:0},{x:4,y:0.00001,z:0},{x:4,y:0,z:2.29}]}],base:{faces:[{points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:4,z:0},{x:0,y:4,z:0}]}]}});
+ assert.equal(corner.walls.length,2);assert.ok(corner.totals.outside+corner.totals.inside>2.29/.3048-1e-6);
+ // A real narrow piece (2 mm wide) is still a wall and still needs a material.
+ const narrow=[{x:0,y:2,z:0},{x:0,y:2.002,z:0},{x:0,y:2.002,z:2},{x:0,y:2,z:2}];
+ assert.equal(R.unassignedFace({points:narrow}),true);assert.equal(R.materialWarning(R.build({faces:[wall,{points:narrow}]})).count,1);
+});
 test('the report tray opens about half again wider than before, resizes within limits and remembers each person\'s width',()=>{
  const fs=require('node:fs'),vm=require('node:vm'),ts=require('../public/v1/node_modules/typescript'),file='public/measure/internal/editor_scripts/report.js',source=fs.readFileSync(file,'utf8'),tree=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true),parts=[];
  const wanted=new Set(['reportTrayWidthKey','clampReportTrayWidth','readReportTrayWidth','saveReportTrayWidth']);
