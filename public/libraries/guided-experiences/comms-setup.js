@@ -9,7 +9,7 @@
 // action run as the person (comms.setup.start). Copy is gx_ keys with English fallbacks; the library entry's options
 // may replace the title (`headline`) and the line under it (`subtitle`), and say which channel a place starts with (`first`).
 // Texts and calls are set up by texting-setup.js, shared with the appointment setup (FM-515), so both work the same.
-import { commsAction, isRegistered, loadScript, registrationOf, setUpTexting, syncSessions, workflowWindow } from './texting-setup.js?v=20261116-fm515';
+import { commsAction, isRegistered, loadScript, registrationOf, setUpTexting, syncSessions, workflowWindow } from './texting-setup.js?v=20261118-gp7';
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
@@ -345,9 +345,13 @@ export function mount(el, ctx){
     catch (error) { fail(error); }
     finally { busy = false; if (button?.isConnected) button.disabled = false; }
   }
-  // Texts and calls: on at once, then straight into carrier registration; when it closes, the done page.
+  // Texts and calls: on at once, then straight into carrier registration. When it closes having just been submitted
+  // (GP-7), the setup goes on to what is left: email when it is not on yet, else it is finished and closes, and
+  // Communications shows texts and calls pending approval. Closed without submitting, the done page.
   async function startPhone(button){
     if (busy) return; busy = true; if (button) button.disabled = true;
+    const wasRegistered = registered();
+    let next = '';
     try {
       await setUpTexting({ orgId, status, sheet: el.closest('.gxs'), alive: () => alive,
         onStatus: (value) => { status = value; report('phone'); },
@@ -355,11 +359,13 @@ export function mount(el, ctx){
           registering = on;
           if (on) { title(L('gx_comms_registering_title', 'Register your business')); drawBusy(L('gx_comms_registering', 'Registering your business with the carriers…')); }
         } });
-      if (alive) show('done');
+      next = !wasRegistered && registered() ? object(status.done).email ? 'finish' : 'email' : 'done';
+      if (alive && next !== 'finish') show(next);
     } catch (error) {
       registering = false;
       if (alive) { show(object(status.done).phone ? 'done' : 'intro'); fail(error); }
     } finally { busy = false; if (button?.isConnected) button.disabled = false; }
+    if (alive && next === 'finish') { show('done'); await finish(); }
   }
   async function finish(){
     if (busy) return; busy = true;

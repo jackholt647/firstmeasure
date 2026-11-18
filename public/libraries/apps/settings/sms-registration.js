@@ -1773,6 +1773,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           refresh();
           return;
         }
+        let submitted = false;
         operationMessage = smsHasProviderBrand(profile) ? 'Checking registration…' : 'Submitting business…';
         setStatus(operationMessage);
         refresh();
@@ -1787,10 +1788,11 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
               profile = mergeSmsProfile(refreshed.profile || profile);
             } catch(e) {}
           }
+          // Submitted is the end of this workflow (GP-7): one message, then the workflow closes, back to where it was
+          // opened (Settings › Phone, or the setup that runs it). While the business is verified the campaign waits on
+          // our side and is sent by itself: to the person it is all one submission, pending approval.
           if (!smsBrandReadyForCampaign(profile)) {
-            await ctxRef?.goTo?.('summary');
-            setStatus('Business verification is in progress. Your campaign will be submitted automatically after approval.');
-            showToast('Registration started', 'Your campaign will be submitted automatically after business verification.', true);
+            submitted = true;
             return;
           }
           setStatus('Submitting SMS campaign...');
@@ -1801,9 +1803,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
             body: { submit: true, ...(submitOptions.replaceRejectedCampaign ? { replace_rejected_campaign: true } : {}) }
           });
           profile = mergeSmsProfile(campaign.profile || profile);
-          await ctxRef?.goTo?.('summary');
-          setStatus('SMS registration submitted.');
-          showToast((globalThis.PlatformLanguage?.text("settings","m_2f88ed2671fbaf","SMS registration submitted") ?? "SMS registration submitted"), (globalThis.PlatformLanguage?.text("settings","sms_registration_auto_status","Status and number activation update automatically while this setup is open.") ?? "Status and number activation update automatically while this setup is open."), true);
+          submitted = true;
         } catch (error) {
           const message = error?.message || 'Submission failed.';
           submissionError = message;
@@ -1815,7 +1815,10 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           } catch(e) {}
         } finally {
           operationBusy = false;
-          refresh();
+          if (submitted) {
+            showToast((globalThis.PlatformLanguage?.text("settings","m_2f88ed2671fbaf","SMS registration submitted") ?? "SMS registration submitted"), 'Pending approval. Carriers usually review a business in a few days, and texting starts once it’s approved.', true);
+            wizard?.close?.({ reason: 'submitted', skipSave: true });
+          } else refresh();
         }
       };
       const searchSmsNumbers = async (queryInput) => {

@@ -55,6 +55,10 @@ test('Communications setup: start, carrier registration, one done page with emai
     assert.equal(await page.getByText('Turn on texts and calls').count(),0);
     assert.equal(await page.locator('.gxs').evaluate(sheet=>getComputedStyle(sheet).visibility+(sheet.inert?' inert':'')),'hidden inert','the setup steps aside while the workflow is open');
     await page.evaluate(()=>submitRegistration());
+    // GP-7: registration submitted, the setup goes on to what is left: email. Back is the done page.
+    await page.getByRole('button',{name:/^FirstMate Mail/}).waitFor();
+    assert.equal(await page.evaluate(()=>completed),0);
+    await page.getByRole('button',{name:'Back'}).click();
     // One done page: texts and calls ready, email offered right there, and the texting plan.
     await page.getByText('Ready on +12025550100.').waitFor();
     assert.equal(await page.locator('.gxs').evaluate(sheet=>getComputedStyle(sheet).visibility),'visible');
@@ -90,6 +94,41 @@ test('Communications setup: start, carrier registration, one done page with emai
     const phoneTops=await page.locator('.gxc-way').evaluateAll(ways=>ways.map(way=>way.offsetTop));
     assert.equal(new Set(phoneTops).size,1,'still one row on a phone');
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+// GP-7: with email already on, submitting registration is the last thing: the setup finishes and closes, and
+// Communications shows texts and calls pending approval.
+test('Communications setup: submitting registration with email on finishes the setup',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:960,height:900}}),errors=[];
+    page.on('pageerror',error=>errors.push(error.message));
+    await page.route('https://comms-setup.test/**',async route=>{
+      const url=new URL(route.request().url());
+      if(url.pathname.startsWith('/libraries/'))return route.fulfill({contentType:'text/javascript',body:await readFile(new URL('../..'+url.pathname,import.meta.url),'utf8')});
+      return route.fulfill({contentType:'text/html',body:'<div class="gxs"><main id="step"></main></div>'});
+    });
+    await page.goto('https://comms-setup.test/');
+    await page.evaluate(()=>{
+      window.__APP={userOrgId:'org-test'};window.registration='draft';
+      const status={phone:{texts:false,registration:'none'},email:{on:true,address:'acme@mail.test'},done:{phone:false,email:true}};
+      window.PlatformAPI={baseUrl:()=>'/v1/platform',publication:{invoke:async(org,action,target,input)=>{if(action==='comms.setup.start'&&input.channel==='phone'){status.phone={texts:true,registration};status.done.phone=true;}return {value:structuredClone(status)};}}};
+      window.FirstMatePlatformBilling={isEnabled:()=>false};
+      window.FirstMateSetupWizard={open(){}};
+      window.FirstMateSmsRegistration={open:()=>new Promise(resolve=>{window.submitRegistration=()=>{registration='submitted';resolve({id:'profile'});};})};
+    });
+    await page.evaluate(async()=>{
+      const module=await import('/libraries/guided-experiences/comms-setup.js');
+      window.completed=0;
+      module.mount(document.querySelector('#step'),{options:{},orgId:'org-test',L:(key,fallback)=>fallback,esc:value=>String(value??''),change(){},complete:async()=>{completed++;}});
+    });
+    await page.getByRole('button',{name:/^Texts and calls/}).click();
+    await page.waitForFunction(()=>typeof window.submitRegistration==='function');
+    await page.evaluate(()=>submitRegistration());
+    await page.waitForFunction(()=>completed===1);
+    assert.equal(await page.getByRole('button',{name:/^FirstMate Mail/}).count(),0,'no email page: email is already on');
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
