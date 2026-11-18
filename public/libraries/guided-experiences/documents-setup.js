@@ -26,6 +26,20 @@ const css = `
 .gxd-tick svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:3;opacity:0;transition:opacity .15s}
 [aria-checked=true]>.gxd-tick{background:var(--primary,#d93025);border-color:var(--primary,#d93025)}
 [aria-checked=true]>.gxd-tick svg{opacity:1}
+.gxd-group{display:flex;flex-direction:column;gap:10px}
+.gxd-tile.gxd-feature{align-items:center;gap:16px;min-height:112px;padding:20px 48px 20px 20px;border-width:1.5px}
+.gxd-feature .gxd-icon{width:56px;height:56px;border-radius:15px;font-size:24px}
+.gxd-feature strong{font-size:19px}
+.gxd-feature small{font-size:13.5px}
+.gxd-feature .gxd-tick{top:14px;right:14px;width:24px;height:24px}
+.gxd-badge{align-self:flex-start;display:inline-flex;align-items:center;height:22px;padding:0 9px;margin-bottom:3px;border-radius:999px;background:var(--primary,#d93025);color:#fff;font-size:11px;font-style:normal;font-weight:700;letter-spacing:.02em}
+.gxd-others{margin:6px 0 0!important;font-size:12px!important;font-weight:650;color:#667085!important;text-transform:uppercase;letter-spacing:.04em}
+.gxd-grid.gxd-small{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.gxd-small .gxd-tile{min-height:64px;padding:11px 36px 11px 12px;gap:10px}
+.gxd-small .gxd-icon{width:32px;height:32px;border-radius:9px;font-size:14px}
+.gxd-small .gxd-tile strong{font-size:13.5px}
+.gxd-small .gxd-tile small{font-size:11.5px}
+.gxd-small .gxd-tick{width:20px;height:20px;top:9px;right:9px}
 .gxd-prices{display:flex;flex-direction:column;border:1px solid #e4e7ec;border-radius:13px;overflow:hidden}
 .gxd-price{display:flex;align-items:center;gap:12px;padding:9px 12px;border-top:1px solid #f2f4f7;font-size:13px}
 .gxd-price:first-child{border-top:0}
@@ -48,7 +62,7 @@ const css = `
 .gxd-busy{display:grid;place-items:center;min-height:180px}
 .gxd-error{color:#b42318!important}
 .gxd-error:empty{display:none}
-@media(max-width:640px){.gxd-grid{grid-template-columns:1fr}.gxd-styles{grid-template-columns:repeat(3,minmax(200px,1fr));overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px}.gxd-style{scroll-snap-align:start}}
+@media(max-width:640px){.gxd-grid,.gxd-grid.gxd-small{grid-template-columns:1fr}.gxd-tile.gxd-feature{min-height:96px;padding:16px 44px 16px 16px}.gxd-feature .gxd-icon{width:46px;height:46px;font-size:20px}.gxd-feature strong{font-size:17px}.gxd-styles{grid-template-columns:repeat(3,minmax(200px,1fr));overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px}.gxd-style{scroll-snap-align:start}}
 @media(prefers-reduced-motion:reduce){.gxd *{transition:none!important}}
 `;
 function installStyle(){
@@ -119,12 +133,19 @@ export function mount(el, ctx){
   // ── One answer from a few choices ─────────────────────────────────────
   const { key, choices } = question;
   const valueOf = (choice) => choice.value;
-  let chosen = choices.find((choice) => valueOf(choice) === selections[key]) || null;
-  el.innerHTML = `<div class="gxd"><div class="gxd-grid" role="radiogroup" aria-label="${esc(ctx.L(ctx.step.title))}">${choices.map((choice) => `
-    <button type="button" class="gxd-tile" role="radio" data-choice="${esc(choice.id)}" aria-checked="${chosen === choice}">
+  // Most people start with a proposal (FM-582): on the first question it is the large, recommended choice, already
+  // picked, and the other kinds sit in a smaller row below it.
+  const featured = part === 'kind' ? choices.find((choice) => choice.id === 'proposal') : null;
+  let chosen = choices.find((choice) => valueOf(choice) === selections[key]) || featured || null;
+  const tileHtml = (choice, big = false) => `
+    <button type="button" class="gxd-tile${big ? ' gxd-feature' : ''}" role="radio" data-choice="${esc(choice.id)}" aria-checked="${chosen === choice}">
       <span class="gxd-icon" aria-hidden="true"><i class="fas ${esc(choice.icon)}"></i></span>
-      <span><strong>${esc(L(choice.title))}</strong><small>${esc(L(choice.hint))}</small></span>${tick}
-    </button>`).join('')}</div></div>`;
+      <span>${big ? `<em class="gxd-badge">${esc(t('kind_recommended', 'Recommended to start'))}</em>` : ''}<strong>${esc(L(choice.title))}</strong><small>${esc(L(choice.hint))}</small></span>${tick}
+    </button>`;
+  const others = choices.filter((choice) => choice !== featured);
+  el.innerHTML = `<div class="gxd"><div role="radiogroup" aria-label="${esc(ctx.L(ctx.step.title))}" class="gxd-group">${featured
+    ? `${tileHtml(featured, true)}<p class="gxd-others">${esc(t('kind_others', 'Or set up another kind of document'))}</p><div class="gxd-grid gxd-small">${others.map((choice) => tileHtml(choice)).join('')}</div>`
+    : `<div class="gxd-grid">${choices.map((choice) => tileHtml(choice)).join('')}</div>`}</div></div>`;
   const report = () => ctx.change(chosen ? { [key]: valueOf(chosen) } : {}, chosen ? L(chosen.title) : '');
   const onClick = (event) => {
     const tile = event.target.closest('[data-choice]'); if (!tile) return;
