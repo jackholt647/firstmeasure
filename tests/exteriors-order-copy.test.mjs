@@ -190,6 +190,14 @@ test('the phone sample opens above the tip with a close X and never covers the p
   assert.match(source, /\.ext-intro-sample-head\{flex:none;display:flex/);
   assert.match(source, /\.ext-intro-sample-body\{flex:1 1 auto;min-height:0;overflow:auto/);
   assert.doesNotMatch(source, /\.ext-intro-sample-close\{[^}]*(position:sticky|float:|margin:-)/, 'no floating X over the media');
+  // A light shadow that falls away from the tip (Ben, FM-573): opened above, it must not smear down over View sample.
+  const shadows = rule => [...(source.match(new RegExp(`${rule.replace(/\./g, '\\.')}\\{[^}]*box-shadow:([^;}]*)`))?.[1] ?? '').matchAll(/(-?\d+)(?:px)? (-?\d+)(?:px)? (\d+)(?:px)?/g)].map(m => m.slice(1).map(Number));
+  const below = shadows('.ext-intro-sample-pop');
+  assert.ok(below.length, 'the phone popover has a shadow');
+  for (const [, y, blur] of below) assert.ok(y >= 0 && blur <= 16, 'the phone popover shadow stays tight');
+  const above = shadows('.ext-intro-sample-pop.is-above');
+  assert.ok(above.length, 'opened above, the popover has its own shadow');
+  for (const [, y, blur] of above) assert.ok(blur + y <= 10, 'opened above, the shadow reaches at most 10px below the popover');
   assert.match(fn('deskSampleHtml'), /const head=phone\?'':`<h4>\$\{sampleTitle\(key\)\}<\/h4>`/, 'the phone card leaves its title to the header');
   // The space below ends at the action buttons, the popover prefers above, and its height never reaches past either.
   assert.match(show, /querySelector\('\.ext-orbit-actions'\)\?\.getBoundingClientRect\(\)/);
