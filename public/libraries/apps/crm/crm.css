@@ -33,6 +33,9 @@
 .crm-pick-icon,.crm-pick-caret{display:none}
 .crm-pick-text{display:flex;align-items:baseline;gap:10px;min-width:0}
 .crm-pick-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* The name truncates; the magic tag after it stays in view. */
+.crm-pick-line{display:flex;align-items:center;min-width:0;max-width:100%}
+.crm-pick-line>.crm-pick-name{min-width:0}
 .crm-title .crm-count{color:var(--crm-muted);font-weight:600;font-size:13px;letter-spacing:0;white-space:nowrap}
 .crm-phone-only{display:none!important}
 .crm-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}

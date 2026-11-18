@@ -111,7 +111,7 @@
       presentation: { phoneSearch: 'icon' },
       params: { crmView: { history:'push' }, crmPanel: { values:['reports','duplicates','sources','settings'], history:'push' } },
       access: { capability: 'apps.crm' },
-      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261118-fm551-ai-views')]
+      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261118-fm551-ai-tag')]
     },
     {
       id: 'portal.contacts',
