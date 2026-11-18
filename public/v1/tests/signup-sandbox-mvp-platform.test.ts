@@ -124,6 +124,19 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, o
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
+ // `leads: "unscoped"` (FM-565): projects made by hand still start Generic Roofing, but a lead that arrives stays a new
+ // lead, so the CRM's New leads view lists it (a lead put straight into a production scope is no opportunity).
+ const {invokeAction}=await import('../platform/publication/actions.js');const publicationContext=(await import('../platform/publication/context.js')).userPublicationContext;
+ await invokeAction(publicationContext(instance.authContext as any,{mode:'command'}),{action:'sandbox.intakeRouting.setDefault',target:{scope:'organization',organizationId:orgId}},{template_id:'generic_roofing',leads:'unscoped'},{idempotencyKey:'fm-565-leads-unscoped'});
+ const leadRouting=await router.readIntakeRouting(orgId);
+ assert.deepEqual([leadRouting.default_entry,leadRouting.default_template_id,leadRouting.manual_template_id],['unscoped','generic_roofing','generic_roofing']);
+ assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
+ const {receiveLead}=await import('../leads/receive.js');
+ const lead=await receiveLead(orgId,{project_id:'fm565_lead',source:{kind:'referral',provider:'Referral',synthetic:true},address:'2393 Meadow Ln, Madison, WI 53711'});
+ assert.equal(((lead.project.data as any).lifecycle as any).new_lead,true);
+ const crm=await import('../crm/records.js');
+ const leadRow=(await crm.opportunityRows(await crm.crmSources(orgId),instance.authContext as any)).rows.find(row=>row.id==='fm565_lead');
+ assert.equal(leadRow?.state,'new_lead');
  assert.equal((workflow as any).dev_bar,false);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');

@@ -66,18 +66,19 @@ const STEPS: Step[] = [
   },
   {
     id: "sandbox.intakeRouting.setDefault",
-    description: "Makes one scope template what every new project starts (intake routing default and manual template, no rules).",
-    input: { template_id: TEMPLATE_ID, branch_id: { type: "string" } },
+    description: "Makes one scope template what every new project starts (intake routing default and manual template, no rules). `leads: \"unscoped\"` starts it only on projects made by hand: a lead that arrives stays a new lead.",
+    input: { template_id: TEMPLATE_ID, leads: { type: "string", enum: ["scope", "unscoped"] }, branch_id: { type: "string" } },
     required: ["template_id"],
     async run(ctx, _owner, input) {
       const { readIntakeRouting, saveIntakeRouting } = await import("../scopes/router.js");
       const branchId = branchOf(ctx, input), id = text(input.template_id);
+      const entry = text(input.leads) === "unscoped" ? "unscoped" : "scope";
       const routing = await readIntakeRouting(ctx.organizationId, branchId);
       await saveIntakeRouting(ctx.organizationId, branchId, {
         expected_revision: routing.revision,
-        data: { ...routing, routing_mode: "default", rules: [], default_entry: "scope", default_template_id: id, manual_template_id: id }
+        data: { ...routing, routing_mode: "default", rules: [], default_entry: entry, default_template_id: id, manual_template_id: id }
       });
-      return { template_id: id };
+      return { template_id: id, leads: entry };
     }
   },
   {
