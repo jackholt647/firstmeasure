@@ -138,11 +138,12 @@ const typeCode = between('  const TYPE_META = {', '  function openModal(');
 const menuEnd = '    return { el: menu, close };\n  }';
 const modalCode = documentsSource.slice(documentsSource.indexOf('  function openModal('), documentsSource.indexOf(menuEnd) + menuEnd.length);
 const createCode = between('    async function openCreateModal(', '    function setEditorFocus(');
+const pickerDataCode = between('    function loadPickerData(', '    async function templateDefinition(');
 
 async function openNewDialog(page, { phone = false, flags = {} } = {}) {
   await page.setContent(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style><main></main>`);
   if (phone) await page.evaluate(() => document.documentElement.setAttribute('data-fm-doc-phone', ''));
-  await page.evaluate(({ typeCode, modalCode, createCode, flags }) => {
+  await page.evaluate(({ typeCode, modalCode, createCode, pickerDataCode, flags }) => {
     window.calls = [];
     window.flags = flags;
     const helpers = `
@@ -152,7 +153,7 @@ async function openNewDialog(page, { phone = false, flags = {} } = {}) {
       function objectValue(value){ return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
       function arrayValue(value){ return Array.isArray(value) ? value : []; }
       const clone = (value) => JSON.parse(JSON.stringify(value));
-      const state = { departmentId: '', departmentContext: { enabled: false } };
+      const state = { pickerData: null, pickerLoading: null, pickerWrites: 0, departmentId: '', departmentContext: { enabled: false } };
       const orgId = () => 'org';
       const project = () => ({ name: 'Mimosa' });
       const showToast = () => {};
@@ -173,9 +174,9 @@ async function openNewDialog(page, { phone = false, flags = {} } = {}) {
       const templateDefinition = async () => ({ params: {} });
       const paramFieldHtml = () => '';
     `;
-    window.openCreate = new Function(`${helpers}\n${typeCode}\n${modalCode}\n${createCode}\nreturn openCreateModal;`)();
+    window.openCreate = new Function(`${helpers}\n${typeCode}\n${modalCode}\n${pickerDataCode}\n${createCode}\nreturn openCreateModal;`)();
     window.openCreate({}, { onUploadFiles: () => window.calls.push(['files']), onAddFiles: () => ({ saved: true }) });
-  }, { typeCode, modalCode, createCode, flags });
+  }, { typeCode, modalCode, createCode, pickerDataCode, flags });
   await page.waitForSelector('[data-tpl-search]');
 }
 

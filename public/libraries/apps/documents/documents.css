@@ -653,8 +653,10 @@ html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal::after{content:'';flex:none
 html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal:has(>.fmdx-modal-foot)::after,html[data-fm-doc-phone] .fmdx-modal.fmdx-create-modal::after{display:none}
 /* A tray (New document's first step, FM-570) rises from the bottom as tall as
    what it shows, leaving the top of the page in view like the platform's phone
-   sheets (window-manager mobileSheet); a later step grows it to full screen. */
-html[data-fm-doc-phone] .fmdx-modal-back.fmdx-tray-back{align-items:flex-end;background:rgba(11,16,24,.34)}
+   sheets (window-manager mobileSheet); a later step grows it to full screen.
+   The page behind is dimmed like the bottom bar's sheets (.ptb-sheet-scrim),
+   never blurred: the backdrop is data-fm-window-backdrop="off" (FM-572). */
+html[data-fm-doc-phone] .fmdx-modal-back.fmdx-tray-back{align-items:flex-end;background:rgba(15,23,42,.42)}
 html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-tray{flex:none;height:auto;max-height:calc(100% - max(56px,12%));padding-top:20px;border-radius:18px 18px 0 0;box-shadow:0 -9px 28px rgba(15,23,42,.3);animation:fmdx-tray-up .3s cubic-bezier(.2,.8,.2,1);transition:border-radius .28s ease,padding-top .28s ease}
 html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-tray::before{content:'';position:absolute;top:7px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:2px;background:#d0d5dd;pointer-events:none;transition:opacity .2s ease}
 html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-tray:not(.fmdx-tray-full)>h2{touch-action:none}
