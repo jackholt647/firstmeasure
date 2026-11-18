@@ -410,7 +410,7 @@ test('a type that needs a project hides No project; the New project step uses Go
   await page.locator('.fm-ap-type[data-preset-button=sales]').click();
   await page.waitForFunction(()=>document.querySelector('[data-step=project]:not([hidden])'));
   assert.equal(await none.isVisible(),false,'a sales appointment cannot be booked without a project');
-  assert.equal(await page.locator('[data-needs-project]').innerText(),'Sales appointment needs a project.');
+  assert.equal(await page.locator('[data-needs-project]').innerText(),'“Sales appointment” needs a project.');
   await search.fill('42 Unknown Road');await page.waitForTimeout(400);
   assert.equal(await page.getByRole('option',{name:/Use “42 Unknown Road”/}).count(),0,'nor with just an address');
   // The footer does not stretch: Previous on the left, New project and a narrow Next together on the right.

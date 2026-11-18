@@ -188,7 +188,7 @@ export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<t
  *  appointment needs one only when it says so. */
 async function assertProjectOptional(ctx:PlatformAuthContext,config:AppointmentConfiguration){
   const preset=config.preset_id?(await readAppointmentCatalog(ctx)).catalog.presets.find(p=>p.id===config.preset_id):null;
-  if(preset?requiresProject(preset.configuration):config.requires_project===true)throw badRequest('appointment_project_required',`${preset?.label||'This appointment'} needs a project. Choose a project or make a new one.`);
+  if(preset?requiresProject(preset.configuration):config.requires_project===true)throw badRequest('appointment_project_required',`${preset?`“${preset.label}”`:'This appointment'} needs a project. Choose a project or make a new one.`);
 }
 // A staff booking is internal until someone shares it; a customer who books
 // it themselves (a website form) already knows about it.
