@@ -190,9 +190,16 @@
     spare.layer.remove();
     spare = null;
   }
+  // A frame added while the page loads holds back its load event (the theme and offline start then), so a spare
+  // is only ever added after it.
+  function afterPageLoad(callback){
+    if (document.readyState === 'complete') callback();
+    else root.addEventListener('load', () => callback(), {once:true});
+  }
   function scheduleSpare(delay = 2000){
     clearTimeout(spareTimer);
     if (!ownsProjectWindows) return;
+    if (document.readyState !== 'complete') { afterPageLoad(() => scheduleSpare(delay)); return; }
     spareTimer = setTimeout(() => {
       if (document.hidden) { root.addEventListener('visibilitychange', () => scheduleSpare(delay), {once:true}); return; }
       const warm = () => { if (!spare && !document.hidden && spareAllowed()) warmSpare(); };
@@ -227,8 +234,9 @@
     return candidate;
   }
   if (ownsProjectWindows && typeof root.PlatformCommerce?.onReady === 'function') {
-    // A link or reload that names a project opens it as soon as the portal has booted: boot its frame alongside.
-    if (new URLSearchParams(root.location.search).get('project')) setTimeout(() => { if (!spare && spareAllowed()) warmSpare(); }, 0);
+    // A link or reload that names a project opens it as soon as the portal has booted: boot its frame alongside,
+    // from the page's load event on.
+    if (new URLSearchParams(root.location.search).get('project')) afterPageLoad(() => { if (!spare && !records.size && spareAllowed()) warmSpare(); });
     root.PlatformCommerce.onReady(() => scheduleSpare(2500));
   }
   function open(project, options = {}){

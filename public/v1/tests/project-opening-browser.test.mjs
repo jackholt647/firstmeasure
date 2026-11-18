@@ -310,3 +310,25 @@ test('a project window stays behind the opening header until its project has loa
   context.setProjectShellLoading(false);
   assert.deepEqual(shown,[true],'revealed once');
 });
+
+test('no spare frame is added before the page has loaded (FM-542)',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:1200,height:800}});
+    const scripts=(await Promise.all(['window-manager','window-shell','project-windows'].map(file=>source('libraries/window-manager/'+file+'.js')))).map(code=>'<script>'+code.replaceAll('</script','<\\/script')+'</script>').join('');
+    let releaseImage;const imageHeld=new Promise(resolve=>{releaseImage=resolve;});
+    await page.route('https://project.test/**',async route=>{
+      const url=new URL(route.request().url());
+      if(url.pathname==='/slow.png'){await imageHeld;return route.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=','base64')});}
+      if(url.searchParams.has('projectWindow'))return route.fulfill({contentType:'text/html',body:'<main class="main"></main>'});
+      return route.fulfill({contentType:'text/html',body:'<main class="main" style="height:100vh;width:100vw"></main><script>window.Portal={cfg:{userOrgId:"org_test"}};window.PlatformCommerce={onReady:callback=>callback({})};</script>'+scripts+'<img src="/slow.png">'});
+    });
+    await page.goto('https://project.test/?project=project_test',{waitUntil:'domcontentloaded'});
+    await page.waitForTimeout(500);
+    assert.equal(await page.evaluate(()=>document.readyState),'interactive');
+    assert.equal(await page.locator('iframe').count(),0,'a project link does not add its spare while the page loads');
+    releaseImage();
+    await page.waitForFunction(()=>document.readyState==='complete');
+    await page.waitForFunction(()=>document.querySelector('.fm-project-spare iframe'),null,{timeout:5000});
+  }finally{await browser.close();}
+});
