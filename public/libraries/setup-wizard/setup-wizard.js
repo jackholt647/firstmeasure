@@ -18,8 +18,11 @@
  *                     nextLabel?|fn(ctx) }]
  *   initialStepId string   Step to open on (deep links / reopen).
  *   state         object   Arbitrary mutable state shared with the steps via ctx.state.
- *   autosave      { debounceMs?, save(state)->Promise }  Debounced persistence;
- *                 renderers call ctx.touch() after mutating state.
+ *   autosave      { debounceMs?, save(state)->Promise, flushOnStep? }  Debounced
+ *                 persistence; renderers call ctx.touch() after mutating state.
+ *                 A step change waits for the save (the target step and the
+ *                 pressed button show a spinner meanwhile) unless flushOnStep
+ *                 is false: then it starts the save and moves on at once.
  *   locked        bool|fn  Read-only mode (post-submit); disables autosave + submit.
  *   onSubmit      fn(ctx)  Invoked by the default footer's final-step button.
  *   submitLabel   string   Label for that button (default 'Submit').
@@ -88,6 +91,10 @@
       .fm-wizard-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:8px 13px;color:#344054;font:900 11px/1.2 inherit;cursor:pointer}
       .fm-wizard-btn.primary{border-color:var(--primary-readable,var(--primary,#d93025));background:var(--primary-readable,var(--primary,#d93025));color:#fff}
       .fm-wizard-btn:disabled{opacity:.5;cursor:default}
+      .fm-wizard[aria-busy="true"]{cursor:progress}
+      .fm-wizard-step.pending{border-color:rgba(var(--primary-rgb,217,48,37),.38);background:rgba(var(--primary-rgb,217,48,37),.06);opacity:1}
+      .fm-wizard-step.pending .num{border-color:rgba(var(--primary-rgb,217,48,37),.38);color:var(--primary-readable,var(--primary,#d93025))}
+      .fm-wizard .fm-wizard-foot-actions .fm-wizard-pending:disabled{opacity:1;cursor:progress}
       .fm-wizard-issues{display:flex;align-items:flex-start;gap:9px;margin:0 0 16px;border:1px solid #fecdca;border-radius:10px;background:#fef3f2;padding:11px 12px;color:#912018;font-size:10px;font-weight:800;line-height:1.5}
       .fm-wizard-issues i{margin-top:2px}
       .fm-wizard-issues ul{margin:4px 0 0;padding-left:16px;display:grid;gap:3px}
@@ -109,6 +116,8 @@
     let saveTimer = null;
     let savePromise = null;
     let saveDirty = false;
+    // A step change waiting for the draft save: { target, trigger } (GP-5).
+    let pending = null;
 
     const isLocked = () => {
       if (lockedOverride !== null) return lockedOverride;
@@ -204,6 +213,57 @@
       return index >= 0 ? index : 0;
     };
 
+    /* ---- leaving a step ---------------------------------------------- */
+    // Shows at once that a step change is under way: the target step and the
+    // pressed button spin and nothing else can be pressed (GP-5). render()
+    // repaints it if the host refreshes while the save runs.
+    const paintPending = () => {
+      if (!pending) return;
+      overlay.querySelector('.fm-wizard')?.setAttribute('aria-busy', 'true');
+      overlay.querySelectorAll('[data-fm-step]').forEach((button) => {
+        button.disabled = true;
+        if (button.dataset.fmStep !== pending.target) return;
+        button.classList.add('pending');
+        const num = button.querySelector('.num');
+        if (num) num.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i>';
+      });
+      const actions = overlay.querySelector('[data-fm-actions]');
+      actions?.querySelectorAll('button').forEach((button) => { button.disabled = true; });
+      const trigger = pending.trigger ? actions?.querySelector(pending.trigger) : null;
+      if (trigger) {
+        trigger.classList.add('fm-wizard-pending');
+        const icon = trigger.querySelector('i.fas, i.fa');
+        if (icon) icon.className = 'fas fa-spinner fa-spin';
+        else trigger.insertAdjacentHTML('beforeend', ' <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>');
+      }
+    };
+    // The footer button that asked for the step change, as a selector that
+    // survives a re-render.
+    const triggerSelector = (button) => {
+      if (!(button instanceof Element) || !button.closest('[data-fm-actions]')) return '';
+      if (button.id) return `#${CSS.escape(button.id)}`;
+      if (button.hasAttribute('data-fm-next')) return '[data-fm-next]';
+      if (button.hasAttribute('data-fm-back')) return '[data-fm-back]';
+      return '';
+    };
+    // Resolves true when the wizard may leave the current step.
+    const leaveStep = async (target, trigger, options = {}) => {
+      if (options.flush === false || typeof config.autosave?.save !== 'function' || isLocked()) return true;
+      if (config.autosave.flushOnStep === false && !options.wait) {
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        if (saveDirty) void runSave();
+        return true;
+      }
+      if (!saveDirty && !savePromise) return true;
+      pending = { target, trigger: triggerSelector(trigger || document.activeElement) };
+      paintPending();
+      try {
+        return await flushSave();
+      } finally {
+        pending = null;
+      }
+    };
+
     const applyStepChange = (stepId, options = {}) => {
       const previous = currentStepId;
       if (typeof config.onBeforeStep === 'function' && overlay.isConnected) {
@@ -219,22 +279,27 @@
     };
 
     async function goTo(stepId, options = {}){
-      if (closed) return;
+      if (closed || pending) return;
       const target = clean(stepId);
       if (!stepsList().some((step) => step.id === target)) return;
       if (target === currentStepId) { render(); return; }
-      if (options.flush !== false && !(await flushSave())) { render(); return; }
+      if (!(await leaveStep(target, options.trigger, options))) { render(); return; }
+      if (closed) return;
       applyStepChange(target, options);
     }
 
     async function continueStep(){
+      if (closed || pending) return;
       const steps = stepsList();
       const index = currentIndex();
       const step = steps[index] || {};
       issues = typeof step.validate === 'function' ? (step.validate(ctx) || []) : [];
       if (issues.length) { render(); return; }
-      if (!(await flushSave())) { render(); return; }
-      if (index >= steps.length - 1) {
+      const isLast = index >= steps.length - 1;
+      // Submitting always waits for the draft.
+      if (!(await leaveStep(isLast ? '' : steps[index + 1].id, overlay.querySelector('[data-fm-next]'), { wait: isLast }))) { render(); return; }
+      if (closed) return;
+      if (isLast) {
         if (isLocked()) return;
         if (typeof config.onSubmit === 'function') await config.onSubmit(ctx);
         return;
@@ -243,10 +308,12 @@
     }
 
     async function backStep(){
+      if (closed || pending) return;
       const steps = stepsList();
       const index = currentIndex();
       if (index <= 0) return;
-      if (!(await flushSave())) { render(); return; }
+      if (!(await leaveStep(steps[index - 1].id))) { render(); return; }
+      if (closed) return;
       applyStepChange(steps[index - 1].id);
     }
 
@@ -389,11 +456,12 @@
       overlay.querySelector('[data-fm-close]')?.addEventListener('click', () => doClose({ reason:'button' }));
       overlay.querySelectorAll('[data-fm-step]').forEach((button) => button.addEventListener('click', () => {
         const target = clean(button.dataset.fmStep);
-        if (target && target !== currentStepId) goTo(target);
+        if (target && target !== currentStepId) goTo(target, { trigger: button });
       }));
       // Where the steps are one scrolling row (a phone), the current one is in view.
       const rail = overlay.querySelector('.fm-wizard-steps'), current = rail?.querySelector('.fm-wizard-step.active');
       if (rail && current && rail.scrollWidth > rail.clientWidth) rail.scrollLeft = Math.max(0, current.offsetLeft - rail.offsetLeft - 12);
+      paintPending();
     }
 
     /* ---- modal + route registration ----------------------------------- */
