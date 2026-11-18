@@ -4954,12 +4954,10 @@ async function handleCancelProjectLegacyAction(app: FastifyInstance, body: JsonO
     return { ok: false, success: false, status_code: 400, error: "Please choose whether to refund credits for this cancellation" };
   }
 
-  const detail = await injectJson(app, "GET", `/v1/firstmeasure/projects/${encodeURIComponent(projectId)}`);
-  if (asObject(detail).success === false || asObject(detail).ok === false || !asObject(detail).project) {
-    return { ok: false, success: false, status_code: 404, error: "Project not found" };
-  }
-  const project = asObject(detail.project);
-  const manifest = asObject(project.manifest || project);
+  // Only the manifest: the project detail also parses pdf_state.json, which reaches 500 MB on big
+  // commercial roofs and ran the compat worker out of memory on every cancel of one (FM-561).
+  const manifest = asObject(await readManifest(projectId).catch(() => null));
+  if (!Object.keys(manifest).length) return { ok: false, success: false, status_code: 404, error: "Project not found" };
   const status = cleanText(manifest.status).toLowerCase();
   if (["completed", "rejected", "rejected_no_coverage", "cancelled"].includes(status)) {
     return { ok: false, success: false, status_code: 400, error: "Only active projects can be cancelled" };
@@ -5248,6 +5246,7 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
         ...(typeof body.p1_eligible === "boolean" ? { p1_eligible: body.p1_eligible } : {}),
         ...(typeof body.p2_eligible === "boolean" ? { p2_eligible: body.p2_eligible } : {}),
         is_qa_trainee: body.is_qa_trainee === "1" || body.is_qa_trainee === true,
+        ...(body.is_qa_trainee_exteriors !== undefined ? { is_qa_trainee_exteriors: body.is_qa_trainee_exteriors === "1" || body.is_qa_trainee_exteriors === true } : {}),
         ...(typeof body.can_draft_full_house === "boolean" ? { can_draft_full_house: body.can_draft_full_house } : {}),
         ...(typeof body.can_qa_full_house === "boolean" ? { can_qa_full_house: body.can_qa_full_house } : {}),
         queue_mode: body.queue_mode,

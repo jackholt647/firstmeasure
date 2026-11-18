@@ -235,7 +235,9 @@ function perf_finishEdit(){
     // Roof mode's Subtract Face on a face's whole outline leaves that face as its own hole: no surface, and
     // nothing to triangulate. Roof mode shows and measures no surface there, so the walls leave it out too (FM-320).
     // A leftover face a few pixels across is not a roof plane either (WallGeometry.roofPlanesOnly).
-    function usableRoofFaces(faces,points=null){return G.roofPlanesOnly(faces,points).filter(f=>{try{window.ExteriorGeometry?.triangles(f.points,f.holes||[]);return true;}catch(error){console.warn('[Walls] Roof face '+f.id+' has no surface and is left out of the walls.',error);return false;}});}
+    // A hole the face resolver gave a face outside its outline is no hole of it (WallGeometry.holesInside): it is
+    // dropped and the face kept, marked strayHoles (not saved) so walls that left the face out follow it (FM-527).
+    function usableRoofFaces(faces,points=null){return G.roofPlanesOnly(faces,points).map(f=>{const holes=G.holesInside(f);if(holes.length===(f.holes||[]).length)return f;const kept={...f,holes};Object.defineProperty(kept,'strayHoles',{value:true});return kept;}).filter(f=>{try{window.ExteriorGeometry?.triangles(f.points,f.holes||[]);return true;}catch(error){console.warn('[Walls] Roof face '+f.id+' has no surface and is left out of the walls.',error);return false;}});}
     function captureRoof(force=false) {
         if(!activeGeometry?.points?.length)throw new Error('Finish the roof points and resolved faces first.');
         const ctx=currentContext(); if(!(ctx.mpp>0))throw new Error('Load calibrated project imagery first.');
@@ -485,13 +487,13 @@ function perf_persist(touch=true) {
         applyDisplayPreferences();if(state&&!state.roofTrim)state.roofTrim=copy(roofTrimOnly);wallsVisible=state?.wallsVisible!==false;editingLayer=state?.editingLayer||'base';
         const upgraded=upgradeEngine(),contactsRepaired=window.BaseGeometry?.repairStoredRoofContacts?.(state),weldSet=!!state&&state.pointWeldInches===undefined&&(state.pointWeldInches=.25,true),strayWire=!!state&&[state.base,state.wallEdits?.$base].filter(Boolean).map(b=>window.BaseSketchGeometry?.removeStrayWire?.(b)).some(Boolean);retainGradeDraftOwnership();window.WallChimneys?.normalizeDrafts(state?.wallEdits);window.normalizeWallDraftOwnership?.(state?.wallEdits);window.WallBaseBinding?.upgrade(state?.wallEdits);window.WallSolidGeometry?.cleanupSweepRemnants(state?.wallEdits);if(state)calculateStage(stage);const draftsRepaired=!!state&&wallEditor?.repairStoredDrafts?.();
         // Walls saved against another roof drawing than the one this project opened with (FM-347).
-        staleAtOpen=!!state&&state.phase!=='grade'&&state.roofSignature!==roofSignature();
+        staleAtOpen=!!state&&state.phase!=='grade'&&state.roofSignature!==roofSignature();leftOutChecked=false;
         // Delete records move from the project-wide lists onto their faces (localizeWireMasks). Walls that no longer
         // match the roof stay exactly as saved until the person has answered; their records convert on the next edit.
         if(state?.wallEdits&&!staleAtOpen){window.WallSolidGeometry?.pruneHiddenLoose?.(state.wallEdits);window.WallSolidGeometry?.localizeWireMasks?.(state.wallEdits);window.ExteriorModel?.settleDeletedWire?.(state);}
         restoreView(metadata,local);const prepared=enabled&&(!state||state.phase==='grade')&&ensureGradeSetup();const welded=!!state&&state.phase!=='grade'&&!!wallEditor?.weldPoints?.();if(upgraded||contactsRepaired||weldSet||welded||strayWire||draftsRepaired||prepared)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;restoreHistory(history,metadata?.exteriorsWalls,localStamp!==null&&localHistory?.stamp===localStamp&&String(localHistory?.history?.version)==='1'?localHistory.history:null);
     }
-    function beforeProjectLoad() {if(localHistoryTimer)saveLocalHistory(true);staleAtOpen=false;drivenSoffits=true;autoParapets=true;closedSoffits=false;settleNudges();closeResoffit();wallEditor?.leave?.();baseEditor?.leave?.();window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}
+    function beforeProjectLoad() {if(localHistoryTimer)saveLocalHistory(true);staleAtOpen=false;leftOutChecked=false;drivenSoffits=true;autoParapets=true;closedSoffits=false;settleNudges();closeResoffit();wallEditor?.leave?.();baseEditor?.leave?.();window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}
     // A roof change rebuilds generated walls, but a rebuild starts wall edits
     // over. Fingerprint the edits From Roof produced so a later rebuild can
     // tell whether anything the person did would be lost.
@@ -503,11 +505,22 @@ function perf_persist(touch=true) {
         const parts=[...count(features,'window, door or sticker','windows, doors and stickers'),...count(drafts.length,'edited wall','edited walls'),...count(surfaces.length-surfaces.filter(f=>f.feature).length,'drawn or moved face','drawn or moved faces'),...(edits.$base?['base edits']:[]),...count(edits.$loose?.edges?.length||0,'loose line','loose lines')];
         return parts.length?parts:['wall edits'];
     }
+    // FM-527: walls built while a stray resolver hole made a roof plane unusable left that plane out, and with
+    // the drawing unchanged its signature still matches. Once per opened project, a plane that had a stray hole
+    // and that the walls lack is followed like a roof change: the follow adds the walls it drives.
+    let leftOutChecked=false;
+    function leftOutRoofPlane(){
+        if(leftOutChecked||!state?.roof?.faces)return false;
+        let captured;try{captured=captureRoof(false);}catch(error){return false;}
+        leftOutChecked=true;
+        const ctx=currentContext(),key=ps=>ps.map(p=>Math.round(p.x*1e3)+','+Math.round(p.y*1e3)).sort().join(';'),walls=new Set(state.roof.faces.map(f=>key(f.points)));
+        return captured.roof.faces.some(f=>f.strayHoles&&!walls.has(key(f.points.map(p=>inWallFrame(p,ctx)))));
+    }
     // Returns 'same', 'rebuilt', 'kept' (the person kept the walls built from
     // the earlier roof) or 'failed'. Nothing is discarded without a yes.
     function rebuildForRoofChange(){
         if(!state||state.phase==='grade')return 'same';
-        const signature=roofSignature();if(state.roofSignature===signature){delete state.keptRoofSignature;return 'same';}
+        const signature=roofSignature();if(state.roofSignature===signature){delete state.keptRoofSignature;if(!leftOutRoofPlane())return 'same';}
         if(state.keptRoofSignature===signature)return 'kept';
         const lost=wallEditsAtRisk();
         // With wall work to keep, follow the roof change (wall_roof_rebuild.js). Only when that
@@ -551,6 +564,25 @@ function perf_persist(touch=true) {
     // Roof metres are measured from the image centre: the current one for the roof being edited,
     // the one the walls were built in (state.context) for the walls. Same place, different origin.
     function inWallFrame(p,ctx=currentContext()){const ref=state?.context;if(!ref)return p;const dx=(ref.lng-ctx.lng)*111132*Math.cos(ctx.lat*Math.PI/180),dy=(ctx.lat-ref.lat)*111132;return dx||dy?{...p,x:p.x-dx,y:p.y-dy}:p;}
+    // Roof trim and the roof's lines follow the roof's line types (exterior-roof-rebuild.md). Walls kept
+    // from an earlier roof keep state.roof as it was, so a line labelled rake since then took no trim (FM-541).
+    // A line still between the same two points takes its current type; state.roof itself never changes.
+    function roofLines(){
+        const roof=state?.roof,ps=activeGeometry?.points,live=activeGeometry?.connections,ctx=currentContext();if(!roof?.points?.length||!ps?.length||!live?.length||!(ctx.mpp>0))return roof;
+        const key=p=>[p.x,p.y,p.z].map(v=>Math.round(v*1e4)).join(','),index=new Map(),at=new Map(),pair=(a,b)=>Math.min(a,b)+':'+Math.max(a,b),now=new Map();
+        roof.points.forEach((p,i)=>{if(!index.has(key(p)))index.set(key(p),i);});
+        for(const p of ps){try{const i=index.get(key(inWallFrame(toMetric(p,ctx),ctx)));if(i!==undefined)at.set(p,i);}catch(e){}}
+        for(const c of live){const a=at.get(c.start),b=at.get(c.end);if(a===undefined||b===undefined||a===b)continue;const k=pair(a,b);if(!now.has(k))now.set(k,[]);now.get(k).push(c.type);}
+        // The walls' lines keep their ids: a line whose type the roof still has there is unchanged, the others take the types left.
+        const replaced=new Map(),added=[];
+        for(const [k,types]of now){const left=[...types],rest=[];
+            for(const c of roof.connections)if(pair(c.startIdx,c.endIdx)===k){const i=left.indexOf(c.type);if(i>=0)left.splice(i,1);else rest.push(c);}
+            rest.forEach((c,i)=>replaced.set(c,i<left.length?{...c,type:left[i]}:null));
+            const [a,b]=k.split(':').map(Number);for(const type of left.slice(rest.length))added.push({startIdx:a,endIdx:b,type});
+        }
+        if(!replaced.size&&!added.length)return roof;
+        return {...roof,connections:[...roof.connections.map(c=>replaced.has(c)?replaced.get(c):c).filter(Boolean),...added]};
+    }
     // The generator as From Roof runs it: no wall edits, the current base and grade.
     function freshStages(roof,chimneys){
         const saved=state,key=baseTerrainKey,cache=baseTerrainCache,skip=new Set(['wallEdits','chimneys','roof','sources','warnings','removed',...historyKeys.filter(k=>!['finishDefaults','roofTrim','base','closedSoffits'].includes(k))]);
@@ -887,7 +919,7 @@ function perf_render3DFrame() {
         if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}
         const vector=p=>getVector3(toPixel(p));
         const addLines=(points,connections,color,userData=null)=>{const vertices=[];for(const c of connections){for(const i of [c.startIdx,c.endIdx]){const v=vector(points[i]);vertices.push(v.x,v.y,v.z);}}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));const obj=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color,depthTest:false,transparent:true,opacity:.95}));if(userData)Object.assign(obj.userData,userData);obj.renderOrder=10;group3D.add(obj);};
-        let roof=state?.roof;
+        let roof=state?.roof&&roofLines();
         if(!roof){try{const c=captureRoof();roof=c.roof;sourceContext=c.context;}catch(e){syncVisibility();return;}}
         if(roofVisible){
             // Ridges, hips and valleys take no trim; Trim mode greys them out.
@@ -1473,7 +1505,7 @@ function perf_render3DFrame() {
     function reportParts(face){const finished=f=>{const finish=window.ExteriorFinishes?.resolve(f,state.finishDefaults);return finish?{...f,material:finish.material,finishColor:finish.color}:f;};return (window.WallChimneys?.visibleParts(face,state)||[face]).flatMap(f=>window.WallClosedSoffits?.presentation(f,state)||[f]).map(finished);}
     function reportSnapshot(){
         if(!state||stage<2)return null;
-        return window.ExteriorReportModel.build({faces:window.ExteriorModel.collect(state,currentWalls()).flatMap(reportParts),base:state.wallEdits?.$base||state.base,roof:state.roof,roofTrim:state.roofTrim||roofTrimOnly,context:state.context});
+        return window.ExteriorReportModel.build({faces:window.ExteriorModel.collect(state,currentWalls()).flatMap(reportParts),base:state.wallEdits?.$base||state.base,roof:roofLines(),roofTrim:state.roofTrim||roofTrimOnly,context:state.context});
     }
     // The PDF cover's textured render travels with the report snapshot: server renders have no editor scene.
     function reportSnapshotWithCover(){

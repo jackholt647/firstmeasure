@@ -3531,8 +3531,8 @@
       "message": "{v2} hr estimate",
       "format": "icu"
     },
-    "m_1d63663ae56e2a": "18 hrs",
-    "m_e731322b674a97": "24 hrs",
+    "m_70bebe3d5e1c4a": "9 hrs",
+    "m_a5dd2a1c20d0a5": "12 hrs",
     "m_e7f79de4539e22": {
       "message": "{v5} per structure + selected delivery fee{v6}",
       "format": "icu"
@@ -3696,7 +3696,7 @@
     "angle_back_right": "Back Right",
     "angle_right": "Right",
     "angle_front_right": "Front Right",
-    "exteriors_standard_label": "Standard · 24 hours",
+    "exteriors_standard_label": "Standard · 12 hours",
     "exteriors_same_day_label": "Same day · under 6 hours",
     "exteriors_priority_label": "Priority · under 3 hours",
     "delivery_very_busy": "We are very busy",
@@ -5075,6 +5075,14 @@
     "m_861f518127ff5b": "Full Exterior report rejected",
     "m_61916e37809bd1": "Try again with more footage",
     "m_c04a8c55885f01": "Step back to get the whole house in view, and add photos of every side so we can draw all of it.",
+    "m_1079f5ae806b32": "Incorrect footage uploaded",
+    "m_3c747882dbf3aa": "The uploaded footage doesn't seem to match the provided address. We have reimbursed the original report.",
+    "m_5da395be24d920": "Upload the correct footage",
+    "m_48e31022ec1dd5": "Starts a new Full Exterior order for this address. Record or upload footage of this house.",
+    "m_a1c5e34ccfaeef": {
+      "message": "It seems to be a {v0} building and we currently don't offer exterior reports for {v0} buildings.",
+      "format": "icu"
+    },
     "m_6396ccf961d884": "Why it was rejected",
     "m_1b6fb2f8bf15dc": "Starts a new order for this project as the right project type."
   },

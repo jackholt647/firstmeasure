@@ -57,3 +57,29 @@ test('delivery attaches the saved full report, records receipt, and refuses an u
   assert.equal(messages[2].subject, 'Roof Report - Synthetic house');
   assert.match(messages[2].textBody, /Your roof report is ready!/);
 });
+
+test('a standard Full Exterior is released just before its 12-hour deadline (FM-531)', async () => {
+  const source = await readFile(new URL('../firstmeasure/api.ts', import.meta.url), 'utf8');
+  const section = (start: string, end: string) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
+  const code = section('function parseDateLikeTimestamp(', '\n}\n') + '\n}\n'
+    + section('function normalizeReportReleaseExpediteOption(', 'function getReportReleaseHold(');
+  const { createHash } = await import('node:crypto');
+  const expedite = await import('../firstmeasure/expedite.js');
+  const { exteriorQuote } = await import('../firstmeasure/exteriors.js');
+  const { pricingContext, DEFAULT_EXPEDITE_PRICING } = await import('../firstmeasure/pricing_config.js');
+  const context = vm.createContext({ createHash, ...expedite, asRecord: (value: unknown) => value && typeof value === 'object' ? value : {},
+    toOptionalString: (value: unknown) => value == null ? '' : String(value).trim() });
+  vm.runInContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
+  const ordered = Date.parse('2026-11-17T12:00:00Z');
+  const standard = pricingContext.run({ config: { ...DEFAULT_EXPEDITE_PRICING }, revision: 0, now: new Date(ordered) },
+    () => exteriorQuote().options.find((option) => option.key === 'exteriors_standard')!);
+  // The order stores the quote's deadline as its due window, exactly as the queue action does.
+  const manifest = { id: 'exteriors_' + 'c'.repeat(32), measurement_scope: 'full_house', report_expedite_option: 'exteriors_standard',
+    is_expedited: false, report_due_window_start: new Date(ordered).toISOString(), report_due_window_end: standard.deadline };
+  const plan = context.buildReportReleaseHoldPlan(manifest, ordered + 3 * 3600_000);
+  assert.equal(plan.hold, true);
+  assert.equal(plan.reason, 'standard_release_window');
+  assert.equal(plan.promised_delivery_at, '2026-11-18T00:00:00.000Z');
+  const early = Date.parse('2026-11-18T00:00:00Z') - Date.parse(plan.scheduled_release_at);
+  assert.ok(early >= 10 * 60_000 && early <= 15 * 60_000, `released ${early / 60_000} min before the 12-hour deadline`);
+});

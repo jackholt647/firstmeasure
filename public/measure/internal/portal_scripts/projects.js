@@ -71,10 +71,11 @@
     { id: 'obscured_visibility', label: 'Obscured visibility', icon: 'fas fa-cloud' },
     { id: 'invalid_pin_placement', label: 'Invalid pin placement', icon: 'fas fa-map-pin' },
     { id: 'incorrect_structure_type', label: 'Incorrect Structure Type', icon: 'fas fa-building' },
-    { id: 'insufficient_footage', label: 'Insufficient footage', icon: 'fas fa-video' }
+    { id: 'insufficient_footage', label: 'Insufficient footage', icon: 'fas fa-video' },
+    { id: 'incorrect_footage', label: 'Incorrect footage uploaded', icon: 'fas fa-house-circle-xmark' }
   ];
-  // Insufficient footage is a Full Exterior reason; the API refuses it for a roof order.
-  const FULL_EXTERIOR_ONLY_REJECTION_REASONS = new Set(['insufficient_footage']);
+  // Footage reasons are Full Exterior reasons; the API refuses them for a roof order.
+  const FULL_EXTERIOR_ONLY_REJECTION_REASONS = new Set(['insufficient_footage', 'incorrect_footage']);
   const COVERAGE_REJECTION_DISCLAIMER =
 `We do not currently have coverage for this address. We currently cover 95% of all buildings in the United States and we are actively working on increasing our area to cover more of the remaining buildings. We've logged your interest in structures like this and will prioritize being able to cover these in the near future.
 Note: Our coverage is based on individual structure, not area - so we may have coverage for other properties in this same neighborhood.`;
@@ -3534,7 +3535,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         const qPType = (p.project_type || 'residential').toLowerCase();
         const qTypeColors = { residential:'#1a73e8', commercial:'#e37400', multifamily:'#7b1fa2' };
         const qTypeLabels = { residential:'RES', commercial:'COM', multifamily:'MF' };
-        const qTypeTag = `<span class="qtag" style="background:${qTypeColors[qPType]||'#1a73e8'}; color:#fff; border-color:${qTypeColors[qPType]||'#1a73e8'}; font-size:9px;">${/^exteriors_[a-f0-9]{32}$/.test(String(p.id||p.folder||''))?'FULL HOUSE':(qTypeLabels[qPType]||qPType.toUpperCase())}</span>`;
+        const qTypeTag = `<span class="qtag" style="background:${qTypeColors[qPType]||'#1a73e8'}; color:#fff; border-color:${qTypeColors[qPType]||'#1a73e8'}; font-size:9px;">${/^exteriors_[a-f0-9]{32}$/.test(String(p.id||p.folder||''))?'EXTERIOR':(qTypeLabels[qPType]||qPType.toUpperCase())}</span>`;
         const correctionTarget = this.getCorrectionTargetTechnician(p);
         const target = correctionTarget.name || correctionTarget.email || '';
         const reservedFor = p.reserved_to_name || p.reserved_to_email || '';
@@ -7509,7 +7510,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
           const qPType = (p.project_type || 'residential').toLowerCase();
           const qTypeColors = { residential:'#1a73e8', commercial:'#e37400', multifamily:'#7b1fa2' };
           const qTypeLabels = { residential:'RES', commercial:'COM', multifamily:'MF' };
-          const typeTag = `<span class="qtag" style="background:${qTypeColors[qPType]||'#1a73e8'}; color:#fff; border-color:${qTypeColors[qPType]||'#1a73e8'}; font-size:9px;">${/^exteriors_[a-f0-9]{32}$/.test(String(p.id||p.folder||''))?'FULL HOUSE':(qTypeLabels[qPType]||qPType.toUpperCase())}</span>`;
+          const typeTag = `<span class="qtag" style="background:${qTypeColors[qPType]||'#1a73e8'}; color:#fff; border-color:${qTypeColors[qPType]||'#1a73e8'}; font-size:9px;">${/^exteriors_[a-f0-9]{32}$/.test(String(p.id||p.folder||''))?'EXTERIOR':(qTypeLabels[qPType]||qPType.toUpperCase())}</span>`;
           const qCcArr = Array.isArray(p.cc_emails) ? p.cc_emails : [];
           const qPinsArr = Array.isArray(p.pins) ? p.pins : [];
           const ccTag = qCcArr.length ? `<span class="qtag" style="font-size:9px;">CC:${qCcArr.length}</span>` : '';

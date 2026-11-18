@@ -696,7 +696,7 @@ function collectPdfFaceDebugRows(state, reportOverride = null) {
         if (excluded.has(signature)) return;
 
         const label = labelMap.get(signature) || null;
-        const areaPx = Math.abs(getSignedArea(face.points));
+        const areaPx = getPdfFaceNetAreaPx(face);
         const areaM2 = areaPx * (metersPerPx * metersPerPx);
         const footprintSqFt = areaM2 * 10.7639;
 
@@ -2732,7 +2732,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
                 if (getReportExcludedSignatureSet(state).has(sig)) return;
 
                 layerFacetCount++;
-                const areaPx = Math.abs(getSignedArea(f.points));
+                const areaPx = getPdfFaceNetAreaPx(f);
                 const areaM2 = areaPx * (mPerPx * mPerPx);
 
                 let pitchDeg = 0;
@@ -4338,7 +4338,7 @@ window.recalculateReportMaterials = function(state) {
 
     activeFacetCount++;
 
-    const areaPx = Math.abs(getSignedArea(face.points));
+    const areaPx = getPdfFaceNetAreaPx(face);
     const areaM2 = areaPx * (metersPerPx * metersPerPx);
 
     // Footprint: flat projected area (no pitch correction)
@@ -4585,7 +4585,7 @@ function buildDefaultDiagramLabelsInternal({ report, facesData, cropRegion, dims
         // A cricket may share a chimney corner without being the chimney itself.
         if (isObstacleFace(face, report)) return;
 
-        const areaPx = Math.abs(getSignedArea(face.points));
+        const areaPx = getPdfFaceNetAreaPx(face);
         const metersPerPx = getPdfMetersPerPx({ dims, radiusMeters });
         const areaM2 = areaPx * (metersPerPx * metersPerPx);
         const plane = localFitPlane(face.points);
@@ -9289,6 +9289,23 @@ function getPolygonCentroid(pts) {
     }
     return { x: x/f, y: y/f };
 }
+
+// A facet's roof area is its outline less the holes cut in it (a dormer, chimney or skylight
+// standing on it): the technician cuts the hole so the area underneath is not counted twice (FM-520).
+function getPdfFaceNetAreaPx(face) {
+    const outer = Array.isArray(face?.points) && face.points.length >= 3 ? Math.abs(getSignedArea(face.points)) : 0;
+    const seen = new Set();
+    let holes = 0;
+    (Array.isArray(face?.holes) ? face.holes : []).forEach((hole) => {
+        if (!Array.isArray(hole) || hole.length < 3) return;
+        const key = hole.map(p => `${Math.round((Number(p?.x) || 0) * 100)},${Math.round((Number(p?.y) || 0) * 100)}`).sort().join('|');
+        if (seen.has(key)) return;
+        seen.add(key);
+        holes += Math.abs(getSignedArea(hole));
+    });
+    return Math.max(0, outer - holes);
+}
+window.getPdfFaceNetAreaPx = getPdfFaceNetAreaPx;
 
 function getSignedArea(pts) {
     let area=0;

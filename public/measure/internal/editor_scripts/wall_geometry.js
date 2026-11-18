@@ -99,6 +99,18 @@
         const traced=f=>points?.length&&span(f.points)<=LEFTOVER_SPAN&&!f.points.some(p=>points.some(q=>Math.hypot(p.x-q.x,p.y-q.y)<.002));
         return faces.filter(f=>area(f.points)>=MIN_ROOF_FACE&&!traced(f));
     }
+    // The face resolver can give a face, as a hole, a small face beside it that only touches its outline (FM-527:
+    // a triangle drawn as its own face against one corner of a shed roof). That is no hole of this face; with it
+    // the face cannot be triangulated and the whole roof plane was left out of the walls. A hole none of whose
+    // vertices and edge midpoints is inside the outline, and some outside it, is outside the face. A hole on or
+    // within the outline is kept, so a face that is its own hole (FM-320) still has no surface.
+    function holesInside(face,tolerance=.002) {
+        const outline=face.points||[],onOutline=p=>outline.some((a,i)=>onEdge(p,a,outline[(i+1)%outline.length],tolerance));
+        return (face.holes||[]).filter(h=>{
+            const samples=h.flatMap((p,i)=>{const q=h[(i+1)%h.length];return [p,{x:(p.x+q.x)/2,y:(p.y+q.y)/2}];}).filter(s=>!onOutline(s));
+            return !samples.length||samples.some(s=>inside(s,outline));
+        });
+    }
     function roofLayers(roof,faces) {
         const groups=faces.map(f=>[f]),same=(a,b)=>distance(a,b)<.002&&Math.abs(a.z-b.z)<.02;
         const edges=(roof.connections||[]).filter(e=>isFlashing(e.type)||['eave','rake'].includes(e.type)||String(e.type).startsWith('chimney')).map(e=>[roof.points[e.startIdx],roof.points[e.endIdx]]);
@@ -1242,7 +1254,7 @@
         const centre={x:qs.reduce((s,p)=>s+p.x,0)/qs.length,y:qs.reduce((s,p)=>s+p.y,0)/qs.length};
         return [...qs,centre].every(p=>outlines.some(points=>inside(p,points)));
     }
-    const api={roofPlanesOnly,canonicalGeneratedWalls,chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,simplifyGeneratedRing,surveyedGeneratedRun,cleanSurveyRings,cleanSurveyedFaces,generatedGroupOutline,plane,contains,onEdge,generatedMoveGroup,draftOwnsWall,INCH};
+    const api={roofPlanesOnly,holesInside,canonicalGeneratedWalls,chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,simplifyGeneratedRing,surveyedGeneratedRun,cleanSurveyRings,cleanSurveyedFaces,generatedGroupOutline,plane,contains,onEdge,generatedMoveGroup,draftOwnsWall,INCH};
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
     else root.WallGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

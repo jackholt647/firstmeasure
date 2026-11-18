@@ -31,10 +31,11 @@
   add('customer','elevations','',Array.isArray(elevationPhotos)?elevationPhotos:Object.entries(elevationPhotos).map(([slot,image])=>({...typeof image==='string'?{url:image}:image,elevation_view:slot})));
   for(const [i,r]of (manifest.resubmissions||[]).entries())add('customer','resubmission-'+i,r.notes,r.images);
   const sources=meta.submission_sources||manifest.submission_sources||bundle.pdf_state?.finalizeSources||meta.pdfConfig?.finalizeSources||{};
-  add('tech','submission',sources.notes,sources.images);
+  // The tech's and QA's text stays in the submission panel and the QA thread; Files lists only what they attached (FM-524).
+  add('tech','submission','',sources.images);
   for(const scope of ['qa','manager']){
    const threads=new Map();for(const t of [...(manifest[scope+'_threads']||[]),...(meta.qa_thread_drafts?.[scope]?.threads||[])])threads.set(t.id,t);
-   for(const [id,t]of threads)for(const [i,m]of (t.history||[]).entries())add(m.role==='drafter'||m.role==='tech'?'tech':'qa',scope+'-'+id+'-'+i,m.text,m.images);
+   for(const [id,t]of threads)for(const [i,m]of (t.history||[]).entries())add(m.role==='drafter'||m.role==='tech'?'tech':'qa',scope+'-'+id+'-'+i,'',m.images);
   }
   return result;
  }

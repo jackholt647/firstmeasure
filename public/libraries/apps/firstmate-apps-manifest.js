@@ -95,7 +95,7 @@
         { id: 'tiles', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_tiles","Tiles") ?? "Tiles"), icon: 'fa-grip', route: { projectView: 'tiles' } },
         { id: 'map', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_map","Map") ?? "Map"), icon: 'fa-map-location-dot', route: { projectView: 'map' }, requires: { appFlags: [['apps', 'project_map']] } }
       ],
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261103-map-cover'), versionedBundle('projects/viewer.js', '20261103-map-cover')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261103-map-cover'), versionedBundle('projects/viewer.js', '20261118-fm532-no-exterior-type-reorder')]
     },
     {
       id: 'portal.crm',
@@ -303,7 +303,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261113-fm410-no-build-proposal')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261118-fm567-order-tray-prod')]
     },
     {
       id: 'firstmeasure.order',
@@ -322,7 +322,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('project-map/app.js', '20261027-viewer-2')]
+      bundles: [versionedBundle('project-map/app.js', '20261117-fm532-zoom-guard')]
     },
     {
       id: 'project.customer_portal',
@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261113-fm455-line-totals'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261114-fm455-fm383-held-reports')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261113-fm455-line-totals'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261118-fm532-summary-reason')]
     },
     {
       id: 'project.checklists',
@@ -842,7 +842,7 @@
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_831d8d28763333","Billing") ?? "Billing"),
       kind: 'modal_app',
       surfaces: ['modal', 'service'],
-      bundles: [versionedBundle('billing/app.js', '20261101-full-exterior-label')]
+      bundles: [versionedBundle('billing/app.js', '20261117-fm531-12h-standard')]
     },
     {
       id: 'help',

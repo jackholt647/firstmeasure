@@ -1922,8 +1922,8 @@
       "message": "Geschätzte Dauer: {v2} Std.",
       "format": "icu"
     },
-    "m_1d63663ae56e2a": "18 Std.",
-    "m_e731322b674a97": "24 Std.",
+    "m_70bebe3d5e1c4a": "9 Std.",
+    "m_a5dd2a1c20d0a5": "12 Std.",
     "m_e7f79de4539e22": {
       "message": "{v5} pro Struktur + ausgewählte Zustellgebühr{v6}",
       "format": "icu"
@@ -2087,7 +2087,7 @@
     "angle_back_right": "Hinten rechts",
     "angle_right": "Rechts",
     "angle_front_right": "Vorne rechts",
-    "exteriors_standard_label": "Standard · 24 Stunden",
+    "exteriors_standard_label": "Standard · 12 Stunden",
     "exteriors_same_day_label": "Am selben Tag · unter 6 Stunden",
     "exteriors_priority_label": "Priorität · unter 3 Stunden",
     "delivery_very_busy": "Wir sind sehr ausgelastet",

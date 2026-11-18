@@ -1882,8 +1882,8 @@
       "message": "Beräknad tid: {v2} tim",
       "format": "icu"
     },
-    "m_1d63663ae56e2a": "18 tim",
-    "m_e731322b674a97": "24 tim",
+    "m_70bebe3d5e1c4a": "9 tim",
+    "m_a5dd2a1c20d0a5": "12 tim",
     "m_e7f79de4539e22": {
       "message": "{v5} per byggnad + vald leveransavgift{v6}",
       "format": "icu"
@@ -2047,7 +2047,7 @@
     "angle_back_right": "Bakifrån höger",
     "angle_right": "Höger",
     "angle_front_right": "Framifrån höger",
-    "exteriors_standard_label": "Standard · 24 timmar",
+    "exteriors_standard_label": "Standard · 12 timmar",
     "exteriors_same_day_label": "Samma dag · under 6 timmar",
     "exteriors_priority_label": "Prioritet · under 3 timmar",
     "delivery_very_busy": "Vi har mycket att göra",

@@ -1,7 +1,7 @@
 {
   "files": 297,
   "namespaces": 117,
-  "messages": 17098,
+  "messages": 17103,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -307,9 +307,9 @@
     {
       "file": "public/libraries/apps/firstmeasure/order/exteriors.js",
       "namespace": "firstmeasure",
-      "references": 308,
-      "candidates": 4,
-      "edits": 11
+      "references": 321,
+      "candidates": 3,
+      "edits": 9
     },
     {
       "file": "public/libraries/apps/help/app.js",
@@ -391,7 +391,7 @@
     {
       "file": "public/libraries/apps/measurements/project.js",
       "namespace": "measurements",
-      "references": 318,
+      "references": 325,
       "candidates": 0,
       "edits": 0
     },
