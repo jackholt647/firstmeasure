@@ -3178,8 +3178,14 @@
     "m_a3f7efd048a5e3": "Não foi possível abrir o PDF do recibo.",
     "m_be2e9e776e4eb5": "Despesas pagas não podem ser removidas.",
     "m_cf842ec2f4d524": "Remover esta despesa do razão do projeto?",
-    "loading_workspace": "Carregando {workspace}...",
-    "back_to_workspace": "Voltar para {workspace}"
+    "loading_workspace": {
+      "message": "Carregando {workspace}...",
+      "format": "icu"
+    },
+    "back_to_workspace": {
+      "message": "Voltar para {workspace}",
+      "format": "icu"
+    }
   },
   "onboarding": {
     "m_a0d673c98d109b": "Pedir relatórios",

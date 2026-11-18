@@ -3090,8 +3090,14 @@
     "m_a3f7efd048a5e3": "Nie udało się otworzyć pliku PDF z paragonem.",
     "m_be2e9e776e4eb5": "Nie można usunąć opłaconych wydatków.",
     "m_cf842ec2f4d524": "Usunąć ten wydatek z księgi projektu?",
-    "loading_workspace": "Wczytywanie: {workspace}...",
-    "back_to_workspace": "Wróć: {workspace}"
+    "loading_workspace": {
+      "message": "Wczytywanie: {workspace}...",
+      "format": "icu"
+    },
+    "back_to_workspace": {
+      "message": "Wróć: {workspace}",
+      "format": "icu"
+    }
   },
   "onboarding": {
     "m_a0d673c98d109b": "Zamawianie raportów",

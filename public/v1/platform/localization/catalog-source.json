@@ -5634,8 +5634,14 @@
     "m_6a00152380cdc8": "View payment setup",
     "m_7a8078bb2d8ed0": "Online payments are not available",
     "m_c2c26759407079": "Online payments are not available right now.",
-    "loading_workspace": "Loading {workspace}...",
-    "back_to_workspace": "Back to {workspace}"
+    "loading_workspace": {
+      "message": "Loading {workspace}...",
+      "format": "icu"
+    },
+    "back_to_workspace": {
+      "message": "Back to {workspace}",
+      "format": "icu"
+    }
   },
   "onboarding": {
     "m_a0d673c98d109b": "Order Reports",

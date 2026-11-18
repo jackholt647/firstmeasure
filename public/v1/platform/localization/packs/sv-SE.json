@@ -3094,8 +3094,14 @@
     "m_a3f7efd048a5e3": "Det gick inte att öppna kvitto-PDF:en.",
     "m_be2e9e776e4eb5": "Betalda kostnader kan inte tas bort.",
     "m_cf842ec2f4d524": "Ta bort den här kostnaden från projektets huvudbok?",
-    "loading_workspace": "Läser in {workspace}...",
-    "back_to_workspace": "Tillbaka till {workspace}"
+    "loading_workspace": {
+      "message": "Läser in {workspace}...",
+      "format": "icu"
+    },
+    "back_to_workspace": {
+      "message": "Tillbaka till {workspace}",
+      "format": "icu"
+    }
   },
   "onboarding": {
     "m_a0d673c98d109b": "Beställ rapporter",

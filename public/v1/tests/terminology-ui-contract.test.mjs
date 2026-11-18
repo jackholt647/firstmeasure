@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';import test from 'node:test';import {readFile} from 'node:fs/promises';import vm from 'node:vm';import {execFileSync} from 'node:child_process';import {terminologyKeys} from '../scripts/terminology-snapshot.mjs';
+import assert from 'node:assert/strict';import test from 'node:test';import {readFile,readdir} from 'node:fs/promises';import vm from 'node:vm';import {execFileSync} from 'node:child_process';import {terminologyKeys} from '../scripts/terminology-snapshot.mjs';
 const read=path=>readFile(new URL(path,import.meta.url),'utf8');
 const catalog=await read('../../libraries/platform-terminology/platform-terminology.js');
 const manifest=await read('../../libraries/apps/firstmate-apps-manifest.js');
@@ -68,6 +68,9 @@ test('the project finance tab names itself only through terminology',async()=>{
  assert.doesNotMatch(app,/["'`](?:Loading money\.\.\.|Back to Money|Money)["'`]/);
  assert.match(app,/workspaceText\('loading_workspace'/);assert.match(app,/workspaceText\('back_to_workspace'/);
  assert.match(app,/terminologyKey: 'money\.project_tab'/);
+ // A message with a {placeholder} must be an ICU message in every language, or it shows the raw "{workspace}".
+ const packs=['catalog-source.json',...(await readdir(new URL('../platform/localization/packs/',import.meta.url))).map(file=>'packs/'+file)];
+ for(const file of packs){const messages=JSON.parse(await read('../platform/localization/'+file)).money;for(const key of ['loading_workspace','back_to_workspace']){assert.equal(messages[key]?.format,'icu',`${file} money.${key}`);assert.match(messages[key].message,/\{workspace\}/,`${file} money.${key}`);}}
  const portal=await read('../../portal/index.php'),keys=new Set(terminologyKeys());
  const covers=[...portal.matchAll(/'([a-z]+)'=>\['([a-z_]+\.[a-z_]+)','[^']+','fa-[a-z-]+'\]/g)];
  assert.ok(covers.length>=8);assert.deepEqual(covers.filter(([, ,key])=>!keys.has(key)).map(([, ,key])=>key),[]);
