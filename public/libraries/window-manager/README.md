@@ -209,3 +209,19 @@ clicks and divider resizing do not detach. Initial floating sizes are bounded
 to 72% of workspace width and 60% of usable height (subject to minimum sizes).
 Near-workspace-sized saved floats are reduced on return; other user sizing is
 preserved.
+
+## Opening a project window
+
+A project window is a frame holding its own portal document (`?projectWindow=`).
+`project-windows.js` paints the opening header (identity, stage pills, tabs,
+"Opening project…") from the record it was given and reads the project while the
+frame boots; that header is the window's only loading state. The project app
+calls `setVisible(true)` once the project has loaded, so a window never shows a
+second "Loading project…" screen (FM-542).
+
+So that opening does not wait for a whole portal to boot, the portal keeps one
+spare frame: booted once the portal is idle, hidden (`.fm-project-spare`), and
+taken by the next `open()` frame and all (moving an iframe reloads it). Another
+is booted after that window has loaded. A spare is renewed after 30 minutes, is
+never used for another organization or once its document has changed, and is
+not kept on devices reporting under 4 GB of memory, with Save-Data, or offline.

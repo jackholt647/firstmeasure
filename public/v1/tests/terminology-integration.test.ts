@@ -62,3 +62,20 @@ test('older locale-scoped aliases and saved defaults participate in comprehensiv
  const language=create();language.setTerminology({localized_labels:{'en-US':{crew:{crew_member:'Technician'},projects:{projects:'Jobs',portal_tab:'My Projects'}}}});
  assert.equal(language.term('workforce.worker_singular','Crew Member'),'Technician');assert.equal(language.term('projects.portal_tab','My Projects'),'My Jobs');
 });
+
+test('a frozen mappings object composes once and reads exactly like an unfrozen copy (FM-542)',()=>{
+ const language=create();
+ const deepFreeze=(value:any):any=>{if(value&&typeof value==='object'){Object.values(value).forEach(deepFreeze);Object.freeze(value);}return value;};
+ const mappings=():any=>({localized_labels:{'en-US':{projects:{projects:'Jobs'}}}});
+ const frozen=deepFreeze(mappings()),loose=mappings();
+ assert.equal(language.term('projects.portal_tab','My Projects',frozen),'My Jobs');
+ assert.equal(language.term('projects.portal_tab','My Projects',frozen),language.term('projects.portal_tab','My Projects',loose));
+ // An object that can still change is composed on every read, never cached.
+ loose.localized_labels['en-US'].projects.projects='Works';
+ assert.equal(language.term('projects.portal_tab','My Projects',loose),'My Works');
+ // The cache follows the language: another locale composes the frozen mappings again.
+ language.configure({locale:'en-GB',measurement_system:'metric'});
+ assert.equal(language.term('projects.portal_tab','My Projects',frozen),language.term('projects.portal_tab','My Projects',mappings()));
+ language.configure({locale:'en-US',measurement_system:'imperial'});
+ assert.equal(language.term('projects.portal_tab','My Projects',frozen),'My Jobs');
+});

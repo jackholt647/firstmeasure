@@ -1,5 +1,5 @@
 import { IntlMessageFormat } from "intl-messageformat";
-import { terminologyComposer, terminologyOverride, canonicalTerm, terminologyDefault } from './terminology.js';
+import { terminologyComposer, terminologyOverride, canonicalTerm, terminologyDefault, terminologyContract } from './terminology.js';
 
 import { SUPPORTED_LOCALES } from "./languages.js";
 export { SUPPORTED_LOCALES } from "./languages.js";
@@ -30,6 +30,17 @@ export function resolveContext(company: Record<string, unknown> = {}, personal: 
   };
 }
 
+// Frozen all the way down (mappings -> localized_labels -> locale -> namespace -> label). Freezing is permanent, so an
+// object once found frozen is remembered; anything nested deeper than that counts as not frozen.
+const knownFrozen = new WeakSet<object>();
+function deeplyFrozen(value: unknown, depth = 6): boolean {
+  if (!value || typeof value !== "object") return true;
+  if (knownFrozen.has(value)) return true;
+  if (depth === 0 || !Object.isFrozen(value) || !Object.values(value).every((child) => deeplyFrozen(child, depth - 1))) return false;
+  knownFrozen.add(value);
+  return true;
+}
+
 /** `frozenTerminology`: an issued document's language, whose English term labels are the frozen catalog's, not the
  * library's current defaults. */
 export function createLanguage(initial: LanguageContext = resolveContext(), missing?: (key: string, locale: Locale) => void, options: { frozenTerminology?: boolean } = {}) {
@@ -40,6 +51,11 @@ export function createLanguage(initial: LanguageContext = resolveContext(), miss
   const reported = new Set<string>();
   let terminology: Terminology = {};
   const composers = new Map<string, (value:string)=>string>();
+  // A caller's own mappings compose once per namespace too, but only a deeply frozen object (PlatformTerminology
+  // passes one per configuration): it cannot change under the cache. Anything else is composed on every call.
+  let mappingComposers = new WeakMap<Terminology, Map<string, (value:string)=>string>>();
+  let mappingContract: unknown;
+  function clearComposers() { composers.clear(); mappingComposers = new WeakMap(); }
   function literal(namespace:string, value:string, html=false) {
     const id=namespace+':'+html;
     if(!composers.has(id))composers.set(id,terminologyComposer(namespace,context.locale,terminology,(key,fallback)=>rawTerm(key,fallback),html));
@@ -60,7 +76,7 @@ export function createLanguage(initial: LanguageContext = resolveContext(), miss
       versions.set(namespace, bundle.version);
     }
     formatters.clear();
-    composers.clear();
+    clearComposers();
   }
   function text(namespace: string, key: string, fallback = key, values: Record<string, string | number | boolean | Date> = {}, html=false): string {
     const locales = catalogs.get(namespace);
@@ -106,7 +122,14 @@ export function createLanguage(initial: LanguageContext = resolveContext(), miss
     if(override)return override;
     const base=rawTerm(canonicalTerm(key),rawTerm(key,fallback));
     if(mappings===terminology)return literal(namespace,base);
-    return terminologyComposer(namespace,context.locale,mappings,(id,label)=>rawTerm(id,label))(base);
+    if(!deeplyFrozen(mappings))return terminologyComposer(namespace,context.locale,mappings,(id,label)=>rawTerm(id,label))(base);
+    const contract=terminologyContract();
+    if(contract!==mappingContract){ mappingContract=contract; mappingComposers=new WeakMap(); }
+    let byNamespace=mappingComposers.get(mappings);
+    if(!byNamespace)mappingComposers.set(mappings,byNamespace=new Map());
+    let compose=byNamespace.get(namespace);
+    if(!compose)byNamespace.set(namespace,compose=terminologyComposer(namespace,context.locale,mappings,(id,label)=>rawTerm(id,label)));
+    return compose(base);
   }
   function snapshot(mappings: Terminology = terminology): LanguageSnapshot {
     return JSON.parse(JSON.stringify({ schema_version: 1, ...context, catalog_versions: Object.fromEntries(versions), terminology:mappings }));
@@ -114,13 +137,13 @@ export function createLanguage(initial: LanguageContext = resolveContext(), miss
   return {
     register, text, term, snapshot,
     htmlText: (namespace:string,key:string,fallback=key,values:Record<string,string|number|boolean|Date>={})=>text(namespace,key,fallback,values,true),
-    setTerminology: (next:Terminology={})=>{ terminology=JSON.parse(JSON.stringify(next)); composers.clear(); formatters.clear(); },
+    setTerminology: (next:Terminology={})=>{ terminology=JSON.parse(JSON.stringify(next)); clearComposers(); formatters.clear(); },
     /** The terms themselves (the terminology contract) changed: compose again. */
-    termsChanged: ()=>{ composers.clear(); formatters.clear(); },
+    termsChanged: ()=>{ clearComposers(); formatters.clear(); },
     error: (code: string, fallback: string) => catalogs.get('errors')?.['en-US']?.[code] !== fallback ? fallback : text('errors', code, fallback),
     formatLocale: (legacy?: string) => context.locale === 'en-US' ? legacy : context.locale,
     context: () => ({ ...context }),
-    configure: (next: LanguageContext) => { context = { ...next }; composers.clear(); formatters.clear(); },
+    configure: (next: LanguageContext) => { context = { ...next }; clearComposers(); formatters.clear(); },
     number: (value: number, options: Intl.NumberFormatOptions = {}) => new Intl.NumberFormat(context.locale, options).format(value),
     date: (value: string | number | Date, options: Intl.DateTimeFormatOptions = {}) => new Intl.DateTimeFormat(context.locale, { ...(context.time_zone ? { timeZone: context.time_zone } : {}), ...options }).format(new Date(value)),
     money: (value: number, currency: string, options: Intl.NumberFormatOptions = {}) => new Intl.NumberFormat(context.locale, { ...options, style: "currency", currency }).format(value),

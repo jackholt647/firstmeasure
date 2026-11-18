@@ -34,10 +34,26 @@
     const dot = value.indexOf('.');
     return dot > 0 ? [value.slice(0, dot), value.slice(dot + 1)] : ['', value];
   }
+  // The current mappings merged with the defaults, made once per configuration and frozen, so the language runtime
+  // composes each namespace's terms once instead of on every label (FM-542: thousands of labels per project open).
+  let currentMerged = null, currentMergedFrom = null, currentMergedDefaults = null;
+  function deepFreeze(value){
+    if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.values(value).forEach(deepFreeze); Object.freeze(value); }
+    return value;
+  }
+  function currentMappings(){
+    if (currentMergedFrom !== current.mappings || currentMergedDefaults !== DEFAULT_LABELS) {
+      currentMerged = deepFreeze(JSON.parse(JSON.stringify(mergedMappings(current.mappings))));
+      currentMergedFrom = current.mappings;
+      currentMergedDefaults = DEFAULT_LABELS;
+    }
+    return currentMerged;
+  }
   function get(path, fallback = '', options = {}){
     if (!clean(path)) return clean(fallback);
     const [namespace, key] = splitKey(path);
-    const source = mergedMappings(options.mappings || options.config?.mappings || current.mappings);
+    const explicit = options.mappings || options.config?.mappings;
+    const source = explicit ? mergedMappings(explicit) : currentMappings();
     const defaultLabel = clean(DEFAULT_LABELS?.[namespace]?.[key]) || clean(fallback) || key;
     const legacy = clean(source.labels?.[namespace]?.[key]);
     return root.PlatformLanguage?.term?.(path, defaultLabel, source) || legacy || defaultLabel;
