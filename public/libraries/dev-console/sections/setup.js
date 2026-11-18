@@ -9,11 +9,16 @@
  * player even when answered, saved for real). On a desktop the overlay switches the frame between desktop, tablet and
  * phone widths; on a phone it is the phone. Roll back puts back every value its tests changed, its progress and events
  * (development/setup-tests.ts).
+ *
+ * Each guided setup can be played again (FM-589): Run again plays it on the page (in the open project window when there
+ * is one) as a replay when it allows one, like the app's own "Set up" buttons (its progress shows where the replay
+ * got); one that does not is reset first and plays as new. Reset puts its progress back to never shown, so its triggers
+ * play it again (POST …/dev/reset, guided-experiences dev.ts).
  */
 const DEVICES = { desktop: ['fa-desktop', ['dc_setup_desktop', 'Desktop']], tablet: ['fa-tablet-screen-button', ['dc_setup_tablet', 'Tablet']], phone: ['fa-mobile-screen-button', ['dc_setup_phone', 'Phone']] };
 let device = 'desktop';
 
-export function mount(root, { api, T, esc, toast, phone, VERSION }) {
+export function mount(root, { api, T, esc, toast, phone, close, orgId, VERSION }) {
   let token = 0, data = null, apps = [];
   const open = new Set();
   const STATUS = {
@@ -82,6 +87,10 @@ export function mount(root, { api, T, esc, toast, phone, VERSION }) {
     ? `<span class="fm-dc-setup-confirm"><small>${esc(confirmText(step))}</small><span class="fm-dc-setup-acts"><button type="button" class="fm-dc-btn fm-dc-danger" data-dc-setup-rollback-now="${esc(step.id)}"><i class="fas fa-rotate-left" aria-hidden="true"></i> ${esc(T('dc_setup_rollback_now', 'Roll back now'))}</button><button type="button" class="fm-dc-btn" data-dc-setup-rollback-cancel>${esc(T('dc_setup_cancel', 'Cancel'))}</button></span></span>`
     : `<span class="fm-dc-setup-acts"><button type="button" class="fm-dc-btn" data-dc-setup-test="${esc(step.id)}"><i class="fas fa-play" aria-hidden="true"></i> ${esc(T('dc_setup_test', 'Test'))}</button>${step.test ? `<button type="button" class="fm-dc-btn" data-dc-setup-rollback="${esc(step.id)}"><i class="fas fa-rotate-left" aria-hidden="true"></i> ${esc(T('dc_setup_rollback', 'Roll back'))}</button>` : ''}</span>`;
 
+  /** Run again (Start, Continue) and Reset under a guided setup. */
+  const PLAY = { not_started: ['dc_setup_start', 'Start'], started: ['dc_setup_continue', 'Continue'] };
+  const guideActions = (guide) => `<span class="fm-dc-setup-acts"><button type="button" class="fm-dc-btn" data-dc-setup-play="${esc(guide.id)}"${busy ? ' disabled' : ''}><i class="fas fa-play" aria-hidden="true"></i> ${esc(T(...(PLAY[guide.status] || ['dc_setup_run_again', 'Run again'])))}</button>${guide.status !== 'not_started' ? `<button type="button" class="fm-dc-btn" data-dc-setup-reset="${esc(guide.id)}"${busy ? ' disabled' : ''}><i class="fas fa-rotate-left" aria-hidden="true"></i> ${esc(T('dc_setup_reset', 'Reset'))}</button>` : ''}</span>`;
+
   function row(kind, id, title, status, { short, lines }, actions = '') {
     const [icon, tone, label] = STATUS[status] || STATUS.not_started;
     const key = `${kind}:${id}`, expanded = open.has(key);
@@ -102,7 +111,7 @@ export function mount(root, { api, T, esc, toast, phone, VERSION }) {
     root.innerHTML = `<p class="fm-dc-intro">${esc(T('dc_setup_intro', 'Every setup this organization has been through. Hover or tap a row for where and when it was done.'))}</p>
       <div class="fm-dc-actions"><button type="button" class="fm-dc-btn" data-dc-setup-reload><i class="fas fa-arrows-rotate" aria-hidden="true"></i> ${esc(T('dc_setup_reload', 'Refresh'))}</button></div>
       ${group(T('dc_setup_questions', 'Questions asked once'), data.steps, (step) => row('step', step.id, step.title, step.status, stepLines(step), stepActions(step)), T('dc_setup_questions_note', 'Setup steps: whichever setup asks first saves the answer; the others skip it. Test asks one again and saves it for real; Roll back undoes its tests.'))}
-      ${group(T('dc_setup_guided', 'Guided setups'), setups, (guide) => row('guide', guide.id, guide.title, guide.status, guideLines(guide)))}
+      ${group(T('dc_setup_guided', 'Guided setups'), setups, (guide) => row('guide', guide.id, guide.title, guide.status, guideLines(guide), guideActions(guide)), T('dc_setup_guided_note', 'Run again plays a setup here again, saving for real; Reset makes it never shown, so it plays when its trigger comes.'))}
       ${group(T('dc_setup_apps', 'App setups'), apps, (app) => row('app', app.key, app.label, app.status, appLines(app)))}
       ${tours.length ? `<details class="fm-dc-setup-tours"${open.has('tours') ? ' open' : ''}><summary class="fm-dc-h">${esc(T('dc_setup_tours', 'Tours'))} · ${count(tours)}</summary><ul class="fm-dc-list">${tours.map((guide) => row('guide', guide.id, guide.title, guide.status, guideLines(guide))).join('')}</ul></details>` : ''}`;
   }
@@ -144,6 +153,10 @@ export function mount(root, { api, T, esc, toast, phone, VERSION }) {
     if (back) { arm(back.dataset.dcSetupRollback); return; }
     const now = event.target.closest('[data-dc-setup-rollback-now]');
     if (now) { rollback(now.dataset.dcSetupRollbackNow); return; }
+    const play = event.target.closest('[data-dc-setup-play]');
+    if (play) { runGuide(play.dataset.dcSetupPlay); return; }
+    const reset = event.target.closest('[data-dc-setup-reset]');
+    if (reset) { resetGuide(reset.dataset.dcSetupReset); return; }
     if (event.target.closest('[data-dc-setup-rollback-cancel]')) { confirming = ''; render(); return; }
     const rowEl = event.target.closest('[data-dc-setup-row]');
     if (rowEl) toggle(rowEl);
@@ -170,6 +183,55 @@ export function mount(root, { api, T, esc, toast, phone, VERSION }) {
       return true;
     } catch (error) { toast(error.message); return false; }
     finally { await load(); }
+  }
+
+  /** Guided setups (FM-589): reset one's progress, or play it again where the page plays guides. */
+  let busy = false;
+  const guideOf = (id) => data?.guides.find((guide) => guide.id === id) || null;
+  const resetProgress = (id) => api(`/v1/guided-experiences/organizations/${encodeURIComponent(orgId())}/dev/reset`, { method: 'POST', body: { experience_id: id, scope: 'me' } });
+  /**
+   * The guided library that plays it: the open project window's, as the Guided experiences section does, else the
+   * page's. The portal keeps a spare project window ready, laid out but hidden: a setup played there is never seen.
+   */
+  function guidesHere() {
+    for (const frame of document.querySelectorAll('iframe')) {
+      try { const guides = frame.contentWindow?.FirstMateGuides; if (guides?.play && guides !== window.FirstMateGuides && frame.getClientRects().length && getComputedStyle(frame).visibility === 'visible') return guides; } catch (_) { /* another origin */ }
+    }
+    return window.FirstMateGuides?.play ? window.FirstMateGuides : null;
+  }
+  async function resetGuide(id) {
+    if (busy) return;
+    busy = true; render();
+    try {
+      await resetProgress(id);
+      await guidesHere()?.refresh?.();
+      toast(T('dc_setup_reset_done', 'Reset: it plays as new the next time it is opened.'));
+    } catch (error) { toast(error.message); }
+    finally { busy = false; await load(); }
+  }
+  async function runGuide(id) {
+    const guide = guideOf(id), guides = guidesHere();
+    if (!guide || busy) return;
+    if (!guides) { toast(T('dc_setup_play_unavailable', 'Guided setups cannot play on this page.')); return; }
+    if (guides.isPlaying?.()) { toast(T('dc_setup_play_busy', 'Another guided experience is playing; close it first.')); return; }
+    busy = true; render();
+    let outcome = null;
+    try {
+      await guides.refresh();
+      // A finished setup that allows no replay is not offered again: reset it so it plays as new.
+      let fresh = guide.status === 'not_started' || guide.status === 'started';
+      if (!guides.experience(id) && !fresh) { await resetProgress(id); await guides.refresh(); fresh = true; }
+      // On a phone the console covers the page the setup plays on.
+      if (phone()) close?.();
+      busy = false; render();
+      outcome = await guides.play(id, { replay: !fresh, force: true });
+    } catch (error) { toast(error.message); }
+    finally { busy = false; }
+    const status = String(outcome?.status || '');
+    if (status === 'unavailable') toast(T('dc_setup_play_not_offered', 'It is not offered to you here: its app is off or you lack its permission.'));
+    else if (status === 'satisfied') toast(T('dc_setup_play_satisfied', 'Nothing to ask: every question it asks is answered. Test a question above to ask it again.'));
+    else if (status === 'busy') toast(T('dc_setup_play_busy', 'Another guided experience is playing; close it first.'));
+    await load();
   }
 
   /**
