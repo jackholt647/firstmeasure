@@ -222,9 +222,10 @@ second "Loading project…" screen (FM-542).
 So that opening does not wait for a whole portal to boot, the portal keeps one
 spare frame: booted once the portal is idle, hidden (`.fm-project-spare`), and
 taken by the next `open()` frame and all (moving an iframe reloads it). Another
-is booted after that window has loaded; a link or reload that names a project
-boots its spare as soon as the page has loaded, beside the portal's own boot. A
-spare is never added before the page's load event (a frame would hold it back). The project is kept on the device
+is booted after that window has loaded. A spare is never added before the
+page's load event (a frame would hold it back) nor beside the portal's own boot
+or a window that is still loading: booting two portals at once slows both (a
+project link took twice as long). The project is kept on the device
 for offline use once its window has loaded, so those downloads never compete
 with opening it. A spare is renewed after 30 minutes, is
 never used for another organization or once its document has changed, and is
