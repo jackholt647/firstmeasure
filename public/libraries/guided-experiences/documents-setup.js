@@ -111,8 +111,7 @@ const css = `
 .gxd-view-doc>div{position:relative}
 .gxd-view-doc .fmdoc-page{margin-bottom:28px}
 .gxd-view-doc .fmdoc-page:last-child{margin-bottom:0}
-.gxd-view .gxd-arrow{position:fixed;background:rgba(255,255,255,.16)}
-.gxd-view .gxd-arrow:hover{background:rgba(255,255,255,.28)}
+.gxd-view .gxd-arrow{position:fixed;box-shadow:0 0 0 1px rgba(255,255,255,.3),0 4px 14px rgba(0,0,0,.3)}
 .gxd-view .gxd-arrow[data-view-go="-1"]{left:16px}
 .gxd-view .gxd-arrow[data-view-go="1"]{right:16px}
 @keyframes gxdViewIn{from{opacity:0}to{opacity:1}}
