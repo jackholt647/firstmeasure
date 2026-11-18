@@ -31,6 +31,7 @@ import {
   simulateMessageStatus
 } from "./communications_service.js";
 import { renderCommunicationsDeveloperPage } from "./developer_page.js";
+import { hostedSmsPolicyProblems, isHostedSmsPolicyUrl, renderHostedSmsPolicyPage, SMS_POLICY_PAGES, usesHostedSmsPolicies, withHostedSmsPolicyLinks } from "./policy_pages.js";
 import { createSmsGroup, groupPage, readGroup, groupProjection, sendSmsGroup, sendGroupSchema, replySmsGroupPrivately, privateReplySchema } from "./group_service.js";
 import { smsGroup } from "./group_mms.js";
 import { requireGroupAccess } from "./group_access.js";
@@ -46,6 +47,7 @@ import {
   commitSmsComplianceProviderSuccess,
   createSmsComplianceProfile,
   ensureMessagingOrganization,
+  findSmsComplianceProfiles,
   listSmsComplianceProfiles,
   publicMessagingOrganization,
   publicSmsComplianceProfile,
@@ -147,7 +149,7 @@ const EDITABLE_CAMPAIGN_FIELDS = [
   "numberPool", "directLending", "ageGated", "termsAndConditions", "termsAndConditionsLink", "privacyPolicyLink",
   "autoRenewal", "enabledFeatures", "featuresConfirmed", "consentAcknowledged", "standardizationVersion",
   "messageFlowConfirmed", "selectedNumberSearch", "selectedNumberAreaCode", "optInMethod", "optInLocationUrl",
-  "optInMethods", "keywordLocationUrl", "optInEvidence", "optInEvidenceUrl", "optInDisclosure", "policyContentConfirmed", "websiteFormConfirmed", "autoSubmitCampaign", "standardWording"
+  "optInMethods", "keywordLocationUrl", "optInEvidence", "optInEvidenceUrl", "optInDisclosure", "policyContentConfirmed", "websiteFormConfirmed", "autoSubmitCampaign", "standardWording", "policyPages"
 ] as const;
 
 function editableBrand(value: unknown, organizationId: string) {
@@ -159,7 +161,23 @@ function editableBrand(value: unknown, organizationId: string) {
 }
 
 function editableCampaign(value: unknown, organizationId: string) {
-  return { ...pickFields(value, EDITABLE_CAMPAIGN_FIELDS), ...(!smsRegistrationIsLive(organizationId) ? pickFields(value, ["brandId", "mock"]) : {}) };
+  const editable = { ...pickFields(value, EDITABLE_CAMPAIGN_FIELDS), ...(!smsRegistrationIsLive(organizationId) ? pickFields(value, ["brandId", "mock"]) : {}) };
+  // FM-585: "firstmate" (FirstMate hosts the policy pages, policy_pages.ts) or "own" (the business's own links).
+  if (Object.prototype.hasOwnProperty.call(editable, "policyPages")) editable.policyPages = cleanText(editable.policyPages) === "firstmate" ? "firstmate" : "own";
+  return editable;
+}
+
+/** A registration's policy links before campaign submission: its hosted pages (FM-585), or public pages on its website. */
+async function verifyCampaignPolicyUrls(profile: SmsComplianceProfile) {
+  const campaign = asObject(profile.campaign);
+  if (usesHostedSmsPolicies(campaign)) {
+    const problems = hostedSmsPolicyProblems(profile);
+    if (problems.length) throw badRequest("policy_url_invalid", problems[0]!, { issues: problems });
+  }
+  for (const page of SMS_POLICY_PAGES) {
+    if (isHostedSmsPolicyUrl(profile, campaign[page.field], page.id)) continue;
+    await verifyPublicPolicyUrl(campaign[page.field], asObject(profile.brand).website, page.id === "privacy" ? "Privacy policy" : "Terms and conditions");
+  }
 }
 
 function changesStoredFields(current: unknown, patch: JsonObject) {
@@ -1736,6 +1754,21 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     return reply.type(file.contentType).send(file.bytes);
   });
 
+  // FM-585: the privacy policy and SMS terms FirstMate hosts for a registration that chose them (policy_pages.ts).
+  // Public on purpose (carrier reviewers and customers open them); only such a registration has pages.
+  app.get("/sms/policies/:orgId/:profileId/:page", async (request, reply) => {
+    const orgId = param(request.params, "orgId"), profileId = param(request.params, "profileId"), page = param(request.params, "page");
+    const missing = () => notFound("policy_page_not_found", "Policy page not found.");
+    if (page !== "privacy" && page !== "terms") throw missing();
+    if (!/^[A-Za-z0-9_-]{1,120}$/.test(orgId) || !/^[A-Za-z0-9_-]{1,120}$/.test(profileId)) throw missing();
+    const profile = (await findSmsComplianceProfiles(orgId)).find((candidate) => candidate.id === profileId);
+    const html = profile ? renderHostedSmsPolicyPage(profile, page) : null;
+    if (!html) throw missing();
+    reply.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+      .header("X-Robots-Tag", "noindex").header("Cache-Control", "no-cache");
+    return reply.type("text/html; charset=utf-8").send(html);
+  });
+
   app.get("/sms/10dlc/options", async () => ({
     ok: true,
     brand_entity_types: BRAND_ENTITY_TYPES,
@@ -1790,8 +1823,9 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       campaign: editableCampaign(body.campaign, orgId),
       actor: { source: "platform_settings" }
     });
-    const validation = profileValidation(profile);
-    const saved = await updateSmsComplianceProfile(profile, { validation });
+    const campaign = withHostedSmsPolicyLinks(asObject(profile.campaign), profile);
+    const validation = profileValidation({ ...profile, campaign });
+    const saved = await updateSmsComplianceProfile(profile, { campaign, validation });
     reply.code(201);
     return { ok: true, organization: publicMessagingOrganization(organization), profile: publicSmsComplianceProfile(saved) };
   });
@@ -2156,8 +2190,13 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     const body = objectBodySchema.parse(request.body ?? {});
     const { profile } = await profileForRequest(orgId, param(request.params, "profileId"));
     const brandPatch = Object.prototype.hasOwnProperty.call(body, "brand") ? editableBrand(body.brand, orgId) : {};
-    const campaignPatch = Object.prototype.hasOwnProperty.call(body, "campaign") ? editableCampaign(body.campaign, orgId) : {};
+    const requestedCampaignPatch = Object.prototype.hasOwnProperty.call(body, "campaign") ? editableCampaign(body.campaign, orgId) : {};
     const mutation = await mutateSmsComplianceProfileAtomically(profile, async (current) => {
+      // Hosted policy pages (FM-585): the links are always this registration's own hosted URLs, whatever was sent.
+      const hostedLinks = withHostedSmsPolicyLinks({ ...asObject(current.campaign), ...requestedCampaignPatch }, current);
+      const campaignPatch = Object.prototype.hasOwnProperty.call(body, "campaign") && usesHostedSmsPolicies(hostedLinks)
+        ? { ...requestedCampaignPatch, privacyPolicyLink: hostedLinks.privacyPolicyLink, termsAndConditionsLink: hostedLinks.termsAndConditionsLink }
+        : requestedCampaignPatch;
       const refs = asObject(current.provider_refs);
       const brandChanged = changesStoredFields(current.brand, brandPatch);
       const campaignChanged = changesStoredFields(current.campaign, campaignPatch);
@@ -2433,9 +2472,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       if (!contentValidation.ok) throw badRequest("campaign_content_noncompliant", "The campaign content does not meet FirstMate SMS compliance requirements.", { issues: contentValidation.issues });
     }
     if (!isMock) {
-      const campaign = asObject(profile.campaign);
-      await verifyPublicPolicyUrl(campaign.privacyPolicyLink, asObject(profile.brand).website, "Privacy policy");
-      await verifyPublicPolicyUrl(campaign.termsAndConditionsLink, asObject(profile.brand).website, "Terms and conditions");
+      await verifyCampaignPolicyUrls(profile);
     }
     const client = createTelnyxClient();
     if (!isMock) {
@@ -2486,8 +2523,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       if (!brandReadyForCampaignStatus(profile.brand_status)) {
         throw conflict("profile_changed", "The brand is no longer ready for campaign submission. Refresh its provider status before retrying.");
       }
-      await verifyPublicPolicyUrl(currentCampaign.privacyPolicyLink, asObject(profile.brand).website, "Privacy policy");
-      await verifyPublicPolicyUrl(currentCampaign.termsAndConditionsLink, asObject(profile.brand).website, "Terms and conditions");
+      await verifyCampaignPolicyUrls(profile);
     }
     submissionContext = campaignSubmissionContext(profile);
     payload = submissionContext.payload;

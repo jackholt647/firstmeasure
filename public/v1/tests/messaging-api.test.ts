@@ -2690,3 +2690,95 @@ test("number inventory reports no results without exposing provider filter error
     assert.notEqual(failure.statusCode,200);
   } finally {(env as any).communicationsDeliveryMode=previous.mode;(env as any).telnyxBaseUrl=previous.url;(env as any).telnyxApiKey=previous.key;await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+test("FirstMate hosts a registration's privacy policy and SMS terms only when it chooses them (FM-585)", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client, true);
+  const brand = {
+    country: "US", displayName: "Ridgeline Roofing", companyName: "Ridgeline Holdings LLC", entityType: "PRIVATE_PROFIT",
+    vertical: "CONSTRUCTION", email: "help@ridgeline.test", phone: "(206) 555-0100", street: "100 Main Street", city: "Boise",
+    state: "ID", postalCode: "83702", website: "ridgeline.test", mock: true
+  };
+  const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, {
+    brand,
+    campaign: { policyPages: "firstmate", enabledFeatures: ["crm_conversations", "operations"], privacyPolicyLink: "https://evil.test/privacy" }
+  });
+  const profile = created.profile;
+  const hosted = profile.hosted_policy_pages;
+  assert.match(hosted.privacy, new RegExp(`/v1/messaging/sms/policies/${orgId}/${profile.id}/privacy$`));
+  assert.match(hosted.terms, new RegExp(`/v1/messaging/sms/policies/${orgId}/${profile.id}/terms$`));
+  // The links are always the registration's own hosted pages, whatever the browser sent.
+  assert.equal(profile.campaign.policyPages, "firstmate");
+  assert.equal(profile.campaign.privacyPolicyLink, hosted.privacy);
+  assert.equal(profile.campaign.termsAndConditionsLink, hosted.terms);
+
+  const privacy = await app.inject({ method: "GET", url: new URL(hosted.privacy).pathname });
+  assert.equal(privacy.statusCode, 200, privacy.body);
+  assert.match(String(privacy.headers["content-type"]), /text\/html/);
+  assert.match(String(privacy.headers["content-security-policy"]), /default-src 'none'/);
+  assert.match(privacy.body, /<title>Ridgeline Roofing Privacy Policy<\/title>/);
+  assert.match(privacy.body, /trade name of Ridgeline Holdings LLC/);
+  assert.match(privacy.body, /will not be sold or shared with any third parties/);
+  assert.match(privacy.body, /replies to your questions and appointment reminders/);
+  assert.match(privacy.body, /<a href="mailto:help@ridgeline.test">help@ridgeline.test<\/a>/);
+  assert.match(privacy.body, /100 Main Street, Boise, ID 83702/);
+  const terms = await app.inject({ method: "GET", url: new URL(hosted.terms).pathname });
+  assert.equal(terms.statusCode, 200, terms.body);
+  assert.match(terms.body, /Ridgeline Roofing SMS Terms/);
+  assert.match(terms.body, /Reply STOP/);
+  assert.match(terms.body, /Reply HELP/);
+  assert.match(terms.body, /data rates may apply/);
+  assert.ok(terms.body.includes(`<a href="${hosted.privacy}">`), "the terms link the hosted privacy policy");
+
+  // No phone: the paragraph that needs it is left out, not printed empty.
+  const noPhone = await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profile.id}`, {
+    brand: { ...brand, phone: "" }, campaign: { policyPages: "firstmate", termsAndConditionsLink: "https://evil.test/terms" }
+  });
+  assert.equal(noPhone.profile.campaign.termsAndConditionsLink, hosted.terms);
+  const termsNoPhone = await app.inject({ method: "GET", url: new URL(hosted.terms).pathname });
+  assert.doesNotMatch(termsNoPhone.body, /Phone:/);
+
+  for (const bad of ["notes", "../privacy"]) {
+    const response = await app.inject({ method: "GET", url: `/v1/messaging/sms/policies/${orgId}/${profile.id}/${bad}` });
+    assert.equal(response.statusCode, 404);
+  }
+  assert.equal((await app.inject({ method: "GET", url: `/v1/messaging/sms/policies/${orgId}/sms_profile_missing/privacy` })).statusCode, 404);
+
+  // Their own pages: the links are theirs and nothing is published.
+  const own = await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profile.id}`, {
+    campaign: { policyPages: "own", privacyPolicyLink: "https://ridgeline.test/privacy", termsAndConditionsLink: "https://ridgeline.test/sms-terms" }
+  });
+  assert.equal(own.profile.campaign.privacyPolicyLink, "https://ridgeline.test/privacy");
+  assert.equal((await app.inject({ method: "GET", url: new URL(hosted.privacy).pathname })).statusCode, 404);
+
+  const { isHostedSmsPolicyUrl, hostedSmsPolicyProblems } = await import("../messaging/policy_pages.js");
+  const hostedProfile = { id: profile.id, external_organization_id: orgId, brand, campaign: { policyPages: "firstmate" } };
+  assert.equal(isHostedSmsPolicyUrl(hostedProfile, hosted.privacy, "privacy"), true);
+  assert.equal(isHostedSmsPolicyUrl(hostedProfile, hosted.privacy, "terms"), false);
+  assert.equal(isHostedSmsPolicyUrl({ ...hostedProfile, id: "sms_profile_other" }, hosted.privacy, "privacy"), false, "another registration's page is not this one's");
+  assert.equal(isHostedSmsPolicyUrl({ ...hostedProfile, campaign: { policyPages: "own" } }, hosted.privacy, "privacy"), false);
+  assert.deepEqual(hostedSmsPolicyProblems(hostedProfile), []);
+  assert.match(hostedSmsPolicyProblems({ ...hostedProfile, brand: { displayName: "Ridgeline Roofing" } }).join(" "), /support email or phone/);
+});
+
+test("hosted SMS policy wording in the config library keeps what carriers look for (FM-585)", async () => {
+  const { registerAllLibraryKinds } = await import("../config-library/kinds/index.js");
+  registerAllLibraryKinds();
+  const { checkEntry } = await import("../config-library/writes.js");
+  const { libraryData } = await import("../config-library/library.js");
+  for (const id of ["privacy_policy", "sms_terms"]) {
+    const data = libraryData("sms_policy_page", id);
+    assert.ok(data, `${id} is in the snapshot`);
+    assert.deepEqual(checkEntry("sms_policy_page", id, data, null).errors, []);
+  }
+  const privacy = structuredClone(libraryData<any>("sms_policy_page", "privacy_policy"));
+  privacy.sections = privacy.sections.map((section: any) => ({ ...section, paragraphs: section.paragraphs.map((text: string) => text.replace(/will not be (?:sold or )?shared/g, "may be shared").replace(/not (?:sell|be sold)/g, "sell")) }));
+  privacy.sections.push({ heading: "More", paragraphs: ["Call {{owner_phone}}."] });
+  const errors = checkEntry("sms_policy_page", "privacy_policy", privacy, null).errors.join(" ");
+  assert.match(errors, /not sold or shared with third parties/);
+  assert.match(errors, /Unknown placeholder \{\{owner_phone\}\}/);
+  const terms = structuredClone(libraryData<any>("sms_policy_page", "sms_terms"));
+  terms.sections = terms.sections.filter((section: any) => !/STOP|HELP/.test(section.paragraphs.join(" ")));
+  assert.match(checkEntry("sms_policy_page", "sms_terms", terms, null).errors.join(" "), /STOP and HELP/);
+  assert.match(checkEntry("sms_policy_page", "other_page", terms, null).errors.join(" "), /not a hosted policy page|does not match/);
+});

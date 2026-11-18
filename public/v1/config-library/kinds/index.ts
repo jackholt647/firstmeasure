@@ -27,6 +27,7 @@ import { documentTemplateKind } from "./document-template.js";
 import { documentThemeKind } from "./document-theme.js";
 import { documentWorkflowKind } from "./document-workflow.js";
 import { presentationDeckKind } from "./presentation-deck.js";
+import { smsPolicyPageKind } from "./sms_policy_page.js";
 
 /**
  * Every config library kind, registered once. One import and one call per kind file; a kind's file belongs to the
@@ -64,4 +65,5 @@ export function registerAllLibraryKinds() {
   registerLibraryKind(documentTemplateKind);
   registerLibraryKind(documentWorkflowKind);
   registerLibraryKind(presentationDeckKind);
+  registerLibraryKind(smsPolicyPageKind);
 }

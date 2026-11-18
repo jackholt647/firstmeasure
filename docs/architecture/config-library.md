@@ -240,6 +240,7 @@ made were fixed at that moment. The seeds and the generators were then deleted;
 | `measurement_definition`, `measurement_partition`, `measurement_schema`, `measurement_equivalence` (append-only) | 37, 3, 3, 1 | [measurement schemas](measurement-schemas.md) | no |
 | `work_item`, `work_schema` (append-only) | 13, 1 | [requirements](requirements.md) | no |
 | `pricebook_template`, `material_library`, `pricebook_setup` | 1, 1, 4 | [materials calculus](materials-calculus.md) | price books upgrade additively by version |
+| `sms_policy_page` (the privacy policy and SMS terms FirstMate hosts for a texting registration) | 2 | [phone settings](phone-settings.md#hosted-policy-pages) | no (filled from the registration's brand details when served) |
 
 ## Production (not built)
 

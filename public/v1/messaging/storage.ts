@@ -5,6 +5,7 @@ import path from "node:path";
 import { env } from "../src/config/env.js";
 import { badRequest, notFound } from "../platform/errors.js";
 import { getCommunicationsDatabase, withCommunicationsTransaction } from "./communications_storage.js";
+import { hostedSmsPolicyUrls } from "./policy_pages.js";
 
 export type JsonObject = Record<string, unknown>;
 
@@ -508,5 +509,6 @@ export function publicSmsComplianceProfile(profile: SmsComplianceProfile) {
       ["ein", "tax_id", "taxId"].includes(key) ? (cleanText(entry) ? `***${cleanText(entry).replace(/\D/g, "").slice(-4)}` : "") : redact(entry)
     ]));
   };
-  return { ...profile, brand: redact(profile.brand) as JsonObject, events: redact(profile.events) as JsonObject[] };
+  // FM-585: the URLs FirstMate hosts this registration's policy pages at, if it chooses them (policy_pages.ts).
+  return { ...profile, brand: redact(profile.brand) as JsonObject, events: redact(profile.events) as JsonObject[], hosted_policy_pages: hostedSmsPolicyUrls(profile) };
 }
