@@ -98,32 +98,41 @@ test('a child document backdrop paints the owner frame around its iframe (FM-609
  try {
   const page=await browser.newPage({viewport:{width:1200,height:900}});
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
-  await page.setContent('<style>body{margin:0}#frame{position:fixed;left:20px;top:20px;width:1000px;height:800px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;overflow:hidden}iframe{display:block;width:100%;height:100%;border:0}</style><section id="frame"><iframe></iframe></section>');
+  await page.setContent('<style>body{margin:0}#frame{position:fixed;left:20px;top:20px;width:1000px;height:800px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;overflow:hidden}iframe{display:block;width:100%;height:100%;border:0}</style><section id="frame"><iframe></iframe></section><style>#frame{transition:none!important}</style>');
   await page.addScriptTag({content:source});
   const frame=page.frames().find(frame=>frame.parentFrame());
-  await frame.setContent('<style>body{margin:0;background:#f0f2f5}.sheet{position:fixed;inset:0;display:grid;place-items:center}.scrim{position:absolute;inset:0;background:rgba(16,24,40,.55)}</style><main>Workspace</main>');
+  await frame.setContent('<style>body{margin:0;background:#f0f2f5}.sheet{position:fixed;inset:0;display:grid;place-items:center}.scrim{position:absolute;inset:0;background:rgba(16,24,40,.55)}</style><main>Workspace</main><div class="overlay" data-fm-modal-id="shell" style="position:fixed;inset:0;background:transparent!important"></div>');
   await frame.addScriptTag({content:source});
-  const host=()=>page.locator('#frame').evaluate(el=>({marked:el.hasAttribute('data-fm-child-backdrop'),border:getComputedStyle(el).borderTopColor,background:getComputedStyle(el).backgroundColor,iframe:getComputedStyle(el.querySelector('iframe')).opacity}));
+  const host=()=>page.locator('#frame').evaluate(el=>({marked:el.getAttribute('data-fm-child-backdrop')==='on',border:getComputedStyle(el).borderTopColor,background:getComputedStyle(el).backgroundColor,iframe:getComputedStyle(el.querySelector('iframe')).opacity}));
+  // The embedded project page's own window overlay is its foremost backdrop but draws nothing: the frame keeps its look.
+  await frame.waitForFunction(()=>document.querySelector('[data-fm-modal-id=shell]').dataset.fmBackdrop==='active');
+  await page.waitForTimeout(50);
   assert.deepEqual(await host(),{marked:false,border:'rgb(208, 213, 221)',background:'rgb(255, 255, 255)',iframe:'1'});
   // An app's own scrim (a guided setup's: not a class the backdrop policy manages) tints the frame as it does the edge.
   await frame.evaluate(()=>{const s=document.createElement('div');s.className='sheet';s.innerHTML='<div class="scrim"></div><div style="position:relative;background:#fff;padding:40px">Setup</div>';document.body.append(s);});
-  await page.waitForFunction(()=>document.querySelector('#frame').hasAttribute('data-fm-child-backdrop'));
+  await page.waitForFunction(()=>document.querySelector('#frame').dataset.fmChildBackdrop==='on');
   assert.deepEqual(await host(),{marked:true,border:'rgb(124, 128, 137)',background:'rgb(124, 128, 137)',iframe:'0.999'});
+  // Leaving: the scrim starts fading out (the sheet goes later) and the frame goes back with it.
+  await frame.evaluate(()=>{const s=document.querySelector('.scrim');s.style.transition='opacity .45s';s.style.opacity='0';});
+  await page.waitForFunction(()=>document.querySelector('#frame').dataset.fmChildBackdrop==='fading');
+  assert.deepEqual(await host(),{marked:false,border:'rgb(208, 213, 221)',background:'rgb(255, 255, 255)',iframe:'1'});
+  await frame.evaluate(()=>{const s=document.querySelector('.scrim');s.style.transition='';s.style.opacity='';});
+  await page.waitForFunction(()=>document.querySelector('#frame').dataset.fmChildBackdrop==='on');
   await frame.evaluate(()=>document.querySelector('.sheet').remove());
-  await page.waitForFunction(()=>!document.querySelector('#frame').hasAttribute('data-fm-child-backdrop'));
+  await page.waitForFunction(()=>document.querySelector('#frame').dataset.fmChildBackdrop==='off');
   assert.deepEqual(await host(),{marked:false,border:'rgb(208, 213, 221)',background:'rgb(255, 255, 255)',iframe:'1'});
   // A native modal dialog in the child: the policy's own backdrop colour.
   await frame.evaluate(()=>{const d=document.createElement('dialog');d.textContent='Native';document.body.append(d);d.showModal();});
-  await page.waitForFunction(()=>document.querySelector('#frame').hasAttribute('data-fm-child-backdrop'));
+  await page.waitForFunction(()=>document.querySelector('#frame').dataset.fmChildBackdrop==='on');
   assert.equal((await host()).border,'rgb(113, 116, 121)');
   await frame.evaluate(()=>document.querySelector('dialog').close());
-  await page.waitForFunction(()=>!document.querySelector('#frame').hasAttribute('data-fm-child-backdrop'));
+  await page.waitForFunction(()=>document.querySelector('#frame').dataset.fmChildBackdrop==='off');
   // A managed modal overlay, then the child going away while it is open.
-  await frame.evaluate(()=>{const o=document.createElement('div');o.className='overlay';o.dataset.fmModalId='nested';o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4)';document.body.append(o);});
-  await page.waitForFunction(()=>document.querySelector('#frame').hasAttribute('data-fm-child-backdrop'));
+  await frame.evaluate(()=>{const o=document.createElement('div');o.className='overlay';o.dataset.fmModalId='nested';o.style.cssText='position:fixed;inset:0;z-index:5;background:rgba(0,0,0,.4)';document.body.append(o);});
+  await page.waitForFunction(()=>document.querySelector('#frame').dataset.fmChildBackdrop==='on');
   assert.equal((await host()).border,'rgb(113, 116, 121)');
   await page.evaluate(()=>{document.querySelector('iframe').src='about:blank';});
-  await page.waitForFunction(()=>!document.querySelector('#frame').hasAttribute('data-fm-child-backdrop'));
+  await page.waitForFunction(()=>document.querySelector('#frame').dataset.fmChildBackdrop==='off');
   assert.deepEqual(errors,[]);
  } finally {await browser.close();}
 });
