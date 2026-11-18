@@ -705,6 +705,18 @@ test("A checklist is written out as a printable document in the project's Docume
   const kept = await owner.request("POST", `${base}/${checklistId}/document`, {});
   assert.equal(kept.document.theme_ref.theme_id, "thm_triangles", "a style chosen on the document stays");
 
+  // Written again after its template changed, it moves to the template's current version (a layout fix reaches it).
+  const storage = await import("../documents/storage.js");
+  const template: Json = await storage.readDocumentTemplate(orgId, "tpl_checklist_default");
+  const pinnedAt = kept.document.template_ref.version;
+  assert.equal(pinnedAt, Number(template.current_version));
+  const definition = (await storage.readDocumentTemplateVersion(orgId, "tpl_checklist_default"))!.definition as Json;
+  await storage.publishDocumentTemplate(orgId, "tpl_checklist_default", { definition: { ...definition, metadata: { ...definition.metadata, fm612: true } }, expected_version: Number(template.current_version) }, null);
+  const moved = await owner.request("POST", `${base}/${checklistId}/document`, {});
+  assert.equal(moved.document.template_ref.version, pinnedAt + 1);
+  assert.equal(moved.document.status, "issued");
+  assert.equal(moved.document.theme_ref.theme_id, "thm_triangles");
+
   // Field users without checklist management cannot write documents.
   const refused = await member.client.raw("POST", `${base}/${checklistId}/document`, {});
   assert.equal(refused.statusCode, 403);
