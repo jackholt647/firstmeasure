@@ -2952,7 +2952,8 @@
       "message": "{structures, plural, one {# κτίριο} other {# κτίρια}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Περιλαμβάνονται στέγη, τοίχοι, παράθυρα, πόρτες και υδρορροές."
+    "report_kind_full_exterior_includes": "Περιλαμβάνονται στέγη, τοίχοι, παράθυρα, πόρτες και υδρορροές.",
+    "m_bcbdcdfb3c0dff": "Εμβαδόν με φύρα"
   },
   "money": {
     "m_487adb3f2ba511": "Φόρτωση οικονομικών στοιχείων...",

@@ -2944,7 +2944,8 @@
       "message": "{structures, plural, one {# bygning} other {# bygninger}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Tag, vægge, vinduer, døre og tagrender er inkluderet."
+    "report_kind_full_exterior_includes": "Tag, vægge, vinduer, døre og tagrender er inkluderet.",
+    "m_bcbdcdfb3c0dff": "Areal inklusive spild"
   },
   "money": {
     "m_487adb3f2ba511": "Indlæser økonomi...",

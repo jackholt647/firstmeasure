@@ -2952,7 +2952,8 @@
       "message": "{structures, plural, one {# edificio} other {# edificios}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Incluye tejado, paredes, ventanas, puertas y canalones."
+    "report_kind_full_exterior_includes": "Incluye tejado, paredes, ventanas, puertas y canalones.",
+    "m_bcbdcdfb3c0dff": "Superficie con desperdicio"
   },
   "money": {
     "m_487adb3f2ba511": "Cargando datos financieros...",

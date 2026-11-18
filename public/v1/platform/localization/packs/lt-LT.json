@@ -2944,7 +2944,8 @@
       "message": "{structures, plural, one {# pastatas} few {# pastatai} many {# pastato} other {# pastatų}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Įtraukti stogas, sienos, langai, durys ir lietvamzdžiai."
+    "report_kind_full_exterior_includes": "Įtraukti stogas, sienos, langai, durys ir lietvamzdžiai.",
+    "m_bcbdcdfb3c0dff": "Plotas su atsarga"
   },
   "money": {
     "m_487adb3f2ba511": "Įkeliami finansiniai duomenys...",
