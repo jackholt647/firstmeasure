@@ -252,24 +252,39 @@
   // (An editable field leaves out the thousands separator, so its text stays a number it can parse.)
   const reportWallFeet=(ft,grouping=true)=>ft>0&&ft<.05?'<0.1':Number(ft||0).toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1,useGrouping:grouping});
   const openingSize=(width,height)=>`${reportWallFeet(width)} × ${reportWallFeet(height)} ft`;
-  // A roof face: the report's Area Diagram labels it Math.round(sloped sq ft) of its outline, holes not taken off
-  // (pdf.js recalculateReportMaterials lbl.areaText; report.js the same). model_data.xml's size= is that Math.round at the
-  // same pitch, of the outline less its chimney and skylight holes (xml_generator.js calculateXmlFaceAreaSqFt). So a face
-  // without holes is size= exactly, and a face with holes gets them back at the slope that reproduces its size=.
+  // A roof face: the report's Area Diagram labels it Math.round(sloped sq ft) of its outline less the holes cut in it
+  // (pdf.js getPdfFaceNetAreaPx, FM-520). model_data.xml's size= is that Math.round at the same pitch
+  // (xml_generator.js calculateXmlFaceAreaSqFt), so a face is size= as it stands.
+  // A PDF rendered before FM-520 reached production counted each face's whole outline, holes included. A report whose
+  // latest PDF is that old shows the holes added back, at the slope that reproduces size=, so the model matches the PDF
+  // the customer has. Nothing on screen says which rule a report uses.
+  const PDF_NET_HOLE_AREA_SINCE=Date.parse('2026-11-16T22:00:44Z');
   const planArea2=ring=>Math.abs(ring.reduce((sum,p,i)=>{const q=ring[(i+1)%ring.length];return sum+p[0]*q[1]-q[0]*p[1];},0))/2;
+  // When the order's latest PDF was rendered: the PDF sync that made it, or for an order that predates PDF syncs, when
+  // it was completed. Null when unknown.
+  function reportPdfRenderedAt(manifest){
+    const sync=manifest?.pdf_sync,stamps=manifest?.timestamps||{};
+    const text=sync?.status==='completed'&&sync.completed_at?sync.completed_at:stamps.completed_at;
+    if(!text)return null;
+    const value=Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(text)?String(text):String(text).replace(' ','T')+'Z');
+    return Number.isFinite(value)?value:null;
+  }
+  // True only when the order's PDF is known to have counted holes in its faces' areas.
+  function pdfIncludesHoleArea(manifest){const at=reportPdfRenderedAt(manifest);return at!=null&&at<PDF_NET_HOLE_AREA_SINCE;}
   // The report's unrounded sloped square feet for a face, which its totals sum before rounding (pdf.js
   // recalculateReportMaterials adds each face's areaSqFt/100 into totalSquares and squares[pitch]).
-  function reportFaceExactSqFt(face){
+  function reportFaceExactSqFt(face,{holesInPdf=false}={}){
     const holes=face.holes||[],outer=planArea2(face.points),net=Math.max(0,outer-holes.reduce((sum,hole)=>sum+planArea2(hole),0)),size=face.area;
     const n=newell(face.points),geometric=n&&Math.abs(n[2])>1e-9?1/Math.abs(n[2]):null,fromPitch=face.pitch!=null?Math.hypot(1,face.pitch/12):null;
-    if(size==null){const slope=fromPitch??geometric;return slope==null?null:outer*slope;}
+    if(size==null){const slope=fromPitch??geometric;return slope==null?null:(holesInPdf?outer:net)*slope;}
     if(!(net>0))return size;
     const slope=[fromPitch,geometric].find(k=>k!=null&&Math.round(net*k)===size);
+    if(!holesInPdf)return slope!=null?net*slope:size;
     return slope!=null?outer*slope:holes.length?outer*size/net:size;
   }
-  function reportFaceSqFt(face){
-    if(face.area!=null&&!(face.holes||[]).length)return face.area;
-    const exact=reportFaceExactSqFt(face);return exact==null?null:Math.round(exact);
+  function reportFaceSqFt(face,options={}){
+    if(face.area!=null&&(!(face.holes||[]).length||!options.holesInPdf))return face.area;
+    const exact=reportFaceExactSqFt(face,options);return exact==null?null:Math.round(exact);
   }
   // Roofing squares as the viewer shows them: whole squares, rounded up from the report's square feet for that face.
   const reportSquares=sqFt=>sqFt==null||!Number.isFinite(Number(sqFt))?null:Math.ceil(Number(sqFt)/100);
@@ -381,8 +396,8 @@
   }
   /* Roof pitch (1M8-255): the stored rise over 12, written 6/12 or, for degree projects, 26.6° (labels whole degrees). */
   function pitchLabel(rise,notation,digits=1){if(notation!=='degrees')return rise+'/12';return (Math.atan(Math.abs(Number(rise))/12)*180/Math.PI).toFixed(digits)+'°';}
-  function mount(root,{xmlUrl,exteriorUrl,linesUrl='',designUrl='',materialsUrl='',edgeTypes=[],media=[],standalone=false,layout='auto',initialState={},measurements={},getMeasurements,onMeasurementChange,subscribeMeasurements,pitchNotation='rise_12',measurementSystem='imperial',holidayLights=false}={}){
-    injectStyle();const U=viewerUnits(measurementSystem);let disposed=false,renderer,controls,scene,camera,observer,geometryGroup,lineGroup,texture,selection='model',textureEnabled=initialState.texture!==false,coloredLinesEnabled=initialState.lines!==false,keyVisible=initialState.key!==false,pitchEnabled=initialState.pitch===true,pitchGroup,areaEnabled=initialState.area===true,keyTab=initialState.keyTab||'lines';
+  function mount(root,{xmlUrl,exteriorUrl,linesUrl='',designUrl='',materialsUrl='',edgeTypes=[],media=[],standalone=false,layout='auto',initialState={},measurements={},getMeasurements,onMeasurementChange,subscribeMeasurements,reportStateUrl='',pitchNotation='rise_12',measurementSystem='imperial',holidayLights=false}={}){
+    injectStyle();const U=viewerUnits(measurementSystem);let areaRule={holesInPdf:false},disposed=false,renderer,controls,scene,camera,observer,geometryGroup,lineGroup,texture,selection='model',textureEnabled=initialState.texture!==false,coloredLinesEnabled=initialState.lines!==false,keyVisible=initialState.key!==false,pitchEnabled=initialState.pitch===true,pitchGroup,areaEnabled=initialState.area===true,keyTab=initialState.keyTab||'lines';
     let selectedCategory=initialState.category||(initialState.selectedType?'line:'+initialState.selectedType:null),lengthsEnabled=initialState.lengths===true,layers={roof:initialState.layers?.roof!==false,walls:initialState.layers?.walls!==false,base:initialState.layers?.base!==false};
     let modelLoaded=false,exterior=null,finishes=null,roofFinishes=null,frame=null,scale=1,picked=null,hovered=null,exteriorVector=null,rebuildRoofCaps=null,reportRoofFaces=[],gradeMesh=null,renderedKey='',ownsWallMode=false,measuring=false,measureStart=null,measurePreview=null,sideLayout=false;
     const controller=new AbortController();const objects=[];const ownedUrls=[];const lengths={},faceMetrics=[],openingGroups=[],items=[],measures=[];let unsubscribeMeasurements,syncMeasurements;
@@ -654,7 +669,9 @@
     (async()=>{
       if(!xmlUrl)throw new Error('The completed report does not contain a roof model yet.');
       const json=url=>url?fetch(url,{credentials:'same-origin',signal:controller.signal}).then(r=>r.ok?r.json():null).catch(()=>null):null;
-      const [response,exteriorResult,linesResult]=await Promise.all([fetch(xmlUrl,{credentials:'same-origin',signal:controller.signal}),json(exteriorUrl),json(linesUrl),loadLibraries()]);
+      const [response,exteriorResult,linesResult,reportState]=await Promise.all([fetch(xmlUrl,{credentials:'same-origin',signal:controller.signal}),json(exteriorUrl),json(linesUrl),json(reportStateUrl),loadLibraries()]);
+      // Whether the order's PDF counted holes in its face areas (rendered before FM-520); unknown counts as not.
+      areaRule={holesInPdf:pdfIncludesHoleArea(reportState?.project?.manifest)};
       if(!response.ok)throw new Error('The roof model could not be loaded.');
       // FM-455: the report's own line types and the line totals its PDF prints. Without them the XML's coarser types stay.
       // Only line totals: the PDF's squares are the faces', as drawn here.
@@ -699,7 +716,7 @@
         for(const face of roof.faces){const rings=[face.points,...face.holes],flat=rings.flat(),vertices=flat.map(point),faceUVs=faceTextureUVs(face.points,flat);const project=ring=>ring.map(p=>new T.Vector2(p[0],p[1]));const triangles=T.ShapeUtils.triangulateShape(project(face.points),face.holes.map(project));const pos=[],uv=[];
           // Roofs are textured with the editor's covering in metres: a full house in its fitted frame, a roof-only report
           // straight from the XML's feet. Only without the editor's finishes does the old per-12-ft tile remain.
-          const anchor=faceLabelAnchor(face),reportArea=reportFaceSqFt(face),area=anchor?.area??face.area,pitch=anchor?.pitch??face.pitch;
+          const anchor=faceLabelAnchor(face),reportArea=reportFaceSqFt(face,areaRule),area=anchor?.area??face.area,pitch=anchor?.pitch??face.pitch;
           // A roof-only report's low-slope faces (the report's flat roof, 2/12 and under) get a membrane, not the default shingles.
           const membrane=!fullHouse&&isLowSlope(pitch),membraneUVs=membrane?faceUVs.map(([u,v])=>[u*12/MEMBRANE_TILE_FT,v*12/MEMBRANE_TILE_FT]):null;
           const metric=fullHouse?(frame.matchesXml?flat.map(frame.toMetres):null):roofCover&&!membrane?flat.map(p=>p.map(v=>v/FT)):null,roofUVs=membraneUVs||(metric?finishUVs(metric,'shingles',fullHouse?roofFinish:roofCover.roofMaterial,fullHouse?finishes:roofFinishes):null);
@@ -711,7 +728,7 @@
             const item={kind:'roofFace',layer:'roof',category:'roof',mesh,priority:1,area,reportArea,pitch,swatch:roofFinish?.color||'#4a4c4f',flat:'#9aa4b2',finish:true,title:'Roof face',details:()=>[['Pitch',pitch!=null?pitchLabel(pitch,pitchNotation):null],['Area',U.faceArea(reportArea)],['Covering',roofFinish?finishes?.roofMaterials?.[roofFinish.category]?.label||roofFinish.category:null]]};
             mesh.userData={item,exteriorFinish:{material:'shingles',color:roofFinish?.color||null,roofMaterial:roofFinish||undefined,normal:{x:n[0],y:n[1],z:n[2]}}};items.push(item);}
           else{const spec=membrane?MEMBRANE_SPEC:roofCoverSpec,mat=new T.MeshStandardMaterial({map:roofCover||membrane?null:texture,side:T.DoubleSide,roughness:spec?.roughness??1,metalness:spec?.metalness??0,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});const mesh=new T.Mesh(geo,mat);mesh.userData.roofOnlyMaterial=true;if(membrane)mesh.userData.membrane=true;else if(roofCover)mesh.userData.exteriorFinish=roofCover;const item={kind:'roofFace',layer:'roof',category:'roof',mesh:null,area,reportArea,pitch,title:'Roof face',swatch:membrane?MEMBRANE_SPEC.color:roofCover?roofFinishes.resolve(roofCover,{}).color:'#706e69',details:()=>[['Pitch',pitch!=null?pitchLabel(pitch,pitchNotation):null],['Area',U.faceArea(reportArea)]]};mesh.userData.item=item;item.pickMesh=mesh;geometryGroup.add(mesh);objects.push(mat);items.push(item);}
-          if(pitch!=null)faceMetrics.push({pitch:Math.round(pitch),exact:reportFaceExactSqFt(face)??area??0});if(anchor){const sprite=labelSprite(point(anchor.point),{pitch:anchor.pitch,area:anchor.area,reportArea,anchor:anchor.point});sprite.position.y+=.5;pitchGroup.add(sprite);}
+          if(pitch!=null)faceMetrics.push({pitch:Math.round(pitch),exact:reportFaceExactSqFt(face,areaRule)??area??0});if(anchor){const sprite=labelSprite(point(anchor.point),{pitch:anchor.pitch,area:anchor.area,reportArea,anchor:anchor.point});sprite.position.y+=.5;pitchGroup.add(sprite);}
         }
         for(const line of roof.lines.values()){if(line.unlisted)continue;const type=lineType(line.type);types.add(type);const ends=line.ids.map(id=>roof.points.get(id)),length=Math.hypot(...ends[0].map((value,i)=>value-ends[1][i]));lengths[type]=(lengths[type]||0)+length;const geo=new T.BufferGeometry().setFromPoints(line.ids.map(id=>point(roof.points.get(id))));const mat=new T.LineBasicMaterial({color:styles[type][0]});const edge=new T.Line(geo,mat);edge.renderOrder=2;edge.userData.type=type;lineGroup.add(edge);objects.push(geo,mat);
           const item={kind:'roofLine',layer:'roof',category:'line:'+type,type,line:edge,length,ends:ends.map(point),swatch:styles[type][0],title:styles[type][1],details:()=>[['Length',U.roofLength(length)],['Type','Roof line']]};edge.userData.item=item;items.push(item);}
@@ -828,8 +845,9 @@
           // Never contradict the report: the matching report face's pitch and area, measured only when none matches.
           published=reportRoofFaces.reduce((best,f)=>{const d=Math.hypot(...f.center.map((v,i)=>v-center[i]));return d<(best?.d??3)?{...f,d}:best;},null),
           area=published?.area??(area3(face.points)-(face.holes||[]).reduce((sum,hole)=>sum+area3(hole),0))*FT*FT,
-          // Unmatched faces follow the report convention: whole square feet of the outline, holes not taken off.
-          reportArea=published?published.reportArea:Math.round(area3(face.points)*FT*FT),pitch=published?published.pitch:Math.abs(n[2])>1e-6?Math.round(Math.hypot(n[0],n[1])/Math.abs(n[2])*12):null;
+          // Unmatched faces follow the report convention: whole square feet less the holes (FM-520), or of the whole
+          // outline for a report whose PDF predates it.
+          reportArea=published?published.reportArea:Math.round(areaRule.holesInPdf?area3(face.points)*FT*FT:area),pitch=published?published.pitch:Math.abs(n[2])>1e-6?Math.round(Math.hypot(n[0],n[1])/Math.abs(n[2])*12):null;
         const roofAnchor=faceLabelAnchor({points:face.points.map(p=>[p.x,p.y,p.z]),holes:(face.holes||[]).map(r=>r.map(p=>[p.x,p.y,p.z])),area:1,pitch:0});
         own({kind:'roofFace',category:'roof',priority:1,area,reportArea,pitch,labelAnchor:roofAnchor?toScene([roofAnchor.point[0],roofAnchor.point[1],roofAnchor.point[2]+.25]):null,labelParts:()=>[...(pitch!=null?[{icon:'pitch',text:pitchLabel(pitch,pitchNotation,0)}]:[]),{icon:'area',text:U.faceArea(reportArea)}],swatch:roofFinish?.color||'#4a4c4f',flat:'#9aa4b2',title:'Roof face',details:()=>[['Pitch',pitch!=null?pitchLabel(pitch,pitchNotation):null],['Area',U.faceArea(reportArea)],['Covering',F.roofMaterials?.[F.resolveRoof(effectiveDefaults().roof).category]?.label||null]]},meshes,'roof');
       }
@@ -985,5 +1003,5 @@
     for(const name of ['pointerdown','wheel','keydown'])designPanel?.addEventListener(name,e=>e.stopPropagation());
     return {serialize(){return {texture:textureEnabled,lines:coloredLinesEnabled,key:keyVisible,keyTab,lights:lightsOn,pitch:pitchEnabled,area:areaEnabled,lengths:lengthsEnabled,layers:{...layers},category:selectedCategory,selectedType:selectedCategory?.startsWith('line:')?selectedCategory.slice(5):null};},setVisible(value){if(!value&&expanded)setExpanded(false);if(value)resize();},destroy(){if(expanded)setExpanded(false);disposed=true;applyLights();clearPreview?.();if(renderedKey){try{window.ExteriorRendered?.update(null,{enabled:false});}catch(_){}}if(ownsWallMode&&window.WallMode?.viewerShim)delete window.WallMode;unsubscribeMeasurements?.();controller.abort();observer.disconnect();controls?.dispose();objects.forEach(o=>o.dispose());texture?.dispose();renderer?.dispose();ownedUrls.forEach(URL.revokeObjectURL);root.replaceChildren();}};
   }
-  window.FirstMeasureRoofViewer={mount,parseModel,facePlaneHeights,faceTextureUVs,faceLabelAnchor,exteriorFrame,exteriorOutwards,designWithWallDefault,finishUVs,reportFaceSqFt,reportFaceExactSqFt,reportSquares,reportRoofFeet,reportWallFeet,reportLineTotal,reportPitchSquares,reportTotalSquares,reportObstacleSize,isLowSlope,viewerUnits};
+  window.FirstMeasureRoofViewer={mount,parseModel,facePlaneHeights,faceTextureUVs,faceLabelAnchor,exteriorFrame,exteriorOutwards,designWithWallDefault,finishUVs,reportFaceSqFt,reportFaceExactSqFt,pdfIncludesHoleArea,reportPdfRenderedAt,reportSquares,reportRoofFeet,reportWallFeet,reportLineTotal,reportPitchSquares,reportTotalSquares,reportObstacleSize,isLowSlope,viewerUnits};
 })();
