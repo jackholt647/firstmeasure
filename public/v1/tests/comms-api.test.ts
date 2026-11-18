@@ -239,6 +239,16 @@ test("comms: outbound email is captured with a test flag, threads, and inbound r
   assert.equal(thread.thread.messages.length, 3);
   assert.equal(thread.thread.messages[2].direction, "inbound");
 
+  // FM-591: the thread list carries what a mail list tile shows: the opening words, and unread for this person
+  // until they open the thread (the comms read marker, as in the inbox and phone tray).
+  const listed = async () => (await client.request("GET", `/v1/comms/organizations/${orgId}/projects/${projectId}/email/threads`)).threads.find((item: any) => item.id === conversationId);
+  const unread = await listed();
+  assert.equal(unread.snippet, "Thanks! Can we move the start to Thursday instead?");
+  assert.equal(unread.unread_count, 1);
+  assert.equal(unread.has_attachments, false);
+  await client.request("POST", `/v1/comms/organizations/${orgId}/conversation-workflow`, { kind: "conversation", source_id: conversationId, revision: 0, action: "read" });
+  assert.equal((await listed()).unread_count, 0);
+
   // A new compose to the same recipient starts a distinct subject thread;
   // only a reply with conversation_id reuses the original thread.
   const separate = await client.request("POST", `/v1/comms/organizations/${orgId}/projects/${projectId}/email/send`, {
@@ -291,6 +301,13 @@ test("comms: outbound email is captured with a test flag, threads, and inbound r
   });
   assert.equal(unroutable.statusCode, 202, unroutable.body);
   assert.equal(unroutable.data.accepted, false);
+});
+
+test("comms: an email snippet drops quoted history and Markdown marks", async () => {
+  const { emailSnippet } = await import("../comms/service.js");
+  assert.equal(emailSnippet("Sounds **good**, see [the plan](https://x.test).\n\nOn Tue, Nov 18, 2026 at 9:00 AM Casey <c@x.test> wrote:\n> earlier"), "Sounds good, see the plan.");
+  assert.equal(emailSnippet("- one\n- two"), "one two");
+  assert.equal(emailSnippet("x".repeat(260)).length, 200);
 });
 
 test("comms: SMS send + simulated inbound share a project conversation and cross-channel search finds both channels", async () => {

@@ -197,8 +197,8 @@ export const registerCommsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/projects/:projectId/email/threads", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: VIEW_PERMISSION, capability: "comms.email" });
-    return { ok: true, threads: (await projectEmailThreads(orgId, getParam(request.params, "projectId"))) };
+    const ctx = await requirePlatformAuth(request, { orgId, permission: VIEW_PERMISSION, capability: "comms.email" });
+    return { ok: true, threads: (await projectEmailThreads(orgId, getParam(request.params, "projectId"), ctx.userId)) };
   });
 
   app.get("/organizations/:orgId/projects/:projectId/email/threads/:conversationId", async (request) => {

@@ -32,8 +32,13 @@ export async function incomingWorkflow(orgId:string,kind:string,sourceId:string,
     (await database().prepare("UPDATE customer_communication_workflow SET status='open',snoozed_until='',revision=revision+1,updated_at=? WHERE organization_id=? AND kind=? AND source_id=? AND revision=?")
       .run(inboundAt,orgId,kind,sourceId,flow.revision));flow=(await workflow(orgId,kind,sourceId,fallback));
   }
-  const marker=userId?object((await database().prepare("SELECT read_at FROM customer_communication_read_markers WHERE organization_id=? AND user_id=? AND kind=? AND source_id=?").get(orgId,userId,kind,sourceId))):{};
-  return {...flow,unread_count:userId&&inboundAt&&inboundAt>text(marker.read_at)?1:0};
+  return {...flow,unread_count:(await unreadSince(orgId,userId,kind,sourceId,inboundAt))?1:0};
+}
+/** Whether this person has not opened the conversation since its last inbound message (their read marker). */
+export async function unreadSince(orgId:string,userId:string,kind:string,sourceId:string,inboundAt:string){
+  if(!userId||!inboundAt)return false;
+  const marker=object((await database().prepare("SELECT read_at FROM customer_communication_read_markers WHERE organization_id=? AND user_id=? AND kind=? AND source_id=?").get(orgId,userId,kind,sourceId)));
+  return inboundAt>text(marker.read_at);
 }
 export async function callInbox(orgId:string,filters:Json={}){
   return (await Promise.all((await listCalls(orgId,filters)).calls.map(async call=>{
