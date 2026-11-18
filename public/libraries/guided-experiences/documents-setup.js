@@ -183,8 +183,7 @@ const css = `
 .gxd-copy-edit input:focus,.gxd-copy-edit textarea:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12)}
 .gxd-copy-edit .gxd-copy-title{font-size:16px;font-weight:700}
 .gxd-copy-section{display:flex;flex-direction:column;gap:7px;padding-top:10px;border-top:1px solid #eaecf0}
-.gxd-copy-section>input{font-weight:700;border-color:transparent;background:#f9fafb}
-.gxd-copy-section>input:hover{border-color:#d0d5dd}
+.gxd-copy-section>label>input{font-weight:700}
 .gxd-copy-edited{font-size:12px;color:#067647!important}
 .gxd-copy-view{position:relative;min-height:0;border-radius:12px;background:#eef0f3;overflow:hidden}
 .gxd-copy-view .gxd-doc{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:14px;box-sizing:border-box}
@@ -1061,14 +1060,14 @@ export function mount(el, ctx){
       let html = '', open = false, opened = false;
       for (const field of list) {
         if (field.role === 'title') html += `<label>${esc(t('copy_title', 'Title'))}${input(field, 'gxd-copy-title')}</label>`;
-        else if (field.role === 'heading') { html += `${open ? '</div>' : ''}<div class="gxd-copy-section">${input(field, '', t('copy_heading', 'Heading'))}`; open = true; }
+        else if (field.role === 'heading') { html += `${open ? '</div>' : ''}<div class="gxd-copy-section"><label>${esc(t('copy_heading', 'Heading'))}${input(field)}</label>`; open = true; }
         else if (!open && !opened) { html += `<label>${esc(t('copy_opening', 'Opening'))}${area(field)}</label>`; opened = true; }
         else html += area(field, t('copy_text', 'Text'));
       }
       return html + (open ? '</div>' : '');
     }
     function showFields(){
-      fieldsHost.innerHTML = `<p>${esc(t('copy_lead', 'Read it through and change anything you’d say differently. The document on the right changes as you type; customer details and prices fill in on each proposal.'))}</p>
+      fieldsHost.innerHTML = `<p>${esc(t('copy_lead_2', 'Read it through and change anything you’d say differently. Your document changes as you type; the customer’s details and prices fill in on each one you make.'))}</p>
         ${keepEdits ? `<p class="gxd-copy-edited"><i class="fas fa-circle-check" aria-hidden="true"></i> ${esc(t('copy_edited', 'Your changes from the template editor are kept.'))}</p>` : ''}
         ${fields()}`;
       fieldsHost.querySelectorAll('textarea').forEach(grow);

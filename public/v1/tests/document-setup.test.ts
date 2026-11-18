@@ -282,3 +282,17 @@ test("the copy step reads the template's wording, the finish saves the changes, 
   version = await storage.readDocumentTemplateVersion(ORG, "tpl_setup_proposal");
   assert.equal(node(version.definition, terms.node_id).props.blocks[0].runs[0].text, terms.text.split("\n\n")[0]);
 });
+
+test("the copy step's title is a top-level heading or one that opens the document; a section heading stays one (FM-614)", async () => {
+  const { copyFields, applyCopy } = await import("../documents/setup.js");
+  const node = (id: string, words: string, style?: string, bind?: string) => ({ id, type: "text", props: { blocks: [{ id: `${id}_b`, type: "paragraph", ...(style ? { style_ref: style } : {}), runs: [{ text: words, ...(bind ? { bind } : {}) }] }] } });
+  const doc = (...children: any[]) => ({ pages: [{ id: "pg", children: [{ id: "frame", type: "frame", children }] }] });
+  const roles = (definition: any) => copyFields(definition).map((field) => `${field.role}:${field.text}`);
+  assert.deepEqual(roles(doc(node("a", "Invoice", "h1", "document.title"), node("b", "TOTAL"), node("c", "Your account", "h2"))), ["heading:Your account"], "bound and short layout text are not copy");
+  assert.deepEqual(roles(doc(node("a", "Roof replacement proposal", "h2"), node("b", "Complete tear-off and replacement of the roof at the address above."), node("c", "Terms", "h2"))),
+    ["title:Roof replacement proposal", "text:Complete tear-off and replacement of the roof at the address above.", "heading:Terms"]);
+  assert.deepEqual(roles(doc(node("a", "Scope", "h2"), node("b", "Your roof, three ways", "h1"))), ["heading:Scope", "title:Your roof, three ways"]);
+  const edited: any = applyCopy(doc(node("a", "Roof replacement proposal", "h2"), node("x", "Prepared for", undefined, "customer.name")), { a: "One\n\nTwo", x: "not copy" });
+  assert.deepEqual(edited.pages[0].children[0].children[0].props.blocks.map((block: any) => [block.style_ref, block.runs[0].text]), [["h2", "One"], ["h2", "Two"]]);
+  assert.equal(edited.pages[0].children[0].children[1].props.blocks[0].runs[0].text, "Prepared for", "a bound node is never rewritten");
+});
