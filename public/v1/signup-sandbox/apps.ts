@@ -80,6 +80,18 @@ function appFeatures(app: AppDefinition, nodes: NormalizedCapability[]) {
     .sort((left, right) => left.order - right.order);
 }
 
+/**
+ * The app a project or contact tab is a role's view of: a tab hidden unless App experience gives it to someone, on
+ * exactly the switches of a tab everyone gets (the crew's Materials is Operations; My Checklists is Checklists). It has
+ * no state of its own, so the Apps tab lists it inside that app, not as a second tile with the same switch (FM-601).
+ * Portal apps are never folded: each has its own placement.
+ */
+function roleViewOf(app: AppDefinition, apps: AppDefinition[]) {
+  if (app.surface === "portal_tab" || app.default_visible || !app.capabilities.length) return undefined;
+  const switches = (entry: AppDefinition) => [...entry.capabilities].sort().join(",");
+  return apps.find((other) => other.id !== app.id && other.surface === app.surface && other.default_visible && switches(other) === switches(app));
+}
+
 function appTitle(app: AppDefinition, data: SandboxConfigurationData) {
   const [namespace, key] = String(app.terminology_key || "").split(".");
   const label = namespace && key ? object(data.terminology[namespace])[key] : undefined;
@@ -100,7 +112,8 @@ export async function configurationApps(data: SandboxConfigurationData) {
   const nodes = capabilityDefinitions();
   const apps = appDefinitions();
   const titles = new Map(apps.map((app) => [app.id, appTitle(app, data)]));
-  const rows = apps.map((app) => {
+  const folded = new Map(apps.flatMap((app) => { const into = roleViewOf(app, apps); return into ? [[app.id, into.id] as const] : []; }));
+  const rows = apps.filter((app) => !folded.has(app.id)).map((app) => {
     const placement = typeof placed[app.id] === "string" ? String(placed[app.id]) : "";
     const switchOn = !app.capabilities.length || app.capabilities.some((key) => resolved.effectiveByKey[key] === true);
     const offered = isOfferableApp(app.id) && offers.includes(app.id) && offerSwitches(app.id).some((key) => ceiling.effectiveByKey[key] === true);
@@ -111,7 +124,7 @@ export async function configurationApps(data: SandboxConfigurationData) {
         if (offers.some((id) => offerSwitches(id).includes(key)) && ceiling.effectiveByKey[key] === true) return `offered:${offers.find((id) => offerSwitches(id).includes(key))}`;
         return String(resolved.reasons[key] || (capabilityDefinition(key) ? "" : "unknown_flag"));
       }).find(Boolean) || "";
-    const sharedWith = apps.filter((other) => other.id !== app.id && other.capabilities.some((key) => app.capabilities.includes(key))).map((other) => other.id);
+    const sharedWith = apps.filter((other) => other.id !== app.id && !folded.has(other.id) && other.capabilities.some((key) => app.capabilities.includes(key))).map((other) => other.id);
     return {
       id: app.id,
       title: titles.get(app.id)!,
@@ -124,8 +137,10 @@ export async function configurationApps(data: SandboxConfigurationData) {
       offerable: isOfferableApp(app.id),
       // What its welcome is when offered: its own app_welcome entry, or the placeholder until someone writes one.
       welcome: !isOfferableApp(app.id) ? "" : libraryData("app_welcome", app.id) ? "configured" : "placeholder",
-      offer_siblings: isOfferableApp(app.id) ? offerSiblings(app.id).filter((id) => id !== app.id) : [],
+      offer_siblings: isOfferableApp(app.id) ? offerSiblings(app.id).filter((id) => id !== app.id && !folded.has(id)) : [],
       shared_with: sharedWith,
+      // Role views listed inside this app (roleViewOf): they are on, offered or off with it.
+      views: apps.filter((other) => folded.get(other.id) === app.id).map((other) => ({ id: other.id, title: titles.get(other.id)!, description: other.description })),
       placement,
       pill: app.surface === "project_modal" && typeof pilled[app.id] === "string" ? String(pilled[app.id]) : "",
       features: appFeatures(app, nodes).map((node) => ({

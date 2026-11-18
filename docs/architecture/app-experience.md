@@ -109,7 +109,10 @@ when it was off also turns on the features under its switches that are on by
 default (`capability_defaults`), since a base such as `expanded_access_off`
 turns them all off (FM-470: CRM started with its views off); a feature
 turned off while the app is on stays off. Offers with the same switches are one app: starting
-either Money offer starts both. A welcome may name a `setup` switch (Money:
+either Money offer starts both. A project or contact tab that is a role's view of another (hidden by
+default, on exactly that tab's switches: the crew's Materials is Operations, My Checklists is
+Checklists) has no tile of its own in the Apps tab; it is listed inside that app and follows its
+state (FM-601). A welcome may name a `setup` switch (Money:
 `platform.money`); Get Started then continues into that switch's required
 setup workflow (`Portal.appSetup.run`, mode `post_add`), which for Money starts
 with payments onboarding. Its welcome says "Setup required". Once the person

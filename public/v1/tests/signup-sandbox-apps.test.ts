@@ -66,6 +66,33 @@ test("app states come from the configuration's switches, offers and placements",
   assert.deepEqual(find(model, "portal.viewer").options.map((option: any) => option.key), ["map_first"]);
 });
 
+test("a role's view of a tab is listed inside that app, so no switch has two project or contact tiles (FM-601)", async () => {
+  const { applyAppChange, configurationApps } = await import("../signup-sandbox/apps.js");
+  const { appDefinition } = await import("../platform/app-experience/registry.js");
+  const offered = await applyAppChange(await applyAppChange(await fixture(), "project.materials", { state: "offered" }), "project.checklists", { state: "offered" });
+  for (const data of [await fixture(), offered]) {
+    const model = await configurationApps(data);
+    // The crew's Materials is Operations, My Checklists is Checklists: no tile of their own, named inside the app.
+    assert.equal(find(model, "project.crew_materials"), undefined);
+    assert.equal(find(model, "project.crew_checklists"), undefined);
+    assert.deepEqual(find(model, "project.materials").views.map((view: any) => view.id), ["project.crew_materials"]);
+    assert.deepEqual(find(model, "project.checklists").views.map((view: any) => view.id), ["project.crew_checklists"]);
+    assert.ok(!find(model, "project.materials").offer_siblings.includes("project.crew_materials"));
+    assert.ok(!find(model, "project.materials").shared_with.includes("project.crew_materials"));
+    // No hidden-by-default project or contact tile is left beside a tab everyone gets on the same switches; portal
+    // apps keep a tile each for their placement.
+    const switches = (id: string) => [...appDefinition(id)!.capabilities].sort().join(",");
+    for (const group of model.groups.filter((entry: any) => entry.id !== "portal_tab")) {
+      for (const app of group.apps.filter((entry: any) => !appDefinition(entry.id)!.default_visible && switches(entry.id))) {
+        const main = group.apps.find((other: any) => other.id !== app.id && appDefinition(other.id)!.default_visible && switches(other.id) === switches(app.id));
+        assert.equal(main, undefined, `${app.id} is a view of ${main?.id} and is listed inside it`);
+      }
+    }
+    assert.ok(find(model, "portal.crew_receipts") && find(model, "portal.receipts"), "portal apps are never folded");
+  }
+  for (const id of ["project.materials", "project.checklists"]) assert.equal(find(await configurationApps(offered), id).state, "offered");
+});
+
 test("changing a state writes only the switches, offers and placement it means", async () => {
   const { applyAppChange, configurationApps } = await import("../signup-sandbox/apps.js");
   const start = await fixture();
