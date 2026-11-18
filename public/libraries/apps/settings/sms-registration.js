@@ -2360,7 +2360,9 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         stepNavigable: () => !operationBusy,
         canClose: () => !operationBusy,
         railNote: '<strong>Your progress is saved</strong><br>Return any time to finish registration.',
-        autosave: { debounceMs: 900, save: () => persistDraft() },
+        // Changing step never waits for the draft save (GP-5): every answer is
+        // already in `profile`, and actions that need the saved draft flush it.
+        autosave: { debounceMs: 900, flushOnStep: false, save: () => persistDraft() },
         steps: (shellCtx) => {
           ctxRef = shellCtx;
           return (developmentStatus?.onboarded?[{id:'summary',label:'Development ready'}]:smsVisibleSteps(profile)).map((item, index) => ({
