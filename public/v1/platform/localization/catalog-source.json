@@ -5139,6 +5139,10 @@
     "m_3c747882dbf3aa": "The uploaded footage doesn't seem to match the provided address. We have reimbursed the original report.",
     "m_5da395be24d920": "Upload the correct footage",
     "m_48e31022ec1dd5": "Starts a new Full Exterior order for this address. Record or upload footage of this house.",
+    "m_a1c5e34ccfaeef": {
+      "message": "It seems to be a {v0} building and we currently don't offer exterior reports for {v0} buildings.",
+      "format": "icu"
+    },
     "m_6396ccf961d884": "Why it was rejected",
     "m_1b6fb2f8bf15dc": "Starts a new order for this project as the right project type."
   },

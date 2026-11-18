@@ -162,6 +162,9 @@
   }
 
   function rejectedReorderButtonHtml(p){
+    // No Full Exterior is offered for a commercial or multi-family building: one rejected as that type isn't
+    // reordered as it (FM-532).
+    if (p?.measurement_scope === 'full_house' || /^exteriors_[a-f0-9]{32}$/.test(String(p?.id || p?.folder || p?.project_id || ''))) return '';
     const reorder = (p?.rejection_reorder && typeof p.rejection_reorder === 'object') ? p.rejection_reorder : {};
     const type = String(p?.correct_project_type || p?.rejection_correct_project_type || reorder.project_type || '').trim().toLowerCase().replace(/_/g, '-');
     const normalized = type === 'multi-family' ? 'multifamily' : type;

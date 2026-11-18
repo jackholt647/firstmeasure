@@ -7,8 +7,11 @@ import { currentExpeditePricing, pricingContext } from "./pricing_config.js";
 import { buildReportExpediteOptions } from "./expedite.js";
 export const EXTERIOR_VIEWS = ["front", "front-right", "right", "back-right", "back", "back-left", "left", "front-left"] as const;
 export const isCustomerExteriorId = (id:unknown) => /^exteriors_[a-f0-9]{32}$/.test(String(id ?? ""));
+// The project types a Full Exterior can be ordered for. A Full Exterior rejected as another type says so and offers
+// no reorder as that type (FM-532).
+export const fullExteriorOffered = (projectType:unknown) => String(projectType ?? "")==="residential";
 export async function requireExteriorAccess(orgId:string, projectType:string) {
-  if (projectType!=="residential" || !await isCapabilityEnabled(orgId,"firstmeasure.exteriors")) {
+  if (!fullExteriorOffered(projectType) || !await isCapabilityEnabled(orgId,"firstmeasure.exteriors")) {
     throw new FirstMeasureError("exteriors_disabled",403,"Full-house reports are not enabled for this property type.");
   }
 }
