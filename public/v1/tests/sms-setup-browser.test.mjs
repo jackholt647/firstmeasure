@@ -462,7 +462,7 @@ test('standard texting wording passes the carrier checks and stays the business 
     assert.doesNotMatch(plain.campaign.optInDisclosure+plain.campaign.description+plain.campaign.messageFlow,/marketing and promotional|\[/,'no marketing and no placeholders unless marketing is chosen');
     // FM-584: the business attests that it has the consent the law requires, not one way of getting it: many text
     // contacts who agreed on a lead form, not on a call. The consent process names every way, without a script.
-    assert.match(plain.attest,/consent the law requires/);
+    assert.match(plain.attest,/consent the law requires.*accept the Privacy policy and Texting terms above/);
     assert.doesNotMatch(plain.attest+plain.summary,/phone or in person|consent wording/);
     assert.match(plain.campaign.messageFlow,/Pioneer Roofing.*by phone or in person.*on a form/);
     assert.doesNotMatch(plain.campaign.messageFlow,/reads them/);
@@ -479,7 +479,7 @@ test('standard texting wording passes the carrier checks and stays the business 
     const own=await page.evaluate(()=>window.check({description:'Pioneer Roofing texts customers who asked us to, about their own roofing projects only.',messageFlow:'Customers tick a box on our quote form.',optInDisclosure:'',sample1:'Pioneer Roofing: hi. Reply STOP to opt out.',sample2:''}));
     assert.equal(own.campaign.description,'Pioneer Roofing texts customers who asked us to, about their own roofing projects only.','a draft from before keeps its own wording');
     assert.notEqual(own.campaign.standardWording,true);
-    assert.match(own.attest,/consent process in Advanced/,'a business\'s own wording is attested as written');
+    assert.match(own.attest,/consent process in Advanced.*accept the Privacy policy and Texting terms above/,'a business\'s own wording is attested as written');
     assert.deepEqual(errors,[]);
   } finally { await browser.close(); }
 });
