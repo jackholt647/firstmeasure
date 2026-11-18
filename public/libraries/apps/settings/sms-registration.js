@@ -170,7 +170,7 @@
       /* Number step (FM-596): primary number, then additional numbers on the same registration. */
       .sms-number-role{display:block;margin-bottom:4px;color:#667085;font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase}
       .sms-extra-numbers{gap:10px}.sms-extra-numbers .sms-final-row{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding-top:10px;border-top:1px solid #eaecf0}
-      .sms-extra-numbers .sms-final-row span{text-transform:none;letter-spacing:0;font-size:12px;font-weight:500;text-align:right}
+      .sms-extra-numbers .sms-final-row strong{white-space:nowrap}.sms-extra-numbers .sms-final-row span{text-transform:none;letter-spacing:0;font-size:12px;font-weight:500;text-align:right}
       .sms-extra-numbers [data-sms-add-number]{white-space:nowrap}.sms-extra-numbers [data-sms-add-number] i{font-size:10px;margin-right:2px}
   `;
   function installStyle(){
