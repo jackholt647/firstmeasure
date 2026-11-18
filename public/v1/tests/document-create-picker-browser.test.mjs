@@ -82,8 +82,15 @@ test('New document shows the everyday templates pinned, the user\'s departments,
   const browser = await launch();
   try {
     const { page, errors } = await open(browser);
-    // Never pinned by the organization: one of each everyday type, in the user's department.
-    assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Roof replacement · Itemized proposal', 'Roofing contract', 'Change order', 'Invoice']);
+    // Never pinned by the organization: a proposal, an invoice, a change order and a completion
+    // certificate (FM-562), each one word, its type's name: no type line and no pin.
+    assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Proposal', 'Invoice', 'Change Order', 'Completion Certificate']);
+    assert.deepEqual(await page.locator('.fmdx-tpl-row [data-pick-template]').evaluateAll((list) => list.map((el) => el.dataset.pickTemplate)), ['tpl_roof', 'tpl_inv', 'tpl_co', 'tpl_cert']);
+    assert.equal(await page.locator('.fmdx-tpl-row small, .fmdx-tpl-row [data-pin-template]').count(), 0, 'no type line, no pin');
+    const tints = await page.locator('.fmdx-tpl-row .fmdx-tpl').evaluateAll((list) => list.map((el) => getComputedStyle(el.querySelector('.fmdx-tpl-icon')).backgroundColor));
+    assert.equal(new Set(tints).size, 4, `color-coded: ${tints}`);
+    // No Blank and no Scan paper: Upload is the one button beside search.
+    assert.deepEqual(await page.locator('.fmdx-create-top > .fmdx-btn').evaluateAll((list) => list.filter((b) => b.getClientRects().length).map((b) => b.innerText.trim())), ['Upload']);
     // The library starts on the user's own department; archived templates never show.
     const library = await names(page, '.fmdx-tpl-grid');
     assert.ok(library.includes('Quick roof quote') && !library.includes('Gutter proposal') && !library.includes('Retired contract') && !library.includes('Payment receipt'));
@@ -134,14 +141,17 @@ test('on a phone the pinned templates are a grid of tiles and the library folds 
   const browser = await launch();
   try {
     const { page, errors } = await open(browser, { pinned: ['tpl_roof', 'tpl_contract', 'tpl_co', 'tpl_inv'], viewport: { width: 433, height: 870 } });
-    // Every pinned tile is in view: three across, wrapping, never a sideways scroll.
+    // Every pinned tile is in view: two across, a square of four, never a sideways scroll.
     const grid = await page.evaluate(() => {
       const row = document.querySelector('.fmdx-tpl-row');
       const tiles = [...row.querySelectorAll('.fmdx-tpl')].map((el) => el.getBoundingClientRect());
       const box = row.getBoundingClientRect();
       return { columns: getComputedStyle(row).gridTemplateColumns.split(' ').length, rows: new Set(tiles.map((r) => Math.round(r.top))).size, inside: tiles.every((r) => r.left >= box.left - 1 && r.right <= box.right + 1), sideScroll: row.scrollWidth > row.clientWidth };
     });
-    assert.deepEqual(grid, { columns: 3, rows: 2, inside: true, sideScroll: false });
+    assert.deepEqual(grid, { columns: 2, rows: 2, inside: true, sideScroll: false });
+    assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Proposal', 'Contract', 'Change Order', 'Invoice']);
+    const top = await page.locator('.fmdx-create-top').evaluate((el) => { const search = el.querySelector('.fmdx-create-search').getBoundingClientRect(); const buttons = [...el.querySelectorAll('.fmdx-btn')].filter((b) => b.getClientRects().length); return { buttons: buttons.map((b) => b.innerText.trim()), oneLine: buttons.every((b) => Math.abs(b.getBoundingClientRect().top - search.top) < 2) }; });
+    assert.deepEqual(top, { buttons: ['Upload'], oneLine: true }, 'Upload sits beside search');
     // The library is one button with its count until it is opened.
     assert.equal(await page.locator('.fmdx-tpl-grid').count(), 0, 'library folded');
     assert.equal(await page.locator('[data-pick-type]').count(), 0, 'type filters fold with it');
@@ -193,22 +203,25 @@ test('picking a template with a workflow answers at once and cannot be clicked t
   } finally { await browser.close(); }
 });
 
-test('pins are the organization\'s, Blank asks what kind, and Upload goes to paper intake', async () => {
+test('pins are the organization\'s, kept from the library, and Upload goes to paper intake', async () => {
   const browser = await launch();
   try {
     const { page, errors } = await open(browser, { pinned: ['tpl_inv'] });
     assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Invoice']);
-    await page.locator('.fmdx-tpl-grid .fmdx-tpl', { hasText: 'Change order' }).hover();
-    await page.locator('.fmdx-tpl-grid [data-pin-template="tpl_co"]').click();
-    assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Invoice', 'Change order']);
-    await page.locator('.fmdx-tpl-row [data-pin-template="tpl_inv"]').click();
-    assert.deepEqual(await page.evaluate(() => window.calls.filter((call) => call[0] === 'pin').map((call) => call[1])), [['tpl_inv', 'tpl_co'], ['tpl_co']]);
-    // Blank: no type filter in use, so it asks; the generic type reads as a plain document.
-    await page.locator('[data-create-blank]').click();
+    await page.locator('.fmdx-tpl-grid .fmdx-tpl', { hasText: 'Quick roof quote' }).hover();
+    await page.locator('.fmdx-tpl-grid [data-pin-template="tpl_quick"]').click();
+    await page.locator('.fmdx-tpl-grid .fmdx-tpl', { hasText: 'Roof replacement' }).hover();
+    await page.locator('.fmdx-tpl-grid [data-pin-template="tpl_roof"]').click();
+    // Two pinned of one type read by their own names; one alone reads as its type.
+    assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Invoice', 'Quick roof quote', 'Roof replacement · Itemized proposal']);
+    await page.locator('.fmdx-tpl-grid [data-pin-template="tpl_inv"]').click();
+    assert.deepEqual(await page.evaluate(() => window.calls.filter((call) => call[0] === 'pin').map((call) => call[1])), [['tpl_inv', 'tpl_quick'], ['tpl_inv', 'tpl_quick', 'tpl_roof'], ['tpl_quick', 'tpl_roof']]);
+    assert.equal(await page.locator('[data-create-blank], [data-create-scan]').count(), 0, 'no Blank, no Scan paper');
+    // Upload: no type filter in use, so it asks; the generic type reads as a plain document.
+    await page.locator('[data-create-upload]').click();
     assert.match(await page.locator('.fmdx-menu').innerText(), /Completion Certificate[\s\S]*Other/);
     await page.locator('.fmdx-menu [data-menu-type="change_order"]').click();
-    await page.waitForFunction(() => window.calls.some((call) => call[0] === 'create'));
-    assert.deepEqual(await page.evaluate(() => window.calls.find((call) => call[0] === 'create')), ['create', 'change_order', null]);
+    assert.deepEqual(await page.evaluate(() => window.calls.find((call) => call[0] === 'upload')), ['upload', '', 'change_order']);
     assert.deepEqual(errors, []);
     await page.close();
     // Upload with a type filter in use needs no question.

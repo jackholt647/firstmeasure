@@ -1852,7 +1852,8 @@
 
     /** Scan paper with the camera (documents.scanner). The PDF goes through the same paper intake as an upload
      *  when the organization has document ingestion, otherwise into the project's files (the Docs tab's own upload
-     *  when it opened us). Without the scanner library, the file picker as before. */
+     *  when it opened us). Without the scanner library, the file picker as before. New document no longer offers
+     *  Scan paper (FM-562); this stays for wherever the scanner is offered next. */
     async function startDocumentScan(templateId, documentTypeHint, { onAddFiles = null, onDone = null } = {}){
       const scanner = await ensureDocumentScanner();
       if (!scanner) { startPaperUpload(templateId, documentTypeHint, onDone); return; }
@@ -2537,7 +2538,7 @@
 
       // One screen: search, the organization's pinned templates, then the
       // whole library filtered by type (and department). Picking a template
-      // starts the document; Blank and Upload are their own buttons.
+      // starts the document; Upload is its own button.
       const savedPins = objectValue(objectValue(pinSettings).settings).pinned_template_ids;
       const picker = { query: '', type: '', departments: null, pins: Array.isArray(savedPins) ? savedPins.map(cleanText) : null };
       const PIN_LIMIT = 12;
@@ -2584,12 +2585,12 @@
         const allows = (ids) => !arrayValue(ids).length || arrayValue(ids).some((id) => chosen.has(id));
         return allows(objectValue(typeOf(tpl)).department_ids) && allows(tpl.department_ids);
       }
-      /** Until the organization pins its own, the everyday documents: one each of the common types. */
+      /** Until the organization pins its own, the everyday documents: a proposal, an invoice, a change order and a completion certificate. */
       function defaultPins(){
         const list = activeTemplates().filter((tpl) => !isUploadTemplate(tpl));
         const named = arrayValue(objectValue(objectValue(pinSettings).settings).default_pinned_template_ids).map(cleanText).filter((id) => list.some((tpl) => cleanText(tpl.id) === id));
         if (named.length) return named;
-        return ['proposal', 'contract', 'change_order', 'invoice', 'work_order']
+        return ['proposal', 'invoice', 'change_order', 'completion_certificate']
           .map((type) => list.filter((tpl) => cleanText(tpl.document_type) === type))
           .map((group) => group.find((tpl) => objectValue(tpl.metadata).default === true) || group[0])
           .filter(Boolean).map((tpl) => cleanText(tpl.id));
@@ -2602,16 +2603,32 @@
         try { await api().documents.pinTemplates(orgId(), next); }
         catch (error) { showToast('Documents', errorMessage(error, 'The pinned templates could not be saved.'), false); }
       }
-      function tileHtml(tpl, pinned){
+      /**
+       * A pinned tile is one word in its type's color: the type's name when it
+       * is the only pinned template of that type, else the template's own name.
+       * Pins are kept and removed from the library's tiles.
+       */
+      function tileHtml(tpl, pinned, pinnedList = []){
         const meta = viewOf(tpl);
         const upload = isUploadTemplate(tpl);
         const id = cleanText(tpl.id);
+        const name = firstText(tpl.name, 'Template');
+        if (pinned) {
+          const alone = meta.id !== OTHER.id && pinnedList.filter((entry) => viewOf(entry).id === meta.id).length === 1;
+          return `
+          <div class="fmdx-tpl pinned" style="--fmdx-type:${esc(meta.color)}" title="${esc(name)}">
+            <button type="button" class="fmdx-tpl-open" data-pick-template="${esc(id)}" aria-label="${esc(name)}">
+              <span class="fmdx-tpl-icon"><i class="fas ${esc(upload ? 'fa-file-arrow-up' : meta.icon)}"></i></span>
+              <span class="fmdx-tpl-text"><strong>${esc(alone ? meta.label : name)}</strong></span>
+            </button>
+          </div>`;
+        }
         const isPinned = pins().includes(id);
         return `
-          <div class="fmdx-tpl ${pinned ? 'pinned' : ''}" style="--fmdx-type:${esc(meta.color)}" title="${esc(firstText(tpl.description, tpl.name))}">
+          <div class="fmdx-tpl" style="--fmdx-type:${esc(meta.color)}" title="${esc(firstText(tpl.description, tpl.name))}">
             <button type="button" class="fmdx-tpl-open" data-pick-template="${esc(id)}">
               <span class="fmdx-tpl-icon"><i class="fas ${esc(upload ? 'fa-file-arrow-up' : meta.icon)}"></i></span>
-              <span class="fmdx-tpl-text"><strong>${esc(firstText(tpl.name, 'Template'))}</strong><small>${esc(meta.label)}</small></span>
+              <span class="fmdx-tpl-text"><strong>${esc(name)}</strong><small>${esc(meta.label)}</small></span>
             </button>
             <button type="button" class="fmdx-tpl-pin ${isPinned ? 'on' : ''}" data-pin-template="${esc(id)}" title="${isPinned ? 'Unpin for everyone' : 'Pin for everyone'}" aria-pressed="${isPinned}"><i class="fas fa-thumbtack"></i></button>
           </div>`;
@@ -2642,25 +2659,18 @@
           </div>` : '';
         const focused = document.activeElement === body.querySelector('[data-tpl-search]');
         // A host's own file upload (the Docs tab on a phone, where New is its
-        // only button): Upload beside Blank, and the paper intake says Scan.
+        // only button) is the phone's one Upload; elsewhere Upload is the
+        // paper intake. There is no Blank or Scan paper here (FM-562).
         const filesUpload = typeof options.onUploadFiles === 'function';
-        // With the scanner (documents.scanner), a phone's paper button opens the camera; Upload keeps the picker.
-        // A scan is saved through the paper intake (documents.ingestion) or into the project's files (Project Docs):
-        // with neither, there is nowhere to put it and the menu stays as it was.
-        const scanner = capabilityEnabled('documents.scanner') && (capabilityEnabled('documents.ingestion') || capabilityEnabled('platform.project_docs'));
         body.innerHTML = `
           <div class="fmdx-create-top">
             <label class="fmdx-create-search"><i class="fas fa-magnifying-glass"></i><input type="search" data-tpl-search value="${esc(picker.query)}" placeholder="Search templates" autocomplete="off"></label>
-            <button type="button" class="fmdx-btn" data-create-blank title="Start from an empty page"><i class="fas fa-file"></i> Blank</button>
-            ${filesUpload ? '<button type="button" class="fmdx-btn fmdx-phone-only" data-create-files title="Add files to this project: PDFs, photos, spreadsheets"><i class="fas fa-file-arrow-up"></i> Upload</button>' : ''}
-            ${scanner
-              ? `<button type="button" class="fmdx-btn ${filesUpload ? 'fmdx-desk-only' : ''}" data-create-upload title="A PDF or photo of a paper document; add fields during review"><i class="fas fa-arrow-up-from-bracket"></i> Upload</button>
-                 <button type="button" class="fmdx-btn fmdx-phone-only" data-create-scan title="Scan a paper document with the camera"><i class="fas fa-camera"></i> Scan paper</button>`
-              : `<button type="button" class="fmdx-btn" data-create-upload title="Scan or photo of a paper document; add fields during review"><i class="fas ${filesUpload ? 'fa-camera fmdx-phone-only' : 'fa-arrow-up-from-bracket'}"></i>${filesUpload ? '<i class="fas fa-arrow-up-from-bracket fmdx-desk-only"></i> <span class="fmdx-desk-only">Upload</span><span class="fmdx-phone-only">Scan paper</span>' : ' Upload'}</button>`}
+            ${filesUpload ? '<button type="button" class="fmdx-btn fmdx-phone-only" data-create-files title="Add files to this project: PDFs, photos, spreadsheets"><i class="fas fa-arrow-up-from-bracket"></i> Upload</button>' : ''}
+            <button type="button" class="fmdx-btn ${filesUpload ? 'fmdx-desk-only' : ''}" data-create-upload title="A PDF or photo of a paper document; add fields during review"><i class="fas fa-arrow-up-from-bracket"></i> Upload</button>
           </div>
           ${pinned.length ? `
             <p class="fmdx-section-label">Pinned</p>
-            <div class="fmdx-tpl-row">${pinned.map((tpl) => tileHtml(tpl, true)).join('')}</div>` : ''}
+            <div class="fmdx-tpl-row">${pinned.map((tpl) => tileHtml(tpl, true, pinned)).join('')}</div>` : ''}
           <div class="fmdx-create-library-head">
             ${foldable
               ? `<button type="button" class="fmdx-library-toggle" data-library-toggle aria-expanded="${!folded}">${folded ? 'Show all templates' : 'Hide all templates'} <small>${visible.length}</small><i class="fas fa-chevron-down"></i></button>`
@@ -2679,7 +2689,7 @@
                   <h3><i class="fas ${esc(type.icon)}"></i>${esc(type.label)}<small>${group.length}</small></h3>
                   <div class="fmdx-tpl-grid">${group.map((tpl) => tileHtml(tpl, false)).join('')}</div>
                 </section>`; }).join('')}</div>`
-            : `<p class="fmdx-data-hint">${query ? 'No template matches that search.' : 'No templates here yet. Start from Blank, or upload a paper document.'}</p>`}`;
+            : `<p class="fmdx-data-hint">${query ? 'No template matches that search.' : 'No templates here yet. Upload a paper document to start one.'}</p>`}`;
         const search = body.querySelector('[data-tpl-search]');
         if (focused) { search.focus(); search.setSelectionRange(picker.query.length, picker.query.length); }
         search.addEventListener('input', (event) => { picker.query = event.target.value; renderStepOne(); });
@@ -2700,20 +2710,14 @@
           wizard.template = tpl;
           proceed(btn);
         }));
-        /** Blank and Upload need to know what kind of document: the filter in use, else ask. */
+        /** Upload needs to know what kind of document: the filter in use, else ask. */
         const withType = (anchor, run) => {
           const current = types.find((type) => type.id === picker.type);
           if (current) { run(current.kind); return; }
           const menu = openMenu(anchor, `<p class="fmdx-menu-label">What kind of document?</p>${liveTypes().map(typeView).map((meta) => `<button type="button" class="fmdx-menu-item" data-menu-type="${esc(meta.kind)}"><i class="fas ${esc(meta.icon)}" style="color:${esc(meta.color)}"></i><span>${esc(meta.label)}</span></button>`).join('')}`);
           (menu?.el || document.querySelector('.fmdx-menu'))?.querySelectorAll('[data-menu-type]').forEach((item) => item.addEventListener('click', () => { document.querySelector('.fmdx-menu')?.remove(); run(item.dataset.menuType); }));
         };
-        body.querySelector('[data-create-blank]').addEventListener('click', (event) => withType(event.currentTarget, (type) => { wizard.type = type; wizard.template = null; proceed(body.querySelector('[data-create-blank]')); }));
         body.querySelector('[data-create-upload]').addEventListener('click', (event) => withType(event.currentTarget, (type) => { wizard.type = type; wizard.template = '__upload__'; proceed(body.querySelector('[data-create-upload]')); }));
-        // The scan only needs a document type when it goes through the paper intake.
-        body.querySelector('[data-create-scan]')?.addEventListener('click', (event) => {
-          const scan = (type) => startDocumentScan('', type, { onAddFiles: options.onAddFiles, onDone: () => modal.close() });
-          if (capabilityEnabled('documents.ingestion')) withType(event.currentTarget, scan); else scan('');
-        });
         // The file picker opens inside the same tap, so the browser allows it.
         body.querySelector('[data-create-files]')?.addEventListener('click', () => { modal.close(); options.onUploadFiles(); });
       }

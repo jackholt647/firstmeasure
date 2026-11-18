@@ -161,7 +161,6 @@ async function openNewDialog(page, { phone = false, flags = {} } = {}) {
       const loadCatalog = async () => ({ types: [{ id: 'proposal', label: 'Proposal' }] });
       const loadTemplates = async () => [{ id: 'tpl_roof', document_type: 'proposal', name: 'Roof replacement · Itemized proposal', status: 'active', metadata: { default: true }, department_ids: [] }, { id: 'tpl_quick', document_type: 'proposal', name: 'Quick roof quote', status: 'active', metadata: {}, department_ids: [] }];
       const startPaperUpload = (templateId, type) => window.calls.push(['paper', type]);
-      const startDocumentScan = (templateId, type, options) => { window.calls.push(['scan', type, typeof options.onAddFiles]); options.onDone(); };
       const capabilityEnabled = (key) => window.flags[key] === true;
       const ensureInlineStyles = () => {};
       const ensureWorkflowRuntime = async () => null;
@@ -296,7 +295,7 @@ test('Documents keeps delivered reports when the legacy document list is unavail
   } finally { await browser.close(); }
 });
 
-test('on a phone New fills the screen and offers Upload beside Blank', async () => {
+test('on a phone New fills the screen and offers one Upload, no Blank or Scan paper', async () => {
   const browser = await launch();
   try {
     const { page, errors, context } = await pageFor(browser, PHONE);
@@ -305,7 +304,7 @@ test('on a phone New fills the screen and offers Upload beside Blank', async () 
     const box = await page.locator('.fmdx-create-modal').boundingBox();
     assert.deepEqual([Math.round(box.x), Math.round(box.y), Math.round(box.width), Math.round(box.height)], [0, 0, 390, 844], 'full screen');
     const buttons = await page.locator('.fmdx-create-top > .fmdx-btn').evaluateAll((list) => list.filter((b) => b.getClientRects().length).map((b) => b.innerText.trim()));
-    assert.deepEqual(buttons, ['Blank', 'Upload', 'Scan paper']);
+    assert.deepEqual(buttons, ['Upload']);
     assert.ok(await page.locator('.fmdx-create-body, [data-create-body]').evaluate((el) => el.scrollWidth <= el.clientWidth), 'nothing scrolls sideways');
     await page.locator('[data-create-files]').tap();
     assert.deepEqual(await page.evaluate(() => window.calls), [['files']]);
@@ -315,52 +314,30 @@ test('on a phone New fills the screen and offers Upload beside Blank', async () 
   } finally { await browser.close(); }
 });
 
-// FM-432: with documents.scanner, Scan paper opens the camera scanner; Upload keeps the file picker and the paper intake.
-test('on a phone with the document scanner, Scan paper opens the scanner and asks the type only for the paper intake', async () => {
+// FM-562: New offers no Scan paper, whatever the scanner and intake flags say; the phone keeps one Upload, the files one.
+test('on a phone New has no Scan paper, with or without the document scanner', async () => {
   const browser = await launch();
   try {
-    for (const [flags, expected] of [
-      [{ 'documents.scanner': true, 'platform.project_docs': true }, [['scan', '', 'function']]],
-      [{ 'documents.scanner': true, 'documents.ingestion': true }, [['scan', 'proposal', 'function']]]
-    ]) {
+    for (const flags of [{ 'documents.scanner': true, 'platform.project_docs': true }, { 'documents.scanner': true, 'documents.ingestion': true }, { 'documents.scanner': true }]) {
       const { page, errors, context } = await pageFor(browser, PHONE);
       await openNewDialog(page, { phone: true, flags });
+      assert.equal(await page.locator('[data-create-scan], [data-create-blank]').count(), 0);
       const buttons = await page.locator('.fmdx-create-top > .fmdx-btn').evaluateAll((list) => list.filter((b) => b.getClientRects().length).map((b) => b.innerText.trim()));
-      assert.deepEqual(buttons, ['Blank', 'Upload', 'Scan paper']);
+      assert.deepEqual(buttons, ['Upload']);
       assert.equal(await page.locator('[data-create-upload]').isVisible(), false, 'the phone keeps one Upload: the files one');
-      await page.locator('[data-create-scan]').tap();
-      if (flags['documents.ingestion']) {
-        assert.equal(await page.locator('.fmdx-menu').count(), 1, 'the paper intake asks what kind of document');
-        await page.locator('[data-menu-type="proposal"]').tap();
-      }
-      assert.deepEqual(await page.evaluate(() => window.calls), expected);
-      assert.equal(await page.locator('.fmdx-modal-back').count(), 0, 'the dialog closes for the scanner');
       assert.deepEqual(errors, []);
       await context.close();
     }
   } finally { await browser.close(); }
 });
 
-test('with nowhere to save a scan (no document ingestion, no Project Docs) the phone menu stays as it was', async () => {
-  const browser = await launch();
-  try {
-    const { page, errors, context } = await pageFor(browser, PHONE);
-    await openNewDialog(page, { phone: true, flags: { 'documents.scanner': true } });
-    assert.equal(await page.locator('[data-create-scan]').count(), 0);
-    const buttons = await page.locator('.fmdx-create-top > .fmdx-btn').evaluateAll((list) => list.filter((b) => b.getClientRects().length).map((b) => b.innerText.trim()));
-    assert.deepEqual(buttons, ['Blank', 'Upload', 'Scan paper']);
-    assert.deepEqual(errors, []);
-    await context.close();
-  } finally { await browser.close(); }
-});
-
-test('on a desktop the document scanner changes nothing: Blank and Upload', async () => {
+test('on a desktop the document scanner changes nothing: Upload', async () => {
   const browser = await launch();
   try {
     const { page, errors } = await pageFor(browser, DESKTOP);
     await openNewDialog(page, { flags: { 'documents.scanner': true, 'documents.ingestion': true } });
     const buttons = await page.locator('.fmdx-create-top > .fmdx-btn').evaluateAll((list) => list.filter((b) => b.getClientRects().length).map((b) => b.innerText.trim()));
-    assert.deepEqual(buttons, ['Blank', 'Upload']);
+    assert.deepEqual(buttons, ['Upload']);
     await page.locator('[data-create-upload]').click();
     await page.locator('[data-menu-type="proposal"]').click();
     assert.deepEqual(await page.evaluate(() => window.calls), [['paper', 'proposal']]);
@@ -368,7 +345,7 @@ test('on a desktop the document scanner changes nothing: Blank and Upload', asyn
   } finally { await browser.close(); }
 });
 
-test('on a desktop New keeps its dialog, Blank and Upload', async () => {
+test('on a desktop New keeps its dialog and Upload', async () => {
   const browser = await launch();
   try {
     const { page, errors } = await pageFor(browser, DESKTOP);
@@ -376,7 +353,7 @@ test('on a desktop New keeps its dialog, Blank and Upload', async () => {
     const box = await page.locator('.fmdx-create-modal').boundingBox();
     assert.ok(box.width <= 1080 && box.x > 0 && box.y > 0, 'a dialog, not the whole screen');
     const buttons = await page.locator('.fmdx-create-top > .fmdx-btn').evaluateAll((list) => list.filter((b) => b.getClientRects().length).map((b) => b.innerText.trim()));
-    assert.deepEqual(buttons, ['Blank', 'Upload']);
+    assert.deepEqual(buttons, ['Upload']);
     await page.locator('[data-create-upload]').click();
     assert.equal(await page.locator('.fmdx-menu').count(), 1, 'Upload still asks what kind of document');
     assert.equal(await page.locator('.fmdx-menu-scrim').count(), 0, 'no phone scrim on a desktop');
