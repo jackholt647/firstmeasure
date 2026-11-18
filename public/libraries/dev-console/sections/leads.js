@@ -62,7 +62,7 @@ export async function mount(root, { api, T, esc }) {
         if (open) { name.type = 'button'; name.className = 'fm-dc-link'; name.style.width = 'auto'; name.style.fontWeight = '600'; name.onclick = () => open(lead.project_id); }
         name.textContent = lead.name || lead.title || lead.project_id;
         const details = document.createElement('small'); details.className = 'fm-dc-sub';
-        details.textContent = [lead.phone, lead.email, lead.address, lead.source && `${T('dc_leads_source', 'Source')}: ${lead.source}`, lead.matched && T('dc_leads_matched', 'matched an existing contact')].filter(Boolean).join(' · ');
+        details.textContent = [lead.phone, lead.email, lead.address, lead.source && `${T('dc_leads_source', 'Source')}: ${lead.source}`, lead.routed ? `${T('dc_leads_routed', 'Routed to')} ${lead.routed}` : lead.new_lead && T('dc_leads_new_lead', 'New lead, no scope yet'), lead.matched && T('dc_leads_matched', 'matched an existing contact')].filter(Boolean).join(' · ');
         line.append(name, details); report.append(line);
       }
       window.dispatchEvent(new CustomEvent('development:synthetic-leads', { detail: result }));

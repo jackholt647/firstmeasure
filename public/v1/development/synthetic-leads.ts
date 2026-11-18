@@ -109,9 +109,12 @@ export async function generateSyntheticLeads(ctx: PlatformAuthContext, raw: unkn
       summary: lead.summary
     });
     const data = (result.project.data ?? {}) as JsonObject, source = (data.lead_source ?? {}) as JsonObject;
+    // Where intake routing put it: a scope and its stage, or nothing yet (a new lead).
+    const scope = (((data.work_projection ?? {}) as JsonObject).active_instances as JsonObject[] | undefined)?.[0];
     leads.push({
       project_id: result.project.id, title: data.title ?? "", name: lead.contact.name ?? "", phone: lead.contact.phone ?? "", email: lead.contact.email ?? "",
-      address: lead.address, source: String(source.source_path || source.provider || ""), matched: result.matched_contact_ids.length > 0
+      address: lead.address, source: String(source.source_path || source.provider || ""), matched: result.matched_contact_ids.length > 0,
+      new_lead: ((data.lifecycle ?? {}) as JsonObject).new_lead === true, routed: scope ? [scope.title, scope.stage_title].map(v => String(v ?? "")).filter(Boolean).join(" › ") : ""
     });
   }
   return { organization_id: ctx.orgId, created: leads.length, skipped, leads };

@@ -14,7 +14,7 @@
  */
 import { dock, windowWidth } from './dock.js?v=20261112-tray3';
 
-const VERSION = '20261118-fm552-leads';
+const VERSION = '20261118-fm552-leads2';
 const NS = 'dev-console';
 const STORE = 'fm-dev-console';
 // The page keeps at least APP_MIN px beside the console.

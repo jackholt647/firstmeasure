@@ -15,7 +15,7 @@ test('dev console: scope-filtered nested contracts and synthetic data fit deskto
    if(p==='/v1/signup-sandbox/development/synthetic-leads'){
     if(route.request().method()==='GET')return json({max:25,fields:[{id:'name',label:'Name',icon:'fa-user',default:true},{id:'phone',label:'Phone',icon:'fa-phone',default:true},{id:'source',label:'Source',icon:'fa-bullhorn',default:true},{id:'note',label:'Note',icon:'fa-comment',default:false}],sources:[{id:'google',label:'Paid › Google Ads',channel:'paid'}]});
     leadPosts.push(route.request().postDataJSON());
-    return json({created:2,skipped:0,leads:[{project_id:'p1',name:'Avery Chen',phone:'(312) 555-0142',email:'',address:'',source:'',matched:false},{project_id:'p2',name:'Quinn Ward',phone:'(415) 555-0107',email:'',address:'',source:'',matched:true}]});
+    return json({created:2,skipped:0,leads:[{project_id:'p1',name:'Avery Chen',phone:'(312) 555-0142',email:'',address:'',source:'',matched:false},{project_id:'p2',name:'Quinn Ward',phone:'(415) 555-0107',email:'',address:'',source:'',matched:true,routed:'Sales › New Lead'}]});
    }
    if(p==='/v1/signup-sandbox/development')return json({companies:[{id:'roofing',label:'Roofing'}],categories:[{id:'projects',label:'Projects',icon:'fa-house'}]});
    return route.fulfill({contentType:'text/html',body:'<!doctype html><meta charset="utf-8"><style>body{margin:0;font:14px Verdana,sans-serif}</style><main>App</main>'});
@@ -57,7 +57,7 @@ test('dev console: scope-filtered nested contracts and synthetic data fit deskto
   await page.locator('[data-dev-lead-add]').click();await page.getByText('2 leads added',{exact:true}).waitFor();
   assert.equal(leadPosts.length,1);
   assert.deepEqual({...leadPosts[0],request_id:typeof leadPosts[0].request_id},{count:2,fields:{name:false,phone:true,source:true,note:false},source_id:'google',request_id:'string'});
-  await page.getByText('Quinn Ward').waitFor();await page.getByText(/matched an existing contact/).waitFor();
+  await page.getByText('Quinn Ward').waitFor();await page.getByText(/Routed to Sales › New Lead · matched an existing contact/).waitFor();
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no sideways scroll in Leads');
   await page.screenshot({path:process.env.LEADS_SCREENSHOT||'/dev/null'}).catch(()=>{});
   await page.locator('.fm-dc-fold').click();assert.equal(await page.locator('.fm-dc').isVisible(),false);assert.equal(await page.locator('.fm-dc-strip').isVisible(),false,'a phone has no strip: a shake opens the dev tray');

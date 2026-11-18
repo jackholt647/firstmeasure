@@ -35,6 +35,7 @@ test('synthetic leads arrive through receiveLead with only the chosen fields, in
   assert.match(lead.phone,/^\(\d{3}\) 555-01\d\d$/,'phones are reserved fictional numbers');
   assert.match(lead.email,/@example\.com$/);
   assert.ok(lead.name&&lead.address&&lead.source,JSON.stringify(lead));
+  assert.ok(lead.routed||lead.new_lead,'the result says where routing put it');
   const project=await storage.readDocument(ctx.orgId,'projects',lead.project_id);
   assert.equal((project.data.lead_source as any).synthetic,true);
   assert.equal((project.data.contacts as any[]).length,1);
