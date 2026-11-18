@@ -265,3 +265,81 @@ test('document types belong to the organization: renamed, added, given departmen
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
+
+test('on a phone New document opens as a tray from the bottom and grows to full screen past the first step', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await open(browser, { pinned: ['tpl_roof', 'tpl_contract', 'tpl_co', 'tpl_inv'], viewport: { width: 433, height: 870 } });
+    const box = () => page.evaluate(async () => {
+      await Promise.all(document.querySelector('.fmdx-modal').getAnimations().map((a) => a.finished.catch(() => {})));
+      const sheet = document.querySelector('.fmdx-modal');
+      const r = sheet.getBoundingClientRect();
+      return { top: Math.round(r.top), bottom: Math.round(r.bottom), tray: sheet.classList.contains('fmdx-tray'), full: sheet.classList.contains('fmdx-tray-full') };
+    });
+    // Step one: a tray as tall as the pinned tiles, the top of the page left in view (window manager phone sheet: max(56px, 12%)).
+    const tray = await box();
+    assert.equal(tray.tray, true);
+    assert.equal(tray.full, false);
+    assert.equal(tray.bottom, 870, 'sits on the bottom');
+    assert.ok(tray.top > 870 * 0.3, `as tall as what it shows (top ${tray.top})`);
+    if (process.env.TRAY_SHOT) await page.screenshot({ path: process.env.TRAY_SHOT });
+    // Searching holds it at the sheet's full height, so the search box does not move with each letter.
+    await page.locator('[data-tpl-search]').pressSequentially('in');
+    const searching = await box();
+    assert.equal(searching.top, Math.max(56, Math.round(870 * 0.12)));
+    await page.locator('[data-tpl-search]').fill('');
+    assert.equal((await box()).top, tray.top, 'back to its own height');
+    // Showing the library holds it at full height too.
+    await page.locator('[data-library-toggle]').click();
+    assert.equal((await box()).top, searching.top);
+    await page.locator('[data-library-toggle]').click();
+    assert.equal((await box()).top, tray.top);
+    // A later step fills the screen; Back makes it a tray again.
+    await page.locator('[data-library-toggle]').click();
+    await page.locator('[data-manage-types]').click();
+    assert.deepEqual(await box(), { top: 0, bottom: 870, tray: true, full: true });
+    await page.locator('[data-types-back]').click();
+    assert.equal((await box()).top, searching.top, 'a tray again, the library still open');
+    await page.locator('[data-library-toggle]').click();
+    assert.equal((await box()).top, tray.top);
+    // Dragging its top down puts it away.
+    const head = await page.locator('.fmdx-modal h2').boundingBox();
+    await page.mouse.move(head.x + 40, head.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(head.x + 40, head.y + 70, { steps: 4 });
+    await page.mouse.move(head.x + 40, head.y + 200, { steps: 4 });
+    await page.mouse.up();
+    await page.waitForSelector('.fmdx-modal-back', { state: 'detached' });
+    // A short drag springs back.
+    await page.evaluate(() => window.openCreate());
+    await page.waitForSelector('[data-tpl-search]');
+    const head2 = await page.locator('.fmdx-modal h2').boundingBox();
+    await page.mouse.move(head2.x + 40, head2.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(head2.x + 40, head2.y + 30, { steps: 8 });
+    await page.waitForTimeout(120);
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    assert.equal(await page.locator('.fmdx-modal-back').count(), 1, 'still open');
+    // Tapping the page above it closes it too.
+    await page.mouse.click(200, 20);
+    await page.waitForSelector('.fmdx-modal-back', { state: 'detached' });
+    assert.deepEqual(errors, []);
+    await page.close();
+    // A template with a workflow opens behind the tray, which grows into it as it fades.
+    const flow = await open(browser, { pinned: ['tpl_roof', 'tpl_contract', 'tpl_co', 'tpl_inv'], viewport: { width: 433, height: 870 } });
+    await flow.page.evaluate(() => { window.__templates.find((tpl) => tpl.id === 'tpl_inv').metadata = { default_workflow_id: 'wf_inv' }; window.__clicked = performance.now(); });
+    await flow.page.locator('.fmdx-tpl-row [data-pick-template="tpl_inv"]').click();
+    const opened = await flow.page.evaluate(() => window.calls.filter((call) => call[0] === 'opening'));
+    assert.equal(opened.length, 1);
+    assert.equal(await flow.page.locator('.fmdx-modal.fmdx-tray-full').count(), 1, 'grows to full screen');
+    await flow.page.waitForFunction(() => getComputedStyle(document.querySelector('.fmdx-modal-back')).display === 'none' || !document.querySelector('.fmdx-modal-back'));
+    await flow.page.waitForFunction(() => window.calls.some((call) => call[0] === 'openWorkflow'));
+    assert.equal(await flow.page.locator('.fmdx-modal-back').count(), 0);
+    assert.deepEqual(flow.errors, []);
+    await flow.page.close();
+    // A desktop dialog is no tray.
+    const desk = await open(browser);
+    assert.equal(await desk.page.locator('.fmdx-modal.fmdx-tray').count(), 0);
+  } finally { await browser.close(); }
+});
