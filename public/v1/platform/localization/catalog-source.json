@@ -2113,6 +2113,8 @@
     "m_237716bb3d8498": "Open Original",
     "m_920aa9d1b0216a": "Upload unavailable",
     "m_546d652f15f847": "Save the project before uploading documents.",
+    "m_ccbdf9fdec6e32": "Save the project before creating a document.",
+    "m_cb90160bd8fd49": "Documents could not be opened. Try again.",
     "m_eba695c553b0b3": "Upload failed",
     "m_bd3178edcda733": {
       "message": "Remove {v0} from the project?",

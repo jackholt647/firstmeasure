@@ -133,6 +133,40 @@ test('on a desktop the Docs header keeps its search field, New and Upload', asyn
   } finally { await browser.close(); }
 });
 
+// A blank new project has no id, so the document engine is not mounted yet: New is still in the header wherever
+// documents can be made, and pressing it saves the project (like the first upload) before New's dialog opens (FM-580).
+test('a blank new project shows New, and New saves the project before its dialog opens', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await pageFor(browser, DESKTOP);
+    await page.evaluate(() => {
+      const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      window.__APP = { userOrgId: 'org', userId: 'sam' };
+      const flags = { current: () => ({ raw: { platform: { documents: true } }, effective: { platform: { documents: true } } }), value: () => true };
+      const capabilities = { current: () => ({ definitions_by_key: {}, effective_by_key: { 'platform.documents': true } }) };
+      window.Portal = { cfg: window.__APP, appFlags: flags, capabilities, modules: {}, util: { escapeHtml, injectCSS(id, text) { let el = document.getElementById('css_' + id); if (!el) { el = document.createElement('style'); el.id = 'css_' + id; document.head.append(el); } el.textContent = text; } }, ui: { showToast() {} } };
+      window.PlatformAPI = { media: { fileUrl: () => '', thumbnailUrl: () => '' }, projectDocuments: { list: async () => ({ documents: [], uploaded_documents: [] }) } };
+      window.steps = [];
+      window.theProject = {};
+      const engineApi = { openCreateModal: () => window.steps.push(['dialog', window.theProject.id]), openDocument() {}, openPreview() {}, getDocs: () => [], refresh() {} };
+      window.FirstMateEmbeddableApps = { escapeHtml, registerApp() {}, unregisterApp() {}, mount: async (host, id, context) => { window.steps.push(['engine', context.projectId]); context.params.embed.onReady(engineApi); return { destroy() {}, setActive() {} }; } };
+    });
+    await page.addScriptTag({ url: '/libraries/apps/photos/feed.js' });
+    await page.addScriptTag({ url: '/libraries/apps/docs/project.js' });
+    await page.evaluate(() => window.Portal.ProjectDocsTab.mount({ panelRoot: document.querySelector('#tab'), active: true, host: {
+      getProject: () => window.theProject,
+      projectOrgId: () => 'org',
+      ensureProject: async () => { window.steps.push(['saved']); window.theProject = { id: 'p_new' }; return window.theProject; }
+    } }));
+    await page.waitForSelector('[data-gallery-toolbar-action="new_document"]');
+    assert.deepEqual(await page.evaluate(() => window.steps), [], 'nothing is saved or mounted by opening the tab');
+    await page.locator('[data-gallery-toolbar-action="new_document"]').click();
+    await page.waitForFunction(() => window.steps.some((step) => step[0] === 'dialog'));
+    assert.deepEqual(await page.evaluate(() => window.steps), [['saved'], ['engine', 'p_new'], ['dialog', 'p_new']]);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
 // New's dialog, sliced from the documents app the way document-create-picker-browser.test.mjs does.
 const typeCode = between('  const TYPE_META = {', '  function openModal(');
 const menuEnd = '    return { el: menu, close };\n  }';
