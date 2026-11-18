@@ -234,7 +234,7 @@ function readyWidget(el,ctx){
         // The Equipment tab itself (the same app, its tour and its fleet), with Back to the cards at the bottom left as
         // the sheet's other steps have it (FM-606). The card is done when the fleet has a unit, wherever it was added.
         el.innerHTML=`<div class="ops-setup"><div class="ops-app"></div><p class="ops-error" role="alert"></p><div class="ops-foot"><button type="button" class="ops-btn" data-return><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(copy('gx_ui_back','Back'))}</button></div></div>`;
-        el.querySelector('[data-return]').addEventListener('click',()=>{if(!busy)leave();});
+        el.querySelector('[data-return]').addEventListener('click',()=>{if(child&&!touring())leave();});
         child=await window.FirstMateEmbeddableApps.mount(el.querySelector('.ops-app'),'portal.equipment',{orgId:env.orgId,surface:'portal_tab',active:true});
         if(!alive){child?.destroy?.();child=null;return;}
         ctx.setTitle?.(card.label);ctx.syncBack?.();
@@ -254,8 +254,10 @@ function readyWidget(el,ctx){
     }catch(error){showError(error);}finally{busy=false;}
   }
   el.innerHTML=`<div class="ops-loading">${esc(copy('gx_ops_checking','Checking your setup…'))}</div>`;Promise.resolve(ctx.checkpoint?.()).then(syncSessions).catch(()=>null);refresh().catch(error=>{el.innerHTML='<p class="ops-error" role="alert"></p>';showError(error);});
-  // The phone's back walks out of Equipment to the cards first (FM-604's backDepth); not while its tour is playing.
+  // Back (and the phone's back, FM-604's backDepth) leaves Equipment for the cards, but not from under its tour: the
+  // tour's overlay is on screen until it ends (its runGuide settles a moment later, after a server refresh).
+  const touring=()=>!!document.querySelector('.gx-ov');
   function leave(){child?.destroy?.();child=null;ctx.setTitle?.('');ctx.syncBack?.();return refresh().catch(showError);}
-  return {backDepth:()=>child?1:0,back(){if(!child)return false;if(!busy)void leave();return true;},destroy(){alive=false;child?.destroy?.();}};
+  return {backDepth:()=>child?1:0,back(){if(!child)return false;if(!touring())void leave();return true;},destroy(){alive=false;child?.destroy?.();}};
 }
 export function mountWidget(id,el,ctx){installStyle();if(id==='operations-path')return pathWidget(el,ctx);if(id==='operations-document')return documentWidget(el,ctx);return readyWidget(el,ctx);}

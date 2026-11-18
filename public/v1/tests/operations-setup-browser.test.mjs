@@ -186,6 +186,58 @@ test('the Proposals card opens the document setup for a proposal and ticks when 
   }finally{await browser.close();}
 });
 
+// FM-606: the Equipment card is the Equipment tab itself (one fleet, one tour), with Back at the bottom left as the
+// sheet's other steps have it and no line of copy above the app. Back waits for the tour's overlay to go, not for the
+// tour's server refresh after it; the phone's back (backDepth/back) leaves the same way.
+test('the Equipment card shows the Equipment app with Back at the bottom left, and Back returns to the cards',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await open(browser);
+    await page.evaluate(()=>{
+      Object.assign(selections,{operations_project_id:'p1',operations_document_id:'doc1'});
+      Portal.currentUser.appEntitlements.push({id:'portal.equipment',offered:true});
+      window.mounted=[];window.destroyed=0;window.titles=[];window.synced=0;window.guideCalls=[];
+      FirstMateEmbeddableApps.mount=async(host,id,context)=>{mounted.push({id,surface:context.surface});host.innerHTML='<div style="height:100%"><button data-eq-add-unit>Add unit</button></div>';return {destroy(){destroyed++;}};};
+      // The tour: its overlay is up until endTour(); its runGuide settles later, as the server refresh after it does.
+      const ctx={...widgetContext,setTitle:text=>titles.push(text),syncBack:()=>synced++,
+        runGuide:(id,options)=>{guideCalls.push({id,options});const overlay=document.createElement('div');overlay.className='gx-ov';document.body.append(overlay);
+          return new Promise(resolve=>{window.endTour=()=>{overlay.remove();setTimeout(()=>resolve({status:'dismissed'}),3000);};});}};
+      window.widget=operations.mountWidget('operations-ready',document.getElementById('host'),ctx);
+    });
+    await page.waitForSelector('[data-setup=equipment]');
+    assert.equal(await page.evaluate(()=>widget.back()),false,'on the cards the sheet goes back itself');
+    await page.locator('[data-setup=equipment]').click();
+    await page.waitForSelector('.ops-app [data-eq-add-unit]');
+    assert.deepEqual(await page.evaluate(()=>mounted),[{id:'portal.equipment',surface:'portal_tab'}]);
+    assert.deepEqual(await page.evaluate(()=>activations),['/organizations/org1/app-offers/portal.equipment/start'],'Equipment is started before it opens');
+    assert.deepEqual(await page.evaluate(()=>guideCalls),[{id:'equipment.tab_tutorial',options:{keepVisible:true}}],'the Equipment tab\'s own tour');
+    const layout=await page.evaluate(()=>{const host=document.getElementById('host'),back=host.querySelector('[data-return]'),app=host.querySelector('.ops-app');const b=back.getBoundingClientRect(),a=app.getBoundingClientRect(),h=host.getBoundingClientRect();
+      return {text:host.innerText.replace(/\s+/g,' ').trim(),backBelowApp:b.top>=a.bottom,backLeft:Math.round(b.left-a.left),backBottomGap:Math.round(h.bottom-16-b.bottom),aboveApp:[...app.parentElement.children].indexOf(app)};});
+    assert.equal(layout.text,'Add unit Back','only the app and Back: no line of copy above the app');
+    assert.equal(layout.aboveApp,0,'nothing above the app');
+    assert.ok(layout.backBelowApp&&layout.backLeft===0&&layout.backBottomGap<=1,`Back at the bottom left: ${JSON.stringify(layout)}`);
+    assert.deepEqual(await page.evaluate(()=>[titles.at(-1),widget.backDepth()]),['Equipment',1]);
+    assert.ok(await page.evaluate(()=>synced)>0,'the phone\'s back learns the extra page');
+    // Under the tour, neither Back leaves.
+    await page.locator('[data-return]').click({force:true});
+    assert.equal(await page.evaluate(()=>widget.back()),true);
+    assert.equal(await page.locator('.ops-app').count(),1);
+    // Equipment added in the app (anywhere: the status reads the fleet) ticks the card on the way back.
+    await page.evaluate(()=>{setupState.setup.equipment.complete=true;endTour();});
+    await page.locator('[data-return]').click();
+    await page.waitForSelector('[data-setup=equipment] .ops-check',{timeout:2000});
+    assert.deepEqual(await page.evaluate(()=>[destroyed,widget.backDepth(),titles.at(-1)]),[1,0,'']);
+    // The phone's back leaves the same way.
+    await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,3100)));
+    await page.locator('[data-setup=equipment]').click();
+    await page.waitForSelector('.ops-app [data-eq-add-unit]');
+    await page.evaluate(()=>endTour());
+    assert.equal(await page.evaluate(()=>widget.back()),true);
+    await page.waitForSelector('[data-setup=equipment] .ops-check');
+    assert.equal(await page.evaluate(()=>widget.backDepth()),0);
+  }finally{await browser.close();}
+});
+
 test('a nested setup opened with an answer starts after its question and Back stops there',async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try{
