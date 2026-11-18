@@ -51,6 +51,9 @@ test('My Contacts on a phone: no doubled title, one control row, tappable rows, 
   assert.deepEqual(await page.locator('#ctViewTiles,#ctViewList,[data-ct-open-import],[data-ct-manage]>summary').evaluateAll(e=>e.map(b=>b.getAttribute('aria-label'))),['Tiles','List','Import contacts','Manage view'],'icon-only controls keep their names');
   const avery=page.locator('.ct-table-row').filter({hasText:'Avery Morgan'});
   assert.equal(await avery.locator('.ct-quick[href^="tel:"]').getAttribute('href'),'tel:5552013344');
+  // FM-546: the call button opens the FirstMate phone (calling-runtime.js); tel: is only its fallback.
+  assert.equal(await avery.locator('.ct-quick[href^="tel:"]').getAttribute('data-customer-name'),'Avery Morgan');
+  assert.ok(await avery.locator('.ct-quick[href^="tel:"]').getAttribute('data-fm-customer-call'),'the call button routes through the FirstMate phone');
   assert.equal(await avery.locator('.ct-quick[href^="mailto:"]').count(),1);
   assert.match(await avery.locator('.ct-row-meta').textContent(),/4 projects/);
   assert.equal(await avery.locator('.ct-list-count').isVisible(),false);

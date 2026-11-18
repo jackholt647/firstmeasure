@@ -713,7 +713,7 @@
       const chips = [
         row.address ? `<a class="crew-strip-chip" href="https://maps.google.com/?q=${String(encodeURIComponent(row.address))}" target="_blank" rel="noopener"><i class="fas fa-location-dot"></i><div class="crew-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("crew","m_53d803cdbe9ab1","Address") ?? "Address")}</span><strong>${String(esc(row.address))}</strong></div></a>` : '',
         customer ? `<div class="crew-strip-chip"><i class="fas fa-user"></i><div class="crew-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("crew","m_ae8e4953e07d70","Customer") ?? "Customer")}</span><strong>${String(esc(customer))}</strong></div></div>` : '',
-        phone ? `<a class="crew-strip-chip" href="tel:${String(esc(phone.replace(/[^0-9+]/g,'')))}"><i class="fas fa-phone"></i><div class="crew-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("crew","m_ed04c65845180f","Phone") ?? "Phone")}</span><strong>${String(esc(phone))}</strong></div></a>` : ''
+        phone ? `<a class="crew-strip-chip" href="tel:${String(esc(phone.replace(/[^0-9+]/g,'')))}" data-fm-customer-call="${String(esc(phone))}" data-project-id="${String(esc(projectId(context)))}" data-customer-name="${String(esc(customer))}"><i class="fas fa-phone"></i><div class="crew-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("crew","m_ed04c65845180f","Phone") ?? "Phone")}</span><strong>${String(esc(phone))}</strong></div></a>` : ''
       ].filter(Boolean).join('');
       const openTodos = todos.filter((todo) => clean(todo.status) !== 'completed');
       const doneTodos = todos.filter((todo) => clean(todo.status) === 'completed');

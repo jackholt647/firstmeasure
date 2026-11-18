@@ -646,7 +646,7 @@
     $('#fmContactBackContact',overlay)?.addEventListener('click',()=>{const back=state.returnToContact;if(back)void open(back.contact,{projects:back.projects,projectsComplete:true});});
     $('#fmContactCall', overlay)?.addEventListener('click',async()=>{
       const phone=window.Portal?.CustomerPhone,button=$('#fmContactCall');if(!state.contact?.phone)return;
-      button.disabled=true;try{if(phone)await phone.open({contact_id:firstText(state.contact.id,state.contact.contact_id),customer_name:state.contact.name,customer_number:state.contact.phone});else window.location.href='tel:'+state.contact.phone.replace(/[^+0-9*#,;]/g,'');}
+      button.disabled=true;try{if(phone?.call)await phone.call({contact_id:firstText(state.contact.id,state.contact.contact_id),customer_name:state.contact.name,customer_number:state.contact.phone});else window.location.href='tel:'+state.contact.phone.replace(/[^+0-9*#,;]/g,'');}
       catch(error){window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("contacts","m_8d4eaa0da004be","Call") ?? "Call"),error.message,false);}finally{button.disabled=false;}
     });
     $('#fmContactText',overlay)?.addEventListener('click',()=>{const number=cleanText(state.contact.phone).replace(/[^+0-9*#,;]/g,'');if(number)window.location.href='sms:'+number;});
