@@ -6,7 +6,8 @@ import path from "node:path";
 import vm from "node:vm";
 
 // Outside the US and Canada (2026-10-21): €25 residential and €40 per commercial or multifamily
-// structure, VAT included; €5 gutters; US rush tiers in euros on a European clock. All configurable.
+// structure, VAT included; €5 gutters; US rush tiers in euros on a European clock. Full Exterior (FM-593):
+// €60 per structure, +€10 under 6 hours, +€25 under 3 hours. All configurable.
 let app:any,profile:typeof import("../commerce/profile.js");
 before(async()=>{
   const root=await mkdtemp(path.join(os.tmpdir(),"europe-pricing-"));
@@ -86,17 +87,24 @@ test("Europe expedite uses the US rush tiers in euros on a European clock",async
 test("operators configure Europe prices and the default expedite time zone; customers see the change",async()=>{
   const fr=await account("FR"),endpoint="/v1/firstmeasure/admin/prices/commercial";
   assert.equal((await fr.raw("GET",endpoint)).statusCode,403);
-  const internal=await import("../internal/storage.js");
-  await internal.saveInternalUser({email:"fr-pricing@europe.example.test",name:"Pricing operator",role:"admin",status:"active",permissions:{}});
-  const policy=await fr.request("GET",endpoint);
-  assert.deepEqual(policy.config.international_prices,{residential:25,per_structure:40,gutters:5,vat_included:true,expedite_time_zone:"Europe/London"});
-  assert.equal((await fr.raw("PUT",endpoint,{revision:policy.revision,config:{...policy.config,international_prices:{...policy.config.international_prices,expedite_time_zone:"Mars/Base"}}})).statusCode,400);
-  const saved=await fr.request("PUT",endpoint,{revision:policy.revision,config:{...policy.config,international_prices:{...policy.config.international_prices,residential:29,per_structure:45,gutters:6,vat_included:false}}});
+  // Operators are staff, identified by their internal user record in the staff organization.
+  const {headers}=await(await import("./helpers/security-fixture.js")).staffFixture({email:"pricing-operator@europe.example.test",name:"Pricing operator",role:"admin",status:"active",permissions:{}});
+  const staff={async raw(method:string,url:string,payload?:any){return app.inject({method,url,payload,headers});},async request(method:string,url:string,payload?:any){const result=await this.raw(method,url,payload);assert.ok(result.statusCode<400,result.body);return result.json();}};
+  const policy=await staff.request("GET",endpoint);
+  assert.deepEqual(policy.config.international_prices,{residential:25,per_structure:40,gutters:5,exteriors_base:60,exteriors_same_day_fee:10,exteriors_priority_fee:25,vat_included:true,expedite_time_zone:"Europe/London"});
+  assert.equal((await staff.raw("PUT",endpoint,{revision:policy.revision,config:{...policy.config,international_prices:{...policy.config.international_prices,expedite_time_zone:"Mars/Base"}}})).statusCode,400);
+  const saved=await staff.request("PUT",endpoint,{revision:policy.revision,config:{...policy.config,international_prices:{...policy.config.international_prices,residential:29,per_structure:45,gutters:6,vat_included:false}}});
   const view=await fr.request("GET",`/v1/platform/organizations/${fr.org}/commerce`);
   assert.equal(view.report_prices.residential,29);assert.equal(view.report_prices.commercial,45);assert.equal(view.report_prices.multifamily,45);assert.equal(view.report_prices.gutters,6);assert.equal(view.vat_included,false);
-  await fr.request("PUT",endpoint,{revision:saved.revision,config:{...saved.config,international_prices:policy.config.international_prices}});
+  // Full Exterior has its own entries in the list (FM-593).
+  const exterior=await staff.request("PUT",endpoint,{revision:saved.revision,config:{...saved.config,international_prices:{...saved.config.international_prices,exteriors_base:70,exteriors_same_day_fee:12,exteriors_priority_fee:30}}});
+  const {exteriorQuote}=await import("../firstmeasure/exteriors.js");
+  assert.deepEqual(profile.commerceContext.run({profile:profile.profileForCountry("FR"),policy:exterior.config,revision:exterior.revision},()=>exteriorQuote().options.map(o=>o.amount)),[70,82,100]);
+  await staff.request("PUT",endpoint,{revision:exterior.revision,config:{...exterior.config,international_prices:policy.config.international_prices}});
   // A saved policy from before this change (with the retired expedite switch) still loads.
   assert.equal(profile.commercialPolicySchema.parse({international_expedite_enabled:false,multipliers:{domestic:1,international:2},currencies:{USD:{minor_digits:2,report_multiplier:1},EUR:{minor_digits:2,report_multiplier:1}}}).international_prices.per_structure,40);
+  // ...and a list saved before Full Exterior had entries gets the default Full Exterior prices.
+  assert.deepEqual(profile.commercialPolicySchema.parse({international_prices:{residential:25,per_structure:40,gutters:5,vat_included:true,expedite_time_zone:"Europe/London"},multipliers:{domestic:1,international:2},currencies:{USD:{minor_digits:2,report_multiplier:1},EUR:{minor_digits:2,report_multiplier:1}}}).international_prices,profile.DEFAULT_INTERNATIONAL_PRICES);
 });
 
 test("Stripe credit checkout for a EUR account is in euros and states VAT included",async()=>{
