@@ -4838,7 +4838,7 @@
   }
   function setupBadge(type,name){
     const label=`Set up ${name}`;
-    return `<button type="button" class="mt-setup-badge" data-mt-open-setup="${escapeHtml(type)}" data-fm-tooltip="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"${state.openingSetup?' disabled':''}>${globalThis.PlatformLanguage?.htmlText?.("materials","m_b06faf127e1505","Setup") ?? "Setup"}</button>`;
+    return `<button type="button" class="mt-setup-badge" data-mt-open-setup="${escapeHtml(type)}" data-fm-tooltip="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"${state.openingSetup?' disabled':''}>${state.openingSetup===type?'<i class="fas fa-rotate mt-spin" aria-hidden="true"></i> ':''}${globalThis.PlatformLanguage?.htmlText?.("materials","m_b06faf127e1505","Setup") ?? "Setup"}</button>`;
   }
   // The header's tags: a minimized column's tag gets the Setup badge beside its name; a kind with no column of its own
   // showing (labor before its setup, equipment inside the work order) gets a tag of its own that opens the setup.
@@ -4859,7 +4859,8 @@
     const entry=RESOURCE_SETUPS[type],guides=window.FirstMateGuides||rootWindow.FirstMateGuides;
     if(!entry||state.openingSetup)return;
     const operation=captureProjectOperation(),org=orgId();
-    state.openingSetup=type;syncResourceHeader();
+    // Starting a setup can take a few seconds (the workforce one turns apps on first): its badges spin meanwhile.
+    state.openingSetup=type;syncMaterialsGrid();
     let outcome=null;
     try{
       if(typeof guides?.play!=='function')throw new Error('guides_unavailable');
@@ -4873,9 +4874,9 @@
       outcome=await guides.play(entry.guide,{replay:true,force:true});
     }catch(error){outcome={status:'failed',error};}
     finally{state.openingSetup='';}
+    if(state.mounted)syncMaterialsGrid();
     if(!state.mounted||!projectOperationIsCurrent(operation))return;
     if(['unavailable','failed'].includes(outcome?.status))showToast('This setup could not be opened',outcome.error?.message&&outcome.error.message!=='guides_unavailable'?outcome.error.message:'Set it up from Operations setup, or ask an administrator.',false);
-    syncResourceHeader();
     loadSetupStatus(true);
     // A finished workforce setup turns the work order column on.
     if(type==='labor'&&outcome?.status==='completed')loadData();
