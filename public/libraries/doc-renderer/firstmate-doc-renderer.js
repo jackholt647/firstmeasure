@@ -1710,7 +1710,11 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
     const nodeProps = (node && node.props) || {};
     const requiredCapability = widgetCapability(ref.id);
     const disabledByCapability = requiredCapability && rctx.capabilities && rctx.capabilities[requiredCapability] === false;
-    if (nodeProps.disabled === true || disabledByCapability) {
+    // An organization with payments off still sends what is owed (FM-608): its payment schedule and amount due draw as
+    // they do on paper, without a way to pay and without a word that payments are off. That never reaches a PDF, a
+    // customer or the editor's canvas.
+    const paymentsOff = requiredCapability === "documents.payments" && (nodeProps.disabled === true || disabledByCapability);
+    if (!paymentsOff && (nodeProps.disabled === true || disabledByCapability)) {
       elm.classList.add("fmdoc-capability-disabled");
       elm.setAttribute("aria-disabled", "true");
       const label = requiredCapability === "documents.esign" ? "E-signature" : "Payments";
@@ -1732,6 +1736,7 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
         ? (rctx.definitionResolver(ref.id, ref.version) || def)
         : def,
       scope: rctx.scope,
+      paymentsOff,
       themeVars: rctx.themeVars,
       skin: ((rctx.theme && rctx.theme.widget_skins) || {})[ref.id] || {},
       submitOutput: rctx.mode === "interactive" ? rctx.submitOutput : function () {},
@@ -1750,7 +1755,7 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
     };
     let result;
     try {
-      result = rctx.mode === "static" ? def.renderStatic(elm, ctx) : (def.renderInteractive || def.renderStatic)(elm, ctx);
+      result = rctx.mode === "static" || paymentsOff ? def.renderStatic(elm, ctx) : (def.renderInteractive || def.renderStatic)(elm, ctx);
     } catch (error) {
       unknownWidgetPlaceholder(elm, ref.id + " (render failed)");
       return;

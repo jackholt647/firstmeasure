@@ -1394,7 +1394,8 @@
       const paidBox = payNowPaidBox(ctx);
       if (paidBox) { el.appendChild(paidBox); return; }
       const box = payNowSummary(ctx);
-      const portalUrl = cleanText((ctx.api || {}).portalUrl || (ctx.data && (ctx.data.portal_url || ctx.data.url)));
+      // With payments off there is nowhere to pay online: the amount due only (FM-608).
+      const portalUrl = ctx.paymentsOff ? "" : cleanText((ctx.api || {}).portalUrl || (ctx.data && (ctx.data.portal_url || ctx.data.url)));
       if (portalUrl) {
         const svgMarkup = QR.svg(portalUrl, { color: "#111111" });
         if (svgMarkup) {

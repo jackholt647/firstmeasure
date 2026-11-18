@@ -88,6 +88,11 @@
     .gxs-module-loading{display:grid;place-items:center;min-height:160px;color:var(--primary,#d93025)}
     .gxs-module-error{margin:24px 0;color:#b42318}
     .gxs-foot{display:flex;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid #f2f4f7;background:#fff}
+    /* A step that marks itself data-float-foot (the document setup's styles, FM-608) has Back and Continue float over its
+       bottom edge, with no bar or divider, so it gets the full height; it keeps that corner clear itself. */
+    .gxs.gxs-float-foot .gxs-widget{position:relative}
+    .gxs.gxs-float-foot .gxs-foot{position:absolute;left:0;right:0;bottom:0;z-index:6;border-top:0;background:transparent;pointer-events:none}
+    .gxs.gxs-float-foot .gxs-foot>*{pointer-events:auto}
     .gxs-foot .gxs-status{margin-right:auto;color:#667085;font-size:12.5px;min-height:18px}
     .gxs-foot .gxs-status.err{color:#b42318}
     .gxs-btn{height:40px;padding:0 16px;border-radius:11px;border:1px solid #d0d5dd;background:#fff;color:#344054;font:inherit;font-weight:650;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:transform .12s,background .15s,opacity .2s}
@@ -271,11 +276,13 @@
         fitFrame = 0;
         const pane = currentPane;
         if (closed || !pane?.isConnected) return;
+        const floating = pane.hasAttribute('data-float-foot');
+        host.classList.toggle('gxs-float-foot', floating);
         if (pane.hasAttribute('data-fill')) sheet.style.removeProperty('--gxs-fit');
         else {
           const bottom = pane.style.bottom; pane.style.bottom = 'auto';
           const natural = pane.offsetHeight; pane.style.bottom = bottom;
-          const foot = $('.gxs-foot'), chrome = $('.gxs-head').offsetHeight + (foot.hidden ? 0 : foot.offsetHeight);
+          const foot = $('.gxs-foot'), chrome = $('.gxs-head').offsetHeight + (foot.hidden || floating ? 0 : foot.offsetHeight);
           sheet.style.setProperty('--gxs-fit', `${Math.ceil(natural + chrome + 1)}px`);
         }
         if (!fitted) { fitted = true; host.classList.add('gxs-fit-now'); requestAnimationFrame(() => requestAnimationFrame(() => host.classList.remove('gxs-fit-now'))); }
@@ -286,7 +293,7 @@
       function fitTo(pane){
         fitSize?.disconnect(); fitFill?.disconnect();
         [...pane.children].forEach((child) => fitSize?.observe(child));
-        fitFill?.observe(pane, { attributes: true, attributeFilter: ['data-fill'] });
+        fitFill?.observe(pane, { attributes: true, attributeFilter: ['data-fill', 'data-float-foot'] });
         fit();
       }
       const previousFocus = document.activeElement;
@@ -688,9 +695,10 @@
         else confirmSkip();
       }
       // Escape never reaches the page (the project window closes on it). A step that has something of its own open
-      // (a dropdown) closes that first: its `escape()` returns true.
+      // (a dropdown, a full-screen preview) closes that first: its `escape()` returns true. On the window, ahead of the
+      // portal's modal stack, which listens on the document and closed the project window first (FM-608).
       const onKey = (event) => { if (event.key === 'Escape' && !closed) { event.preventDefault(); event.stopPropagation(); if (!doneWaiter && !host.querySelector('.gxs-ask') && mounted?.escape?.() === true) return; if (doneWaiter && bookPane) showPricebook(false); else if (doneWaiter) { const go = doneWaiter; doneWaiter = null; go(); } else if (host.querySelector('.gxs-ask')) keepGoing(); else confirmSkip(); } };
-      document.addEventListener('keydown', onKey, true);
+      root.addEventListener('keydown', onKey, true);
 
       /** Closes the sheet. `handoff` flies the conversation to the project's agent tray, which opens with it. */
       async function close(mode){
@@ -698,7 +706,7 @@
         // The sheet's history entries come off first, so whatever opens next adds its own after the page's.
         const unwound = backHistory?.release() || Promise.resolve();
         fitSize?.disconnect(); fitFill?.disconnect();
-        document.removeEventListener('keydown', onKey, true);
+        root.removeEventListener('keydown', onKey, true);
         mounted?.destroy?.();
         if (mode === 'handoff') await flyToTray();
         else if (!reduced()) { host.classList.add('gxs-leaving'); await wait(320); }
