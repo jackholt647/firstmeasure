@@ -13,9 +13,20 @@ export const appointmentConfigurationSchema=z.object({
   requirements:z.array(staffingSchema).max(12).default([]),
   // What the customer is texted (FM-515, set by the appointment setup): before it starts, and when someone is on the way. Absent is the old behaviour (no reminder; the on-my-way step texts).
   customer_texts:z.object({reminder:z.boolean().default(false),on_my_way:z.boolean().default(true)}).strict().optional(),
+  // Whether a booking of this type must name a project (FM-557): No project and a bare address are not offered. Absent: requiresProject decides.
+  requires_project:z.boolean().optional(),
   recurrence:z.object({frequency:z.enum(['daily','weekly','monthly','quarterly','yearly']),interval:z.number().int().min(1).max(52).default(1),occurrence_count:z.number().int().min(2).max(52).default(8)}).strict().nullable().default(null)
 }).strict().refine(v=>v.timing_mode==='days'||v.window_minutes>=v.duration_minutes,{message:'Arrival window must be at least the appointment duration.',path:['window_minutes']});
 export type AppointmentConfiguration=z.infer<typeof appointmentConfigurationSchema>;
+const PROJECT_EVENT_TYPES=new Set(['sales_appointment','sales_follow_up','project_work']);
+/** A type that says whether it needs a project is taken at its word. One saved before it could say (FM-557): sales and
+ *  production work does (it counts as sales or project work, or belongs to the sales or production department); a
+ *  meeting at the company office does not. */
+export function requiresProject(config:Pick<AppointmentConfiguration,'requires_project'|'department_ids'|'event_type_id'|'location'>){
+  if(typeof config.requires_project==='boolean')return config.requires_project;
+  if(config.location?.mode==='company_office')return false;
+  return PROJECT_EVENT_TYPES.has(config.event_type_id||'')||(config.department_ids||[]).some(id=>id==='sales'||id==='production');
+}
 
 // Departments are the organization's (docs/architecture/branches.md). A copy saved with the older category and unit fields reads without them.
 const catalogDepartmentSchema=z.preprocess(value=>{if(!value||typeof value!=='object'||Array.isArray(value))return value;const {group_id:_group,division_id:_division,...rest}=value as Record<string,unknown>;return rest;},departmentSchema);

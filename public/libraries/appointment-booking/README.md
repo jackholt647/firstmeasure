@@ -31,7 +31,18 @@ top right of any step; it never saves a type. New type is its own full-height
 **New appointment type** sheet (`configuration.js` `typeMode`): a type name and
 the type's settings, never an appointment name. **Save type** adds it to the
 catalog for everyone, then the booking continues with that type chosen; Cancel
-leaves the appointment as it was. Help marks (`?`) are buttons beside a label,
+leaves the appointment as it was. Each type says whether it **needs a project**
+(`requires_project`, a switch in Settings and in the New appointment type sheet;
+sales and production types do by default, and a type saved before the switch
+existed is read that way when it belongs to the sales or production department
+or counts as sales or project work, unless it meets at the company office). For
+such a type the Project step offers neither No project nor a bare address, and
+the server refuses to book it without a project (`appointment_project_required`).
+The New project step's address uses Google's own address suggestions (the
+portal's Places library; the list is moved into the dialog), and its name and
+phone share a row with email under them, as in the project's details tray. With
+New project showing, the footer keeps Previous on the left and New project with a
+narrow Next on the right. Help marks (`?`) are buttons beside a label,
 never inside it, and open their bubble on tap (hover too, with a mouse). Wider screens keep the one-page form. Pass `steps:true|false`
 to force either layout. Staff
 can choose a project or lead with the shared searchable selector, or book without

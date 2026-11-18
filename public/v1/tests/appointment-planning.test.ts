@@ -42,3 +42,14 @@ test('a branch catalog keeps only its own departments: stored presets drop other
   assert.deepEqual(otherBranchDepartmentIds(stored,org,'east'),['west-sales']);
   assert.deepEqual(otherBranchDepartmentIds({...stored,presets:presetsForBranch(stored.presets,org,'east')},org,'east'),[]);
 });
+test('a type that never said whether it needs a project: sales and production work does, an office meeting does not (FM-557)',async()=>{
+  const {requiresProject}=await import('../appointments/planning.js');
+  const parse=(value:unknown)=>appointmentConfigurationSchema.parse(value);
+  assert.equal(requiresProject(parse({department_ids:['sales']})),true);
+  assert.equal(requiresProject(parse({department_ids:['production']})),true);
+  assert.equal(requiresProject(parse({event_type_id:'project_work'})),true);
+  assert.equal(requiresProject(parse({department_ids:['sales'],location:{mode:'company_office'}})),false);
+  assert.equal(requiresProject(parse({department_ids:['consulting']})),false);
+  assert.equal(requiresProject(parse({department_ids:['sales'],requires_project:false})),false,'a type that says is taken at its word');
+  assert.equal(requiresProject(parse({requires_project:true})),true);
+});

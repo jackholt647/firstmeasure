@@ -247,6 +247,37 @@ test('an organization without a time zone books in the device zone and keeps it'
   const elsewhere=await client.request('POST',base+'/preview',{date,configuration,timezone:'Asia/Tokyo'});assert.equal(elsewhere.timezone,zone,'the organization\'s zone wins over a device\'s');
 });
 
+// FM-557: an appointment type says whether it needs a project; sales and production types do by default, and the
+// server refuses to book one without a project whatever the booking's copy of the type says.
+test('a type that needs a project is never booked without one',async()=>{
+  const client=createSessionClient();const {orgId}=await registerOwner(client);
+  const storage=await import('../platform/storage.js');
+  const {saveCapabilityValues}=await import('../platform/capabilities.js');
+  await saveCapabilityValues(orgId,{'platform.scheduling':true,'scheduling.appointment_slots':true});
+  await storage.saveBranchModule(orgId,'default','scheduling',{data:{self_service:{default_policy:{min_notice_minutes:0}}}},{replace:true});
+  await createProject(orgId,'needs_project','Needs project',{email:'',phone:''});
+  const base=`/v1/appointments/organizations/${orgId}`;
+  const catalog=await client.request('GET',base+'/catalog');
+  assert.deepEqual(catalog.catalog.presets.map((p:any)=>[p.id,p.configuration.requires_project]),[['sales',true],['production',true]]);
+  const sales=catalog.catalog.presets.find((p:any)=>p.id==='sales');
+  const configuration={...sales.configuration,preset_id:'sales',requires_project:false,department_ids:[],requirements:[]};
+  const date=new Date(Date.now()+120*3600000).toISOString().slice(0,10);
+  const slot=(await client.request('POST',base+'/preview',{date,configuration})).slots.find((s:any)=>s.available);assert.ok(slot,'a preview needs no project');
+  const refused=await client.raw('POST',base+'/book',{event_id:'appointment_needsproject012345678',start_at:slot.start_at,configuration});
+  assert.equal(refused.statusCode,400);assert.match(refused.body,/appointment_project_required/);
+  const custom={title:'Custom',requires_project:true,department_ids:[],requirements:[]};
+  assert.equal((await client.raw('POST',base+'/book',{event_id:'appointment_customproject01234567',start_at:slot.start_at,configuration:custom})).statusCode,400);
+  const linked=await client.request('POST',base+'/book',{project_id:'needs_project',event_id:'appointment_withproject0123456789',start_at:slot.start_at,configuration});
+  assert.equal(linked.event.start_at,slot.start_at);
+  // Turning it off in Settings lets the type be booked with no project.
+  sales.configuration.requires_project=false;
+  await client.request('PUT',base+'/catalog',{catalog:catalog.catalog,revision:catalog.revision});
+  const after=await client.request('GET',base+'/catalog');assert.equal(after.catalog.presets.find((p:any)=>p.id==='sales').configuration.requires_project,false);
+  const free=(await client.request('POST',base+'/preview',{date,configuration})).slots.find((s:any)=>s.available&&s.start_at!==slot.start_at);assert.ok(free);
+  const standalone=await client.request('POST',base+'/book',{event_id:'appointment_noproject01234567890',start_at:free.start_at,configuration});
+  assert.equal(standalone.event.project_id,undefined);
+});
+
 test('Instant Full presets use day installations, quarterly maintenance and office meetings; days check every date',async()=>{
   const client=createSessionClient();const {orgId}=await registerOwner(client);
   const storage=await import('../platform/storage.js');

@@ -17,6 +17,69 @@
     const row = (label, ...values) => (values = values.map(clean).filter(Boolean)).length ? `<div><dt>${esc(label)}</dt><dd>${values.map(value => `<span>${esc(value)}</span>`).join('')}</dd></div>` : '';
     return `${title && title !== clean(where) && title !== type ? `<p class="fm-booking-created-title">${esc(title)}</p>` : ''}<dl class="fm-booking-created-details">${row(STEP_LABELS.type, type)}${row(STEP_LABELS.project, where)}${row(STEP_LABELS.when, day, configuration.value.timing_mode === 'days' ? '' : slot?.label)}</dl>`;
   }
+  /* The New project step's fields. Name and phone share a row with email under them, as in the project's details tray (FM-557). */
+  const newField = (key, label, type, placeholder) => `<label class="fm-booking-field"><span>${label}</span><input type="${type}" data-new-field="${key}" autocomplete="off"${type === 'tel' ? ' inputmode="tel"' : type === 'email' ? ' inputmode="email" autocapitalize="off" spellcheck="false"' : ''} placeholder="${placeholder}" enterkeyhint="next"></label>`;
+  const addressParts = components => {
+    const out = {street_number:'', route:'', city:'', state:'', state_short:'', zip:'', country:''};
+    for (const item of components || []) {
+      const types = item.types || [];
+      if (types.includes('street_number')) out.street_number = item.long_name;
+      if (types.includes('route')) out.route = item.long_name;
+      if (types.includes('locality')) out.city = item.long_name;
+      if (types.includes('administrative_area_level_1')) { out.state = item.long_name; out.state_short = item.short_name; }
+      if (types.includes('postal_code')) out.zip = item.long_name;
+      if (types.includes('country')) out.country = item.short_name;
+    }
+    return out;
+  };
+  /* Google's own address suggestions on a field inside a modal dialog. The portal page loads Places; Google puts its list
+     (.pac-container) on the page body, under the dialog's top layer, so this field's list moves into the dialog and sits
+     under the field. onPlace gets the chosen place. */
+  function placesAutocomplete(dialog, input, onPlace){
+    let autocomplete = null, list = null, timer = 0, attempts = 0, disposed = false, watcher = null;
+    const place = () => {
+      if (!list) return;
+      const field = input.getBoundingClientRect(), box = dialog.getBoundingClientRect();
+      list.style.setProperty('--fm-pac-top', `${Math.round(field.bottom - box.top - dialog.clientTop + 4)}px`);
+      list.style.setProperty('--fm-pac-left', `${Math.round(field.left - box.left - dialog.clientLeft)}px`);
+      list.style.setProperty('--fm-pac-width', `${Math.round(field.width)}px`);
+    };
+    const adopt = node => { list = node; list.classList.add('fm-booking-places'); dialog.append(list); place(); watcher?.disconnect(); watcher = null; };
+    function start(){
+      if (autocomplete || disposed || !dialog.isConnected) return;
+      const Autocomplete = window.google?.maps?.places?.Autocomplete;
+      if (!Autocomplete) { if (attempts++ < 40) timer = setTimeout(start, 150); return; }
+      const before = new Set(document.querySelectorAll('.pac-container'));
+      autocomplete = new Autocomplete(input, {fields:['formatted_address', 'geometry', 'address_components'], strictBounds:false});
+      autocomplete.addListener('place_changed', () => {
+        const chosen = autocomplete.getPlace() || {};
+        if (!chosen.formatted_address) return;
+        const location = chosen.geometry?.location;
+        input.value = chosen.formatted_address;
+        onPlace({address:chosen.formatted_address, ...(location ? {lat:location.lat(), lng:location.lng()} : {}), address_components:addressParts(chosen.address_components)});
+      });
+      const added = [...document.querySelectorAll('.pac-container')].find(node => !before.has(node));
+      if (added) adopt(added);
+      else {
+        watcher = new MutationObserver(records => { for (const record of records) for (const node of record.addedNodes) if (node.classList?.contains('pac-container') && !before.has(node)) return adopt(node); });
+        watcher.observe(document.body, {childList:true});
+      }
+    }
+    input.addEventListener('focus', start);
+    input.addEventListener('input', place);
+    const follow = () => requestAnimationFrame(place);
+    dialog.addEventListener('scroll', follow, true); window.visualViewport?.addEventListener('resize', follow); window.addEventListener('resize', follow);
+    return {
+      /* The list is showing: Enter picks a suggestion rather than moving on. */
+      get open(){ return !!list && list.style.display !== 'none' && !!list.querySelector('.pac-item'); },
+      destroy(){
+        disposed = true; clearTimeout(timer); watcher?.disconnect();
+        dialog.removeEventListener('scroll', follow, true); window.visualViewport?.removeEventListener('resize', follow); window.removeEventListener('resize', follow);
+        if (autocomplete) window.google?.maps?.event?.clearInstanceListeners?.(autocomplete);
+        list?.remove();
+      }
+    };
+  }
   let loading, active;
   async function ensurePicker(){
     if (window.FirstMateAvailability && window.FirstMateProjectSelector && window.FirstMateAppointmentConfiguration) return;
@@ -121,8 +184,8 @@
 <form class="fm-booking-form" novalidate>
 <div class="fm-booking-stage" data-stage>
 <section class="fm-booking-step" data-step="type" aria-labelledby="fm-booking-step-type"><h3 id="fm-booking-step-type" tabindex="-1">What kind of appointment?</h3><div data-slot-type></div></section>
-${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" aria-labelledby="fm-booking-step-project" hidden><h3 id="fm-booking-step-project" tabindex="-1">Which project?</h3><div data-project></div><div class="fm-booking-choices" data-choices><button type="button" class="fm-booking-choice new" data-new-project><span class="fm-booking-choice-icon" aria-hidden="true"></span><span>New project</span></button><button type="button" class="fm-booking-choice none" data-no-project aria-pressed="false"><span class="fm-booking-choice-icon" aria-hidden="true"></span><span>No project</span></button></div></section>
-<section class="fm-booking-step" data-step="new" aria-labelledby="fm-booking-step-new" hidden><h3 id="fm-booking-step-new" tabindex="-1">New project</h3><p class="fm-booking-hint">All optional. Add what you have, or tap Next to skip.</p><div class="fm-booking-fields">${[['address','Address','text','Street, city'],['name','Customer name','text',''],['phone','Phone','tel',''],['email','Email','email','']].map(([key, label, type, placeholder]) => `<label class="fm-booking-field"><span>${label}</span><input type="${type}" data-new-field="${key}" autocomplete="off"${type === 'tel' ? ' inputmode="tel"' : ''}${placeholder ? ` placeholder="${placeholder}"` : ''} enterkeyhint="next"></label>`).join('')}</div></section>`}
+${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" aria-labelledby="fm-booking-step-project" hidden><h3 id="fm-booking-step-project" tabindex="-1">Which project?</h3><p class="fm-booking-hint" data-needs-project hidden></p><div data-project></div><div class="fm-booking-choices" data-choices><button type="button" class="fm-booking-choice new" data-new-project><span class="fm-booking-choice-icon" aria-hidden="true"></span><span>New project</span></button><button type="button" class="fm-booking-choice none" data-no-project aria-pressed="false"><span class="fm-booking-choice-icon" aria-hidden="true"></span><span>No project</span></button></div></section>
+<section class="fm-booking-step" data-step="new" aria-labelledby="fm-booking-step-new" hidden><h3 id="fm-booking-step-new" tabindex="-1">New project</h3><p class="fm-booking-hint">All optional. Add what you have, or tap Next to skip.</p><div class="fm-booking-fields">${newField('address', 'Address', 'text', 'Start typing an address')}<div class="fm-booking-contact"><span class="fm-booking-caption">Customer</span><div class="fm-booking-contact-row">${newField('name', 'Name', 'text', 'Name')}${newField('phone', 'Phone', 'tel', 'Phone')}</div>${newField('email', 'Email', 'email', 'Email')}</div></div></section>`}
 <section class="fm-booking-step" data-step="when" aria-labelledby="fm-booking-step-when" hidden><h3 id="fm-booking-step-when" tabindex="-1">When?</h3><div class="fm-booking-summary" data-summary></div><div data-slot-quick></div><div class="fm-availability"></div></section>
 <section class="fm-booking-step fm-booking-done" data-step="done" hidden><div class="fm-booking-check" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg></div><h3 tabindex="-1">Event created</h3><div class="fm-booking-created" data-done-summary></div></section>
 </div>
@@ -146,11 +209,20 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
     let openedSheet = null, typeEditor = null, savingType = false;
     /* noProject: No project was chosen on purpose. draft: the project the New project step makes (its id is kept so a retry never makes two). */
     let noProject = false, draft = null, creating = false;
+    /* place: the Google place picked for the new project's address, kept while the field still says it. */
+    let place = null;
     let eventId = `appointment_${crypto.randomUUID()}`;
     const visited = new Set(['type']);
     const newEvent = () => { eventId = `appointment_${crypto.randomUUID()}`; };
     const projectId = () => lockedProject || select?.value || '';
     const chosen = () => !!(projectId() || addressOverride || noProject);
+    /* A type that needs a project (FM-557) offers neither No project nor a bare address. */
+    const needsProject = () => !!configuration?.requiresProject;
+    function dropProjectless(){
+      if (!needsProject()) return;
+      // Only a type change makes one needed, and choosing a type already replaced the address's location with the type's.
+      noProject = false; addressOverride = null;
+    }
     /* The New project step sits inside Project: it has no place of its own in the progress. */
     const rank = name => name === 'done' ? order.length : order.indexOf(name === 'new' ? 'project' : name) + (name === 'new' ? .5 : 0);
 
@@ -168,7 +240,12 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
       next.hidden = done || step === 'when';
       next.disabled = busy || (step === 'project' && !chosen());
       newFooter.hidden = done || step !== 'project'; newFooter.disabled = busy;
-      if (choices) { choices.hidden = !!clean(select?.input?.value); $('[data-no-project]').setAttribute('aria-pressed', String(noProject)); }
+      if (choices) {
+        choices.hidden = !!clean(select?.input?.value);
+        const none = $('[data-no-project]'), required = needsProject(), note = $('[data-needs-project]');
+        none.hidden = required; none.setAttribute('aria-pressed', String(noProject));
+        note.hidden = !required; note.textContent = required ? `${configuration.presetLabel || 'This appointment'} needs a project.` : '';
+      }
       create.hidden = done || step !== 'when';
       create.disabled = !selected || saving;
       finish.hidden = !done;
@@ -321,7 +398,7 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
       configuration.setProject(value); changed();
     }
     function chooseNoProject(){
-      if (!configuration || saving) return;
+      if (!configuration || saving || needsProject()) return;
       if (select?.value) select.setValue(null);
       useProject(''); noProject = true; sync(); go('when');
     }
@@ -329,7 +406,7 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
     function startNewProject(){
       if (saving || creating || !configuration) return;
       draft = {id:`project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`, created:false};
-      newFields.forEach(field => { field.value = ''; });
+      newFields.forEach(field => { field.value = ''; }); place = null;
       const typed = select?.value ? '' : clean(select?.input?.value);
       if (typed) dialog.querySelector(`[data-new-field="${/^\d/.test(typed) ? 'address' : 'name'}"]`).value = typed;
       go('new');
@@ -346,7 +423,8 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
         if (!api.projects?.save) throw new Error('Projects are unavailable in this session.');
         if (!draft.created) {
           const now = new Date().toISOString(), title = name || (address ? '' : 'New Project');
-          const saved = await api.projects.save(orgId, draft.id, {id:draft.id, title, project_title:title, address, project_type:'residential', workflow_state:'draft',
+          const located = place && place.address === address ? {lat:place.lat, lng:place.lng, address_components:place.address_components} : {};
+          const saved = await api.projects.save(orgId, draft.id, {id:draft.id, title, project_title:title, address, ...located, project_type:'residential', workflow_state:'draft',
             has_meaningful_activity:true, last_activity_at:now, measurement:{}, measurement_project:{}, events:[], proposals:[], updated_at:now}, {}, {createOnly:true})
             .catch(error => { if (error?.code === 'project_exists') return {document:{id:draft.id}}; throw error; });
           if (!saved?.document || saved.missing) throw new Error('Could not create the project.');
@@ -375,8 +453,11 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
     next.onclick = goNext;
     dialog.querySelectorAll('[data-new-project]').forEach(button => { button.onclick = startNewProject; });
     $('[data-no-project]')?.addEventListener('click', chooseNoProject);
+    const addressInput = $('[data-new-field="address"]');
+    const places = addressInput ? placesAutocomplete(dialog, addressInput, picked => { place = picked; }) : null;
+    addressInput?.addEventListener('input', () => { if (place && clean(addressInput.value) !== place.address) place = null; });
     newFields.forEach((input, index) => input.addEventListener('keydown', event => {
-      if (event.key !== 'Enter' || event.isComposing) return;
+      if (event.key !== 'Enter' || event.isComposing || (input === addressInput && places?.open)) return;
       event.preventDefault();
       if (newFields[index + 1]) newFields[index + 1].focus(); else goNext();
     }));
@@ -387,13 +468,13 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
     scrim.onclick = () => closeSheet();
     dialog.addEventListener('click', event => { const goto = event.target.closest('[data-goto]'); if (goto && !goto.disabled) go(goto.dataset.goto); });
     dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); else if (openedSheet) { event.preventDefault(); closeSheet(); } });
-    dialog.addEventListener('close', () => { clearTimeout(advanceTimer); clearTimeout(sheetTimer); backHistory?.release(); picker?.destroy(); configuration?.destroy(); typeEditor?.destroy(); select?.destroy(); }, {once:true});
+    dialog.addEventListener('close', () => { clearTimeout(advanceTimer); clearTimeout(sheetTimer); backHistory?.release(); picker?.destroy(); configuration?.destroy(); typeEditor?.destroy(); select?.destroy(); places?.destroy(); }, {once:true});
 
     if (!lockedProject) {
       select = window.FirstMateProjectSelector.mount($('[data-project]'), {orgId, projectId:options.projectId, inline:true, recent:false,
-        extraRows:query => query.length >= 4 && configuration ? [{title:`Use “${query}”`, subtitle:'Just the address — link a project later', onSelect:() => useAddress(query)}] : [],
+        extraRows:query => query.length >= 4 && configuration && !needsProject() ? [{title:`Use “${query}”`, subtitle:'Just the address — link a project later', onSelect:() => useAddress(query)}] : [],
         onChange:useProject,
-        onSelect:value => { noProject = !value; sync(); go('when'); }});
+        onSelect:value => { noProject = !value && !needsProject(); sync(); go('when'); }});
       /* Typing undoes the last choice (No project, or an address), so Next waits for a new one. */
       select.input.addEventListener('input', () => { noProject = false; if (addressOverride && configuration) { configuration.setLocation(addressOverride.before, false); addressOverride = null; changed(); } else sync(); });
       select.ready.then(() => { if (dialog.isConnected) sync(); });
@@ -424,7 +505,7 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
     try {
       configuration = await window.FirstMateAppointmentConfiguration.mount(null, {orgId, projectId:lockedProject || options.projectId,
         slots:{type:$('[data-slot-type]'), quick:$('[data-slot-quick]'), advanced:$('[data-slot-advanced]')},
-        onChange:changed,
+        onChange:() => { dropProjectless(); changed(); },
         onNewType:() => void openTypeSheet(),
         onPreset:id => {
           if (!id) { sheetAdvances = step === 'type'; openSheet(); return; }

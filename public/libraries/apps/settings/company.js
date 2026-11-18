@@ -7719,7 +7719,7 @@
           if (!window.FirstMateAppointmentSettings) {
             await (window.__appointmentSettingsLoading ||= new Promise((resolve, reject) => {
               const script = document.createElement('script');
-              script.src = '/libraries/appointment-booking/settings.js?v=20261118-fm558-type-flow';
+              script.src = '/libraries/appointment-booking/settings.js?v=20261118-fm557-needs-project';
               script.onload = resolve;
               script.onerror = () => reject(new Error('Could not load appointment presets.'));
               document.head.append(script);
