@@ -9,7 +9,7 @@ import { appendAgentMessage, listAgentMessages } from "../agents/storage.js";
 import { chooseVariant, regionForState, sizeTierFor, unitIdFor, type ChooserContext } from "./chooser.js";
 import { EVENT_TYPES, selectionsSchema, type Copy, type ExperienceDefinition, type ExperienceStep, type GuidedEventType } from "./contracts.js";
 import { experience, guidedSource, listExperiences, tabFaqs } from "./registry.js";
-import { listProgress, readProgress, recordEvent, wasExposed, writeProgress, type Progress } from "./store.js";
+import { lastEvent, listProgress, readProgress, recordEvent, wasExposed, writeProgress, type Progress } from "./store.js";
 import { ensureGuidedSources } from "./sources.js";
 import { checkSetupStepGraph, injectedStep, missingSetupSteps, setupStep, setupStepsVersion, type SatisfactionCache } from "./setup-steps.js";
 import { readCompanyProfile } from "../company-profile/profile.js";
@@ -118,6 +118,25 @@ export function nextStep(definition: ExperienceDefinition, variant: ExperienceDe
   return hit?.to || (next.otherwise && order.includes(next.otherwise) ? next.otherwise : sequential);
 }
 
+/**
+ * A skip put off for later (FM-553): a `tab_opened` trigger with `skip: "later"` plays a setup the first time someone
+ * opens a tab; skipping it there records `defer` instead of `dismiss`, so progress stays to do. That trigger is then
+ * used up, and the experience's other triggers (New Appointment's `before_action`) wait while the person is still in
+ * the session they skipped it in, for at most DEFER_QUIET_MS: they have just said "not now". After that the first of
+ * them plays it as usual, and a skip there is an ordinary dismiss.
+ */
+const DEFER_QUIET_MS = 60 * 60 * 1000;
+const sessionTag = (ctx: PlatformAuthContext) => text(ctx.sessionId) ? createHash("sha256").update(`guided-defer:${text(ctx.sessionId)}`).digest("hex").slice(0, 24) : "";
+const defersSkip = (definition: ExperienceDefinition) => definition.triggers.some((trigger) => trigger.kind === "tab_opened" && trigger.skip === "later");
+async function deferral(ctx: PlatformAuthContext, definition: ExperienceDefinition, progress: Progress | null, unit: string) {
+  if (!progress || progress.status !== "started" || !defersSkip(definition)) return null;
+  const last = await lastEvent(ctx.orgId, definition.id, "defer", unit);
+  if (!last) return null;
+  const session = sessionTag(ctx);
+  const quiet = !!session && last.properties.session === session && Date.now() - Date.parse(last.created_at) < DEFER_QUIET_MS;
+  return { quiet };
+}
+
 /** One experience as this person plays it: its variant, steps in the variant's order with their options filled, armed triggers and progress. */
 async function resolve(definition: ExperienceDefinition, ctx: PlatformAuthContext, chooser: ChooserContext, progress: Progress | null, answered: SatisfactionCache = new Map()) {
   const choice = chooseVariant(definition, chooser, progress?.variant_id || undefined);
@@ -153,13 +172,17 @@ async function resolve(definition: ExperienceDefinition, ctx: PlatformAuthContex
   }
   if (!steps.length && definition.requires.length) for (const missing of await missingSetupSteps(ctx, definition.requires, may, seen, answered)) withRequired.push(injectedStep(missing, ""));
   const finished = !!progress && progress.status !== "started";
+  const deferred = await deferral(ctx, definition, progress, unit);
   const armed = definition.triggers.filter((trigger) => {
     if (finished && trigger.kind !== "manual" && (trigger as { once?: boolean }).once !== false) return false;
+    if (deferred && trigger.kind === "tab_opened" && trigger.skip === "later") return false;
+    if (deferred?.quiet && trigger.kind !== "manual") return false;
     const when = (trigger as { when?: unknown }).when;
     return !when || evaluateConditions(when, chooser as unknown as Record<string, unknown>);
   });
   return {
     id: definition.id, version: definition.version, kind: variant.kind || definition.kind, scope: definition.scope, title: definition.title, description: definition.description || null,
+    ...(definition.intro ? { intro: definition.intro } : {}), ...(definition.skip_note ? { skip_note: definition.skip_note } : {}),
     tab: definition.tab || "", replayable: definition.replayable, variant: { id: variant.id, bucket, unit },
     triggers: armed, steps: withRequired,
     completion: { action: definition.completion.action ? { id: definition.completion.action.id, target: definition.completion.action.target, input: definition.completion.action.input || {} } : null, screen: definition.completion.screen, say: definition.completion.say, then: definition.completion.then },
@@ -264,6 +287,13 @@ export async function recordGuidedEvent(ctx: PlatformAuthContext, experienceId: 
     progress = await writeProgress(ctx.orgId, subject, definition.id, { ...base, status: "started" });
   } else if (type === "start" || type === "replay") progress = await writeProgress(ctx.orgId, subject, definition.id, { ...base, status: "started", restart: true, step_id: stepId });
   else if (type === "step_view" || type === "step_done" || type === "step_skip" || type === "back") progress = await writeProgress(ctx.orgId, subject, definition.id, { ...base, step_id: stepId, ...(data ? { data } : {}) });
+  else if (type === "defer") {
+    // A skip where the experience's trigger says "later": it stays to do, and the session it was put off in is kept (deferral).
+    if (!defersSkip(definition)) throw badRequest("guided_defer_unavailable", "This guided experience cannot be put off for later.");
+    progress = await writeProgress(ctx.orgId, subject, definition.id, { ...base, step_id: stepId, ...(data ? { data } : {}) });
+    await recordEvent(ctx.orgId, { ...base, experience_id: definition.id, unit_id: choice.unit, user_id: ctx.userId, type, step_id: stepId, properties: { ...properties, ...(surface.tab ? { tab: surface.tab } : {}), session: sessionTag(ctx) } });
+    return { progress, recorded: true };
+  }
   else if (type === "dismiss") progress = await writeProgress(ctx.orgId, subject, definition.id, { ...base, status: "dismissed", step_id: stepId, userId: ctx.userId, ...(data ? { data } : {}) });
   else if (type === "complete") progress = await writeProgress(ctx.orgId, subject, definition.id, { ...base, status: "completed", step_id: stepId, userId: ctx.userId, ...(data ? { data } : {}) });
   await recordEvent(ctx.orgId, { ...base, experience_id: definition.id, unit_id: choice.unit, user_id: ctx.userId, type, step_id: stepId, properties: { ...properties, ...(surface.tab ? { tab: surface.tab } : {}) } });

@@ -72,6 +72,7 @@
     .gxs[data-kind=agentic] .gxs-titlebar{padding-right:0}
     .gxs-titlebar h2{margin:0!important;padding-right:0!important;flex:1;min-width:0}
     .gxs-title-actions{display:flex;align-items:center;gap:8px;flex:none}
+    .gxs-intro{margin:-4px 0 14px;font-size:14px;line-height:1.45;color:#475467;flex:none}
     .gxs-title-actions:empty{display:none}
     .gxs-next-wrap{display:inline-flex}
     .gxs-step.gxs-below{transform:translateY(48px);opacity:0}
@@ -430,7 +431,9 @@
         el.className = 'gxs-step' + (old && !reduced() ? (direction > 0 ? ' gxs-below' : ' gxs-above') : ''); el.dataset.gxStep = step.id;
         // A compact header: the title, and its explanation in a tooltip. A copy editor edits it in the tooltip, which
         // stays open while it has focus.
-        el.innerHTML = `<div class="gxs-titlebar"><h2>${H(step.title)}${infoHtml(step)}</h2><div class="gxs-title-actions"></div></div><div class="gxs-body"></div>`;
+        // The setup's intro (why it asks) leads its first page, whichever step that is (FM-553).
+        const intro = to === 0 && experience.intro ? `<p class="gxs-intro">${H(experience.intro)}</p>` : '';
+        el.innerHTML = `<div class="gxs-titlebar"><h2>${H(step.title)}${infoHtml(step)}</h2><div class="gxs-title-actions"></div></div>${intro}<div class="gxs-body"></div>`;
         stage.appendChild(el);
         setHeadTitle(H(step.title), infoHtml(step));
         currentPane = el;
@@ -613,9 +616,11 @@
       function confirmSkip(){
         if (busy || closed || host.querySelector('.gxs-ask')) return;
         const ask = document.createElement('div'); ask.className = 'gxs-ask';
+        // What happens after a skip: the trigger's note when a skip there only puts it off (FM-553), else the setup's own.
+        const skipNote = ctx.options?.trigger?.skip_note || experience.skip_note || null;
         ask.innerHTML = `<div class="gxs-ask-scrim" data-gxs="keep"></div><div class="gxs-ask-box" role="alertdialog" aria-modal="true" aria-labelledby="gxs-ask-title" aria-describedby="gxs-ask-text">
           <h3 id="gxs-ask-title">${H('gx_ui_skip_dialog_title', 'Skip setup for now?')}</h3>
-          <p id="gxs-ask-text">${H('gx_ui_skip_dialog_text', 'Materials will use typical products. You can set up your price book any time in Materials settings.')}</p>
+          <p id="gxs-ask-text">${skipNote ? H(skipNote) : H('gx_ui_skip_dialog_text', 'Materials will use typical products. You can set up your price book any time in Materials settings.')}</p>
           <div class="gxs-ask-actions"><button type="button" class="gxs-btn" data-gxs="keep">${H('gx_ui_keep_going', 'Keep going')}</button><button type="button" class="gxs-btn primary" data-gxs="dismiss">${H('gx_ui_skip_setup', 'Skip setup')}</button></div></div>`;
         $('.gxs-sheet').appendChild(ask);
         $('.gxs-widget').inert = true; chat.inert = true;

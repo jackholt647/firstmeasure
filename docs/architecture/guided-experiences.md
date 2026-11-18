@@ -37,11 +37,15 @@ An **experience** (`experienceSchema`):
   (`organization`: done once for the company, such as a setup; `person`: once per
   person, such as a tour), optional `unit` (what the A/B bucket is keyed on;
   defaults to the scope) and `salt`.
-- `title`, `description`, `tab` (the project tab app id it belongs to).
+- `title`, `description`, `tab` (the project or portal tab app id it belongs to).
+- `intro` (a setup's line above its first page, whichever step that is, saying why it asks) and `skip_note` (what its
+  "Skip setup for now?" question says happens next, where the general text, about Materials, does not fit).
 - `eligibility`: `capabilities` (each checked with `can`), `permissions` (each
   required, `a|b` allowed) and `when`, conditions over the chooser context.
 - `triggers`: `before_action` (a selector; the click is held, the experience
-  plays, then the click goes through), `tab_opened` (a project tab app id),
+  plays, then the click goes through), `tab_opened` (a project tab app id, or a
+  portal tab's such as `portal.scheduling`; with `skip: "later"` a skip only puts
+  it off, below, and its `skip_note` says when it is asked again),
   `after_experience`, `app_loaded`, `workflow_opened` (a `document_type`: a document
   workflow opened for that kind of document), `panel_opened` and `panel_closed` (a
   project window `panel` that is not a tab, `project.details` for the details tray,
@@ -68,7 +72,8 @@ An **experience** (`experienceSchema`):
 - `completion`: `action` (a published action run as the person with the
   selections as input, plus fixed `input`), `say`, and `then`: `handoff:
   assistant_tray`, `resume` (let the held click through), `play` (another
-  experience).
+  experience; with `held: false` only when no click was held, `held: true` only
+  after one).
 - `replayable`: whether "show me again" may play it after it finished.
 - `reveal`: onboarding sequencing, never access. `[{ tab, until: 'finished' |
   'completed', when: { "project.<fact>": value } }]`: until this person has
@@ -110,7 +115,21 @@ bound to. A finished row stays finished; only a `replay` restarts it.
 
 `guided_events` is append-only: `exposure` (once per unit), `start`,
 `step_view`, `step_done`, `step_skip`, `back`, `dismiss`, `complete`, `replay`,
-`question` (the person typed to the agent), `faq`. Every event carries the
+`question` (the person typed to the agent), `faq`, `defer` (a skip put off for
+later, below).
+
+**Skipping for later** (FM-553). A setup can be offered before it is needed: the
+appointments setup plays the first time someone opens the Scheduling tab
+(`tab_opened` `portal.scheduling` with `skip: "later"`), not only on New
+Appointment (`before_action`). A skip of what such a trigger started records
+`defer`, not `dismiss`, with a hash of the platform session it was made in, and
+progress stays `started`. Then that trigger is used up, and while the person is
+still in the same platform session and within an hour of the skip, the
+experience's other triggers are not armed either (they have just said "not
+now"); after that the first of them plays it as usual, and a skip there is an
+ordinary `dismiss`. Setup steps answered before the skip stay answered, so it
+asks only what is still unknown. This is the one other place events are read to
+decide behavior (`lastEvent`), besides counting an exposure once. Every event carries the
 experience version, variant, bucket and unit. Administrators read them at
 `GET /v1/guided-experiences/organizations/:org/experiences/:id/events`. The
 browser also sends each event to the existing analytics
@@ -784,9 +803,13 @@ channel's page. Tests: `tests/comms-setup.test.ts`, `tests/comms-setup-browser.t
 ## Appointment setup
 
 `appointments.setup` (modal, organization, replayable; library entry with its copy, FM-515) plays the first time
-someone who manages company settings books an appointment: its trigger is `before_action` on `[data-new-appointment]`
-(Scheduling's Appointment and + buttons, the project Schedule panel), so the click is held, the setup plays and then
-the New appointment dialog opens (`then: resume`) with the types it made. It `requires` the
+someone who manages company settings opens the Scheduling tab (`tab_opened` `portal.scheduling`, `skip: "later"`,
+FM-553); finished there, the Scheduling tour `scheduling.tab_tutorial` follows (`then: play`, `held: false`) and
+points at New Appointment. Skipped there, it is only put off ("Skipping for later" above): it plays again the first
+time they book an appointment, through its `before_action` on `[data-new-appointment]` (Scheduling's Appointment and
++ buttons, the project Schedule panel), unless they skipped it in the same session within the hour. On that click
+the click is held, the setup plays and then the New appointment dialog opens (`then: resume`) with the types it
+made, with no tour over it. Its `intro` tells them why it asks (how they manage their calendar). It `requires` the
 [setup steps](setup-steps.md) `company.type`, `company.services` ("the kinds of projects we do"),
 `company.sales_team`, `company.workforce` and `appointments.kinds`, each asked only while unanswered, so a company
 that answered them in another setup goes straight to its own step. That one step, widget `appointments-setup`
