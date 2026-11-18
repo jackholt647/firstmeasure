@@ -9,7 +9,7 @@ import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
 import "./instructions.js";
-import { storeMediaUpload, readMediaMetadata, readMediaFile, readGlobal } from "../platform/storage.js";
+import { storeMediaUpload, readMediaMetadata, readMediaFile, readGlobal, readOrganization } from "../platform/storage.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { badRequest, conflict, forbidden, notFound, PlatformError } from "../platform/errors.js";
@@ -178,6 +178,20 @@ async function verifyCampaignPolicyUrls(profile: SmsComplianceProfile) {
   for (const page of SMS_POLICY_PAGES) {
     if (isHostedSmsPolicyUrl(profile, campaign[page.field], page.id)) continue;
     await verifyPublicPolicyUrl(campaign[page.field], asObject(profile.brand).website, page.id === "privacy" ? "Privacy policy" : "Terms and conditions");
+  }
+}
+
+/** The company's colour and logo for its hosted policy pages (FM-595), as its documents and website use them. */
+async function smsPolicyBranding(orgId: string) {
+  try {
+    const { organizationBranding, organizationLogoUrl } = await import("../documents/service.js");
+    const branding = await organizationBranding(orgId);
+    const colors = asObject(branding.colors);
+    const organization = await readOrganization(orgId).catch(() => ({}));
+    const logoUrl = await organizationLogoUrl(orgId, branding, asObject(organization), false).catch(() => "");
+    return { accent: cleanText(colors.primary || colors.accent || branding.primary || branding.accent), logoUrl };
+  } catch {
+    return {};
   }
 }
 
@@ -1771,9 +1785,9 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     if (!/^[A-Za-z0-9_-]{1,120}$/.test(orgId) || !/^[A-Za-z0-9_-]{1,120}$/.test(profileId)) throw missing();
     const profile = (await findSmsComplianceProfiles(orgId)).find((candidate) => candidate.id === profileId);
     // FM-584: "contact us" is the company inbox (its domain, else FirstMate Mail), so replies reach Communications.
-    const html = profile ? renderHostedSmsPolicyPage(profile, page, { supportEmail: await orgPublicEmailAddress(orgId).catch(() => "") }) : null;
+    const html = profile ? renderHostedSmsPolicyPage(profile, page, { supportEmail: await orgPublicEmailAddress(orgId).catch(() => ""), ...await smsPolicyBranding(orgId) }) : null;
     if (!html) throw missing();
-    reply.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+    reply.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
       .header("X-Robots-Tag", "noindex").header("Cache-Control", "no-cache");
     return reply.type("text/html; charset=utf-8").send(html);
   });

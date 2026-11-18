@@ -2847,6 +2847,22 @@ test("FirstMate hosts a registration's privacy policy and SMS terms only when it
   assert.match(privacy.body, /<a href="tel:2065550100">\(206\) 555-0100<\/a>/);
   assert.doesNotMatch(privacy.body + terms.body, /<(?:script|link|img)\b|@import|url\(/, "nothing the CSP would block");
 
+  // FM-595: the pages use the company's colour (Company Settings branding) and its logo, not FirstMate's blue.
+  const { saveGlobal } = await import("../platform/storage.js");
+  await saveGlobal(orgId, { data: { branding: { colors: { primary: "#16A34A" }, logo: "https://cdn.ridgeline.test/logo.png" } } });
+  const branded = await app.inject({ method: "GET", url: new URL(hosted.privacy).pathname });
+  assert.equal(branded.statusCode, 200, branded.body);
+  assert.match(branded.body, /:root\{--accent:#[0-9a-f]{6};--accent-soft:#[0-9a-f]{6}\}/);
+  assert.ok(!branded.body.includes("--accent:#1f5f99}"), "not the default blue");
+  assert.match(branded.body, /<img class="logo" src="https:\/\/cdn\.ridgeline\.test\/logo\.png" alt="">/);
+  assert.doesNotMatch(branded.body, /<span class="mark"/, "the logo replaces the initials");
+  assert.match(String(branded.headers["content-security-policy"]), /img-src 'self' https: data:/);
+  const { smsPolicyAccentStyle } = await import("../messaging/policy_pages.js");
+  assert.match(smsPolicyAccentStyle("#16A34A")!, /^:root\{--accent:#(?!16a34a)/, "a light green is darkened until links read on white");
+  assert.match(smsPolicyAccentStyle("#1E3A8A")!, /^:root\{--accent:#1e3a8a;/, "a dark brand colour is used as it is");
+  assert.equal(smsPolicyAccentStyle("javascript:alert(1)"), null);
+  await saveGlobal(orgId, { data: { branding: {} } });
+
   // No phone: the paragraph that needs it is left out, not printed empty.
   const noPhone = await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profile.id}`, {
     brand: { ...brand, phone: "" }, campaign: { policyPages: "firstmate", termsAndConditionsLink: "https://evil.test/terms" }
