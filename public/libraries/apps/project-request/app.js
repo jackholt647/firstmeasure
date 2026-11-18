@@ -2952,7 +2952,7 @@ window.PlatformCommerce.onReady(async function(){
       // re-enable it while an order is in flight (setSubmitBusyLabel shows a spinner).
       if (submit && !submit.querySelector('.r-submit-spinner')) submit.disabled = blocked;
       order.disabled = !orderVisible || blocked || submit.disabled;
-      const label = window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","order_full_exterior","Order Full Exterior") ?? "Order Full Exterior") : (submit?.textContent?.trim() || (globalThis.PlatformLanguage?.text("project-request","order_roof_report","Order Roof Report") ?? "Order Roof Report"));
+      const label = window.Portal.ExteriorOrder?.active() ? (window.Portal.ExteriorOrder.orderLabel?.() || (globalThis.PlatformLanguage?.text("project-request","order_full_exterior","Order Full Exterior") ?? "Order Full Exterior")) : (submit?.textContent?.trim() || (globalThis.PlatformLanguage?.text("project-request","order_roof_report","Order Roof Report") ?? "Order Roof Report"));
       order.textContent = label;
       if(orderSubmissionPending)setSubmitBusyLabel(order,'Ordering…');
     }
