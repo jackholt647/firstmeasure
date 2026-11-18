@@ -1,10 +1,10 @@
 {
   "kind": "guided_experience",
   "id": "checklists.setup",
-  "revision": 5,
-  "sha256": "7431651f607dc6def77f015a11fab4595ebcd71fb3596f251bf0ad442f92ac49",
+  "revision": 6,
+  "sha256": "0046d40bb45300c78099ae6a2816171fc930c4f413339354786e043b418e14db",
   "title": "Set up checklists",
-  "updated_at": "2026-11-18T22:01:27.438Z",
+  "updated_at": "2026-11-18T22:12:47.690Z",
   "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "id": "checklists.setup",
@@ -190,7 +190,7 @@
       {
         "id": "use_cases",
         "widget": "module",
-        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600",
+        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600b",
         "requires": [],
         "title": {
           "key": "gx_cl_uc_title_v2",
@@ -343,7 +343,7 @@
       {
         "id": "edit_crew_safety",
         "widget": "module",
-        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600",
+        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600b",
         "requires": [],
         "title": {
           "key": "gx_cl_edit_safety_title",
@@ -407,7 +407,7 @@
       {
         "id": "edit_work_completion",
         "widget": "module",
-        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600",
+        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600b",
         "requires": [],
         "title": {
           "key": "gx_cl_edit_done_title",
@@ -463,7 +463,7 @@
       {
         "id": "edit_punchlist",
         "widget": "module",
-        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600",
+        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600b",
         "requires": [],
         "title": {
           "key": "gx_cl_edit_punch_title",
@@ -510,7 +510,7 @@
       {
         "id": "review",
         "widget": "module",
-        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600",
+        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600b",
         "requires": [],
         "title": {
           "key": "gx_cl_review_title",
