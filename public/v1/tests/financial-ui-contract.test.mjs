@@ -134,3 +134,16 @@ test('receipt intake exposes gated reimbursement choices and an office settlemen
   assert.match(receipts, /data-reimbursement-action="mark_paid"/);
   assert.match(paymentsApi, /reimbursement-request/);
 });
+
+test('Take a Payment leads to payment setup when the organization cannot take payments (FM-577)', async () => {
+  const money = await readFile(moneyUrl, 'utf8');
+  // Not ready: the form gets setup actions instead of a bare "not set up" notice.
+  assert.match(money, /\.\.\.paymentNotReadyOptions\(config\)/);
+  assert.match(money, /\['online_processing_off', 'no_merchant_account'\]\.includes\(reason\)/);
+  assert.match(money, /notReadyActions: setUp \? \[\{ label: [^\]]*"Set up payments"[^\]]*onClick: startPaymentSetup \}, record\] : \[record\]/);
+  // Setup is the Money app setup in the portal holding the project window, and only for whoever can run it.
+  assert.match(money, /host\.Portal\.appSetup\.run\('platform\.money'\)/);
+  assert.match(money, /hasPerm[^;]*\('manage_company_settings'\)/);
+  // A not-ready answer is asked again on the next open, so finishing setup shows at once.
+  assert.match(money, /modal\.type === 'take_payment' && state\.paymentIntakeConfig\?\.config\?\.ready !== true\) state\.paymentIntakeConfig = null/);
+});

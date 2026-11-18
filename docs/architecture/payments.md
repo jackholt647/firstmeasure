@@ -35,6 +35,17 @@ or bank entry when not ready, the customer portal's `can_pay` and
 not available, and invoice emails only say "to pay" when the organization can
 take the payment.
 
+A staff page can lead to setup instead: one that passes `notReadyActions`
+(and `notReadyTitle`) to the payment form gets only those in place of the
+amount. Money's Take a Payment does, by the readiness reason: not started
+(`online_processing_off`, `no_merchant_account`) offers "Set up payments",
+which runs the Money app setup (`Portal.appSetup.run('platform.money')`) in the
+portal that holds the project window; applied but not on (`not_approved`,
+`processing_disabled`) offers Settings › Payments. Only people with
+`manage_company_settings` get those; everyone can still record a cash or check
+payment from there. Run `tests/payment-intake-not-ready-browser.test.mjs`
+(with `CHROME_PATH`) for changes to the not-ready form.
+
 The in-process simulator (`providers/mock.ts`) stands in for Forward only
 outside production data (`mockProviderAllowed()`); on production data it is
 never selectable, never a default, and its controls refuse.
