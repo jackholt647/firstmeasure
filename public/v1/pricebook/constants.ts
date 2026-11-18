@@ -78,7 +78,11 @@ export const MEASUREMENT_FIELDS = [
   { key: "downspoutLf", label: "Downspouts" },
   { key: "structures", label: "Structures" },
   { key: "chimneysEa", label: "Chimneys" },
-  { key: "skylightsEa", label: "Skylights" }
+  { key: "skylightsEa", label: "Skylights" },
+  { key: "pipeBootsEa", label: "Pipe Boots" },
+  { key: "roofVentsEa", label: "Roof Vents" },
+  { key: "ridgeVentLf", label: "Ridge Vent" },
+  { key: "boxVentsEa", label: "Box Vents" }
 ] as const;
 
 export type PricebookCategory = (typeof PRICEBOOK_CATEGORIES)[number];
