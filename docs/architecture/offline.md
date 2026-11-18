@@ -359,7 +359,8 @@ and `auth_status` are not declared.
   documents, its thumbnails) and repeats it when the connection returns and
   every 15 minutes while a page is open. The ten most recently opened
   projects are pinned automatically (setting `autoPinRecent`): the app calls
-  `pinProject(org, project, { auto: true })` when a project is opened, and
+  `pinProject(org, project, { auto: true })` when a project is opened (once
+  its window has loaded, so the downloads never compete with it), and
   the oldest automatic pins beyond ten are let go. A pin the person made is
   never dropped for them. A read that cannot be fetched during a refresh
   stays pinned from the last time.

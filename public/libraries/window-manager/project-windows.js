@@ -226,7 +226,11 @@
     if (!usable) { candidate.layer.remove(); return null; }
     return candidate;
   }
-  if (ownsProjectWindows && typeof root.PlatformCommerce?.onReady === 'function') root.PlatformCommerce.onReady(() => scheduleSpare(2500));
+  if (ownsProjectWindows && typeof root.PlatformCommerce?.onReady === 'function') {
+    // A link or reload that names a project opens it as soon as the portal has booted: boot its frame alongside.
+    if (new URLSearchParams(root.location.search).get('project')) setTimeout(() => { if (!spare && spareAllowed()) warmSpare(); }, 0);
+    root.PlatformCommerce.onReady(() => scheduleSpare(2500));
+  }
   function open(project, options = {}){
     if (!host() || !root.FirstMateWindows) return null;
     styles();
@@ -234,13 +238,13 @@
     root.FirstMateWindows.ensureStyles?.();
     root.FirstMateWindowShell?.ensureStyles?.();
     const projectId = identity(project);
-    keepOnDevice(projectId);
     if (options.fromRoute && reloadOrderSession?.projectId === projectId && reloadOrderSession.orgId === sessionOrgId()) {
       options = {...options, workflow:'report', orderSession:reloadOrderSession.state};
       reloadOrderSession = null;
     }
     const existing = projectId && [...records.values()].find(record=>record.projectId === projectId);
     if (existing) {
+      keepOnDevice(projectId);
       clearRoutePrecover();
       const shouldFocus = !options.fromRoute || active !== existing;
       if (shouldFocus) { existing.controller?.restore(); existing.controller?.focus(); active=existing; publishRoute(existing); }
@@ -357,8 +361,9 @@
     // A spare that already booted opens the project once this header has painted; one still booting reports
     // ready() like a new frame.
     if(warm?.api)root.requestAnimationFrame(()=>setTimeout(()=>{if(records.get(token)===record)ready(token,warm.child,warm.api);},0));
-    // The next open gets a spare too, booted once this window has loaded.
-    record.ready.catch(()=>{}).then(()=>scheduleSpare(1500));
+    // Once this window has loaded (not while it loads: the downloads would compete with it), the project is kept
+    // on the device and the next open gets a spare too.
+    record.ready.catch(()=>{}).then(()=>{keepOnDevice(record.projectId || projectId);scheduleSpare(1500);});
     return record;
   }
   function accepts(token, child){
