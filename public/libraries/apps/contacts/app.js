@@ -108,11 +108,15 @@
   // The portal shows its mobile top bar (with this tab's title) at this width.
   const MOBILE_QUERY = '(max-width: 820px)';
   const isMobile = () => { try { return !!window.matchMedia?.(MOBILE_QUERY).matches; } catch (error) { return false; } };
+  // On a phone (window-manager's phone width) import and contact settings open as a bottom sheet over the list.
+  const SHEET_QUERY = '(max-width: 760px)';
+  const usesSheet = () => { try { return !!window.FirstMateWindows?.attach && !!window.matchMedia?.(SHEET_QUERY).matches; } catch (error) { return false; } };
   const initialRoute = Portal.navigation?.read?.() || {};
   const state = {
     root: null,
     workspace: ['import','settings'].includes(initialRoute.contactsWorkspace) ? initialRoute.contactsWorkspace : 'list',
     settingsHandle: null,
+    sheet: null,
     projects: [],
     contacts: [],
     view: localStorage.getItem(LS_VIEW_KEY) === 'tiles' ? 'tiles' : 'list',
@@ -501,7 +505,9 @@
     if (!state.root) return;
     if (state.settingsHandle?.destroy) state.settingsHandle.destroy();
     state.settingsHandle = null;
-    if (state.workspace !== 'list') {
+    const inSheet = state.workspace !== 'list' && usesSheet();
+    if (inSheet) openSheet(); else closeSheet();
+    if (state.workspace !== 'list' && !inSheet) {
       const isImport = state.workspace === 'import';
       state.root.innerHTML = `
         <div class="ct-shell">
@@ -512,19 +518,7 @@
           <main class="ct-body ct-workspace-body"><div data-ct-settings-host></div></main>
         </div>`;
       state.root.querySelector('[data-ct-workspace-back]')?.addEventListener('click', closeWorkspace);
-      const host = state.root.querySelector('[data-ct-settings-host]');
-      if (!window.FirstMateContactsSettings?.mount) {
-        host.innerHTML = `<div class="ct-state error"><i class="fas fa-triangle-exclamation"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_015c3ba3975f3f","Contact tools could not be loaded.") ?? "Contact tools could not be loaded.")}</span></div>`;
-        return;
-      }
-      state.settingsHandle = window.FirstMateContactsSettings.mount(host, {
-        orgId:orgId(),
-        showToast,
-        routeScope:'contacts',
-        workspace:state.workspace,
-        initialSubtab:isImport ? 'import' : 'history',
-        instanceId:'contacts-tab'
-      }) || null;
+      state.settingsHandle = mountSettings(state.root.querySelector('[data-ct-settings-host]'));
       return;
     }
     const visibleCount = sortedContacts().length;
@@ -562,6 +556,68 @@
     }
     bindChrome();
     renderResults();
+  }
+
+  function mountSettings(host, tabsHost){
+    if (!window.FirstMateContactsSettings?.mount) {
+      host.innerHTML = `<div class="ct-state error"><i class="fas fa-triangle-exclamation"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_015c3ba3975f3f","Contact tools could not be loaded.") ?? "Contact tools could not be loaded.")}</span></div>`;
+      return null;
+    }
+    return window.FirstMateContactsSettings.mount(host, {
+      orgId:orgId(),
+      showToast,
+      routeScope:'contacts',
+      workspace:state.workspace,
+      initialSubtab:state.workspace === 'import' ? 'import' : 'history',
+      instanceId:'contacts-tab',
+      tabsHost
+    }) || null;
+  }
+
+  // The phone sheet stays mounted across list re-renders (data loads) so an import in progress keeps its file and preview.
+  function openSheet(){
+    if (!state.sheet) {
+      const element = document.createElement('aside');
+      element.className = 'ct-import-sheet';
+      element.hidden = true;
+      element.innerHTML = '<header class="ct-import-sheet-head"><h2 class="ct-import-sheet-title"></h2></header><div class="ct-import-sheet-main"><div class="ct-import-sheet-scroll"><div data-ct-settings-host></div></div><nav class="ct-import-sheet-tabs"></nav></div>';
+      document.body.append(element);
+      const sheet = { element, workspace:'', handle:null };
+      const scroll = element.querySelector('.ct-import-sheet-scroll');
+      element.querySelector('.ct-import-sheet-tabs').addEventListener('click', (event) => { if (event.target.closest('[data-cti-subtab]')) scroll.scrollTop = 0; });
+      sheet.win = window.FirstMateWindows.attach({
+        element,
+        header:element.querySelector('.ct-import-sheet-head'),
+        title:element.querySelector('.ct-import-sheet-title'),
+        body:element.querySelector('.ct-import-sheet-main'),
+        host:document.body,
+        name:'contacts-import',
+        label:(globalThis.PlatformLanguage?.text("contacts","contacts_import_tooltip","Import contacts") ?? "Import contacts"),
+        mode:'fullscreen',
+        mobileSheet:true,
+        titleMenu:false,
+        // Dragged down, the backdrop tapped or Close: put the sheet away now, then leave the route.
+        onClose:() => { sheet.win.setVisible(false); closeWorkspace(); }
+      });
+      state.sheet = sheet;
+      sheet.win.setVisible(true);
+    }
+    const sheet = state.sheet;
+    if (sheet.workspace === state.workspace) return;
+    sheet.handle?.destroy?.();
+    sheet.workspace = state.workspace;
+    sheet.element.querySelector('.ct-import-sheet-title').textContent = state.workspace === 'import'
+      ? (globalThis.PlatformLanguage?.text("contacts","contacts_import_tooltip","Import contacts") ?? "Import contacts")
+      : 'Contact settings';
+    sheet.handle = mountSettings(sheet.element.querySelector('[data-ct-settings-host]'), sheet.element.querySelector('.ct-import-sheet-tabs'));
+  }
+
+  function closeSheet(){
+    const sheet = state.sheet;
+    if (!sheet) return;
+    state.sheet = null;
+    sheet.handle?.destroy?.();
+    sheet.win.destroy();
   }
 
   function bindChrome(){
@@ -844,6 +900,11 @@
       .ct-state{height:100%;min-height:280px;display:grid;place-items:center;align-content:center;gap:10px;color:#667085;font-size:13px;font-weight:900;text-align:center}
       .ct-state i{font-size:22px;color:#98a2b3}
       .ct-state.error{color:#b42318}
+      .ct-import-sheet{background:#fff;color:#17212b}.ct-import-sheet .ct-import-sheet-head{border-bottom:1px solid #eaecf0}
+      .ct-import-sheet .ct-import-sheet-title{margin:0;font-size:16px;font-weight:700;line-height:1.3}
+      .ct-import-sheet .ct-import-sheet-main{display:flex;flex-direction:column;overflow:hidden}
+      .ct-import-sheet-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-top:14px}
+      .ct-import-sheet-tabs{flex:none;background:#fff}.ct-import-sheet-tabs:empty{display:none}
       .ct-workspace-head{flex:0 0 auto;display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid #e5e7eb;background:#fbfcfd}.ct-workspace-head h2{margin:0;font-size:18px;font-weight:1000}.ct-workspace-head p{margin:3px 0 0;color:#667085;font-size:11px;font-weight:800}.ct-back{height:36px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;padding:0 11px;display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:11px;font-weight:950;cursor:pointer}.ct-back:hover{color:var(--primary-readable,var(--primary,#d93025));border-color:rgba(var(--primary-rgb,217,48,37),.3)}.ct-workspace-body{background:#f6f7f9}.ct-workspace-body>[data-ct-settings-host]{width:min(1120px,100%);margin:0 auto}
       @media(max-width:360px){.ct-tools.ct-tools{grid-template-columns:minmax(0,1fr) auto}.ct-select{grid-column:1/-1}}
       @media(max-width:760px){.ct-tools{display:grid;grid-template-columns:minmax(0,1fr) auto auto}.ct-select{width:100%;min-width:0}}
@@ -954,6 +1015,7 @@
       destroy(){
         if (state.settingsHandle?.destroy) state.settingsHandle.destroy();
         state.settingsHandle = null;
+        closeSheet();
         state.root = null;
       }
     };
@@ -1005,11 +1067,15 @@
     }
   }
 
+  try { window.matchMedia?.(SHEET_QUERY).addEventListener?.('change', () => { if (state.root && state.workspace !== 'list') render(); }); } catch (error) {}
   window.Portal?.navigation?.registerSchema?.('contact', { history:'push' });
   window.Portal?.navigation?.registerHandler?.('contacts-workspace', {
     priority:250,
     apply:(route) => {
-      if (route.tab !== 'contacts') return;
+      if (route.tab !== 'contacts') {
+        if (state.sheet) { state.workspace = 'list'; closeSheet(); }
+        return;
+      }
       const next = ['import','settings'].includes(route.contactsWorkspace) ? route.contactsWorkspace : 'list';
       if (next === state.workspace) return;
       state.workspace = next;
