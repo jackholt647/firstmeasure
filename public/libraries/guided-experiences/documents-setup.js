@@ -43,6 +43,14 @@ const css = `
 .gxd-small .gxd-tile small{font-size:11.5px}
 .gxd-small .gxd-tick{width:20px;height:20px;top:9px;right:9px}
 /* clip, not hidden: a box that is a scroll container keeps the wheel (the setup frame contains overscroll) */
+/* A question with two answers: two tall tiles, close to square, centred with room around them (Jack: not flat). */
+.gxd-grid.gxd-pair{grid-template-columns:repeat(2,minmax(0,290px));justify-content:center;gap:22px;padding:18px 0 22px}
+.gxd-pair .gxd-tile{flex-direction:column;align-items:center;justify-content:flex-start;gap:16px;min-height:250px;padding:46px 26px 30px;text-align:center}
+.gxd-pair .gxd-tile>span:not(.gxd-icon):not(.gxd-tick){align-items:center;gap:6px}
+.gxd-pair .gxd-icon{width:64px;height:64px;border-radius:18px;font-size:27px}
+.gxd-pair .gxd-tile strong{font-size:17px}
+.gxd-pair .gxd-tile small{font-size:13px;max-width:220px}
+.gxd-pair .gxd-tick{top:14px;right:14px;width:24px;height:24px}
 .gxd-prices{display:flex;flex-direction:column;border:1px solid #e4e7ec;border-radius:13px;overflow:clip}
 .gxd-price{display:flex;align-items:center;gap:12px;padding:9px 12px;border-top:1px solid #f2f4f7;font-size:13px}
 .gxd-price:first-child{border-top:0}
@@ -77,6 +85,7 @@ const css = `
 /* The phone's row of styles scrolls sideways and passes the vertical wheel on (the setup frame contains overscroll). */
 .gxs .gxd-styles{overscroll-behavior:auto}
 @media(max-width:640px){.gxd-grid,.gxd-grid.gxd-small{grid-template-columns:1fr}.gxd-tile.gxd-feature{min-height:96px;padding:16px 44px 16px 16px}.gxd-feature .gxd-icon{width:46px;height:46px;font-size:20px}.gxd-feature strong{font-size:17px}.gxd-styles{grid-template-columns:repeat(3,82%);overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px}.gxd-style{scroll-snap-align:center}}
+@media(max-width:640px){.gxd-grid.gxd-pair{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:8px 0 12px}.gxd-pair .gxd-tile{min-height:190px;padding:32px 12px 18px;gap:12px}.gxd-pair .gxd-icon{width:52px;height:52px;font-size:22px}.gxd-pair .gxd-tile strong{font-size:15px}.gxd-pair .gxd-tile small{font-size:12px}}
 @media(prefers-reduced-motion:reduce){.gxd *{transition:none!important}}
 `;
 function installStyle(){
@@ -159,7 +168,7 @@ export function mount(el, ctx){
   const others = choices.filter((choice) => choice !== featured);
   el.innerHTML = `<div class="gxd"><div role="radiogroup" aria-label="${esc(ctx.L(ctx.step.title))}" class="gxd-group">${featured
     ? `${tileHtml(featured, true)}<p class="gxd-others">${esc(t('kind_others', 'Or set up another kind of document'))}</p><div class="gxd-grid gxd-small">${others.map((choice) => tileHtml(choice)).join('')}</div>`
-    : `<div class="gxd-grid">${choices.map((choice) => tileHtml(choice)).join('')}</div>`}</div></div>`;
+    : `<div class="gxd-grid${choices.length === 2 ? ' gxd-pair' : ''}">${choices.map((choice) => tileHtml(choice)).join('')}</div>`}</div></div>`;
   const report = () => ctx.change(chosen ? { [key]: valueOf(chosen) } : {}, chosen ? L(chosen.title) : '');
   const onClick = (event) => {
     const tile = event.target.closest('[data-choice]'); if (!tile) return;
