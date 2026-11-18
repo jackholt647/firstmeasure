@@ -2948,7 +2948,8 @@
       "message": "{structures, plural, one {# bygning} other {# bygninger}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Tak, vegger, vinduer, dører og takrenner er inkludert."
+    "report_kind_full_exterior_includes": "Tak, vegger, vinduer, dører og takrenner er inkludert.",
+    "m_bcbdcdfb3c0dff": "Areal inkludert svinn"
   },
   "money": {
     "m_487adb3f2ba511": "Laster inn betalinger...",

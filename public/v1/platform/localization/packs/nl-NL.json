@@ -2948,7 +2948,8 @@
       "message": "{structures, plural, one {# gebouw} other {# gebouwen}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Dak, muren, ramen, deuren en dakgoten inbegrepen."
+    "report_kind_full_exterior_includes": "Dak, muren, ramen, deuren en dakgoten inbegrepen.",
+    "m_bcbdcdfb3c0dff": "Oppervlak inclusief snijverlies"
   },
   "money": {
     "m_487adb3f2ba511": "Financiële gegevens laden...",

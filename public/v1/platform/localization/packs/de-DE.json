@@ -2944,7 +2944,8 @@
       "message": "{structures, plural, one {# Gebäude} other {# Gebäude}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Dach, Wände, Fenster, Türen und Dachrinnen inbegriffen."
+    "report_kind_full_exterior_includes": "Dach, Wände, Fenster, Türen und Dachrinnen inbegriffen.",
+    "m_bcbdcdfb3c0dff": "Fläche einschließlich Verschnitt"
   },
   "money": {
     "m_487adb3f2ba511": "Finanzen werden geladen …",

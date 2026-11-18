@@ -2856,7 +2856,8 @@
       "message": "{structures, plural, one {# edificio} other {# edifici}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Tetto, pareti, finestre, porte e grondaie inclusi."
+    "report_kind_full_exterior_includes": "Tetto, pareti, finestre, porte e grondaie inclusi.",
+    "m_bcbdcdfb3c0dff": "Superficie con sfrido"
   },
   "money": {
     "m_487adb3f2ba511": "Caricamento dei dati finanziari...",

@@ -2828,7 +2828,8 @@
       "message": "{structures, plural, one {# stavba} few {# stavby} many {# stavby} other {# staveb}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Zahrnuje střechu, stěny, okna, dveře a okapy."
+    "report_kind_full_exterior_includes": "Zahrnuje střechu, stěny, okna, dveře a okapy.",
+    "m_bcbdcdfb3c0dff": "Plocha včetně rezervy"
   },
   "money": {
     "m_487adb3f2ba511": "Načítání financí...",
