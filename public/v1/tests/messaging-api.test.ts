@@ -2837,6 +2837,15 @@ test("FirstMate hosts a registration's privacy policy and SMS terms only when it
   assert.match(terms.body, /Reply HELP/);
   assert.match(terms.body, /data rates may apply/);
   assert.ok(terms.body.includes(`<a href="${hosted.privacy}">`), "the terms link the hosted privacy policy");
+  // FM-584: a styled page, still self-contained (the CSP loads nothing): both pages as tabs, numbered sections with
+  // anchors, a contact card, and the hosted pages linked by name rather than as raw URLs.
+  assert.ok(terms.body.includes(`<a href="${hosted.terms}" aria-current="page">SMS terms</a>`));
+  assert.ok(terms.body.includes(`<a href="${hosted.privacy}">Privacy policy</a>`));
+  assert.match(terms.body, /<section id="how-to-stop"><h2><span class="num" aria-hidden="true">\d+<\/span>How to stop<\/h2>/);
+  assert.match(terms.body, /<a href="#how-to-stop">How to stop<\/a>/);
+  assert.match(privacy.body, /<span class="mark" aria-hidden="true">RR<\/span>/);
+  assert.match(privacy.body, /<a href="tel:2065550100">\(206\) 555-0100<\/a>/);
+  assert.doesNotMatch(privacy.body + terms.body, /<(?:script|link|img)\b|@import|url\(/, "nothing the CSP would block");
 
   // No phone: the paragraph that needs it is left out, not printed empty.
   const noPhone = await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profile.id}`, {
