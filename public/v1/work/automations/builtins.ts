@@ -532,6 +532,10 @@ async function initializeScopeChecklists(context: WorkAutomationContext, _input:
   const { ensureStartingChecklists } = await import("../../workforce/checklists-setup.js");
   const starting = await ensureStartingChecklists(orgId, projectId);
   if (starting) return { initialized: true, source: "organization_starting_checklists", checklist_count: starting.created.length };
+  // Until then, where the organization has Checklists, nothing: the setup asks which checklists it wants the first
+  // time someone opens the tab, and lists added before that would be ones nobody chose (FM-600).
+  const { isCapabilityEnabled } = await import("../../platform/capabilities.js");
+  if (await isCapabilityEnabled(orgId, "apps.checklists")) return { skipped: true, reason: "checklists_setup_pending" };
   const { initializeProjectChecklistsFromScope } = await import("../../workforce/crew_storage.js");
   (await initializeProjectChecklistsFromScope(orgId, projectId, definition, templateId));
   return { initialized: true, checklist_count: asArray(definition.checklists).length };

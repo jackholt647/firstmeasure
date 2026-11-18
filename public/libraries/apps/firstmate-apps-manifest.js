@@ -378,7 +378,7 @@
       requiresContext: ['project'],
       bundles: [
         versionedBundle('../crew-api/crew-api.js', '20261111-offline-uploads'),
-        versionedBundle('checklists/app.js', '20261113-fm450-sign-off-name')
+        versionedBundle('checklists/app.js', '20261118-fm600-default-tag')
       ]
     },
     {

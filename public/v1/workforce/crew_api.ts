@@ -2637,6 +2637,29 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
       }
     }
     if (!audio) throw badRequest("missing_audio", "Record a checklist update first.");
+    // A draft is a checklist not saved yet (a default checklist in the checklists setup, FM-600): the items it has go
+    // in, the items to add come back, and nothing is written. Ticking items off means nothing on a draft.
+    if (fields.mode === "draft") {
+      let draftValue: unknown = [];
+      try { draftValue = JSON.parse(fields.items || "[]"); } catch { throw badRequest("invalid_draft_items", "The checklist's items could not be read."); }
+      const draftItems = asArray(draftValue).slice(0, 80).map((entry, index) => ({
+        id: `draft_${index + 1}`,
+        title: cleanText(asObject(entry).title).slice(0, 300),
+        completed: false,
+        item_type: asObject(entry).item_type === "rating" ? "rating" : "todo"
+      })).filter((entry) => entry.title);
+      const result = await processStructuredAudio(checklistAudioProcessor, {
+        audio, fileName, contentType,
+        context: { mode: "update", checklist: { id: "draft", title: cleanText(fields.title).slice(0, 160) || "Checklist", audience: "crew", customer_access: {}, items: draftItems } }
+      });
+      const reconciled = reconcileChecklistAudioOperations(result.operations.filter((entry) => entry.confidence >= 0.5), draftItems);
+      const seen = new Set(draftItems.map((entry) => entry.title.toLowerCase()));
+      const added = reconciled.operations.filter((operation) => operation.action === "add" && cleanText(operation.title)).map((operation) => ({
+        title: cleanText(operation.title).slice(0, 300),
+        item_type: operation.item_type === "rating" ? "rating" : "todo"
+      })).filter((entry) => !seen.has(entry.title.toLowerCase()) && seen.add(entry.title.toLowerCase()));
+      return { ok: true, mode: "draft", added, summary: cleanText(result.summary) };
+    }
     const mode = fields.mode === "update" ? "update" : "create";
     const existing = mode === "update"
       ? (await listProjectChecklists(orgId, projectId)).find((entry) => entry.id === fields.checklist_id)

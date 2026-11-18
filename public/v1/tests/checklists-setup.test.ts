@@ -66,7 +66,20 @@ test("the checklists setup asks the kind of company first, then adds the picked 
   assert.ok(punchTour.steps.every((step: any) => step.targets.length), "every step points at something, so it shows nothing without a punch list");
   assert.ok((punchTour.steps.find((step: any) => step.id === "portal_tab") as any).targets[0].includes("[data-fmcl-customer-shared=true]"), "it goes to the portal only when a list is shared with the customer");
 
-  // The project already started with its scope template's checklists; someone ticked an item on one of them.
+  // Before anyone has run the setup, a scope that starts adds no checklists: nobody has chosen them yet, and the setup
+  // asks the first time someone opens the tab (FM-600).
+  const { registerBuiltinWorkAutomations } = await import("../work/automations/builtins.js");
+  registerBuiltinWorkAutomations();
+  const { workAutomation } = await import("../work/registry.js");
+  const scopeStarts = workAutomation("checklists.initializeFromScope.v1")!;
+  const startContext = (projectId: string) => ({ event: { organization_id: ORG }, project: { id: projectId }, plan: { template_id: "manual", branch_id: "default" } }) as any;
+  const EARLY = "checklists_setup_early_project";
+  await storage.upsertDocument(ORG, "projects", { id: EARLY, data: { branch_id: "default", title: "Before the setup" }, metadata: { kind: "platform_project", branch_id: "default" } }, { replace: true });
+  assert.equal((await scopeStarts(startContext(EARLY), {}) as any).reason, "checklists_setup_pending");
+  const { listProjectChecklists: listBefore } = await import("../workforce/crew_storage.js");
+  assert.deepEqual(await listBefore(ORG, EARLY), [], "no checklists before the setup");
+
+  // An older project already started with its scope template's checklists; someone ticked an item on one of them.
   const crew = await import("../workforce/crew_storage.js");
   const template = { checklists: ["safety", "work", "completion"].map((id) => ({ id, title: `${id} checklist`, items: [{ title: `${id} item` }] })) };
   await crew.initializeProjectChecklistsFromScope(ORG, PROJECT, template, "generic_roofing");
@@ -100,13 +113,8 @@ test("the checklists setup asks the kind of company first, then adds the picked 
   // template's (the library's Manual scope has safety, work and completion lists).
   const { readStartingChecklists } = await import("../workforce/checklists-setup.js");
   assert.deepEqual((await readStartingChecklists(ORG))!.map((entry) => entry.source_key), ["setup:crew_safety", "setup:punchlist"]);
-  const { registerBuiltinWorkAutomations } = await import("../work/automations/builtins.js");
-  registerBuiltinWorkAutomations();
-  const { workAutomation } = await import("../work/registry.js");
-  const scopeStarts = workAutomation("checklists.initializeFromScope.v1")!;
   const NEXT = "checklists_setup_next_project";
   await storage.upsertDocument(ORG, "projects", { id: NEXT, data: { branch_id: "default", title: "Next project" }, metadata: { kind: "platform_project", branch_id: "default" } }, { replace: true });
-  const startContext = (projectId: string) => ({ event: { organization_id: ORG }, project: { id: projectId }, plan: { template_id: "manual", branch_id: "default" } }) as any;
   await scopeStarts(startContext(NEXT), {});
   const next = await listProjectChecklists(ORG, NEXT);
   assert.deepEqual(next.map((entry) => entry.source_key), ["setup:crew_safety", "setup:punchlist"]);
