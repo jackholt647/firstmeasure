@@ -69,7 +69,7 @@ const css = `
 .gxd-money span:first-child{color:#344054;font-size:13px}
 .gxd-money input{width:84px;height:34px;padding:0 10px;border:1px solid #d0d5dd;border-radius:9px;font:inherit;font-size:14px;text-align:right;color:#101828;background:#fff}
 .gxd-money input:focus,.gxd-field input:focus,.gxd-field select:focus,.gxd-term input:focus,.gxd-term select:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.14)}
-.gxd-line .gxd-money>span:last-child{width:62px;line-height:1.2}
+.gxd-line .gxd-money>span:last-child{min-width:58px;white-space:nowrap}
 .gxd-switch{position:relative;flex:none;width:38px;height:22px;padding:0;border:0;border-radius:999px;background:#d0d5dd;cursor:pointer;transition:background .15s}
 .gxd-switch span{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.2);transition:transform .15s}
 .gxd-switch[aria-checked=true]{background:var(--primary,#d93025)}
@@ -99,7 +99,9 @@ const css = `
 .gxd-term select{flex:1 1 220px;max-width:340px}
 .gxd-plus,.gxd-times{color:#667085;font-weight:700}
 .gxd-plus{width:14px;text-align:center}
-.gxd-icon-btn{width:30px;height:30px;border:0;border-radius:8px;background:#f2f4f7;color:#475467;font-size:18px;line-height:1;cursor:pointer}
+.gxd-edit{font-size:12px;color:#667085;background:transparent}
+.gxd-edit:hover{background:#f2f4f7;color:#344054}
+.gxd-icon-btn{flex:none;width:30px;height:30px;border:0;border-radius:8px;background:#f2f4f7;color:#475467;font-size:18px;line-height:1;cursor:pointer}
 .gxd-term-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .gxd-check{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#344054;cursor:pointer}
 .gxd-hint{font-size:11.5px;color:#667085}
@@ -174,7 +176,7 @@ const css = `
 .gxd-error:empty{display:none}
 @media(max-width:640px){.gxd-grid,.gxd-grid.gxd-small,.gxd-lines{grid-template-columns:1fr}.gxd-tile.gxd-feature{min-height:96px;padding:16px 44px 16px 16px}.gxd-feature .gxd-icon{width:46px;height:46px;font-size:20px}.gxd-feature strong{font-size:17px}}
 /* A phone: a line's name wraps, beside a narrower price. */
-@media(max-width:640px){.gxd-line{gap:9px;padding:9px 10px}.gxd-line .gxd-icon{width:30px;height:30px;font-size:13px}.gxd-line-main strong{white-space:normal;line-height:1.25}.gxd-line-main small{display:none}.gxd-line .gxd-money input{width:68px;padding:0 8px}.gxd-line .gxd-money>span:last-child{width:44px;font-size:11px}}
+@media(max-width:640px){.gxd-line{gap:9px;padding:9px 10px}.gxd-line .gxd-icon{width:30px;height:30px;font-size:13px}.gxd-line-main strong{white-space:normal;line-height:1.25}.gxd-line-main small{display:none}.gxd-line .gxd-money input{width:68px;padding:0 8px}.gxd-line .gxd-money>span:last-child{min-width:0;width:44px;font-size:11px;white-space:normal;line-height:1.2}}
 @media(max-width:640px){.gxd-stage>.gxd-arrow{display:none}.gxd-view .gxd-arrow{top:auto;bottom:16px}}
 /* On a phone the sheet's Back and Done have the bottom line to themselves: the name and dots sit above them. */
 @media(max-width:760px){.gxd-under{padding:0 0 58px}}
@@ -351,6 +353,7 @@ export function mount(el, ctx){
         <span class="gxd-icon" aria-hidden="true"><i class="fas ${esc(iconFor(line))}"></i></span>
         <span class="gxd-line-main"><strong title="${esc(line.name)}">${esc(line.name)}</strong><small>${esc(line.isNew ? termsText(line.terms) : line.formula || '')}${line.fromEstimate ? `<em class="gxd-tag">${esc(t('prices_from_estimate', 'From your estimate'))}</em>` : line.isNew ? `<em class="gxd-tag">${esc(t('prices_new_line', 'New'))}</em>` : ''}</small></span>
         <label class="gxd-money"><span>$</span><input inputmode="decimal" autocomplete="off" data-price="${esc(line.id)}" value="${esc(line.price)}" placeholder="0.00" aria-label="${esc(line.name)}"><span>${esc(unitLabel(line.unit))}</span></label>
+        ${line.isNew ? `<button type="button" class="gxd-icon-btn gxd-edit" data-edit="${esc(line.id)}" aria-label="${esc(t('prices_edit_line', 'Change {name}').replace('{name}', line.name))}" title="${esc(t('prices_edit_line', 'Change {name}').replace('{name}', line.name))}"><i class="fas fa-pen" aria-hidden="true"></i></button>` : ''}
         ${sheet.editable ? `<button type="button" class="gxd-switch" role="switch" data-toggle="${esc(line.id)}" aria-checked="${line.on}" aria-label="${esc(t('prices_use_line', 'Use {name}').replace('{name}', line.name))}" title="${esc(line.on ? t('prices_line_on', 'On your proposals') : t('prices_line_off', 'Not on your proposals'))}"><span></span></button>` : ''}
       </div>`;
     function startHtml(){
@@ -369,7 +372,7 @@ export function mount(el, ctx){
           <button type="button" class="gxd-upload" data-upload><i class="fas fa-file-arrow-up" aria-hidden="true"></i>${esc(t('prices_upload', 'Upload an existing estimate'))}</button></div>
         ${banner ? `<div class="gxd-banner" role="status"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${esc(banner)}</span></div>` : ''}
         <p class="gxd-error" role="alert" data-error></p>
-        <div class="gxd-lines">${lines.map(lineHtml).join('')}${sheet.editable ? (editor ? editorHtml() : `<button type="button" class="gxd-add" data-add><i class="fas fa-plus" aria-hidden="true"></i>${esc(t('prices_add_line', 'Add a line item'))}</button>`) : ''}</div>
+        <div class="gxd-lines">${lines.map((line) => editor?.editing === line.id ? editorHtml() : lineHtml(line)).join('')}${sheet.editable ? (editor && !editor.editing ? editorHtml() : `<button type="button" class="gxd-add" data-add><i class="fas fa-plus" aria-hidden="true"></i>${esc(t('prices_add_line', 'Add a line item'))}</button>`) : ''}</div>
         <p class="gxd-note">${esc(t('prices_note', 'You can change your default prices in your price book at any time, and any price on a single proposal while you write it.'))}</p>
       </div>`;
     }
@@ -421,7 +424,7 @@ export function mount(el, ctx){
           <small class="gxd-hint">${esc(t('prices_add_quantity_hint', 'Worked out from each job’s measurements. For example, starter strip is Eaves + Rakes.'))}</small>
         </div>
         <p class="gxd-error" role="alert" data-editor-error></p>
-        <div class="gxd-editor-actions"><button type="button" class="gxd-link" data-cancel>${esc(t('prices_add_cancel', 'Cancel'))}</button><button type="button" class="gxd-btn" data-save-new>${esc(t('prices_add_save', 'Add line'))}</button></div>
+        <div class="gxd-editor-actions"><button type="button" class="gxd-link" data-cancel>${esc(t('prices_add_cancel', 'Cancel'))}</button><button type="button" class="gxd-btn" data-save-new>${esc(editor.editing ? t('prices_edit_save', 'Save line') : t('prices_add_save', 'Add line'))}</button></div>
       </div>`;
     }
     let phase = 'start';
@@ -443,9 +446,15 @@ export function mount(el, ctx){
       const name = clean(editor.name);
       if (!name) { showError(t('prices_add_need_name', 'Give the line a name.'), '[data-editor-error]'); return; }
       if (editor.terms.some((term) => !(Number(term.factor) >= 0) || clean(term.factor) === '')) { showError(t('prices_add_need_factor', 'Each amount needs a number.'), '[data-editor-error]'); return; }
-      newCount += 1;
-      const id = `new_${Date.now().toString(36)}${newCount}`.slice(0, 28);
-      lines.push({ id, name, unit: editor.unit, category: '', book: null, price: editor.price, on: true, isNew: true, initial: false, terms: editor.terms.map((term) => ({ factor: Number(term.factor), key: term.key })), waste: editor.unit === 'sq' && !!editor.waste, formula: '' });
+      const fields = { name, unit: editor.unit, price: editor.price, terms: editor.terms.map((term) => ({ factor: Number(term.factor), key: term.key })), waste: editor.unit === 'sq' && !!editor.waste };
+      const editing = lines.find((line) => line.id === editor.editing);
+      let id = editing?.id;
+      if (editing) Object.assign(editing, fields);
+      else {
+        newCount += 1;
+        id = `new_${Date.now().toString(36)}${newCount}`.slice(0, 28);
+        lines.push({ id, category: '', book: null, on: true, isNew: true, initial: false, formula: '', ...fields });
+      }
       editor = null; draw(`[data-price="${CSS.escape(id)}"]`); report();
     }
 
@@ -495,6 +504,9 @@ export function mount(el, ctx){
         used.add(key); added += 1;
       }
       if (sheet.editable) for (const line of lines) if (!used.has(line.id)) line.on = false;
+      // Its lines first, in its order (the proposal's lines follow it), then the rest.
+      const order = [...used];
+      lines.sort((a, b) => (used.has(a.id) ? order.indexOf(a.id) : order.length) - (used.has(b.id) ? order.indexOf(b.id) : order.length));
       const name = files.length === 1 ? files[0].name : t('prices_estimate_files', 'your estimate');
       banner = [t('prices_estimate_read', 'From {file}: {matched} lines matched your price book and {added} are new. Lines it doesn’t have are off. Check the prices, then continue.')
         .replace('{file}', name).replace('{matched}', String(matched)).replace('{added}', String(added)), clean(result.notes)].filter(Boolean).join(' ');
@@ -514,8 +526,14 @@ export function mount(el, ctx){
         toggle.title = line.on ? t('prices_line_on', 'On your proposals') : t('prices_line_off', 'Not on your proposals');
         report(); return;
       }
+      const edit = event.target.closest('[data-edit]');
+      if (edit) {
+        const line = lines.find((entry) => entry.id === edit.dataset.edit); if (!line) return;
+        editor = { stage: 'new', editing: line.id, name: line.name, active: 0, unit: line.unit, price: line.price, terms: line.terms.map((term) => ({ ...term })), waste: !!line.waste };
+        draw('[data-new-name]'); return;
+      }
       if (event.target.closest('[data-add]')) { editor = { stage: 'name', name: '', active: 0, unit: 'ea', price: '', terms: [{ factor: 1, key: '' }], waste: false }; draw('[data-new-name]'); return; }
-      if (event.target.closest('[data-cancel]')) { editor = null; draw('[data-add]'); return; }
+      if (event.target.closest('[data-cancel]')) { const was = editor?.editing; editor = null; draw(was ? `[data-edit="${CSS.escape(was)}"]` : '[data-add]'); return; }
       const pick = event.target.closest('[data-pick]');
       if (pick) { if (pick.dataset.pick) addFromBook(pick.dataset.pick); else { editor.stage = 'new'; draw('[data-new-price]'); } return; }
       if (event.target.closest('[data-add-term]')) { editor.terms.push({ factor: 1, key: array(sheet.measurements)[0]?.key || '' }); draw(`[data-factor="${editor.terms.length - 1}"]`); return; }
