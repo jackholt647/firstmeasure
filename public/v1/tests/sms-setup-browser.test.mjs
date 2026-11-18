@@ -275,7 +275,8 @@ test('FM-595: policy pages are one switch beside Website, and Website starts fro
     assert.equal(await hosted.isChecked(),true,'FirstMate hosts the pages by default');
     assert.equal(await hosted.getAttribute('role'),'switch');
     assert.equal(await page.locator('input[type="radio"][data-sms-field="campaign.policyPages"]').count(),0);
-    assert.match(await page.locator('.sms-policy-field .fm-ui-help').getAttribute('data-fm-tooltip'),/FirstMate publishes both for you/);
+    const tipHtml=await page.locator('.sms-policy-field .fm-ui-help').getAttribute('data-fm-tooltip-html');
+    assert.match(tipHtml,/<strong>FirstMate publishes your privacy policy and texting terms<\/strong><ul>(<li>[^<]+<\/li>){3}<\/ul>/,'the tooltip is a heading and short points, not one paragraph');
     assert.deepEqual(await page.locator('[data-sms-hosted-policy]').evaluateAll(links=>links.map(a=>a.getAttribute('href'))),['https://dev.1m8.ai/v1/public/sms-policies/fixture/privacy','https://dev.1m8.ai/v1/public/sms-policies/fixture/terms']);
     assert.equal(await page.locator('[data-sms-field="campaign.privacyPolicyLink"]').count(),0);
     assert.equal(await page.getByText('What carriers need on these pages',{exact:true}).count(),0);

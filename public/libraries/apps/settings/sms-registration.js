@@ -166,6 +166,9 @@
       .sms-policy-switch input::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.2);transition:left .15s}
       .sms-policy-switch input:checked{background:var(--primary,#d93025)}.sms-policy-switch input:checked::after{left:16px}
       .sms-policy-switch input:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+      /* Its tooltip is drawn by platform-ui in <body>, so these rules are not under the wizard. */
+      .sms-policy-tip{display:grid;gap:8px;max-width:300px;padding:4px 2px;font-size:12px;font-weight:400;line-height:1.5;letter-spacing:0}.sms-policy-tip strong{font-size:13px;font-weight:600;line-height:1.35}
+      .sms-policy-tip ul{display:grid;gap:5px;margin:0;padding-left:16px}.sms-policy-tip li::marker{color:rgba(255,255,255,.55)}.sms-policy-tip p{margin:0;padding-top:8px;border-top:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.72)}
       .sms-policy-links{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;line-height:1.5}.sms-policy-links a{color:#475467;font-weight:500}.sms-policy-links i{font-size:10px}
       /* Number step (FM-596): primary number, then additional numbers on the same registration. */
       .sms-number-role{display:block;margin-bottom:4px;color:#667085;font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase}
@@ -1377,13 +1380,16 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
      */
     function smsPolicyPagesFields(profile, websiteNormalized){
       const pages = smsPolicyPages(profile), submitted = smsHasProviderCampaign(profile), c = profile.campaign || {};
-      const tip = 'Carriers approve texting only for a business with a public privacy policy and texting terms. FirstMate publishes both for you, with the business name, contact details and address you enter here and the wording carriers require. Link them from your website, for example in its footer. Turn this off to use pages on your own website instead.';
+      // The tooltip (FM-595): a heading, three short points and how to opt out, rather than one paragraph.
+      const tipPoints = ['Carriers approve texting only when both pages are public.', 'They use the business name, contact details and address you enter here.', 'Link both from your website, for example in its footer.'];
+      const tip = `FirstMate publishes your privacy policy and texting terms. ${tipPoints.join(' ')} Turn this off to use your own pages.`;
+      const tipHtml = `<div class="sms-policy-tip"><strong>FirstMate publishes your privacy policy and texting terms</strong><ul>${tipPoints.map(point => `<li>${point}</li>`).join('')}</ul><p>Turn this off to use pages on your own website.</p></div>`;
       const hosted = profile.hosted_policy_pages || {};
       const links = pages === 'firstmate' && smsValidHttpsUrl(hosted.privacy) && smsValidHttpsUrl(hosted.terms)
         ? `<div class="sms-policy-links">${[['Privacy policy', hosted.privacy], ['Texting terms', hosted.terms]].map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" data-sms-hosted-policy>${label} <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a>`).join('')}</div>`
         : '';
       const toggle = `<div class="sms-policy-field">
-            <div class="sms-policy-head"><span id="sms-policy-pages-label">Privacy policy &amp; texting terms</span><span class="fm-ui-help" tabindex="0" role="img" aria-label="${escapeHtml(tip)}" data-fm-tooltip="${escapeHtml(tip)}">i</span></div>
+            <div class="sms-policy-head"><span id="sms-policy-pages-label">Privacy policy &amp; texting terms</span><span class="fm-ui-help" tabindex="0" role="img" aria-label="${escapeHtml(tip)}" data-fm-tooltip-html="${escapeHtml(tipHtml)}">i</span></div>
             <label class="sms-policy-switch"><input type="checkbox" role="switch" data-sms-field="campaign.policyPages" data-sms-policy-hosted aria-labelledby="sms-policy-pages-label sms-policy-pages-on" ${pages === 'firstmate' ? 'checked' : ''} ${submitted ? 'disabled' : ''}><span id="sms-policy-pages-on">Hosted by FirstMate</span></label>
             ${links}</div>`;
       if (pages === 'firstmate') return `${toggle}
