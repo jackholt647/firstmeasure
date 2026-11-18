@@ -90,6 +90,8 @@ const setupStep = z.object({
   /** The selection keys this step's widget writes; branches and the completion action read them. */
   selects: z.array(z.string().regex(/^[a-z][a-z0-9_]{0,59}$/)).max(12).default([]),
   required: z.boolean().default(true),
+  /** An optional step's skip button, when "Skip step" is not what it means (the price step: "Skip for now", FM-610). */
+  skip_label: copySchema.optional(),
   /** What the real assistant is told about this step when the person types or uploads during it. */
   agent_note: copySchema.optional(),
   /** An upload offered inside one of the step's agent lines (`line` names its copy key); the file goes to the real assistant. */

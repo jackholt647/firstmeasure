@@ -10,7 +10,7 @@ export const applicationPublication = {
   receipts: { providers: ["media"], domains: ["media"] },
   proposals: { providers: ["proposals"], domains: ["proposals"] },
   docs: { providers: ["documents"], domains: ["documents"] },
-  documents: { providers: ["documents", "document-modules", "document-setup"], domains: ["documents"], note: "The document setup (FM-582) publishes what the organization said about its documents, the price step's price book items and unsaved previews of what its answers make as `document-setup`, and makes the kind's own default template with `documents.setup.apply`." },
+  documents: { providers: ["documents", "document-modules", "document-setup"], domains: ["documents"], note: "The document setup (FM-582) publishes what the organization said about its documents, the price step's lines and price book items and unsaved previews of what its answers make as `document-setup`, reads an estimate the company already sends with `documents.setup.read_estimate` (writes nothing), and makes the kind's own default template (and the proposal's lines, FM-610) with `documents.setup.apply`." },
   "web-editor": { providers: ["websites"], domains: ["websites"] },
   materials: { providers: ["material-resource-types", "suppliers", "pay-sheets", "labor-commitments", "assignees", "materials", "materials-calculus", "materials-inputs", "project-widgets", "documents"], domains: ["materials", "operations"] },
   money: { providers: ["payments"], domains: ["payments"] },

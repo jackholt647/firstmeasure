@@ -16,6 +16,7 @@ import {
 import { FMDocModel } from "./schemas.js";
 import { ensureDefaultDocumentAssets, libraryAssetDefinition } from "./library-copies.js";
 import { DEFAULT_PINNED_TEMPLATE_IDS, DOCUMENT_SETUP_MODULE, readPinnedTemplateIds, savePinnedTemplateIds } from "./settings.js";
+import { MEASUREMENT_FIELDS, PRICEBOOK_FORMULA_TOKEN_TYPES, PRICEBOOK_OPERATORS, PRICEBOOK_PARENS } from "../pricebook/constants.js";
 
 /**
  * The document setup (FM-582, docs/architecture/guided-experiences.md, "Document setup"): the first time someone makes
@@ -231,17 +232,141 @@ export async function readDocumentSetup(orgId: string) {
 // ── The price step ──────────────────────────────────────────────────────
 /** The price book items a roofing proposal is priced from, in the order the price step asks for them. */
 export const PRICE_SHEET_ITEMS = ["tearoff", "gaf_hd", "laminated_shingles", "underlayment", "ice_water", "starter", "ridge_cap", "drip_edge", "valley_metal", "ridge_vent", "pipe_boot", "gutter_replace", "downspout"] as const;
+/**
+ * The price book assembly a proposal's lines come from (every instant roofing template's `scope_pieces`): its
+ * components are the lines. The price step turns them on and off and adds lines to it (FM-610).
+ */
+export const PROPOSAL_ASSEMBLY = "roof_replacement";
+/** The units a line added in the price step is sold in. */
+export const PRICE_LINE_UNITS = ["sq", "lf", "ea"] as const;
+const measurementFields = () => MEASUREMENT_FIELDS.filter((field) => field.key !== "wastePercent");
+const itemPrice = (item: JsonObject) => { const price = Number(item.unit_price ?? item.unitPrice ?? 0); return Number.isFinite(price) && price > 0 ? price : null; };
+const componentRef = (component: unknown) => text(object(component).item_ref || object(component).itemRef || object(component).item_id || object(component).itemId);
+/** A quantity formula in words ("Eaves + Rakes"), from its tokens. */
+export function formulaText(config: unknown) {
+  const labels = new Map<string, string>(MEASUREMENT_FIELDS.map((field) => [field.key, field.label]));
+  const tokens = list(object(config).tokens).map(object);
+  if (!tokens.length || (tokens.length === 1 && tokens[0]!.type === "number")) return "";
+  return tokens.map((token) => token.type === "measurement" ? labels.get(text(token.value)) || text(token.value) : token.type === "operator" && token.value === "*" ? "×" : text(token.value)).join(" ").replace(/\( /g, "(").replace(/ \)/g, ")");
+}
+const sheetItem = (item: JsonObject, on: boolean) => ({
+  id: text(item.id), name: text(item.name), unit: text(item.unit), category: text(item.category), unit_price: itemPrice(item), on,
+  formula: formulaText(item.formulaConfig || item.formula_config)
+});
 export async function readPriceSheet(orgId: string) {
   const { getOrganizationPricebook } = await import("../pricebook/storage.js");
   const book = await getOrganizationPricebook(orgId);
-  const items = new Map((book.catalog.items as JsonObject[]).map((item) => [text(item.id), item]));
+  const all = (book.catalog.items as JsonObject[]).filter((item) => text(item.id) && text(item.status) !== "archived");
+  const items = new Map(all.map((item) => [text(item.id), item]));
+  const assembly = items.get(PROPOSAL_ASSEMBLY) || null;
+  // The proposal's lines first, as the assembly orders them; then the main roofing items it does not have, off.
+  const lines = [...new Set(list(assembly?.components).map(componentRef))].filter((id) => id !== PROPOSAL_ASSEMBLY && items.has(id));
+  const extra = PRICE_SHEET_ITEMS.filter((id) => items.has(id) && !lines.includes(id));
   return {
-    items: PRICE_SHEET_ITEMS.filter((id) => items.has(id)).map((id) => {
-      const item = items.get(id)!;
-      const price = Number(item.unit_price ?? item.unitPrice ?? 0);
-      return { id, name: text(item.name), unit: text(item.unit), category: text(item.category), unit_price: Number.isFinite(price) && price > 0 ? price : null };
-    })
+    editable: !!assembly,
+    items: [...lines.map((id) => sheetItem(items.get(id)!, true)), ...extra.map((id) => sheetItem(items.get(id)!, !assembly))],
+    // The rest of the price book, for a line added by name (the price book is bigger than the step's list).
+    catalog: all.filter((item) => text(item.kind) !== "assembly" && !lines.includes(text(item.id)) && !extra.includes(text(item.id) as never)).slice(0, 800).map((item) => {
+      const { on: _on, ...entry } = sheetItem(item, false);
+      return entry;
+    }),
+    measurements: measurementFields().map((field) => ({ key: field.key, label: field.label }))
   };
+}
+
+const formulaToken = z.object({ type: z.enum(PRICEBOOK_FORMULA_TOKEN_TYPES), value: z.string().trim().min(1).max(40) }).strict();
+/** A line the person added that the price book does not have: what it is called, sold in and costs, and its quantity. */
+const newLineSchema = z.object({
+  key: z.string().regex(/^new_[a-z0-9]{1,24}$/),
+  name: z.string().trim().min(1).max(120),
+  unit: z.enum(PRICE_LINE_UNITS),
+  unit_price: z.number().finite().min(0).max(1e6),
+  formula: z.array(formulaToken).min(1).max(24),
+  include_waste: z.boolean().default(false)
+}).strict();
+const linesSchema = z.object({
+  /** The lines the proposal has, in order: price book item ids, and the keys of `new_items`. */
+  on: z.array(z.string().min(1).max(160)).max(80),
+  new_items: z.array(newLineSchema).max(20).default([])
+}).strict();
+type LinesInput = z.infer<typeof linesSchema>;
+
+/** A formula's tokens are measurements, numbers, operators and brackets that pair up, and it reads as one expression. */
+export function checkFormula(tokens: { type: string; value: string }[]) {
+  const keys = new Set<string>(measurementFields().map((field) => field.key));
+  let depth = 0, expectValue = true;
+  for (const token of tokens) {
+    if (token.type === "measurement" && !keys.has(token.value)) throw badRequest("document_setup_formula", `${token.value} is not a measurement.`);
+    if (token.type === "number" && !(Number.isFinite(Number(token.value)) && Number(token.value) >= 0)) throw badRequest("document_setup_formula", `${token.value} is not a number.`);
+    if (token.type === "operator" && !(PRICEBOOK_OPERATORS as readonly string[]).includes(token.value)) throw badRequest("document_setup_formula", `${token.value} is not an operator.`);
+    if (token.type === "paren" && !(PRICEBOOK_PARENS as readonly string[]).includes(token.value)) throw badRequest("document_setup_formula", `${token.value} is not a bracket.`);
+    if (token.type === "paren" && token.value === "(") { if (!expectValue) throw badRequest("document_setup_formula", "A bracket opens where an operator belongs."); depth += 1; continue; }
+    if (token.type === "paren") { if (expectValue || depth === 0) throw badRequest("document_setup_formula", "A bracket closes where it cannot."); depth -= 1; continue; }
+    const value = token.type !== "operator";
+    if (value !== expectValue) throw badRequest("document_setup_formula", "The formula is not a complete expression.");
+    expectValue = !value;
+  }
+  if (expectValue || depth !== 0) throw badRequest("document_setup_formula", "The formula is not a complete expression.");
+}
+
+/**
+ * The price step's lines, written to the price book: lines added by name that it does not have become items (sold in
+ * their unit, their quantity from the measurements), and the proposal's assembly has exactly the lines left on, in
+ * their order. A line kept keeps how it is offered (a choice between shingles, an optional upgrade); a choice left
+ * with nothing picked picks its first.
+ */
+async function applyLines(orgId: string, lines: LinesInput) {
+  const { getOrganizationPricebook, saveOrganizationCatalog } = await import("../pricebook/storage.js");
+  const book = await getOrganizationPricebook(orgId);
+  const items = [...(book.catalog.items as JsonObject[])];
+  const at = items.findIndex((item) => text(item.id) === PROPOSAL_ASSEMBLY);
+  if (at < 0) throw badRequest("document_setup_lines_unavailable", "This price book has no roof replacement to put lines on.");
+  const byName = new Map(items.map((item) => [text(item.name).toLowerCase(), text(item.id)]));
+  const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "line";
+  const added = new Map<string, string>();
+  for (const entry of lines.new_items) {
+    checkFormula(entry.formula);
+    // A name the price book already has is that item.
+    const same = byName.get(entry.name.toLowerCase());
+    if (same) { added.set(entry.key, same); continue; }
+    let id = `setup-${slug(entry.name)}`;
+    for (let n = 2; items.some((item) => text(item.id) === id); n += 1) id = `setup-${slug(entry.name)}-${n}`;
+    items.push({ id, kind: "atomic", name: entry.name, code: "", type: "", category: "misc", segment: "sloped", manufacturer: "", unit: entry.unit,
+      internal_cost: 0, unit_price: entry.unit_price, unitPrice: entry.unit_price, base_price: entry.unit_price, description: "", external_description: "",
+      formulaConfig: { tokens: entry.formula, includeWaste: entry.include_waste }, autoAdd: false,
+      metadata: { source: "document_setup", added_from: "document_setup", price_source: "document_setup" } });
+    byName.set(entry.name.toLowerCase(), id);
+    added.set(entry.key, id);
+  }
+  const on = [...new Set(lines.on.map((id) => added.get(id) || id))];
+  const known = new Set(items.map((item) => text(item.id)));
+  const missing = on.filter((id) => id.startsWith("new_") || !known.has(id) || id === PROPOSAL_ASSEMBLY);
+  if (missing.length) throw badRequest("document_setup_line_unknown", `These lines are not in the price book: ${missing.join(", ")}.`);
+  const assembly = items[at]!;
+  const kept = list(assembly.components).map(object).filter((component) => on.includes(componentRef(component)));
+  const have = new Set(kept.map(componentRef));
+  const ids = new Set(kept.map((component) => text(component.id)));
+  for (const id of on) {
+    if (have.has(id)) continue;
+    let componentId = `setup_${id.replace(/[^a-zA-Z0-9_]+/g, "_")}`.slice(0, 80);
+    for (let n = 2; ids.has(componentId); n += 1) componentId = `setup_${id.replace(/[^a-zA-Z0-9_]+/g, "_")}_${n}`.slice(0, 80);
+    ids.add(componentId);
+    kept.push({ id: componentId, item_ref: id, included: false, price_driving: true });
+  }
+  const groups = new Map<string, JsonObject[]>();
+  for (const component of kept) {
+    const selection = object(component.selection);
+    if (selection.mode === "choice" && text(selection.group_id)) groups.set(text(selection.group_id), [...(groups.get(text(selection.group_id)) || []), component]);
+  }
+  for (const members of groups.values()) {
+    if (members.some((component) => object(component.selection).selected === true)) continue;
+    members[0]!.selection = { ...object(members[0]!.selection), selected: true, default_selected: true };
+  }
+  const before = list(assembly.components).map(componentRef).join("\n");
+  items[at] = { ...assembly, components: kept };
+  if (!added.size && before === kept.map(componentRef).join("\n")) return { added: 0, changed: false };
+  await saveOrganizationCatalog(orgId, { ...book.catalog, items }, Number(book.manifest.revision));
+  return { added: [...new Set(added.values())].length, changed: true };
 }
 
 // ── Previews ────────────────────────────────────────────────────────────
@@ -313,7 +438,9 @@ const priceSchema = z.object({ item_id: z.string().min(1).max(160), unit_price: 
 const applySchema = answersSchema.extend({
   theme_id: z.enum(DOCUMENT_SETUP_THEMES),
   /** The price step's prices (sell prices, per unit), written to the price book; none when it was skipped. */
-  prices: z.array(priceSchema).max(40).default([])
+  prices: z.array(priceSchema).max(120).default([]),
+  /** The price step's lines (FM-610): which are on the proposal, and lines added that the price book does not have. */
+  lines: linesSchema.optional()
 });
 
 async function saveAsset(kind: "template" | "workflow", orgId: string, id: string, input: JsonObject, ctx: PlatformAuthContext) {
@@ -339,13 +466,14 @@ export async function applyDocumentSetup(ctx: PublicationContext, auth: Platform
   const parsed = applySchema.parse(input);
   const answers = checkedAnswers(parsed);
   const orgId = auth.orgId;
+  const lines = parsed.lines ? await applyLines(orgId, parsed.lines) : { added: 0, changed: false };
   if (parsed.prices.length) {
     const { invokeAction } = await import("../platform/publication/actions.js");
     await invokeAction({ ...ctx, mode: "command" as const }, { action: "pricebook.prices.update", target: { scope: "organization", organizationId: orgId } },
       { changes: parsed.prices.map((entry) => ({ item_id: entry.item_id, unit_price: entry.unit_price, source: "document setup" })), note: "Prices from the document setup" },
       { idempotencyKey: `document-setup:prices:${orgId}:${Date.now()}` });
   }
-  await ensureDefaultDocumentAssets(orgId, auth, { refresh: parsed.prices.length > 0 });
+  await ensureDefaultDocumentAssets(orgId, auth, { refresh: parsed.prices.length > 0 || lines.changed });
   const built = await buildDocument(orgId, answers, parsed.theme_id);
   const { plan } = built;
   const templateId = setupTemplateId(plan.kind);
@@ -376,7 +504,7 @@ export async function applyDocumentSetup(ctx: PublicationContext, auth: Platform
   // The first proposal style chosen becomes the style for new documents; choosing another later changes only proposals.
   const defaultThemeId = text(data.default_theme_id) || (plan.kind === "proposal" ? parsed.theme_id : "");
   await saveBranchModule(orgId, "default", DOCUMENT_SETUP_MODULE, { data: { ...data, ...(defaultThemeId ? { default_theme_id: defaultThemeId } : {}), kinds: { ...object(data.kinds), [plan.kind]: { ...setup, template_id: templateId, workflow_id: workflowId || null } } } as JsonObject, expected_revision: Number(record?.revision || 0) }, { replace: true });
-  return { kind: plan.kind, template_id: templateId, workflow_id: workflowId || null, name: plan.name, theme_id: parsed.theme_id, pinned_template_ids: pins, prices_updated: parsed.prices.length };
+  return { kind: plan.kind, template_id: templateId, workflow_id: workflowId || null, name: plan.name, theme_id: parsed.theme_id, pinned_template_ids: pins, prices_updated: parsed.prices.length, lines_added: lines.added, lines_changed: lines.changed };
 }
 
 // ── Publication ─────────────────────────────────────────────────────────
@@ -389,7 +517,13 @@ const statusSchema = z.object({
   company_type: z.string().nullable(), sales_team: z.string().nullable(), sales_is_team: z.boolean(),
   revision: z.number().int()
 }).strict();
-const priceSheetSchema = z.object({ items: z.array(z.object({ id: z.string(), name: z.string(), unit: z.string(), category: z.string(), unit_price: z.number().nullable() }).strict()) }).strict();
+const sheetEntry = { id: z.string(), name: z.string(), unit: z.string(), category: z.string(), unit_price: z.number().nullable(), formula: z.string() };
+const priceSheetSchema = z.object({
+  editable: z.boolean(),
+  items: z.array(z.object({ ...sheetEntry, on: z.boolean() }).strict()),
+  catalog: z.array(z.object(sheetEntry).strict()),
+  measurements: z.array(z.object({ key: z.string(), label: z.string() }).strict())
+}).strict();
 const readAccess: AccessPolicy = { scopes: ["organization"], permissions: ["view_projects"], capabilities: ["platform.documents"], systemKinds: ["work", "module", "agent"] };
 const setupAccess: AccessPolicy = { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.documents"], systemKinds: ["module", "agent"] };
 const person = (ctx: PublicationContext) => { if (!ctx.auth) throw forbidden("document_setup_person", "The document setup is answered by a person."); return ctx.auth; };
@@ -402,18 +536,27 @@ export function registerDocumentSetupPublication() {
     status: { description: "What the organization said about its documents in the document setup: for each kind set up (proposal, invoice, change_order, completion_certificate) its answers, style (theme_id) and the template made (template_id, the kind's default); the three styles offered; the style for new documents (default_theme_id: the first proposal style chosen, null before); who sells.",
       schema: json(statusSchema), schemaVersion: "1", access: readAccess,
       read: async (ctx) => { const value = await readDocumentSetup(ctx.organizationId); return { value, revision: String(value.revision) }; } },
-    price_sheet: { description: "The price book items a roofing proposal is priced from, with their sell price per unit (null when not set), for the document setup's price step.",
-      schema: json(priceSheetSchema), schemaVersion: "1", access: setupAccess,
+    price_sheet: { description: "The document setup's price step: the lines a roofing proposal is made of (items; on = on the proposal, from the roof_replacement assembly; editable = that assembly exists), each with its sell price per unit (null when not set) and quantity formula in words; the rest of the price book (catalog), to add a line from; and the measurements a new line's quantity can be worked out from.",
+      schema: json(priceSheetSchema), schemaVersion: "2", access: setupAccess,
       read: async (ctx) => ({ value: await readPriceSheet(ctx.organizationId) }) },
     previews: { description: "The document the setup's answers (args: document_kind and, for a proposal, presentation, customer_changes, detail, scope_write_up) would make, resolved with a sample customer and roof in each of the three styles. Nothing is saved.",
       schema: { type: "object" } as JsonSchema, argsSchema: json(answersSchema.strict()), schemaVersion: "1", access: setupAccess,
       read: async (ctx, ref) => ({ value: await documentSetupPreviews(ctx.organizationId, ref.args || {}) }) }
   } });
   registerAction({ id: "documents.setup.apply", version: "1", domain: "documents", implementation: backendImplementationDigest(),
-    description: "Finish the document setup for one kind of document (document_kind: proposal, invoice, change_order or completion_certificate) in a style (theme_id: thm_clean, thm_margin or thm_triangles). For a proposal also: presentation (options | single), customer_changes (mix | pick | ask), detail (itemized | rough), scope_write_up (boolean), and optionally prices ([{ item_id, unit_price }] sell prices written to the price book). Makes or republishes the organization's own template for that kind (tpl_setup_<kind>) and its workflow, makes it the kind's default and pins it in New document.",
+    description: "Finish the document setup for one kind of document (document_kind: proposal, invoice, change_order or completion_certificate) in a style (theme_id: thm_clean, thm_margin or thm_triangles). For a proposal also: presentation (options | single), customer_changes (mix | pick | ask), detail (itemized | rough), scope_write_up (boolean), and optionally prices ([{ item_id, unit_price }] sell prices written to the price book) and lines ({ on: the item ids the proposal's roof_replacement has, in order, with the keys of new_items; new_items: [{ key: new_<x>, name, unit: sq|lf|ea, unit_price, formula: price book formula tokens over measurements, include_waste }] for lines the price book lacks }). Makes or republishes the organization's own template for that kind (tpl_setup_<kind>) and its workflow, makes it the kind's default and pins it in New document.",
     inputSchema: json(applySchema) as Record<string, unknown>, outputSchema: { type: "object" },
     effect: "write", idempotency: "required", executionKinds: ["api", "agent", "module"],
     policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.documents"] },
     validateInput: (value) => { checkedAnswers(applySchema.parse(value)); },
     execute: (ctx, _target, value) => applyDocumentSetup(ctx, person(ctx), value) });
+  // The price step's "Upload an existing estimate" (FM-610): reads it and returns its lines matched to the price book.
+  const estimateInput = z.object({ files: z.array(z.object({ file_name: z.string().max(200), content_type: z.string().max(120).optional(), data_base64: z.string().min(1).max(28_000_000) }).strict()).min(1).max(3) }).strict();
+  registerAction({ id: "documents.setup.read_estimate", version: "1", domain: "documents", implementation: backendImplementationDigest(),
+    description: "Read an estimate or proposal the company already sends (files: up to three PDFs or photos, base64) for the document setup's price step: its priced lines, each with its unit (sq, lf or ea), price per unit, the price book item it matches (item_id, or null) and, for a line the price book does not have, a quantity formula over the measurements. Writes nothing; documents.setup.apply writes what the person keeps.",
+    inputSchema: json(estimateInput) as Record<string, unknown>, outputSchema: { type: "object" },
+    effect: "compute", idempotency: "none", executionKinds: ["api", "agent", "module"],
+    policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.documents"] },
+    validateInput: (value) => { estimateInput.parse(value); },
+    execute: async (ctx, _target, value) => { person(ctx); return (await import("./setup-estimate.js")).readEstimate(ctx.organizationId, value); } });
 }
