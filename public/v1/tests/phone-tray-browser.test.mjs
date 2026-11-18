@@ -85,24 +85,28 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.locator('.fm-phone-selected small').textContent(),'(202) 555-0124');
     assert.equal(await page.locator('.fm-phone-number').isVisible(),false);
     await page.getByRole('button',{name:'Remove selected contact'}).click();
+    // A keypad tap beeps its DTMF pair (row + column frequency), once, on the press (FM-537); typing does not beep.
     await page.locator('[data-digit="2"]').click();
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'2');
-    assert.deepEqual(await page.evaluate(()=>tones),[]);
+    assert.deepEqual(await page.evaluate(()=>tones),[697,1336]);
     await page.locator('[name=customer_number]').pressSequentially('9');
-    assert.deepEqual(await page.evaluate(()=>tones),[]);
+    assert.deepEqual(await page.evaluate(()=>tones),[697,1336]);
     await page.locator('[name=customer_number]').press('Backspace');
-    assert.equal(await page.evaluate(()=>tones.length),0);
+    assert.equal(await page.evaluate(()=>tones.length),2);
     assert.equal(await page.getByLabel('Keypad sounds',{exact:true}).count(),0);
     await page.locator('[data-digit="3"]').click();
     await page.locator('[name=customer_number]').pressSequentially('4');
     assert.equal(await page.getByRole('button',{name:'Delete last digit'}).isVisible(),true);
     const eraseBox=await page.getByRole('button',{name:'Delete last digit'}).boundingBox(),numberInputBox=await page.locator('[name=customer_number]').boundingBox();
     assert.ok(eraseBox.x>=numberInputBox.x&&eraseBox.x+eraseBox.width<=numberInputBox.x+numberInputBox.width);
-    assert.equal(await page.evaluate(()=>tones.length),0);
+    assert.deepEqual(await page.evaluate(()=>tones),[697,1336,697,1477]);
     await page.evaluate(()=>Portal.CustomerPhone.open());
     assert.equal(await page.getByLabel('Keypad sounds',{exact:true}).count(),0);
+    await page.evaluate(()=>{tones.length=0;});
     await page.locator('[data-digit="#"]').click();
-    assert.deepEqual(await page.evaluate(()=>tones),[]);
+    assert.deepEqual(await page.evaluate(()=>tones),[941,1477]);
+    await page.locator('.fm-phone-pad [data-digit="0"]').focus();await page.keyboard.press('Enter');
+    assert.deepEqual(await page.evaluate(()=>tones),[941,1477,941,1336]);
 
 
     await page.evaluate(async()=>{await Portal.CustomerPhone.disconnect();window.delayReady=true;window.pendingConnection=Portal.CustomerPhone.connect();});
@@ -191,7 +195,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     const beforeInCallTone=await page.evaluate(()=>tones.length);
     await page.locator('[data-phone=tone][data-digit="5"]').click();
     await page.waitForFunction(()=>sentTones.includes('5'));
-    assert.equal(await page.evaluate(()=>tones.length),beforeInCallTone);
+    assert.deepEqual(await page.evaluate(n=>tones.slice(n),beforeInCallTone),[770,1336]);
 
     await page.getByRole('button',{name:/Minimize phone/i}).click();
     await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().height===32);

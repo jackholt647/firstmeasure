@@ -369,7 +369,7 @@
   }
   function keypad(){
     const el=dialog('Keypad',`<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_0770dbf1ab92a1","Send digits to the connected call.") ?? "Send digits to the connected call.")}</p><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${String('123456789*0#'.split('').map(d=>`<button type="button" data-digit="${d}">${d}</button>`).join(''))}</div><p data-keypad-status role="status"></p>`,null);
-    el.querySelectorAll('[data-digit]').forEach(button=>button.onclick=async()=>{try{await action('dtmf',{digits:button.dataset.digit});el.querySelector('[data-keypad-status]').textContent=((v0) => globalThis.PlatformLanguage?.text("comms","m_f357c1d81f96cb",`Sent ${v0}`,{v0}) ?? `Sent ${v0}`)(button.dataset.digit);}catch(error){el.querySelector('[data-keypad-status]').textContent=error.message;}});
+    el.querySelectorAll('[data-digit]').forEach(button=>button.onclick=async()=>{Portal.PhoneTray?.keyTone?.(button.dataset.digit);try{await action('dtmf',{digits:button.dataset.digit});el.querySelector('[data-keypad-status]').textContent=((v0) => globalThis.PlatformLanguage?.text("comms","m_f357c1d81f96cb",`Sent ${v0}`,{v0}) ?? `Sent ${v0}`)(button.dataset.digit);}catch(error){el.querySelector('[data-keypad-status]').textContent=error.message;}});
   }
   async function record(){
     const capture=state.call.metadata?.capture?.state;
