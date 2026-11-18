@@ -1884,7 +1884,9 @@ function onMouseMove3D(event) {
     const rect = renderer.domElement.getBoundingClientRect();
     const mouseX = event.clientX - rect.left, mouseY = event.clientY - rect.top;
     // Z-RESIZING
-    if (interactState3D === 'RESIZING_Z' && zResizeState.active) {
+    // Roof heights are not edited in wall mode (FM-566): its view shows the walls' own roof.
+    const roofEditable = !window.WallMode?.enabled;
+    if (interactState3D === 'RESIZING_Z' && zResizeState.active && roofEditable) {
         const deltaPixels = zResizeState.startMouseY - event.clientY;
         let scale = 1.0 + (deltaPixels * 0.005);
         if (scale < 0.01) scale = 0.01;
@@ -1907,7 +1909,7 @@ function onMouseMove3D(event) {
         }
     }
     // Vertical Movement
-    if (interactState3D === 'MOVING' && selectedPoints.size > 0) {
+    if (interactState3D === 'MOVING' && selectedPoints.size > 0 && roofEditable) {
         if (moveStartY_3D === -9999) { moveStartY_3D = mouseY; return; }
         if (typeof flattenState !== 'undefined') flattenState.signature = '';
         const deltaPixels = mouseY - moveStartY_3D;
@@ -6609,6 +6611,10 @@ window.addEventListener('keydown', function(e) {
         _flashViewName(names[target] || target);
         return;
     }
+    // Wall mode owns the keyboard (wall_mode.js handleEditorKey), but this listener was added first. There,
+    // Ctrl+A selected every roof point unseen and M (wall Move) then dragged the whole roof drawing while the
+    // walls kept the roof they were built on: QA opened a roof below the walls (FM-566).
+    if(window.WallMode?.enabled){if(isMod&&e.key.toLowerCase()==='a')e.preventDefault();return;}
     // Ctrl+A: select all
     if(isMod&&e.key.toLowerCase()==='a'){
         e.preventDefault();
