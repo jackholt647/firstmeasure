@@ -448,7 +448,7 @@ test('standard texting wording passes the carrier checks and stays the business 
       window.check=(campaign={})=>{
         const profile=prepareSmsProfileForSave({brand:{displayName:'Pioneer Roofing',companyName:'Pioneer Roofing LLC',ein:'123456789',website:'https://pioneer.example',email:'help@pioneer.example',phone:'+12065515546',street:'707 South Grady Way',city:'Renton',state:'WA',postalCode:'98057'},
           campaign:{privacyPolicyLink:'https://pioneer.example/privacy',termsAndConditionsLink:'https://pioneer.example/sms-terms',selectedNumber:'+12065550101',messageFlowConfirmed:true,...campaign}});
-        return {issues:smsStepIssues('summary',profile),campaign:profile.campaign,steps:smsVisibleSteps(profile).map(step=>step.id),attest:smsConsentAttestation(profile)};
+        return {issues:smsStepIssues('summary',profile),campaign:profile.campaign,steps:smsVisibleSteps(profile).map(step=>step.id),attest:smsConsentAttestation(profile),summary:smsProgramSummary(profile)};
       };
       window.rename=()=>{const first=prepareSmsProfileForSave({brand:{displayName:'Old Name'},campaign:{}});return prepareSmsProfileForSave({...first,brand:{...first.brand,displayName:'New Name'}}).campaign;};
     `});
@@ -457,10 +457,15 @@ test('standard texting wording passes the carrier checks and stays the business 
     assert.deepEqual(plain.steps,['business','contact','number','summary']);
     assert.equal(plain.campaign.standardWording,true);
     assert.deepEqual(plain.campaign.enabledFeatures,['crm_conversations','operations']);
-    assert.deepEqual(plain.campaign.optInMethods,['VERBAL']);
+    assert.deepEqual(plain.campaign.optInMethods,['VERBAL','PAPER_FORM']);
     assert.match(plain.campaign.optInDisclosure,/Pioneer Roofing.*Message frequency varies\. Message and data rates may apply\. Reply STOP to opt out or HELP for help\..*not be shared with third parties for marketing.*https:\/\/pioneer\.example\/privacy.*https:\/\/pioneer\.example\/sms-terms/);
     assert.doesNotMatch(plain.campaign.optInDisclosure+plain.campaign.description+plain.campaign.messageFlow,/marketing and promotional|\[/,'no marketing and no placeholders unless marketing is chosen');
-    assert.match(plain.attest,/agreed by phone or in person/);
+    // FM-584: the business attests that it has the consent the law requires, not one way of getting it: many text
+    // contacts who agreed on a lead form, not on a call. The consent process names every way, without a script.
+    assert.match(plain.attest,/consent the law requires/);
+    assert.doesNotMatch(plain.attest+plain.summary,/phone or in person|consent wording/);
+    assert.match(plain.campaign.messageFlow,/Pioneer Roofing.*by phone or in person.*on a form/);
+    assert.doesNotMatch(plain.campaign.messageFlow,/reads them/);
     const marketing=await page.evaluate(()=>window.check({enabledFeatures:['crm_conversations','operations','customer_growth']}));
     assert.deepEqual(marketing.issues,[],'with marketing, the standard wording still meets the marketing rules');
     assert.match(marketing.campaign.optInDisclosure,/Consent is not a condition of purchase/);
@@ -474,6 +479,7 @@ test('standard texting wording passes the carrier checks and stays the business 
     const own=await page.evaluate(()=>window.check({description:'Pioneer Roofing texts customers who asked us to, about their own roofing projects only.',messageFlow:'Customers tick a box on our quote form.',optInDisclosure:'',sample1:'Pioneer Roofing: hi. Reply STOP to opt out.',sample2:''}));
     assert.equal(own.campaign.description,'Pioneer Roofing texts customers who asked us to, about their own roofing projects only.','a draft from before keeps its own wording');
     assert.notEqual(own.campaign.standardWording,true);
+    assert.match(own.attest,/consent process in Advanced/,'a business\'s own wording is attested as written');
     assert.deepEqual(errors,[]);
   } finally { await browser.close(); }
 });
