@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
 
 test('window docking, swaps, edge previews and project fullscreen restriction',async()=>{
- const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  try{
  const page=await browser.newPage({viewport:{width:1400,height:900}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -42,7 +42,7 @@ test('window docking, swaps, edge previews and project fullscreen restriction',a
 
 
 test('docked header detaches under the pointer and expanded windows return to a usable float',async()=>{
- const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  try{
   const page=await browser.newPage({viewport:{width:1100,height:800}});
   await page.setContent('<style>body{margin:0}main{position:absolute;left:100px;width:1000px;height:800px}header{height:48px}</style><main><div id="panels"></div><section id="project"><header>Project</header></section></main>');
@@ -65,7 +65,7 @@ test('docked header detaches under the pointer and expanded windows return to a 
 });
 
 test('mobile windows default to fullscreen close-only chrome through every placement',async()=>{
- const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  try{
   const page=await browser.newPage({viewport:{width:390,height:844}});
   await page.setContent('<style>body{margin:0}main{position:absolute;top:50px;width:100%;height:calc(100% - 50px)}header{height:48px}</style><main><div id="panels"></div></main>');
@@ -102,7 +102,7 @@ test('mobile windows default to fullscreen close-only chrome through every place
 });
 
  test('mobile window behavior can be explicitly overridden',async()=>{
- const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  try{
   const page=await browser.newPage({viewport:{width:390,height:844}});
   await page.setContent('<main style="height:800px"><section><header>Call</header></section></main>');
@@ -115,7 +115,7 @@ test('mobile windows default to fullscreen close-only chrome through every place
 
 
 test('header trays reset placement on close while preserving contents and open-window placement',async()=>{
- const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  try{
   const page=await browser.newPage({viewport:{width:1200,height:900}});
   await page.setContent('<main style="position:relative;height:900px"><div id="panels"></div></main>');
@@ -150,5 +150,47 @@ test('header trays reset placement on close while preserving contents and open-w
    other.setMode('floating');other.setVisible(false);other.setVisible(true);
   });
   assert.equal(await page.evaluate(()=>other.state.mode),'floating');
+ }finally{await browser.close();}
+});
+
+test('a mobileSheet window is a bottom sheet on a phone: slides up, drag or tap above to put it away (FM-538)',async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:433,height:870},hasTouch:true});
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.setContent('<style>body{margin:0}main{position:absolute;top:50px;width:100%;height:calc(100% - 50px)}header{height:48px}</style><main><div id="panels"></div><section id="phone" hidden><header><span>Phone</span></header><p>Dialer</p></section></main>');
+  await page.addScriptTag({content:await readFile(new URL('../../libraries/window-manager/window-manager.js',import.meta.url),'utf8')});
+  await page.evaluate(()=>{
+   const el=document.querySelector('#phone');window.closes=0;window.inCall=false;
+   window.phone=FirstMateWindows.attach({element:el,header:el.querySelector('header'),title:el.querySelector('span'),host:document.querySelector('main'),name:'phone',mode:'docked',resetOnHide:true,mobileFullDock:true,mobileSheet:true,compactCall:true,minimizedHeight:32,sheetMinimize:()=>window.inCall,onClose:()=>{window.closes++;phone.setVisible(false);}});
+  });
+  const settled=async()=>{await page.waitForTimeout(32);await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState!=='running'));};
+  const rect=()=>page.locator('#phone').boundingBox(),state=()=>page.evaluate(()=>phone.state);
+  // Opens as a sheet from the bottom, with the page still in view (dimmed) above it.
+  await page.evaluate(()=>phone.setVisible(true));
+  assert.ok(await page.evaluate(()=>document.querySelector('#phone').getAnimations().length>0),'the sheet slides up');
+  await settled();
+  let r=await rect();assert.equal(r.x,0);assert.equal(r.width,433);assert.equal(Math.round(r.y+r.height),870);assert.ok(r.y>=56&&r.y<200,`sheet top ${r.y}`);
+  assert.equal(await page.locator('#phone').getAttribute('data-window-sheet'),'true');
+  assert.equal(await page.locator('.fm-window-backdrop.is-sheet:not([hidden])').count(),1);
+  // A short drag snaps back.
+  const drag=async(dy)=>{const b=await page.locator('#phone header').boundingBox();const x=b.x+b.width/2,y=b.y+b.height/2;await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x,y+dy,{steps:8});await page.mouse.up();await settled();};
+  await drag(40);assert.equal((await state()).visible,true);assert.equal(Math.round((await rect()).y),Math.round(r.y));assert.equal(await page.evaluate(()=>window.closes),0);
+  // A long drag closes it as Close would.
+  await drag(260);assert.equal(await page.evaluate(()=>window.closes),1);assert.equal((await state()).visible,false);
+  assert.equal(await page.locator('#phone').evaluate(e=>e.style.transform),'');
+  // During a call it becomes a bar above the bottom edge instead; tapping the bar brings the sheet back.
+  await page.evaluate(()=>{window.inCall=true;phone.setVisible(true);});await settled();
+  await drag(260);assert.equal((await state()).mode,'minimized');assert.equal(await page.evaluate(()=>window.closes),1);
+  const bar=await rect();assert.ok(bar.height>=44&&bar.y+bar.height<=870&&bar.y>700,`bar ${JSON.stringify(bar)}`);
+  assert.equal(await page.locator('#phone').evaluate(e=>getComputedStyle(e).position),'fixed');
+  await page.click('#phone header span');await settled();assert.equal((await state()).mode,'fullscreen');
+  // Tapping the dimmed page above the sheet puts it away too.
+  await page.evaluate(()=>{window.inCall=false;});
+  await page.mouse.click(200,30);await settled();assert.equal(await page.evaluate(()=>window.closes),2);
+  // A desktop width keeps the ordinary dock.
+  await page.setViewportSize({width:1280,height:870});await page.evaluate(()=>phone.setVisible(true));await settled();
+  assert.equal((await state()).mode,'docked');assert.equal(await page.locator('#phone').getAttribute('data-window-sheet'),'false');
+  assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });

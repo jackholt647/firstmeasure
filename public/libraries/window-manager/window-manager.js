@@ -242,6 +242,11 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
 @media(prefers-reduced-motion:reduce){.fm-window,.fm-window-preview{transition:none!important;animation:none!important}}
 .fm-window[hidden]{display:none!important}.fm-window[data-window=full],.fm-window[data-window=fullscreen],.fm-window[data-window=docked]{border-radius:0;box-shadow:none}.fm-window[data-window=docked]{overflow:visible}
 .fm-window-backdrop{position:fixed;inset:0;background:rgba(11,16,24,.58)}.fm-window-backdrop[hidden]{display:none!important}
+.fm-window-backdrop.is-sheet{background:rgba(11,16,24,.34)}
+.fm-window[data-window-sheet=true]{box-sizing:border-box}.fm-window[data-window-sheet=true]>.fm-window-header{position:relative}
+.fm-window[data-window-sheet=true][data-window=fullscreen]{border-radius:18px 18px 0 0!important;box-shadow:0 -9px 28px rgba(15,23,42,.3)!important;padding-bottom:var(--fm-window-safe-bottom,env(safe-area-inset-bottom,0px))}
+.fm-window[data-window-sheet=true][data-window=fullscreen]>.fm-window-header::before{content:'';position:absolute;top:6px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:2px;background:#d0d5dd;pointer-events:none}
+.fm-window[data-window-sheet=true][data-window=minimized]{border-radius:12px!important;box-shadow:0 6px 22px rgba(15,23,42,.24)!important}
 .fm-window-header{display:flex;flex:none;align-items:center;gap:8px;min-height:44px;padding:6px 10px;border-bottom:1px solid #e4e7ec;white-space:nowrap;touch-action:none;user-select:none;cursor:default}
 .fm-window-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:700;white-space:nowrap}
 .fm-window-title:after{content:'';display:inline-block;width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);margin-left:6px;vertical-align:3px;opacity:.55;flex:0 0 auto}
@@ -292,6 +297,13 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
     record.observer.disconnect(); host.style.position = record.previousPosition;
     for (const [target, saved] of record.targets) { target.style.width = saved.width; target.style.marginRight = saved.marginRight; target.style.marginLeft=saved.marginLeft; target.style.height=saved.height; target.style.marginTop=saved.marginTop; target.style.transition=saved.transition; }
     hosts.delete(host);
+  }
+  // A phone sheet leaves the top of the page in view above it; its minimized bar clears the home indicator.
+  function sheetHeight(){ return Math.max(0, innerHeight - Math.max(56, Math.round(innerHeight * .12))); }
+  let safeProbe=null;
+  function sheetSafeBottom(){
+    if(!safeProbe){safeProbe=document.createElement('div');safeProbe.setAttribute('aria-hidden','true');safeProbe.style.cssText='position:fixed;left:0;bottom:0;width:0;visibility:hidden;pointer-events:none;padding-bottom:var(--fm-window-safe-bottom,env(safe-area-inset-bottom,0px))';document.documentElement.append(safeProbe);}
+    return parseFloat(getComputedStyle(safeProbe).paddingBottom) || 0;
   }
   function box(win, left, top, width, height){
     if (win.viewportCoordinates && !['modal','fullscreen'].includes(win.mode)) { const bounds=win.host.getBoundingClientRect(); left+=bounds.left; top+=bounds.top; }
@@ -359,10 +371,11 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
     }
     for (const win of active) {
       const inset = win.topInset();
-      if (win.mode === 'fullscreen') place(win,0,0,innerWidth,innerHeight);
+      if (win.mode === 'fullscreen') { if (win.sheet()) { const h=sheetHeight(); place(win,0,innerHeight-h,innerWidth,h); } else place(win,0,0,innerWidth,innerHeight); }
       if (win.mode === 'modal') { const w=Math.min(1720,innerWidth*.96),h=Math.min(1180,innerHeight*.92); place(win,(innerWidth-w)/2,(innerHeight-h)/2,w,h); }
       if (win.mode === 'full') place(win,leftReserved,inset+topReserved,Math.max(0,width-reserved),Math.max(0,height-inset-topReserved-bottomReserved));
       if (win.mode === 'minimized') {
+        if(win.compactCall && win.sheet()){const h=Math.max(52,win.minimizedHeight);place(win,8,Math.max(0,innerHeight-8-h-sheetSafeBottom()),Math.max(0,innerWidth-16),h);continue;}
         if(win.compactCall){const others=active.filter(w=>w!==win&&w.mode==='minimized');const rows=Math.ceil(others.length/minimizedColumns);place(win,Math.max(0,width-8-Math.min(win.minimizedWidth||360,width-16)),Math.max(inset,height-8-win.minimizedHeight-rows*38),Math.min(win.minimizedWidth||360,width-16),win.minimizedHeight);continue;}
         const column = minimized % minimizedColumns, row = Math.floor(minimized++ / minimizedColumns);
         place(win,Math.max(0,width-8-minimizedWidth-column*(minimizedWidth+6)),Math.max(inset,height-8-32-row*38),minimizedWidth,32);
@@ -380,7 +393,7 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
   }
   function restack(){
     [...windows].sort((a,b)=>(a.stackOrder||0)-(b.stackOrder||0)).forEach((win,index)=>{
-      const z=(['modal','fullscreen'].includes(win.mode) ? 2147483100 : win.mode === 'docked' ? 80 : win.mode === 'minimized' ? 1200 : 500)+index*2;
+      const z=(['modal','fullscreen'].includes(win.mode) || (win.mode === 'minimized' && win.sheet()) ? 2147483100 : win.mode === 'docked' ? 80 : win.mode === 'minimized' ? 1200 : 500)+index*2;
       (win.stackElement || win.element).style.zIndex=String(z);
       if(win.ownedBackdrop)win.ownedBackdrop.style.zIndex=String(z-1);
     });
@@ -406,7 +419,7 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       element, header, host, stackElement:options.stackElement, contentTarget:options.contentTarget,
       viewportCoordinates:options.viewportCoordinates === true, nativeModalLayout:options.nativeModalLayout === true, minimizedHeight:options.minimizedHeight || 32, compactCall:options.compactCall===true,
       minWidth:options.minWidth || 320, minHeight:options.minHeight || 280,
-      mobileFullDock:options.mobileFullDock === true,
+      mobileFullDock:options.mobileFullDock === true, sheet:() => options.mobileSheet === true && mobileFullscreen(),
       mode:modes.includes(options.mode) ? options.mode : 'floating', previous:'floating',
       pinned:false, visible:!element.hidden, dockWidth:options.dockWidth || 440, dockHeight:options.dockHeight || 360, dockSide:'right',
       topInset:() => Math.max(0,Number(options.topInset?.(win.host) || 0)),
@@ -448,11 +461,12 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
     const name = options.label || (options.name === 'project' ? (globalThis.PlatformLanguage?.text("window-manager","project","Project") ?? "Project") : options.name) || (globalThis.PlatformLanguage?.text("window-manager","window","window") ?? "window");
     function chrome(){
       syncBackdrop();
-      element.style.position = win.viewportCoordinates || ['modal','fullscreen'].includes(win.mode) ? 'fixed' : 'absolute';
+      element.style.position = win.viewportCoordinates || ['modal','fullscreen'].includes(win.mode) || (win.mode === 'minimized' && win.sheet()) ? 'fixed' : 'absolute';
       element.dataset.window = win.mode; element.dataset.pinned=String(win.pinned);
       if (win.mode !== 'docked') element.querySelectorAll('.is-dock-divider').forEach(grip=>grip.classList.remove('is-dock-divider'));
       const mobile = mobileFullscreen();
       element.dataset.windowMobile = header.dataset.windowMobile = controls.dataset.windowMobile = String(mobile);
+      element.dataset.windowSheet = String(win.sheet()); win.ownedBackdrop?.classList.toggle('is-sheet', win.sheet());
       const dock = true;
       title?.classList.toggle('fm-window-title-plain', mobile || options.titleMenu === false);
       controls.style.setProperty('display', mobile ? 'flex' : '', mobile ? 'important' : '');
@@ -496,7 +510,7 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
     }
     function notify(reason){ options.onChange?.({mode:win.mode,dockSide:win.dockSide,pinned:win.pinned,reason}); }
     function setMode(mode,{silent=false}={}){
-      if (mobileFullscreen() && modes.includes(mode)) mode = 'fullscreen';
+      if (mobileFullscreen() && modes.includes(mode) && !(mode === 'minimized' && win.sheet())) mode = 'fullscreen';
       if (!modes.includes(mode) || (options.compactCall && !mobileFullscreen() && !['floating','docked','minimized'].includes(mode)) || (mode==='fullscreen' && options.allowFullscreen===false && !mobileFullscreen())) return;
       if (mode !== win.mode) {
         options.onBeforeModeChange?.({mode,previous:win.mode});
@@ -536,13 +550,14 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
         setMode(initialPlacement.mode);
       }
       syncBackdrop();layout(win.host);if(value)focus();
+      if(value && !wasVisible)slideIn();
     }
     async function requestClose(){ if (buttons.close.disabled) return; buttons.close.disabled=true; try { if (options.onClose) await options.onClose(); else setVisible(false); } finally { buttons.close.disabled=false; } }
     function dock(side='right'){if(!placements.includes(side))return;win.dockSide=side;element.dataset.dock=side;setMode('docked');}
     win.dock=dock;
     buttons.place.onclick=()=>dock(win.mode==='docked' && win.dockSide==='right' ? 'left' : 'right');
     buttons.place.oncontextmenu=event=>{event.stopPropagation();showMenu(event,true);};
-    function restore(){if(win.mode === 'minimized'){closeMenu();setMode(win.previous);focus();}}
+    function restore(){if(win.mode === 'minimized'){closeMenu();setMode(win.previous);focus();slideIn();}}
     buttons.minimize.onclick=() => win.mode === 'minimized' ? restore() : setMode('minimized');
     buttons.maximize.onclick=() => setMode(options.presentationModes ? 'full' : win.mode === 'full' ? 'floating' : 'full');
     buttons.close.onclick=requestClose;
@@ -623,6 +638,59 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       endGesture=end;handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',end);handle.addEventListener('pointercancel',end);
     }
     const drag=event=>gesture(event,'');header.addEventListener('pointerdown',drag);
+    // A phone sheet (mobileSheet) slides up from the bottom over the page. Dragging its header down or tapping the
+    // dimmed page above it puts it away: minimized when options.sheetMinimize() says so (a call in progress),
+    // otherwise closed as Close would.
+    const reduceMotion=()=>root.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    function slideIn(){
+      if(!win.sheet() || win.mode!=='fullscreen' || !win.visible || reduceMotion())return;
+      element.animate([{transform:'translateY(100%)'},{transform:'none'}],{duration:340,easing:'cubic-bezier(.22,1,.36,1)'});
+      win.ownedBackdrop?.animate([{opacity:0},{opacity:1}],{duration:280,easing:'ease-out'});
+    }
+    function settleSheet(from){
+      const done=()=>{element.style.removeProperty('transform');if(win.ownedBackdrop)win.ownedBackdrop.style.removeProperty('opacity');};
+      if(!from || reduceMotion()){done();return;}
+      element.style.removeProperty('transform');
+      element.animate([{transform:`translateY(${from}px)`},{transform:'none'}],{duration:240,easing:'cubic-bezier(.22,1,.36,1)'});
+      if(win.ownedBackdrop){win.ownedBackdrop.style.removeProperty('opacity');}
+    }
+    let sheetBusy=false;
+    async function dismissSheet(from=0){
+      if(sheetBusy || !win.sheet() || win.mode!=='fullscreen')return;sheetBusy=true;
+      try{
+        const height=element.getBoundingClientRect().height||innerHeight;
+        if(!reduceMotion()){
+          const out=element.animate([{transform:`translateY(${from}px)`},{transform:`translateY(${height}px)`}],{duration:200,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'});
+          win.ownedBackdrop?.animate([{opacity:win.ownedBackdrop.style.opacity||1},{opacity:0}],{duration:200,fill:'forwards'});
+          await out.finished.catch(()=>{});
+        }
+        if(options.sheetMinimize?.())setMode('minimized');else await requestClose();
+        const stayed=win.visible && win.mode==='fullscreen';
+        element.getAnimations().forEach(a=>a.cancel());win.ownedBackdrop?.getAnimations().forEach(a=>a.cancel());
+        settleSheet(stayed ? height : 0);
+      } finally { sheetBusy=false; }
+    }
+    function sheetDrag(event){
+      if(!win.sheet() || win.mode!=='fullscreen' || sheetBusy || (event.button||0)!==0 || event.target.closest('button,input,a,select,textarea,[role=tab]'))return;
+      const handle=event.currentTarget,startY=event.clientY;let dy=0,lastY=startY,lastT=performance.now(),speed=0;
+      try{handle.setPointerCapture(event.pointerId);}catch{}
+      element.classList.add('is-gesturing');
+      const move=next=>{
+        const now=performance.now();dy=Math.max(0,next.clientY-startY);speed=(next.clientY-lastY)/Math.max(1,now-lastT);lastY=next.clientY;lastT=now;
+        if(dy>3)dragged=true;
+        element.style.setProperty('transform',dy ? `translateY(${dy}px)` : 'none');
+        if(win.ownedBackdrop)win.ownedBackdrop.style.opacity=String(Math.max(0,1-dy/Math.max(1,element.offsetHeight)));
+      };
+      const end=next=>{
+        handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',end);handle.removeEventListener('pointercancel',end);
+        element.classList.remove('is-gesturing');
+        const far=dy>Math.min(140,element.offsetHeight*.25),flick=speed>.5&&dy>24;
+        if(next.type==='pointerup' && (far || flick))void dismissSheet(dy);else settleSheet(dy);
+      };
+      handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',end);handle.addEventListener('pointercancel',end);
+    }
+    header.addEventListener('pointerdown',sheetDrag);
+    win.ownedBackdrop?.addEventListener('click',()=>{if(win.sheet())void dismissSheet();});
     const grips=[];
     for(const edge of ['n','e','s','w','nw','ne','sw','se']){
       const grip=document.createElement('div');grip.className='fm-window-resize';grip.dataset.resize=edge;grip.tabIndex=0;grip.setAttribute('role','separator');grip.setAttribute('aria-label',((v0,v1) => globalThis.PlatformLanguage?.text("window-manager","m_0d80b4a3bd88a0",`Resize ${v0} ${v1}`,{v0,v1}) ?? `Resize ${v0} ${v1}`)(name,edge));
@@ -644,7 +712,7 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
     const refreshViewport=()=>{
       if (mobileFullscreen()) {
         endGesture?.(); closeMenu();
-        if (win.mode !== 'fullscreen') { setMode('fullscreen'); return; }
+        if (win.mode !== 'fullscreen' && !(win.mode === 'minimized' && win.sheet())) { setMode('fullscreen'); return; }
       }
       chrome(); layout(win.host);
     }; window.addEventListener('resize',refreshViewport);
@@ -655,13 +723,13 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       // shell hands its chrome to the ready, isolated document.
       rebindChrome(next){
         endGesture?.();closeMenu();
-        header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);
+        header.removeEventListener('pointerdown',drag);header.removeEventListener('pointerdown',sheetDrag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);
         if(headerDocument!==document){headerDocument.removeEventListener('keydown',keydown);headerDocument.removeEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.removeEventListener('keydown',dismissMenuOnKey,true);}
         options={...options,...next};header=next.header;title=next.title;headerDocument=header.ownerDocument;win.header=header;
         (next.controlsHost || header).append(controls);
         title?.classList.add('fm-window-title');
         if(title && options.titleMenu!==false){title.tabIndex=0;title.setAttribute('role','button');}
-        header.addEventListener('pointerdown',drag);header.addEventListener('contextmenu',showMenu);header.addEventListener('click',titleClick);
+        header.addEventListener('pointerdown',drag);header.addEventListener('pointerdown',sheetDrag);header.addEventListener('contextmenu',showMenu);header.addEventListener('click',titleClick);
         if(headerDocument!==document){headerDocument.addEventListener('keydown',keydown);headerDocument.addEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.addEventListener('keydown',dismissMenuOnKey,true);}
         chrome();layout(win.host);
       },
@@ -671,7 +739,7 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       setVisible,
       rehost(nextHost,contentTarget){if(nextHost===win.host)return;const old=win.host;registerHost(nextHost);win.host=nextHost;win.contentTarget=contentTarget;nextHost.append(element);if(win.ownedBackdrop)nextHost.append(win.ownedBackdrop);layout(old);releaseHost(old);layout(nextHost);},
       refresh(){layout(win.host);},
-      destroy(){win.animation?.cancel();if(headerDocument!==document){headerDocument.removeEventListener('keydown',keydown);headerDocument.removeEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.removeEventListener('keydown',dismissMenuOnKey,true);}window.removeEventListener('resize',refreshViewport);endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);win.ownedBackdrop?.remove();win.stackElement?.removeAttribute('data-fm-window-backdrop');element.remove();layout(win.host);releaseHost(win.host);}
+      destroy(){win.animation?.cancel();if(headerDocument!==document){headerDocument.removeEventListener('keydown',keydown);headerDocument.removeEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.removeEventListener('keydown',dismissMenuOnKey,true);}window.removeEventListener('resize',refreshViewport);endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('pointerdown',sheetDrag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);win.ownedBackdrop?.remove();win.stackElement?.removeAttribute('data-fm-window-backdrop');element.remove();layout(win.host);releaseHost(win.host);}
     };
   }
   root.FirstMateWindows={attach, ensureStyles:styles, backdrops, opening};

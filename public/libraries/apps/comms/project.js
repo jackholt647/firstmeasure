@@ -170,7 +170,6 @@
       /* display:flex would otherwise override the [hidden] attribute and
          leave a permanently blank right column. */
       .fmco-agent-col[hidden]{display:none!important}
-      .fmco-test{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:900;letter-spacing:.05em;color:#b45309;background:#fff7e6;border:1px solid #f5dda9;border-radius:999px;padding:1px 7px;text-transform:uppercase;vertical-align:1px}
       .fmco-ai-chip{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:900;letter-spacing:.05em;color:#6d28d9;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:999px;padding:1px 7px;text-transform:uppercase;vertical-align:1px}
       .fmco-auto-chip{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:900;letter-spacing:.05em;color:#0369a1;background:#e0f2fe;border:1px solid #bae6fd;border-radius:999px;padding:1px 7px;text-transform:uppercase;vertical-align:1px}
       .fmco-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
@@ -578,7 +577,6 @@
 
   function badges(message){
     const parts = [];
-    if (message.test_mode) parts.push(`<span class="fmco-test"><i class="fa-solid fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_7068831b41c117","Test") ?? "Test")}</span>`);
     if (message.source_kind === 'ai') parts.push(`<span class="fmco-ai-chip"><i class="fa-solid fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_6bb9dc0a65d709","AI") ?? "AI")}</span>`);
     else if (message.source_kind === 'automation') parts.push(`<span class="fmco-auto-chip"><i class="fa-solid fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_ab5038eb19bf34","Auto") ?? "Auto")}</span>`);
     return parts.join('');
@@ -768,7 +766,7 @@
       <button type="button" class="fmco-btn primary" data-co-compose style="justify-content:center"><i class="fa-solid fa-pen"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_71e31660564d5a","New email") ?? "New email")}</button>
       ${String(state.emailThreads.length ? state.emailThreads.map((item) => `
         <button type="button" class="fmco-thread-row${thread && thread.id === item.id ? ' active' : ''}" data-co-thread="${esc(clean(item.id))}">
-          <span class="fmco-thread-subject"><span>${esc(clean(item.subject) || '(no subject)')}</span>${object(item.last_message).test_mode ? `<span class="fmco-test"><i class="fa-solid fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_7068831b41c117","Test") ?? "Test")}</span>` : ''}</span>
+          <span class="fmco-thread-subject"><span>${esc(clean(item.subject) || '(no subject)')}</span></span>
           <span class="fmco-thread-meta"><span>${((v4,v5) => globalThis.PlatformLanguage?.htmlText("comms","m_2de5206655064d",`${v4} message${v5}`,{v4,v5}) ?? `${v4} message${v5}`)(Number(item.message_count || 0),Number(item.message_count || 0) === 1 ? '' : 's')}</span><span>${esc(timeLabel(item.last_message_at))}</span></span>
         </button>
       `).join('') : `<div class="fmco-empty"><i class="fa-solid fa-envelope-open"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_4aeca6bca783d6","No email threads yet.") ?? "No email threads yet.")}</p></div>`)}
@@ -972,7 +970,7 @@
       <button type="button" class="fmco-btn primary" data-co-sms-compose style="justify-content:center"><i class="fa-solid fa-pen"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_3c10edbba72365","New text") ?? "New text")}</button>
       ${String(smsConversations().length ? smsConversations().map((conversation) => `
         <button type="button" class="fmco-thread-row${active && clean(active.id) === clean(conversation.id) ? ' active' : ''}" data-co-sms-thread="${esc(clean(conversation.id))}">
-          <span class="fmco-thread-subject"><span>${esc(recipientNames(conversation.participants))}</span>${object(conversation.last_message).test_mode ? `<span class="fmco-test"><i class="fa-solid fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_7068831b41c117","Test") ?? "Test")}</span>` : ''}</span>
+          <span class="fmco-thread-subject"><span>${esc(recipientNames(conversation.participants))}</span></span>
           <span class="fmco-thread-meta"><span>${((v4,v5) => globalThis.PlatformLanguage?.htmlText("comms","m_2de5206655064d",`${v4} message${v5}`,{v4,v5}) ?? `${v4} message${v5}`)(Number(conversation.message_count || 0),Number(conversation.message_count || 0) === 1 ? '' : 's')}</span><span>${esc(timeLabel(conversation.last_message_at))}</span></span>
         </button>
       `).join('') : `<div class="fmco-empty"><i class="fa-solid fa-comment-sms"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_25af8c4f012bc1","No text threads yet.") ?? "No text threads yet.")}</p></div>`)}
@@ -1459,14 +1457,6 @@
           <button type="button" class="fmco-btn primary fmco-left-save" data-co-left-save ${state.settings.saving ? 'disabled' : ''}>${state.settings.saving ? 'Saving…' : 'Save'}</button>
         </div>
       ` : '')}
-      <div class="fmco-left-card">
-        <span class="fmco-left-title"><i class="fa-solid fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_4ee0964bb70748","Test mode") ?? "Test mode")}</span>
-        <span class="fmco-left-hint">${(globalThis.PlatformLanguage?.htmlText("comms","m_597802c753ea62","Deliveries are in test mode: outbound messages are recorded here with a Test badge but not delivered. Simulate the customer replying to exercise notifications, automations, and AI.") ?? "Deliveries are in test mode: outbound messages are recorded here with a Test badge but not delivered. Simulate the customer replying to exercise notifications, automations, and AI.")}</span>
-        <div style="display:flex;gap:6px">
-          ${String(can('comms.email') ? `<button type="button" class="fmco-btn" data-co-sim="email" style="flex:1;justify-content:center"><i class="fa-solid fa-envelope"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_6ad499fc7305f0","Email in") ?? "Email in")}</button>` : '')}
-          ${String(can('comms.sms') ? `<button type="button" class="fmco-btn" data-co-sim="sms" style="flex:1;justify-content:center"><i class="fa-solid fa-comment-sms"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_d06e1f42fcf0c7","Text in") ?? "Text in")}</button>` : '')}
-        </div>
-      </div>
     `;
     target.appendChild(shell);
 
@@ -1496,29 +1486,6 @@
       if (mode) next.auto_response = mode;
       state.settings.overrides = next;
       saveLeft();
-    });
-    shell.querySelectorAll('[data-co-sim]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        if (state.simulateBusy) return;
-        const channel = button.dataset.coSim;
-        const text = rootWindow.prompt(channel === 'email' ? 'Simulated customer email text:' : 'Simulated customer text message:');
-        if (!clean(text)) return;
-        state.simulateBusy = true;
-        button.disabled = true;
-        try {
-          await api2().simulateInbound(orgId(), projectId(), {
-            channel,
-            text: clean(text),
-            ...(channel === 'email' ? { subject: 'Message from your customer' } : {})
-          });
-          await loadView();
-        } catch (error) {
-          state.error = error?.message || 'Simulation failed.';
-          render();
-        }
-        state.simulateBusy = false;
-        button.disabled = false;
-      });
     });
   }
 
@@ -1677,7 +1644,17 @@
     reset,
     destroy,
     unmount: destroy,
-    context: () => ({ mounted: state.mounted, active: state.active, view: state.view })
+    context: () => ({ mounted: state.mounted, active: state.active, view: state.view, channels: { email: can('comms.email'), sms: can('comms.sms') } }),
+    // The dev console (dev-console/sections/comms.js) simulates the customer replying on this project.
+    async simulateInbound({ channel, text }) {
+      if (!state.mounted || !['email', 'sms'].includes(channel) || !clean(text)) throw new Error('Open a project\'s Comms tab first.');
+      if (state.simulateBusy) return;
+      state.simulateBusy = true;
+      try {
+        await api2().simulateInbound(orgId(), projectId(), { channel, text: clean(text), ...(channel === 'email' ? { subject: 'Message from your customer' } : {}) });
+        await loadView();
+      } finally { state.simulateBusy = false; }
+    }
   };
 
   Portal.modules = Portal.modules || {};

@@ -75,6 +75,12 @@ with only a padded Close control. Menus, move/resize gestures and minimize/maxim
 are disabled. Set `mobileFullscreen: false` to explicitly opt out for a specialized
 window. Narrow desktop iframes keep desktop controls.
 
+`mobileSheet: true` makes that phone placement a bottom sheet instead (the phone tray, FM-538): it slides up
+over the page from the bottom, leaving the top of the page dimmed in view, and has a grab handle. Dragging its
+header down (far or fast enough) or tapping the dimmed page puts it away: minimized to a full-width bar above
+the bottom edge when `sheetMinimize()` returns true (a call in progress; tapping the bar brings the sheet back),
+otherwise closed exactly as Close would (`onClose`). A short drag snaps back. Desktop widths are unchanged.
+
 The desktop right-side controls are:
 
 | Current mode | Controls, left to right |
