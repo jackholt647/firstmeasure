@@ -15,6 +15,9 @@
 // button (no "Additional videos"/"Nothing added yet": recordings go into the walkaround). The phone photo page uses
 // Jack's copy with the steps right under the picture. On desktop the photos have no "Optional with a video walkaround"
 // line, and Continue sits at the bottom right whatever is uploaded. The samples are Ben's house, plus other angles.
+// FM-569: on a phone, "View sample" sits under the steps of the walkaround and photo intros (the sample video, or the
+// whole sample gallery); each angle's Example shows just that angle. Once every angle has a photo (Add photos from the
+// review), the guide's forward button says "Review" and goes back to the review instead of on to the next angle.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -158,4 +161,18 @@ test('the copy matches the agreed wording', () => {
     assert.ok(request.includes(`"${text}"`), `What's included is missing "${text}"`);
   }
   assert.doesNotMatch(request, /Doors & window/);
+});
+
+test('phone intros show "View sample" under the steps, and Add photos from the review returns to it', () => {
+  assert.match(fn('videoIntroUI'), /<div class="ext-intro-middle">\$\{DESK_STEPS\}\$\{introSampleUI\('sample-video'\)\}<\/div><div class="ext-orbit-actions">/);
+  assert.match(fn('photoIntroUI'), /<\/li><\/ol>\$\{introSampleUI\('sample-photos'\)\}<\/div><div class="ext-orbit-actions">/);
+  assert.match(source, /const introSampleUI=key=>`<div class="ext-intro-sample"><button type="button" class="ext-example-tip" data-intro-sample="\$\{key\}"[^`]*"ext_view_sample","View sample"/);
+  const show = fn('showIntroSample');
+  assert.match(show, /pop\.innerHTML=deskSampleHtml\(key,true\)/, 'the phone popover reuses the desktop sample card');
+  // On a phone the gallery enlarges in place: the app opens target=_blank links in place of the order.
+  assert.match(fn('deskSampleHtml'), /const item=\(src,name=''\)=>phone\?`<button type="button" data-sample-zoom/);
+  assert.match(fn('fillExample'), /img\.src=sampleImage\(view\)/, 'the angle Example shows only that angle');
+  assert.match(source, /const everyAngleTaken=\(\)=>!!ctx\?\.count&&Array\.from\(\{length:ctx\.count\*8\}/);
+  assert.match(fn('mountGuide'), /\[data-guide-forward\]'\)\.onclick=\(\)=>guideIndex\+1<ctx\.count\*8&&!everyAngleTaken\(\)\?visitGuide\(guideIndex\+1\):finishGuide\(\);/);
+  assert.match(fn('updateGuide'), /\[data-guide-forward\]'\)\.textContent=everyAngleTaken\(\)\?\(globalThis\.PlatformLanguage\?\.text\("firstmeasure","ext_aff0766a5290e1","Review"\)/);
 });
