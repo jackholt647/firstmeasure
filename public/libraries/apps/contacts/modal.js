@@ -125,7 +125,7 @@
     return {install,open:show,close};
   })());
   let contactWindow = null;
-  let contactShell=null,contactPanes=null,contactTrays=null;
+  let contactShell=null,contactPanes=null,contactTrays=null,contactCamera=null;
   let saveTimer=null, savePromise=null, revision=0, savedRevision=0;
   let draftMedia=[];
 
@@ -362,7 +362,7 @@
       .fm-contact-window-identity i,.fm-contact-title-icon{color:var(--primary-readable,var(--primary,#d93025));flex:0 0 auto}
       .fm-contact-window-identity span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .fm-contact-content{display:flex;flex:1;min-height:0;min-width:0}
-      .fm-contact-photo-tile{width:100px;height:100px;border:1px dashed #cfd5df;border-radius:10px;background:#f8fafc;color:#667085;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;padding:0;overflow:hidden;font:inherit;font-size:12px}.fm-contact-photo-tile img{width:100%;height:100%;object-fit:cover}.fm-contact-photo-remove{width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:#667085;cursor:pointer}.fm-contact-photo-remove:hover{background:#f2f4f7;color:#b42318}.fm-contact-tabs{padding:12px 20px;margin:0;gap:8px;flex:0 0 auto;background:#fff;border-bottom:1px solid #eaecf0}.fm-contact-tabs .fm-contact-btn.primary{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025));box-shadow:none}#fmContactGallery .pf-title{display:none}.fm-contact-tabs .fm-contact-btn{border-radius:9px;height:36px;flex:0 0 auto}.fm-contact-profile{margin:0 0 8px;flex-wrap:nowrap}.fm-contact-actions .fm-contact-btn{flex:1}.fm-contact-fields{flex:1 1 auto}.fm-contact-left{width:min(420px,42%);min-height:0;border-right:1px solid rgba(15,23,42,.08);padding:14px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;background:#fff;overflow:hidden}
+      .fm-contact-photo-tile{width:100px;height:100px;border:1px dashed #cfd5df;border-radius:10px;background:#f8fafc;color:#667085;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;padding:0;overflow:hidden;font:inherit;font-size:12px}.fm-contact-photo-tile img{width:100%;height:100%;object-fit:cover}.fm-contact-photo-remove{width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:#667085;cursor:pointer}.fm-contact-photo-remove:hover{background:#f2f4f7;color:#b42318}.fm-contact-tabs{padding:12px 20px;margin:0;gap:8px;flex:0 0 auto;background:#fff;border-bottom:1px solid #eaecf0}.fm-contact-tabs .fm-contact-btn.primary{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025));box-shadow:none}#fmContactGallery .pf-title strong{white-space:nowrap}.fm-contact-tabs>button{display:inline-flex;align-items:center;gap:6px}.fm-contact-tabs .fm-contact-btn{border-radius:9px;height:36px;flex:0 0 auto}.fm-contact-profile{margin:0 0 8px;flex-wrap:nowrap}.fm-contact-actions .fm-contact-btn{flex:1}.fm-contact-fields{flex:1 1 auto}.fm-contact-left{width:min(420px,42%);min-height:0;border-right:1px solid rgba(15,23,42,.08);padding:14px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;background:#fff;overflow:hidden}
       .fm-contact-right{flex:1;min-width:0;background:#eef2f6;display:flex;flex-direction:column;position:relative}
       .fm-contact-right .fm-shell-pane{padding:18px;box-sizing:border-box}
       #fmContactGallery{padding:0;min-height:0}
@@ -375,6 +375,10 @@
       .fm-contact-fields{display:grid;flex:0 1 auto;min-height:0;gap:6px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-right:2px}
        .fm-contact-name-fields{display:grid;grid-template-columns:1fr 1fr;gap:6px}.fm-contact-relationship-actions{display:flex;gap:6px;flex-wrap:wrap}.fm-contact-relationship-panel{display:grid;gap:7px;border:1px solid #e4e7ec;border-radius:9px;padding:9px;background:#f8fafc}.fm-contact-relationship-panel[hidden],#fmContactTimeZoneField[hidden]{display:none!important}.fm-contact-relationship-match{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:850}.fm-contact-relationship-match button{border:0;background:none;color:#b42318;cursor:pointer}
       .fm-contact-relationship-match{align-items:flex-start;border:1px solid #e4e7ec;border-radius:9px;padding:9px;background:#fff;margin:5px 0}.fm-contact-relationship-details{display:grid;gap:4px;min-width:0;flex:1}.fm-contact-relationship-details strong{font-size:12px;color:#101828}.fm-contact-relationship-details span{font-weight:650;color:#667085;overflow-wrap:anywhere}.fm-contact-relationship-match .fm-contact-relationship-open{color:var(--primary-readable,var(--primary,#d93025));font-weight:900;padding:0;text-align:left}.fm-contact-relationship-match .fm-contact-relationship-remove{color:#b42318;font-size:10px}.fm-contact-relationship-panel label{display:grid;gap:3px;font-size:10px;font-weight:900;color:#667085}.fm-contact-relationship-panel .fm-contact-name-fields{gap:6px}.fm-contact-relationship-panel .fm-contact-btn{width:max-content}
+      .fm-contact-right [data-contact-pane="media"]{position:relative;--fm-safe-bottom:0px}
+      .fm-contact-right .fmc-host>#fmContactGallery .pf-scroll{padding-bottom:68px}
+      .fm-contact-right .fmc-host:is(:has(.pf-has-seldock),:has(.pf-shown-menu))>.fmc-bar{transform:translateY(calc(100% + 24px));opacity:0;pointer-events:none}
+      .fm-contact-docs.fm-docs-wrap{display:flex;flex:1 1 auto;min-height:0;height:100%;gap:0}.fm-contact-right .fm-shell-pane[data-contact-pane="docs"]:has(>.fm-docs-wrap){padding:0}
       .fm-contact-docs{display:grid;align-content:start;gap:12px;min-height:100%;padding-bottom:20px}.fm-contact-docs-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.fm-contact-docs-head h3{font-size:15px;margin:0}.fm-contact-doc-list{display:grid;align-content:start;gap:8px}.fm-contact-doc{display:flex;align-items:center;gap:10px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:12px;color:#344054;text-decoration:none}.fm-contact-doc:hover{border-color:var(--primary,#d93025)}.fm-contact-doc span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fm-contact-doc small{margin-left:auto;color:#667085;white-space:nowrap}
       #fmContactBackContact[hidden]{display:none!important}
       .fm-contact-field{display:grid;gap:3px}
@@ -435,10 +439,9 @@
         .fm-contact-projects{grid-template-columns:1fr;padding:0 0 66px}
         .fm-contact-overlay.window-managed .fm-window-controls button{width:28px;min-height:39px}
       }
-      .fm-contact-actions .fm-contact-more{display:none}
       /* Phone (the window is full screen): one scrolling column, thumb-sized fields and a fixed action bar; secondary actions sit in More. */
       @media(max-width:760px){
-        .fm-contact-content{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+        .fm-contact-content{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:calc(53px + var(--fm-window-safe-bottom,env(safe-area-inset-bottom,0px)))}
         .fm-contact-left{height:auto;flex:0 0 auto;overflow:visible;padding:14px 16px 16px;gap:10px}
         .fm-contact-fields{overflow:visible;padding-right:0;gap:10px;scrollbar-gutter:auto}
         .fm-contact-right{flex:1 0 auto;min-height:280px}
@@ -450,45 +453,39 @@
         .fm-contact-phone-add,.fm-contact-phone-actions button{min-height:32px;font-size:13px}
         .fm-contact-tag{font-size:12px;padding:5px 10px}
         .fm-contact-tag-input{min-height:34px;font-size:14px}
-        .fm-contact-relationship-actions{display:none}
-        #fmContactRelationships:not(:has(.fm-contact-relationship-match,.fm-contact-relationship-panel:not([hidden]))){display:none}
-        .fm-contact-actions{position:fixed;left:0;right:0;bottom:0;z-index:6;gap:6px;padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-top:1px solid rgba(15,23,42,.08);box-shadow:0 -8px 24px rgba(16,24,40,.08)}
-        .fm-contact-actions .fm-contact-btn{min-height:54px;flex-direction:column;gap:4px;border:0;border-radius:12px;background:transparent;color:var(--primary-readable,var(--primary,#d93025));font-size:11px;font-weight:900;transition:background-color .15s ease,transform .12s ease}
-        .fm-contact-actions .fm-contact-btn i{font-size:17px}
-        .fm-contact-actions .fm-contact-btn:active:not(:disabled){transform:scale(.94);background:rgba(var(--primary-rgb,217,48,37),.08)}
-        .fm-contact-actions .fm-contact-btn:disabled{color:#98a2b3;opacity:.7}
-        .fm-contact-actions .fm-contact-more{display:inline-flex;color:#475467;flex:0 0 64px}
-        .fm-contact-new-project{display:none!important}
-        .fm-contact-projects{padding:0 0 12px}
+        .fm-contact-relationship-actions .fm-contact-btn{flex:1 1 0;min-height:42px;border-radius:12px;font-size:13px;font-weight:800}
+        /* The footer bar is the project window's (project-trays.js, footer placement): grey icons in a pill over a small label. */
+        .fm-contact-actions{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;align-items:stretch;justify-content:space-around;gap:0;margin:0;padding:0 6px var(--fm-window-safe-bottom,env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid #e4e7ec;box-shadow:0 -1px 2px #1018280a}
+        .fm-contact-actions .fm-contact-btn{position:relative;flex:1 1 0;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;max-width:112px;height:52px;min-height:52px;margin:0;padding:5px 2px 4px;border:0;border-radius:0;background:none;color:#667085;font-size:10.5px;line-height:13px;font-weight:600;letter-spacing:0;-webkit-tap-highlight-color:transparent;transition:color .18s ease}
+        .fm-contact-actions .fm-contact-btn i{display:grid;place-items:center;width:48px;height:26px;border-radius:999px;font-size:16px;line-height:1;transition:background .2s ease,color .2s ease,transform .12s ease}
+        .fm-contact-actions .fm-contact-btn span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .fm-contact-actions .fm-contact-btn:active:not(:disabled){color:var(--primary-readable,var(--primary,#d93025))}
+        .fm-contact-actions .fm-contact-btn:active:not(:disabled) i{transform:scale(.94);background:rgba(var(--primary-rgb,217,48,37),.13)}
+        .fm-contact-actions .fm-contact-btn:focus-visible{outline:none}.fm-contact-actions .fm-contact-btn:focus-visible i{outline:2px solid var(--primary,#d93025);outline-offset:1px}
+        .fm-contact-actions .fm-contact-btn:disabled{color:#c4cad4;opacity:1}
+        .fm-contact-new-project{right:16px;bottom:16px}
+        .fm-contact-projects{padding:0 0 76px}
         .fm-contact-project{min-height:0;padding:14px 16px;border-radius:14px;box-shadow:0 1px 2px rgba(16,24,40,.05)}
         .fm-contact-project:active{transform:scale(.985)}
-        .fm-contact-sheet{position:absolute;inset:0;z-index:20;background:rgba(15,23,42,0);transition:background-color .2s ease}
-        .fm-contact-sheet.open{background:rgba(15,23,42,.34)}
-        .fm-contact-sheet-panel{position:absolute;left:0;right:0;bottom:0;display:grid;gap:2px;padding:10px 10px calc(14px + env(safe-area-inset-bottom,0px));background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -14px 40px rgba(16,24,40,.22);transform:translateY(100%);transition:transform .24s cubic-bezier(.2,.8,.2,1)}
-        .fm-contact-sheet-panel::before{content:'';justify-self:center;width:38px;height:4px;margin:0 0 8px;border-radius:2px;background:#d0d5dd}
-        .fm-contact-sheet.open .fm-contact-sheet-panel{transform:none}
-        .fm-contact-sheet-panel button{display:flex;align-items:center;gap:14px;min-height:52px;padding:0 14px;border:0;border-radius:12px;background:transparent;color:#101828;font:inherit;font-size:15px;font-weight:800;text-align:left;cursor:pointer}
-        .fm-contact-sheet-panel button:active{background:#f2f4f7}
-        .fm-contact-sheet-panel button i{width:22px;text-align:center;color:var(--primary-readable,var(--primary,#d93025));font-size:16px}
       }
       /* Phone: Details is a tab like the others, so each tab shows only its own content. The
          Call/Text/Email bar stays along the bottom in every tab. */
       .fm-contact-details-tab{display:none!important}
       @media(max-width:760px){
-        .fm-contact-overlay .fm-contact-win .fm-contact-tabs.fm-shell-tabs{display:flex!important;height:46px!important;min-height:46px!important;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;border-top:1px solid #f2f4f7}
-        .fm-contact-overlay .fm-contact-win .fm-contact-tabs.fm-shell-tabs::-webkit-scrollbar{display:none}
-        .fm-contact-overlay .fm-contact-win .fm-contact-tabs.fm-shell-tabs>button{flex:1 0 auto;height:46px!important;min-height:46px!important;padding:0 8px!important;font-size:14px;font-weight:700;white-space:nowrap;transition:color .18s ease,box-shadow .2s ease}
         .fm-contact-overlay .fm-contact-win .fm-contact-tabs.fm-shell-tabs>button[hidden]{display:none!important}
-        .fm-contact-overlay .fm-contact-details-tab{display:flex!important;align-items:center;justify-content:center}
+        .fm-contact-overlay .fm-contact-details-tab{display:flex!important}
         .fm-contact-overlay[data-contact-view="details"] .fm-contact-right{display:none}
         .fm-contact-overlay[data-contact-view="details"] .fm-contact-content{background:#fff}
         .fm-contact-overlay[data-contact-view="details"] .fm-contact-left{border-bottom:0}
         .fm-contact-overlay[data-contact-view="pane"] .fm-contact-left{padding:0;border-bottom:0}
         .fm-contact-overlay[data-contact-view="pane"] .fm-contact-left>:not(.fm-contact-actions){display:none!important}
-        .fm-contact-overlay[data-contact-view="pane"] .fm-contact-right{min-height:100%}
+        .fm-contact-overlay[data-contact-view="pane"] .fm-contact-content{overflow:hidden}
+        .fm-contact-overlay[data-contact-view="pane"] .fm-contact-right{flex:1 1 auto;min-height:0}
+        .fm-contact-overlay[data-contact-view="pane"] .fm-contact-projects{flex:1 1 auto;min-height:0;align-content:start}
+        .fm-contact-overlay .fm-contact-right .fm-shell-pane:is([data-contact-pane="media"],[data-contact-pane="docs"]){padding:0}
         .fm-contact-tag-input{height:40px;padding:0 14px}
       }
-      @media(prefers-reduced-motion:reduce){.fm-contact-sheet,.fm-contact-sheet-panel,.fm-contact-actions .fm-contact-btn{transition:none}}
+      @media(prefers-reduced-motion:reduce){.fm-contact-actions .fm-contact-btn,.fm-contact-actions .fm-contact-btn i{transition:none}}
     `;
     document.head.appendChild(style);
   }
@@ -589,7 +586,7 @@
           <div class="fm-contact-window-identity"><i class="fas fa-address-card" aria-hidden="true"></i><span id="fmContactWindowTitle">${(globalThis.PlatformLanguage?.htmlText("contacts","m_90a1aa2fb77fc8","New Contact") ?? "New Contact")}</span></div>
           <button type="button" class="fm-contact-close" id="fmContactClose" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
            <div class="r-window-bar-actions"></div>
-           <div class="fm-contact-tabs" role="tablist" aria-label="Contact sections"><button type="button" role="tab" class="fm-contact-details-tab" data-contact-details id="fmContactDetailsTab">${(globalThis.PlatformLanguage?.htmlText("contacts","contact_details_tab","Details") ?? "Details")}</button><button type="button" role="tab" data-tab="projects" id="fmContactProjectsTab">Projects</button><button type="button" role="tab" data-tab="media" id="fmContactMediaTab">Photos &amp; Media</button><button type="button" role="tab" data-tab="docs" id="fmContactDocsTab">Docs</button></div>
+           <div class="fm-contact-tabs" role="tablist" aria-label="Contact sections"><button type="button" role="tab" class="fm-contact-details-tab" data-contact-details id="fmContactDetailsTab"><i class="fas fa-address-card" aria-hidden="true"></i><span class="pv-tab-label">${(globalThis.PlatformLanguage?.htmlText("contacts","contact_details_tab","Details") ?? "Details")}</span></button><button type="button" role="tab" data-tab="projects" id="fmContactProjectsTab"><i class="fas fa-folder-open" aria-hidden="true"></i><span class="pv-tab-label">Projects</span></button><button type="button" role="tab" data-tab="media" id="fmContactMediaTab"><i class="fas fa-images" aria-hidden="true"></i><span class="pv-tab-label">Photos &amp; Media</span></button><button type="button" role="tab" data-tab="docs" id="fmContactDocsTab"><i class="fas fa-file-lines" aria-hidden="true"></i><span class="pv-tab-label">Docs</span></button></div>
         </div>
         <div class="fm-contact-content">
         <section class="fm-contact-left">
@@ -619,11 +616,10 @@
             <button type="button" class="fm-contact-btn" id="fmContactCall"><i class="fas fa-phone"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8d4eaa0da004be","Call") ?? "Call")}</span></button>
             <button type="button" class="fm-contact-btn" id="fmContactText"><i class="fas fa-comment-sms"></i><span>Text</span></button>
             <button type="button" class="fm-contact-btn" id="fmContactEmailAction"><i class="fas fa-envelope"></i><span>Email</span></button>
-            <button type="button" class="fm-contact-btn fm-contact-more" data-fm-contact-more aria-haspopup="menu" aria-expanded="false" aria-label="More actions" data-fm-tooltip="More actions"><i class="fas fa-ellipsis"></i><span>More</span></button>
           </div>
         </section>
         <section class="fm-contact-right">
-          <input type="file" multiple hidden id="fmContactMediaUpload"><input type="file" multiple hidden id="fmContactDocsUpload" accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.ppt,.pptx,.odt,.rtf"><div id="fmContactGallery" hidden></div><div class="fm-contact-docs" id="fmContactDocs"><div class="fm-contact-docs-head"><h3>Contact docs</h3><button type="button" class="fm-contact-btn" id="fmContactDocsAdd"><i class="fas fa-plus" aria-hidden="true"></i> Add doc</button></div><div class="fm-contact-doc-list" id="fmContactDocsList"></div></div><div class="fm-contact-projects" id="fmContactProjects"></div>
+          <input type="file" multiple hidden id="fmContactMediaUpload"><input type="file" multiple hidden id="fmContactDocsUpload" accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.ppt,.pptx,.odt,.rtf"><div id="fmContactGallery" hidden></div><div class="fm-contact-docs" id="fmContactDocs"></div><div class="fm-contact-projects" id="fmContactProjects"></div>
           <button type="button" class="fm-contact-new-project" id="fmContactNewProject"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_0747045bf3d919","New Project") ?? "New Project")}</span></button>
         </section>
         </div>
@@ -645,7 +641,7 @@
     $('#fmContactMediaTab', overlay)?.addEventListener('click',()=>showContactTab('media'));
     $('#fmContactDocsTab', overlay)?.addEventListener('click',()=>showContactTab('docs'));
     $('#fmContactMediaUpload',overlay)?.addEventListener('change',event=>uploadContactFiles(event.target.files));
-    $('#fmContactDocsAdd',overlay)?.addEventListener('click',()=>$('#fmContactDocsUpload',overlay)?.click());
+    $('#fmContactDocs',overlay)?.addEventListener('click',event=>{if(event.target.closest('[data-contact-docs-add]'))$('#fmContactDocsUpload',overlay)?.click();});
     $('#fmContactDocsUpload',overlay)?.addEventListener('change',event=>uploadContactFiles(event.target.files,false,'document'));
     $('#fmContactBackContact',overlay)?.addEventListener('click',()=>{const back=state.returnToContact;if(back)void open(back.contact,{projects:back.projects,projectsComplete:true});});
     $('#fmContactCall', overlay)?.addEventListener('click',async()=>{
@@ -656,7 +652,6 @@
     $('#fmContactText',overlay)?.addEventListener('click',()=>{const number=cleanText(state.contact.phone).replace(/[^+0-9*#,;]/g,'');if(number)window.location.href='sms:'+number;});
     $('#fmContactEmailAction',overlay)?.addEventListener('click',()=>{const email=cleanText(state.contact.email);if(email)window.location.href='mailto:'+encodeURIComponent(email);});
     $('#fmContactNewProject', overlay)?.addEventListener('click', createProjectForContact);
-    $('[data-fm-contact-more]', overlay)?.addEventListener('click', () => openMoreSheet(overlay));
     ['fmContactFirstName','fmContactLastName','fmContactPhone','fmContactSecondaryPhone','fmContactEmail','fmContactAddress'].forEach((id) => {
       $(`#${id}`, overlay)?.addEventListener('input', () => {
         if(id==='fmContactPhone'||id==='fmContactSecondaryPhone')formatPhoneInput($(`#${id}`,overlay));
@@ -701,49 +696,6 @@
       if (project) openProject(project);
     });
     return overlay;
-  }
-  // Phone only (the More button is hidden on wider screens): secondary actions whose
-  // inline controls the phone layout hides. Each item presses the existing control.
-  function closeMoreSheet(overlay, options = {}){
-    const sheet = overlay?.querySelector('.fm-contact-sheet');
-    const more = overlay?.querySelector('[data-fm-contact-more]');
-    more?.setAttribute('aria-expanded', 'false');
-    if (!sheet) return;
-    sheet.classList.remove('open');
-    window.setTimeout(() => sheet.remove(), 220);
-    if (options.focus !== false) more?.focus();
-  }
-  function openMoreSheet(overlay){
-    if (!overlay || overlay.querySelector('.fm-contact-sheet.open')) return;
-    overlay.querySelector('.fm-contact-sheet')?.remove();
-    // The New Project button lives in the Projects view, so it is offered when that view is.
-    const items = [
-      ...(contactViewAllowed('projects') ? [{ icon:'fa-folder-plus', label:globalThis.PlatformLanguage?.text("contacts","m_0747045bf3d919","New Project") ?? "New Project", target:'#fmContactNewProject', tab:'projects' }] : []),
-      { icon:'fa-briefcase', label:'Add employer', target:'[data-add-relationship="employer"]', details:true },
-      { icon:'fa-heart', label:'Add spouse', target:'[data-add-relationship="spouse"]', details:true }
-    ];
-    const sheet = document.createElement('div');
-    sheet.className = 'fm-contact-sheet';
-    sheet.innerHTML = `<div class="fm-contact-sheet-panel" role="menu" aria-label="More actions">${items.map((item, index) => `<button type="button" role="menuitem" data-sheet-item="${index}"><i class="fas ${item.icon}" aria-hidden="true"></i><span>${escapeHtml(item.label)}</span></button>`).join('')}</div>`;
-    overlay.querySelector('.fm-contact-win')?.append(sheet);
-    overlay.querySelector('[data-fm-contact-more]')?.setAttribute('aria-expanded', 'true');
-    requestAnimationFrame(() => sheet.classList.add('open'));
-    sheet.addEventListener('click', (event) => {
-      const button = event.target.closest('[data-sheet-item]');
-      if (!button && event.target.closest('.fm-contact-sheet-panel')) return;
-      closeMoreSheet(overlay, { focus:!button });
-      if (!button) return;
-      const item = items[Number(button.dataset.sheetItem)];
-      if (item.tab) showContactTab(item.tab);
-      if (item.details) revealDetails();
-      $(item.target, overlay)?.click();
-    });
-    sheet.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape') return;
-      event.stopPropagation();
-      closeMoreSheet(overlay);
-    });
-    sheet.querySelector('button')?.focus();
   }
   function setMeta(message){
     const meta = $('#fmContactMeta');
@@ -1180,30 +1132,69 @@
     const type=cleanText(item.content_type || item.mime_type).toLowerCase();
     return !type.startsWith('image/')&&!type.startsWith('video/')&&!type.startsWith('audio/');
   }
+  /** The contact's media records (its draft uploads before the contact is saved). */
+  async function contactMediaRows(identity){
+    const result=state.stored?await window.PlatformAPI.contacts.media(orgId(),identity):{media:draftMedia};
+    return result.media || [];
+  }
+  /** Docs: the gallery the project Docs tab draws (cards, covers, search, tiles and list, the viewer) over the contact's files. */
   async function mountContactDocs(){
-    const mount=$('#fmContactDocsList');if(!mount)return;
+    const mount=$('#fmContactDocs');if(!mount)return;
     state.contact.id=ensureContactId(state.contact);
     const identity=state.contact.id;
-    mount.innerHTML='<div class="fm-contact-empty">Loading docs…</div>';
+    const gallery=window.Portal.ProjectDocsTab?.mountFileGallery;
+    if(!mount.querySelector('[data-doc-gallery]'))mount.innerHTML='<div class="fm-contact-empty">Loading docs…</div>';
     try{
-      const result=state.stored?await window.PlatformAPI.contacts.media(orgId(),identity):{media:draftMedia};
+      const rows=await contactMediaRows(identity);
       if(!state.open||state.contact.id!==identity)return;
-      const docs=(result.media||[]).filter(isContactDoc);
-      mount.innerHTML=docs.length?docs.map(row=>`<a class="fm-contact-doc" data-offline-record="${escapeHtml(row.id)}" href="${escapeHtml(window.PlatformAPI.media.fileUrl(orgId(),row.id))}" target="_blank" rel="noopener noreferrer"><i class="fas fa-file-lines" aria-hidden="true"></i><span>${escapeHtml(row.file_name || 'Document')}</span><small>Open</small></a>`).join(''):'<div class="fm-contact-empty">No docs for this contact yet.</div>';
+      const docs=rows.filter(isContactDoc);
+      if(gallery){
+        gallery(mount,{docs:docs.map(row=>({...row,media_id:row.id,title:row.file_name,uploaded_at:row.uploaded_at || row.created_at})),project:{id:identity,title:contactTitle(state.contact)},boundsTarget:mount.closest('.fm-contact-right') || mount,emptyMessage:'Upload PDFs or files for this contact.',onUpload:()=>$('#fmContactDocsUpload').click()});
+        return;
+      }
+      mount.innerHTML=`<div class="fm-contact-docs-head"><h3>Contact docs</h3><button type="button" class="fm-contact-btn" data-contact-docs-add><i class="fas fa-plus" aria-hidden="true"></i> Add doc</button></div><div class="fm-contact-doc-list">${docs.length?docs.map(row=>`<a class="fm-contact-doc" data-offline-record="${escapeHtml(row.id)}" href="${escapeHtml(window.PlatformAPI.media.fileUrl(orgId(),row.id))}" target="_blank" rel="noopener noreferrer"><i class="fas fa-file-lines" aria-hidden="true"></i><span>${escapeHtml(row.file_name || 'Document')}</span><small>Open</small></a>`).join(''):'<div class="fm-contact-empty">No docs for this contact yet.</div>'}</div>`;
       markWaiting(mount);
     }catch(error){mount.textContent=error.message||'Could not load contact docs.';}
   }
+  /** A photo from the phone camera bar: the contact's media, like Upload. */
+  async function uploadContactCameraPhoto(file){
+    state.contact.id=ensureContactId(state.contact);
+    const identity=state.contact.id;
+    const result=await window.PlatformAPI.media.upload(orgId(),file,{ownerType:'contact',ownerId:identity,slot:'media',collection:'contacts',scope:'contact',metadata:{contact_draft:!state.stored}});
+    if(state.contact.id===identity){draftMedia.push(result.media);scheduleAutosave();}
+    return result.media;
+  }
+  /** On a phone, the Take photos bar along the bottom of Photos & Media, as on the project Photos tab. */
+  function mountContactCamera(gallery){
+    const host=gallery?.parentElement;
+    if(!host||!window.FirstMateCamera?.mount)return;
+    if(contactCamera?.bar?.isConnected&&contactCamera.bar.parentElement===host)return;
+    contactCamera?.destroy?.();
+    contactCamera=window.FirstMateCamera.mount(host,{
+      label:globalThis.PlatformLanguage?.text("photos","camera_bar","Take photos") ?? "Take photos",
+      upload:uploadContactCameraPhoto,
+      onDone:async(entries=[])=>{
+        await Promise.all(entries.map(entry=>entry.settled));
+        await flushAutosave();
+        if(state.open&&state.mediaTab)await mountContactGallery();
+      }
+    });
+  }
+  /** Photos & Media: the project Photos tab's gallery (same options), over the contact's media. Contact media has
+   *  no trash yet, so nothing here deletes. */
   async function mountContactGallery(){
     const mount=$('#fmContactGallery');
     if(!window.Portal.PhotoFeed?.mountProjectGallery){mount.innerHTML='<div class="fm-contact-empty">The media gallery is loading.</div>';return;}
     state.contact.id=ensureContactId(state.contact);
     const identity=state.contact.id;
     try {
-      const result=state.stored?await window.PlatformAPI.contacts.media(orgId(),identity):{media:draftMedia};
+      const rows=await contactMediaRows(identity);
       if(!state.open || state.contact.id!==identity)return;
-      const photos=(result.media || []).filter(row=>!isContactDoc(row)).map(row=>({id:row.id,media_id:row.id,content_type:row.content_type,label:row.file_name,uploaded_at:row.uploaded_at || row.created_at,updated_at:row.updated_at,metadata:row.metadata,src:window.PlatformAPI.media.fileUrl(orgId(),row.id),thumb:window.PlatformAPI.media.fileUrl(orgId(),row.id,row.variants?.thumb_320?'thumb_320':'original')}));
-      window.Portal.PhotoFeed.mountProjectGallery(mount,{project:{id:identity,title:contactTitle(state.contact),photos},photos,title:'Photos & Media',uploadLabel:'Upload',selectionEnabled:false,enableProjectLinks:false,projectLinkEnabled:false,deleteEnabled:false,typeFilters:true,routeScope:'contact',onUpload:()=>$('#fmContactMediaUpload').click()});
-
+      const photos=rows.filter(row=>!isContactDoc(row)).map(row=>({id:row.id,media_id:row.id,content_type:row.content_type,label:row.file_name,uploaded_at:row.uploaded_at || row.created_at,updated_at:row.updated_at,metadata:row.metadata,tags:row.tags || row.metadata?.tags,src:window.PlatformAPI.media.fileUrl(orgId(),row.id),thumb:window.PlatformAPI.media.fileUrl(orgId(),row.id,row.variants?.thumb_320?'thumb_320':'original')}));
+      const scrollTop=mount.querySelector('.pf-scroll')?.scrollTop || 0;
+      window.Portal.PhotoFeed.mountProjectGallery(mount,{project:{id:identity,title:contactTitle(state.contact),photos},photos,title:'',uploadLabel:'Upload',mobileGrid:'dense',enableProjectLinks:false,projectLinkEnabled:false,deleteEnabled:false,boundsTarget:mount.closest('.fm-contact-right') || mount,routeScope:'contact',onUpload:()=>$('#fmContactMediaUpload').click()});
+      if(scrollTop){const scroller=mount.querySelector('.pf-scroll');if(scroller)scroller.scrollTop=scrollTop;}
+      mountContactCamera(mount);
     }catch(error){mount.textContent=error.message || 'Could not load contact media.';}
   }
   /** The contact service's fields of a contact; only what the window edits. */
@@ -1412,9 +1403,9 @@
     state.handle?.unregister?.();
     state.handle = null;
     state.open = false;
+    if(contactCamera?.isOpen?.())contactCamera.close?.();
     contactTrays?.reset();
     destroyTodoController();
-    $('#fmContactOverlay .fm-contact-sheet')?.remove();
     $('#fmContactOverlay')?.classList.remove('active');
     contactWindow?.setVisible(false);
     if (!options.skipHistory && !options.fromRoute) {

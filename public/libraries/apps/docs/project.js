@@ -1105,16 +1105,19 @@
   }
   // Only visible covers are loaded, two at a time. The viewer remains the authority
   // for opening documents; covers never generate PDFs or save document records.
-  function mountDocumentPreviews(root){
-    previewCleanup();
-    const gallery=root.querySelector('[data-doc-gallery]');
-    if (!gallery) return;
+  // options.gallery/options.lookup: another surface's gallery and its documents (mountFileGallery); it keeps its own cleanup.
+  function mountDocumentPreviews(root, options = {}){
+    const own = !options.gallery;
+    if (own) previewCleanup();
+    const gallery=options.gallery || root.querySelector('[data-doc-gallery]');
+    if (!gallery) return () => {};
+    const lookup=typeof options.lookup==='function' ? options.lookup : (id)=>galleryEntries().find(entry=>docId(entry)===id);
     const organization=orgId(), seen=new WeakSet(), queue=[], cleanups=new Map();
     let disposed=false, running=0;
     const release=(node)=>{try{cleanups.get(node)?.();}catch{}cleanups.delete(node);};
     const renderCover=async(node)=>{
       if(disposed || !node.isConnected)return;
-      const doc=galleryEntries().find(entry=>docId(entry)===node.dataset.docPreviewId);
+      const doc=lookup(node.dataset.docPreviewId);
       if(!doc)return;
       const image=node.querySelector('img');
       if(image){image.addEventListener('error',()=>image.remove(),{once:true});if(image.complete && !image.naturalWidth)image.remove();return;}
@@ -1162,7 +1165,9 @@
       gallery.querySelectorAll('[data-doc-preview-id]').forEach(node=>{if(!seen.has(node)){seen.add(node);visible.observe(node);}});
     };
     const mutations=new MutationObserver(scan);mutations.observe(gallery,{childList:true,subtree:true});scan();
-    previewCleanup=()=>{disposed=true;queue.length=0;visible.disconnect();mutations.disconnect();for(const node of cleanups.keys())release(node);};
+    const dispose=()=>{disposed=true;queue.length=0;visible.disconnect();mutations.disconnect();for(const node of cleanups.keys())release(node);};
+    if (own) previewCleanup=dispose;
+    return dispose;
   }
   function documentTileMeta(item = {}){
     const doc = documentFromItem(item);
@@ -1176,6 +1181,80 @@
       !summary && date ? (window.FirstMateMarkup?.formatDateTime?.(date) || '') : ''
     ].filter(Boolean).join(' · ');
     return `${documentIconHtml(doc,'fm-doc-title-icon')} ${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("docs","m_9c9b98b1f4e8c9","Document") ?? "Document"))}${detail ? `<br>${escapeHtml(detail)}` : ''}`;
+  }
+  // Another window's own files (a contact's Docs tab, FM-547) in the gallery the project Docs tab uses: the same
+  // cards and covers, search, tile and list views and viewer. Only files: the document engine (New) needs a project.
+  // options: docs (media records), onUpload, emptyMessage, boundsTarget. Returns { destroy }.
+  function mountFileGallery(panel, options = {}){
+    if (!panel) return null;
+    injectStyles();
+    panel.__fmDocPreviews?.();
+    panel.classList.add('fm-docs-wrap', 'shared-media');
+    let gallery = panel.querySelector(':scope>[data-doc-gallery]');
+    if (!gallery) {
+      panel.innerHTML = '<div class="fm-docs-gallery" data-doc-gallery></div>';
+      gallery = panel.firstElementChild;
+    }
+    const docs = (Array.isArray(options.docs) ? options.docs : []).map((doc, index) => normalizeDoc({ ...doc, title:firstText(doc.title, doc.file_name, doc.label) }, index));
+    const photos = docs.map(documentPhoto);
+    const lookup = (id) => docs.find((doc) => docId(doc) === id);
+    if (!Portal.PhotoFeed?.mountProjectGallery) {
+      gallery.innerHTML = `<div class="fm-doc-empty"><i class="fas fa-folder-open"></i><strong>${(globalThis.PlatformLanguage?.htmlText("docs","m_78c1804ef2f854","Document browser unavailable") ?? "Document browser unavailable")}</strong></div>`;
+      return null;
+    }
+    let density = 'loose';
+    try { const saved = localStorage.getItem(densityPreferenceKey()); if (['loose','comfortable','compact','list'].includes(saved)) density = saved; } catch {}
+    const openViewer = (doc) => {
+      const factory = window.FirstMateMarkup?.openMediaViewer || window.FirstMateMarkup?.openPhotoViewer;
+      const index = docs.findIndex((entry) => docId(entry) === docId(doc));
+      if (!factory || index < 0) return null;
+      return factory({
+        photos,
+        index,
+        project: options.project || {},
+        boundsTarget: options.boundsTarget || panel,
+        projectLinkEnabled: false,
+        itemNoun: 'document',
+        collectionNoun: 'documents',
+        actions: [{
+          id:'open_original',
+          label:(globalThis.PlatformLanguage?.text("docs","m_237716bb3d8498","Open Original") ?? "Open Original"),
+          icon:'up-right-from-square',
+          visible:({ photo }) => !!fileUrl(photo.__document || photo),
+          onClick:({ photo }) => window.open(fileUrl(photo.__document || photo), '_blank', 'noopener')
+        }],
+        canDelete: () => false
+      });
+    };
+    Portal.PhotoFeed.mountProjectGallery(gallery, {
+      project:{ ...(options.project || {}), photos },
+      photos,
+      title:'',
+      icon:'fa-folder-open',
+      itemNoun:'document',
+      uploadLabel:typeof options.onUpload === 'function' ? 'Upload' : '',
+      initialDensity:density,
+      extraDensityModes:[{ id:'list', label:(globalThis.PlatformLanguage?.text("docs","m_db473980ea71b2","List") ?? "List"), icon:'list' }],
+      groupByDay:(mode) => mode === 'list',
+      searchPlaceholder:'Search documents, types, or dates',
+      emptyIcon:'fa-file-medical',
+      emptyTitle:'No documents yet',
+      emptyMessage:options.emptyMessage || 'Upload PDFs or files here.',
+      enableProjectLinks:false,
+      projectLinkEnabled:false,
+      selectionEnabled:false,
+      tileClass:'fm-document-tile loaded',
+      renderThumbnail:documentThumbnailHtml,
+      renderTileMeta:documentTileMeta,
+      renderGroupUploaders:(group) => `<i class="fas fa-folder-open"></i> ${group.items.length} document${group.items.length === 1 ? '' : 's'}`,
+      itemIdentity:(item) => docId(documentFromItem(item)),
+      onOpenItem:({ item }) => openViewer(documentFromItem(item)),
+      onUpload:options.onUpload,
+      onDensityChange:(mode) => { try { localStorage.setItem(densityPreferenceKey(), mode); } catch {} }
+    });
+    const destroy = mountDocumentPreviews(panel, { gallery, lookup });
+    panel.__fmDocPreviews = destroy;
+    return { destroy };
   }
   function setDocumentView(view, options = {}){
     const nextView = view === 'list' ? 'list' : 'tiles';
@@ -1525,7 +1604,8 @@
     openEngineDocument,
     sendEngineDocument,
     adoptProject,
-    panelHtml
+    panelHtml,
+    mountFileGallery
   };
 
   Portal.modules = Portal.modules || {};
