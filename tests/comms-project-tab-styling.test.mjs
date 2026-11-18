@@ -124,3 +124,25 @@ test('a text flattens links and stray emphasis to plain text and keeps lists', (
   assert.equal(smsText('[https://a.test](https://a.test)'), 'https://a.test');
   assert.equal(smsText('snake_case_name stays'), 'snake_case_name stays');
 });
+
+// FM-594: a project's Texts and Calls that are not set up show one panel (CommunicationsUI.setupPanel), and the
+// Calls view sits on the tab without its own gray background and second padding.
+test('Texts and Calls share one not-set-up panel and Calls has no extra wrapper', () => {
+  const dir = path.join(root, 'public/libraries/apps/comms');
+  const ui = fs.readFileSync(path.join(dir, 'communications-ui.js'), 'utf8');
+  const workspace = fs.readFileSync(path.join(dir, 'workspace.js'), 'utf8');
+  const sheet = fs.readFileSync(path.join(dir, 'communications.css'), 'utf8');
+  assert.match(ui, /const setupPanel=\(\{status,icon:name,title,body,attrs='',button=null\}\)=>`<div class="fmcm-setup"/);
+  assert.match(ui, /Portal\.CommunicationsUI=\{[^}]*\bsetupPanel\b/);
+  const texts = source.slice(source.indexOf('  function phoneSetupHtml(channel){'), source.indexOf('  function smsListHtml(){'));
+  assert.match(texts, /return Portal\.CommunicationsUI\.setupPanel\(\{ status, \.\.\.copy, attrs:`data-co-phone-setup=/);
+  const calls = workspace.slice(workspace.indexOf('    function callsSetupHtml(calls){'), workspace.indexOf('    function phoneButton(){'));
+  assert.match(calls, /const panel=ui\.setupPanel\(\{status,\.\.\.copy,attrs:`data-calls-setup="\$\{status\}"`,button\}\);/);
+  assert.match(calls, /return calls\.length\?panel:`<div class="fmcm-setup-page">\$\{panel\}<\/div>`;/);
+  assert.doesNotMatch(calls + texts, /fmcm-empty|fmcc-notice|fmco-phone-setup|fmco-btn|fmcm-primary/, 'a setup state has its own look again');
+  assert.match(source, /<div class="fmcm-setup-page">\$\{phoneSetupHtml\('texts'\)\}<\/div>/);
+  // The panel's button beats `.fmcm button` (0,1,1) so it looks the same inside Calls.
+  assert.match(sheet, /\.fmcm-setup \.fmcm-setup-btn\{[^}]*background:var\(--primary,/);
+  assert.match(rule('.fmco-content:has(>.fmcm){padding:0}.fmco-content>.fmcm'), /background:transparent/);
+  assert.match(css, /\.fmco-content>\.fmcm>\.fmcm-view\{padding:16px\}/);
+});
