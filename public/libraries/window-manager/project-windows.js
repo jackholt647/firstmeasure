@@ -202,8 +202,11 @@
     if (document.readyState !== 'complete') { afterPageLoad(() => scheduleSpare(delay)); return; }
     spareTimer = setTimeout(() => {
       if (document.hidden) { root.addEventListener('visibilitychange', () => scheduleSpare(delay), {once:true}); return; }
-      // Never beside a window that is still loading: that window schedules the next spare once it has.
-      const warm = () => { if (!spare && !document.hidden && ![...records.values()].some(record => !record.loaded) && spareAllowed()) warmSpare(); };
+      // Never beside the portal's own boot or a window that is still loading (it schedules the next spare once it has).
+      const warm = () => {
+        if (document.body?.classList.contains('platform-booting')) { scheduleSpare(delay); return; }
+        if (!spare && !document.hidden && ![...records.values()].some(record => !record.loaded) && spareAllowed()) warmSpare();
+      };
       if (typeof root.requestIdleCallback === 'function') root.requestIdleCallback(warm, {timeout:3000});
       else warm();
     }, delay);
@@ -234,8 +237,9 @@
     if (!usable) { candidate.layer.remove(); return null; }
     return candidate;
   }
-  // Not sooner: a spare booting beside the portal's own boot slows both (a project link took twice as long).
-  if (ownsProjectWindows && typeof root.PlatformCommerce?.onReady === 'function') root.PlatformCommerce.onReady(() => scheduleSpare(2500));
+  // Not sooner: a spare booting beside the portal's own boot slows both (a project link took twice as long). A
+  // link or reload that names a project boots none until that project's window has loaded.
+  if (ownsProjectWindows && typeof root.PlatformCommerce?.onReady === 'function' && !new URLSearchParams(root.location.search).get('project')) root.PlatformCommerce.onReady(() => scheduleSpare(2500));
   function open(project, options = {}){
     if (!host() || !root.FirstMateWindows) return null;
     styles();
