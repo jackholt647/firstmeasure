@@ -80,13 +80,13 @@ const css = `
 .gxk-voice{padding:10px 12px;border-top:1px solid #f2f4f7}
 /* How to dictate, on the page itself: numbered, beside the list, pointing at Dictate. */
 .gxk-tip{position:relative;display:flex;gap:12px;padding:14px 16px;border-radius:14px;background:#101828;color:#fff;font-size:13px;line-height:1.45}
-.gxk-tip::before{content:"";position:absolute;top:-6px;right:58px;width:12px;height:12px;background:#101828;transform:rotate(45deg)}
+.gxk-tip::before{content:"";position:absolute;bottom:-6px;right:66px;width:12px;height:12px;background:#101828;transform:rotate(45deg)}
 .gxk-tip strong{display:block;font-size:14px;margin-bottom:6px}
 .gxk-tip ol{margin:0;padding-left:18px}
 .gxk-tip li{margin:2px 0}
 .gxk-tip q{color:#fecdca}
 .gxk-tip.gxk-tip-done{background:#ecfdf3;color:#05603a}
-.gxk-tip.gxk-tip-done::before{background:#ecfdf3}
+.gxk-tip.gxk-tip-done::before{display:none}
 .gxk-hint{margin:0;font-size:13px;color:#667085}
 .gxk-hint .gxk-mic{width:13px;height:13px;vertical-align:-2px;margin:0 2px;color:var(--primary,#d93025)}
 .gxk-error{margin:0;font-size:13px;color:#b42318}
@@ -249,6 +249,7 @@ function mountEdit(el, ctx){
   // running while items are typed.
   el.innerHTML = `<div class="gxk" data-gxk-edit="${esc(useCase)}">
     <p class="gxk-lead">${esc(first ? text(ctx.options?.lead_first, 'This is a default checklist: every new project starts with it. Make it fit how you work.') : text(ctx.options?.lead_next, 'Set up your next default checklist. Change what you need, then continue.'))}</p>
+    <div data-gxk-tip-slot></div>
     <div class="gxk-list">
       <div class="gxk-list-head"><span class="gxk-icon" aria-hidden="true"><i class="fas ${esc(clean(definition.icon) || 'fa-list-check')}"></i></span>
         <span class="gxk-list-name"><strong>${esc(definition.title)} <span class="gxk-tag" title="${esc(L('gx_cl_setup_default_tip', 'Every new project starts with this checklist.'))}"><i class="fas fa-thumbtack" aria-hidden="true"></i>${esc(L('gx_cl_setup_default', 'Default'))}</span></strong>${chips(L, esc, definition)}</span>
@@ -258,7 +259,6 @@ function mountEdit(el, ctx){
       <div data-gxk-items></div>
       <div class="gxk-add"><input data-gxk-new maxlength="300" placeholder="${esc(L('gx_cl_setup_add_placeholder', 'Add an item…'))}" aria-label="${esc(L('gx_cl_setup_add_placeholder', 'Add an item…'))}"><button type="button" data-gxk-add>${esc(L('gx_cl_setup_add', 'Add'))}</button></div>
     </div>
-    <div data-gxk-tip-slot></div>
     <p class="gxk-error" role="alert" data-gxk-error hidden></p>
   </div>`;
   const render = () => {
@@ -305,9 +305,13 @@ function mountEdit(el, ctx){
         fields: { mode: 'draft', title: definition.title, items: JSON.stringify(definition.items.map((item) => ({ title: item.title, item_type: item.item_type }))) }
       });
       recording = false;
-      const added = add(array(result?.data?.added).map(object), false);
-      if (added) dictated += added;
-      else { error = L('gx_cl_setup_nothing_added', 'Nothing new was heard to add. Try again, or type it.'); render(); }
+      const heard = array(result?.data?.added).map(object);
+      const known = new Set(definition.items.map((item) => item.title.toLowerCase()));
+      // Counted before the list is redrawn, so the tip turns into what was added.
+      const count = heard.filter((entry) => plain(entry.title, 300) && !known.has(plain(entry.title, 300).toLowerCase())).length;
+      dictated += count;
+      if (!count) error = L('gx_cl_setup_nothing_added', 'Nothing new was heard to add. Try again, or type it.');
+      add(heard, false);
     } catch (failure) {
       recording = false; report();
       if (!/cancel/i.test(clean(failure?.message))) error = clean(failure?.message) || L('gx_cl_setup_dictate_failed', 'That didn’t work. Try again, or type it.');
