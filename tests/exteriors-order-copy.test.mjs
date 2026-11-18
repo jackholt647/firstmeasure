@@ -9,6 +9,8 @@
 // right moves on from the video), the price is on the order button with no Total line (like the roof report), the
 // walkaround review says "Additional videos" with no upload area, the recorder title stays "Record a video
 // walkaround" while recording, and the link that skips the video reads "Skip video upload".
+// FM-567: a second recording on the same structure is titled "Record another video" (not "Segment saved") and has
+// no tip on the camera.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -36,6 +38,9 @@ test('the phone recorder keeps Upload on the camera and shows the right button o
   assert.match(update, /\[data-rec-photos\]'\)\.hidden=desk\|\|live\|\|anyVideo\(\)/);
   assert.match(update, /:live\?\(globalThis\.PlatformLanguage\?\.text\("firstmeasure","ext_record_a_video_walkaround","Record a video walkaround"\)/);
   assert.doesNotMatch(source, /Keep walking the loop|ext_keep_walking_loop/);
+  assert.match(update, /:takes\.length\?\(globalThis\.PlatformLanguage\?\.text\("firstmeasure","ext_record_another_video","Record another video"\)/);
+  assert.match(update, /\[data-rec-hint\]'\)\.textContent=live\|\|!cameraStream\|\|takes\.length\?'':/);
+  assert.doesNotMatch(source, /Segment saved|ext_88dded33784dcd|Record another segment to continue/);
   assert.match(source, /\.ext-rec \.ext-upload-tile\[hidden\]/, 'a hidden upload tile still shows (display:flex)');
   assert.match(source, /\.ext-order \.ext-rec-photos\[hidden\]/, 'a hidden photos link still shows (display:block)');
 });
