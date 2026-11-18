@@ -613,6 +613,8 @@
       logo_display: normalizeLogoDisplay(o?.branding?.logo_display),
       company_email: contact.email || '',
       company_phone: contact.phone || '',
+      // The organization's country of record (FM-576): the company phone starts at its calling code.
+      country: String(portalState?.country || o.country || '').toUpperCase(),
       company_address: formatOrganizationBusinessAddress(businessAddress) || (typeof contact.address === 'string' ? contact.address : ''),
       company_business_address: businessAddress,
       report_preferences: o.report_preferences || {},
@@ -2047,6 +2049,9 @@
       .company-info-grid .address .wide{grid-column:1/-1}
       .company-settings .cs-field{gap:4px}
       .company-settings .cs-field input{height:34px}
+      .company-phone-row{display:flex;gap:6px;min-width:0}
+      .company-phone-row input{flex:1 1 auto;min-width:0}
+      .company-phone-row .fm-select-list-trigger{min-height:0;border-radius:10px;font-size:13px}
       .company-settings .cs-note{margin-top:5px;font-size:10px}
       .brand-color-main{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
       .brand-color-control{display:grid;grid-template-columns:36px minmax(0,1fr);gap:8px;align-items:center;padding:7px;border:1px solid #e4e7ec;border-radius:11px;background:#fff}
@@ -11151,7 +11156,7 @@
                 <div class="company-info-grid">
                   <label class="cs-field company-contact-name"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_e17c4838e115e8","Company name") ?? "Company name")}</span><input id="csName" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_c23a205ed97c61","Your company name") ?? "Your company name")}"></label>
                   <label class="cs-field company-contact-email"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4d7b96eb4bf8b4","Company email") ?? "Company email")}</span><input id="csCompanyEmail" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_4665fb43c24164","billing@company.com") ?? "billing@company.com")}" inputmode="email" autocomplete="email"></label>
-                  <label class="cs-field company-contact-phone"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_674849f6668e86","Company phone") ?? "Company phone")}</span><input id="csCompanyPhone" placeholder="(555) 123-4567" inputmode="tel" autocomplete="tel"></label>
+                  <label class="cs-field company-contact-phone" for="csCompanyPhone"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_674849f6668e86","Company phone") ?? "Company phone")}</span><input id="csCompanyPhone" inputmode="tel" autocomplete="tel"></label>
 ${String(window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'report_localization') ? `
                   <div class="company-localization-grid wide">
                 <label class="cs-field"><span>${escapeHtml(window.PlatformLanguage.text('settings','company_language_label','Company language'))}</span><select id="csReportLanguage">${languageOptions(state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale)}</select></label>
@@ -11504,6 +11509,68 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         window.dispatchEvent(new CustomEvent('fm:theme:updated', { detail: theme }));
       }
     }
+    /* FM-576: the company phone is typed as at signup (libraries/phone-input): a calling-code picker that starts at the
+       organization's country, the number in that country's own national format and an example number as the
+       placeholder, in place of US-only formatting. */
+    let companyPhoneLibrary = null, companyPhoneOptions = null;
+    function loadCompanyPhoneScript(path, global){
+      if (window[global]) return Promise.resolve(window[global]);
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = `/libraries/${path}?v=20261118-fm-576`;
+        script.onload = () => window[global] ? resolve(window[global]) : reject(new Error(`${path} did not initialize.`));
+        script.onerror = () => reject(new Error(`${path} could not be loaded.`));
+        document.head.append(script);
+      });
+    }
+    function companyPhoneInputLibrary(){
+      companyPhoneLibrary ??= loadCompanyPhoneScript('select-list/select-list.js', 'FirstMateSelectList').catch(() => null)
+        .then(() => loadCompanyPhoneScript('phone-input/phone-input.js', 'FirstMatePhoneInput'))
+        .catch((error) => { companyPhoneLibrary = null; throw error; });
+      return companyPhoneLibrary;
+    }
+    /** The calling codes signup offers (commerce/signup-options.ts), named in the page's language. */
+    function companyPhoneCountryOptions(){
+      const params = new URLSearchParams({ lang: window.PlatformLanguage?.context?.().locale || '', locale: navigator.language || '' });
+      try { params.set('time_zone', Intl.DateTimeFormat().resolvedOptions().timeZone || ''); } catch (_) {}
+      companyPhoneOptions ??= fetch(`/v1/platform/auth/signup-options?${params}`, { credentials:'include', cache:'no-store' })
+        .then((response) => response.ok ? response.json() : Promise.reject(new Error('Phone countries unavailable')))
+        .catch((error) => { companyPhoneOptions = null; throw error; });
+      return companyPhoneOptions;
+    }
+    function attachCompanyPhone(input){
+      if (!input || input.__fmPhoneStart) return;
+      input.__fmPhoneStart = Promise.all([companyPhoneInputLibrary(), companyPhoneCountryOptions()]).then(([library, options]) => {
+        if (!input.isConnected) return;
+        // The organization's country of record, else the country signup would detect.
+        const country = String(state.country || options.country || 'US').toUpperCase();
+        const offered = options.phone_countries || options.countries || [];
+        const own = offered.some((entry) => entry.code === country) ? null : (options.countries || []).find((entry) => entry.code === country);
+        const row = document.createElement('div');
+        row.className = 'company-phone-row';
+        input.replaceWith(row);
+        row.append(input);
+        input.__fmPhoneCountry = country;
+        input.__fmPhone = library.attach({ input, countries: own ? [own, ...offered] : offered, country });
+        // After the phone input's own formatting, so the state holds the number as shown.
+        input.addEventListener('input', () => { state.company_phone = companyPhoneValue(input); });
+      }).catch(() => { input.__fmPhoneStart = null; });
+    }
+    /** A saved number in the field, shown in its country's format; never over what the person is typing (FM-324). */
+    function showCompanyPhone(input, value){
+      if (!input || input.getRootNode?.().activeElement === input) return;
+      const phone = input.__fmPhone;
+      if (!phone?.setValue) { input.value = value; return; }
+      if (!String(value).trim().startsWith('+')) phone.setCountry(input.__fmPhoneCountry);
+      phone.setValue(value);
+    }
+    /** The number to save: in the organization's own country, its national format (as its documents print it); in any
+        other country, international format, so it reads back as that country. */
+    function companyPhoneValue(input){
+      const raw = String(input?.value || '').trim(), phone = input?.__fmPhone;
+      if (!raw || !phone || raw.startsWith('+') || phone.country() === input.__fmPhoneCountry) return raw;
+      try { return window.libphonenumber?.parsePhoneNumberFromString?.(raw, phone.country())?.formatInternational() || phone.e164() || raw; } catch (_) { return raw; }
+    }
     function renderCompany({ writeInputs=false, forceLogo=false, publish=true } = {}){
       if (!canCompany) return;
       const csName = $('#csName', paneCompany);
@@ -11544,7 +11611,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         if(csPrimaryHex) csPrimaryHex.value = clampHex(csPrimary.value, DEFAULT_PRIMARY).slice(1);
         if(csSecondaryHex) csSecondaryHex.value = clampHex(csSecondary.value, DEFAULT_SECONDARY).slice(1);
         writeText(csCompanyEmail, state.company_email || '');
-        writeText(csCompanyPhone, state.company_phone || '');
+        showCompanyPhone(csCompanyPhone, state.company_phone || '');
+        if (state.id) attachCompanyPhone(csCompanyPhone);
         const businessAddress = organizationBusinessAddressFromState();
         writeText(csCompanyAddress1, businessAddress.address1 || '');
         writeText(csCompanyAddress2, businessAddress.address2 || '');
@@ -12985,9 +13053,9 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       });
       if (csCompanyPhone) {
         csCompanyPhone.addEventListener('input', ()=>{
-          const formatted = formatPhoneUS(csCompanyPhone.value);
-          csCompanyPhone.value = formatted;
-          state.company_phone = formatted;
+          // Until the phone input is attached (or if it cannot load), a US or Canadian company keeps (555) 123-4567.
+          if (!csCompanyPhone.__fmPhone && ['US', 'CA'].includes(state.country)) csCompanyPhone.value = formatPhoneUS(csCompanyPhone.value);
+          state.company_phone = companyPhoneValue(csCompanyPhone);
         });
       }
       [csCompanyAddress1, csCompanyAddress2, csCompanyCity, csCompanyState, csCompanyPostalCode, csCompanyCountry].filter(Boolean).forEach((input) => {
@@ -13167,7 +13235,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         state.secondary = csSecondary.value;
         if (companyFontsEnabled) state.font_family = $('#csBrandFont', paneCompany)?.value || state.font_family || 'Montserrat';
         state.company_email = String(csCompanyEmail?.value || '').trim();
-        state.company_phone = String(csCompanyPhone?.value || '').trim();
+        state.company_phone = companyPhoneValue(csCompanyPhone);
         state.company_business_address = readBusinessAddressInputs();
         state.company_address = formatOrganizationBusinessAddress(state.company_business_address);
         if ($('#csMeasurementSystem', paneCompany)) state.report_preferences = { ...(state.report_preferences || {}), measurement_system: $('#csMeasurementSystem', paneCompany).value, report_language: $('#csReportLanguage', paneCompany).value };
