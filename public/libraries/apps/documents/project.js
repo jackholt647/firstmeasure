@@ -4464,12 +4464,24 @@
       // at the new scale with the point under the fingers kept in place.
       let pinch = null;
       const touchMid = (a, b) => ({ x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 });
+      // The page nearest the fingers is the anchor (the gap between pages does not scale).
+      const anchorBox = (index) => {
+        const pages = [...stage.querySelectorAll('.fmdoc-page')];
+        return (pages[index] || pages[0] || stage).getBoundingClientRect();
+      };
+      const anchorAt = (point) => {
+        const pages = [...stage.querySelectorAll('.fmdoc-page')];
+        let index = 0;
+        pages.forEach((page, i) => { const r = page.getBoundingClientRect(); if (point.y >= r.top - 10) index = i; });
+        const rect = anchorBox(index);
+        return { index, fx: rect.width ? (point.x - rect.left) / rect.width : 0.5, fy: rect.height ? (point.y - rect.top) / rect.height : 0.5 };
+      };
       const onTouchStart = (event) => {
         if (event.touches.length !== 2) return;
         const [a, b] = event.touches;
         const mid = touchMid(a, b);
         const rect = stage.getBoundingClientRect();
-        pinch = { d0: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, mid0: mid, mid, z0: scaleFor(zoom), s: 1, fx: rect.width ? (mid.x - rect.left) / rect.width : 0.5, fy: rect.height ? (mid.y - rect.top) / rect.height : 0.5, raf: 0 };
+        pinch = { d0: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, mid0: mid, mid, z0: scaleFor(zoom), s: 1, anchor: anchorAt(mid), raf: 0 };
         stage.style.transformOrigin = `${mid.x - rect.left}px ${mid.y - rect.top}px`;
         host.classList.add('is-pinching');
         if (event.cancelable) event.preventDefault();
@@ -4498,9 +4510,9 @@
         if (Math.abs(next - pin.z0) < 0.005) return;
         zoom = next;
         render();
-        const rect = stage.getBoundingClientRect();
-        scroll.scrollLeft += rect.left + pin.fx * rect.width - pin.mid.x;
-        scroll.scrollTop += rect.top + pin.fy * rect.height - pin.mid.y;
+        const rect = anchorBox(pin.anchor.index);
+        scroll.scrollLeft += rect.left + pin.anchor.fx * rect.width - pin.mid.x;
+        scroll.scrollTop += rect.top + pin.anchor.fy * rect.height - pin.mid.y;
       };
       scroll.addEventListener('touchstart', onTouchStart, { passive: false });
       scroll.addEventListener('touchmove', onTouchMove, { passive: false });

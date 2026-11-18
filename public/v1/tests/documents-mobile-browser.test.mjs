@@ -743,3 +743,84 @@ for (const device of [['phone', PHONE], ['desktop', DESKTOP]]) {
     } finally { await browser.close(); }
   });
 }
+
+// Preview and the locked view (mountDocViewer, FM-578). The portal turns off
+// page zoom, so two fingers zoom the viewer itself; Preview's loading state
+// sits on the dark backdrop instead of a full-height white card.
+const viewerCode = between('    function mountDocViewer(host, options = {}){', '    /** Print a document at full size');
+const loadingMarkup = between("overlay.className = 'fmdx-preview-overlay';", "document.body.appendChild(overlay);");
+async function previewViewer(page) {
+  await page.setContent(`<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><style>${css}</style>`);
+  await page.evaluate(() => document.documentElement.setAttribute('data-fm-doc-phone', ''));
+  await page.evaluate(({ viewerCode }) => {
+    // A stand-in renderer: US Letter pages that rescale in place, as FMDocRenderer's setScale does.
+    window.FMDocRenderer = { render(stage, opts) {
+      const pages = [1, 2].map((n) => { const p = document.createElement('div'); p.className = 'fmdoc-page'; p.textContent = 'Page ' + n; stage.append(p); return p; });
+      const size = (scale) => pages.forEach((p) => { p.style.width = 816 * scale + 'px'; p.style.height = 1056 * scale + 'px'; });
+      size(opts.scale);
+      return { setScale: size, destroy() { pages.forEach((p) => p.remove()); } };
+    } };
+    const mount = new Function(`
+      const objectValue = (v) => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+      const offlineViewNote = () => null; const esc = (v) => String(v ?? ''); const errorMessage = (e, f) => e?.message || f;
+      const printRenderedDocument = () => {}; const downloadPdf = () => {};
+      ${viewerCode}
+      return mountDocViewer;`)();
+    const overlay = document.createElement('div');
+    overlay.className = 'fmdx-preview-overlay';
+    document.body.append(overlay);
+    mount(overlay, { doc: { id: 'd1' }, onClose() {}, initialZoom: 'page', renderOptions: {} });
+  }, { viewerCode });
+}
+const viewerState = (page) => page.evaluate(() => {
+  const scroll = document.querySelector('[data-viewer-scroll]');
+  const r = document.querySelector('.fmdoc-page').getBoundingClientRect();
+  return { label: document.querySelector('[data-viewer-fit]').textContent, left: r.left, top: r.top, width: r.width, height: r.height, scrollTop: scroll.scrollTop, scrollLeft: scroll.scrollLeft, touchAction: getComputedStyle(scroll).touchAction };
+});
+async function pinch(page, cdp, cx, cy, from, to) {
+  const points = (d) => [{ x: cx - d / 2, y: cy, id: 1 }, { x: cx + d / 2, y: cy, id: 2 }];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: points(from) });
+  for (let i = 1; i <= 8; i += 1) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: points(from + (to - from) * i / 8) }); await page.waitForTimeout(16); }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(100);
+}
+
+test('on a phone Preview zooms with two fingers around the point between them', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors, context } = await pageFor(browser, PHONE);
+    await previewViewer(page);
+    const cdp = await context.newCDPSession(page);
+    const fit = await viewerState(page);
+    assert.equal(fit.label, 'Fit');
+    assert.equal(fit.touchAction, 'pan-x pan-y', 'the browser leaves pinching to the viewer');
+    assert.ok(fit.width <= 390 - 16 && fit.top >= 56, `the fitted page is clear of the sides and the controls: ${JSON.stringify(fit)}`);
+    // The point under the fingers, as a fraction of the page.
+    const fx = (195 - fit.left) / fit.width, fy = (300 - fit.top) / fit.height;
+    await pinch(page, cdp, 195, 300, 80, 240);
+    const zoomed = await viewerState(page);
+    assert.ok(zoomed.width > fit.width * 2.5, `fingers apart zoom in: ${JSON.stringify(zoomed)}`);
+    assert.match(zoomed.label, /^\d+%$/);
+    assert.ok(zoomed.scrollTop > 0 && zoomed.scrollLeft > 0, 'it scrolls to keep the point in place');
+    assert.ok(Math.abs(zoomed.left + fx * zoomed.width - 195) < 3 && Math.abs(zoomed.top + fy * zoomed.height - 300) < 3, `the point between the fingers stays put: ${JSON.stringify({ fit, zoomed })}`);
+    await pinch(page, cdp, 195, 400, 240, 60);
+    const out = await viewerState(page);
+    assert.ok(out.width < zoomed.width / 2, `fingers together zoom out: ${JSON.stringify(out)}`);
+    await page.locator('[data-viewer-fit]').tap();
+    assert.equal((await viewerState(page)).width, fit.width, 'Fit goes back to the whole page');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('on a phone Preview\'s loading state sits on the dark backdrop, not in a full-height white card', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await pageFor(browser, PHONE);
+    await page.setContent(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style>`);
+    await page.evaluate(({ loadingMarkup }) => { new Function(`const options = {}, doc = {}; const firstText = (...v) => v.map((x) => String(x ?? '').trim()).find(Boolean) || ''; const overlay = document.createElement('div'); ${loadingMarkup}; document.body.appendChild(overlay);`)(); }, { loadingMarkup });
+    const box = await page.evaluate(() => { const s = document.querySelector('.fmdx-preview-overlay > .fmdx-state'); const r = s.getBoundingClientRect(); return { top: r.top, height: r.height, width: r.width, background: getComputedStyle(s).backgroundColor }; });
+    assert.equal(box.background, 'rgba(0, 0, 0, 0)');
+    assert.ok(box.top > 200 && box.height < 300 && box.width <= 390 - 32, `a centred spinner: ${JSON.stringify(box)}`);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
