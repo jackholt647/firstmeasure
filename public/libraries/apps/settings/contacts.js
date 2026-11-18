@@ -1,6 +1,7 @@
 /* public/libraries/apps/settings/contacts.js
  * Contacts settings: mass contact import (vCard / CSV) and import history.
  * Mounted by company settings as window.FirstMateContactsSettings.mount(host, options).
+ * options.tabsHost: render the Import/History/Tags/Preferences tabs there (a bottom bar) instead of above the page.
  */
 (function(root){
   'use strict';
@@ -85,7 +86,7 @@
       .cti-done i{font-size:34px;color:#12b76a}.cti-done h4{margin:14px 0 4px;font-size:18px}.cti-done p{margin:0 0 18px;color:#667085;font-size:12.5px}
       @media(max-width:900px){.cti-formats,.cti-option-grid{grid-template-columns:1fr}.cti-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.cti-history-row{grid-template-columns:1fr;align-items:stretch}.cti-history-row .cti-actions{justify-content:flex-start}}
       .cti-help{display:none}
-      .cti-tab-short,.cti-drop .cti-drop-mobile{display:none}
+      .cti-tab-short,.cti-drop .cti-drop-mobile,.cti-subtab>i{display:none}
       @media(max-width:820px){
         .cti-page{min-height:0;padding:0 12px 20px;max-width:100%;font-size:14px}
         .cti-page button,.cti-page input,.cti-page select{font-family:inherit}
@@ -94,6 +95,11 @@
         .cti-subtab{min-width:0;min-height:44px;padding:10px 4px;font-size:12px;font-weight:650;white-space:nowrap}
         .cti-subtab.active{color:var(--primary-readable,var(--primary,#d93025))}
         .cti-tab-full,.cti-drop .cti-drop-desktop{display:none}.cti-tab-short,.cti-drop .cti-drop-mobile{display:inline}
+        .cti-subtab{display:inline-flex;align-items:center;justify-content:center;gap:6px}.cti-subtab>i{display:inline-block;font-size:13px}
+        /* A host that passes tabsHost (the phone import sheet) shows the tabs as a bottom bar: icon over label. */
+        .cti-subtabs.cti-subtabs-bottom{position:static;margin:0;padding:0 4px;border-bottom:0;border-top:1px solid #eaecf0}
+        .cti-subtabs-bottom .cti-subtab{flex-direction:column;gap:4px;min-height:58px;padding:9px 4px 8px;border-bottom:0;font-size:11px;font-weight:600}
+        .cti-subtabs-bottom .cti-subtab>i{font-size:19px;line-height:1}
         .cti-head{align-items:center;gap:10px;margin-bottom:16px;min-width:0}
         .cti-head>div:first-child{min-width:0;flex:1}
         .cti-head h3{font-size:18px;line-height:1.3}
@@ -195,7 +201,8 @@
 
     function subTabs(){
       const shortLabels = {import:'Import',history:'History',tags:'Tags',preferences:'Preferences'};
-      return `<div class="cti-subtabs">${[['import','Import contacts'],['history','Import history'],...(canManageTags?[['tags','Contact tags'],['preferences','Preferences']]:[])].map(([id,label]) => `<button class="cti-subtab ${state.subtab===id?'active':''}" data-cti-subtab="${id}" type="button"><span class="cti-tab-full">${esc(label)}</span><span class="cti-tab-short">${esc(globalThis.PlatformLanguage?.text("settings", "contacts_tab_"+id, shortLabels[id]) ?? shortLabels[id])}</span></button>`).join('')}</div>`;
+      const icons = {import:'file-import',history:'clock-rotate-left',tags:'tags',preferences:'sliders'};
+      return `<div class="cti-subtabs">${[['import','Import contacts'],['history','Import history'],...(canManageTags?[['tags','Contact tags'],['preferences','Preferences']]:[])].map(([id,label]) => `<button class="cti-subtab ${state.subtab===id?'active':''}" data-cti-subtab="${id}" type="button"${state.subtab===id?' aria-current="page"':''}><i class="fas fa-${icons[id]}" aria-hidden="true"></i><span class="cti-tab-full">${esc(label)}</span><span class="cti-tab-short">${esc(globalThis.PlatformLanguage?.text("settings", "contacts_tab_"+id, shortLabels[id]) ?? shortLabels[id])}</span></button>`).join('')}</div>`;
     }
     function bindSubTabs(){
       host.querySelectorAll('[data-cti-subtab]').forEach((button) => button.addEventListener('click', () => setSubtab(button.dataset.ctiSubtab)));
@@ -638,6 +645,11 @@
     function render(){
       root.PlatformUI?.hideTooltip?.();
       renderContent();
+      if (options.tabsHost) {
+        const tabs = page.querySelector(':scope > .cti-subtabs');
+        tabs?.classList.add('cti-subtabs-bottom');
+        options.tabsHost.replaceChildren(...(tabs ? [tabs] : []));
+      }
       // Keep existing, localized explanatory copy available through the platform tooltip on a phone.
       page.querySelectorAll('.cti-head p:not(:has(strong)), .cti-block > p, .cti-format span').forEach(copy => {
         if (copy.closest('.cti-done') || copy.parentElement.querySelector(':scope > .cti-table-wrap') || !copy.textContent.trim()) return;
@@ -677,6 +689,7 @@
         if (typeof unregisterRoute === 'function') unregisterRoute();
         delete host.dataset.contactsMounted;
         host.innerHTML = '';
+        options.tabsHost?.replaceChildren();
       }
     };
   }
