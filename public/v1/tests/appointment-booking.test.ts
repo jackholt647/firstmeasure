@@ -298,7 +298,9 @@ test('Instant Full presets use day installations, quarterly maintenance and offi
   // Cross next year's spring DST transition: two local days are 47 elapsed hours.
   const year=new Date().getUTCFullYear()+1,firstSunday=1+(7-new Date(Date.UTC(year,2,1)).getUTCDay())%7,day=firstSunday+6;
   const date=`${year}-03-${String(day).padStart(2,'0')}`;
-  const configuration={...seeded.presets.find(p=>p.id==='installation')!.configuration,requirements:[{subject_type:'organization_user',mode:'specific',subject_keys:[person.key]}]};
+  assert.equal(seeded.presets.find(p=>p.id==='installation')?.configuration.requires_project,true);assert.equal(seeded.presets.find(p=>p.id==='company-meeting')?.configuration.requires_project,false);
+  // Booked here as a custom appointment with no project (FM-557: the type itself needs one).
+  const configuration={...seeded.presets.find(p=>p.id==='installation')!.configuration,requires_project:false,requirements:[{subject_type:'organization_user',mode:'specific',subject_keys:[person.key]}]};
   const preview=await client.request('POST',base+'/preview',{date,configuration});assert.equal(preview.slots.length,1);assert.equal(preview.slots[0].available,true);
   assert.equal(Date.parse(preview.slots[0].plan.end_at)-Date.parse(preview.slots[0].plan.start_at),47*3600000);
   const result=await client.request('POST',base+'/book',{event_id:'appointment_installation123456789',start_at:preview.slots[0].start_at,configuration});assert.equal(result.event.all_day,true);assert.equal(result.event.duration_minutes,2880);
