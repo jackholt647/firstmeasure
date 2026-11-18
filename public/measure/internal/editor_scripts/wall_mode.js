@@ -564,6 +564,25 @@ function perf_persist(touch=true) {
     // Roof metres are measured from the image centre: the current one for the roof being edited,
     // the one the walls were built in (state.context) for the walls. Same place, different origin.
     function inWallFrame(p,ctx=currentContext()){const ref=state?.context;if(!ref)return p;const dx=(ref.lng-ctx.lng)*111132*Math.cos(ctx.lat*Math.PI/180),dy=(ctx.lat-ref.lat)*111132;return dx||dy?{...p,x:p.x-dx,y:p.y-dy}:p;}
+    // Roof trim and the roof's lines follow the roof's line types (exterior-roof-rebuild.md). Walls kept
+    // from an earlier roof keep state.roof as it was, so a line labelled rake since then took no trim (FM-541).
+    // A line still between the same two points takes its current type; state.roof itself never changes.
+    function roofLines(){
+        const roof=state?.roof,ps=activeGeometry?.points,live=activeGeometry?.connections,ctx=currentContext();if(!roof?.points?.length||!ps?.length||!live?.length||!(ctx.mpp>0))return roof;
+        const key=p=>[p.x,p.y,p.z].map(v=>Math.round(v*1e4)).join(','),index=new Map(),at=new Map(),pair=(a,b)=>Math.min(a,b)+':'+Math.max(a,b),now=new Map();
+        roof.points.forEach((p,i)=>{if(!index.has(key(p)))index.set(key(p),i);});
+        for(const p of ps){try{const i=index.get(key(inWallFrame(toMetric(p,ctx),ctx)));if(i!==undefined)at.set(p,i);}catch(e){}}
+        for(const c of live){const a=at.get(c.start),b=at.get(c.end);if(a===undefined||b===undefined||a===b)continue;const k=pair(a,b);if(!now.has(k))now.set(k,[]);now.get(k).push(c.type);}
+        // The walls' lines keep their ids: a line whose type the roof still has there is unchanged, the others take the types left.
+        const replaced=new Map(),added=[];
+        for(const [k,types]of now){const left=[...types],rest=[];
+            for(const c of roof.connections)if(pair(c.startIdx,c.endIdx)===k){const i=left.indexOf(c.type);if(i>=0)left.splice(i,1);else rest.push(c);}
+            rest.forEach((c,i)=>replaced.set(c,i<left.length?{...c,type:left[i]}:null));
+            const [a,b]=k.split(':').map(Number);for(const type of left.slice(rest.length))added.push({startIdx:a,endIdx:b,type});
+        }
+        if(!replaced.size&&!added.length)return roof;
+        return {...roof,connections:[...roof.connections.map(c=>replaced.has(c)?replaced.get(c):c).filter(Boolean),...added]};
+    }
     // The generator as From Roof runs it: no wall edits, the current base and grade.
     function freshStages(roof,chimneys){
         const saved=state,key=baseTerrainKey,cache=baseTerrainCache,skip=new Set(['wallEdits','chimneys','roof','sources','warnings','removed',...historyKeys.filter(k=>!['finishDefaults','roofTrim','base','closedSoffits'].includes(k))]);
@@ -900,7 +919,7 @@ function perf_render3DFrame() {
         if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}
         const vector=p=>getVector3(toPixel(p));
         const addLines=(points,connections,color,userData=null)=>{const vertices=[];for(const c of connections){for(const i of [c.startIdx,c.endIdx]){const v=vector(points[i]);vertices.push(v.x,v.y,v.z);}}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));const obj=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color,depthTest:false,transparent:true,opacity:.95}));if(userData)Object.assign(obj.userData,userData);obj.renderOrder=10;group3D.add(obj);};
-        let roof=state?.roof;
+        let roof=state?.roof&&roofLines();
         if(!roof){try{const c=captureRoof();roof=c.roof;sourceContext=c.context;}catch(e){syncVisibility();return;}}
         if(roofVisible){
             // Ridges, hips and valleys take no trim; Trim mode greys them out.
@@ -1486,7 +1505,7 @@ function perf_render3DFrame() {
     function reportParts(face){const finished=f=>{const finish=window.ExteriorFinishes?.resolve(f,state.finishDefaults);return finish?{...f,material:finish.material,finishColor:finish.color}:f;};return (window.WallChimneys?.visibleParts(face,state)||[face]).flatMap(f=>window.WallClosedSoffits?.presentation(f,state)||[f]).map(finished);}
     function reportSnapshot(){
         if(!state||stage<2)return null;
-        return window.ExteriorReportModel.build({faces:window.ExteriorModel.collect(state,currentWalls()).flatMap(reportParts),base:state.wallEdits?.$base||state.base,roof:state.roof,roofTrim:state.roofTrim||roofTrimOnly,context:state.context});
+        return window.ExteriorReportModel.build({faces:window.ExteriorModel.collect(state,currentWalls()).flatMap(reportParts),base:state.wallEdits?.$base||state.base,roof:roofLines(),roofTrim:state.roofTrim||roofTrimOnly,context:state.context});
     }
     // The PDF cover's textured render travels with the report snapshot: server renders have no editor scene.
     function reportSnapshotWithCover(){
