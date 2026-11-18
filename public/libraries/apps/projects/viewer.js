@@ -5097,7 +5097,8 @@
   }
   // Take photos: on a phone every project card, list row and map preview offers the
   // shared camera (window.FirstMateCamera) for its project; on a desktop the CSS hides it.
-  // The button never opens the project: the panel's capture listener stops the click.
+  // The camera opens at once over the project's window, which opens on its Photos tab
+  // and loads behind it (FM-559); the panel's capture listener stops the card's own open.
   function cameraAvailable(){ return typeof window.FirstMateCamera?.open === 'function'; }
   function cameraButtonHtml(id, { inButton = false } = {}){
     if (!cameraAvailable() || !id || String(id).startsWith('__optimistic_')) return '';
@@ -5133,6 +5134,15 @@
     const known = lastProjectsById.get(id) || allProjects.find((item) => String(item?.id || '') === id);
     if (!known || !cameraAvailable()) return null;
     const p = normalizeProjectRecord(known);
+    const camera = { projectId:id, title:projectCameraTitle(p), onDone:(files) => projectPhotosAdded(id, files) };
+    if (window.FirstMateProjectWindows?.open && window.Portal?.modules?.request?.openProject) {
+      try {
+        lastProjectsById.set(id, p);
+        closeModal();
+        const opened = window.FirstMateProjectWindows.open(p, { camera });
+        if (opened) return opened;
+      } catch (error) { console.warn('The project window could not be opened for the camera', error); }
+    }
     try {
       return window.FirstMateCamera.open({
         orgId:String(window.__APP?.userOrgId || window.Portal?.cfg?.orgId || ''),
