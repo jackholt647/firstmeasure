@@ -14,7 +14,7 @@
  */
 import { dock, windowWidth } from './dock.js?v=20261112-tray3';
 
-const VERSION = '20261117-fm538-comms';
+const VERSION = '20261118-fm552-leads';
 const NS = 'dev-console';
 const STORE = 'fm-dev-console';
 // The page keeps at least APP_MIN px beside the console.
@@ -58,6 +58,7 @@ function writeStore(patch) { try { localStorage.setItem(STORE, JSON.stringify({ 
  */
 const SECTIONS = [
   { id: 'test-run', icon: 'fa-flask', label: ['dc_section_test_run', 'Test run'], when: (s) => s.test_run, load: () => import(`./sections/test-run.js?v=${VERSION}`) },
+  { id: 'leads', icon: 'fa-user-plus', label: ['dc_section_leads', 'Leads'], when: (s) => s.synthetic_leads, load: () => import(`./sections/leads.js?v=${VERSION}`) },
   { id: 'org-state', icon: 'fa-toggle-on', label: ['dc_section_org_state', 'Flags and settings'], load: () => import(`./sections/org-state.js?v=${VERSION}`) },
   { id: 'guided', icon: 'fa-route', label: ['dc_section_guided', 'Guided experiences'], when: (s) => s.guided && !!window.FirstMateGuides?.devPanel, load: () => import(`./sections/guided.js?v=${VERSION}`) },
   { id: 'config', icon: 'fa-book', label: ['dc_section_config', 'Config library'], load: () => import(`./sections/config-library.js?v=${VERSION}`) },
@@ -82,7 +83,7 @@ async function readAccess() {
   let guided = false;
   for (let i = 0; i < 30 && !guided && window.FirstMateGuides; i++) { guided = !!window.FirstMateGuides.isDevEditor?.(); if (!guided) await new Promise((r) => setTimeout(r, 200)); }
   if (!sandbox && !run && !guided) return null;
-  return { ok: true, sections: { test_run: run, synthetic_data: sandbox, software_layers: sandbox, guided: guided || sandbox, live: !!window.FirstMateLiveAssets || location.hostname === 'dev.1m8.ai' } };
+  return { ok: true, sections: { test_run: run, synthetic_data: sandbox, synthetic_leads: sandbox, software_layers: sandbox, guided: guided || sandbox, live: !!window.FirstMateLiveAssets || location.hostname === 'dev.1m8.ai' } };
 }
 
 let mounted = false;

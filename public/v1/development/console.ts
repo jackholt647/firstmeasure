@@ -31,6 +31,7 @@ export async function devConsoleAccess(ctx: PlatformAuthContext) {
     sections: {
       test_run: !!run,
       synthetic_data: sandbox,
+      synthetic_leads: sandbox,
       software_layers: sandbox,
       guided: true,
       live: !!liveAssetsDir()

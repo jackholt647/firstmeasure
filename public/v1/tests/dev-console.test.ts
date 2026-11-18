@@ -19,7 +19,7 @@ test('the dev console answers the development tools audience with its sections a
   assert.equal((await app.inject({method:'GET',url:'/v1/signup-sandbox/development/console'})).statusCode,401);
   const answer=await app.inject({method:'GET',url:'/v1/signup-sandbox/development/console',headers:{cookie}});
   assert.equal(answer.statusCode,200,answer.body);
-  assert.deepEqual(answer.json().sections,{test_run:true,synthetic_data:true,software_layers:true,guided:true,live:true});
+  assert.deepEqual(answer.json().sections,{test_run:true,synthetic_data:true,synthetic_leads:true,software_layers:true,guided:true,live:true});
   assert.equal(answer.json().organization.sandbox,true);
   // The live layer as the receiver's manifest has it: each file with the checkout that put it there.
   const {mkdir}=await import('node:fs/promises');await mkdir(path.join(root,'live'),{recursive:true});
