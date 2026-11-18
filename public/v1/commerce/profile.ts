@@ -14,11 +14,15 @@ export const internationalPricesSchema=z.object({
   residential:z.number().positive().max(1000),
   per_structure:z.number().positive().max(1000),
   gutters:z.number().min(0).max(1000),
+  /** Full Exterior, per structure: standard (12 hours), and the fees added for under 6 hours and under 3 hours (FM-593). Defaulted so policies saved before them still load. */
+  exteriors_base:z.number().positive().max(1000).default(60),
+  exteriors_same_day_fee:z.number().min(0).max(1000).default(10),
+  exteriors_priority_fee:z.number().min(0).max(1000).default(25),
   vat_included:z.boolean(),
   /** Expedite workload and delivery windows run on this clock when neither the property nor the organization gives one. */
   expedite_time_zone:timeZone
 }).strict();
-export const DEFAULT_INTERNATIONAL_PRICES:z.infer<typeof internationalPricesSchema>={residential:25,per_structure:40,gutters:5,vat_included:true,expedite_time_zone:"Europe/London"};
+export const DEFAULT_INTERNATIONAL_PRICES:z.infer<typeof internationalPricesSchema>={residential:25,per_structure:40,gutters:5,exteriors_base:60,exteriors_same_day_fee:10,exteriors_priority_fee:25,vat_included:true,expedite_time_zone:"Europe/London"};
 export const commercialPolicySchema=z.object({
   /** Retired: international expediting is always offered (Europe pricing, 2026-10-21). Accepted so saved policies still load. */
   international_expedite_enabled:z.boolean().optional(),
@@ -108,6 +112,15 @@ export function reportBasePrice(domesticBase: number) {
 /** Rush fees use the US tiers' numbers; outside the US and Canada those numbers are euros. */
 export function reportRushPrice(domesticSurcharge: number, _domesticBase=7) {
   return internationalReportMarket() ? Math.round(internationalEuroPrice(domesticSurcharge,true)*100)/100 : reportPrice(domesticSurcharge);
+}
+/**
+ * Full Exterior price per structure. In the US and Canada: the expedite settings' numbers. Outside them (by the
+ * property's address, as for roof reports): the international price list in euros, at the reference rate for USD accounts.
+ */
+export function reportExteriorPrices(domestic:{base:number;same_day_fee:number;priority_fee:number}) {
+  if(!internationalReportMarket())return {base:reportPrice(domestic.base),same_day_fee:reportPrice(domestic.same_day_fee),priority_fee:reportPrice(domestic.priority_fee)};
+  const prices=internationalPrices();
+  return {base:internationalEuroPrice(prices.exteriors_base),same_day_fee:internationalEuroPrice(prices.exteriors_same_day_fee,true),priority_fee:internationalEuroPrice(prices.exteriors_priority_fee,true)};
 }
 export function reportGutterPrice() { return internationalReportMarket()?internationalEuroPrice(internationalPrices().gutters):2; }
 /** Whether report prices are shown as "VAT included" (international market only). */
