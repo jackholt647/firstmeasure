@@ -11,6 +11,10 @@
 // walkaround" while recording, and the link that skips the video reads "Skip video upload".
 // FM-567: a second recording on the same structure is titled "Record another video" (not "Segment saved") and has
 // no tip on the camera.
+// FM-568: the walkaround review shows the videos, then the other-angles line, then a "Record additional videos"
+// button (no "Additional videos"/"Nothing added yet": recordings go into the walkaround). The phone photo page uses
+// Jack's copy with the steps right under the picture. On desktop the photos have no "Optional with a video walkaround"
+// line, and Continue sits at the bottom right whatever is uploaded. The samples are Ben's house, plus other angles.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -52,17 +56,27 @@ test('the order goes video, then photos, and either can be skipped', () => {
   assert.match(api, /captureMode==='video'&&photoSummary\)toPhotos\(\)/, 'Next on the walkaround review moves on to the photos');
   assert.match(slice(source, 'mobilePhotoBack(){', '\n    },\n'), /if\(!photoIntroSeen\)\{backToVideo\(\);return true;\}/);
   const intro = fn('photoIntroUI');
-  assert.match(intro, /\$\{videoCovers\(\)\?`<button type="button" class="ext-orbit-switch" data-skip-photos>/);
+  assert.match(intro, /\$\{videoCovers\(\)\?`<button type="button" class="ext-orbit-switch" data-skip-photos>\$\{\(globalThis\.PlatformLanguage\?\.htmlText\("firstmeasure","ext_skip_photo_upload","Skip photo upload"\)/);
+  // Jack's copy (FM-568): no lead paragraph, two plain steps under the picture, "Add photos".
+  assert.match(intro, /<\/h3>\$\{orbitScene\(true\)\}<div class="ext-intro-middle">/);
+  assert.match(intro, /"ext_photo_step_eight_angles","Upload one exterior photo of the house for each of the eight angles shown above\."/);
+  assert.match(intro, /"ext_photo_step_extras","Add extra photos or a video to show any details that are missed or hidden in the eight photos\."/);
+  assert.match(intro, /data-photos-start><i class="fas fa-camera" aria-hidden="true"><\/i>\$\{\(globalThis\.PlatformLanguage\?\.htmlText\("firstmeasure","ext_add_photos","Add photos"\)/);
+  assert.doesNotMatch(intro, /<b>|Take all eight angles|Anything hard to see|Start the eight photos|ext_desk_photos_lead/);
+  // The steps are anchored under the picture, not spread over the page.
+  assert.match(source, /\.mobile-order \.ext-fill-intro>\.ext-orbit-steps,\.mobile-order \.ext-fill-intro>\.ext-intro-middle\{display:flex;flex-direction:column;justify-content:flex-start;/);
   assert.match(intro, /"ext_desk_upload_photos","Upload photos"/);
   assert.match(fn('videoIntroUI'), /\$\{DESK_STEPS\}[\s\S]*\$\{have\?'':`<button type="button" class="ext-orbit-switch" data-mode="photos">/);
   // Once started, the only way to change course is Back.
   assert.doesNotMatch(source, /m_cab762c293af5c|ext_switch_to_video_walkaround|ext_back_to_video_walkaround|ext_desk_upload_video_instead/);
   assert.match(fn('deskBackUI'), /if\(captureMode==='photos'\)[^\n]*data-desk-mode="video"/);
   assert.match(source, /const deskSkipLink=\(\)=>anyVideo\(\)\?'':/);
-  // Desktop: Continue after the video and Skip photos sit at the bottom right; the order column waits for the photos.
+  // Desktop: Continue sits at the bottom right after the video and after the photos, whatever is uploaded (FM-568);
+  // the order column waits for it (or all eight photos) and says what is still missing.
   assert.match(fn('deskFootUI'), /if\(captureMode==='video'\)return ready\(\)\?`[^`]*data-desk-next/);
-  assert.match(fn('deskFootUI'), /deskOrderShown\(\)\|\|!videoCovers\(\)\?'':`[^`]*data-desk-skip-photos/);
-  assert.match(source, /const deskOrderShown=\(\)=>\{if\(captureMode!=='photos'\|\|!ready\(\)\)return false;if\(deskAllPhotos\(\)\)deskPhotosDone=true;return deskPhotosDone;\};/);
+  assert.match(fn('deskFootUI'), /return deskOrderShown\(\)\?'':`<button type="button" class="ext-desk-btn primary ext-desk-next" data-desk-skip-photos [^`]*"ext_desk_continue","Continue"/);
+  assert.match(source, /const deskOrderShown=\(\)=>\{if\(captureMode!=='photos'\)return false;if\(deskAllPhotos\(\)\)deskPhotosDone=true;return deskPhotosDone;\};/);
+  assert.doesNotMatch(source, /ext_desk_photos_optional|Optional with a video walkaround|"ext_skip_photos"/);
   assert.match(fn('updateDesk'), /toggle\('is-ready',deskOrderShown\(\)&&!recordingNow\)/);
   assert.match(fn('deskClick'), /else if\('deskSkipPhotos' in d\)\{deskPhotosDone=true;render\(\);\}/);
   assert.doesNotMatch(fn('deskSideUI'), /data-desk-next|videoStep/);
@@ -72,12 +86,16 @@ test('the order goes video, then photos, and either can be skipped', () => {
   assert.match(server, /if\(own\.some\(r=>r\.view===EXTERIOR_ORBITAL_VIDEO\)\) continue;/);
 });
 
-test('the walkaround review has no Upload or photos link, and Record sits under the other angles', () => {
+test('the walkaround review shows the videos, the other-angles line, then a Record additional videos button', () => {
   const review = fn('videoSummaryUI');
   assert.match(review, /videoGroup\(i,ctx\.mobileOrder\?'':/, 'Upload is back in the phone review heading');
-  assert.match(review, /\$\{groups\}\$\{videoExtrasGroup\(\)\}\$\{record\}<p class="ext-video-hint">/);
+  assert.match(review, /\$\{groups\}\$\{videoExtrasGroup\(\)\}<p class="ext-video-hint">[^`]*<\/p>\$\{record\}<\/section>`/);
   assert.doesNotMatch(review, /extrasDrop|extrasUI|extrasGroup\(\)/, 'the walkaround review has no "Additional photos and videos" area');
-  assert.match(source, /const videoExtrasGroup=\(\)=>summaryGroup\('',\(globalThis\.PlatformLanguage\?\.text\("firstmeasure","ext_additional_videos","Additional videos"\)/);
+  // A recording goes into the walkaround, so an always-shown "Additional videos" only ever said "Nothing added yet".
+  assert.match(source, /const videoExtrasGroup=\(\)=>videoExtras\(\)\?summaryGroup\('',/);
+  assert.match(review, /class="ext-orbit-actions ext-video-record">[^\n]*class="ext-orbit-secondary" data-video-record="\$\{i\}"/);
+  assert.match(review, /"ext_record_additional_videos","Record additional videos"/);
+  assert.doesNotMatch(source, /ext-record-link/);
   // The final screen, after the eight photos, keeps "Additional photos and videos".
   assert.match(fn('photoUI'), /\$\{extrasGroup\(\)\}\$\{extrasDrop\(true\)\}<\/section>`;/);
   assert.match(review, /"ext_other_angles_hint","Add other angles of anything/);
@@ -107,6 +125,14 @@ test('samples come from real orders: "View sample" and an example of each angle'
   assert.doesNotMatch(fn('mountGuide'), /ext-angle-guide|houseModel/, 'the house picture is back in the photo guide');
   assert.match(fn('mountGuide'), /data-guide-step><\/span><button type="button" class="ext-example-tip" data-guide-example/);
   assert.match(fn('fillExample'), /img\.src=sampleImage\(view\)/);
+  // Ben's house (FM-568): other angles at the bottom of the sample photos; the version makes browsers refetch.
+  for (let i = 1; i <= 4; i++) assert.ok(fs.statSync(path.join(dir, `other-${i}.jpg`)).size > 10000, `missing sample other-${i}.jpg`);
+  assert.match(source, /SAMPLE_OTHER_ANGLES=4;/);
+  assert.match(source, /sampleImage=view=>SAMPLE_BASE\+view\+'\.jpg'\+SAMPLE_V/);
+  assert.match(fn('deskSampleHtml'), /"ext_sample_other_angles","Other angles"[\s\S]*sampleImage\('other-'\+\(i\+1\)\)/);
+  for (const name of fs.readdirSync(dir).filter((n) => n.endsWith('.jpg'))) {
+    assert.ok(!fs.readFileSync(path.join(dir, name)).includes(Buffer.from('GPS')), `${name} keeps location metadata`);
+  }
   assert.match(fn('deskHeadUI'), /data-details="\$\{video\?'sample-video':'sample-photos'\}"/);
   assert.match(fn('showDeskInfo'), /key\.startsWith\('sample-'\)\?deskSampleHtml\(key\)/);
 });
@@ -123,7 +149,7 @@ test('the copy matches the agreed wording', () => {
     'Stand far enough back to fit the entire house in the frame.',
     'Walk all the way around the house, capturing all sides and corners.',
     'If anything was hidden from view, take an extra video from a different angle.',
-    'View sample', 'Skip photos',
+    'View sample', 'Skip photo upload', 'Add photos', 'Record additional videos', 'Other angles',
   ]) assert.ok(source.includes(text), `missing "${text}"`);
   assert.doesNotMatch(source, /Drag your videos here, or|here, or`/);
   assert.doesNotMatch(source, /Upload photos instead/);
