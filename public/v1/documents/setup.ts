@@ -167,14 +167,21 @@ function eachPageNode(definition: JsonObject, visit: (node: JsonObject) => void)
   for (const page of list(definition.pages).map(object)) walk(page.children);
 }
 export type CopyField = { node_id: string; role: "title" | "heading" | "text"; text: string };
-/** The template's copy, top to bottom: its first heading is the title; the rest are headings and the text under them. */
+const isTitle = (node: JsonObject) => list(object(node.props).blocks).some((block) => ["h1", "title"].includes(text(object(block).style_ref)));
+/**
+ * The template's copy, top to bottom: headings and the text under them. The title is its first heading when that is a
+ * top-level one (h1) or opens the document with text under it (the one-page proposal's h2); a heading that only labels a
+ * section (an invoice's "Your account") is a heading.
+ */
 export function copyFields(definition: JsonObject): CopyField[] {
   const fields: CopyField[] = [];
   eachPageNode(definition, (node) => {
     if (!isCopy(node) || !text(node.id)) return;
-    const heading = isHeading(node);
-    fields.push({ node_id: text(node.id), role: heading ? (fields.some((field) => field.role === "title") ? "heading" : "title") : "text", text: plainText(node) });
+    fields.push({ node_id: text(node.id), role: isTitle(node) ? "title" : isHeading(node) ? "heading" : "text", text: plainText(node) });
   });
+  const titled = fields.findIndex((field) => field.role === "title");
+  fields.forEach((field, at) => { if (field.role === "title" && at !== titled) field.role = "heading"; });
+  if (titled < 0 && fields[0]?.role === "heading" && fields[1]?.role === "text") fields[0].role = "title";
   return fields;
 }
 /**
