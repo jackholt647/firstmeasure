@@ -171,7 +171,8 @@ export async function createDomainCheckout(input: {
     "metadata[billing_kind]": "domain_checkout",
     "metadata[organization_id]": input.orgId,
     "metadata[checkout_id]": id,
-    // The card is kept for the domains' yearly renewals.
+    // The card is kept for the domains' yearly renewals, so only a card (Apple Pay and Link included) can pay.
+    "payment_method_types[0]": "card",
     "payment_intent_data[setup_future_usage]": "off_session",
     "payment_intent_data[description]": `Domains: ${items.map((item) => item.domain).join(", ")}`,
     "payment_intent_data[metadata][billing_kind]": "domain_checkout",
