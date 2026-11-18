@@ -458,13 +458,15 @@ test('the CRM tab: the magic button opens the assistant bar, which changes and s
     assert.match(await page.locator('.crm-chips').innerText(), /Source type/);
     assert.equal(await page.evaluate(() => window.__agent.getContext().crm.unsaved_changes), true);
     // Saved as a new view, it carries the magic tag in the views list and the title.
-    page.once('dialog', (dialog) => dialog.accept('Web form leads'));
+    page.once('dialog', (dialog) => dialog.accept('Web form leads from the website and landing pages'));
     await page.locator('[data-save-as]').click();
-    await page.waitForFunction(() => document.querySelector('.crm-pick-name')?.textContent.includes('Web form leads'));
-    const saved = (await inject('GET', `/v1/crm/organizations/${orgId}/views`)).views.find((v) => v.name === 'Web form leads');
+    await page.waitForFunction(() => document.querySelector('.crm-pick-name')?.textContent.includes('Web form leads from'));
+    const saved = (await inject('GET', `/v1/crm/organizations/${orgId}/views`)).views.find((v) => v.name === 'Web form leads from the website and landing pages');
     assert.equal(saved?.definition.origin, 'ai', 'the view is marked as made by the AI');
     assert.equal(await page.locator(`.crm-rail [data-open-view="${saved.id}"] .crm-ai-tag`).count(), 1, 'the magic tag in the views list');
-    assert.equal(await page.locator('.crm-pick-name .crm-ai-tag').count(), 1, 'and by the title');
+    assert.equal(await page.locator('.crm-pick-line .crm-ai-tag').count(), 1, 'and by the title');
+    assert.equal(await page.locator('.crm-pick-line .crm-ai-tag').isVisible(), true, 'the tag stays in view beside a long name');
+    assert.equal(await page.locator('[data-ai-open]').getAttribute('title'), null, 'no title tooltip left over the chips after a tap on a phone');
     assert.equal(await page.locator('.crm-rail [data-open-view] .crm-ai-tag').count(), 1, 'only on views the AI made');
     // A view the assistant saved opens.
     const pipeline = (await inject('GET', `/v1/crm/organizations/${orgId}/views`)).views.find((v) => v.name === 'Pipeline');

@@ -264,7 +264,7 @@
     function titleHtml(icon, name, count = '', tag = ''){
       return `<div class="crm-title"><h2><button type="button" class="crm-view-pick" data-rail-toggle aria-haspopup="true" aria-expanded="${host.classList.contains('rail-open')}" title="${esc(name)}">
         <span class="crm-pick-icon" aria-hidden="true"><i class="fas ${esc(icon)}"></i></span>
-        <span class="crm-pick-text"><span class="crm-pick-name">${esc(name)}${tag}</span>${count ? `<span class="crm-count">${esc(count)}</span>` : ''}</span>
+        <span class="crm-pick-text"><span class="crm-pick-line"><span class="crm-pick-name">${esc(name)}</span>${tag}</span>${count ? `<span class="crm-count">${esc(count)}</span>` : ''}</span>
         <i class="fas fa-chevron-down crm-pick-caret" aria-hidden="true"></i></button></h2></div>`;
     }
 
@@ -297,7 +297,7 @@
       bar.innerHTML = `<div class="crm-chips${rules.length ? '' : ' is-empty'}">
         ${rules.length > 1 ? `<button type="button" class="crm-match" data-filter-match title="${esc(L('match_hint', 'Whether a row must match every condition or any one'))}">${esc(filter.match === 'any' ? L('match_any', 'Any of') : L('match_all', 'All of'))} <i class="fas fa-caret-down"></i></button>` : ''}
         ${rules.map((rule, i) => `<span class="crm-chip" data-edit-filter="${i}" role="button" tabindex="0"><span class="crm-chip-text">${rule.rules || rule.conditions ? esc(L('filter_group', '{n} conditions, {match}', { n: arr(rule.rules || rule.conditions).length, match: rule.match === 'any' ? L('any', 'any') : L('all', 'all') })) : ruleSummary(rule)}</span><button type="button" class="crm-chip-x" data-remove-filter="${i}" aria-label="${esc(L('remove_filter', 'Remove filter'))}"><i class="fas fa-xmark"></i></button></span>`).join('')}</div>
-        ${agentAvailable() ? `<button type="button" class="crm-chip crm-ai" data-ai-open aria-pressed="${agentOpen()}" title="${esc(L('ai_button', 'Ask the AI to change this view'))}" aria-label="${esc(L('ai_button', 'Ask the AI to change this view'))}"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${esc(L('ai_short', 'AI'))}</span></button>` : ''}
+        ${agentAvailable() ? `<button type="button" class="crm-chip crm-ai" data-ai-open aria-pressed="${agentOpen()}" ${phone() ? '' : `title="${esc(L('ai_button', 'Ask the AI to change this view'))}"`} aria-label="${esc(L('ai_button', 'Ask the AI to change this view'))}"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${esc(L('ai_short', 'AI'))}</span></button>` : ''}
         <button type="button" class="crm-chip add" data-add-filter title="${esc(L('add_filter', 'Add a filter'))}" aria-label="${esc(L('add_filter', 'Add a filter'))}"><i class="fas fa-plus" aria-hidden="true"></i><i class="fas fa-filter" aria-hidden="true"></i><span>${esc(L('filter', 'Filter'))}</span>${rules.length ? `<b class="crm-filter-count">${rules.length}</b>` : ''}</button>
         <label class="crm-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-search value="${esc(state.search)}" placeholder="${esc(L('search_in_view', 'Search {name}', { name: state.draft.name }))}" aria-label="${esc(L('search_view', 'Search this view'))}" enterkeyhint="search"></label>`;
     }
