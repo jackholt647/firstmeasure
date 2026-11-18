@@ -305,7 +305,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261118-fm542-pin-after-load'), versionedBundle('project-request/app.js', '20261118-fm542-one-loading-state')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261118-fm542-spare-after-load'), versionedBundle('project-request/app.js', '20261118-fm542-one-loading-state')]
     },
     {
       id: 'firstmeasure.order',
