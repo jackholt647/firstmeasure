@@ -244,7 +244,7 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
         choices.hidden = !!clean(select?.input?.value);
         const none = $('[data-no-project]'), required = needsProject(), note = $('[data-needs-project]');
         none.hidden = required; none.setAttribute('aria-pressed', String(noProject));
-        note.hidden = !required; note.textContent = required ? `${configuration.presetLabel || 'This appointment'} needs a project.` : '';
+        note.hidden = !required; note.textContent = required ? (configuration.presetLabel ? `“${configuration.presetLabel}” needs a project.` : 'This appointment needs a project.') : '';
       }
       create.hidden = done || step !== 'when';
       create.disabled = !selected || saving;
