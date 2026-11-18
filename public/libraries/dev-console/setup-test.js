@@ -50,7 +50,7 @@ async function run() {
   let outcome = { status: 'failed' };
   try { outcome = await window.FirstMateGuides.test(experience); }
   finally { await post(`${base}/test/end`).catch(() => null); }
-  say(outcome?.status === 'completed' ? 'Answered. Close this, or roll it back from the dev console.' : 'Closed.');
+  say(outcome?.status === 'completed' ? 'Answered. Test it again or roll it back from the bar above.' : 'Closed without finishing.');
   tell('ended', { outcome: { status: String(outcome?.status || 'ended') } });
 }
 run().catch((error) => { say(error.message, true); tell('failed', { message: error.message }); });
