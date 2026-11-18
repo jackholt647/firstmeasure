@@ -356,6 +356,37 @@ test("comms: text images are owner-validated, saved in threads, and served throu
   assert.equal(rejected.data.error, "sms_image_owner");
 });
 
+// FM-587: the Comms email composer sends a Markdown body (with its HTML) and files the sender uploaded for the email.
+test("comms: email attachments are the sender's own uploads and a rich body is kept as Markdown", async () => {
+  const { client, orgId, userId, suffix } = await registerOwner();
+  const { projectId } = await createProject(client, orgId, suffix);
+  const upload = await client.request("POST", `/v1/platform/organizations/${orgId}/media`, {
+    base64: Buffer.from("Quote PDF bytes").toString("base64"), file_name: "quote.pdf", content_type: "application/pdf",
+    owner_type: "user", owner_id: userId, slot: "email_attachment", scope: "communications"
+  });
+  const mediaId = String(upload.media.id);
+  const sent = await client.request("POST", `/v1/comms/organizations/${orgId}/projects/${projectId}/email/send`, {
+    subject: "Your quote", text: "**Hi Casey**, the quote is attached.", html: "<div><strong>Hi Casey</strong>, the quote is attached.</div>",
+    format: "markdown", attachments: [{ media_id: mediaId }]
+  });
+  assert.equal(sent.message.metadata.email_format, "markdown");
+  assert.deepEqual(sent.message.metadata.email_attachments, [{ media_id: mediaId, file_name: "quote.pdf", content_type: "application/pdf", size_bytes: 15 }]);
+  assert.deepEqual(sent.message.metadata.email.attachments, [{ name: "quote.pdf", content_type: "application/pdf" }]);
+  const thread = await client.request("GET", `/v1/comms/organizations/${orgId}/projects/${projectId}/email/threads/${sent.message.conversation_id}`);
+  assert.equal(thread.thread.messages[0].text, "**Hi Casey**, the quote is attached.");
+  assert.equal(thread.thread.messages[0].metadata.email_attachments[0].media_id, mediaId);
+
+  const { storeMediaUpload } = await import("../platform/storage.js");
+  const bytes = Buffer.from("not mine");
+  const foreign = await storeMediaUpload(orgId, { bytes, fileName: "other.pdf", contentType: "application/pdf", ownerType: "user", ownerId: "other-user", slot: "email_attachment", metadata: { uploaded_by_user_id: "other-user" } });
+  const photo = await storeMediaUpload(orgId, { bytes, fileName: "roof.png", contentType: "image/png", ownerType: "project", ownerId: projectId, slot: "photos", metadata: { uploaded_by_user_id: userId } });
+  for (const media of [foreign, photo]) {
+    const rejected = await client.raw("POST", `/v1/comms/organizations/${orgId}/projects/${projectId}/email/send`, { subject: "Files", text: "See attached", attachments: [{ media_id: media.id }] });
+    assert.equal(rejected.statusCode, 403);
+    assert.equal(rejected.data.error, "email_attachment_owner");
+  }
+});
+
 test("comms: explicit email recipients and recipient-combination SMS threads support project contacts and arbitrary addresses", async () => {
   const { client, orgId, suffix } = await registerOwner();
   const { projectId, contactEmail, secondaryEmail, contactPhone, secondaryPhone } = await createProject(client, orgId, suffix);
