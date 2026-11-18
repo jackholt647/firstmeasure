@@ -1,9 +1,22 @@
 import { commsMessageView } from "../service.js";
 import { listCalls, readCall, database, object, text, type CustomerCall, type Json } from "./storage.js";
 
+// People read a call's outcome as words, never as its stored key (FM-555).
+const dispositionLabels:Record<string,string>={answered:"Answered",voicemail:"Left voicemail",no_answer:"No answer",busy:"Busy",wrong_number:"Wrong number",
+  callback:"Call back",do_not_call:"Do not call",technical_failure:"Technical failure",skipped:"Skipped"};
+const stateLabels:Record<string,string>={created:"Starting call",agent_connecting:"Connecting",dialing:"Dialing",ringing:"Ringing",queued:"Waiting in queue",
+  connected:"On call",held:"On hold",ended:"Call ended",canceled:"Canceled",failed:"Could not connect",busy:"Busy",no_answer:"No answer",rejected:"Declined"};
+function humanize(value:string){return value.replaceAll("_"," ").replace(/^./,c=>c.toUpperCase());}
+export function callOutcomeText(call:Pick<CustomerCall,"direction"|"state"|"connected_at"|"result">){
+  const disposition=text(object(call.result).disposition),state=text(call.state);
+  if(disposition)return dispositionLabels[disposition]||humanize(disposition);
+  if(!call.connected_at&&call.direction==="inbound"&&["no_answer","busy","rejected","ended"].includes(state))return "Missed call";
+  if(!call.connected_at&&state==="ended")return "No answer";
+  return stateLabels[state]||humanize(state)||"Call";
+}
 export function callActivity(call:CustomerCall){
   return commsMessageView({id:call.id,conversation_id:call.id,channel:"call",direction:call.direction,status:call.state,
-    subject:text(call.metadata.purpose)||"Customer call",text_body:call.notes||text(call.result.disposition)||call.state,
+    subject:text(call.metadata.purpose)||"Customer call",text_body:call.notes||callOutcomeText(call),
     sender:{name:call.customer_name,phone:call.customer_number},recipients:[],tags:[],project_id:call.project_id,contact_id:call.contact_id,
     created_at:call.created_at,updated_at:call.updated_at,metadata:{call_id:call.id,mode:call.mode,wrap_up_state:call.wrap_up_state,result:call.result},source:{type:"user"}});
 }
