@@ -208,6 +208,11 @@ async function stored(orgId: string) {
   catch (error) { if (error instanceof PlatformError && error.statusCode === 404) return null; throw error; }
 }
 
+/** Whether the document setup has made this kind's template, without reading the rest of what it answered. */
+export async function documentSetupApplied(orgId: string, kind: DocumentSetupKind) {
+  return !!text(object(object(object((await stored(orgId))?.data).kinds)[kind]).applied_at);
+}
+
 export async function readDocumentSetup(orgId: string) {
   const [record, themes, profile] = await Promise.all([stored(orgId), listDocumentThemes(orgId).catch(() => []), readCompanyProfile(orgId)]);
   const kinds = object(object(record?.data).kinds);

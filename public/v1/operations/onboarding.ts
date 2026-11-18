@@ -14,6 +14,9 @@ import { EQUIPMENT_VIEW } from '../equipment/access.js';
 import { offeredAppIds } from '../platform/app-experience/offers.js';
 import { readProgress } from '../guided-experiences/store.js';
 import { operationsDocumentReady } from './documents.js';
+import { documentSetupApplied } from '../documents/setup.js';
+import { listDocumentTemplates } from '../documents/storage.js';
+import { listPaySheets } from '../labor/pay-sheets.js';
 
 const documentInput = z.object({ operations_document_id: z.string().trim().max(200).optional(), document_id: z.string().trim().max(200).optional() }).passthrough();
 const supplierInput = z.object({ suppliers: z.array(z.object({ name: z.string().trim().min(1).max(200) }).passthrough()).min(1).max(40) }).passthrough();
@@ -47,15 +50,24 @@ export async function operationsSetupStatus(ctx: PublicationContext, value: unkn
     const result = await invokeAction({ ...ctx, mode: 'evaluate' }, { action: 'equipment.fleet.list', target: { scope: 'organization', organizationId: ctx.organizationId } }, {}) as { value?: unknown };
     return Array.isArray(result.value) && result.value.length > 0;
   };
-  const [suppliers, equipment, workforce, proposal] = await Promise.all([
-    listSuppliers(ctx.organizationId), equipmentReady(),
-    readProgress(ctx.organizationId, '', 'operations.workforce.setup'),
-    readProgress(ctx.organizationId, '', 'operations.proposal.setup')
-  ]);
+  // A card is done when the thing is set up anywhere in the app (FM-607), not only through this setup: the people
+  // who do the work and their pay from People or the labor setup, proposals from the Docs tab's document setup or
+  // a proposal template of the organization's own (an untouched library copy is not one).
+  const workforceReady = async () => (await readProgress(ctx.organizationId, '', 'operations.workforce.setup'))?.status === 'completed'
+    || (await listPaySheets(ctx.organizationId)).length > 0;
+  const proposalsReady = async () => {
+    if (ready?.path === 'proposal' && ready.ready) return true;
+    if ((await readProgress(ctx.organizationId, '', 'operations.proposal.setup'))?.status === 'completed') return true;
+    if (await documentSetupApplied(ctx.organizationId, 'proposal')) return true;
+    return (await listDocumentTemplates(ctx.organizationId, { document_type: 'proposal' })).some(template => {
+      const metadata = (template.metadata || {}) as Record<string, unknown>;
+      return template.status === 'active' && Number(template.current_version || 0) > 0 && metadata.preset !== true && metadata.system !== true;
+    });
+  };
+  const [suppliers, equipment, workforce, proposals] = await Promise.all([listSuppliers(ctx.organizationId), equipmentReady(), workforceReady(), proposalsReady()]);
   return { scope_ready: !!ready?.ready, document_id: documentId,
     setup: { materials: { complete: !!ready?.ready }, suppliers: { complete: suppliers.length > 0 },
-      equipment: { complete: equipment }, workforce: { complete: workforce?.status === 'completed' },
-      proposals: { complete: ready?.path === 'proposal' && ready.ready || proposal?.status === 'completed' } } };
+      equipment: { complete: equipment }, workforce: { complete: workforce }, proposals: { complete: proposals } } };
 }
 
 export async function completeOperationsSetup(ctx: PublicationContext, value: unknown) {
