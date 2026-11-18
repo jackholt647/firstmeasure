@@ -39,8 +39,10 @@
     .gxs-settled .gxs-card,.gxs-settled .gxs-rule{animation:none}
     .gxs{position:fixed;inset:0;z-index:2147483250;display:grid;place-items:center;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#101828}
     /* One scroller (FirstMateGuides.holdPage): the page under the sheet is held still, the sheet is the visible screen
-       (--gx-vh, which a phone's keyboard shrinks), and a pane at the end of its scroll never hands the drag on. */
-    .gxs,.gxs *{overscroll-behavior:contain}
+       (--gx-vh, which a phone's keyboard shrinks), and a step at the end of its scroll never hands the drag on. Only the
+       sheet and its steps contain: anything inside that clips or is a field (a line item, an input) is a scroll container
+       too, and containing it there would swallow the wheel over it (FM-605); it passes the wheel on to the step. */
+    .gxs,.gxs-sheet,.gxs-step{overscroll-behavior:contain}
     .gxs-scrim{position:absolute;inset:0;background:rgba(16,24,40,.55);backdrop-filter:blur(3px);animation:gxsFade .35s ease both}
     /* The sheet is a landscape rectangle as tall as the step on screen needs (--gxs-fit, measured by the player), up to
        the cap; a step that fills (logos, supplier columns, a workflow) has no fit and takes the full height. */
@@ -816,7 +818,7 @@
     render(el,ctx){
       let disposed=false, handle=null;
       el.textContent=L('gx_operations_loading','Opening Operations…');
-      import(new URL('./operations-setup.js?v=20261118-fm604',scriptUrl).href).then(module=>{
+      import(new URL('./operations-setup.js?v=20261118-fm605',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mountWidget(id,el,ctx);
       }).catch(error=>{if(!disposed)el.textContent=error?.message||L('gx_operations_load_error','Could not open this step. Close and try again.');});
       return {valid:()=>handle?.valid?.()!==false,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
