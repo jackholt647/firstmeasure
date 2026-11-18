@@ -23,14 +23,32 @@
   const icon = name => `<i class="fa-solid fa-${name}" aria-hidden="true"></i>`;
   const date = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : 'No due date';
   const label = value => String(value || '').replaceAll('_',' ').replace(/^./, c => c.toUpperCase());
+  // GP-8: communications.css arrives as a <link>; anything drawn with its classes before it loads paints unstyled.
+  // cssReady settles once it has loaded or failed (after 20 s at the most, should neither event come); whenStyled(el)
+  // keeps el hidden behind an inline-styled "Loading…" until then.
+  let cssLoaded=false;
   function css(){
-    if (document.getElementById('fm-communications-css')) return;
-    const link = document.createElement('link'); link.id='fm-communications-css'; link.rel='stylesheet';
-    const source=new URL(document.currentScript?.src || `${location.origin}/libraries/apps/comms/communications-ui.js`);
-    link.href=new URL('communications.css?v=20261118-fm594-setup-panel',source).href;
-    document.head.append(link);
+    let link=document.getElementById('fm-communications-css');
+    if (!link) {
+      link = document.createElement('link'); link.id='fm-communications-css'; link.rel='stylesheet';
+      const source=new URL(document.currentScript?.src || `${location.origin}/libraries/apps/comms/communications-ui.js`);
+      link.href=new URL('communications.css?v=20261118-fm594-setup-panel',source).href;
+      document.head.append(link);
+    } else if (link.sheet) return Promise.resolve(cssLoaded=true);
+    return new Promise(resolve=>{
+      const done=()=>{cssLoaded=true;clearTimeout(timer);resolve(true);};
+      const timer=setTimeout(done,20000);
+      link.addEventListener('load',done,{once:true});link.addEventListener('error',done,{once:true});
+    });
   }
-  css();
+  const cssReady=css();
+  const loadingHtml=()=>`<div data-fmcm-css-wait role="status" style="display:flex;align-items:center;justify-content:center;gap:12px;min-height:160px;padding:24px;color:#475467;font:inherit;font-size:14px;font-weight:500"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("comms","m_d2da77452877dd","Loading…") ?? "Loading…")}</span></div>`;
+  function whenStyled(el){
+    if(cssLoaded||!el)return;
+    const display=el.style.display;el.style.display='none';el.insertAdjacentHTML('beforebegin',loadingHtml());
+    const wait=el.previousElementSibling;
+    void cssReady.then(()=>{wait?.remove();el.style.display=display;});
+  }
   function notice(message){ Portal.ui?.showToast?.((globalThis.PlatformLanguage?.text("comms","m_643fa01aa77d59","Communications") ?? "Communications"),message,false); }
   function dialog(title, content, onSubmit, options={}){
     const el=document.createElement('dialog');el.className='fmcm-dialog';
@@ -150,5 +168,5 @@
   function callStatus(call){if(!call.connected_at&&call.direction==='inbound'&&['no_answer','busy','rejected'].includes(call.state))return 'Missed call';if(!call.connected_at&&call.state==='no_answer')return 'No answer';const start=Date.parse(call.connected_at||''),end=Date.parse(call.ended_at||'');if(Number.isFinite(start)&&Number.isFinite(end)&&end>=start){const seconds=Math.round((end-start)/1000);return `${Math.floor(seconds/60)}m ${String(seconds%60).padStart(2,'0')}s`;}if(call.state==='ended'&&!call.connected_at)return call.direction==='inbound'?'Missed call':'No answer';return label(call.state);}
   function voicePlayer(url){return `<div class="fm-voice-player"><audio controls preload="none" src="${esc(url)}"></audio><select aria-label="Playback speed"><option value="1">1x</option><option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2x</option><option value="0.75">0.75x</option></select><a href="${esc(url)}" download="voicemail.mp3" aria-label="Download voicemail" title="Download voicemail">${icon('download')}</a></div>`;}
   function bindVoicePlayer(root){root.querySelectorAll('.fm-voice-player').forEach(player=>{player.querySelector('select').onchange=event=>{player.querySelector('audio').playbackRate=Number(event.target.value);};const link=player.querySelector('a');let busy=false;link.onclick=async event=>{event.preventDefault();if(busy)return;busy=true;link.setAttribute('aria-busy','true');player.querySelector('[data-download-error]')?.remove();try{const response=await fetch(link.href,{credentials:'same-origin'});if(!response.ok)throw new Error('Recording unavailable');const blob=await response.blob(),url=URL.createObjectURL(blob),download=document.createElement('a');download.href=url;download.download=/wav/i.test(blob.type)?'voicemail.wav':'voicemail.mp3';document.body.append(download);download.click();download.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch{const error=document.createElement('small');error.dataset.downloadError='';error.setAttribute('role','alert');error.textContent='Could not download the voicemail. Please try again.';player.append(error);}finally{busy=false;link.removeAttribute('aria-busy');}};});}
-  Portal.CommunicationsUI={esc,org,user,request,uid,icon,date,label,notice,dialog,field,area,select,empty,setupPanel,project,navigate,projectField,bindProjectPicker,callStatus,voicePlayer,bindVoicePlayer};
+  Portal.CommunicationsUI={cssReady,cssLoaded:()=>cssLoaded,whenStyled,esc,org,user,request,uid,icon,date,label,notice,dialog,field,area,select,empty,setupPanel,project,navigate,projectField,bindProjectPicker,callStatus,voicePlayer,bindVoicePlayer};
 })();
