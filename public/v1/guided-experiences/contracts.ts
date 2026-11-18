@@ -101,8 +101,13 @@ const setupStep = z.object({
 const trigger = z.discriminatedUnion("kind", [
   /** Runs before a button's own action: the click is held, the experience plays, then the click is let through. */
   z.object({ kind: z.literal("before_action"), action: id, selector, once: z.boolean().default(true), when: conditions.optional() }).strict(),
-  /** The person opens a project tab (an app id such as project.materials). */
-  z.object({ kind: z.literal("tab_opened"), tab: id, once: z.boolean().default(true), delay_ms: z.number().int().min(0).max(10000).default(700), when: conditions.optional() }).strict(),
+  /**
+   * The person opens a project tab (an app id such as project.materials) or a portal tab (portal.scheduling). With
+   * `skip: "later"`, a skip of what this trigger started only puts it off (a `defer` event, FM-553): this trigger does
+   * not play it again, and its other triggers wait while the person is still in the session they skipped it in.
+   * `skip_note` is what the skip question says then (when it will be asked again), over the experience's own.
+   */
+  z.object({ kind: z.literal("tab_opened"), tab: id, once: z.boolean().default(true), delay_ms: z.number().int().min(0).max(10000).default(700), skip: z.literal("later").optional(), skip_note: copySchema.optional(), when: conditions.optional() }).strict(),
   /** Another experience finished (its `then` names this one) or code asked for it by name. */
   z.object({ kind: z.literal("after_experience"), experience: id, once: z.boolean().default(true), when: conditions.optional() }).strict(),
   /** The app loads: once per page load in the top window, whatever page it opens on. */
@@ -145,6 +150,10 @@ export const experienceSchema = z.object({
   salt: z.string().max(60).default("v1"),
   title: copySchema,
   description: copySchema.optional(),
+  /** A setup's line above its first page, whichever step that is (a setup step it requires may come first): why it asks. */
+  intro: copySchema.optional(),
+  /** What a setup's "Skip setup for now?" question says happens after a skip, where the general text does not fit. */
+  skip_note: copySchema.optional(),
   /** The project tab this belongs to, for "show me again" and FAQs. */
   tab: id.optional(),
   /** The flag this announces: it plays only where that flag is on and was asked to be introduced (flag-introductions.ts), once to each person. */
@@ -170,11 +179,15 @@ export const experienceSchema = z.object({
     screen: z.enum(["pricebook", "none"]).default("pricebook"),
     /** What the agent says once it is done. */
     say: z.array(copySchema).max(4).default([]),
-    /** What happens next, in order: hand the conversation to the project's agent tray, let a held click through, play another experience. */
+    /**
+     * What happens next, in order: hand the conversation to the project's agent tray, let a held click through, play
+     * another experience. A `play` with `held: false` follows only when no click was held (the experience started on
+     * its own, such as on a tab), `held: true` only after one.
+     */
     then: z.array(z.union([
       z.object({ handoff: z.literal("assistant_tray") }).strict(),
       z.object({ resume: z.literal(true) }).strict(),
-      z.object({ play: id }).strict()
+      z.object({ play: id, held: z.boolean().optional() }).strict()
     ])).max(6).default([])
   }).strict().default({}),
   /** Whether "show me again" may play it after it was completed. */
@@ -245,7 +258,7 @@ export const faqSchema = z.object({
 }).strict();
 export type TabFaqs = z.infer<typeof faqSchema>;
 
-export const EVENT_TYPES = ["exposure", "start", "step_view", "step_done", "step_skip", "back", "dismiss", "complete", "replay", "question", "faq"] as const;
+export const EVENT_TYPES = ["exposure", "start", "step_view", "step_done", "step_skip", "back", "dismiss", "complete", "replay", "question", "faq", "defer"] as const;
 export type GuidedEventType = (typeof EVENT_TYPES)[number];
 export const STATUSES = ["started", "completed", "dismissed"] as const;
 export type GuidedStatus = (typeof STATUSES)[number];

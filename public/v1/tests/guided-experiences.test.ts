@@ -222,3 +222,51 @@ test("the Operations tour every organization sees uses no roofing-only words", a
   const units = entry.data.steps.find((step) => step.id === "units")!;
   assert.equal(units.title.text, "Measured or order units");
 });
+
+test("a skip from a tab trigger with skip later only puts it off: its other triggers wait out that session (FM-553)", async () => {
+  const { experienceSchema } = await import("../guided-experiences/contracts.js");
+  const { registerExperienceForTests: registerExperience } = await import("../guided-experiences/registry.js");
+  const service = await import("../guided-experiences/service.js"), store = await import("../guided-experiences/store.js");
+  const SETUP = {
+    id: "test.later", version: 1, kind: "modal", scope: "organization", replayable: true, title: t("gx_test_later", "Later"),
+    intro: t("gx_test_later_intro", "Why we ask"), skip_note: t("gx_test_later_skip", "Skipped"),
+    triggers: [
+      { kind: "tab_opened", tab: "portal.scheduling", skip: "later", skip_note: t("gx_test_later_note", "We will ask again") },
+      { kind: "before_action", action: "appointment.new", selector: "[data-new-appointment]" },
+      { kind: "manual" }
+    ],
+    variants: [{ id: "default", weight: 1 }],
+    steps: [{ id: "only", widget: "appointments-setup", title: t("gx_test_later_step", "Step") }],
+    completion: { screen: "none", then: [{ resume: true }, { play: "test.tour", held: false }] }
+  };
+  assert.equal(experienceSchema.safeParse(SETUP).success, true);
+  assert.equal(experienceSchema.safeParse({ ...SETUP, triggers: [{ kind: "tab_opened", tab: "portal.scheduling", skip: "always" }] }).success, false);
+  registerExperience(SETUP as any);
+  const kinds = async (who: any) => (await service.availableExperiences(who, { tab: "portal.scheduling" })).experiences.find((entry) => entry.id === "test.later")!;
+  const ann = person("ann", { sessionId: "sess_ann_1" }), annLater = person("ann", { sessionId: "sess_ann_2" }), bob = person("bob", { sessionId: "sess_bob" });
+  const first = await kinds(ann);
+  assert.deepEqual(first.triggers.map((trigger: any) => trigger.kind), ["tab_opened", "before_action", "manual"]);
+  assert.equal((first as any).intro.text, "Why we ask");
+  assert.equal((first as any).skip_note.text, "Skipped");
+  assert.deepEqual(first.completion.then, [{ resume: true }, { play: "test.tour", held: false }]);
+
+  await service.recordGuidedEvent(ann, "test.later", { type: "exposure", tab: "portal.scheduling" });
+  await service.recordGuidedEvent(ann, "test.later", { type: "start", tab: "portal.scheduling" });
+  const deferred = await service.recordGuidedEvent(ann, "test.later", { type: "defer", step_id: "only", tab: "portal.scheduling" });
+  assert.equal(deferred.progress!.status, "started", "a skip put off for later leaves it to do");
+  const event = await store.lastEvent(ORG, "test.later", "defer", "organization:" + ORG);
+  assert.ok(event, "the defer is recorded");
+  assert.ok(event!.properties.session && event!.properties.session !== "sess_ann_1", "the session is kept as a hash, never the id");
+
+  assert.deepEqual((await kinds(ann)).triggers.map((trigger: any) => trigger.kind), ["manual"], "in the session it was skipped in, nothing asks again");
+  assert.deepEqual((await kinds(annLater)).triggers.map((trigger: any) => trigger.kind), ["before_action", "manual"], "a new session: the first New Appointment asks, the tab does not");
+  assert.deepEqual((await kinds(bob)).triggers.map((trigger: any) => trigger.kind), ["before_action", "manual"], "the organization's setup is put off for everyone's tab");
+  // The same session, an hour on: they did not just skip it any more.
+  await store.guidedStore().prepare("UPDATE guided_events SET created_at=? WHERE organization_id=? AND experience_id=? AND type='defer'").run(new Date(Date.now() - 61 * 60 * 1000).toISOString(), ORG, "test.later");
+  assert.deepEqual((await kinds(ann)).triggers.map((trigger: any) => trigger.kind), ["before_action", "manual"]);
+
+  // Skipped again where it was not offered for later (New Appointment): an ordinary dismiss finishes it.
+  await service.recordGuidedEvent(annLater, "test.later", { type: "dismiss", step_id: "only" });
+  assert.deepEqual((await kinds(annLater)).triggers.map((trigger: any) => trigger.kind), ["manual"]);
+  await assert.rejects(() => service.recordGuidedEvent(ann, "test.tour", { type: "defer" }), /cannot be put off/, "only a trigger with skip later puts one off");
+});

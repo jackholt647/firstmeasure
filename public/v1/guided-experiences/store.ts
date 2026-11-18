@@ -8,7 +8,7 @@ import type { GuidedEventType, GuidedStatus } from "./contracts.js";
  * Progress and analytics for guided experiences. Progress is one row per experience for the organization (a setup)
  * or for a person (a tutorial): its variant, where they are, what they picked and whether it is finished. Events are
  * append-only exposure, step and outcome records for later analysis; they are never read to decide behavior except
- * that an exposure is recorded once. Raise schemaVersion with every table or column change, or Postgres hosts never
+ * that an exposure is recorded once and a skip put off for later (`defer`) is remembered (lastEvent). Raise schemaVersion with every table or column change, or Postgres hosts never
  * run it.
  */
 
@@ -108,6 +108,11 @@ export async function recordEvent(orgId: string, event: GuidedEvent) {
 /** Whether this unit was already exposed to this experience, so an exposure is counted once per unit. */
 export async function wasExposed(orgId: string, experienceId: string, unitId: string) {
   return !!(await guidedStore().prepare("SELECT id FROM guided_events WHERE organization_id=? AND experience_id=? AND type='exposure' AND unit_id=? LIMIT 1").get(orgId, experienceId, unitId));
+}
+/** The newest event of one type for this unit, or null: a skip put off for later (`defer`, service.ts deferral). */
+export async function lastEvent(orgId: string, experienceId: string, type: GuidedEventType, unitId: string) {
+  const row = await guidedStore().prepare("SELECT properties_json, created_at FROM guided_events WHERE organization_id=? AND experience_id=? AND type=? AND unit_id=? ORDER BY created_at DESC LIMIT 1").get(orgId, experienceId, type, unitId);
+  return row ? { properties: parse(row.properties_json), created_at: String(row.created_at) } : null;
 }
 export async function listEvents(orgId: string, experienceId: string, limit = 500) {
   const rows = await guidedStore().prepare("SELECT * FROM guided_events WHERE organization_id=? AND experience_id=? ORDER BY created_at DESC LIMIT ?").all(orgId, experienceId, Math.min(5000, Math.max(1, limit)));

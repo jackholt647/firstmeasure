@@ -1,5 +1,6 @@
 // The appointment setup's own pages (guided experience `appointments.setup`, FM-515, docs/architecture/guided-experiences.md).
-// It plays the first time someone books an appointment, after the setup steps it requires (company type, kinds of work,
+// It plays the first time someone opens Scheduling (put off by a skip until they book one, FM-553) or books an
+// appointment, after the setup steps it requires (company type, kinds of work,
 // who sells, who does the work, the kinds of appointments), each asked only while unanswered. One step that keeps its own
 // pages: one per kind of appointment chosen (a text before it starts, a text when someone is on the way, who goes),
 // then, when a text was asked for and texting is not set up, the offer to set it up (texting-setup.js, the same flow as

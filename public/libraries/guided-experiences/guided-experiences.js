@@ -16,7 +16,8 @@
  *                                   screen (--gx-vh): one scroller on a phone, even with its keyboard open; returns release
  *
  * Triggers are data: `before_action` holds a click on a matching button, plays the experience and then lets the
- * click through; `tab_opened` plays when a project tab opens; `after_experience` follows another experience;
+ * click through; `tab_opened` plays when a project or portal tab opens (with `skip: 'later'`, a skip there only puts it
+ * off: its other triggers wait out the session it was skipped in, FM-553); `after_experience` follows another experience;
  * `app_loaded` plays once when the portal loads, for announcements; `workflow_opened` plays when a document workflow
  * opens for a kind of document (`document_type`); `panel_opened` and `panel_closed` play when a project window panel
  * that is not a tab (the details tray, `project.details`) opens or the person closes it. While such a panel covers the
@@ -244,13 +245,20 @@
       root.dispatchEvent?.(new CustomEvent('fm:guides:playing', { detail: { id: experience.id } }));
       track(experience, options.replay ? 'replay' : 'exposure');
       if (!options.replay) track(experience, 'start');
-      outcome = await player({ experience, api, track: (type, extra) => track(experience, type, extra), where, L, esc, reducedMotion, options, control, playChild });
+      // Started by a tab trigger that puts a skip off for later: a skip is recorded as `defer`, not `dismiss`, and the
+      // experience stays to do for its other triggers once this session is over (service.ts deferral).
+      const later = !options.replay && options.trigger?.kind === 'tab_opened' && options.trigger?.skip === 'later';
+      const send = (type, extra) => track(experience, later && type === 'dismiss' ? 'defer' : type, extra);
+      outcome = await player({ experience, api, track: send, where, L, esc, reducedMotion, options, control, playChild });
+      if (later && outcome?.status === 'dismissed') outcome = { ...outcome, status: 'deferred' };
       return outcome || { status: 'ended' };
     } finally {
       state.playing = null;
       state.current = null;
       // Finished here: the preload says so at once, so a quick return to the tab does not start it again.
       if (experience && ['completed', 'dismissed'].includes(outcome?.status) && !options.replay) markFinished(experience.id, outcome.status);
+      // Put off: nothing but a manual play starts it again from this page before the server's list says otherwise.
+      if (experience && outcome?.status === 'deferred') markDeferred(experience.id);
       if (shared.active === token) shared.active = null;
       if (experience) root.dispatchEvent?.(new CustomEvent('fm:guides:ended', { detail: { id: experience.id } }));
       refresh(true).finally(nextInQueue);
@@ -322,6 +330,12 @@
     if (experience.progress && experience.progress.status !== 'started') return null;
     return startsHere(experience, bound) ? experience : null;
   }
+  function markDeferred(id){
+    for (const map of new Set([state.experiences, ...[...snapshots.values()].map((snapshot) => snapshot.experiences)])) {
+      const entry = map.get(id);
+      if (entry) entry.triggers = array(entry.triggers).filter((trigger) => trigger.kind === 'manual');
+    }
+  }
   function markFinished(id, status){
     for (const map of new Set([state.experiences, ...[...snapshots.values()].map((snapshot) => snapshot.experiences)])) {
       const entry = map.get(id);
@@ -378,13 +392,16 @@
   /**
    * After an experience: hand off, let a held click through, then play what follows. An outcome that asks to
    * generate (the price book setup's "Start generating materials") presses the tab's own Generate when no click was held.
+   * A `play` with `held` follows only when a click was (true) or was not (false) held: the Scheduling tour that points at
+   * New Appointment follows the setup its tab started, not the one New Appointment's own click started (FM-553).
    */
   async function follow(experience, outcome, held, selector = ''){
     let resumed = false;
+    const wasHeld = !!held;
     if (outcome.generate && !held) { held = document.querySelector('[data-mt-generate-materials]'); selector = '[data-mt-generate-materials]'; }
     for (const step of array(experience.completion?.then)) {
       if (step.resume && held && !resumed) { resumed = true; letThrough(held, selector); }
-      if (step.play && outcome.status === 'completed') {
+      if (step.play && outcome.status === 'completed' && (typeof step.held !== 'boolean' || step.held === wasHeld)) {
         // Bound to the tab showing now: if the person moves on while this waits, the next one is left for its own trigger.
         const bound = { generation: state.visit.generation, isActive: state.visit.isActive, projectId: where().projectId };
         // Wait for the held action's own screen to settle before the next experience looks for its targets.
@@ -472,7 +489,7 @@
         play(experience.id, { bound, instant: true });
         return true;
       }
-      const timer = setTimeout(() => { state.tabTimers.delete(timer); if (onItsTab(experience, bound)) play(experience.id, { bound }); }, bound.activated ? 0 : Number(trigger.delay_ms || 700));
+      const timer = setTimeout(() => { state.tabTimers.delete(timer); if (onItsTab(experience, bound)) play(experience.id, { bound, trigger }); }, bound.activated ? 0 : Number(trigger.delay_ms || 700));
       state.tabTimers.add(timer);
       break;
     }
