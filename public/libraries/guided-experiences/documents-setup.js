@@ -26,6 +26,8 @@ const css = `
 .gxd-tick svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:3;opacity:0;transition:opacity .15s}
 [aria-checked=true]>.gxd-tick{background:var(--primary,#d93025);border-color:var(--primary,#d93025)}
 [aria-checked=true]>.gxd-tick svg{opacity:1}
+.gxd-style[aria-checked=true] .gxd-tick{background:var(--primary,#d93025);border-color:var(--primary,#d93025)}
+.gxd-style[aria-checked=true] .gxd-tick svg{opacity:1}
 .gxd-group{display:flex;flex-direction:column;gap:10px}
 .gxd-tile.gxd-feature{align-items:center;gap:16px;min-height:112px;padding:20px 48px 20px 20px;border-width:1.5px}
 .gxd-feature .gxd-icon{width:56px;height:56px;border-radius:15px;font-size:24px}
