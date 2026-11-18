@@ -123,3 +123,49 @@ test('workforce opt-in checks both permissions before changing organization feat
   assert.equal((await (await import('../guided-experiences/store.js')).readProgress(orgId, '', 'operations.workforce.setup'))?.status === 'completed', false);
 });
 
+
+test('the setup cards count work done anywhere in the app, not only through Operations (FM-607)', async () => {
+  const storage = await import('../platform/storage.js');
+  const orgId = 'org_operations_done_elsewhere';
+  await storage.createOrganization({ id: orgId, name: 'Done elsewhere' });
+  const flags = { 'platform.materials': true, 'platform.pricebook': true, 'platform.documents': true, 'apps.crew': true, 'platform.people_access': true, 'platform.expanded_access': true };
+  await enableExpandedPlatformFixture(orgId, flags);
+  const auth = { orgId, userId: 'owner', role: 'owner', permissions: { '*': true }, branchId: 'default', capabilities: { effectiveByKey: flags } } as any;
+  const { userPublicationContext } = await import('../platform/publication/context.js');
+  const { initializePublication } = await import('../platform/publication/bootstrap.js'); initializePublication();
+  const { invokeAction } = await import('../platform/publication/actions.js');
+  const ctx = userPublicationContext(auth, { mode: 'command', projectId: 'project_a' });
+  const { operationsSetupStatus } = await import('../operations/onboarding.js');
+  const cards = async () => (await operationsSetupStatus(ctx, {})).setup;
+  assert.deepEqual({ workforce: (await cards()).workforce.complete, proposals: (await cards()).proposals.complete }, { workforce: false, proposals: false });
+
+  // A library copy every organization gets is not a proposal the organization set up.
+  const documents = await import('../documents/storage.js');
+  const definition = { id: 'tpl_proposal_copy', document_type: 'proposal', pages: [] };
+  await documents.createDocumentTemplate(orgId, { id: 'tpl_proposal_copy', name: 'Library proposal', document_type: 'proposal', status: 'active', definition, metadata: { preset: true, preset_id: 'tpl_proposal_copy' } }, auth, { systemPreset: true });
+  assert.equal((await cards()).proposals.complete, false, 'an untouched library copy does not count');
+
+  // The Docs tab's document setup made the proposal template.
+  await storage.saveBranchModule(orgId, 'default', 'document_setup', { data: { kinds: { proposal: { applied_at: new Date().toISOString(), template_id: 'tpl_setup_proposal' } } }, expected_revision: 0 }, { replace: true });
+  assert.equal((await cards()).proposals.complete, true, 'proposals set up in the Docs tab count');
+
+  // Who does the work and how they are paid, saved outside the Operations workforce setup.
+  await invokeAction(ctx, { action: 'labor.setup.apply', target: { scope: 'organization', organizationId: orgId } }, { assignees: [{ kind: 'resource_group', name: 'North crew', pay: { method: 'hourly', rate: 50 } }] }, { idempotencyKey: 'labor-elsewhere' });
+  assert.equal((await cards()).workforce.complete, true, 'pay sheets saved anywhere count');
+});
+
+test('an organization\'s own proposal template counts as proposals set up (FM-607)', async () => {
+  const storage = await import('../platform/storage.js');
+  const orgId = 'org_operations_own_proposal';
+  await storage.createOrganization({ id: orgId, name: 'Own proposal' });
+  const flags = { 'platform.materials': true, 'platform.pricebook': true, 'platform.documents': true, 'platform.expanded_access': true };
+  await enableExpandedPlatformFixture(orgId, flags);
+  const auth = { orgId, userId: 'owner', role: 'owner', permissions: { '*': true }, branchId: 'default', capabilities: { effectiveByKey: flags } } as any;
+  const ctx = (await import('../platform/publication/context.js')).userPublicationContext(auth, { mode: 'command', projectId: 'project_a' });
+  const { operationsSetupStatus } = await import('../operations/onboarding.js');
+  const documents = await import('../documents/storage.js');
+  await documents.createDocumentTemplate(orgId, { id: 'tpl_my_draft', name: 'Unpublished', document_type: 'proposal' }, auth);
+  assert.equal((await operationsSetupStatus(ctx, {})).setup.proposals.complete, false, 'a draft with no published version does not count');
+  await documents.createDocumentTemplate(orgId, { id: 'tpl_my_proposal', name: 'My proposal', document_type: 'proposal', status: 'active', definition: { id: 'tpl_my_proposal', document_type: 'proposal', pages: [] } }, auth);
+  assert.equal((await operationsSetupStatus(ctx, {})).setup.proposals.complete, true);
+});
