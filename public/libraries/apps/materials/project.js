@@ -165,6 +165,7 @@
     workforceRequestGeneration: 0
   };
   let stylesInjected = false;
+  let tooltipsReady = false;
   let arrangeFrame = 0;
   let timingProbeInstalled = false;
   let noteVisibilityOutsideBound = false;
@@ -800,6 +801,14 @@
   function css(){
     return `
       .mt-app{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f8fb;color:#111827;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;container-type:inline-size;container-name:materials-workspace}
+      /* Before mount the window shows only its "Loading…" status, in the mounted layout: the rail's width, no rail on a phone (FM-564). */
+      .mt-app:empty{display:none}
+      .r-preview-panel[data-panel="materials"] .r-tab-sidebar:empty{flex:0 0 var(--scope-sidebar-width,33.333%)!important;width:var(--scope-sidebar-width,33.333%);min-width:0;max-width:none;padding:0}
+      @media(max-width:850px){
+        .r-preview-panel[data-panel="materials"] .r-tab-content:has(> .r-tab-sidebar:empty){flex-direction:column}
+        .r-preview-panel[data-panel="materials"] .r-tab-sidebar:empty{width:100%;flex:0 0 34vh!important;max-height:34vh;border-right:0}
+      }
+      @media(max-width:760px){.r-preview-panel[data-panel="materials"] .r-tab-sidebar:empty{display:none!important}}
       .r-overlay.materials-workspace #mtSidebarSection.visible{min-height:0}
       .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar.sw-width-animating{transition:flex-basis .38s cubic-bezier(.2,.8,.2,1),width .38s cubic-bezier(.2,.8,.2,1)}
       .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar{display:flex;flex-direction:column;box-sizing:border-box;flex:0 0 var(--scope-sidebar-width,33.333%)!important;width:var(--scope-sidebar-width,33.333%);min-width:0;max-width:none;min-height:0;padding:0;overflow:hidden}
@@ -1266,8 +1275,11 @@
     `;
   }
 
+  // The project window draws this, with its own "Loading…" status, before the app mounts: the tab's styles go in
+  // first so nothing paints unstyled (FM-564). The root stays empty (hidden) until render() fills it.
   function panelHtml(){
-    return `<div class="mt-app" data-materials-root><div class="mt-empty">${(globalThis.PlatformLanguage?.htmlText("materials","project_operations_title","Operations") ?? "Operations")}</div></div>`;
+    injectStyles();
+    return `<div class="mt-app" data-materials-root></div>`;
   }
 
   function defaultSections(){
@@ -4388,9 +4400,15 @@
     columnWeights();
     if (!state.suppliers && !state.suppliersLoading) loadSuppliers().then(() => { if (!workspaceIsEditing()) syncMaterialsGrid(); });
     loadEquipmentUnits();
+    injectStyles();
+    if (tooltipsReady) return;
+    window.PlatformUI?.initTooltips?.();
+    tooltipsReady = true;
+  }
+
+  function injectStyles(){
     if (stylesInjected) return;
     injectCSS('materials-tab', css());
-    window.PlatformUI?.initTooltips?.();
     stylesInjected = true;
   }
 
