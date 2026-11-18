@@ -424,6 +424,7 @@ test("a cart of domains is paid once, registered, and renewed yearly by a subscr
     const created = fake.stripeCalls.find((call) => call.route === "checkout/sessions")!;
     assert.equal(created.fields.get("mode"), "payment");
     assert.equal(created.fields.get("payment_intent_data[setup_future_usage]"), "off_session");
+    assert.equal(created.fields.get("payment_method_types[0]"), "card");
     assert.equal(created.fields.get("line_items[0][price_data][unit_amount]"), "2500");
     assert.equal(created.fields.get("line_items[1][price_data][unit_amount]"), "2500");
     assert.equal(created.fields.get("metadata[billing_kind]"), "domain_checkout");
