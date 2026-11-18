@@ -1363,7 +1363,9 @@
     // "Edit manually" closes, the layout editor goes back to the steps, a step goes to the one before it, and the
     // first step leaves the document for the list. One history entry each (Portal.navigation.steps, FM-554), so
     // Android's back and iOS's swipe never leave for another project tab while a document is open.
-    const backHistory = window.Portal?.navigation?.steps?.({ onBack: (count) => {
+    // A host that keeps its own back history (the document setup's first proposal, FM-614: embed.history false) walks
+    // this screen's steps itself (workflowPosition / workflowBack).
+    const backHistory = embedded && embed.history === false ? null : window.Portal?.navigation?.steps?.({ onBack: (count) => {
       for (let n = 0; n < count && !state.destroyed; n += 1) if (!pressBack()) break;
       syncBack();
     } }) || null;
@@ -2535,7 +2537,7 @@
           // Announced with the opened workflow, so a guide can play the first time a kind of document is built.
           document: { id: doc.id, type: cleanText(doc.document_type) },
           onWrite: (path, value) => queueWorkflowWrite(path, value),
-          onStepState: (stepState) => { persistWorkflowStepState(stepState); syncDeliverableButtons(objectValue(stepState).ready); syncBack(); },
+          onStepState: (stepState) => { persistWorkflowStepState(stepState); syncDeliverableButtons(objectValue(stepState).ready); syncBack(); if (embedded) embed.onWorkflowStep?.(stepState); },
           labels: { finish: 'Send' },
           // Finishing the workflow means the document is ready to go out —
           // open the Send flow directly (the editor stays one toggle away).
@@ -2552,7 +2554,10 @@
               return payload;
             }
           },
-          services: workflowServices()
+          services: workflowServices(),
+          // What the host adds to the runtime (the document setup: phone steps at the bottom, the step's title in its
+          // top bar, Previous on the first step back to the setup; FM-614).
+          ...(embedded ? objectValue(embed.workflowOptions) : {})
         });
         if (state.wfAgentOpen) setWfRunAgentOpen(true);
         syncBack();
@@ -2642,6 +2647,43 @@
     /** Entry: open the unified document screen (one top bar for both views). */
     function openWorkflowView(docRecord, workflowRecord){
       return openDocScreen(docRecord, { view: 'workflow', workflow: workflowRecord || state.docWorkflow });
+    }
+
+    /**
+     * A new draft from one template, opened on its workflow, as New document starts one (its parameters' defaults, its
+     * workflow, the project's name in the title): for a host that has already chosen the template (the document setup's
+     * first proposal, FM-614). options.onFinish: the person goes back to the host when done with it. Returns the draft.
+     */
+    async function startFromTemplate(templateId, options = {}){
+      const detail = await api().templates.get(orgId(), templateId);
+      const template = objectValue(detail.template || detail);
+      if (!template.id) throw new Error('That template is not available.');
+      const meta = objectValue(template.metadata);
+      const workflowId = meta.disable_default_workflow === true ? '' : firstText(meta.default_workflow_id, template.workflow_id, template.default_workflow_id);
+      const [record, definition] = await Promise.all([
+        workflowId && api().workflows?.get ? api().workflows.get(orgId(), workflowId).then(normalizeWorkflowRecord).catch(() => null) : null,
+        templateDefinition(template).catch(() => null),
+        loadCatalog()
+      ]);
+      const type = cleanText(template.document_type) || 'generic';
+      const catalogType = arrayValue(state.catalog?.types).find((t) => firstText(t.id, t.type) === type) || {};
+      const defs = { ...objectValue(catalogType.param_schema), ...objectValue(definition?.params) };
+      const params = {};
+      Object.entries(defs).forEach(([key, def]) => { params[key] = window.FMDocModel?.paramDefaultValue ? window.FMDocModel.paramDefaultValue(def) : (objectValue(def).default ?? null); });
+      const res = await createDocumentRecord({
+        document_type: type,
+        template_id: template.id,
+        workflow_id: record ? workflowId : null,
+        title: firstText(options.title, `${typeMeta(type, state.catalog?.types).label} — ${firstText(project().name, project().customer_name, 'New Document')}`),
+        params
+      });
+      const doc = objectValue(res.document || res.doc || res);
+      if (!doc.id) throw new Error('The document could not be created.');
+      if (typeof options.onFinish === 'function') state.returnTo = { onFinish: options.onFinish, docId: cleanText(doc.id), armed: true };
+      rememberStandaloneDoc(doc);
+      loadDocs({ silent: true });
+      if (record) openWorkflowView(doc, record); else openEditor(doc);
+      return doc;
     }
 
     // ========================================================== create flow
@@ -3180,6 +3222,8 @@
     /** Slide the project modal's left column out and go fullscreen while the
      * editor is open — the same focus treatment the Photos viewer uses. */
     function setEditorFocus(active){
+      // A host showing the document in a frame of its own (embed.focus false, the document setup) keeps the window as it is.
+      if (embedded && embed.focus === false) return;
       const win = root.closest?.('.r-win');
       if (win) win.classList.toggle('photo-focus', !!active);
       const overlay = root.closest?.('.r-overlay') || document.getElementById('rOverlay');
@@ -5995,6 +6039,7 @@
           if (typeof opts?.onFinish === 'function' && objectValue(doc).id) state.returnTo = { onFinish: opts.onFinish, docId: cleanText(objectValue(doc).id), armed: true };
           return openEditor(objectValue(doc));
         },
+        startFromTemplate: (templateId, opts = {}) => startFromTemplate(cleanText(templateId), objectValue(opts)),
         openPreview: (doc, options = {}) => openPreview(objectValue(doc), options),
         openSendModal: (doc) => openSendModal(objectValue(doc)),
         openPresentation: () => openPresentation(),
@@ -6005,6 +6050,9 @@
         getCatalog: () => state.catalog,
         getCurrentDoc: () => (state.view === 'editor' ? state.doc : null),
         isDocScreenOpen: () => state.view === 'editor',
+        // The running workflow's step ({ index, count }) and one step back, for a host with its own back history.
+        workflowPosition: () => state.workflowHandle?.position?.() || null,
+        workflowBack: () => { if (!(state.workflowHandle?.position?.().index > 0)) return false; state.workflowHandle.back(); return true; },
         closeDocScreen: () => closeDocScreen(),
         refresh: () => loadDocs({ silent: true })
       });

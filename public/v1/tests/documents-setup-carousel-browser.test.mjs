@@ -64,3 +64,61 @@ test('the style carousel turns with a mouse drag, slides the wrapping card in an
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
+
+// FM-614: after the style, the template's wording beside it (part `copy`). The fields are the template's copy, typing
+// changes the document on the right at once (the same rewrite the finish saves), a field's text is marked in the
+// document while it has focus, and the changes are the setup's `copy` selection.
+test('the wording step edits the template copy beside its document', async () => {
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 } }), errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.setContent('<div class="gxs"><div class="gxs-step" style="height:760px;display:flex;flex-direction:column;padding:24px"><div class="gxs-title-actions"></div><div class="gxs-body" style="flex:1 1 auto;min-height:0;display:flex;flex-direction:column"></div></div></div>');
+    for (const name of ['doc-model/firstmate-doc-model.js', 'doc-widgets/firstmate-doc-widgets.js', 'doc-renderer/firstmate-doc-renderer.js']) await page.addScriptTag({ content: await lib(name) });
+    await page.addScriptTag({ type: 'module', content: (await lib('guided-experiences/documents-setup.js')) + '\nwindow.__mount = mount;' });
+    await page.waitForFunction(() => typeof window.__mount === 'function');
+    await page.evaluate(() => {
+      const definition = FMDocModel.createDocument({ kind: 'document' });
+      const text = (id, words, style) => ({ ...FMDocModel.createNode('text'), id, props: { blocks: [{ id: `${id}_b`, type: 'paragraph', align: 'left', ...(style ? { style_ref: style } : {}), runs: [{ text: words, font: { weight: 700 } }] }] } });
+      definition.pages[0].children = [text('nd_title', 'Roof replacement proposal', 'h1'), text('nd_intro', 'Complete tear-off and replacement of the roof at the address above.'), text('nd_terms_h', 'Terms', 'h2'), text('nd_terms', 'This proposal is valid for 30 days. Work is scheduled once it is signed.')];
+      const fields = [
+        { node_id: 'nd_title', role: 'title', text: 'Roof replacement proposal' },
+        { node_id: 'nd_intro', role: 'text', text: 'Complete tear-off and replacement of the roof at the address above.' },
+        { node_id: 'nd_terms_h', role: 'heading', text: 'Terms' },
+        { node_id: 'nd_terms', role: 'text', text: 'This proposal is valid for 30 days. Work is scheduled once it is signed.' }
+      ];
+      window.changes = []; window.reads = [];
+      window.handle = window.__mount(document.querySelector('.gxs-body'), {
+        options: { part: 'copy' }, selections: { document_kind: 'invoice', theme_id: 'thm_clean' }, step: { title: 'Check your wording' },
+        actions: document.querySelector('.gxs-title-actions'),
+        L: (key, text) => text, esc: (value) => String(value).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
+        change: (patch) => window.changes.push(patch),
+        read: async (provider, name, ref) => { window.reads.push([provider, name, ref.args]); return { fields, preview: { theme_id: 'thm_clean', resolved_definition: definition, widget_data: {}, theme: null, theme_vars: {} } }; }
+      });
+    });
+    await page.waitForSelector('[data-copy="nd_terms"]');
+    assert.deepEqual(await page.evaluate(() => window.reads[0].slice(0, 2)), ['document-setup', 'copy']);
+    assert.equal((await page.evaluate(() => window.reads[0][2])).theme_id, 'thm_clean', 'the wording of the style chosen');
+    assert.equal(await page.locator('.gxs-title-actions [data-advanced]').count(), 1, 'Advanced sits beside the step title');
+    assert.equal(await page.locator('[data-copy="nd_title"]').inputValue(), 'Roof replacement proposal');
+    const shown = (id) => page.evaluate((node) => document.querySelector(`.gxd-copy-view [data-node-id="${node}"]`)?.textContent.trim(), id);
+    await page.waitForFunction(() => document.querySelector('.gxd-copy-view [data-node-id="nd_title"]'));
+    assert.equal(await shown('nd_title'), 'Roof replacement proposal');
+    await page.locator('[data-copy="nd_title"]').fill('Your new roof');
+    await page.locator('[data-copy="nd_terms"]').fill('Valid for 60 days.\n\nDeposit due at signing.');
+    await page.waitForFunction(() => document.querySelector('.gxd-copy-view [data-node-id="nd_title"]')?.textContent.includes('Your new roof'));
+    const terms = await page.evaluate(() => [...document.querySelector('.gxd-copy-view [data-node-id="nd_terms"]').querySelectorAll('p,div')].map((node) => node.textContent.trim()).filter(Boolean).join(' | '));
+    assert.match(terms, /Valid for 60 days\..*Deposit due at signing\./, 'a blank line makes two paragraphs');
+    assert.deepEqual((await page.evaluate(() => window.changes)).at(-1).copy, { nd_title: 'Your new roof', nd_terms: 'Valid for 60 days.\n\nDeposit due at signing.' });
+    // Typing it back as it was is no change.
+    await page.locator('[data-copy="nd_title"]').fill('Roof replacement proposal');
+    assert.deepEqual(Object.keys((await page.evaluate(() => window.changes)).at(-1).copy), ['nd_terms']);
+    // The field with focus marks its text in the document.
+    await page.locator('[data-copy="nd_intro"]').focus();
+    assert.equal(await page.locator('.gxd-copy-view [data-node-id="nd_intro"].gxd-copy-mark').count(), 1);
+    assert.equal(await page.evaluate(() => window.handle.valid()), true);
+    await page.evaluate(() => window.handle.destroy());
+    assert.equal(await page.locator('.gxs-title-actions [data-advanced]').count(), 0, 'Advanced leaves with the step');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});

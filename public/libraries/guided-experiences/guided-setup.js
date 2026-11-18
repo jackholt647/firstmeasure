@@ -407,7 +407,7 @@
       // to the next step, with Back along the way taken.
       function footer(){
         const step = steps[index];
-        $('.gxs-foot').hidden = !!widgets.get(step.widget)?.handlesNavigation;
+        $('.gxs-foot').hidden = !!widgets.get(step.widget)?.handlesNavigation || mounted?.handlesNavigation?.() === true;
         const last = after(index) >= steps.length;
         $('[data-gxs=back]').hidden = !visited.length && index <= first;
         // An optional last page (labor prices) can be skipped too; skipping it finishes without its part.
@@ -468,7 +468,7 @@
         const global = step.setup_step || null;
         if (global && !answers[step.id]) answers[step.id] = {};
         mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, answer: global ? answers[step.id] : null, L, H, esc, money, where:here, orgId, read: readData, actions: el.querySelector('.gxs-title-actions'), priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant ? laborPaySheet : null,
-          advance:()=>next(false), complete:completeDirectly,
+          advance:()=>next(false), complete:completeDirectly, nested:!!ctx.options?.nested,
           // A step that hides the sheet's footer (handlesNavigation) has its own Back: to the step before this one; and
           // says when its own steps change, so the phone's back walks them first (FM-604).
           back(){ if (currentPane === el && !closed && !busy && (visited.length || index > first)) back(); }, syncBack(){ if (currentPane === el) syncBack(); },
@@ -594,7 +594,7 @@
         try {
           const result=await ctx.api.complete(experience.id,{selections,tab:here.tab,project_id:here.projectId,idempotency_key:`${experience.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`});
           await close('plain');
-          resolve({status:'completed',result:object(result.result),...(outcome.generate===true?{generate:true}:{})});
+          resolve({status:'completed',result:object(result.result),...(outcome.generate===true?{generate:true}:{}),...(outcome.resume===false?{resume:false}:{})});
         } catch(error) { busy=false;footer();status.classList.add('err');status.textContent=error?.message||L('gx_ui_finish_failed','That didn’t save. Try again.');throw error; }
       }
       /**
@@ -788,7 +788,8 @@
   /**
    * A step with its own code (widget `module`, docs/architecture/setup-steps.md): a browser ES module under /libraries/
    * on this site, loaded when the step first shows and mounted in the standard step frame. It exports
-   * `mount(el, ctx)` and returns `{ valid(), hint(), summary(), answer(), escape(), destroy() }` (`escape()` closes something
+   * `mount(el, ctx)` and returns `{ valid(), hint(), summary(), answer(), escape(), destroy() }`, and with steps of its own
+   * `handlesNavigation: true`, `back()` and `backDepth()` as the Operations workflow has them (`escape()` closes something
    * of its own, such as a dropdown, and returns true; otherwise Escape asks to close the setup). `ctx` is what every widget gets
    * (`step`, `options`, `answer`, `change(patch, summary)`, `advance()`, `setTitle(text)` (the title in the top bar while
    * the step shows something with a name of its own; empty restores the step's), `L`, `H`, `esc`, `actions`) plus `read(provider,
@@ -822,6 +823,11 @@
         summary: () => handle?.summary?.() || '',
         answer: () => handle?.answer?.(),
         escape: () => handle?.escape?.() === true,
+        // A module with steps of its own (the document setup's first proposal, FM-614) is its own navigation, as the
+        // Operations workflow is: the sheet's footer hides, and Back and the phone's back walk its steps first.
+        handlesNavigation: () => handle?.handlesNavigation === true,
+        back: () => handle?.back?.() === true,
+        backDepth: () => Math.max(0, Number(handle?.backDepth?.()) || 0),
         destroy(){ disposed = true; handle?.destroy?.(); }
       };
     }

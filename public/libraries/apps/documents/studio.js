@@ -516,6 +516,13 @@
     // Readable text on primary buttons (see documents.css --fmdx-on-primary).
     syncOnPrimaryVar(root);
 
+    // Embedded (FM-614, the document setup's Advanced): params.embed = { templateId, onClose } opens that one template
+    // in the editor, with no list, route or portal sidebar of its own. Its back arrow returns to the host, publishing
+    // what was changed first, and onClose({ template, published }) says whether a version was published there.
+    const embed = objectValue(objectValue(context.params).embed);
+    const embedded = !!cleanText(embed.templateId);
+    let embedPublished = false;
+
     const state = {
       destroyed: false,
       active: true,
@@ -608,7 +615,7 @@
     }
 
     function requestEditorSidebar(){
-      if (state.active === false || state.sidebarCompactRelease) return;
+      if (embedded || state.active === false || state.sidebarCompactRelease) return;
       const release = window.Portal?.sidebarMode?.requestCompact?.('documents.studio.editor');
       if (typeof release === 'function') state.sidebarCompactRelease = release;
     }
@@ -2374,6 +2381,19 @@
       return definition;
     }
 
+    /** Back to the host that embedded the editor: what was changed is published first, so the host reads it. */
+    async function leaveEmbedded(button){
+      if (state.dirty) {
+        if (button) button.disabled = true;
+        await publishTemplate(null);
+        if (button) button.disabled = false;
+        if (state.dirty) return;
+      }
+      const template = state.template;
+      destroyTemplateEditor();
+      try { embed.onClose?.({ template, published: embedPublished }); } catch (error) { console.warn('Returning from the template editor failed', error); }
+    }
+
     function closeTemplateEditor(){
       destroyTemplateEditor();
       state.view = 'list';
@@ -2438,7 +2458,9 @@
         <div class="fmdx-shell">
           <div class="fmdx-studio-editor" data-studio-tpl-screen>
             <header class="fmdx-editor-top">
-              <button type="button" class="fmdx-icon-btn" data-tpl-back title="${(globalThis.PlatformLanguage?.htmlText("documents","m_9df2e6130a5af3","Back to templates") ?? "Back to templates")}"><i class="fas fa-arrow-left"></i></button>
+              ${embedded
+                ? `<button type="button" class="fmdx-btn" data-tpl-back><i class="fas fa-arrow-left"></i> ${esc(firstText(embed.backLabel, 'Back'))}</button>`
+                : `<button type="button" class="fmdx-icon-btn" data-tpl-back title="${(globalThis.PlatformLanguage?.htmlText("documents","m_9df2e6130a5af3","Back to templates") ?? "Back to templates")}"><i class="fas fa-arrow-left"></i></button>`}
               <input class="fmdx-doc-title-input" data-tpl-name value="${String(esc(firstText(tpl.name, 'Untitled template')))}" spellcheck="false"><button type="button" class="fmdx-btn" data-tpl-tags><i class="fas fa-tags"></i> Tags</button>
               ${String(statusChip(tpl.status))}
               <span class="fmdx-chip plain">v${String(Number(tpl.current_version || 0))}</span>
@@ -2457,7 +2479,7 @@
             </div>
           </div>
         </div>`;
-      root.querySelector('[data-tpl-back]')?.addEventListener('click', () => closeTemplateEditor());
+      root.querySelector('[data-tpl-back]')?.addEventListener('click', (event) => embedded ? leaveEmbedded(event.currentTarget) : closeTemplateEditor());
       // Setup and the agent live as tabs in the editor's right tray — one
       // right-hand surface with subtabs, never two competing trays.
       root.querySelector('[data-tpl-schema]')?.addEventListener('click', () => state.editorHandle?.openSidePanel?.('setup'));
@@ -2745,6 +2767,7 @@
         state.template = { ...state.template, ...updated, current_version: Number(updated.current_version || (Number(state.template.current_version || 0) + 1)) };
         state.definition = definition;
         state.dirty = false;
+        embedPublished = true;
         setTemplateSaveState(`Published v${state.template.current_version}`, 'saved');
         showToast((globalThis.PlatformLanguage?.text("documents","m_d1e8bdb71c4dd5","Doc Studio") ?? "Doc Studio"), ((v0) => globalThis.PlatformLanguage?.text("documents","m_d5de6f28071537",`Template published as v${v0}.`,{v0}) ?? `Template published as v${v0}.`)(state.template.current_version), true);
         // Refresh version chip in the header.
@@ -3537,6 +3560,13 @@
     }
 
     // ---------------------------------------------------------------- boot
+    if (embedded) {
+      root.innerHTML = `<div class="fmdx-state" style="margin:48px auto"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_dbcfeaabac54d0","Opening template") ?? "Opening template")}</strong></div>`;
+      api().templates.get(orgId(), cleanText(embed.templateId))
+        .then((result) => { if (!state.destroyed) return openTemplateEditor(objectValue(result.template || result)); })
+        .catch((error) => { if (!state.destroyed) root.innerHTML = `<div class="fmdx-state" style="margin:48px auto"><strong>${esc(errorMessage(error, 'Could not open the template.'))}</strong><button type="button" class="fmdx-btn" data-tpl-back><i class="fas fa-arrow-left"></i> ${esc(firstText(embed.backLabel, 'Back'))}</button></div>`; root.querySelector('[data-tpl-back]')?.addEventListener('click', () => embed.onClose?.({ template: null, published: false })); });
+      return { update(){}, destroy(){ state.destroyed = true; destroyTemplateEditor(); root.innerHTML = ''; } };
+    }
     const unregisterStudioRoute = window.Portal?.navigation?.registerHandler?.(`documents-studio:${context.instanceId || 'main'}`, {
       priority: 420,
       immediate: true,
