@@ -66,7 +66,8 @@ function displayPhone(value: unknown) {
 }
 
 /** What the page is given besides the registration: the business's public email (FM-584), from its mail setup. */
-export type HostedSmsPolicyOptions = { supportEmail?: string };
+/** `accent` and `logoUrl` are the company's own (Company Settings branding, FM-595); without them the page keeps its neutral look. */
+export type HostedSmsPolicyOptions = { supportEmail?: string; accent?: string; logoUrl?: string };
 
 function smsPolicyValues(profile: { id: string; external_organization_id: string; brand?: unknown; campaign?: unknown }, options: HostedSmsPolicyOptions = {}): Record<Placeholder, string> {
   const brand = asObject(profile.brand);
@@ -156,6 +157,44 @@ function linked(text: string, names: Record<string, string> = {}) {
 const PAGE_NAMES: Record<SmsPolicyPageId, string> = { privacy: "Privacy policy", terms: "SMS terms" };
 
 /** Up to two initials for the header mark: "Ridgeline Roofing" is RR. */
+/** A hex colour's contrast with another (WCAG relative luminance). */
+function contrast(a: number[], b: number[]) {
+  const lum = (rgb: number[]) => {
+    const [r, g, bl] = rgb.map((c) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * bl!;
+  };
+  const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+  return (x! + 0.05) / (y! + 0.05);
+}
+const hexRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const rgbHex = (rgb: number[]) => `#${rgb.map((c) => Math.round(c).toString(16).padStart(2, "0")).join("")}`;
+
+/**
+ * The company's colour as this page's accent (FM-595): links and headings stay readable, so a light brand colour is
+ * darkened on the light page and a dark one lightened on the dark page until it reads at 4.5:1. Null when not a colour.
+ */
+export function smsPolicyAccentStyle(value: unknown) {
+  let hex = clean(value);
+  if (/^#?[0-9a-f]{3}$/i.test(hex)) hex = `#${hex.replace("#", "").split("").map((c) => c + c).join("")}`;
+  if (!hex.startsWith("#")) hex = `#${hex}`;
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return null;
+  const readable = (background: number[], toward: number[]) => {
+    let rgb = hexRgb(hex);
+    for (let step = 0; step < 20 && contrast(rgb, background) < 4.5; step += 1) rgb = rgb.map((c, i) => c + (toward[i]! - c) * 0.12);
+    return rgb;
+  };
+  const mix = (rgb: number[], into: number[], share: number) => rgb.map((c, i) => c * share + into[i]! * (1 - share));
+  const light = readable([255, 255, 255], [0, 0, 0]), dark = readable([23, 28, 37], [255, 255, 255]);
+  return `:root{--accent:${rgbHex(light)};--accent-soft:${rgbHex(mix(hexRgb(hex), [255, 255, 255], 0.12))}}`
+    + `@media (prefers-color-scheme:dark){:root{--accent:${rgbHex(dark)};--accent-soft:${rgbHex(mix(hexRgb(hex), [23, 28, 37], 0.25))}}}`;
+}
+
+/** A logo the page may show: an https URL, a same-origin path or an inline image; anything else is left out. */
+function smsPolicyLogo(value: unknown) {
+  const url = clean(value);
+  return /^https:\/\//i.test(url) || /^\/(?!\/)/.test(url) || /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(url) ? url : "";
+}
+
 function initials(name: string) {
   const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   return words.slice(0, 2).map((word) => word[0]!.toUpperCase()).join("") || "?";
@@ -182,7 +221,7 @@ const PAGE_STYLE = `:root{color-scheme:light dark;--bg:#f4f5f7;--card:#fff;--ink
 a{color:var(--accent);text-underline-offset:2px;word-break:break-word}a:hover{text-decoration-thickness:2px}
 .wrap{max-width:1040px;margin:0 auto;padding:0 24px}
 .top{background:var(--card);border-bottom:1px solid var(--line)}.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-top:14px;padding-bottom:14px}
-.brand{display:flex;align-items:center;gap:12px;min-width:0}.mark{flex:0 0 40px;width:40px;height:40px;border-radius:10px;background:var(--accent);color:var(--card);display:grid;place-items:center;font-weight:700;font-size:15px;letter-spacing:.02em}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}.logo{display:block;height:40px;width:auto;max-width:180px;object-fit:contain}.mark{flex:0 0 40px;width:40px;height:40px;border-radius:10px;background:var(--accent);color:var(--card);display:grid;place-items:center;font-weight:700;font-size:15px;letter-spacing:.02em}
 .brand strong{display:block;font-size:16px;line-height:1.3}.brand div span{display:block;color:var(--muted);font-size:13px;line-height:1.3}
 .tabs{display:flex;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px}.tabs a{color:var(--muted);text-decoration:none;font-size:14px;font-weight:600;padding:6px 14px;border-radius:999px}.tabs a[aria-current=page]{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
 .hero{padding:44px 0 28px}.eyebrow{margin:0 0 6px;color:var(--accent);font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}h1{margin:0 0 14px;font-size:clamp(28px,4vw,38px);line-height:1.15;letter-spacing:-.01em}.lead p{margin:0 0 8px;max-width:680px;color:var(--muted);font-size:17px}
@@ -225,9 +264,9 @@ export function renderHostedSmsPolicyPage(profile: { id: string; external_organi
   const other = SMS_POLICY_PAGES.find((candidate) => candidate.id !== page)!;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title>
-<style>${PAGE_STYLE}</style>
+<style>${PAGE_STYLE}${smsPolicyAccentStyle(options.accent) || ""}</style>
 </head><body>
-<header class="top"><div class="wrap"><div class="brand"><span class="mark" aria-hidden="true">${escapeHtml(initials(values.brand_name))}</span><div><strong>${escapeHtml(values.brand_name)}</strong>${values.legal_name ? `<span>${escapeHtml(values.legal_name)}</span>` : ""}</div></div><nav class="tabs" aria-label="Policies">${tabs}</nav></div></header>
+<header class="top"><div class="wrap"><div class="brand">${smsPolicyLogo(options.logoUrl) ? `<img class="logo" src="${escapeHtml(smsPolicyLogo(options.logoUrl))}" alt="">` : `<span class="mark" aria-hidden="true">${escapeHtml(initials(values.brand_name))}</span>`}<div><strong>${escapeHtml(values.brand_name)}</strong>${values.legal_name ? `<span>${escapeHtml(values.legal_name)}</span>` : ""}</div></div><nav class="tabs" aria-label="Policies">${tabs}</nav></div></header>
 <main class="wrap">
 <div class="hero"><p class="eyebrow">${PAGE_NAMES[page]}</p><h1>${escapeHtml(title)}</h1><div class="lead">${paragraphs(wording.intro)}</div></div>
 <div class="layout">
