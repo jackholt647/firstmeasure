@@ -124,6 +124,57 @@ test('Communications setup: an unfinished registration is the one thing left to 
   }finally{await browser.close();}
 });
 
+// FM-586: each channel's tooltip sits over its own card (not across the row, not over the choices below), no wider
+// than a tooltip, inside the row on a phone; texts and calls say "On" only once carrier registration is approved.
+test('Communications setup: channel tooltips over their own card, and where registration stands',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:960,height:900}}),errors=[];
+    page.on('pageerror',error=>errors.push(error.message));
+    await page.route('https://comms-setup.test/**',async route=>{
+      const url=new URL(route.request().url());
+      if(url.pathname.startsWith('/libraries/'))return route.fulfill({contentType:'text/javascript',body:await readFile(new URL('../..'+url.pathname,import.meta.url),'utf8')});
+      return route.fulfill({contentType:'text/html',body:'<div class="gxs"><div class="gxs-step" style="position:absolute;inset:0;overflow:auto;padding:8px 16px"><div class="gxs-titlebar"><h2 style="margin:4px 0 12px;font-size:22px">Talk to your customers from FirstMate</h2></div><main id="step"></main></div></div>'});
+    });
+    await page.goto('https://comms-setup.test/');
+    const mount=(registration)=>page.evaluate(async(registration)=>{
+      window.__APP={userOrgId:'org-test'};
+      const status={phone:{texts:true,registration},email:{on:true,address:'acme@mail.test'},done:{phone:true,email:true}};
+      window.PlatformAPI={baseUrl:()=>'/v1/platform',publication:{invoke:async()=>({value:structuredClone(status)})}};
+      window.handle?.destroy?.();
+      const module=await import('/libraries/guided-experiences/comms-setup.js');
+      window.handle=module.mount(document.querySelector('#step'),{options:{},orgId:'org-test',L:(key,fallback)=>fallback,esc:value=>String(value??''),change(){},setTitle(){},complete:async()=>{}});
+    },registration);
+    const states=async()=>{await page.locator('.gxc-way').first().waitFor();return page.locator('.gxc-way').evaluateAll(ways=>ways.map(way=>way.querySelector('.gxc-way-on')?.textContent||''));};
+    const choice=(id)=>page.locator(`[data-gxc-start="${id}"] small`).textContent();
+    for(const [registration,label] of [['none','Needs review'],['draft','Needs review'],['submitted','Awaiting approval'],['attention','Needs attention'],['approved','On']]){
+      await mount(registration);
+      assert.deepEqual(await states(),[label,label,'On'],registration);
+      assert.equal(await choice('phone'),label==='On'?'On · review':label,registration);
+    }
+    const hover=async(id)=>{
+      const way=page.locator(`[data-gxc-way="${id}"]`);
+      await way.hover();
+      await page.waitForFunction(id=>getComputedStyle(document.querySelector('#gxc-tip-'+id)).opacity==='1',id);
+      return page.evaluate(id=>{const box=(el)=>el.getBoundingClientRect(),tip=box(document.querySelector('#gxc-tip-'+id)),card=box(document.querySelector(`[data-gxc-way="${id}"]`)),row=box(document.querySelector('.gxc-ways')),label=box(document.querySelector('.gxc-label'));return {tip,card,row,label};},id);
+    };
+    for(const [width,height] of [[960,900],[390,844]]){
+      await page.setViewportSize({width,height});
+      for(const id of ['texts','calls','email']){
+        const {tip,card,row,label}=await hover(id);
+        assert.ok(tip.width<=(width<640?width-30:282),`${id} at ${width}: no wider than a tooltip (${tip.width})`);
+        assert.ok(tip.width<row.width-1||width<640,`${id} at ${width}: not across the whole row`);
+        assert.ok(tip.left>=row.left-1&&tip.right<=row.right+1,`${id} at ${width}: inside the row`);
+        assert.ok(tip.left<card.left+card.width/2&&tip.right>card.left+card.width/2,`${id} at ${width}: over its own card`);
+        assert.ok(tip.bottom<=card.top,`${id} at ${width}: above its card`);
+        assert.ok(tip.bottom<=label.top,`${id} at ${width}: not over "Where do you want to start?"`);
+        await page.mouse.move(1,height-1);
+      }
+    }
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
 // FM-513: email from an Overview button opens the choice, not FirstMate Mail. "Use my domain" runs the Domains workflow
 // full screen; closed before the domain is verified, the choice offers to finish it; once it has its address, email is
 // on and the done page shows that address and where mail is sent from until the domain's email records are set up.
