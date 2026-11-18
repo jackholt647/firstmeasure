@@ -95,7 +95,7 @@
         { id: 'tiles', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_tiles","Tiles") ?? "Tiles"), icon: 'fa-grip', route: { projectView: 'tiles' } },
         { id: 'map', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_map","Map") ?? "Map"), icon: 'fa-map-location-dot', route: { projectView: 'map' }, requires: { appFlags: [['apps', 'project_map']] } }
       ],
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261103-map-cover'), versionedBundle('projects/viewer.js', '20261103-map-cover')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261103-map-cover'), versionedBundle('projects/viewer.js', '20261118-fm532-no-exterior-type-reorder')]
     },
     {
       id: 'portal.crm',
@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261113-fm455-line-totals'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261117-fm532-incorrect-footage-2')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261113-fm455-line-totals'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261118-fm532-summary-reason')]
     },
     {
       id: 'project.checklists',

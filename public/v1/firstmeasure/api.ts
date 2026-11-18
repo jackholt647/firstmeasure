@@ -6,7 +6,7 @@ import { computeFullHousePoints, countFullHouseModel } from './full_house_points
 import { withReportPropertyMarket } from "../commerce/property-market.js";
 import { reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { resolveOrderReportPreferences, normalizeReportPreferences } from "./report_preferences.js";
-import { validateExteriorOrder, isCustomerExteriorId } from "./exteriors.js";
+import { validateExteriorOrder, isCustomerExteriorId, fullExteriorOffered } from "./exteriors.js";
 
 import { readMediaFile as readExteriorMediaFile } from "../platform/storage.js";
 
@@ -16244,6 +16244,16 @@ function buildRejectionMessageParagraphs(project: Record<string, unknown>) {
 
   }
 
+  const unofferedType = fullExteriorUnofferedProjectType(project);
+
+  if (unofferedType) {
+
+    const label = projectTypeLabelForCustomer(unofferedType);
+
+    return [`It seems to be a ${label} building and we currently don't offer exterior reports for ${label} buildings.`];
+
+  }
+
   if (isFullExteriorRejection(project)) {
 
     const fullExterior = fullExteriorRejectionParagraphs(rejectionReason);
@@ -16351,6 +16361,29 @@ function isFullExteriorRejection(project: Record<string, unknown>) {
 
 
 
+// A Full Exterior rejected as the wrong project type, when no Full Exterior is offered for the right one (only
+// residential is): the type it should have been. Its rejection says so and offers no reorder (FM-532).
+
+function fullExteriorUnofferedProjectType(project: Record<string, unknown>) {
+
+  if (!isFullExteriorRejection(project) || String(project.rejection_reason ?? "").trim().toLowerCase() !== "incorrect_structure_type") return "";
+
+  const type = normalizeStructureReorderProjectType(
+
+    project.correct_project_type
+
+    ?? project.rejection_correct_project_type
+
+    ?? asRecord(project.rejection_reorder).project_type
+
+  ) || "commercial";
+
+  return fullExteriorOffered(type) ? "" : type;
+
+}
+
+
+
 // Reasons a Full Exterior shares with a roof report, in Full Exterior words. Null: the shared copy fits.
 
 function fullExteriorRejectionParagraphs(rejectionReason: string): string[] | null {
@@ -16383,7 +16416,7 @@ function fullExteriorRejectionParagraphs(rejectionReason: string): string[] | nu
 
   return [
 
-    "We were not able to complete this Full Exterior report because we do not currently have aerial imagery coverage for this address. A Full Exterior report measures the roof from aerial imagery, so it needs coverage of the house as well as your footage.",
+    "We were not able to complete this Full Exterior report because we do not currently have aerial imagery coverage for this address.",
 
     "We've logged your interest in structures like this and will prioritize being able to cover these in the near future. Our coverage is based on individual structure, not area - so we may have coverage for other properties in this same neighborhood."
 
@@ -16429,6 +16462,18 @@ function rejectionEmailFootageAction(project: Record<string, unknown>) {
 
 
 
+// A Full Exterior is never reordered as a type it isn't offered for, even from a record stored with a link.
+
+function rejectionEmailReorderUrl(project: Record<string, unknown>) {
+
+  if (fullExteriorUnofferedProjectType(project)) return "";
+
+  return String(project.reorder_url ?? asRecord(project.rejection_reorder).url ?? "").trim();
+
+}
+
+
+
 function buildRejectionRefundText(project: Record<string, unknown>) {
 
   const amount = Number(project.refund_amount ?? 0);
@@ -16457,7 +16502,7 @@ function buildRejectionEmailTextBody(project: Record<string, unknown>) {
 
   const refundText = buildRejectionRefundText(project);
 
-  const reorderUrl = String(project.reorder_url ?? asRecord(project.rejection_reorder).url ?? "").trim();
+  const reorderUrl = rejectionEmailReorderUrl(project);
 
   const footageAction = rejectionEmailFootageAction(project);
 
@@ -16489,7 +16534,7 @@ function buildRejectionEmailHtmlBody(project: Record<string, unknown>) {
 
   const refundText = buildRejectionRefundText(project);
 
-  const reorderUrl = String(project.reorder_url ?? asRecord(project.rejection_reorder).url ?? "").trim();
+  const reorderUrl = rejectionEmailReorderUrl(project);
 
   const reorderProjectType = normalizeStructureReorderProjectType(
 
@@ -23958,29 +24003,53 @@ async function rejectCoverageProject(projectId: string, body: Record<string, unk
 
       rejectionPatch.rejection_correct_project_type = structureReorder.correctProjectType;
 
-      rejectionPatch.reorder_project_type = structureReorder.correctProjectType;
+      rejectionPatch.customer_rejection_title = "Incorrect structure type";
 
-      rejectionPatch.reorder_url = structureReorder.url;
+      // A Full Exterior of the right type can't be ordered: no reorder link, and the copy says so (FM-532).
 
-      rejectionPatch.rejection_reorder = {
+      const unoffered = {
 
-        source_project_id: projectId,
+        ...existingLegacy,
 
-        project_type: structureReorder.correctProjectType,
+        id: projectId,
 
-        project_type_label: structureReorder.correctProjectTypeLabel,
+        measurement_scope: existingManifest.measurement_scope,
 
-        url: structureReorder.url,
+        rejection_reason: rejectionReason,
 
-        prefill: structureReorder.prefill
+        correct_project_type: structureReorder.correctProjectType
 
       };
 
-      rejectionPatch.customer_rejection_title = "Incorrect structure type";
+      if (fullExteriorUnofferedProjectType(unoffered)) {
 
-      rejectionPatch.customer_rejection_message =
+        rejectionPatch.customer_rejection_message = buildRejectionMessageParagraphs(unoffered).join(" ");
 
-        `This was ordered as ${projectTypeLabelForCustomer(existingLegacy.project_type)}, but it appears to require a ${structureReorder.correctProjectTypeLabel} report. We have reimbursed the original report.`;
+      } else {
+
+        rejectionPatch.reorder_project_type = structureReorder.correctProjectType;
+
+        rejectionPatch.reorder_url = structureReorder.url;
+
+        rejectionPatch.rejection_reorder = {
+
+          source_project_id: projectId,
+
+          project_type: structureReorder.correctProjectType,
+
+          project_type_label: structureReorder.correctProjectTypeLabel,
+
+          url: structureReorder.url,
+
+          prefill: structureReorder.prefill
+
+        };
+
+        rejectionPatch.customer_rejection_message =
+
+          `This was ordered as ${projectTypeLabelForCustomer(existingLegacy.project_type)}, but it appears to require a ${structureReorder.correctProjectTypeLabel} report. We have reimbursed the original report.`;
+
+      }
 
     }
 
