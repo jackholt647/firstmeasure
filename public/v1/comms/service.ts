@@ -26,7 +26,7 @@ import { processInboundEmail } from "../email/inbound.js";
 import { readDocument } from "../platform/storage.js";
 import { searchCommunicationMessages, listAutoReplyRecords } from "./storage.js";
 import { matchProjectContact } from "./matching.js";
-import { callActivityRows, callInbox, workflow, incomingWorkflow } from "./calls/activity.js";
+import { callActivityRows, callInbox, workflow, incomingWorkflow, unreadSince } from "./calls/activity.js";
 
 type Json = Record<string, unknown>;
 
@@ -386,12 +386,31 @@ export async function orgConversationDetail(orgId: string, conversationId: strin
 // Email threads
 // ---------------------------------------------------------------------------
 
-export async function projectEmailThreads(orgId: string, projectId: string) {
+/**
+ * An email's opening words for a thread list (FM-591): quoted history and Markdown marks removed,
+ * whitespace collapsed, cut near 200 characters. The list shows the first sentence or so.
+ */
+export function emailSnippet(text: unknown) {
+  const lines = cleanText(text).split(/\r?\n/);
+  const quoteAt = lines.findIndex((line, index) => /^\s*>/.test(line) || /^On .{4,200}wrote:\s*$/.test(line.trim()) || (/^-{2,}\s*Original Message\s*-{2,}$/i.test(line.trim()) && index > 0));
+  const plain = (quoteAt > 0 ? lines.slice(0, quoteAt) : lines).join(" ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/(^|\s)(#{1,6}|[-*+]|\d+\.)\s+/g, "$1")
+    .replace(/[*_~`|]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plain.length > 200 ? `${plain.slice(0, 199).trimEnd()}…` : plain;
+}
+
+export async function projectEmailThreads(orgId: string, projectId: string, userId = "") {
   const conversations = (await listConversationRecords(orgId, { project_id: projectId, limit: 250 }))
     .filter((conversation) => ["email", "omnichannel"].includes(cleanText(conversation.channel_strategy)));
   return (await Promise.all(conversations.map(async (conversation) => {
     const messages = (await listMessageRecords(orgId, { conversation_id: cleanText(conversation.id), channel: "email", limit: 500 }));
     if (!messages.length) return null;
+    const inbound = messages.find((message) => cleanText(message.direction) === "inbound");
     return {
       id: conversation.id,
       subject: cleanText(conversation.subject) || cleanText(messages[messages.length - 1]?.subject) || "(no subject)",
@@ -399,7 +418,15 @@ export async function projectEmailThreads(orgId: string, projectId: string) {
       participants: conversation.participants,
       message_count: messages.length,
       last_message: commsMessageView(messages[0]!),
-      last_message_at: conversation.last_message_at || messages[0]?.created_at
+      last_message_at: conversation.last_message_at || messages[0]?.created_at,
+      // FM-591: what a Gmail-style list tile shows: the opening words of the newest email, whether any email
+      // carries files, and whether this person has opened the thread since its last inbound email.
+      snippet: emailSnippet(messages[0]!.text_body),
+      has_attachments: messages.some((message) => {
+        const metadata = asObject(message.metadata);
+        return asArray(metadata.email_attachments).length > 0 || asArray(asObject(metadata.email).attachments).length > 0;
+      }),
+      unread_count: (await unreadSince(orgId, userId, "conversation", cleanText(conversation.id), cleanText(inbound?.created_at))) ? 1 : 0
     };
   }))).filter(Boolean);
 }

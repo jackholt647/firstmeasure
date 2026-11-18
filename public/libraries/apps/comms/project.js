@@ -69,7 +69,7 @@
     callsHandle:null,
     loading:false, error:'',
     overview:null,
-    emailThreads:[], emailThread:null, emailComposeOpen:false,
+    emailThreads:[], emailThread:null, emailComposeOpen:false, emailOpenMessages:new Set(),
     emailDraft:{ to:'', cc:'', bcc:'', subject:'', body:'', files:[] },
     emailReply:{ threadId:'', body:'', files:[] },
     sms:null, activeSmsId:'', smsComposeOpen:false, smsDraft:{ to:'', body:'', files:[] }, smsReply:{ threadId:'', body:'', files:[] },
@@ -323,6 +323,54 @@
       .fmco-left select{border:1px solid #d0d5dd;border-radius:8px;padding:6px 9px;font:inherit;font-size:12px;outline:none;background:#fff;width:100%}
       .fmco-left-hint{font-size:10.5px;color:#98a2b3;font-weight:700;line-height:1.4}
       .fmco-left-save{justify-self:end}
+      /* FM-591: email reads like email (Gmail), not like the SMS rows and bubbles Texts keep. */
+      @media(min-width:901px){.fmco-split.fmco-mail{grid-template-columns:minmax(320px,400px) minmax(0,1fr)}}
+      .fmco-split.fmco-mail{position:relative}
+      .fmco-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+      .fmco-mail-row{position:relative;gap:4px;padding:11px 14px 10px 24px;border-radius:10px}
+      .fmco-mail-row:before{content:'';position:absolute;left:10px;top:17px;width:7px;height:7px;border-radius:50%;background:transparent}
+      .fmco-mail-row.unread:before{background:var(--primary,#d93025)}
+      .fmco-mail-top{display:flex;align-items:baseline;gap:10px;min-width:0}
+      .fmco-mail-who{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;gap:6px;font-size:13px;font-weight:600;color:#344054}
+      .fmco-mail-who>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fmco-mail-count{flex:none;font-size:11px;font-weight:700;color:#98a2b3}
+      .fmco-mail-subject{flex:0 1 auto;max-width:52%;font-size:11.5px;font-weight:600;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+      .fmco-mail-snippet{font-size:12px;line-height:1.45;color:#667085;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+      .fmco-mail-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:600;color:#98a2b3}
+      .fmco-mail-foot i{font-size:11px}
+      .fmco-mail-row.unread .fmco-mail-who,.fmco-mail-row.unread .fmco-mail-subject{font-weight:900;color:#101828}
+      .fmco-mail-row.unread .fmco-mail-snippet{color:#344054}
+      .fmco-mail-row.unread .fmco-mail-foot time{color:var(--primary-readable,var(--primary,#d93025));font-weight:800}
+      .fmco-mail-peek{position:absolute;z-index:25;width:min(480px,calc(100% - 420px));min-width:300px;max-height:min(420px,calc(100% - 8px));box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#fff;border:1px solid #d0d5dd;border-radius:12px;box-shadow:0 16px 40px rgba(16,24,40,.18);pointer-events:none}
+      .fmco-mail-peek[hidden]{display:none}
+      .fmco-mail-peek .fmco-mail-card{border:0;box-shadow:none;border-radius:0;flex:1;min-height:0;overflow:hidden}
+      .fmco-mail-peek .fmco-mail-body{-webkit-mask-image:linear-gradient(#000 calc(100% - 36px),transparent);mask-image:linear-gradient(#000 calc(100% - 36px),transparent);max-height:300px;overflow:hidden}
+      .fmco-mail-peek-subject{padding:12px 16px 0;font-size:14px;font-weight:900;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fmco-mail-head{padding:14px 18px 12px}
+      .fmco-mail-head .fmco-thread-title{font-size:17px;font-weight:800;white-space:normal;overflow-wrap:anywhere;line-height:1.3}
+      .fmco-mail-msgs{position:relative;gap:8px;background:#fff;padding:12px 16px 16px}
+      .fmco-mail-card{flex:none;border:1px solid #e4e7ec;border-radius:12px;background:#fff;min-width:0}
+      .fmco-mail-card.collapsed{background:#f9fafb}
+      .fmco-mail-card-head{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;align-items:start;padding:12px 14px;cursor:pointer;border-radius:12px}
+      .fmco-mail-card-head:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:-2px}
+      .fmco-mail-card.collapsed .fmco-mail-card-head{padding:9px 14px;align-items:center}
+      .fmco-mail-avatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:800;color:#fff;background:var(--fmco-avatar,#667085)}
+      .fmco-mail-card.collapsed .fmco-mail-avatar{width:30px;height:30px;font-size:12px;margin:0 3px}
+      .fmco-mail-from{min-width:0;display:grid;gap:2px}
+      .fmco-mail-from-line{display:flex;align-items:baseline;gap:6px;min-width:0;flex-wrap:wrap}
+      .fmco-mail-from-line strong{font-size:13px;font-weight:800;color:#101828}
+      .fmco-mail-from-line small{font-size:11.5px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+      .fmco-mail-to,.fmco-mail-card-snippet{font-size:11.5px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fmco-mail-card.collapsed .fmco-mail-to,.fmco-mail-card:not(.collapsed) .fmco-mail-card-snippet,.fmco-mail-card.collapsed .fmco-mail-from-line small,.fmco-mail-card.collapsed .fmco-mail-body{display:none}
+      .fmco-mail-card-head time{font-size:11.5px;color:#667085;font-weight:600;white-space:nowrap}
+      .fmco-mail-body{padding:0 18px 16px 60px;font-size:13.5px;line-height:1.55;color:#202124;white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+      .fmco-mail-body .fmco-msg-rich{white-space:normal}
+      .fmco-mail-body .fmco-msg-file{border-color:#d0d5dd;color:#344054;background:#f8fafc}
+      .fmco-mail-msg-subject{font-weight:800;margin-bottom:6px;white-space:normal}
+      .fmco-mail-quoted{margin-top:6px}
+      .fmco-mail-quoted>summary{display:inline-block;list-style:none;padding:0 7px;border-radius:6px;background:#eef1f4;color:#475467;font-size:12px;line-height:16px;letter-spacing:1px;cursor:pointer}
+      .fmco-mail-quoted>summary::-webkit-details-marker{display:none}
+      .fmco-mail-quoted>div{margin-top:6px;padding-left:10px;border-left:2px solid #d0d5dd;color:#667085}
       @media(max-width:1180px){.fmco-agent-col{position:absolute;right:0;top:0;bottom:0;z-index:30;box-shadow:-14px 0 30px rgba(16,24,40,.12)}}
       @media(max-width:900px){.fmco-split{grid-template-columns:1fr}.fmco-split .fmco-thread-view{display:none}.fmco-split.thread-mode .fmco-thread-view{display:flex}.fmco-split.thread-mode .fmco-list-col{display:none}}
       /* Phone (the platform's 760px window breakpoint), like Photos and Docs:
@@ -362,6 +410,10 @@
         .fmco-list-col{gap:8px}
         .fmco-list-col>.fmco-btn.primary{min-height:40px;border-radius:10px;font-size:13px}
         .fmco-thread-row{padding:12px;border-radius:12px}
+        .fmco-mail-row{padding:12px 12px 11px 24px}
+        .fmco-mail-msgs{padding:10px}
+        .fmco-mail-card-head{padding:11px 12px}
+        .fmco-mail-body{padding:0 14px 14px;font-size:14px}
         .fmco-split.thread-mode .fmco-thread-view{border:0;border-radius:0}
         .fmco-thread-head{padding:10px 12px}
         .fmco-thread-head .fmco-btn{flex:none;width:36px;height:36px;padding:0;justify-content:center;border-radius:10px}
@@ -540,7 +592,7 @@
       } else if (state.view === 'email') {
         const result = await api2().email.threads(orgId(), projectId());
         const threads = Array.isArray(result.threads) ? result.threads : [];
-        const listSignature = signatureOf(threads.map((thread) => [thread.id, thread.message_count, thread.last_message_at]));
+        const listSignature = signatureOf(threads.map((thread) => [thread.id, thread.message_count, thread.last_message_at, thread.unread_count, thread.snippet]));
         if (listSignature !== state.sync.emailList) {
           state.sync.emailList = listSignature;
           state.emailThreads = threads;
@@ -549,6 +601,7 @@
         if (state.emailThread) {
           const stillThere = threads.some((thread) => thread.id === state.emailThread.id);
           if (stillThere) {
+            markEmailRead(clean(state.emailThread.id));
             const detail = await api2().email.thread(orgId(), projectId(), clean(state.emailThread.id)).catch(() => null);
             const thread = detail ? detail.thread : null;
             const msgsSignature = signatureOf((Array.isArray(thread?.messages) ? thread.messages : []).map((message) => message.id));
@@ -603,12 +656,24 @@
   async function openEmailThread(conversationId, options = {}){
     try {
       const result = await api2().email.thread(orgId(), projectId(), conversationId);
+      if (clean(state.emailThread?.id) !== clean(conversationId)) state.emailOpenMessages = new Set();
       state.emailThread = result.thread;
       state.emailComposeOpen = false;
+      markEmailRead(conversationId);
     } catch (error) {
       state.error = error?.message || 'Could not load this thread.';
     }
     if (!options.silent) render();
+  }
+
+  /** FM-591: opening a thread is reading it, for this person (the comms read marker the inbox and phone tray use). */
+  function markEmailRead(conversationId){
+    const item = state.emailThreads.find((thread) => clean(thread.id) === clean(conversationId));
+    if (!item || !Number(item.unread_count || 0) || typeof api2()?.customer !== 'function') return;
+    item.unread_count = 0;
+    state.sync.emailList = '';
+    contentRoot()?.querySelector(`[data-co-thread="${CSS.escape(clean(conversationId))}"]`)?.classList.remove('unread');
+    api2().customer(orgId(), 'conversation-workflow', { kind:'conversation', source_id:clean(conversationId), revision:0, action:'read' }).catch(() => null);
   }
 
   // ── Rendering ────────────────────────────────────────────────────────────
@@ -804,13 +869,32 @@
     const thread = state.emailThread;
     return `
       <button type="button" class="fmco-btn primary" data-co-compose style="justify-content:center"><i class="fa-solid fa-pen"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_71e31660564d5a","New email") ?? "New email")}</button>
-      ${String(state.emailThreads.length ? state.emailThreads.map((item) => `
-        <button type="button" class="fmco-thread-row${thread && thread.id === item.id ? ' active' : ''}" data-co-thread="${esc(clean(item.id))}">
-          <span class="fmco-thread-subject"><span>${esc(clean(item.subject) || '(no subject)')}</span></span>
-          <span class="fmco-thread-meta"><span>${((v4,v5) => globalThis.PlatformLanguage?.htmlText("comms","m_2de5206655064d",`${v4} message${v5}`,{v4,v5}) ?? `${v4} message${v5}`)(Number(item.message_count || 0),Number(item.message_count || 0) === 1 ? '' : 's')}</span><span>${esc(timeLabel(item.last_message_at))}</span></span>
+      ${String(state.emailThreads.length ? state.emailThreads.map((item) => {
+        const count = Number(item.message_count || 0);
+        const unread = Number(item.unread_count || 0) > 0;
+        return `
+        <button type="button" class="fmco-thread-row fmco-mail-row${unread ? ' unread' : ''}${thread && thread.id === item.id ? ' active' : ''}" data-co-thread="${esc(clean(item.id))}">
+          <span class="fmco-mail-top">
+            <span class="fmco-mail-who"><span>${esc(emailPeople(item.participants))}</span>${count > 1 ? `<span class="fmco-mail-count">${count}</span>` : ''}</span>
+            <span class="fmco-mail-subject">${esc(clean(item.subject) || '(no subject)')}</span>
+          </span>
+          <span class="fmco-mail-snippet">${esc(clean(item.snippet) || emailLine(object(item.last_message).text).slice(0, 200) || (globalThis.PlatformLanguage?.text("comms","m_1fd5d8b93e36dd","No message text") ?? "No message text"))}</span>
+          <span class="fmco-mail-foot"><span>${item.has_attachments ? `<i class="fa-solid fa-paperclip" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_0b5cae7c72c6a9","Has attachments") ?? "Has attachments")}"></i>` : ''}${unread ? `<span class="fmco-sr-only">${(globalThis.PlatformLanguage?.htmlText("comms","m_e6bd48170f22a4","Unread") ?? "Unread")}</span>` : ''}</span><time datetime="${esc(clean(item.last_message_at))}">${esc(timeLabel(item.last_message_at))}</time></span>
         </button>
-      `).join('') : `<div class="fmco-empty"><i class="fa-solid fa-envelope-open"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_4aeca6bca783d6","No email threads yet.") ?? "No email threads yet.")}</p></div>`)}
+      `;
+      }).join('') : `<div class="fmco-empty"><i class="fa-solid fa-envelope-open"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_4aeca6bca783d6","No email threads yet.") ?? "No email threads yet.")}</p></div>`)}
     `;
+  }
+
+  /** Who an email thread is with: the project contact's name for an address when the participant has none. */
+  function emailPeople(participants){
+    const contacts = overviewContacts();
+    const names = (Array.isArray(participants) ? participants : [])
+      .filter((participant) => !['internal', 'bcc'].includes(clean(participant.type)) && clean(participant.address) && clean(participant.address).toLowerCase() !== state.inboxAddress.toLowerCase())
+      .map((participant) => clean(participant.name)
+        || clean(contacts.find((contact) => clean(contact.email).toLowerCase() === clean(participant.address).toLowerCase())?.name)
+        || clean(participant.address));
+    return [...new Set(names)].join(', ') || 'No recipients';
   }
 
   function contactChipsHtml(channel, target){
@@ -838,8 +922,38 @@
   function bindEmailList(scope){
     scope.querySelector('[data-co-compose]')?.addEventListener('click', () => { beginEmailDraft(); render(); });
     scope.querySelectorAll('[data-co-thread]').forEach((button) => {
-      button.addEventListener('click', () => openEmailThread(button.dataset.coThread));
+      button.addEventListener('click', () => { hideEmailPeek(); openEmailThread(button.dataset.coThread); });
+      button.addEventListener('mouseenter', () => scheduleEmailPeek(button));
+      button.addEventListener('mouseleave', hideEmailPeek);
     });
+    if (!scope.dataset.coPeekBound) { scope.dataset.coPeekBound = '1'; scope.addEventListener('scroll', hideEmailPeek, { passive:true }); }
+  }
+
+  // FM-591: resting the pointer on a thread shows its newest email in full beside the list (desktop only).
+  let peekTimer = 0;
+  function scheduleEmailPeek(button){
+    clearTimeout(peekTimer);
+    if (!rootWindow.matchMedia?.('(hover:hover) and (pointer:fine)').matches) return;
+    peekTimer = setTimeout(() => showEmailPeek(button), 450);
+  }
+  function hideEmailPeek(){
+    clearTimeout(peekTimer);
+    const peek = contentRoot()?.querySelector('[data-co-mail-peek]');
+    if (peek) peek.hidden = true;
+  }
+  function showEmailPeek(button){
+    const split = button.closest('.fmco-split');
+    const peek = split?.querySelector('[data-co-mail-peek]');
+    const item = state.emailThreads.find((thread) => clean(thread.id) === clean(button.dataset.coThread));
+    const message = object(item?.last_message);
+    // Only beside a visible thread pane (not when the list is the whole width), and never for the open thread.
+    if (!peek || !item || !message.id || !button.isConnected || clean(state.emailThread?.id) === clean(item.id)) return;
+    if (split.querySelector('.fmco-thread-view')?.offsetParent === null) return;
+    peek.innerHTML = `<div class="fmco-mail-peek-subject">${esc(clean(item.subject) || '(no subject)')}</div>${emailCardHtml(message, { open:true, threadSubject:item.subject })}`;
+    peek.hidden = false;
+    const box = split.getBoundingClientRect(), row = button.getBoundingClientRect();
+    peek.style.left = `${Math.round(row.right - box.left + 10)}px`;
+    peek.style.top = `${Math.round(Math.max(0, Math.min(row.top - box.top, box.height - peek.offsetHeight)))}px`;
   }
 
   function audioHtml(message){
@@ -1246,11 +1360,91 @@
     return esc(clean(message.text));
   }
 
+  const AVATAR_COLORS = ['#1a73e8', '#188038', '#e37400', '#9334e6', '#d01884', '#12a4af', '#5f6368', '#b06000'];
+  function avatarColor(seed){
+    let hash = 0;
+    for (const char of clean(seed).toLowerCase()) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+    return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+  }
+
+  /** An email's text on one line, without Markdown marks (the server's emailSnippet, for a folded card). */
+  function emailLine(text){
+    return clean(text).replace(/(^|\n)\s*([-*+]|\d+\.|#{1,6}|>)\s+/g, '$1').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_~`|]+/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  /** Recipients of one email as "to a, b · cc c". */
+  function emailToLine(message){
+    const recipients = (Array.isArray(message.recipients) ? message.recipients : []).map(object).filter((recipient) => clean(recipient.address));
+    const names = (type) => recipients.filter((recipient) => (clean(recipient.type) || 'to') === type).map((recipient) => clean(recipient.name) || clean(recipient.address)).join(', ');
+    const to = names('to'), cc = names('cc');
+    return [to && ((v1) => globalThis.PlatformLanguage?.text("comms","m_c648ede769fadb",`to ${v1}`,{v1}) ?? `to ${v1}`)(to), cc && ((v1) => globalThis.PlatformLanguage?.text("comms","m_1b06b5c29a2df5",`cc ${v1}`,{v1}) ?? `cc ${v1}`)(cc)].filter(Boolean).join(' · ');
+  }
+
+  /** Plain-text mail keeps the reply history it quotes behind a ••• toggle, as Gmail does. */
+  function emailPlainBody(text){
+    const lines = clean(text).split(/\r?\n/);
+    const at = lines.findIndex((line, index) => index > 0 && (/^\s*>/.test(line) || /^On .{4,200}wrote:\s*$/.test(line.trim())));
+    if (at <= 0) return esc(clean(text));
+    return `${esc(lines.slice(0, at).join('\n').trimEnd())}<details class="fmco-mail-quoted"><summary aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_270ef93292386e","Show trimmed content") ?? "Show trimmed content")}">•••</summary><div>${esc(lines.slice(at).join('\n'))}</div></details>`;
+  }
+
+  function emailCardHtml(message, options = {}){
+    const sender = object(message.sender);
+    const who = messageWho(message);
+    const address = clean(sender.address || sender.email);
+    const outbound = message.direction !== 'inbound';
+    const threadSubject = clean(options.threadSubject ?? state.emailThread?.subject).replace(/^(re|fwd?):\s*/i, '');
+    const subject = clean(message.subject).replace(/^(re|fwd?):\s*/i, '');
+    const body = clean(object(message.metadata).email_format) === 'markdown' ? emailMessageBody(message) : emailPlainBody(message.text);
+    return `<article class="fmco-mail-card${options.open ? '' : ' collapsed'}${outbound ? ' outbound' : ''}" data-co-mail-msg="${esc(clean(message.id))}">
+      <div class="fmco-mail-card-head"${options.toggle ? ` data-co-mail-toggle role="button" tabindex="0" aria-expanded="${options.open ? 'true' : 'false'}"` : ''}>
+        <span class="fmco-mail-avatar" style="--fmco-avatar:${outbound ? 'var(--primary,#d93025)' : avatarColor(address || who)}" aria-hidden="true">${esc((who.match(/[\p{L}\p{N}]/u) || ['?'])[0].toUpperCase())}</span>
+        <span class="fmco-mail-from">
+          <span class="fmco-mail-from-line"><strong>${esc(who)}</strong>${address && address !== who ? `<small>${esc(`<${address}>`)}</small>` : ''}${badges(message)}</span>
+          <span class="fmco-mail-to">${esc(emailToLine(message))}</span>
+          <span class="fmco-mail-card-snippet">${esc(emailLine(message.text).slice(0, 160))}</span>
+        </span>
+        <time datetime="${esc(clean(message.created_at))}">${esc(timeLabel(message.created_at))}</time>
+      </div>
+      <div class="fmco-mail-body">${subject && threadSubject && subject.toLowerCase() !== threadSubject.toLowerCase() ? `<div class="fmco-mail-msg-subject">${esc(clean(message.subject))}</div>` : ''}${body}${audioHtml(message)}${emailAttachmentsHtml(message)}</div>
+    </article>`;
+  }
+
+  /** The thread as stacked email cards: the newest open, earlier ones folded to a line until clicked. */
   function emailMsgsHtml(thread){
-    return (Array.isArray(thread?.messages) ? thread.messages : []).map((message) => `
-      <div class="fmco-msg-meta ${message.direction}">${esc(messageWho(message))} · ${esc(timeLabel(message.created_at))} ${badges(message)}</div>
-      <div class="fmco-msg ${message.direction}${message.source_kind === 'ai' ? ' ai' : ''}">${clean(message.subject) && message.direction === 'inbound' ? `<div class="fmco-msg-subject">${esc(clean(message.subject))}</div>` : ''}${emailMessageBody(message)}${audioHtml(message)}${emailAttachmentsHtml(message)}</div>
-    `).join('');
+    const messages = Array.isArray(thread?.messages) ? thread.messages : [];
+    return messages.map((message, index) => emailCardHtml(message, {
+      toggle:true,
+      open:index === messages.length - 1 || state.emailOpenMessages.has(clean(message.id))
+    })).join('');
+  }
+
+  function bindEmailCards(scroll){
+    if (!scroll || scroll.dataset.coMailBound) return;
+    scroll.dataset.coMailBound = '1';
+    const toggle = (head) => {
+      const card = head.closest('[data-co-mail-msg]');
+      const id = clean(card?.dataset.coMailMsg);
+      if (!card || card === scroll.lastElementChild) return;
+      const open = card.classList.toggle('collapsed') === false;
+      head.setAttribute('aria-expanded', String(open));
+      if (open) state.emailOpenMessages.add(id); else state.emailOpenMessages.delete(id);
+    };
+    scroll.addEventListener('click', (event) => {
+      const head = event.target.closest?.('[data-co-mail-toggle]');
+      if (head && !event.target.closest('a,button,details,audio')) toggle(head);
+    });
+    scroll.addEventListener('keydown', (event) => {
+      const head = event.target.closest?.('[data-co-mail-toggle]');
+      if (head && event.target === head && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); toggle(head); }
+    });
+  }
+
+  /** Show the newest email from its top, as a mail client opens a thread. */
+  function scrollToNewestEmail(root){
+    const scroll = root.querySelector('[data-co-scroll]');
+    const last = scroll?.lastElementChild;
+    if (scroll && last) scroll.scrollTop = Math.max(0, last.offsetTop - 12);
   }
 
   function renderEmail(root){
@@ -1258,15 +1452,16 @@
     const thread = state.emailThread;
     root.innerHTML = `
       ${errorHtml()}
-      <div class="fmco-split${thread || state.emailComposeOpen ? ' thread-mode' : ''}" style="height:100%">
+      <div class="fmco-split fmco-mail${thread || state.emailComposeOpen ? ' thread-mode' : ''}" style="height:100%">
         <div class="fmco-list-col" data-co-list>${emailListHtml()}</div>
+        <div class="fmco-mail-peek" data-co-mail-peek hidden aria-hidden="true"></div>
         <div class="fmco-thread-view">
           ${thread ? `
-            <div class="fmco-thread-head">
+            <div class="fmco-thread-head fmco-mail-head">
               <div style="min-width:0"><div class="fmco-thread-title">${String(esc(clean(thread.subject) || '(no subject)'))}</div><div class="fmco-recipient-summary" title="${String(esc(recipientNames(thread.participants)))}">${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_4a4203a7cc18a9",`With ${v2}`,{v2}) ?? `With ${v2}`)(esc(recipientNames(thread.participants)))}</div></div>
               <button type="button" class="fmco-btn" data-co-thread-close><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div class="fmco-msgs" data-co-scroll>${String(emailMsgsHtml(thread))}</div>
+            <div class="fmco-msgs fmco-mail-msgs" data-co-scroll>${String(emailMsgsHtml(thread))}</div>
             <div class="fmco-composer">${String(composerHtml('reply'))}</div>
           ` : state.emailComposeOpen ? `
             <div class="fmco-thread-head"><div style="min-width:0"><div class="fmco-thread-title">${(globalThis.PlatformLanguage?.htmlText("comms","m_71e31660564d5a","New email") ?? "New email")}</div>${String(state.inboxAddress ? `<div class="fmco-thread-sub" title="${esc(state.inboxAddress)}">${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_75109744834b1c",`Sending as ${v1}`,{v1}) ?? `Sending as ${v1}`)(esc(state.inboxAddress))}</div>` : '')}</div><button type="button" class="fmco-btn" data-co-thread-close><i class="fa-solid fa-xmark"></i></button></div>
@@ -1301,7 +1496,8 @@
       mountComposer(root, composer);
       root.querySelector('.fmco-rich-send')?.addEventListener('click', () => sendComposer(composer, thread));
     }
-    scrollBottom(root);
+    bindEmailCards(root.querySelector('.fmco-mail-msgs'));
+    scrollToNewestEmail(root);
   }
 
   // SMS -----------------------------------------------------------------------
