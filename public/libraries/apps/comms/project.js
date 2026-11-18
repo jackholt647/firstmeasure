@@ -325,7 +325,6 @@
       .fmco-left-hint{font-size:10.5px;color:#98a2b3;font-weight:700;line-height:1.4}
       .fmco-left-save{justify-self:end}
       /* FM-591: email reads like email (Gmail), not like the SMS rows and bubbles Texts keep. */
-      @media(min-width:901px){.fmco-split.fmco-mail{grid-template-columns:minmax(320px,400px) minmax(0,1fr)}}
       .fmco-split.fmco-mail{position:relative}
       .fmco-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
       .fmco-mail-row{position:relative;gap:4px;padding:11px 14px 10px 24px;border-radius:10px}
@@ -335,14 +334,15 @@
       .fmco-mail-who{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;gap:6px;font-size:13px;font-weight:600;color:#344054}
       .fmco-mail-who>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .fmco-mail-count{flex:none;font-size:11px;font-weight:700;color:#98a2b3}
-      .fmco-mail-subject{flex:0 1 auto;max-width:52%;font-size:11.5px;font-weight:600;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+      .fmco-mail-addr{flex:0 1 auto;max-width:55%;font-size:11.5px;font-weight:600;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+      .fmco-mail-subject{font-weight:800;color:#344054}
       .fmco-mail-snippet{font-size:12px;line-height:1.45;color:#667085;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
       .fmco-mail-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:600;color:#98a2b3}
       .fmco-mail-foot i{font-size:11px}
-      .fmco-mail-row.unread .fmco-mail-who,.fmco-mail-row.unread .fmco-mail-subject{font-weight:900;color:#101828}
+      .fmco-mail-row.unread .fmco-mail-who,.fmco-mail-row.unread .fmco-mail-subject{font-weight:900;color:#101828}.fmco-mail-row.unread .fmco-mail-addr{color:#344054}
       .fmco-mail-row.unread .fmco-mail-snippet{color:#344054}
       .fmco-mail-row.unread .fmco-mail-foot time{color:var(--primary-readable,var(--primary,#d93025));font-weight:800}
-      .fmco-mail-peek{position:absolute;z-index:25;width:min(480px,calc(100% - 420px));min-width:300px;max-height:min(420px,calc(100% - 8px));box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#fff;border:1px solid #d0d5dd;border-radius:12px;box-shadow:0 16px 40px rgba(16,24,40,.18);pointer-events:none}
+      .fmco-mail-peek{position:absolute;z-index:25;width:min(480px,calc(100% - 320px));min-width:300px;max-height:min(420px,calc(100% - 8px));box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#fff;border:1px solid #d0d5dd;border-radius:12px;box-shadow:0 16px 40px rgba(16,24,40,.18);pointer-events:none}
       .fmco-mail-peek[hidden]{display:none}
       .fmco-mail-peek .fmco-mail-card{border:0;box-shadow:none;border-radius:0;flex:1;min-height:0;overflow:hidden}
       .fmco-mail-peek .fmco-mail-body{-webkit-mask-image:linear-gradient(#000 calc(100% - 36px),transparent);mask-image:linear-gradient(#000 calc(100% - 36px),transparent);max-height:300px;overflow:hidden}
@@ -873,13 +873,15 @@
       ${String(state.emailThreads.length ? state.emailThreads.map((item) => {
         const count = Number(item.message_count || 0);
         const unread = Number(item.unread_count || 0) > 0;
+        const people = emailPeopleList(item.participants);
+        const addresses = people.map((person) => person.address).join(', ');
         return `
         <button type="button" class="fmco-thread-row fmco-mail-row${unread ? ' unread' : ''}${thread && thread.id === item.id ? ' active' : ''}" data-co-thread="${esc(clean(item.id))}">
           <span class="fmco-mail-top">
             <span class="fmco-mail-who"><span>${esc(emailPeople(item.participants))}</span>${count > 1 ? `<span class="fmco-mail-count">${count}</span>` : ''}</span>
-            <span class="fmco-mail-subject">${esc(clean(item.subject) || '(no subject)')}</span>
+            ${people.some((person) => person.name) ? `<span class="fmco-mail-addr" title="${esc(addresses)}">${esc(addresses)}</span>` : ''}
           </span>
-          <span class="fmco-mail-snippet">${esc(clean(item.snippet) || emailLine(object(item.last_message).text).slice(0, 200) || (globalThis.PlatformLanguage?.text("comms","m_1fd5d8b93e36dd","No message text") ?? "No message text"))}</span>
+          <span class="fmco-mail-snippet"><span class="fmco-mail-subject">${esc(clean(item.subject) || '(no subject)')}</span> — ${esc(clean(item.snippet) || emailLine(object(item.last_message).text).slice(0, 200) || (globalThis.PlatformLanguage?.text("comms","m_1fd5d8b93e36dd","No message text") ?? "No message text"))}</span>
           <span class="fmco-mail-foot"><span>${item.has_attachments ? `<i class="fa-solid fa-paperclip" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_0b5cae7c72c6a9","Has attachments") ?? "Has attachments")}"></i>` : ''}${unread ? `<span class="fmco-sr-only">${(globalThis.PlatformLanguage?.htmlText("comms","m_e6bd48170f22a4","Unread") ?? "Unread")}</span>` : ''}</span><time datetime="${esc(clean(item.last_message_at))}">${esc(timeLabel(item.last_message_at))}</time></span>
         </button>
       `;
@@ -887,15 +889,24 @@
     `;
   }
 
-  /** Who an email thread is with: the project contact's name for an address when the participant has none. */
-  function emailPeople(participants){
-    const contacts = overviewContacts();
-    const names = (Array.isArray(participants) ? participants : [])
+  /** The project contact's name for an email address, when one of the project's contacts has it. */
+  function contactNameFor(address){
+    const key = clean(address).toLowerCase();
+    return key ? clean(overviewContacts().find((contact) => clean(contact.email).toLowerCase() === key)?.name) : '';
+  }
+
+  /** Who an email thread is with, as { name, address }: the participant's name, else the project contact's. */
+  function emailPeopleList(participants){
+    const seen = new Set();
+    return (Array.isArray(participants) ? participants : [])
       .filter((participant) => !['internal', 'bcc'].includes(clean(participant.type)) && clean(participant.address) && clean(participant.address).toLowerCase() !== state.inboxAddress.toLowerCase())
-      .map((participant) => clean(participant.name)
-        || clean(contacts.find((contact) => clean(contact.email).toLowerCase() === clean(participant.address).toLowerCase())?.name)
-        || clean(participant.address));
-    return [...new Set(names)].join(', ') || 'No recipients';
+      .map((participant) => ({ name:clean(participant.name) || contactNameFor(participant.address), address:clean(participant.address) }))
+      .filter((person) => !seen.has(person.address.toLowerCase()) && seen.add(person.address.toLowerCase()));
+  }
+
+  /** Names first (FM-591): an address shows only for someone with no name. */
+  function emailPeople(participants){
+    return emailPeopleList(participants).map((person) => person.name || person.address).join(', ') || 'No recipients';
   }
 
   function contactChipsHtml(channel, target){
@@ -1376,7 +1387,7 @@
   /** Recipients of one email as "to a, b · cc c". */
   function emailToLine(message){
     const recipients = (Array.isArray(message.recipients) ? message.recipients : []).map(object).filter((recipient) => clean(recipient.address));
-    const names = (type) => recipients.filter((recipient) => (clean(recipient.type) || 'to') === type).map((recipient) => clean(recipient.name) || clean(recipient.address)).join(', ');
+    const names = (type) => recipients.filter((recipient) => (clean(recipient.type) || 'to') === type).map((recipient) => clean(recipient.name) || contactNameFor(recipient.address) || clean(recipient.address)).join(', ');
     const to = names('to'), cc = names('cc');
     return [to && ((v1) => globalThis.PlatformLanguage?.text("comms","m_c648ede769fadb",`to ${v1}`,{v1}) ?? `to ${v1}`)(to), cc && ((v1) => globalThis.PlatformLanguage?.text("comms","m_1b06b5c29a2df5",`cc ${v1}`,{v1}) ?? `cc ${v1}`)(cc)].filter(Boolean).join(' · ');
   }
@@ -1391,8 +1402,8 @@
 
   function emailCardHtml(message, options = {}){
     const sender = object(message.sender);
-    const who = messageWho(message);
     const address = clean(sender.address || sender.email);
+    const who = message.direction === 'inbound' && !clean(sender.name) ? contactNameFor(address) || messageWho(message) : messageWho(message);
     const outbound = message.direction !== 'inbound';
     const threadSubject = clean(options.threadSubject ?? state.emailThread?.subject).replace(/^(re|fwd?):\s*/i, '');
     const subject = clean(message.subject).replace(/^(re|fwd?):\s*/i, '');
@@ -1459,7 +1470,7 @@
         <div class="fmco-thread-view">
           ${thread ? `
             <div class="fmco-thread-head fmco-mail-head">
-              <div style="min-width:0"><div class="fmco-thread-title">${String(esc(clean(thread.subject) || '(no subject)'))}</div><div class="fmco-recipient-summary" title="${String(esc(recipientNames(thread.participants)))}">${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_4a4203a7cc18a9",`With ${v2}`,{v2}) ?? `With ${v2}`)(esc(recipientNames(thread.participants)))}</div></div>
+              <div style="min-width:0"><div class="fmco-thread-title">${String(esc(clean(thread.subject) || '(no subject)'))}</div><div class="fmco-recipient-summary" title="${String(esc(emailPeopleList(thread.participants).map((person) => person.name ? person.name + ' <' + person.address + '>' : person.address).join(', ')))}">${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_4a4203a7cc18a9",`With ${v2}`,{v2}) ?? `With ${v2}`)(esc(emailPeople(thread.participants)))}</div></div>
               <button type="button" class="fmco-btn" data-co-thread-close><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="fmco-msgs fmco-mail-msgs" data-co-scroll>${String(emailMsgsHtml(thread))}</div>
