@@ -204,6 +204,9 @@ test('the Equipment card shows the Equipment app with Back at the bottom left, a
         runGuide:(id,options)=>{guideCalls.push({id,keepVisible:options.keepVisible,signal:options.signal instanceof AbortSignal});window.tourSignal=options.signal;
           const overlay=document.createElement('div');overlay.className='gx-ov';if(!window.startingTour)document.body.append(overlay);
           return new Promise(resolve=>{options.signal.addEventListener('abort',()=>{overlay.remove();resolve({status:'ended'});});window.endTour=()=>{overlay.remove();setTimeout(()=>resolve({status:'dismissed'}),3000);};});}};
+      // window.slowStatus: the setup status waits for releaseStatus().
+      const invoke=PlatformAPI.publication.invoke;
+      PlatformAPI.publication.invoke=async(...args)=>{if(args[1]==='operations.setup.status'&&window.slowStatus)await new Promise(resolve=>{window.releaseStatus=resolve;});return invoke(...args);};
       window.widget=operations.mountWidget('operations-ready',document.getElementById('host'),ctx);
     });
     await page.waitForSelector('[data-setup=equipment]');
@@ -224,9 +227,13 @@ test('the Equipment card shows the Equipment app with Back at the bottom left, a
     await page.locator('[data-return]').click({force:true});
     assert.equal(await page.evaluate(()=>widget.back()),true);
     assert.equal(await page.locator('.ops-app').count(),1);
-    // Equipment added in the app (anywhere: the status reads the fleet) ticks the card on the way back.
-    await page.evaluate(()=>{setupState.setup.equipment.complete=true;endTour();});
+    // Back shows the cards at once (from the last status), and equipment added in the app (anywhere: the status reads
+    // the fleet) ticks the card when the status answers.
+    await page.evaluate(()=>{setupState.setup.equipment.complete=true;endTour();window.slowStatus=true;});
     await page.locator('[data-return]').click();
+    assert.equal(await page.locator('[data-setup=equipment]').count(),1,'the cards are back before the status answers');
+    assert.equal(await page.locator('[data-setup=equipment] .ops-check').count(),0);
+    await page.evaluate(()=>{window.slowStatus=false;releaseStatus();});
     await page.waitForSelector('[data-setup=equipment] .ops-check',{timeout:2000});
     assert.deepEqual(await page.evaluate(()=>[destroyed,widget.backDepth(),titles.at(-1)]),[1,0,'']);
     // The phone's back leaves the same way.
