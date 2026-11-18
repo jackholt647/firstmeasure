@@ -390,10 +390,16 @@
     `;
   }
 
+  // FM-546: calling a contact opens the FirstMate phone (calling-runtime.js); tel: is only the fallback.
+  function callAttributes(contact = {}){
+    const id = contact._shared ? '' : cleanText(contact.id);
+    return ` data-fm-customer-call="${escapeHtml(cleanText(contact.phone))}" data-customer-name="${escapeHtml(contact.name)}"${id ? ` data-contact-id="${escapeHtml(id)}"` : ''}`;
+  }
+
   function contactLine(contact = {}){
     const items = [
       contact.email ? `<a href="mailto:${escapeHtml(contact.email)}">${escapeHtml(contact.email)}</a>` : '',
-      contact.phone ? `<a href="tel:${escapeHtml(phoneDigits(contact.phone))}">${escapeHtml(contact.phone)}</a>` : ''
+      contact.phone ? `<a href="tel:${escapeHtml(phoneDigits(contact.phone))}"${callAttributes(contact)}>${escapeHtml(contact.phone)}</a>` : ''
     ].filter(Boolean);
     return items.length ? items.join('<span class="ct-dot"></span>') : `<span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_c0b046415d9560","No email or phone") ?? "No email or phone")}</span>`;
   }
@@ -403,7 +409,7 @@
     const name = escapeHtml(contact.name);
     const callLabel = globalThis.PlatformLanguage?.htmlText("contacts","m_8d4eaa0da004be","Call") ?? "Call";
     const emailLabel = globalThis.PlatformLanguage?.htmlText("contacts","m_5d2b9327181e33","Email") ?? "Email";
-    const call = contact.phone ? `<a class="ct-quick" href="tel:${escapeHtml(phoneDigits(contact.phone))}" aria-label="${callLabel} ${name}" data-fm-tooltip="${callLabel}"><i class="fas fa-phone" aria-hidden="true"></i></a>` : '';
+    const call = contact.phone ? `<a class="ct-quick" href="tel:${escapeHtml(phoneDigits(contact.phone))}"${callAttributes(contact)} aria-label="${callLabel} ${name}" data-fm-tooltip="${callLabel}"><i class="fas fa-phone" aria-hidden="true"></i></a>` : '';
     const email = contact.email ? `<a class="ct-quick" href="mailto:${escapeHtml(contact.email)}" aria-label="${emailLabel} ${name}" data-fm-tooltip="${emailLabel}"><i class="fas fa-envelope" aria-hidden="true"></i></a>` : '';
     return `<div class="ct-row-quick">${call}${email}<i class="fas fa-chevron-right ct-row-chevron" aria-hidden="true"></i></div>`;
   }

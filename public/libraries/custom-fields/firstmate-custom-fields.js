@@ -1597,7 +1597,10 @@
     if (def.type === 'email') return wrap(`<a href="mailto:${escapeHtml(value)}">${escapeHtml(value)}</a>`);
     if (def.type === 'phone' || def.type === 'platform_phone') {
       const numbers = (def.type === 'phone' ? [value] : (Array.isArray(value) ? value : [value]).map((reference) => objectValue(reference).phone_number)).map(cleanText).filter(Boolean);
-      return wrap(numbers.map((number) => `<a href="tel:${escapeHtml(number.replace(/[^+\d]/g, ''))}">${escapeHtml(number)}</a>`).join(', ') || EMPTY_HTML);
+      // FM-546: a phone field calls through the FirstMate phone (calling-runtime.js), tel: being the fallback; the
+      // organization's own lines (platform_phone) keep plain tel: links.
+      const call = (number) => def.type === 'phone' ? ` data-fm-customer-call="${escapeHtml(number)}"` : '';
+      return wrap(numbers.map((number) => `<a href="tel:${escapeHtml(number.replace(/[^+\d]/g, ''))}"${call(number)}>${escapeHtml(number)}</a>`).join(', ') || EMPTY_HTML);
     }
     if (def.type === 'url') {
       let link = null; try { link = new URL(cleanText(value)); } catch (_) {}

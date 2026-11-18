@@ -613,7 +613,28 @@
     }
     if(ui.org()&&ui.user())void Portal.navigation?.applyCurrent?.({source:'phone-session-ready',only:'customer-call-workspace'});
   });
-  Portal.CustomerPhone={startDialer,pauseDialer,supervise,get dialer(){return dialer;},open,connect,disconnect,availability,diagnose,devices,refreshStatus,saveNotes,get state(){return state;},get deviceId(){return deviceId;},
+  // FM-546: calling a customer starts in the FirstMate phone. Anything that shows a customer's number marks its link
+  // or button data-fm-customer-call="<number>" (plus data-contact-id, data-project-id, data-customer-name) or calls
+  // call(); the tray opens ready to call, with "Call from this device" in it. The device's own dialer (the link's
+  // tel: href) is used only when the FirstMate phone is off or unavailable. A project window frame uses the portal's phone.
+  function ownerPhone(){let target=window;try{while(target.parent!==target&&target.parent.Portal?.CustomerPhone)target=target.parent;}catch{}return target.Portal?.CustomerPhone||Portal.CustomerPhone;}
+  function deviceCall(number){const dialed=String(number||'').replace(/[^+0-9*#,;]/g,'');if(!dialed)return false;window.location.href='tel:'+dialed;return true;}
+  async function call(input={}){
+    const owner=ownerPhone();if(owner&&owner!==Portal.CustomerPhone)return owner.call(input);
+    const prepared=Object.fromEntries(['contact_id','project_id','customer_name','customer_number'].map(key=>[key,String(input[key]||'').trim()]).filter(([,value])=>value));
+    let enabled=false;
+    if(!Portal.appFlags?.has||Portal.appFlags.has('apps','comms')){try{enabled=(state.status||await refreshStatus())?.settings?.enabled===true;}catch{}}
+    if(!enabled){deviceCall(prepared.customer_number);return false;}
+    return open(prepared);
+  }
+  document.addEventListener('click',event=>{
+    const link=event.target.closest?.('[data-fm-customer-call]');
+    if(!link||event.defaultPrevented||event.button||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+    const data=link.dataset,number=data.fmCustomerCall||(link.getAttribute('href')||'').replace(/^tel:/i,'');if(!number)return;
+    event.preventDefault();
+    void call({contact_id:data.contactId,project_id:data.projectId,customer_name:data.customerName,customer_number:number}).catch(error=>{Portal.ui?.showToast?.('Call',error.message,false);});
+  });
+  Portal.CustomerPhone={startDialer,pauseDialer,supervise,get dialer(){return dialer;},open,call,deviceCall,connect,disconnect,availability,diagnose,devices,refreshStatus,saveNotes,get state(){return state;},get deviceId(){return deviceId;},
     get diagnostic(){return state.diagnostic;},
     get connecting(){return state.connecting;},get status(){return state.status;},get connected(){return state.registered;},get available(){return state.available;},get takingCalls(){return state.takingCalls;},get currentCall(){return state.call;},get currentEntry(){return state.panel&&!state.panel.hidden?state.entry?.id:null;}};
   Portal.Communications=Portal.Communications||{};Portal.Communications.open=open;

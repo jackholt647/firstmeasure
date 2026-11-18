@@ -407,6 +407,7 @@
     "m_85a2e67110feec": "Whoever completes this checklist signs it once every item is done, here or in the crew app. Printed copies get a signature line."
   },
   "comms": {
+    "m_3ec5c7fbb09941": "Call from this device",
     "m_f6ab2f58b94a8e": "Customer call workspace",
     "m_8f38504a814a9d": "Opening call…",
     "m_314202e0941af2": "Close call workspace",
@@ -1225,7 +1226,19 @@
     "m_1dbeb3226b6daa": {
       "message": "Your phone: {v2}. Availability and audio devices",
       "format": "icu"
-    }
+    },
+    "m_7d461dc7d355cc": "Settings",
+    "m_fb576c53e0edb0": {
+      "message": "Incoming calls: {v1}. Incoming calls and audio devices",
+      "format": "icu"
+    },
+    "m_60c4f9c6f370dd": {
+      "message": "Incoming calls: {v2}. Incoming calls and audio devices",
+      "format": "icu"
+    },
+    "m_6ef4fdc13f90e7": "Personal",
+    "m_16fcf42d6263d1": "Call center",
+    "m_df03a31df3227e": "Calls connect when you place them. Take incoming calls to have customers' calls ring here while this page is open."
   },
   "contacts": {
     "m_bdd2018a2c9640": {

@@ -1033,7 +1033,7 @@
             </dl></div>` : ''}
           ${fieldsList.length ? `<div class="crm-section"><h4>${esc(L('details', 'Details'))}</h4><dl class="crm-kv">${fieldsList.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>` : ''}
           ${contact ? `<div class="crm-section"><h4>${esc(term('contacts.contact', 'Contact'))}</h4><dl class="crm-kv">
-            ${phones.map((p) => `<dt>${esc(L('phone', 'Phone'))}</dt><dd><a href="tel:${esc(p)}">${esc(p)}</a></dd>`).join('')}
+            ${phones.map((p) => `<dt>${esc(L('phone', 'Phone'))}</dt><dd><a href="tel:${esc(p)}" data-fm-customer-call="${esc(p)}" data-contact-id="${esc(contact.id || row.contact_id || '')}" data-project-id="${esc(project?.id || '')}" data-customer-name="${esc(contact.name || row.contact_name || '')}">${esc(p)}</a></dd>`).join('')}
             ${emails.map((e) => `<dt>${esc(L('email', 'Email'))}</dt><dd><a href="mailto:${esc(e)}">${esc(e)}</a></dd>`).join('')}
             ${contact.address ? `<dt>${esc(L('address', 'Address'))}</dt><dd>${esc(contact.address)}</dd>` : ''}
             ${arr(contact.tags).length ? `<dt>${esc(L('tags', 'Tags'))}</dt><dd>${arr(contact.tags).map((t) => `<span class="crm-tag">${esc(t)}</span>`).join('')}</dd>` : ''}
@@ -1046,7 +1046,12 @@
       const record = state.drawer; if (!record) return;
       const { row, project, contact } = record;
       const phones = phonesOf(contact, row);
-      if (action === 'call') return window.Portal?.Communications?.open?.({ project_id: project?.id || '', contact_id: contact?.id || row.contact_id || '', customer_name: contact?.name || row.contact_name || '', customer_number: phones[0] || '' });
+      if (action === 'call') {
+        // FM-546: the FirstMate phone (calling-runtime.js), or the device's dialer when it is off.
+        const phone = window.Portal?.CustomerPhone;
+        if (!phone?.call) { window.location.href = `tel:${String(phones[0] || '').replace(/[^+0-9*#,;]/g, '')}`; return; }
+        return phone.call({ project_id: project?.id || '', contact_id: contact?.id || row.contact_id || '', customer_name: contact?.name || row.contact_name || '', customer_number: phones[0] || '' });
+      }
       if (action === 'text') return openProjectWindow(project, 'comms');
       if (action === 'open') return openProjectWindow(project);
       if (action === 'open_contact') return window.Portal?.modules?.contacts?.open?.(contact);

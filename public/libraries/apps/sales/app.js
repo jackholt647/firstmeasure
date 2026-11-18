@@ -121,7 +121,7 @@
         <div class="sales-appt-time"><strong>${esc(dateLabel ? `${dateLabel}` : time)}</strong><span>${esc(dateLabel ? time : (timed ? 'Scheduled' : 'All day'))}</span></div>
       </div>
       <div class="sales-appt-actions">
-        ${phone ? `<a href="tel:${String(esc(phone))}"><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.htmlText("sales","m_34ac7f9c427ea4"," Call") ?? " Call")}</a>` : ''}
+        ${phone ? `<a href="tel:${String(esc(phone))}" data-fm-customer-call="${String(esc(phone))}" data-project-id="${String(esc(clean(appointment.project_id)))}" data-customer-name="${String(esc(clean(appointment.customer_name)))}"><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.htmlText("sales","m_34ac7f9c427ea4"," Call") ?? " Call")}</a>` : ''}
         ${phone ? `<a href="sms:${String(esc(phone))}"><i class="fas fa-message"></i>${(globalThis.PlatformLanguage?.htmlText("sales","m_d54c6c88f8e154"," Text") ?? " Text")}</a>` : ''}
         ${address ? `<a href="${String(esc(mapsUrl(address)))}" target="_blank" rel="noopener"><i class="fas fa-diamond-turn-right"></i>${(globalThis.PlatformLanguage?.htmlText("sales","m_3367a4d77d65fd"," Directions") ?? " Directions")}</a>` : ''}
         ${stage ? `<span class="sales-pill">${esc(stage)}</span>` : ''}
@@ -470,7 +470,7 @@
       const chips = [
         address ? `<a class="sales-strip-chip" href="${String(esc(mapsUrl(address)))}" target="_blank" rel="noopener"><i class="fas fa-location-dot"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_53d803cdbe9ab1","Address") ?? "Address")}</span><strong>${String(esc(address))}</strong></div></a>` : '',
         customer ? `<div class="sales-strip-chip"><i class="fas fa-user"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_ae8e4953e07d70","Customer") ?? "Customer")}</span><strong>${String(esc(customer))}</strong></div></div>` : '',
-        phone ? `<a class="sales-strip-chip" href="tel:${String(esc(phone.replace(/[^0-9+]/g,'')))}"><i class="fas fa-phone"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_ed04c65845180f","Phone") ?? "Phone")}</span><strong>${String(esc(phone))}</strong></div></a>` : ''
+        phone ? `<a class="sales-strip-chip" href="tel:${String(esc(phone.replace(/[^0-9+]/g,'')))}" data-fm-customer-call="${String(esc(phone))}" data-project-id="${String(esc(projectContextId(context)))}" data-customer-name="${String(esc(customer))}"><i class="fas fa-phone"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_ed04c65845180f","Phone") ?? "Phone")}</span><strong>${String(esc(phone))}</strong></div></a>` : ''
       ].filter(Boolean).join('');
       const stage = clean(project.stage);
       root.innerHTML = `<div class="sales-project-page"><div class="sales-page">
