@@ -175,7 +175,9 @@ const css = `
 .gxd-view .gxd-arrow[data-view-go="1"]{right:16px}
 @keyframes gxdViewIn{from{opacity:0}to{opacity:1}}
 /* The wording beside the document (FM-614): the fields on the left, the document on the right, its pages scrolling. */
-.gxd-copy{display:grid;grid-template-columns:minmax(280px,5fr) minmax(0,6fr);gap:22px;flex:1 1 auto;min-height:0}
+/* The step holds still and each column scrolls on its own: a field taking focus never scrolls the step's title away. */
+.gxd.gxd-fill.gxd-copy-step,.gxd.gxd-fill.gxd-first{min-height:0}
+.gxd-copy{display:grid;grid-template-columns:minmax(280px,5fr) minmax(0,6fr);grid-template-rows:minmax(0,1fr);gap:22px;flex:1 1 auto;min-height:0}
 .gxd-copy-edit{display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;padding:2px 6px 18px 2px;animation:gxdSlideIn .45s cubic-bezier(.22,1,.36,1) both}
 @keyframes gxdSlideIn{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
 .gxd-copy-edit label{display:flex;flex-direction:column;gap:5px;font-size:11.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:#667085}
@@ -1004,7 +1006,7 @@ export function mount(el, ctx){
     sheet?.classList.add('gxs-wide');
     const pane = el.closest('.gxs-step');
     pane?.setAttribute('data-fill', '');
-    el.innerHTML = `<div class="gxd gxd-fill"><div class="gxd-copy">
+    el.innerHTML = `<div class="gxd gxd-fill gxd-copy-step"><div class="gxd-copy">
       <div class="gxd-copy-edit"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div></div>
       <div class="gxd-copy-view"><div class="gxd-doc"></div></div>
     </div><p class="gxd-error" role="alert"></p></div>`;
