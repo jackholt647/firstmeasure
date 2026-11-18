@@ -210,7 +210,7 @@ function documentWidget(el,ctx){
   return {valid:()=>ctx.selections.operations_scope_ready===true,backDepth:stepsBehind,back(){if(busy)return true;if(!stepsBehind())return false;handle.back();return true;},destroy(){alive=false;clearTimeout(timer);handle?.destroy?.();documentEngine?.destroy?.();documentEngineHost?.remove();void flush().catch(()=>{});}};
 }
 function readyWidget(el,ctx){
-  const env=environment(ctx);let alive=true,busy=false,child=null;
+  const env=environment(ctx);let alive=true,busy=false,child=null,tour=null;
   const workforce=window.PlatformTerminology?.get?.('workforce.resource_group_plural','Workforce')||'Workforce';
   const cards=[{id:'suppliers',label:copy('gx_ops_suppliers','Suppliers'),minutes:5,guide:'operations.suppliers.setup',body:copy('gx_ops_suppliers_body','Choose who supplies your materials and add their costs.')},{id:'equipment',label:copy('gx_ops_equipment','Equipment'),minutes:3,body:copy('gx_ops_equipment_body','Connect your equipment to the work your projects require.')},{id:'workforce',label:workforce,minutes:5,guide:'operations.workforce.setup',body:copy('gx_ops_workforce_body','Add who does the work and how you pay them.')},{id:'proposals',label:copy('gx_ops_proposals','Proposals'),minutes:10,guide:'operations.proposal.setup',body:copy('gx_ops_proposals_body','Create proposals with payment terms and customer approval.')}];
   for(const card of cards){const config=array(ctx.options.setups).find(item=>item.id===card.id);if(config){card.minutes=config.minutes??card.minutes;card.guide=config.experience||card.guide;card.selections=config.selections;card.start=config.start;card.appId=config.appId;}}
@@ -238,7 +238,7 @@ function readyWidget(el,ctx){
         child=await window.FirstMateEmbeddableApps.mount(el.querySelector('.ops-app'),'portal.equipment',{orgId:env.orgId,surface:'portal_tab',active:true});
         if(!alive){child?.destroy?.();child=null;return;}
         ctx.setTitle?.(card.label);ctx.syncBack?.();
-        await ctx.runGuide?.('equipment.tab_tutorial',{keepVisible:true});
+        tour=new AbortController();await ctx.runGuide?.('equipment.tab_tutorial',{keepVisible:true,signal:tour.signal});
       }else{
         if(id==='workforce'){
           await env.invoke('operations.workforce.setup.start',{},`operations.workforce.start:${env.orgId}`);
@@ -255,9 +255,10 @@ function readyWidget(el,ctx){
   }
   el.innerHTML=`<div class="ops-loading">${esc(copy('gx_ops_checking','Checking your setup…'))}</div>`;Promise.resolve(ctx.checkpoint?.()).then(syncSessions).catch(()=>null);refresh().catch(error=>{el.innerHTML='<p class="ops-error" role="alert"></p>';showError(error);});
   // Back (and the phone's back, FM-604's backDepth) leaves Equipment for the cards, but not from under its tour: the
-  // tour's overlay is on screen until it ends (its runGuide settles a moment later, after a server refresh).
+  // tour's overlay is on screen until it ends (its runGuide settles a moment later, after a server refresh). Leaving
+  // while the tour is still starting stops it, so it never comes up over the cards.
   const touring=()=>!!document.querySelector('.gx-ov');
-  function leave(){child?.destroy?.();child=null;ctx.setTitle?.('');ctx.syncBack?.();return refresh().catch(showError);}
-  return {backDepth:()=>child?1:0,back(){if(!child)return false;if(!touring())void leave();return true;},destroy(){alive=false;child?.destroy?.();}};
+  function leave(){tour?.abort();tour=null;child?.destroy?.();child=null;ctx.setTitle?.('');ctx.syncBack?.();return refresh().catch(showError);}
+  return {backDepth:()=>child?1:0,back(){if(!child)return false;if(!touring())void leave();return true;},destroy(){alive=false;tour?.abort();child?.destroy?.();}};
 }
 export function mountWidget(id,el,ctx){installStyle();if(id==='operations-path')return pathWidget(el,ctx);if(id==='operations-document')return documentWidget(el,ctx);return readyWidget(el,ctx);}
