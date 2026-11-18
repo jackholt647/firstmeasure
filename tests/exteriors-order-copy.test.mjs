@@ -214,6 +214,7 @@ test('the phone sample opens above the tip with a close X and never covers the p
   assert.match(place, /pop\.style\.maxHeight=room\+'px'/);
   assert.doesNotMatch(show, /Math\.max\(160,|scrollIntoView/, 'no minimum height over the buttons, no scrolling to a zoomed photo');
   assert.match(show, /classList\.toggle\('is-zoomed',on\);placeIntroSample\(pop,button,true\)/);
+  assert.match(source, /\[data-sample-zoom\]\[aria-pressed=true\] img\{aspect-ratio:auto 4\/3;/, 'a zoomed photo keeps its shape while it loads');
   assert.match(source, /\.ext-sample-card\.is-zoomed \[data-sample-zoom\]:not\(\[aria-pressed=true\]\),\.ext-sample-card\.is-zoomed \.ext-sample-more\{display:none\}/);
 });
 
