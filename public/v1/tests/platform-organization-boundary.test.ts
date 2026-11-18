@@ -122,6 +122,8 @@ test("an ordinary member cannot list other organizations, create identities, or 
   assert.equal(typeof memberState.credits.balance, "number");
   assert.equal(memberState.credits.ledger_count, undefined);
   assert.deepEqual(memberState.billing, {});
+  // FM-576: the organization's country of record, where the company phone's calling code starts.
+  assert.match(memberState.country, /^[A-Z]{2}$/);
   const viewerState = await portalState(viewer);
   assert.deepEqual(viewerState.credits, {});
   assert.deepEqual(viewerState.billing, {});

@@ -3,7 +3,7 @@
  * (555) 555-0123), an example number for the chosen country as the placeholder, and E.164 for saving.
  *
  *   const phone = FirstMatePhoneInput.attach({ input, select, countries:[{ code, name, calling_code }], country:'GB' });
- *   phone.e164()  phone.valid()  phone.callingCode()  phone.country()  phone.setCountry('SE')  phone.ready
+ *   phone.e164()  phone.valid()  phone.callingCode()  phone.country()  phone.setCountry('SE')  phone.setValue(saved)  phone.ready
  *
  * The picker is the shared FirstMateSelectList (libraries/select-list) when it is loaded; the native select stays in the
  * form, hidden, as the submitted value. Formatting and the examples use libphonenumber-js (the server's own dependency,
@@ -160,20 +160,28 @@
     input.placeholder = '';
     Promise.resolve(root.PlatformLanguage?.ensure?.(['phone-input'])).then(() => styled?.sync()).catch(() => null);
 
-    const ready = loadLibrary(doc).then((library) => {
-      lib = library;
-      // A saved number shows in its own country's national format (a stored +1 number reads (555) 555-0123); a number
-      // from a country not offered keeps its international format.
+    /* A saved number shows in its own country's national format (a stored +1 number reads (555) 555-0123); a number
+       from a country not offered keeps its international format. */
+    function showSaved() {
       const number = parsed(), code = countryOf(number);
       if (String(input.value).trim().startsWith('+') && number) {
-        if (code) { current = code; picker.value = current; styled?.sync(); input.value = number.formatNational(); }
+        if (code) { current = code; picker.value = current; styled?.sync(); paintPlaceholder(); input.value = number.formatNational(); }
         else input.value = number.formatInternational();
       } else if (String(input.value || '').trim()) input.value = new lib.AsYouType(current).input(String(input.value));
       previous = String(input.value || '');
+    }
+    /** Puts a saved number in the field (FM-576: a form that reloads what was saved), shown as at attach. */
+    function setValue(value) {
+      input.value = String(value ?? '');
+      if (lib) showSaved(); else previous = input.value;
+    }
+    const ready = loadLibrary(doc).then((library) => {
+      lib = library;
+      showSaved();
       return loadExamples(examplesUrl).then((data) => { examples = data; paintPlaceholder(); }, () => null).then(() => true);
     }).catch(() => false);
 
-    return { select: picker, list: styled, ready, e164, valid: () => validE164(e164()), callingCode, country: () => current, setCountry, format };
+    return { select: picker, list: styled, ready, e164, valid: () => validE164(e164()), callingCode, country: () => current, setCountry, setValue, format };
   }
 
   root.FirstMatePhoneInput = { attach, plainE164, validE164, loadLibrary };

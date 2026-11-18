@@ -15,7 +15,7 @@ import { TRANSLATION_CODES, normalizeTranslationLanguage } from "./localization/
 import { messageTranslationPreferences } from "./localization/message-preferences.js";
 import { signupLanguage, signupOptions, signupPhoneInput } from "../commerce/signup-options.js";
 import { commercialPolicy, LEGACY_PROFILE, reportExpediteTimeZone, reportPricesIncludeVat } from "../commerce/profile.js";
-import { countryRecord, profileCountrySource } from "./organization_country.js";
+import { countryRecord, organizationCountry, profileCountrySource } from "./organization_country.js";
 import { registerSignupEmbed } from "../commerce/signup-embed.js";
 import { signupCommercialProfile, profileFromGlobal, organizationProfile, currentProfile, customerCommercialView, creditLabel, creditMinorAmount, reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { exchangeEstimate } from "../commerce/exchange.js";
@@ -1304,6 +1304,8 @@ app.get("/auth/google/config", async () => ({
       },
       billing: managesBilling ? safeBillingView(globalData.billing) : {},
       commerce: customerCommercialView(),
+      // The organization's country of record (FM-576: the company phone starts at its calling code, as signup's did).
+      country: organizationCountry(globalData).country,
       branding: asObject(branchData.branding),
       contact: asObject(branchData.contact),
       report_settings: asObject(branchData.report_settings),
