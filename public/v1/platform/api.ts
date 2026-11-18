@@ -11975,7 +11975,8 @@ function isPortalStructurePinLimitedType(projectType: string) {
 
 function portalPinLimitForType(projectType: string) {
   const normalized = cleanText(projectType).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-  if (normalized === "residential") return MAX_PORTAL_RESIDENTIAL_PINS;
+  // Matches the portal map: no type or residential 5 pins, commercial and multi-family 10.
+  if (!normalized || normalized === "residential") return MAX_PORTAL_RESIDENTIAL_PINS;
   if (isPortalStructurePinLimitedType(normalized)) return MAX_PORTAL_STRUCTURE_PINS;
   return 0;
 }
