@@ -1,4 +1,4 @@
-import { reportPrice, assertCommercialRevision, reportExpeditingAllowed } from "../commerce/profile.js";
+import { reportExteriorPrices, reportMarketRevision, assertCommercialRevision, reportExpeditingAllowed } from "../commerce/profile.js";
 import { z } from "zod";
 import { isCapabilityEnabled } from "../platform/capabilities.js";
 import { readMediaMetadata } from "../platform/storage.js";
@@ -22,11 +22,16 @@ export const EXTERIOR_STANDARD_MINUTES = 12*60;
 // the order form's expedite bar draws.
 export const EXTERIOR_WAIT_RANGE_MINUTES = [EXTERIOR_STANDARD_MINUTES*3/4, EXTERIOR_STANDARD_MINUTES] as const;
 export function exteriorQuote(count=1) {
-  const raw=currentExpeditePricing(), config={...raw,exteriors_base_price:reportPrice(raw.exteriors_base_price),exteriors_same_day_fee:reportPrice(raw.exteriors_same_day_fee),exteriors_priority_fee:reportPrice(raw.exteriors_priority_fee)}, now=pricingContext.getStore()?.now ?? new Date();
+  const raw=currentExpeditePricing(), now=pricingContext.getStore()?.now ?? new Date();
+  const prices=reportExteriorPrices({base:raw.exteriors_base_price,same_day_fee:raw.exteriors_same_day_fee,priority_fee:raw.exteriors_priority_fee});
+  const config={exteriors_base_price:prices.base,exteriors_same_day_fee:prices.same_day_fee,exteriors_priority_fee:prices.priority_fee};
+  // The quote's revision also names its market (and a USD account's euro rate), so an order or upgrade priced in
+  // another market, or at another rate, is refused as "prices changed". The market part is 0 in the US and Canada.
+  const revision=(pricingContext.getStore()?.revision ?? 0)+reportMarketRevision()*1000;
   const orderingClosed=false; // Reports are processed 24/7.
   const roof=buildReportExpediteOptions({now}).options[0]!;
   const ratio=Math.max(0,Math.min(1,((roof.estimated_wait_minutes ?? 240)-240)/180));
-  return {ordering_closed:orderingClosed,pricing_revision:pricingContext.getStore()?.revision ?? 0,structure_count:count,base_price:config.exteriors_base_price,
+  return {ordering_closed:orderingClosed,pricing_revision:revision,structure_count:count,base_price:config.exteriors_base_price,
     busy_label:roof.busy_label,estimated_wait_minutes:Math.round(EXTERIOR_WAIT_RANGE_MINUTES[0]+(EXTERIOR_WAIT_RANGE_MINUTES[1]-EXTERIOR_WAIT_RANGE_MINUTES[0])*ratio),
     options:[{key:"exteriors_standard",label:"Standard · 12 hours",minutes:EXTERIOR_STANDARD_MINUTES,fee:0},
       {key:"exteriors_same_day",label:"Under 6 hours",minutes:360,fee:config.exteriors_same_day_fee},
