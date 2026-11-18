@@ -13,15 +13,15 @@ route to the shared Email Worker with private R2 storage and a retrying Queue.
 ## Safety contract
 
 - Live/test is selected by `DOMAINS_DELIVERY_MODE`; quotes cannot cross environments.
-- Registration is quote-first and checks availability and price again immediately before purchase.
+- Registration is quote-first and checks availability and price again immediately before payment.
 - Premium names require explicit confirmation.
 - Standard registrations above `OPENSRS_MAX_STANDARD_REGISTRATION_PRICE_USD` fail closed.
 - Every registration forces auto-renew, registrar lock, and WHOIS privacy.
-- Quotes include the configured annual Contact Privacy fee and apply
-  `DOMAINS_RETAIL_MARKUP_MULTIPLIER` (1.5 by default). Provider costs remain
-  server-only; API clients receive the retail total.
-- Billing is intentionally deferred. Registrations and transfers persist
-  `billing_status: deferred` and `billing_collected: false`.
+- A customer's yearly price is the registry price times `DOMAINS_RETAIL_MARKUP_MULTIPLIER` (1.5), rounded up to
+  the next `DOMAINS_RETAIL_ROUNDING_USD` (5): $14 is $25. WHOIS privacy is free to the customer (its
+  `OPENSRS_PRIVACY_PRICE_USD` is recorded as our cost). Quotes carry `price` (first year) and `renewal_price`
+  (the registry's renewal price, same formula). Provider costs remain server-only.
+- A new registration is paid before it is made (below). Transfers still persist `billing_status: deferred`.
 - External domains are verified with a unique DNS TXT record and never create a
   provider order.
 - The domain is the idempotency key. Ambiguous provider outcomes are reconciled
@@ -46,7 +46,7 @@ tested. Set it back to `false` and restart the backend to restore live orders.
 - `GET /config`
 - `GET /organizations/:orgId`
 - `POST /organizations/:orgId/quotes`
-- `POST /organizations/:orgId/registrations`
+- `POST /organizations/:orgId/checkouts`, `GET /organizations/:orgId/checkouts/:id`, `POST …/checkouts/:id/refresh`
 - `POST /organizations/:orgId/transfers`
 - `POST /organizations/:orgId/connections`
 - `POST /organizations/:orgId/domains/:domain/verification/check`
@@ -79,3 +79,29 @@ All found: `email_configuration_status` becomes `active` and the domain's addres
 return. A simulated domain (registry test mode) has nothing in DNS; its records are taken as found, as its verification
 is. Statuses: `pending_provider_setup` (address chosen) → `records_pending` → `active`. Disconnecting a domain disables
 its identity. Settings › Domains › Manage shows the records, the nameservers to set at the registrar, and a check.
+
+## Buying domains (FM-590)
+
+`checkout.ts`. Settings › Domains and the Communications setup's "Buy a domain through FirstMate" share one flow
+(`settings/domains.js`): search a name (without an ending it is tried on .com, .net and .co), add any number of
+domains to a cart, the registrant, then one payment.
+
+- `POST checkouts { items: [{ quote_id, domain }], contact, accept_total, attestation }` prices every domain again
+  and refuses a total that is not today's. It saves the checkout (registrant encrypted) and its exact Stripe request,
+  then creates a Stripe Checkout session (`mode: payment`, a line per domain, the card kept with
+  `setup_future_usage: off_session`). The browser opens it in a new tab and polls `refresh`; Stripe returns to
+  Settings › Domains (`?domain_checkout=<id>`), which refreshes too.
+- `refresh` (also `domainStripeWebhook`, from the Stripe webhook proxy in `platform/api.ts`, on
+  `metadata.billing_kind: domain_checkout`) verifies the paid session (organization, checkout, amount, currency, mode),
+  claims the work with the checkout's revision, and registers each domain (`registerPaidDomain`: one year,
+  `billing_status: paid`). A domain the registry refuses after payment is refunded (`refunds`, idempotent per domain;
+  `refund_due` and an event when Stripe can't be reached). An ambiguous registry answer waits for the next refresh.
+- Renewal: each domain gets its own yearly Stripe subscription (product `Domain renewal · <domain>`, the card just
+  used, `billing_cycle_anchor` 30 days before the domain expires, `proration_behavior: none`, so nothing is charged
+  until then). The registration keeps `subscription { subscription_id, status, renews_at, cancel_at_period_end }`.
+  Turning auto-renew off in Manage sets `cancel_at_period_end` (and the registrar's auto-renew off); on clears it. A
+  subscription Stripe ends (`canceled`, `unpaid`) turns the registrar's auto-renew off through the webhook
+  (`metadata.billing_kind: domain_subscription`), so the registry never renews a domain nobody is paying for;
+  `past_due` keeps it while Stripe retries.
+- Development: Stripe test mode (card 4242 4242 4242 4242) and `DOMAINS_ORDER_TEST_MODE`, so the payment and the
+  subscriptions are real test objects and the registry order is simulated.

@@ -71,10 +71,10 @@
       method:'POST',
       body:{ domains, period, acquisition_type:acquisitionType }
     }),
-    register:(orgId, payload) => request(orgPath(orgId, '/registrations'), {
-      method:'POST',
-      body:payload
-    }),
+    // FM-590: a cart of domains is bought with one payment; refresh finishes it once Stripe has the payment.
+    checkout:(orgId, payload) => request(orgPath(orgId, '/checkouts'), { method:'POST', body:payload }),
+    checkoutStatus:(orgId, checkoutId) => request(orgPath(orgId, `/checkouts/${enc(checkoutId)}`)),
+    refreshCheckout:(orgId, checkoutId) => request(orgPath(orgId, `/checkouts/${enc(checkoutId)}/refresh`), { method:'POST', body:{} }),
     transfer:(orgId, payload) => request(orgPath(orgId, '/transfers'), { method:'POST', body:payload }),
     connect:(orgId, domain) => request(orgPath(orgId, '/connections'), {
       method:'POST',

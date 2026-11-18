@@ -30,7 +30,7 @@ test('Communications setup: start, carrier registration, one done page with emai
       // The registration workflow (settings/sms-registration.js): the test submits it by closing it.
       window.FirstMateSetupWizard={open(){}};
       window.FirstMateSmsRegistration={open:options=>new Promise(resolve=>{calls.push({action:'registration.open',input:options});window.submitRegistration=()=>{registration='approved';resolve({id:'profile'});};})};
-      window.DomainsAPI={config:async()=>({configured:true,encryption_configured:true})};
+      window.DomainsAPI={config:async()=>({configured:true,encryption_configured:true,billing_enabled:true})};
       window.FirstMateDomainsSettings={openForEmail:async options=>{calls.push({action:'domains.open',input:options});}};
       addEventListener('fm:comms:setup-changed',()=>events.push('changed'));
     });
@@ -67,9 +67,12 @@ test('Communications setup: start, carrier registration, one done page with emai
     // FM-513: email asks how it starts (nothing is turned on until a way is picked), then FirstMate Mail is on at once.
     const before=await page.evaluate(()=>calls.length);
     await page.getByRole('button',{name:'Set up'}).click();
-    for(const name of [/^Use my domain/,/^Buy a domain/,/^FirstMate Mail/])await page.getByRole('button',{name}).waitFor();
+    // FM-590: FirstMate Mail first (the default), then your own domain, both free; then buying one, which is paid.
+    for(const name of [/^FirstMate Mail/,/^Use your own domain/,/^Buy a domain through FirstMate/])await page.getByRole('button',{name}).waitFor();
+    assert.deepEqual(await page.locator('[data-gxc-email-way]').evaluateAll(cards=>cards.map(card=>card.dataset.gxcEmailWay+':'+(card.querySelector('.gxc-tag')?.textContent||'')+(card.hasAttribute('data-first')?':default':''))),['firstmate:Free:default','existing:Free','register:Paid']);
+    await page.getByText('FirstMate Mail and your own domain are free. A domain bought through FirstMate is billed every year, with privacy included free.').waitFor();
     assert.equal(await page.evaluate(()=>calls.length),before,'choosing email turns nothing on');
-    assert.equal(await page.getByText('Find a new one').count(),1,'domains can be bought where the registry is set up');
+    assert.equal(await page.getByText('Search for a name and see its yearly price').count(),1,'domains can be bought where the registry and billing are set up');
     await page.getByRole('button',{name:/^FirstMate Mail/}).click();
     await page.locator('[data-gxc-address]',{hasText:'acme@mail.test'}).waitFor();
     assert.equal(await page.getByText('Ready on +12025550100.').count(),1,'email is turned on in the same page');
@@ -175,7 +178,7 @@ test('Communications setup: channel tooltips over their own card, and where regi
   }finally{await browser.close();}
 });
 
-// FM-513: email from an Overview button opens the choice, not FirstMate Mail. "Use my domain" runs the Domains workflow
+// FM-513: email from an Overview button opens the choice, not FirstMate Mail. "Use your own domain" runs the Domains workflow
 // full screen; closed before the domain is verified, the choice offers to finish it; once it has its address, email is
 // on and the done page shows that address and where mail is sent from until the domain's email records are set up.
 test('Communications setup: email on the company\'s own domain',async()=>{
@@ -209,13 +212,13 @@ test('Communications setup: email on the company\'s own domain',async()=>{
     await page.getByText('Not available yet').waitFor();
     assert.equal(await page.getByRole('button',{name:/^Buy a domain/}).isDisabled(),true,'no domain can be bought while the registry is not set up');
     assert.deepEqual(await page.evaluate(()=>calls.map(c=>c.action)),['comms.setup.status'],'nothing is turned on by itself');
-    await page.getByRole('button',{name:/^Use my domain/}).click();
+    await page.getByRole('button',{name:/^Use your own domain/}).click();
     await page.waitForFunction(()=>opens.length===1);
     assert.deepEqual(await page.evaluate(()=>opens[0]),{orgId:'org-test',path:'existing',domain:'',hidden:'hidden'},'the workflow opens full screen, the setup steps aside');
     await page.evaluate(()=>closeDomains({name:'acme.com',address:'',state:'verify'}));
     await page.getByText('Finish connecting acme.com').waitFor();
     assert.equal(await page.evaluate(()=>calls.some(c=>c.action==='comms.setup.start')),false,'an unverified domain turns nothing on');
-    await page.getByRole('button',{name:/^Use my domain/}).click();
+    await page.getByRole('button',{name:/^Use your own domain/}).click();
     await page.waitForFunction(()=>opens.length===2);
     assert.equal(await page.evaluate(()=>opens[1].domain),'acme.com','picks up the domain already started');
     await page.evaluate(()=>closeDomains({name:'acme.com',address:'info@acme.com',state:'records'}));
@@ -278,6 +281,61 @@ test('Domains workflow for email: domain, TXT record, address, no website',async
     // Started before: it opens on the TXT record for that domain.
     await page.evaluate(()=>{window.listed=[{domain:'acme.com',acquisition_type:'existing',status:'dns_verification_pending',verification:{host:'_firstmate-verification.acme.com',value:'token-1'}}];window.result=null;FirstMateDomainsSettings.openForEmail({orgId:'org-test',path:'existing',domain:'acme.com'}).then(value=>{window.result=value;});});
     await page.locator('.fm-wizard').getByText('token-1').first().waitFor();
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+// FM-590: buying domains: a name is tried on .com, .net and .co, two go in the cart, the registrant, then one payment on
+// Stripe's page (a new tab, so the workflow stays); once the payment is in, the domains are registered and it moves on.
+test('Domains workflow: buy a cart of domains with one payment',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];
+    page.on('pageerror',error=>errors.push(error.message));
+    await page.route('https://comms-setup.test/**',async route=>{
+      const url=new URL(route.request().url());
+      if(url.pathname.startsWith('/libraries/'))return route.fulfill({contentType:'text/javascript',body:await readFile(new URL('../..'+url.pathname,import.meta.url),'utf8')});
+      return route.fulfill({contentType:'text/html',body:'<main></main>'});
+    });
+    await page.goto('https://comms-setup.test/');
+    await page.evaluate(()=>{
+      window.calls=[];let checkout=null;
+      window.open=(url)=>{calls.push(['open',url]);return {closed:false,close(){},location:{set href(value){calls.push(['tab',value]);}}};};
+      window.DomainsAPI={config:async()=>({configured:true,encryption_configured:true,billing_enabled:true,order_test_mode:true}),list:async()=>({domains:window.listed||[]}),
+        quote:async(org,domains)=>{calls.push(['quote',domains]);return {quote:{id:'quote-1',items:domains.map((domain,index)=>index===1?{domain,available:false,reason:'Already registered'}:{domain,available:true,price:'25.00',renewal_price:'25.00',privacy_price:'0.00'})}};},
+        checkout:async(org,body)=>{calls.push(['checkout',body]);checkout={id:'checkout-1',status:'open',url:'https://checkout.stripe.test/pay',total:body.accept_total,items:body.items.map(item=>({domain:item.domain,price:'25.00',status:''}))};return {checkout};},
+        refreshCheckout:async()=>{calls.push(['refresh']);
+          if(window.paid){checkout={...checkout,status:'fulfilled',url:'',items:checkout.items.map(item=>({...item,status:'registered'}))};window.listed=checkout.items.map(item=>({domain:item.domain,acquisition_type:'register',status:'verification_pending',simulated:true}));}
+          return {checkout};}};
+      window.WebsitesAPI={sites:{list:async()=>({sites:[]})}};
+    });
+    await page.addScriptTag({url:'/libraries/setup-wizard/setup-wizard.js'});
+    await page.addScriptTag({url:'/libraries/apps/settings/domains.js'});
+    await page.evaluate(()=>{FirstMateDomainsSettings.openForEmail({orgId:'org-test',path:'register'});});
+    const wizard=page.locator('.fm-wizard');
+    await wizard.locator('input[name="domain"]').fill('Acme Roofing');
+    await wizard.locator('[data-search] button[type="submit"]').click();
+    await wizard.locator('[data-cart-toggle="acmeroofing.com"]').click();
+    await wizard.locator('[data-cart-toggle="acmeroofing.co"]').click();
+    assert.equal(await wizard.locator('[data-cart-toggle="acmeroofing.net"]').count(),0,'a taken name cannot be added');
+    await wizard.locator('[data-cart]').getByText('$50.00').waitFor();
+    assert.deepEqual(await page.evaluate(()=>calls[0]),['quote',['acmeroofing.com','acmeroofing.net','acmeroofing.co']]);
+    assert.ok(await wizard.evaluate(node=>node.scrollWidth<=innerWidth),'the cart fits the phone');
+    await wizard.getByRole('button',{name:/Continue/}).click();
+    for(const [name,value] of Object.entries({first_name:'Ada',last_name:'Owner',address1:'1 Main St',city:'Seattle',state:'WA',postal_code:'98101',country:'US',phone:'+12065550100',email:'ada@example.test'}))await wizard.locator(`input[name="${name}"]`).fill(value);
+    await wizard.getByRole('button',{name:/Continue/}).click();
+    await wizard.getByText('Privacy').waitFor();
+    await wizard.getByText('Test mode.').waitFor();
+    await wizard.locator('[data-attest]').check();
+    await wizard.getByRole('button',{name:/Pay \$50\.00/}).click();
+    await wizard.locator('[data-pay-waiting]').waitFor();
+    const started=await page.evaluate(()=>calls.filter(call=>call[0]!=='refresh'));
+    assert.deepEqual(started.slice(1).map(call=>call[0]),['open','checkout','tab']);
+    assert.deepEqual(started[2][1],{items:[{quote_id:'quote-1',domain:'acmeroofing.com'},{quote_id:'quote-1',domain:'acmeroofing.co'}],contact:{first_name:'Ada',last_name:'Owner',org_name:'',address1:'1 Main St',address2:'',city:'Seattle',state:'WA',postal_code:'98101',country:'US',phone:'+12065550100',email:'ada@example.test'},accept_total:'50.00',attestation:true,allow_premium:false});
+    assert.equal(started[3][1],'https://checkout.stripe.test/pay','the new tab goes to Stripe');
+    await page.evaluate(()=>{window.paid=true;});
+    await wizard.getByRole('button',{name:'Check payment'}).click();
+    await wizard.locator('[data-purchased]').getByText('acmeroofing.com, acmeroofing.co are yours').waitFor();
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
