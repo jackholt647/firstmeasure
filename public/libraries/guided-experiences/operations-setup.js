@@ -213,7 +213,7 @@ function readyWidget(el,ctx){
   const env=environment(ctx);let alive=true,busy=false,child=null;
   const workforce=window.PlatformTerminology?.get?.('workforce.resource_group_plural','Workforce')||'Workforce';
   const cards=[{id:'suppliers',label:copy('gx_ops_suppliers','Suppliers'),minutes:5,guide:'operations.suppliers.setup',body:copy('gx_ops_suppliers_body','Choose who supplies your materials and add their costs.')},{id:'equipment',label:copy('gx_ops_equipment','Equipment'),minutes:3,body:copy('gx_ops_equipment_body','Connect your equipment to the work your projects require.')},{id:'workforce',label:workforce,minutes:5,guide:'operations.workforce.setup',body:copy('gx_ops_workforce_body','Add who does the work and how you pay them.')},{id:'proposals',label:copy('gx_ops_proposals','Proposals'),minutes:10,guide:'operations.proposal.setup',body:copy('gx_ops_proposals_body','Create proposals with payment terms and customer approval.')}];
-  for(const card of cards){const config=array(ctx.options.setups).find(item=>item.id===card.id);if(config){card.minutes=config.minutes??card.minutes;card.guide=config.experience||card.guide;}}
+  for(const card of cards){const config=array(ctx.options.setups).find(item=>item.id===card.id);if(config){card.minutes=config.minutes??card.minutes;card.guide=config.experience||card.guide;card.selections=config.selections;card.start=config.start;card.appId=config.appId;}}
   async function refresh(){
     const state=await env.invoke('operations.setup.status',{operations_document_id:ctx.selections.operations_project_id===env.projectId?ctx.selections.operations_document_id:undefined});if(!alive)return;
     if(!state.scope_ready){
@@ -241,7 +241,9 @@ function readyWidget(el,ctx){
           await Promise.all([window.PlatformAPI.capabilities.load(env.orgId,{refresh:true}),window.PlatformAPI.appFlags.load(env.orgId,{refresh:true})]);
           await window.Portal.auth.syncPlatformSession();await window.FirstMateGuides?.refresh?.();
         }
-        const result=await ctx.runGuide?.(card.guide);
+        // A setup that belongs to an app the organization was only offered (the document setup: Docs) starts the app first.
+        if(card.appId)await activate(card.appId,env.orgId);
+        const result=await ctx.runGuide?.(card.guide,{...(card.selections?{selections:card.selections}:{}),...(card.start?{start:card.start}:{})});
         if(result?.status==='unavailable')throw Error(copy('gx_ops_setup_unavailable','This setup is not available for your account.'));
         await refresh();
       }
