@@ -159,6 +159,9 @@ test('steps(): a sheet over a sheet, and route entries pushed meanwhile carry no
     });
     await tab.mouse.click(5,5);
     await tab.evaluate(()=>window.inner.depth(2));
+    // One entry per input: the second waits for the next tap.
+    await settled(tab,1);
+    await tab.mouse.click(5,5);
     await settled(tab,2);
     // The newest sheet answers first.
     await tab.evaluate(()=>history.back());

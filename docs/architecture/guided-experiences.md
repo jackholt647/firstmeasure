@@ -245,7 +245,16 @@ columns). Other steps make the sheet as tall as they are and scroll with a fade 
 the bottom past the cap. Do not size the sheet per guide. `hint()` says why Continue is disabled, as its tooltip.
 Steps can branch: the player follows a step's fixed `next` itself, waits for the
 server's answer only after a step with `branches`, remembers the way taken (Back
-returns along it). There is no step count or progress bar: a setup's length is not
+returns along it). The phone's back control (Android back, iOS swipe) is that
+Back (FM-554): the sheet keeps one history entry per step behind the one on
+screen plus one for its first step, through `Portal.navigation.steps()` (in
+`navigation/portal-navigation.js`, the page's one owner of `window.history`;
+the phone booking steps use it too). Entries are on the page's own URL, are
+added only after a tap or key (Chrome skips entries added without one), never
+re-apply the route, and come off when the sheet closes. Back on the first step
+asks to skip, as the X does; with that question open it is Keep going; on the
+finish it closes. Do not call `history.pushState` for steps yourself.
+There is no step count or progress bar: a setup's length is not
 known ahead ([setup steps](setup-steps.md) it requires are asked only while
 unanswered), so the frame only goes on to the next step. The finished screen
 is centred and waits for one of its two buttons: "Start generating materials"
@@ -702,7 +711,8 @@ Materials tab audit (October 24), button to published action:
    replay, phone width) and `tests/guided-experiences-flow-browser.test.mjs`
    (portal plus project frame: one experience at a time, fast Next and Back,
    close mid-tour, reopen, reload, switch projects, the tray's lines once, dev
-   editing) and `tests/guided-experiences-dev.test.ts` (dev gating, copy in the
+   editing) and `tests/guided-setup-back-gesture-browser.test.mjs` (the phone's
+   back control through a setup) and `tests/guided-experiences-dev.test.ts` (dev gating, copy in the
    library, history, revert, reset), and `tests/config-library-guided-kinds.test.ts`
    (the kinds' checks). Set `GX_SHOTS=<dir>` to save screenshots.
 

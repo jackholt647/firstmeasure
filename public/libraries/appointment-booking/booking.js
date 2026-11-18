@@ -179,6 +179,7 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
         button.disabled = busy || !visited.has(item.dataset.progress) || position === index || (item.dataset.progress === 'when' && !chosen());
       });
       if (step === 'when') $('[data-summary]').innerHTML = summary();
+      syncBack();
     }
     function go(name, {focus = true} = {}){
       clearTimeout(advanceTimer);
@@ -209,6 +210,23 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
     const goNext = () => { if (step === 'new') { void createProject(); return; } const following = order[order.indexOf(step) + 1]; if (following) go(following); };
     const goPrev = () => { if (step === 'new') { go('project'); return; } const preceding = order[order.indexOf(step) - 1]; if (preceding) go(preceding); };
     const advanceFromType = () => { if (step !== 'type') return; clearTimeout(advanceTimer); advanceTimer = setTimeout(goNext, reduceMotion() ? 0 : 200); };
+    /* The phone's back control is Previous (FM-554): a history entry per step behind this one, one that closes from the
+       first step or the finish, and one more while the Advanced sheet is open (back closes it). */
+    const sheetOpen = () => advancedButton.getAttribute('aria-expanded') === 'true';
+    const backHistory = window.Portal?.navigation?.steps?.({onBack:count => {
+      for (let n = 0; n < count && dialog.open; n += 1) {
+        if (sheetOpen()) closeSheet();
+        else if (saving || creating) break;
+        else if (done || step === 'type') close();
+        else goPrev();
+      }
+      syncBack();
+    }}) || null;
+    function syncBack(){
+      if (!dialog.open) return;
+      const behind = done ? 0 : step === 'new' ? order.indexOf('project') + 1 : Math.max(0, order.indexOf(step));
+      backHistory?.depth(behind + 1 + (sheetOpen() ? 1 : 0));
+    }
 
     function openSheet({saveType = false} = {}){
       if (!configuration || done) return;
@@ -216,6 +234,7 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
       scrim.hidden = false; sheet.hidden = false; advancedButton.setAttribute('aria-expanded', 'true');
       $('form').inert = true; $('.fm-booking-head').inert = true;
       requestAnimationFrame(() => { scrim.classList.add('open'); sheet.classList.add('open'); });
+      syncBack();
       const field = saveType ? sheet.querySelector('[data-type-name]') : null;
       if (field) { field.closest('[data-save-type-section]')?.classList.add('fm-ap-highlight'); field.scrollIntoView({block:'center'}); field.focus({preventScroll:true}); }
       else { sheet.querySelector('.fm-booking-sheet-body').scrollTop = 0; $('#fm-booking-sheet-title').focus({preventScroll:true}); }
@@ -226,6 +245,7 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
       $('form').inert = false; $('.fm-booking-head').inert = false;
       sheet.querySelector('.fm-ap-highlight')?.classList.remove('fm-ap-highlight');
       sheetTimer = setTimeout(() => { scrim.hidden = true; sheet.hidden = true; }, reduceMotion() ? 0 : 280);
+      syncBack();
       if (sheetAdvances) { sheetAdvances = false; advanceFromType(); }
       else advancedButton.focus({preventScroll:true});
     }
@@ -324,7 +344,7 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
     scrim.onclick = closeSheet;
     dialog.addEventListener('click', event => { const goto = event.target.closest('[data-goto]'); if (goto && !goto.disabled) go(goto.dataset.goto); });
     dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); else if (!sheet.hidden) { event.preventDefault(); closeSheet(); } });
-    dialog.addEventListener('close', () => { clearTimeout(advanceTimer); clearTimeout(sheetTimer); picker?.destroy(); configuration?.destroy(); select?.destroy(); }, {once:true});
+    dialog.addEventListener('close', () => { clearTimeout(advanceTimer); clearTimeout(sheetTimer); backHistory?.release(); picker?.destroy(); configuration?.destroy(); select?.destroy(); }, {once:true});
 
     if (!lockedProject) {
       select = window.FirstMateProjectSelector.mount($('[data-project]'), {orgId, projectId:options.projectId, inline:true, recent:false,

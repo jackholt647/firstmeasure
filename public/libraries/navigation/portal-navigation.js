@@ -368,10 +368,11 @@
    * the sheet goes. These pops never re-apply the route.
    *
    * Chrome skips an entry on Back when the page added the next one without a user input since its last entry, so an
-   * entry is added only after an input: one that cannot be yet waits for the next tap or key.
+   * entry is added only after an input, one per input: one that cannot be yet waits for the next tap or key.
    */
   const stepOwners = [];
-  ['pointerup', 'mousedown', 'touchend', 'keydown'].forEach((name) => root.addEventListener?.(name, (event) => {
+  // A tap or click ends with one pointerup whatever the pointer: one input, not one per event it fires.
+  ['pointerup', 'keydown'].forEach((name) => root.addEventListener?.(name, (event) => {
     if (!event.isTrusted) return;
     inputSinceEntry = true;
     stepOwners.forEach((owner) => owner.reconcile());
@@ -389,11 +390,9 @@
           if (!inputSinceEntry) return;
           if (!actual) href = currentHref();
           const route = read();
-          while (actual < desired) {
-            actual += 1;
-            try { root.history.pushState({ ...navigationState('pushState', [], { source: 'steps' }, route, route), fmSteps: { token, depth: actual } }, '', currentHref()); }
-            catch (_) { actual -= 1; break; }
-          }
+          // One per input: a jump of several steps adds the rest on the next taps.
+          try { root.history.pushState({ ...navigationState('pushState', [], { source: 'steps' }, route, route), fmSteps: { token, depth: actual + 1 } }, '', currentHref()); actual += 1; }
+          catch (_) {}
           inputSinceEntry = false;
         } else if (desired < actual) {
           pending = root.setTimeout(() => { pending = 0; actual = desired; owner.reconcile(); }, 1000);
