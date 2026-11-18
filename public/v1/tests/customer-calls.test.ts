@@ -420,6 +420,27 @@ test('new recording media is stored and playable through the authenticated API',
   assert.equal((await c.raw('GET',`${base}/calls/${call.id}/artifacts/${artifactId}/media`)).status,404);
 });
 
+test('the inbox shows a call outcome in words, never its stored key (FM-555)',async()=>{
+  const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}`;
+  const seed=await c.request('POST',`${base}/calls`,{operation_id:'fm555-owner',customer_number:'+12065550160'});
+  const add=async(id:string,direction:string,state:string,extra:Record<string,unknown>={})=>{
+    await store.insertCall({id,organization_id:orgId,branch_id:'default',mode:'browser',direction,state,owner_user_id:seed.call.owner_user_id,customer_number:'+12065550161',business_number:'+12065550162'});
+    if(Object.keys(extra).length)await store.patchCall(orgId,id,extra);
+  };
+  await add('fm555-out-no-answer','outbound','no_answer');
+  await add('fm555-in-missed','inbound','no_answer');
+  await add('fm555-ended','outbound','ended',{connected_at:'2026-01-01T10:00:00Z',ended_at:'2026-01-01T10:02:00Z'});
+  await add('fm555-wrong','outbound','ended',{connected_at:'2026-01-01T10:00:00Z'});
+  await store.database().prepare("UPDATE customer_calls SET result_json=? WHERE organization_id=? AND id=?").run(JSON.stringify({disposition:'wrong_number'}),orgId,'fm555-wrong');
+  const rows=(await c.request('GET',`${base}/inbox?channel=call`)).conversations;
+  const preview=(id:string)=>rows.find((row:any)=>row.id===id)?.last_message?.text;
+  assert.equal(preview('fm555-out-no-answer'),'No answer');
+  assert.equal(preview('fm555-in-missed'),'Missed call');
+  assert.equal(preview('fm555-ended'),'Call ended');
+  assert.equal(preview('fm555-wrong'),'Wrong number');
+  for(const row of rows)assert.doesNotMatch(String(row.last_message?.text),/^[a-z]+(_[a-z]+)+$/,`raw key in ${row.id}`);
+});
+
 test('new inbound activity reopens a resolved conversation and read markers remain per user',async()=>{
   const {incomingWorkflow}=await import('../comms/calls/activity.js'),org='workflow-org';
   (await store.database().prepare("INSERT INTO customer_communication_workflow VALUES(?,?,?,?,?,?,?,?)").run(org,'conversation','thread','alice','closed','2099-01-01',3,'2026-01-01'));
