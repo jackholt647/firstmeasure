@@ -270,7 +270,12 @@ The left project details tray (`#rDetailsTray`) starts open whenever the window 
 an order or without. Nothing is remembered in the browser. A person's close holds for that project, including when a
 new project takes its id through an autosave or a placed order, until another project opens or the window closes. On
 a phone the tray is a sheet over the content, so it starts closed unless the project has no record yet or its report
-order or picker is in progress. A link or a placed order that asks for Reports' measurements in an organization with
+order or picker is in progress. On a desktop the Operations tab (`project.materials`), which shows the measurements
+itself, closes the tray while it shows once Operations is set up (`platform.materials` is on, not just offered, and the
+organization finished `operations.setup` or that setup is not offered to this person), including right after that setup finishes there, and opens it again on leaving the tab
+only if Operations closed it (FM-611). Opening or closing it by hand on Operations holds for that visit and is what stays;
+that close is announced as not the person's (`user: false`), and nothing of it is remembered in the browser.
+A link or a placed order that asks for Reports' measurements in an organization with
 no Reports tab still opens it, because the tray is where they show. The report order's phone pages keep the form in
 Overview. Full Exterior's capture panel closes only an open right-hand tray and restores it, never this one.
 Test: `public/v1/tests/project-details-tray-browser.test.mjs`.

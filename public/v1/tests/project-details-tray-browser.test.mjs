@@ -9,7 +9,7 @@ const tray=source.slice(source.indexOf('  const detailsTrayText='),source.indexO
 const shell=`<div id="rOverlay"><div class="r-win"><div class="r-window-bar"><button id="rProjectIdentityTrigger"></button><span id="rWindowProjectTitle">Project</span></div><div class="r-overview-details"></div></div></div>`;
 // The window's own state, which open() and the order flow change, around the tray's real code.
 const harness=`
-  let activeBaseProject=null,overviewWorkflowMode='',requestedWorkflow='project',ordered=false,phone=matchMedia('(max-width: 760px)').matches,detailsTrayAsked=false;
+  let activeBaseProject=null,overviewWorkflowMode='',requestedWorkflow='project',ordered=false,phone=matchMedia('(max-width: 760px)').matches,detailsTrayAsked=false,activePreviewTab='map';
   const projectOpenId=()=>activeBaseProject?.id||'';
   const hasReportOrdered=()=>ordered;
   const isMobileProjectOrder=()=>phone;
@@ -24,6 +24,10 @@ const harness=`
     orderPlaced(id){activeBaseProject={id};requestedWorkflow='project';overviewWorkflowMode='';ordered=true;syncDetailsTray();},
     orderPages(on){document.getElementById('rOverlay').classList.toggle('mobile-order',on);syncDetailsTray();},
     userSet(open){setDetailsTrayOpen(open,{user:true});},
+    // The window's tab change (setActivePreviewTab) and the guide runtime's list (FirstMateGuides.preload).
+    tab(id){activePreviewTab=id;syncDetailsTrayOperations();},
+    opsSetup(status,on=true){window.PlatformAPI={capabilities:{can:key=>key==='platform.materials' && on}};window.FirstMateGuides={preload:async()=>({experiences:new Map(status===undefined?[]:[['operations.setup',{id:'operations.setup',progress:status?{status}:null}]])})};},
+    setupFinished(){window.FirstMateGuides.preload=async()=>({experiences:new Map([['operations.setup',{progress:{status:'completed'}}]])});window.dispatchEvent(new CustomEvent('fm:guides:ended',{detail:{id:'operations.setup'}}));},
     setPhone(on){phone=on;window.dispatchEvent(new Event('resize'));},
     isOpen:()=>document.getElementById('rOverlay').classList.contains('details-tray-open'),
     isSheet:()=>document.getElementById('rOverlay').classList.contains('details-tray-sheet'),
@@ -169,4 +173,101 @@ test('the title carries arrows pointing the way the tray will go',()=>{
   assert.match(source,/#rProjectIdentityTrigger,\.r-project-identity-trigger\)::after\{content:'\\\\f101'/,'closed: arrows pointing right, to open');
   assert.match(source,/#rProjectIdentityTrigger\[aria-expanded=true\]::after\{content:'\\\\f100'\}/,'open: arrows pointing left, as the sheet\'s close');
   assert.match(source,/close\.innerHTML='<i class="fas fa-angles-left"/);
+});
+
+// FM-611: Operations shows the measurements itself, so once Operations is set up the tray steps aside on that tab and
+// comes back on leaving it, unless the person set it by hand there.
+test('the Operations tab closes the tray once Operations is set up and gives it back on leaving',async()=>{
+  const browser=await launch();
+  try{
+    const {run,isOpen,errors,page}=await mount(browser,1280);
+    const settle=()=>page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,20)));
+    await page.evaluate(()=>{window.panelEvents=[];addEventListener('fm:project-panel:closed',e=>panelEvents.push(e.detail.user));document.getElementById('rOverlay').classList.add('active');});
+    await run('opsSetup','completed');
+    await run('openProject','project_a');
+    await run('tab','materials');await settle();
+    assert.equal(await isOpen(),false,'set up: Operations closes it');
+    assert.deepEqual(await page.evaluate(()=>panelEvents),[false],'announced as not the person\'s close, so no close tour plays');
+    await run('tab','docs');await settle();
+    assert.equal(await isOpen(),true,'leaving Operations opens it again');
+    // A tray the person had closed stays closed both ways.
+    await run('userSet',false);
+    await run('tab','materials');await settle();
+    await run('tab','map');await settle();
+    assert.equal(await isOpen(),false,'never opened by leaving when Operations did not close it');
+    // Set by hand on Operations: that holds for the visit and is what stays after it.
+    await run('userSet',true);
+    await run('tab','materials');await settle();
+    assert.equal(await isOpen(),false);
+    await run('userSet',true);
+    await run('tab','materials');await settle();
+    assert.equal(await isOpen(),true,'opened by hand on Operations stays open there');
+    await run('userSet',false);
+    await run('tab','map');await settle();
+    assert.equal(await isOpen(),false,'closed by hand on Operations stays closed after');
+    // Opening a project straight on Operations closes it too.
+    await run('openProject','project_b');await settle();
+    assert.equal(await isOpen(),true);
+    await run('tab','materials');await settle();
+    await run('openProject','project_c');await settle();
+    assert.equal(await isOpen(),false,'the next project opened on Operations');
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+test('the tray stays put on Operations until its setup is finished, then closes when it finishes',async()=>{
+  const browser=await launch();
+  try{
+    const {run,isOpen,errors,page}=await mount(browser,1280);
+    const settle=()=>page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,20)));
+    for(const status of [null,'started','dismissed','deferred']){
+      await run('opsSetup',status);
+      await run('openProject','project_'+status);
+      await run('tab','materials');await settle();
+      assert.equal(await isOpen(),true,`setup ${status}`);
+      await run('tab','map');await settle();
+    }
+    await run('opsSetup',null);
+    await run('tab','materials');await settle();
+    await run('setupFinished');await settle();
+    assert.equal(await isOpen(),false,'finishing the setup on Operations closes it');
+    await run('tab','map');await settle();
+    assert.equal(await isOpen(),true);
+    // Not offered to this person (the list has no Operations setup): nothing to set up first.
+    await run('opsSetup',undefined);
+    await run('tab','materials');await settle();
+    assert.equal(await isOpen(),false);
+    // Operations only offered (its welcome shows), so its setup is not listed either: not set up.
+    await run('tab','map');await settle();
+    await run('opsSetup',undefined,false);
+    await run('tab','materials');await settle();
+    assert.equal(await isOpen(),true,'an offered Operations is not set up');
+    // A list that could not be read leaves the tray alone.
+    await run('tab','map');await settle();
+    await page.evaluate(()=>{window.FirstMateGuides={preload:async()=>null};});
+    await run('tab','materials');await settle();
+    assert.equal(await isOpen(),true);
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+test('on a phone Operations leaves the tray sheet alone',async()=>{
+  const browser=await launch();
+  try{
+    const {run,isOpen,errors,page}=await mount(browser,390);
+    const settle=()=>page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,20)));
+    await run('opsSetup','completed');
+    await run('openProject','');
+    assert.equal(await isOpen(),true,'a new project is filled in on the sheet');
+    await run('tab','materials');await settle();
+    assert.equal(await isOpen(),true);
+    await run('openProject','project_a');
+    await run('tab','map');await settle();
+    assert.equal(await isOpen(),false,'never opened over the page by leaving Operations');
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+test('the window tells the tray about every tab change',()=>{
+  assert.match(source,/syncProjectModalAppActivation\(previousTab\);\n\s+syncDetailsTrayOperations\(\);/);
 });
