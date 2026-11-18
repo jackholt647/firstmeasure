@@ -22,7 +22,7 @@ const css = `
 .gxc-ways{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .gxc-way{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px 14px;border:1px solid #e4e7ec;border-radius:16px;background:#fff;font:inherit;color:#101828;cursor:help;animation:gxcFade .3s ease both}
 .gxc-way:hover{border-color:#d0d5dd}
-.gxc-way:hover,.gxc-way:focus{z-index:2}
+.gxc-way:hover,.gxc-way:focus-visible{z-index:2}
 .gxc-way:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
 .gxc-way strong{font-size:14px;line-height:1.2}
 .gxc-way .gxc-icon{width:44px;height:44px;font-size:19px}
@@ -36,7 +36,10 @@ const css = `
 .gxc-tip::after{content:"";position:absolute;top:100%;left:calc(50% - var(--gxc-tip-x,0px));margin-left:-6px;border:6px solid transparent;border-top-color:#101828}
 .gxc-tip[data-below]{bottom:auto;top:calc(100% + 9px);transform:translate(-50%,-4px)}
 .gxc-tip[data-below]::after{top:auto;bottom:100%;border-top-color:transparent;border-bottom-color:#101828}
-.gxc-way:hover .gxc-tip,.gxc-way:focus .gxc-tip{opacity:1;transform:translate(-50%,0)}
+/* One tip at a time (FM-598): a clicked card keeps focus, so a tip shows on hover or keyboard focus only, and the card under the pointer wins. */
+.gxc-way:hover .gxc-tip,.gxc-way:focus-visible .gxc-tip{opacity:1;transform:translate(-50%,0)}
+.gxc-ways:hover .gxc-way:not(:hover) .gxc-tip{opacity:0;transform:translate(-50%,4px)}
+.gxc-ways:hover .gxc-way:not(:hover) .gxc-tip[data-below]{transform:translate(-50%,-4px)}
 .gxc-icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary,#d93025);font-size:17px;flex:none}
 .gxc-choose{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .gxc-choice{display:flex;align-items:center;gap:14px;min-height:72px;padding:14px 16px;border:1px solid #d0d5dd;border-radius:16px;background:#fff;font:inherit;text-align:left;color:#101828;cursor:pointer;transition:border-color .15s,box-shadow .2s,transform .15s}
