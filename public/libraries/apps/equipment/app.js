@@ -127,7 +127,7 @@
     .eq-search input{width:100%;border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:9px 12px 9px 32px;color:#344054;font:700 12.5px/1.4 inherit;outline:0}
     .eq-search input:focus{border-color:var(--primary-readable,var(--primary,#d93025))}
     .eq-filter{border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:9px 10px;color:#344054;font:750 12px/1.2 inherit;outline:0;max-width:190px}
-    .eq-count{color:#667085;font-size:11.5px;font-weight:800;margin-left:auto}
+    .eq-count{color:#667085;font-size:11.5px;font-weight:800;margin-left:auto;display:inline-flex;align-items:center;gap:10px}
     .eq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:13px}
     .eq-card{border:1px solid #e4e7ec;border-radius:14px;background:#fff;padding:0;display:grid;grid-template-columns:minmax(118px,38%) minmax(0,1fr);min-height:148px;overflow:hidden;cursor:pointer;text-align:left;font:inherit;color:inherit;box-shadow:0 1px 3px rgba(16,24,40,.04);transition:box-shadow .12s ease,transform .12s ease}
     .eq-card:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(16,24,40,.08)}
@@ -150,7 +150,7 @@
     .eq-empty{border:1.5px dashed #d0d5dd;border-radius:16px;background:#fff;min-height:280px;display:grid;place-items:center;text-align:center;padding:30px}
     .eq-empty > div{display:grid;justify-items:center;gap:10px;max-width:420px}
     .eq-empty i{font-size:30px;color:#c2c9d6}
-    .eq-empty .eq-btn.primary i{font-size:inherit;color:#fff}
+    .eq-empty .eq-btn.primary i{font-size:inherit;color:#fff}.eq-empty .eq-btn:not(.primary) i{font-size:inherit;color:inherit}
     .eq-empty strong{font-size:14.5px;color:#344054}
     .eq-empty p{margin:0;color:#667085;font-size:12px;line-height:1.55;font-weight:650}
     .eq-loading{display:grid;place-items:center;min-height:280px;color:#667085;font-size:12px;font-weight:850}
@@ -210,7 +210,94 @@
     .eq-fn-head{display:flex;align-items:center;gap:2px;margin-bottom:3px}.eq-field .eq-fn-head label{margin:0}.eq-fn-list{display:grid;gap:6px}.eq-catalog-modal.is-type{width:min(1000px,100%)}.eq-catalog-modal.is-type .eq-catalog-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:0;align-items:stretch}.eq-type-col{display:grid;gap:14px;min-width:0;align-content:start;padding-right:20px}.eq-type-col+.eq-type-col{padding-right:0;padding-left:20px;border-left:1px solid #e4e7ec}.eq-catalog-modal.is-type .eq-modal-error{grid-column:1/-1}.eq-catalog-modal.is-type .eq-kind-options{grid-template-columns:repeat(2,minmax(0,1fr))}@media (max-width:820px){.eq-catalog-modal.is-type .eq-catalog-body{grid-template-columns:minmax(0,1fr)}.eq-type-col,.eq-type-col+.eq-type-col{padding:0;border-left:0}}.eq-fn-row{display:flex;align-items:center;gap:8px;min-height:40px;padding:5px 10px;border:1px solid #e4e7ec;border-radius:10px;background:#fff}.eq-field .eq-fn-row label{display:flex;align-items:center;gap:8px;margin:0;font-size:12px;font-weight:800;letter-spacing:0;text-transform:none;color:#344054;cursor:pointer;min-width:0}.eq-field .eq-fn-row label input{position:absolute;opacity:0;width:1px;height:1px;padding:0;pointer-events:none}.eq-fn-switch{flex:none;width:28px;height:16px;border-radius:999px;background:#d0d5dd;position:relative;transition:background .14s ease}.eq-fn-switch::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .14s ease}.eq-fn-row input:checked+.eq-fn-switch{background:var(--primary-readable,var(--primary,#d93025))}.eq-fn-row input:checked+.eq-fn-switch::after{transform:translateX(12px)}.eq-fn-row input:focus-visible+.eq-fn-switch{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:2px}
     .eq-fn-tip{position:relative;display:inline-grid;flex:none}.eq-fn-tip.grow{margin-right:auto}.eq-fn-help{width:22px;height:22px;padding:0;border:0;border-radius:50%;background:transparent;color:#98a2b3;cursor:help;display:grid;place-items:center;font-size:12px}.eq-fn-help:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#d93025))}.eq-fn-tip .eq-kind-tooltip{top:auto;bottom:calc(100% + 4px)}.eq-fn-tip.end .eq-kind-tooltip{left:auto;right:0}.eq-fn-help:hover+.eq-kind-tooltip,.eq-fn-help:focus+.eq-kind-tooltip{display:block}.eq-fn-capacity{display:flex;align-items:center;gap:5px;flex:none;color:#667085;font-size:11.5px;font-weight:800}.eq-field .eq-fn-capacity input{width:52px;height:26px;padding:2px 6px;border-radius:7px;font-size:12px;text-align:right}.eq-fn-scopes{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}.eq-fn-scope{padding:1px 8px;border-radius:999px;background:var(--scope,#667085);color:#fff;font-size:10px;font-weight:800;line-height:1.6}.eq-fn-row:not(.on) .eq-fn-capacity,.eq-fn-row:not(.on) .eq-fn-load{opacity:.45}.eq-fn-note{margin:0;padding:10px 12px;border:1px dashed #d0d5dd;border-radius:10px;color:#667085;font-size:11.5px;font-weight:650;line-height:1.5}@media(max-width:560px){.eq-fn-row{flex-wrap:wrap}}
     .eq-modal-error,.eq-form-error{display:none;border:1px solid #fda29b;border-radius:10px;background:#fef3f2;color:#b42318;padding:9px 11px;font-size:11px;font-weight:800;line-height:1.4;align-items:flex-start;gap:7px}.eq-modal-error.show,.eq-form-error.show{display:flex;animation:eq-error-in .22s ease both}.eq-form-error{grid-column:1/-1}
+    .eq-filter-toggle{display:none}.eq-filter-panel{display:contents}.eq-filter-panel>[data-eq-filter=departmentId]{order:-1}.eq-filter-toggle b{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--primary-readable,var(--primary,#d93025));color:#fff;font-size:10.5px;line-height:18px;text-align:center}
+    .eq-clear{appearance:none;border:0;background:transparent;color:var(--primary-readable,var(--primary,#d93025));font:850 11.5px/1 inherit;cursor:pointer;padding:4px 2px}
+    .eq-wo-actions{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}.eq-wo-schedule{flex-basis:100%;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px}.eq-wo-schedule label{display:grid;gap:4px;font-size:10px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;color:#667085}
+    .eq-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}.eq-section-head h3{margin:0;font-size:14px}.eq-section-head h3 i{color:var(--primary-readable,var(--primary,#d93025))}
     @media(max-width:560px){.eq-grid{grid-template-columns:1fr}.eq-card{grid-template-columns:minmax(105px,35%) minmax(0,1fr)}.eq-unit-identity,.eq-inline-view-form .eq-unit-identity{grid-template-columns:120px minmax(0,1fr);gap:16px}.eq-form,.eq-dynamic-panel{grid-template-columns:1fr}.eq-field.wide,.eq-section-label,.eq-condition-list,.eq-condition-media{grid-column:1}.eq-name-color{grid-template-columns:minmax(0,1fr) 58px}.eq-kind-options{grid-template-columns:repeat(2,1fr)}.eq-kind-choice:nth-child(odd) .eq-kind-tooltip{left:0;right:auto}.eq-kind-choice:nth-child(even) .eq-kind-tooltip{left:auto;right:0}}
+    /* Phone (FM-549): the portal's phone bar already shows the tab's name, so the app starts with one compact row of views and
+       icon actions; filters fold behind one button; units are dense cards; drawers and editors are bottom sheets. Insets use the
+       portal's --fm-window-safe-* (0 in the Android app, which pads the WebView itself) before env(). */
+    @media(max-width:820px){
+      .eq-shell{--eq-safe-top:var(--fm-window-safe-top,env(safe-area-inset-top,0px));--eq-safe-bottom:var(--fm-window-safe-bottom,env(safe-area-inset-bottom,0px))}
+      .eq-top{flex-wrap:nowrap;gap:8px;padding:10px 12px}
+      .eq-title{display:none}
+      .eq-views{flex:1;min-width:0;border-radius:12px}
+      .eq-views button{flex:1 1 auto;min-width:0;justify-content:center;height:36px;padding:0 10px;font-size:13px}
+      .eq-views button span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .eq-views.many button:not(.on){flex:0 0 44px;padding:0}.eq-views.many button:not(.on) span{display:none}
+      .eq-top>.eq-btn{flex:0 0 auto;width:42px;height:42px;padding:0;justify-content:center;border-radius:12px;font-size:14px}
+      .eq-top>.eq-btn span{display:none}
+      .eq-body{padding:12px 12px calc(28px + var(--eq-safe-bottom))}
+      .eq-filters{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-bottom:12px}
+      .eq-search{max-width:none;min-width:0}
+      .eq-search i{left:13px;font-size:13px}
+      .eq-search input{height:42px;border-radius:12px;padding:0 12px 0 36px;font-size:16px}
+      .eq-filter-toggle{position:relative;display:inline-grid;place-items:center;width:42px;height:42px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;color:#475467;font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+      .eq-filters.open .eq-filter-toggle{border-color:rgba(var(--primary-rgb,217,48,37),.35);background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025))}
+      .eq-filter-panel{display:none;grid-column:1/-1;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;animation:eq-fields-in .2s cubic-bezier(.22,1,.36,1) both;transform-origin:top}
+      .eq-filters.open .eq-filter-panel{display:grid}
+      .eq-filter-panel>[data-eq-filter=departmentId],.eq-filter-panel>[data-eq-filter=status]{order:0;grid-column:1/-1}
+      .eq-filter{max-width:none;width:100%;height:42px;border-radius:12px;padding:0 10px;font-size:15px}
+      .eq-count{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;margin:0;padding:0 2px;font-size:12px}
+      .eq-grid{gap:10px}
+      .eq-card{grid-template-columns:84px minmax(0,1fr);min-height:100px;border-radius:14px;-webkit-tap-highlight-color:transparent}
+      .eq-card:hover{transform:none;box-shadow:0 1px 3px rgba(16,24,40,.04)}
+      .eq-card:active{transform:scale(.985);background:#f8fafc}
+      .eq-card-media{min-height:100px;font-size:23px}
+      .eq-card-content{padding:11px 12px;gap:7px}
+      .eq-card-top{gap:6px}
+      .eq-card-name strong{font-size:14.5px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+      .eq-card-name span{font-size:12px}
+      .eq-card-status .eq-chip{padding:4px 8px;font-size:10.5px}
+      .eq-card-meta{display:flex;flex-wrap:wrap;gap:4px 12px}
+      .eq-card-meta div{font-size:12px;max-width:100%}
+      .eq-card-meta .eq-card-vehicle span{white-space:nowrap;overflow-wrap:normal}
+      .eq-empty{min-height:220px;padding:24px 18px;border-radius:14px}
+      .eq-empty .eq-btn{min-height:44px;padding:0 18px;font-size:14px}
+      .eq-loading{min-height:200px}
+      .eq-drawer-back,.eq-catalog-back{align-items:flex-end;justify-content:stretch}
+      .eq-catalog-back{display:flex;padding:0}
+      .eq-drawer,.eq-catalog-modal,.eq-catalog-modal.is-type{width:100%;height:auto;max-height:calc(100% - var(--eq-safe-top) - 12px);border-radius:18px 18px 0 0;box-shadow:0 -10px 34px rgba(16,24,40,.22);animation:eq-sheet-up .26s cubic-bezier(.22,1,.36,1) both}
+      .eq-drawer{height:calc(100% - var(--eq-safe-top) - 12px)}
+      @keyframes eq-sheet-up{from{transform:translateY(100%)}to{transform:none}}
+      .eq-catalog-modal.has-error{animation:eq-error-shake .26s ease both}
+      .eq-drawer-head{align-items:center;padding:14px 14px 12px 16px}
+      .eq-drawer-head .eq-card-icon{width:40px;height:40px;font-size:15px}
+      .eq-drawer-title h3{font-size:17px;line-height:1.25}
+      .eq-drawer .eq-drawer-title :is(h3,span){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .eq-drawer-close{width:40px;height:40px;border-radius:12px;font-size:15px}
+      .eq-drawer-body{padding:14px 16px 20px;overscroll-behavior:contain}
+      .eq-catalog-body{padding:14px 16px 18px;overscroll-behavior:contain}
+      .eq-drawer-foot{flex-wrap:wrap;gap:8px;padding:10px 16px calc(10px + var(--eq-safe-bottom))}
+      .eq-drawer-foot .eq-btn{min-height:44px;padding:0 16px;font-size:14px;justify-content:center}
+      .eq-drawer-foot .eq-danger{padding:12px 8px;font-size:13px}
+      .eq-field label{font-size:10.5px}
+      .eq-field input:not(.eq-color-input):not([type=checkbox]):not([type=radio]),.eq-field select,.eq-field textarea{min-height:44px;font-size:16px;border-radius:11px}
+      .eq-field .eq-fn-capacity input{min-height:0;font-size:14px}
+      .eq-color-input{height:44px!important}
+      .eq-unit-identity,.eq-inline-view-form .eq-unit-identity{grid-template-columns:112px minmax(0,1fr);gap:14px;align-items:start}
+      .eq-photo-tile{width:100%;align-self:start}
+      .eq-photo-crop{opacity:1;transform:none;width:30px;height:30px;top:6px;right:6px}
+      .eq-type-row{padding:11px 12px;gap:10px;border-radius:13px}
+      .eq-type-row-copy strong{font-size:14px}
+      .eq-type-row-copy span{font-size:11.5px;line-height:1.4;overflow-wrap:anywhere}
+      .eq-mini{min-width:38px;height:38px;border-radius:10px;font-size:12px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+      .eq-types-list{gap:8px}
+      .eq-wo-row .eq-type-row-copy{flex:1 1 140px}
+      .eq-wo-actions{flex-basis:100%;display:flex;gap:8px;padding-left:44px}
+      .eq-wo-actions .eq-mini{flex:1 1 0;height:40px}.eq-wo-actions .eq-mini.icon{flex:0 0 40px}
+      .eq-wo-schedule{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+      .eq-wo-schedule label{grid-column:1/-1}
+      .eq-wo-schedule input{height:44px;max-width:none;width:100%;font-size:16px}
+      .eq-wo-schedule .eq-btn{min-height:44px;justify-content:center;font-size:14px}
+      .eq-section-head .eq-btn{min-height:40px;padding:0 14px;font-size:13px}
+      .eq-util-table{min-width:620px}
+      .eq-crop-back{padding:12px}
+      .eq-crop-foot .eq-btn{min-height:44px}
+      .eq-saved-toast{left:50%;right:auto;transform:translateX(-50%);bottom:calc(20px + var(--fm-window-safe-bottom,env(safe-area-inset-bottom,0px)))}
+    }
+    @media(max-width:820px) and (prefers-reduced-motion:reduce){.eq-drawer,.eq-catalog-modal,.eq-filter-panel{animation:none}}
   `;
 
   function injectCss(){
@@ -246,6 +333,7 @@
       functions:null,    /* what equipment can provide, from the organization's enabled scopes */
       loading:false,
       filters:{ query:'', typeId:'', categoryId:'', status:'' },
+      filtersOpen:false, /* phone: the category/type/status selects fold behind one button */
       drawer:null,       /* { mode:'view'|'edit'|'create', unit } */
       typesOpen:false,
       yardsOpen:false,
@@ -527,7 +615,7 @@
       return `
         <div style="color:#667085;font-size:11.5px;font-weight:750;margin-bottom:10px">${((v0) => globalThis.PlatformLanguage?.htmlText("equipment","m_c3713163b695f1",`Last ${v0} days`,{v0}) ?? `Last ${v0} days`)(esc(String(data.window_days || 30)))}</div>
         <div style="border:1px solid #e4e7ec;border-radius:14px;background:#fff;overflow:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <table class="eq-util-table" style="width:100%;border-collapse:collapse;font-size:12px">
             <thead><tr style="text-align:left;color:#667085;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em">
               ${String(['Unit', 'Booked', 'Utilization', 'Downtime', 'Projected cost', 'Service', 'Fuel'].map((label) => `<th style="padding:11px 14px;border-bottom:1px solid #eef0f5">${esc(label)}</th>`).join(''))}
             </tr></thead>
@@ -604,21 +692,21 @@
         const scheduling = clean(state.maintenanceSchedulingId) === clean(order.id);
         const actionable = !['completed', 'canceled'].includes(clean(order.status));
         return `
-          <div class="eq-type-row" style="flex-wrap:wrap">
+          <div class="eq-type-row eq-wo-row" style="flex-wrap:wrap">
             <span class="eq-card-icon"><i class="fas ${clean(order.kind) === 'inspection' ? 'fa-clipboard-check' : 'fa-wrench'}"></i></span>
             <span class="eq-type-row-copy">
               <strong>${esc(order.title)}</strong>
               <span>${esc(unitName(order.unit_id))}${clean(order.scheduled_start_at) ? ` · ${esc(new Date(order.scheduled_start_at).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }))}` : ''}</span>
             </span>
             ${orderStatusChip(order.status)}
-            ${actionable ? `
-              <button type="button" class="eq-mini" data-eq-wo-schedule="${String(esc(order.id))}"><i class="fas fa-calendar-plus"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_80ce49ac8b6049"," Schedule") ?? " Schedule")}</button>
+            ${actionable ? `<span class="eq-wo-actions">
+              <button type="button" class="eq-mini" data-eq-wo-schedule="${String(esc(order.id))}" aria-expanded="${scheduling ? 'true' : 'false'}"><i class="fas fa-calendar-plus"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_80ce49ac8b6049"," Schedule") ?? " Schedule")}</button>
               <button type="button" class="eq-mini" data-eq-wo-complete="${String(esc(order.id))}"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_94c1150743bc9c"," Complete") ?? " Complete")}</button>
-              <button type="button" class="eq-mini" data-eq-wo-cancel="${String(esc(order.id))}"><i class="fas fa-xmark"></i></button>` : ''}
+              <button type="button" class="eq-mini icon" data-eq-wo-cancel="${String(esc(order.id))}" title="Cancel work order" aria-label="Cancel work order"><i class="fas fa-xmark"></i></button></span>` : ''}
             ${scheduling ? `
-              <div style="flex-basis:100%;display:flex;gap:8px;align-items:center;margin-top:8px">
-                <input type="datetime-local" class="eq-filter" data-eq-wo-start value="${esc(localDateTime(order.scheduled_start_at))}">
-                <input type="datetime-local" class="eq-filter" data-eq-wo-end value="${esc(localDateTime(order.scheduled_end_at))}">
+              <div class="eq-wo-schedule">
+                <label><span>Starts</span><input type="datetime-local" class="eq-filter" data-eq-wo-start value="${esc(localDateTime(order.scheduled_start_at))}"></label>
+                <label><span>Ends</span><input type="datetime-local" class="eq-filter" data-eq-wo-end value="${esc(localDateTime(order.scheduled_end_at))}"></label>
                 <button type="button" class="eq-btn primary" data-eq-wo-schedule-save="${String(esc(order.id))}">${(globalThis.PlatformLanguage?.htmlText("equipment","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
                 <button type="button" class="eq-btn" data-eq-wo-schedule-cancel>${(globalThis.PlatformLanguage?.htmlText("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
               </div>` : ''}
@@ -643,8 +731,8 @@
           </div>
           ` : ''}
           <div>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 8px">
-              <h3 style="margin:0;font-size:14px"><i class="fas fa-wrench" style="color:var(--primary-readable,var(--primary,#d93025))"></i> ${String(esc(terminology('equipment.work_orders', 'Work Orders')))}</h3>
+            <div class="eq-section-head">
+              <h3><i class="fas fa-wrench"></i> ${String(esc(terminology('equipment.work_orders', 'Work Orders')))}</h3>
               <button type="button" class="eq-btn" data-eq-wo-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_5fe01108f83039"," New") ?? " New")}</button>
             </div>
             <div class="eq-types-list">
@@ -678,6 +766,20 @@
         </div>`;
     }
 
+    function workOrderEditorHtml(){
+      if (!state.workOrderEditor || state.view !== 'maintenance') return '';
+      const title = `New ${terminology('equipment.work_order', 'Work Order').toLowerCase()}`;
+      return `<div class="eq-catalog-back" data-eq-wo-back><div class="eq-catalog-modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+        <div class="eq-drawer-head"><span class="eq-card-icon"><i class="fas fa-wrench"></i></span><span class="eq-drawer-title single-line"><h3>${esc(title)}</h3></span><button type="button" class="eq-drawer-close" data-eq-wo-editor-cancel aria-label="Close"><i class="fas fa-xmark"></i></button></div>
+        <div class="eq-catalog-body">
+          <div class="eq-field"><label>Unit</label><select data-eq-wo-unit>${arr(state.units).map((unit) => `<option value="${esc(unit.id)}">${esc([unit.name, unit.identifier].map(clean).filter(Boolean).join(' · '))}</option>`).join('')}</select></div>
+          <div class="eq-field"><label>What needs doing</label><input type="text" data-eq-wo-title enterkeyhint="done" placeholder="e.g. Replace brake pads"></div>
+          <div class="eq-modal-error" data-eq-wo-save-error></div>
+        </div>
+        <div class="eq-drawer-foot"><button type="button" class="eq-btn" data-eq-wo-editor-cancel>Cancel</button><span class="eq-foot-spacer"></span><button type="button" class="eq-btn primary" data-eq-wo-editor-save><i class="fas fa-check"></i> Create</button></div>
+      </div></div>`;
+    }
+
     function bindMaintenanceEvents(){
       root.querySelectorAll('[data-eq-due-open]').forEach((btn) => btn.addEventListener('click', async () => {
         const [unitId, programId] = String(btn.dataset.eqDueOpen || '').split('::');
@@ -690,22 +792,39 @@
           showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), statusError(error, 'The work order could not be opened.'), false);
         }
       }));
-      root.querySelector('[data-eq-wo-new]')?.addEventListener('click', async () => {
+      root.querySelector('[data-eq-wo-new]')?.addEventListener('click', () => {
         const units = arr(state.units);
         if (!units.length) { showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), (globalThis.PlatformLanguage?.text("equipment","m_c04bcac4ab7f0a","Add a unit first.") ?? "Add a unit first."), false); return; }
-        const name = clean(window.prompt(`Which unit needs work?\n${units.map((unit, index) => `${index + 1}. ${clean(unit.name)}`).join('\n')}\n\nEnter a number:`));
-        const unit = units[Number(name) - 1];
+        state.workOrderEditor = { saving:false };
+        render();
+      });
+      const woBack = root.querySelector('[data-eq-wo-back]');
+      const closeWorkOrderEditor = () => { if (state.workOrderEditor?.saving) return; state.workOrderEditor = null; root.querySelector('[data-eq-wo-back]')?.remove(); };
+      woBack?.addEventListener('mousedown', (event) => { if (event.target === woBack) closeWorkOrderEditor(); });
+      root.querySelectorAll('[data-eq-wo-editor-cancel]').forEach((button) => button.addEventListener('click', closeWorkOrderEditor));
+      const saveWorkOrder = async () => {
+        const editor = state.workOrderEditor;
+        if (!editor || editor.saving) return;
+        const unit = arr(state.units).find((entry) => clean(entry.id) === clean(root.querySelector('[data-eq-wo-unit]')?.value));
         if (!unit) return;
-        const title = clean(window.prompt((globalThis.PlatformLanguage?.text("equipment","m_44f3178d1bf5d9","Describe the work:") ?? "Describe the work:"), `Repair — ${clean(unit.name)}`));
-        if (!title) return;
+        const title = clean(root.querySelector('[data-eq-wo-title]')?.value) || `Repair — ${clean(unit.name)}`;
+        const button = root.querySelector('[data-eq-wo-editor-save]');
+        editor.saving = true;
+        if (button) { button.disabled = true; button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…'; }
         try {
           await window.EquipmentAPI.createWorkOrder(organizationId, { unit_id: clean(unit.id), title });
+          state.workOrderEditor = null;
           state.maintenance = null;
           void loadMaintenance();
         } catch (error) {
-          showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), statusError(error, 'The work order could not be created.'), false);
+          editor.saving = false;
+          if (button) { button.disabled = false; button.innerHTML = '<i class="fas fa-check"></i> Create'; }
+          const message = root.querySelector('[data-eq-wo-save-error]');
+          if (message) { message.innerHTML = `<i class="fas fa-circle-exclamation"></i><span>${esc(statusError(error, 'The work order could not be created.'))}</span>`; message.classList.add('show'); }
         }
-      });
+      };
+      root.querySelector('[data-eq-wo-editor-save]')?.addEventListener('click', () => void saveWorkOrder());
+      root.querySelector('[data-eq-wo-title]')?.addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); void saveWorkOrder(); } });
       root.querySelectorAll('[data-eq-wo-schedule]').forEach((btn) => btn.addEventListener('click', () => {
         state.maintenanceSchedulingId = clean(state.maintenanceSchedulingId) === clean(btn.dataset.eqWoSchedule) ? '' : clean(btn.dataset.eqWoSchedule);
         render();
@@ -733,7 +852,10 @@
       root.querySelectorAll('[data-eq-wo-complete]').forEach((btn) => btn.addEventListener('click', async () => {
         const order = arr(state.maintenance?.orders).find((entry) => clean(entry.id) === clean(btn.dataset.eqWoComplete));
         if (!order) return;
-        const hoursInput = clean(window.prompt((globalThis.PlatformLanguage?.text("equipment","m_f7dc0c58ee3d5a","Meter hours at service (leave blank to skip):") ?? "Meter hours at service (leave blank to skip):")));
+        // The portal's window.prompt/confirm are promise-based dialogs (platform-ui.js); a browser's are not. Await both.
+        const answer = await window.prompt((globalThis.PlatformLanguage?.text("equipment","m_f7dc0c58ee3d5a","Meter hours at service (leave blank to skip):") ?? "Meter hours at service (leave blank to skip):"));
+        if (answer === null || answer === false) return;
+        const hoursInput = clean(answer);
         const hours = Number(hoursInput);
         try {
           const result = await window.EquipmentAPI.completeWorkOrder(organizationId, clean(order.id), {
@@ -749,7 +871,7 @@
         }
       }));
       root.querySelectorAll('[data-eq-wo-cancel]').forEach((btn) => btn.addEventListener('click', async () => {
-        if (!window.confirm((globalThis.PlatformLanguage?.text("equipment","m_0fb6684b7af2d9","Cancel this work order? Any downtime block is released.") ?? "Cancel this work order? Any downtime block is released."))) return;
+        if (!await window.confirm((globalThis.PlatformLanguage?.text("equipment","m_0fb6684b7af2d9","Cancel this work order? Any downtime block is released.") ?? "Cancel this work order? Any downtime block is released."))) return;
         try {
           await window.EquipmentAPI.cancelWorkOrder(organizationId, btn.dataset.eqWoCancel);
           state.maintenance = null;
@@ -761,10 +883,10 @@
         }
       }));
       root.querySelector('[data-eq-program-new]')?.addEventListener('click', async () => {
-        const name = clean(window.prompt((globalThis.PlatformLanguage?.text("equipment","m_62881eb7330dbd","Name the service program (e.g. \"250-hour service\"):") ?? "Name the service program (e.g. \"250-hour service\"):")));
+        const name = clean(await window.prompt((globalThis.PlatformLanguage?.text("equipment","m_62881eb7330dbd","Name the service program (e.g. \"250-hour service\"):") ?? "Name the service program (e.g. \"250-hour service\"):")));
         if (!name) return;
-        const days = Number(clean(window.prompt((globalThis.PlatformLanguage?.text("equipment","m_db0d33f8908760","Repeat every how many days? (blank for meter-based only)") ?? "Repeat every how many days? (blank for meter-based only)"))) || 0);
-        const hours = Number(clean(window.prompt((globalThis.PlatformLanguage?.text("equipment","m_5c4b86fbc16685","Or every how many meter hours? (blank to skip)") ?? "Or every how many meter hours? (blank to skip)"))) || 0);
+        const days = Number(clean(await window.prompt((globalThis.PlatformLanguage?.text("equipment","m_db0d33f8908760","Repeat every how many days? (blank for meter-based only)") ?? "Repeat every how many days? (blank for meter-based only)"))) || 0);
+        const hours = Number(clean(await window.prompt((globalThis.PlatformLanguage?.text("equipment","m_5c4b86fbc16685","Or every how many meter hours? (blank to skip)") ?? "Or every how many meter hours? (blank to skip)"))) || 0);
         try {
           await window.EquipmentAPI.createProgram(organizationId, {
             name,
@@ -778,7 +900,7 @@
       });
       root.querySelectorAll('[data-eq-program-archive]').forEach((btn) => btn.addEventListener('click', async () => {
         const program = arr(state.maintenance?.programs).find((entry) => clean(entry.id) === clean(btn.dataset.eqProgramArchive));
-        if (!program || !window.confirm(((v0) => globalThis.PlatformLanguage?.text("equipment","m_ec454a178a180b",`Archive "${v0}"?`,{v0}) ?? `Archive "${v0}"?`)(clean(program.name)))) return;
+        if (!program || !await window.confirm(((v0) => globalThis.PlatformLanguage?.text("equipment","m_ec454a178a180b",`Archive "${v0}"?`,{v0}) ?? `Archive "${v0}"?`)(clean(program.name)))) return;
         try {
           await window.EquipmentAPI.saveProgram(organizationId, clean(program.id), { name: clean(program.name), status: 'archived', expected_revision: Number(program.revision || 0) || undefined });
           state.maintenance = null;
@@ -1088,7 +1210,8 @@
       root.querySelector('[data-eq-catalog-back]')?.remove();
       root.querySelector('.eq-shell')?.insertAdjacentHTML('beforeend', catalogEditorHtml());
       bindCatalogEditorEvents();
-      root.querySelector('[data-eq-catalog-name]')?.focus();
+      // On a phone, opening an existing type or facility should not throw the keyboard over it.
+      if (!(state.catalogEditor?.entity && window.matchMedia?.('(max-width: 820px)')?.matches)) root.querySelector('[data-eq-catalog-name]')?.focus();
     }
 
     function openCatalogEditor(kind, source, entity = null){
@@ -1401,10 +1524,14 @@
       if (state.loading && !state.units) return `<div class="eq-loading"><div><div class="eq-spinner"></div>${(globalThis.PlatformLanguage?.htmlText("equipment","m_baabdd88b91c20","Loading the fleet…") ?? "Loading the fleet…")}</div></div>`;
       const units = arr(state.units);
       const unitTerm = terminology('equipment.equipment_units', 'Units');
+      const activeFilters = ['categoryId', 'typeId', 'status', 'departmentId'].filter((key) => clean(state.filters[key])).length;
+      const filtersLabel = activeFilters ? `Filters (${activeFilters})` : 'Filters';
       const filterOptions = `
-        <div class="eq-filters">
+        <div class="eq-filters${state.filtersOpen ? ' open' : ''}">
+          <div class="eq-search"><i class="fas fa-magnifying-glass"></i><input type="search" enterkeyhint="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_bf817b162b2c81","Search name, asset #, plate, VIN…") ?? "Search name, asset #, plate, VIN…")}" value="${String(esc(state.filters.query))}" data-eq-filter="query"></div>
+          <button type="button" class="eq-filter-toggle" data-eq-filters-toggle aria-expanded="${state.filtersOpen ? 'true' : 'false'}" title="${esc(filtersLabel)}" aria-label="${esc(filtersLabel)}"><i class="fas fa-sliders"></i>${activeFilters ? `<b>${activeFilters}</b>` : ''}</button>
+          <div class="eq-filter-panel">
           ${state.departmentContext?.show_selector?`<select class="eq-filter" data-eq-filter="departmentId" aria-label="${esc(state.departmentContext.department_label||'Department')}"><option value="">${esc(state.departmentContext.departments_label||'Departments')}</option>${state.departmentContext.departments.map(d=>`<option value="${esc(d.id)}" ${state.filters.departmentId===d.id?'selected':''}>${esc(d.label)}</option>`).join('')}</select>`:''}
-          <div class="eq-search"><i class="fas fa-magnifying-glass"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_bf817b162b2c81","Search name, asset #, plate, VIN…") ?? "Search name, asset #, plate, VIN…")}" value="${String(esc(state.filters.query))}" data-eq-filter="query"></div>
           <select class="eq-filter" data-eq-filter="categoryId">
             <option value="">${(globalThis.PlatformLanguage?.htmlText("equipment","m_0abe1295afa55b","All categories") ?? "All categories")}</option>
             ${String(arr(state.categories).map((category) => `<option value="${esc(category.id)}" ${state.filters.categoryId === clean(category.id) ? 'selected' : ''}>${esc(category.name)}</option>`).join(''))}
@@ -1417,8 +1544,12 @@
             <option value="">${(globalThis.PlatformLanguage?.htmlText("equipment","m_ca4e6bcaf98610","Any status") ?? "Any status")}</option>
             ${String(Object.entries(STATUS_META).map(([key, meta]) => `<option value="${esc(key)}" ${state.filters.status === key ? 'selected' : ''}>${esc(meta.label)}</option>`).join(''))}
           </select>
-          <span class="eq-count">${String(units.length)} ${String(esc(unitTerm.toLowerCase()))}</span>
+          </div>
+          <span class="eq-count"><span>${String(units.length)} ${String(esc(unitTerm.toLowerCase()))}</span>${activeFilters ? `<button type="button" class="eq-clear" data-eq-filters-clear>Clear filters</button>` : ''}</span>
         </div>`;
+      if (!units.length && (activeFilters || clean(state.filters.query))) {
+        return `${filterOptions}<div class="eq-empty"><div><i class="fas fa-magnifying-glass"></i><strong>No units match</strong><button type="button" class="eq-btn" data-eq-filters-clear><i class="fas fa-xmark"></i> Clear search and filters</button></div></div>`;
+      }
       if (!units.length) {
         return (String(filterOptions) + "\n          <div class=\"eq-empty\"><div>\n            <i class=\"fas fa-truck-pickup\"></i>\n            <strong>" + (globalThis.PlatformLanguage?.text("equipment","m_ec81d12099a573","No equipment yet") ?? "No equipment yet") + "</strong>\n            <button type=\"button\" class=\"eq-btn primary\" data-eq-add-unit><i class=\"fas fa-plus\"></i>" + (globalThis.PlatformLanguage?.text("equipment","m_77273e1b20f93b"," Add your first unit") ?? " Add your first unit") + "</button>\n          </div></div>");
       }
@@ -1702,6 +1833,9 @@
         yards:root.querySelector('[data-eq-manager-scroll="yards"]')?.scrollTop || 0
       };
       const preserveDrawer = Boolean(root.querySelector('[data-eq-drawer-back]'));
+      // Typing in search re-renders the fleet; keep the caret (and a phone's keyboard) in the box.
+      const searchInput = root.querySelector('[data-eq-filter="query"]');
+      const searchFocus = searchInput && document.activeElement === searchInput ? [searchInput.selectionStart, searchInput.selectionEnd] : null;
       const views = availableViews();
       if (!views.some((view) => view.id === state.view)) state.view = 'fleet';
       const title = terminology('equipment.portal_tab', 'Equipment');
@@ -1725,22 +1859,32 @@
               <span class="eq-title-icon"><i class="fas fa-truck-pickup"></i></span>
               <div><h2>${esc(title)}</h2></div>
             </div>
-            <div class="eq-views">
-              ${views.map((view) => `<button type="button" class="${state.view === view.id ? 'on' : ''}" data-eq-view="${esc(view.id)}"><i class="fas ${esc(view.icon)}"></i> ${esc(view.label)}</button>`).join('')}
+            <div class="eq-views${views.length > 2 ? ' many' : ''}">
+              ${views.map((view) => `<button type="button" class="${state.view === view.id ? 'on' : ''}" data-eq-view="${esc(view.id)}" title="${esc(view.label)}" aria-label="${esc(view.label)}" ${state.view === view.id ? 'aria-current="page"' : ''}><i class="fas ${esc(view.icon)}"></i> <span>${esc(view.label)}</span></button>`).join('')}
             </div>
-            ${state.view === 'fleet' ? `
-              <button type="button" class="eq-btn" data-eq-types-open><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_659c109b30c152"," Types") ?? " Types")}</button>
-              <button type="button" class="eq-btn" data-eq-yards-open><i class="fas fa-warehouse"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_c6b212605c230d"," Facilities") ?? " Facilities")}</button>
-              <button type="button" class="eq-btn primary" data-eq-add-unit><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_e1f035ff60288f"," Add unit") ?? " Add unit")}</button>` : ''}
+            ${state.view === 'fleet' ? (() => {
+              const typesLabel = (globalThis.PlatformLanguage?.htmlText("equipment","m_659c109b30c152"," Types") ?? " Types");
+              const facilitiesLabel = (globalThis.PlatformLanguage?.htmlText("equipment","m_c6b212605c230d"," Facilities") ?? " Facilities");
+              const addLabel = (globalThis.PlatformLanguage?.htmlText("equipment","m_e1f035ff60288f"," Add unit") ?? " Add unit");
+              return `
+              <button type="button" class="eq-btn" data-eq-types-open title="${typesLabel.trim()}" aria-label="${typesLabel.trim()}"><i class="fas fa-layer-group"></i><span>${typesLabel}</span></button>
+              <button type="button" class="eq-btn" data-eq-yards-open title="${facilitiesLabel.trim()}" aria-label="${facilitiesLabel.trim()}"><i class="fas fa-warehouse"></i><span>${facilitiesLabel}</span></button>
+              <button type="button" class="eq-btn primary" data-eq-add-unit title="${addLabel.trim()}" aria-label="${addLabel.trim()}"><i class="fas fa-plus"></i><span>${addLabel}</span></button>`;
+            })() : ''}
           </div>
           <div class="eq-body">${bodyHtml}</div>
           ${drawerHtml()}
           ${typesManagerHtml()}
           ${yardsManagerHtml()}
+          ${workOrderEditorHtml()}
           ${cropHtml()}
         </div>`;
 
       bindEvents();
+      if (searchFocus) {
+        const nextSearch = root.querySelector('[data-eq-filter="query"]');
+        if (nextSearch) { nextSearch.focus({ preventScroll:true }); try { nextSearch.setSelectionRange(...searchFocus); } catch (_) {} }
+      }
       const unitScroll = root.querySelector('[data-eq-unit-scroll]'); if (unitScroll) unitScroll.scrollTop = scrollState.unit;
       const typesScroll = root.querySelector('[data-eq-manager-scroll="types"]'); if (typesScroll) typesScroll.scrollTop = scrollState.types;
       const yardsScroll = root.querySelector('[data-eq-manager-scroll="yards"]'); if (yardsScroll) yardsScroll.scrollTop = scrollState.yards;
@@ -1790,6 +1934,14 @@
           });
         }
       });
+      root.querySelector('[data-eq-filters-toggle]')?.addEventListener('click', () => {
+        state.filtersOpen = !state.filtersOpen;
+        render();
+      });
+      root.querySelectorAll('[data-eq-filters-clear]').forEach((button) => button.addEventListener('click', () => {
+        state.filters = { query:'', typeId:'', categoryId:'', status:'', departmentId:'' };
+        void loadFleet({ force:true });
+      }));
       root.querySelectorAll('[data-eq-open]').forEach((card) => {
         card.addEventListener('click', (event) => {
           void openUnit(card.dataset.eqOpen, { push:true });
