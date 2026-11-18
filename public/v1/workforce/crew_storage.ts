@@ -612,7 +612,7 @@ async function workChecklistId(orgId: string, projectId: string) {
 export async function ensureProjectChecklists(
   orgId: string,
   projectId: string,
-  options: { definitions?: ProjectChecklistDefinition[]; actorUserId?: string } = {}
+  options: { definitions?: ProjectChecklistDefinition[]; actorUserId?: string; skipDeletedSourceKeys?: boolean } = {}
 ) {
   return (await getWorkforceDatabase().transaction(async () => {
   ensureCrewSchema();
@@ -620,6 +620,12 @@ export async function ensureProjectChecklists(
   return (await withWorkforceTransaction(async () => {
     const existing = (await activeChecklistRows(orgId, projectId)).map(checklistView);
     const existingKeys = new Set(existing.map((row) => row.source_key).filter(Boolean));
+    // Default checklists added at each stage (GP-1) do not bring back one someone deleted from the project.
+    if (options.skipDeletedSourceKeys) {
+      (await getWorkforceDatabase().prepare(`SELECT source_key FROM crew_checklists
+        WHERE organization_id=? AND project_id=? AND deleted_at IS NOT NULL AND source_key <> ''`).all(orgId, projectId))
+        .forEach((row) => existingKeys.add(cleanText(asObject(row).source_key)));
+    }
     const created: ReturnType<typeof checklistView>[] = [];
     for (const definition of Array.isArray(options.definitions) ? options.definitions : []) {
       const sourceKey = cleanText(definition.source_key)
@@ -643,6 +649,14 @@ export async function ensureProjectChecklists(
   }));
 
   }));
+}
+
+/** A project checklist someone made one of the organization's default checklists becomes that default here (GP-1). */
+export async function adoptProjectChecklist(orgId: string, projectId: string, checklistId: string, sourceKey: string) {
+  ensureCrewSchema();
+  const result = (await getWorkforceDatabase().prepare(`UPDATE crew_checklists SET source='setup', source_key=?
+    WHERE id=? AND organization_id=? AND project_id=? AND deleted_at IS NULL`).run(sourceKey, checklistId, orgId, projectId));
+  return Number(asObject(result).changes || 0) > 0;
 }
 
 /**

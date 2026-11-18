@@ -254,6 +254,36 @@
     @keyframes fmcl-spin{to{transform:rotate(360deg)}}
     @media(max-width:900px){.fmcl-card.detail .fmcl-items{grid-template-columns:1fr}}
     @media(max-width:760px){.fmcl-grid{grid-template-columns:1fr}.fmcl-card-actions{flex-wrap:wrap;position:relative}.fmcl-card-actions .fmcl-menu-wrap{position:static}.fmcl-assignment,.fmcl-customer{right:0;width:auto;box-sizing:border-box}.fmcl-assignment-top{justify-content:space-between}}
+    .fmcl-btn.fmcl-settings-btn{width:38px;padding:0}
+    .fmcl-settings .fmcl-head-title>div{min-width:0;display:grid;gap:2px}.fmcl-settings .fmcl-head-title .fmcl-sub{margin:0}
+    .fmcl-set-back{width:36px;height:36px;flex:none}
+    .fmcl-set-card{border:1px solid #e4e7ec;border-radius:14px;background:#fff;padding:14px 16px;display:grid;gap:12px;max-width:980px;width:100%;box-sizing:border-box;margin:0 auto}
+    .fmcl-set-card h3{margin:0;font-size:13px;font-weight:1000;color:#101828}.fmcl-set-card h4{margin:4px 0 0;font-size:11px;font-weight:1000;color:#475467}
+    .fmcl-set-hint{margin:0;color:#667085;font-size:11px;font-weight:750;line-height:1.45}
+    .fmcl-set-pipelines{display:flex;gap:6px;flex-wrap:wrap}
+    .fmcl-set-pipeline{min-height:34px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;padding:0 11px;display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:11px;font-weight:950;cursor:pointer}
+    .fmcl-set-pipeline.active{border-color:#101828;background:#101828;color:#fff}.fmcl-set-pipeline .fmcl-set-dot{width:9px;height:9px;border-radius:50%;background:var(--dot,#98a2b3);flex:none}
+    .fmcl-set-badge{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 7px;border-radius:999px;background:#eef4ff;color:#3538cd;font-size:9px;font-weight:950;white-space:nowrap}.fmcl-set-pipeline.active .fmcl-set-badge{background:rgba(255,255,255,.18);color:#fff}
+    .fmcl-set-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#475467;font-size:11px;font-weight:800}.fmcl-set-status i{color:#98a2b3}
+    .fmcl-set-link{border:0;background:none;padding:0;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-size:11px;font-weight:950;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+    .fmcl-set-stages{display:grid;gap:0;border:1px solid #eaecf0;border-radius:12px;overflow:hidden}
+    .fmcl-set-stage{display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:12px;align-items:center;padding:10px 12px;border-top:1px solid #eaecf0}.fmcl-set-stage:first-child{border-top:0}
+    .fmcl-set-stage.all{background:#f9fafb}.fmcl-set-stage.current{background:rgba(var(--primary-rgb,217,48,37),.045)}
+    .fmcl-set-stage-name{min-width:0;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:950;color:#101828}.fmcl-set-stage-name>span:not(.fmcl-set-dot):not(.fmcl-set-badge){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .fmcl-set-stage-name .fmcl-set-dot{width:10px;height:10px;border-radius:50%;background:var(--dot,#98a2b3);flex:none}.fmcl-set-stage-name>i{width:10px;color:#667085;font-size:11px}
+    .fmcl-set-stage-name small{display:block;color:#667085;font-size:10px;font-weight:750}
+    .fmcl-set-chips{display:flex;gap:6px;flex-wrap:wrap}
+    .fmcl-set-chip{min-height:30px;max-width:240px;border:1px dashed #d0d5dd;border-radius:999px;background:#fff;color:#667085;padding:0 11px 0 8px;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:11px;font-weight:900;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+    .fmcl-set-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fmcl-set-chip i{width:14px;font-size:10px;color:#98a2b3}
+    .fmcl-set-chip:hover{border-color:rgba(var(--primary-rgb,217,48,37),.45);color:#344054}
+    .fmcl-set-chip.on{border-style:solid;border-color:#12b76a;background:#ecfdf3;color:#05603a}.fmcl-set-chip.on i{color:#12b76a}
+    .fmcl-set-chip.inherited{border-style:solid;border-color:#d1fadf;background:#f6fef9;color:#067647}.fmcl-set-chip.inherited i{color:#6ce9a6}
+    .fmcl-set-chip:disabled{opacity:.5;cursor:wait}
+    .fmcl-set-defaults{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+    .fmcl-set-default{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid #eaecf0;border-radius:11px}.fmcl-set-default>i{width:30px;height:30px;border-radius:9px;background:#f2f4f7;color:#475467;display:grid;place-items:center;font-size:12px;flex:none}
+    .fmcl-set-default-copy{min-width:0;flex:1;display:grid;gap:2px}.fmcl-set-default-copy strong{font-size:12px;font-weight:950;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fmcl-set-default-copy span{color:#667085;font-size:10px;font-weight:800}
+    .fmcl-set-empty{padding:14px;border:1px dashed #d0d5dd;border-radius:11px;color:#667085;font-size:11px;font-weight:800;text-align:center}
+    @media(max-width:640px){.fmcl-set-stage{grid-template-columns:1fr;gap:8px}.fmcl-set-card{padding:12px}}
   `;
   Portal.util?.injectCSS?.('checklists_app', css);
 
@@ -660,7 +690,7 @@
       const untitled = clean(checklist.title).toLowerCase() === 'untitled checklist';
       const collapsed = checklistUi(checklist.id).collapsed;
       return `<section class="fmcl-card ${String(detail ? 'detail' : '')} ${String(collapsed ? 'collapsed' : '')} ${String(deleted ? 'deleted' : '')}" data-fmcl-list="${String(esc(checklist.id))}" data-fmcl-customer-shared="${String(sharedWithCustomer)}" data-fmcl-order="${String(order)}" data-fmcl-deleted="${String(deleted)}">
-        <div class="fmcl-cl-head"><button class="fmcl-cl-icon" type="button" data-fmcl-collapse aria-expanded="${String(!collapsed)}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("checklists","m_ce48bcc0fd78ab",`${v7} checklist`,{v7}) ?? `${v7} checklist`)(collapsed ? 'Expand' : 'Collapse')}" title="${String(collapsed ? 'Expand checklist' : 'Collapse checklist')}"><i class="fas ${String(collapsed ? 'fa-chevron-down' : 'fa-chevron-up')}"></i></button><div class="fmcl-cl-copy"><input class="fmcl-list-title ${String(untitled ? 'untitled' : '')}" data-fmcl-rename value="${String(untitled ? '' : esc(checklist.title))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("checklists","m_9054974500fee9","Untitled…") ?? "Untitled…")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_3bf1f1282b3808","Checklist title") ?? "Checklist title")}" title="${String(deleted ? 'Deleted checklist' : 'Click to rename')}" ${String(deleted ? 'readonly' : '')}>${String(!deleted && clean(checklist.source_key).startsWith('setup:') ? `<span class="fmcl-default-tag" data-fmcl-default title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_29eacd966f8bcc","Every new project starts with this checklist. It comes from your checklists setup.") ?? "Every new project starts with this checklist. It comes from your checklists setup.")}"><i class="fas fa-thumbtack" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("checklists","m_f59e6b09f14267","Default") ?? "Default")}</span>` : '')}${String(deleted ? `<span class="fmcl-deleted-tag"><i class="fas fa-trash"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("checklists","m_5f680e6eb92fdb",` Deleted ${v0}`,{v0}) ?? ` Deleted ${v0}`)(esc(shortDate(checklist.deleted_at)))}</span>` : '')}</div><span class="fmcl-cl-tools">${String(!deleted && data?.permissions?.crew_send === true ? `<button class="fmcl-icon-btn" type="button" data-fmcl-send-crew aria-label="Send to crew app" title="${esc(sentLabel(checklist))}"><i class="fas fa-mobile-screen-button"></i></button>` : '')}${String(!deleted && documentsOn() ? `<button class="fmcl-icon-btn" type="button" data-fmcl-document aria-label="Checklist document" title="Save to Documents, then email, download or print"><i class="fas fa-file-lines"></i></button>` : '')}<button class="fmcl-icon-btn voice-update" type="button" data-fmcl-voice-update aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_b794aea060fc8f","Update checklist by voice") ?? "Update checklist by voice")}" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_8f89b708111629","Update by voice") ?? "Update by voice")}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span></button></span></div>
+        <div class="fmcl-cl-head"><button class="fmcl-cl-icon" type="button" data-fmcl-collapse aria-expanded="${String(!collapsed)}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("checklists","m_ce48bcc0fd78ab",`${v7} checklist`,{v7}) ?? `${v7} checklist`)(collapsed ? 'Expand' : 'Collapse')}" title="${String(collapsed ? 'Expand checklist' : 'Collapse checklist')}"><i class="fas ${String(collapsed ? 'fa-chevron-down' : 'fa-chevron-up')}"></i></button><div class="fmcl-cl-copy"><input class="fmcl-list-title ${String(untitled ? 'untitled' : '')}" data-fmcl-rename value="${String(untitled ? '' : esc(checklist.title))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("checklists","m_9054974500fee9","Untitled…") ?? "Untitled…")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_3bf1f1282b3808","Checklist title") ?? "Checklist title")}" title="${String(deleted ? 'Deleted checklist' : 'Click to rename')}" ${String(deleted ? 'readonly' : '')}>${String(!deleted && clean(checklist.source_key).startsWith('setup:') ? `<span class="fmcl-default-tag" data-fmcl-default title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_ef40d7e18863eb","One of your default checklists: projects get it automatically. Choose the stages in Checklist settings (the gear above).") ?? "One of your default checklists: projects get it automatically. Choose the stages in Checklist settings (the gear above).")}"><i class="fas fa-thumbtack" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("checklists","m_f59e6b09f14267","Default") ?? "Default")}</span>` : '')}${String(deleted ? `<span class="fmcl-deleted-tag"><i class="fas fa-trash"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("checklists","m_5f680e6eb92fdb",` Deleted ${v0}`,{v0}) ?? ` Deleted ${v0}`)(esc(shortDate(checklist.deleted_at)))}</span>` : '')}</div><span class="fmcl-cl-tools">${String(!deleted && data?.permissions?.crew_send === true ? `<button class="fmcl-icon-btn" type="button" data-fmcl-send-crew aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_6baf833ff896ca","Send to crew app") ?? "Send to crew app")}" title="${esc(sentLabel(checklist))}"><i class="fas fa-mobile-screen-button"></i></button>` : '')}${String(!deleted && documentsOn() ? `<button class="fmcl-icon-btn" type="button" data-fmcl-document aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_bbb5f3d70ddd66","Checklist document") ?? "Checklist document")}" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_ca9dd8bc3670c2","Save to Documents, then email, download or print") ?? "Save to Documents, then email, download or print")}"><i class="fas fa-file-lines"></i></button>` : '')}<button class="fmcl-icon-btn voice-update" type="button" data-fmcl-voice-update aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_b794aea060fc8f","Update checklist by voice") ?? "Update checklist by voice")}" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_8f89b708111629","Update by voice") ?? "Update by voice")}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span></button></span></div>
         <div class="fmcl-card-body"><div class="fmcl-card-body-inner">
           <div class="fmcl-card-actions">
             <span class="fmcl-menu-wrap"><button class="fmcl-config-btn ${String(assignmentUi.open ? 'open' : '')}" type="button" data-fmcl-assign><i class="fas fa-user-group"></i>${((v16) => globalThis.PlatformLanguage?.htmlText("checklists","m_467cf3556084e7",` Completes: ${v16} `,{v16}) ?? ` Completes: ${v16} `)(esc(assignmentLabel))}<i class="fas fa-chevron-down"></i></button><div class="fmcl-assignment ${String(assignmentUi.open ? 'open' : '')}" data-fmcl-assignment>
@@ -703,7 +733,156 @@
       grid.replaceChildren(...columns);
     };
 
+    // Checklist settings (GP-1): the organization's default checklists and, per pipeline, the stages each is added in.
+    // Opened by the gear in the header, inside this tab (`checklistView=settings`); read and saved through the
+    // `checklist-defaults` provider and the `checklists.defaults.save` action.
+    const defaults = { loading:false, error:'', value:null, pipelineId:'', busy:false, queue:Promise.resolve() };
+    const canManageDefaults = () => data?.management === true || data?.permissions?.manage === true;
+    const defaultsTarget = () => ({ scope:'project', organizationId:orgId(context), projectId:projectId(context) });
+    const loadDefaults = async () => {
+      defaults.loading = true;
+      defaults.error = '';
+      if (activeView === 'settings' && data && !destroyed) render();
+      try {
+        const read = await window.PlatformAPI.publication.read(orgId(context), { provider:'checklist-defaults', export:'settings', target:defaultsTarget() });
+        const result = read?.result || read;
+        if (result?.status && result.status !== 'ready') throw new Error(result.message || 'Checklist settings could not be loaded.');
+        defaults.value = obj(result?.value);
+      } catch (error) {
+        defaults.error = statusError(error, 'Checklist settings could not be loaded.');
+      } finally {
+        defaults.loading = false;
+        if (activeView === 'settings' && data && !destroyed) render();
+      }
+    };
+    const settingsPipelines = () => arr(defaults.value?.pipelines);
+    const settingsPipeline = () => settingsPipelines().find((pipeline) => pipeline.id === defaults.pipelineId) || settingsPipelines()[0] || null;
+    // Saves run one after another, each against the revision the last one returned; a failure reloads what is saved.
+    const saveDefaults = (input, after) => {
+      defaults.queue = defaults.queue.catch(() => {}).then(async () => {
+        const written = await window.PlatformAPI.publication.invoke(orgId(context), 'checklists.defaults.save', defaultsTarget(),
+          { expected_revision:Number(defaults.value?.revision || 0), ...input },
+          { idempotencyKey:globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}` });
+        const result = written?.result || written;
+        if (result?.status && !['succeeded', 'ready'].includes(result.status)) throw new Error(result.message || 'Checklist settings were not saved.');
+        defaults.value = obj(result?.value);
+        if (typeof after === 'function') await after(defaults.value);
+      }).catch((error) => {
+        showToast((globalThis.PlatformLanguage?.text("checklists","m_5d1f0c6c509647","Checklist settings") ?? "Checklist settings"), statusError(error, 'Checklist settings were not saved.'), false);
+        return loadDefaults();
+      }).finally(() => { if (activeView === 'settings' && !destroyed) render(); });
+      return defaults.queue;
+    };
+    // One default's stages in the shown pipeline: "all", a list of stage ids, or off (left out).
+    const setStages = (key, value) => {
+      const pipeline = settingsPipeline();
+      if (!pipeline) return;
+      const next = { ...obj(pipeline.checklists) };
+      if (value === 'all' || (Array.isArray(value) && value.length)) next[key] = value; else delete next[key];
+      pipeline.checklists = next;
+      pipeline.configured = true;
+      render();
+      void saveDefaults({ pipeline:{ id:pipeline.id, checklists:next } });
+    };
+    const openSettings = () => {
+      activeView = 'settings';
+      render();
+      if (!defaults.value && !defaults.loading) void loadDefaults();
+      if (!Portal.navigation?.applying) Portal.navigation?.push?.({ checklistView:'settings' }, { source:'project-checklist-view', ownedKeys:['checklistView'] });
+    };
+    const closeSettings = () => {
+      activeView = 'all';
+      render();
+      if (!Portal.navigation?.applying) Portal.navigation?.push?.({ checklistView:null }, { source:'project-checklist-view', ownedKeys:['checklistView'] });
+    };
+    const itemCount = (count) => count === 1 ? '1 item' : `${count} items`;
+    const settingsHtml = () => {
+      const value = defaults.value;
+      const head = `<header class="fmcl-head"><div class="fmcl-head-title"><button class="fmcl-icon-btn fmcl-set-back" type="button" data-fmcl-settings-close aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_f022d992b0b768","Back to checklists") ?? "Back to checklists")}" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_f022d992b0b768","Back to checklists") ?? "Back to checklists")}"><i class="fas fa-arrow-left"></i></button><i class="fas fa-sliders"></i><div><strong>${(globalThis.PlatformLanguage?.htmlText("checklists","m_5d1f0c6c509647","Checklist settings") ?? "Checklist settings")}</strong><p class="fmcl-sub">${(globalThis.PlatformLanguage?.htmlText("checklists","m_8eab780c5f33e0","Which default checklists a project gets, and at which stage") ?? "Which default checklists a project gets, and at which stage")}</p></div></div></header>`;
+      if (!value) {
+        const body = defaults.error
+          ? `<div class="fmcl-state"><div><i class="fas fa-triangle-exclamation" style="font-size:24px;color:#b42318"></i><strong>${esc(defaults.error)}</strong><button class="fmcl-btn" type="button" data-fmcl-settings-retry>${(globalThis.PlatformLanguage?.htmlText("checklists","m_ef39ad5e614a24","Try again") ?? "Try again")}</button></div></div>`
+          : stateHtml('loading', 'Loading checklist settings');
+        return `<div class="fmcl-shell"><div class="fmcl-page fmcl-settings" data-fmcl-settings-panel>${head}<div class="fmcl-content">${body}</div></div></div>`;
+      }
+      const lists = arr(value.checklists);
+      const pipeline = settingsPipeline();
+      if (pipeline) defaults.pipelineId = pipeline.id;
+      const assigned = obj(pipeline?.checklists);
+      const stages = arr(pipeline?.stages);
+      const pipelinePicker = settingsPipelines().length > 1
+        ? `<div class="fmcl-set-pipelines" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_0fadecb275bab2","Pipelines") ?? "Pipelines")}">${settingsPipelines().map((entry) => `<button class="fmcl-set-pipeline ${entry.id === pipeline?.id ? 'active' : ''}" type="button" role="tab" aria-selected="${entry.id === pipeline?.id}" data-fmcl-set-pipeline="${esc(entry.id)}"><span class="fmcl-set-dot" style="--dot:${esc(entry.color || '#98a2b3')}"></span><span>${esc(entry.name)}</span>${entry.project?.running ? `<span class="fmcl-set-badge">${(globalThis.PlatformLanguage?.htmlText("checklists","m_e4386777d77ffe","This project") ?? "This project")}</span>` : entry.is_default ? `<span class="fmcl-set-badge">${(globalThis.PlatformLanguage?.htmlText("checklists","m_f59e6b09f14267","Default") ?? "Default")}</span>` : ''}</button>`).join('')}</div>`
+        : pipeline ? `<div class="fmcl-set-pipelines"><span class="fmcl-set-pipeline active"><span class="fmcl-set-dot" style="--dot:${esc(pipeline.color || '#98a2b3')}"></span><span>${esc(pipeline.name)}</span></span></div>` : '';
+      const status = !pipeline ? '' : pipeline.configured
+        ? `<div class="fmcl-set-status"><i class="fas fa-circle-check"></i><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_ec0e10a6ad899e","Set up for this pipeline.") ?? "Set up for this pipeline.")}</span><button class="fmcl-set-link" type="button" data-fmcl-set-reset>${(globalThis.PlatformLanguage?.htmlText("checklists","m_7aa02eee10c98f","Go back to every default from the start") ?? "Go back to every default from the start")}</button></div>`
+        : `<div class="fmcl-set-status"><i class="fas fa-circle-info"></i><span>${((v0) => globalThis.PlatformLanguage?.htmlText("checklists","m_882b80d9800d99",`Not set up yet: ${v0} Change any stage below to set it up.`,{v0}) ?? `Not set up yet: ${v0} Change any stage below to set it up.`)(Object.keys(assigned).length ? 'every default checklist is added when a scope of this pipeline starts.' : 'this pipeline adds no default checklists.')}</span></div>`;
+      const chip = (entry, state, attrs) => `<button class="fmcl-set-chip ${state}" type="button" ${attrs} aria-pressed="${state !== ''}" title="${esc(state === 'inherited' ? 'On in all stages. Tap to leave it out of this stage.' : state === 'on' ? 'Added at this stage. Tap to turn off.' : 'Tap to add at this stage.')}"><i class="fas ${state ? 'fa-check' : 'fa-plus'}"></i><span>${esc(entry.title)}</span></button>`;
+      const allRow = `<div class="fmcl-set-stage all" data-fmcl-set-stage="all"><div class="fmcl-set-stage-name"><i class="fas fa-layer-group"></i><div><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_529b6356416c11","All stages") ?? "All stages")}</span><small>${(globalThis.PlatformLanguage?.htmlText("checklists","m_22e7b58da7c9ad","Added as soon as a scope starts") ?? "Added as soon as a scope starts")}</small></div></div><div class="fmcl-set-chips">${lists.map((entry) => chip(entry, assigned[entry.key] === 'all' ? 'on' : '', `data-fmcl-set-all="${esc(entry.key)}"`)).join('')}</div></div>`;
+      const stageRows = stages.map((stage) => {
+        const current = pipeline?.project?.running && pipeline.project.stage_id === stage.id;
+        return `<div class="fmcl-set-stage ${current ? 'current' : ''}" data-fmcl-set-stage="${esc(stage.id)}"><div class="fmcl-set-stage-name"><span class="fmcl-set-dot" style="--dot:${esc(stage.color || '#98a2b3')}"></span><span>${esc(stage.title)}</span>${current ? `<span class="fmcl-set-badge">${(globalThis.PlatformLanguage?.htmlText("checklists","m_12b439e3c6e105","This project is here") ?? "This project is here")}</span>` : ''}</div><div class="fmcl-set-chips">${lists.map((entry) => {
+          const value = assigned[entry.key];
+          const state = value === 'all' ? 'inherited' : arr(value).includes(stage.id) ? 'on' : '';
+          return chip(entry, state, `data-fmcl-set-toggle="${esc(entry.key)}" data-fmcl-set-stage-id="${esc(stage.id)}"`);
+        }).join('')}</div></div>`;
+      }).join('');
+      const stagesCard = !lists.length ? '' : `<section class="fmcl-set-card"><div><h3>${(globalThis.PlatformLanguage?.htmlText("checklists","m_aac16f05678935","Stages") ?? "Stages")}</h3><p class="fmcl-set-hint">${(globalThis.PlatformLanguage?.htmlText("checklists","m_30a3eed2320c88","A project gets a default checklist when it reaches a stage it is on for. Lists stay on the project after it moves on, and a list someone deleted is not added again.") ?? "A project gets a default checklist when it reaches a stage it is on for. Lists stay on the project after it moves on, and a list someone deleted is not added again.")}</p></div>${pipelinePicker}${status}${pipeline ? `<div class="fmcl-set-stages">${allRow}${stageRows || `<div class="fmcl-set-stage"><div class="fmcl-set-stage-name"><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_969a705a708116","This pipeline has no stages.") ?? "This pipeline has no stages.")}</span></div></div>`}</div>` : `<div class="fmcl-set-empty">${(globalThis.PlatformLanguage?.htmlText("checklists","m_6d39eca8ed67b9","No pipelines yet. Add one in Settings › Project Scopes.") ?? "No pipelines yet. Add one in Settings › Project Scopes.")}</div>`}</section>`;
+      const defaultKeys = new Set(lists.map((entry) => clean(entry.source_key)));
+      const candidates = checklists().filter((checklist) => !defaultKeys.has(clean(checklist.source_key)));
+      const listCard = `<section class="fmcl-set-card"><div><h3>${(globalThis.PlatformLanguage?.htmlText("checklists","m_248b0ab76b63a4","Default checklists") ?? "Default checklists")}</h3><p class="fmcl-set-hint">${(globalThis.PlatformLanguage?.htmlText("checklists","m_23da7f7ef14e63","Every new project can get these. Changing them does not change projects that already have them.") ?? "Every new project can get these. Changing them does not change projects that already have them.")}</p></div>${lists.length ? `<ul class="fmcl-set-defaults">${lists.map((entry) => `<li class="fmcl-set-default" data-fmcl-set-default="${esc(entry.key)}"><i class="fas fa-list-check"></i><div class="fmcl-set-default-copy"><strong>${esc(entry.title)}</strong><span>${esc([itemCount(arr(entry.items).length), entry.audience === 'supervisor' ? 'Supervisor' : 'Crew', entry.signature_required ? 'Sign-off' : '', entry.customer !== 'none' ? 'Customer sees it' : ''].filter(Boolean).join(' · '))}</span></div><button class="fmcl-btn ghost" type="button" data-fmcl-set-remove="${esc(entry.key)}" title="Stop adding this checklist to new projects"><i class="fas fa-trash-can"></i><span>Remove</span></button></li>`).join('')}</ul>` : `<div class="fmcl-set-empty">No default checklists yet. Make one of this project's checklists a default below.</div>`}<h4>${(globalThis.PlatformLanguage?.htmlText("checklists","m_33e591a7801d92","Make one of this project's checklists a default") ?? "Make one of this project's checklists a default")}</h4>${candidates.length ? `<ul class="fmcl-set-defaults">${candidates.map((checklist) => `<li class="fmcl-set-default"><i class="fas fa-clipboard-list"></i><div class="fmcl-set-default-copy"><strong>${esc(checklist.title || 'Untitled checklist')}</strong><span>${esc(itemCount(arr(checklist.items).length))}</span></div><button class="fmcl-btn" type="button" data-fmcl-set-adopt="${esc(checklist.id)}"><i class="fas fa-thumbtack"></i><span>Make default</span></button></li>`).join('')}</ul>` : `<div class="fmcl-set-empty">Every checklist on this project is already a default.</div>`}</section>`;
+      return `<div class="fmcl-shell"><div class="fmcl-page fmcl-settings" data-fmcl-settings-panel>${head}<div class="fmcl-content">${stagesCard}${listCard}</div></div></div>`;
+    };
+    const bindSettings = () => {
+      root.querySelector('[data-fmcl-settings-close]')?.addEventListener('click', closeSettings);
+      root.querySelector('[data-fmcl-settings-retry]')?.addEventListener('click', () => void loadDefaults());
+      root.querySelectorAll('[data-fmcl-set-pipeline]').forEach((button) => button.addEventListener('click', () => { defaults.pipelineId = clean(button.dataset.fmclSetPipeline); render(); }));
+      root.querySelectorAll('[data-fmcl-set-all]').forEach((button) => button.addEventListener('click', () => {
+        const key = clean(button.dataset.fmclSetAll);
+        setStages(key, obj(settingsPipeline()?.checklists)[key] === 'all' ? null : 'all');
+      }));
+      root.querySelectorAll('[data-fmcl-set-toggle]').forEach((button) => button.addEventListener('click', () => {
+        const pipeline = settingsPipeline();
+        const key = clean(button.dataset.fmclSetToggle);
+        const stageId = clean(button.dataset.fmclSetStageId);
+        const value = obj(pipeline?.checklists)[key];
+        // Leaving one stage out of an all-stages list keeps it on for every other stage.
+        const current = value === 'all' ? arr(pipeline?.stages).map((stage) => stage.id) : arr(value);
+        setStages(key, current.includes(stageId) ? current.filter((id) => id !== stageId) : [...current, stageId]);
+      }));
+      root.querySelector('[data-fmcl-set-reset]')?.addEventListener('click', async () => {
+        const pipeline = settingsPipeline();
+        if (!pipeline) return;
+        const approved = await (Portal.ui?.confirm?.(((v0) => globalThis.PlatformLanguage?.text("checklists","m_827c1fa03d4e9e",`Go back to adding every default checklist when ${v0} starts?`,{v0}) ?? `Go back to adding every default checklist when ${v0} starts?`)(pipeline.name)) || Promise.resolve(window.confirm(((v0) => globalThis.PlatformLanguage?.text("checklists","m_827c1fa03d4e9e",`Go back to adding every default checklist when ${v0} starts?`,{v0}) ?? `Go back to adding every default checklist when ${v0} starts?`)(pipeline.name))));
+        if (!approved) return;
+        defaults.busy = true;
+        render();
+        await saveDefaults({ pipeline:{ id:pipeline.id, checklists:null } });
+        defaults.busy = false;
+      });
+      root.querySelectorAll('[data-fmcl-set-remove]').forEach((button) => button.addEventListener('click', async () => {
+        const key = clean(button.dataset.fmclSetRemove);
+        const entry = arr(defaults.value?.checklists).find((candidate) => candidate.key === key);
+        const approved = await (Portal.ui?.confirm?.(((v0) => globalThis.PlatformLanguage?.text("checklists","m_980cb65630546e",`Stop adding "${v0}" to projects? Projects that have it keep it.`,{v0}) ?? `Stop adding "${v0}" to projects? Projects that have it keep it.`)(clean(entry?.title))) || Promise.resolve(window.confirm(((v0) => globalThis.PlatformLanguage?.text("checklists","m_980cb65630546e",`Stop adding "${v0}" to projects? Projects that have it keep it.`,{v0}) ?? `Stop adding "${v0}" to projects? Projects that have it keep it.`)(clean(entry?.title)))));
+        if (!approved) return;
+        busy(button);
+        await saveDefaults({ remove:[key] });
+      }));
+      root.querySelectorAll('[data-fmcl-set-adopt]').forEach((button) => button.addEventListener('click', async () => {
+        busy(button);
+        await saveDefaults({ add_from_checklist_id:clean(button.dataset.fmclSetAdopt) }, async () => {
+          showToast((globalThis.PlatformLanguage?.text("checklists","m_5d1f0c6c509647","Checklist settings") ?? "Checklist settings"), (globalThis.PlatformLanguage?.text("checklists","m_6fe0672fd5e25f","It is a default now. Pick the stages it is added in.") ?? "It is a default now. Pick the stages it is added in."), true);
+          await load();
+        });
+      }));
+      if (defaults.busy) root.querySelectorAll('[data-fmcl-settings-panel] button:not([data-fmcl-settings-close])').forEach((button) => { button.disabled = true; });
+    };
+
     const render = () => {
+      if (activeView === 'settings' && canManageDefaults()) {
+        root.innerHTML = settingsHtml();
+        bindSettings();
+        return;
+      }
       const lists = orderedChecklists();
       const deletedLists = deletedChecklists();
       const deletedView = activeView === 'deleted';
@@ -717,7 +896,7 @@
         .filter(([, input]) => input && (input.value || input === document.activeElement))
         .map(([id, input]) => ({ id, value:input.value, focused:input === document.activeElement }));
       root.innerHTML = `<div class="fmcl-shell"><div class="fmcl-page">
-        <header class="fmcl-head"><div class="fmcl-head-title"><i class="fas fa-list-check"></i><strong>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("checklists","m_4d94794c7ce022",`${v0} checklist${v1}`,{v0,v1}) ?? `${v0} checklist${v1}`)(lists.length,lists.length === 1 ? '' : 's')}</strong></div><div class="fmcl-head-actions">${data?.department_context?.show_selector ? `<select class="fmcl-btn" aria-label="${esc(data.department_context.department_label || 'Department')}" data-fmcl-department><option value="">${esc('All available ' + (data.department_context.departments_label || 'departments'))}</option>${arr(data.department_context.departments).map(d => `<option value="${esc(d.id)}" ${d.id === departmentId ? 'selected' : ''}>${esc(d.label)}</option>`).join('')}</select>` : ''}<button class="fmcl-btn primary new-checklist" type="button" data-fmcl-new-toggle title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_00fcd79c65b45e"," New checklist") ?? " New checklist").trim()}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_00fcd79c65b45e"," New checklist") ?? " New checklist").trim()}"><i class="fas fa-plus" aria-hidden="true"></i></button><button class="fmcl-btn new-audio" type="button" data-fmcl-new-audio title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_cf14f596affe83","New from Audio") ?? "New from Audio")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_cf14f596affe83","New from Audio") ?? "New from Audio")}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span></button></div></header>
+        <header class="fmcl-head"><div class="fmcl-head-title"><i class="fas fa-list-check"></i><strong>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("checklists","m_4d94794c7ce022",`${v0} checklist${v1}`,{v0,v1}) ?? `${v0} checklist${v1}`)(lists.length,lists.length === 1 ? '' : 's')}</strong></div><div class="fmcl-head-actions">${canManageDefaults() ? `<button class="fmcl-btn fmcl-settings-btn" type="button" data-fmcl-settings-open title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_5d1f0c6c509647","Checklist settings") ?? "Checklist settings")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_5d1f0c6c509647","Checklist settings") ?? "Checklist settings")}"><i class="fas fa-gear" aria-hidden="true"></i></button>` : ''}${data?.department_context?.show_selector ? `<select class="fmcl-btn" aria-label="${esc(data.department_context.department_label || 'Department')}" data-fmcl-department><option value="">${esc('All available ' + (data.department_context.departments_label || 'departments'))}</option>${arr(data.department_context.departments).map(d => `<option value="${esc(d.id)}" ${d.id === departmentId ? 'selected' : ''}>${esc(d.label)}</option>`).join('')}</select>` : ''}<button class="fmcl-btn primary new-checklist" type="button" data-fmcl-new-toggle title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_00fcd79c65b45e"," New checklist") ?? " New checklist").trim()}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_00fcd79c65b45e"," New checklist") ?? " New checklist").trim()}"><i class="fas fa-plus" aria-hidden="true"></i></button><button class="fmcl-btn new-audio" type="button" data-fmcl-new-audio title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_cf14f596affe83","New from Audio") ?? "New from Audio")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_cf14f596affe83","New from Audio") ?? "New from Audio")}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span></button></div></header>
         <nav class="fmcl-tabs" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_93a4e0ee487531","Checklist views") ?? "Checklist views")}"><button class="fmcl-tab ${String(effectiveView === 'all' ? 'active' : '')}" type="button" data-fmcl-view="all"><i class="fas fa-border-all"></i><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_d47c4b894a4794","All checklists") ?? "All checklists")}</span></button>${String(lists.map((checklist) => `<button class="fmcl-tab ${effectiveView === checklist.id ? 'active' : ''}" type="button" data-fmcl-view="${esc(checklist.id)}" title="${esc(checklist.title)}"><i class="fas fa-list-check"></i><span>${esc(checklist.title)}</span></button>`).join(''))}<button class="fmcl-tab ${String(effectiveView === 'deleted' ? 'active' : '')}" type="button" data-fmcl-view="deleted"><i class="fas fa-trash-can"></i><span>${((v5) => globalThis.PlatformLanguage?.htmlText("checklists","m_97f3e87e187ab6",`Deleted${v5}`,{v5}) ?? `Deleted${v5}`)(deletedLists.length ? ` (${deletedLists.length})` : '')}</span></button></nav>
         <div class="fmcl-content">
           ${String(visibleLists.length ? `<div class="fmcl-grid ${selectedChecklist ? 'detail' : ''}"><div class="fmcl-masonry-source">${selectedChecklist ? checklistHtml(selectedChecklist, true, 0) : visibleLists.map((checklist, index) => checklistHtml(checklist, false, index, deletedView)).join('')}</div></div>` : stateHtml('empty', deletedView ? 'No deleted checklists.' : 'No checklists yet. Create the first one.'))}
@@ -830,6 +1009,7 @@
     };
 
     const bind = () => {
+      root.querySelector('[data-fmcl-settings-open]')?.addEventListener('click', openSettings);
       root.querySelector('[data-fmcl-new-toggle]')?.addEventListener('click', (event) => void createBlankChecklist(false, event.currentTarget));
       root.querySelector('[data-fmcl-new-audio]')?.addEventListener('click', (event) => void createBlankChecklist(true, event.currentTarget));
       root.querySelector('[data-fmcl-department]')?.addEventListener('change', event => { departmentId = event.target.value; activeView = 'all'; render(); });
@@ -1324,6 +1504,7 @@
     const load = async () => {
       try {
         data = await window.CrewAPI.projects.checklists(orgId(context), projectId(context));
+        if (activeView === 'settings' && canManageDefaults() && !defaults.value && !defaults.loading) void loadDefaults();
         if (!destroyed) render();
       } catch (error) {
         if (!destroyed) root.innerHTML = `<div class="fmcl-shell">${stateHtml('error', statusError(error, 'Could not load checklists.'))}</div>`;
@@ -1336,6 +1517,7 @@
         const next = clean(route.checklistView) || 'all';
         if (next === activeView) return;
         activeView = next;
+        if (next === 'settings' && !defaults.value && !defaults.loading) void loadDefaults();
         if (data && !destroyed) render();
       }
     });

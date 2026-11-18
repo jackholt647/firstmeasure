@@ -406,7 +406,16 @@
     "m_ad1ad337116e8f": "Signed.",
     "m_85a2e67110feec": "Whoever completes this checklist signs it once every item is done, here or in the crew app. Printed copies get a signature line.",
     "m_f59e6b09f14267": "Default",
-    "m_29eacd966f8bcc": "Every new project starts with this checklist. It comes from your checklists setup."
+    "m_29eacd966f8bcc": "Every new project starts with this checklist. It comes from your checklists setup.",
+    "m_e4386777d77ffe": "This project",
+    "m_969a705a708116": "This pipeline has no stages.",
+    "m_6d39eca8ed67b9": "No pipelines yet. Add one in Settings › Project Scopes.",
+    "m_23da7f7ef14e63": "Every new project can get these. Changing them does not change projects that already have them.",
+    "m_f643f568915438": "Remove",
+    "m_650753184df105": "Stop adding this checklist to new projects",
+    "m_284ec50ae04050": "No default checklists yet. Make one of this project's checklists a default below.",
+    "m_3746f0e0bded17": "Make default",
+    "m_96441aab558ca5": "Every checklist on this project is already a default."
   },
   "comms": {
     "m_3ec5c7fbb09941": "Call from this device",
@@ -4726,7 +4735,28 @@
     "m_ac62702ea23953": "Materials are built from a proposal or a scope of work. Start one here.",
     "m_043f0adb7b16cd": "The scope of work could not be opened",
     "m_229e109b5ae5c3": "Ask an administrator to turn on Operations for your account, or create a proposal instead.",
-    "m_7eceb93321fed4": "Empty List"
+    "m_7eceb93321fed4": "Empty List",
+    "m_a3144431054fbc": {
+      "message": "Show {v3}",
+      "format": "icu"
+    },
+    "m_15f86c1d21044a": {
+      "message": "Set up {v2}",
+      "format": "icu"
+    },
+    "m_32bea2db61f64e": "This setup could not be opened",
+    "m_195e03bc9aa76a": {
+      "message": "Line item sources for {v12}",
+      "format": "icu"
+    },
+    "m_2c7a605145f04f": {
+      "message": "Add list to {v15}",
+      "format": "icu"
+    },
+    "m_61885bcbd4c690": {
+      "message": "Minimize {v19}",
+      "format": "icu"
+    }
   },
   "measurements": {
     "m_aaf397f737f7b1": "Residential",
@@ -13714,7 +13744,37 @@
     "m_98a3f5bdc69262": "Choose what your organization tracks on every contact and how new contacts are matched.",
     "m_06a2317739ea3c": "Matching existing contacts",
     "m_d5eba28c84286a": "When a new lead or contact has the same email or phone number as an existing contact, use that contact instead of creating another one.",
-    "m_743229a58a522f": " Use existing contacts with the same email or phone"
+    "m_743229a58a522f": " Use existing contacts with the same email or phone",
+    "m_adc1588bb5d8b3": "Find domains",
+    "m_58c1991147f2bd": "Checkout",
+    "m_46a1b959d1fcc3": "Transfer details",
+    "m_672c53f53aecf6": "/ year",
+    "m_394f6b87458853": "Taken",
+    "m_6ce4b8cdc5343b": "Your cart",
+    "m_26b54c62cff986": "Prices are per year and include privacy at no charge. Add as many domains as you like; you pay for them all at once.",
+    "m_cc4926ede086a7": "Domain name",
+    "m_04a3600a9cf601": "Payment received",
+    "m_ce5ee962ee5a33": "Privacy",
+    "m_6ddc97e52c9c21": "Free",
+    "m_20ca2cffa6a89c": {
+      "message": "Each domain renews every year at {v2}, charged to the card you pay with a month before it expires. You can turn renewal off for any domain in Settings › Domains.",
+      "format": "icu"
+    },
+    "m_82448e349a281f": "I confirm the registrant information is accurate, accept the domain registration terms, and authorize this payment and the yearly renewals.",
+    "m_82c8034780923c": "Check payment",
+    "m_db18c017d9cfce": " Open payment page",
+    "m_2c00cefdb82220": "Check again",
+    "m_6ffcf60dfb6ba7": {
+      "message": " Pay {v0}",
+      "format": "icu"
+    },
+    "m_a5f98678ccd047": "Additional numbers",
+    "m_1e55f353e108b9": "Primary number",
+    "m_b9897da3899fb4": "Reserve additional number",
+    "m_d81d17e8de0532": "FirstMate publishes your privacy policy and texting terms",
+    "m_ad58d95d403348": "Turn this off to use pages on your own website.",
+    "m_c6c266475a1775": "Privacy policy &amp; texting terms",
+    "m_b96151d06a07de": "Hosted by FirstMate"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Add Work",
@@ -20402,7 +20462,27 @@
     "media_pinned_invalid": "pinned must be true or false.",
     "email_attachment_owner": "Choose a file you attached to this email.",
     "email_attachments_too_large": "Attachments can add up to 10 MB per email.",
-    "too_many_email_attachments": "Attach up to 10 files to one email."
+    "too_many_email_attachments": "Attach up to 10 files to one email.",
+    "document_setup_lines_unavailable": "This price book has no roof replacement to put lines on.",
+    "document_setup_person": "The document setup is answered by a person.",
+    "domain_checkout_not_found": "The domain checkout was not found.",
+    "billing_return_url_invalid": "Development checkout must return to dev.1m8.ai.",
+    "domain_billing_unavailable": "Domain purchases are not available here yet.",
+    "domain_checkout_empty": "Add a domain first.",
+    "billing_payment_mode_mismatch": "The payment was made in the other Stripe mode.",
+    "billing_payment_mismatch": "The payment does not match this domain checkout.",
+    "domain_renewal_card_missing": "The payment did not keep a card for renewals.",
+    "billing_subscription_mismatch": "The subscription does not belong to this organization's domains.",
+    "domain_renewal_ended": "This domain's renewal has ended, so it can't be turned back on here.",
+    "premium_domain_confirmation_required": "Premium domains require explicit confirmation.",
+    "domain_price_changed": "The transfer price changed. Request and accept a new quote.",
+    "policy_page_not_found": "Policy page not found.",
+    "number_add_unavailable": "Numbers cannot be added while this SMS service is suspended or deactivated.",
+    "primary_number_required": "Reserve your primary number before adding more.",
+    "checklist_defaults_changed": "Someone else changed the checklist settings. Reload and try again.",
+    "checklist_defaults_project_required": "Make a checklist a default from its project.",
+    "checklist_already_default": "That checklist is already a default.",
+    "invalid_draft_items": "The checklist's items could not be read."
   },
   "notifications": {
     "document_greeting": {
@@ -20477,7 +20557,8 @@
       "format": "icu"
     },
     "m_68e3b9531c49c0": "Connection interrupted. ",
-    "m_5927fe5b04ecd8": "Close payment signup"
+    "m_5927fe5b04ecd8": "Close payment signup",
+    "m_8aa5c32679629e": "This application has already been submitted."
   },
   "brand-kit": {
     "m_6bb25348173069": "Color palette",

@@ -182,6 +182,7 @@ export const ACTION_CATALOG: Record<string, ActionCatalogEntry> = {
   "customFields.initializeFromScope.v1": { title: "Add the scope's project fields", category: "setup", internal: true, input_schema: schema() },
   "materials.initializeFromScope.v1": { title: "Generate the scope's resource lists", category: "setup", internal: true, input_schema: schema() },
   "checklists.initializeFromScope.v1": { title: "Create the scope's checklists", category: "setup", internal: true, input_schema: schema() },
+  "checklists.addStageDefaults.v1": { title: "Add the stage's default checklists", category: "setup", internal: true, input_schema: schema() },
   "scopes.reconcileProjectResources.v1": { title: "Reconcile resources", category: "setup", internal: true, input_schema: schema() },
 
   "scope.code.run.v1": { title: "Run custom code", category: "code", input_schema: {
