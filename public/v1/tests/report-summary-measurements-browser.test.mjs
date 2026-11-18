@@ -25,7 +25,8 @@ const constant = name => {
 const SUMMARY = [constant('REPORT_SUMMARY_NON_MEASUREMENT_KEYS'), ...['numericValue', 'plainObject', 'readPath', 'firstFinitePath', 'reportLineType',
   'reportLineMetricLabel', 'reportLineLength', 'reportDirectLength', 'reportObstacleType', 'reportObstacleLabel', 'reportPointKey', 'reportLinePoints',
   'reportDimensionLabel', 'reportObstacleDimension', 'collectReportObstacleRows', 'collectReportLineTotals', 'formatSummaryNumber', 'finiteMetricValue',
-  'calculateReportSummarySuggestedWaste', 'reportSummaryWastePercent', 'reportSummaryWithWallRows', 'reportSummaryMetricRows', 'reportSummarySources',
+  'calculateReportSummarySuggestedWaste', 'reportSummaryWastePercent', 'reportSummaryWithWallRows', 'reportSummaryMetricRows', 'reportSummaryIsMetric',
+  'reportSummaryDisplayRows', 'reportSummarySources',
   'xmlAttr', 'xmlPointCoordinates', 'distanceBetweenPoints', 'reportSummaryMetricsFromXml', 'reportSummaryMetricCacheKey',
   'reportSummaryRowsFromRoofMeasurements', 'reportSummaryWallRows', 'loadReportSummaryMetricsFromXml',
   'summaryPitchNotation', 'summaryPitchDegrees', 'summaryPitchRow', 'csvCell', 'csvNumericCell', 'summaryMetricLabel', 'reportSummaryMeasurementsCsv']
@@ -51,6 +52,7 @@ const xml = (eave, ridge, size) => `<?xml version="1.0" encoding="UTF-8"?><DATA_
   <POINTS><POINT id="C1" data="0,0,0"/><POINT id="C2" data="${eave},0,0"/><POINT id="C3" data="0,10,8"/><POINT id="C4" data="${ridge},10,8"/></POINTS>
 </ROOF></STRUCTURES></DATA_EXPORT>`;
 const XML = { a: xml(120, 40, 1000), b: xml(64, 22, 600) };
+XML.a2 = XML.a;
 
 async function summary(browser) {
   const page = await browser.newPage();
@@ -154,3 +156,32 @@ test('1M8-255: the company setting wins over the measurement system', async () =
     assert.equal(degrees.pitch.unit, '°');
   } finally { await browser.close(); }
 });
+
+test('FM-574: a metric report shows lengths in m and areas in m², converted from the unrounded feet, in the cards and the CSV', async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const { page, errors } = await summary(browser);
+    // Report a: 120 ft of eave, 40 ft of ridge, faces of 1,000 and 500 sq ft (15 squares), main pitch 6/12.
+    const imperial = await page.evaluate(() => window.pitchFor('a', {}));
+    const metric = await page.evaluate(() => window.pitchFor('a2', { measurement_system: 'metric' }));
+    assert.ok(imperial.csv.includes('\r\nRoof squares,15,sq\r\nRoof area,1500,sq ft\r\n'), imperial.csv);
+    assert.ok(imperial.csv.includes('\r\nEaves,120,ft\r\n'), imperial.csv);
+    assert.ok(imperial.csv.includes('\r\nSquares with waste,'), imperial.csv);
+    // Metric: no roofing squares (the PDF prints the area), every length and area in metres, as the PDF converts them.
+    const csv = metric.csv;
+    assert.ok(!/,sq,|,sq ft|,ft\r?$|,ft\r\n|Roof squares|Squares with waste/m.test(csv), csv);
+    assert.ok(csv.includes('\r\nRoof area,139.35,m²\r\n'), csv);
+    assert.ok(csv.includes('\r\nEaves,36.58,m\r\n'), csv);
+    assert.ok(csv.includes('\r\nRidges,12.19,m\r\n'), csv);
+    assert.ok(/\r\nArea with waste,\d+(\.\d+)?,m²/.test(csv), csv);
+    assert.ok(csv.includes('\r\nMain pitch,6,/12\r\nMain pitch (degrees),26.6,°'), 'pitch keeps both rows: ' + csv);
+    // Lines are converted from the unrounded total, not from the rounded feet: 40.4 ft is 12.31 m, never 40 ft's 12.19.
+    const rows = await page.evaluate(() => {
+      manifest = { measurement_system: 'metric', measurements: { ridge: 40.4, eaves_lf: 132.5 } };
+      return reportSummaryMetricRows([]);
+    });
+    assert.deepEqual(rows.map(r => [r.label, r.value, r.unit]).sort(), [['Eaves', '40.39', 'm'], ['Ridges', '12.31', 'm']]);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+

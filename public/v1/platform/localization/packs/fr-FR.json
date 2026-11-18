@@ -2836,7 +2836,8 @@
       "message": "{structures, plural, one {# bâtiment} other {# bâtiments}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Toiture, murs, fenêtres, portes et gouttières inclus."
+    "report_kind_full_exterior_includes": "Toiture, murs, fenêtres, portes et gouttières inclus.",
+    "m_bcbdcdfb3c0dff": "Surface avec marge de perte"
   },
   "money": {
     "m_487adb3f2ba511": "Chargement des données financières...",

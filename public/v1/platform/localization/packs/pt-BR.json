@@ -2952,7 +2952,8 @@
       "message": "{structures, plural, one {# edificação} other {# edificações}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Inclui telhado, paredes, janelas, portas e calhas."
+    "report_kind_full_exterior_includes": "Inclui telhado, paredes, janelas, portas e calhas.",
+    "m_bcbdcdfb3c0dff": "Área com margem para perdas"
   },
   "money": {
     "m_487adb3f2ba511": "Carregando dados financeiros...",

@@ -2944,7 +2944,8 @@
       "message": "{structures, plural, one {# rakennus} other {# rakennusta}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Sisältää katon, seinät, ikkunat, ovet ja rännit."
+    "report_kind_full_exterior_includes": "Sisältää katon, seinät, ikkunat, ovet ja rännit.",
+    "m_bcbdcdfb3c0dff": "Pinta-ala hukkaprosentilla"
   },
   "money": {
     "m_487adb3f2ba511": "Ladataan taloustietoja...",
