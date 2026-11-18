@@ -25,7 +25,7 @@
  *     phoneSteps: 'bottom'?  on a phone the step numbers sit in one row at the bottom, under the preview
  *     services:{ pricebook, pieceCatalog, generateScopeItems, media }, scope:{...extra}, theme,
  *     document:{ id, type }?  the document this fills; announced with `fm:doc-workflow:opened` (guided experiences)
- *   }) -> { destroy, goTo(stepId), refresh(state) }
+ *   }) -> { destroy, goTo(stepId), back(), position(), refresh(state) }
  *
  *   FMDocWorkflow.registerKind(kind, renderer(el, ctx) -> { validate?, destroy? })
  *
@@ -4064,6 +4064,11 @@
       goTo,
       next: goNext,
       back: goBack,
+      /** Where the person is: { index, count } of the steps they see (a host keeps one back entry per step behind). */
+      position(){
+        const steps = visibleSteps();
+        return { index: steps.length ? currentIndex(steps) : 0, count: steps.length };
+      },
       refresh(nextState){
         const next = obj(nextState);
         if (next.params) st.params = obj(clone(next.params));
