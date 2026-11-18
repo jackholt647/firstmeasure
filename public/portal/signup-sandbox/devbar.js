@@ -369,7 +369,7 @@
 
     function loadConsole() {
         if (window.top !== window) return;
-        import('/libraries/dev-console/dev-console.js?v=20261118-fm552-leads2').then((module) => module.mount()).catch(() => {});
+        import('/libraries/dev-console/dev-console.js?v=20261118-fm571-setup').then((module) => module.mount()).catch(() => {});
     }
 
     fetch(`${apiBaseUrl()}/current-instance`, { credentials: 'include' })

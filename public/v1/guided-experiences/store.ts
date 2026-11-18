@@ -119,6 +119,17 @@ export async function listEvents(orgId: string, experienceId: string, limit = 50
   return rows.map((row) => ({ id: String(row.id), experience_id: String(row.experience_id), experience_version: Number(row.experience_version), variant_id: String(row.variant_id), bucket: Number(row.bucket), unit_id: String(row.unit_id), user_id: String(row.user_id), type: String(row.type), step_id: String(row.step_id), properties: parse(row.properties_json), created_at: String(row.created_at) }));
 }
 
+/**
+ * The newest step views, answers and skips of some steps across every experience (dev console's Setup section: where
+ * each setup step was asked and answered). Newest first, at most `limit`.
+ */
+export async function listStepEvents(orgId: string, stepIds: string[], limit = 2000) {
+  if (!stepIds.length) return [];
+  const rows = await guidedStore().prepare(`SELECT experience_id, user_id, type, step_id, created_at FROM guided_events WHERE organization_id=? AND type IN ('step_view','step_done','step_skip') AND step_id IN (${stepIds.map(() => "?").join(",")}) ORDER BY created_at DESC LIMIT ?`)
+    .all(orgId, ...stepIds, Math.min(5000, Math.max(1, limit)));
+  return rows.map((row) => ({ experience_id: String(row.experience_id), user_id: String(row.user_id), type: String(row.type) as GuidedEventType, step_id: String(row.step_id), created_at: String(row.created_at) }));
+}
+
 /** Clears an experience's progress for the organization and, or only, one person. */
 export async function clearProgress(orgId: string, experienceId: string, subjects: string[]) {
   if (!subjects.length) return 0;

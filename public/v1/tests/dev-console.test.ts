@@ -19,7 +19,7 @@ test('the dev console answers the development tools audience with its sections a
   assert.equal((await app.inject({method:'GET',url:'/v1/signup-sandbox/development/console'})).statusCode,401);
   const answer=await app.inject({method:'GET',url:'/v1/signup-sandbox/development/console',headers:{cookie}});
   assert.equal(answer.statusCode,200,answer.body);
-  assert.deepEqual(answer.json().sections,{test_run:true,synthetic_data:true,synthetic_leads:true,software_layers:true,guided:true,live:true});
+  assert.deepEqual(answer.json().sections,{setup:true,test_run:true,synthetic_data:true,synthetic_leads:true,software_layers:true,guided:true,live:true});
   assert.equal(answer.json().organization.sandbox,true);
   // The live layer as the receiver's manifest has it: each file with the checkout that put it there.
   const {mkdir}=await import('node:fs/promises');await mkdir(path.join(root,'live'),{recursive:true});
@@ -45,11 +45,46 @@ test('the dev console answers the development tools audience with its sections a
   stop();
   const outsider={...stream,headers:{host:'localhost'}} as any;
   assert.ok((await realtime.resolveRealtimeChannels(outsider,ctx.orgId,['dev-push'],{}))[0]!.error,'signed out: refused');
+  // Setup (FM-571): every setup step and guided setup, how far this organization got and where each was done.
+  const setupState=async()=>{const r=await app.inject({method:'GET',url:'/v1/signup-sandbox/development/console/setup',headers:{cookie}});assert.equal(r.statusCode,200,r.body);return r.json();};
+  const stepOf=(state:any,id:string)=>state.steps.find((s:any)=>s.id===id),guideOf=(state:any,id:string)=>state.guides.find((g:any)=>g.id===id);
+  let state=await setupState();
+  assert.ok(stepOf(state,'company.type'),'the company type question is listed');
+  assert.equal(stepOf(state,'company.type').status,'not_started');
+  assert.equal(stepOf(state,'company.type').last,null);
+  assert.ok(stepOf(state,'company.services').asked_by.includes('Set up Operations'),'a step lists the setups that ask it, through what it requires');
+  assert.deepEqual([guideOf(state,'operations.setup').group,guideOf(state,'operations.setup').status],['setup','not_started']);
+  assert.equal(guideOf(state,'docs.tab_tutorial').group,'tour');
+  assert.ok(!state.guides.some((g:any)=>g.id.startsWith('setup_step.')),'a step played on its own is listed as the step, not as a setup');
+  const service=await import('../guided-experiences/service.js');
+  (await import('../guided-experiences/registry.js')).registerExperienceForTests({id:'test.fm571_setup',version:1,kind:'modal',scope:'organization',title:{key:'gx_test_fm571',text:'Test setup'},variants:[{id:'a',weight:1}],triggers:[{kind:'manual'}],requires:['company.type','company.services'],steps:[]});
+  await service.recordGuidedEvent(ctx,'test.fm571_setup',{type:'start'});
+  await service.recordGuidedEvent(ctx,'test.fm571_setup',{type:'step_view',step_id:'company.type'});
+  state=await setupState();
+  assert.equal(stepOf(state,'company.type').status,'started','asked, not answered');
+  assert.deepEqual([stepOf(state,'company.type').last.experience_title,stepOf(state,'company.type').last_type],['Test setup','step_view']);
+  assert.deepEqual([guideOf(state,'test.fm571_setup').status,guideOf(state,'test.fm571_setup').step.title],['started','What kind of company are you?']);
+  const {invokeAction}=await import('../platform/publication/actions.js'),{userPublicationContext}=await import('../platform/publication/context.js');
+  await invokeAction(userPublicationContext(ctx,{mode:'command'}),{action:'company-profile.save',target:{scope:'organization',organizationId:ctx.orgId}},{company_type:'roofing_contractor'},{idempotencyKey:'fm571-type'});
+  await service.recordGuidedEvent(ctx,'test.fm571_setup',{type:'step_done',step_id:'company.type'});
+  await service.recordGuidedEvent(ctx,'test.fm571_setup',{type:'step_skip',step_id:'company.services'});
+  state=await setupState();
+  assert.equal(stepOf(state,'company.type').status,'done');
+  assert.deepEqual([stepOf(state,'company.type').answered_in.experience_id,stepOf(state,'company.type').answered_in.experience_title],['test.fm571_setup','Test setup'],'where it was answered');
+  assert.ok(stepOf(state,'company.type').answered_in.by,'and by whom');
+  assert.equal(stepOf(state,'company.services').status,'skipped');
+  // An answer no guided setup saved (Settings, signup, an agent) is done with nowhere to point at.
+  await invokeAction(userPublicationContext(ctx,{mode:'command'}),{action:'company-profile.save',target:{scope:'organization',organizationId:ctx.orgId}},{services:['gutters']},{idempotencyKey:'fm571-services'});
+  state=await setupState();
+  assert.deepEqual([stepOf(state,'company.services').status,stepOf(state,'company.services').answered_in,stepOf(state,'company.services').last_type],['done',null,'step_skip']);
+  await service.recordGuidedEvent(ctx,'test.fm571_setup',{type:'dismiss',step_id:'company.services'});
+  assert.equal(guideOf(await setupState(),'test.fm571_setup').status,'skipped');
   // An ordinary organization's owner is not the audience.
   const storage=await import('../platform/storage.js');
   const devConsole=await import('../development/console.js');
   const real=await storage.createOrganization({name:'Not a sandbox'});
   await assert.rejects(devConsole.devConsoleAccess({...ctx,orgId:String(real.id)}),/development tools audience/);
   await assert.rejects(devConsole.devConsoleLive({...ctx,orgId:String(real.id)}),/development tools audience/);
+  await assert.rejects(devConsole.devConsoleSetup({...ctx,orgId:String(real.id)}),/development tools audience/);
  }finally{await app.close();}
 });

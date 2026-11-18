@@ -98,7 +98,7 @@ export const registerSignupSandboxApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request, { permission: "manage_company_settings", csrf: true });
     return { ok: true, ...(await (await import("../development/synthetic-leads.js")).generateSyntheticLeads(ctx, request.body)) };
   });
-  // The dev console tray (libraries/dev-console): who sees it, which sections apply, and the live layer's files.
+  // The dev console tray (libraries/dev-console): who sees it, which sections apply, the live layer's files and setup state.
   app.get("/development/console", async (request) => {
     const ctx = await requirePlatformAuth(request);
     return (await import("../development/console.js")).devConsoleAccess(ctx);
@@ -106,6 +106,10 @@ export const registerSignupSandboxApi: FastifyPluginAsync = async (app) => {
   app.get("/development/console/live", async (request) => {
     const ctx = await requirePlatformAuth(request);
     return (await import("../development/console.js")).devConsoleLive(ctx);
+  });
+  app.get("/development/console/setup", async (request) => {
+    const ctx = await requirePlatformAuth(request);
+    return (await import("../development/console.js")).devConsoleSetup(ctx);
   });
   app.get("/development/software-layers", async (request) => {
     const ctx = await requirePlatformAuth(request, { permission: "manage_company_settings" });
