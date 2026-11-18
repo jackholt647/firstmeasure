@@ -20,16 +20,23 @@ const css = `
 .gxc p{margin:0;color:#475467;line-height:1.5}
 .gxc-lead{font-size:15px}
 .gxc-ways{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.gxc-way{position:static;display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px 14px;border:1px solid #e4e7ec;border-radius:16px;background:#fff;font:inherit;color:#101828;cursor:help;animation:gxcFade .3s ease both}
+.gxc-way{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px 14px;border:1px solid #e4e7ec;border-radius:16px;background:#fff;font:inherit;color:#101828;cursor:help;animation:gxcFade .3s ease both}
 .gxc-way:hover{border-color:#d0d5dd}
+.gxc-way:hover,.gxc-way:focus{z-index:2}
 .gxc-way:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
 .gxc-way strong{font-size:14px;line-height:1.2}
 .gxc-way .gxc-icon{width:44px;height:44px;font-size:19px}
 .gxc-way-name{display:inline-flex;align-items:center;gap:6px}
 .gxc-i{width:16px;height:16px;border-radius:50%;border:1px solid #d0d5dd;color:#667085;font:italic 700 10px/14px Georgia,serif;text-align:center;flex:none}
-.gxc-way-on{font-size:11px;font-weight:750;color:#067647;display:inline-flex;align-items:center;gap:4px}
-.gxc-tip{position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:3;background:#101828;color:#fff;font-size:13px;font-weight:400;line-height:1.45;text-align:left;border-radius:10px;padding:9px 12px;opacity:0;pointer-events:none;transform:translateY(4px);transition:opacity .15s,transform .15s;box-shadow:0 12px 30px rgba(16,24,40,.25)}
-.gxc-way:hover .gxc-tip,.gxc-way:focus .gxc-tip{opacity:1;transform:none}
+.gxc-way-on{font-size:11px;font-weight:750;line-height:1.3;color:#067647;text-align:center}
+.gxc-way-on i{margin-right:4px}
+.gxc-way-on[data-state=wait]{color:#b54708}
+.gxc-way-on[data-state=todo]{color:#b42318}
+.gxc-tip{position:absolute;bottom:calc(100% + 9px);left:50%;z-index:3;box-sizing:border-box;width:max-content;max-width:min(280px,calc(100vw - 32px));background:#101828;color:#fff;font-size:13px;font-weight:400;line-height:1.45;text-align:left;border-radius:10px;padding:8px 12px;opacity:0;pointer-events:none;margin-left:var(--gxc-tip-x,0px);transform:translate(-50%,4px);transition:opacity .15s,transform .15s;box-shadow:0 12px 30px rgba(16,24,40,.25)}
+.gxc-tip::after{content:"";position:absolute;top:100%;left:calc(50% - var(--gxc-tip-x,0px));margin-left:-6px;border:6px solid transparent;border-top-color:#101828}
+.gxc-tip[data-below]{bottom:auto;top:calc(100% + 9px);transform:translate(-50%,-4px)}
+.gxc-tip[data-below]::after{top:auto;bottom:100%;border-top-color:transparent;border-bottom-color:#101828}
+.gxc-way:hover .gxc-tip,.gxc-way:focus .gxc-tip{opacity:1;transform:translate(-50%,0)}
 .gxc-icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary,#d93025);font-size:17px;flex:none}
 .gxc-choose{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .gxc-choice{display:flex;align-items:center;gap:14px;min-height:72px;padding:14px 16px;border:1px solid #d0d5dd;border-radius:16px;background:#fff;font:inherit;text-align:left;color:#101828;cursor:pointer;transition:border-color .15s,box-shadow .2s,transform .15s}
@@ -68,8 +75,8 @@ const css = `
 .gxc-busy{display:flex;align-items:center;gap:12px;padding:18px 16px;border-radius:16px;background:#f9fafb;color:#475467}
 .gxc-error{color:#b42318;font-size:13px;min-height:1em}
 .gxc-note{font-size:12.5px;color:#667085}
-@media(max-width:640px){.gxc-choose{grid-template-columns:minmax(0,1fr)}.gxc-ways{gap:8px}.gxc-way{padding:14px 4px 12px}.gxc-way strong{font-size:13px}.gxc-row{flex-wrap:wrap}.gxc-row>div{flex-basis:calc(100% - 40px)}.gxc-row .gxc-btn{margin-left:40px}.gxc-actions .gxc-btn{flex:1 1 auto}.gxc-actions .gxc-spacer{display:none}}
-/* Opacity only: a transform would make each channel the tooltip's box, and the tooltip spans the row. */
+@media(max-width:640px){.gxc-choose{grid-template-columns:minmax(0,1fr)}.gxc-tip{max-width:calc(100vw - 32px)}.gxc-ways{gap:8px}.gxc-way{padding:14px 4px 12px}.gxc-way strong{font-size:13px}.gxc-row{flex-wrap:wrap}.gxc-row>div{flex-basis:calc(100% - 40px)}.gxc-row .gxc-btn{margin-left:40px}.gxc-actions .gxc-btn{flex:1 1 auto}.gxc-actions .gxc-spacer{display:none}}
+/* Each channel's tooltip sits over its own card (under it where the step has no room above), kept inside the row: place(). */
 @keyframes gxcFade{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.gxc *{animation:none!important;transition:none!important}}
 `;
@@ -90,7 +97,7 @@ export function mount(el, ctx){
   const orgId = String(window.__APP?.userOrgId || window.Portal?.currentUser?.orgId || ctx.orgId || '');
   const options = object(ctx.options);
   const first = options.first === 'email' ? 'email' : 'phone';
-  let alive = true, busy = false, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, domains = null, registering = false;
+  let alive = true, busy = false, watcher = null, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, domains = null, registering = false;
 
   const invoke = (action, input = {}) => commsAction(orgId, action, input);
   const icon = (name) => `<span class="gxc-icon" aria-hidden="true"><i class="fas ${name}"></i></span>`;
@@ -111,30 +118,58 @@ export function mount(el, ctx){
   function drawIntro(){
     title(text(options.headline));
     const done = object(status.done);
+    // Texts and calls are on only once carrier registration is approved (FM-586); until then the card says where it stands.
+    const state = registration();
+    const phoneState = !done.phone ? null
+      : state === 'approved' ? ['done', 'fa-check', L('gx_comms_on', 'On')]
+        : state === 'submitted' ? ['wait', 'fa-clock', L('gx_comms_awaiting_approval', 'Awaiting approval')]
+          : state === 'attention' ? ['todo', 'fa-circle-exclamation', L('gx_comms_needs_attention', 'Needs attention')]
+            : ['wait', 'fa-pen', L('gx_comms_needs_review', 'Needs review')];
+    const emailState = done.email ? ['done', 'fa-check', L('gx_comms_on', 'On')] : null;
     const ways = [
-      ['texts', 'fa-comment-sms', L('gx_comms_way_texts', 'Texts'), L('gx_comms_way_texts_tip', 'Text customers from their project. Replies come back to the same project.'), done.phone],
-      ['calls', 'fa-phone', L('gx_comms_way_calls', 'Calls'), L('gx_comms_way_calls_tip', 'Call with the customer’s details beside you. Notes, outcomes and recordings are saved.'), done.phone],
-      ['email', 'fa-envelope', L('gx_comms_way_email', 'Email'), L('gx_comms_way_email_tip', 'A company inbox. Every email with a customer lands on their project.'), done.email]
+      ['texts', 'fa-comment-sms', L('gx_comms_way_texts', 'Texts'), L('gx_comms_way_texts_tip', 'Text customers from their project. Replies come back to the same project.'), phoneState],
+      ['calls', 'fa-phone', L('gx_comms_way_calls', 'Calls'), L('gx_comms_way_calls_tip', 'Call with the customer’s details beside you. Notes, outcomes and recordings are saved.'), phoneState],
+      ['email', 'fa-envelope', L('gx_comms_way_email', 'Email'), L('gx_comms_way_email_tip', 'A company inbox. Every email with a customer lands on their project.'), emailState]
     ];
+    const chosen = { phone: phoneState, email: emailState };
     const choices = {
       phone: [L('gx_comms_choice_phone_title', 'Texts and calls'), L('gx_comms_choice_phone', 'Your business number'), 'fa-comment-sms'],
       email: [L('gx_comms_choice_email_title', 'Email'), L('gx_comms_choice_email', 'Your company inbox'), 'fa-envelope-open-text']
     };
-    const choice = (id) => { const [name, body, iconName] = choices[id]; return `<button type="button" class="gxc-choice" data-gxc-start="${id}" ${id === first && !done[id] ? 'data-first' : ''}>${icon(iconName)}<span><strong>${esc(name)}</strong><small>${esc(done[id] ? L('gx_comms_choice_on', 'On · review') : body)}</small></span></button>`; };
+    const choice = (id) => { const [name, body, iconName] = choices[id]; return `<button type="button" class="gxc-choice" data-gxc-start="${id}" ${id === first && !done[id] ? 'data-first' : ''}>${icon(iconName)}<span><strong>${esc(name)}</strong><small>${esc(!chosen[id] ? body : chosen[id][0] === 'done' ? L('gx_comms_choice_on', 'On · review') : chosen[id][2])}</small></span></button>`; };
     el.innerHTML = `<div class="gxc">
       <p class="gxc-lead">${esc(text(options.subtitle || options.body, L('gx_comms_subtitle', 'Every conversation with your customers in one place.')))}</p>
-      <div class="gxc-ways">${ways.map(([id, iconName, name, tip, on], index) => `<button type="button" class="gxc-way" data-gxc-way="${id}" aria-describedby="gxc-tip-${id}" style="animation-delay:${index * 50}ms">${icon(iconName)}<span class="gxc-way-name"><strong>${esc(name)}</strong><span class="gxc-i" aria-hidden="true">i</span></span>${on ? `<span class="gxc-way-on"><i class="fas fa-check" aria-hidden="true"></i>${esc(L('gx_comms_on', 'On'))}</span>` : ''}<span class="gxc-tip" role="tooltip" id="gxc-tip-${id}">${esc(tip)}</span></button>`).join('')}</div>
+      <div class="gxc-ways">${ways.map(([id, iconName, name, tip, on], index) => `<button type="button" class="gxc-way" data-gxc-way="${id}" aria-describedby="gxc-tip-${id}" style="animation-delay:${index * 50}ms">${icon(iconName)}<span class="gxc-way-name"><strong>${esc(name)}</strong><span class="gxc-i" aria-hidden="true">i</span></span>${on ? `<span class="gxc-way-on" data-state="${on[0]}"><i class="fas ${on[1]}" aria-hidden="true"></i>${esc(on[2])}</span>` : ''}<span class="gxc-tip" role="tooltip" id="gxc-tip-${id}">${esc(tip)}</span></button>`).join('')}</div>
       <span class="gxc-label">${esc(L('gx_comms_where_start', 'Where do you want to start?'))}</span>
       <div class="gxc-choose">${(first === 'email' ? ['email', 'phone'] : ['phone', 'email']).map(choice).join('')}</div>
       ${done.phone && done.email ? `<div class="gxc-actions"><span class="gxc-spacer"></span><button type="button" class="gxc-btn primary" data-gxc-finish>${esc(L('gx_comms_go', 'Go to Communications'))}</button></div>` : ''}
       ${errorLine}
     </div>`;
+    el.querySelectorAll('.gxc-way').forEach((way) => { const tip = () => place(way); way.addEventListener('pointerenter', tip); way.addEventListener('focus', tip); });
+    // Hidden tips are placed too, so none reaches past the row (and widens the step) before it is shown.
+    const row = el.querySelector('.gxc-ways'), placeAll = () => row.querySelectorAll('.gxc-way').forEach(place);
+    placeAll();
+    watcher?.disconnect(); watcher = typeof ResizeObserver === 'function' ? new ResizeObserver(placeAll) : null; watcher?.observe(row);
     el.querySelectorAll('[data-gxc-start]').forEach((button) => button.addEventListener('click', () => {
       const id = button.dataset.gxcStart;
       if (object(status.done)[id] && (id === 'email' || registered())) return show('done');
       if (id === 'email') return show('email');
       void startPhone(button);
     }));
+  }
+
+  // A channel's tooltip goes over its card, or under it where the step's scroll area has no room above, and moves
+  // sideways (its arrow staying on the card) so it stays inside the row of channels.
+  function place(way){
+    const tip = way.querySelector('.gxc-tip'), row = way.closest('.gxc-ways');
+    if (!tip || !row) return;
+    tip.style.setProperty('--gxc-tip-x', '0px');
+    const card = way.getBoundingClientRect(), box = tip.getBoundingClientRect(), bounds = row.getBoundingClientRect();
+    const scroller = way.closest('.gxs-step')?.getBoundingClientRect(), top = Math.max(scroller ? scroller.top : 0, 0);
+    tip.toggleAttribute('data-below', card.top - top < box.height + 10);
+    const left = card.left + card.width / 2 - box.width / 2;
+    const shift = Math.min(Math.max(left, bounds.left), Math.max(bounds.left, bounds.right - box.width)) - left;
+    tip.style.setProperty('--gxc-tip-x', `${Math.round(shift)}px`);
   }
 
   function drawBusy(message){
@@ -321,6 +356,7 @@ export function mount(el, ctx){
 
   function draw(){
     if (!alive) return;
+    watcher?.disconnect(); watcher = null;
     if (page === 'done') drawDone();
     else if (page === 'email') drawEmail();
     else if (page === 'billing') drawBilling();
@@ -339,6 +375,6 @@ export function mount(el, ctx){
     if (start === 'email') show(object(status.done).email ? 'done' : 'email');
     else if (start === 'phone') void (object(status.done).phone && registered() ? show('done') : startPhone());
   }).catch((error) => { draw(); fail(error); });
-  return { valid: () => true, escape: () => registering, destroy(){ alive = false; } };
+  return { valid: () => true, escape: () => registering, destroy(){ alive = false; watcher?.disconnect(); } };
 }
 export default mount;
