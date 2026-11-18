@@ -3169,7 +3169,9 @@
     "m_5bedad4ed70b66": "Der Zahlungsbeleg ist noch nicht verfügbar.",
     "m_a3f7efd048a5e3": "Beleg-PDF konnte nicht geöffnet werden.",
     "m_be2e9e776e4eb5": "Bezahlte Kosten können nicht entfernt werden.",
-    "m_cf842ec2f4d524": "Diese Ausgabe aus dem Projektkonto entfernen?"
+    "m_cf842ec2f4d524": "Diese Ausgabe aus dem Projektkonto entfernen?",
+    "loading_workspace": "Wird geladen: {workspace} …",
+    "back_to_workspace": "Zurück zu {workspace}"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Reports bestellen",
@@ -9917,7 +9919,8 @@
     "billing.invoice": "Rechnung",
     "billing.payment_method": "Zahlungsmethode",
     "ui.routing_mode": "Routenplanung",
-    "settings.developer_settings_tab": "Entwicklereinstellungen"
+    "settings.developer_settings_tab": "Entwicklereinstellungen",
+    "money.project_tab_short": "Finanzen"
   },
   "shared": {
     "save": "Speichern",

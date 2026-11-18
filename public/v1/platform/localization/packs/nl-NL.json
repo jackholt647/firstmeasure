@@ -3173,7 +3173,9 @@
     "m_5bedad4ed70b66": "Betalingsbewijs is nog niet beschikbaar.",
     "m_a3f7efd048a5e3": "Bon-PDF kon niet worden geopend.",
     "m_be2e9e776e4eb5": "Betaalde uitgaven kunnen niet worden verwijderd.",
-    "m_cf842ec2f4d524": "Deze uitgave uit het projectoverzicht verwijderen?"
+    "m_cf842ec2f4d524": "Deze uitgave uit het projectoverzicht verwijderen?",
+    "loading_workspace": "{workspace} laden...",
+    "back_to_workspace": "Terug naar {workspace}"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Rapporten bestellen",
@@ -9937,7 +9939,8 @@
     "billing.invoice": "Factuur",
     "billing.payment_method": "Betaalmethode",
     "ui.routing_mode": "Routeplanning",
-    "settings.developer_settings_tab": "Ontwikkelaarsinstellingen"
+    "settings.developer_settings_tab": "Ontwikkelaarsinstellingen",
+    "money.project_tab_short": "Geldzaken"
   },
   "shared": {
     "save": "Opslaan",

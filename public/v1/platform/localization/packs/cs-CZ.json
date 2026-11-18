@@ -3029,7 +3029,9 @@
     "m_5bedad4ed70b66": "Potvrzení o platbě zatím není dostupné.",
     "m_a3f7efd048a5e3": "Soubor PDF s potvrzením se nepodařilo otevřít.",
     "m_be2e9e776e4eb5": "Uhrazené výdaje nelze odebrat.",
-    "m_cf842ec2f4d524": "Odebrat tento výdaj z účetního přehledu projektu?"
+    "m_cf842ec2f4d524": "Odebrat tento výdaj z účetního přehledu projektu?",
+    "loading_workspace": "Načítání: {workspace}...",
+    "back_to_workspace": "Zpět na {workspace}"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Objednávat reporty",
@@ -9429,7 +9431,8 @@
     "billing.invoice": "Faktura",
     "billing.payment_method": "Platební metoda",
     "ui.routing_mode": "Plánování tras",
-    "settings.developer_settings_tab": "Nastavení pro vývojáře"
+    "settings.developer_settings_tab": "Nastavení pro vývojáře",
+    "money.project_tab_short": "Finance"
   },
   "shared": {
     "save": "Uložit",

@@ -3177,7 +3177,9 @@
     "m_5bedad4ed70b66": "領収書はまだ利用できません。",
     "m_a3f7efd048a5e3": "領収書のPDFを開けませんでした。",
     "m_be2e9e776e4eb5": "支払い済みの経費は削除できません。",
-    "m_cf842ec2f4d524": "この経費をプロジェクトの台帳から削除しますか？"
+    "m_cf842ec2f4d524": "この経費をプロジェクトの台帳から削除しますか？",
+    "loading_workspace": "{workspace}を読み込み中...",
+    "back_to_workspace": "「{workspace}」に戻る"
   },
   "onboarding": {
     "m_a0d673c98d109b": "レポートを注文",
@@ -9941,7 +9943,8 @@
     "billing.invoice": "請求書",
     "billing.payment_method": "支払い方法",
     "ui.routing_mode": "ルーティング",
-    "settings.developer_settings_tab": "開発者設定"
+    "settings.developer_settings_tab": "開発者設定",
+    "money.project_tab_short": "財務"
   },
   "shared": {
     "save": "保存",

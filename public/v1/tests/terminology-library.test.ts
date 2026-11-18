@@ -70,7 +70,7 @@ test("an organization's variable_mappings store overrides only; reads return ove
   const s = await import("../platform/storage.js");
   const ORG = "org_terminology_overrides";
   await s.createOrganization({ id: ORG, name: ORG });
-  await s.saveBranchModule(ORG, "default", "variable_mappings", { data: { labels: { projects: { project: "Project", projects: "Jobs" }, money: { workspace: "Money" }, event_types: { custom_visit: "Custom Visit" } }, localized_labels: { "en-US": { projects: { project: "" } } } } });
+  await s.saveBranchModule(ORG, "default", "variable_mappings", { data: { labels: { projects: { project: "Project", projects: "Jobs" }, money: { workspace: "Finance" }, event_types: { custom_visit: "Custom Visit" } }, localized_labels: { "en-US": { projects: { project: "" } } } } });
   const stored = (await s.readBranchModule(ORG, "default", "variable_mappings")).data as any;
   assert.deepEqual(stored.labels, { projects: { projects: "Jobs" }, event_types: { custom_visit: "Custom Visit" } });
   assert.deepEqual(stored.localized_labels, { "en-US": { projects: { project: "" } } }, "an explicit reset is kept");

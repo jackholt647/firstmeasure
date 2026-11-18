@@ -1,10 +1,10 @@
 {
   "kind": "terminology_namespace",
   "id": "money",
-  "revision": 2,
-  "sha256": "266afe339e7cc3c1a374f1ea124225eacee511fed6e7ed8d6f8a7c525d692def",
+  "revision": 4,
+  "sha256": "913e26e9f9276a37126f8ab3f238a9d1f386cbf989c73fdee0c0f549e79804bc",
   "title": "Money",
-  "updated_at": "2026-10-28T20:42:40.172Z",
+  "updated_at": "2026-11-18T21:57:45.357Z",
   "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "title": "Money",
@@ -17,13 +17,18 @@
         "kind": "navigation"
       },
       {
+        "key": "project_tab_short",
+        "label": "Finance",
+        "kind": "navigation"
+      },
+      {
         "key": "payments_settings_tab",
         "label": "Payments",
         "kind": "navigation"
       },
       {
         "key": "workspace",
-        "label": "Money",
+        "label": "Finance",
         "kind": "entity"
       },
       {

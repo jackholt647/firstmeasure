@@ -3037,7 +3037,9 @@
     "m_5bedad4ed70b66": "Le reçu de paiement n’est pas encore disponible.",
     "m_a3f7efd048a5e3": "Impossible d’ouvrir le reçu PDF.",
     "m_be2e9e776e4eb5": "Les dépenses payées ne peuvent pas être supprimées.",
-    "m_cf842ec2f4d524": "Supprimer cette dépense du grand livre du projet ?"
+    "m_cf842ec2f4d524": "Supprimer cette dépense du grand livre du projet ?",
+    "loading_workspace": "Chargement : {workspace}...",
+    "back_to_workspace": "Retour : {workspace}"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Commander des rapports",
@@ -9728,7 +9730,8 @@
     "billing.invoice": "Facture",
     "billing.payment_method": "Moyen de paiement",
     "ui.routing_mode": "Routage",
-    "settings.developer_settings_tab": "Paramètres de développement"
+    "settings.developer_settings_tab": "Paramètres de développement",
+    "money.project_tab_short": "Finances"
   },
   "shared": {
     "save": "Enregistrer",

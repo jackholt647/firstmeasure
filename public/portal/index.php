@@ -38,6 +38,22 @@ if (strtolower(trim((string)($_GET['photoScope'] ?? ''))) === 'feed') {
     $initialProjectRoute = '';
 }
 $initialProjectTab = trim((string)($_GET['projectTab'] ?? 'map'));
+// First-paint project tab names come from the config library's terminology defaults (the snapshot), the same
+// words the project window shows once it loads (FM-603). Unknown namespaces or terms keep the fallback.
+if (!function_exists('fmPortalTerminologyLabel')) { function fmPortalTerminologyLabel(string $key, string $fallback): string {
+    static $namespaces = [];
+    [$namespace, $term] = array_pad(explode('.', $key, 2), 2, '');
+    if (!preg_match('/^[a-z0-9_]+$/', $namespace) || $term === '') return $fallback;
+    if (!array_key_exists($namespace, $namespaces)) {
+        $raw = @file_get_contents(__DIR__ . '/../v1/config-library/snapshot/terminology_namespace/' . $namespace . '.json');
+        $entry = is_string($raw) ? json_decode($raw, true) : null;
+        $namespaces[$namespace] = [];
+        foreach ((is_array($entry) ? ($entry['data']['terms'] ?? []) : []) as $item) {
+            if (is_array($item) && isset($item['key'], $item['label']) && trim((string)$item['label']) !== '') $namespaces[$namespace][(string)$item['key']] = trim((string)$item['label']);
+        }
+    }
+    return $namespaces[$namespace][$term] ?? $fallback;
+} }
 $showOnboarding = false;
 if (isset($_GET['onboarding'])) {
     $showOnboarding = true;
@@ -1941,7 +1957,9 @@ session_write_close();
   <?php if ($initialProjectRoute !== '' && !$showOnboarding): ?>
   <!-- First-paint project chrome. The routed project app replaces this shell
        in place without replaying its entrance animation. -->
-  <?php $projectRouteTabs = ['map'=>['Overview','fa-map'], 'photos'=>['Photos','fa-image'], 'proposal'=>['Proposals','fa-file-signature'], 'docs'=>['Docs','fa-folder'], 'materials'=>['Scope','fa-link'], 'money'=>['Money','fa-dollar-sign'], 'schedule'=>['Schedule','fa-calendar'], 'measurements'=>['Reports','fa-clipboard-list']]; $initialProjectTabMeta = $projectRouteTabs[$initialProjectTab] ?? $projectRouteTabs['map']; ?>
+  <?php $projectRouteTabs = ['map'=>['projects.overview_tab','Overview','fa-map'], 'photos'=>['photos.project_tab','Photos','fa-image'], 'proposal'=>['proposals.project_tab','Proposals','fa-file-signature'], 'docs'=>['documents.project_tab','Docs','fa-folder'], 'materials'=>['scope.project_tab','Operations','fa-link'], 'money'=>['money.project_tab','Financials','fa-dollar-sign'], 'schedule'=>['scheduling.project_tab','Schedule','fa-calendar'], 'measurements'=>['reports.project_tab','Reports','fa-clipboard-list']];
+  foreach ($projectRouteTabs as $id => [$termKey, $fallbackLabel, $tabIcon]) $projectRouteTabs[$id] = [fmPortalTerminologyLabel($termKey, $fallbackLabel), $tabIcon];
+  $initialProjectTabMeta = $projectRouteTabs[$initialProjectTab] ?? $projectRouteTabs['map']; ?>
   <div id="fmProjectRoutePrecover" aria-hidden="true" style="position:fixed;inset:0;z-index:2147483099;background:rgba(11,16,24,.58);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;font-family:Inter,Arial,sans-serif;color:#172033">
     <style>
       #fmProjectRoutePrecover{background:rgba(11,16,24,.58)!important}
@@ -1988,8 +2006,8 @@ session_write_close();
     <div style="width:min(1720px,96vw);height:min(1180px,92vh);background:#fff;border-radius:14px;box-shadow:0 36px 120px rgba(15,23,42,.28);overflow:hidden;display:grid;grid-template-rows:58px minmax(0,1fr)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid #e5e7eb"><div><strong style="font-size:15px">Project</strong><span style="display:block;margin-top:2px;font-size:10px;color:#667085">Loading project details…</span></div><span style="width:32px;height:32px;border:1px solid #e5e7eb;border-radius:9px;display:grid;place-items:center;color:#667085">×</span></div>
       <div style="display:grid;grid-template-columns:minmax(230px,360px) minmax(0,1fr);min-height:0">
-        <aside style="padding:16px;border-right:1px solid #e5e7eb;background:#f8fafc"><div style="height:13px;width:58%;border-radius:999px;background:#e4e7ec;margin-bottom:14px"></div><div style="display:grid;gap:9px"><?php foreach (['Overview','Photos','Proposals','Docs','Scope','Money','Schedule','Reports'] as $label): ?><span style="height:34px;border:1px solid #eaecf0;border-radius:9px;background:#fff;padding:0 11px;display:flex;align-items:center;font-size:11px;font-weight:800;color:#667085"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?></div></aside>
-        <main style="padding:18px;min-width:0"><div style="display:flex;gap:8px;margin-bottom:18px"><?php foreach (['map'=>'Overview','photos'=>'Photos','proposal'=>'Proposals','docs'=>'Docs','materials'=>'Scope','money'=>'Money','schedule'=>'Schedule','measurements'=>'Reports'] as $id=>$label): ?><span style="padding:8px 10px;border-radius:8px;background:<?= $initialProjectTab === $id ? '#172033' : '#f2f4f7' ?>;color:<?= $initialProjectTab === $id ? '#fff' : '#667085' ?>;font-size:10px;font-weight:850"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?></div><div style="height:18px;width:34%;border-radius:999px;background:#e4e7ec;margin-bottom:14px"></div><div style="height:12px;width:72%;border-radius:999px;background:#f0f2f5;margin-bottom:9px"></div><div style="height:12px;width:58%;border-radius:999px;background:#f0f2f5"></div></main>
+        <aside style="padding:16px;border-right:1px solid #e5e7eb;background:#f8fafc"><div style="height:13px;width:58%;border-radius:999px;background:#e4e7ec;margin-bottom:14px"></div><div style="display:grid;gap:9px"><?php foreach (array_column($projectRouteTabs, 0) as $label): ?><span style="height:34px;border:1px solid #eaecf0;border-radius:9px;background:#fff;padding:0 11px;display:flex;align-items:center;font-size:11px;font-weight:800;color:#667085"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?></div></aside>
+        <main style="padding:18px;min-width:0"><div style="display:flex;gap:8px;margin-bottom:18px"><?php foreach (array_map(fn($tab) => $tab[0], $projectRouteTabs) as $id=>$label): ?><span style="padding:8px 10px;border-radius:8px;background:<?= $initialProjectTab === $id ? '#172033' : '#f2f4f7' ?>;color:<?= $initialProjectTab === $id ? '#fff' : '#667085' ?>;font-size:10px;font-weight:850"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?></div><div style="height:18px;width:34%;border-radius:999px;background:#e4e7ec;margin-bottom:14px"></div><div style="height:12px;width:72%;border-radius:999px;background:#f0f2f5;margin-bottom:9px"></div><div style="height:12px;width:58%;border-radius:999px;background:#f0f2f5"></div></main>
       </div>
     </div>
   </div>

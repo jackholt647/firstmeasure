@@ -3169,7 +3169,9 @@
     "m_5bedad4ed70b66": "Mokėjimo kvitas dar nepasiekiamas.",
     "m_a3f7efd048a5e3": "Nepavyko atidaryti kvito PDF.",
     "m_be2e9e776e4eb5": "Apmokėtų išlaidų pašalinti negalima.",
-    "m_cf842ec2f4d524": "Pašalinti šias išlaidas iš projekto apskaitos?"
+    "m_cf842ec2f4d524": "Pašalinti šias išlaidas iš projekto apskaitos?",
+    "loading_workspace": "Įkeliama: {workspace}...",
+    "back_to_workspace": "Grįžti: {workspace}"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Užsakyti ataskaitas",
@@ -9925,7 +9927,8 @@
     "billing.invoice": "Sąskaita faktūra",
     "billing.payment_method": "Mokėjimo būdas",
     "ui.routing_mode": "Maršrutizavimas",
-    "settings.developer_settings_tab": "Kūrėjo nustatymai"
+    "settings.developer_settings_tab": "Kūrėjo nustatymai",
+    "money.project_tab_short": "Finansai"
   },
   "shared": {
     "save": "Išsaugoti",

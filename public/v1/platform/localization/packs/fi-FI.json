@@ -3169,7 +3169,9 @@
     "m_5bedad4ed70b66": "Maksukuitti ei ole vielä saatavilla.",
     "m_a3f7efd048a5e3": "Kuitin PDF-tiedoston avaaminen epäonnistui.",
     "m_be2e9e776e4eb5": "Maksettuja kuluja ei voi poistaa.",
-    "m_cf842ec2f4d524": "Poistetaanko tämä kulu projektin kirjanpidosta?"
+    "m_cf842ec2f4d524": "Poistetaanko tämä kulu projektin kirjanpidosta?",
+    "loading_workspace": "Ladataan: {workspace}...",
+    "back_to_workspace": "Takaisin: {workspace}"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Tilaa raportteja",
@@ -9925,7 +9927,8 @@
     "billing.invoice": "Lasku",
     "billing.payment_method": "Maksutapa",
     "ui.routing_mode": "Reititys",
-    "settings.developer_settings_tab": "Kehittäjäasetukset"
+    "settings.developer_settings_tab": "Kehittäjäasetukset",
+    "money.project_tab_short": "Talous"
   },
   "shared": {
     "save": "Tallenna",

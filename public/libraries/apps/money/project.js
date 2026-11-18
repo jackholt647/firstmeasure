@@ -1,10 +1,11 @@
 /* public/libraries/apps/money/project.js
- * Project modal Money tab. One surface, no sidebar and no sub-tabs: a header like Docs and Photos (Money, with
- * Take a payment, Upload receipts and Generate invoice, then Reports and Settings), the project's six figures as a
- * row of tiles, and one ledger. The ledger starts with the payment schedule and lists every payment, refund,
- * expense, invoice and receipt, searchable, filtered by type or category, sorted by any column, as a list or as
- * tiles. Anything else (recording a payment or expense, an entry's details, refunds, invoices, reports, the
- * expense categories) opens as a modal over the tab. Explanations live in tooltips, not on the page.
+ * Project modal finance tab. One surface, no sidebar and no sub-tabs: a header like Docs and Photos (the terminology
+ * term `money.workspace`, with Take a payment, Upload receipts and Generate invoice, then Reports and Settings), the
+ * project's six figures as a row of tiles, and one ledger. The ledger starts with the payment schedule and lists
+ * every payment, refund, expense, invoice and receipt, searchable, filtered by type or category, sorted by any
+ * column, as a list or as tiles. Anything else (recording a payment or expense, an entry's details, refunds,
+ * invoices, reports, the expense categories) opens as a modal over the tab. Explanations live in tooltips, not on
+ * the page.
  */
 (function(){
   const rootWindow = window;
@@ -152,8 +153,18 @@
 
   // Money's words are config library terminology (namespace `money`), resolved with the organization's
   // overrides by PlatformTerminology; a key the library lacks reads as the key itself.
-  function term(key){
-    return cleanText(rootWindow.PlatformTerminology?.get?.(`money.${key}`, titleText(key)), titleText(key));
+  function term(key, fallback = titleText(key)){
+    return cleanText(rootWindow.PlatformTerminology?.get?.(`money.${key}`, fallback), fallback);
+  }
+  // Copy that names the tab itself ("Loading Finance...") takes the `workspace` term as {workspace}, so renaming it
+  // in the library or an organization's terminology renames it everywhere (FM-603).
+  function workspaceText(key, fallback){
+    const workspace = term('workspace');
+    const readable = fallback.replace('{workspace}', workspace);
+    return cleanText(globalThis.PlatformLanguage?.text?.('money', key, readable, { workspace }), readable);
+  }
+  function loadingText(){
+    return workspaceText('loading_workspace', 'Loading {workspace}...');
   }
   function moneyTerms(){
     return Object.fromEntries(Object.keys(rootWindow.PlatformTerminology?.DEFAULT_LABELS?.money || {}).map((key) => [key, term(key)]));
@@ -210,7 +221,7 @@
   }
 
   function panelHtml(){
-    return `<div class="mn-app" data-money-root><div class="mn-shell" data-money-shell><div class="mn-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_487adb3f2ba511","Loading money...") ?? "Loading money...")}</span></div></div><div data-money-modal-layer></div></div>`;
+    return `<div class="mn-app" data-money-root><div class="mn-shell" data-money-shell><div class="mn-state"><i class="fas fa-circle-notch fa-spin"></i><span>${escapeHtml(loadingText())}</span></div></div><div data-money-modal-layer></div></div>`;
   }
 
   function css(){
@@ -917,7 +928,7 @@
       ? { start:document.activeElement.selectionStart, end:document.activeElement.selectionEnd }
       : null;
     if (state.loading && !state.summary) {
-      shell.innerHTML = `<div class="mn-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_487adb3f2ba511","Loading money...") ?? "Loading money...")}</span></div>`;
+      shell.innerHTML = `<div class="mn-state"><i class="fas fa-circle-notch fa-spin"></i><span>${escapeHtml(loadingText())}</span></div>`;
       return;
     }
     if (state.error && !state.summary) {
@@ -2406,7 +2417,7 @@
       ],
       successActions: [
         { label: (globalThis.PlatformLanguage?.text("money","m_1641c7d3dd9d7c","Print receipt") ?? "Print receipt"), onClick: (result) => printReceipt(result) },
-        { label: (globalThis.PlatformLanguage?.text("money","m_f4305fea9e5634","Back to Money") ?? "Back to Money"), primary: true, onClick: () => { closeModal(); void loadData(); } }
+        { label: workspaceText('back_to_workspace', 'Back to {workspace}'), primary: true, onClick: () => { closeModal(); void loadData(); } }
       ],
       onSubmit: async (payment) => {
         if (!canManageMoney() || moneyMutationBusy()) throw new Error('You do not have permission to record this payment, or another money change is still saving.');
@@ -2818,8 +2829,10 @@
   runtime?.registerApp?.({
     id: 'project.money',
     kind: 'project_modal_app',
-    title: (globalThis.PlatformLanguage?.text("money","m_05cb9dd7e5a780","Money") ?? "Money"),
-    label: (globalThis.PlatformLanguage?.text("money","m_05cb9dd7e5a780","Money") ?? "Money"),
+    // The tab's name is the `money.project_tab` term, like the manifest entry; this registration must not replace it.
+    terminologyKey: 'money.project_tab',
+    title: term('project_tab', 'Financials'),
+    label: term('project_tab', 'Financials'),
     icon: 'fa-dollar-sign',
     order: 60,
     visible: true,

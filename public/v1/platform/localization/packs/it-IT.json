@@ -3073,7 +3073,9 @@
     "m_5bedad4ed70b66": "La ricevuta del pagamento non è ancora disponibile.",
     "m_a3f7efd048a5e3": "Impossibile aprire il PDF della ricevuta.",
     "m_be2e9e776e4eb5": "Le spese già pagate non possono essere rimosse.",
-    "m_cf842ec2f4d524": "Rimuovere questa spesa dal registro del progetto?"
+    "m_cf842ec2f4d524": "Rimuovere questa spesa dal registro del progetto?",
+    "loading_workspace": "Caricamento: {workspace}...",
+    "back_to_workspace": "Torna a {workspace}"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Ordina report",
@@ -9593,7 +9595,8 @@
     "billing.invoice": "Fattura",
     "billing.payment_method": "Metodo di pagamento",
     "ui.routing_mode": "Percorsi",
-    "settings.developer_settings_tab": "Impostazioni sviluppatore"
+    "settings.developer_settings_tab": "Impostazioni sviluppatore",
+    "money.project_tab_short": "Finanze"
   },
   "shared": {
     "save": "Salva",
