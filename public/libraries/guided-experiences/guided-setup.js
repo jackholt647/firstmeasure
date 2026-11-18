@@ -831,7 +831,7 @@
     render(el,ctx){
       let disposed=false, handle=null;
       el.textContent=L('gx_operations_loading','Opening Operations…');
-      import(new URL('./operations-setup.js?v=20261118-fm606',scriptUrl).href).then(module=>{
+      import(new URL('./operations-setup.js?v=20261118-fm606b',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mountWidget(id,el,ctx);
       }).catch(error=>{if(!disposed)el.textContent=error?.message||L('gx_operations_load_error','Could not open this step. Close and try again.');});
       return {valid:()=>handle?.valid?.()!==false,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};

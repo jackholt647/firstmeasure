@@ -324,7 +324,12 @@
     if (replay && (!experience.replayable || childOptions.replay===false)) return { status:'done' };
     const player = kinds.get(experience.kind);
     if (!player) return { status:'unavailable' };
-    const control = {};
+    // The parent step can take it back (`signal`, e.g. its page closed while the tour starts): it ends, neither done
+    // nor dismissed, so it is still to do (FM-606).
+    const signal = childOptions.signal;
+    if (signal?.aborted) return { status:'ended' };
+    const control = {}, stop = () => control.end?.();
+    signal?.addEventListener?.('abort', stop, { once:true });
     state.current = { experience, control }; state.playing = experience.id;
     try {
       track(experience, replay?'replay':'exposure'); if(!replay)track(experience, 'start');
@@ -332,6 +337,7 @@
       if (['completed','dismissed'].includes(outcome?.status)) markFinished(experience.id,outcome.status);
       return outcome || { status:'ended' };
     } finally {
+      signal?.removeEventListener?.('abort', stop);
       state.current = parent; state.playing = parentPlaying;
       await refresh(true);
     }

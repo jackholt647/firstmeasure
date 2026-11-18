@@ -200,8 +200,10 @@ test('the Equipment card shows the Equipment app with Back at the bottom left, a
       FirstMateEmbeddableApps.mount=async(host,id,context)=>{mounted.push({id,surface:context.surface});host.innerHTML='<div style="height:100%"><button data-eq-add-unit>Add unit</button></div>';return {destroy(){destroyed++;}};};
       // The tour: its overlay is up until endTour(); its runGuide settles later, as the server refresh after it does.
       const ctx={...widgetContext,setTitle:text=>titles.push(text),syncBack:()=>synced++,
-        runGuide:(id,options)=>{guideCalls.push({id,options});const overlay=document.createElement('div');overlay.className='gx-ov';document.body.append(overlay);
-          return new Promise(resolve=>{window.endTour=()=>{overlay.remove();setTimeout(()=>resolve({status:'dismissed'}),3000);};});}};
+        // window.startingTour: the tour has not put its overlay up yet.
+        runGuide:(id,options)=>{guideCalls.push({id,keepVisible:options.keepVisible,signal:options.signal instanceof AbortSignal});window.tourSignal=options.signal;
+          const overlay=document.createElement('div');overlay.className='gx-ov';if(!window.startingTour)document.body.append(overlay);
+          return new Promise(resolve=>{options.signal.addEventListener('abort',()=>{overlay.remove();resolve({status:'ended'});});window.endTour=()=>{overlay.remove();setTimeout(()=>resolve({status:'dismissed'}),3000);};});}};
       window.widget=operations.mountWidget('operations-ready',document.getElementById('host'),ctx);
     });
     await page.waitForSelector('[data-setup=equipment]');
@@ -210,7 +212,7 @@ test('the Equipment card shows the Equipment app with Back at the bottom left, a
     await page.waitForSelector('.ops-app [data-eq-add-unit]');
     assert.deepEqual(await page.evaluate(()=>mounted),[{id:'portal.equipment',surface:'portal_tab'}]);
     assert.deepEqual(await page.evaluate(()=>activations),['/organizations/org1/app-offers/portal.equipment/start'],'Equipment is started before it opens');
-    assert.deepEqual(await page.evaluate(()=>guideCalls),[{id:'equipment.tab_tutorial',options:{keepVisible:true}}],'the Equipment tab\'s own tour');
+    assert.deepEqual(await page.evaluate(()=>guideCalls),[{id:'equipment.tab_tutorial',keepVisible:true,signal:true}],'the Equipment tab\'s own tour');
     const layout=await page.evaluate(()=>{const host=document.getElementById('host'),back=host.querySelector('[data-return]'),app=host.querySelector('.ops-app');const b=back.getBoundingClientRect(),a=app.getBoundingClientRect(),h=host.getBoundingClientRect();
       return {text:host.innerText.replace(/\s+/g,' ').trim(),backBelowApp:b.top>=a.bottom,backLeft:Math.round(b.left-a.left),backBottomGap:Math.round(h.bottom-16-b.bottom),aboveApp:[...app.parentElement.children].indexOf(app)};});
     assert.equal(layout.text,'Add unit Back','only the app and Back: no line of copy above the app');
@@ -235,6 +237,50 @@ test('the Equipment card shows the Equipment app with Back at the bottom left, a
     assert.equal(await page.evaluate(()=>widget.back()),true);
     await page.waitForSelector('[data-setup=equipment] .ops-check');
     assert.equal(await page.evaluate(()=>widget.backDepth()),0);
+    // Back while the tour is still starting stops it, so it never comes up over the cards.
+    await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,3100)));
+    await page.evaluate(()=>{window.startingTour=true;});
+    await page.locator('[data-setup=equipment]').click();
+    await page.waitForSelector('.ops-app [data-eq-add-unit]');
+    await page.locator('[data-return]').click();
+    await page.waitForSelector('[data-setup=equipment] .ops-check');
+    assert.equal(await page.evaluate(()=>tourSignal.aborted),true);
+  }finally{await browser.close();}
+});
+
+// FM-606: a setup step can take back a tour it started (its page closed while the tour starts or plays): the tour
+// ends, is not recorded as seen, and a signal already aborted never shows it.
+test('a nested tour started with a signal ends when the signal aborts and stays to do',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await open(browser);
+    await page.evaluate(()=>{
+      Portal.navigation={read:()=>({tab:'viewer',project:'p1',projectTab:'materials'})};
+      window.guideEvents=[];
+      const text=value=>({key:value,text:value});
+      window.fetch=async(url,options={})=>{
+        const path=String(url),body=options.body?JSON.parse(options.body):{};
+        if(path.endsWith('/events'))guideEvents.push({path,...body});
+        const value=path.includes('/experiences?')?{reveals:[],experiences:[
+          {id:'parent',kind:'modal',scope:'organization',title:text('Set up Operations'),steps:[{id:'ready',widget:'test-parent',title:text('Ready')}],variant:{id:'default'},completion:{}},
+          {id:'tour',kind:'overlay',scope:'person',title:text('Equipment tour'),variant:{id:'default'},steps:[{id:'intro',targets:[],placement:'center',title:text('Equipment that fits the work'),body:text('Tour body.'),advance:'next',wait_ms:1500}]}
+        ]}:{};
+        return {ok:true,status:200,text:async()=>JSON.stringify({ok:true,...value})};
+      };
+    });
+    await page.addScriptTag({url:'https://operations.test/libraries/guided-experiences/guided-experiences.js'});
+    await page.addScriptTag({url:'https://operations.test/libraries/guided-experiences/guided-setup.js'});
+    await page.evaluate(()=>{FirstMateGuidedSetup.registerWidget('test-parent',{handlesNavigation:true,render(el,ctx){window.parentContext=ctx;el.textContent='Cards';return {};}});FirstMateGuides.play('parent');});
+    await page.waitForFunction(()=>window.parentContext);
+    const before=await page.evaluate(()=>{const stop=new AbortController();stop.abort();return parentContext.runGuide('tour',{keepVisible:true,signal:stop.signal});});
+    assert.equal(before.status,'ended');
+    assert.equal(await page.locator('.gx-pop').count(),0);
+    await page.evaluate(()=>{window.stop=new AbortController();window.outcome=parentContext.runGuide('tour',{keepVisible:true,signal:stop.signal});});
+    await page.getByText('Equipment that fits the work',{exact:true}).waitFor();
+    await page.evaluate(()=>stop.abort());
+    assert.equal((await page.evaluate(()=>outcome)).status,'ended');
+    assert.equal(await page.locator('.gx-pop,.gx-ov').count(),0);
+    assert.equal(await page.evaluate(()=>guideEvents.filter(event=>event.path.includes('/tour/')&&['dismiss','complete'].includes(event.type)).length),0,'not recorded as seen');
   }finally{await browser.close();}
 });
 
