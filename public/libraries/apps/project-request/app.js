@@ -4865,6 +4865,7 @@ window.PlatformCommerce.onReady(async function(){
   // since the form is the work then. A person's close holds until another project opens.
   const detailsTrayText=(key,fallback)=>globalThis.PlatformLanguage?.text('project-request',key,fallback) ?? fallback;
   let detailsTrayOpen=false,detailsTrayProjectKey=null,detailsTrayUserChoice=false;
+  const detailsTrayOperations={closed:false,held:false,visit:0};
   function detailsTraySheet(){
     return document.querySelector('#rOverlay .r-window-bar')?.dataset.windowMobile==='true' || isMobileProjectOrder();
   }
@@ -4918,6 +4919,8 @@ window.PlatformCommerce.onReady(async function(){
     const overlay=document.getElementById('rOverlay'),tray=ensureDetailsTray();
     if(!overlay || !tray)return;
     if(options.user)detailsTrayUserChoice=true;
+    // Opened by anything, or set by hand, the tray is no longer Operations' to give back (FM-611).
+    if(open || options.user){detailsTrayOperations.closed=false;if(options.user && activePreviewTab==='materials')detailsTrayOperations.held=true;}
     // The order pages hold the form, so nothing opens the tray over them by itself: opening it focused its close
     // button and closing it again at once left nothing focused, which shut the phone's keyboard on every letter typed.
     if(open && !options.user && detailsTraySheet() && (shouldUseMobileOrderPagination() || overlay.classList.contains('mobile-order')))open=false;
@@ -4962,7 +4965,7 @@ window.PlatformCommerce.onReady(async function(){
       // A new project taking its id (an autosave, a placed order) is still the same project on screen.
       const saved=!!projectOpenId() && (detailsTrayProjectKey==='new' || detailsTrayProjectKey==='unsaved');
       detailsTrayProjectKey=key;
-      if(!saved){detailsTrayUserChoice=false;setDetailsTrayOpen(detailsTrayStartsOpen() || detailsTrayAsked);}
+      if(!saved){detailsTrayUserChoice=false;detailsTrayOperations.held=false;setDetailsTrayOpen(detailsTrayStartsOpen() || detailsTrayAsked);syncDetailsTrayOperations();}
       detailsTrayAsked=false;
     }else if(detailsTrayWorkflow() && !detailsTrayOpen && !detailsTrayUserChoice)setDetailsTrayOpen(true);
     placeOverviewDetails();
@@ -4986,11 +4989,46 @@ window.PlatformCommerce.onReady(async function(){
       overlay.classList.toggle('details-tray-sheet',sheet);
       if(!detailsTrayUserChoice)setDetailsTrayOpen(detailsTrayStartsOpen());
       placeOverviewDetails();
+      syncDetailsTrayOperations();
     }
   });
   window.addEventListener('keydown',event=>{
     if(event.key==='Escape' && detailsTrayOpen && document.getElementById('rOverlay')?.classList.contains('details-tray-sheet')){event.preventDefault();event.stopImmediatePropagation();setDetailsTrayOpen(false,{user:true});}
   },true);
+
+  // Operations (project.materials, tab `materials`) shows the project's measurements itself, so once Operations is set
+  // up the tray steps aside while that tab shows, and opens again on leaving it if Operations closed it (FM-611). A
+  // desktop only: on a phone the tray is a sheet that is not open there anyway. Opening or closing the tray by hand on
+  // Operations holds for the rest of that visit, and the tray then stays as the person left it. This is not a choice
+  // (`detailsTrayUserChoice` is untouched), and nothing is kept in the browser. Its state is `detailsTrayOperations`.
+  // Set up: the organization finished Operations setup (`operations.setup`, organization-wide), or it is not offered to
+  // this person, who then has nothing to set up first. A skipped or unfinished setup is not set up.
+  async function operationsSetUp(){
+    const guides=window.FirstMateGuides;
+    if(typeof guides?.preload!=='function')return false;
+    const snapshot=await Promise.resolve(guides.preload(projectOpenId() || '')).catch(()=>null);
+    if(!snapshot?.experiences?.get)return false;
+    const setup=snapshot.experiences.get('operations.setup');
+    return !setup || setup.progress?.status==='completed';
+  }
+  function syncDetailsTrayOperations(){
+    const ops=detailsTrayOperations,visit=++ops.visit;
+    if(activePreviewTab!=='materials'){
+      const reopen=ops.closed && !detailsTrayOpen && !detailsTraySheet();
+      ops.closed=false;ops.held=false;
+      if(reopen)setDetailsTrayOpen(true);
+      return;
+    }
+    const closes=()=>visit===ops.visit && activePreviewTab==='materials' && detailsTrayOpen && !ops.closed && !ops.held && !detailsTraySheet() && !detailsTrayWorkflow();
+    if(!closes())return;
+    operationsSetUp().then(ready=>{
+      if(!ready || !closes())return;
+      setDetailsTrayOpen(false);
+      ops.closed=true;
+    });
+  }
+  // Finishing Operations setup the first time, on the Operations tab, closes the tray as an Operations visit would.
+  window.addEventListener('fm:guides:ended',event=>{if(event?.detail?.id==='operations.setup' && activePreviewTab==='materials')syncDetailsTrayOperations();});
 
   // Measurements under the address: the Operations Measurements view in its measurements-only form (the 3D
   // report model and entries made by hand), or the measurement ordering widget when there are none. Hidden while
@@ -7589,6 +7627,7 @@ window.PlatformCommerce.onReady(async function(){
     // viewer chrome whenever a tab changes instead of only during a full render.
     syncProjectViewerTabs();
     if (!projectShellLoading && !projectRouteBatching) syncProjectModalAppActivation(previousTab);
+    syncDetailsTrayOperations();
     refreshOverviewDetails();
     const hint = $('#rMapHint');
     const topMode = $('#rProposalTopMode');
