@@ -48,14 +48,68 @@ const css = `
 .gxd-pair .gxd-tile strong{font-size:17px}
 .gxd-pair .gxd-tile small{font-size:13px;max-width:220px}
 .gxd-pair .gxd-tick{top:14px;right:14px;width:24px;height:24px}
-.gxd-prices{display:flex;flex-direction:column;border:1px solid #e4e7ec;border-radius:13px;overflow:clip}
-.gxd-price{display:flex;align-items:center;gap:12px;padding:9px 12px;border-top:1px solid #f2f4f7;font-size:13px}
-.gxd-price:first-child{border-top:0}
-.gxd-price label{flex:1 1 auto;min-width:0;font-weight:600;color:#344054}
+/* The price step (FM-610): two columns of lines, each with its picture, price and switch, in the wide sheet. */
+.gxd-lead{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.gxd-lead p{flex:1 1 320px}
+.gxd-upload{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border:1.5px solid var(--primary,#d93025);border-radius:11px;background:rgba(var(--primary-rgb,217,48,37),.06);color:var(--primary,#d93025);font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;transition:background .15s}
+.gxd-upload:hover{background:rgba(var(--primary-rgb,217,48,37),.12)}
+.gxd-upload:focus-visible,.gxd-add:focus-visible,.gxd-switch:focus-visible,.gxd-option:focus-visible,.gxd-btn:focus-visible,.gxd-link:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+.gxd-banner{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border-radius:12px;background:rgba(var(--primary-rgb,217,48,37),.07);color:#344054;font-size:13px;line-height:1.45}
+.gxd-banner i{color:var(--primary,#d93025);margin-top:2px}
+.gxd-lines{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.gxd-line{display:flex;align-items:center;gap:12px;min-width:0;padding:10px 12px;border:1px solid #e4e7ec;border-radius:13px;background:#fff;transition:background .15s,border-color .15s}
+.gxd-line .gxd-icon{width:36px;height:36px;border-radius:10px;font-size:15px;transition:opacity .15s}
+.gxd-line-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+.gxd-line-main strong{font-size:13.5px;font-weight:650;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gxd-line-main small{display:flex;align-items:center;gap:6px;min-height:15px;font-size:11.5px;color:#667085;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.gxd-tag{flex:none;padding:1px 7px;border-radius:999px;background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary,#d93025);font-size:10.5px;font-style:normal;font-weight:700}
+.gxd-line[data-on=false]{background:#f9fafb;border-style:dashed}
+.gxd-line[data-on=false] .gxd-icon,.gxd-line[data-on=false] .gxd-line-main,.gxd-line[data-on=false] .gxd-money{opacity:.45}
 .gxd-money{display:flex;align-items:center;gap:6px;flex:none;color:#667085;font-size:12px}
 .gxd-money span:first-child{color:#344054;font-size:13px}
-.gxd-money input{width:96px;height:34px;padding:0 10px;border:1px solid #d0d5dd;border-radius:9px;font:inherit;font-size:14px;text-align:right;color:#101828}
-.gxd-money input:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.14)}
+.gxd-money input{width:84px;height:34px;padding:0 10px;border:1px solid #d0d5dd;border-radius:9px;font:inherit;font-size:14px;text-align:right;color:#101828;background:#fff}
+.gxd-money input:focus,.gxd-field input:focus,.gxd-field select:focus,.gxd-term input:focus,.gxd-term select:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.14)}
+.gxd-line .gxd-money>span:last-child{width:62px;line-height:1.2}
+.gxd-switch{position:relative;flex:none;width:38px;height:22px;padding:0;border:0;border-radius:999px;background:#d0d5dd;cursor:pointer;transition:background .15s}
+.gxd-switch span{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.2);transition:transform .15s}
+.gxd-switch[aria-checked=true]{background:var(--primary,#d93025)}
+.gxd-switch[aria-checked=true] span{transform:translateX(16px)}
+.gxd-add{display:flex;align-items:center;justify-content:center;gap:8px;min-height:58px;border:1.5px dashed #c4c9d2;border-radius:13px;background:#fff;color:var(--primary,#d93025);font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;transition:border-color .15s,background .15s}
+.gxd-add:hover{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.04)}
+.gxd-editor{grid-column:1/-1;display:flex;flex-direction:column;gap:12px;padding:14px;border:1.5px solid var(--primary,#d93025);border-radius:13px;background:#fff;box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.08)}
+.gxd-editor-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.gxd-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.gxd-field.gxd-name{flex:1 1 240px;position:relative}
+.gxd-field label,.gxd-label{font-size:12px;font-weight:650;color:#344054}
+.gxd-field input:not([type=checkbox]),.gxd-field select,.gxd-term input,.gxd-term select{height:36px;padding:0 10px;border:1px solid #d0d5dd;border-radius:9px;font:inherit;font-size:13.5px;color:#101828;background:#fff;min-width:0}
+.gxd-field .gxd-money input{width:96px}
+.gxd-suggest{display:flex;flex-direction:column;margin-top:4px;border:1px solid #e4e7ec;border-radius:11px;overflow:clip;background:#fff}
+.gxd-suggest:empty{display:none}
+.gxd-option{display:flex;align-items:center;gap:10px;padding:8px 12px;border:0;border-top:1px solid #f2f4f7;background:#fff;font:inherit;text-align:left;cursor:pointer;color:#101828}
+.gxd-option:first-child{border-top:0}
+.gxd-option>i{width:18px;text-align:center;color:var(--primary,#d93025)}
+.gxd-option span{display:flex;flex-direction:column;min-width:0}
+.gxd-option strong{font-size:13px;font-weight:650}
+.gxd-option small{font-size:11.5px;color:#667085}
+.gxd-option:hover,.gxd-option[aria-selected=true]{background:rgba(var(--primary-rgb,217,48,37),.06)}
+.gxd-option-new strong{color:var(--primary,#d93025)}
+.gxd-terms{display:flex;flex-direction:column;gap:8px}
+.gxd-term{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.gxd-term .gxd-factor{width:64px;text-align:right}
+.gxd-term select{flex:1 1 220px;max-width:340px}
+.gxd-plus,.gxd-times{color:#667085;font-weight:700}
+.gxd-plus{width:14px;text-align:center}
+.gxd-icon-btn{width:30px;height:30px;border:0;border-radius:8px;background:#f2f4f7;color:#475467;font-size:18px;line-height:1;cursor:pointer}
+.gxd-term-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.gxd-check{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#344054;cursor:pointer}
+.gxd-hint{font-size:11.5px;color:#667085}
+.gxd-editor-actions{display:flex;justify-content:flex-end;gap:10px;align-items:center}
+.gxd-link{border:0;background:none;padding:4px 2px;color:var(--primary,#d93025);font:inherit;font-size:13px;font-weight:650;cursor:pointer}
+.gxd-btn{height:36px;padding:0 16px;border:0;border-radius:10px;background:var(--primary,#d93025);color:#fff;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
+.gxd-reading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:260px;text-align:center}
+.gxd-reading strong{font-size:16px}
+.gxd-reading small{font-size:13px;color:#667085}
+.gxd-pair .gxd-badge{align-self:center}
 .gxd-note{font-size:12px!important;color:#667085!important}
 .gxd.gxd-fill{flex:1 1 auto;gap:10px;padding-bottom:0}
 /* The styles as a looping carousel (Jack): the one in the middle large, its pages scrolling; the others peek in smaller.
@@ -118,7 +172,9 @@ const css = `
 .gxd-busy{display:grid;place-items:center;min-height:180px}
 .gxd-error{color:#b42318!important}
 .gxd-error:empty{display:none}
-@media(max-width:640px){.gxd-grid,.gxd-grid.gxd-small{grid-template-columns:1fr}.gxd-tile.gxd-feature{min-height:96px;padding:16px 44px 16px 16px}.gxd-feature .gxd-icon{width:46px;height:46px;font-size:20px}.gxd-feature strong{font-size:17px}}
+@media(max-width:640px){.gxd-grid,.gxd-grid.gxd-small,.gxd-lines{grid-template-columns:1fr}.gxd-tile.gxd-feature{min-height:96px;padding:16px 44px 16px 16px}.gxd-feature .gxd-icon{width:46px;height:46px;font-size:20px}.gxd-feature strong{font-size:17px}}
+/* A phone: a line's name wraps, beside a narrower price. */
+@media(max-width:640px){.gxd-line{gap:9px;padding:9px 10px}.gxd-line .gxd-icon{width:30px;height:30px;font-size:13px}.gxd-line-main strong{white-space:normal;line-height:1.25}.gxd-line-main small{display:none}.gxd-line .gxd-money input{width:68px;padding:0 8px}.gxd-line .gxd-money>span:last-child{width:44px;font-size:11px}}
 @media(max-width:640px){.gxd-stage>.gxd-arrow{display:none}.gxd-view .gxd-arrow{top:auto;bottom:16px}}
 /* On a phone the sheet's Back and Done have the bottom line to themselves: the name and dots sit above them. */
 @media(max-width:760px){.gxd-under{padding:0 0 58px}}
@@ -223,38 +279,319 @@ export function mount(el, ctx){
   };
 
   // ── Prices (optional) ─────────────────────────────────────────────────
+  // The lines a proposal is made of (the price book's roof replacement), each with its price and a switch, in two
+  // columns of the wide sheet (FM-610). It starts with two ways in: go through the prices by hand, or upload an estimate
+  // they already send, which is read into the same lines to check. A line can be added from the rest of the price book
+  // by name, or made new with its quantity from the measurements. The finish writes it all (documents.setup.apply).
   function pricesPart(){
-    let alive = true, items = [];
+    let alive = true, sheet = null, lines = [], editor = null, banner = null, reading = false, picker = null, newCount = 0;
+    const sheetEl = el.closest('.gxs'), wasWide = !!sheetEl?.classList.contains('gxs-wide');
+    sheetEl?.classList.add('gxs-wide');
     const given = new Map(array(selections.prices).map((entry) => [clean(entry.item_id), Number(entry.unit_price)]));
+    const givenLines = selections.lines && typeof selections.lines === 'object' ? selections.lines : null;
     el.innerHTML = '<div class="gxd"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div></div>';
-    const unitLabel = (unit) => ({ sq: t('unit_sq', 'per square'), lf: t('unit_lf', 'per foot'), ft: t('unit_lf', 'per foot'), ea: t('unit_ea', 'each'), job: t('unit_job', 'per job') }[clean(unit).toLowerCase()] || (unit ? `/ ${unit}` : ''));
-    const changed = () => items.map((item) => {
-      const input = el.querySelector(`[data-price="${CSS.escape(item.id)}"]`);
-      const value = Number(String(input?.value ?? '').replace(/[^0-9.]/g, ''));
-      if (!input || clean(input.value) === '' || !Number.isFinite(value)) return null;
-      return value !== item.unit_price ? { item_id: item.id, unit_price: Math.round(value * 100) / 100 } : null;
-    }).filter(Boolean);
-    const report = () => { const list = changed(); ctx.change({ prices: list }, list.length ? t('prices_summary', '{count} prices').replace('{count}', String(list.length)) : ''); };
-    ctx.read('document-setup', 'price_sheet').then((sheet) => {
+    const unitLabel = (unit) => ({ sq: t('unit_sq', 'per square'), lf: t('unit_lf', 'per foot'), ft: t('unit_lf', 'per foot'), ea: t('unit_ea', 'each'), job: t('unit_job', 'per job'), bundle: t('unit_bundle', 'per bundle'), hour: t('unit_hour', 'per hour') }[clean(unit).toLowerCase()] || (unit ? `/ ${unit}` : ''));
+    const measureLabel = (key) => array(sheet?.measurements).find((field) => field.key === key)?.label || key;
+    const priceText = (value) => value == null || !Number.isFinite(Number(value)) ? '' : String(Math.round(Number(value) * 100) / 100);
+    const typed = (line) => { const value = Number(String(line.price ?? '').replace(/[^0-9.]/g, '')); return clean(line.price) === '' || !Number.isFinite(value) ? null : Math.round(value * 100) / 100; };
+    /** A new line's quantity in words, from its terms. */
+    const termsText = (terms) => terms.map((term) => term.key === '' ? t('prices_term_per_job', '{count} per job').replace('{count}', String(term.factor)) : `${Number(term.factor) !== 1 ? `${term.factor} × ` : ''}${measureLabel(term.key)}`).join(' + ');
+    const tokensOf = (terms) => terms.flatMap((term, at) => [...(at ? [{ type: 'operator', value: '+' }] : []), ...(term.key === ''
+      ? [{ type: 'number', value: String(term.factor) }]
+      : Number(term.factor) !== 1 ? [{ type: 'number', value: String(term.factor) }, { type: 'operator', value: '*' }, { type: 'measurement', value: term.key }] : [{ type: 'measurement', value: term.key }])]);
+    /** Tokens back into terms where they are a sum of (factor ×) measurements or numbers; else one fixed number. */
+    function termsOf(tokens){
+      const terms = []; let factor = 1;
+      for (let at = 0; at < tokens.length; at += 1) {
+        const token = tokens[at], following = tokens[at + 1];
+        if (token.type === 'number' && following?.type === 'operator' && following.value === '*' && tokens[at + 2]?.type === 'measurement') { factor = Number(token.value); at += 1; continue; }
+        if (token.type === 'measurement') { terms.push({ factor, key: token.value }); factor = 1; continue; }
+        if (token.type === 'number') { terms.push({ factor: Number(token.value), key: '' }); continue; }
+        if (token.type === 'operator' && token.value === '+') continue;
+        return null;
+      }
+      return terms.length ? terms : null;
+    }
+    // A picture for each line, so the list reads at a glance (Jack: not a wall of text): from its name, else its category.
+    const ICONS = [
+      [/tear|remov|dispos|dumpster|haul/, 'fa-dumpster'], [/ice|water shield|leak barrier|weatherwatch|weatherlock/, 'fa-snowflake'],
+      [/underlay|felt|tiger paw|feltbuster|synthetic/, 'fa-scroll'], [/starter/, 'fa-grip-lines'], [/ridge vent|intake|vent/, 'fa-wind'],
+      [/ridge|hip/, 'fa-mountain'], [/drip/, 'fa-droplet'], [/valley/, 'fa-angles-down'], [/chimney/, 'fa-house-chimney'],
+      [/skylight/, 'fa-sun'], [/pipe|boot|jack/, 'fa-circle-dot'], [/downspout/, 'fa-arrow-down-long'], [/gutter/, 'fa-water'],
+      [/steep|pitch|slope charge/, 'fa-arrow-trend-up'], [/warrant/, 'fa-shield-halved'], [/flash|step|head ?wall|side ?wall|termination|transition/, 'fa-shapes'],
+      [/deck|plywood|osb|sheathing/, 'fa-border-all'], [/permit/, 'fa-file-signature'], [/labor|labour|install/, 'fa-helmet-safety'],
+      [/shingle|timberline|duration|vista|sequoia|shake|three.tab|architectural|laminated/, 'fa-layer-group'], [/tpo|membrane|torch|epdm|pvc|flat/, 'fa-square'], [/drain/, 'fa-filter']
+    ];
+    const CATEGORY_ICONS = { disposal: 'fa-dumpster', shingle_roofs: 'fa-layer-group', leak_barriers: 'fa-snowflake', underlayments: 'fa-scroll', flashing: 'fa-shapes', accessories: 'fa-puzzle-piece', gutters: 'fa-water', flat_roofs: 'fa-square', flat_roof_accessories: 'fa-shapes' };
+    const iconFor = (line) => ICONS.find(([pattern]) => pattern.test(`${line.name} ${line.id}`.toLowerCase()))?.[1] || CATEGORY_ICONS[line.category] || 'fa-box';
+    const lineFrom = (item, on) => ({ id: item.id, name: item.name, unit: item.unit, category: item.category, book: item.unit_price, price: priceText(given.has(item.id) ? given.get(item.id) : item.unit_price), on, formula: item.formula, isNew: false, initial: on });
+
+    // ── What the step answers ──
+    const changedPrices = () => lines.filter((line) => !line.isNew).map((line) => { const value = typed(line); return value != null && value !== line.book ? { item_id: line.id, unit_price: value } : null; }).filter(Boolean);
+    const linesAnswer = () => {
+      if (!sheet?.editable) return null;
+      const on = lines.filter((line) => line.on);
+      const initial = array(sheet.items).filter((item) => item.on).map((item) => item.id);
+      const same = !lines.some((line) => line.isNew && line.on) && on.length === initial.length && on.every((line, at) => line.id === initial[at]);
+      if (same) return null;
+      return { on: on.map((line) => line.id), new_items: on.filter((line) => line.isNew).map((line) => ({ key: line.id, name: line.name, unit: line.unit, unit_price: typed(line) ?? 0, formula: tokensOf(line.terms), include_waste: !!line.waste })) };
+    };
+    const summaryText = () => {
+      const prices = changedPrices().length, answer = linesAnswer();
+      const parts = [];
+      if (answer) parts.push((answer.on.length === 1 ? t('prices_summary_line', '1 line') : t('prices_summary_lines', '{count} lines')).replace('{count}', String(answer.on.length)));
+      if (prices) parts.push((prices === 1 ? t('prices_summary_one', '1 price') : t('prices_summary', '{count} prices')).replace('{count}', String(prices)));
+      return parts.join(' · ');
+    };
+    const report = () => { const answer = linesAnswer(); const patch = { prices: changedPrices() }; if (answer) patch.lines = answer; else patch.lines = undefined; ctx.change(patch, summaryText()); };
+
+    // ── Drawing ──
+    const lineHtml = (line) => `
+      <div class="gxd-line" data-line="${esc(line.id)}" data-on="${line.on}">
+        <span class="gxd-icon" aria-hidden="true"><i class="fas ${esc(iconFor(line))}"></i></span>
+        <span class="gxd-line-main"><strong title="${esc(line.name)}">${esc(line.name)}</strong><small>${esc(line.isNew ? termsText(line.terms) : line.formula || '')}${line.fromEstimate ? `<em class="gxd-tag">${esc(t('prices_from_estimate', 'From your estimate'))}</em>` : line.isNew ? `<em class="gxd-tag">${esc(t('prices_new_line', 'New'))}</em>` : ''}</small></span>
+        <label class="gxd-money"><span>$</span><input inputmode="decimal" autocomplete="off" data-price="${esc(line.id)}" value="${esc(line.price)}" placeholder="0.00" aria-label="${esc(line.name)}"><span>${esc(unitLabel(line.unit))}</span></label>
+        ${sheet.editable ? `<button type="button" class="gxd-switch" role="switch" data-toggle="${esc(line.id)}" aria-checked="${line.on}" aria-label="${esc(t('prices_use_line', 'Use {name}').replace('{name}', line.name))}" title="${esc(line.on ? t('prices_line_on', 'On your proposals') : t('prices_line_off', 'Not on your proposals'))}"><span></span></button>` : ''}
+      </div>`;
+    function startHtml(){
+      return `<div class="gxd">
+        <p>${esc(t('prices_start_lead', 'Your proposals are priced from these lines. Start from an estimate you already send, or go through them yourself.'))}</p>
+        <div class="gxd-grid gxd-pair" role="group" aria-label="${esc(ctx.L(ctx.step.title))}">
+          <button type="button" class="gxd-tile" data-start="estimate"><span class="gxd-icon" aria-hidden="true"><i class="fas fa-file-arrow-up"></i></span><span><em class="gxd-badge">${esc(t('prices_start_fastest', 'Fastest'))}</em><strong>${esc(t('prices_start_estimate', 'Upload an existing estimate'))}</strong><small>${esc(t('prices_start_estimate_hint', 'We read your lines and prices from it to start. You check them before anything is saved.'))}</small></span></button>
+          <button type="button" class="gxd-tile" data-start="manual"><span class="gxd-icon" aria-hidden="true"><i class="fas fa-list-check"></i></span><span><strong>${esc(t('prices_start_manual', 'Review my prices manually'))}</strong><small>${esc(t('prices_start_manual_hint', 'Go through the usual lines of a roof and set what you charge for each.'))}</small></span></button>
+        </div>
+        <p class="gxd-error" role="alert" data-error></p>
+      </div>`;
+    }
+    function listHtml(){
+      return `<div class="gxd">
+        <div class="gxd-lead"><p>${esc(t('prices_lead_2', 'What you charge your customer for each line, before tax. Turn off what you don’t use.'))}</p>
+          <button type="button" class="gxd-upload" data-upload><i class="fas fa-file-arrow-up" aria-hidden="true"></i>${esc(t('prices_upload', 'Upload an existing estimate'))}</button></div>
+        ${banner ? `<div class="gxd-banner" role="status"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${esc(banner)}</span></div>` : ''}
+        <p class="gxd-error" role="alert" data-error></p>
+        <div class="gxd-lines">${lines.map(lineHtml).join('')}${sheet.editable ? (editor ? editorHtml() : `<button type="button" class="gxd-add" data-add><i class="fas fa-plus" aria-hidden="true"></i>${esc(t('prices_add_line', 'Add a line item'))}</button>`) : ''}</div>
+        <p class="gxd-note">${esc(t('prices_note', 'You can change your default prices in your price book at any time, and any price on a single proposal while you write it.'))}</p>
+      </div>`;
+    }
+    function readingHtml(){
+      return `<div class="gxd"><div class="gxd-reading" role="status"><span class="gxs-spin" aria-hidden="true"></span><strong>${esc(t('prices_reading', 'Reading your estimate…'))}</strong><small>${esc(t('prices_reading_hint', 'This takes up to a minute.'))}</small></div></div>`;
+    }
+    // ── Adding a line: a name, from the price book or new ──
+    const suggestions = (query) => {
+      const words = clean(query).toLowerCase().split(/\s+/).filter(Boolean);
+      const taken = new Set(lines.map((line) => line.id));
+      return array(sheet.catalog).filter((item) => !taken.has(item.id) && words.every((word) => `${item.name} ${item.formula}`.toLowerCase().includes(word))).slice(0, 8);
+    };
+    function suggestHtml(){
+      if (!editor || editor.stage !== 'name' || !clean(editor.name)) return '';
+      const found = suggestions(editor.name);
+      return `<div class="gxd-suggest" role="listbox" aria-label="${esc(t('prices_add_from_book', 'From your price book'))}">
+        ${found.map((item, at) => `<button type="button" role="option" class="gxd-option" data-pick="${esc(item.id)}" aria-selected="${at === editor.active}"><i class="fas ${esc(iconFor(item))}" aria-hidden="true"></i><span><strong>${esc(item.name)}</strong><small>${esc([unitLabel(item.unit), item.unit_price != null ? `$${priceText(item.unit_price)}` : ''].filter(Boolean).join(' · '))}</small></span></button>`).join('')}
+        <button type="button" role="option" class="gxd-option gxd-option-new" data-pick="" aria-selected="${editor.active === found.length}"><i class="fas fa-plus" aria-hidden="true"></i><span><strong>${esc(t('prices_make_new', 'Make a new line “{name}”').replace('{name}', clean(editor.name)))}</strong><small>${esc(t('prices_make_new_hint', 'Not in your price book: set its price and how much goes on each job.'))}</small></span></button>
+      </div>`;
+    }
+    function editorHtml(){
+      const measures = array(sheet.measurements);
+      if (editor.stage === 'name') return `<div class="gxd-editor" data-editor>
+        <div class="gxd-field gxd-name"><label for="gxd-new-name">${esc(t('prices_add_name', 'Line item'))}</label>
+          <input id="gxd-new-name" data-new-name autocomplete="off" value="${esc(editor.name)}" placeholder="${esc(t('prices_add_placeholder', 'Start typing, e.g. chimney flashing'))}" role="combobox" aria-expanded="${!!clean(editor.name)}" aria-autocomplete="list">
+          <div data-suggest>${suggestHtml()}</div></div>
+        <div class="gxd-editor-actions"><button type="button" class="gxd-link" data-cancel>${esc(t('prices_add_cancel', 'Cancel'))}</button></div>
+      </div>`;
+      const termRow = (term, at) => `<div class="gxd-term" data-term="${at}">
+        ${at ? '<span class="gxd-plus" aria-hidden="true">+</span>' : ''}
+        <input class="gxd-factor" data-factor="${at}" inputmode="decimal" value="${esc(String(term.factor))}" aria-label="${esc(t('prices_term_factor', 'How many'))}">
+        <span class="gxd-times" aria-hidden="true">${term.key === '' ? '' : '×'}</span>
+        <select data-measure="${at}" aria-label="${esc(t('prices_term_measure', 'Measurement'))}">
+          <option value=""${term.key === '' ? ' selected' : ''}>${esc(t('prices_term_fixed', 'per job (a fixed number)'))}</option>
+          ${measures.map((field) => `<option value="${esc(field.key)}"${field.key === term.key ? ' selected' : ''}>${esc(field.label)}</option>`).join('')}
+        </select>
+        ${editor.terms.length > 1 ? `<button type="button" class="gxd-icon-btn" data-drop-term="${at}" aria-label="${esc(t('prices_term_remove', 'Remove'))}">&times;</button>` : ''}
+      </div>`;
+      return `<div class="gxd-editor gxd-editor-new" data-editor>
+        <div class="gxd-editor-row">
+          <div class="gxd-field gxd-name"><label for="gxd-new-name">${esc(t('prices_add_name', 'Line item'))}</label><input id="gxd-new-name" data-new-name autocomplete="off" value="${esc(editor.name)}"></div>
+          <div class="gxd-field"><label for="gxd-new-unit">${esc(t('prices_add_unit', 'Sold'))}</label><select id="gxd-new-unit" data-new-unit>${['sq', 'lf', 'ea'].map((unit) => `<option value="${unit}"${unit === editor.unit ? ' selected' : ''}>${esc(unitLabel(unit))}</option>`).join('')}</select></div>
+          <div class="gxd-field"><label for="gxd-new-price">${esc(t('prices_add_price', 'Price'))}</label><span class="gxd-money"><span>$</span><input id="gxd-new-price" data-new-price inputmode="decimal" autocomplete="off" value="${esc(editor.price)}" placeholder="0.00"></span></div>
+        </div>
+        <div class="gxd-field"><span class="gxd-label">${esc(t('prices_add_quantity', 'How much goes on each job'))}</span>
+          <div class="gxd-terms">${editor.terms.map(termRow).join('')}</div>
+          <div class="gxd-term-actions"><button type="button" class="gxd-link" data-add-term><i class="fas fa-plus" aria-hidden="true"></i> ${esc(t('prices_term_add', 'Add a measurement'))}</button>
+            ${editor.unit === 'sq' ? `<label class="gxd-check"><input type="checkbox" data-new-waste${editor.waste ? ' checked' : ''}> ${esc(t('prices_add_waste', 'Add the roof’s waste'))}</label>` : ''}</div>
+          <small class="gxd-hint">${esc(t('prices_add_quantity_hint', 'Worked out from each job’s measurements. For example, starter strip is Eaves + Rakes.'))}</small>
+        </div>
+        <p class="gxd-error" role="alert" data-editor-error></p>
+        <div class="gxd-editor-actions"><button type="button" class="gxd-link" data-cancel>${esc(t('prices_add_cancel', 'Cancel'))}</button><button type="button" class="gxd-btn" data-save-new>${esc(t('prices_add_save', 'Add line'))}</button></div>
+      </div>`;
+    }
+    let phase = 'start';
+    function draw(focus){
       if (!alive) return;
-      items = array(object(sheet).items).map((item) => ({ ...item, unit_price: item.unit_price == null ? null : Number(item.unit_price) }));
-      if (!items.length) {
+      el.innerHTML = phase === 'reading' ? readingHtml() : phase === 'start' ? startHtml() : listHtml();
+      if (focus) el.querySelector(focus)?.focus({ preventScroll: false });
+    }
+    /** Only the suggestions under the name box, so typing keeps its focus and caret. */
+    function drawSuggestions(){ const host = el.querySelector('[data-suggest]'); if (host) host.innerHTML = suggestHtml(); el.querySelector('[data-new-name]')?.setAttribute('aria-expanded', String(!!clean(editor?.name))); }
+    const showError = (message, selector = '[data-error]') => { const node = el.querySelector(selector); if (node) node.textContent = message; };
+
+    function addFromBook(id){
+      const item = array(sheet.catalog).find((entry) => entry.id === id); if (!item) return;
+      lines.push({ ...lineFrom(item, true), initial: false });
+      editor = null; draw(`[data-price="${CSS.escape(id)}"]`); report();
+    }
+    function saveNew(){
+      const name = clean(editor.name);
+      if (!name) { showError(t('prices_add_need_name', 'Give the line a name.'), '[data-editor-error]'); return; }
+      if (editor.terms.some((term) => !(Number(term.factor) >= 0) || clean(term.factor) === '')) { showError(t('prices_add_need_factor', 'Each amount needs a number.'), '[data-editor-error]'); return; }
+      newCount += 1;
+      const id = `new_${Date.now().toString(36)}${newCount}`.slice(0, 28);
+      lines.push({ id, name, unit: editor.unit, category: '', book: null, price: editor.price, on: true, isNew: true, initial: false, terms: editor.terms.map((term) => ({ factor: Number(term.factor), key: term.key })), waste: editor.unit === 'sq' && !!editor.waste, formula: '' });
+      editor = null; draw(`[data-price="${CSS.escape(id)}"]`); report();
+    }
+
+    // ── An estimate they already send ──
+    function upload(){
+      if (reading) return;
+      picker = document.createElement('input');
+      picker.type = 'file'; picker.accept = '.pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/*'; picker.multiple = true;
+      picker.addEventListener('change', () => { const files = [...(picker?.files || [])].slice(0, 3); picker = null; if (files.length) readEstimate(files); }, { once: true });
+      picker.click();
+    }
+    const base64 = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1] || ''); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
+    async function readEstimate(files){
+      const was = phase;
+      if (files.some((file) => file.size > 20 * 1024 * 1024)) { showError(t('prices_estimate_too_large', 'That file is larger than 20 MB.')); return; }
+      reading = true; phase = 'reading'; draw();
+      try {
+        const orgId = ctx.orgId;
+        if (!orgId || !window.PlatformAPI?.publication?.invoke) throw new Error(t('prices_estimate_unavailable', 'This can’t be read here. Reload the page and try again.'));
+        const payload = { files: await Promise.all(files.map(async (file) => ({ file_name: file.name.slice(0, 200), content_type: file.type || undefined, data_base64: await base64(file) }))) };
+        const result = await window.PlatformAPI.publication.invoke(orgId, 'documents.setup.read_estimate', { scope: 'organization', organizationId: orgId }, payload, {});
+        if (!alive) return;
+        merge(object(result?.value ?? result), files);
+        phase = 'list'; reading = false; draw('.gxd-banner');
+        report();
+      } catch (error) {
+        reading = false; phase = was === 'reading' ? 'start' : was; draw();
+        showError(clean(error?.message) || t('prices_estimate_failed', 'Your estimate couldn’t be read. Try another file, or review your prices manually.'));
+      }
+    }
+    /** The estimate's lines into the step: matched ones on at its price, new ones added, and the rest off (its spec). */
+    function merge(result, files){
+      const found = array(result.lines);
+      if (!found.length) { banner = t('prices_estimate_none', 'We couldn’t find priced lines in that estimate. Review your prices below, or try another file.'); return; }
+      let matched = 0, added = 0;
+      const used = new Set();
+      for (const entry of found) {
+        const id = clean(entry.item_id);
+        let line = id ? lines.find((candidate) => candidate.id === id) : null;
+        if (id && !line) { const item = array(sheet.catalog).find((candidate) => candidate.id === id); if (item) { line = { ...lineFrom(item, true), initial: false }; lines.push(line); } }
+        if (line) { line.price = priceText(entry.unit_price); line.on = true; line.fromEstimate = true; used.add(line.id); matched += 1; continue; }
+        if (!sheet.editable) continue;
+        const terms = termsOf(array(entry.formula)) || [{ factor: 1, key: '' }];
+        newCount += 1;
+        const key = `new_${Date.now().toString(36)}${newCount}`.slice(0, 28);
+        lines.push({ id: key, name: clean(entry.name), unit: ['sq', 'lf', 'ea'].includes(entry.unit) ? entry.unit : 'ea', category: '', book: null, price: priceText(entry.unit_price), on: true, isNew: true, initial: false, terms, waste: false, formula: '', fromEstimate: true });
+        used.add(key); added += 1;
+      }
+      if (sheet.editable) for (const line of lines) if (!used.has(line.id)) line.on = false;
+      const name = files.length === 1 ? files[0].name : t('prices_estimate_files', 'your estimate');
+      banner = [t('prices_estimate_read', 'From {file}: {matched} lines matched your price book and {added} are new. Lines it doesn’t have are off. Check the prices, then continue.')
+        .replace('{file}', name).replace('{matched}', String(matched)).replace('{added}', String(added)), clean(result.notes)].filter(Boolean).join(' ');
+    }
+
+    // ── Events ──
+    const onClick = (event) => {
+      const start = event.target.closest('[data-start]');
+      if (start) { if (start.dataset.start === 'estimate') upload(); else { phase = 'list'; draw('.gxd-line input'); report(); } return; }
+      if (event.target.closest('[data-upload]')) { upload(); return; }
+      const toggle = event.target.closest('[data-toggle]');
+      if (toggle) {
+        const line = lines.find((entry) => entry.id === toggle.dataset.toggle); if (!line) return;
+        line.on = !line.on;
+        const card = toggle.closest('.gxd-line');
+        card.dataset.on = String(line.on); toggle.setAttribute('aria-checked', String(line.on));
+        toggle.title = line.on ? t('prices_line_on', 'On your proposals') : t('prices_line_off', 'Not on your proposals');
+        report(); return;
+      }
+      if (event.target.closest('[data-add]')) { editor = { stage: 'name', name: '', active: 0, unit: 'ea', price: '', terms: [{ factor: 1, key: '' }], waste: false }; draw('[data-new-name]'); return; }
+      if (event.target.closest('[data-cancel]')) { editor = null; draw('[data-add]'); return; }
+      const pick = event.target.closest('[data-pick]');
+      if (pick) { if (pick.dataset.pick) addFromBook(pick.dataset.pick); else { editor.stage = 'new'; draw('[data-new-price]'); } return; }
+      if (event.target.closest('[data-add-term]')) { editor.terms.push({ factor: 1, key: array(sheet.measurements)[0]?.key || '' }); draw(`[data-factor="${editor.terms.length - 1}"]`); return; }
+      const drop = event.target.closest('[data-drop-term]');
+      if (drop) { editor.terms.splice(Number(drop.dataset.dropTerm), 1); draw(); return; }
+      if (event.target.closest('[data-save-new]')) saveNew();
+    };
+    const onInput = (event) => {
+      const target = event.target;
+      if (target.matches('[data-price]')) { const line = lines.find((entry) => entry.id === target.dataset.price); if (line) { line.price = target.value; report(); } return; }
+      if (!editor) return;
+      if (target.matches('[data-new-name]')) { editor.name = target.value; editor.active = 0; if (editor.stage === 'name') drawSuggestions(); return; }
+      if (target.matches('[data-new-price]')) { editor.price = target.value; return; }
+      if (target.matches('[data-factor]')) { editor.terms[Number(target.dataset.factor)].factor = target.value; return; }
+    };
+    const onChange = (event) => {
+      const target = event.target;
+      if (!editor) return;
+      if (target.matches('[data-new-unit]')) {
+        editor.unit = target.value;
+        // A measurement in the same unit is the likely amount: squares for a line sold per square, and so on.
+        const first = editor.terms[0];
+        if (editor.terms.length === 1 && first.key === '' && editor.unit !== 'ea') first.key = array(sheet.measurements).find((field) => editor.unit === 'sq' ? /Squares/.test(field.key) : /Lf$/.test(field.key))?.key || '';
+        draw('[data-new-unit]'); return;
+      }
+      if (target.matches('[data-measure]')) {
+        editor.terms[Number(target.dataset.measure)].key = target.value;
+        // Picking a measurement says the unit when it is still the default.
+        if (editor.terms.length === 1 && editor.unit === 'ea' && target.value) editor.unit = /Squares$/.test(target.value) ? 'sq' : /Lf$/.test(target.value) ? 'lf' : 'ea';
+        draw(`[data-measure="${target.dataset.measure}"]`); return;
+      }
+      if (target.matches('[data-new-waste]')) editor.waste = target.checked;
+    };
+    const onKey = (event) => {
+      if (!editor || !event.target.matches?.('[data-new-name]') || editor.stage !== 'name') return;
+      const count = suggestions(editor.name).length + 1;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); editor.active = (editor.active + (event.key === 'ArrowDown' ? 1 : -1) + count) % count; drawSuggestions(); }
+      else if (event.key === 'Enter' && clean(editor.name)) { event.preventDefault(); el.querySelectorAll('[data-pick]')[editor.active]?.click(); }
+    };
+    el.addEventListener('click', onClick);
+    el.addEventListener('input', onInput);
+    el.addEventListener('change', onChange);
+    el.addEventListener('keydown', onKey);
+
+    ctx.read('document-setup', 'price_sheet').then((value) => {
+      if (!alive) return;
+      sheet = { editable: false, catalog: [], measurements: [], ...object(value) };
+      const items = array(sheet.items).map((item) => ({ ...item, unit_price: item.unit_price == null ? null : Number(item.unit_price) }));
+      if (!items.length && !sheet.editable) {
         el.innerHTML = `<div class="gxd"><p>${esc(t('prices_none', 'Your price book has nothing for these yet. Skip this step and set your prices in the price book any time.'))}</p></div>`;
         return;
       }
-      const shown = (item) => given.has(item.id) ? given.get(item.id) : item.unit_price;
-      el.innerHTML = `<div class="gxd">
-        <p>${esc(t('prices_lead', 'What you charge your customer for each, before tax. We price your proposals from these.'))}</p>
-        <div class="gxd-prices">${items.map((item) => `<div class="gxd-price"><label for="gxd-price-${esc(item.id)}">${esc(item.name)}</label><span class="gxd-money"><span>$</span><input id="gxd-price-${esc(item.id)}" inputmode="decimal" autocomplete="off" data-price="${esc(item.id)}" value="${shown(item) == null ? '' : esc(String(shown(item)))}" placeholder="0.00"><span>${esc(unitLabel(item.unit))}</span></span></div>`).join('')}</div>
-        <p class="gxd-note">${esc(t('prices_note', 'You can change your default prices in your price book at any time, and any price on a single proposal while you write it.'))}</p>
-      </div>`;
-      el.addEventListener('input', report);
-      report();
+      // Back from a later step: the lines as they were left, new ones included.
+      const on = givenLines ? new Set(array(givenLines.on)) : null;
+      lines = items.map((item) => lineFrom(item, on ? on.has(item.id) : item.on !== false));
+      if (givenLines) {
+        for (const id of array(givenLines.on)) {
+          const item = array(sheet.catalog).find((entry) => entry.id === id);
+          if (item && !lines.some((line) => line.id === id)) lines.push(lineFrom(item, true));
+        }
+        for (const entry of array(givenLines.new_items)) lines.push({ id: entry.key, name: entry.name, unit: entry.unit, category: '', book: null, price: priceText(entry.unit_price), on: true, isNew: true, initial: false, terms: termsOf(array(entry.formula)) || [{ factor: 1, key: '' }], waste: !!entry.include_waste, formula: '' });
+      }
+      phase = givenLines || given.size ? 'list' : 'start';
+      draw();
+      if (phase === 'list') report();
     }).catch((error) => { if (alive) el.innerHTML = `<div class="gxd"><p class="gxd-error" role="alert">${esc(clean(error?.message) || t('load_failed', 'This didn’t load. Skip this step or try again.'))}</p></div>`; });
     return {
       valid: () => true,
-      summary: () => { const count = changed().length; return count ? t('prices_summary', '{count} prices').replace('{count}', String(count)) : ''; },
-      destroy(){ alive = false; el.removeEventListener('input', report); }
+      summary: () => summaryText(),
+      // Escape closes the line being added first.
+      escape: () => { if (!editor) return false; editor = null; draw('[data-add]'); return true; },
+      destroy(){
+        alive = false;
+        if (!wasWide) sheetEl?.classList.remove('gxs-wide');
+        el.removeEventListener('click', onClick); el.removeEventListener('input', onInput); el.removeEventListener('change', onChange); el.removeEventListener('keydown', onKey);
+      }
     };
   }
 

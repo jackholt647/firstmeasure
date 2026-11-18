@@ -868,9 +868,21 @@ step is the module `guided-experiences/documents-setup.js` with its own `part`:
   can mix and match line items, or must pick one of the options given, or (one option) talks to us for a new estimate
   (`customer_changes`); every line item or a broad estimate (`detail`); a written scope of work with photos or just the
   proposal (`scope_write_up`).
-- `prices` (optional, Skip): the price book items a roofing proposal is priced from (`document-setup.price_sheet`),
-  each with its sell price per unit; changed ones go to `prices` and are written with `pricebook.prices.update` on the
-  finish. It says default prices change in the price book any time, and a proposal's prices on that proposal.
+- `prices` (optional, "Skip for now": the step's `skip_label`): the lines a proposal is made of. Every instant roofing
+  proposal takes its lines from the price book assembly `roof_replacement` (`scope_pieces`), so the lines are its
+  components, plus the main roofing items it lacks, off (`document-setup.price_sheet`: `items` with `on`, the rest of
+  the price book as `catalog`, the `measurements`). The step widens the sheet and shows them in two columns, each with
+  a picture (chosen from its name, else its category), its price per unit, its quantity formula in words and a switch
+  (FM-610). It opens on two choices: review the prices by hand, or upload an estimate the company already sends, which
+  `documents.setup.read_estimate` reads (a vision pass; writes nothing) into the same lines: matched items take the
+  estimate's price and are on, lines the price book lacks are added new, and the rest are turned off. The upload stays
+  a button above the list. "Add a line item" takes a name and offers the price book's items; one picked is added, else
+  the row expands to a new line: what it is sold in (square, foot, each), its price and how much goes on each job, a sum
+  of measurements (each with a factor) or a fixed number. Changed prices go to `prices` (`pricebook.prices.update`);
+  `lines` (`on`, in order, and `new_items`) goes only when the lines changed: the finish makes the new items (with
+  their formula, merged by name with an item already there) and sets the assembly's components to the lines left on,
+  keeping how a kept line is offered (a shingle choice, an optional upgrade) and picking a choice's first when its
+  picked one was turned off. Without the assembly the step shows prices only.
 - `style`: the three themes (`thm_clean`, `thm_margin`, `thm_triangles`), each previewed with what the answers make:
   `document-setup.previews` resolves the planned template, unsaved, with a sample customer, roof and account
   (`resolveDocumentInstance` with `definition`), and the module renders it with `FMDocRenderer` (`theme_id`). The step

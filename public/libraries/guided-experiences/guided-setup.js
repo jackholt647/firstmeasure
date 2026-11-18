@@ -412,6 +412,7 @@
         $('[data-gxs=back]').hidden = !visited.length && index <= first;
         // An optional last page (labor prices) can be skipped too; skipping it finishes without its part.
         $('[data-gxs=skip]').hidden = step.required !== false || (last && !Object.keys(object(step.options?.skip_sets)).length);
+        $('[data-gxs=skip]').innerHTML = step.skip_label ? H(step.skip_label) : H('gx_ui_skip_step', 'Skip step');
         const next = $('[data-gxs=next]');
         const finishLabel = experience.completion?.screen === 'none' ? H('gx_ui_done', 'Done') : ctx.options?.nested ? H('gx_ui_finish_setup','Finish setup') : H('gx_ui_finish', 'Build my price book');
         next.innerHTML = busy ? `<span class="gxs-spin" aria-hidden="true"></span>${saving ? H('gx_ui_saving', 'Saving…') : H('gx_ui_building', 'Building…')}` : (last ? finishLabel : H('gx_ui_continue', 'Continue'));

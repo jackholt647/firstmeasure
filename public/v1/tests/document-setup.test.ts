@@ -179,3 +179,58 @@ test("the finish makes the kind's own default template, its workflow, its pin an
   const member = person("member", { role: "member", permissions: { view_projects: true } });
   await assert.rejects(() => invoke(member, "documents.setup.apply", { document_kind: "invoice", theme_id: "thm_clean" }, "apply-member"));
 });
+
+test("the price step's lines: the proposal's assembly, turned off, added from the price book and new (FM-610)", async () => {
+  await setup();
+  const sheet = await value(owner, "document-setup", "price_sheet");
+  assert.equal(sheet.editable, true);
+  const on = sheet.items.filter((item: any) => item.on).map((item: any) => item.id);
+  assert.ok(on.includes("tearoff") && on.includes("laminated_shingles"), `the roof replacement's lines are on: ${on}`);
+  assert.ok(sheet.items.some((item: any) => item.id === "ice_water" && !item.on), "a main item the proposal lacks is listed, off");
+  assert.equal(sheet.items.find((item: any) => item.id === "starter").formula.includes("Eaves"), true, "each line says what its quantity comes from");
+  assert.ok(sheet.catalog.some((item: any) => item.id === "chimney_flashing"), "the rest of the price book is offered");
+  assert.ok(!sheet.catalog.some((item: any) => item.id === "tearoff" || item.id === "roof_replacement"), "but not the lines or the assembly");
+  assert.ok(sheet.measurements.some((field: any) => field.key === "eavesLf") && !sheet.measurements.some((field: any) => field.key === "wastePercent"));
+
+  // Off: tear-off and architectural shingles (the shingle choice's picked one); on: ice & water, chimney flashing and a new line.
+  const keep = on.filter((id: string) => id !== "tearoff" && id !== "laminated_shingles");
+  const lines = { on: [...keep, "ice_water", "chimney_flashing", "new_a"], new_items: [{ key: "new_a", name: "Haul-away fee", unit: "sq", unit_price: 12.5, formula: [{ type: "measurement", value: "roofSquares" }, { type: "operator", value: "*" }, { type: "number", value: "1.1" }], include_waste: false }] };
+  const applied = await invoke(owner, "documents.setup.apply", { ...proposal, theme_id: "thm_clean", lines }, "lines-1");
+  assert.equal(applied.lines_added, 1);
+  assert.equal(applied.lines_changed, true);
+  const { getOrganizationPricebook } = await import("../pricebook/storage.js");
+  const items = new Map((await getOrganizationPricebook(ORG)).catalog.items.map((item: any) => [item.id, item]));
+  const assembly: any = items.get("roof_replacement");
+  const refs = assembly.components.map((component: any) => component.item_ref);
+  assert.ok(!refs.includes("tearoff") && !refs.includes("laminated_shingles"), `turned off: ${refs}`);
+  assert.ok(refs.includes("ice_water") && refs.includes("chimney_flashing"), `turned on: ${refs}`);
+  const added: any = [...items.values()].find((item: any) => item.name === "Haul-away fee");
+  assert.ok(added && refs.includes(added.id), "the new line is an item and on the proposal");
+  assert.equal(added.unit, "sq");
+  assert.equal(added.unit_price, 12.5);
+  assert.deepEqual(added.formulaConfig.tokens.map((token: any) => token.value), ["roofSquares", "*", "1.1"]);
+  const shingles = assembly.components.filter((component: any) => component.selection?.group_id === "shingle_profile");
+  assert.ok(shingles.length && shingles[0].selection.selected === true, "the shingle choice still has one picked");
+  const again = await value(owner, "document-setup", "price_sheet");
+  assert.ok(again.items.find((item: any) => item.id === "tearoff" && !item.on), "a line turned off stays listed, off");
+
+  await assert.rejects(() => invoke(owner, "documents.setup.apply", { ...proposal, theme_id: "thm_clean", lines: { on: ["new_b"], new_items: [{ key: "new_b", name: "Bad", unit: "ea", unit_price: 1, formula: [{ type: "measurement", value: "roofSquares" }, { type: "operator", value: "+" }] }] } }, "lines-bad"), /complete expression/);
+  await assert.rejects(() => invoke(owner, "documents.setup.apply", { ...proposal, theme_id: "thm_clean", lines: { on: ["no_such_item"] } }, "lines-unknown"), /not in the price book/);
+});
+
+test("an estimate's lines are kept to known items, sound formulas and one line each (FM-610)", async () => {
+  const { cleanLines } = await import("../documents/setup-estimate.js");
+  const lines = cleanLines([
+    { name: "Tear off", unit: "sq", unit_price: 90, item_id: "tearoff", formula: null },
+    { name: "Tear off again", unit: "sq", unit_price: 91, item_id: "tearoff", formula: null },
+    { name: "Invented", unit: "lf", unit_price: 3.333, item_id: "made_up", formula: [{ type: "measurement", value: "eavesLf" }] },
+    { name: "Broken formula", unit: "furlong", unit_price: 5, item_id: null, formula: [{ type: "measurement", value: "nope" }] },
+    { name: "", unit: "ea", unit_price: 5, item_id: null, formula: null },
+    { name: "Negative", unit: "ea", unit_price: -5, item_id: null, formula: null }
+  ], new Set(["tearoff"]));
+  assert.deepEqual(lines, [
+    { name: "Tear off", unit: "sq", unit_price: 90, item_id: "tearoff", formula: null },
+    { name: "Invented", unit: "lf", unit_price: 3.33, item_id: null, formula: [{ type: "measurement", value: "eavesLf" }] },
+    { name: "Broken formula", unit: "ea", unit_price: 5, item_id: null, formula: null }
+  ]);
+});
