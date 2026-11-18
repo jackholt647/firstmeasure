@@ -80,3 +80,17 @@ test('empty scope defaults do not mask a completed report', () => {
   assert.equal(ctx.scopeMeasurements().roofSquares, 25);
   assert.equal(ctx.scopeForMaterials().pieces[0].measurements.roofSquares, 25);
 });
+test('the tab is styled before the project window paints its pre-mount panel (FM-564)', () => {
+  const injected = [];
+  const ctx = { stylesInjected: false, injectCSS: (id, text) => injected.push([id, text]), css: () => '.mt-app{}' };
+  vm.createContext(ctx);
+  vm.runInContext(fn('panelHtml') + fn('injectStyles'), ctx);
+  const html = ctx.panelHtml();
+  assert.deepEqual(injected, [['materials-tab', '.mt-app{}']], 'panelHtml injects the stylesheet before returning markup');
+  assert.equal(html.replace(/<[^>]*>/g, '').trim(), '', 'the pre-mount root shows no text of its own beside the window\'s Loading status');
+  ctx.panelHtml();
+  assert.equal(injected.length, 1, 'injected once');
+  const css = fn('css');
+  assert.match(css, /\.mt-app:empty\{display:none\}/, 'the empty root does not push the Loading status out of view');
+  assert.match(css, /@media\(max-width:760px\)\{\.r-preview-panel\[data-panel="materials"\] \.r-tab-sidebar:empty\{display:none!important\}\}/, 'no empty rail on a phone before mount');
+});
