@@ -79,6 +79,22 @@ test('country verification ignores client claims and rejects missing geocoder co
   await assert.rejects(property.resolveReportPropertyCountry({}),{code:'property_country_required'});
  }finally{globalThis.fetch=original;}
 });
+test('Full Exterior outside the US and Canada uses the international list by property address, whatever the org country (FM-593)',()=>{
+ const amounts=(org:string,country:string,count=1)=>pricingContext.run({config:{...DEFAULT_EXPEDITE_PRICING},revision:2,now:new Date('2026-10-06T18:00:00Z')},()=>inMarket(org,country,()=>{const q=exteriorQuote(count);return {keys:q.options.map(o=>o.key),fees:q.options.map(o=>o.fee),amounts:q.options.map(o=>o.amount),base:q.base_price,revision:q.pricing_revision};}));
+ const us={keys:['exteriors_standard','exteriors_same_day','exteriors_priority'],fees:[0,5,10],amounts:[25,30,35],base:25,revision:2};
+ // US/Canada: the expedite settings' US numbers, revision unchanged.
+ for(const [org,country] of [['US','US'],['US','CA'],['CA','US']] as const)assert.deepEqual(amounts(org,country),us,org+'/'+country);
+ // Outside them: €60, +€10 under 6 hours, +€25 under 3 hours, not the old 2x of the US numbers.
+ for(const [org,country] of [['FR','FR'],['GB','DE'],['FR','US'],['JP','JP']] as const)assert.deepEqual(amounts(org,country),{...us,fees:[0,10,25],amounts:[60,70,85],base:60,revision:3002},org+'/'+country);
+ assert.deepEqual(amounts('FR','FR',2).amounts,[120,140,170]);
+ // A US account ordering for a European property pays the euro prices at the reference rate (1.16): whole dollars for the base, cents for fees.
+ const usd=amounts('US','FR');
+ assert.deepEqual(usd.fees,[0,11.6,29]);assert.deepEqual(usd.amounts,[70,81.6,99]);assert.equal(usd.base,70);
+ assert.notEqual(usd.revision,us.revision);
+ // A quote priced at another euro rate has another revision, so an order on it is refused as "prices changed".
+ const moved=pricingContext.run({config:{...DEFAULT_EXPEDITE_PRICING},revision:2,now:new Date('2026-10-06T18:00:00Z')},()=>inMarket('US','FR',()=>market.reportEuroExchange.run({rate:1.2,date:'2026-10-09'},()=>exteriorQuote().pricing_revision)));
+ assert.notEqual(moved,usd.revision);
+});
 test('exterior ordering stays open after 8pm Pacific and overnight',()=>{
  for(const hour of [3,4,6,10])pricingContext.run({config:{...DEFAULT_EXPEDITE_PRICING},revision:0,now:new Date(`2026-10-06T${String(hour).padStart(2,'0')}:00:00Z`)},()=>assert.equal(exteriorQuote().ordering_closed,false));
 });

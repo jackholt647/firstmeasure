@@ -60,7 +60,8 @@ test("regional report pricing is isolated across concurrent requests, including 
   const {exteriorQuote}=await import("../firstmeasure/exteriors.js");
   const input={project_type:"commercial",report_mode:"both",report_expedite_option:"rush_under_1",include_weather_report:true,pins:[{},{}]};
   const values=await Promise.all(Array.from({length:24},(_,i)=>profile.withOrganizationCommerce(accounts.get(i%2?"FR":"US").org,async()=>{await new Promise(r=>setTimeout(r,i%4));return [firstMeasureReportAmount({...input,report_expedite_option:'standard_3_6'}),exteriorQuote(2).options[0]!.amount];})));
-  values.forEach((value,i)=>{assert.equal(value[0],values[i%2]![0]);assert.equal(value[1],values[0]![1]!*(i%2?2:1));});
+  // Full Exterior: $25 per structure in the US, €60 per structure from the international price list (FM-593).
+  values.forEach((value,i)=>{assert.equal(value[0],values[i%2]![0]);assert.equal(value[1],i%2?120:50);});
   assert.ok(values[1]![0]! > values[0]![0]!);
 });
 
