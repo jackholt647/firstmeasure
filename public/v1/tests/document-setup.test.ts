@@ -156,6 +156,10 @@ test("the finish makes the kind's own default template, its workflow, its pin an
   const status = await value(owner, "document-setup", "status");
   assert.equal(status.answered.proposal, true);
   assert.equal(status.kinds.proposal.theme_id, "thm_triangles");
+  // The first proposal style is the organization's style for new documents (FM-612).
+  const { readDefaultDocumentThemeId } = await import("../documents/settings.js");
+  assert.equal(status.default_theme_id, "thm_triangles");
+  assert.equal(await readDefaultDocumentThemeId(ORG), "thm_triangles");
 
   // Again with other answers: the same template, a new version; options to choose from.
   await invoke(owner, "documents.setup.apply", { ...proposal, presentation: "options", customer_changes: "mix", theme_id: "thm_clean" }, "apply-2");
@@ -163,11 +167,13 @@ test("the finish makes the kind's own default template, its workflow, its pin an
   assert.equal(Number(again.current_version), 2);
   assert.equal(again.metadata.document_setup.based_on, "tpl_instant_roofing_options");
   assert.equal((await storage.listDocumentTemplates(ORG, { document_type: "proposal" })).filter((entry: any) => entry.id.startsWith("tpl_setup_")).length, 1);
+  assert.equal(await readDefaultDocumentThemeId(ORG), "thm_triangles", "only the first proposal style sets the style for new documents");
 
   // Another kind takes only a style.
   const invoice = await invoke(owner, "documents.setup.apply", { document_kind: "invoice", theme_id: "thm_margin" }, "apply-invoice");
   assert.equal(invoice.template_id, "tpl_setup_invoice");
   assert.deepEqual(((await storage.readDocumentTemplateVersion(ORG, "tpl_setup_invoice")) as any).definition.theme_ref, { theme_id: "thm_margin" });
+  assert.equal((await value(owner, "document-setup", "status")).default_theme_id, "thm_triangles", "another kind's style leaves it");
 
   await assert.rejects(() => invoke(owner, "documents.setup.apply", { document_kind: "proposal", theme_id: "thm_clean" }, "apply-bad"), /how you write proposals/);
   const member = person("member", { role: "member", permissions: { view_projects: true } });

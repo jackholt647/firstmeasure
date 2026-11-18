@@ -25,6 +25,23 @@ export async function readDocumentDeliveryDefaults(orgId: string, branchId = "de
   return documentDeliveryDefaults(object(object(settings).data), object(object(object(style).data).proposal_defaults));
 }
 
+/** What the document setup answered (documents/setup.ts), kept in the default branch. */
+export const DOCUMENT_SETUP_MODULE = "document_setup";
+/**
+ * The organization's style for new documents (FM-612): a hidden setting the document setup writes the first time a
+ * proposal style is chosen, and not again. Documents the platform writes by itself (a checklist's printable copy) take
+ * it. An organization that set up its proposals before the setting existed has its proposal's style. null: none yet.
+ */
+export async function readDefaultDocumentThemeId(orgId: string): Promise<string | null> {
+  try {
+    const data = object(object(await readBranchModule(orgId, "default", DOCUMENT_SETUP_MODULE)).data);
+    return String(data.default_theme_id || object(object(data.kinds).proposal).theme_id || "").trim() || null;
+  } catch (error) {
+    if (error instanceof PlatformError && error.statusCode === 404) return null;
+    throw error;
+  }
+}
+
 const PINNED_TEMPLATES_MODULE = "document_template_pins";
 /**
  * The templates an organization keeps at the top of New document, in order.

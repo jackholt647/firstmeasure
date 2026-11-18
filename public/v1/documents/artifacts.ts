@@ -7,7 +7,8 @@ import {
   issueDocument,
   patchDocumentInstance
 } from "./service.js";
-import { readDocumentInstance, saveDocumentInstance } from "./storage.js";
+import { readDocumentInstance, readDocumentTemplateVersion, readDocumentThemeVersion, saveDocumentInstance } from "./storage.js";
+import { FMDocModel } from "./schemas.js";
 
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
@@ -41,7 +42,38 @@ export type TemplatedArtifactInput = {
   metadata?: JsonObject;
   actorUserId?: string;
   fileName?: string;
+  /**
+   * A style for the document (a theme id), with its page regions re-fitted to the style's margins as choosing a style
+   * in the editor does. A later write keeps a style someone chose on the document themselves.
+   */
+  themeId?: string | null;
 };
+
+const asArray = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
+
+/** Gives a written artifact the style asked for, unless someone has since chosen another for it. */
+async function styleArtifact(orgId: string, document: JsonObject, themeId: string, ctx: PlatformAuthContext) {
+  const current = cleanText(asObject(document.theme_ref).theme_id);
+  if (!themeId || current === themeId) return document;
+  const templateRef = asObject(document.template_ref);
+  const template = cleanText(templateRef.template_id)
+    ? asObject(asObject(await readDocumentTemplateVersion(orgId, cleanText(templateRef.template_id)).catch(() => null)).definition)
+    : {};
+  // Styled by us before (or never styled): the template's own style or the one given last time.
+  const given = cleanText(asObject(document.metadata).artifact_theme_id) || cleanText(asObject(template.theme_ref).theme_id);
+  if (current && current !== given) return document;
+  const theme = asObject(asObject(await readDocumentThemeVersion(orgId, themeId).catch(() => null)).definition);
+  if (!Object.keys(theme).length) return document;
+  const fit = FMDocModel.pageSetupOverrides(template, theme);
+  // A region re-fitted again replaces its last fit rather than piling up.
+  const refits = new Set(fit.map((op) => `${cleanText(op.op)}:${cleanText(op.node_id)}:${cleanText(op.prop)}`));
+  const kept = asArray(document.overrides).map(asObject).filter((op) => !refits.has(`${cleanText(op.op)}:${cleanText(op.node_id)}:${cleanText(op.prop)}`));
+  return patchDocumentInstance(orgId, cleanText(document.id), {
+    theme_ref: { theme_id: themeId },
+    ...(fit.length || kept.length !== asArray(document.overrides).length ? { overrides: [...kept, ...fit] } : {}),
+    metadata: { artifact_theme_id: themeId }
+  }, ctx);
+}
 
 /** Creates or updates the instance in place and issues it, with no snapshot or PDF (work orders open in the editor). */
 export async function prepareTemplatedArtifact(input: TemplatedArtifactInput) {
@@ -87,6 +119,8 @@ export async function prepareTemplatedArtifact(input: TemplatedArtifactInput) {
       updated_at: new Date().toISOString()
     });
   }
+
+  if (cleanText(input.themeId)) document = await styleArtifact(input.orgId, document, cleanText(input.themeId), ctx);
 
   const issued = await issueDocument(input.orgId, cleanText(document.id), {}, ctx);
   return { ctx, document: issued.document, documentId: cleanText(issued.document.id) };

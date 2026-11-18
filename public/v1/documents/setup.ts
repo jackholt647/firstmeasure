@@ -15,7 +15,7 @@ import {
 } from "./storage.js";
 import { FMDocModel } from "./schemas.js";
 import { ensureDefaultDocumentAssets, libraryAssetDefinition } from "./library-copies.js";
-import { DEFAULT_PINNED_TEMPLATE_IDS, readPinnedTemplateIds, savePinnedTemplateIds } from "./settings.js";
+import { DEFAULT_PINNED_TEMPLATE_IDS, DOCUMENT_SETUP_MODULE, readPinnedTemplateIds, savePinnedTemplateIds } from "./settings.js";
 
 /**
  * The document setup (FM-582, docs/architecture/guided-experiences.md, "Document setup"): the first time someone makes
@@ -28,9 +28,10 @@ import { DEFAULT_PINNED_TEMPLATE_IDS, readPinnedTemplateIds, savePinnedTemplateI
  *
  * Nothing here prices anything: prices are the price book's (the optional price step writes them with
  * `pricebook.prices.update`), and each proposal's prices can still be changed on that proposal. What was answered is
- * kept in the default branch's `document_setup` module, apart from the templates.
+ * kept in the default branch's `document_setup` module, apart from the templates. The first proposal style chosen there
+ * is also the organization's style for new documents (`default_theme_id`, FM-612; settings.ts readDefaultDocumentThemeId).
  */
-export const DOCUMENT_SETUP_MODULE = "document_setup";
+export { DOCUMENT_SETUP_MODULE };
 export const DOCUMENT_SETUP_KINDS = ["proposal", "invoice", "change_order", "completion_certificate"] as const;
 export const DOCUMENT_SETUP_THEMES = ["thm_clean", "thm_margin", "thm_triangles"] as const;
 export type DocumentSetupKind = typeof DOCUMENT_SETUP_KINDS[number];
@@ -221,6 +222,7 @@ export async function readDocumentSetup(orgId: string) {
     answered: Object.fromEntries(DOCUMENT_SETUP_KINDS.map((kind) => [kind, !!text(object(kinds[kind]).applied_at)])) as Record<DocumentSetupKind, boolean>,
     kinds: Object.fromEntries(DOCUMENT_SETUP_KINDS.filter((kind) => kinds[kind]).map((kind) => [kind, object(kinds[kind])])),
     themes: DOCUMENT_SETUP_THEMES.map((id) => ({ id, name: text(byId.get(id)?.name) || id.replace(/^thm_/, ""), description: text(byId.get(id)?.description) })),
+    default_theme_id: text(object(record?.data).default_theme_id || object(kinds.proposal).theme_id) || null,
     company_type: profile.company_type, sales_team: profile.sales_team, sales_is_team: profile.sales_is_team,
     revision: Number(record?.revision || 0)
   };
@@ -371,7 +373,9 @@ export async function applyDocumentSetup(ctx: PublicationContext, auth: Platform
   const pins = await pinTemplate(orgId, plan.kind, templateId);
   const record = await stored(orgId);
   const data = object(record?.data);
-  await saveBranchModule(orgId, "default", DOCUMENT_SETUP_MODULE, { data: { ...data, kinds: { ...object(data.kinds), [plan.kind]: { ...setup, template_id: templateId, workflow_id: workflowId || null } } } as JsonObject, expected_revision: Number(record?.revision || 0) }, { replace: true });
+  // The first proposal style chosen becomes the style for new documents; choosing another later changes only proposals.
+  const defaultThemeId = text(data.default_theme_id) || (plan.kind === "proposal" ? parsed.theme_id : "");
+  await saveBranchModule(orgId, "default", DOCUMENT_SETUP_MODULE, { data: { ...data, ...(defaultThemeId ? { default_theme_id: defaultThemeId } : {}), kinds: { ...object(data.kinds), [plan.kind]: { ...setup, template_id: templateId, workflow_id: workflowId || null } } } as JsonObject, expected_revision: Number(record?.revision || 0) }, { replace: true });
   return { kind: plan.kind, template_id: templateId, workflow_id: workflowId || null, name: plan.name, theme_id: parsed.theme_id, pinned_template_ids: pins, prices_updated: parsed.prices.length };
 }
 
@@ -381,6 +385,7 @@ const statusSchema = z.object({
   answered: z.record(z.boolean()),
   kinds: z.record(z.record(z.unknown())),
   themes: z.array(z.object({ id: z.string(), name: z.string(), description: z.string() }).strict()),
+  default_theme_id: z.string().nullable(),
   company_type: z.string().nullable(), sales_team: z.string().nullable(), sales_is_team: z.boolean(),
   revision: z.number().int()
 }).strict();
@@ -394,7 +399,7 @@ export function registerDocumentSetupPublication() {
   if (registered) return;
   registered = true;
   registerDataProvider({ id: "document-setup", version: "1", apps: ["documents"], exports: {
-    status: { description: "What the organization said about its documents in the document setup: for each kind set up (proposal, invoice, change_order, completion_certificate) its answers, style (theme_id) and the template made (template_id, the kind's default); the three styles offered; who sells.",
+    status: { description: "What the organization said about its documents in the document setup: for each kind set up (proposal, invoice, change_order, completion_certificate) its answers, style (theme_id) and the template made (template_id, the kind's default); the three styles offered; the style for new documents (default_theme_id: the first proposal style chosen, null before); who sells.",
       schema: json(statusSchema), schemaVersion: "1", access: readAccess,
       read: async (ctx) => { const value = await readDocumentSetup(ctx.organizationId); return { value, revision: String(value.revision) }; } },
     price_sheet: { description: "The price book items a roofing proposal is priced from, with their sell price per unit (null when not set), for the document setup's price step.",
