@@ -424,18 +424,27 @@ Library entries `guided_experience/checklists.setup`, `checklists.punchlist_tuto
 
 - `checklists.setup` (modal, organization, replayable): the first time someone who manages projects opens a
   project's Checklists tab. It `requires` `company.type`, so an organization that has not said what kind of company
-  it is answers that first. One step (module `guided-experiences/checklists-setup.js`) picks the checklists to start
-  with: crew safety (signature required), work completion and, last, a customer punch list (the customer ticks
-  items off in their portal), which starts unpicked (`selected: false`) and empty. What each says is the step's
-  options; the `roofing` variant (chosen when `organization.industry` is roofing or exteriors) has roofing items.
-  Completion: `checklists.setup.apply` (`workforce/checklists-setup.ts`) adds the picked ones to that project once
-  each (source key `setup:<use case>`), then plays the punch list tour and the tour.
+  it is answers that first. Until it has run, a project gets no checklists at all where the organization has
+  Checklists (`checklists.initializeFromScope.v1` skips with `checklists_setup_pending`): nobody has chosen them yet
+  (FM-600). Its steps are one module (`guided-experiences/checklists-setup.js`) in three modes. `use_cases` picks
+  the checklists to start with: crew safety (signature required), work completion and, last, a customer punch list
+  (the customer ticks items off in their portal), which starts unpicked (`selected: false`) and empty. What each
+  says is the step's options; the `roofing` variant (chosen when `organization.industry` is roofing or exteriors)
+  has roofing items. Then one `edit_<use case>` page per picked checklist (branches on
+  `selections.checklist_use_cases`), titled "Here's your … checklist": the default checklist as it will be, to change
+  by typing or by dictating, with how to dictate on the first one. Dictating asks `/checklists/voice` in mode
+  `draft` what to add and writes nothing. Last, `review` shows the defaults side by side and says every new project
+  starts with them. Completion: `checklists.setup.apply` (`workforce/checklists-setup.ts`) saves them as the
+  organization's default checklists and adds them to that project once each (source key `setup:<use case>`, which
+  the Checklists app marks with a quiet Default tag, `data-fmcl-default`), then plays the punch list tour and the
+  tour.
 - `checklists.punchlist_tutorial` (overlay, person, replayable, needs `platform.customer_portal`): no `tab`, so it
   carries on across tab changes. It points at a checklist shared with the customer
   (`[data-fmcl-customer-shared=true]`), has them press the Customer Portal tab, shows the link card, and has them
   press Checklists to come back. Every step's target needs that shared list (or the portal tab it opened), so
   where the punch list was not picked it shows nothing and the Checklists tour follows.
-- `checklists.tab_tutorial` (overlay, person, replayable): the lists, who completes them and the signature option,
+- `checklists.tab_tutorial` (overlay, person, replayable): that new projects start with the default checklists and
+  how the tag marks them, the lists, who completes them and the signature option,
   adding an item, comments, changing a list by voice, the document button and Send to crew app (each only where its
   capability is on), and last a step that waits for the person to press New from Audio and ramble about a checklist
   (or skip). It plays after the setup, or on the tab once the organization has finished it.

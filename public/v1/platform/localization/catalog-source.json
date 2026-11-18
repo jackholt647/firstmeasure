@@ -404,7 +404,9 @@
     "m_f44bd4ca2b4882": "Type your name to sign.",
     "m_23b01ca5b00ffb": "Draw your signature in the box.",
     "m_ad1ad337116e8f": "Signed.",
-    "m_85a2e67110feec": "Whoever completes this checklist signs it once every item is done, here or in the crew app. Printed copies get a signature line."
+    "m_85a2e67110feec": "Whoever completes this checklist signs it once every item is done, here or in the crew app. Printed copies get a signature line.",
+    "m_f59e6b09f14267": "Default",
+    "m_29eacd966f8bcc": "Every new project starts with this checklist. It comes from your checklists setup."
   },
   "comms": {
     "m_3ec5c7fbb09941": "Call from this device",

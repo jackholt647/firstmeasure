@@ -10,9 +10,11 @@
  * with (from its scope template, or picked in an earlier play) that are not picked now and nobody has touched are
  * taken off.
  *
- * The picks are kept for the organization in the default branch's `starting_checklists` module. Once it is set, a
- * scope that starts adds these instead of its template's checklists (`checklists.initializeFromScope.v1`), so every
- * new project starts with the same lists (FM-448). One set per organization, the platform MVP's single configuration.
+ * The picks, as the person left them on the setup's own page for each (FM-600), are kept for the organization in the
+ * default branch's `starting_checklists` module: its default checklists. Once it is set, a scope that starts adds these
+ * instead of its template's checklists (`checklists.initializeFromScope.v1`), so every new project starts with the same
+ * lists (FM-448); before it is set, an organization with Checklists gets none. One set per organization, the platform
+ * MVP's single configuration.
  */
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
