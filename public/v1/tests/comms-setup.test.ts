@@ -34,12 +34,14 @@ test('Communications setup turns on texts or email as the person, and reports wh
   assert.equal(await capabilities.isCapabilityEnabled(orgId, 'comms.email'), false, 'texts and calls leave email alone');
   // FM-510: the setup runs carrier registration next, and the status says where it stands (read without creating anything).
   assert.equal(phone.value.phone.registration, 'none');
+  assert.deepEqual(phone.value.phone.channels, { texts: 'setup', calls: 'setup' }, 'FM-588: turning texts on is not texts working');
   const messaging = await import('../messaging/storage.js');
   const draft = await messaging.createSmsComplianceProfile(await messaging.ensureMessagingOrganization(orgId), { brand: { displayName: 'Comms setup test' }, campaign: {} });
   const read = async () => (await invokeAction({ ...owner, mode: 'evaluate' }, { action: 'comms.setup.status', target }, {}) as any).value.phone.registration;
   assert.equal(await read(), 'draft');
   await messaging.updateSmsComplianceProfile(draft, { status: 'campaign_submitted', provider_refs: { telnyx_brand_id: 'brand-1', telnyx_campaign_id: 'campaign-1' }, brand: { ...draft.brand, mock: true } });
   assert.equal(await read(), 'approved', 'a simulated registration on development is complete once its campaign is submitted');
+  assert.equal((await invokeAction({ ...owner, mode: 'evaluate' }, { action: 'comms.setup.status', target }, {}) as any).value.phone.channels.texts, 'ready');
 
   const email = await invokeAction(owner, { action: 'comms.setup.start', target }, { channel: 'email' }, { idempotencyKey: 'comms-setup-email' }) as any;
   assert.equal(email.value.email.on, true);
@@ -78,4 +80,16 @@ test('carrier registration state reads like Phone Settings', async () => {
   assert.equal(smsRegistrationState(profile({ status: 'campaign_submitted', provider_refs: { telnyx_brand_id: 'b', telnyx_campaign_id: 'c' } })), 'submitted', 'a real campaign waits for the carriers');
   assert.equal(smsRegistrationState(profile({ status: 'active', campaign_status: 'mno_provisioned', provider_refs: { telnyx_campaign_id: 'c' } })), 'approved');
   assert.equal(smsRegistrationState(profile({ status: 'campaign_submitted', campaign_status: 'mno_rejected', provider_refs: { telnyx_campaign_id: 'c' } })), 'attention');
+});
+
+// FM-588: the project Comms tab offers New text and New call only once they work, and otherwise says where setup stands.
+test('texts and calls work only once they are set up and approved', async () => {
+  const { phoneChannels } = await import('../comms/setup.js');
+  assert.deepEqual(phoneChannels('none', false), { texts: 'setup', calls: 'setup' });
+  assert.deepEqual(phoneChannels('draft', false), { texts: 'setup', calls: 'setup' });
+  assert.deepEqual(phoneChannels('submitted', false), { texts: 'pending', calls: 'pending' });
+  assert.deepEqual(phoneChannels('attention', false), { texts: 'attention', calls: 'attention' });
+  assert.deepEqual(phoneChannels('submitted', true), { texts: 'pending', calls: 'ready' }, 'calls do not wait for texting approval once a line is on');
+  assert.deepEqual(phoneChannels('approved', false), { texts: 'ready', calls: 'setup' });
+  assert.deepEqual(phoneChannels('approved', true), { texts: 'ready', calls: 'ready' });
 });

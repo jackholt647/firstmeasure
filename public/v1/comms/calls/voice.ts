@@ -1,5 +1,6 @@
 import { canUseLine, lineMembers } from '../phone/service.js';
 import { developmentCallStatus } from './development.js';
+import { phoneChannels, phoneRegistration } from '../setup.js';
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { type PlatformAuthContext } from "../../platform/auth.js";
@@ -16,10 +17,12 @@ import { text, object, type Json, type CustomerCall } from "./storage.js";
 import { activeConferenceForUser, inviteParticipant, participants, participantActive, publicParticipants, removeParticipant, holdParticipant, leaveHostedConference } from './conference.js';
 
 export async function voiceStatus(ctx:PlatformAuthContext){
-  const usableNumbers:Array<s.Json & {assigned_user_ids:string[]}>=[];for(const n of await s.resources(ctx.orgId,"number"))if(await canUseLine(ctx,n.id))usableNumbers.push({...n,assigned_user_ids:await lineMembers(ctx.orgId,n.id)});
+  const usableNumbers:Array<s.Json & {assigned_user_ids:string[]}>=[],allNumbers=await s.resources(ctx.orgId,"number");for(const n of allNumbers)if(await canUseLine(ctx,n.id))usableNumbers.push({...n,assigned_user_ids:await lineMembers(ctx.orgId,n.id)});
   const settings=(await voiceSettings(ctx.orgId));const endpoint=(await s.resource(ctx.orgId,"endpoint",ctx.userId));
-  const environment=voiceEnvironmentStatus();
-  return {settings,branch_id:ctx.branchId||'default',development:await developmentCallStatus(ctx.orgId),environment:manageCalls(ctx)?environment:{mode:environment.mode,ready:environment.api_key_configured&&environment.webhook_key_configured&&environment.public_https},
+  const environment=voiceEnvironmentStatus(),development=await developmentCallStatus(ctx.orgId);
+  // FM-588: where texts and calls stand for the whole company, so New text and New call are offered only once they work.
+  const registration=await phoneRegistration(ctx.orgId,development),callsOn=settings.enabled===true&&allNumbers.some(n=>n.status==="active");
+  return {settings,branch_id:ctx.branchId||'default',development,registration,channels:phoneChannels(registration,callsOn),environment:manageCalls(ctx)?environment:{mode:environment.mode,ready:environment.api_key_configured&&environment.webhook_key_configured&&environment.public_https},
     permissions:{manage:manageCalls(ctx),record:canUseScopedPermission(ctx,'record_calls|manage_communications|manage_company_settings'),recordings:canUseScopedPermission(ctx,'view_call_recordings|manage_communications|manage_company_settings'),...Object.fromEntries(Object.entries(supervisionPermissions).map(([mode,permission])=>[mode,canUseScopedPermission(ctx,permission)]))},
     available_numbers:manageCalls(ctx)?(await s.database().prepare("SELECT phone_number FROM messaging_phone_number_ownership WHERE organization_id=? AND provider_phone_number_id<>''").all(ctx.orgId)).map(row=>text(object(row).phone_number)):[],
     resources:manageCalls(ctx)?[...(await s.resources(ctx.orgId,"application")),...(await s.resources(ctx.orgId,"connection")),...(await s.resources(ctx.orgId,"outbound_profile"))].map(r=>({id:r.id,kind:r.kind,status:r.status,provider_id:r.provider_id})):[],

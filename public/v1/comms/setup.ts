@@ -57,6 +57,23 @@ async function registrationState(orgId: string): Promise<RegistrationState> {
   return profiles.map(smsRegistrationState).reduce((best, state) => STATE_ORDER.indexOf(state) > STATE_ORDER.indexOf(best) ? state : best, "none" as RegistrationState);
 }
 
+/** Carrier registration as the company sees it: on development, "fully onboarded" is a simulated approval. */
+export async function phoneRegistration(orgId: string, development?: { onboarded?: boolean } | null): Promise<RegistrationState> {
+  return development?.onboarded ? "approved" : registrationState(orgId);
+}
+
+/**
+ * FM-588: whether texts and calls work yet, for anything that offers New text or New call (the project Comms tab).
+ * Texts work once carrier registration is approved; calls once browser calling is on with an active line. Until then
+ * a channel is pending while the carriers review the registration, needs attention when they turned it down, and is
+ * otherwise still to be set up (the Communications setup continues it).
+ */
+export type PhoneChannelState = "ready" | "setup" | "pending" | "attention";
+export function phoneChannels(registration: RegistrationState, callsOn: boolean): { texts: PhoneChannelState; calls: PhoneChannelState } {
+  const waiting: PhoneChannelState = registration === "submitted" ? "pending" : registration === "attention" ? "attention" : "setup";
+  return { texts: registration === "approved" ? "ready" : waiting, calls: callsOn ? "ready" : waiting };
+}
+
 function requireManager(ctx: PublicationContext) {
   if (!ctx.auth || ctx.auth.orgId !== ctx.organizationId || !hasPermission(ctx.auth, "manage_company_settings")) {
     throw forbidden("comms_setup_denied", "Company settings access is required to set up communications.");
@@ -93,19 +110,22 @@ export async function commsSetupStatus(ctx: PublicationContext) {
     developmentCallStatus(orgId),
     registrationState(orgId)
   ]);
+  const registered = development?.onboarded ? "approved" : registration;
   // The address mail is sent from: the company's domain once its email records check out (FM-516), else FirstMate Mail.
   const identities = email ? (await listSenderIdentities(orgId, ctx.auth?.branchId || "default", "email")).filter((identity) => identity.status !== "disabled" && identity.address) : [];
   const inbox = identities.find(domainIdentitySends) || identities.find((identity) => identity.id === FIRSTMATE_MAIL_IDENTITY_ID) || identities[0];
   const domain = await emailDomainStatus(orgId);
   const activeNumbers = numbers.filter((number) => number.status === "active");
+  const calls = settings.enabled === true && activeNumbers.length > 0;
   return {
     phone: {
       texts,
-      calls: settings.enabled === true && activeNumbers.length > 0,
+      calls,
       numbers: activeNumbers.map((number) => String(number.phone_number || number.id || "")),
       texting_numbers: smsNumbers.filter((identity) => identity.status === "active").map((identity) => identity.address),
       // On development, "fully onboarded" is a simulated approval (Phone Settings shows its registration as done).
-      registration: development?.onboarded ? "approved" : registration,
+      registration: registered,
+      channels: phoneChannels(registered, calls),
       ...(development ? { development: { onboarded: development.onboarded } } : {})
     },
     email: { on: email, address: inbox?.address || "", domain },

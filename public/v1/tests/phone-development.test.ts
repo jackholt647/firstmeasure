@@ -132,6 +132,9 @@ test('phone defaults are saved per user and assigned lines remain restricted',as
   await c.request('PUT',`${base}/voice/default-number`,{phone_number:'+12065550192'});
   const status=await c.request('GET',`${base}/voice/status`);
   assert.equal(status.default_number,'+12065550192');
+  // FM-588: the status says whether texts and calls work yet (no carrier registration: neither is set up).
+  assert.equal(status.registration,'none');
+  assert.deepEqual(status.channels,{texts:'setup',calls:status.settings.enabled?'ready':'setup'});
   assert.equal(status.numbers.find((line:any)=>line.phone_number==='+12065550192').assigned_user_id,userId);
   const rejected=await c.raw('PUT',`${base}/voice/default-number`,{phone_number:'+12065550999'});
   assert.equal(rejected.status,403);
