@@ -64,7 +64,7 @@ test('order imagery job retries a database pool timeout instead of finishing wit
 test('imagery fails retryably when every map download was only busy, and completes once one arrives', async () => {
   const source = await readFile(new URL('../firstmeasure/processing.ts', import.meta.url), 'utf8');
   const helpers = source.slice(source.indexOf('type ProviderFetchOutcome'), source.indexOf('async function geocodeProjectAddress('));
-  const body = source.slice(source.indexOf('export async function processProjectImagery('), source.indexOf('export async function processProjectMask(')).replace('export ', '');
+  const body = source.slice(source.indexOf('async function saveProviderMapImagery('), source.indexOf('export async function processProjectMask(')).replace('export ', '');
   const original = globalThis.fetch;
   const tiff = new Uint8Array([73, 73, 42, 0, 8, 0, 0, 0]);
   try {

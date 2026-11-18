@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { fetchRequiredSolarLayers, fetchRequiredSolarDsm, imageryFailurePatch } from '../firstmeasure/solar_imagery.js';
+import { isTransientProviderFailure } from '../firstmeasure/transient_failure.js';
 
 test('Solar layers distinguish genuine no coverage from provider failures without leaking credentials',async()=>{
  const original=globalThis.fetch;
@@ -41,9 +42,10 @@ test('DSM downloads require actual TIFF data; a failed signed URL is not no cove
  }finally{globalThis.fetch=original;}
 });
 
-test('complete imagery orchestration stops on no coverage and still completes with a valid DSM',async()=>{
+// FM-599: an order with no Solar height map (Switzerland) still reaches drafters, so it must keep the flat maps.
+test('complete imagery orchestration stops on no coverage with the flat maps saved, and still completes with a valid DSM',async()=>{
  const source=await readFile(new URL('../firstmeasure/processing.ts',import.meta.url),'utf8');
- const code=source.slice(source.indexOf('export async function processProjectImagery('),source.indexOf('export async function processProjectMask(')).replace('export ','');
+ const code=source.slice(source.indexOf('async function saveProviderMapImagery('),source.indexOf('export async function processProjectMask(')).replace('export ','');
  const original=globalThis.fetch;
  try{
   for(const covered of [false,true]){
@@ -55,12 +57,12 @@ test('complete imagery orchestration stops on no coverage and still completes wi
     collectStructureInsights:async()=>({primaryText:'{}',primaryInsights:{},artifact:{structures:[]},segmentCount:0,hasCoverageAtAnyPin:false}),
     resolveProjectImageryArea:(_m:any,_i:any,l:any)=>({...l,radius_meters:60}),resolveSolarPixelSizeMeters:()=>0.1,
     saveArtifact:async(_p:string,n:string)=>saved.push(n),INSTANT_STRUCTURE_INSIGHTS_FILE_NAME:'structures.json',computeComplexityRating:()=>1,
-    generateStructureSupplementalImagery:async()=>{},fetchBinary:async()=>null,RENDERABLE_IMAGERY_FILES:['rgb.tif','google.png','azure.png'],env:{},patchManifest:async(_p:string,p:any)=>{patches.push(p);return {...manifest,...p};},
+    generateStructureSupplementalImagery:async()=>{},fetchBinary:async(url:string)=>url.includes('maps.googleapis.com')?null:new Uint8Array([137,80,78,71]),RENDERABLE_IMAGERY_FILES:['rgb.tif','google.png','azure.png'],env:{azureMapsSubscriptionKey:'fake'},isTransientProviderFailure,console,patchManifest:async(_p:string,p:any)=>{patches.push(p);return {...manifest,...p};},
     buildMultiStructurePointPatch:()=>({}),solarImageryQualityPatchFromSolarResponse:()=>({}),buildPartialInstantRefundPatch:()=>({}),
     readBrandingDefaults:async()=>null,ensureInstantPdfArtifact:async()=>null,readArtifactBytes:async()=>new Uint8Array(),badRequest:(code:string,message:string)=>Object.assign(new Error(message),{code})});
    vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
-   if(covered){const result=await vm.runInContext("processProjectImagery('fixture',{})",context);assert.equal(result.project.status,'ready');assert.ok(saved.includes('dsm.tif'));}
-   else{await assert.rejects(vm.runInContext("processProjectImagery('fixture',{})",context),{code:'solar_imagery_no_coverage'});assert.equal(patches.length,0);assert.ok(!saved.includes('dsm.tif'));}
+   if(covered){const result=await vm.runInContext("processProjectImagery('fixture',{})",context);assert.equal(result.project.status,'ready');assert.ok(saved.includes('dsm.tif'));assert.ok(saved.includes('azure.png'));}
+   else{await assert.rejects(vm.runInContext("processProjectImagery('fixture',{})",context),{code:'solar_imagery_no_coverage'});assert.equal(patches.length,0);assert.ok(!saved.includes('dsm.tif'));assert.ok(saved.includes('azure.png'));assert.ok(!saved.includes('google.png'));}
   }
  }finally{globalThis.fetch=original;}
 });
