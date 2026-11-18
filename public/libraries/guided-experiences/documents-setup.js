@@ -40,7 +40,8 @@ const css = `
 .gxd-small .gxd-tile strong{font-size:13.5px}
 .gxd-small .gxd-tile small{font-size:11.5px}
 .gxd-small .gxd-tick{width:20px;height:20px;top:9px;right:9px}
-.gxd-prices{display:flex;flex-direction:column;border:1px solid #e4e7ec;border-radius:13px;overflow:hidden}
+/* clip, not hidden: a box that is a scroll container keeps the wheel (the setup frame contains overscroll) */
+.gxd-prices{display:flex;flex-direction:column;border:1px solid #e4e7ec;border-radius:13px;overflow:clip}
 .gxd-price{display:flex;align-items:center;gap:12px;padding:9px 12px;border-top:1px solid #f2f4f7;font-size:13px}
 .gxd-price:first-child{border-top:0}
 .gxd-price label{flex:1 1 auto;min-width:0;font-weight:600;color:#344054}
@@ -53,7 +54,7 @@ const css = `
 .gxd-style{display:flex;flex-direction:column;gap:8px;padding:8px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,box-shadow .2s}
 .gxd-style:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
 .gxd-style[aria-checked=true]{border-color:var(--primary,#d93025);box-shadow:0 0 0 2px var(--primary,#d93025)}
-.gxd-page{position:relative;display:block;width:100%;aspect-ratio:8.5/11;overflow:hidden auto;overscroll-behavior:contain;scrollbar-width:thin;border-radius:8px;background:#f2f4f7;box-shadow:inset 0 0 0 1px #eaecf0}
+.gxd-page{position:relative;display:block;width:100%;aspect-ratio:8.5/11;overflow:hidden auto;scrollbar-width:thin;border-radius:8px;background:#f2f4f7;box-shadow:inset 0 0 0 1px #eaecf0}
 .gxd-page>div{position:relative}
 .gxd-style-name{display:flex;align-items:center;gap:8px;padding:0 4px 2px}
 .gxd-style-name strong{flex:1 1 auto;font-size:14px;color:#101828}
@@ -62,6 +63,8 @@ const css = `
 .gxd-busy{display:grid;place-items:center;min-height:180px}
 .gxd-error{color:#b42318!important}
 .gxd-error:empty{display:none}
+/* A preview that can scroll (a second page, the phone's row of styles) passes the wheel on at its ends. */
+.gxs .gxd-page,.gxs .gxd-styles{overscroll-behavior:auto}
 @media(max-width:640px){.gxd-grid,.gxd-grid.gxd-small{grid-template-columns:1fr}.gxd-tile.gxd-feature{min-height:96px;padding:16px 44px 16px 16px}.gxd-feature .gxd-icon{width:46px;height:46px;font-size:20px}.gxd-feature strong{font-size:17px}.gxd-styles{grid-template-columns:repeat(3,minmax(200px,1fr));overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px}.gxd-style{scroll-snap-align:start}}
 @media(prefers-reduced-motion:reduce){.gxd *{transition:none!important}}
 `;
