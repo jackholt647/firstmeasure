@@ -3177,7 +3177,9 @@
     "m_5bedad4ed70b66": "El recibo del pago aún no está disponible.",
     "m_a3f7efd048a5e3": "No se ha podido abrir el PDF del recibo.",
     "m_be2e9e776e4eb5": "No se pueden eliminar gastos con pagos registrados.",
-    "m_cf842ec2f4d524": "¿Eliminar este gasto del libro de cuentas del proyecto?"
+    "m_cf842ec2f4d524": "¿Eliminar este gasto del libro de cuentas del proyecto?",
+    "loading_workspace": "Cargando {workspace}...",
+    "back_to_workspace": "Volver a {workspace}"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Pedir informes",
@@ -9889,7 +9891,8 @@
     "billing.invoice": "Factura",
     "billing.payment_method": "Método de pago",
     "ui.routing_mode": "Rutas",
-    "settings.developer_settings_tab": "Configuración de desarrollador"
+    "settings.developer_settings_tab": "Configuración de desarrollador",
+    "money.project_tab_short": "Finanzas"
   },
   "shared": {
     "save": "Guardar",

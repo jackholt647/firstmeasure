@@ -3173,7 +3173,9 @@
     "m_5bedad4ed70b66": "Betalingskvitteringen er ikke tilgjengelig ennå.",
     "m_a3f7efd048a5e3": "Kunne ikke åpne kvitterings-PDF-en.",
     "m_be2e9e776e4eb5": "Betalte utgifter kan ikke fjernes.",
-    "m_cf842ec2f4d524": "Fjerne denne utgiften fra prosjektregnskapet?"
+    "m_cf842ec2f4d524": "Fjerne denne utgiften fra prosjektregnskapet?",
+    "loading_workspace": "Laster inn {workspace}...",
+    "back_to_workspace": "Tilbake til {workspace}"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Bestill rapporter",
@@ -9933,7 +9935,8 @@
     "billing.invoice": "Faktura",
     "billing.payment_method": "Betalingsmåte",
     "ui.routing_mode": "Ruting",
-    "settings.developer_settings_tab": "Utviklerinnstillinger"
+    "settings.developer_settings_tab": "Utviklerinnstillinger",
+    "money.project_tab_short": "Økonomi"
   },
   "shared": {
     "save": "Lagre",

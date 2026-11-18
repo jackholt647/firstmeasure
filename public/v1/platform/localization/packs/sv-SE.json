@@ -3093,7 +3093,9 @@
     "m_5bedad4ed70b66": "Betalningskvittot är inte tillgängligt ännu.",
     "m_a3f7efd048a5e3": "Det gick inte att öppna kvitto-PDF:en.",
     "m_be2e9e776e4eb5": "Betalda kostnader kan inte tas bort.",
-    "m_cf842ec2f4d524": "Ta bort den här kostnaden från projektets huvudbok?"
+    "m_cf842ec2f4d524": "Ta bort den här kostnaden från projektets huvudbok?",
+    "loading_workspace": "Läser in {workspace}...",
+    "back_to_workspace": "Tillbaka till {workspace}"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Beställ rapporter",
@@ -9528,7 +9530,8 @@
     "billing.invoice": "Faktura",
     "billing.payment_method": "Betalningsmetod",
     "ui.routing_mode": "Diagnostik",
-    "settings.developer_settings_tab": "Utvecklarinställningar"
+    "settings.developer_settings_tab": "Utvecklarinställningar",
+    "money.project_tab_short": "Ekonomi"
   },
   "shared": {
     "save": "Spara",

@@ -3089,7 +3089,9 @@
     "m_5bedad4ed70b66": "Potwierdzenie płatności nie jest jeszcze dostępne.",
     "m_a3f7efd048a5e3": "Nie udało się otworzyć pliku PDF z paragonem.",
     "m_be2e9e776e4eb5": "Nie można usunąć opłaconych wydatków.",
-    "m_cf842ec2f4d524": "Usunąć ten wydatek z księgi projektu?"
+    "m_cf842ec2f4d524": "Usunąć ten wydatek z księgi projektu?",
+    "loading_workspace": "Wczytywanie: {workspace}...",
+    "back_to_workspace": "Wróć: {workspace}"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Zamawianie raportów",
@@ -9705,7 +9707,8 @@
     "billing.invoice": "Faktura",
     "billing.payment_method": "Metoda płatności",
     "ui.routing_mode": "Kierowanie",
-    "settings.developer_settings_tab": "Ustawienia deweloperskie"
+    "settings.developer_settings_tab": "Ustawienia deweloperskie",
+    "money.project_tab_short": "Finanse"
   },
   "shared": {
     "save": "Zapisz",

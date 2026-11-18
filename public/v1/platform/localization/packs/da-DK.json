@@ -3169,7 +3169,9 @@
     "m_5bedad4ed70b66": "Betalingskvitteringen er endnu ikke tilgængelig.",
     "m_a3f7efd048a5e3": "Kunne ikke åbne kvitterings-PDF.",
     "m_be2e9e776e4eb5": "Betalte udgifter kan ikke fjernes.",
-    "m_cf842ec2f4d524": "Fjern denne udgift fra projektets økonomiregister?"
+    "m_cf842ec2f4d524": "Fjern denne udgift fra projektets økonomiregister?",
+    "loading_workspace": "Indlæser {workspace}...",
+    "back_to_workspace": "Tilbage til {workspace}"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Bestil rapporter",
@@ -9925,7 +9927,8 @@
     "billing.invoice": "Faktura",
     "billing.payment_method": "Betalingsmetode",
     "ui.routing_mode": "Ruteplanlægning",
-    "settings.developer_settings_tab": "Udviklerindstillinger"
+    "settings.developer_settings_tab": "Udviklerindstillinger",
+    "money.project_tab_short": "Økonomi"
   },
   "shared": {
     "save": "Gem",

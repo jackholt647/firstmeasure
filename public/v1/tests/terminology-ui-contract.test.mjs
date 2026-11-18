@@ -57,3 +57,19 @@ test('the browser catalog is the library terminology, loaded once, with no inlin
  assert.equal(window.PlatformTerminology.get('event_types.equipment_booking'),'Equipment Booking');
  assert.equal(scheduling.DEFAULT_MAPPINGS.labels.roles.sales_appointments,'Sales Appointments');
 });
+
+// FM-603: the project finance tab names itself with terminology everywhere (header, loading, "Back to …", the
+// registration's title and the portal's first-paint cover), never a hard-coded "Money".
+test('the project finance tab names itself only through terminology',async()=>{
+ const {terminologyNamespaces}=await import('../scripts/terminology-snapshot.mjs');
+ const money=Object.fromEntries(terminologyNamespaces().find(entry=>entry.id==='money').terms.map(item=>[item.key,item.label]));
+ assert.equal(money.workspace,money.project_tab_short,'the tab header says what the tab says');
+ const app=await read('../../libraries/apps/money/project.js');
+ assert.doesNotMatch(app,/["'`](?:Loading money\.\.\.|Back to Money|Money)["'`]/);
+ assert.match(app,/workspaceText\('loading_workspace'/);assert.match(app,/workspaceText\('back_to_workspace'/);
+ assert.match(app,/terminologyKey: 'money\.project_tab'/);
+ const portal=await read('../../portal/index.php'),keys=new Set(terminologyKeys());
+ const covers=[...portal.matchAll(/'([a-z]+)'=>\['([a-z_]+\.[a-z_]+)','[^']+','fa-[a-z-]+'\]/g)];
+ assert.ok(covers.length>=8);assert.deepEqual(covers.filter(([, ,key])=>!keys.has(key)).map(([, ,key])=>key),[]);
+ assert.doesNotMatch(portal,/'money'=>\['Money'|'money'=>'Money'|'Scope','Money'/);
+});

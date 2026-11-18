@@ -5603,7 +5603,9 @@
     "m_b752fc50bd294b": "Online payments are not available yet.",
     "m_6a00152380cdc8": "View payment setup",
     "m_7a8078bb2d8ed0": "Online payments are not available",
-    "m_c2c26759407079": "Online payments are not available right now."
+    "m_c2c26759407079": "Online payments are not available right now.",
+    "loading_workspace": "Loading {workspace}...",
+    "back_to_workspace": "Back to {workspace}"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Order Reports",
@@ -15485,8 +15487,9 @@
     "materials.supplier": "Supplier",
     "materials.order_request": "Order Request",
     "money.project_tab": "Financials",
+    "money.project_tab_short": "Finance",
     "money.payments_settings_tab": "Payments",
-    "money.workspace": "Money",
+    "money.workspace": "Finance",
     "money.overview": "Overview",
     "money.invoices": "Invoices",
     "money.recurring": "Recurring",
