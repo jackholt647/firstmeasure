@@ -23,6 +23,8 @@
  *     onStepTitle({ id, title, index, count })?  the host shows the step's title in its own bar: on a phone the
  *       workflow leaves its own step title out
  *     phoneSteps: 'bottom'?  on a phone the step numbers sit in one row at the bottom, under the preview
+ *     onBackFromFirst()?  the host has a page before the first step (the Operations setup's choice): the first step
+ *       shows Previous too, and it calls this
  *     services:{ pricebook, pieceCatalog, generateScopeItems, media }, scope:{...extra}, theme,
  *     document:{ id, type }?  the document this fills; announced with `fm:doc-workflow:opened` (guided experiences)
  *   }) -> { destroy, goTo(stepId), back(), position(), refresh(state) }
@@ -3694,7 +3696,7 @@
       });
       // Footer
       const isLast = index >= steps.length - 1;
-      el.back.hidden = index === 0;
+      el.back.hidden = index === 0 && typeof opts.onBackFromFirst !== 'function';
       el.cont.hidden = false;
       el.cont.innerHTML = isLast
         ? `${esc(firstText(obj(opts.labels).finish, 'Submit'))} <i class="fas fa-check"></i>`
@@ -3785,7 +3787,7 @@
     function goBack(){
       const steps = visibleSteps();
       const index = currentIndex(steps);
-      if (index <= 0) return;
+      if (index <= 0) { if (index === 0 && typeof opts.onBackFromFirst === 'function') opts.onBackFromFirst(); return; }
       st.currentId = cleanText(steps[index - 1].id);
       emitStepState();
       renderStep();
