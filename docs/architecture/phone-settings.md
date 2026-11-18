@@ -24,6 +24,36 @@ Purchases require a fresh matching carrier quote and a durable customer referenc
 
 Billing uses existing invoices/subscriptions and real carrier usage records. No customer price or new recurring charge is invented from carrier cost. Status/requirements refresh is user initiated. Browser endpoints retain the existing one-active-device-per-user design; native mobile push ringing is outside this change.
 
+## Hosted policy pages
+
+A 10DLC campaign needs a public privacy policy and SMS terms. Carriers check that both pages name the registered
+brand, are public without a login, say mobile numbers and SMS opt-in data are never sold or shared with third parties
+for marketing, and agree with the opt-in wording and the HELP/STOP replies. They do not have to be on the brand's own
+domain, but a generic FirstMate policy would be refused. So FirstMate hosts one pair of pages per registration
+(FM-585, `messaging/policy_pages.ts`):
+
+- The registration chooses with `campaign.policyPages`: `firstmate` (the wizard's default for a new registration) or
+  `own`. A draft whose links were typed before this, or a submitted campaign, keeps its own pages.
+- With `firstmate`, the server always sets `privacyPolicyLink` and `termsAndConditionsLink` to
+  `<PUBLIC_BASE_URL>/v1/messaging/sms/policies/<org>/<registration>/privacy` and `/terms` on create and on every save,
+  whatever the browser sent. Every public profile carries those URLs as `hosted_policy_pages`.
+- `GET /v1/messaging/sms/policies/:orgId/:profileId/privacy|terms` is public on purpose (carrier reviewers and
+  customers open it). It answers 404 unless that registration chose hosted pages and has a business name and a support
+  email or phone. The page is static HTML with `default-src 'none'` and `noindex`.
+- The wording is config library data, kind `sms_policy_page`, entries `privacy_policy` and `sms_terms`. `{{brand_name}}`,
+  `{{legal_name}}`, `{{website}}`, `{{support_email}}`, `{{support_phone}}`, `{{address}}`, `{{message_types}}`,
+  `{{privacy_url}}` and `{{terms_url}}` are filled from the registration. A paragraph with an empty placeholder is left
+  out. A save is refused if it uses an unknown placeholder, if the title does not name the business, if the page
+  gives no contact details, if the privacy policy drops the no-sharing statement, or if the terms drop STOP, HELP,
+  frequency, rates or the privacy link. Edit it with `node tools/config-library/cli.mjs`; no release.
+- Campaign submission accepts exactly the registration's own hosted URLs without fetching them (it checks the business
+  name, the contact details and the wording instead). Any other link must still be a public HTTPS page on the
+  registered business website (`verifyPublicPolicyUrl`).
+- Reviewers also look at the brand's website, so the wizard asks the business to link both pages from its website
+  footer and from any form where customers give their mobile number.
+
+Run `tests/messaging-api.test.ts` (the FM-585 tests) and `tests/policy-url.test.ts` for changes here.
+
 ## Deployment and verification
 
 Deploy the additive API and workers together. An older worker must not consume the new `phone_attribution` and `phone_notice` job kinds. Preserve each development role's actual live baseline and compiled dependencies. No production activation is authorized by this task.

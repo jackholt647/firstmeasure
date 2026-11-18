@@ -1,0 +1,63 @@
+{
+  "kind": "sms_policy_page",
+  "id": "sms_terms",
+  "revision": 1,
+  "sha256": "262186e0369786023bbeabba0b7d197b7561311a0f37c0ced6a3d1a4482b322e",
+  "title": "sms_terms: {{brand_name}} SMS Terms",
+  "updated_at": "2026-11-18T19:38:50.060Z",
+  "updated_by": "agents:fm-agents-1",
+  "data": {
+    "title": "{{brand_name}} SMS Terms",
+    "intro": [
+      "These terms apply to text messages sent by {{brand_name}}.",
+      "{{brand_name}} is a trade name of {{legal_name}}."
+    ],
+    "sections": [
+      {
+        "heading": "What we text about",
+        "paragraphs": [
+          "{{brand_name}} sends text messages to customers who agreed to receive them: {{message_types}}."
+        ]
+      },
+      {
+        "heading": "How you agree",
+        "paragraphs": [
+          "You agree to receive text messages from {{brand_name}} when you give us your mobile number and your consent, by phone, in person or on a form. Consent is not a condition of purchase."
+        ]
+      },
+      {
+        "heading": "Message frequency and rates",
+        "paragraphs": [
+          "Message frequency varies. Message and data rates may apply."
+        ]
+      },
+      {
+        "heading": "How to stop",
+        "paragraphs": [
+          "Reply STOP to any message to stop receiving texts. We will send one message confirming you are unsubscribed and will not text you again unless you reply START."
+        ]
+      },
+      {
+        "heading": "Help",
+        "paragraphs": [
+          "Reply HELP to any message for help, or contact us:",
+          "Email: {{support_email}}",
+          "Phone: {{support_phone}}"
+        ]
+      },
+      {
+        "heading": "Carriers",
+        "paragraphs": [
+          "Carriers are not liable for delayed or undelivered messages."
+        ]
+      },
+      {
+        "heading": "Privacy",
+        "paragraphs": [
+          "Your mobile information and SMS consent will not be sold or shared with third parties for marketing or promotional purposes. Read our privacy policy: {{privacy_url}}"
+        ]
+      }
+    ],
+    "footer": "This page is provided by FirstMate on behalf of {{brand_name}}."
+  }
+}

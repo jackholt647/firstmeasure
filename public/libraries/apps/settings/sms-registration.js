@@ -157,6 +157,11 @@
       @media(max-width:640px){.sms-advanced .sms-feature-grid{grid-template-columns:1fr}}
       .sms-advanced .sms-field label{font-size:13px;font-weight:600;text-transform:none;letter-spacing:0}.sms-advanced .sms-field input,.sms-advanced .sms-field select,.sms-advanced .sms-field textarea{font-size:14px;font-weight:400}
       @media(max-width:640px){.sms-advanced-backdrop{padding:0;place-items:end stretch}.sms-advanced{width:100%;max-height:92dvh;border-radius:16px 16px 0 0}}
+      /* Policy pages (FM-585): FirstMate hosts them, or the business links its own. */
+      .sms-policy-choice{grid-column:1/-1;border:0;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;min-width:0}.sms-policy-choice legend{padding:0;margin-bottom:8px;font-size:13px;font-weight:600;color:#344054}
+      .sms-policy-choice .sms-ack{font-weight:400;cursor:pointer}.sms-policy-choice .sms-ack strong{display:block;font-weight:600;margin-bottom:2px}.sms-policy-choice .sms-ack:has(input:checked){border-color:var(--primary,#d93025);background:#fff}
+      .sms-policy-hosted{grid-column:1/-1}.sms-policy-hosted p{margin:0;font-size:13px;line-height:1.5;color:#475467}.sms-policy-hosted .sms-review-links a{font-weight:600}
+      @media(max-width:600px){.sms-policy-choice{grid-template-columns:1fr}}
   `;
   function installStyle(){
     if (document.getElementById('fm-sms-registration-css')) return;
@@ -545,8 +550,28 @@
       // A draft from before FM-510 keeps whatever wording it already has.
       return !['description', 'messageFlow', 'optInDisclosure', 'sample1', 'sample2'].some((key) => String(c[key] || '').trim());
     }
+    /**
+     * FM-585: FirstMate hosts the privacy policy and texting terms (`firstmate`, the default: the server fills both
+     * links with this registration's pages, `hosted_policy_pages`) or the business links its own (`own`). A draft
+     * whose links were typed before this, or a submitted campaign, keeps its own pages.
+     */
+    function smsPolicyPages(profile){
+      const c = profile?.campaign || {};
+      if (c.policyPages === 'firstmate' || c.policyPages === 'own') return c.policyPages;
+      const hosted = profile?.hosted_policy_pages || {};
+      const typed = [c.privacyPolicyLink, c.termsAndConditionsLink].map(value => String(value || '').trim()).filter(value => value && value !== hosted.privacy && value !== hosted.terms);
+      return typed.length || smsHasProviderCampaign(profile) ? 'own' : 'firstmate';
+    }
+    function smsWithPolicyLinks(base){
+      if (smsHasProviderCampaign(base)) return base;
+      const policyPages = smsPolicyPages(base), hosted = base.hosted_policy_pages || {}, c = base.campaign;
+      const links = policyPages === 'firstmate'
+        ? (hosted.privacy ? { privacyPolicyLink: hosted.privacy, termsAndConditionsLink: hosted.terms } : {})
+        : { privacyPolicyLink: c.privacyPolicyLink === hosted.privacy ? '' : c.privacyPolicyLink, termsAndConditionsLink: c.termsAndConditionsLink === hosted.terms ? '' : c.termsAndConditionsLink };
+      return { ...base, campaign: { ...c, policyPages, ...links } };
+    }
     function smsGeneratedCampaign(profile){
-      const base = mergeSmsProfile(profile);
+      const base = smsWithPolicyLinks(mergeSmsProfile(profile));
       const selectedIds = smsSelectedFeatures(base);
       if (smsUsesStandardWording(base)) base.campaign = { ...base.campaign, ...smsStandardWording(base, selectedIds), standardWording: true };
       const selected = smsFeatureOptions.filter((feature) => selectedIds.includes(feature.id));
@@ -822,6 +847,7 @@
       const methods = Array.from(root.querySelectorAll('[data-sms-method]'));
       if (methods.length) { next.campaign.optInMethods = methods.filter(input => input.checked).map(input => input.dataset.smsMethod); next.campaign.optInMethod = next.campaign.optInMethods[0] || ''; }
       root.querySelectorAll('[data-sms-field]').forEach((input) => {
+        if (input.type === 'radio' && !input.checked) return;
         const key = String(input.getAttribute('data-sms-field') || '');
         const value = input.type === 'checkbox' ? !!input.checked : String(input.value || '').trim();
         const target = key.startsWith('brand.') ? next.brand : next.campaign;
@@ -901,8 +927,9 @@
           requireFields(brand, [['stockSymbol', 'Stock symbol'], ['stockExchange', 'Stock exchange']]);
         }
         if (!smsValidWebsite(brand.website)) missing.push('Valid website');
-        if (!smsValidHttpsUrl(campaign.privacyPolicyLink)) missing.push('Public HTTPS Privacy Policy URL');
-        if (!smsValidHttpsUrl(campaign.termsAndConditionsLink)) missing.push('Public HTTPS SMS Terms URL');
+        // Hosted pages (FM-585) get their links from the server when the draft is saved.
+        if (smsPolicyPages(profile) === 'own' && !smsValidHttpsUrl(campaign.privacyPolicyLink)) missing.push('Public HTTPS Privacy Policy URL');
+        if (smsPolicyPages(profile) === 'own' && !smsValidHttpsUrl(campaign.termsAndConditionsLink)) missing.push('Public HTTPS SMS Terms URL');
       } else if (step === 'contact') {
         requireFields(brand, [
           ['street', 'Street address'],
@@ -961,8 +988,8 @@
         if (smsOptInMethods(campaign).includes('WEBSITE_FORM') && !smsValidHttpsUrl(campaign.optInLocationUrl)) missing.push('Public HTTPS opt-in form URL');
         if (smsOptInMethods(campaign).includes('KEYWORD') && !smsValidHttpsUrl(campaign.keywordLocationUrl || (!smsOptInMethods(campaign).includes('WEBSITE_FORM') ? campaign.optInLocationUrl : '')) && !smsEvidence(campaign).some(item=>smsValidHttpsUrl(item.url))) missing.push('Public keyword advertisement or screenshot URL');
         if (smsEvidence(campaign).some(item=>!smsValidHttpsUrl(item.url))) missing.push('Please upload the screenshot again.');
-        if (!smsValidHttpsUrl(campaign.privacyPolicyLink)) missing.push('Public HTTPS Privacy Policy URL');
-        if (!smsValidHttpsUrl(campaign.termsAndConditionsLink)) missing.push('Public HTTPS SMS Terms URL');
+        if (smsPolicyPages(profile) === 'own' && !smsValidHttpsUrl(campaign.privacyPolicyLink)) missing.push('Public HTTPS Privacy Policy URL');
+        if (smsPolicyPages(profile) === 'own' && !smsValidHttpsUrl(campaign.termsAndConditionsLink)) missing.push('Public HTTPS SMS Terms URL');
         const disclosure = String(campaign.optInDisclosure || '');
         const businessName = String(brand.displayName || brand.companyName || '').trim();
         if (disclosure.trim()) {
@@ -1257,7 +1284,7 @@
         <p class="sms-muted" data-sms-evidence-room>${2048-smsReviewerFlow(c).length < 240 ? 'Maximum screenshots submitted' : ''}</p>
         <p class="sms-evidence-feedback" data-sms-upload-status role="status"></p></section></section>
         <section class="sms-section"><h3>Public policies</h3><p>Link to your privacy policy and link to your SMS terms.</p><div class="sms-consent-box"><p>Your privacy policy should explain what information you collect, how you use it, how customers contact you, and that SMS opt-in data is not shared with third parties for marketing.</p><p>Your SMS terms should identify the business, describe the message types and frequency, disclose message/data rates, explain STOP and HELP, provide support contact details, and link to your privacy policy. Marketing consent cannot be a condition of purchase. Publish both pages where anyone can open them.</p></div>
-        <div class="sms-form-grid">${link('privacyPolicyLink','Link to your privacy policy',c.privacyPolicyLink,true)}${link('termsAndConditionsLink','Link to your SMS terms',c.termsAndConditionsLink,true)}</div>
+        ${smsPolicyPages(profile) === 'firstmate' ? `<div class="sms-consent-box sms-policy-hosted"><p>FirstMate hosts both pages for ${escapeHtml(brand)}. To use your own, choose Use your own pages on the Business step.</p>${smsValidHttpsUrl(c.privacyPolicyLink) ? `<div class="sms-review-links"><a href="${escapeHtml(c.privacyPolicyLink)}" target="_blank" rel="noopener noreferrer">Your privacy policy <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a><a href="${escapeHtml(c.termsAndConditionsLink)}" target="_blank" rel="noopener noreferrer">Your texting terms <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a></div>` : ''}</div>` : `<div class="sms-form-grid">${link('privacyPolicyLink','Link to your privacy policy',c.privacyPolicyLink,true)}${link('termsAndConditionsLink','Link to your SMS terms',c.termsAndConditionsLink,true)}</div>`}
         ${smsExample('See an example privacy policy: SMS section',`${brand} collects your mobile number and SMS consent record to send the messages you requested. We retain consent and opt-out records to manage your choices. Mobile information, SMS opt-in data, and consent will not be sold or shared with third parties for their marketing or promotional purposes. We may use service providers solely to deliver and support our messaging service. You can opt out by replying STOP. Contact [support email] about privacy requests.`)}
         ${smsExample('See an example of SMS terms',`${brand} SMS Program
 By opting in, you agree to receive ${purposes}. Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe or HELP for assistance. Contact [support email or phone]. ${marketing ? 'Consent is not a condition of purchase. ' : ''}Carriers are not liable for delayed or undelivered messages. See our Privacy Policy at [privacy URL].`)}</section></div>`;
@@ -1302,6 +1329,25 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       if (smsUsesStandardWording(mergeSmsProfile(profile))) return `Everyone we text has given us the consent the law requires to receive our texts, and we keep a record of it.${marketing ? ' Marketing texts go only to customers who also agreed in writing.' : ''}`;
       return `The consent process in Advanced is how my business gets permission to text customers, and we keep a record of each agreement.`;
     }
+    /** Business step (FM-585): who hosts the privacy policy and texting terms, then the hosted links or the business's own. */
+    function smsPolicyPagesFields(profile, websiteNormalized){
+      const pages = smsPolicyPages(profile), submitted = smsHasProviderCampaign(profile), c = profile.campaign || {};
+      const option = (value, title, text) => `<label class="sms-ack"><input type="radio" name="sms-policy-pages" data-sms-field="campaign.policyPages" value="${value}" ${pages === value ? 'checked' : ''} ${submitted ? 'disabled' : ''}><span><strong>${title}</strong>${text}</span></label>`;
+      const choice = `<fieldset class="sms-policy-choice"><legend>Privacy policy and texting terms</legend>
+          ${option('firstmate', 'FirstMate hosts them for you', 'Pages with your business name, contact details and the wording carriers require.')}
+          ${option('own', 'Use your own pages', 'Link to the privacy policy and texting terms on your website.')}</fieldset>`;
+      if (pages === 'firstmate') {
+        const links = smsValidHttpsUrl(c.privacyPolicyLink) && smsValidHttpsUrl(c.termsAndConditionsLink)
+          ? `<div class="sms-review-links">${[['Your privacy policy', c.privacyPolicyLink], ['Your texting terms', c.termsAndConditionsLink]].map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" data-sms-hosted-policy>${label} <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a>`).join('')}</div>`
+          : '<p>Your pages are created when this registration is saved.</p>';
+        return `${choice}<div class="sms-consent-box sms-policy-hosted">${links}<p>They use the business name, support email and phone, and address you enter here. Link both pages from your website, for example in its footer, and next to any form where customers give their mobile number.</p></div>
+        </div>`;
+      }
+      return `${choice}
+          ${smsField('campaign.privacyPolicyLink', 'Privacy policy link', c.privacyPolicyLink, { required: true, disabled: submitted, inputmode: 'url', placeholder: (websiteNormalized ? websiteNormalized.replace(/^https?:\/\//, '') : 'example.com') + '/privacy' })}
+          ${smsField('campaign.termsAndConditionsLink', 'Texting terms link', c.termsAndConditionsLink, { required: true, disabled: submitted, inputmode: 'url', placeholder: (websiteNormalized ? websiteNormalized.replace(/^https?:\/\//, '') : 'example.com') + '/sms-terms' })}
+        </div>${smsExample('What carriers need on these pages', `Both pages must be public and on your website. Privacy policy: what you collect and how customers reach you, and that mobile numbers and texting consent are never shared with third parties for marketing. Texting terms: your business name, what you text about, that message frequency varies and message and data rates may apply, reply STOP to opt out and HELP for help, and a link to your privacy policy.`)}`;
+    }
     function smsSummaryContent(profile){
       const submitted = smsHasProviderCampaign(profile) && smsRegistrationLocked(profile);
       const campaign = profile.campaign || {};
@@ -1342,9 +1388,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
             hint: '',
             ok: !!websiteNormalized
           })}
-          ${smsField('campaign.privacyPolicyLink', 'Privacy policy link', profile.campaign?.privacyPolicyLink, { required: true, disabled: smsHasProviderCampaign(profile), inputmode: 'url', placeholder: (websiteNormalized ? websiteNormalized.replace(/^https?:\/\//, '') : 'example.com') + '/privacy' })}
-          ${smsField('campaign.termsAndConditionsLink', 'Texting terms link', profile.campaign?.termsAndConditionsLink, { required: true, disabled: smsHasProviderCampaign(profile), inputmode: 'url', placeholder: (websiteNormalized ? websiteNormalized.replace(/^https?:\/\//, '') : 'example.com') + '/sms-terms' })}
-        </div>${smsExample('What carriers need on these pages', `Both pages must be public and on your website. Privacy policy: what you collect and how customers reach you, and that mobile numbers and texting consent are never shared with third parties for marketing. Texting terms: your business name, what you text about, that message frequency varies and message and data rates may apply, reply STOP to opt out and HELP for help, and a link to your privacy policy.`)}`;
+          ${smsPolicyPagesFields(profile, websiteNormalized)}`;
       }
       if (step === 'contact') {
         const soleProprietor = String(brand.entityType || '').toUpperCase() === 'SOLE_PROPRIETOR';
@@ -2021,7 +2065,9 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
             }
             updateSummaryValidation();
             ctxRef?.touch?.();
-            if (input.hasAttribute('data-sms-method') || fieldName === 'brand.entityType' || fieldName === 'brand.sameAsLegalName' || fieldName === 'campaign.optInMethod' || input.hasAttribute('data-sms-feature') || input.hasAttribute('data-sms-feature-confirm') || input.hasAttribute('data-sms-flow-ack')) refresh();
+            // Hosted policy pages (FM-585): their links come from the server, so save now and show them.
+            if (fieldName === 'campaign.policyPages' && smsPolicyPages(profile) === 'firstmate' && !smsValidHttpsUrl(profile.campaign?.privacyPolicyLink)) flushDraft().then(refresh, () => {});
+            if (input.hasAttribute('data-sms-method') || fieldName === 'brand.entityType' || fieldName === 'brand.sameAsLegalName' || fieldName === 'campaign.optInMethod' || fieldName === 'campaign.policyPages' || input.hasAttribute('data-sms-feature') || input.hasAttribute('data-sms-feature-confirm') || input.hasAttribute('data-sms-flow-ack')) refresh();
           });
         });
       };

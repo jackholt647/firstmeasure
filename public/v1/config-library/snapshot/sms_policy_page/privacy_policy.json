@@ -1,0 +1,61 @@
+{
+  "kind": "sms_policy_page",
+  "id": "privacy_policy",
+  "revision": 1,
+  "sha256": "51877c6471bce31d247d0648a4fccdb85f5ca8e370566b4afece2048edaef05a",
+  "title": "privacy_policy: {{brand_name}} Privacy Policy",
+  "updated_at": "2026-11-18T19:38:50.057Z",
+  "updated_by": "agents:fm-agents-1",
+  "data": {
+    "title": "{{brand_name}} Privacy Policy",
+    "intro": [
+      "This privacy policy explains how {{brand_name}} collects, uses and protects your information when you contact us, use our services, or agree to receive text messages from us.",
+      "{{brand_name}} is a trade name of {{legal_name}}."
+    ],
+    "sections": [
+      {
+        "heading": "Information we collect",
+        "paragraphs": [
+          "We collect the information you give us, such as your name, phone number, email address, service address and details about the work you ask us to do. We also keep records of our communications with you, including your consent to receive text messages and any request to stop them."
+        ]
+      },
+      {
+        "heading": "How we use your information",
+        "paragraphs": [
+          "We use your information to provide, schedule and bill our services, to answer your questions, to send the messages you agreed to receive, and to keep the records our business and the law require."
+        ]
+      },
+      {
+        "heading": "Text messages",
+        "paragraphs": [
+          "If you agree to receive text messages from {{brand_name}}, we use your mobile number to send you {{message_types}}. Message frequency varies. Message and data rates may apply. Reply STOP to opt out at any time, or HELP for help.",
+          "No mobile information will be shared with third parties or affiliates for marketing or promotional purposes. Mobile information, SMS opt-in data and consent will not be sold or shared with any third parties.",
+          "Our SMS terms: {{terms_url}}"
+        ]
+      },
+      {
+        "heading": "How we share information",
+        "paragraphs": [
+          "We do not sell your personal information. We share information only with service providers that help us run our business and deliver our services (for example, the software we use to schedule work and send messages), who may use it only to provide those services to us, or when the law requires it. Text messaging opt-in data and consent are excluded from all sharing described here."
+        ]
+      },
+      {
+        "heading": "Your choices",
+        "paragraphs": [
+          "You can ask us to see, correct or delete the information we hold about you by contacting us below. You can stop text messages at any time by replying STOP."
+        ]
+      },
+      {
+        "heading": "Contact us",
+        "paragraphs": [
+          "{{brand_name}}",
+          "{{address}}",
+          "Email: {{support_email}}",
+          "Phone: {{support_phone}}",
+          "Website: {{website}}"
+        ]
+      }
+    ],
+    "footer": "This page is provided by FirstMate on behalf of {{brand_name}}."
+  }
+}
