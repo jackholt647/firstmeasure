@@ -863,9 +863,11 @@ step is the module `guided-experiences/documents-setup.js` with its own `part`:
 - `style`: the three themes (`thm_clean`, `thm_margin`, `thm_triangles`), each previewed with what the answers make:
   `document-setup.previews` resolves the planned template, unsaved, with a sample customer, roof and account
   (`resolveDocumentInstance` with `definition`), and the module renders it with `FMDocRenderer` (`theme_id`). The step
-  widens the sheet (`gxs-wide`) and fills it; each card shows one page as large as it allows, turned with a pager,
-  never scrolling inside the card (the setup frame contains overscroll, so anything inside it that is a scroll
-  container keeps the wheel: clip, do not hide, what must not scroll).
+  widens the sheet (`gxs-wide`) and fills it with a looping carousel (Jack): the style in the middle is large and is
+  the one chosen, its pages scroll vertically (the wheel passes on to the step at either end); the others peek in
+  smaller beside it, and a click on one, the arrows, the arrow keys or a sideways swipe bring it to the middle. The
+  setup frame contains overscroll, so anything inside it that is a scroll container keeps the wheel: clip, do not
+  hide, what must not scroll. A question with two answers shows them as two tall, near-square tiles.
 
 The finish, `documents.setup.apply` (`documents/setup.ts`), picks the library template the answers describe
 (`planDocument`: options → Good / Better / Best; one option, itemized → the itemized proposal with line prices; a
