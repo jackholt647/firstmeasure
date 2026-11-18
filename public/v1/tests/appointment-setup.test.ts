@@ -70,6 +70,17 @@ test("the library entries parse, and their checks pass against the running code"
   assert.ok(tour.steps.some((step: any) => step.targets.includes("[data-new-appointment]")), "the tour points at New Appointment");
 });
 
+test("New Appointment in a project's Schedule tab plays the setup too (FM-597)", async () => {
+  const experience = library.guided_experience.find((entry: any) => entry.id === "appointments.setup");
+  const selector = experience.triggers.find((trigger: any) => trigger.kind === "before_action").selector;
+  assert.equal(selector, "[data-new-appointment]");
+  // The project window's Appointment button carries the same marker as Scheduling's, so the held click is caught there.
+  const source = await readFile(new URL("../../libraries/apps/project-schedule/panel.js", import.meta.url), "utf8");
+  const button = source.match(/<button[^>]*data-project-new-appointment[^>]*>/)?.[0] || "";
+  assert.ok(button, "the project Schedule panel has its Appointment button");
+  assert.match(button, /\sdata-new-appointment[\s>]/, "the project Appointment button matches the setup's before_action");
+});
+
 test("the setup asks only what is unanswered: company type, work, who sells, who works, the kinds", async () => {
   const service = await setup();
   const setupOf = async () => (await service.availableExperiences(owner, { tab: "portal.scheduling" })).experiences.find((entry: any) => entry.id === "appointments.setup");
