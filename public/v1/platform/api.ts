@@ -193,6 +193,7 @@ import {
   saveMediaMarkupLayer,
   storeMediaUpload,
   updateMediaTags,
+  setMediaPinned,
   renameMedia,
   upsertDocument
 } from "./storage.js";
@@ -1748,7 +1749,15 @@ app.get("/auth/google/config", async () => ({
     const body = objectBodySchema.parse(request.body ?? {});
     const nameKey = ["name", "file_name", "label"].find((key) => Object.prototype.hasOwnProperty.call(body, key));
     const hasTags = Object.prototype.hasOwnProperty.call(body, "tags");
-    if (!hasTags && !nameKey) throw badRequest("media_update_required", "A tags array or a name is required.");
+    const hasPinned = Object.prototype.hasOwnProperty.call(body, "pinned");
+    if (!hasTags && !nameKey && !hasPinned) throw badRequest("media_update_required", "A tags array, a name or pinned is required.");
+
+    // Pinned to the top of the project's Photos tab (photos/project.js).
+    if (hasPinned) {
+      if (typeof body.pinned !== "boolean") throw badRequest("media_pinned_invalid", "pinned must be true or false.");
+      const pinnedMedia = await setMediaPinned(orgId, mediaId, body.pinned);
+      if (!hasTags && !nameKey) return { ok: true, media: publicMediaMetadata(pinnedMedia) };
+    }
 
     if (nameKey) {
       const previousName = cleanText(existing.file_name);

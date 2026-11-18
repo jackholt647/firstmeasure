@@ -1449,6 +1449,10 @@
     updateTags(orgId, mediaId, tags){
       return request(orgPath(orgId, `/media/${enc(mediaId)}`), { method:'PATCH', body:{ tags:Array.isArray(tags) ? tags : [] } });
     },
+    // Pins a photo to the top of its project's Photos tab (metadata.pinned, pinned_at), or unpins it.
+    setPinned(orgId, mediaId, pinned){
+      return request(orgPath(orgId, `/media/${enc(mediaId)}`), { method:'PATCH', body:{ pinned: pinned === true } });
+    },
     rename(orgId, mediaId, name){
       return request(orgPath(orgId, `/media/${enc(mediaId)}`), { method:'PATCH', body:{ name: cleanText(name) } });
     },

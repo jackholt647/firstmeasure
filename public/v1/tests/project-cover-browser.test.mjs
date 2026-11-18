@@ -66,6 +66,7 @@ test('photo fields are pinned photos: the field editor, viewer actions and pinne
     const run=async(id,index)=>page.evaluate(async([id,index])=>{const photo=window.project.photos[index];await window.gallery.viewerActions.find(a=>a.id===id).onClick({photo,viewer:{refreshActions(){},refreshIndicators(){}}});},[id,index]);
     const visible=(id,index)=>page.evaluate(([id,index])=>window.gallery.viewerActions.find(a=>a.id===id).visible({photo:window.project.photos[index]}),[id,index]);
     assert.deepEqual(await page.evaluate(()=>window.gallery.viewerActions.filter(a=>a.pinField).map(a=>[a.id,a.label])),[
+      ['pin_top','Pin to top'],['unpin_top','Unpin from top'],
       ['pin_field:cover_photo','Set as cover photo'],['unpin_field:cover_photo','Remove cover photo'],
       ['pin_field:detail_photo','Pin as Detail photo'],['unpin_field:detail_photo','Unpin from Detail photo']
     ]);

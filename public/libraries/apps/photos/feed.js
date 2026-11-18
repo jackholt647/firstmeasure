@@ -1866,6 +1866,7 @@
       .pf-group{background:#fff;border:1px solid #eaecf0;border-radius:8px;margin-bottom:14px;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.04)}
       .pf-group-head{padding:13px 14px;border-bottom:1px solid #f2f4f7;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.pf-group-head strong{font-size:14px}.pf-group-head span{display:block;color:#667085;font-size:12px;margin-top:3px}.pf-project-link{border:0;background:transparent;color:#101828;padding:0;font:inherit;font-size:14px;font-weight:1000;cursor:pointer;text-align:left}.pf-project-link:hover{color:var(--primary-readable,var(--primary,#d93025));text-decoration:underline}.pf-uploaders{font-size:12px;color:#475467;text-align:right;max-width:320px}.pf-user-link{border:0;background:transparent;color:#475467;padding:0;font:inherit;font-size:12px;font-weight:900;cursor:pointer}.pf-user-link:hover{color:var(--primary-readable,var(--primary,#d93025));text-decoration:underline}.pf-user-sep{color:#98a2b3}
       .pf-day-compact{margin-bottom:14px}.pf-group-head.pf-group-bar{flex-direction:row;align-items:center;justify-content:flex-start;gap:6px;padding:7px 14px 0;border-bottom:0;font-size:12px;line-height:18px;color:#667085}.pf-group-head.pf-group-bar strong{font-size:12px;font-weight:800;color:#344054}.pf-group-head.pf-group-bar span{display:inline;margin:0;font-size:12px}.pf-bar-dot{color:#98a2b3}
+      .pf-day-pinned .pf-group-head.pf-group-bar strong::before{content:"\\f08d";font-family:"Font Awesome 6 Free";font-weight:900;margin-right:6px;color:var(--primary-readable,var(--primary,#d93025))}.pf-day-pinned .pf-day-title i{color:var(--primary-readable,var(--primary,#d93025));margin-right:4px}
       .pf-group-notched{position:relative;background:transparent;border:0;box-shadow:none;overflow:visible}.pf-notch-frame{position:absolute;left:0;top:0;z-index:0;overflow:visible;pointer-events:none;filter:drop-shadow(0 1px 1px rgba(16,24,40,.05))}.pf-notch-frame path{fill:#fff;stroke:#eaecf0;stroke-width:1}.pf-group-notched>.pf-grid{position:relative;z-index:1}.pf-group-notched .pf-group-head.pf-group-bar{border-bottom:0;padding:5px 6px 1px}.pf-notch{min-width:0;margin:0 4px 4px 0}.pf-group-notched.pf-notch-stacked .pf-notch{margin:0}.pf-pinned-intro{margin:0 0 14px}
       .pf-grid{display:grid;gap:6px;padding:8px}.pf-wrap[data-density="loose"] .pf-grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}.pf-wrap[data-density="comfortable"] .pf-grid{grid-template-columns:repeat(auto-fill,minmax(154px,1fr))}.pf-wrap[data-density="compact"] .pf-grid{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
       .pf-feed-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}.pf-wrap[data-density="loose"] .pf-feed-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}.pf-wrap[data-density="compact"] .pf-feed-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}.pf-wrap[data-density="list"] .pf-feed-grid{grid-template-columns:1fr;gap:8px;max-width:1050px}
@@ -4910,19 +4911,36 @@
         ? cleanText(window.Portal?.navigation?.read?.().mediaTags).split(',').map((tag) => normalizeMediaTags([tag])[0]).filter(Boolean)
         : [])
     };
+    // options.pinnedAt(item): when the item was pinned to the top of the gallery, '' when it is not (the project's
+    // Photos tab). Pinned items leave their day and come first, in one "Pinned" group, the latest pinned first; the
+    // viewer, select all and drag ranges follow the same order.
+    const pinnedAt = (item) => (!options.trashMode && typeof options.pinnedAt === 'function' ? cleanText(options.pinnedAt(item)) : '');
+    const pinnedFirst = (items) => {
+      if (options.trashMode || typeof options.pinnedAt !== 'function') return items;
+      const stamps = new Map(items.map((item) => [item.id, pinnedAt(item)]));
+      const pinned = items.filter((item) => stamps.get(item.id)).sort((a, b) => stamps.get(b.id).localeCompare(stamps.get(a.id)));
+      return pinned.length ? [...pinned, ...items.filter((item) => !stamps.get(item.id))] : items;
+    };
     const filtered = () => {
       const query = cleanText(local.query).toLowerCase();
       const modeItems = local.items
         .filter(item => !options.typeFilters || local.visibleTypes.has(galleryMediaType(item.photo)))
         .filter((item) => options.trashMode ? isPhotoTrashed(item.photo) : !isPhotoTrashed(item.photo))
         .filter((item) => !local.visibleTags.size || itemTags(item).some((tag) => local.visibleTags.has(normalizeMediaTags([tag])[0])));
-      if (!query) return modeItems;
-      return modeItems.filter((item) => item.search.includes(query) || itemTags(item).some((tag) => tag.toLowerCase().includes(query.replace(/^#/, ''))));
+      if (!query) return pinnedFirst(modeItems);
+      return pinnedFirst(modeItems.filter((item) => item.search.includes(query) || itemTags(item).some((tag) => tag.toLowerCase().includes(query.replace(/^#/, '')))));
     };
     // options.groupByDay: true (default) splits the gallery into day sections;
     // false, or a function of the density returning false, shows one section.
     const groupByDay = () => (typeof options.groupByDay === 'function' ? options.groupByDay(local.density) : options.groupByDay) !== false;
-    const localGroups = () => buildGroups(filtered(), { byDay: groupByDay() });
+    const localGroups = () => buildGroups(filtered().filter((item) => !pinnedAt(item)), { byDay: groupByDay() });
+    const PINNED_DAY = 'pinned';
+    const pinnedGroup = () => {
+      const items = filtered().filter((item) => pinnedAt(item));
+      if (!items.length) return null;
+      const first = items[0];
+      return { key: PINNED_DAY, dateKey: PINNED_DAY, projectId: first.projectId, project: first.project, projectTitle: first.projectTitle, projectAddress: first.projectAddress, projectSubtitle: first.projectSubtitle, items, latestAt: pinnedAt(first) };
+    };
     const writeLocalTagRoute = () => {
       if (cleanText(options.routeScope) !== 'project' || window.Portal?.navigation?.applying) return;
       window.Portal?.navigation?.replace?.({
@@ -5007,8 +5025,9 @@
       const hostActions = options.trashMode || !Array.isArray(options.selectionActions) ? [] : options.selectionActions.filter((action) => cleanText(action?.id));
       const hostGroup = hostActions.length ? `<span class="pf-seldock-sep"></span><div class="pf-seldock-group" role="group">${hostActions.map((action) => {
         const id = escapeHtml(cleanText(action.id));
-        const label = cleanText(action.label || action.id);
-        const icon = cleanText(action.icon);
+        // A label or icon may be a function of the selected items (Pin to top / Unpin).
+        const label = cleanText((typeof action.label === 'function' ? action.label(selectedLocalItems()) : action.label) || action.id);
+        const icon = cleanText(typeof action.icon === 'function' ? action.icon(selectedLocalItems()) : action.icon);
         const danger = cleanText(action.className).split(/\s+/).includes('danger') ? ' danger' : '';
         return icon
           ? `<button type="button" class="pf-seldock-icon${danger}" data-selection-extra="${id}" ${dockTip(label)}><i class="fas ${escapeHtml(icon)}"></i></button>`
@@ -5098,9 +5117,10 @@
     };
     const bodyHtml = () => {
       const groups = localGroups();
+      const pinnedItems = pinnedGroup();
       const compact = compactGroups();
       const pinned = pinnedTiles();
-      const notched = !!(pinned && compact && groups.length);
+      const notched = !!(pinned && compact && (groups.length || pinnedItems));
       const groupOptions = { enableProjectLinks: options.enableProjectLinks !== false, selected: local.selected, selectionEnabled:options.selectionEnabled, itemNoun:options.itemNoun, renderThumbnail:options.renderThumbnail, renderTileMeta:options.renderTileMeta, renderGroupUploaders:options.renderGroupUploaders, tileClass:options.tileClass, renderTileBadge:options.renderTileBadge, compact };
       let first = true;
       const groupHtml = (group, dayLabel = '') => {
@@ -5112,10 +5132,16 @@
         <div class="pf-scroll" data-feed-scroll>
           ${typeof options.introHtml === 'function' ? (options.introHtml() || '') : ''}
           ${pinned && !notched ? `<div class="pf-pinned-intro">${pinned.html}</div>` : ''}
-          ${!groups.length ? `<div class="pf-empty"><i class="fas ${escapeHtml(options.emptyIcon || 'fa-images')}"></i><strong>${escapeHtml(options.emptyTitle || 'No media found')}</strong><div>${escapeHtml(options.emptyMessage || 'Upload project media or adjust the search.')}</div></div>` : ''}
-          ${(groupByDay() ? groupedByDay(groups) : [['', groups]]).map(([key, list]) => compact
-            ? `<div class="pf-day pf-day-compact">${list.map((group) => groupHtml(group, key ? dateLabel(key) : '')).join('')}</div>`
-            : `<div class="pf-day">${key ? `<div class="pf-day-heading"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2>${typeof options.renderDaySummary==='function'?`<div class="pf-day-summary">${options.renderDaySummary({key,groups:list})}</div>`:''}</div>` : ''}${list.map((group) => groupHtml(group)).join('')}</div>`).join('')}
+          ${!groups.length && !pinnedItems ? `<div class="pf-empty"><i class="fas ${escapeHtml(options.emptyIcon || 'fa-images')}"></i><strong>${escapeHtml(options.emptyTitle || 'No media found')}</strong><div>${escapeHtml(options.emptyMessage || 'Upload project media or adjust the search.')}</div></div>` : ''}
+          ${[...(pinnedItems ? [[PINNED_DAY, [pinnedItems]]] : []), ...(groupByDay() ? groupedByDay(groups) : [['', groups]])].map(([key, list]) => {
+            const isPinned = !!pinnedItems && list[0] === pinnedItems;
+            const title = isPinned ? T('pf_pinned_group', 'Pinned') : (key ? dateLabel(key) : '');
+            const pinnedClass = isPinned ? ' pf-day-pinned' : '';
+            const pinnedAttr = isPinned ? ' data-pf-pinned-day' : '';
+            return compact
+              ? `<div class="pf-day pf-day-compact${pinnedClass}"${pinnedAttr}>${list.map((group) => groupHtml(group, title)).join('')}</div>`
+              : `<div class="pf-day${pinnedClass}"${pinnedAttr}>${title ? `<div class="pf-day-heading"><h2 class="pf-day-title">${isPinned ? '<i class="fas fa-thumbtack" aria-hidden="true"></i> ' : ''}${escapeHtml(title)}</h2>${!isPinned && typeof options.renderDaySummary==='function'?`<div class="pf-day-summary">${options.renderDaySummary({key,groups:list})}</div>`:''}</div>` : ''}${list.map((group) => groupHtml(group)).join('')}</div>`;
+          }).join('')}
         </div>`;
     };
     // The notched group's frame: one outline that runs around the pinned tiles, drawn again whenever the group or
@@ -5538,6 +5564,8 @@
       restoreLocalPhotoRoute();
     }
     renderLocal();
+    // The host redraws the gallery in place after it changes what options read (a pin), keeping scroll and selection.
+    return { refresh: () => { if (panel.isConnected) renderBody(); } };
   }
   function register(){
     if (registered || !featureEnabled() || !window.Portal?.apps?.registerPortalApp) return;
