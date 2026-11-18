@@ -435,7 +435,7 @@
       order: 57,
       bundles: [
         versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'),
-        versionedBundle('equipment/app.js', '20261014-capacity')
+        versionedBundle('equipment/app.js', '20261118-fm549-phone')
       ]
     },
     {
