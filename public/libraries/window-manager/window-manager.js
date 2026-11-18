@@ -17,8 +17,9 @@
 [data-fm-backdrop]{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 [data-fm-backdrop="active"],dialog[data-fm-native-backdrop="active"]::backdrop{background:rgba(11,16,24,.58)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 html[data-fm-backdrop-effect="blur"] [data-fm-backdrop="active"],html[data-fm-backdrop-effect="blur"] dialog[data-fm-native-backdrop="active"]::backdrop{background:rgba(11,16,24,.58)!important;backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important}
-[data-fm-child-backdrop]{border-color:var(--fm-child-backdrop)!important;background-color:var(--fm-child-backdrop)!important}
-[data-fm-child-backdrop]>iframe{opacity:.999}
+[data-fm-child-backdrop="on"],[data-fm-child-backdrop="fading"]{transition:border-color .3s,background-color .3s}
+[data-fm-child-backdrop="on"]{border-color:var(--fm-child-backdrop)!important;background-color:var(--fm-child-backdrop)!important}
+[data-fm-child-backdrop="on"]>iframe{opacity:.999}
 dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 @media(prefers-reduced-transparency:reduce){html[data-fm-backdrop-effect] [data-fm-backdrop="active"],html[data-fm-backdrop-effect] dialog[data-fm-native-backdrop="active"]::backdrop{background:rgba(11,16,24,.58)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}}
 `;
@@ -85,34 +86,57 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       dialogs.forEach(el => el.dataset.fmNativeBackdrop = el === dialogs.at(-1) ? 'active' : 'inactive');
       if (overlays.length || dialogs.length) document.documentElement.dataset.fmBackdropEffect = effect();
       const host = ownerHost();
-      if (host) tellOwner(host, onWhite(edgeTint(dialogs.at(-1), foremost)));
+      if (host) { const edge = edgeTint(dialogs.at(-1), foremost); tellOwner(host, edge.tint, edge.fading); }
     }
     // A child document's backdrop stops at its own viewport, so the owner's frame around the iframe (a project
     // window's border and background) would stay bright around a dimmed workspace (FM-609). Tell the owner the
     // tint on this document's edge; it paints the frame in it. Apps' own scrims (a guided setup's) count as well
     // as managed ones. The tint goes as one opaque colour, over the frame's white, and the iframe is drawn as one
     // surface (opacity): otherwise the rounded clip anti-aliases each of its layers and the corners keep a light seam.
-    function onWhite(tint){
-      const rgba = tint.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/);
-      if (!rgba) return '';
-      const alpha = rgba[4] === undefined ? 1 : Number(rgba[4]);
+    function onWhite(color, opacity = 1){
+      const rgba = String(color).match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/);
+      const alpha = rgba ? (rgba[4] === undefined ? 1 : Number(rgba[4])) * opacity : 0;
+      if (!(alpha > 0)) return '';
       return `rgb(${[1,2,3].map(i => Math.round(Number(rgba[i]) * alpha + 255 * (1 - alpha))).join(',')})`;
     }
+    // The opacity an element is heading to: a scrim that starts fading out says so at once, and the frame fades with it.
+    function opacityOf(el){
+      let value = 1;
+      for (let node = el; node && node !== document.documentElement; node = node.parentElement) {
+        let own = Number(root.getComputedStyle(node).opacity);
+        for (const animation of node.getAnimations?.() || []) {
+          if (animation.playState !== 'running' || !animation.effect?.getKeyframes) continue;
+          const frames = animation.effect.getKeyframes(), reverse = /reverse/.test(animation.effect.getTiming().direction || '');
+          const end = (reverse ? frames[0] : frames.at(-1))?.opacity;
+          if (end !== undefined && end !== null && end !== '') own = Number(end);
+        }
+        value *= own;
+      }
+      return value;
+    }
+    // {tint, fading}: fading when the layer on the edge is fading out, so the frame fades back with it rather than
+    // after it.
     function edgeTint(dialog, foremost){
-      if (dialog) return root.getComputedStyle(dialog,'::backdrop').backgroundColor;
+      if (dialog) return {tint:onWhite(root.getComputedStyle(dialog,'::backdrop').backgroundColor), fading:false};
+      let fading = false;
       for (let el = document.elementFromPoint(0, root.innerHeight / 2); el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
         const css = root.getComputedStyle(el), box = el.getBoundingClientRect();
         if (!['fixed','absolute'].includes(css.position) || box.width < root.innerWidth * .85 || box.height < root.innerHeight * .85) continue;
         const alpha = css.backgroundColor.match(/rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/);
-        if (alpha && Number(alpha[1]) > 0 && Number(alpha[1]) < 1) return css.backgroundColor;
+        if (!alpha || !(Number(alpha[1]) > 0 && Number(alpha[1]) < 1)) continue;
+        const tint = onWhite(css.backgroundColor, opacityOf(el));
+        if (tint) return {tint, fading:false};
+        fading = true;
       }
-      return foremost ? root.getComputedStyle(foremost).backgroundColor : '';
+      return {tint:foremost ? onWhite(root.getComputedStyle(foremost).backgroundColor, opacityOf(foremost)) : '', fading};
     }
     function ownerHost(){ try { return root.frameElement?.parentElement || null; } catch (_) { return null; } }
-    function tellOwner(host, tint){
-      if (tint === (host.hasAttribute('data-fm-child-backdrop') ? host.style.getPropertyValue('--fm-child-backdrop') : '')) return;
-      if (tint) { host.setAttribute('data-fm-child-backdrop',''); host.style.setProperty('--fm-child-backdrop',tint); }
-      else { host.removeAttribute('data-fm-child-backdrop'); host.style.removeProperty('--fm-child-backdrop'); }
+    function tellOwner(host, tint, fading = false){
+      const shown = host.getAttribute('data-fm-child-backdrop') === 'on' ? host.style.getPropertyValue('--fm-child-backdrop') : '';
+      if (tint === shown) return;
+      // The frame fades in with a backdrop and out with one that fades; one that is simply removed takes it at once.
+      host.setAttribute('data-fm-child-backdrop', tint ? 'on' : fading ? 'fading' : 'off');
+      if (tint) host.style.setProperty('--fm-child-backdrop', tint); else host.style.removeProperty('--fm-child-backdrop');
     }
     function schedule(){ if (!scheduled) { scheduled = true; root.requestAnimationFrame(refresh); } }
     const observer = new MutationObserver(records => {
