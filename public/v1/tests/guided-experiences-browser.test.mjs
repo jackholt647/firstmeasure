@@ -601,6 +601,8 @@ test('at phone width the setup fills the screen with the conversation folded bel
     const held=()=>page.evaluate(()=>[document.documentElement,document.body].map(el=>`${getComputedStyle(el).overflowY}/${getComputedStyle(el).overscrollBehaviorY}`).join());
     assert.equal(await held(),'hidden/none,hidden/none','the page does not scroll under the setup');
     assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('.gxs-step:not(.gxs-above)')).overscrollBehaviorY),'contain');
+    // FM-605: only the step contains. A row or a field inside it clips (a scroll container too) and passes the wheel on.
+    assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('.gxs-step:not(.gxs-above) *')).overscrollBehaviorY),'auto');
     // The keyboard opens: the visible screen is 380px tall, panned 300px down the page. The sheet is that screen.
     await page.evaluate(()=>{const vv=window.fakeViewport;Object.assign(vv,{height:380,offsetTop:300});vv.dispatchEvent(new Event('resize'));});
     await page.waitForFunction(()=>{const r=document.querySelector('.gxs-sheet').getBoundingClientRect();return Math.abs(r.top-300)<=1&&Math.abs(r.bottom-680)<=1;});

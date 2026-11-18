@@ -210,9 +210,11 @@ scrolls (`html` and `body` `overflow: hidden`, `overscroll-behavior: none`), and
 the cover follows the visual viewport: on a phone the keyboard shrinks what is
 visible but not the page, so the cover's `top` and `height` and its CSS variable
 `--gx-vh` become the visible screen, and every sheet height is calculated from
-`--gx-vh`, never `100vh`/`100dvh`. Every element inside a cover is
+`--gx-vh`, never `100vh`/`100dvh`. The sheet and its steps are
 `overscroll-behavior: contain`, so a step at the end of its scroll never hands the
-drag on. Before this (FM-365) a phone had two scrollers, the page panning behind
+drag on. Nothing inside a step is: a row that clips or a field is a scroll
+container too, and contained it would swallow the wheel over it (FM-605, the
+scope builder's line items), so it passes the wheel on to the step. Before this (FM-365) a phone had two scrollers, the page panning behind
 the keyboard and the step, and a drag that landed on the one already at its end
 moved nothing. A new kind that covers the page uses the same hold; overlay tours
 do not, because they point at the page and it must scroll to their targets.
@@ -874,9 +876,8 @@ step is the module `guided-experiences/documents-setup.js` with its own `part`:
   (`resolveDocumentInstance` with `definition`), and the module renders it with `FMDocRenderer` (`theme_id`). The step
   widens the sheet (`gxs-wide`) and fills it with a looping carousel (Jack): the style in the middle is large and is
   the one chosen, its pages scroll vertically (the wheel passes on to the step at either end); the others peek in
-  smaller beside it, and a click on one, the arrows, the arrow keys or a sideways swipe bring it to the middle. The
-  setup frame contains overscroll, so anything inside it that is a scroll container keeps the wheel: clip, do not
-  hide, what must not scroll. A question with two answers shows them as two tall, near-square tiles.
+  smaller beside it, and a click on one, the arrows, the arrow keys or a sideways swipe bring it to the middle. A
+  question with two answers shows them as two tall, near-square tiles.
 
 The finish, `documents.setup.apply` (`documents/setup.ts`), picks the library template the answers describe
 (`planDocument`: options → Good / Better / Best; one option, itemized → the itemized proposal with line prices; a

@@ -40,7 +40,6 @@ const css = `
 .gxd-small .gxd-tile strong{font-size:13.5px}
 .gxd-small .gxd-tile small{font-size:11.5px}
 .gxd-small .gxd-tick{width:20px;height:20px;top:9px;right:9px}
-/* clip, not hidden: a box that is a scroll container keeps the wheel (the setup frame contains overscroll) */
 /* A question with two answers: two tall tiles, close to square, centred with room around them (Jack: not flat). */
 .gxd-grid.gxd-pair{grid-template-columns:repeat(2,minmax(0,290px));justify-content:center;gap:22px;padding:18px 0 22px}
 .gxd-pair .gxd-tile{flex-direction:column;align-items:center;justify-content:flex-start;gap:16px;min-height:250px;padding:46px 26px 30px;text-align:center}
@@ -68,9 +67,6 @@ const css = `
 .gxd-card[data-role=side]:hover{opacity:.8}
 .gxd-doc{flex:1 1 auto;min-height:0;overflow:clip;background:#fff}
 .gxd-card[data-role=center] .gxd-doc{overflow-y:auto;scrollbar-width:thin}
-/* The rendered document is made of boxes that clip (each a scroll container): under the frame's contained overscroll
-   the wheel would stop at the innermost one, so inside a preview everything passes it on to the document, then the step. */
-.gxs .gxd-card .gxd-doc,.gxs .gxd-card .gxd-doc *{overscroll-behavior:auto}
 .gxd-doc>div{position:relative}
 .gxd-arrow{position:absolute;top:50%;z-index:5;width:44px;height:44px;margin-top:-22px;border:0;border-radius:50%;background:rgba(16,24,40,.72);color:#fff;font-size:20px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(16,24,40,.25)}
 .gxd-arrow:hover{background:rgba(16,24,40,.88)}
