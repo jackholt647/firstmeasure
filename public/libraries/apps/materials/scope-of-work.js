@@ -137,6 +137,14 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
     state={contextKey,scheduling,only,views,selected:null,handle:null,view:'roof',widgets:{},visible:true,generation:0};sidebars.set(root,state);
     root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="roof"></div><div class="sw-panel sw-manual" data-scope-manual hidden></div><button type="button" class="smm-flip" data-scope-manual-flip hidden><i class="fas fa-pen-ruler" aria-hidden="true"></i><span>${esc(text('mm_flip_entries','Your entries'))}</span></button>${only?'':'<div class="sw-panel" data-scope-panel="documents" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div>'}${scheduling?'<div class="sw-panel sw-schedule" data-scope-panel="schedule" hidden></div>':''}</div>${only?'':`<nav class="sw-tabs" role="tablist" aria-label="Project views">${state.views.map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`}`;
     const tabs=[...root.querySelectorAll('[data-scope-view]')];
+    // The rail can be dragged narrow: when any label no longer fits its tab, every tab shows its icon alone (each keeps
+    // its aria-label and title). Measured, not a fixed width, so longer translations fall back too.
+    const nav=root.querySelector('.sw-tabs');
+    if(nav){
+      const fit=()=>{nav.classList.remove('sw-tabs-icons');if([...nav.querySelectorAll('span')].some(label=>label.scrollWidth>label.clientWidth))nav.classList.add('sw-tabs-icons');};
+      state.tabsObserver=new ResizeObserver(()=>{if(nav.isConnected)fit();});state.tabsObserver.observe(nav);
+      document.fonts?.ready?.then(()=>{if(nav.isConnected)fit();});
+    }
     tabs.forEach((tab,index)=>{
       tab.onclick=()=>{state.view=tab.dataset.scopeView;showViews(root,state);tab.focus();};
       tab.onkeydown=event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const shown=tabs.filter(t=>t===tab||t.getClientRects().length),at=shown.indexOf(tab);shown[event.key==='Home'?0:event.key==='End'?shown.length-1:(at+(event.key==='ArrowRight'?1:shown.length-1))%shown.length].click();}};
@@ -311,7 +319,7 @@ function showViews(root,state,manualChanged=false){
   for(const [key,widget] of Object.entries(state.widgets))widget?.setVisible?.(state.visible&&state.view===key&&!(key==='roof'&&(manualOn||startOn)));
   window.dispatchEvent(new Event('resize'));
 }
-export function disposeSidebar(root){const state=sidebars.get(root);state?.observer?.disconnect();state?.stageObserver?.disconnect();state?.handle?.destroy?.();state?.manualHandle?.destroy?.();if(state)for(const widget of Object.values(state.widgets))widget?.destroy?.();sidebars.delete(root);}
+export function disposeSidebar(root){const state=sidebars.get(root);state?.observer?.disconnect();state?.tabsObserver?.disconnect();state?.stageObserver?.disconnect();state?.handle?.destroy?.();state?.manualHandle?.destroy?.();if(state)for(const widget of Object.values(state.widgets))widget?.destroy?.();sidebars.delete(root);}
 /** Shows one of the rail's views, as if its tab had been chosen. */
 export function showSidebarView(root,view){const state=sidebars.get(root);if(!state||!(state.views||VIEWS).some(([key])=>key===view))return false;if(state.view!==view){state.view=view;showViews(root,state);}return true;}
 export function setSidebarVisible(root,visible){const state=sidebars.get(root);if(state){state.visible=visible;showViews(root,state);}}
