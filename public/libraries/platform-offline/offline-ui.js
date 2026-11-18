@@ -133,6 +133,7 @@
     badge_conflict_tip: 'This was also changed on the server. Open to choose what to keep.',
 
     project_title: 'Available offline',
+    project_title_not_saved: 'Not available offline',
     project_not_saved: 'This project is not saved on this device.',
     project_downloading: 'Saving this project on this device…',
     project_saved: 'Saved on this device {when}.',
@@ -1261,6 +1262,10 @@
     if (projectBusy === 'keep' || (pin && !pin.refreshedAt)) return { id, pin, state: 'downloading' };
     return { id, pin, state: pin ? 'saved' : 'none' };
   }
+  /** The control's name says the state: "Available offline" only once the project is (being) saved here. */
+  function projectTitle(now) {
+    return T(now.state === 'none' ? 'project_title_not_saved' : 'project_title');
+  }
   function projectWords(now) {
     if (now.state === 'downloading') return [T('project_downloading'), state.online ? '' : T('project_waits_for_connection')];
     if (now.state === 'saved') return [T('project_saved', { when: when(now.pin.refreshedAt) }), T(now.pin.auto ? 'project_auto' : 'project_chosen')];
@@ -1280,8 +1285,8 @@
       projectButton.dataset.state = now.state;
       projectButton.replaceChildren(now.state === 'downloading' ? icon(document, 'fa-circle-notch', 'fmo-spin') : now.state === 'saved' ? icon(document, 'fa-circle-check') : icon(document, 'download'));
       const words = projectWords(now).filter(Boolean).join(' ');
-      projectButton.setAttribute('aria-label', T('project_title') + '. ' + words);
-      projectButton.setAttribute('data-fm-tooltip', T('project_title') + ': ' + projectWords(now)[0]);
+      projectButton.setAttribute('aria-label', projectTitle(now) + '. ' + words);
+      projectButton.setAttribute('data-fm-tooltip', projectTitle(now) + ': ' + projectWords(now)[0]);
     }
     if (projectRedraw) projectRedraw();
   }
@@ -1306,12 +1311,12 @@
       if (now.state === 'saved' && now.pin.auto) actions.append(button('always', T('project_keep_always'), 'primary', () => projectAct('always', () => PO.pinProject(orgId(), now.id))));
       if (now.pin) actions.append(button('remove', T('project_remove'), '', () => projectAct('remove', () => PO.unpinProject(orgId(), now.id))));
       panel.replaceChildren(
-        el(doc, 'h2', { text: T('project_title') }),
+        el(doc, 'h2', { text: projectTitle(now) }),
         el(doc, 'p', { 'data-project-status': now.state, text: words[0] }),
         words[1] ? el(doc, 'p', { text: words[1] }) : '',
         projectError ? el(doc, 'p', { class: 'fmo-note', 'data-tone': 'error', role: 'alert', text: projectError }) : '',
         actions);
-      panel.setAttribute('aria-label', T('project_title'));
+      panel.setAttribute('aria-label', projectTitle(now));
     };
     loadPins();
     projectRedraw = host._popover(topRect(projectButton), build, projectButton);
