@@ -875,9 +875,21 @@ step is the module `guided-experiences/documents-setup.js` with its own `part`:
   `document-setup.previews` resolves the planned template, unsaved, with a sample customer, roof and account
   (`resolveDocumentInstance` with `definition`), and the module renders it with `FMDocRenderer` (`theme_id`). The step
   widens the sheet (`gxs-wide`) and fills it with a looping carousel (Jack): the style in the middle is large and is
-  the one chosen, its pages scroll vertically (the wheel passes on to the step at either end); the others peek in
-  smaller beside it, and a click on one, the arrows, the arrow keys or a sideways swipe bring it to the middle. A
-  question with two answers shows them as two tall, near-square tiles.
+  the one chosen, its pages scroll vertically (the wheel passes on to the step at either end) with a grey gutter
+  between pages; the others peek in smaller beside it, and a click on one, the arrows, the arrow keys or a sideways
+  drag (mouse or finger; the cards follow it, and a short drag springs back) bring it to the middle. A card going
+  round the back comes in from beyond its new side while a copy leaves past its old one (FM-608). The expand button
+  (or a double click) shows the middle style full screen, with arrows to the others; Escape and a phone's back close
+  that first (the step's `escape()`). The step marks itself `data-float-foot`: the player floats Back and Done over
+  its bottom edge with no bar or divider and leaves them out of the sheet's height, and the step keeps that corner
+  clear (the style's name and dots sit between them; on a phone, above them). A question with two answers shows them
+  as two tall, near-square tiles. Tests: `tests/documents-setup-carousel-browser.test.mjs`.
+
+A payment widget (`doc.payment_schedule`, `doc.pay_now`) in an organization with payments off (`documents.payments`,
+marked `disabled` in the resolved definition or off in the renderer's `capabilities`) still draws what is owed: the
+schedule and the amount due, with no Pay button, no QR to pay online and no notice that payments are off, in the
+editor, the portal, these previews and the PDF (FM-608). An e-signature that is off keeps its disabled box. Tests:
+`tests/doc-payments-off-browser.test.mjs`.
 
 The finish, `documents.setup.apply` (`documents/setup.ts`), picks the library template the answers describe
 (`planDocument`: options → Good / Better / Best; one option, itemized → the itemized proposal with line prices; a
