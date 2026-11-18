@@ -284,13 +284,42 @@ test('phones book in steps: type, then project or address, then time with Create
   assert.equal(await page.evaluate(()=>window.bookings.length),1);assert.equal(await page.evaluate(()=>window.bookings[0].project_id),'p1');
   assert.ok(await page.locator('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth));
   await page.getByRole('button',{name:'Done',exact:true}).click();await page.locator('dialog').waitFor({state:'detached'});
-  // New type saves the settings to the catalog for everyone, then continues.
+  // New type is its own screen (FM-558): a type name and the type's settings, never an appointment name. Saving adds it
+  // to the catalog for everyone, then the booking continues with the new type chosen.
   await page.evaluate(()=>FirstMateBooking.open({orgId:'org',projectId:'p1',lockProject:true}));
   assert.equal(await page.locator('[data-progress]').count(),2);
-  await page.locator('[data-new-type]').click();await page.locator('[data-type-name]').fill('Gutter check');await page.locator('[data-save-type]').click();
+  await page.getByRole('button',{name:'Advanced'}).click();
+  assert.equal(await page.locator('#fm-booking-sheet [data-title]').isVisible(),true,'an appointment has a name');
+  assert.equal(await page.locator('#fm-booking-sheet [data-type-name]').count(),0,'Advanced never saves a type');
+  // Help marks open on tap and leave the switch alone.
+  const help=page.locator('#fm-booking-sheet .fm-ap-switch:has([data-delivery]) [data-help]');
+  await help.tap();assert.equal(await help.getAttribute('aria-expanded'),'true');
+  assert.equal(await page.locator('#fm-booking-sheet [data-delivery]').isChecked(),false);
+  const bubble=page.locator('#fm-booking-sheet .fm-ap-switch:has([data-delivery]) .fm-ap-help-bubble');
+  assert.equal(await bubble.isVisible(),true);assert.match(await bubble.innerText(),/delivery/i);
+  const box=await bubble.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=390,'the bubble stays on screen');
+  await page.locator('#fm-booking-sheet-title').tap();assert.equal(await help.getAttribute('aria-expanded'),'false');
+  await page.locator('[data-sheet-done]').click();await page.waitForFunction(()=>document.querySelector('#fm-booking-sheet').hidden);
+  await page.locator('[data-new-type]').click();await page.locator('#fm-booking-type-sheet [data-type-name]').waitFor();
+  assert.equal(await page.getByRole('heading',{name:'New appointment type'}).isVisible(),true);
+  assert.equal(await page.locator('#fm-booking-type-sheet [data-title]').count(),0,'a type has a type name, not an appointment name');
+  await page.locator('[data-type-save]').click();assert.equal(await page.locator('[data-type-status]').innerText(),'Name the type first.');
+  assert.equal(await page.evaluate(()=>window.saved.length),0);
+  await page.locator('#fm-booking-type-sheet [data-type-name]').fill('Gutter check');
+  await page.locator('#fm-booking-type-sheet [data-duration-preset="30"]').click();
+  await page.locator('[data-type-save]').click();
   await page.waitForFunction(()=>document.querySelector('[data-step=when]:not([hidden])'));
+  assert.equal(await page.locator('#fm-booking-type-sheet').isHidden(),true);
   assert.equal(await page.evaluate(()=>window.saved[0].revision),4);assert.deepEqual(await page.evaluate(()=>window.saved[0].catalog.presets.map(p=>p.label)),['Sales appointment','Gutter check']);
+  assert.deepEqual(await page.evaluate(()=>{const c=window.saved[0].catalog.presets[1].configuration;return [c.title,c.duration_minutes];}),['Gutter check',30]);
   assert.match(await page.locator('[data-summary]').innerText(),/Gutter check/);
+  await page.waitForFunction(()=>window.previews.at(-1)?.configuration.duration_minutes===30);
+  // Cancel leaves the appointment as it was and saves nothing.
+  await page.getByRole('button',{name:'Close appointment booking'}).click();await page.locator('dialog').waitFor({state:'detached'});
+  await page.evaluate(()=>FirstMateBooking.open({orgId:'org',projectId:'p1',lockProject:true}));
+  await page.locator('[data-new-type]').click();await page.locator('#fm-booking-type-sheet [data-type-name]').fill('Never saved');
+  await page.locator('[data-type-cancel]').click();await page.waitForFunction(()=>document.querySelector('#fm-booking-type-sheet').hidden);
+  assert.equal(await page.evaluate(()=>window.saved.length),1);assert.equal(await page.evaluate(()=>document.querySelector('[data-step]:not([hidden])').dataset.step),'type');
  }finally{await browser.close();}
 });
 

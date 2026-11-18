@@ -130,16 +130,20 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
 <footer class="fm-booking-footer"><button type="button" class="fm-booking-nav" data-prev aria-label="Previous"><span class="fm-booking-arrow back" aria-hidden="true"></span><span>Previous</span></button><button type="button" class="fm-booking-nav new" data-new-project hidden><span class="fm-booking-plus" aria-hidden="true"></span><span>New project</span></button><button type="button" class="fm-booking-nav primary" data-next><span>Next</span><span class="fm-booking-arrow" aria-hidden="true"></span></button><button type="submit" class="fm-booking-nav primary" data-create hidden disabled>Create event</button><button type="button" class="fm-booking-nav primary" data-finish hidden>Done</button></footer>
 </form>
 <div class="fm-booking-scrim" data-sheet-scrim hidden></div>
-<section class="fm-booking-sheet" id="fm-booking-sheet" role="dialog" aria-modal="true" aria-labelledby="fm-booking-sheet-title" hidden><div class="fm-booking-sheet-grip" aria-hidden="true"></div><div class="fm-booking-sheet-head"><h3 id="fm-booking-sheet-title" tabindex="-1">Advanced</h3><button type="button" data-sheet-done>Done</button></div><div class="fm-booking-sheet-body" data-slot-advanced></div></section>`;
+<section class="fm-booking-sheet" id="fm-booking-sheet" role="dialog" aria-modal="true" aria-labelledby="fm-booking-sheet-title" hidden><div class="fm-booking-sheet-grip" aria-hidden="true"></div><div class="fm-booking-sheet-head"><h3 id="fm-booking-sheet-title" tabindex="-1">Advanced</h3><button type="button" data-sheet-done>Done</button></div><div class="fm-booking-sheet-body" data-slot-advanced></div></section>
+<section class="fm-booking-sheet fm-booking-type-sheet" id="fm-booking-type-sheet" role="dialog" aria-modal="true" aria-labelledby="fm-booking-type-title" hidden><div class="fm-booking-sheet-grip" aria-hidden="true"></div><div class="fm-booking-sheet-head"><h3 id="fm-booking-type-title" tabindex="-1">New appointment type</h3><button type="button" data-type-cancel>Cancel</button></div><div class="fm-booking-sheet-body"><p class="fm-booking-hint">Saved for everyone. You book one next.</p><div data-slot-new-type></div></div><footer class="fm-booking-type-foot"><div role="status" data-type-status></div><button type="button" class="fm-booking-nav primary" data-type-save>Save type</button></footer></section>`;
     document.body.append(dialog); dialog.showModal();
     const $ = selector => dialog.querySelector(selector);
     $('[data-step="type"] h3').focus({preventScroll:true});
-    const stage = $('[data-stage]'), status = $('[data-status]'), target = $('.fm-availability'), sheet = $('#fm-booking-sheet'), scrim = $('[data-sheet-scrim]');
+    const stage = $('[data-stage]'), status = $('[data-status]'), target = $('.fm-availability'), sheet = $('#fm-booking-sheet'), typeSheet = $('#fm-booking-type-sheet'), scrim = $('[data-sheet-scrim]');
+    const typeSave = $('[data-type-save]'), typeStatus = $('[data-type-status]');
     const prev = $('[data-prev]'), next = $('[data-next]'), create = $('[data-create]'), finish = $('[data-finish]'), advancedButton = $('[data-advanced-open]');
     const newFooter = $('.fm-booking-footer [data-new-project]'), choices = $('[data-choices]'), newFields = [...dialog.querySelectorAll('[data-new-field]')];
     const reduceMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     let step = 'type', picker, selected = null, configuration, select = null, saving = false, done = false, stale = true;
     let addressOverride = null, sheetAdvances = false, advanceTimer, sheetTimer;
+    /* openedSheet: the sheet showing (Advanced, or New appointment type). typeEditor: that sheet's own editor, separate from this appointment (FM-558). */
+    let openedSheet = null, typeEditor = null, savingType = false;
     /* noProject: No project was chosen on purpose. draft: the project the New project step makes (its id is kept so a retry never makes two). */
     let noProject = false, draft = null, creating = false;
     let eventId = `appointment_${crypto.randomUUID()}`;
@@ -212,7 +216,7 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
     const advanceFromType = () => { if (step !== 'type') return; clearTimeout(advanceTimer); advanceTimer = setTimeout(goNext, reduceMotion() ? 0 : 200); };
     /* The phone's back control is Previous (FM-554): a history entry per step behind this one, one that closes from the
        first step or the finish, and one more while the Advanced sheet is open (back closes it). */
-    const sheetOpen = () => advancedButton.getAttribute('aria-expanded') === 'true';
+    const sheetOpen = () => !!openedSheet;
     const backHistory = window.Portal?.navigation?.steps?.({onBack:count => {
       for (let n = 0; n < count && dialog.open; n += 1) {
         if (sheetOpen()) closeSheet();
@@ -228,26 +232,63 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
       backHistory?.depth(behind + 1 + (sheetOpen() ? 1 : 0));
     }
 
-    function openSheet({saveType = false} = {}){
-      if (!configuration || done) return;
+    function showSheet(which){
       clearTimeout(sheetTimer);
-      scrim.hidden = false; sheet.hidden = false; advancedButton.setAttribute('aria-expanded', 'true');
+      [sheet, typeSheet].forEach(other => { if (other !== which) { other.classList.remove('open'); other.hidden = true; } });
+      openedSheet = which; scrim.hidden = false; which.hidden = false;
+      advancedButton.setAttribute('aria-expanded', String(which === sheet));
       $('form').inert = true; $('.fm-booking-head').inert = true;
-      requestAnimationFrame(() => { scrim.classList.add('open'); sheet.classList.add('open'); });
+      requestAnimationFrame(() => { scrim.classList.add('open'); which.classList.add('open'); });
+      which.querySelector('.fm-booking-sheet-body').scrollTop = 0;
       syncBack();
-      const field = saveType ? sheet.querySelector('[data-type-name]') : null;
-      if (field) { field.closest('[data-save-type-section]')?.classList.add('fm-ap-highlight'); field.scrollIntoView({block:'center'}); field.focus({preventScroll:true}); }
-      else { sheet.querySelector('.fm-booking-sheet-body').scrollTop = 0; $('#fm-booking-sheet-title').focus({preventScroll:true}); }
     }
-    function closeSheet(){
-      if (sheet.hidden) return;
-      scrim.classList.remove('open'); sheet.classList.remove('open'); advancedButton.setAttribute('aria-expanded', 'false');
+    /* Advanced: this appointment's own settings (its name, location, staffing). It never saves a type. */
+    function openSheet(){
+      if (!configuration || done) return;
+      showSheet(sheet); $('#fm-booking-sheet-title').focus({preventScroll:true});
+    }
+    function closeSheet({focus = true} = {}){
+      const which = openedSheet;
+      if (!which || savingType) return;
+      openedSheet = null;
+      scrim.classList.remove('open'); which.classList.remove('open'); advancedButton.setAttribute('aria-expanded', 'false');
       $('form').inert = false; $('.fm-booking-head').inert = false;
-      sheet.querySelector('.fm-ap-highlight')?.classList.remove('fm-ap-highlight');
-      sheetTimer = setTimeout(() => { scrim.hidden = true; sheet.hidden = true; }, reduceMotion() ? 0 : 280);
+      sheetTimer = setTimeout(() => { scrim.hidden = true; which.hidden = true; if (which === typeSheet) { typeEditor?.destroy(); typeEditor = null; } }, reduceMotion() ? 0 : 280);
       syncBack();
+      if (which === typeSheet) { if (focus) $('[data-new-type]')?.focus({preventScroll:true}); return; }
       if (sheetAdvances) { sheetAdvances = false; advanceFromType(); }
-      else advancedButton.focus({preventScroll:true});
+      else if (focus) advancedButton.focus({preventScroll:true});
+    }
+    /* New appointment type: a type name and the type's settings in their own sheet. Save type adds it to the catalog
+       for everyone, then this booking continues with it chosen (FM-558). */
+    async function openTypeSheet(){
+      if (!configuration || done || saving || step !== 'type') return;
+      clearTimeout(advanceTimer); sheetAdvances = false;
+      typeEditor?.destroy(); typeEditor = null;
+      const slot = $('[data-slot-new-type]');
+      slot.innerHTML = '<p class="fm-booking-hint">Loading…</p>'; typeStatus.textContent = ''; typeSave.disabled = true;
+      showSheet(typeSheet); $('#fm-booking-type-title').focus({preventScroll:true});
+      try {
+        const editor = await window.FirstMateAppointmentConfiguration.mount(slot, {orgId, typeMode:true});
+        if (openedSheet !== typeSheet || !dialog.open) { editor.destroy(); return; }
+        typeEditor = editor; typeSave.disabled = false;
+        slot.querySelector('[data-type-name]')?.focus({preventScroll:true});
+      } catch (error) { if (openedSheet === typeSheet) { slot.innerHTML = ''; typeStatus.textContent = error.message || 'Could not load appointment settings.'; } }
+    }
+    async function saveNewType(){
+      if (!typeEditor || savingType) return;
+      savingType = true; typeSave.disabled = true; typeSheet.querySelector('.fm-booking-sheet-body').inert = true; typeStatus.textContent = '';
+      typeSave.textContent = 'Saving…';
+      try {
+        const saved = await typeEditor.saveType();
+        savingType = false; closeSheet({focus:false});
+        configuration.adoptType(saved.id, saved.response);
+      } catch (error) {
+        typeStatus.textContent = error.message || 'Could not save this type.';
+      } finally {
+        savingType = false; typeSave.disabled = !typeEditor; typeSave.textContent = 'Save type'; typeSheet.querySelector('.fm-booking-sheet-body').inert = false;
+        if (typeStatus.textContent === 'Name the type first.') typeSheet.querySelector('[data-type-name]')?.focus({preventScroll:true});
+      }
     }
 
     function refresh(){
@@ -340,11 +381,13 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
       if (newFields[index + 1]) newFields[index + 1].focus(); else goNext();
     }));
     advancedButton.onclick = () => openSheet();
-    $('[data-sheet-done]').onclick = closeSheet;
-    scrim.onclick = closeSheet;
+    $('[data-sheet-done]').onclick = () => closeSheet();
+    $('[data-type-cancel]').onclick = () => closeSheet();
+    typeSave.onclick = () => void saveNewType();
+    scrim.onclick = () => closeSheet();
     dialog.addEventListener('click', event => { const goto = event.target.closest('[data-goto]'); if (goto && !goto.disabled) go(goto.dataset.goto); });
-    dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); else if (!sheet.hidden) { event.preventDefault(); closeSheet(); } });
-    dialog.addEventListener('close', () => { clearTimeout(advanceTimer); clearTimeout(sheetTimer); backHistory?.release(); picker?.destroy(); configuration?.destroy(); select?.destroy(); }, {once:true});
+    dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); else if (openedSheet) { event.preventDefault(); closeSheet(); } });
+    dialog.addEventListener('close', () => { clearTimeout(advanceTimer); clearTimeout(sheetTimer); backHistory?.release(); picker?.destroy(); configuration?.destroy(); typeEditor?.destroy(); select?.destroy(); }, {once:true});
 
     if (!lockedProject) {
       select = window.FirstMateProjectSelector.mount($('[data-project]'), {orgId, projectId:options.projectId, inline:true, recent:false,
@@ -382,9 +425,8 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
       configuration = await window.FirstMateAppointmentConfiguration.mount(null, {orgId, projectId:lockedProject || options.projectId,
         slots:{type:$('[data-slot-type]'), quick:$('[data-slot-quick]'), advanced:$('[data-slot-advanced]')},
         onChange:changed,
-        onPreset:(id, info = {}) => {
-          if (info.newType) { sheetAdvances = false; openSheet({saveType:true}); return; }
-          if (info.saved) { sheetAdvances = false; closeSheet(); advanceFromType(); return; }
+        onNewType:() => void openTypeSheet(),
+        onPreset:id => {
           if (!id) { sheetAdvances = step === 'type'; openSheet(); return; }
           advanceFromType();
         }});

@@ -5,7 +5,7 @@
   if (!window.Portal) return;
 
   // The portal can load Scheduling directly, without the app-manifest bundles.
-  const bookingScriptUrl = new URL('../../appointment-booking/booking.js?v=20261118-fm554-back-control', document.currentScript?.src || new URL('/libraries/apps/scheduling/app.js', location.href)).href;
+  const bookingScriptUrl = new URL('../../appointment-booking/booking.js?v=20261118-fm558-type-flow', document.currentScript?.src || new URL('/libraries/apps/scheduling/app.js', location.href)).href;
   let bookingScriptLoading;
   async function openBookingWidget(){
     if (!window.FirstMateBooking) await (bookingScriptLoading ||= new Promise((resolve, reject) => {
