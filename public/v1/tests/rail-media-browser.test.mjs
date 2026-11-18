@@ -48,8 +48,15 @@ const fixture = () => {
   window.DocumentsAPI = { documents: { listForProject: async () => ({ documents: [
     { id: 'contract', title: 'Roof contract', document_type: 'contract', status: 'signed', updated_at: day(24) },
     { id: 'draft', title: 'Draft proposal', document_type: 'proposal', status: 'draft', updated_at: day(26) },
-    { id: 'voided', title: 'Void', document_type: 'proposal', status: 'void', updated_at: day(27) }
-  ] }) } };
+    { id: 'voided', title: 'Void', document_type: 'proposal', status: 'void', updated_at: day(27) },
+    { id: 'sent', title: 'Sent change order', document_type: 'change_order', status: 'sent', updated_at: day(22), delivery: { current_snapshot_id: 'snap2' } }
+  ] }),
+  resolve: async (org, id) => { calls.push(['resolve', org, id]); return { resolved_definition: { pages: [{ id: 'p1' }, { id: 'p2' }] }, widget_data: {}, theme: null, theme_vars: {} }; },
+  snapshots: async (org, id) => { calls.push(['snapshots', org, id]); return { snapshots: [{ id: 'snap1', resolved_definition: { pages: [{ id: 'old' }] } }, { id: 'snap2', resolved_definition: { pages: [{ id: 'sent' }] } }] }; } } };
+  // The document renderer draws pages; what it is given is what the rail shows.
+  window.FMDocModel = { paperDimensions: () => ({ w_pt: 612, h_pt: 792 }) };
+  window.FMDocWidgets = {};
+  window.FMDocRenderer = { render: (el, options) => { calls.push(['render', options.document.pages.map((page) => page.id)]); el.innerHTML = options.document.pages.map((page) => `<div class="fmdoc-page" data-page="${page.id}"></div>`).join(''); return { setScale() {}, destroy() {} }; } };
   window.scopeDocuments = [
     { source: 'document', id: 'contract:snap', documentId: 'contract', snapshotId: 'snap', acceptedAt: day(24), title: 'Roof contract', document_type: 'contract', status: 'signed', total: '$12,000.00', snapshot: { pdf: { media_id: 'contract-pdf' } }, sets: [{ title: 'Roofing', lines: [{ name: 'Shingles', quantity: 30, unit: 'sq', order_quantity: 90, order_unit: 'bundle', unit_cost: 40, currency: 'USD' }] }] },
     { source: 'report_asset', id: 'roof_report_pdf', title: 'Roof Measurement Report', url: '/report.pdf' }
@@ -90,11 +97,20 @@ test('the rail shows the project photos and documents as the shared carousel, re
     await tab.getByRole('tab', { name: 'Documents', exact: true }).click();
     const docs = tab.locator('[data-scope-panel="documents"] [data-media-thumb]');
     await docs.first().waitFor();
-    // Newest first, as the Docs tab: the draft (shown as its card), the contract, the invoice, the upload; the report.
+    // Newest first, as the Docs tab: the draft, the contract, the invoice, the sent change order, the upload; the report.
     const labels = await docs.evaluateAll((nodes) => nodes.map((n) => n.getAttribute('aria-label')));
-    assert.deepEqual(labels.filter((label) => label !== 'Roof Measurement Report'), ['Draft proposal', 'Roof contract', 'INV-1', 'Permit.pdf']);
+    assert.deepEqual(labels.filter((label) => label !== 'Roof Measurement Report'), ['Draft proposal', 'Roof contract', 'INV-1', 'Sent change order', 'Permit.pdf']);
+    // A document with no stored PDF is drawn, never "cannot be previewed" (FM-616): a draft from its resolution...
+    const panel = tab.locator('[data-scope-panel="documents"]');
+    await panel.locator('[data-media-custom] [data-page="p2"]').waitFor({ state: 'attached' });
+    assert.equal(await panel.locator('[data-media-fallback]').evaluate((node) => node.hidden), true);
+    // ...and a sent one as its snapshot, what the customer has.
+    await docs.nth(labels.indexOf('Sent change order')).click();
+    await panel.locator('[data-media-custom] [data-page="sent"]').waitFor({ state: 'attached' });
+    assert.equal(await panel.locator('[data-media-fallback]').evaluate((node) => node.hidden), true);
+    assert.deepEqual(await tab.evaluate(() => calls.filter((c) => ['resolve', 'snapshots', 'render'].includes(c[0]))), [['resolve', 'org', 'draft'], ['render', ['p1', 'p2']], ['snapshots', 'org', 'sent'], ['render', ['sent']]]);
     assert.ok(labels.includes('Roof Measurement Report'));
-    const items = await tab.evaluate(async () => { const mod = await import('/libraries/apps/materials/rail-media.js?v=20261110-fm374-first-write'); return mod ? 'ok' : ''; });
+    const items = await tab.evaluate(async () => { const mod = await import('/libraries/apps/materials/rail-media.js?v=20261118-fm616-doc-previews'); return mod ? 'ok' : ''; });
     assert.equal(items, 'ok');
     // A PDF is only asked for when one is stored: the signed contract's snapshot PDF; never the draft's.
     const requested = await tab.evaluate(() => performance.getEntriesByType('resource').map((entry) => entry.name).filter((name) => /\/pdf/.test(name)));
@@ -130,7 +146,7 @@ test('without the shared carousel the rail falls back to its own stage and films
     await tab.goto(`http://127.0.0.1:${server.address().port}/plain`);
     await tab.evaluate(fixture);
     await tab.evaluate(async () => {
-      const mod = await import('/libraries/apps/materials/rail-media.js?v=20261110-fm374-first-write');
+      const mod = await import('/libraries/apps/materials/rail-media.js?v=20261118-fm616-doc-previews');
       const stage = document.createElement('div'); stage.style.cssText = 'position:relative;height:700px'; document.querySelector('aside').append(stage);
       window.view = mod.mountRailPhotos(stage, { context: widgetContext, host });
       view.setVisible(true);
@@ -145,7 +161,7 @@ test('without the shared carousel the rail falls back to its own stage and films
     await tab.evaluate(async () => {
       PlatformAPI.media.list = async () => ({ media: [] });
       widgetContext.read = async () => ({ status: 'ready', value: { media: [] } });
-      const mod = await import('/libraries/apps/materials/rail-media.js?v=20261110-fm374-first-write');
+      const mod = await import('/libraries/apps/materials/rail-media.js?v=20261118-fm616-doc-previews');
       const stage = document.createElement('div'); stage.style.cssText = 'position:relative;height:700px'; document.querySelector('aside').append(stage);
       window.view = mod.mountRailPhotos(stage, { context: widgetContext, host });
       view.setVisible(true);

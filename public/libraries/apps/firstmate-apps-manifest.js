@@ -284,7 +284,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261111-offline'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261113-fm434-settings-surface'), versionedBundle('materials/project.js', '20261118-fm575-icon-tabs')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261111-offline'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261113-fm434-settings-surface'), versionedBundle('materials/project.js', '20261118-fm616-doc-previews')]
     },
     {
       id: 'project.money',
@@ -305,7 +305,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261118-fm559-camera-first'), versionedBundle('project-request/app.js', '20261118-fm611-ops-tray')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261118-fm559-camera-first'), versionedBundle('project-request/app.js', '20261118-fm616-doc-previews')]
     },
     {
       id: 'firstmeasure.order',

@@ -5035,7 +5035,7 @@ window.PlatformCommerce.onReady(async function(){
   // report model and entries made by hand), or the measurement ordering widget when there are none. Hidden while
   // a report order or the new-project picker is using the form.
   const trayMeasurements={key:'',loadedAt:0,loading:null,documents:[],error:'',overrides:{}};
-  const scopeWorkspaceModuleUrl='/libraries/apps/materials/scope-of-work.js?v=20261118-fm575-icon-tabs';
+  const scopeWorkspaceModuleUrl='/libraries/apps/materials/scope-of-work.js?v=20261118-fm616-doc-previews';
   function syncTrayMeasurements(){
     const details=document.querySelector('#rOverlay .r-overview-details');
     if(!details)return;

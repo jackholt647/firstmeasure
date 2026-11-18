@@ -127,6 +127,9 @@ export function ensureStyles() {
 .fm-rail-sheet-body p{margin:8px 0;font-size:12px;color:#667085}
 @container (max-width:420px){.fm-rail-sheet-body th:nth-child(4),.fm-rail-sheet-body td:nth-child(4){display:none}}
 .fm-rail-sheet-body{container-type:inline-size}
+.fm-rail-doc-loading{display:flex;align-items:center;justify-content:center;gap:8px;height:100%;color:#667085;font-size:13px}
+.fm-rail-doc-stage{padding:16px 16px 0;min-width:min-content}
+.fm-rail-doc-preview{display:block;max-width:calc(100% - 32px);margin:16px auto;background:#fff;box-shadow:0 1px 3px rgba(17,24,39,.14),0 8px 24px rgba(17,24,39,.08)}
 /* Fallback carousel, shown only while the shared viewer has no embeddable carousel. */
 .fm-rail-fb{flex:1;display:flex;flex-direction:column;min-height:0;min-width:0}
 .fm-rail-fb-head{flex:none;display:flex;align-items:center;gap:8px;min-height:44px;padding:6px 10px;border-bottom:1px solid #e4e7ec;background:#fff}
@@ -627,9 +630,70 @@ function engineItem(env, record, accepted) {
   delete base.media_id;
   const extra = { status, thumb, total: accepted?.total || (Number.isFinite(Number(summary.total_cents)) && summary.total_cents !== null && summary.total_cents !== undefined ? money(Number(summary.total_cents) / 100) : ''), sets: accepted?.sets || [], accepted: !!accepted, acceptedAt: accepted?.acceptedAt || '', snapshotId: accepted?.snapshotId || '', __engineDoc: record };
   if (snapshotPdf || pdfMedia) return docItem(env, base, { ...extra, media_type: 'pdf', url: enginePdfUrl(env, record, snapshotId) });
-  if (previewMedia && media?.fileUrl) return docItem(env, base, { ...extra, media_type: 'image', url: '', src: media.fileUrl(env.orgId(), previewMedia, 'original') });
-  // A draft with no PDF and no preview yet: its card, with "Open the document".
-  return docItem(env, base, { ...extra, media_type: 'document', url: '', src: '' });
+  // No stored PDF (a draft, or one not sent yet): the document itself, drawn live (FM-616).
+  const previewSrc = previewMedia && media?.fileUrl ? media.fileUrl(env.orgId(), previewMedia, 'original') : '';
+  return docItem(env, base, { ...extra, media_type: 'document', url: '', src: '', render: engineRender(env, record, first(accepted?.snapshotId, record.delivery?.current_snapshot_id), previewSrc) });
+}
+let docRendererReady = null;
+function docRenderer() {
+  if (window.FMDocRenderer?.render && window.FMDocModel && window.FMDocWidgets) return Promise.resolve();
+  docRendererReady ||= (async () => {
+    for (const [name, url] of [['FMDocModel', '/libraries/doc-model/firstmate-doc-model.js'], ['FMDocWidgets', '/libraries/doc-widgets/firstmate-doc-widgets.js'], ['FMDocRenderer', '/libraries/doc-renderer/firstmate-doc-renderer.js']]) {
+      if (window[name]) continue;
+      await new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = url; script.onload = resolve; script.onerror = () => reject(new Error('The document renderer could not load.')); document.head.append(script); });
+    }
+  })().catch((error) => { docRendererReady = null; throw error; });
+  return docRendererReady;
+}
+// What to draw for an engine document, as the Documents tab shows it: a sent or completed one as its snapshot (what
+// the customer has), a draft from its live resolution. Both are reads; neither makes or stores a PDF.
+async function engineView(env, record, snapshotId) {
+  const documents = window.DocumentsAPI.documents;
+  if ((snapshotId || !['', 'draft'].includes(clean(record.status).toLowerCase())) && documents.snapshots) {
+    const list = await documents.snapshots(env.orgId(), record.id).then((result) => result?.snapshots || []).catch(() => []);
+    const snapshot = list.find((entry) => clean(entry?.id) === snapshotId) || list[list.length - 1];
+    if (snapshot?.resolved_definition) return { ...snapshot, outputs: snapshot.outputs || {} };
+  }
+  const resolved = await documents.resolve(env.orgId(), record.id);
+  return { ...resolved, outputs: record.outputs || {} };
+}
+// Draws an engine document, every page fitted to the viewer's width. If it cannot be drawn, its preview image, else
+// the viewer's card.
+function engineRender(env, record, snapshotId, previewSrc) {
+  return (host, { viewer } = {}) => {
+    let alive = true, handle = null, observer = null;
+    const opening = globalThis.PlatformLanguage?.text?.('markup', 'm_viewer_opening_document', 'Opening document…') ?? 'Opening document…';
+    host.innerHTML = `<div class="fm-rail-doc-loading"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i><span>${esc(opening)}</span></div>`;
+    (async () => {
+      await docRenderer();
+      const resolved = await engineView(env, record, snapshotId);
+      if (!alive) return;
+      const definition = resolved?.resolved_definition;
+      if (!Array.isArray(definition?.pages) || !definition.pages.length) throw new Error('The document has no pages.');
+      const paper = window.FMDocModel.paperDimensions?.(definition) || { w_pt: 612, h_pt: 792 };
+      const fit = () => Math.min(1.5, Math.max(0.1, (host.clientWidth - 32) / (paper.w_pt * 96 / 72)));
+      const stage = document.createElement('div');
+      stage.className = 'fm-rail-doc-stage';
+      host.replaceChildren(stage);
+      handle = window.FMDocRenderer.render(stage, {
+        document: definition, mode: 'static', readonly: true, scale: fit(),
+        widgetData: resolved.widget_data || {}, widgetContext: { preview: true, outputs: resolved.outputs },
+        theme: resolved.theme, themeContext: { branding: window.__APP?.orgBranding || window.Portal?.cfg?.branding || {}, overrides: resolved.theme_vars || {} },
+        mediaUrl: (ref, variant) => window.PlatformAPI?.media?.fileUrl?.(env.orgId(), typeof ref === 'string' ? ref : ref?.media_id, variant || 'original')
+      });
+      let width = host.clientWidth;
+      observer = new ResizeObserver(() => { if (alive && host.clientWidth && host.clientWidth !== width) { width = host.clientWidth; handle?.setScale?.(fit()); } });
+      observer.observe(host);
+    })().catch((error) => {
+      if (!alive) return;
+      console.warn('The document could not be drawn.', error);
+      if (previewSrc) { host.innerHTML = `<img class="fm-rail-doc-preview" src="${esc(previewSrc)}" alt="">`; return; }
+      host.hidden = true;
+      const card = viewer?.el?.querySelector?.('[data-media-fallback]');
+      if (card) card.hidden = false;
+    });
+    return () => { alive = false; observer?.disconnect(); try { handle?.destroy?.(); } catch (_) {} };
+  };
 }
 async function loadDocumentItems(api) {
   const { env } = api, orgId = env.orgId(), projectId = env.projectId();
