@@ -393,3 +393,64 @@ test('phone: one title in the top bar, the step numbers along the bottom, the pr
     assert.equal(await page.locator('[data-fmdw-preview-fold]').isVisible(),false);
   }finally{await browser.close();}
 });
+
+// FM-604: the first page's two answers are two tall tiles side by side, as tall as the document setup's pair
+// (documents-setup.js .gxd-pair: 250px, 190px on a phone). The workflow's first step has Previous back to them, and the
+// phone's back control walks the workflow's steps, then the choice, one history entry each.
+test('the two path tiles are tall, and Back (the button and the phone\'s) returns from the workflow to them',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    for(const [width,height,minimum] of [[1100,850,250],[390,844,190]]){
+      const page=await open(browser,'',width);
+      await page.setViewportSize({width,height});
+      await page.evaluate(()=>{
+        window.selections.operation_path='';
+        window.workflowSteps=[
+          {id:'work',title:'What are we working on?',items:[{kind:'piece_select',label:'Choose everything included in this project',writes:'params.scope_pieces',required:true,multi:true}]},
+          {id:'notes',title:'Anything else?',items:[{kind:'text',label:'Notes',writes:'params.notes'}]}];
+        window.depths=[];
+        Portal.navigation={read:()=>({project:'p1',projectTab:'materials'}),steps:({onBack})=>{window.pressBack=count=>onBack(count);return {depth(count){depths.push(count);},release:async()=>{}};}};
+        window.fetch=async(url)=>{
+          const steps=[
+            {id:'path',widget:'operations-path',title:{key:'gx_test_path',text:'Start with the work you’re planning'},say:[],selects:[],required:true,next:null},
+            {id:'document',widget:'operations-document',title:{key:'gx_test_doc',text:'What does this project need?'},say:[],selects:[],required:true,next:null}];
+          const value=String(url).includes('/experiences?')?{experiences:[{id:'ops.back',version:1,kind:'modal',scope:'organization',title:{key:'gx_test',text:'Set up Operations'},steps,variant:{id:'default'},completion:{}}],reveals:[]}:{};
+          return {ok:true,status:200,text:async()=>JSON.stringify({ok:true,...value})};
+        };
+      });
+      await page.addScriptTag({url:'https://operations.test/libraries/guided-experiences/guided-experiences.js'});
+      await page.addScriptTag({url:'https://operations.test/libraries/guided-experiences/guided-setup.js'});
+      page.evaluate(()=>FirstMateGuides.play('ops.back')).catch(()=>{});
+      await page.waitForSelector('.gxs-step:not(.gxs-above) [data-path=scope]');
+      const tiles=await page.evaluate(()=>[...document.querySelectorAll('.gxs-step:not(.gxs-above) .ops-choice')].map(el=>({rect:el.getBoundingClientRect(),height:el.offsetHeight})).map(({rect,height})=>({top:rect.top,left:rect.left,right:rect.right,height})));
+      assert.equal(tiles.length,2);
+      assert.ok(tiles.every(tile=>tile.height>=minimum-0.5),`${width}px: both tiles at least ${minimum}px tall (${JSON.stringify(tiles)})`);
+      assert.ok(Math.abs(tiles[0].top-tiles[1].top)<1&&tiles[0].right<=tiles[1].left,`${width}px: the tiles sit side by side (${JSON.stringify(tiles)})`);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+      const depth=()=>page.evaluate(()=>depths.at(-1));
+      const onPath=()=>page.waitForSelector('.gxs-step:not(.gxs-above) [data-path=scope]');
+      // Previous on the workflow's first step goes back to the choice.
+      await page.click('[data-path=scope]');
+      await page.waitForSelector('.gxs-step:not(.gxs-above) [data-fmdw-piece-type=roof_replacement]');
+      assert.equal(await page.locator('.gxs-step:not(.gxs-above) [data-fmdw-back]').isVisible(),true,`${width}px: the first workflow step has Previous`);
+      assert.equal(await depth(),2,'one entry for the choice behind the workflow, one that leaves');
+      await page.click('.gxs-step:not(.gxs-above) [data-fmdw-back]');
+      await onPath();
+      assert.equal(await depth(),1);
+      // The phone's back walks the workflow's own step first, then goes back to the choice.
+      await page.click('[data-path=scope]');
+      await page.waitForSelector('.gxs-step:not(.gxs-above) [data-fmdw-piece-type=roof_replacement]');
+      await page.locator('.gxs-step:not(.gxs-above) [data-fmdw-piece-type=roof_replacement]').click();
+      await page.locator('.gxs-step:not(.gxs-above) [data-fmdw-continue]').click();
+      await page.waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) .fmdw-field-label')?.textContent.trim()==='Notes');
+      await page.waitForFunction(()=>depths.at(-1)===3);
+      await page.evaluate(()=>pressBack(1));
+      await page.waitForSelector('.gxs-step:not(.gxs-above) [data-fmdw-piece-type=roof_replacement]');
+      assert.equal(await depth(),2,'back to the workflow\'s first step');
+      await page.evaluate(()=>pressBack(1));
+      await onPath();
+      assert.equal(await depth(),1,'back to the choice');
+      await page.close();
+    }
+  }finally{await browser.close();}
+});

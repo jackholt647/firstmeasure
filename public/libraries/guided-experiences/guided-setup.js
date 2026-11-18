@@ -246,9 +246,10 @@
       document.body.appendChild(host);
       const releasePage = G()?.holdPage ? G().holdPage(host) : () => {};
       // The phone's back control is the sheet's Back (FM-554): one history entry per step behind the one on screen, and
-      // one more that leaves the first step. Back on the finish closes it, as the X does.
+      // one more that leaves the first step. Back on the finish closes it, as the X does. A step with steps of its own
+      // (the Operations workflow) adds one per step of its own behind the one it shows (`backDepth`, FM-604).
       const backHistory = root.Portal?.navigation?.steps?.({ onBack: (count) => { for (let n = 0; n < count && !closed; n += 1) pressBack(); syncBack(); } }) || null;
-      const syncBack = () => backHistory?.depth(closed || (finished && !doneWaiter) ? 0 : doneWaiter ? (bookPane ? 2 : 1) : (visited.length || index) + 1);
+      const syncBack = () => backHistory?.depth(closed || (finished && !doneWaiter) ? 0 : doneWaiter ? (bookPane ? 2 : 1) : (visited.length || index) + 1 + Math.max(0, Number(mounted?.backDepth?.()) || 0));
       const $ = (selector) => host.querySelector(selector);
       const stage = $('.gxs-stage'), status = $('.gxs-status'), chat = $('.gxs-chat');
       /**
@@ -453,6 +454,9 @@
         if (global && !answers[step.id]) answers[step.id] = {};
         mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, answer: global ? answers[step.id] : null, L, H, esc, money, where:here, orgId, read: readData, actions: el.querySelector('.gxs-title-actions'), priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant ? laborPaySheet : null,
           advance:()=>next(false), complete:completeDirectly,
+          // A step that hides the sheet's footer (handlesNavigation) has its own Back: to the step before this one; and
+          // says when its own steps change, so the phone's back walks them first (FM-604).
+          back(){ if (currentPane === el && !closed && !busy && (visited.length || index > 0)) back(); }, syncBack(){ if (currentPane === el) syncBack(); },
           // The step names what is on screen now (plain text); empty goes back to the step's own title.
           setTitle(text){ if (currentPane !== el || closed) return; const value = clean(text); if (value) setHeadTitle(esc(value)); else setHeadTitle(H(step.title), infoHtml(step)); }, checkpoint:()=>track('step_view',{step_id:step.id,selections}), restart(){visited.length=0;show(0,-1);},
           async runGuide(id,options={}){ if(!options.keepVisible){host.hidden=true;host.inert=true;}try{return await ctx.playChild?.(id,options);}finally{if(!closed){host.hidden=false;host.inert=false;}} },
@@ -672,6 +676,7 @@
         else if (doneWaiter && bookPane) showPricebook(false);
         else if (doneWaiter) { const go = doneWaiter; doneWaiter = null; go(); }
         else if (busy || mounted?.escape?.() === true) return;
+        else if (mounted?.back?.() === true) return;
         else if (visited.length || index > 0) back();
         else confirmSkip();
       }
@@ -811,10 +816,10 @@
     render(el,ctx){
       let disposed=false, handle=null;
       el.textContent=L('gx_operations_loading','Opening Operations…');
-      import(new URL('./operations-setup.js?v=20261116-phone-title',scriptUrl).href).then(module=>{
+      import(new URL('./operations-setup.js?v=20261118-fm604',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mountWidget(id,el,ctx);
       }).catch(error=>{if(!disposed)el.textContent=error?.message||L('gx_operations_load_error','Could not open this step. Close and try again.');});
-      return {valid:()=>handle?.valid?.()!==false,destroy(){disposed=true;handle?.destroy?.();}};
+      return {valid:()=>handle?.valid?.()!==false,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
     }
   });
   // The Communications setup (FM-491, FM-510): one step with its own pages (start, done, plan); registration opens over it.
