@@ -457,10 +457,88 @@
     back.className = 'fmdx-modal-back';
     back.innerHTML = `<div class="fmdx-modal ${String(esc(options.className || ''))}" role="dialog" aria-modal="true">${String(contentHtml)}<button type="button" class="fmdx-modal-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("documents","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>`;
     const close = () => { back.remove(); options.onClose?.(); };
-    back.querySelector('.fmdx-modal-close').addEventListener('click', close);
-    back.addEventListener('mousedown', (event) => { if (event.target === back && options.dismissable !== false) close(); });
+    const tray = options.tray && isPhone() ? phoneTray(back, back.querySelector('.fmdx-modal'), close) : null;
+    const dismiss = tray ? tray.dismiss : close;
+    back.querySelector('.fmdx-modal-close').addEventListener('click', dismiss);
+    back.addEventListener('mousedown', (event) => { if (event.target === back && options.dismissable !== false) dismiss(); });
     document.body.appendChild(back);
-    return { el: back, body: back.querySelector('.fmdx-modal'), close };
+    // shape(tray, change): a tray dialog runs change() as a tray (true) or full screen (false); elsewhere it just runs it.
+    // away(): a tray steps out of the way of what opens behind it; it returns a call that brings it back.
+    return { el: back, body: back.querySelector('.fmdx-modal'), close, shape: tray ? tray.shape : (on, change) => change?.(), away: tray?.away };
+  }
+  /**
+   * A phone tray (openModal's options.tray, FM-570): the dialog rises from the
+   * bottom, as tall as what it shows, up to the platform's phone sheet (the
+   * window manager's mobileSheet leaves the top max(56px, 12%) of the page in
+   * view). shape(false) grows it to fill the screen and shape(true) brings it
+   * back to a tray; the height change is animated from where it was. Dragging
+   * its top down or tapping the page above it puts it away.
+   */
+  function phoneTray(back, sheet, close){
+    const still = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    back.classList.add('fmdx-tray-back');
+    sheet.classList.add('fmdx-tray');
+    let resizing = null;
+    function shape(tray, change){
+      const from = sheet.getBoundingClientRect().height;
+      resizing?.cancel();
+      sheet.classList.toggle('fmdx-tray-full', !tray);
+      change?.();
+      if (!sheet.isConnected || still() || typeof sheet.animate !== 'function') return;
+      const to = sheet.getBoundingClientRect().height;
+      if (!from || Math.abs(from - to) < 2) return;
+      resizing = sheet.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      resizing.onfinish = resizing.oncancel = () => { resizing = null; };
+    }
+    let leaving = false;
+    function dismiss(){
+      if (leaving) return;
+      leaving = true;
+      if (still() || typeof sheet.animate !== 'function') { close(); return; }
+      const now = getComputedStyle(sheet).transform;
+      sheet.animate([{ transform: now === 'none' ? 'translateY(0)' : now }, { transform: 'translateY(100%)' }], { duration: 220, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' });
+      back.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: 'forwards' }).onfinish = close;
+    }
+    // What the person picked opens behind the tray (the document's opening screen): it grows into it as it fades.
+    function away(){
+      shape(false);
+      const hide = () => { back.style.display = 'none'; };
+      if (still() || typeof back.animate !== 'function') { hide(); return () => {}; }
+      const fade = back.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 280, easing: 'ease-in' });
+      fade.onfinish = hide;
+      return () => { fade.onfinish = null; fade.cancel(); };
+    }
+    // Only a tray drags: full screen, its steps have their own Back.
+    sheet.addEventListener('pointerdown', (event) => {
+      if (leaving || sheet.classList.contains('fmdx-tray-full') || (event.button || 0) !== 0) return;
+      if (event.target.closest('button,input,a,select,textarea,label')) return;
+      if (event.clientY - sheet.getBoundingClientRect().top > 64) return;
+      const startY = event.clientY;
+      let lastY = startY;
+      let lastAt = event.timeStamp;
+      let speed = 0;
+      const move = (next) => {
+        const dy = Math.max(0, next.clientY - startY);
+        speed = (next.clientY - lastY) / Math.max(1, next.timeStamp - lastAt);
+        lastY = next.clientY;
+        lastAt = next.timeStamp;
+        sheet.style.transition = 'none';
+        sheet.style.transform = dy ? `translateY(${dy}px)` : '';
+      };
+      const end = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', end);
+        window.removeEventListener('pointercancel', end);
+        const dy = Math.max(0, lastY - startY);
+        if (dy > Math.min(120, sheet.offsetHeight / 3) || (dy > 24 && speed > 0.5)) { dismiss(); return; }
+        sheet.style.transition = 'transform .2s cubic-bezier(.2,.8,.2,1)';
+        sheet.style.transform = '';
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', end);
+      window.addEventListener('pointercancel', end);
+    });
+    return { shape, dismiss, away };
   }
 
   // Anchored dropdown menu (theme picker, snapshot history).
@@ -2518,7 +2596,8 @@
           }
         };
       } else {
-        modal = openModal(contentHtml, { onClose, className: 'fmdx-create-modal' });
+        // On a phone the first step is a tray; picking a template grows it to full screen (FM-570).
+        modal = openModal(contentHtml, { onClose, className: 'fmdx-create-modal', tray: true });
       }
       if (ret) {
         // The wizard's own closes (the X and the scrim call onClose directly) all hand the person on.
@@ -2635,6 +2714,9 @@
       }
 
       function renderStepOne(){
+        modal.shape?.(true, drawStepOne);
+      }
+      function drawStepOne(){
         const types = [...liveTypes().map(typeView), OTHER];
         const query = picker.query.trim().toLowerCase();
         const matches = (tpl) => !query || [tpl.name, tpl.description, viewOf(tpl).label].some((value) => cleanText(value).toLowerCase().includes(query));
@@ -2653,6 +2735,8 @@
         // always shows its results.
         const foldable = isPhone() && !query && pinned.length > 0;
         const folded = foldable && !picker.libraryOpen;
+        // A tray stays at its full height while it searches or shows the library, so the search box does not move as it types.
+        modal.body.classList.toggle('fmdx-tray-tall', !!query || !folded);
         const deptChips = departments().length > 1 ? `
           <div class="fmdx-fchips" role="group" aria-label="${esc(state.departmentContext.departments_label || 'Departments')}">
             ${departments().map((entry) => `<button type="button" class="fmdx-fchip ${selectedDepartments().has(entry.id) ? 'on' : ''}" data-pick-department="${esc(entry.id)}" aria-pressed="${selectedDepartments().has(entry.id)}">${esc(entry.label)}</button>`).join('')}
@@ -2794,7 +2878,7 @@
             }
           });
         };
-        draw();
+        modal.shape?.(false, draw);
       }
 
       /** Start the chosen document: paper intake, its workflow, or the inputs form. */
@@ -2818,12 +2902,14 @@
           body.querySelectorAll('button').forEach((entry) => { entry.disabled = true; });
           if (button) button.classList.add('busy');
           const opening = options.inlineHost ? null : showOpeningScreen(firstText(prefill.title, wizard.template?.name, typeMeta(wizard.type, catalog.types).label));
-          if (opening) modal.el.style.display = 'none';
+          let stepBack = null;
+          if (opening && modal.away) stepBack = modal.away();
+          else if (opening) modal.el.style.display = 'none';
           const started = await tryWorkflowFirstCreate(workflowHint);
           proceeding = false;
           if (started || !modal.el.isConnected) return;
           // Nothing was created: back to the dialog, on its details form.
-          if (opening) { opening.cancel(); modal.el.style.display = ''; }
+          if (opening) { opening.cancel(); stepBack?.(); modal.el.style.display = ''; }
           body.querySelectorAll('button').forEach((entry) => { entry.disabled = false; });
           if (button) { button.classList.remove('busy'); button.innerHTML = label; }
         }
@@ -2893,7 +2979,7 @@
       }
 
       async function renderStepTwo(){
-        body.innerHTML = '<div class="fmdx-state" style="min-height:140px"><div class="fmdx-spinner"></div></div>';
+        modal.shape?.(false, () => { body.innerHTML = '<div class="fmdx-state" style="min-height:140px"><div class="fmdx-spinner"></div></div>'; });
         const meta = typeMeta(wizard.type, catalog.types);
         const catalogType = arrayValue(catalog.types).find((t) => firstText(t.id, t.type) === wizard.type) || {};
         const templateDef = wizard.template ? await templateDefinition(wizard.template) : null;
