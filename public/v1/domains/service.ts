@@ -1,4 +1,4 @@
-import { createCipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { resolveTxt } from "node:dns/promises";
 
 import { conflict, notFound } from "../platform/errors.js";
@@ -42,22 +42,17 @@ function normalizedPrice(value: unknown) {
   return parsed.toFixed(2);
 }
 
-function retailPrice(...costs: unknown[]) {
-  const cost = costs.reduce<number>((sum, value) => {
-    const parsed = amount(value);
-    if (!Number.isFinite(parsed)) throw conflict("domain_price_invalid", "A domain price component is invalid.");
-    return sum + parsed;
-  }, 0);
-  return (Math.round(cost * Math.max(1, env.domainsRetailMarkupMultiplier) * 100) / 100).toFixed(2);
-}
-
-function totalPrice(...values: unknown[]) {
-  const total = values.reduce<number>((sum, value) => {
-    const parsed = amount(value);
-    if (!Number.isFinite(parsed)) throw conflict("domain_price_invalid", "A domain price component is invalid.");
-    return sum + parsed;
-  }, 0);
-  return total.toFixed(2);
+/**
+ * What a customer pays for a year of a domain (FM-590): the registry's price times the markup
+ * (`DOMAINS_RETAIL_MARKUP_MULTIPLIER`, 1.5), rounded up to the next $5 (`DOMAINS_RETAIL_ROUNDING_USD`).
+ * A $14 registry price is $25. WHOIS privacy is free to the customer: its registry fee is ours.
+ */
+export function customerDomainPrice(cost: unknown) {
+  const parsed = amount(cost);
+  if (!Number.isFinite(parsed) || parsed < 0) throw conflict("domain_price_invalid", "A domain price component is invalid.");
+  const marked = Math.round(parsed * Math.max(1, env.domainsRetailMarkupMultiplier) * 100) / 100;
+  const step = Math.max(0.01, env.domainsRetailRoundingUsd);
+  return (Math.ceil(marked / step - 1e-9) * step).toFixed(2);
 }
 
 function verificationReminderAvailableAt(from = Date.now()) {
@@ -71,7 +66,7 @@ function encryptionKey() {
   return createHash("sha256").update(env.domainsEncryptionKey).digest();
 }
 
-function encryptSecret(value: string) {
+export function encryptSecret(value: string) {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
   const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
@@ -81,6 +76,13 @@ function encryptSecret(value: string) {
     tag: cipher.getAuthTag().toString("base64url"),
     ciphertext: ciphertext.toString("base64url")
   };
+}
+
+export function decryptSecret(value: unknown) {
+  const sealed = asObject(value);
+  const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(cleanText(sealed.iv), "base64url"));
+  decipher.setAuthTag(Buffer.from(cleanText(sealed.tag), "base64url"));
+  return Buffer.concat([decipher.update(Buffer.from(cleanText(sealed.ciphertext), "base64url")), decipher.final()]).toString("utf8");
 }
 
 function registrantCredentials(orgId: string, domain: string) {
@@ -107,6 +109,7 @@ function publicRegistration(value: JsonObject) {
   delete next.provider_cost;
   delete next.provider_registration_cost;
   delete next.provider_privacy_cost;
+  delete next.provider_renewal_cost;
   delete next.auth_code_encrypted;
   return next;
 }
@@ -120,11 +123,17 @@ function publicQuote(value: JsonObject) {
     delete item.provider_cost;
     delete item.provider_registration_cost;
     delete item.provider_privacy_cost;
+    delete item.provider_renewal_cost;
     delete item.registration_price;
-    delete item.privacy_price;
     return item;
   });
   return quote;
+}
+
+/** Whether domain purchases can be charged here (the same Stripe account and test-key rule as platform billing). */
+export function domainBillingConfigured() {
+  const secret = env.stripeSecretKey || (env.stripeTestMode ? env.stripeTestSecretKey : env.stripeLiveSecretKey);
+  return Boolean(secret) && (env.dataEnvironment === "production" || (env.stripeTestMode && secret.startsWith("sk_test_")));
 }
 
 export function domainsConfiguration() {
@@ -141,12 +150,14 @@ export function domainsConfiguration() {
     privacy_required: true,
     auto_renew_required: true,
     lock_required: true,
-    billing_enabled: false,
+    // FM-590: buying a domain is paid through Stripe Checkout, its renewals by a yearly subscription.
+    billing_enabled: domainBillingConfigured(),
+    privacy_price: "0.00",
     supported_acquisition_types: ["register", "transfer", "existing"]
   };
 }
 
-export async function quoteDomains(orgId: string, domains: string[], period: number, acquisitionType: "register" | "transfer" = "register") {
+export async function quoteDomains(orgId: string, domains: string[], _period: number, acquisitionType: "register" | "transfer" = "register") {
   const client = createOpenSrsClient();
   const unique = [...new Set(domains.map((domain) => domain.toLowerCase()))];
   const items = [];
@@ -162,16 +173,20 @@ export async function quoteDomains(orgId: string, domains: string[], period: num
       });
       continue;
     }
-    const price = await client.getPrice(domain, acquisitionType === "transfer" ? 1 : period, acquisitionType === "transfer" ? "transfer" : "new");
-    const registrationPrice = normalizedPrice(price.price);
-    const privacyPrice = totalPrice(...Array.from({ length: acquisitionType === "transfer" ? 1 : period }, () => env.openSrsPrivacyPriceUsd));
+    // A purchase is one year, renewed yearly by its subscription (FM-590), so every quote is for one year.
+    const price = await client.getPrice(domain, 1, acquisitionType === "transfer" ? "transfer" : "new");
+    const registrationCost = normalizedPrice(price.price);
+    const renewalCost = acquisitionType === "register" ? await renewalCostOf(client, domain, registrationCost) : registrationCost;
     items.push({
       domain,
       available: true,
       status: lookup?.status || "transferable",
-      price: retailPrice(registrationPrice, privacyPrice),
-      provider_registration_cost: registrationPrice,
-      provider_privacy_cost: privacyPrice,
+      price: customerDomainPrice(registrationCost),
+      renewal_price: customerDomainPrice(renewalCost),
+      privacy_price: "0.00",
+      provider_registration_cost: registrationCost,
+      provider_renewal_cost: renewalCost,
+      provider_privacy_cost: normalizedPrice(env.openSrsPrivacyPriceUsd),
       currency: "USD",
       premium: Boolean(lookup?.premium || price.premium),
       premium_group: price.premiumGroup
@@ -182,13 +197,23 @@ export async function quoteDomains(orgId: string, domains: string[], period: num
     id: newQuoteId(),
     provider: "opensrs",
     environment: client.environment,
-    period: acquisitionType === "transfer" ? 1 : period,
+    period: 1,
     acquisition_type: acquisitionType,
     items,
     created_at: now.toISOString(),
-    expires_at: new Date(now.getTime() + 10 * 60_000).toISOString()
+    // Long enough to fill a cart and the registrant details; checkout prices every domain again anyway.
+    expires_at: new Date(now.getTime() + 30 * 60_000).toISOString()
   });
   return publicQuote(quote);
+}
+
+/** The registry's price for a year's renewal; when it has none, the new-registration price. */
+async function renewalCostOf(client: ReturnType<typeof createOpenSrsClient>, domain: string, fallback: string) {
+  try {
+    return normalizedPrice((await client.getPrice(domain, 1, "renewal")).price);
+  } catch {
+    return fallback;
+  }
 }
 
 function contactForOpenSrs(contact: DomainContact): OpenSrsRecord {
@@ -207,36 +232,38 @@ function contactForOpenSrs(contact: DomainContact): OpenSrsRecord {
   };
 }
 
-export async function registerQuotedDomain(input: {
+/** A domain priced again right now: still available, and what it costs today (checkout, FM-590). */
+export async function freshDomainPrice(domain: string) {
+  const client = createOpenSrsClient();
+  const lookup = await client.lookup(domain);
+  if (!lookup.available) throw conflict("domain_no_longer_available", `${domain} is no longer available.`, { domain });
+  const price = await client.getPrice(domain, 1, "new");
+  const registrationCost = normalizedPrice(price.price);
+  const renewalCost = await renewalCostOf(client, domain, registrationCost);
+  return {
+    environment: client.environment,
+    premium: lookup.premium || price.premium,
+    price: customerDomainPrice(registrationCost),
+    renewal_price: customerDomainPrice(renewalCost),
+    provider_registration_cost: registrationCost,
+    provider_renewal_cost: renewalCost,
+    provider_privacy_cost: normalizedPrice(env.openSrsPrivacyPriceUsd)
+  };
+}
+
+/**
+ * Registers a domain the customer has paid for (domains/checkout.ts, FM-590): one year, auto-renew, lock and privacy on.
+ * The domain is the idempotency key: a registration already made is returned, an ambiguous one is reconciled first.
+ */
+export async function registerPaidDomain(input: {
   orgId: string;
-  quoteId: string;
   domain: string;
   contact: DomainContact;
-  acceptPrice: string;
-  allowPremium: boolean;
+  pricing: { price: string; renewal_price: string; provider_registration_cost: string; provider_renewal_cost: string; provider_privacy_cost: string; premium: boolean };
+  billing: JsonObject;
+  checkoutId: string;
   actorUserId: string;
 }) {
-  const quote = await readQuote(input.orgId, input.quoteId);
-  if (!quote) throw notFound("domain_quote_not_found", "The domain quote was not found.");
-  if (Date.parse(cleanText(quote.expires_at)) <= Date.now()) throw conflict("domain_quote_expired", "The domain quote has expired. Request a new quote.");
-  if (cleanText(quote.environment) !== env.domainsDeliveryMode) {
-    throw conflict("domain_environment_changed", "The domain service mode changed after this quote was created. Request a new quote.");
-  }
-  if (cleanText(quote.acquisition_type || "register") !== "register") {
-    throw conflict("domain_quote_wrong_type", "This quote cannot be used for a new registration.");
-  }
-  const item = (Array.isArray(quote.items) ? quote.items : [])
-    .map(asObject)
-    .find((candidate) => cleanText(candidate.domain) === input.domain);
-  if (!item || item.available !== true) throw conflict("domain_not_quoted_available", "The selected domain was not quoted as available.");
-  const quotedPrice = normalizedPrice(item.price);
-  const quotedRegistrationPrice = normalizedPrice(item.provider_registration_cost);
-  if (normalizedPrice(input.acceptPrice) !== quotedPrice) throw conflict("domain_price_not_accepted", "The accepted price does not match the quote.");
-  if (item.premium === true && !input.allowPremium) throw conflict("premium_domain_confirmation_required", "Premium domains require explicit confirmation.");
-  if (item.premium !== true && amount(quotedRegistrationPrice) > amount(env.openSrsMaxStandardRegistrationPriceUsd)) {
-    throw conflict("domain_price_limit_exceeded", "The quoted domain price exceeds the configured standard-domain safety limit.");
-  }
-
   const prior = await readRegistration(input.orgId, input.domain);
   if (prior && ["active", "ready_to_connect", "verification_pending"].includes(cleanText(prior.status))) return { registration: publicRegistration(prior), idempotent_replay: true };
   if (prior && cleanText(prior.status) === "outcome_unknown") {
@@ -253,55 +280,49 @@ export async function registerQuotedDomain(input: {
     return { registration: publicRegistration(reconciled), idempotent_replay: true, reconciled: true };
   }
   if (prior && cleanText(prior.status) === "pending") throw conflict("domain_registration_in_progress", "This domain registration is already in progress.");
+  if (!input.pricing.premium && amount(input.pricing.provider_registration_cost) > amount(env.openSrsMaxStandardRegistrationPriceUsd)) {
+    throw conflict("domain_price_limit_exceeded", "The quoted domain price exceeds the configured standard-domain safety limit.");
+  }
 
   const client = createOpenSrsClient();
-  const freshLookup = await client.lookup(input.domain);
-  if (!freshLookup.available) throw conflict("domain_no_longer_available", "The domain is no longer available.", freshLookup);
-  const freshPrice = await client.getPrice(input.domain, Number(quote.period || 1));
-  const currentRegistrationPrice = normalizedPrice(freshPrice.price);
-  const currentPrivacyPrice = totalPrice(...Array.from({ length: Number(quote.period || 1) }, () => env.openSrsPrivacyPriceUsd));
-  const currentPrice = retailPrice(currentRegistrationPrice, currentPrivacyPrice);
-  if (currentRegistrationPrice !== quotedRegistrationPrice || currentPrice !== quotedPrice) {
-    throw conflict("domain_price_changed", "The domain price changed. Request and accept a new quote.", {
-      quoted_price: quotedPrice,
-      current_price: currentPrice,
-      currency: "USD"
-    });
-  }
-  const premium = freshLookup.premium || freshPrice.premium;
-  if (premium && !input.allowPremium) throw conflict("premium_domain_confirmation_required", "The domain is premium and requires explicit confirmation.");
+  const common = {
+    acquisition_type: "register",
+    provider: "opensrs",
+    environment: client.environment,
+    checkout_id: input.checkoutId,
+    period: 1,
+    price: input.pricing.price,
+    renewal_price: input.pricing.renewal_price,
+    privacy_price: "0.00",
+    provider_registration_cost: input.pricing.provider_registration_cost,
+    provider_renewal_cost: input.pricing.provider_renewal_cost,
+    provider_privacy_cost: input.pricing.provider_privacy_cost,
+    currency: "USD",
+    ...input.billing,
+    premium: input.pricing.premium,
+    privacy_enabled: true,
+    auto_renew: true,
+    locked: true,
+    actor_user_id: input.actorUserId
+  };
 
   if (env.domainsOrderTestMode) {
     const timestamp = new Date().toISOString();
     const simulated = await saveRegistration(input.orgId, input.domain, {
-      acquisition_type: "register",
-      provider: "opensrs",
-      environment: client.environment,
+      ...common,
       status: "verification_pending",
       simulated: true,
       test_mode: true,
       registrant_verification_status: "pending",
       verification_reminder_available_at: verificationReminderAvailableAt(),
-      quote_id: input.quoteId,
-      period: quote.period,
-      price: currentPrice,
-      provider_registration_cost: currentRegistrationPrice,
-      provider_privacy_cost: currentPrivacyPrice,
-      currency: "USD",
-      billing_status: "simulated",
-      billing_collected: false,
-      premium,
-      privacy_enabled: true,
-      auto_renew: true,
-      locked: true,
-      actor_user_id: input.actorUserId,
       submitted_at: timestamp,
       registered_at: timestamp,
+      expires_at: oneYearFrom(timestamp),
       verification: { method: "simulated_registrant", test_mode: true }
     });
     await recordDomainEvent(input.orgId, "domain.registration.simulated", {
       domain: input.domain,
-      quote_id: input.quoteId,
+      checkout_id: input.checkoutId,
       actor_user_id: input.actorUserId,
       environment: client.environment
     });
@@ -310,49 +331,34 @@ export async function registerQuotedDomain(input: {
 
   const credentials = registrantCredentials(input.orgId, input.domain);
   const pending = await saveRegistration(input.orgId, input.domain, {
-    provider: "opensrs",
-    environment: client.environment,
+    ...common,
     status: "pending",
-    quote_id: input.quoteId,
-    period: quote.period,
-    price: currentPrice,
-    provider_registration_cost: currentRegistrationPrice,
-    provider_privacy_cost: currentPrivacyPrice,
-    currency: "USD",
-    billing_status: "deferred",
-    billing_collected: false,
-    premium,
-    privacy_enabled: true,
-    auto_renew: true,
-    locked: true,
     registrant_contact_encrypted: encryptSecret(JSON.stringify(input.contact)),
     registrant_credentials: {
       username: credentials.username,
       password: encryptSecret(credentials.password)
     },
-    actor_user_id: input.actorUserId,
     submitted_at: new Date().toISOString()
   });
   await recordDomainEvent(input.orgId, "domain.registration.started", {
     domain: input.domain,
-    quote_id: input.quoteId,
+    checkout_id: input.checkoutId,
     actor_user_id: input.actorUserId,
-    price: currentPrice,
+    price: input.pricing.price,
     currency: "USD",
-    billing_status: "deferred",
-    billing_collected: false,
     environment: client.environment
   });
 
   try {
     const response = await client.register({
       domain: input.domain,
-      period: Number(quote.period || 1),
+      period: 1,
       registrantUsername: credentials.username,
       registrantPassword: credentials.password,
       contact: contactForOpenSrs(input.contact),
-      premiumPrice: premium ? currentRegistrationPrice : undefined
+      premiumPrice: input.pricing.premium ? input.pricing.provider_registration_cost : undefined
     });
+    const registeredAt = new Date().toISOString();
     const saved = await saveRegistration(input.orgId, input.domain, {
       ...pending,
       status: "verification_pending",
@@ -363,7 +369,8 @@ export async function registerQuotedDomain(input: {
       privacy_state: response.privacyState || "enabled",
       registrant_verification_status: "pending",
       verification_reminder_available_at: verificationReminderAvailableAt(),
-      registered_at: new Date().toISOString()
+      registered_at: registeredAt,
+      expires_at: oneYearFrom(registeredAt)
     });
     await recordDomainEvent(input.orgId, "domain.registration.succeeded", {
       domain: input.domain,
@@ -386,6 +393,7 @@ export async function registerQuotedDomain(input: {
     });
     await recordDomainEvent(input.orgId, `domain.registration.${status}`, {
       domain: input.domain,
+      checkout_id: input.checkoutId,
       actor_user_id: input.actorUserId,
       response_code: providerError?.responseCode || ""
     });
@@ -394,6 +402,26 @@ export async function registerQuotedDomain(input: {
     }
     throw error;
   }
+}
+
+function oneYearFrom(iso: string) {
+  const date = new Date(iso);
+  date.setUTCFullYear(date.getUTCFullYear() + 1);
+  return date.toISOString();
+}
+
+/** A saved registration with fields merged in, for the checkout and its renewals (domains/checkout.ts). */
+export async function patchRegistration(orgId: string, domain: string, patch: JsonObject) {
+  const current = await readRegistration(orgId, domain);
+  if (!current) throw notFound("domain_not_found", "The domain was not found.");
+  return publicRegistration(await saveRegistration(orgId, domain, { ...current, ...patch }));
+}
+
+/** Turns the registrar's own auto-renew on or off; a test-mode registration only records it. */
+export async function setRegistrarAutoRenew(domain: string, enabled: boolean) {
+  if (env.domainsOrderTestMode) return { simulated: true };
+  await createOpenSrsClient().setAutoRenew(domain, enabled);
+  return { simulated: false };
 }
 
 export async function organizationDomains(orgId: string) {
@@ -429,6 +457,11 @@ export async function updateDomainManagement(input: {
   const current = await readRegistration(input.orgId, input.domain);
   if (!current) throw notFound("domain_not_found", "The domain was not found.");
   ensureRegistrarManaged(current);
+  // A bought domain renews through its own subscription (FM-590): stop or resume that first, so the registrar never
+  // renews a domain whose renewal isn't being paid.
+  const subscription = input.autoRenew !== undefined && input.autoRenew !== current.auto_renew && cleanText(asObject(current.subscription).subscription_id)
+    ? await (await import("./checkout.js")).setDomainSubscriptionRenewal(current, input.autoRenew)
+    : null;
   const client = createOpenSrsClient();
   if (!env.domainsOrderTestMode) {
     if (input.autoRenew !== undefined && input.autoRenew !== current.auto_renew) {
@@ -442,6 +475,7 @@ export async function updateDomainManagement(input: {
   const saved = await saveRegistration(input.orgId, input.domain, {
     ...current,
     ...(input.autoRenew === undefined ? {} : { auto_renew: input.autoRenew }),
+    ...(subscription ? { subscription } : {}),
     ...(input.locked === undefined ? {} : { locked: input.locked }),
     ...(input.nameservers ? { nameservers: [...new Set(input.nameservers)] } : {}),
     management_simulated: env.domainsOrderTestMode,
@@ -559,7 +593,7 @@ export async function transferQuotedDomain(input: {
   const fresh = await client.getPrice(input.domain, 1, "transfer");
   const providerRegistrationCost = normalizedPrice(fresh.price);
   const providerPrivacyCost = normalizedPrice(env.openSrsPrivacyPriceUsd);
-  const currentPrice = retailPrice(providerRegistrationCost, providerPrivacyCost);
+  const currentPrice = customerDomainPrice(providerRegistrationCost);
   if (currentPrice !== quotedPrice) {
     throw conflict("domain_price_changed", "The transfer price changed. Request and accept a new quote.", {
       quoted_price: quotedPrice,

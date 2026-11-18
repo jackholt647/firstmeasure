@@ -4,6 +4,13 @@
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const clean = (value) => String(value ?? '').trim();
   const money = (value) => Number(value || 0).toLocaleString(undefined, { style:'currency', currency:'USD' });
+  const cents = (value) => Math.round(Number(value || 0) * 100);
+  // What someone typed into the search: a full domain, or a name to try on the common endings (FM-590).
+  const searchNames = (value) => {
+    const name = String(value ?? '').trim().toLowerCase().replace(/^[a-z]+:\/\//, '').replace(/^www\./, '').split(/[\/?#]/)[0].replace(/\s+/g, '');
+    if (!name) return [];
+    return name.includes('.') ? [name] : ['com', 'net', 'co'].map((ending) => `${name}.${ending}`);
+  };
   const obj = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const first = (...values) => {
     for (const value of values) {
@@ -24,6 +31,9 @@
       .dm-required{margin-left:5px;color:#b42318;font-size:8px;font-style:normal;font-weight:950;text-transform:uppercase}.dm-field.invalid .dm-input{border-color:#f04438;background:#fffafa}.dm-field-error{color:#b42318;font-size:9px;font-weight:800}.dm-error-panel{display:flex;align-items:flex-start;gap:9px;margin:0 0 16px;border:1px solid #fecdca;border-radius:10px;background:#fef3f2;padding:11px 12px;color:#912018;font-size:10px;font-weight:800;line-height:1.5}.dm-error-panel i{margin-top:2px}
       .dm-site-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.dm-site-tile{display:grid;align-content:start;gap:7px;min-height:120px;border:1.5px solid #e4e7ec;border-radius:12px;background:#fff;padding:14px;color:#344054;text-align:left;cursor:pointer}.dm-site-tile:hover,.dm-site-tile.selected{border-color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.035);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.07)}.dm-site-tile .icon{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#f2f4f7;color:var(--primary-readable,var(--primary,#d93025))}.dm-site-tile strong{font-size:12px}.dm-site-tile small{color:#667085;font-size:9px;line-height:1.4}.dm-email-builder{display:grid;grid-template-columns:minmax(120px,240px) auto;align-items:center;max-width:560px}.dm-email-builder .dm-input{border-radius:9px 0 0 9px}.dm-email-domain{display:flex;align-items:center;height:40px;border:1px solid #d0d5dd;border-left:0;border-radius:0 9px 9px 0;background:#f9fafb;padding:0 11px;color:#475467;font-size:11px;font-weight:900}
       .dm-records-card{grid-column:1/-1}.dm-records{width:100%;border-collapse:collapse;font-size:10px;table-layout:fixed}.dm-records th{padding:6px 8px;border-bottom:1px solid #e4e7ec;color:#667085;font-size:9px;font-weight:900;text-align:left;text-transform:uppercase}.dm-records td{padding:7px 8px;border-bottom:1px solid #f2f4f7;color:#344054;vertical-align:top;overflow-wrap:anywhere}.dm-records td code{font:600 10px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:#101828}.dm-records .dm-col-type{width:56px}.dm-records .dm-col-pri{width:64px}.dm-records .dm-col-status{width:96px}.dm-records-ns{display:grid;gap:4px;margin:0;padding:0;list-style:none}.dm-badge.found{background:#ecfdf3;color:#067647}.dm-badge.missing{background:#fffaeb;color:#93370d}.dm-badge.conflict{background:#fef3f2;color:#b42318}
+      .dm-search-row{grid-template-columns:minmax(0,1fr) auto}.dm-result{cursor:default}.dm-result-buy{display:flex;align-items:center;gap:10px}.dm-result-buy .dm-btn{min-height:34px;padding:6px 11px}.dm-result[aria-disabled]{opacity:.65}
+      .dm-cart{display:grid;gap:1px;border:1px solid #eaecf0;border-radius:11px;overflow:hidden;background:#eaecf0}.dm-cart-head{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f9fafb;padding:10px 12px;font-size:11px}.dm-cart-row{display:grid;grid-template-columns:minmax(0,1fr) auto 28px;align-items:center;gap:10px;background:#fff;padding:9px 12px;font-size:11px}.dm-cart-row>span:first-child{overflow-wrap:anywhere;font-weight:800}.dm-cart-total{font-size:12px}.dm-cart-remove{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:#667085;cursor:pointer}.dm-cart-remove:hover{background:#f2f4f7;color:#b42318}
+      @media(max-width:860px){.dm-search-row{grid-template-columns:minmax(0,1fr) auto}.dm-result{grid-template-columns:1fr}.dm-result-buy{justify-content:space-between}}
       @media(max-width:860px){.dm-site-grid{grid-template-columns:1fr}.dm-email-builder{grid-template-columns:minmax(100px,1fr) auto}}
     `;
     document.head.appendChild(style);
@@ -31,7 +41,10 @@
 
   const domainSteps = (path) => path === 'existing'
     ? [{id:'choose',label:(globalThis.PlatformLanguage?.text("settings","m_797ea31cc00ed3","Choose a path") ?? "Choose a path")},{id:'domain',label:(globalThis.PlatformLanguage?.text("settings","m_63d6dcd088fd76","Domain details") ?? "Domain details")},{id:'review',label:(globalThis.PlatformLanguage?.text("settings","m_b0bb1e74e2a6d3","Review") ?? "Review")},{id:'verify',label:(globalThis.PlatformLanguage?.text("settings","m_e49e0037c107f5","Verify ownership") ?? "Verify ownership")},{id:'resources',label:(globalThis.PlatformLanguage?.text("settings","m_87a25ad6dd9349","Website & email") ?? "Website & email")},{id:'done',label:(globalThis.PlatformLanguage?.text("settings","m_e8e493437c1a17","Complete") ?? "Complete")}]
-    : [{id:'choose',label:(globalThis.PlatformLanguage?.text("settings","m_797ea31cc00ed3","Choose a path") ?? "Choose a path")},{id:'domain',label:path === 'transfer' ? 'Transfer details' : 'Find a domain'},{id:'contact',label:(globalThis.PlatformLanguage?.text("settings","m_32daa8835c1999","Registrant details") ?? "Registrant details")},{id:'billing',label:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing")},{id:'review',label:(globalThis.PlatformLanguage?.text("settings","m_b0bb1e74e2a6d3","Review") ?? "Review")},{id:'verify',label:(globalThis.PlatformLanguage?.text("settings","m_731c0ec8f6eb3c","Verification") ?? "Verification")},{id:'resources',label:(globalThis.PlatformLanguage?.text("settings","m_87a25ad6dd9349","Website & email") ?? "Website & email")},{id:'done',label:(globalThis.PlatformLanguage?.text("settings","m_e8e493437c1a17","Complete") ?? "Complete")}];
+    : path === 'register'
+    // FM-590: search and fill a cart, registrant, then one checkout for the whole cart.
+    ? [{id:'choose',label:(globalThis.PlatformLanguage?.text("settings","m_797ea31cc00ed3","Choose a path") ?? "Choose a path")},{id:'domain',label:'Find domains'},{id:'contact',label:(globalThis.PlatformLanguage?.text("settings","m_32daa8835c1999","Registrant details") ?? "Registrant details")},{id:'checkout',label:'Checkout'},{id:'verify',label:(globalThis.PlatformLanguage?.text("settings","m_731c0ec8f6eb3c","Verification") ?? "Verification")},{id:'resources',label:(globalThis.PlatformLanguage?.text("settings","m_87a25ad6dd9349","Website & email") ?? "Website & email")},{id:'done',label:(globalThis.PlatformLanguage?.text("settings","m_e8e493437c1a17","Complete") ?? "Complete")}]
+    : [{id:'choose',label:(globalThis.PlatformLanguage?.text("settings","m_797ea31cc00ed3","Choose a path") ?? "Choose a path")},{id:'domain',label:'Transfer details'},{id:'contact',label:(globalThis.PlatformLanguage?.text("settings","m_32daa8835c1999","Registrant details") ?? "Registrant details")},{id:'billing',label:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing")},{id:'review',label:(globalThis.PlatformLanguage?.text("settings","m_b0bb1e74e2a6d3","Review") ?? "Review")},{id:'verify',label:(globalThis.PlatformLanguage?.text("settings","m_731c0ec8f6eb3c","Verification") ?? "Verification")},{id:'resources',label:(globalThis.PlatformLanguage?.text("settings","m_87a25ad6dd9349","Website & email") ?? "Website & email")},{id:'done',label:(globalThis.PlatformLanguage?.text("settings","m_e8e493437c1a17","Complete") ?? "Complete")}];
 
   function splitPersonName(user = {}){
     const profile = obj(user.profile || user.workforce_profile);
@@ -207,6 +220,10 @@
       domain: clean(options.domain).toLowerCase(),
       quote: null,
       item: null,
+      cart: [],
+      checkout: null,
+      purchased: [],
+      attested: false,
       contact: { ...obj(options.registrantDefaults) },
       authCode: '',
       registration: options.registration || null,
@@ -271,9 +288,10 @@
     function headerCopy(){
       return {
         choose:['Register a domain','Choose how you want to bring a domain into FirstMate.'],
-        domain:[state.path==='register'?'Find your domain':state.path==='transfer'?'Transfer your domain':'Connect your domain',state.path==='register'?'Search live availability and pricing.':state.path==='transfer'?'Enter the domain you already own and its transfer code.':'Verify a domain that will stay with its current provider.'],
+        domain:[state.path==='register'?'Find your domains':state.path==='transfer'?'Transfer your domain':'Connect your domain',state.path==='register'?'Search a name, add it to your cart, and buy every domain in it at once.':state.path==='transfer'?'Enter the domain you already own and its transfer code.':'Verify a domain that will stay with its current provider.'],
         contact:['Registrant information','Use accurate owner information so the domain remains in good standing.'],
         billing:['Billing','Review how payment will fit into this workflow.'],
+        checkout:['Checkout','One payment for every domain in your cart.'],
         review:['Review & confirm',state.path==='existing'?'Create the connection without moving the domain.':'Nothing is submitted until you confirm below.'],
         verify:['Verify the domain','Complete the required ownership or registrant verification.'],
         resources:forEmail?['Your email address','The name before the @.']:['Website & email','Choose the website and its default email address.'],
@@ -283,10 +301,11 @@
 
     function stepComplete(id){
       if (id === 'choose') return !!state.path;
-      if (id === 'domain') return state.path === 'register' ? !!state.item : /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(state.domain) && (state.path !== 'transfer' || !!state.authCode);
+      if (id === 'domain') return state.path === 'register' ? state.cart.length > 0 || state.purchased.length > 0 : /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(state.domain) && (state.path !== 'transfer' || !!state.authCode);
       if (id === 'contact') return ['first_name','last_name','address1','city','state','postal_code','country','phone','email'].every((key) => clean(state.contact[key]));
       if (id === 'billing') return state.visitedSteps.has('review') || !!state.registration;
       if (id === 'review') return !!state.registration;
+      if (id === 'checkout') return state.purchased.length > 0;
       if (id === 'verify') return !!(state.registration?.verified_at || state.registration?.status === 'ready_to_connect' || state.registration?.status === 'active');
       if (id === 'resources') return state.visitedSteps.has('done');
       return id === 'done' && state.step === 'done';
@@ -309,11 +328,38 @@
         <button class="dm-choice ${String(state.path==='transfer'?'selected':'')}" data-path="transfer"><span class="icon"><i class="fas fa-arrow-right-arrow-left"></i></span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_d7d9771f85e390","Transfer a domain") ?? "Transfer a domain")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_0f29ad8eda1299","Move a domain from another provider using its authorization code.") ?? "Move a domain from another provider using its authorization code.")}</span></button>
         <button class="dm-choice ${String(state.path==='existing'?'selected':'')}" data-path="existing"><span class="icon"><i class="fas fa-link"></i></span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_bbc1cdea0b61c7","Use an existing domain") ?? "Use an existing domain")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_90012b00013e8d","Keep it where it is and connect it to a FirstMate website with DNS.") ?? "Keep it where it is and connect it to a FirstMate website with DNS.")}</span></button>
       </div>`;
-      if (state.step === 'domain' && state.path === 'register') return `<div class="dm-stack">
-        <form class="dm-search-row" data-search><input class="dm-input" name="domain" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_992a2b48510215","yourcompany.com") ?? "yourcompany.com")}" value="${String(esc(state.domain))}" required><select class="dm-select" name="period"><option value="1">${(globalThis.PlatformLanguage?.htmlText("settings","m_4b231e0cddf70e","1 year") ?? "1 year")}</option><option value="2">${(globalThis.PlatformLanguage?.htmlText("settings","m_36823ec15426a4","2 years") ?? "2 years")}</option><option value="3">${(globalThis.PlatformLanguage?.htmlText("settings","m_2ddbc007deaf45","3 years") ?? "3 years")}</option></select><button class="dm-btn primary" type="submit"><i class="fas fa-magnifying-glass"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_df7ced82563784"," Search") ?? " Search")}</button></form>
-        <p class="dm-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_d2472bc3032884","Prices include private registration where available. Quotes remain valid for 10 minutes.") ?? "Prices include private registration where available. Quotes remain valid for 10 minutes.")}</p>
-        <div class="dm-results">${String(state.quote ? (state.quote.items||[]).map((item) => `<button type="button" class="dm-result ${state.item?.domain===item.domain?'selected':''}" data-domain="${esc(item.domain)}" ${item.available?'':'disabled'}><span><strong>${esc(item.domain)}</strong><small>${item.available?(item.premium?'Premium domain · available':'Available'):(item.reason||'Unavailable')}</small></span>${item.available?`<span class="dm-price">${money(item.price)} <small>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_acf892860eeea9",`/ ${v1} yr`,{v1}) ?? `/ ${v1} yr`)(Number(state.quote.period||1))}</small></span>`:`<span class="dm-badge">${(globalThis.PlatformLanguage?.htmlText("settings","m_ce86fe78082565","Unavailable") ?? "Unavailable")}</span>`}</button>`).join('') : '')}</div>
+      if (state.step === 'domain' && state.path === 'register') {
+        const inCart = (domain) => state.cart.some((entry) => entry.domain === domain);
+        const renews = (item) => item.renewal_price && item.renewal_price !== item.price ? ` · renews at ${money(item.renewal_price)}` : '';
+        const results = (state.quote?.items || []).map((item) => item.available
+          ? `<div class="dm-result${inCart(item.domain) ? ' selected' : ''}" data-result="${esc(item.domain)}"><span><strong>${esc(item.domain)}</strong><small>${esc(`${item.premium ? 'Premium domain · ' : ''}Available · privacy free${renews(item)}`)}</small></span><span class="dm-result-buy"><span class="dm-price">${money(item.price)} <small>/ year</small></span><button type="button" class="dm-btn${inCart(item.domain) ? '' : ' primary'}" data-cart-toggle="${esc(item.domain)}">${inCart(item.domain) ? '<i class="fas fa-check"></i> Added' : '<i class="fas fa-plus"></i> Add'}</button></span></div>`
+          : `<div class="dm-result" aria-disabled="true"><span><strong>${esc(item.domain)}</strong><small>${esc(item.reason || 'Already registered')}</small></span><span class="dm-badge">Taken</span></div>`).join('');
+        const cart = state.cart.length ? `<div class="dm-cart" data-cart><div class="dm-cart-head"><strong>Your cart</strong><span class="dm-note">${state.cart.length === 1 ? '1 domain' : `${state.cart.length} domains`}</span></div>
+          ${state.cart.map((item) => `<div class="dm-cart-row"><span>${esc(item.domain)}</span><span>${money(item.price)} / year</span><button type="button" class="dm-cart-remove" data-cart-remove="${esc(item.domain)}" aria-label="${esc(`Remove ${item.domain}`)}"><i class="fas fa-xmark"></i></button></div>`).join('')}
+          <div class="dm-cart-row dm-cart-total"><span>Due today</span><strong>${money(cartTotal())}</strong><span></span></div></div>` : '';
+        return `<div class="dm-stack">
+        <form class="dm-search-row" data-search><input class="dm-input" name="domain" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_992a2b48510215","yourcompany.com") ?? "yourcompany.com")}" value="${esc(state.domain)}" aria-label="Domain name" required><button class="dm-btn primary" type="submit"><i class="fas fa-magnifying-glass"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_df7ced82563784"," Search") ?? " Search")}</button></form>
+        <p class="dm-note">Prices are per year and include privacy at no charge. Add as many domains as you like; you pay for them all at once.</p>
+        <div class="dm-results">${results}</div>
+        ${cart}
       </div>`;
+      }
+      if (state.step === 'checkout' && !state.cart.length && state.purchased.length) return `<div class="dm-success"><div class="icon"><i class="fas fa-check"></i></div><h3>Payment received</h3><p>${esc(purchasedLine())}</p></div>`;
+      if (state.step === 'checkout') {
+        const open = state.checkout?.status === 'open';
+        const paid = ['paid', 'fulfilling'].includes(state.checkout?.status);
+        return `<div class="dm-stack"><div class="dm-summary">
+          ${state.cart.map((item) => `<div class="dm-summary-row"><span>${esc(item.domain)}</span><strong>${money(item.price)} / year</strong></div>`).join('')}
+          <div class="dm-summary-row"><span>Privacy</span><strong>Free</strong></div>
+          <div class="dm-summary-row"><span>Due today</span><strong>${money(cartTotal())} USD</strong></div>
+        </div>
+        <div class="dm-callout">Each domain renews every year at ${state.cart.every((item) => !item.renewal_price || item.renewal_price === item.price) ? 'the same price' : 'its renewal price'}, charged to the card you pay with a month before it expires. You can turn renewal off for any domain in Settings › Domains.</div>
+        ${orderTestMode ? `<div class="dm-callout warn"><strong>Test mode.</strong> Pay with Stripe's test card 4242 4242 4242 4242. The registry order is simulated.</div>` : ''}
+        ${open ? `<div class="dm-callout" data-pay-waiting><i class="fas fa-circle-notch fa-spin"></i> Finish paying on the Stripe page. This continues by itself once the payment goes through.</div>` : ''}
+        ${paid ? `<div class="dm-callout"><i class="fas fa-circle-notch fa-spin"></i> Payment received. Registering your domains…</div>` : ''}
+        <label class="dm-check"><input type="checkbox" data-attest ${state.attested ? 'checked' : ''} ${open || paid ? 'disabled' : ''}> <span>I confirm the registrant information is accurate, accept the domain registration terms, and authorize this payment and the yearly renewals.</span></label>
+      </div>`;
+      }
       if (state.step === 'domain' && state.path === 'transfer') return `<div class="dm-stack">
         <label class="dm-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_0583d77b73123f","Domain") ?? "Domain")}</span><input class="dm-input" name="domain" value="${String(esc(state.domain))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_992a2b48510215","yourcompany.com") ?? "yourcompany.com")}" required></label>
         <label class="dm-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_9aa8861c7c8cd7","Transfer authorization code") ?? "Transfer authorization code")}</span><input class="dm-input" name="auth_code" value="${String(esc(state.authCode))}" type="password" autocomplete="off" required></label>
@@ -353,6 +399,12 @@
 
     function footerActionsHtml(){
       if (state.busy) return '';
+      if (state.step === 'checkout') {
+        if (!state.cart.length && state.purchased.length) return `<button class="dm-btn primary" data-next>Continue <i class="fas fa-arrow-right"></i></button>`;
+        if (state.checkout?.status === 'open') return `<button class="dm-btn" data-back>Back</button><button class="dm-btn" data-pay-check>Check payment</button><button class="dm-btn primary" data-pay-open><i class="fas fa-arrow-up-right-from-square"></i> Open payment page</button>`;
+        if (['paid','fulfilling'].includes(state.checkout?.status)) return `<button class="dm-btn primary" data-pay-check>Check again</button>`;
+        return `<button class="dm-btn" data-back>Back</button><button class="dm-btn primary" data-next><i class="fas fa-lock"></i> Pay ${money(cartTotal())}</button>`;
+      }
       if (state.step === 'done' && forEmail) return `<button class="dm-btn primary" data-finish>${esc('Done')}</button>`;
       if (state.step === 'done') return `<button class="dm-btn primary" data-finish><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_c600b08bd97509"," Open Web Editor") ?? " Open Web Editor")}</button>`;
       if (state.step === 'verify') {
@@ -368,7 +420,8 @@
 
     function renderStep(container){
       const [title,subtitle] = headerCopy();
-      container.innerHTML = `<div class="dm-workspace-head"><h3>${esc(title)}</h3><p>${esc(subtitle)}</p></div>${state.error?`<div class="dm-error-panel" role="alert"><i class="fas fa-circle-exclamation"></i><span>${esc(state.error)}</span></div>`:''}${bodyHtml()}`;
+      const bought = state.step === 'verify' && state.purchased.length ? `<div class="dm-callout" data-purchased>${esc(purchasedLine())}</div>` : '';
+      container.innerHTML = `<div class="dm-workspace-head"><h3>${esc(title)}</h3><p>${esc(subtitle)}</p></div>${state.error?`<div class="dm-error-panel" role="alert"><i class="fas fa-circle-exclamation"></i><span>${esc(state.error)}</span></div>`:''}${bought}${bodyHtml()}`;
       container.querySelectorAll('[data-path]').forEach((button) => button.addEventListener('click', () => {
         state.path=button.dataset.path;
         state.visitedSteps=new Set(['choose','domain']);
@@ -378,12 +431,26 @@
         event.preventDefault();
         const data = new FormData(event.currentTarget);
         state.domain=clean(data.get('domain')).toLowerCase();
+        const names=searchNames(state.domain);
+        if (!names.length) return;
         setBusy(true);
         try {
-          const response=await window.DomainsAPI.quote(orgId,[state.domain],Number(data.get('period')||1),'register');
+          const response=await window.DomainsAPI.quote(orgId,names,1,'register');
           state.quote=response.quote; state.item=null; setBusy(false);
-        } catch(error) { setBusy(false,error?.message||'Could not search domains.'); }
+        } catch(error) { setBusy(false,domainRequestError(error,'Could not search domains.')); }
       });
+      container.querySelectorAll('[data-cart-toggle]').forEach((button)=>button.addEventListener('click',()=>{
+        const domain=clean(button.dataset.cartToggle);
+        const item=(state.quote?.items||[]).find((entry)=>entry.domain===domain&&entry.available);
+        if (state.cart.some((entry)=>entry.domain===domain)) state.cart=state.cart.filter((entry)=>entry.domain!==domain);
+        else if (item) state.cart=[...state.cart,{...item,quote_id:state.quote.id}];
+        cartChanged();
+      }));
+      container.querySelectorAll('[data-cart-remove]').forEach((button)=>button.addEventListener('click',()=>{
+        const domain=clean(button.dataset.cartRemove);
+        state.cart=state.cart.filter((entry)=>entry.domain!==domain);
+        cartChanged();
+      }));
       container.querySelectorAll('[data-domain]').forEach((button)=>button.addEventListener('click',()=>{ state.item=(state.quote?.items||[]).find((item)=>item.domain===button.dataset.domain)||null; state.domain=clean(button.dataset.domain); render(); }));
       container.querySelectorAll('[data-website-choice]').forEach((button)=>button.addEventListener('click',()=>{ captureVisibleDraft(); state.websiteMode=clean(button.dataset.websiteChoice); render(); }));
       container.querySelector('[name="website_name"]')?.addEventListener('input',(event)=>{ state.websiteName=event.currentTarget.value; });
@@ -397,6 +464,8 @@
       container.querySelector('[data-finish]')?.addEventListener('click',finishWizard);
       container.querySelector('[data-check]')?.addEventListener('click',checkVerification);
       container.querySelector('[data-resend]')?.addEventListener('click',resendVerification);
+      container.querySelector('[data-pay-open]')?.addEventListener('click',()=>openPayment(null));
+      container.querySelector('[data-pay-check]')?.addEventListener('click',()=>checkPayment(false));
     }
 
     function readVisibleFields(){
@@ -410,7 +479,8 @@
       if (state.step==='domain') {
         const values=readVisibleFields();
         if (state.path==='register') {
-          if (!state.item) { state.error='Search for and select an available domain.'; render(); return; }
+          if (!state.cart.length && !state.purchased.length) { state.error='Search for a domain and add it to your cart.'; render(); return; }
+          if (!state.cart.length) { go('verify'); return; }
         } else {
           state.domain=clean(values.domain).toLowerCase();
           if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(state.domain)) { state.error='Enter a valid domain name.'; render(); return; }
@@ -441,7 +511,12 @@
           render();
           return;
         }
-        go('billing'); return;
+        go(nextStep()); return;
+      }
+      if (state.step==='checkout') {
+        if (!state.cart.length && state.purchased.length) { go('verify'); return; }
+        await pay();
+        return;
       }
       if (state.step==='billing') { go('review'); return; }
       if (state.step==='review') {
@@ -484,6 +559,86 @@
           setBusy(false); go('done');
         } catch(error) { setBusy(false,error?.message||'Could not connect the domain resources.'); }
       }
+    }
+    // FM-590: the cart is paid on Stripe's page (a new tab, so this workflow and a setup around it stay put); this
+    // watches the checkout until the domains are registered. Stripe's return page (Settings › Domains) finishes it too.
+    let payTimer=null;
+    function cartTotal(){ return (state.cart.reduce((sum,item)=>sum+cents(item.price),0)/100).toFixed(2); }
+    function stopWatching(){ if (payTimer) clearInterval(payTimer); payTimer=null; }
+    function cartChanged(){
+      // A new cart is a new payment.
+      if (state.checkout && state.checkout.status==='open') { stopWatching(); state.checkout=null; }
+      if (state.checkout?.status==='fulfilled' || state.checkout?.status==='expired') state.checkout=null;
+      state.error=''; render();
+    }
+    function purchasedLine(){
+      const names=state.purchased.join(', ');
+      return `Payment received. ${names} ${state.purchased.length===1?'is':'are'} yours, with privacy on and renewing every year.${state.refusedNote?` ${state.refusedNote}`:''}`;
+    }
+    function openPayment(tab){
+      const url=clean(state.checkout?.url);
+      if (!url) return;
+      if (tab && !tab.closed) { try { tab.location.href=url; return; } catch(_error) {} }
+      // A blocked tab (or the phone app) pays in this page; Stripe brings it back to Settings › Domains.
+      if (!window.open(url,'_blank')) window.location.assign(url);
+    }
+    async function pay(){
+      const attested=root()?.querySelector('[data-attest]')?.checked===true;
+      if (!attested) { state.error='Confirm the authorization before paying.'; render(); return; }
+      state.attested=true;
+      if (state.checkout?.status==='open') { openPayment(null); watchPayment(); return; }
+      // Opened now, while the click still allows a new tab; it is pointed at Stripe once the checkout exists.
+      let tab=null;
+      try { tab=window.open('','_blank'); } catch(_error) {}
+      setBusy(true);
+      try {
+        const response=await window.DomainsAPI.checkout(orgId,{
+          items:state.cart.map((item)=>({quote_id:item.quote_id,domain:item.domain})),
+          contact:state.contact,
+          accept_total:cartTotal(),
+          attestation:true,
+          allow_premium:state.cart.some((item)=>item.premium===true)
+        });
+        state.checkout=response.checkout;
+        setBusy(false);
+        openPayment(tab);
+        watchPayment();
+      } catch(error) {
+        try { tab?.close(); } catch(_error) {}
+        setBusy(false,domainRequestError(error,'Could not start the payment.'));
+      }
+    }
+    function watchPayment(){ stopWatching(); payTimer=setInterval(()=>{ void checkPayment(true); },4000); }
+    async function checkPayment(quiet){
+      if (!state.checkout?.id) return;
+      const before=state.checkout.status;
+      try {
+        const response=await window.DomainsAPI.refreshCheckout(orgId,state.checkout.id);
+        state.checkout=response.checkout;
+      } catch(error) {
+        if (!quiet) { state.error=domainRequestError(error,'Could not check the payment.'); render(); }
+        return;
+      }
+      const status=state.checkout.status;
+      if (status==='fulfilled') { await finishPurchase(); return; }
+      if (status==='expired') { stopWatching(); state.checkout=null; state.error='The payment page expired before anything was paid. Pay again to continue.'; render(); return; }
+      if (!quiet) { state.error=status==='open'?'No payment yet. Finish paying on the Stripe page.':''; render(); }
+      else if (status!==before && state.step==='checkout') render();
+    }
+    async function finishPurchase(){
+      stopWatching();
+      const items=Array.isArray(state.checkout?.items)?state.checkout.items:[];
+      const bought=items.filter((item)=>item.status==='registered').map((item)=>item.domain);
+      const refused=items.filter((item)=>item.status!=='registered').map((item)=>item.domain);
+      state.refusedNote=refused.length?`${refused.join(', ')} could not be registered and ${refused.length===1?'was':'were'} refunded.`:'';
+      state.purchased=[...new Set([...state.purchased,...bought])];
+      state.cart=[];
+      if (!bought.length) { state.error=state.refusedNote||'The domains could not be registered.'; render(); return; }
+      state.domain=bought[0];
+      const list=await window.DomainsAPI.list(orgId).catch(()=>({domains:[]}));
+      state.registration=(Array.isArray(list?.domains)?list.domains:[]).find((entry)=>clean(entry.domain)===state.domain)||null;
+      state.error='';
+      go('verify');
     }
     async function checkVerification(){
       setBusy(true);
@@ -572,7 +727,7 @@
         window.Portal?.navigation?.write?.({ tab:'company_settings', sub:'domains', ...patch }, { ...routeOptions, ownedKeys:['tab','sub','workflow','workflow_step'] });
       },
       closeRoute:forEmail?() => {}:options.closeRoute,
-      onClose:() => options.onClose?.({ domain:state.domain, registration:state.registration })
+      onClose:() => { stopWatching(); options.onClose?.({ domain:state.domain, registration:state.registration }); }
     });
     return { close };
   }
@@ -646,6 +801,13 @@
         const timestamp=Date.parse(clean(value));
         return Number.isFinite(timestamp)?new Date(timestamp).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'Not available';
       };
+      // FM-590: a bought domain renews through its yearly subscription.
+      const renewalLabel=(domain)=>{
+        const subscription=obj(domain.subscription);
+        if(domain.billing_status==='past_due')return 'Renewal payment failed. Update the card to keep this domain.';
+        if(domain.auto_renew===false||domain.billing_status==='renewal_ended')return `Renewal off. Expires ${dateLabel(domain.expires_at)}`;
+        return `Renews ${dateLabel(subscription.renews_at)} · ${money(domain.renewal_price||domain.price)} / year`;
+      };
       const confirmAction=async(text,title,okLabel)=>{
         if(window.PlatformUI?.confirm)return !!(await window.PlatformUI.confirm(text,{title,okLabel,danger:true}));
         if(window.Portal?.ui?.confirm)return !!(await window.Portal.ui.confirm(text));
@@ -668,6 +830,7 @@
           <span><i class="fas fa-window-maximize"></i><b>${String(esc(domain.website?.name||'No website connected'))}</b></span>
           <span><i class="fas fa-envelope"></i><b>${String(esc(domain.default_email||'Email not configured'))}</b></span>
           <span><i class="fas fa-calendar"></i><b>${String(esc(domain.expires_at?`Expires ${dateLabel(domain.expires_at)}`:'Expiration unavailable'))}</b></span>
+          ${domain.subscription?`<span data-domain-renewal><i class="fas fa-rotate"></i><b>${esc(renewalLabel(domain))}</b></span>`:''}
         </div>
         <div class="dm-card-actions"><button class="dm-btn" data-manage-domain="${String(esc(domain.domain))}"><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_773cb43b56c274"," Manage") ?? " Manage")}</button></div>
       </article>`;
@@ -675,6 +838,7 @@
         ${String(options.embedded?'':`<div class="dm-hero"><div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_7e6427ce4061f4","Domains & Hosting") ?? "Domains & Hosting")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_b220ed6c45c214","Register, transfer, or connect domains, then attach them to a FirstMate website and default email address.") ?? "Register, transfer, or connect domains, then attach them to a FirstMate website and default email address.")}</p></div><button class="dm-btn primary" data-new-domain><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_36735857529693"," Add domain") ?? " Add domain")}</button></div>`)}
         ${String(options.embedded?`<div class="dm-card-head"><div><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_7e3507920a3b24","Your domains") ?? "Your domains")}</h4><p class="dm-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_46f4295156601c","Manage website routing, renewal protection, nameservers, privacy, and transfers.") ?? "Manage website routing, renewal protection, nameservers, privacy, and transfers.")}</p></div><button class="dm-btn primary" data-new-domain><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_36735857529693"," Add domain") ?? " Add domain")}</button></div>`:'')}
         ${String(config.configured&&config.encryption_configured?'':`<div class="dm-callout warn"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_310a794dc5d358","Domain purchasing is not configured.") ?? "Domain purchasing is not configured.")}</strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_0c9c4c4df16b0c"," Existing-domain connections remain available, but registration and transfer require server credentials and encryption.") ?? " Existing-domain connections remain available, but registration and transfer require server credentials and encryption.")}</div>`)}
+        ${message&&!selectedDomain?`<div class="dm-callout" data-domains-message>${esc(message)}</div>`:''}
         <section class="dm-card"><div class="dm-card-head"><div><h4>${String(options.embedded?'Domain portfolio':'Your domains')}</h4><p class="dm-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_1e4516f36d3029","Each card shows the website currently served on that domain.") ?? "Each card shows the website currently served on that domain.")}</p></div></div>
           <div class="dm-owned">${String(domains.length?domains.map(domainCard).join(''):`<p class="dm-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_6e11ef5cf54adb","No domains have been added yet.") ?? "No domains have been added yet.")}</p>`)}</div>
         </section></div>`;
@@ -728,7 +892,7 @@
 ${String(emailRecordsHtml(domain))}
             <section class="dm-manage-card"><h4><i class="fas fa-shield-halved"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_12ca16778536e1"," Protection & renewal") ?? " Protection & renewal")}</h4>
               <div class="dm-setting-row"><div class="dm-setting-copy"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_4d5a168f5fd12e","Domain privacy") ?? "Domain privacy")}</strong><p>${String(external?'Managed at the current registrar.':'Registrant information stays private where supported.')}</p></div><button class="dm-switch on" disabled aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_d391c915a7335b","Domain privacy enabled") ?? "Domain privacy enabled")}"></button></div>
-              <div class="dm-setting-row"><div class="dm-setting-copy"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_7acab65048e339","Auto-renew") ?? "Auto-renew")}</strong><p>${String(external?'Managed at the current registrar.':'Renew automatically before expiration.')}</p></div><button class="dm-switch ${String(domain.auto_renew!==false?'on':'')}" data-domain-toggle="auto_renew" ${String(external||busy?'disabled':'')}></button></div>
+              <div class="dm-setting-row"><div class="dm-setting-copy"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_7acab65048e339","Auto-renew") ?? "Auto-renew")}</strong><p>${String(external?'Managed at the current registrar.':domain.subscription?esc(renewalLabel(domain)):'Renew automatically before expiration.')}</p></div><button class="dm-switch ${String(domain.auto_renew!==false?'on':'')}" data-domain-toggle="auto_renew" ${String(external||busy?'disabled':'')}></button></div>
               <div class="dm-setting-row"><div class="dm-setting-copy"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_eb664d5a225fc1","Registrar lock") ?? "Registrar lock")}</strong><p>${String(external?'Managed at the current registrar.':'Blocks unauthorized transfers and registry changes.')}</p></div><button class="dm-switch ${String(domain.locked!==false?'on':'')}" data-domain-toggle="locked" ${String(external||busy?'disabled':'')}></button></div>
             </section>
             <section class="dm-manage-card"><h4><i class="fas fa-network-wired"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_f7e82cb670723d"," DNS & nameservers") ?? " DNS & nameservers")}</h4>
@@ -745,6 +909,26 @@ ${String(emailRecordsHtml(domain))}
               <div class="dm-card-actions">${String(external?'':`<button class="dm-btn" data-transfer-out ${busy?'disabled':''}><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e0769df0810a0d"," Transfer out") ?? " Transfer out")}</button>`)}<button class="dm-btn danger" data-disconnect ${String(busy?'disabled':'')}><i class="fas fa-link-slash"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_8a064cc0e8391e"," Disconnect from FirstMate") ?? " Disconnect from FirstMate")}</button></div>
             </section>
           </div></div>`;
+      };
+      // FM-590: Stripe's payment page returns here with its checkout; finish it (register the domains) and say so.
+      const finishReturnedCheckout=async()=>{
+        const url=new URL(window.location.href);
+        const checkoutId=clean(url.searchParams.get('domain_checkout'));
+        if(!checkoutId)return;
+        const cancelled=url.searchParams.get('domain_checkout_cancelled')==='1';
+        url.searchParams.delete('domain_checkout');url.searchParams.delete('domain_checkout_cancelled');
+        try{window.history.replaceState(window.history.state,'',url.toString());}catch(_error){}
+        message='Checking your payment…';render();
+        try{
+          const checkout=obj((await window.DomainsAPI.refreshCheckout(orgId,checkoutId))?.checkout);
+          const bought=(Array.isArray(checkout.items)?checkout.items:[]).filter((item)=>item.status==='registered').map((item)=>item.domain);
+          if(checkout.status==='fulfilled'&&bought.length){await reload();message=`Payment received. ${bought.join(', ')} ${bought.length===1?'is':'are'} yours, renewing every year. Open a domain to finish setting it up.`;}
+          else if(checkout.status==='fulfilled')message='The payment was refunded: the registry would not register these domains.';
+          else if(checkout.status==='open')message=cancelled?'Payment cancelled. Nothing was charged.':'The payment hasn’t gone through yet. Check again in a moment.';
+          else if(checkout.status==='expired')message='The payment page expired. Nothing was charged.';
+          else message='Payment received. Registering your domains…';
+        }catch(error){message=error?.message||'Could not check the payment.';}
+        render();
       };
       const render=()=>{
         const domain=domains.find((entry)=>clean(entry.domain)===selectedDomain);
@@ -803,6 +987,7 @@ ${String(emailRecordsHtml(domain))}
       };
       render();
       if(clean(options.route?.workflow)==='domain_onboarding')launch(clean(options.path||''),clean(options.route?.workflow_step||''));
+      void finishReturnedCheckout();
       return{refresh:reload,open:launch};
     }catch(error){
       pane.innerHTML=`<div class="dm-callout danger">${esc(error?.message||'Could not load Domains & Hosting.')}</div>`;

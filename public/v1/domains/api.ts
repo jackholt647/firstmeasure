@@ -7,8 +7,8 @@ import {
   attachDomainResourcesSchema,
   connectExistingDomainSchema,
   domainActionConfirmationSchema,
+  domainCheckoutSchema,
   quoteDomainsSchema,
-  registerDomainSchema,
   transferDomainSchema,
   updateDomainManagementSchema
 } from "./schemas.js";
@@ -22,12 +22,12 @@ import {
   provisionExistingDomainInfrastructure,
   quoteDomains,
   refreshDomainVerification,
-  registerQuotedDomain,
   resendDomainVerification,
   requestDomainTransferOut,
   transferQuotedDomain,
   updateDomainManagement
 } from "./service.js";
+import { createDomainCheckout, domainCheckout, refreshDomainCheckout } from "./checkout.js";
 
 function param(params: unknown, key: string) {
   return String((params as Record<string, unknown> | undefined)?.[key] ?? "").trim();
@@ -48,6 +48,7 @@ const requestFieldLabels: Record<string, string> = {
   phone: "Phone",
   email: "Registrant email",
   accept_price: "Accepted price",
+  accept_total: "Accepted total",
   attestation: "Confirmation",
   auth_code: "Transfer authorization code"
 };
@@ -114,21 +115,34 @@ export const registerDomainsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, quote };
   });
 
-  app.post("/organizations/:orgId/registrations", async (request, reply) => {
+  // FM-590: buying domains is a checkout (one payment for the cart); there is no unpaid registration route.
+  app.post("/organizations/:orgId/checkouts", async (request, reply) => {
     const orgId = param(request.params, "orgId");
     const context = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
-    const body = registerDomainSchema.parse(request.body ?? {});
-    const result = await registerQuotedDomain({
+    const body = domainCheckoutSchema.parse(request.body ?? {});
+    const checkout = await createDomainCheckout({
       orgId,
-      quoteId: body.quote_id,
-      domain: body.domain,
+      items: body.items,
       contact: body.contact,
-      acceptPrice: body.accept_price,
+      acceptTotal: body.accept_total,
       allowPremium: body.allow_premium,
       actorUserId: context.userId
     });
-    reply.code(result.idempotent_replay ? 200 : 201);
-    return { ok: true, ...result };
+    reply.code(201);
+    return { ok: true, checkout };
+  });
+
+  app.get("/organizations/:orgId/checkouts/:checkoutId", async (request) => {
+    const orgId = param(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, permission: "manage_company_settings" });
+    return { ok: true, checkout: await domainCheckout(orgId, param(request.params, "checkoutId")) };
+  });
+
+  // Looks the payment up; once paid, registers the domains and starts their renewals. Idempotent.
+  app.post("/organizations/:orgId/checkouts/:checkoutId/refresh", async (request) => {
+    const orgId = param(request.params, "orgId");
+    const context = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    return { ok: true, checkout: await refreshDomainCheckout(orgId, param(request.params, "checkoutId"), context.userId) };
   });
 
   app.post("/organizations/:orgId/transfers", async (request, reply) => {

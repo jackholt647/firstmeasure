@@ -185,7 +185,7 @@ export function createOpenSrsClient(options: OpenSrsClientOptions = {}) {
         responseText: result.responseText
       };
     },
-    async getPrice(domain: string, period = 1, registrationType: "new" | "transfer" = "new") {
+    async getPrice(domain: string, period = 1, registrationType: "new" | "transfer" | "renewal" = "new") {
       const result = await request("get_price", { domain, period, reg_type: registrationType });
       return {
         price: text(result.attributes.price),

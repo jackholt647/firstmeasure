@@ -24,11 +24,14 @@ export const quoteDomainsSchema = z.object({
   acquisition_type: z.enum(["register", "transfer"]).optional().default("register")
 });
 
-export const registerDomainSchema = z.object({
-  quote_id: z.string().trim().min(1).max(128),
-  domain: domainNameSchema,
+// FM-590: a cart of searched domains, paid at once through Stripe Checkout (domains/checkout.ts).
+export const domainCheckoutSchema = z.object({
+  items: z.array(z.object({
+    quote_id: z.string().trim().min(1).max(128),
+    domain: domainNameSchema
+  })).min(1).max(10),
   contact: domainContactSchema,
-  accept_price: z.string().trim().regex(/^\d+(?:\.\d{1,2})?$/),
+  accept_total: z.string().trim().regex(/^\d+(?:\.\d{1,2})?$/),
   attestation: z.literal(true),
   allow_premium: z.boolean().optional().default(false)
 });

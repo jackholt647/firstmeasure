@@ -2,8 +2,8 @@
 // One step that keeps its own pages, as few as it can: the start (texts, calls and email in a row, each explained in its
 // tooltip, and where to start), then one done page. Choosing texts and calls turns them on and goes straight into carrier
 // registration (10DLC): the same workflow as Phone Settings (settings/sms-registration.js), simulated on development.
-// Choosing email asks how it starts (FM-513): the company's own domain or a new one (the Domains workflow,
-// settings/domains.js, full screen like registration), or FirstMate Mail, on at once. The done page says where each
+// Choosing email asks how it starts (FM-513, FM-590): FirstMate Mail, on at once (the default), the company's own domain,
+// or one bought through FirstMate (the Domains workflow, settings/domains.js, full screen like registration). The done page says where each
 // channel stands and offers the other one there; the
 // texting plan is platform billing's own quote and checkout (FirstMatePlatformBilling.review). Every write is a published
 // action run as the person (comms.setup.start). Copy is gx_ keys with English fallbacks; the library entry's options
@@ -13,7 +13,7 @@ import { commsAction, isRegistered, loadScript, registrationOf, setUpTexting, sy
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
-const DOMAINS_SRCS = ['/libraries/domains-api/domains-api.js?v=20261116-fm516', '/libraries/apps/settings/domains.js?v=20261116-fm516b'];
+const DOMAINS_SRCS = ['/libraries/domains-api/domains-api.js?v=20261118-fm590', '/libraries/apps/settings/domains.js?v=20261118-fm590'];
 
 const css = `
 .gxc{display:flex;flex-direction:column;gap:18px;min-width:0;padding:2px 0 8px;color:#101828}
@@ -47,6 +47,8 @@ const css = `
 .gxc-choice>span:last-child{flex:1;min-width:0}
 .gxc-choice[data-first]{border-color:var(--primary,#d93025);box-shadow:0 0 0 1px var(--primary,#d93025)}
 .gxc-emails{display:grid;gap:10px}
+.gxc-tag{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:#ecfdf3;color:#067647;font-size:11px;font-weight:750;line-height:18px;vertical-align:1px}
+.gxc-tag[data-paid]{background:#f2f4f7;color:#475467}
 .gxc-label{font-size:13px;font-weight:750;color:#344054}
 .gxc-rows{display:grid;gap:10px}
 .gxc-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid #e4e7ec;border-radius:16px;background:#fff}
@@ -220,25 +222,32 @@ export function mount(el, ctx){
     });
   }
 
-  // How email starts: the company's own domain, a new one, or FirstMate Mail. Nothing is turned on until one is picked.
+  // How email starts (FM-590): FirstMate Mail, the default, on at once; the company's own domain; or a domain bought
+  // through FirstMate (the Domains workflow's search, cart and checkout). The first two are free; buying is billed yearly.
+  // Nothing is turned on until one is picked.
   async function domainsOffered(){
     if (domains) return domains;
     domains = { buy: false };
-    try { const win = await domainsWindow(); const config = object(await win.DomainsAPI.config()); domains = { buy: config.configured === true && config.encryption_configured === true }; }
+    try {
+      const win = await domainsWindow(); const config = object(await win.DomainsAPI.config());
+      domains = { buy: config.configured === true && config.encryption_configured === true && config.billing_enabled === true };
+    }
     catch { domains = { buy: false }; }
     return domains;
   }
   function drawEmail(){
     title(L('gx_comms_email_title', 'Your email address'));
     const domain = object(object(status.email).domain), started = domain.name && !domain.address;
-    const card = (id, iconName, name, body, disabled = false) => `<button type="button" class="gxc-choice" data-gxc-email-way="${id}" ${disabled ? 'disabled' : ''}>${icon(iconName)}<span><strong>${esc(name)}</strong><small>${esc(body)}</small></span></button>`;
+    const tag = (paid) => `<span class="gxc-tag"${paid ? ' data-paid' : ''}>${esc(paid ? L('gx_comms_paid', 'Paid') : L('gx_comms_free', 'Free'))}</span>`;
+    const card = (id, iconName, name, body, paid, { disabled = false, first = false } = {}) => `<button type="button" class="gxc-choice" data-gxc-email-way="${id}" ${first ? 'data-first' : ''} ${disabled ? 'disabled' : ''}>${icon(iconName)}<span><strong>${esc(name)}${disabled ? '' : tag(paid)}</strong><small>${esc(body)}</small></span></button>`;
     const buy = domains?.buy !== false;
     el.innerHTML = `<div class="gxc">
       <div class="gxc-emails">
-        ${card('existing', 'fa-globe', L('gx_comms_email_own', 'Use my domain'), domain.address || (started ? L('gx_comms_email_own_resume', 'Finish connecting {domain}', { domain: domain.name }) : L('gx_comms_email_own_body', 'you@yourcompany.com')))}
-        ${card('register', 'fa-cart-shopping', L('gx_comms_email_buy', 'Buy a domain'), buy ? L('gx_comms_email_buy_body', 'Find a new one') : L('gx_comms_email_buy_soon', 'Not available yet'), !buy)}
-        ${card('firstmate', 'fa-paper-plane', L('gx_comms_email_firstmate', 'FirstMate Mail'), L('gx_comms_email_firstmate_body', 'Ready now, on firstmatemail.com'))}
+        ${card('firstmate', 'fa-paper-plane', L('gx_comms_email_firstmate', 'FirstMate Mail'), L('gx_comms_email_firstmate_body', 'Ready now, on firstmatemail.com'), false, { first: !domain.name })}
+        ${card('existing', 'fa-globe', L('gx_comms_email_yours', 'Use your own domain'), domain.address || (started ? L('gx_comms_email_own_resume', 'Finish connecting {domain}', { domain: domain.name }) : L('gx_comms_email_own_body', 'you@yourcompany.com')), false, { first: !!domain.name })}
+        ${card('register', 'fa-cart-shopping', L('gx_comms_email_buy_us', 'Buy a domain through FirstMate'), buy ? L('gx_comms_email_buy_us_body', 'Search for a name and see its yearly price') : L('gx_comms_email_buy_soon', 'Not available yet'), true, { disabled: !buy })}
       </div>
+      <p class="gxc-note" data-gxc-email-cost>${esc(L('gx_comms_email_cost', 'FirstMate Mail and your own domain are free. A domain bought through FirstMate is billed every year, with privacy included free.'))}</p>
       ${errorLine}
       <div class="gxc-actions">
         <button type="button" class="gxc-btn" data-gxc-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>

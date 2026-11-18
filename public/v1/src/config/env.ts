@@ -247,6 +247,7 @@ export const env = {
   openSrsMaxStandardRegistrationPriceUsd: process.env.OPENSRS_MAX_STANDARD_REGISTRATION_PRICE_USD ?? "50.00",
   openSrsPrivacyPriceUsd: process.env.OPENSRS_PRIVACY_PRICE_USD ?? "3.00",
   domainsRetailMarkupMultiplier: readNumber("DOMAINS_RETAIL_MARKUP_MULTIPLIER", 1.5),
+  domainsRetailRoundingUsd: readNumber("DOMAINS_RETAIL_ROUNDING_USD", 5),
   domainsEncryptionKey: process.env.DOMAINS_ENCRYPTION_KEY ?? "",
   domainInfrastructureMode: process.env.DOMAIN_INFRASTRUCTURE_MODE === "live" ? "live" : "capture",
   cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "",
