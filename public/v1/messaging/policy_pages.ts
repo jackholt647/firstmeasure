@@ -140,13 +140,59 @@ function fill(text: string, values: Record<Placeholder, string>) {
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[character]!);
 const LINKABLE = /(https?:\/\/[^\s<>"]*[^\s<>".,;:!?)]|[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[a-z]{2,})/gi;
 
-function linked(text: string) {
+/** URLs and email addresses as links; `names` shows a known URL (the hosted pages) by its name instead. */
+function linked(text: string, names: Record<string, string> = {}) {
   return text.split(LINKABLE).map((part, index) => {
     if (index % 2 === 0) return escapeHtml(part);
     const href = /^https?:\/\//.test(part) ? part : `mailto:${part}`;
-    return `<a href="${escapeHtml(href)}">${escapeHtml(part)}</a>`;
+    return `<a href="${escapeHtml(href)}">${escapeHtml(names[part] || part)}</a>`;
   }).join("");
 }
+
+const PAGE_NAMES: Record<SmsPolicyPageId, string> = { privacy: "Privacy policy", terms: "SMS terms" };
+
+/** Up to two initials for the header mark: "Ridgeline Roofing" is RR. */
+function initials(name: string) {
+  const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return words.slice(0, 2).map((word) => word[0]!.toUpperCase()).join("") || "?";
+}
+
+/** A section's anchor, unique on the page. */
+function anchors(headings: string[]) {
+  const seen = new Set<string>();
+  return headings.map((heading, index) => {
+    let id = heading.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `section-${index + 1}`;
+    while (seen.has(id)) id = `${id}-${index + 1}`;
+    seen.add(id);
+    return id;
+  });
+}
+
+/** A short "Email: …" or "Phone: …" line sits tight under the paragraph before it. */
+const isDetailLine = (text: string) => text.length <= 120 && /^[A-Z][A-Za-z ]{1,24}: \S/.test(text);
+
+// No scripts, fonts or images can load (`default-src 'none'`), so the page is inline CSS, system fonts and text.
+const PAGE_STYLE = `:root{color-scheme:light dark;--bg:#f4f5f7;--card:#fff;--ink:#1d2433;--muted:#5d6676;--line:#e3e6eb;--accent:#1f5f99;--accent-soft:#e9f1f9;--shadow:0 1px 2px rgba(16,24,40,.05),0 8px 24px rgba(16,24,40,.06)}
+@media (prefers-color-scheme:dark){:root{--bg:#0f131a;--card:#171c25;--ink:#e7eaf0;--muted:#a1a9b7;--line:#2a313d;--accent:#7cb4ea;--accent-soft:#1b2a3b;--shadow:none}}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-underline-offset:2px;word-break:break-word}a:hover{text-decoration-thickness:2px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 24px}
+.top{background:var(--card);border-bottom:1px solid var(--line)}.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-top:14px;padding-bottom:14px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}.mark{flex:0 0 40px;width:40px;height:40px;border-radius:10px;background:var(--accent);color:var(--card);display:grid;place-items:center;font-weight:700;font-size:15px;letter-spacing:.02em}
+.brand strong{display:block;font-size:16px;line-height:1.3}.brand div span{display:block;color:var(--muted);font-size:13px;line-height:1.3}
+.tabs{display:flex;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px}.tabs a{color:var(--muted);text-decoration:none;font-size:14px;font-weight:600;padding:6px 14px;border-radius:999px}.tabs a[aria-current=page]{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+.hero{padding:44px 0 28px}.eyebrow{margin:0 0 6px;color:var(--accent);font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}h1{margin:0 0 14px;font-size:clamp(28px,4vw,38px);line-height:1.15;letter-spacing:-.01em}.lead p{margin:0 0 8px;max-width:680px;color:var(--muted);font-size:17px}
+.layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:32px;align-items:start;padding-bottom:48px}
+aside{position:sticky;top:20px;display:grid;gap:16px}.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}.box h2{margin:0 0 8px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.toc ol{list-style:none;margin:0;padding:0;counter-reset:toc}.toc li{counter-increment:toc}.toc a{display:flex;gap:8px;padding:4px 0;color:var(--ink);text-decoration:none;font-size:14px;line-height:1.4}.toc a::before{content:counter(toc);color:var(--muted);font-variant-numeric:tabular-nums;min-width:14px}.toc a:hover{color:var(--accent)}
+.contact p{margin:0 0 6px;font-size:14px;line-height:1.45}.contact p:last-child{margin:0}.contact .who{font-weight:600}
+article{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:8px 36px}
+article section{padding:26px 0;border-top:1px solid var(--line);scroll-margin-top:20px}article section:first-child{border-top:0}
+article h2{display:flex;align-items:center;gap:12px;margin:0 0 10px;font-size:20px;line-height:1.3}.num{flex:0 0 28px;width:28px;height:28px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+article p{margin:0 0 12px}article p:last-child{margin-bottom:0}article p.detail{margin:-6px 0 4px}article p.detail+p:not(.detail){margin-top:12px}
+.foot{border-top:1px solid var(--line);color:var(--muted);font-size:13px}.foot .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:18px;padding-bottom:28px}.foot p{margin:0}
+@media (max-width:820px){.layout{grid-template-columns:minmax(0,1fr);gap:20px}aside{display:none}article{padding:4px 20px;border-radius:14px}.hero{padding:30px 0 20px}.wrap{padding:0 16px}}
+@media print{:root{--bg:#fff;--card:#fff;--shadow:none}.tabs,.toc{display:none}.layout{display:block}article{border:0;padding:0}aside{margin-top:24px}a{color:inherit}}`;
 
 /** The page as HTML, or null when the registration has none (not hosted, or not ready). */
 export function renderHostedSmsPolicyPage(profile: { id: string; external_organization_id: string; brand?: unknown; campaign?: unknown }, page: SmsPolicyPageId) {
@@ -154,14 +200,37 @@ export function renderHostedSmsPolicyPage(profile: { id: string; external_organi
   const wording = pageWording(page)!;
   const values = smsPolicyValues(profile);
   const title = fill(wording.title, values);
-  const paragraphs = (list: readonly string[]) => list.map((text) => fill(text, values)).filter(Boolean).map((text) => `<p>${linked(text)}</p>`).join("");
-  const sections = wording.sections.map((section) => {
-    const body = paragraphs(section.paragraphs);
-    return body ? `<section><h2>${escapeHtml(fill(section.heading, values) || section.heading.replace(PLACEHOLDER, ""))}</h2>${body}</section>` : "";
-  }).join("");
+  const names = { [values.privacy_url]: PAGE_NAMES.privacy, [values.terms_url]: PAGE_NAMES.terms };
+  const paragraphs = (list: readonly string[]) => list.map((text) => fill(text, values)).filter(Boolean)
+    .map((text) => `<p${isDetailLine(text) ? " class=\"detail\"" : ""}>${linked(text, names)}</p>`).join("");
+  const sections = wording.sections
+    .map((section) => ({ heading: fill(section.heading, values) || section.heading.replace(PLACEHOLDER, ""), body: paragraphs(section.paragraphs) }))
+    .filter((section) => section.body);
+  const ids = anchors(sections.map((section) => section.heading));
   const footer = wording.footer ? fill(wording.footer, values) : "";
+  const urls = { privacy: values.privacy_url, terms: values.terms_url };
+  const tabs = SMS_POLICY_PAGES.map((candidate) => `<a href="${escapeHtml(urls[candidate.id])}"${candidate.id === page ? " aria-current=\"page\"" : ""}>${PAGE_NAMES[candidate.id]}</a>`).join("");
+  const phoneHref = values.support_phone.replace(/[^\d+]/g, "");
+  const contact = [
+    `<p class="who">${escapeHtml(values.brand_name)}</p>`,
+    values.support_email ? `<p><a href="mailto:${escapeHtml(values.support_email)}">${escapeHtml(values.support_email)}</a></p>` : "",
+    values.support_phone ? `<p>${phoneHref ? `<a href="tel:${escapeHtml(phoneHref)}">${escapeHtml(values.support_phone)}</a>` : escapeHtml(values.support_phone)}</p>` : "",
+    values.website ? `<p><a href="${escapeHtml(values.website)}">${escapeHtml(values.website.replace(/^https?:\/\//i, "").replace(/\/$/, ""))}</a></p>` : "",
+    values.address ? `<p>${escapeHtml(values.address)}</p>` : ""
+  ].join("");
+  const other = SMS_POLICY_PAGES.find((candidate) => candidate.id !== page)!;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title>
-<style>body{margin:0;background:#f7f7f8;color:#1f2328;font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}main{max-width:760px;margin:0 auto;padding:40px 24px 56px;background:#fff;min-height:100vh;box-sizing:border-box}h1{font-size:28px;line-height:1.25;margin:0 0 16px}h2{font-size:19px;margin:32px 0 8px}p{margin:0 0 12px}a{color:#0b5cad;word-break:break-word}footer{margin-top:40px;padding-top:16px;border-top:1px solid #e4e6ea;color:#5f6670;font-size:13px}</style>
-</head><body><main><h1>${escapeHtml(title)}</h1>${paragraphs(wording.intro)}${sections}${footer ? `<footer>${linked(footer)}</footer>` : ""}</main></body></html>`;
+<style>${PAGE_STYLE}</style>
+</head><body>
+<header class="top"><div class="wrap"><div class="brand"><span class="mark" aria-hidden="true">${escapeHtml(initials(values.brand_name))}</span><div><strong>${escapeHtml(values.brand_name)}</strong>${values.legal_name ? `<span>${escapeHtml(values.legal_name)}</span>` : ""}</div></div><nav class="tabs" aria-label="Policies">${tabs}</nav></div></header>
+<main class="wrap">
+<div class="hero"><p class="eyebrow">${PAGE_NAMES[page]}</p><h1>${escapeHtml(title)}</h1><div class="lead">${paragraphs(wording.intro)}</div></div>
+<div class="layout">
+<aside><nav class="box toc" aria-label="On this page"><h2>On this page</h2><ol>${sections.map((section, index) => `<li><a href="#${ids[index]}">${escapeHtml(section.heading)}</a></li>`).join("")}</ol></nav><div class="box contact"><h2>Contact</h2>${contact}</div></aside>
+<article>${sections.map((section, index) => `<section id="${ids[index]}"><h2><span class="num" aria-hidden="true">${index + 1}</span>${escapeHtml(section.heading)}</h2>${section.body}</section>`).join("")}</article>
+</div>
+</main>
+<footer class="foot"><div class="wrap">${footer ? `<p>${linked(footer)}</p>` : "<p></p>"}<p>Also see: <a href="${escapeHtml(urls[other.id])}">${PAGE_NAMES[other.id]}</a></p></div></footer>
+</body></html>`;
 }
