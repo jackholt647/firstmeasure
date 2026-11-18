@@ -166,7 +166,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261116-done-at-once'), versionedBundle('photos/project.js', '20261111-offline-photos')]
+      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261118-fm559-on-started'), versionedBundle('photos/project.js', '20261118-fm559-photos-uploaded')]
     },
     {
       // DEPRECATED (2026-08): legacy Proposals project tab — hidden by its
@@ -305,7 +305,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261118-fm559-quick-camera'), versionedBundle('project-request/app.js', '20261118-fm559-quick-camera')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261118-fm559-camera-first'), versionedBundle('project-request/app.js', '20261118-fm559-camera-first')]
     },
     {
       id: 'firstmeasure.order',

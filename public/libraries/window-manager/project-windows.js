@@ -241,22 +241,33 @@
   // link or reload that names a project boots none until that project's window has loaded.
   if (ownsProjectWindows && typeof root.PlatformCommerce?.onReady === 'function' && !new URLSearchParams(root.location.search).get('project')) root.PlatformCommerce.onReady(() => scheduleSpare(2500));
   // The quick camera (FM-559): `camera` opens the shared camera at once, over the window, while the window opens on
-  // its Photos tab and loads behind it; Done shows the window. Each photo goes straight into the project's media and
-  // the window's Photos tab reads them again as they arrive. The camera ends when its window closes.
-  function openCamera(record, camera){
-    if (record.camera || typeof root.FirstMateCamera?.open !== 'function') return;
+  // its Photos tab behind it; Done shows the window. A window's document runs on this page's thread, so a new one
+  // boots (or a spare opens its project) only once the camera is live, at most CAMERA_FIRST_LIMIT later. Each photo
+  // goes straight into the project's media and the window's Photos tab reads them again as they arrive. The camera
+  // ends when its window closes.
+  const CAMERA_FIRST_LIMIT = 1500;
+  function openCamera(project, camera, recordOf){
+    if (typeof root.FirstMateCamera?.open !== 'function') return null;
     const settings = camera && typeof camera === 'object' ? camera : {};
-    const photosArrived = () => record.ready.then(() => {
-      const child = records.get(record.token) === record ? record.frame.contentWindow : null;
-      child?.dispatchEvent(new child.CustomEvent('fm:project-photos-uploaded', {detail:{projectId:String(settings.projectId || record.projectId)}}));
-    }).catch(() => {});
+    const projectId = String(settings.projectId || identity(project));
+    let started;
+    const live = new Promise(resolve => { started = resolve; setTimeout(resolve, CAMERA_FIRST_LIMIT); });
+    const photosArrived = () => {
+      const record = recordOf();
+      record?.ready.then(() => {
+        const child = records.get(record.token) === record ? record.frame.contentWindow : null;
+        child?.dispatchEvent(new child.CustomEvent('fm:project-photos-uploaded', {detail:{projectId}}));
+      }).catch(() => {});
+    };
     try {
-      record.camera = root.FirstMateCamera.open({
-        orgId:sessionOrgId(),
-        projectId:String(settings.projectId || record.projectId),
-        projectTitle:settings.title || record.project?.title || record.project?.address || '',
+      const session = root.FirstMateCamera.open({
+        orgId:sessionOrgId(), projectId,
+        projectTitle:settings.title || project?.title || project?.address || '',
+        onStarted:() => started(),
         onDone:(entries) => {
-          record.camera = null;
+          started();
+          const record = recordOf();
+          if (record?.camera === session) record.camera = null;
           const taken = Array.isArray(entries) ? entries : [];
           if (taken.length) {
             photosArrived();
@@ -266,12 +277,17 @@
           try { settings.onDone?.(taken); } catch (error) { console.warn('Camera onDone failed', error); }
         }
       });
-    } catch (error) { record.camera = null; console.warn('The camera could not be opened', error); }
+      return {session, live};
+    } catch (error) { console.warn('The camera could not be opened', error); return null; }
   }
   function open(project, options = {}){
     if (!host() || !root.FirstMateWindows) return null;
     const camera = options.camera;
     if (camera) { options = {...options, tab:'photos'}; delete options.camera; }
+    const cameraProjectId = identity(project);
+    const cameraWindow = camera && cameraProjectId ? [...records.values()].find(record=>record.projectId === cameraProjectId) : null;
+    let cameraRecord = cameraWindow || null;
+    const quickCamera = camera && !cameraWindow?.camera ? openCamera(project, camera, () => cameraRecord) : null;
     styles();
     root.Portal?.modules?.request?.ensureStyles?.();
     root.FirstMateWindows.ensureStyles?.();
@@ -296,7 +312,7 @@
         else {existing.options={...existing.options,...options};existing.routeParams=routeParams;}
       }
       else applyRouteParams(existing,routeParams);
-      if (camera) openCamera(existing, camera);
+      if (quickCamera) existing.camera = quickCamera.session;
       return existing;
     }
     const warm = takeSpare();
@@ -321,7 +337,8 @@
     }
     const status=document.createElement('span');status.textContent=(globalThis.PlatformLanguage?.text("window-manager","opening_project","Opening project…") ?? "Opening project…");status.setAttribute('role','status');
     header.append(identityNode,tabs,controls,trays);loading.append(header,status);
-    const record={token,projectId,project,options,layer,element,frame,loading,controller:null,api:null,modal:null};
+    const record={token,projectId,project,options,layer,element,frame,loading,controller:null,api:null,modal:null,camera:quickCamera?.session || null};
+    cameraRecord = record;
     const selectOpeningTab=id=>{
       record.options={...record.options,tab:id,...(id!=='photos' ? {photo:''} : {}),...(record.options.layout?.panes ? {layout:{...record.options.layout,panes:[{tab:id}]}} : {})};
       tabs.querySelectorAll('[data-tab]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.tab===id)));
@@ -395,16 +412,19 @@
     // Project-scoped deep-link state (e.g. the Schedule tab's view, target and
     // date) is applied inside the window once its project has opened.
     record.routeParams=projectRouteParams(projectId,options);
-    if(!warm){const url=new URL(root.location.href);url.search='';url.hash='';url.searchParams.set('projectWindow',token);frame.src=url.href;}
+    const boot=()=>{
+      if(records.get(token)!==record)return;
+      if(!warm){const url=new URL(root.location.href);url.search='';url.hash='';url.searchParams.set('projectWindow',token);frame.src=url.href;}
+      // A spare that already booted opens the project once this header has painted; one still booting reports
+      // ready() like a new frame.
+      if(warm?.api)root.requestAnimationFrame(()=>setTimeout(()=>{if(records.get(token)===record)ready(token,warm.child,warm.api);},0));
+    };
+    if(quickCamera)quickCamera.live.then(boot);else boot();
     record.timer=setTimeout(()=>{if(!record.api)status.textContent='Project is still loading. You can close this window and try again.';},30000);
     publishRoute(record);
-    // A spare that already booted opens the project once this header has painted; one still booting reports
-    // ready() like a new frame.
-    if(warm?.api)root.requestAnimationFrame(()=>setTimeout(()=>{if(records.get(token)===record)ready(token,warm.child,warm.api);},0));
     // Once this window has loaded (not while it loads: the downloads would compete with it), the project is kept
     // on the device and the next open gets a spare too.
     record.ready.catch(()=>{}).then(()=>{record.loaded=true;keepOnDevice(record.projectId || projectId);scheduleSpare(1500);});
-    if (camera) openCamera(record, camera);
     return record;
   }
   function accepts(token, child){
