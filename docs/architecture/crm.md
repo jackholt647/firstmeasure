@@ -417,6 +417,43 @@ The tab:
 - Keyboard while the CRM is on screen: `/` search, `f` filter, `j`/`k` next and
   previous row, `Esc` close, `Ctrl+K` command menu, `S` skip in a worklist.
 
+## The assistant
+
+The CRM has no agent of its own (FM-551). The shared assistant
+([global assistant](global-assistant.md#crm)) has `crm_*` tools in every conversation
+(`crm/assistant.ts`):
+
+- `crm_fields`: the view format and a collection's fields, their types, operators and values.
+- `crm_views`: the person's saved views, with which ones the assistant made.
+- `crm_rows`: matching rows through a definition or a saved view (up to 200).
+- `crm_stats`: count, sum, avg, min, max, median, p25, p75, p90, stddev, distinct, filled,
+  empty, true count and share of any field, overall and by up to two fields (dates by day,
+  week, month, quarter, year, weekday or hour in the company's time zone; numbers in bins).
+- `crm_show`: puts a definition (or a saved view) on the CRM tab as an unsaved change; only
+  in the tab's own conversation.
+- `crm_save_view`: the person's own Save as new view (or a save of a view they may edit),
+  private unless they ask to share it and may.
+
+Every read goes through the same collection reader as the tab (branch scope and department
+access), and every definition is checked against the view schema, the condition contract
+and the collection's fields before anything is shown or saved.
+
+The **magic button** left of Filter opens the assistant as a bar at the bottom of the CRM,
+the project window's phone agent bar (`FirstMateAgentBar`, `project-trays.js`), on both
+phone and desktop, in the person's private `crm` conversation
+(`POST /v1/crm/organizations/:orgId/assistant/conversation`). Each message carries what
+the tab shows (`ui_context.crm`: the view, its definition, unsaved changes, rows matching)
+as untrusted navigation metadata. A `crm_view` render in the reply is applied by the tab
+through the surface's `onReply` hook: a definition becomes an unsaved change with Save and
+Discard; a view id opens that view. The button shows only when the organization has
+`apps.assistant`.
+
+**Made by the AI.** A view's definition has `origin` (`""` or `"ai"`). `crm_save_view` and
+Save as new view of a draft the assistant showed set `"ai"`; a later save keeps it, so the
+view stays marked, and a copy a person makes is not. Marked views carry the magic icon in
+the views list and by the title. Tests: `tests/crm-assistant.test.ts` and the second test
+in `tests/crm-app-browser.test.mjs`.
+
 ## Not built
 
 Timeslot grids, financing, and a funnel step editor for
@@ -436,5 +473,7 @@ the funnel, presets, tracking tags and the cancellation window),
 by turns, capacity, fallback and rules, scoring, passing on untouched leads),
 `tests/contact-triggers.test.ts` (contact automations on created, tagged, changed and dated
 contacts) and
-`tests/crm-app-browser.test.mjs` (the app in a browser against the server; set
-`CRM_SCREENSHOTS` to keep a screenshot of each screen).
+`tests/crm-assistant.test.ts` (the assistant's CRM tools and the AI-made mark) and
+`tests/crm-app-browser.test.mjs` (the app in a browser against the server, including the
+magic button and its bar; set `CRM_SCREENSHOTS` to keep a screenshot of each screen and
+`CORS_ALLOWED_ORIGINS=http://crm.test` to run it outside the regression server).

@@ -3,6 +3,7 @@ import { connectionTools, connectionInstructions, connectionContext } from '../.
 import { leadTools } from '../../leads/assistant.js';
 import { formsTools, formsInstructions, formConversationContext } from '../../forms/assistant.js';
 import { materialsSettingsConversationContext } from '../../materials/settings-assistant.js';
+import { crmTools, crmInstructions, crmConversationContext } from '../../crm/assistant.js';
 import { projectConversationContext } from '../project-context.js';
 import { channelConversationContext } from '../channel-context.js';
 import { notificationAssistantInstructions, notificationAssistantTools } from './notifications.js';
@@ -160,6 +161,7 @@ const TOOLS: AgentTool[] = [
   ...connectionTools,
   ...leadTools,
   ...formsTools,
+  ...crmTools,
   {
     name:'open_scheduling_widget',
     description:'Open the shared appointment booking calendar so the user can choose a project, available day and time, and confirm a new appointment.',
@@ -698,6 +700,7 @@ registerAgent({
     run.scratch.connectionContext = await connectionContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.formContext = await formConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.materialsSettingsContext = await materialsSettingsConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
+    run.scratch.crmContext = await crmConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.projectContext = await projectConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.channelContext = await channelConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     // A guided setup open beside this conversation (docs/architecture/guided-experiences.md).
@@ -736,6 +739,8 @@ ${run.scratch.connectionContext || ''}
 ${formsInstructions}
 ${run.scratch.formContext || ''}
 ${run.scratch.materialsSettingsContext || ''}
+${crmInstructions}
+${run.scratch.crmContext || ''}
 ${notificationAssistantInstructions}
 ${run.subjectId === "notifications" ? "The user is in Notification settings. Help them configure notifications through this conversation." : ""}
 ${run.scratch.channelContext || ""}

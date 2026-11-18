@@ -389,6 +389,16 @@ widgets. The form editor's AI tab uses `PlatformAssistant.mountSurface` in a
 private `form:<id>` conversation; its context names the form and states that the
 preview is already beside the chat. See [forms](forms.md).
 
+## CRM
+
+The CRM tab's magic button (left of Filter) opens the assistant as the project window's
+phone agent bar (`FirstMateAgentBar`) at the bottom of the CRM, in the person's private
+`crm` conversation (`crm/assistant.ts`). Its context says it is beside the CRM tab; each
+message's `ui_context.crm` carries the open view and its definition. The `crm_*` tools
+(fields, views, rows, statistics, show, save) are available in every conversation;
+`crm_show` changes the tab only from the `crm` conversation, through a `crm_view` render the
+tab applies with the surface's `onReply` hook. See [CRM](crm.md#the-assistant).
+
 ## Materials settings
 
 Materials settings (the gear on a project's Materials tab, and Settings › Materials;

@@ -699,6 +699,8 @@
     deleteView(orgId, viewId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/views/${enc(viewId)}`), { method:'DELETE' }); },
     setViewPreference(orgId, viewId, preference = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/views/${enc(viewId)}/preference`), { method:'PUT', body:preference }); },
     query(orgId, body = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/query`), { method:'POST', body }); },
+    /* The person's private assistant conversation behind the CRM tab's magic button (FM-551). */
+    assistantConversation(orgId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/assistant/conversation`), { method:'POST', body:{} }); },
     recordResult(orgId, result = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/results`), { method:'POST', body:result }); },
     projectResults(orgId, projectId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/projects/${enc(projectId)}/results`)); },
     sources(orgId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/sources`)); },
