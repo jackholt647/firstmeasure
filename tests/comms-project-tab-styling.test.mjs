@@ -73,26 +73,54 @@ test('the overview channel cards share one row on a phone and say nothing when e
   assert.doesNotMatch(source, /No messages yet/);
 });
 
-// FM-587: the email composer is the notes rich editor (format bar, attach, dictate and audio), the
-// comma hint is an (i) on the To line, and the sending address is a gray subtitle by "New email".
+// FM-587: email and texts use the notes rich editor (format bar, attach, emoji, dictate and audio) in one
+// composer; the comma hint is an (i) on the To line, and the sending address is a gray subtitle by "New email".
 test('the email composer is the shared rich editor with attachments and no always-visible hints', () => {
   const start = source.indexOf('  function renderEmail(root){');
   const view = source.slice(start, source.indexOf('  // SMS ----', start));
   assert.doesNotMatch(view, /fmco-composer-hint|<textarea/, 'a plain textarea or an always-visible hint is back in the email view');
   assert.match(view, /<div class="fmco-thread-title">\$\{\(globalThis\.PlatformLanguage\?\.htmlText\("comms","m_71e31660564d5a","New email"\)[^\n]*<div class="fmco-thread-sub"[^\n]*"m_75109744834b1c",`Sending as \$\{v1\}`/);
-  assert.match(view, /emailComposerHtml\('reply'\)/);
-  assert.match(view, /emailComposerHtml\('compose'\)/);
+  assert.match(view, /composerHtml\('reply'\)/);
+  assert.match(view, /composerHtml\('compose'\)/);
   const recipients = source.slice(source.indexOf('function emailRecipientFieldsHtml(){'), source.indexOf('function bindEmailList('));
   assert.match(recipients, /<div class="fmco-recipient-row has-tip">[^\n]*data-co-email-to>\$\{String\(hintTip\(\(globalThis\.PlatformLanguage\?\.text\("comms","m_275d433a1ef093","Separate multiple addresses with commas"\)/);
   assert.match(recipients, /<div class="fmco-tip-host">/);
-  const composer = source.slice(source.indexOf('function emailComposerHtml(kind){'), source.indexOf('function emailAttachmentsHtml('));
-  for (const piece of ['data-co-email-attach', 'type="file" multiple hidden', 'data-co-email-dictate', 'data-co-email-audio', "voiceIcon('dictation')", "voiceIcon('record')"]) assert.ok(composer.includes(piece), `composer lacks ${piece}`);
+  const composer = source.slice(source.indexOf('function composerHtml(kind){'), source.indexOf('function smsImageHtml('));
+  for (const piece of ['data-co-composer-attach', 'data-co-composer-emoji', 'data-co-composer-dictate', 'data-co-composer-audio', "voiceIcon('dictation')", "voiceIcon('record')"]) assert.ok(composer.includes(piece), `composer lacks ${piece}`);
   assert.match(composer, /widgets\?\.createEditor \? widgets\.createEditor\(placeholder\)/);
-  assert.match(composer, /if \(widgets\?\.formatBar\) mount\.append\(widgets\.formatBar\(editor\)\);/);
+  assert.match(composer, /if \(widgets\?\.formatBar\) mount\.append\(widgets\.formatBar\(editor, channel === 'sms' \? SMS_FORMATS : undefined\)\);/);
   // Files go up as the sender's own media in the slot the send route accepts, and are sent by id with the Markdown body.
-  assert.match(composer, /slot:'email_attachment'/);
+  assert.match(composer, /uploadComposerFile\(upload, sms \? 'sms_image' : 'email_attachment'\)/);
   assert.match(fs.readFileSync(path.join(root, 'public/v1/comms/email-attachments.ts'), 'utf8'), /EMAIL_ATTACHMENT_SLOT = "email_attachment"/);
   assert.match(composer, /format:'markdown', \.\.\.\(html \? \{ html \} : \{\}\), \.\.\.\(attachments\.length \? \{ attachments \} : \{\}\)/);
-  assert.match(rule('.fmco-email-box'), /border:1px solid #d0d5dd/);
+  assert.match(rule('.fmco-rich-box'), /border:1px solid #d0d5dd/);
   assert.match(rule('.fmco-msg-rich'), /white-space:normal/);
+});
+
+// FM-587: texts use the same composer with a shorter format bar, sent as plain text, with one image or audio note.
+test('the text composers are the shared rich editor, limited to what a text can carry', () => {
+  const start = source.indexOf('  function renderSms(root){');
+  const view = source.slice(start, source.indexOf('  // Portal chat ----', start));
+  // The only hint line left is FM-588's "texting isn't ready" status in place of the reply box.
+  assert.doesNotMatch(view.replace(/[^\n]*data-co-sms-off[^\n]*/, ''), /<textarea|fmco-composer-hint|data-co-sms-voice/, 'a plain text box, its own voice button or an always-visible hint is back in Texts');
+  assert.match(view, /<div class="fmco-composer"\$\{ready \? '' : ' hidden'\}>\$\{String\(composerHtml\('sms-reply'\)\)\}<\/div>/);
+  assert.match(view, /composerHtml\('sms-compose'\)/);
+  assert.match(view, /composerHtml\('sms-reply'\)/);
+  assert.match(view, /mountComposer\(root, composer\)/);
+  assert.match(source, /const SMS_FORMATS = \['Bulleted list', 'Numbered list', 'Link'\];/);
+  assert.match(source, /const text = smsText\(draft\.body\);/);
+  assert.match(source, /if \(sms && kept\.length\) Object\.assign\(item, \{ status:'failed'/, 'a text takes one image or one audio note');
+  assert.match(source, /Portal\.PhoneTexting\?\.prepareImage/);
+  assert.match(fs.readFileSync(path.join(root, 'public/libraries/apps/comms/phone-tray.js'), 'utf8'), /Portal\.PhoneTexting\.prepareImage=prepareSmsImage;/);
+});
+
+// smsText is the plain text a text message sends: run the function from the source.
+test('a text flattens links and stray emphasis to plain text and keeps lists', () => {
+  const body = source.slice(source.indexOf('  function smsText(markdown){'), source.indexOf('  function composerHtml(kind){'));
+  const withoutTableWidths = source.match(/const withoutTableWidths = ([^\n]+);/)[1];
+  const smsText = new Function(`const withoutTableWidths = ${withoutTableWidths};\n${body}\nreturn smsText;`)();
+  assert.equal(smsText('Hi **Pat**, see [the quote](https://example.com/q%281%29) and https://x.test\n- Tear-off\n- New _shingles_\n1. One'),
+    'Hi Pat, see the quote (https://example.com/q(1)) and https://x.test\n- Tear-off\n- New shingles\n1. One');
+  assert.equal(smsText('[https://a.test](https://a.test)'), 'https://a.test');
+  assert.equal(smsText('snake_case_name stays'), 'snake_case_name stays');
 });

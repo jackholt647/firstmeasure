@@ -78,7 +78,7 @@ const sendSmsSchema = z.object({
   idempotency_key: z.string().trim().max(500).optional(),
   audio_note: objectSchema.optional(),
   image: z.object({ media_id: z.string().trim().min(1).max(180) }).optional()
-}).refine(value => value.text || value.image, { message: "Enter a message or attach an image." });
+}).refine(value => value.text || value.image || cleanText(asObject(value.audio_note).media_id), { message: "Enter a message or attach an image or audio note." });
 
 const simulateSchema = z.object({
   channel: z.enum(["email", "sms"]),

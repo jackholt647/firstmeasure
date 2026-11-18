@@ -354,6 +354,12 @@ test("comms: text images are owner-validated, saved in threads, and served throu
   const rejected = await client.raw("POST", `/v1/comms/organizations/${orgId}/projects/${projectId}/sms/send`, { text: "Image", image: { media_id: foreign.id } });
   assert.equal(rejected.statusCode, 403);
   assert.equal(rejected.data.error, "sms_image_owner");
+  // FM-587: the rich text composer can send an audio note on its own; a text with nothing in it is still refused.
+  const audio = await storeMediaUpload(orgId, { bytes: Buffer.from("RIFF0000WAVE"), fileName: "note.wav", contentType: "audio/wav", ownerType: "user", ownerId: userId, slot: "audio_note", scope: "communications" });
+  const audioOnly = await client.request("POST", `/v1/comms/organizations/${orgId}/projects/${projectId}/sms/send`, { text: "", audio_note: { media_id: audio.id, duration_seconds: 2 } });
+  assert.equal(audioOnly.message.metadata.audio_note.media_id, audio.id);
+  const empty = await client.raw("POST", `/v1/comms/organizations/${orgId}/projects/${projectId}/sms/send`, { text: "" });
+  assert.equal(empty.statusCode, 400);
 });
 
 // FM-587: the Comms email composer sends a Markdown body (with its HTML) and files the sender uploaded for the email.
