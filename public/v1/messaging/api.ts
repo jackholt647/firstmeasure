@@ -9,7 +9,7 @@ import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
 import "./instructions.js";
-import { storeMediaUpload, readMediaMetadata, readMediaFile, readGlobal, readOrganization } from "../platform/storage.js";
+import { storeMediaUpload, readDocument, readMediaMetadata, readMediaFile, readGlobal, readOrganization } from "../platform/storage.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { badRequest, conflict, forbidden, notFound, PlatformError } from "../platform/errors.js";
@@ -31,7 +31,7 @@ import {
   simulateMessageStatus
 } from "./communications_service.js";
 import { renderCommunicationsDeveloperPage } from "./developer_page.js";
-import { orgPublicEmailAddress } from "../email/engine.js";
+import { deliverableEmailAddress, orgPublicEmailAddress, organizationContactEmail } from "../email/engine.js";
 import { hostedSmsPolicyProblems, isHostedSmsPolicyUrl, renderHostedSmsPolicyPage, SMS_POLICY_PAGES, usesHostedSmsPolicies, withHostedSmsPolicyLinks } from "./policy_pages.js";
 import { createSmsGroup, groupPage, readGroup, groupProjection, sendSmsGroup, sendGroupSchema, replySmsGroupPrivately, privateReplySchema } from "./group_service.js";
 import { smsGroup } from "./group_mms.js";
@@ -195,11 +195,19 @@ async function smsPolicyBranding(orgId: string) {
   }
 }
 
-/** What the company already gave (FM-595): its website from onboarding, to start a registration with. */
-async function smsOrganizationContact(orgId: string) {
-  const data = asObject((await readGlobal(orgId).catch(() => null))?.data);
-  const website = normalizeWebsite(asObject(data.contact).website || asObject(asObject(data.legacy_org_snapshot).contact).website);
-  return website ? { website } : {};
+/**
+ * What the company already gave (FM-595): its website from onboarding, to start a registration with. GP-6: and its
+ * contact email (saved, else its domain or FirstMate Mail inbox), so the support email is never the owner's login.
+ */
+async function smsOrganizationContact(orgId: string, branchId = "default") {
+  const [global, branch] = await Promise.all([readGlobal(orgId).catch(() => null), readDocument(orgId, "branch", branchId).catch(() => null)]);
+  const data = asObject(global?.data);
+  const contact = { ...asObject(asObject(data.legacy_org_snapshot).contact), ...asObject(data.contact) };
+  const website = normalizeWebsite(contact.website);
+  // Settings › Company saves the company email on the branch.
+  const saved = deliverableEmailAddress(asObject(asObject(branch?.data).contact).email) || contact.email;
+  const { email } = await organizationContactEmail(orgId, saved).catch(() => ({ email: "" }));
+  return { ...(website ? { website } : {}), ...(email ? { email } : {}) };
 }
 
 function changesStoredFields(current: unknown, patch: JsonObject) {
@@ -618,7 +626,8 @@ function validateBrandDraft(brandInput: JsonObject) {
   for (const key of ["displayName", "email", "vertical", "country"]) {
     if (!nonEmpty(brandInput[key])) missing.push(key);
   }
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanText(brandInput.email))) missing.push("emailFormat");
+  // GP-6: carriers reject an address that cannot receive mail (a sandbox login at signup-sandbox.test).
+  if (!deliverableEmailAddress(brandInput.email)) missing.push("emailFormat");
   if (!/^[A-Z]{2}$/.test(cleanText(brandInput.country).toUpperCase())) missing.push("countryFormat");
   if (!normalizeEnum(brandInput.vertical, BRAND_VERTICALS, "")) missing.push("vertical");
   if ([cleanText(brandInput.street), cleanText(brandInput.address2)].filter(Boolean).join(", ").length > 100) missing.push("streetMaxLength");
@@ -646,7 +655,7 @@ function validateBrandDraft(brandInput: JsonObject) {
   if (entityType === "PUBLIC_PROFIT" && !nonEmpty(brandInput.businessContactEmail)) {
     missing.push("businessContactEmail");
   }
-  if (entityType === "PUBLIC_PROFIT" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanText(brandInput.businessContactEmail))) missing.push("businessContactEmailFormat");
+  if (entityType === "PUBLIC_PROFIT" && !deliverableEmailAddress(brandInput.businessContactEmail)) missing.push("businessContactEmailFormat");
   if (entityType === "PUBLIC_PROFIT") {
     if (!nonEmpty(brandInput.stockSymbol)) missing.push("stockSymbol");
     if (!normalizeEnum(brandInput.stockExchange, STOCK_EXCHANGES, "") || cleanText(brandInput.stockExchange).toUpperCase() === "NONE") missing.push("stockExchange");
@@ -1815,9 +1824,9 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/sms/setup", async (request) => {
     const orgId = param(request.params, "orgId");
-    await requireSmsSettingsAccess(request, orgId);
+    const ctx = await requireSmsSettingsAccess(request, orgId);
     const organization = await ensureMessagingOrganization(orgId);
-    const [profiles, contact] = await Promise.all([listSmsComplianceProfiles(organization.id), smsOrganizationContact(orgId)]);
+    const [profiles, contact] = await Promise.all([listSmsComplianceProfiles(organization.id), smsOrganizationContact(orgId, ctx.branchId || "default")]);
     return {
       ok: true,
       organization: { ...publicMessagingOrganization(organization), contact },

@@ -1308,6 +1308,8 @@ app.get("/auth/google/config", async () => ({
       country: organizationCountry(globalData).country,
       branding: asObject(branchData.branding),
       contact: asObject(branchData.contact),
+      // GP-6: what the company's contact email is until it saves a deliverable one (its domain, else FirstMate Mail).
+      contact_defaults: { email: (await portalOrgContactEmail(orgId, "")).email },
       report_settings: asObject(branchData.report_settings),
       permissions: ctx.permissions
     };
@@ -9930,6 +9932,9 @@ async function portalOrgView(orgId: string) {
   const colors = asObject(branding.colors);
   const logo = cleanText(branding.logo);
   const resolvedLogo = portalResolveLogo(logo, branding);
+  const contact = { ...asObject(legacyMetadata.contact), ...asObject(legacyGlobal.contact), ...asObject(data.contact) };
+  // GP-6: with no deliverable email saved, the company's contact email is its inbox (domain, else FirstMate Mail).
+  const contactEmail = await portalOrgContactEmail(orgId, contact.email);
   return {
     ...organization,
     id: orgId,
@@ -9944,7 +9949,7 @@ async function portalOrgView(orgId: string) {
         accent: colors.accent || colors.primary || "#d93025"
       }
     },
-    contact: { ...asObject(legacyMetadata.contact), ...asObject(legacyGlobal.contact), ...asObject(data.contact) },
+    contact: { ...contact, email: contactEmail.email, ...(contactEmail.source === "inbox" ? { email_default: true } : {}) },
     report_settings: { ...asObject(legacyMetadata.report_settings), ...asObject(legacyGlobal.report_settings), ...asObject(data.report_settings) },
     billing: safeBillingView(Object.keys(asObject(data.billing)).length ? data.billing : legacyGlobal.billing),
     commerce: customerCommercialView(),
@@ -9984,6 +9989,19 @@ function portalResolveLogo(logo: string, branding: JsonObject) {
   if (logo.startsWith("/")) return logo.startsWith("/storage/") ? logo : "";
   if (logo.startsWith("organizations/")) return "";
   return logo;
+}
+
+/** GP-6: saving the shown default inbox address keeps it a default, so it follows a domain connected later. */
+async function portalSavedContactEmail(orgId: string, saved: unknown, requested: unknown) {
+  const email = cleanText(requested);
+  if (!email || cleanText(saved)) return email;
+  const current = await portalOrgContactEmail(orgId, "");
+  return current.source === "inbox" && current.email === email.toLowerCase() ? "" : email;
+}
+
+async function portalOrgContactEmail(orgId: string, saved: unknown) {
+  const { organizationContactEmail } = await import("../email/engine.js");
+  return organizationContactEmail(orgId, saved).catch(() => ({ email: "", source: "" as const }));
 }
 
 const PORTAL_ORG_SETTING_FIELDS = ["name", "accent", "secondary", "company_email", "company_phone", "company_address", "website"];
@@ -10037,7 +10055,7 @@ async function portalUpdateOrg(orgId: string, body: JsonObject, userDoc: JsonObj
       },
       contact: {
         ...contact,
-        ...(Object.prototype.hasOwnProperty.call(body, "company_email") ? { email: cleanText(body.company_email) } : {}),
+        ...(Object.prototype.hasOwnProperty.call(body, "company_email") ? { email: await portalSavedContactEmail(orgId, contact.email, body.company_email) } : {}),
         ...(Object.prototype.hasOwnProperty.call(body, "company_phone") ? { phone: cleanText(body.company_phone) } : {}),
         ...(Object.prototype.hasOwnProperty.call(body, "company_address") ? { address: cleanText(body.company_address) } : {}),
         ...(Object.prototype.hasOwnProperty.call(body, "website") ? { website: cleanText(body.website) } : {})
