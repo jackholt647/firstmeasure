@@ -162,6 +162,41 @@ test('a draft write is held ahead of the guided setup hold, so the setup sees th
   } finally { await browser.close(); server.close(); }
 });
 
+// FM-575: the rail can be dragged narrow; when a label no longer fits its tab, every tab drops to its icon (each keeps
+// its aria-label and title), and the labels come back once the rail is wide enough again.
+test('the rail\'s tab bar shows icons alone when its labels do not fit, and labels again when they do', async () => {
+  const server = await serve({ railGate: Promise.resolve() });
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
+    const errors = await open(page, server.address().port);
+    await page.locator('[data-scope-view="roof"]').waitFor();
+    // Drags the rail with its divider's keys: Home is its narrowest (20 % of the tab), End its widest.
+    const resize = async (key) => { await page.locator('.mt-scope-divider').press(key); await page.waitForTimeout(100); };
+    await resize('End');
+    const tabs = () => page.evaluate(() => {
+      const nav = document.querySelector('.sw-tabs');
+      return { icons: nav.classList.contains('sw-tabs-icons'),
+        labels: [...nav.querySelectorAll('[data-scope-view]')].map((tab) => ({ name: tab.getAttribute('aria-label'), title: tab.title, shown: tab.querySelector('span').getClientRects().length > 0,
+          clipped: tab.querySelector('span').scrollWidth > tab.querySelector('span').clientWidth, overflows: tab.scrollWidth > tab.clientWidth, icon: !!tab.querySelector('i.fas') })) };
+    });
+    let view = await tabs();
+    assert.equal(view.icons, false, 'a wide rail shows labels: ' + JSON.stringify(view));
+    assert.ok(view.labels.every((tab) => tab.shown && !tab.clipped), JSON.stringify(view));
+    await resize('Home');
+    view = await tabs();
+    assert.equal(view.icons, true, 'a narrow rail shows icons alone: ' + JSON.stringify(view));
+    assert.ok(view.labels.every((tab) => !tab.shown && !tab.overflows && tab.icon), JSON.stringify(view));
+    assert.deepEqual(view.labels.map((tab) => tab.name), ['Measurements', 'Documents', 'Photos'].concat(view.labels.length > 3 ? ['Schedule'] : []));
+    assert.ok(view.labels.every((tab) => tab.title === tab.name));
+    await resize('End');
+    view = await tabs();
+    assert.equal(view.icons, false, 'labels come back when the rail is widened: ' + JSON.stringify(view));
+    assert.ok(view.labels.every((tab) => tab.shown && !tab.clipped), JSON.stringify(view));
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); server.close(); }
+});
+
 test('loading says so once and styled; a saved project with no report still loads; failures show an error', async () => {
   let release;
   const control = { railGate: new Promise((resolve) => { release = resolve; }) };

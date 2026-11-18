@@ -284,7 +284,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261111-offline'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261113-fm434-settings-surface'), versionedBundle('materials/project.js', '20261118-fm564-styles-first')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261111-offline'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261113-fm434-settings-surface'), versionedBundle('materials/project.js', '20261118-fm575-icon-tabs')]
     },
     {
       id: 'project.money',
