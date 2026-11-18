@@ -335,11 +335,10 @@
       .fmco-mail-who>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .fmco-mail-count{flex:none;font-size:11px;font-weight:700;color:#98a2b3}
       .fmco-mail-addr{flex:0 1 auto;max-width:55%;font-size:11.5px;font-weight:600;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
-      .fmco-mail-subject{font-weight:800;color:#344054}
       .fmco-mail-snippet{font-size:12px;line-height:1.45;color:#667085;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
       .fmco-mail-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:600;color:#98a2b3}
       .fmco-mail-foot i{font-size:11px}
-      .fmco-mail-row.unread .fmco-mail-who,.fmco-mail-row.unread .fmco-mail-subject{font-weight:900;color:#101828}.fmco-mail-row.unread .fmco-mail-addr{color:#344054}
+      .fmco-mail-row.unread .fmco-mail-who{font-weight:900;color:#101828}.fmco-mail-row.unread .fmco-mail-addr{color:#344054}
       .fmco-mail-row.unread .fmco-mail-snippet{color:#344054}
       .fmco-mail-row.unread .fmco-mail-foot time{color:var(--primary-readable,var(--primary,#d93025));font-weight:800}
       .fmco-mail-peek{position:absolute;z-index:25;width:min(480px,calc(100% - 320px));min-width:300px;max-height:min(420px,calc(100% - 8px));box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#fff;border:1px solid #d0d5dd;border-radius:12px;box-shadow:0 16px 40px rgba(16,24,40,.18);pointer-events:none}
@@ -881,7 +880,7 @@
             <span class="fmco-mail-who"><span>${esc(emailPeople(item.participants))}</span>${count > 1 ? `<span class="fmco-mail-count">${count}</span>` : ''}</span>
             ${people.some((person) => person.name) ? `<span class="fmco-mail-addr" title="${esc(addresses)}">${esc(addresses)}</span>` : ''}
           </span>
-          <span class="fmco-mail-snippet"><span class="fmco-mail-subject">${esc(clean(item.subject) || '(no subject)')}</span> — ${esc(clean(item.snippet) || emailLine(object(item.last_message).text).slice(0, 200) || (globalThis.PlatformLanguage?.text("comms","m_1fd5d8b93e36dd","No message text") ?? "No message text"))}</span>
+          <span class="fmco-mail-snippet">${esc(clean(item.snippet) || emailLine(object(item.last_message).text).slice(0, 200) || (globalThis.PlatformLanguage?.text("comms","m_1fd5d8b93e36dd","No message text") ?? "No message text"))}</span>
           <span class="fmco-mail-foot"><span>${item.has_attachments ? `<i class="fa-solid fa-paperclip" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_0b5cae7c72c6a9","Has attachments") ?? "Has attachments")}"></i>` : ''}${unread ? `<span class="fmco-sr-only">${(globalThis.PlatformLanguage?.htmlText("comms","m_e6bd48170f22a4","Unread") ?? "Unread")}</span>` : ''}</span><time datetime="${esc(clean(item.last_message_at))}">${esc(timeLabel(item.last_message_at))}</time></span>
         </button>
       `;
@@ -898,13 +897,18 @@
   /** Who an email thread is with, as { name, address }: the participant's name, else the project contact's. */
   function emailPeopleList(participants){
     const seen = new Set();
-    return (Array.isArray(participants) ? participants : [])
+    const people = (Array.isArray(participants) ? participants : [])
       .filter((participant) => !['internal', 'bcc'].includes(clean(participant.type)) && clean(participant.address) && clean(participant.address).toLowerCase() !== state.inboxAddress.toLowerCase())
       .map((participant) => ({ name:clean(participant.name) || contactNameFor(participant.address), address:clean(participant.address) }))
       .filter((person) => !seen.has(person.address.toLowerCase()) && seen.add(person.address.toLowerCase()));
+    // One recipient whose address is on no contact, in a project whose primary contact has no email on file: that is
+    // the contact it was written to (the address was typed into New email), so the tile says their name.
+    const primary = primaryContact();
+    if (people.length === 1 && !people[0].name && !clean(primary.email) && clean(primary.name)) people[0].name = clean(primary.name);
+    return people;
   }
 
-  /** Names first (FM-591): an address shows only for someone with no name. */
+  /** Names first (FM-591): the tile puts the name top left and the address top right. */
   function emailPeople(participants){
     return emailPeopleList(participants).map((person) => person.name || person.address).join(', ') || 'No recipients';
   }
