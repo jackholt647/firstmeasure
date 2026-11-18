@@ -84,7 +84,7 @@
 
     /* Project: the shared project selector, searching through the authorized project directory export. */
     W.attachRenderer('project.picker','1',async(root,{config,context,reference,state,notifySelection})=>{
-      if(!global.FirstMateProjectSelector?.mount)await (selectorScript||=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=new URL('../project-selector/project-selector.js?v=20261007-picker-widgets',base);s.onload=resolve;s.onerror=()=>{selectorScript=null;reject(Error('The project picker could not load'));};document.head.append(s);}));
+      if(!global.FirstMateProjectSelector?.mount)await (selectorScript||=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=new URL('../project-selector/project-selector.js?v=20261118-fm556-new-project',base);s.onload=resolve;s.onerror=()=>{selectorScript=null;reject(Error('The project picker could not load'));};document.head.append(s);}));
       const target=reference.target||context.target||{},source={provider:'project-widgets',export:'directory'};
       const read=context.read||((source,target)=>global.PlatformAPI.publication.read(target.organizationId,{...source,target}));
       const ui=frame(root,{prompt:config.prompt,fallback:'Choose a project',confirm:'Use this project',context,notifySelection});ui.shell.dataset.project='true';
