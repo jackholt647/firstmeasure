@@ -17,7 +17,7 @@ import {adoptOrganizationTimezone,resolveOrganizationTimezone,zonedParts,zonedIn
 import {occurrenceDate,createRecurrenceSeries,materializeRecurrenceSeries} from '../platform/recurrence.js';
 import {isFirstMeasurePostgresEnabled,withPostgresTransaction,withPlatformPostgresClient} from '../src/database/postgres.js';
 
-import {departmentInBranch,presetsForBranch,otherBranchDepartmentIds,appointmentCatalogSchema,appointmentConfigurationSchema,previewSchema,plannedBookingSchema,type AppointmentConfiguration} from './planning-contracts.js';
+import {departmentInBranch,presetsForBranch,otherBranchDepartmentIds,appointmentCatalogSchema,appointmentConfigurationSchema,previewSchema,plannedBookingSchema,requiresProject,type AppointmentConfiguration} from './planning-contracts.js';
 export * from './planning-contracts.js';
 const object=(v:unknown):JsonObject=>v&&typeof v==='object'&&!Array.isArray(v)?v as JsonObject:{};
 const list=(v:unknown):JsonObject[]=>Array.isArray(v)?v.map(object):[];
@@ -56,7 +56,9 @@ export async function readAppointmentCatalog(ctx:PlatformAuthContext){
   // Only this branch's departments are offered here; what a stored preset names of another branch's is dropped.
   const branchId=ctx.branchId||'default',branchDepartments=organizationDepartments.departments.filter(d=>departmentInBranch(d,branchId));
   const departmentIds=new Set(branchDepartments.filter(d=>d.status==='active').map(d=>d.id));
-  const presets=stored?presetsForBranch(branchCatalog.presets,organizationDepartments.departments,branchId):branchCatalog.presets.map(p=>({...p,configuration:{...p.configuration,department_ids:p.configuration.department_ids.filter(id=>departmentIds.has(id)),requirements:p.configuration.requirements.map(r=>r.department_id&&!departmentIds.has(r.department_id)?{...r,department_id:undefined}:r)}}));
+  const branchPresets=stored?presetsForBranch(branchCatalog.presets,organizationDepartments.departments,branchId):branchCatalog.presets.map(p=>({...p,configuration:{...p.configuration,department_ids:p.configuration.department_ids.filter(id=>departmentIds.has(id)),requirements:p.configuration.requirements.map(r=>r.department_id&&!departmentIds.has(r.department_id)?{...r,department_id:undefined}:r)}}));
+  // Every type says whether it needs a project, so Settings shows and booking obeys the value the server enforces (FM-557).
+  const presets:typeof branchPresets=branchPresets.map(p=>({...p,configuration:{...p.configuration,requires_project:requiresProject(p.configuration)}}));
   const catalog={...branchCatalog,presets,departments:branchDepartments,groups:[]};
   const branchDepartmentIds=new Set(branchDepartments.map(d=>d.id));
   const resources=await resolveAssignableSubjects(ctx.orgId,ctx.branchId||'default',{allow_unassigned:true,rules:[]});
@@ -182,10 +184,17 @@ export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<t
   }
   return {ok:true,timezone:zone,slots};
 }
+/** A type that needs a project (FM-557) is never booked without one, whatever the booking's copy of it says; a custom
+ *  appointment needs one only when it says so. */
+async function assertProjectOptional(ctx:PlatformAuthContext,config:AppointmentConfiguration){
+  const preset=config.preset_id?(await readAppointmentCatalog(ctx)).catalog.presets.find(p=>p.id===config.preset_id):null;
+  if(preset?requiresProject(preset.configuration):config.requires_project===true)throw badRequest('appointment_project_required',`${preset?.label||'This appointment'} needs a project. Choose a project or make a new one.`);
+}
 // A staff booking is internal until someone shares it; a customer who books
 // it themselves (a website form) already knows about it.
 export async function bookPlannedAppointment(ctx:PlatformAuthContext,input:z.infer<typeof plannedBookingSchema>,options:{customerBooked?:boolean}={}){
   assertAppointmentDepartmentPermission(ctx,input.configuration,'manage_schedule');
+  if(!input.project_id)await assertProjectOptional(ctx,input.configuration);
   const work=()=>withProjectDocumentLock(ctx.orgId,'\u0000appointment_bookings',async()=>{
     await projectAccess(ctx,input.project_id);
     const fingerprint=createHash('sha256').update(JSON.stringify(input)).digest('hex');

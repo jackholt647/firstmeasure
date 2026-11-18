@@ -244,7 +244,7 @@ test('phones book in steps: type, then project or address, then time with Create
   // and Next waits for a choice; New project stays in the footer while results show (FM-556).
   await page.locator('.fm-ap-type[data-preset-button=sales]').click();
   await page.waitForFunction(()=>document.querySelector('[data-step=project]:not([hidden])'));
-  assert.equal(await page.locator('[data-step=project] .fm-booking-hint').count(),0);
+  assert.equal(await page.locator('[data-step=project] .fm-booking-hint:visible').count(),0);
   assert.equal(await page.locator('.fm-project-results').isVisible(),false);assert.equal(await page.getByRole('option').count(),0);
   assert.equal(await page.locator('.fm-booking-choices').isVisible(),true);
   assert.equal(await page.locator('[data-next]').isDisabled(),true);
@@ -375,6 +375,84 @@ test('phones make a new project in its own step, every field optional, or book w
   assert.match(await page.locator('[data-summary]').innerText(),/No project/);
   await page.locator('[data-prev]').click();assert.equal(await page.locator('[data-no-project]').getAttribute('aria-pressed'),'true');assert.equal(await next.isDisabled(),false);
   await search.fill('x');assert.equal(await next.isDisabled(),true);
+ }finally{await browser.close();}
+});
+
+test('a type that needs a project hides No project; the New project step uses Google addresses and a tidy footer (FM-557)',async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:412,height:860},hasTouch:true});page.setDefaultTimeout(5000);
+  await page.route('http://localhost/**',r=>r.fulfill({body:'<html><body></body></html>',contentType:'text/html'}));await page.goto('http://localhost/');await page.addStyleTag({content:styles});
+  // A stand-in for the portal's Google Places: one list on the body per field, filled as Google does, and a pick.
+  await page.evaluate(()=>{
+   window.google={maps:{event:{clearInstanceListeners(){}},places:{Autocomplete:class{
+    constructor(input){this.input=input;this.listeners={};const list=document.createElement('div');list.className='pac-container';list.style.cssText='position:absolute;top:900px;left:0;display:none';document.body.append(list);window.placesList=list;
+     input.addEventListener('input',()=>{list.innerHTML='<div class="pac-item"><span class="pac-item-query">15 Elm Street</span> Springfield, IL, USA</div>';list.style.display='';});
+     list.addEventListener('mousedown',event=>{event.preventDefault();list.style.display='none';input.value='15 Elm Street, Springfield, IL 62701, USA';this.listeners.place_changed?.();});}
+    addListener(name,fn){this.listeners[name]=fn;}
+    getPlace(){return {formatted_address:'15 Elm Street, Springfield, IL 62701, USA',geometry:{location:{lat:()=>39.8,lng:()=>-89.6}},address_components:[{types:['street_number'],long_name:'15',short_name:'15'},{types:['route'],long_name:'Elm Street',short_name:'Elm St'},{types:['locality'],long_name:'Springfield',short_name:'Springfield'},{types:['administrative_area_level_1'],long_name:'Illinois',short_name:'IL'},{types:['postal_code'],long_name:'62701',short_name:'62701'}]};}
+   }}}};
+  });
+  for(const content of [picker,selector,configuration,booking])await page.addScriptTag({content});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.evaluate(()=>{
+   const base={department_ids:[],delivery:false,timing_mode:'timed',duration_days:2,location:{mode:'project',address:''},duration_minutes:60,window_minutes:60,slot_minutes:30,requirements:[],recurrence:null};
+   let catalog={departments:[],groups:[],presets:[{id:'sales',label:'Sales appointment',configuration:{...base,title:'Sales appointment',requires_project:true}},{id:'meeting',label:'Team meeting',configuration:{...base,title:'Team meeting',requires_project:false}}]};
+   window.saves=[];window.saved=[];const stored={};
+   window.PlatformAPI={projects:{get:async(o,id)=>({document:{id,data:stored[id]||{}}}),save:async(o,id,data)=>{window.saves.push({id,data});stored[id]=data;return {ok:true,document:{id,data}};}},
+    contacts:{setProjectContacts:async()=>({ok:true})},
+    search:{projectsAndContacts:async()=>({results:[]})},
+    appointments:{catalog:async()=>({can_manage:true,revision:1,resources:[],catalog}),saveCatalog:async(o,input)=>{window.saved.push(input);catalog=input.catalog;return {can_manage:true,revision:2,resources:[],catalog};},preview:async()=>({slots:[]}),book:async()=>({ok:true})}};
+   return FirstMateBooking.open({orgId:'org'});
+  });
+  const visibleStep=()=>page.evaluate(()=>document.querySelector('[data-step]:not([hidden])').dataset.step);
+  const search=page.getByRole('combobox',{name:'Search projects or type an address'}),none=page.locator('[data-no-project]');
+  await page.locator('.fm-ap-type[data-preset-button=sales]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-step=project]:not([hidden])'));
+  assert.equal(await none.isVisible(),false,'a sales appointment cannot be booked without a project');
+  assert.equal(await page.locator('[data-needs-project]').innerText(),'Sales appointment needs a project.');
+  await search.fill('42 Unknown Road');await page.waitForTimeout(400);
+  assert.equal(await page.getByRole('option',{name:/Use “42 Unknown Road”/}).count(),0,'nor with just an address');
+  // The footer does not stretch: Previous on the left, New project and a narrow Next together on the right.
+  const box=selector=>page.locator(selector).boundingBox();
+  const [footer,prev,newProject,next]=await Promise.all(['.fm-booking-footer','[data-prev]','.fm-booking-footer [data-new-project]','[data-next]'].map(box));
+  assert.ok(next.width<newProject.width,`Next (${next.width}px) is narrower than New project (${newProject.width}px)`);
+  assert.ok(Math.abs(footer.x+footer.width-16-(next.x+next.width))<=1,'Next is at the right edge');
+  assert.ok(next.x-(newProject.x+newProject.width)<=12,'New project sits right beside Next');
+  assert.ok(newProject.x-(prev.x+prev.width)>=24,'space between Previous and New project');
+  assert.ok(await page.locator('.fm-booking-footer').evaluate(el=>el.scrollWidth<=el.clientWidth));
+  // New project: Google's address list shows under the field inside the dialog, and a pick saves where it is.
+  await search.fill('');await page.locator('.fm-booking-footer [data-new-project]').click();assert.equal(await visibleStep(),'new');
+  const address=page.locator('[data-new-field=address]');
+  await address.focus();await page.waitForFunction(()=>window.placesList?.parentElement?.id==='fm-booking-dialog');
+  await address.pressSequentially('15 Elm');
+  const [field,list]=await Promise.all([address.boundingBox(),page.locator('.pac-container').boundingBox()]);
+  assert.ok(Math.abs(list.y-(field.y+field.height+4))<=2&&Math.abs(list.x-field.x)<=1&&Math.abs(list.width-field.width)<=1,'the list sits under the field '+JSON.stringify([field,list]));
+  assert.equal(await page.locator('.pac-container').evaluate(el=>document.elementFromPoint(el.getBoundingClientRect().x+20,el.getBoundingClientRect().y+10)?.closest('.pac-container')===el),true,'the list is above the dialog, not under it');
+  await address.press('Enter');assert.equal(await page.locator('[data-new-field=name]').evaluate(el=>el===document.activeElement),false,'Enter with the list open picks, it does not move on');
+  await page.locator('.pac-item').click();
+  assert.equal(await address.inputValue(),'15 Elm Street, Springfield, IL 62701, USA');
+  // Name and phone share a row, email under them, as in the project's details tray.
+  const [name,phone,email]=await Promise.all(['name','phone','email'].map(key=>box(`[data-new-field=${key}]`)));
+  assert.equal(name.y,phone.y);assert.ok(name.x<phone.x);assert.ok(email.y>name.y);assert.equal(email.x,name.x);
+  await page.locator('[data-new-field=name]').fill('Jane Roe');
+  await page.locator('[data-next]').click();await page.waitForFunction(()=>document.querySelector('[data-step=when]:not([hidden])'));
+  const saved=await page.evaluate(()=>window.saves.at(-1).data);
+  assert.deepEqual([saved.address,saved.lat,saved.lng,saved.address_components.city,saved.address_components.zip],['15 Elm Street, Springfield, IL 62701, USA',39.8,-89.6,'Springfield','62701']);
+  // A type that does not need a project offers No project again.
+  await page.locator('[data-progress=type] button').click();await page.locator('.fm-ap-type[data-preset-button=meeting]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-step=project]:not([hidden])'));await search.fill('');
+  assert.equal(await none.isVisible(),true);assert.equal(await page.locator('[data-needs-project]').isVisible(),false);
+  // Whether a new type needs a project is set when it is made.
+  await page.locator('[data-progress=type] button').click();
+  await page.locator('[data-new-type]').click();await page.locator('#fm-booking-type-sheet [data-type-name]').fill('Roof inspection');
+  const needs=page.locator('#fm-booking-type-sheet [data-requires-project]');assert.equal(await needs.isChecked(),false);
+  await page.locator('#fm-booking-type-sheet label:has(>[data-requires-project])').click();assert.equal(await needs.isChecked(),true);
+  await page.locator('[data-type-save]').click();await page.waitForFunction(()=>document.querySelector('[data-step=project]:not([hidden])'));
+  assert.equal(await page.evaluate(()=>window.saved[0].catalog.presets.at(-1).configuration.requires_project),true);
+  assert.equal(await none.isVisible(),false);
+  await page.getByRole('button',{name:'Close appointment booking'}).click();await page.locator('dialog').waitFor({state:'detached'});
+  assert.equal(await page.locator('.pac-container').count(),0,'the list goes with the dialog');
  }finally{await browser.close();}
 });
 

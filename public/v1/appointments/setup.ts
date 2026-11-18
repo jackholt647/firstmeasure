@@ -146,7 +146,8 @@ const CATEGORY_DEPARTMENT: Record<AppointmentCategory, string | null> = { sales:
 /**
  * Puts the setup's kinds into the person's branch's appointment types, through the catalog's own writer. A catalog
  * nobody has saved (the built-in Sales and Production types) becomes exactly the kinds picked; a saved one keeps every
- * type it has and gains the kinds it lacks. `answers` (by kind id) also sets each type's texts and who goes.
+ * type it has and gains the kinds it lacks. `answers` (by kind id) also sets each type's texts and who goes. A new sales
+ * or production type needs a project (FM-557); an other one (a team meeting) does not.
  */
 async function writeTypes(auth: PlatformAuthContext, kinds: StoredKind[], answers: Map<string, StoredType> | null) {
   const bundle = await readAppointmentCatalog(auth);
@@ -159,7 +160,7 @@ async function writeTypes(auth: PlatformAuthContext, kinds: StoredKind[], answer
     const at = presets.findIndex((preset) => preset.id === entry.id);
     const answer = answers?.get(entry.id);
     if (at >= 0 && !answer) continue;
-    const base = at >= 0 ? presets[at]!.configuration : appointmentConfigurationSchema.parse({ title: entry.label, ...(known?.configuration || { duration_minutes: 60, window_minutes: 60 }), department_ids: departmentId ? [departmentId] : [] });
+    const base = at >= 0 ? presets[at]!.configuration : appointmentConfigurationSchema.parse({ title: entry.label, ...(known?.configuration || { duration_minutes: 60, window_minutes: 60 }), department_ids: departmentId ? [departmentId] : [], requires_project: entry.category !== "other" });
     const configuration = answer
       ? appointmentConfigurationSchema.parse({ ...base, requirements: requirementsFor(answer.attendee, auth.userId, departmentId), customer_texts: { reminder: answer.reminder, on_my_way: answer.on_my_way } })
       : appointmentConfigurationSchema.parse({ ...base, requirements: requirementsFor("anyone", auth.userId, departmentId) });
