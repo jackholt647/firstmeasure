@@ -215,6 +215,10 @@ function readyWidget(el,ctx){
   const cards=[{id:'suppliers',label:copy('gx_ops_suppliers','Suppliers'),minutes:5,guide:'operations.suppliers.setup',body:copy('gx_ops_suppliers_body','Choose who supplies your materials and add their costs.')},{id:'equipment',label:copy('gx_ops_equipment','Equipment'),minutes:3,body:copy('gx_ops_equipment_body','Connect your equipment to the work your projects require.')},{id:'workforce',label:workforce,minutes:5,guide:'operations.workforce.setup',body:copy('gx_ops_workforce_body','Add who does the work and how you pay them.')},{id:'proposals',label:copy('gx_ops_proposals','Proposals'),minutes:10,guide:'operations.proposal.setup',body:copy('gx_ops_proposals_body','Create proposals with payment terms and customer approval.')}];
   for(const card of cards){const config=array(ctx.options.setups).find(item=>item.id===card.id);if(config){card.minutes=config.minutes??card.minutes;card.guide=config.experience||card.guide;card.selections=config.selections;card.start=config.start;card.appId=config.appId;}}
   let last=null;
+  // One card on its own (`options.card`, FM-619: a Setup tag on the Operations tab opens operations.equipment.setup):
+  // it opens at once, without the scope check or the other cards, and leaving it finishes the setup.
+  const only=cards.some(card=>card.id===ctx.options.card)?ctx.options.card:'';
+  const done=()=>only?Promise.resolve(ctx.complete?.()):refresh();
   async function refresh(){
     render(await env.invoke('operations.setup.status',{operations_document_id:ctx.selections.operations_project_id===env.projectId?ctx.selections.operations_document_id:undefined}));
   }
@@ -239,7 +243,7 @@ function readyWidget(el,ctx){
         await activate('portal.equipment',env.orgId);if(!alive)return;
         // The Equipment tab itself (the same app, its tour and its fleet), with Back to the cards at the bottom left as
         // the sheet's other steps have it (FM-606). The card is done when the fleet has a unit, wherever it was added.
-        el.innerHTML=`<div class="ops-setup"><div class="ops-app"></div><p class="ops-error" role="alert"></p><div class="ops-foot"><button type="button" class="ops-btn" data-return><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(copy('gx_ui_back','Back'))}</button></div></div>`;
+        el.innerHTML=`<div class="ops-setup"><div class="ops-app"></div><p class="ops-error" role="alert"></p><div class="ops-foot"><button type="button" class="ops-btn" data-return><i class="fas ${only?'fa-check':'fa-arrow-left'}" aria-hidden="true"></i>${only?esc(copy('gx_ui_done','Done')):esc(copy('gx_ui_back','Back'))}</button></div></div>`;
         el.querySelector('[data-return]').addEventListener('click',()=>{if(child&&!touring())leave();});
         child=await window.FirstMateEmbeddableApps.mount(el.querySelector('.ops-app'),'portal.equipment',{orgId:env.orgId,surface:'portal_tab',active:true});
         if(!alive){child?.destroy?.();child=null;return;}
@@ -255,16 +259,18 @@ function readyWidget(el,ctx){
         if(card.appId)await activate(card.appId,env.orgId);
         const result=await ctx.runGuide?.(card.guide,{...(card.selections?{selections:card.selections}:{}),...(card.start?{start:card.start}:{})});
         if(result?.status==='unavailable')throw Error(copy('gx_ops_setup_unavailable','This setup is not available for your account.'));
-        await refresh();
+        await done();
       }
     }catch(error){showError(error);}finally{busy=false;}
   }
-  el.innerHTML=`<div class="ops-loading">${esc(copy('gx_ops_checking','Checking your setup…'))}</div>`;Promise.resolve(ctx.checkpoint?.()).then(syncSessions).catch(()=>null);refresh().catch(error=>{el.innerHTML='<p class="ops-error" role="alert"></p>';showError(error);});
+  el.innerHTML=`<div class="ops-loading">${esc(copy('gx_ops_checking','Checking your setup…'))}</div>`;Promise.resolve(ctx.checkpoint?.()).then(syncSessions).catch(()=>null);
+  if(only){el.insertAdjacentHTML('beforeend','<p class="ops-error" role="alert"></p>');void openSetup(only);}
+  else refresh().catch(error=>{el.innerHTML='<p class="ops-error" role="alert"></p>';showError(error);});
   // Back (and the phone's back, FM-604's backDepth) leaves Equipment for the cards, but not from under its tour: the
   // tour's overlay is on screen until it ends (its runGuide settles a moment later, after a server refresh). Leaving
   // while the tour is still starting stops it, so it never comes up over the cards.
   const touring=()=>!!document.querySelector('.gx-ov');
-  function leave(){tour?.abort();tour=null;child?.destroy?.();child=null;ctx.setTitle?.('');ctx.syncBack?.();el.innerHTML=`<div class="ops-loading">${esc(copy('gx_ops_checking','Checking your setup…'))}</div>`;if(last)render(last);return refresh().catch(showError);}
+  function leave(){tour?.abort();tour=null;child?.destroy?.();child=null;ctx.setTitle?.('');ctx.syncBack?.();if(only)return done().catch(showError);el.innerHTML=`<div class="ops-loading">${esc(copy('gx_ops_checking','Checking your setup…'))}</div>`;if(last)render(last);return refresh().catch(showError);}
   return {backDepth:()=>child?1:0,back(){if(!child)return false;if(!touring())void leave();return true;},destroy(){alive=false;tour?.abort();child?.destroy?.();}};
 }
 export function mountWidget(id,el,ctx){installStyle();if(id==='operations-path')return pathWidget(el,ctx);if(id==='operations-document')return documentWidget(el,ctx);return readyWidget(el,ctx);}
