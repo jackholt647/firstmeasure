@@ -65,6 +65,8 @@
       .fm-project-window-loading.failed [role=status]:before{display:none}
       @media(max-width:760px){.fm-project-frame{inset:0;width:100%;height:100%;border-radius:0}}
     `;
+    // A spare is laid out like a window (its document boots at a real size) but nobody can see or reach it.
+    style.textContent += `.fm-project-window-layer.fm-project-spare{visibility:hidden!important;pointer-events:none!important;background:none!important}.fm-project-spare .fm-project-frame{animation:none!important}`;
     style.textContent += `.fm-project-minimized-bar{position:absolute;inset:0;display:flex;align-items:center;gap:3px;padding:0 4px;background:#fff;font:12px Arial,sans-serif}.fm-project-minimized-bar[hidden]{display:none}.fm-project-minimized-bar button{height:28px;border:0;background:none;color:#344054;cursor:pointer}.fm-project-minimized-bar .fm-project-minimized-title{display:flex;align-items:center;gap:6px;min-width:0;flex:1;text-align:left}.fm-project-minimized-title span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.fm-project-minimized-title i{color:var(--primary,#d93025)}.fm-project-minimized-bar button:last-child:hover{background:#d92d20;color:white}`;
   }
   // The portal paints a project-shaped skeleton (#fmProjectRoutePrecover) on a
@@ -170,6 +172,61 @@
     offlinePins.set(projectId, Date.now());
     try { Promise.resolve(offline.pinProject(sessionOrgId(), projectId, {auto:true})).catch(() => { offlinePins.delete(projectId); }); } catch (error) { offlinePins.delete(projectId); }
   }
+  // A spare project document, booted while the portal is idle, so opening a project does not wait for a whole
+  // portal to load in its frame (FM-542). Opening takes it, frame and all (moving an iframe would reload it), and
+  // another is booted once that window has loaded. There is never more than one. A spare is a frame like any project
+  // window's before its project opens: hidden, sharing the portal's realtime stream and session.
+  const SPARE_BOOT_LIMIT = 20000, SPARE_MAX_AGE = 30 * 60000;
+  let spare = null, spareTimer = 0;
+  function spareAllowed(){
+    if (!ownsProjectWindows || !host() || !root.FirstMateWindows || !sessionOrgId()) return false;
+    if (root.navigator?.connection?.saveData || root.navigator?.onLine === false) return false;
+    // Each spare is a whole portal document; small devices keep only the windows they open.
+    return !(Number(root.navigator?.deviceMemory) > 0 && Number(root.navigator.deviceMemory) < 4);
+  }
+  function discardSpare(){
+    if (!spare) return;
+    clearTimeout(spare.expiry);
+    spare.layer.remove();
+    spare = null;
+  }
+  function scheduleSpare(delay = 2000){
+    clearTimeout(spareTimer);
+    if (!ownsProjectWindows) return;
+    spareTimer = setTimeout(() => {
+      if (document.hidden) { root.addEventListener('visibilitychange', () => scheduleSpare(delay), {once:true}); return; }
+      const warm = () => { if (!spare && !document.hidden && spareAllowed()) warmSpare(); };
+      if (typeof root.requestIdleCallback === 'function') root.requestIdleCallback(warm, {timeout:3000});
+      else warm();
+    }, delay);
+  }
+  function warmSpare(){
+    styles();
+    const token = root.crypto.randomUUID();
+    const layer = document.createElement('div');layer.className='fm-project-window-layer fm-project-spare';layer.setAttribute('aria-hidden','true');
+    const element = document.createElement('section');element.className='fm-project-frame';
+    const frame = document.createElement('iframe');frame.name='fm-project-window:'+token;frame.style.visibility='hidden';frame.tabIndex=-1;frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');
+    element.append(frame);layer.append(element);host().append(layer);
+    const url=new URL(root.location.href);url.search='';url.hash='';url.searchParams.set('projectWindow',token);
+    spare={token,layer,element,frame,orgId:sessionOrgId(),started:Date.now(),api:null,child:null,document:null};
+    // Boot-time data (flags, terms, permissions) ages like any open window's; an unused spare is renewed.
+    spare.expiry=setTimeout(()=>{discardSpare();scheduleSpare(0);},SPARE_MAX_AGE);
+    frame.src=url.href;
+  }
+  // The spare as it can be used now: same organization, its document still the one that booted (or still booting).
+  function takeSpare(){
+    const candidate = spare;
+    if (!candidate) return null;
+    spare = null;
+    clearTimeout(candidate.expiry);
+    let usable = candidate.orgId === sessionOrgId() && candidate.layer.isConnected;
+    if (usable && candidate.api) {
+      try { usable = candidate.frame.contentDocument === candidate.document; } catch (_) { usable = false; }
+    } else if (usable) usable = Date.now() - candidate.started < SPARE_BOOT_LIMIT;
+    if (!usable) { candidate.layer.remove(); return null; }
+    return candidate;
+  }
+  if (ownsProjectWindows && typeof root.PlatformCommerce?.onReady === 'function') root.PlatformCommerce.onReady(() => scheduleSpare(2500));
   function open(project, options = {}){
     if (!host() || !root.FirstMateWindows) return null;
     styles();
@@ -198,10 +255,11 @@
       else applyRouteParams(existing,routeParams);
       return existing;
     }
-    const token = root.crypto.randomUUID();
-    const layer = document.createElement('div'); layer.className='fm-project-window-layer';layer.dataset.mode='modal';layer.dataset.projectWindow=token;
-    const element = document.createElement('section');element.className='fm-project-frame';element.hidden=false;
-    const frame = document.createElement('iframe');frame.name='fm-project-window:'+token;frame.style.visibility='hidden';frame.setAttribute('aria-label',String(project?.title || project?.address || (globalThis.PlatformLanguage?.text("window-manager","project_workspace","Project workspace") ?? "Project workspace")));frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');
+    const warm = takeSpare();
+    const token = warm?.token || root.crypto.randomUUID();
+    const layer = warm?.layer || document.createElement('div'); layer.className='fm-project-window-layer';layer.removeAttribute('aria-hidden');layer.dataset.mode='modal';layer.dataset.projectWindow=token;
+    const element = warm?.element || document.createElement('section');element.className='fm-project-frame';element.hidden=false;
+    const frame = warm?.frame || document.createElement('iframe');frame.name='fm-project-window:'+token;frame.style.visibility='hidden';frame.removeAttribute('tabindex');frame.setAttribute('aria-label',String(project?.title || project?.address || (globalThis.PlatformLanguage?.text("window-manager","project_workspace","Project workspace") ?? "Project workspace")));frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');
     const loading = document.createElement('div');loading.className='fm-project-window-loading fm-entity-window';
     const header=document.createElement('header');header.className='fm-project-loading-header fm-shell-header';header.dataset.headerRows='2';header.dataset.windowMobile=String(root.matchMedia('(max-width:760px)').matches);
     const identityNode=document.createElement('div');identityNode.className='r-window-identity fm-shell-identity';identityNode.innerHTML='<i class="fas fa-folder-open" aria-hidden="true"></i>';
@@ -280,23 +338,33 @@
         return result;
       }).catch(()=>null)};
     }
-    element.append(frame,loading);layer.append(element);host().append(layer);clearRoutePrecover();
+    // A spare's layer is already in place: moving it would reload its document.
+    if(warm)element.append(loading);
+    else{element.append(frame,loading);layer.append(element);host().append(layer);}
+    clearRoutePrecover();
     if(!header.classList.contains('flat-report-navigation'))root.FirstMateWindowShell?.revealTabs?.(tabs);
     attach(token,frame.contentWindow,{
       header,title,controlsHost:controls,customChrome:true,presentationModes:true,mobileFullscreen:true,allowFullscreen:false,viewportCoordinates:true,
       name:'project',label:(globalThis.PlatformLanguage?.text("window-manager","project","Project") ?? "Project"),mode:'modal',width:1200,height:800,dockWidth:900,minWidth:360,minimizedHeight:32
     },true);
 
-    const url=new URL(root.location.href);url.search='';url.hash='';url.searchParams.set('projectWindow',token);
     // Project-scoped deep-link state (e.g. the Schedule tab's view, target and
     // date) is applied inside the window once its project has opened.
     record.routeParams=projectRouteParams(projectId,options);
-    frame.src=url.href;
+    if(!warm){const url=new URL(root.location.href);url.search='';url.hash='';url.searchParams.set('projectWindow',token);frame.src=url.href;}
     record.timer=setTimeout(()=>{if(!record.api)status.textContent='Project is still loading. You can close this window and try again.';},30000);
     publishRoute(record);
+    // A spare that already booted opens the project once this header has painted; one still booting reports
+    // ready() like a new frame.
+    if(warm?.api)root.requestAnimationFrame(()=>setTimeout(()=>{if(records.get(token)===record)ready(token,warm.child,warm.api);},0));
+    // The next open gets a spare too, booted once this window has loaded.
+    record.ready.catch(()=>{}).then(()=>scheduleSpare(1500));
     return record;
   }
-  function accepts(token, child){ return records.get(token)?.frame.contentWindow === child; }
+  function accepts(token, child){
+    if(spare && spare.token===token && spare.frame.contentWindow===child)return true;
+    return records.get(token)?.frame.contentWindow === child;
+  }
   function takeProjectRead(token, child, orgId, projectId){
     const record=records.get(token),read=record?.projectRead;
     if(!read || !accepts(token,child) || read.orgId!==orgId || read.projectId!==projectId)return null;
@@ -306,6 +374,7 @@
     return read.promise;
   }
   function ready(token, child, api){
+    if(spare && spare.token===token && spare.frame.contentWindow===child && !records.has(token)){spare.api=api;spare.child=child;spare.document=child.document;return;}
     const record=records.get(token);if(!record || !accepts(token,child) || record.api)return;
     record.api=api;clearTimeout(record.timer);
     const relayUp=type=>()=>root.dispatchEvent(new CustomEvent(type,{detail:{redraw:true,fromProjectWindow:token}}));
@@ -315,9 +384,12 @@
     child.addEventListener('fm:project-schedule:changed',relayUp('fm:calendar:refresh'));
     child.document.addEventListener('pointerdown',()=>{active=record;record.controller?.focus();publishRoute(record);},true);
     child.addEventListener('fm:route-state:updated',event=>mirrorRouteFromWindow(record,event.detail));
+    const openedTab=record.options.tab || '';
     Promise.resolve(record.project ? api.openProject(record.project,{...record.options,fromRoute:false}) : api.open(null,record.options)).then(result=>{
       applyRouteParams(record,record.routeParams);record.routeMirrorReady=true;
       try{ mirrorRouteFromWindow(record,{route:child.Portal?.navigation?.read?.() || {},changedKeys:PROJECT_SCOPED_ROUTE_KEYS}); }catch(_){}
+      // A tab picked in the opening header while the project loaded.
+      if(record.project && (record.options.tab || '')!==openedTab && records.has(token))Promise.resolve(api.openProject(record.project,{tab:record.options.tab,fromRoute:false})).catch(()=>{});
       record.resolveReady(result);
       // Keyboard focus follows the window that just opened, so Escape and
       // keyboard navigation reach it without a click inside first.

@@ -241,6 +241,9 @@ window.PlatformCommerce.onReady(async function(){
   let projectRouteClosePendingId = '';
   let projectOpenGeneration = 0;
   let projectShellLoading = false;
+  // In a project window the window manager's opening header is the one loading state (FM-542): the shell stays
+  // behind it until the project has loaded instead of showing a second "Loading project…" screen.
+  let projectWindowRevealPending = false;
   // True while an opened project is still a provisional (cached or id-only)
   // record waiting for the saved document. Saves are refused until then.
   let projectRecordPending = false;
@@ -4651,7 +4654,9 @@ window.PlatformCommerce.onReady(async function(){
     if (options.workflow === 'report' && !projectOpenId(project)) return {title:(globalThis.PlatformLanguage?.text("project-request","new_report","New Report") ?? "New Report"),identityHtml:projectHeaderIdentityHtml((globalThis.PlatformLanguage?.text("project-request","new_report","New Report") ?? "New Report"),'',''),pillsHtml:''};
     const contact = branchProjectConfig.title_mode === 'customer_name' ? projectPrimaryContactAlias(project).name
       : (formatProjectContactNames(project.contacts) || projectPrimaryContactAlias(project).name);
-    const title = projectDisplayTitle(project);
+    // A link's bare id is a saved project whose name has not arrived yet, never a new one.
+    const idOnly = !!projectOpenId(project) && Object.keys(project).every(key => ['id','platform_project_id','base_project_id'].includes(key));
+    const title = idOnly ? (globalThis.PlatformLanguage?.text("project-request","m_aaebd7ccba0b30","Project") ?? "Project") : projectDisplayTitle(project);
     return { title, identityHtml:projectHeaderIdentityHtml(title,contact,projectText(project.address)),
       pillsHtml:projectIdentity(project) ? projectHeaderPillsHtml(project) : '' };
   }
@@ -10280,7 +10285,7 @@ window.PlatformCommerce.onReady(async function(){
         clearTimeout(timer);const version=++searchVersion,query=input.value.trim().toLowerCase();
         results.replaceChildren();input.setAttribute('aria-expanded','false');status.textContent='';
         if (!query) return;
-        status.textContent=(globalThis.PlatformLanguage?.text("project-request","m_67ea3d9f45d10b","Searching projectsâ€¦") ?? "Searching projectsâ€¦");
+        status.textContent=(globalThis.PlatformLanguage?.text("project-request","m_67ea3d9f45d10b","Searching projects…") ?? "Searching projects…");
         timer=setTimeout(async()=>{
           const rows=await loadDocPickerRows();
           if (version!==searchVersion || reportProjectChoice!=='search' || !picker.isConnected) return;
@@ -10290,7 +10295,7 @@ window.PlatformCommerce.onReady(async function(){
           for (const row of matches) {
             const button=document.createElement('button');button.type='button';button.setAttribute('role','option');button.textContent=row.label+(row.address && row.address!==row.label ? ' — '+row.address : '');
             button.onclick=async()=>{
-              ++searchVersion;status.textContent=(globalThis.PlatformLanguage?.text("project-request","m_7f0c783c8eec23","Opening projectâ€¦") ?? "Opening projectâ€¦");
+              ++searchVersion;status.textContent=(globalThis.PlatformLanguage?.text("project-request","m_7f0c783c8eec23","Opening project…") ?? "Opening project…");
               try {await openProject({...row.data,id:row.id},{workflow:'report',tab:'map',forceRefresh:true});}
               catch(error){status.textContent=error.message || (globalThis.PlatformLanguage?.text("project-request","audit_b67507ab244ce0","Could not open project.") ?? "Could not open project.");}
             };
@@ -12045,8 +12050,14 @@ window.PlatformCommerce.onReady(async function(){
     return String(platformProjectId(project) || project?.id || '').trim();
   }
 
+  function revealProjectModalWindow(){
+    projectWindowRevealPending = false;
+    projectModalWindow?.setVisible(true);
+  }
+
   function setProjectShellLoading(loading){
     projectShellLoading = !!loading;
+    if (!projectShellLoading && projectWindowRevealPending) revealProjectModalWindow();
     const overlay = $('#rOverlay');
     if (!overlay) return;
     overlay.classList.toggle('project-shell-loading', projectShellLoading);
@@ -12231,7 +12242,8 @@ window.PlatformCommerce.onReady(async function(){
       syncProjectModalAppActivation();
     }
     window.requestAnimationFrame(() => document.getElementById('fmProjectRoutePrecover')?.remove());
-    projectModalWindow?.setVisible(true);
+    if (projectWindowBridge && projectShellLoading) projectWindowRevealPending = true;
+    else revealProjectModalWindow();
     syncProjectWindowModalRegistration();
     projectRouteBatching = false;
     const routePatch = options.routePatch && typeof options.routePatch === 'object' ? options.routePatch : {};
@@ -12282,6 +12294,7 @@ window.PlatformCommerce.onReady(async function(){
     detailsTrayProjectKey = null;
     projectLayout?.clear();
     projectTrays?.close();
+    projectWindowRevealPending = false;
     projectModalWindow?.setVisible(false);
     projectPresenceStop?.(); projectPresenceStop = null;
     projectPresenceKey = ''; projectPresenceUsers = []; renderProjectPresence();

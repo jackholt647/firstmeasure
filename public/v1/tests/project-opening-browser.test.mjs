@@ -240,3 +240,73 @@ test('opening Schedule visibility uses the incoming project instead of stale mod
   context.activeBaseProject={id:'previous_project'};context.addressSelected=true;
   assert.deepEqual(ids(null),['map'],'a new empty project does not inherit Schedule from the previous modal');
 });
+
+test('a spare frame boots while idle and the next project opens in it without loading a document (FM-542)',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:1200,height:800}});
+    let childLoads=0;
+    // The child stands in for a booted portal: it reports ready() with an API, like project-request/app.js.
+    const child=`<main class="main"></main><script>
+      const token=new URLSearchParams(location.search).get('projectWindow');
+      window.bootId=Math.random();
+      if(parent.FirstMateProjectWindows.accepts(token,window)) parent.FirstMateProjectWindows.ready(token,window,window.api={openProject:async(project,options)=>{(window.opened||=[]).push([project.id,options.tab||'']);return project;},close:()=>true});
+    </script>`;
+    await page.route('https://project.test/**',route=>{
+      if(new URL(route.request().url()).searchParams.has('projectWindow')){childLoads++;return route.fulfill({contentType:'text/html',body:child});}
+      return route.fulfill({contentType:'text/html',body:'<main class="main" style="height:100vh;width:100vw"></main>'});
+    });
+    await page.goto('https://project.test/');
+    await page.evaluate(()=>{window.Portal={cfg:{userOrgId:'org_test'}};window.PlatformCommerce={onReady:callback=>callback({})};});
+    for(const file of ['window-manager','window-shell','project-windows']) await page.addScriptTag({content:await source('libraries/window-manager/'+file+'.js')});
+    await page.waitForFunction(()=>document.querySelector('.fm-project-spare iframe')?.contentWindow?.api,null,{timeout:15000});
+    assert.equal(childLoads,1);
+    assert.equal(await page.locator('.fm-project-spare').evaluate(el=>[getComputedStyle(el).visibility,el.getAttribute('aria-hidden')].join()),'hidden,true');
+    assert.equal(await page.evaluate(()=>FirstMateProjectWindows.size),0,'a spare is not a window');
+
+    const bootId=await page.evaluate(()=>document.querySelector('.fm-project-spare iframe').contentWindow.bootId);
+    await page.evaluate(()=>{window.record=FirstMateProjectWindows.open({id:'project_test',address:'418 Juniper Lane'},{tab:'photos'});});
+    assert.equal(await page.locator('.fm-project-loading-title').textContent(),'418 Juniper Lane','the opening header paints at once');
+    assert.equal(await page.locator('.fm-project-spare').count(),0);
+    await page.evaluate(()=>record.ready);
+    assert.deepEqual(await page.evaluate(()=>record.frame.contentWindow.opened),[['project_test','photos']]);
+    assert.equal(await page.evaluate(()=>record.frame.contentWindow.bootId),bootId,'the booted document is used, not reloaded');
+    assert.equal(childLoads,1);
+
+    await page.waitForFunction(()=>document.querySelector('.fm-project-spare iframe')?.contentWindow?.api,null,{timeout:15000});
+    assert.equal(childLoads,2,'the next spare boots once the window has loaded');
+    assert.equal(await page.locator('iframe').count(),2);
+    await page.evaluate(()=>FirstMateProjectWindows.close());
+    assert.equal(await page.locator('iframe').count(),1,'closing a window keeps the spare');
+
+    // A spare from another organization (an account switch) is never used.
+    await page.evaluate(()=>{Portal.cfg.userOrgId='org_other';window.record=FirstMateProjectWindows.open({id:'project_other',address:'Other'});});
+    assert.equal(await page.locator('.fm-project-spare').count(),0);
+    assert.equal(await page.locator('iframe').count(),1);
+    await page.evaluate(()=>record.ready);
+    assert.equal(childLoads,3);
+    await page.evaluate(()=>FirstMateProjectWindows.close());
+  }finally{await browser.close();}
+});
+
+test('a project window stays behind the opening header until its project has loaded (FM-542)',async()=>{
+  const app=await source('libraries/apps/project-request/app.js');
+  const fn=name=>{
+    const start=app.indexOf(`  function ${name}(`);
+    assert.ok(start>=0,name);
+    return app.slice(start,app.indexOf('\n  }',start)+4);
+  };
+  const shown=[];
+  const context={projectShellLoading:false,projectWindowRevealPending:false,$:()=>null,projectModalWindow:{setVisible:value=>shown.push(value)}};
+  vm.createContext(context);
+  vm.runInContext(fn('revealProjectModalWindow')+fn('setProjectShellLoading'),context);
+  // open() of a shell-only project in a window defers the reveal.
+  assert.match(app,/if \(projectWindowBridge && projectShellLoading\) projectWindowRevealPending = true;\n\s*else revealProjectModalWindow\(\);/);
+  context.projectWindowRevealPending=true;
+  context.setProjectShellLoading(true);
+  assert.deepEqual(shown,[],'no second "Loading project…" screen while the record loads');
+  context.setProjectShellLoading(false);
+  assert.deepEqual(shown,[true]);
+  context.setProjectShellLoading(false);
+  assert.deepEqual(shown,[true],'revealed once');
+});
