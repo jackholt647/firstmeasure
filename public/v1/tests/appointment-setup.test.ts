@@ -58,12 +58,16 @@ test("the library entries parse, and their checks pass against the running code"
   const { registryChecks } = await import("../config-library/registries.js");
   const registries = registryChecks();
   // Requirements are looked up in the library, which holds only the snapshot's steps here: those are checked on dev.
-  const notInSnapshot = (error: string) => !/which is not a setup step/.test(error);
+  const fixtureIds = new Set(library.guided_experience.map((entry: any) => entry.id));
+  const notInSnapshot = (error: string) => !/which is not a setup step/.test(error) && ![...fixtureIds].some((id) => error.includes(`plays ${id}, which is not an experience`) || error.includes(`follows ${id}, which is not an experience`));
   for (const step of library.setup_step) assert.deepEqual(setupStepKind.validate!(setupStepDefinitionSchema.parse(step), { id: step.id, registries } as any).filter(notInSnapshot), [], step.id);
   for (const experience of library.guided_experience) assert.deepEqual(guidedExperienceKind.validate!(experienceSchema.parse(experience), { id: experience.id, registries } as any).filter(notInSnapshot), [], experience.id);
-  const experience = library.guided_experience[0];
-  assert.deepEqual(experience.triggers[0], { kind: "before_action", action: "appointment.new", selector: "[data-new-appointment]", once: true }, "it plays the first time someone books an appointment");
-  assert.deepEqual(experience.completion.then, [{ resume: true }], "then the New appointment dialog opens");
+  const experience = library.guided_experience.find((entry: any) => entry.id === "appointments.setup");
+  // FM-553: the first view of Scheduling plays it, and a skip there only puts it off until New Appointment.
+  assert.deepEqual(experience.triggers.map((trigger: any) => [trigger.kind, trigger.tab || trigger.selector || "", trigger.skip || ""]), [["tab_opened", "portal.scheduling", "later"], ["before_action", "[data-new-appointment]", ""], ["manual", "", ""]]);
+  assert.deepEqual(experience.completion.then, [{ resume: true }, { play: "scheduling.tab_tutorial", held: false }], "New Appointment's dialog opens after a held click; the Scheduling tour follows the tab's");
+  const tour = library.guided_experience.find((entry: any) => entry.id === "scheduling.tab_tutorial");
+  assert.ok(tour.steps.some((step: any) => step.targets.includes("[data-new-appointment]")), "the tour points at New Appointment");
 });
 
 test("the setup asks only what is unanswered: company type, work, who sells, who works, the kinds", async () => {

@@ -153,6 +153,17 @@
       },
       "triggers": [
         {
+          "kind": "tab_opened",
+          "tab": "portal.scheduling",
+          "once": true,
+          "delay_ms": 600,
+          "skip": "later",
+          "skip_note": {
+            "key": "gx_appt_setup_skip_later",
+            "text": "No problem. We’ll ask again when you make your first appointment."
+          }
+        },
+        {
           "kind": "before_action",
           "action": "appointment.new",
           "selector": "[data-new-appointment]",
@@ -165,7 +176,8 @@
       "variants": [
         {
           "id": "default",
-          "weight": 1
+          "weight": 1,
+          "content": {}
         }
       ],
       "requires": [
@@ -179,6 +191,7 @@
         {
           "id": "types",
           "widget": "appointments-setup",
+          "requires": [],
           "title": {
             "key": "gx_appt_types_title",
             "text": "Your appointment types"
@@ -206,10 +219,121 @@
         "then": [
           {
             "resume": true
+          },
+          {
+            "play": "scheduling.tab_tutorial",
+            "held": false
           }
         ]
       },
-      "replayable": true
+      "replayable": true,
+      "reveal": [],
+      "intro": {
+        "key": "gx_appt_setup_intro",
+        "text": "So we can set up scheduling properly, we need to know a couple of things about how you manage your calendar and appointments."
+      },
+      "skip_note": {
+        "key": "gx_appt_setup_skip_note",
+        "text": "You can still book appointments and choose their type as you go."
+      }
+    },
+    {
+      "id": "scheduling.tab_tutorial",
+      "version": 1,
+      "kind": "overlay",
+      "scope": "person",
+      "salt": "scheduling-v1",
+      "title": {
+        "key": "gx_sched_tour_title",
+        "text": "Scheduling tour"
+      },
+      "tab": "portal.scheduling",
+      "eligibility": {
+        "capabilities": [
+          "platform.scheduling"
+        ],
+        "permissions": []
+      },
+      "triggers": [
+        {
+          "kind": "after_experience",
+          "experience": "appointments.setup",
+          "once": true
+        },
+        {
+          "kind": "tab_opened",
+          "tab": "portal.scheduling",
+          "once": true,
+          "delay_ms": 900,
+          "when": {
+            "match": "any",
+            "rules": [
+              {
+                "field": "organization.finished",
+                "operator": "contains",
+                "value": "appointments.setup"
+              },
+              {
+                "field": "person.eligible",
+                "operator": "not_contains",
+                "value": "appointments.setup"
+              }
+            ]
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": "tour",
+          "weight": 1,
+          "content": {}
+        }
+      ],
+      "requires": [],
+      "steps": [
+        {
+          "id": "calendar",
+          "title": {
+            "key": "gx_sched_tour_calendar_title",
+            "text": "Your calendar"
+          },
+          "body": {
+            "key": "gx_sched_tour_calendar_body",
+            "text": "Switch between day, week and month here, and move from one date to the next."
+          },
+          "targets": [
+            "[data-mobile-view-menu]",
+            ".dash-toolbar .dash-controls"
+          ],
+          "placement": "auto",
+          "advance": "next",
+          "wait_ms": 1500
+        },
+        {
+          "id": "new_appointment",
+          "title": {
+            "key": "gx_sched_tour_new_title",
+            "text": "Book an appointment"
+          },
+          "body": {
+            "key": "gx_sched_tour_new_body",
+            "text": "Press New Appointment to book one. Its type decides the texts your customer gets and who goes."
+          },
+          "targets": [
+            "[data-new-appointment]"
+          ],
+          "placement": "auto",
+          "advance": "click",
+          "wait_ms": 1500
+        }
+      ],
+      "completion": {
+        "screen": "none",
+        "say": [],
+        "then": []
+      },
+      "replayable": true,
+      "reveal": []
     }
   ]
 }
