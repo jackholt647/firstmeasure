@@ -2049,7 +2049,7 @@
       .company-info-grid .address .wide{grid-column:1/-1}
       .company-settings .cs-field{gap:4px}
       .company-settings .cs-field input{height:34px}
-      .company-phone-row{display:flex;gap:6px;min-width:0}
+      .company-phone-row{display:flex;gap:6px;min-width:0;color:#101828;font-size:13px;font-weight:400;letter-spacing:0;text-transform:none}
       .company-phone-row input{flex:1 1 auto;min-width:0}
       .company-phone-row .fm-select-list-trigger{min-height:0;border-radius:10px;font-size:13px}
       .company-settings .cs-note{margin-top:5px;font-size:10px}
@@ -2145,6 +2145,8 @@
         .company-contact-phone{grid-column:2;grid-row:1}
         .company-contact-email{grid-column:1 / -1;grid-row:2}
       }
+      /* FM-576: on a phone the calling code and the number need the full width. */
+      @media(max-width:520px){.company-settings .company-info-grid>.company-contact-name,.company-settings .company-info-grid>.company-contact-phone,.company-settings .company-info-grid>.company-contact-email{grid-column:1 / -1;grid-row:auto}}
       /* Reports: compact settings on the left, the sample report on the right. */
       .rp-wrap{ max-width:1120px; margin:0 auto; }
       .rp-layout{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; align-items:start; }
