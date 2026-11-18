@@ -214,8 +214,14 @@ function readyWidget(el,ctx){
   const workforce=window.PlatformTerminology?.get?.('workforce.resource_group_plural','Workforce')||'Workforce';
   const cards=[{id:'suppliers',label:copy('gx_ops_suppliers','Suppliers'),minutes:5,guide:'operations.suppliers.setup',body:copy('gx_ops_suppliers_body','Choose who supplies your materials and add their costs.')},{id:'equipment',label:copy('gx_ops_equipment','Equipment'),minutes:3,body:copy('gx_ops_equipment_body','Connect your equipment to the work your projects require.')},{id:'workforce',label:workforce,minutes:5,guide:'operations.workforce.setup',body:copy('gx_ops_workforce_body','Add who does the work and how you pay them.')},{id:'proposals',label:copy('gx_ops_proposals','Proposals'),minutes:10,guide:'operations.proposal.setup',body:copy('gx_ops_proposals_body','Create proposals with payment terms and customer approval.')}];
   for(const card of cards){const config=array(ctx.options.setups).find(item=>item.id===card.id);if(config){card.minutes=config.minutes??card.minutes;card.guide=config.experience||card.guide;card.selections=config.selections;card.start=config.start;card.appId=config.appId;}}
+  let last=null;
   async function refresh(){
-    const state=await env.invoke('operations.setup.status',{operations_document_id:ctx.selections.operations_project_id===env.projectId?ctx.selections.operations_document_id:undefined});if(!alive)return;
+    render(await env.invoke('operations.setup.status',{operations_document_id:ctx.selections.operations_project_id===env.projectId?ctx.selections.operations_document_id:undefined}));
+  }
+  // The cards, from the last status at once when Equipment closes; a status that arrives after Equipment opened
+  // again only updates what they will show.
+  function render(state){
+    if(!alive)return;last=state;if(el.querySelector('.ops-app'))return;
     if(!state.scope_ready){
       el.innerHTML=`<div class="ops-setup"><p>${esc(copy('gx_ops_scope_missing','Let’s build the scope of work for this project first. Your other project’s scope stays with that project.'))}</p><button class="ops-btn primary" data-restart>${esc(copy('gx_ops_build_scope','Build this project’s scope'))}</button></div>`;
       el.querySelector('[data-restart]').addEventListener('click',()=>{ctx.change({operations_document_id:'',operations_project_id:env.projectId,operations_scope_ready:false});ctx.restart();});return;
@@ -258,7 +264,7 @@ function readyWidget(el,ctx){
   // tour's overlay is on screen until it ends (its runGuide settles a moment later, after a server refresh). Leaving
   // while the tour is still starting stops it, so it never comes up over the cards.
   const touring=()=>!!document.querySelector('.gx-ov');
-  function leave(){tour?.abort();tour=null;child?.destroy?.();child=null;ctx.setTitle?.('');ctx.syncBack?.();return refresh().catch(showError);}
+  function leave(){tour?.abort();tour=null;child?.destroy?.();child=null;ctx.setTitle?.('');ctx.syncBack?.();el.innerHTML=`<div class="ops-loading">${esc(copy('gx_ops_checking','Checking your setup…'))}</div>`;if(last)render(last);return refresh().catch(showError);}
   return {backDepth:()=>child?1:0,back(){if(!child)return false;if(!touring())void leave();return true;},destroy(){alive=false;tour?.abort();child?.destroy?.();}};
 }
 export function mountWidget(id,el,ctx){installStyle();if(id==='operations-path')return pathWidget(el,ctx);if(id==='operations-document')return documentWidget(el,ctx);return readyWidget(el,ctx);}
