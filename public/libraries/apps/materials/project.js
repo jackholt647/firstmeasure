@@ -87,6 +87,9 @@
     collapsedListIds: new Set(),
     expandedItemIds: new Set(),
     minimizedTypes: new Set(),
+    setupStatus: null,
+    setupStatusLoading: '',
+    openingSetup: '',
     dragItem: null,
     laborMenu: null,
     equipmentUnits: null,
@@ -868,7 +871,7 @@
       @keyframes mt-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}@media (prefers-reduced-motion:reduce){.mt-req-skeleton span,.mt-rail-state .mt-spin{animation:none}}
 
       .mt-workspace-header{display:flex;align-items:center;gap:8px;flex:0 0 auto;min-height:26px}.mt-workspace-actions{flex:none;display:flex;align-items:center;gap:6px;margin-left:auto}.mt-workspace-actions button{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
-      .mt-icon-toggles{align-self:stretch;display:inline-flex;align-items:stretch;gap:3px}.mt-workspace-actions .mt-icon-toggles button{width:30px;min-height:26px;padding:0;justify-content:center}.mt-column-divider{flex:0 0 10px;align-self:stretch;position:relative;padding:0;border:0;background:transparent;cursor:col-resize;touch-action:none}.mt-column-divider::after{content:'';position:absolute;top:8px;bottom:8px;left:4px;width:2px;border-radius:2px;background:transparent;transition:background .12s}.mt-column-divider:hover::after,.mt-column-divider:focus-visible::after,.mt-column-divider.is-dragging::after{background:var(--primary,#d93025)}.mt-column-divider:focus-visible{outline:none}.mt-minimize-ghost{position:fixed;z-index:2147482650;box-sizing:border-box;display:flex;overflow:hidden;border-radius:8px;box-shadow:0 12px 32px rgba(15,23,42,.2);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111827;pointer-events:none;transform-origin:0 0;will-change:transform,opacity;animation:mt-suck-in .24s linear forwards}.mt-minimize-ghost.is-restoring{animation:mt-suck-out .36s cubic-bezier(.15,.65,.3,1) forwards}.mt-minimize-ghost>.mt-resource-column{flex:1 1 auto!important;width:100%;height:100%}@keyframes mt-suck-in{to{transform:translate(var(--dx),var(--dy)) scale(var(--sx),var(--sy));opacity:.15}}@keyframes mt-suck-out{from{transform:translate(var(--dx),var(--dy)) scale(var(--sx),var(--sy));opacity:.15}to{transform:none;opacity:1}}@keyframes mt-tab-pop{from{transform:scale(1.2)}to{transform:scale(1)}}.mt-collapsed-pills button[data-mt-restore-type]{border-color:color-mix(in srgb,var(--tab-color,#667085) 35%,#fff);background:color-mix(in srgb,var(--tab-color,#667085) 10%,#fff);color:color-mix(in srgb,var(--tab-color,#667085) 85%,#101828)}.mt-collapsed-pills button[data-mt-restore-type] i{color:var(--tab-color,#667085)}.mt-collapsed-pills button.is-receiving{animation:mt-tab-pop .24s ease-out}.mt-workspace-header button,.mt-list-head button{border:1px solid #d0d5dd;border-radius:6px;background:#fff;padding:6px 9px;font-size:11px;color:#475467;cursor:pointer}.mt-collapsed-pills{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}.mt-collapsed-pills button{border-radius:20px;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025))}.mt-list-pane{display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows .22s ease,opacity .22s ease;flex-shrink:0}.mt-list-pane.is-collapsing{grid-template-rows:0fr;opacity:0}.mt-list-pane-inner{min-height:0;overflow:hidden}.mt-list-head{display:flex;align-items:center;gap:5px;padding:8px 2px}.mt-list-head strong{flex:1;font-size:12px;overflow-wrap:anywhere}.mt-list-head button{padding:4px 6px}.mt-list-pane .mt-list-secondary{margin-bottom:8px}.mt-list-pane .mt-section{min-width:350px}.mt-list-add-item{margin:8px 0}.mt-resource-scroll>.mt-list-pane{min-width:0}@media(prefers-reduced-motion:reduce){.mt-list-pane{transition:none}}
+      .mt-icon-toggles{align-self:stretch;display:inline-flex;align-items:stretch;gap:3px}.mt-workspace-actions .mt-icon-toggles button{width:30px;min-height:26px;padding:0;justify-content:center}.mt-column-divider{flex:0 0 10px;align-self:stretch;position:relative;padding:0;border:0;background:transparent;cursor:col-resize;touch-action:none}.mt-column-divider::after{content:'';position:absolute;top:8px;bottom:8px;left:4px;width:2px;border-radius:2px;background:transparent;transition:background .12s}.mt-column-divider:hover::after,.mt-column-divider:focus-visible::after,.mt-column-divider.is-dragging::after{background:var(--primary,#d93025)}.mt-column-divider:focus-visible{outline:none}.mt-minimize-ghost{position:fixed;z-index:2147482650;box-sizing:border-box;display:flex;overflow:hidden;border-radius:8px;box-shadow:0 12px 32px rgba(15,23,42,.2);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111827;pointer-events:none;transform-origin:0 0;will-change:transform,opacity;animation:mt-suck-in .24s linear forwards}.mt-minimize-ghost.is-restoring{animation:mt-suck-out .36s cubic-bezier(.15,.65,.3,1) forwards}.mt-minimize-ghost>.mt-resource-column{flex:1 1 auto!important;width:100%;height:100%}@keyframes mt-suck-in{to{transform:translate(var(--dx),var(--dy)) scale(var(--sx),var(--sy));opacity:.15}}@keyframes mt-suck-out{from{transform:translate(var(--dx),var(--dy)) scale(var(--sx),var(--sy));opacity:.15}to{transform:none;opacity:1}}@keyframes mt-tab-pop{from{transform:scale(1.2)}to{transform:scale(1)}}.mt-collapsed-pills button[data-mt-restore-type]{border-color:color-mix(in srgb,var(--tab-color,#667085) 35%,#fff);background:color-mix(in srgb,var(--tab-color,#667085) 10%,#fff);color:color-mix(in srgb,var(--tab-color,#667085) 85%,#101828)}.mt-collapsed-pills button[data-mt-restore-type] i{color:var(--tab-color,#667085)}.mt-collapsed-pills button.is-receiving{animation:mt-tab-pop .24s ease-out}.mt-collapsed-pills .mt-setup-tab{display:inline-flex;align-items:center;gap:2px;padding-right:4px;border:1px solid color-mix(in srgb,var(--tab-color,#667085) 35%,#fff);border-radius:20px;background:color-mix(in srgb,var(--tab-color,#667085) 10%,#fff)}.mt-collapsed-pills .mt-setup-tab>button:not(.mt-setup-badge){border:0;background:transparent;color:color-mix(in srgb,var(--tab-color,#667085) 85%,#101828)}.mt-collapsed-pills .mt-setup-tab>button i{color:var(--tab-color,#667085)}:is(.mt-workspace-header,.mt-resource-heading) .mt-setup-badge{flex:none;border:1px solid #f2ca72;border-radius:20px;background:#fff0cb;color:#794c00;padding:2px 7px;font-size:10px;font-weight:600;line-height:1.4;cursor:pointer}:is(.mt-workspace-header,.mt-resource-heading) .mt-setup-badge:hover,:is(.mt-workspace-header,.mt-resource-heading) .mt-setup-badge:focus-visible{background:#ffe39a}:is(.mt-workspace-header,.mt-resource-heading) .mt-setup-badge:disabled{opacity:.6;cursor:wait}.mt-workspace-header button,.mt-list-head button{border:1px solid #d0d5dd;border-radius:6px;background:#fff;padding:6px 9px;font-size:11px;color:#475467;cursor:pointer}.mt-collapsed-pills{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}.mt-collapsed-pills button{border-radius:20px;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025))}.mt-list-pane{display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows .22s ease,opacity .22s ease;flex-shrink:0}.mt-list-pane.is-collapsing{grid-template-rows:0fr;opacity:0}.mt-list-pane-inner{min-height:0;overflow:hidden}.mt-list-head{display:flex;align-items:center;gap:5px;padding:8px 2px}.mt-list-head strong{flex:1;font-size:12px;overflow-wrap:anywhere}.mt-list-head button{padding:4px 6px}.mt-list-pane .mt-list-secondary{margin-bottom:8px}.mt-list-pane .mt-section{min-width:350px}.mt-list-add-item{margin:8px 0}.mt-resource-scroll>.mt-list-pane{min-width:0}@media(prefers-reduced-motion:reduce){.mt-list-pane{transition:none}}
       .sw-back{border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:8px 12px;cursor:pointer;margin-bottom:20px;color:#263349}.sw-detail h2{font-size:22px;line-height:1.3;margin:8px 0 16px;overflow-wrap:anywhere}.sw-detail header>small{color:#52739a}.sw-detail header p{font-size:12px;color:#667085}
       .sw-table-wrap{overflow:auto}.sw-detail table{border-collapse:collapse;width:100%;font-size:12px;background:#fff}.sw-detail th{text-align:left;color:#667085;background:#eff3f8;font-size:11px}.sw-detail td,.sw-detail th{padding:10px;border-bottom:1px solid #e4e9ef;vertical-align:top}.sw-detail td small,.sw-source-id{display:block;font-size:10px;color:#667085;margin-top:4px;overflow-wrap:anywhere}.sw-document-stage{width:100%;min-height:120px;overflow:hidden;background:white}.sw-list-tools{margin-top:24px;font-size:12px}.sw-list-tools>summary{cursor:pointer;padding:10px 0;color:#52647e}
 
@@ -1214,7 +1217,7 @@
         .mt-phone-lists .mt-workspace-actions{flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
         .mt-phone-lists .mt-workspace-actions::-webkit-scrollbar{display:none}
         .mt-phone-lists .mt-workspace-actions button,.mt-phone-lists .mt-workspace-actions .mt-icon-toggles button{min-height:36px;min-width:36px}
-        .mt-phone-lists .mt-collapsed-pills [data-mt-restore-type]{display:none}
+        .mt-phone-lists .mt-collapsed-pills [data-mt-restore-type],.mt-phone-lists .mt-collapsed-pills .mt-setup-tab:has([data-mt-restore-type]){display:none}
         /* The header fits a phone: the projected total is just the figure, and Category, Schedule and Closeout are icons (their tooltip and aria-label stay). */
         .mt-phone-lists .mt-projected-total{padding-right:8px}.mt-phone-lists .mt-projected-total span{display:none}
         .mt-phone-lists .mt-workspace-actions :is([data-mt-new-category],.mt-schedule-job,.mt-closeout){height:36px;width:36px;padding:0;justify-content:center;flex:none}.mt-phone-lists .mt-workspace-actions :is([data-mt-new-category],.mt-schedule-job,.mt-closeout)>span{display:none}
@@ -2457,6 +2460,7 @@
       if (!apiReady()) throw new Error('materials_api_unavailable');
       if (!materialsAPI) materialsAPI = (await import(calculusAdapterUrl)).nativeCalculusAPI(window.MaterialsAPI, projectId);
       ancillary = Promise.allSettled([loadPricebookItems(loadContext), loadWorkResources(loadContext), requestMeasurementHydration(), loadScopeDocuments(loadContext)]);
+      loadSetupStatus(true);
       const result = await (materialsAPI || window.MaterialsAPI).projects.list(loadContext.orgId, loadContext.projectId);
       if (!loadContextIsCurrent(loadContext)) return;
       state.resourceTypes=Array.isArray(result.resource_types)?result.resource_types:[];
@@ -4587,6 +4591,7 @@
     root.querySelectorAll('[data-mt-schedule-job]').forEach(button=>button.onclick=()=>scheduleJob());
     root.querySelectorAll('[data-mt-units-toggle]').forEach(button=>button.onclick=()=>{state.unitsMode=state.unitsMode==='order'?'measured':'order';render({preserveScroll:true});});
     root.querySelectorAll('[data-mt-minimize-type],[data-mt-restore-type]').forEach(button=>button.onclick=()=>{const minimizing=!!button.dataset.mtMinimizeType,type=button.dataset.mtMinimizeType||button.dataset.mtRestoreType,source=minimizing?button.closest('.mt-resource-column'):button,from=source.getBoundingClientRect(),clone=minimizing?source.cloneNode(true):null;if(minimizing)state.minimizedTypes.add(type);else state.minimizedTypes.delete(type);syncMaterialsGrid();animateMinimize(type,from,minimizing,clone);});
+    root.querySelectorAll('[data-mt-open-setup]').forEach(button=>button.onclick=()=>openResourceSetup(button.dataset.mtOpenSetup));
     root.querySelectorAll('[data-mt-category-sources]').forEach(button=>button.onclick=()=>toggleSourcesMenu(button.dataset.mtCategorySources,button));
     root.querySelectorAll('[data-mt-quick-start]').forEach(button=>button.onclick=()=>{if(state.generatingMaterials)return;if(button.dataset.mtQuickStart==='generate'){button.disabled=true;button.querySelector('i')?.classList.replace('fa-wand-magic-sparkles','fa-rotate');button.querySelector('i')?.classList.add('mt-spin');}runMaterialsQuickStart(button.dataset.mtQuickStart);});
     root.querySelectorAll('[data-mt-generate-column]').forEach(button=>button.onclick=()=>{if(state.generatingMaterials)return;button.disabled=true;button.querySelector('i')?.classList.replace('fa-wand-magic-sparkles','fa-rotate');button.querySelector('i')?.classList.add('mt-spin');setTimeout(()=>regenerateMaterialListsFromScope({resourceType:button.dataset.mtGenerateColumn}),0);});
@@ -4736,6 +4741,8 @@
   }
   rootWindow.addEventListener('fm:calendar:refresh', () => setTimeout(syncScheduleState, 60));
   rootWindow.addEventListener('fm:projects:refresh', () => setTimeout(syncScheduleState, 60));
+  // Operations' own setup (its cards) or another one may have set something up: the Setup tags follow (FM-619).
+  rootWindow.addEventListener('fm:guides:ended', (event) => { if (state.mounted && /^operations\./.test(String(event?.detail?.id || ''))) loadSetupStatus(true); });
   function renderResourceHeader(){
     const order=state.unitsMode==='order';
     // An action exists only while its category has items. It slides in when the first item arrives and out when the last goes.
@@ -4748,7 +4755,7 @@
     const leaving=Object.keys(want).some(key=>shown[key]&&!want[key]);
     state.headerActions=want;
     if(leaving)setTimeout(()=>syncResourceHeader(),300);
-    return `<header class="mt-workspace-header"><div class="mt-projected-total" title="Projected cost of every list on this project, including projected delivery"><span>Projected total</span><strong data-mt-projected-total>${money(projectProjected())}</strong></div><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)&&!(category.id==='equipment'&&workOrderMerged())).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(category.name||'Untitled')}" aria-label="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus" aria-hidden="true"></i><span>Category</span></button><span class="mt-icon-toggles"><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Units: order (bundles, boxes). Click for measured units.':'Units: measured. Click for order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i></button><button type="button" data-mt-generate-materials data-fm-tooltip="Regenerate: build the lists again from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i></button></span>${workOrderActions('project',headerButton).join('')}${!schedulingOn()||!equipmentOn()?'':action('equipment','data-mt-reserve-equipment data-fm-tooltip="Reserve Equipment: reserve the equipment on this project" aria-label="Reserve Equipment"','fa-truck-pickup')}${action('material','data-mt-order-all data-fm-tooltip="Order Materials: order every material list, each from its own supplier" aria-label="Order Materials: order every material list"','fa-cart-shopping')}${scheduleJobButton()}${closeoutButton()}${materialsSettingsButton()}</div></header>`;
+    return `<header class="mt-workspace-header"><div class="mt-projected-total" title="Projected cost of every list on this project, including projected delivery"><span>Projected total</span><strong data-mt-projected-total>${money(projectProjected())}</strong></div><div class="mt-collapsed-pills">${renderCategoryTabs()}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus" aria-hidden="true"></i><span>Category</span></button><span class="mt-icon-toggles"><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Units: order (bundles, boxes). Click for measured units.':'Units: measured. Click for order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i></button><button type="button" data-mt-generate-materials data-fm-tooltip="Regenerate: build the lists again from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i></button></span>${workOrderActions('project',headerButton).join('')}${!schedulingOn()||!equipmentOn()?'':action('equipment','data-mt-reserve-equipment data-fm-tooltip="Reserve Equipment: reserve the equipment on this project" aria-label="Reserve Equipment"','fa-truck-pickup')}${action('material','data-mt-order-all data-fm-tooltip="Order Materials: order every material list, each from its own supplier" aria-label="Order Materials: order every material list"','fa-cart-shopping')}${scheduleJobButton()}${closeoutButton()}${materialsSettingsButton()}</div></header>`;
   }
   function syncResourceHeader(){
     const header=materialRoot()?.querySelector('.mt-workspace-header');
@@ -4796,6 +4803,82 @@
     ghost.addEventListener('animationend',finish,{once:true});setTimeout(finish,700);
   }
   function workOrderMerged(){ return resourceCategories().some(row=>row.id==='labor'); }
+  // A kind of resource the organization has not set up keeps a way into its setup (FM-619): a Setup tag on its column, or
+  // in the header like a minimized column when it has none showing. Labor is Operations' workforce setup, equipment its
+  // equipment setup, materials its suppliers setup; operations.setup.status says which are done (anywhere in the app).
+  const RESOURCE_SETUPS={labor:{card:'workforce',guide:'operations.workforce.setup'},equipment:{card:'equipment',guide:'operations.equipment.setup'},material:{card:'suppliers',guide:'operations.suppliers.setup'}};
+  function setupPermitted(){
+    const permissions=window.Portal?.currentUser?.permissions||{},has=key=>permissions[key]===true||(permissions['*']===true&&permissions[key]!==false);
+    return has('manage_projects')&&has('manage_company_settings');
+  }
+  function setupKey(){ return `${orgId()}:${projectId()}`; }
+  function loadSetupStatus(force=false){
+    const key=setupKey(),org=orgId(),project=projectId(),invoke=window.PlatformAPI?.publication?.invoke;
+    if(!project||!setupPermitted()||typeof invoke!=='function')return;
+    if(!force&&(state.setupStatus?.key===key||state.setupStatusLoading===key))return;
+    state.setupStatusLoading=key;
+    Promise.resolve(invoke.call(window.PlatformAPI.publication,org,'operations.setup.status',{scope:'project',organizationId:org,projectId:project},{}))
+      .then(result=>{const value=result?.value??result?.result??result;return value?.setup&&typeof value.setup==='object'?value.setup:null;},()=>null)
+      .then(setup=>{
+        if(state.setupStatusLoading===key)state.setupStatusLoading='';
+        if(!state.mounted||setupKey()!==key)return;
+        const before=JSON.stringify(state.setupStatus?.setup||null);state.setupStatus={key,setup};
+        if(before!==JSON.stringify(setup)&&!workspaceIsEditing())syncMaterialsGrid();
+      });
+  }
+  // A status that could not be read offers no setup. The labor column stays hidden until someone can do labor, so a
+  // missing one needs its setup whatever the card says. Equipment is set up in the Equipment app, so only while the
+  // organization has it (on or offered): its column is there.
+  function setupPending(type){
+    const entry=RESOURCE_SETUPS[type],status=state.setupStatus,value=status?.setup?.[entry?.card];
+    if(!entry||!status?.setup||status.key!==setupKey())return false;
+    if(type==='labor'&&!resourceCategories().some(row=>row.id==='labor'))return true;
+    if(value===true||value?.complete===true)return false;
+    return type!=='equipment'||equipmentOn();
+  }
+  function setupBadge(type,name){
+    const label=`Set up ${name}`;
+    return `<button type="button" class="mt-setup-badge" data-mt-open-setup="${escapeHtml(type)}" data-fm-tooltip="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"${state.openingSetup?' disabled':''}>${globalThis.PlatformLanguage?.htmlText?.("materials","m_b06faf127e1505","Setup") ?? "Setup"}</button>`;
+  }
+  // The header's tags: a minimized column's tag gets the Setup badge beside its name; a kind with no column of its own
+  // showing (labor before its setup, equipment inside the work order) gets a tag of its own that opens the setup.
+  function renderCategoryTabs(){
+    const tag=(type,name,icon,color,main)=>`<span class="mt-setup-tab" style="--tab-color:${escapeHtml(color||'#667085')}">${main}${setupBadge(type,name)}</span>`;
+    const tabs=resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)&&!(category.id==='equipment'&&workOrderMerged())).map(category=>{
+      const name=category.name||'Untitled',restore=`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(name)}" aria-label="Show ${escapeHtml(name)}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(name)}</button>`;
+      return setupPending(category.id)?tag(category.id,name,category.icon,category.color,restore):restore;
+    });
+    const unseen=['labor','equipment'].filter(type=>setupPending(type)&&(type==='labor'?!resourceCategories().some(row=>row.id==='labor'):workOrderMerged()));
+    for(const type of unseen){
+      const category=resourceCategories().find(row=>row.id===type),terms=resourceTerms(type,null),name=category?.name||terms.plural,icon=category?.icon||terms.icon;
+      tabs.push(tag(type,name,icon,category?.color,`<button type="button" data-mt-open-setup="${escapeHtml(type)}" data-fm-tooltip="Set up ${escapeHtml(name)}" aria-label="Set up ${escapeHtml(name)}"${state.openingSetup?' disabled':''}><i class="fas ${escapeHtml(icon)}"></i> ${escapeHtml(name)}</button>`));
+    }
+    return tabs.join('');
+  }
+  async function openResourceSetup(type){
+    const entry=RESOURCE_SETUPS[type],guides=window.FirstMateGuides||rootWindow.FirstMateGuides;
+    if(!entry||state.openingSetup)return;
+    const operation=captureProjectOperation(),org=orgId();
+    state.openingSetup=type;syncResourceHeader();
+    let outcome=null;
+    try{
+      if(typeof guides?.play!=='function')throw new Error('guides_unavailable');
+      // The workforce setup needs groups and People turned on first, as Operations' Workforce card does.
+      if(type==='labor'){
+        await window.PlatformAPI.publication.invoke(org,'operations.workforce.setup.start',{scope:'project',organizationId:org,projectId:projectId()},{},{idempotencyKey:`operations.workforce.start:${org}`});
+        await Promise.all([window.PlatformAPI.capabilities?.load?.(org,{refresh:true}),window.PlatformAPI.appFlags?.load?.(org,{refresh:true})]);
+        await window.Portal?.auth?.syncPlatformSession?.();
+      }
+      outcome=await guides.play(entry.guide,{replay:true,force:true});
+    }catch(error){outcome={status:'failed',error};}
+    finally{state.openingSetup='';}
+    if(!state.mounted||!projectOperationIsCurrent(operation))return;
+    if(['unavailable','failed'].includes(outcome?.status))showToast('This setup could not be opened',outcome.error?.message&&outcome.error.message!=='guides_unavailable'?outcome.error.message:'Set it up from Operations setup, or ask an administrator.',false);
+    syncResourceHeader();
+    loadSetupStatus(true);
+    // A finished workforce setup turns the work order column on.
+    if(type==='labor'&&outcome?.status==='completed')loadData();
+  }
   // A project whose documents require no work (nothing but material) opens with its work order column minimized. It is
   // decided once per project, after the lists and the requirements have both loaded, and only while the column holds
   // no work; restoring it from its tab keeps it open.
@@ -4828,7 +4911,7 @@
       const quickStart=type==='material'&&!rows.length&&!state.loading?renderMaterialsQuickStart():'';
       const weight=Number(state.columnWeights?.[type])>0?Number(state.columnWeights[type]):0;
       return `<section class="mt-resource-column" data-resource-type="${escapeHtml(type)}" style="--resource-color:${escapeHtml(category.color)}${weight>0?`;--column-weight:${weight}`:''}" data-empty="${!rows.length&&!lists.length}" data-all-empty="${allEmpty}">
-        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button>${merged?'<span class="mt-column-title" title="Who does the work, what they are paid for it, and the equipment it takes">Work order</span>':`<input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name">`}<span class="mt-category-tools">${type==='material'?`<button type="button" data-mt-generate-column="material" title="Generate materials from the signed document and the scope, or from the measurement report when nothing is signed" aria-label="Generate materials"${state.generatingMaterials?' disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}" aria-hidden="true"></i></button>`:''}<button type="button" data-mt-category-sources="${escapeHtml(type)}" aria-haspopup="dialog" title="Line item sources" aria-label="Line item sources for ${escapeHtml(terms.plural)}"><i class="fas fa-gear"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="${merged?'Add a work order':'Add list'}" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${merged&&equipmentOn()?'<button type="button" data-mt-new-category-list="equipment" title="Add an equipment list" aria-label="Add an equipment list"><i class="fas fa-truck-pickup"></i><i class="fas fa-plus"></i></button>':''}<button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
+        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button>${merged?'<span class="mt-column-title" title="Who does the work, what they are paid for it, and the equipment it takes">Work order</span>':`<input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name">`}${setupPending(type)?setupBadge(type,merged?resourceTerms(type,null).plural:category.name||'Untitled'):''}<span class="mt-category-tools">${type==='material'?`<button type="button" data-mt-generate-column="material" title="Generate materials from the signed document and the scope, or from the measurement report when nothing is signed" aria-label="Generate materials"${state.generatingMaterials?' disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}" aria-hidden="true"></i></button>`:''}<button type="button" data-mt-category-sources="${escapeHtml(type)}" aria-haspopup="dialog" title="Line item sources" aria-label="Line item sources for ${escapeHtml(terms.plural)}"><i class="fas fa-gear"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="${merged?'Add a work order':'Add list'}" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${merged&&equipmentOn()?'<button type="button" data-mt-new-category-list="equipment" title="Add an equipment list" aria-label="Add an equipment list"><i class="fas fa-truck-pickup"></i><i class="fas fa-plus"></i></button>':''}<button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
         <div class="mt-resource-scroll">${merged&&laborAssignmentOn()&&!lists.some(list=>resourceType(list)==='labor')&&projectId()?`<article class="mt-list-pane" data-mt-pane-list="project:${escapeHtml(projectId())}"><div class="mt-list-pane-inner">${renderAssignBlock({id:`project:${projectId()}`,resource_type:'labor'})}</div></article>`:''}${lists.map((list,listIndex)=>{
           // Inside a merged column each list is still its own kind.
           const type=resourceType(list),terms=resourceTerms(type,list),category=resourceCategories().find(row=>row.id===type)||{};
