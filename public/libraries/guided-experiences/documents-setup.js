@@ -26,8 +26,6 @@ const css = `
 .gxd-tick svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:3;opacity:0;transition:opacity .15s}
 [aria-checked=true]>.gxd-tick{background:var(--primary,#d93025);border-color:var(--primary,#d93025)}
 [aria-checked=true]>.gxd-tick svg{opacity:1}
-.gxd-style[aria-checked=true] .gxd-tick{background:var(--primary,#d93025);border-color:var(--primary,#d93025)}
-.gxd-style[aria-checked=true] .gxd-tick svg{opacity:1}
 .gxd-group{display:flex;flex-direction:column;gap:10px}
 .gxd-tile.gxd-feature{align-items:center;gap:16px;min-height:112px;padding:20px 48px 20px 20px;border-width:1.5px}
 .gxd-feature .gxd-icon{width:56px;height:56px;border-radius:15px;font-size:24px}
@@ -60,31 +58,34 @@ const css = `
 .gxd-money input{width:96px;height:34px;padding:0 10px;border:1px solid #d0d5dd;border-radius:9px;font:inherit;font-size:14px;text-align:right;color:#101828}
 .gxd-money input:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.14)}
 .gxd-note{font-size:12px!important;color:#667085!important}
-.gxd.gxd-fill{flex:1 1 auto;padding-bottom:0}
-.gxd-styles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:minmax(0,1fr);gap:16px;flex:1 1 auto;min-height:340px}
-.gxd-style{display:flex;flex-direction:column;gap:10px;min-height:0;padding:10px;border:1px solid #e4e7ec;border-radius:16px;background:#fff;font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,box-shadow .2s}
-.gxd-style:hover{border-color:#c4c9d2}
-.gxd-style:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
-.gxd-style[aria-checked=true]{border-color:var(--primary,#d93025);box-shadow:0 0 0 2px var(--primary,#d93025)}
-/* One page at a time, as large as the card allows; the page never scrolls inside the card (the pager turns it). */
-.gxd-page{position:relative;flex:1 1 auto;min-height:260px;overflow:clip;border-radius:10px;background:#f2f4f7}
-.gxd-page>[data-page]{position:absolute;top:0;left:0;box-shadow:0 1px 3px rgba(16,24,40,.12),0 6px 18px rgba(16,24,40,.08);background:#fff;overflow:clip}
-.gxd-page>[data-page]>div{position:relative;transition:transform .25s cubic-bezier(.22,1,.36,1)}
-.gxd-pager{position:absolute;right:10px;bottom:10px;z-index:2;display:flex;align-items:center;gap:2px;padding:3px;border-radius:999px;background:rgba(16,24,40,.78);color:#fff;font-size:12px;font-weight:650}
-.gxd-pager button{width:26px;height:26px;border:0;border-radius:50%;background:transparent;color:#fff;font:inherit;font-size:15px;line-height:1;cursor:pointer}
-.gxd-pager button:disabled{opacity:.35;cursor:default}
-.gxd-pager button:not(:disabled):hover{background:rgba(255,255,255,.16)}
-.gxd-pager span{min-width:34px;text-align:center}
-.gxd-style-name{display:flex;align-items:center;gap:10px;padding:0 4px 2px}
-.gxd-style-name strong{flex:1 1 auto;font-size:15px;color:#101828}
-.gxd-style-name small{display:block;font-size:12.5px;color:#667085;font-weight:400}
-.gxd-style .gxd-tick{position:static;flex:none}
+.gxd.gxd-fill{flex:1 1 auto;gap:10px;padding-bottom:0}
+/* The styles as a looping carousel (Jack): the one in the middle large, its pages scrolling; the others peek in smaller. */
+.gxd-stage{position:relative;flex:1 1 auto;min-height:360px;overflow:clip;outline:none}
+.gxd-card{position:absolute;top:0;left:50%;display:flex;flex-direction:column;border-radius:12px;background:#fff;box-shadow:0 2px 6px rgba(16,24,40,.12),0 14px 34px rgba(16,24,40,.14);transform-origin:50% 50%;transition:transform .45s cubic-bezier(.22,1,.36,1),opacity .35s,box-shadow .3s;cursor:pointer;overflow:clip}
+.gxd-card.gxd-jump{transition:none}
+.gxd-card[data-role=center]{cursor:default;box-shadow:0 0 0 2px var(--primary,#d93025),0 18px 44px rgba(16,24,40,.2)}
+.gxd-card[data-role=side]{opacity:.55}
+.gxd-card[data-role=side]:hover{opacity:.8}
+.gxd-doc{flex:1 1 auto;min-height:0;overflow:clip;background:#fff}
+.gxd-card[data-role=center] .gxd-doc{overflow-y:auto;scrollbar-width:thin}
+.gxs .gxd-card .gxd-doc{overscroll-behavior:auto}
+.gxd-doc>div{position:relative}
+.gxd-arrow{position:absolute;top:50%;z-index:5;width:44px;height:44px;margin-top:-22px;border:0;border-radius:50%;background:rgba(16,24,40,.72);color:#fff;font-size:20px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(16,24,40,.25)}
+.gxd-arrow:hover{background:rgba(16,24,40,.88)}
+.gxd-arrow:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+.gxd-arrow[data-go="-1"]{left:8px}
+.gxd-arrow[data-go="1"]{right:8px}
+.gxd-caption{display:flex;align-items:center;justify-content:center;gap:14px;min-height:46px;text-align:center}
+.gxd-caption strong{display:block;font-size:17px;color:#101828}
+.gxd-caption small{display:block;font-size:13px;color:#667085}
+.gxd-dots{display:flex;gap:6px;justify-content:center}
+.gxd-dots button{width:8px;height:8px;padding:0;border:0;border-radius:50%;background:#d0d5dd;cursor:pointer}
+.gxd-dots button[aria-current=true]{width:22px;border-radius:999px;background:var(--primary,#d93025)}
 .gxd-busy{display:grid;place-items:center;min-height:180px}
 .gxd-error{color:#b42318!important}
 .gxd-error:empty{display:none}
-/* The phone's row of styles scrolls sideways and passes the vertical wheel on (the setup frame contains overscroll). */
-.gxs .gxd-styles{overscroll-behavior:auto}
-@media(max-width:640px){.gxd-grid,.gxd-grid.gxd-small{grid-template-columns:1fr}.gxd-tile.gxd-feature{min-height:96px;padding:16px 44px 16px 16px}.gxd-feature .gxd-icon{width:46px;height:46px;font-size:20px}.gxd-feature strong{font-size:17px}.gxd-styles{grid-template-columns:repeat(3,82%);overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px}.gxd-style{scroll-snap-align:center}}
+@media(max-width:640px){.gxd-grid,.gxd-grid.gxd-small{grid-template-columns:1fr}.gxd-tile.gxd-feature{min-height:96px;padding:16px 44px 16px 16px}.gxd-feature .gxd-icon{width:46px;height:46px;font-size:20px}.gxd-feature strong{font-size:17px}}
+@media(max-width:640px){.gxd-arrow{display:none}}
 @media(max-width:640px){.gxd-grid.gxd-pair{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:8px 0 12px}.gxd-pair .gxd-tile{min-height:190px;padding:32px 12px 18px;gap:12px}.gxd-pair .gxd-icon{width:52px;height:52px;font-size:22px}.gxd-pair .gxd-tile strong{font-size:15px}.gxd-pair .gxd-tile small{font-size:12px}}
 @media(prefers-reduced-motion:reduce){.gxd *{transition:none!important}}
 `;
@@ -223,7 +224,7 @@ export function mount(el, ctx){
 
   // ── Three styles, previewed with what the answers make ────────────────
   function stylePart(){
-    let alive = true, chosen = clean(selections.theme_id), previews = [], Renderer = null, timer = 0, lastSize = '';
+    let alive = true, previews = [], Renderer = null, timer = 0, lastSize = '', center = 0, touch = null;
     const cards = [];
     const args = { document_kind: clean(selections.document_kind) || 'proposal' };
     if (args.document_kind === 'proposal') for (const name of ['presentation', 'customer_changes', 'detail', 'scope_write_up']) if (selections[name] !== undefined) args[name] = selections[name];
@@ -232,108 +233,115 @@ export function mount(el, ctx){
     sheet?.classList.add('gxs-wide');
     const pane = el.closest('.gxs-step');
     pane?.setAttribute('data-fill', '');
-    // Filled, the step does not scroll by itself; on a short window the cards keep a least size and the step scrolls.
+    // Filled, the step does not scroll by itself; on a short window the carousel keeps a least size and the step scrolls.
     if (pane) pane.style.overflowY = 'auto';
     el.innerHTML = '<div class="gxd"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div></div>';
-    const report = () => { const entry = previews.find((preview) => preview.theme_id === chosen); ctx.change(entry ? { theme_id: chosen } : {}, entry ? entry.name : ''); };
-    const onClick = (event) => {
-      const turn = event.target.closest('[data-turn]');
-      if (turn) { event.stopPropagation(); const card = cards.find((entry) => entry.el.contains(turn)); if (card) showPage(card, card.page + Number(turn.dataset.turn)); return; }
-      const card = event.target.closest('[data-theme]'); if (!card) return;
-      chosen = card.dataset.theme;
-      el.querySelectorAll('[data-theme]').forEach((node) => node.setAttribute('aria-checked', String(node.dataset.theme === chosen)));
+    const PAGE_W = 612 * 96 / 72, PAGE_H = 792 * 96 / 72, SIDE = 0.62, GAP = 28;
+    const chosen = () => previews[center]?.theme_id || '';
+    // The style in the middle is the one chosen.
+    const report = () => { const entry = previews[center]; ctx.change(entry ? { theme_id: entry.theme_id } : {}, entry ? entry.name : ''); };
+    /** Where each card sits: -1 left, 0 middle, 1 right (and further out with more styles), going round. */
+    const offsetOf = (at) => { const n = previews.length; let d = ((at - center) % n + n) % n; if (d > n / 2) d -= n; return d; };
+    function layout(before){
+      const stage = el.querySelector('.gxd-stage'); if (!stage) return;
+      const wide = stage.clientWidth, high = stage.clientHeight;
+      const width = Math.max(200, Math.min(wide * (wide < 640 ? 0.72 : 0.5), high * PAGE_W / PAGE_H));
+      cards.forEach((card, at) => {
+        const offset = offsetOf(at), was = before ? before[at] : offset;
+        const side = offset !== 0;
+        // A card going round the back (one end to the other) jumps instead of crossing the middle.
+        card.el.classList.toggle('gxd-jump', Math.abs(offset - was) > 1);
+        Object.assign(card.el.style, { width: `${width}px`, height: `${high}px`, marginLeft: `${-width / 2}px`, zIndex: String(10 - Math.abs(offset)),
+          transform: `translateX(${offset * (width / 2 + GAP + width * SIDE / 2)}px) scale(${side ? SIDE : 1})`, visibility: Math.abs(offset) > 1 ? 'hidden' : '' });
+        card.el.dataset.role = side ? 'side' : 'center';
+        card.el.setAttribute('aria-hidden', String(side));
+        card.el.tabIndex = side ? -1 : 0;
+        if (side) card.doc.scrollTop = 0;
+        if (card.width !== width) draw(card, width);
+      });
+      requestAnimationFrame(() => cards.forEach((card) => card.el.classList.remove('gxd-jump')));
+      const entry = previews[center];
+      const caption = el.querySelector('[data-caption]');
+      if (caption && entry) caption.innerHTML = `<strong>${esc(entry.name)}</strong><small>${esc(entry.description)}</small>`;
+      el.querySelectorAll('[data-dot]').forEach((dot) => dot.setAttribute('aria-current', String(Number(dot.dataset.dot) === center)));
+    }
+    /** A card's document: every page of the real render at the middle card's width (the sides are the same, scaled down). */
+    function draw(card, width){
+      if (!Renderer) return;
+      card.width = width;
+      try { card.handle?.destroy?.(); } catch (_) {}
+      card.doc.innerHTML = '<div></div>';
+      try {
+        const preview = card.preview;
+        card.handle = Renderer.render(card.doc.firstElementChild, { document: preview.resolved_definition, theme: preview.theme, themeContext: { overrides: object(preview.theme_vars) }, widgetData: object(preview.widget_data), mode: 'static', scale: width / PAGE_W });
+      } catch (error) { card.doc.textContent = clean(error?.message); }
+    }
+    function go(to){
+      if (!previews.length) return;
+      const before = cards.map((_, at) => offsetOf(at));
+      center = ((to % previews.length) + previews.length) % previews.length;
+      layout(before);
       report();
+    }
+    const onClick = (event) => {
+      const arrow = event.target.closest('[data-go]'); if (arrow) { go(center + Number(arrow.dataset.go)); return; }
+      const dot = event.target.closest('[data-dot]'); if (dot) { go(Number(dot.dataset.dot)); return; }
+      const card = event.target.closest('.gxd-card'); if (!card) return;
+      const at = cards.findIndex((entry) => entry.el === card);
+      if (at >= 0 && at !== center) go(at);
     };
-    // A card is not a button (it holds the rendered document): Enter and Space choose it.
-    const onKey = (event) => { if ((event.key === 'Enter' || event.key === ' ') && event.target.matches?.('[data-theme]')) { event.preventDefault(); onClick(event); } };
-    // The wheel over a preview turns its pages; before the first page or past the last it scrolls the step as usual.
-    let wheelSum = 0, wheelUntil = 0;
-    const onWheel = (event) => {
-      const box = event.target.closest?.('.gxd-page'); if (!box) return;
-      const card = cards.find((entry) => entry.el.contains(box)); if (!card) return;
-      const count = (card.handle?.pageElements?.() || []).length;
-      const step = event.deltaY > 0 ? 1 : event.deltaY < 0 ? -1 : 0;
-      if (!step || card.page + step < 0 || card.page + step >= count) { wheelSum = 0; return; }
-      event.preventDefault();
-      if (Date.now() < wheelUntil) return;
-      wheelSum += event.deltaY;
-      if (Math.abs(wheelSum) < 40) return;
-      wheelSum = 0; wheelUntil = Date.now() + 380;
-      showPage(card, card.page + step);
+    const onKey = (event) => {
+      if (event.target.closest?.('input,textarea')) return;
+      if (event.key === 'ArrowLeft') { event.preventDefault(); go(center - 1); }
+      else if (event.key === 'ArrowRight') { event.preventDefault(); go(center + 1); }
+    };
+    // A sideways swipe turns the carousel; up and down scroll the document in the middle.
+    const onTouchStart = (event) => { const point = event.touches?.[0]; touch = point ? { x: point.clientX, y: point.clientY } : null; };
+    const onTouchEnd = (event) => {
+      const point = event.changedTouches?.[0]; if (!touch || !point) return;
+      const dx = point.clientX - touch.x, dy = point.clientY - touch.y; touch = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.4) go(center + (dx < 0 ? 1 : -1));
     };
     el.addEventListener('click', onClick);
     el.addEventListener('keydown', onKey);
-    el.addEventListener('wheel', onWheel, { passive: false });
-    const PAGE_W = 612 * 96 / 72, PAGE_H = 792 * 96 / 72;
-    function showPage(card, page){
-      const pages = card.handle?.pageElements?.() || [];
-      card.page = Math.max(0, Math.min(page, pages.length - 1));
-      const inner = card.holder.firstElementChild;
-      // Measured on screen: the renderer scales its pages with a transform, which offsetTop does not see.
-      if (inner && pages[card.page]) {
-        inner.style.transition = 'none'; inner.style.transform = 'none';
-        const shift = pages[card.page].getBoundingClientRect().top - pages[0].getBoundingClientRect().top;
-        void inner.offsetHeight; inner.style.transition = '';
-        inner.style.transform = `translateY(${-shift}px)`;
-      }
-      const pager = card.el.querySelector('.gxd-pager');
-      if (pager) {
-        pager.hidden = pages.length < 2;
-        pager.querySelector('span').textContent = `${card.page + 1} / ${pages.length}`;
-        pager.querySelector('[data-turn="-1"]').disabled = card.page === 0;
-        pager.querySelector('[data-turn="1"]').disabled = card.page >= pages.length - 1;
-      }
-    }
-    /** Each preview is the real render, one page as large as its card allows, centred. */
-    function draw(){
-      if (!alive || !Renderer) return;
-      for (const card of cards) {
-        const box = card.el.querySelector('.gxd-page');
-        const scale = Math.max(0.15, Math.min((box.clientWidth - 16) / PAGE_W, (box.clientHeight - 16) / PAGE_H));
-        try { card.handle?.destroy?.(); } catch (_) {}
-        card.holder.innerHTML = '<div></div>';
-        Object.assign(card.holder.style, { width: `${Math.floor(PAGE_W * scale)}px`, height: `${Math.floor(PAGE_H * scale)}px`, left: `${Math.max(0, (box.clientWidth - PAGE_W * scale) / 2)}px`, top: `${Math.max(0, (box.clientHeight - PAGE_H * scale) / 2)}px` });
-        try {
-          const preview = card.preview;
-          card.handle = Renderer.render(card.holder.firstElementChild, { document: preview.resolved_definition, theme: preview.theme, themeContext: { overrides: object(preview.theme_vars) }, widgetData: object(preview.widget_data), mode: 'static', scale });
-        } catch (error) { card.holder.textContent = clean(error?.message); }
-        showPage(card, card.page || 0);
-      }
-    }
-    // Drawn again when the cards change size (the sheet widening, the window resized), once they have settled.
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    // Laid out again when the carousel changes size (the sheet widening, the window resized), once it has settled.
     const observer = window.ResizeObserver ? new ResizeObserver(() => {
-      const box = el.querySelector('.gxd-page'); const size = box ? `${box.clientWidth}x${box.clientHeight}` : '';
+      const stage = el.querySelector('.gxd-stage'); const size = stage ? `${stage.clientWidth}x${stage.clientHeight}` : '';
       if (!size || size === lastSize) return;
-      lastSize = size; clearTimeout(timer); timer = setTimeout(draw, 160);
+      lastSize = size; clearTimeout(timer); timer = setTimeout(() => { if (alive) layout(); }, 160);
     }) : null;
     Promise.all([ctx.read('document-setup', 'previews', { args }), renderer()]).then(([value, loaded]) => {
       if (!alive) return;
       Renderer = loaded;
-      value = object(value);
-      previews = array(value.previews);
-      if (!previews.some((preview) => preview.theme_id === chosen)) chosen = '';
+      previews = array(object(value).previews);
+      center = Math.max(0, previews.findIndex((preview) => preview.theme_id === clean(selections.theme_id)));
       el.innerHTML = `<div class="gxd gxd-fill">
-        <p>${esc(t('style_lead', 'Here is your {name} in three styles, with a sample customer. Pick the one you like.').replace('{name}', clean(value.name) || t('style_document', 'document')))}</p>
-        <div class="gxd-styles" role="radiogroup" aria-label="${esc(ctx.L(ctx.step.title))}">${previews.map((preview) => `
-          <div class="gxd-style" role="radio" tabindex="0" data-theme="${esc(preview.theme_id)}" aria-checked="${preview.theme_id === chosen}" aria-label="${esc(preview.name)}">
-            <div class="gxd-page"><div data-page aria-hidden="true"></div><span class="gxd-pager" hidden><button type="button" data-turn="-1" aria-label="${esc(t('page_previous', 'Previous page'))}">‹</button><span></span><button type="button" data-turn="1" aria-label="${esc(t('page_next', 'Next page'))}">›</button></span></div>
-            <span class="gxd-style-name"><strong>${esc(preview.name)}<small>${esc(preview.description)}</small></strong>${tick}</span>
-          </div>`).join('')}</div>
+        <div class="gxd-stage" tabindex="0" role="listbox" aria-label="${esc(ctx.L(ctx.step.title))}">
+          ${previews.map((preview) => `<div class="gxd-card" role="option" data-theme="${esc(preview.theme_id)}" aria-label="${esc(preview.name)}"><div class="gxd-doc"></div></div>`).join('')}
+          <button type="button" class="gxd-arrow" data-go="-1" aria-label="${esc(t('style_previous', 'Previous style'))}">‹</button>
+          <button type="button" class="gxd-arrow" data-go="1" aria-label="${esc(t('style_next', 'Next style'))}">›</button>
+        </div>
+        <div class="gxd-caption" data-caption aria-live="polite"></div>
+        <div class="gxd-dots">${previews.map((preview, at) => `<button type="button" data-dot="${at}" aria-label="${esc(preview.name)}"></button>`).join('')}</div>
       </div>`;
-      el.querySelectorAll('[data-theme]').forEach((node, at) => cards.push({ el: node, holder: node.querySelector('[data-page]'), preview: previews[at], handle: null, page: 0 }));
-      lastSize = (() => { const box = el.querySelector('.gxd-page'); return box ? `${box.clientWidth}x${box.clientHeight}` : ''; })();
-      draw();
-      el.querySelectorAll('.gxd-page').forEach((box) => observer?.observe(box));
+      el.querySelectorAll('.gxd-card').forEach((node, at) => cards.push({ el: node, doc: node.querySelector('.gxd-doc'), preview: previews[at], handle: null, width: 0 }));
+      const stage = el.querySelector('.gxd-stage');
+      lastSize = `${stage.clientWidth}x${stage.clientHeight}`;
+      layout();
+      observer?.observe(stage);
       report();
     }).catch((error) => { if (alive) el.innerHTML = `<div class="gxd"><p class="gxd-error" role="alert">${esc(clean(error?.message) || t('preview_failed', 'The previews didn’t load. Close the setup and try again.'))}</p></div>`; });
     return {
-      valid: () => previews.some((preview) => preview.theme_id === chosen),
+      valid: () => !!chosen(),
       hint: () => t('style_hint', 'Choose a style.'),
-      summary: () => previews.find((preview) => preview.theme_id === chosen)?.name || '',
+      summary: () => previews[center]?.name || '',
       destroy(){
         alive = false; clearTimeout(timer); observer?.disconnect();
         if (!wasWide) sheet?.classList.remove('gxs-wide');
-        el.removeEventListener('click', onClick); el.removeEventListener('keydown', onKey); el.removeEventListener('wheel', onWheel);
+        el.removeEventListener('click', onClick); el.removeEventListener('keydown', onKey);
+        el.removeEventListener('touchstart', onTouchStart); el.removeEventListener('touchend', onTouchEnd);
         cards.forEach((card) => { try { card.handle?.destroy?.(); } catch (_) {} });
       }
     };
