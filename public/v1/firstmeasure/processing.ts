@@ -1,7 +1,7 @@
 import { badRequest, FirstMeasureError } from "./errors.js";
 import { firstMeasureComplexityForRoofSegments } from "./constants.js";
 import { fetchRequiredSolarLayers, fetchRequiredSolarDsm } from './solar_imagery.js';
-import { fetchSolarWithRetry, isTransientHttpStatus } from './transient_failure.js';
+import { fetchSolarWithRetry, isTransientHttpStatus, isTransientProviderFailure } from './transient_failure.js';
 import { env } from "../src/config/env.js";
 import { INSTANT_STRUCTURE_INSIGHTS_FILE_NAME } from "./instant.js";
 import { ensureInstantPdfArtifact } from "./instant_pdf.js";
@@ -984,6 +984,44 @@ async function generateMask(projectId: string, manifest: ProjectManifest, input:
   };
 }
 
+// The flat satellite maps (Maps Static, Azure) the editor draws on when there is no Solar rgb.tif, and as
+// extra layers when there is. Each is optional: a refused or failed provider is logged and skipped.
+async function saveProviderMapImagery(
+  projectId: string,
+  projectArea: { lat: number; lng: number },
+  generated: Set<string>,
+  renderableFetch: ProviderFetchOutcome
+) {
+  const googleStaticMapKey = requireGoogleKey("maps_static");
+  const googleStaticMap = await fetchBinary(
+    `https://maps.googleapis.com/maps/api/staticmap?center=${projectArea.lat},${projectArea.lng}&zoom=20&size=640x640&scale=2&maptype=satellite&key=${encodeURIComponent(googleStaticMapKey)}`,
+    undefined,
+    renderableFetch,
+    `google.png (Maps Static) for ${projectId}`
+  );
+  if (googleStaticMap) {
+    await saveArtifact(projectId, "google.png", googleStaticMap);
+    generated.add("google.png");
+  }
+
+  const azureMap = env.azureMapsSubscriptionKey ? await fetchBinary(
+    "https://atlas.microsoft.com/map/static"
+      + `?subscription-key=${encodeURIComponent(env.azureMapsSubscriptionKey)}`
+      + "&api-version=2024-04-01"
+      + "&tilesetId=microsoft.imagery"
+      + "&zoom=19"
+      + `&center=${encodeURIComponent(`${projectArea.lng},${projectArea.lat}`)}`
+      + "&width=800&height=800&language=en-US",
+    undefined,
+    renderableFetch,
+    `azure.png (Azure Maps) for ${projectId}`
+  ) : null;
+  if (azureMap) {
+    await saveArtifact(projectId, "azure.png", azureMap);
+    generated.add("azure.png");
+  }
+}
+
 export async function processProjectImagery(projectId: string, input: ProcessingInput): Promise<ProcessingResult> {
   const key = requireGoogleKey("solar");
   let manifest = await readManifest(projectId);
@@ -1039,22 +1077,35 @@ export async function processProjectImagery(projectId: string, input: Processing
     + "&requiredQuality=LOW"
     + `&pixelSizeMeters=${pixelSizeMeters}`
     + `&key=${encodeURIComponent(key)}`;
-  const layers = await fetchRequiredSolarLayers<{
+  const renderableFetch: ProviderFetchOutcome = { transientMiss: false };
+  type SolarLayers = {
     rgbUrl?: string;
     dsmUrl?: string;
     maskUrl?: string;
     imageryQuality?: string;
     imageryDate?: unknown;
     imageryProcessedDate?: unknown;
-  }>(layersUrl);
-
-  // Verify required height data before optional imagery work. Never disguise a
-  // provider or download failure as missing geographic coverage.
-  const dsm = await fetchRequiredSolarDsm(layers?.dsmUrl, key);
+  };
+  let layers: SolarLayers;
+  let dsm: Uint8Array;
+  try {
+    layers = await fetchRequiredSolarLayers<SolarLayers>(layersUrl);
+    // Verify required height data before optional imagery work. Never disguise a
+    // provider or download failure as missing geographic coverage.
+    dsm = await fetchRequiredSolarDsm(layers?.dsmUrl, key);
+  } catch (error) {
+    // FM-599: where Google Solar has no height map (all of a day's Swiss orders) the order still goes to the
+    // drafting queue, but it reached drafters with no map at all ("no renderable map assets"). Save the
+    // flat provider maps first so the editor can open it; the failure itself is reported unchanged.
+    if (!isTransientProviderFailure(error)) {
+      await saveProviderMapImagery(projectId, projectArea, generated, renderableFetch).catch((mapError) =>
+        console.warn(`FirstMeasure imagery: fallback maps for ${projectId} failed`, String((mapError as Error)?.message || mapError).slice(0, 200)));
+    }
+    throw error;
+  }
   await saveArtifact(projectId, "dsm.tif", dsm);
   generated.add("dsm.tif");
 
-  const renderableFetch: ProviderFetchOutcome = { transientMiss: false };
   const downloads: Array<Promise<void>> = [];
   const queueDownload = (fileName: string, rawUrl?: string) => {
     if (!rawUrl) return;
@@ -1081,34 +1132,7 @@ export async function processProjectImagery(projectId: string, input: Processing
     generated
   });
 
-  const googleStaticMapKey = requireGoogleKey("maps_static");
-  const googleStaticMap = await fetchBinary(
-    `https://maps.googleapis.com/maps/api/staticmap?center=${projectArea.lat},${projectArea.lng}&zoom=20&size=640x640&scale=2&maptype=satellite&key=${encodeURIComponent(googleStaticMapKey)}`,
-    undefined,
-    renderableFetch,
-    `google.png (Maps Static) for ${projectId}`
-  );
-  if (googleStaticMap) {
-    await saveArtifact(projectId, "google.png", googleStaticMap);
-    generated.add("google.png");
-  }
-
-  const azureMap = env.azureMapsSubscriptionKey ? await fetchBinary(
-    "https://atlas.microsoft.com/map/static"
-      + `?subscription-key=${encodeURIComponent(env.azureMapsSubscriptionKey)}`
-      + "&api-version=2024-04-01"
-      + "&tilesetId=microsoft.imagery"
-      + "&zoom=19"
-      + `&center=${encodeURIComponent(`${projectArea.lng},${projectArea.lat}`)}`
-      + "&width=800&height=800&language=en-US",
-    undefined,
-    renderableFetch,
-    `azure.png (Azure Maps) for ${projectId}`
-  ) : null;
-  if (azureMap) {
-    await saveArtifact(projectId, "azure.png", azureMap);
-    generated.add("azure.png");
-  }
+  await saveProviderMapImagery(projectId, projectArea, generated, renderableFetch);
 
   // Without any of these the editor has no map to draw on ("no renderable map assets"). When a provider was
   // only busy, fail retryably so the durable job tries again instead of handing drafters an order without a map.
