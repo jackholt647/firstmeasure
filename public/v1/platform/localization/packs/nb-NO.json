@@ -3174,8 +3174,14 @@
     "m_a3f7efd048a5e3": "Kunne ikke åpne kvitterings-PDF-en.",
     "m_be2e9e776e4eb5": "Betalte utgifter kan ikke fjernes.",
     "m_cf842ec2f4d524": "Fjerne denne utgiften fra prosjektregnskapet?",
-    "loading_workspace": "Laster inn {workspace}...",
-    "back_to_workspace": "Tilbake til {workspace}"
+    "loading_workspace": {
+      "message": "Laster inn {workspace}...",
+      "format": "icu"
+    },
+    "back_to_workspace": {
+      "message": "Tilbake til {workspace}",
+      "format": "icu"
+    }
   },
   "onboarding": {
     "m_a0d673c98d109b": "Bestill rapporter",

@@ -3074,8 +3074,14 @@
     "m_a3f7efd048a5e3": "Impossibile aprire il PDF della ricevuta.",
     "m_be2e9e776e4eb5": "Le spese già pagate non possono essere rimosse.",
     "m_cf842ec2f4d524": "Rimuovere questa spesa dal registro del progetto?",
-    "loading_workspace": "Caricamento: {workspace}...",
-    "back_to_workspace": "Torna a {workspace}"
+    "loading_workspace": {
+      "message": "Caricamento: {workspace}...",
+      "format": "icu"
+    },
+    "back_to_workspace": {
+      "message": "Torna a {workspace}",
+      "format": "icu"
+    }
   },
   "onboarding": {
     "m_a0d673c98d109b": "Ordina report",

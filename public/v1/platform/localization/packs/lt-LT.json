@@ -3170,8 +3170,14 @@
     "m_a3f7efd048a5e3": "Nepavyko atidaryti kvito PDF.",
     "m_be2e9e776e4eb5": "Apmokėtų išlaidų pašalinti negalima.",
     "m_cf842ec2f4d524": "Pašalinti šias išlaidas iš projekto apskaitos?",
-    "loading_workspace": "Įkeliama: {workspace}...",
-    "back_to_workspace": "Grįžti: {workspace}"
+    "loading_workspace": {
+      "message": "Įkeliama: {workspace}...",
+      "format": "icu"
+    },
+    "back_to_workspace": {
+      "message": "Grįžti: {workspace}",
+      "format": "icu"
+    }
   },
   "onboarding": {
     "m_a0d673c98d109b": "Užsakyti ataskaitas",

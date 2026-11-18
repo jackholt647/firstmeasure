@@ -3038,8 +3038,14 @@
     "m_a3f7efd048a5e3": "Impossible d’ouvrir le reçu PDF.",
     "m_be2e9e776e4eb5": "Les dépenses payées ne peuvent pas être supprimées.",
     "m_cf842ec2f4d524": "Supprimer cette dépense du grand livre du projet ?",
-    "loading_workspace": "Chargement : {workspace}...",
-    "back_to_workspace": "Retour : {workspace}"
+    "loading_workspace": {
+      "message": "Chargement : {workspace}...",
+      "format": "icu"
+    },
+    "back_to_workspace": {
+      "message": "Retour : {workspace}",
+      "format": "icu"
+    }
   },
   "onboarding": {
     "m_a0d673c98d109b": "Commander des rapports",

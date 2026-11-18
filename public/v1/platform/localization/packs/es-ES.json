@@ -3178,8 +3178,14 @@
     "m_a3f7efd048a5e3": "No se ha podido abrir el PDF del recibo.",
     "m_be2e9e776e4eb5": "No se pueden eliminar gastos con pagos registrados.",
     "m_cf842ec2f4d524": "¿Eliminar este gasto del libro de cuentas del proyecto?",
-    "loading_workspace": "Cargando {workspace}...",
-    "back_to_workspace": "Volver a {workspace}"
+    "loading_workspace": {
+      "message": "Cargando {workspace}...",
+      "format": "icu"
+    },
+    "back_to_workspace": {
+      "message": "Volver a {workspace}",
+      "format": "icu"
+    }
   },
   "onboarding": {
     "m_a0d673c98d109b": "Pedir informes",

@@ -296,7 +296,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261118-fm560-pinned'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261118-fm603-terminology')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261118-fm560-pinned'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261118-fm603-terminology-2')]
     },
     {
       id: 'project.request',

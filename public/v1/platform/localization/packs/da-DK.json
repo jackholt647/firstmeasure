@@ -3170,8 +3170,14 @@
     "m_a3f7efd048a5e3": "Kunne ikke åbne kvitterings-PDF.",
     "m_be2e9e776e4eb5": "Betalte udgifter kan ikke fjernes.",
     "m_cf842ec2f4d524": "Fjern denne udgift fra projektets økonomiregister?",
-    "loading_workspace": "Indlæser {workspace}...",
-    "back_to_workspace": "Tilbage til {workspace}"
+    "loading_workspace": {
+      "message": "Indlæser {workspace}...",
+      "format": "icu"
+    },
+    "back_to_workspace": {
+      "message": "Tilbage til {workspace}",
+      "format": "icu"
+    }
   },
   "onboarding": {
     "m_a0d673c98d109b": "Bestil rapporter",

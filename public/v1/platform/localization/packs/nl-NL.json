@@ -3174,8 +3174,14 @@
     "m_a3f7efd048a5e3": "Bon-PDF kon niet worden geopend.",
     "m_be2e9e776e4eb5": "Betaalde uitgaven kunnen niet worden verwijderd.",
     "m_cf842ec2f4d524": "Deze uitgave uit het projectoverzicht verwijderen?",
-    "loading_workspace": "{workspace} laden...",
-    "back_to_workspace": "Terug naar {workspace}"
+    "loading_workspace": {
+      "message": "{workspace} laden...",
+      "format": "icu"
+    },
+    "back_to_workspace": {
+      "message": "Terug naar {workspace}",
+      "format": "icu"
+    }
   },
   "onboarding": {
     "m_a0d673c98d109b": "Rapporten bestellen",

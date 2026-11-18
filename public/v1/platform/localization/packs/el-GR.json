@@ -3178,8 +3178,14 @@
     "m_a3f7efd048a5e3": "Δεν ήταν δυνατό το άνοιγμα του PDF της απόδειξης.",
     "m_be2e9e776e4eb5": "Δεν είναι δυνατή η αφαίρεση εξοφλημένων δαπανών.",
     "m_cf842ec2f4d524": "Να αφαιρεθεί αυτή η δαπάνη από το καθολικό του έργου;",
-    "loading_workspace": "Φόρτωση: {workspace}...",
-    "back_to_workspace": "Επιστροφή: {workspace}"
+    "loading_workspace": {
+      "message": "Φόρτωση: {workspace}...",
+      "format": "icu"
+    },
+    "back_to_workspace": {
+      "message": "Επιστροφή: {workspace}",
+      "format": "icu"
+    }
   },
   "onboarding": {
     "m_a0d673c98d109b": "Παραγγελία αναφορών",
