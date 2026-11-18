@@ -1,6 +1,7 @@
 // The quick project camera (FM-559): a project card's camera opens the project window on its Photos tab with the
 // camera already open over it, at once, while the window's document boots behind it. Done shows the window and its
-// Photos tab reads the new photos again; closing the window ends the camera.
+// Photos tab reads the new photos again; closing the window ends the camera. The window's document (same thread)
+// boots only once the camera is live, so it cannot hold the camera's first frames back.
 // Runs public/libraries/window-manager/project-windows.js and the shared camera in headless Chrome with a fake camera.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -50,7 +51,7 @@ const OPEN = () => {
   const record = FirstMateProjectWindows.open({ id: 'project_one', title: 'Bill Testo' }, { camera: { projectId: 'project_one', title: 'Bill Testo', onDone: (entries) => { window.__done = entries; } } });
   window.__record = record;
   const shell = document.querySelector('.fmc-shell.fullscreen');
-  return { token: record.token, tab: record.options.tab, camera: 'camera' in record.options, shell: !!shell, title: shell?.querySelector('.fmc-head-title')?.textContent || '', layer: !!document.querySelector('.fm-project-window-layer[data-project-window]') };
+  return { token: record.token, tab: record.options.tab, camera: 'camera' in record.options, shell: !!shell, title: shell?.querySelector('.fmc-head-title')?.textContent || '', booting: !!record.frame.getAttribute('src'), layer: !!document.querySelector('.fm-project-window-layer[data-project-window]') };
 };
 // The window's document has booted and its project opened.
 const CHILD_READY = async () => {
@@ -66,8 +67,10 @@ const liveCamera = (page) => page.waitForFunction(() => document.querySelector('
 test('the camera opens at once over the project window, which opens on Photos and loads behind it', async (t) => {
   const page = await phone(t);
   const opened = await page.evaluate(OPEN);
-  assert.deepEqual(opened, { token: opened.token, tab: 'photos', camera: false, shell: true, title: 'Bill Testo', layer: true });
+  assert.deepEqual(opened, { token: opened.token, tab: 'photos', camera: false, shell: true, title: 'Bill Testo', booting: false, layer: true });
   await liveCamera(page);
+  await page.waitForFunction(() => !!window.__record.frame.getAttribute('src'), null, { timeout: 5000 });
+  assert.match(await page.evaluate(() => window.__record.frame.getAttribute('src')), /projectWindow=/, 'the window boots once the camera is live');
   assert.deepEqual(await page.evaluate(CHILD_READY), ['photos'], 'the window opened its project on the Photos tab');
 
   // A photo, then Done: the camera closes, the window is what remains, and its Photos tab reads the photos again.

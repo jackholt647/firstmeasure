@@ -49,6 +49,9 @@
  *
  * The step's `remove(entry)` takes a photo out of the session (and its strip), for a step that lets people drop one.
  *
+ * `onStarted(live)`, optional, is called each time the camera has started (live true) or could not (false), so a
+ * caller can hold heavier work back until the camera is on screen (the quick project camera, FM-559).
+ *
  * `overlay({ stage, video })`, optional, draws over the live viewport (the document scanner's page outline) and
  * returns a function that removes it.
  *
@@ -241,7 +244,7 @@
     }
     async function start(){
       if (starting || !active) return;
-      if (!navigator.mediaDevices?.getUserMedia) { fallback(T('no_camera_api', 'This browser cannot open the camera. Choose photos instead.')); return; }
+      if (!navigator.mediaDevices?.getUserMedia) { fallback(T('no_camera_api', 'This browser cannot open the camera. Choose photos instead.')); started(false); return; }
       starting = true;
       $('[data-fmc-message]').textContent = T('starting', 'Starting the camera…');
       $('[data-fmc-pick]').hidden = true;
@@ -269,8 +272,10 @@
       } finally {
         starting = false;
         syncControls();
+        if (active) started(!!stream);
       }
     }
+    function started(live){ try { options.onStarted?.(live); } catch (error) { console.warn('Camera onStarted failed', error); } }
     function syncControls(){
       torchBtn.hidden = !stream || torchBtn.dataset.supported !== 'true';
       torchBtn.setAttribute('aria-pressed', String(torchOn));
@@ -559,5 +564,5 @@
     };
   }
 
-  root.FirstMateCamera = { mount, open, version: '20261116-done-at-once' };
+  root.FirstMateCamera = { mount, open, version: '20261118-on-started' };
 })(window);
