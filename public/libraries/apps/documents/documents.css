@@ -638,6 +638,7 @@ html[data-fm-doc-phone] .fmdx-phone-only{display:inline-flex!important}
 html[data-fm-doc-phone] .fmdx-desk-only{display:none!important}
 @keyframes fmdx-sheet-up{from{transform:translateY(28px);opacity:0}to{transform:none;opacity:1}}
 @keyframes fmdx-fade{from{opacity:0}to{opacity:1}}
+@keyframes fmdx-tray-up{from{transform:translateY(100%)}to{transform:none}}
 @keyframes fmdx-slide-in{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
 html[data-fm-doc-phone] .fmdx-modal input:not([type=checkbox]):not([type=radio]):not([type=color]),html[data-fm-doc-phone] .fmdx-modal select,html[data-fm-doc-phone] .fmdx-modal textarea,html[data-fm-doc-phone] .fmdx-data-panel input:not([type=checkbox]):not([type=radio]):not([type=color]),html[data-fm-doc-phone] .fmdw input:not([type=checkbox]):not([type=radio]):not([type=color]),html[data-fm-doc-phone] .fmdw select,html[data-fm-doc-phone] .fmdw textarea{font-size:16px}
 
@@ -650,6 +651,18 @@ html[data-fm-doc-phone] .fmdx-modal-sub{display:none}
 html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal>.fmdx-modal-foot,html[data-fm-doc-phone] .fmdx-modal [data-create-body]>.fmdx-modal-foot{position:sticky;bottom:0;z-index:3;margin:auto -16px 0;padding:10px 16px max(12px,env(safe-area-inset-bottom));background:#fff;border-top:1px solid #eef0f4}
 html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal::after{content:'';flex:none;height:max(12px,env(safe-area-inset-bottom))}
 html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal:has(>.fmdx-modal-foot)::after,html[data-fm-doc-phone] .fmdx-modal.fmdx-create-modal::after{display:none}
+/* A tray (New document's first step, FM-570) rises from the bottom as tall as
+   what it shows, leaving the top of the page in view like the platform's phone
+   sheets (window-manager mobileSheet); a later step grows it to full screen. */
+html[data-fm-doc-phone] .fmdx-modal-back.fmdx-tray-back{align-items:flex-end;background:rgba(11,16,24,.34)}
+html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-tray{flex:none;height:auto;max-height:calc(100% - max(56px,12%));padding-top:20px;border-radius:18px 18px 0 0;box-shadow:0 -9px 28px rgba(15,23,42,.3);animation:fmdx-tray-up .3s cubic-bezier(.2,.8,.2,1);transition:border-radius .28s ease,padding-top .28s ease}
+html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-tray::before{content:'';position:absolute;top:7px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:2px;background:#d0d5dd;pointer-events:none;transition:opacity .2s ease}
+html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-tray:not(.fmdx-tray-full)>h2{touch-action:none}
+html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-tray>.fmdx-modal-close{top:18px;transition:top .28s ease}
+html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-tray.fmdx-tray-full{height:100%;max-height:none;padding-top:max(14px,env(safe-area-inset-top));border-radius:0;box-shadow:none}
+html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-tray.fmdx-tray-full::before{opacity:0}
+html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-tray.fmdx-tray-full>.fmdx-modal-close{top:max(14px,env(safe-area-inset-top))}
+html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-tray.fmdx-tray-tall:not(.fmdx-tray-full){height:calc(100% - max(56px,12%))}
 html[data-fm-doc-phone] .fmdx-modal-foot .fmdx-btn.fmdx-btn{min-height:44px;font-size:13px}
 html[data-fm-doc-phone] .fmdx-modal-foot .fmdx-btn.primary{flex:1}
 html[data-fm-doc-phone] .fmdx-form-grid{grid-template-columns:minmax(0,1fr)}
@@ -879,4 +892,5 @@ html[data-fm-doc-phone] .fmdx-present-overlay .fmdp-seg{height:22px}
 html[data-fm-doc-phone] .fmdx-present-overlay .fmdp-count{white-space:nowrap;font-family:var(--fm-body-font,system-ui),system-ui,sans-serif}
 @media (prefers-reduced-motion:reduce){
   html[data-fm-doc-phone] .fmdx-modal,html[data-fm-doc-phone] .fmdx-modal-back,html[data-fm-doc-phone] .fmdx-menu,html[data-fm-doc-phone] .fmdx-data-panel,html[data-fm-doc-phone] .fmdx-wfrun-agent,html[data-fm-doc-phone] .fmdx-hist-detail,html[data-fm-doc-phone] .fmdw-foot-deliver .fmdw-btn,.fmdx-menu-scrim{animation:none}
+  html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-tray{animation:none;transition:none}
 }
