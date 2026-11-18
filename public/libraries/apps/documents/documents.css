@@ -139,7 +139,7 @@
 .fmdx-fchip.on small{color:rgba(255,255,255,.7)}
 .fmdx-fchip-dot{width:8px;height:8px;border-radius:50%;background:var(--fmdx-type,#98a2b3)}
 .fmdx-tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
-.fmdx-tpl-row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(210px,240px);justify-content:start;gap:10px;overflow-x:auto;overflow-y:hidden;padding:2px 2px 4px;scrollbar-width:thin}
+.fmdx-tpl-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:2px 2px 4px}
 .fmdx-tpl{position:relative;min-width:0;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:13px;background:#fff;transition:border-color .12s ease,box-shadow .12s ease,transform .12s ease}
 .fmdx-tpl:hover,.fmdx-tpl:focus-within{border-color:color-mix(in srgb,var(--fmdx-type,#98a2b3) 45%,#e4e7ec);box-shadow:0 6px 18px rgba(16,24,40,.08);transform:translateY(-1px)}
 .fmdx-tpl-open{width:100%;min-height:68px;border:0;background:transparent;font:inherit;text-align:left;cursor:pointer;padding:12px 30px 12px 12px;display:flex;align-items:center;gap:12px;color:#111827;border-radius:inherit}
@@ -154,6 +154,12 @@
 .fmdx-tpl:hover .fmdx-tpl-pin,.fmdx-tpl-pin:focus-visible,.fmdx-tpl-pin.on{opacity:1}
 .fmdx-tpl-pin:hover{background:#f2f4f7;color:#344054}
 .fmdx-tpl-pin.on{color:#111827}
+/* Pinned: one word over its type's color, no type line and no pin (FM-562). */
+.fmdx-tpl.pinned{border-color:color-mix(in srgb,var(--fmdx-type,#98a2b3) 28%,#fff);background:color-mix(in srgb,var(--fmdx-type,#98a2b3) 6%,#fff)}
+.fmdx-tpl.pinned .fmdx-tpl-open{flex-direction:column;justify-content:center;align-items:center;gap:8px;height:100%;min-height:96px;padding:14px 10px;text-align:center}
+.fmdx-tpl.pinned .fmdx-tpl-icon{width:42px;height:42px;border-radius:12px;font-size:18px;color:#fff;background:var(--fmdx-type,#667085)}
+.fmdx-tpl.pinned .fmdx-tpl-text{width:100%;align-items:center}
+.fmdx-tpl.pinned .fmdx-tpl-text strong{font-size:14px;font-weight:900;line-height:1.25;color:color-mix(in srgb,var(--fmdx-type,#667085) 70%,#111827);overflow-wrap:anywhere}
 .fmdx-fchip.quiet{border-style:dashed;color:#667085;margin-left:auto}
 .fmdx-types{display:flex;flex-direction:column;gap:6px}
 .fmdx-type-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 8px;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:11px;background:#fff}
@@ -651,25 +657,22 @@ html[data-fm-doc-phone] .fmdx-modal fieldset.fmdx-field{margin:0;border:1px soli
 html[data-fm-doc-phone] .fmdx-modal fieldset.fmdx-field>legend{padding:0 4px}
 html[data-fm-doc-phone] .fmdx-modal fieldset.fmdx-field>label{display:flex;flex-direction:column;gap:5px;margin-top:8px}
 
-/* New document: search, then Blank / Upload / Scan as three equal tiles. */
+/* New document: search with Upload beside it. */
 html[data-fm-doc-phone] .fmdx-modal.fmdx-create-modal{height:100%;padding-bottom:0}
 html[data-fm-doc-phone] .fmdx-create-modal [data-create-body]{gap:12px;margin:0 -16px;padding:0 16px max(16px,env(safe-area-inset-bottom))}
-html[data-fm-doc-phone] .fmdx-create-top{flex-wrap:wrap;gap:8px}
-html[data-fm-doc-phone] .fmdx-create-top .fmdx-create-search{flex:1 1 100%;height:44px;border-radius:12px}
-html[data-fm-doc-phone] .fmdx-create-top>.fmdx-btn.fmdx-btn{flex:1 1 0;min-width:0;min-height:58px;flex-direction:column;gap:5px;padding:6px 4px;border-radius:13px;font-size:11.5px}
-html[data-fm-doc-phone] .fmdx-create-top>.fmdx-btn.fmdx-btn i{font-size:16px;color:var(--primary-readable,var(--fmdx-primary,#d93025))}
+html[data-fm-doc-phone] .fmdx-create-top{flex-wrap:nowrap;gap:8px}
+html[data-fm-doc-phone] .fmdx-create-top .fmdx-create-search{flex:1 1 auto;min-width:0;height:44px;border-radius:12px}
+html[data-fm-doc-phone] .fmdx-create-top>.fmdx-btn.fmdx-btn{flex:none;min-height:44px;gap:7px;padding:0 14px;border-radius:12px;font-size:13px}
+html[data-fm-doc-phone] .fmdx-create-top>.fmdx-btn.fmdx-btn i{font-size:14px;color:var(--primary-readable,var(--fmdx-primary,#d93025))}
 html[data-fm-doc-phone] .fmdx-create-top>.fmdx-btn.fmdx-btn:active{transform:scale(.97)}
 html[data-fm-doc-phone] .fmdx-create-modal .fmdx-fchips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px 2px}
 html[data-fm-doc-phone] .fmdx-create-modal .fmdx-fchips::-webkit-scrollbar{display:none}
 html[data-fm-doc-phone] .fmdx-fchip{height:32px;flex:none}
 html[data-fm-doc-phone] .fmdx-fchip.quiet{margin-left:0}
-/* Pinned: a wrapping grid of tiles (three across on a phone), icon over name. */
-html[data-fm-doc-phone] .fmdx-tpl-row{grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;overflow:visible;padding:2px 0 4px}
-html[data-fm-doc-phone] .fmdx-tpl-row .fmdx-tpl-open{flex-direction:column;justify-content:flex-start;align-items:center;gap:8px;height:100%;min-height:118px;padding:14px 8px 10px;text-align:center}
-html[data-fm-doc-phone] .fmdx-tpl-row .fmdx-tpl-icon{width:40px;height:40px;font-size:17px}
-html[data-fm-doc-phone] .fmdx-tpl-row .fmdx-tpl-text{width:100%;align-items:center}
-html[data-fm-doc-phone] .fmdx-tpl-row .fmdx-tpl-text strong{font-size:12px;line-height:1.3;-webkit-line-clamp:3;overflow-wrap:anywhere}
-html[data-fm-doc-phone] .fmdx-tpl-row .fmdx-tpl-text small{max-width:100%}
+/* Pinned: two across on a phone, so the everyday four are a square. */
+html[data-fm-doc-phone] .fmdx-tpl-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:2px 0 4px}
+html[data-fm-doc-phone] .fmdx-tpl-row .fmdx-tpl-open{min-height:104px}
+html[data-fm-doc-phone] .fmdx-tpl-row .fmdx-tpl-open:active{background:color-mix(in srgb,var(--fmdx-type,#98a2b3) 12%,#fff)}
 /* The library folds behind one button; search and the pinned tiles come first. */
 .fmdx-library-toggle{display:flex;align-items:center;gap:8px;width:100%;min-height:46px;padding:0 14px;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:12px;background:#fff;color:#111827;font:inherit;font-size:13px;font-weight:850;text-align:left;cursor:pointer}
 .fmdx-library-toggle small{font-size:11px;font-weight:900;color:#98a2b3}
