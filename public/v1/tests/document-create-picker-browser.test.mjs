@@ -10,6 +10,8 @@ const typeCode = between('  const TYPE_META = {', '  function openModal(');
 const menuEnd = '    return { el: menu, close };\n  }';
 const modalCode = source.slice(source.indexOf('  function openModal('), source.indexOf(menuEnd.replace(/\n/g, source.includes('\r\n') ? '\r\n' : '\n')) + menuEnd.length + (source.includes('\r\n') ? 1 : 0));
 const createCode = between('    async function openCreateModal(', '    function setEditorFocus(');
+const pickerDataCode = between('    function loadPickerData(', '    async function templateDefinition(');
+const windowManager = await readFile(new URL('../../libraries/window-manager/window-manager.js', import.meta.url), 'utf8');
 
 const template = (id, type, name, extra = {}) => ({ id, document_type: type, name, status: 'active', description: name + ' description', metadata: {}, department_ids: [], ...extra });
 const TEMPLATES = [
@@ -26,14 +28,16 @@ const TEMPLATES = [
   template('tpl_old', 'contract', 'Retired contract', { status: 'archived' })
 ];
 
-async function open(browser, { pinned = null, viewport = { width: 1280, height: 860 } } = {}) {
+async function open(browser, { pinned = null, viewport = { width: 1280, height: 860 }, windows = false } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.setContent(`<style>${css}</style><main></main>`);
+  // The portal's window manager, with the backdrop effect a phone's GPU picks (FM-572).
+  if (windows) await page.evaluate((code) => { new Function(code)(); window.FirstMateWindows.backdrops.setEffect('blur'); }, windowManager);
   // project.js sets this on a phone (syncPhoneFlag); the harness loads only the picker.
   if (viewport.width <= 760) await page.evaluate(() => document.documentElement.setAttribute('data-fm-doc-phone', ''));
-  await page.evaluate(({ typeCode, modalCode, createCode, TEMPLATES, pinned }) => {
+  await page.evaluate(({ typeCode, modalCode, createCode, pickerDataCode, TEMPLATES, pinned }) => {
     window.calls = [];
     const helpers = `
       function cleanText(value){ return String(value ?? '').trim(); }
@@ -42,12 +46,12 @@ async function open(browser, { pinned = null, viewport = { width: 1280, height: 
       function objectValue(value){ return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
       function arrayValue(value){ return Array.isArray(value) ? value : []; }
       const clone = (value) => JSON.parse(JSON.stringify(value));
-      const state = { departmentId: '', departmentContext: { enabled: true, show_selector: true, department_label: 'Department', departments_label: 'Departments', departments: [{ id: 'dep_roof', label: 'Roofing' }, { id: 'dep_gutter', label: 'Gutters' }], member_department_ids: ['dep_roof'] } };
+      const state = { pickerData: null, pickerLoading: null, pickerWrites: 0, departmentId: '', departmentContext: { enabled: true, show_selector: true, department_label: 'Department', departments_label: 'Departments', departments: [{ id: 'dep_roof', label: 'Roofing' }, { id: 'dep_gutter', label: 'Gutters' }], member_department_ids: ['dep_roof'] } };
       const orgId = () => 'org';
       const project = () => ({ name: 'Maple Street' });
       const showToast = (...args) => window.calls.push(['toast', ...args]);
       const errorMessage = (error, fallback) => (error && error.message) || fallback;
-      const api = () => ({ workflows: { get: async () => { await new Promise((r) => setTimeout(r, 400)); return { definition: { steps: [{ id: 's' }] } }; } }, documents: { settings: async () => ({ settings: { pinned_template_ids: window.__pinned } }), pinTemplates: async (org, ids) => { window.calls.push(['pin', ids]); return { ok: true }; }, types: async () => window.__types, saveTypes: async (org, types, assignments) => { window.calls.push(['types', types, assignments]); window.__types = { ...window.__types, types: types.map((type, index) => ({ ...type, id: type.id || 'new_' + index })), assignments }; return window.__types; } } });
+      const api = () => ({ workflows: { get: async () => { await new Promise((r) => setTimeout(r, 400)); return { definition: { steps: [{ id: 's' }] } }; } }, documents: { settings: async () => { await window.__slow; return { settings: { pinned_template_ids: window.__pinned } }; }, pinTemplates: async (org, ids) => { window.calls.push(['pin', ids]); return { ok: true }; }, types: async () => window.__types, saveTypes: async (org, types, assignments) => { window.calls.push(['types', types, assignments]); window.__types = { ...window.__types, types: types.map((type, index) => ({ ...type, id: type.id || 'new_' + index })), assignments }; return window.__types; } } });
       const loadCatalog = async () => ({ types: [['proposal','Proposal'],['contract','Contract'],['change_order','Change Order'],['invoice','Invoice'],['completion_certificate','Completion Certificate'],['document','Document']].map(([id, label]) => ({ id, label })) });
       const loadTemplates = async () => window.__templates;
       const startPaperUpload = (templateId, type) => window.calls.push(['upload', templateId, type]);
@@ -69,8 +73,8 @@ async function open(browser, { pinned = null, viewport = { width: 1280, height: 
     // Step two is not under test: record that the picker handed over.
     const create = createCode.replace('      async function renderStepTwo(){', '      async function renderStepTwo(){ window.calls.push([\'create\', wizard.type, wizard.template && wizard.template.id]); return;');
     // eslint-disable-next-line no-new-func
-    window.openCreate = new Function(`${helpers}\n${typeCode}\n${modalCode}\n${create}\nreturn openCreateModal;`)();
-  }, { typeCode, modalCode, createCode, TEMPLATES, pinned });
+    window.openCreate = new Function(`${helpers}\n${typeCode}\n${modalCode}\n${pickerDataCode}\n${create}\nreturn openCreateModal;`)();
+  }, { typeCode, modalCode, createCode, pickerDataCode, TEMPLATES, pinned });
   await page.evaluate(() => window.openCreate());
   await page.waitForSelector('[data-tpl-search]');
   return { page, errors };
@@ -341,5 +345,72 @@ test('on a phone New document opens as a tray from the bottom and grows to full 
     // A desktop dialog is no tray.
     const desk = await open(browser);
     assert.equal(await desk.page.locator('.fmdx-modal.fmdx-tray').count(), 0);
+  } finally { await browser.close(); }
+});
+
+test('the tray dims the page like the bottom bar\'s sheets and never blurs it, even where the window manager blurs (FM-572)', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await open(browser, { pinned: ['tpl_roof', 'tpl_inv'], viewport: { width: 433, height: 870 }, windows: true });
+    await page.waitForTimeout(100); // the window manager's backdrop pass runs on the next frame
+    const back = () => page.locator('.fmdx-modal-back').evaluate((el) => ({ managed: el.dataset.fmBackdrop || '', filter: getComputedStyle(el).backdropFilter, background: getComputedStyle(el).backgroundColor }));
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.fmBackdropEffect || ''), '', 'nothing else on the page is a backdrop');
+    assert.deepEqual(await back(), { managed: '', filter: 'none', background: 'rgba(15, 23, 42, 0.42)' });
+    // Full screen past the first step it still does not blur.
+    await page.locator('[data-library-toggle]').click();
+    await page.locator('[data-manage-types]').click();
+    await page.waitForTimeout(100);
+    assert.equal((await back()).filter, 'none');
+    assert.deepEqual(errors, []);
+    await page.close();
+    // A desktop dialog keeps the window manager's backdrop.
+    const desk = await open(browser, { windows: true });
+    await desk.page.waitForTimeout(100);
+    assert.equal(await desk.page.locator('.fmdx-modal-back').evaluate((el) => el.dataset.fmBackdrop), 'active');
+  } finally { await browser.close(); }
+});
+
+test('New document paints at once from what was loaded before and redraws when the fresh copy differs (FM-572)', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await open(browser, { pinned: ['tpl_inv'], viewport: { width: 433, height: 870 } });
+    await page.locator('.fmdx-modal-close').click();
+    await page.waitForSelector('.fmdx-modal-back', { state: 'detached' });
+    // The server is slow now, and a template and a pin were added meanwhile.
+    await page.evaluate(() => {
+      window.__slow = new Promise((resolve) => { window.__answer = resolve; });
+      window.__templates = [...window.__templates, { id: 'tpl_new', document_type: 'invoice', name: 'Deposit invoice', status: 'active', description: '', metadata: {}, department_ids: [] }];
+      window.__pinned = ['tpl_inv', 'tpl_co'];
+      window.openCreate();
+    });
+    // The picker is up straight away, from what was loaded before.
+    await page.waitForSelector('[data-tpl-search]', { timeout: 300 });
+    assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Invoice']);
+    await page.locator('[data-tpl-search]').pressSequentially('inv');
+    assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Invoice']);
+    // The fresh copy redraws it, keeping the search and its focus.
+    await page.evaluate(() => window.__answer());
+    await page.waitForFunction(() => document.querySelectorAll('.fmdx-tpl-grid .fmdx-tpl').length === 2);
+    assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Deposit invoice', 'Invoice']);
+    assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('[data-tpl-search]') && document.activeElement.value), 'inv');
+    await page.locator('[data-tpl-search]').fill('');
+    assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Invoice', 'Change Order']);
+    // A pin made here is not undone by a slower copy loaded before it was made.
+    await page.locator('.fmdx-modal-close').click();
+    await page.waitForSelector('.fmdx-modal-back', { state: 'detached' });
+    await page.evaluate(() => { window.__slow = new Promise((resolve) => { window.__answer = resolve; }); window.openCreate(); });
+    await page.waitForSelector('[data-tpl-search]', { timeout: 300 });
+    await page.locator('[data-library-toggle]').click();
+    await page.locator('.fmdx-tpl-grid .fmdx-tpl', { hasText: 'Deposit invoice' }).locator('[data-pin-template]').click();
+    assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Invoice', 'Change Order', 'Deposit invoice']);
+    await page.evaluate(() => window.__answer());
+    await page.waitForTimeout(100);
+    assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Invoice', 'Change Order', 'Deposit invoice'], 'kept on this open');
+    await page.locator('.fmdx-modal-close').click();
+    await page.waitForSelector('.fmdx-modal-back', { state: 'detached' });
+    await page.evaluate(() => { window.__slow = new Promise(() => {}); window.openCreate(); });
+    await page.waitForSelector('[data-tpl-search]', { timeout: 300 });
+    assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Invoice', 'Change Order', 'Deposit invoice'], 'and on the next');
+    assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

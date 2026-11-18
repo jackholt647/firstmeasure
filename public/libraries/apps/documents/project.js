@@ -477,6 +477,8 @@
   function phoneTray(back, sheet, close){
     const still = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     back.classList.add('fmdx-tray-back');
+    // A tray dims the page like the bottom bar's sheets, never blurs it: the window manager's backdrop pass leaves it be (FM-572).
+    back.dataset.fmWindowBackdrop = 'off';
     sheet.classList.add('fmdx-tray');
     let resizing = null;
     function shape(tray, change){
@@ -1306,6 +1308,9 @@
       departmentContext: {},
       departmentId: "",
       templates: null,                // cached templates list
+      pickerData: null,               // { catalog, templates, pinSettings, typeSettings }: New document's first step, kept so it paints at once (FM-572)
+      pickerLoading: null,            // the load of pickerData in flight
+      pickerWrites: 0,                // pins and types saved since: a load started before one does not replace what was saved
       // editor state
       doc: null,                      // current instance record
       resolved: null,                 // latest /resolve payload
@@ -1485,6 +1490,26 @@
         console.warn('Document templates unavailable', error);
       }
       return state.templates;
+    }
+
+    /**
+     * What New document's first step shows: the catalog, the templates, the
+     * organization's pins and its document types. It is warmed when the tab
+     * boots and kept, so the picker paints at once; every open refreshes it
+     * behind the picker (FM-572). One load at a time.
+     */
+    function loadPickerData(){
+      if (state.pickerLoading) return state.pickerLoading;
+      const writes = state.pickerWrites;
+      const run = Promise.all([loadCatalog(), loadTemplates(true), api().documents.settings(orgId(), 'default').catch(() => ({})), api().documents.types(orgId()).catch(() => ({}))])
+        .then(([catalog, templates, pinSettings, typeSettings]) => {
+          const value = { catalog, templates, pinSettings, typeSettings };
+          if (writes === state.pickerWrites || !state.pickerData) state.pickerData = value;
+          return value;
+        })
+        .finally(() => { if (state.pickerLoading === run) state.pickerLoading = null; });
+      state.pickerLoading = run;
+      return run;
     }
 
     async function templateDefinition(template){
@@ -2605,8 +2630,11 @@
         modal.close = () => { handedOff = true; if (!ret.armed && state.returnTo === ret) state.returnTo = null; close(); };
       }
       const body = modal.el.querySelector('[data-create-body]');
-      const [catalog, templates, pinSettings, typeSettings] = await Promise.all([loadCatalog(), loadTemplates(true), api().documents.settings(orgId(), 'default').catch(() => ({})), api().documents.types(orgId()).catch(() => ({}))]);
+      // What was loaded before paints at once; the fresh copy replaces it when it comes (FM-572).
+      const fresh = loadPickerData();
+      const shown = state.pickerData || await fresh;
       if (!modal.el.isConnected) return;
+      let { catalog, templates, pinSettings, typeSettings } = shown;
       const wizard = { type: cleanText(prefill.document_type).toLowerCase(), template: null, departmentId: state.departmentId };
 
       function typesList(){
@@ -2618,16 +2646,20 @@
       // One screen: search, the organization's pinned templates, then the
       // whole library filtered by type (and department). Picking a template
       // starts the document; Upload is its own button.
-      const savedPins = objectValue(objectValue(pinSettings).settings).pinned_template_ids;
-      const picker = { query: '', type: '', departments: null, pins: Array.isArray(savedPins) ? savedPins.map(cleanText) : null };
+      const savedPins = () => objectValue(objectValue(pinSettings).settings).pinned_template_ids;
+      const picker = { query: '', type: '', departments: null, pins: Array.isArray(savedPins()) ? savedPins().map(cleanText) : null, pinsTouched: false, typesTouched: false };
       const PIN_LIMIT = 12;
       // System templates (payment receipts, payroll reports) are produced by
       // other apps and are never started by hand.
       const activeTemplates = () => arrayValue(templates).filter((t) => cleanText(t.status).toLowerCase() !== 'archived' && objectValue(t.metadata).system !== true);
       // Document types are the organization's own groupings. Each has a kind:
       // the built-in behavior a blank document of that type gets.
-      const org = { types: arrayValue(objectValue(typeSettings).types).map(objectValue), assignments: objectValue(objectValue(typeSettings).assignments), kinds: arrayValue(objectValue(typeSettings).kinds).map(objectValue) };
-      if (!org.types.length) org.types = typesList().map((type) => ({ id: firstText(type.id, type.type), label: firstText(type.label, typeMeta(firstText(type.id, type.type)).label), kind: firstText(type.id, type.type), color: '', icon: '', department_ids: [], archived: false }));
+      const org = {};
+      function readTypes(){
+        Object.assign(org, { types: arrayValue(objectValue(typeSettings).types).map(objectValue), assignments: objectValue(objectValue(typeSettings).assignments), kinds: arrayValue(objectValue(typeSettings).kinds).map(objectValue) });
+        if (!org.types.length) org.types = typesList().map((type) => ({ id: firstText(type.id, type.type), label: firstText(type.label, typeMeta(firstText(type.id, type.type)).label), kind: firstText(type.id, type.type), color: '', icon: '', department_ids: [], archived: false }));
+      }
+      readTypes();
       const liveTypes = () => org.types.filter((type) => type.archived !== true);
       const TYPE_COLORS = ['#2563eb', '#0d9488', '#7c3aed', '#ea580c', '#db2777', '#0891b2', '#65a30d', '#b45309', '#4f46e5', '#be123c', '#059669', '#9333ea'];
       /** The type's own color, else one of a spread of distinct hues by its place in the list (never two alike until they run out). */
@@ -2678,6 +2710,9 @@
       async function togglePin(id){
         const next = pins().includes(id) ? pins().filter((entry) => entry !== id) : [...pins(), id].slice(0, PIN_LIMIT);
         picker.pins = next;
+        picker.pinsTouched = true;
+        state.pickerWrites += 1;
+        if (state.pickerData) state.pickerData = { ...state.pickerData, pinSettings: { ...objectValue(state.pickerData.pinSettings), settings: { ...objectValue(objectValue(state.pickerData.pinSettings).settings), pinned_template_ids: next } } };
         renderStepOne();
         try { await api().documents.pinTemplates(orgId(), next); }
         catch (error) { showToast('Documents', errorMessage(error, 'The pinned templates could not be saved.'), false); }
@@ -2870,6 +2905,9 @@
               const saved = objectValue(await api().documents.saveTypes(orgId(), draft.types, draft.assignments));
               org.types = arrayValue(saved.types).map(objectValue);
               org.assignments = objectValue(saved.assignments);
+              picker.typesTouched = true;
+              state.pickerWrites += 1;
+              if (state.pickerData) state.pickerData = { ...state.pickerData, typeSettings: { ...objectValue(state.pickerData.typeSettings), types: org.types, assignments: org.assignments } };
               picker.type = '';
               renderStepOne();
             } catch (error) {
@@ -3067,6 +3105,21 @@
         wizard.template = ofType.find((tpl) => objectValue(tpl.metadata).default === true) || ofType[0] || null;
         proceed();
       } else renderStepOne();
+      // The fresh copy redraws the first step if it changed anything, keeping what the person picked, searched and saved.
+      fresh.then((next) => {
+        if (next === shown || !modal.el.isConnected || !body.querySelector('[data-tpl-search]')) return;
+        if (JSON.stringify(next) === JSON.stringify(shown)) return;
+        ({ catalog, templates } = next);
+        if (!picker.pinsTouched) {
+          pinSettings = next.pinSettings;
+          picker.pins = Array.isArray(savedPins()) ? savedPins().map(cleanText) : null;
+        }
+        if (!picker.typesTouched) {
+          typeSettings = next.typeSettings;
+          readTypes();
+        }
+        renderStepOne();
+      }).catch(() => {});
     }
 
     // ============================================================== editor
@@ -5783,7 +5836,8 @@
 
     // ---------------------------------------------------------------- boot
     loadCatalog();
-    loadDocs();
+    // Once the tab has its documents, warm New document's first step so its tray paints at once (FM-572).
+    loadDocs().finally(() => setTimeout(() => { if (!state.destroyed && api()) loadPickerData().catch(() => {}); }, 300));
     ensureWorkflowRuntime(); // warm, so the first document opens without waiting on it
     const onWindowResize = () => { if (state.view === 'editor' && !state.destroyed) syncTrayOffset(); };
     window.addEventListener('resize', onWindowResize);
