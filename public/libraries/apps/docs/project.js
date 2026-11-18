@@ -382,6 +382,28 @@
     state.createHost?.remove();
     state.createHost = null;
   }
+  // New shows wherever documents can be made, before the engine is mounted
+  // too: a new project has no engine until it is saved (FM-580).
+  function canCreateDocuments(){
+    if (state.engineApi) return true;
+    if (state.engineDenied || !runtime?.mount) return false;
+    const caps = (window.Portal?.capabilities || window.PlatformAPI?.capabilities)?.current?.();
+    return caps?.effective_by_key?.['platform.documents'] === true;
+  }
+  /** New: a new project is saved first, like the first upload (FM-374), then the engine's create dialog opens. */
+  async function startNewDocument(options = {}){
+    if (!projectId()) await Promise.resolve(callHost('ensureProject') ?? window.ensureActiveProject?.()).catch((error) => console.warn('Project could not be saved before creating a document.', error));
+    if (!projectId()) {
+      showToast((globalThis.PlatformLanguage?.text("docs","m_4e93753901b18e","New document") ?? "New document"), (globalThis.PlatformLanguage?.text("docs","m_ccbdf9fdec6e32","Save the project before creating a document.") ?? "Save the project before creating a document."), false);
+      return;
+    }
+    try { await ensureEngine(); } catch (error) { /* denied or unavailable */ }
+    if (!state.engineApi) {
+      showToast((globalThis.PlatformLanguage?.text("docs","m_4e93753901b18e","New document") ?? "New document"), (globalThis.PlatformLanguage?.text("docs","m_cb90160bd8fd49","Documents could not be opened. Try again.") ?? "Documents could not be opened. Try again."), false);
+      return;
+    }
+    state.engineApi.openCreateModal({}, options);
+  }
   function destroyEngine(){
     try { state.engineHandle?.destroy?.(); } catch (error) { console.warn('Docs engine destroy failed', error); }
     removeCreateHost();
@@ -1336,7 +1358,7 @@
       emptyTitle:availableDocs.length ? 'No matching documents' : 'No documents yet',
       emptyMessage:availableDocs.length
         ? 'Choose another document category from the Shown menu.'
-        : (state.engineApi ? 'Create a proposal, invoice, or contract — or upload existing files.' : 'Upload PDFs or project files here.'),
+        : (canCreateDocuments() ? 'Create a proposal, invoice, or contract — or upload existing files.' : 'Upload PDFs or project files here.'),
       enableProjectLinks:false,
       projectLinkEnabled:false,
       includeReceipts:state.visibleDocumentCategories.has('receipt'),
@@ -1366,7 +1388,7 @@
         showLabel:true,
         active:state.categoryMenuOpen || state.visibleDocumentCategories.size < DOCUMENT_CATEGORIES.length,
         onClick:() => { state.categoryMenuOpen = !state.categoryMenuOpen; render(); }
-      }, ...(state.engineApi ? [{
+      }, ...(canCreateDocuments() ? [{
         id:'new_document',
         label:(globalThis.PlatformLanguage?.text("docs","m_96834d2fc9c9a5","New") ?? "New"),
         icon:'fa-plus',
@@ -1374,7 +1396,7 @@
         showLabel:true,
         // On a phone this is the only New/Upload button: the New dialog
         // offers Upload beside Blank (the desktop keeps its own Upload).
-        onClick:() => state.engineApi?.openCreateModal({}, { onUploadFiles:() => input?.click(), onAddFiles:(files) => addFiles(files) })
+        onClick:() => startNewDocument({ onUploadFiles:() => input?.click(), onAddFiles:(files) => addFiles(files) })
       }] : [])],
       onDensityChange:(density) => {
         state.galleryDensity = density;
