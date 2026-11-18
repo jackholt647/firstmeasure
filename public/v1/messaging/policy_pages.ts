@@ -58,6 +58,13 @@ const FEATURE_MESSAGES: Record<string, string> = {
   customer_growth: "marketing and promotional offers"
 };
 
+/** A US number as (206) 555-0100; anything else as stored. */
+function displayPhone(value: unknown) {
+  const digits = clean(value).replace(/\D/g, "");
+  const us = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  return us.length === 10 ? `(${us.slice(0, 3)}) ${us.slice(3, 6)}-${us.slice(6)}` : clean(value);
+}
+
 function smsPolicyValues(profile: { id: string; external_organization_id: string; brand?: unknown; campaign?: unknown }): Record<Placeholder, string> {
   const brand = asObject(profile.brand);
   const person = [clean(brand.firstName), clean(brand.lastName)].filter(Boolean).join(" ");
@@ -72,7 +79,7 @@ function smsPolicyValues(profile: { id: string; external_organization_id: string
     legal_name: legalName.toLowerCase() === brandName.toLowerCase() ? "" : legalName,
     website: website && !/^https?:\/\//i.test(website) ? `https://${website}` : website,
     support_email: clean(brand.email),
-    support_phone: clean(brand.phone),
+    support_phone: displayPhone(brand.phone),
     address: [clean(brand.street), clean(brand.address2), clean(brand.city), [clean(brand.state), clean(brand.postalCode)].filter(Boolean).join(" ")].filter(Boolean).join(", "),
     message_types: messages.length > 1 ? `${messages.slice(0, -1).join(", ")} and ${messages[messages.length - 1]}` : messages[0] || "updates about your service",
     privacy_url: urls.privacy,
