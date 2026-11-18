@@ -28,7 +28,7 @@ const fields: Record<string, Record<string, JsonSchema>> = {
   "scopes.activateFromProposal.v1": {}, "scopes.activateTemplate.v1": { template_id: text, instance_key: text },
   "sales.markWon.v1": { reason: text }, "sales.markLost.v1": { reason: text }, "sales.reopen.v1": { reason: text }, "sales.startRescission.v1": { rule_id: text }, "work.finishItem.v1": { transition: text, reason: text },
   "project.claim.v1": { key: text, holder: text }, "materials.initializeFromScope.v1": {},
-  "checklists.initializeFromScope.v1": {},
+  "checklists.initializeFromScope.v1": {}, "checklists.addStageDefaults.v1": {},
   "punchlist.request.v1": { title: text, description: text, instance_key: text, terminology_key: text, labels: object, config: object },
   "customFields.initializeFromScope.v1": {}, "scopes.reconcileProjectResources.v1": {},
   "payments.ensureReceivables.v1": {}, "documents.dispatchOnSigned.v1": {}, "payments.reconcileRecognition.v1": {},

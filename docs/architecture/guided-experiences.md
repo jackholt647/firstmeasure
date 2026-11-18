@@ -439,7 +439,15 @@ Library entries `guided_experience/checklists.setup`, `checklists.punchlist_tuto
   starts with them. Completion: `checklists.setup.apply` (`workforce/checklists-setup.ts`) saves them as the
   organization's default checklists and adds them to that project once each (source key `setup:<use case>`, which
   the Checklists app marks with a quiet Default tag, `data-fmcl-default`), then plays the punch list tour and the
-  tour.
+  tour. Playing it again changes only its own picks. **Checklist settings** (the gear on the Checklists tab,
+  `checklistView=settings`, GP-1) edit the same defaults afterwards: per pipeline (scope template), the stages each
+  default is added in (`"all"` or stage ids), making one of the project's checklists a default, or removing one
+  (`workforce/checklist-defaults.ts`; provider `checklist-defaults.settings`, action `checklists.defaults.save`). A
+  pipeline nobody set up adds every default when a scope starts, as before; a set-up one adds its all-stages lists
+  and the starting stage's at scope start and each stage's when the project reaches it
+  (`checklists.addStageDefaults.v1`, default organization rules `platform_checklists_stage_defaults` on
+  `work.node.started` and `platform_checklists_stage_defaults_manual` on `work.plan.stage_manually_set`). Lists are
+  added once per project, a deleted one is not added again, and nothing is taken off when a project moves on.
 - `checklists.punchlist_tutorial` (overlay, person, replayable, needs `platform.customer_portal`): no `tab`, so it
   carries on across tab changes. It points at a checklist shared with the customer
   (`[data-fmcl-customer-shared=true]`), has them press the Customer Portal tab, shows the link card, and has them

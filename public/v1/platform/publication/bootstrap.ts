@@ -1,5 +1,6 @@
 import { registerOperationsSetupPublication } from '../../operations/onboarding.js';
 import { registerChecklistsSetupPublication } from '../../workforce/checklists-setup.js';
+import { registerChecklistDefaultsPublication } from '../../workforce/checklist-defaults.js';
 import { registerCommsSetupPublication } from '../../comms/setup.js';
 import { registerCompanyProfilePublication } from '../../company-profile/publication.js';
 import { registerAppointmentSetupPublication } from '../../appointments/setup.js';
@@ -87,6 +88,7 @@ export function initializePublication() {
   registerLaborSetupPublication();
   registerOperationsSetupPublication();
   registerChecklistsSetupPublication();
+  registerChecklistDefaultsPublication();
   registerCommsSetupPublication();
   registerCompanyProfilePublication();
   registerAppointmentSetupPublication();

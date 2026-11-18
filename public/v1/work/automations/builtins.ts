@@ -516,6 +516,33 @@ async function initializeScopeResources(context: WorkAutomationContext, _input: 
   return await initializeScopeResourcesForPlanRecord(orgId, planId) || { skipped: true, reason: "no_resource_context" };
 }
 
+/** The stage a starting scope is in: its active (or ready) stage nodes, else the template's first stage. */
+async function scopeStartStageIds(orgId: string, plan: JsonObject, definition: JsonObject) {
+  const planId = cleanText(plan.id);
+  if (planId) {
+    const stages = (await listNodeRecords(orgId, { plan_id: planId })).filter((node) => cleanText(node.terminology_key).endsWith("stage"));
+    const current = ["active", "ready"].map((status) => stages.filter((node) => cleanText(node.status) === status)).find((nodes) => nodes.length) || [];
+    if (current.length) return current.map((node) => cleanText(node.template_node_id)).filter(Boolean);
+  }
+  const { pipelineStages } = await import("../../workforce/checklist-defaults.js");
+  return pipelineStages(definition).slice(0, 1).map((stage) => stage.id);
+}
+
+/**
+ * A project reached a stage: add the default checklists its pipeline has on for that stage (GP-1). Bound by the
+ * default organization rules on `work.node.started` (stage nodes) and `work.plan.stage_manually_set`.
+ */
+async function addStageDefaultChecklists(context: WorkAutomationContext, _input: JsonObject) {
+  const orgId = cleanText(context.event.organization_id);
+  const projectId = cleanText(context.project.id || context.plan.project_id);
+  const templateId = cleanText(context.plan.template_id);
+  const manual = cleanText(context.event.type) === "work.plan.stage_manually_set";
+  if (!manual && !cleanText(context.node.terminology_key).endsWith("stage")) return { skipped: true, reason: "not_a_stage" };
+  const stageId = manual ? cleanText(asObject(context.event.payload).to_stage_id) : cleanText(context.node.template_node_id);
+  const { addStageDefaultChecklists: add } = await import("../../workforce/checklist-defaults.js");
+  return await add(orgId, projectId, templateId, stageId);
+}
+
 async function initializeScopeChecklists(context: WorkAutomationContext, _input: JsonObject) {
   const orgId = cleanText(context.event.organization_id);
   const projectId = cleanText(context.project.id || context.plan.project_id);
@@ -526,12 +553,21 @@ async function initializeScopeChecklists(context: WorkAutomationContext, _input:
   const version = Number(context.plan.template_version || 0);
   const frozen = version ? (await readScopeTemplateVersion(orgId, branchId, templateId, version)) : null;
   const definition = asObject(frozen?.definition || asObject((await readScopeTemplate(orgId, branchId, templateId))).definition);
+  // An organization with default checklists (picked in the checklists setup) starts every project with those instead
+  // of the template's (FM-448). A pipeline set up in Checklist settings adds the ones on for all stages or for the
+  // stage the scope starts in; later stages add theirs as the project reaches them (GP-1).
+  const defaults = await import("../../workforce/checklist-defaults.js");
+  const starting = await defaults.defaultChecklistsForScopeStart(orgId, templateId, await scopeStartStageIds(orgId, context.plan, definition));
+  if (starting?.configured) {
+    if (!starting.checklists.length) return { skipped: true, reason: "no_default_checklists_for_stage" };
+    const added = await defaults.addScopeStartDefaults(orgId, projectId, starting.checklists);
+    return { initialized: true, source: "pipeline_stage_defaults", checklist_count: added.created.length };
+  }
   if (!asArray(definition.checklists).length) return { skipped: true, reason: "no_checklists" };
-  // An organization that picked its starting checklists in the checklists setup starts every project with those
-  // instead of the template's (FM-448).
-  const { ensureStartingChecklists } = await import("../../workforce/checklists-setup.js");
-  const starting = await ensureStartingChecklists(orgId, projectId);
-  if (starting) return { initialized: true, source: "organization_starting_checklists", checklist_count: starting.created.length };
+  if (starting) {
+    const added = await defaults.addScopeStartDefaults(orgId, projectId, starting.checklists);
+    return { initialized: true, source: "organization_starting_checklists", checklist_count: added.created.length };
+  }
   // Until then, where the organization has Checklists, nothing: the setup asks which checklists it wants the first
   // time someone opens the tab, and lists added before that would be ones nobody chose (FM-600).
   const { isCapabilityEnabled } = await import("../../platform/capabilities.js");
@@ -971,6 +1007,9 @@ export function registerBuiltinWorkAutomations() {
   });
   registerWorkAutomation("checklists.initializeFromScope.v1", initializeScopeChecklists, {
     description: "Instantiates the template's crew/supervisor checklists on the project (default scope setup)."
+  });
+  registerWorkAutomation("checklists.addStageDefaults.v1", addStageDefaultChecklists, {
+    description: "Adds the organization's default checklists that the project's pipeline has on for the stage it just reached (Checklist settings). Each list is added once per project; nothing is taken off."
   });
   registerWorkAutomation("punchlist.request.v1", requestPunchList, {
     description: "Asks the customer to create a punch list in their portal. Bind at any node — a template can request one per phase, several at once, or none. Idempotent per node.",
