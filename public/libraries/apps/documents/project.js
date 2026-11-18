@@ -4445,6 +4445,11 @@
         widthButton.classList.toggle('active', zoom === 'width');
         if (handle && Math.abs(scale - lastScale) < 0.002) return;
         lastScale = scale;
+        // Zoom in place (the renderer's fast path) so the scroll position can
+        // be set straight after; rebuild only when there is nothing to rescale.
+        if (handle?.setScale) {
+          try { handle.setScale(scale); return; } catch (e) { /* rebuild below */ }
+        }
         try { handle?.destroy?.(); } catch (e) {}
         stage.innerHTML = '';
         try {
