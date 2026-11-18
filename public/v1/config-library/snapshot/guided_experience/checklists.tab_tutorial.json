@@ -1,11 +1,11 @@
 {
   "kind": "guided_experience",
   "id": "checklists.tab_tutorial",
-  "revision": 2,
-  "sha256": "eae89438daaa6221506bb7240d69612eabe1928fb8902b7e039b012277abb5bc",
+  "revision": 3,
+  "sha256": "0c9c075bf5f91ad3d6e15dfc04a7d3e87a2c41762d50a50231b98586244dae46",
   "title": "Checklists tour",
-  "updated_at": "2026-10-28T08:39:48.478Z",
-  "updated_by": "router-fm-283",
+  "updated_at": "2026-11-18T22:01:27.827Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "id": "checklists.tab_tutorial",
     "version": 1,
@@ -63,17 +63,34 @@
       {
         "id": "intro",
         "title": {
-          "key": "gx_cl_tt_intro_title",
-          "text": "Your checklists"
+          "key": "gx_cl_tt_intro_title_v2",
+          "text": "Your default checklists"
         },
         "body": {
-          "key": "gx_cl_tt_intro_body",
-          "text": "Here are the checklists for this project. Everything you'll see works by voice too: talk, and we'll do the typing."
+          "key": "gx_cl_tt_intro_body_v2",
+          "text": "Going forward, every new project starts with your default checklists. Here's how to use them, and how to make one just for a job by voice."
         },
         "targets": [],
         "placement": "center",
         "advance": "next",
         "wait_ms": 1500
+      },
+      {
+        "id": "defaults",
+        "title": {
+          "key": "gx_cl_tt_defaults_title",
+          "text": "Defaults are tagged"
+        },
+        "body": {
+          "key": "gx_cl_tt_defaults_body",
+          "text": "This tag marks a default checklist: it's on every new project. Changes here are for this project only. Lists you make yourself have no tag."
+        },
+        "targets": [
+          "[data-fmcl-list] [data-fmcl-default]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 2500
       },
       {
         "id": "lists",
@@ -150,8 +167,8 @@
           "text": "Change it by voice"
         },
         "body": {
-          "key": "gx_cl_tt_voice_update_body",
-          "text": "Press the microphone and say what changed, like “add checking the gutters and mark the ladder done”. We'll update the list."
+          "key": "gx_cl_tt_voice_update_body_v2",
+          "text": "Press the microphone on a list and say what changed, like “add checking the gutters and mark the ladder done”. We'll update it, just like dictating in the setup."
         },
         "targets": [
           "[data-fmcl-list] [data-fmcl-voice-update]"
@@ -209,12 +226,12 @@
       {
         "id": "try_voice",
         "title": {
-          "key": "gx_cl_tt_try_voice_title",
-          "text": "Now you try"
+          "key": "gx_cl_tt_try_voice_title_v2",
+          "text": "A checklist just for this job"
         },
         "body": {
-          "key": "gx_cl_tt_try_voice_body",
-          "text": "Press the microphone and ramble about a checklist you might want, even a made-up one, and we'll build it for you. Or skip this step. Want this tour again? Ask the agent “Show me the tutorial again”."
+          "key": "gx_cl_tt_try_voice_body_v2",
+          "text": "Press the microphone and talk through a checklist this job needs, even a made-up one. We'll build it for this project only. Or skip this step. Want this tour again? Ask the agent “Show me the tutorial again”."
         },
         "targets": [
           "[data-fmcl-new-audio]"

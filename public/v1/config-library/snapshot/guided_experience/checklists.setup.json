@@ -1,10 +1,10 @@
 {
   "kind": "guided_experience",
   "id": "checklists.setup",
-  "revision": 3,
-  "sha256": "1dbab4b35a48904f76dd5fcce93e06721e1cdf16f61f756123d7a6df4348735d",
+  "revision": 5,
+  "sha256": "7431651f607dc6def77f015a11fab4595ebcd71fb3596f251bf0ad442f92ac49",
   "title": "Set up checklists",
-  "updated_at": "2026-11-13T06:06:27.500Z",
+  "updated_at": "2026-11-18T22:01:27.438Z",
   "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "id": "checklists.setup",
@@ -17,8 +17,8 @@
       "text": "Set up checklists"
     },
     "description": {
-      "key": "gx_cl_setup_description_v2",
-      "text": "Start with the checklists you'd use on a job: crew safety, work completion and a customer punch list."
+      "key": "gx_cl_setup_description_v3",
+      "text": "Choose your default checklists (crew safety, work completion, a customer punch list), make each one yours by typing or by voice, and every new project starts with them."
     },
     "tab": "project.checklists",
     "eligibility": {
@@ -190,15 +190,15 @@
       {
         "id": "use_cases",
         "widget": "module",
-        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261113-fm444",
+        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600",
         "requires": [],
         "title": {
           "key": "gx_cl_uc_title_v2",
           "text": "Which checklists do you want?"
         },
         "subtitle": {
-          "key": "gx_cl_uc_subtitle_v2",
-          "text": "We'll add them to this project."
+          "key": "gx_cl_uc_subtitle_v4",
+          "text": "These become your default checklists: every new project starts with them."
         },
         "say": [],
         "options": {
@@ -301,14 +301,234 @@
             }
           ],
           "note": {
-            "key": "gx_cl_uc_note_v2",
-            "text": "You can change them any time, by typing or by voice."
+            "key": "gx_cl_uc_note_v3",
+            "text": "Next, you’ll see each one and make it yours, by typing or by voice."
           }
         },
         "selects": [
           "checklist_use_cases",
           "checklist_definitions"
         ],
+        "required": true,
+        "next": {
+          "branches": [
+            {
+              "when": {
+                "field": "selections.checklist_use_cases",
+                "operator": "contains",
+                "value": "crew_safety"
+              },
+              "to": "edit_crew_safety"
+            },
+            {
+              "when": {
+                "field": "selections.checklist_use_cases",
+                "operator": "contains",
+                "value": "work_completion"
+              },
+              "to": "edit_work_completion"
+            },
+            {
+              "when": {
+                "field": "selections.checklist_use_cases",
+                "operator": "contains",
+                "value": "punchlist"
+              },
+              "to": "edit_punchlist"
+            }
+          ],
+          "otherwise": "review"
+        }
+      },
+      {
+        "id": "edit_crew_safety",
+        "widget": "module",
+        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600",
+        "requires": [],
+        "title": {
+          "key": "gx_cl_edit_safety_title",
+          "text": "Here’s your crew safety checklist"
+        },
+        "subtitle": {
+          "key": "gx_cl_edit_subtitle",
+          "text": "A default checklist: every new project starts with it. Lists you make on a project are just for that project."
+        },
+        "say": [],
+        "options": {
+          "mode": "edit",
+          "use_case": "crew_safety",
+          "lead_first": {
+            "key": "gx_cl_edit_lead_first",
+            "text": "This is one of your default checklists: every new project starts with it. Make it fit how you work."
+          },
+          "lead_next": {
+            "key": "gx_cl_edit_lead_next",
+            "text": "Now set up your next default checklist. Change what you need, then continue."
+          },
+          "hint_next": {
+            "key": "gx_cl_edit_hint_next",
+            "text": "Press Dictate and say what to add, or type it below."
+          },
+          "tip_done": {
+            "key": "gx_cl_edit_tip_done",
+            "text": "Change any item by typing on it, or dictate again to add more."
+          },
+          "tip_say": {
+            "key": "gx_cl_edit_safety_say",
+            "text": "Say what to add, like “check the ladder feet and the tie-off points”."
+          }
+        },
+        "selects": [
+          "checklist_definitions"
+        ],
+        "required": true,
+        "next": {
+          "branches": [
+            {
+              "when": {
+                "field": "selections.checklist_use_cases",
+                "operator": "contains",
+                "value": "work_completion"
+              },
+              "to": "edit_work_completion"
+            },
+            {
+              "when": {
+                "field": "selections.checklist_use_cases",
+                "operator": "contains",
+                "value": "punchlist"
+              },
+              "to": "edit_punchlist"
+            }
+          ],
+          "otherwise": "review"
+        }
+      },
+      {
+        "id": "edit_work_completion",
+        "widget": "module",
+        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600",
+        "requires": [],
+        "title": {
+          "key": "gx_cl_edit_done_title",
+          "text": "Here’s your work completion checklist"
+        },
+        "subtitle": {
+          "key": "gx_cl_edit_subtitle",
+          "text": "A default checklist: every new project starts with it. Lists you make on a project are just for that project."
+        },
+        "say": [],
+        "options": {
+          "mode": "edit",
+          "use_case": "work_completion",
+          "lead_first": {
+            "key": "gx_cl_edit_lead_first",
+            "text": "This is one of your default checklists: every new project starts with it. Make it fit how you work."
+          },
+          "lead_next": {
+            "key": "gx_cl_edit_lead_next",
+            "text": "Now set up your next default checklist. Change what you need, then continue."
+          },
+          "hint_next": {
+            "key": "gx_cl_edit_hint_next",
+            "text": "Press Dictate and say what to add, or type it below."
+          },
+          "tip_done": {
+            "key": "gx_cl_edit_tip_done",
+            "text": "Change any item by typing on it, or dictate again to add more."
+          },
+          "tip_say": {
+            "key": "gx_cl_edit_done_say",
+            "text": "Say what to add, like “pick up every nail and take photos of the finished work”."
+          }
+        },
+        "selects": [
+          "checklist_definitions"
+        ],
+        "required": true,
+        "next": {
+          "branches": [
+            {
+              "when": {
+                "field": "selections.checklist_use_cases",
+                "operator": "contains",
+                "value": "punchlist"
+              },
+              "to": "edit_punchlist"
+            }
+          ],
+          "otherwise": "review"
+        }
+      },
+      {
+        "id": "edit_punchlist",
+        "widget": "module",
+        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600",
+        "requires": [],
+        "title": {
+          "key": "gx_cl_edit_punch_title",
+          "text": "Here’s your customer punch list"
+        },
+        "subtitle": {
+          "key": "gx_cl_edit_subtitle",
+          "text": "A default checklist: every new project starts with it. Lists you make on a project are just for that project."
+        },
+        "say": [],
+        "options": {
+          "mode": "edit",
+          "use_case": "punchlist",
+          "lead_first": {
+            "key": "gx_cl_edit_lead_first",
+            "text": "This is one of your default checklists: every new project starts with it. Make it fit how you work."
+          },
+          "lead_next": {
+            "key": "gx_cl_edit_lead_next",
+            "text": "Now set up your next default checklist. Change what you need, then continue."
+          },
+          "hint_next": {
+            "key": "gx_cl_edit_hint_next",
+            "text": "Press Dictate and say what to add, or type it below."
+          },
+          "tip_done": {
+            "key": "gx_cl_edit_tip_done",
+            "text": "Change any item by typing on it, or dictate again to add more."
+          },
+          "tip_say": {
+            "key": "gx_cl_edit_punch_say",
+            "text": "Say what to add, like “walk the yard together and check the gutters drain”."
+          },
+          "empty": {
+            "key": "gx_cl_edit_punch_empty",
+            "text": "It starts empty. Add what you always walk through with your customer, or leave it empty and fill it in on each job."
+          }
+        },
+        "selects": [
+          "checklist_definitions"
+        ],
+        "required": true
+      },
+      {
+        "id": "review",
+        "widget": "module",
+        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261118-fm600",
+        "requires": [],
+        "title": {
+          "key": "gx_cl_review_title",
+          "text": "Review your default checklists"
+        },
+        "subtitle": {
+          "key": "gx_cl_review_subtitle",
+          "text": "Run this setup again any time to change them."
+        },
+        "say": [],
+        "options": {
+          "mode": "review",
+          "note": {
+            "key": "gx_cl_review_note",
+            "text": "Going forward, every new project starts with these {count} checklists. Lists you make on a project are just for that project."
+          }
+        },
+        "selects": [],
         "required": true
       }
     ],

@@ -39,19 +39,34 @@ test("the checklists setup asks the kind of company first, then adds the picked 
   // Unanswered: the company type is asked before the checklists, in the same frame.
   const first = await setup();
   assert.ok(first, "the setup is offered on the Checklists tab");
-  assert.deepEqual(ids(first), ["company.type", "use_cases"]);
+  assert.deepEqual(ids(first), ["company.type", "use_cases", "edit_crew_safety", "edit_work_completion", "edit_punchlist", "review"]);
   assert.ok(first.triggers.some((trigger: any) => trigger.kind === "tab_opened" && trigger.tab === "project.checklists"));
   const tour = (await listed()).find((entry: any) => entry.id === "checklists.tab_tutorial")!;
   assert.ok(tour, "the tour is offered too");
-  assert.deepEqual(ids(tour), ["intro", "lists", "assign", "add_item", "comment", "voice_update", "document", "send_crew", "try_voice"]);
+  assert.deepEqual(ids(tour), ["intro", "defaults", "lists", "assign", "add_item", "comment", "voice_update", "document", "send_crew", "try_voice"]);
+  assert.ok((tour.steps[1] as any).targets[0].includes("[data-fmcl-default]"), "the tour shows the Default tag on the default checklists");
   assert.equal((tour.steps.at(-1) as any)?.advance, "click", "the last step waits for them to try creating a checklist by voice (or skip)");
 
   // Answered (a roofer): asked no more, and the checklists are the roofing ones.
   const { invokeAction } = await import("../platform/publication/actions.js"), { userPublicationContext } = await import("../platform/publication/context.js");
   await invokeAction(userPublicationContext(owner, { mode: "command" }), { action: "company-profile.save", target: { scope: "organization", organizationId: ORG } }, { company_type: "roofing_contractor" }, { idempotencyKey: "type-1" });
   const answered = await setup();
-  assert.deepEqual(ids(answered), ["use_cases"]);
+  assert.deepEqual(ids(answered), ["use_cases", "edit_crew_safety", "edit_work_completion", "edit_punchlist", "review"]);
   const useCases = (answered.steps[0] as any).options.use_cases;
+  // One page per picked checklist (FM-600): each is the same module in `edit` mode for its use case, then `review`.
+  const pages = answered.steps.slice(1) as any[];
+  assert.deepEqual(pages.map((step) => [step.options.mode, step.options.use_case ?? null]), [["edit", "crew_safety"], ["edit", "work_completion"], ["edit", "punchlist"], ["review", null]]);
+  assert.ok(pages.every((step) => step.module === (answered.steps[0] as any).module), "one module for every page");
+  assert.match(pages[0].title.text, /crew safety/i);
+  // The pages of checklists that were not picked are passed by: decided on the server from the picks.
+  const after = async (stepId: string, picks: string[]) => (await service.recordGuidedEvent(owner, "checklists.setup", { type: "step_done", step_id: stepId, tab: "project.checklists", project_id: PROJECT, selections: { checklist_use_cases: picks } }) as any).next_step;
+  assert.equal(await after("use_cases", ["crew_safety", "work_completion"]), "edit_crew_safety");
+  assert.equal(await after("use_cases", ["work_completion"]), "edit_work_completion");
+  assert.equal(await after("use_cases", ["punchlist"]), "edit_punchlist");
+  assert.equal(await after("edit_crew_safety", ["crew_safety", "work_completion"]), "edit_work_completion");
+  assert.equal(await after("edit_crew_safety", ["crew_safety", "punchlist"]), "edit_punchlist");
+  assert.equal(await after("edit_crew_safety", ["crew_safety"]), "review");
+  assert.equal(await after("edit_work_completion", ["work_completion"]), "review");
   // The customer punch list is last, not picked to start with, and empty: the person fills it in (FM-444).
   assert.deepEqual(useCases.map((entry: any) => entry.id), ["crew_safety", "work_completion", "punchlist"]);
   assert.ok(useCases[0].checklist.items.some((item: any) => /harness/i.test(item.title)), "the roofing variant's crew safety list");

@@ -1,10 +1,10 @@
 {
   "kind": "guided_experience",
   "id": "checklists.punchlist_tutorial",
-  "revision": 1,
-  "sha256": "593451796826ab13563a0637fb93614a5bf13651cb2ae48405df65943b1fe213",
+  "revision": 2,
+  "sha256": "b10ae2b222b743a18a2bd07b009c72011c99b2106c3e664f2e73addc25696da4",
   "title": "Customer punch list tour",
-  "updated_at": "2026-11-13T06:06:27.157Z",
+  "updated_at": "2026-11-18T22:01:28.193Z",
   "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "id": "checklists.punchlist_tutorial",
@@ -46,8 +46,8 @@
           "text": "Your customer punch list"
         },
         "body": {
-          "key": "gx_cl_pt_punch_body",
-          "text": "It starts empty. Add what you'll walk through with your customer at the end of the job."
+          "key": "gx_cl_pt_punch_body_v2",
+          "text": "This is the list you walk through with your customer at the end of the job. Add to it here for this job."
         },
         "targets": [
           "[data-fmcl-list][data-fmcl-customer-shared=true]"
