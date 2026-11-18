@@ -202,7 +202,8 @@
     if (document.readyState !== 'complete') { afterPageLoad(() => scheduleSpare(delay)); return; }
     spareTimer = setTimeout(() => {
       if (document.hidden) { root.addEventListener('visibilitychange', () => scheduleSpare(delay), {once:true}); return; }
-      const warm = () => { if (!spare && !document.hidden && spareAllowed()) warmSpare(); };
+      // Never beside a window that is still loading: that window schedules the next spare once it has.
+      const warm = () => { if (!spare && !document.hidden && ![...records.values()].some(record => !record.loaded) && spareAllowed()) warmSpare(); };
       if (typeof root.requestIdleCallback === 'function') root.requestIdleCallback(warm, {timeout:3000});
       else warm();
     }, delay);
@@ -371,7 +372,7 @@
     if(warm?.api)root.requestAnimationFrame(()=>setTimeout(()=>{if(records.get(token)===record)ready(token,warm.child,warm.api);},0));
     // Once this window has loaded (not while it loads: the downloads would compete with it), the project is kept
     // on the device and the next open gets a spare too.
-    record.ready.catch(()=>{}).then(()=>{keepOnDevice(record.projectId || projectId);scheduleSpare(1500);});
+    record.ready.catch(()=>{}).then(()=>{record.loaded=true;keepOnDevice(record.projectId || projectId);scheduleSpare(1500);});
     return record;
   }
   function accepts(token, child){
