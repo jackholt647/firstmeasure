@@ -2084,32 +2084,57 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     return { ok: true, mock: false, ordered: true, profile: publicSmsComplianceProfile(saved) };
   });
 
-  // An approved 10DLC campaign may cover several numbers. Keep the original
-  // selected number authoritative; additional purchases have their own durable
-  // order and assignment state so a retry cannot replace or rebuy it.
+  // A 10DLC campaign may cover several numbers. Keep the original selected
+  // (primary) number authoritative; additional purchases have their own durable
+  // order and assignment state so a retry cannot replace or rebuy it. Extra
+  // numbers can be added once the primary is reserved, before or after carrier
+  // approval (FM-596): refresh-status assigns each one to the campaign once the
+  // campaign is provisioned, and only assigned numbers become senders.
   app.post("/organizations/:orgId/sms/compliance-profiles/:profileId/add-number", async (request) => {
     const orgId = param(request.params, "orgId");
     await requireSmsSettingsAccess(request, orgId, true);
     const body = objectBodySchema.parse(request.body ?? {});
     const { profile } = await profileForRequest(orgId, param(request.params, "profileId"));
+    requireCarrierRegistrationProfile(profile);
     const phoneNumber = normalizePhone(body.phone_number || body.phoneNumber);
     if (!phoneNumber) throw badRequest("invalid_phone_number", "Select a valid US/Canada phone number.");
     if (cleanText(asObject(profile.brand).entityType) === "SOLE_PROPRIETOR") {
       throw conflict("sole_proprietor_number_limit", "Sole proprietor registrations allow one phone number.");
     }
+    const live = smsRegistrationIsLive(orgId);
     const refs = asObject(profile.provider_refs);
-    const campaignId = cleanText(refs.telnyx_campaign_id || refs.tcr_campaign_id);
     const messagingProfileId = cleanText(refs.telnyx_messaging_profile_id);
-    if (!LIVE_MODE() || cleanText(profile.status) !== "active" || cleanText(profile.campaign_status) !== "mno_provisioned" || !campaignId || !messagingProfileId) {
-      throw conflict("campaign_not_active", "Add more numbers after your campaign and first number are active.");
+    const primaryNumber = normalizePhone(asObject(profile.campaign).selectedNumber);
+    const statuses = [profile.status, profile.campaign_status, profile.phone_number_status].map((value) => cleanText(value).toLowerCase()).join(" ");
+    if (/deactivat|suspend|released/.test(statuses)) {
+      throw conflict("number_add_unavailable", "Numbers cannot be added while this SMS service is suspended or deactivated.");
+    }
+    if (!primaryNumber || (live ? !cleanText(refs.telnyx_number_order_id) || !messagingProfileId : !cleanText(refs.mock_phone_number))) {
+      throw conflict("primary_number_required", "Reserve your primary number before adding more.");
     }
     const extra = Array.isArray(refs.additional_numbers) ? refs.additional_numbers.map(asObject) : [];
-    if (phoneNumber === normalizePhone(asObject(profile.campaign).selectedNumber) || extra.some((item) => normalizePhone(item.phone_number) === phoneNumber)) {
+    if (phoneNumber === primaryNumber || extra.some((item) => normalizePhone(item.phone_number) === phoneNumber)) {
       return { ok: true, idempotent_replay: true, profile: publicSmsComplianceProfile(profile) };
     }
-    if (extra.filter((item) => !["failed", "failure", "cancelled", "deleted", "released"].includes(cleanText(item.status))).length >= 48) throw conflict("campaign_number_limit", "This campaign already has the maximum of 49 numbers.");
-    if (extra.some((item) => !["active", "failed", "cancelled"].includes(cleanText(item.status)))) {
+    const ended = (item: JsonObject) => ["failed", "failure", "cancelled", "deleted", "released"].includes(cleanText(item.status).toLowerCase());
+    if (extra.filter((item) => !ended(item)).length >= 48) throw conflict("campaign_number_limit", "This campaign already has the maximum of 49 numbers.");
+    // One order at a time: the previous extra number's order must have finished
+    // (assignment to the campaign may still be waiting for approval).
+    if (extra.some((item) => !ended(item) && !["success", "active", "mock_selected"].includes(cleanText(item.status).toLowerCase()))) {
       throw conflict("number_order_in_progress", "Wait for the previous number to finish activating before adding another.");
+    }
+    if (!live) {
+      const saved = await appendSmsComplianceEvent(profile, {
+        type: "mock_additional_number_selected", source: "platform_settings", mock: true, phone_number: phoneNumber
+      }, {
+        provider_refs: { additional_numbers: [...extra, {
+          phone_number: phoneNumber, status: "mock_selected", assignment_status: "pending", mock: true,
+          locality: cleanText(body.locality), region: cleanText(body.region) || "US",
+          monthly_cost: cleanText(body.monthly_cost || body.monthlyCost), setup_cost: cleanText(body.setup_cost || body.setupCost),
+          currency: cleanText(body.currency) || "USD"
+        }] }
+      });
+      return { ok: true, mock: true, profile: publicSmsComplianceProfile(saved) };
     }
     if (!env.telnyxWebhookPublicKey) throw badRequest("webhook_public_key_missing", "Telnyx webhook verification must be configured before purchasing an organization number.");
     const client = createTelnyxClient();
@@ -3207,7 +3232,8 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     const { profile: current } = await profileForRequest(orgId, param(request.params, "profileId"));
     const refs = asObject(current.provider_refs);
     const phoneNumber = normalizePhone(asObject(current.campaign).selectedNumber);
-    const extraNumbers = Array.isArray(refs.additional_numbers) ? refs.additional_numbers.map(asObject).map((item) => normalizePhone(item.phone_number)).filter(Boolean) : [];
+    // Simulated extra numbers (FM-596) were never bought, so there is nothing to detach or release.
+    const extraNumbers = Array.isArray(refs.additional_numbers) ? refs.additional_numbers.map(asObject).filter((item) => item.mock !== true).map((item) => normalizePhone(item.phone_number)).filter(Boolean) : [];
     const releaseNumber = body.release_number === true;
     const { resource: voiceResource } = await import("../comms/calls/storage.js");
     const voiceLine = phoneNumber ? (await voiceResource(orgId, "number", phoneNumber)) : null;

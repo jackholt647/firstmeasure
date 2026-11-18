@@ -5,7 +5,7 @@
 // page while the setup steps aside, and reads where it stands once it closes. Nothing here draws a page of its own.
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
-const REGISTRATION_SRC = '/libraries/apps/settings/sms-registration.js?v=20261118-fm595';
+const REGISTRATION_SRC = '/libraries/apps/settings/sms-registration.js?v=20261118-fm596';
 const WIZARD_SRC = '/libraries/setup-wizard/setup-wizard.js';
 
 export function loadScript(src, win = window){

@@ -167,6 +167,11 @@
       .sms-policy-switch input:checked{background:var(--primary,#d93025)}.sms-policy-switch input:checked::after{left:16px}
       .sms-policy-switch input:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
       .sms-policy-links{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;line-height:1.5}.sms-policy-links a{color:#475467;font-weight:500}.sms-policy-links i{font-size:10px}
+      /* Number step (FM-596): primary number, then additional numbers on the same registration. */
+      .sms-number-role{display:block;margin-bottom:4px;color:#667085;font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase}
+      .sms-extra-numbers{gap:10px}.sms-extra-numbers .sms-final-row{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding-top:10px;border-top:1px solid #eaecf0}
+      .sms-extra-numbers .sms-final-row span{text-transform:none;letter-spacing:0;font-size:12px;font-weight:500;text-align:right}
+      .sms-extra-numbers [data-sms-add-number]{white-space:nowrap}.sms-extra-numbers [data-sms-add-number] i{font-size:10px;margin-right:2px}
   `;
   function installStyle(){
     if (document.getElementById('fm-sms-registration-css')) return;
@@ -425,8 +430,31 @@
     function smsAdditionalNumbers(profile){
       return Array.isArray(profile?.provider_refs?.additional_numbers) ? profile.provider_refs.additional_numbers : [];
     }
+    function smsAdditionalNumberEnded(number){
+      return ['failed','failure','cancelled','deleted','released'].includes(String(number?.status || '').toLowerCase());
+    }
+    function smsPrimaryNumberReserved(profile){
+      const refs = profile?.provider_refs || {};
+      return !!smsNormalizePhone(profile?.campaign?.selectedNumber) && !!(refs.telnyx_number_order_id || refs.mock_phone_number);
+    }
+    // FM-596: extra numbers can be added once the primary is reserved, before or after
+    // carrier approval (the server assigns them to the campaign when it is approved),
+    // one order at a time. Mirrors the add-number route's checks.
+    function smsCanAddMoreNumbers(profile){
+      const statuses = [profile?.status, profile?.campaign_status, profile?.phone_number_status].map((value) => String(value || '').toLowerCase()).join(' ');
+      if (profile?.brand?.entityType === 'SOLE_PROPRIETOR' || /deactivat|suspend|released/.test(statuses)) return false;
+      const extras = smsAdditionalNumbers(profile).filter(number => !smsAdditionalNumberEnded(number));
+      return extras.length < 48 && !extras.some(number => !['success','active','mock_selected'].includes(String(number.status || '').toLowerCase()));
+    }
     function smsCanAddNumber(profile){
-      return profile?.status === 'active' && profile?.campaign_status === 'mno_provisioned' && profile?.brand?.entityType !== 'SOLE_PROPRIETOR' && smsAdditionalNumbers(profile).filter(number => !['failed','failure','cancelled','deleted','released'].includes(String(number.status || '').toLowerCase())).length < 48 && !smsAdditionalNumbers(profile).some(number => !['success','failed','failure','cancelled','deleted','released'].includes(String(number.status || '').toLowerCase()) || (number.status === 'success' && number.assignment_status !== 'assigned'));
+      return smsPrimaryNumberReserved(profile) && smsCanAddMoreNumbers(profile);
+    }
+    function smsAdditionalNumberStatus(profile, number){
+      const status = String(number?.status || '').toLowerCase();
+      if (number?.assignment_status === 'assigned') return 'Active';
+      if (smsAdditionalNumberEnded(number)) return status === 'released' ? 'Released' : 'Order failed';
+      if (!['success','active','mock_selected'].includes(status)) return 'Ordering';
+      return profile?.campaign_status === 'mno_provisioned' ? 'Activating' : 'Activates when approved';
     }
     function smsValidAreaCode(value){
       return /^[2-9]\d{2}$/.test(String(value || '').replace(/\D/g, ''));
@@ -1078,7 +1106,7 @@
         features: ['What will you text customers?', 'Choose the types of messages you actually send. Your business type determines the registration path.'],
         consent: ['Texting Policies', ''],
         messages: ['Show what customers will receive', ''],
-        number: ['Choose your business number', 'This will be your sending number once carrier registration is approved.'],
+        number: ['Choose your primary number', 'Texts send from this number once carrier registration is approved. You can add more numbers too.'],
         summary: ['Review and Submit', '']
       }[step];
       if (!copy) return '';
@@ -1168,7 +1196,7 @@
           <div class="sms-final-panel">
             <h4><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_0912bf5a2cd0ef"," Phone number") ?? " Phone number")}</h4>
             <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_7ed66a4e107033","Phone number") ?? "Phone number")}</span><strong>${String(escapeHtml(smsFormatSelectedNumber(profile) || 'Not set'))}</strong></div>
-            ${smsAdditionalNumbers(profile).map(number => `<div class="sms-final-row"><span>${escapeHtml(number.assignment_status === 'assigned' ? 'Active number' : 'Activating number')}</span><strong>${escapeHtml(smsFormatE164ForDisplay(number.phone_number) || number.phone_number)}</strong></div>`).join('')}
+            ${smsAdditionalNumbers(profile).map(number => `<div class="sms-final-row"><span>${escapeHtml(`Additional number · ${smsAdditionalNumberStatus(profile, number)}`)}</span><strong>${escapeHtml(smsFormatE164ForDisplay(number.phone_number) || number.phone_number)}</strong></div>`).join('')}
           </div>
         </div>`;
     }
@@ -1205,10 +1233,15 @@
       const selected = choice?.phone_number || c.selectedNumber || '', purchased = !!profile.provider_refs?.telnyx_number_order_id;
       const canChange = !locked && !smsHasProviderCampaign(profile) && (!purchased || profile.phone_number_status === 'success');
       const query = String(numberSearch.query ?? c.selectedNumberAreaCode ?? '').replace(/\D/g,'').slice(0,6);
-      const selectedHtml = selected ? `<section class="sms-section"><div class="sms-section-title"><div><h3>${escapeHtml(smsFormatE164ForDisplay(selected) || selected)}</h3><p>${escapeHtml([choice?.locality || c.selectedNumberLocality, choice?.region || c.selectedNumberRegion].filter(Boolean).join(', '))}</p></div>${canChange ? '<button type="button" class="sms-text-button" data-sms-change-number>Choose a different number</button>' : ''}</div>${smsAdditionalNumbers(profile).map(number => `<div class="sms-final-row"><strong>${escapeHtml(smsFormatE164ForDisplay(number.phone_number) || number.phone_number)}</strong><span>${escapeHtml(number.assignment_status === 'assigned' ? 'Active' : number.status === 'failed' ? 'Order failed' : 'Activating')}</span></div>`).join('')}${smsCanAddNumber(profile) && !adding ? '<button type="button" class="sms-text-button" data-sms-add-number>Add another number</button>' : ''}</section>` : '';
+      // FM-596: the primary number first, then any additional numbers and "Add another number".
+      // With an unreserved primary choice, adding reserves the primary first (data-sms-add-number handler).
+      const extras = smsAdditionalNumbers(profile), soleProprietor = profile.brand?.entityType === 'SOLE_PROPRIETOR';
+      const canAdd = !adding && !numberSearch.choosing && (choice ? !locked && smsCanAddMoreNumbers(profile) : smsCanAddNumber(profile));
+      const extrasHtml = selected && (extras.length || canAdd || soleProprietor) ? `<section class="sms-section sms-extra-numbers" data-sms-extra-numbers><div class="sms-section-title"><div><span class="sms-number-role">Additional numbers</span><p>${soleProprietor ? 'Sole proprietor registrations include one number.' : 'Optional. Each one sends under the same registration.'}</p></div>${canAdd ? '<button type="button" class="sms-text-button" data-sms-add-number><i class="fas fa-plus" aria-hidden="true"></i> Add another number</button>' : ''}</div>${extras.map(number => `<div class="sms-final-row" data-sms-extra-number="${escapeHtml(number.phone_number)}"><strong>${escapeHtml(smsFormatE164ForDisplay(number.phone_number) || number.phone_number)}</strong><span>${escapeHtml([[number.locality, number.region].filter(Boolean).join(', '), smsAdditionalNumberStatus(profile, number)].filter(Boolean).join(' · '))}</span></div>`).join('')}</section>` : '';
+      const selectedHtml = selected ? `<section class="sms-section"><div class="sms-section-title"><div><span class="sms-number-role">Primary number</span><h3>${escapeHtml(smsFormatE164ForDisplay(selected) || selected)}</h3><p>${escapeHtml([choice?.locality || c.selectedNumberLocality, choice?.region || c.selectedNumberRegion].filter(Boolean).join(', '))}</p></div>${canChange ? '<button type="button" class="sms-text-button" data-sms-change-number>Choose a different number</button>' : ''}</div></section>${extrasHtml}` : '';
       if (selected && !numberSearch.choosing && !adding) return selectedHtml + (choice ? '<p class="sms-muted">Provider charges apply when you reserve this number.</p>' : '');
       const results = numberSearch.results || [];
-      return `${selectedHtml}<div class="sms-number-search"><div class="sms-number-search-row"><div class="sms-field wide"><label for="sms-number-search">Enter desired area code</label><input id="sms-number-search" data-sms-field="campaign.selectedNumberAreaCode" inputmode="numeric" placeholder="e.g. 206" maxlength="6" value="${escapeHtml(query)}" ${locked?'disabled':''}></div></div>
+      return `${selectedHtml}<div class="sms-number-search"><div class="sms-number-search-row"><div class="sms-field wide"><label for="sms-number-search">${adding ? 'Area code for the additional number' : 'Enter desired area code'}</label><input id="sms-number-search" data-sms-field="campaign.selectedNumberAreaCode" inputmode="numeric" placeholder="e.g. 206" maxlength="6" value="${escapeHtml(query)}" ${locked?'disabled':''}></div></div>
         <p class="sms-muted" role="status">${escapeHtml(numberSearch.message || '')}</p><div class="sms-number-grid">${results.filter(number => number.phone_number !== c.selectedNumber && !smsAdditionalNumbers(profile).some(item => item.phone_number === number.phone_number)).map(number=>{const value=number.phone_number;return `<button class="sms-number-option ${value===choice?.phone_number?'selected':''}" type="button" data-sms-choose-number="${escapeHtml(value)}" ${locked?'disabled':''}><strong>${escapeHtml(smsFormatE164ForDisplay(value)||value)}</strong><span>${escapeHtml([number.locality,number.region].filter(Boolean).join(', ') || 'US local number')}</span></button>`;}).join('')}</div>${adding ? `<div class="sms-evidence-actions"><button type="button" class="cs-btn primary" data-sms-reserve-additional ${choice?'':'disabled'}>Reserve additional number</button><button type="button" class="cs-btn" data-sms-cancel-additional>Cancel</button></div>` : ''}</div>`;
     }
     function smsSubmissionBanner(profile){
@@ -1471,7 +1504,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
     const smsStatusInFlight = new Map();
     function smsProviderStatusPending(profile){
       if (!profile?.id || smsProfileIsMock(profile)) return false;
-      if (smsAdditionalNumbers(profile).some(number => !['failed','failure','cancelled','deleted','released'].includes(String(number.status || '').toLowerCase()) && number.assignment_status !== 'assigned')) return true;
+      if (smsAdditionalNumbers(profile).some(number => number.mock !== true && !smsAdditionalNumberEnded(number) && number.assignment_status !== 'assigned' && (String(number.status || '').toLowerCase() !== 'success' || profile.campaign_status === 'mno_provisioned'))) return true;
       if (smsRegistrationVerified(profile)) return false;
       const statuses = [profile.status, profile.brand_status, profile.campaign_status, profile.phone_number_status].join(' ').toLowerCase();
       if (/deactivat|fail|reject|unverified|suspend|expire|cancel/.test(statuses)) return false;
@@ -2204,7 +2237,12 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         });
         if (!carrierRegistration) void window.Portal?.PhoneTray?.developmentSetup(container,status=>{if(!developmentStatus?.onboarded){developmentStatus=status;refresh();}});
         container.querySelector('[data-sms-change-number]')?.addEventListener('click', () => { numberSearchRevision++; if (numberSearchTimer) clearTimeout(numberSearchTimer); numberSearch = { ...numberSearch, choice: null, choosing: true, query: '', areaCode: '', results: [], searched: false, message: '' }; profile.campaign = { ...profile.campaign, selectedNumberAreaCode: '', selectedNumberSearch: '' }; refresh(); });
-        container.querySelector('[data-sms-add-number]')?.addEventListener('click', () => { numberSearch = { ...numberSearch, adding: true, choice: null, query: '', areaCode: '', results: [], searched: false, message: '' }; refresh(); });
+        container.querySelector('[data-sms-add-number]')?.addEventListener('click', async () => {
+          if (operationBusy) return;
+          if (numberSearch.choice && !numberSearch.adding && (await reserveSmsNumber()) !== true) return;
+          numberSearch = { ...numberSearch, adding: true, choice: null, query: '', areaCode: '', results: [], searched: false, message: '' }; refresh();
+          rootEl()?.querySelector('#sms-number-search')?.focus();
+        });
         container.querySelector('[data-sms-cancel-additional]')?.addEventListener('click', () => { numberSearch = { ...numberSearch, adding: false, choice: null, query: '', areaCode: '', results: [], searched: false, message: '' }; refresh(); });
         container.querySelector('[data-sms-reserve-additional]')?.addEventListener('click', () => { void reserveSmsNumber(); });
         container.querySelectorAll('[data-sms-choose-number]').forEach((button) => {

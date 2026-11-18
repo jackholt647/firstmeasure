@@ -1227,6 +1227,26 @@ test("10DLC mock number search and selection saves selected sending number", asy
   assert.equal(selected.profile.campaign.selectedNumberAreaCode, "206");
   assert.equal(selected.profile.provider_refs.mock_phone_number, found.numbers[0].phone_number);
   assert.equal(selected.profile.validation.number.ok, true);
+
+  // FM-596: the Number step adds more numbers after the primary, before any approval.
+  const addEndpoint = `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/add-number`;
+  const added = await client.request("POST", addEndpoint, { phone_number: found.numbers[1].phone_number, locality: found.numbers[1].locality });
+  assert.equal(added.mock, true);
+  assert.equal(added.profile.campaign.selectedNumber, found.numbers[0].phone_number, "the primary number stays primary");
+  assert.deepEqual(added.profile.provider_refs.additional_numbers.map((item: any) => [item.phone_number, item.status]), [[found.numbers[1].phone_number, "mock_selected"]]);
+  const third = await client.request("POST", addEndpoint, { phone_number: found.numbers[2].phone_number });
+  assert.equal(third.profile.provider_refs.additional_numbers.length, 2, "simulated numbers never wait on an order");
+  assert.equal((await client.request("POST", addEndpoint, { phone_number: found.numbers[2].phone_number })).idempotent_replay, true);
+  assert.equal((await client.request("POST", addEndpoint, { phone_number: found.numbers[0].phone_number })).idempotent_replay, true);
+});
+
+test("an additional number needs the primary number reserved first", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client, true);
+  const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, { brand: { mock: true }, campaign: {} });
+  const response = await client.raw("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/add-number`, { phone_number: "+12065550199" });
+  assert.equal(response.statusCode, 409);
+  assert.match(response.body, /primary_number_required/);
 });
 
 test("10DLC mock number search rejects invalid area code", async () => {
@@ -1436,6 +1456,87 @@ test("approved businesses can add a second number without replacing or rebuying 
     const latest = await readSmsComplianceProfile(messagingOrganization.id, created.profile.id);
     await updateSmsComplianceProfile(latest, { brand: { entityType: "SOLE_PROPRIETOR" } });
     assert.equal((await client.raw("POST", endpoint, { phone_number: "+12065550193" })).statusCode, 409);
+    assert.equal(purchaseCalls, 1);
+  } finally {
+    (env as any).communicationsDeliveryMode = previous.mode;
+    (env as any).telnyxApiKey = previous.key;
+    (env as any).telnyxBaseUrl = previous.baseUrl;
+    (env as any).telnyxWebhookPublicKey = previous.publicKey;
+    if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
+  }
+});
+
+test("an additional number can be ordered before carrier approval and waits for the campaign (FM-596)", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client, true);
+  const primary = "+12065550291";
+  const additional = "+12065550292";
+  const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, { brand: {}, campaign: {} });
+  const { ensureMessagingOrganization, readSmsComplianceProfile, updateSmsComplianceProfile } = await import("../messaging/storage.js");
+  const messagingOrganization = await ensureMessagingOrganization(orgId);
+  const internal = await readSmsComplianceProfile(messagingOrganization.id, created.profile.id);
+  // Draft registration: the primary number is ordered, nothing is submitted to carriers yet.
+  await updateSmsComplianceProfile(internal, {
+    status: "draft", campaign_status: "draft", phone_number_status: "pending",
+    brand: { entityType: "PRIVATE_PROFIT" }, campaign: { selectedNumber: primary },
+    provider_refs: { telnyx_number_order_id: "order-primary-draft", telnyx_messaging_profile_id: "40000000-0000-0000-0000-000000000292" }
+  });
+  let purchaseCalls = 0;
+  let orderStatus = "pending";
+  let server: Server | null = null;
+  const serverUrl = await new Promise<string>((resolve) => {
+    server = createServer(async (request, response) => {
+      const url = request.url || "";
+      for await (const _chunk of request) { /* drain */ }
+      response.setHeader("content-type", "application/json");
+      if (request.method === "GET" && url.startsWith("/available_phone_numbers?")) {
+        response.end(JSON.stringify({ data: [{ phone_number: additional, locality: "Seattle", features: [{ name: "sms" }],
+          cost_information: { monthly_cost: "1.00", upfront_cost: "1.00", currency: "USD" } }] }));
+        return;
+      }
+      if (request.method === "POST" && url === "/number_orders") {
+        purchaseCalls += 1;
+        response.end(JSON.stringify({ data: { id: "order-additional-draft", status: orderStatus, phone_numbers: [{ phone_number: additional }] } }));
+        return;
+      }
+      if (request.method === "GET" && url.startsWith("/number_orders/")) {
+        response.end(JSON.stringify({ data: { id: url.split("/").pop(), status: orderStatus } }));
+        return;
+      }
+      if (request.method === "GET" && url.startsWith("/phone_numbers?")) {
+        response.end(JSON.stringify({ data: [] }));
+        return;
+      }
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: "not_found", url }));
+    });
+    server.listen(0, "127.0.0.1", () => {
+      const address = server?.address();
+      assert.ok(address && typeof address === "object");
+      resolve(`http://127.0.0.1:${address.port}`);
+    });
+  });
+  const { env } = await import("../src/config/env.js");
+  const previous = { mode: env.communicationsDeliveryMode, key: env.telnyxApiKey, baseUrl: env.telnyxBaseUrl, publicKey: env.telnyxWebhookPublicKey };
+  try {
+    (env as any).communicationsDeliveryMode = "live";
+    (env as any).telnyxApiKey = "KEY_TEST";
+    (env as any).telnyxBaseUrl = serverUrl;
+    (env as any).telnyxWebhookPublicKey = "test-public-key";
+    const endpoint = `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/add-number`;
+    const first = await client.request("POST", endpoint, { phone_number: additional });
+    assert.equal(first.ordered, true);
+    assert.equal(first.profile.campaign.selectedNumber, primary);
+    assert.deepEqual(first.profile.provider_refs.additional_numbers.map((item: any) => [item.phone_number, item.status, item.assignment_status]), [[additional, "pending", "pending"]]);
+    assert.equal(purchaseCalls, 1);
+    const blocked = await client.raw("POST", endpoint, { phone_number: "+12065550293" });
+    assert.equal(blocked.statusCode, 409, "one number order at a time");
+    assert.match(blocked.body, /number_order_in_progress/);
+    orderStatus = "success";
+    const refreshed = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/refresh-status`, {});
+    const entry = refreshed.profile.provider_refs.additional_numbers[0];
+    assert.equal(entry.status, "success");
+    assert.equal(entry.assignment_status, "pending", "no campaign yet, so the number waits to be assigned");
     assert.equal(purchaseCalls, 1);
   } finally {
     (env as any).communicationsDeliveryMode = previous.mode;
