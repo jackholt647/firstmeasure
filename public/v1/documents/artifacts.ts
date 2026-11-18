@@ -7,7 +7,8 @@ import {
   issueDocument,
   patchDocumentInstance
 } from "./service.js";
-import { readDocumentInstance, readDocumentTemplateVersion, readDocumentThemeVersion, saveDocumentInstance } from "./storage.js";
+import { readDocumentInstance, readDocumentTemplate, readDocumentTemplateVersion, readDocumentThemeVersion, saveDocumentInstance } from "./storage.js";
+import { ensureDefaultDocumentAssets, ensureLibraryTemplate } from "./library-copies.js";
 import { FMDocModel } from "./schemas.js";
 
 function cleanText(value: unknown) {
@@ -75,6 +76,14 @@ async function styleArtifact(orgId: string, document: JsonObject, themeId: strin
   }, ctx);
 }
 
+/** The template's current version, its library copy made or brought up to date first (as before a new document); 0 when it has none. */
+async function currentTemplateVersion(orgId: string, templateId: string) {
+  await ensureDefaultDocumentAssets(orgId).catch(() => null);
+  await ensureLibraryTemplate(orgId, templateId).catch(() => null);
+  const template = await readDocumentTemplate(orgId, templateId).catch(() => null);
+  return template && cleanText(template.status) !== "archived" ? Number(template.current_version || 0) : 0;
+}
+
 /** Creates or updates the instance in place and issues it, with no snapshot or PDF (work orders open in the editor). */
 export async function prepareTemplatedArtifact(input: TemplatedArtifactInput) {
   const ctx = systemContext(input.orgId, input.actorUserId, input.branchId);
@@ -82,12 +91,19 @@ export async function prepareTemplatedArtifact(input: TemplatedArtifactInput) {
   let document = stableId ? await readDocumentInstance(input.orgId, stableId).catch(() => null) : null;
 
   if (document) {
-    // Reset status to "issued" before patching so account-backed params
-    // re-derive when an artifact is re-rendered or re-published.
-    if (!["", "draft", "issued"].includes(cleanText(document.status))) {
+    // Written again, it moves to its template's current version, as a new one would start from (FM-612: a layout fix
+    // reaches checklists and invoices already written). Only a draft switches versions.
+    const templateId = cleanText(input.templateId);
+    const pinned = asObject(document.template_ref);
+    const latest = templateId && cleanText(pinned.template_id) === templateId ? await currentTemplateVersion(input.orgId, templateId) : 0;
+    const repin = latest > 0 && Number(pinned.version || 0) !== latest;
+    // Reset status to "issued" (a draft to re-pin) before patching so account-backed
+    // params re-derive when an artifact is re-rendered or re-published.
+    const resetTo = repin ? "draft" : "issued";
+    if (repin ? cleanText(document.status) !== "draft" : !["", "draft", "issued"].includes(cleanText(document.status))) {
       document = await saveDocumentInstance(input.orgId, cleanText(document.id), {
         ...document,
-        status: "issued",
+        status: resetTo,
         updated_by_user_id: ctx.userId,
         updated_at: new Date().toISOString()
       });
@@ -96,7 +112,7 @@ export async function prepareTemplatedArtifact(input: TemplatedArtifactInput) {
       title: input.title,
       params: input.params,
       metadata: input.metadata || {},
-      ...(cleanText(input.templateId) ? { template_id: cleanText(input.templateId) } : {})
+      ...(repin ? { template_ref: { template_id: templateId, version: latest } } : templateId ? { template_id: templateId } : {})
     }, ctx);
   } else {
     const created = await createDocumentInstance(input.orgId, cleanText(input.projectId), {

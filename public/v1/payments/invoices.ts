@@ -15,6 +15,7 @@ import {
 } from "../platform/storage.js";
 import { publishTemplatedArtifact, renderTemplatedArtifact } from "../documents/artifacts.js";
 import { voidDocumentInstance } from "../documents/service.js";
+import { readDefaultDocumentThemeId } from "../documents/settings.js";
 import { emitWorkEvent } from "../work/engine.js";
 import {
   deriveObligationStatus,
@@ -899,12 +900,17 @@ function invoiceArtifactInput(orgId: string, invoice: JsonObject) {
   };
 }
 
+/** An invoice's document takes the style its organization chose for invoices, else for new documents (FM-612). */
+async function styledInvoiceArtifactInput(orgId: string, invoice: JsonObject) {
+  return { ...invoiceArtifactInput(orgId, invoice), themeId: await readDefaultDocumentThemeId(orgId, "invoice") };
+}
+
 export async function publishInvoiceToPortal(orgId: string, invoice: JsonObject) {
-  return publishTemplatedArtifact(invoiceArtifactInput(orgId, invoice));
+  return publishTemplatedArtifact(await styledInvoiceArtifactInput(orgId, invoice));
 }
 
 export async function renderInvoiceDocumentPdf(orgId: string, invoice: JsonObject) {
-  const rendered = await renderTemplatedArtifact(invoiceArtifactInput(orgId, invoice));
+  const rendered = await renderTemplatedArtifact(await styledInvoiceArtifactInput(orgId, invoice));
   return {
     invoice,
     bytes: rendered.bytes,

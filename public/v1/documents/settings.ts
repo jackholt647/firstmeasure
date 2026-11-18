@@ -30,12 +30,14 @@ export const DOCUMENT_SETUP_MODULE = "document_setup";
 /**
  * The organization's style for new documents (FM-612): a hidden setting the document setup writes the first time a
  * proposal style is chosen, and not again. Documents the platform writes by itself (a checklist's printable copy) take
- * it. An organization that set up its proposals before the setting existed has its proposal's style. null: none yet.
+ * it. An organization that set up its proposals before the setting existed has its proposal's style. With `kind`, the
+ * style chosen for that kind of document in the setup comes first (an invoice set up in its own style). null: none yet.
  */
-export async function readDefaultDocumentThemeId(orgId: string): Promise<string | null> {
+export async function readDefaultDocumentThemeId(orgId: string, kind?: string): Promise<string | null> {
   try {
     const data = object(object(await readBranchModule(orgId, "default", DOCUMENT_SETUP_MODULE)).data);
-    return String(data.default_theme_id || object(object(data.kinds).proposal).theme_id || "").trim() || null;
+    const kinds = object(data.kinds);
+    return String((kind && object(kinds[kind]).theme_id) || data.default_theme_id || object(kinds.proposal).theme_id || "").trim() || null;
   } catch (error) {
     if (error instanceof PlatformError && error.statusCode === 404) return null;
     throw error;

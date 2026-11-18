@@ -518,6 +518,17 @@ test("project invoices generate PDFs, publish due payments to the portal, email 
   const invoiceDocument = await readDocumentInstance(orgId, `doc_invoice_${generated.invoice.id}`);
   assert.equal(invoiceDocument.document_type, "invoice");
   assert.equal((invoiceDocument.template_ref as any).template_id, "tpl_invoice_default");
+  // The invoice's document takes the organization's style (FM-612): the one chosen for invoices in the document
+  // setup, else the style for new documents (the first proposal style).
+  const { saveBranchModule } = await import("../platform/storage.js");
+  const { publishInvoiceToPortal, readInvoice } = await import("../payments/invoices.js");
+  const invoiceTheme = async () => ((await readDocumentInstance(orgId, `doc_invoice_${generated.invoice.id}`)).theme_ref as any)?.theme_id;
+  await saveBranchModule(orgId, "default", "document_setup", { data: { default_theme_id: "thm_triangles" } }, { replace: true });
+  await publishInvoiceToPortal(orgId, await readInvoice(orgId, generated.invoice.id));
+  assert.equal(await invoiceTheme(), "thm_triangles");
+  await saveBranchModule(orgId, "default", "document_setup", { data: { default_theme_id: "thm_triangles", kinds: { invoice: { theme_id: "thm_margin" } } } }, { replace: true });
+  await publishInvoiceToPortal(orgId, await readInvoice(orgId, generated.invoice.id));
+  assert.equal(await invoiceTheme(), "thm_margin", "an invoice style chosen in the setup comes first");
   const { listMessageRecords, listDeliveryRecords } = await import("../messaging/communications_storage.js");
   const invoiceMessage = (await listMessageRecords(orgId, { channel: "email", project_id: projectId }))
     .find((message: any) => message.tags.includes("customer-invoice"));
