@@ -527,9 +527,9 @@
       const purposeText = purposes.length > 1 ? `${purposes.slice(0, -1).join(', ')} and ${purposes[purposes.length - 1]}` : purposes[0] || 'updates about their service';
       return {
         description: `${brand} uses FirstMate to text customers who have agreed to receive texts: ${purposeText}.${marketing ? ' Marketing and promotional texts go only to customers who gave separate written consent.' : ''} Customers can reply STOP to opt out or HELP for help.`,
-        optInMethods: ['VERBAL'], optInMethod: 'VERBAL',
+        optInMethods: ['VERBAL', 'PAPER_FORM'], optInMethod: 'VERBAL',
         optInDisclosure: `I agree to receive text messages from ${brand} about ${purposeText}. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for help.${marketing ? ' Consent is not a condition of purchase.' : ''} SMS opt-in data and consent will not be shared with third parties for marketing.${privacy ? ` Privacy Policy: ${privacy}.` : ''}${terms ? ` SMS Terms: ${terms}.` : ''}`,
-        messageFlow: `Customers agree by phone or in person. Before ${brand} texts a customer, a team member reads them the consent wording and records their agreement with their mobile number, the date and the wording used.${marketing ? ' Marketing and promotional texts are sent only after the customer also agrees in writing (a signed form or an unchecked-by-default checkbox).' : ''} Customers can reply STOP to opt out and HELP for help.`,
+        messageFlow: `Customers agree to receive texts from ${brand} before we text them: by phone or in person with a team member, or on a form (paper or online) that names us and shows the consent wording. We keep a record of each agreement with the mobile number, the date, how the customer agreed and the wording used.${marketing ? ' Marketing and promotional texts are sent only after the customer also agrees in writing (a signed form or an unchecked-by-default checkbox).' : ''} Customers can reply STOP to opt out and HELP for help.`,
         sample1: `${brand}: Thanks for reaching out. How can we help with your project? Reply STOP to opt out.`,
         sample2: `${brand}: Your appointment is confirmed for tomorrow at 10:00 AM. Reply HELP for help or STOP to opt out.`,
         sample3: marketing ? `${brand}: Our seasonal offer is available this week. Reply or call us for details. Reply STOP to opt out.` : '',
@@ -1292,12 +1292,14 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
     function smsProgramSummary(profile){
       const selected = smsSelectedFeatures(profile), c = profile.campaign || {};
       const what = smsFeatureOptions.filter((feature) => selected.includes(feature.id)).map((feature) => feature.label.toLowerCase()).join(', ');
+      if (smsUsesStandardWording(mergeSmsProfile(profile))) return `FirstMate standard: ${what || 'no message types'}. Customers agree to your texts before you send them.`;
       const how = smsOptInMethods(c).map((method) => ({ VERBAL: 'phone or in person', WEBSITE_FORM: 'a website form', PAPER_FORM: 'a paper form', KEYWORD: 'texting a keyword' })[method] || method).join(', ');
-      return `${smsUsesStandardWording(mergeSmsProfile(profile)) ? 'FirstMate standard: ' : 'Your own wording: '}${what || 'no message types'}. Customers agree by ${how || 'a method you choose in Advanced'}.`;
+      return `Your own wording: ${what || 'no message types'}. Customers agree by ${how || 'a method you choose in Advanced'}.`;
     }
     function smsConsentAttestation(profile){
-      const c = profile.campaign || {}, methods = smsOptInMethods(c), marketing = smsSelectedFeatures(profile).includes('customer_growth');
-      if (methods.length === 1 && methods[0] === 'VERBAL') return `We text only customers who agreed by phone or in person after hearing our consent wording, and we keep a record of each agreement.${marketing ? ' Marketing texts go only to customers who also agreed in writing.' : ''}`;
+      const marketing = smsSelectedFeatures(profile).includes('customer_growth');
+      // FM-584: the standard program attests consent itself, not one way of getting it (lead forms, calls, visits).
+      if (smsUsesStandardWording(mergeSmsProfile(profile))) return `Everyone we text has given us the consent the law requires to receive our texts, and we keep a record of it.${marketing ? ' Marketing texts go only to customers who also agreed in writing.' : ''}`;
       return `The consent process in Advanced is how my business gets permission to text customers, and we keep a record of each agreement.`;
     }
     function smsSummaryContent(profile){
