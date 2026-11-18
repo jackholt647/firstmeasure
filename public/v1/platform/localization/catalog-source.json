@@ -5084,7 +5084,10 @@
       "format": "icu"
     },
     "m_6396ccf961d884": "Why it was rejected",
-    "m_1b6fb2f8bf15dc": "Starts a new order for this project as the right project type."
+    "m_1b6fb2f8bf15dc": "Starts a new order for this project as the right project type.",
+    "m_bcbdcdfb3c0dff": "Area with waste",
+    "m_b7d9286f270301": "Area labels (m²)",
+    "m_2e45d89ce631c0": "Roof area in square metres"
   },
   "money": {
     "m_487adb3f2ba511": "Loading money...",

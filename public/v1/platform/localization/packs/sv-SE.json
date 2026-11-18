@@ -2876,7 +2876,8 @@
       "message": "{structures, plural, one {# byggnad} other {# byggnader}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Tak, väggar, fönster, dörrar och hängrännor ingår."
+    "report_kind_full_exterior_includes": "Tak, väggar, fönster, dörrar och hängrännor ingår.",
+    "m_bcbdcdfb3c0dff": "Area inklusive spill"
   },
   "money": {
     "m_487adb3f2ba511": "Läser in ekonomi...",
