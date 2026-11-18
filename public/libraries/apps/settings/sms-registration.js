@@ -1325,9 +1325,11 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
     }
     function smsConsentAttestation(profile){
       const marketing = smsSelectedFeatures(profile).includes('customer_growth');
+      // FM-584: the business also accepts the Privacy policy and Texting terms linked just above the checkbox.
+      const policies = ' We have read, understand and accept the Privacy policy and Texting terms above, and we follow them.';
       // FM-584: the standard program attests consent itself, not one way of getting it (lead forms, calls, visits).
-      if (smsUsesStandardWording(mergeSmsProfile(profile))) return `Everyone we text has given us the consent the law requires to receive our texts, and we keep a record of it.${marketing ? ' Marketing texts go only to customers who also agreed in writing.' : ''}`;
-      return `The consent process in Advanced is how my business gets permission to text customers, and we keep a record of each agreement.`;
+      if (smsUsesStandardWording(mergeSmsProfile(profile))) return `Everyone we text has given us the consent the law requires to receive our texts, and we keep a record of it.${marketing ? ' Marketing texts go only to customers who also agreed in writing.' : ''}${policies}`;
+      return `The consent process in Advanced is how my business gets permission to text customers, and we keep a record of each agreement.${policies}`;
     }
     /** Business step (FM-585): who hosts the privacy policy and texting terms, then the hosted links or the business's own. */
     function smsPolicyPagesFields(profile, websiteNormalized){
