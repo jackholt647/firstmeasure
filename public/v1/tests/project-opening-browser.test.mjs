@@ -324,11 +324,11 @@ test('no spare frame is added before the page has loaded (FM-542)',async()=>{
       return route.fulfill({contentType:'text/html',body:'<main class="main" style="height:100vh;width:100vw"></main><script>window.Portal={cfg:{userOrgId:"org_test"}};window.PlatformCommerce={onReady:callback=>callback({})};</script>'+scripts+'<img src="/slow.png">'});
     });
     await page.goto('https://project.test/?project=project_test',{waitUntil:'domcontentloaded'});
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(3500);
     assert.equal(await page.evaluate(()=>document.readyState),'interactive');
-    assert.equal(await page.locator('iframe').count(),0,'a project link does not add its spare while the page loads');
+    assert.equal(await page.locator('iframe').count(),0,'no spare while the page loads, even past its idle delay');
     releaseImage();
     await page.waitForFunction(()=>document.readyState==='complete');
-    await page.waitForFunction(()=>document.querySelector('.fm-project-spare iframe'),null,{timeout:5000});
+    await page.waitForFunction(()=>document.querySelector('.fm-project-spare iframe'),null,{timeout:10000});
   }finally{await browser.close();}
 });

@@ -234,12 +234,8 @@
     if (!usable) { candidate.layer.remove(); return null; }
     return candidate;
   }
-  if (ownsProjectWindows && typeof root.PlatformCommerce?.onReady === 'function') {
-    // A link or reload that names a project opens it as soon as the portal has booted: boot its frame alongside,
-    // from the page's load event on.
-    if (new URLSearchParams(root.location.search).get('project')) afterPageLoad(() => { if (!spare && !records.size && spareAllowed()) warmSpare(); });
-    root.PlatformCommerce.onReady(() => scheduleSpare(2500));
-  }
+  // Not sooner: a spare booting beside the portal's own boot slows both (a project link took twice as long).
+  if (ownsProjectWindows && typeof root.PlatformCommerce?.onReady === 'function') root.PlatformCommerce.onReady(() => scheduleSpare(2500));
   function open(project, options = {}){
     if (!host() || !root.FirstMateWindows) return null;
     styles();
