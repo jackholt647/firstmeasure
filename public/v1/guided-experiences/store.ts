@@ -130,6 +130,20 @@ export async function listStepEvents(orgId: string, stepIds: string[], limit = 2
   return rows.map((row) => ({ experience_id: String(row.experience_id), user_id: String(row.user_id), type: String(row.type) as GuidedEventType, step_id: String(row.step_id), created_at: String(row.created_at) }));
 }
 
+/** Development (dev console's Setup tests): puts a progress row back as it was, or removes it when there was none. */
+export async function replaceProgress(orgId: string, subjectId: string, experienceId: string, progress: Progress | null) {
+  const db = guidedStore();
+  await db.prepare("DELETE FROM guided_progress WHERE organization_id=? AND subject_id=? AND experience_id=?").run(orgId, subjectId, experienceId);
+  if (!progress) return;
+  await db.prepare(`INSERT INTO guided_progress(organization_id,subject_id,experience_id,experience_version,variant_id,bucket,status,step_id,data_json,thread_subject,revision,started_at,updated_at,finished_at,finished_by)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(orgId, subjectId, experienceId, progress.experience_version, progress.variant_id, progress.bucket, progress.status, progress.step_id,
+    JSON.stringify(progress.data || {}), progress.thread_subject, progress.revision, progress.started_at, progress.updated_at, progress.finished_at, progress.finished_by);
+}
+/** Development: forgets an experience's events since a moment (a rolled-back Setup test). */
+export async function deleteEventsSince(orgId: string, experienceId: string, since: string) {
+  return (await guidedStore().prepare("DELETE FROM guided_events WHERE organization_id=? AND experience_id=? AND created_at>=?").run(orgId, experienceId, since)).changes;
+}
+
 /** Clears an experience's progress for the organization and, or only, one person. */
 export async function clearProgress(orgId: string, experienceId: string, subjects: string[]) {
   if (!subjects.length) return 0;

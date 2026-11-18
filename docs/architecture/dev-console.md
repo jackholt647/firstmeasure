@@ -125,7 +125,7 @@ library's editor flag); `readAccess` in `dev-console.js` says so.
 
 | Section | What | Where it came from |
 |---|---|---|
-| Setup | first in the rail: a checklist of every setup this organization has been through, each Done, Started, Skipped or Not started. **Questions asked once** are the [setup steps](setup-steps.md) (answered is read as setups read it); hovering or tapping one says where it was answered, asked or skipped (the newest guided event naming the step: the setup, or "on its own" for `FirstMateGuides.require`, who and when), or that no guided setup saved it (Settings, signup, an agent or an import), and which setups ask it. **Guided setups** (modal and agentic guided experiences) and **Tours** (overlays and announcements, folded) show their progress: where it stopped, who finished or skipped it. **App setups** are the app catalog's setup workflows (`FirstMateAppSetupWorkflows`, read from the page). Reads only | new (FM-571); `GET /v1/signup-sandbox/development/console/setup` (`devConsoleSetup`) |
+| Setup | first in the rail: a checklist of every setup this organization has been through, each Done, Started, Skipped or Not started. **Questions asked once** are the [setup steps](setup-steps.md) (answered is read as setups read it); hovering or tapping one says where it was answered, asked or skipped (the newest guided event naming the step: the setup, or "on its own" for `FirstMateGuides.require`, who and when), or that no guided setup saved it (Settings, signup, an agent or an import), and which setups ask it. **Guided setups** (modal and agentic guided experiences) and **Tours** (overlays and announcements, folded) show their progress: where it stopped, who finished or skipped it. **App setups** are the app catalog's setup workflows (`FirstMateAppSetupWorkflows`, read from the page). Each question has **Test** and, once tested, **Roll back** (below, "Setup tests") | new (FM-571); `GET /v1/signup-sandbox/development/console/setup` (`devConsoleSetup`) |
 | Test run | the sandbox workflow's stages, the showing one, Open, the workflow builder | the bottom test-run bar (`portal/signup-sandbox/devbar.js` still runs the stages and exposes `window.SignupSandboxRun`) |
 | Leads | add 1 to 25 made-up leads, choosing what each has (name, phone, email, address, source, note) and, when the organization has a source catalog, which source or a random one. Each is sent through `receiveLead`, so contact matching, source stamping, intake routing and the organization's `lead.received` rules run as for a real lead. Phones are 555-01xx and emails `@example.com`; the source carries `synthetic: true` | new (FM-552); `GET`/`POST /v1/signup-sandbox/development/synthetic-leads` (`development/synthetic-leads.ts`) |
 | Flags and settings | this test organization's flags, scope flags and settings beside what it started with; flip one, Restore one, or **Restore initial state** (which also replays every Get Started tour and setup); record a start when none was | new; the config library's `/v1/config-library/organizations/:orgId/state` (`PATCH`, `/restore`, `/capture`) |
@@ -140,6 +140,26 @@ library's editor flag); `readAccess` in `dev-console.js` says so.
 
 Flags and settings and the config library show "not on dev yet" until the config
 library's API answers on the host.
+
+## Setup tests
+
+**Test** on a question in the Setup section opens it in an overlay: `libraries/dev-console/setup-test.html?step=<id>`
+in a frame, which borrows the portal's `__APP` and the exact library versions the portal loaded, starts the test
+(`POST …/development/console/setup/steps/:stepId/test`) and plays what the server resolved with the real setup player
+(`FirstMateGuides.test`, outside the page's one-at-a-time lock). The step is asked even when it is answered, after
+its unanswered requirements; its answer is saved by its action and its events are recorded under
+`setup_step.<id>`, so it counts as done. On a desktop the overlay covers the page beside the console and switches
+the frame between desktop, tablet (820×1180) and phone (390×844) without restarting the step; on a phone it covers
+everything and is the phone. Closing it ends the test (`…/test/end`; the overlay ends it when the frame cannot).
+
+A step's answer lives in branch modules and nothing says which, so a test compares them
+(`development/setup-tests.ts`, its own store): when it starts, the modules of the default branch and the person's
+branch are read; when it ends, each top-level key that changed is kept with its value before. Several tests keep
+the first value. **Roll back** (`…/rollback`, after a confirm listing what it restores) puts every such key back
+(or removes it), puts the step's own `setup_step.<id>` progress back and forgets the events its tests recorded, so
+the step is as before the first test: a question nobody had answered is unanswered again, side effects included
+(the appointment kinds' catalog). A key something else changed while the overlay was open is rolled back too. An
+answer from before any test has nothing to roll back to.
 
 ## Rules
 
@@ -163,10 +183,10 @@ app and in a phone browser: shake, sign-in, the list, the screenshot without the
 the full menu, and a desktop keeping the strip); Android's `ShakeDetectorTest` runs the
 same shake cases.
 
-`public/v1/tests/dev-console.test.ts` (the endpoint and the Setup read: asked, answered, skipped, answered outside a setup), `public/v1/tests/development-leads.test.ts` (the Leads route),
+`public/v1/tests/dev-console.test.ts` (the endpoint, the Setup read and Setup tests: asked again when answered, ended, rolled back to before the first test), `public/v1/tests/development-leads.test.ts` (the Leads route),
 `tests/guided-experiences-flow-browser.test.mjs` (the guided section, folding,
 remembering, the phone tab and More entry, resizing across the project frame) and
-`tests/development-layers-browser.test.mjs` (software layers and synthetic data at
-desktop and phone widths), `tests/dev-console-dock-browser.test.mjs` (docking: fixed
+`tests/development-layers-browser.test.mjs` (Setup, its test overlay with the real player in its frame, the
+phone width, roll back, software layers and synthetic data at desktop and phone widths), `tests/dev-console-dock-browser.test.mjs` (docking: fixed
 layers, vw, media queries, matchMedia, innerWidth, a modal, a frame, folded, open,
 expanded, and a phone not docked).

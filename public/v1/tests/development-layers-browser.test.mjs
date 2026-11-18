@@ -7,7 +7,7 @@ test('dev console: scope-filtered nested contracts and synthetic data fit deskto
  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  try{
   const page=await browser.newPage({viewport:{width:1400,height:950}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  const leadPosts=[];const layers={items:[{id:'projects.profile',layer:'data',origin:'Projects',declarationScope:'global',scopes:['project'],details:{schema:{type:'object',properties:{address:{type:'object',properties:{city:{type:'string'}}}}}}},{id:'custom-fields-project.roof',layer:'data',origin:'Custom fields',declarationScope:'organization',scopes:['project'],details:{schema:{type:'number'}}},{id:'doc.audio',layer:'widgets',origin:'Documents',declarationScope:'global',scopes:['project'],details:{schema:{type:'object'}}},{id:'doc.video',layer:'widgets',origin:'Documents',declarationScope:'global',scopes:['project'],details:{schema:{type:'object'}}},{id:'doc.media.gallery',layer:'widgets',origin:'Documents',declarationScope:'global',scopes:['project'],details:{schema:{type:'object'}}}],projects:[{id:'project',label:'Roof project'}],notes:['Declarations only.']};
+  const leadPosts=[],testCalls=[],saved=[];const layers={items:[{id:'projects.profile',layer:'data',origin:'Projects',declarationScope:'global',scopes:['project'],details:{schema:{type:'object',properties:{address:{type:'object',properties:{city:{type:'string'}}}}}}},{id:'custom-fields-project.roof',layer:'data',origin:'Custom fields',declarationScope:'organization',scopes:['project'],details:{schema:{type:'number'}}},{id:'doc.audio',layer:'widgets',origin:'Documents',declarationScope:'global',scopes:['project'],details:{schema:{type:'object'}}},{id:'doc.video',layer:'widgets',origin:'Documents',declarationScope:'global',scopes:['project'],details:{schema:{type:'object'}}},{id:'doc.media.gallery',layer:'widgets',origin:'Documents',declarationScope:'global',scopes:['project'],details:{schema:{type:'object'}}}],projects:[{id:'project',label:'Roof project'}],notes:['Declarations only.']};
   const at='2026-11-17T15:04:00Z',setupState={steps:[
    {id:'company.type',scope:'organization',title:'What kind of company are you?',requires:[],status:'done',answered_in:{experience_id:'documents.setup',experience_title:'Set up Documents',on_its_own:false,by:'Jack Holt',at},last:null,last_type:'step_done',asked_by:['Set up Documents']},
    {id:'company.services',scope:'organization',title:'What kind of work do you do?',requires:['company.type'],status:'done',answered_in:null,last:null,last_type:null,asked_by:[]},
@@ -15,7 +15,17 @@ test('dev console: scope-filtered nested contracts and synthetic data fit deskto
    guides:[{id:'appointments.setup',title:'Set up your appointments',kind:'modal',scope:'organization',group:'setup',status:'started',step:{id:'company.sales_team',title:'Who does the sales in your company?'},started_at:at,updated_at:at,finished_at:null,finished_by:'',asks:[]},
    {id:'docs.tab_tutorial',title:'Docs tour',kind:'overlay',scope:'person',group:'tour',status:'not_started',step:null,started_at:null,updated_at:null,finished_at:null,finished_by:'',asks:[]}]};
   await page.route('http://development.test/**',async route=>{const url=new URL(route.request().url()),p=url.pathname,json=data=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,...data})});
-   if(p.startsWith('/libraries/'))return route.fulfill({contentType:p.endsWith('.css')?'text/css':'application/javascript',body:await readFile(new URL('../../libraries/'+p.slice(11),import.meta.url),'utf8')});
+   if(p==='/libraries/setup-steps/fm571-stub.js')return route.fulfill({contentType:'application/javascript',body:"export function mount(el,ctx){el.innerHTML='<button type=\"button\" data-stub-pick>Roofing</button>';let picked=false;el.querySelector('[data-stub-pick]').onclick=()=>{picked=true;ctx.change({company_type:'roofing_contractor'},'Roofing');};return{valid:()=>picked,answer:()=>({company_type:'roofing_contractor'}),summary:()=>'Roofing',destroy(){}};}"});
+   if(p.startsWith('/libraries/'))return route.fulfill({contentType:p.endsWith('.css')?'text/css':p.endsWith('.html')?'text/html':'application/javascript',body:await readFile(new URL('../../libraries/'+p.slice(11),import.meta.url),'utf8')});
+   const testCall=p.match(/^\/v1\/signup-sandbox\/development\/console\/setup\/steps\/([^/]+)\/(test|test\/end|rollback)$/);
+   if(testCall){testCalls.push(`${testCall[1]} ${testCall[2]}`);
+    if(testCall[2]==='test')return json({experience:{id:'setup_step.company.type',version:1,kind:'modal',scope:'organization',title:{key:'gx_t',text:'What kind of company are you?'},replayable:true,variant:{id:'default',bucket:0,unit:'u'},triggers:[],progress:null,completion:{action:null,screen:'none',say:[],then:[]},steps:[{id:'company.type',title:{key:'gx_step_company_type_title',text:'What kind of company are you?'},widget:'module',module:'/libraries/setup-steps/fm571-stub.js',options:{},say:[],selects:[],required:true,next:null,setup_step:{id:'company.type',version:1,writes:{action:'company-profile.save',target:'organization'},injected_for:''}}]},test:{status:'open'}});
+    if(testCall[2]==='test/end'){setupState.steps[0].test={step_id:'company.type',status:'ended',first_started_at:at,tests:1,ended_at:at,changes:[{branch_id:'default',module:'company_profile',key:'company_type'}]};return json({test:setupState.steps[0].test});}
+    setupState.steps[0].test=null;return json({restored:['company_profile.company_type'],events:2});
+   }
+   if(p.startsWith('/v1/publication/')){if(p.endsWith('/actions/invoke'))saved.push(route.request().postDataJSON());return json({result:{status:'ready',value:{}}});}
+   if(p.startsWith('/v1/platform/'))return json({});
+   if(p.startsWith('/v1/guided-experiences/'))return json({experiences:[]});
    if(p==='/v1/signup-sandbox/development/console/setup')return json(setupState);
    if(p==='/v1/signup-sandbox/development/console')return json({sections:{setup:true,test_run:false,synthetic_data:true,synthetic_leads:true,software_layers:true,guided:false,live:false}});
    if(p==='/v1/signup-sandbox/development/software-layers')return json(url.searchParams.get('projectId')?{...layers,items:layers.items.filter(item=>item.declarationScope==='organization')}:layers);
@@ -41,6 +51,29 @@ test('dev console: scope-filtered nested contracts and synthetic data fit deskto
   assert.equal(await page.locator('.fm-dc-setup-tours').evaluate(el=>el.open),false,'tours are folded');
   await page.locator('[data-dc-setup-row="step:company.sales_team"]').click();
   assert.match(await page.locator('[data-dc-setup-row="step:company.sales_team"] .fm-dc-setup-more').innerText(),/Asked after: What kind of company are you\?/);
+  // Test (FM-571): the question in an overlay, played by the real setup player in a frame, saved, then rolled back.
+  await page.evaluate(()=>{window.__APP={userOrgId:'org_t',userId:'u1'};});
+  await page.locator('[data-dc-setup-test="company.type"]').click();
+  const overlay=page.locator('.fm-dc-test');await overlay.waitFor();
+  const frame=page.frameLocator('.fm-dc-test iframe');
+  await frame.locator('[data-stub-pick]').click();
+  await overlay.locator('[data-test-state]').filter({hasText:'Testing'}).waitFor();
+  // Desktop switches the frame between widths without restarting the step.
+  await overlay.locator('[data-test-device="phone"]').click();
+  await page.waitForFunction(()=>Math.round(document.querySelector('.fm-dc-test iframe').getBoundingClientRect().width)<=390);
+  assert.equal(await frame.locator('[data-stub-pick]').count(),1,'still on the step');
+  assert.ok(await frame.locator('body').evaluate(()=>innerWidth<=390),'the step lays out as on a phone');
+  await frame.getByRole('button',{name:/continue|finish|done/i}).last().click();
+  await overlay.locator('[data-test-state]').filter({hasText:'Answered.'}).waitFor();
+  assert.deepEqual(testCalls,['company.type test','company.type test/end']);
+  assert.ok(saved.some(body=>JSON.stringify(body).includes('roofing_contractor')),'the answer was saved through its action');
+  await overlay.locator('[data-test-rollback]:not([hidden])').waitFor();
+  page.once('dialog',dialog=>{assert.match(dialog.message(),/company_profile \(company_type\)/);dialog.accept();});
+  await overlay.locator('[data-test-rollback]').click();
+  await overlay.locator('[data-test-state]').filter({hasText:'Rolled back.'}).waitFor();
+  assert.equal(testCalls.at(-1),'company.type rollback');
+  await overlay.locator('[data-test-close]').click();
+  assert.equal(await page.locator('.fm-dc-test').count(),0);
   await page.locator('[data-dc-section="layers"]').click();await page.getByText('5 of 5 declarations',{exact:true}).waitFor();
   assert.equal(await page.locator('[data-namespace="doc"]').count(),1);
   assert.equal(await page.getByText('doc.audio',{exact:true}).count(),0);

@@ -3,9 +3,17 @@
  * (docs/architecture/setup-steps.md): answered once, by whichever setup asks first; each says where it was answered,
  * asked or skipped. Guided setups and tours are guided experiences with their progress; app setups are the app
  * catalog's setup workflows (libraries/app-setup-workflows), read from the page. Hover (or tap) a row for where and
- * when. GET /v1/signup-sandbox/development/console/setup; reads only.
+ * when. GET /v1/signup-sandbox/development/console/setup.
+ *
+ * Each question can be tested: Test opens it in an overlay (../setup-test.html in a frame, played by the real setup
+ * player even when answered, saved for real). On a desktop the overlay switches the frame between desktop, tablet and
+ * phone widths; on a phone it is the phone. Roll back puts back every value its tests changed, its progress and events
+ * (development/setup-tests.ts).
  */
-export function mount(root, { api, T, esc }) {
+const DEVICES = { desktop: ['fa-desktop', ['dc_setup_desktop', 'Desktop']], tablet: ['fa-tablet-screen-button', ['dc_setup_tablet', 'Tablet']], phone: ['fa-mobile-screen-button', ['dc_setup_phone', 'Phone']] };
+let device = 'desktop';
+
+export function mount(root, { api, T, esc, toast, phone, VERSION }) {
   let token = 0, data = null, apps = [];
   const open = new Set();
   const STATUS = {
@@ -34,6 +42,7 @@ export function mount(root, { api, T, esc }) {
     } else short = T('dc_setup_never_asked', 'Never asked');
     if (step.asked_by.length) lines.push(`${T('dc_setup_asked_by', 'Asked by')}: ${step.asked_by.join(', ')}`);
     if (step.requires.length) lines.push(`${T('dc_setup_requires', 'Asked after')}: ${step.requires.map((id) => data.steps.find((other) => other.id === id)?.title || id).join(', ')}`);
+    if (step.test) lines.push(`${T('dc_setup_tested', 'Tested')} ×${step.test.tests} ${T('dc_setup_since', 'since')} ${when(step.test.first_started_at)}. ${restores(step.test)}`);
     lines.push(`${step.id}${step.scope === 'person' ? ` · ${T('dc_setup_per_person', 'each person answers')}` : ''}`);
     return { short, lines };
   }
@@ -61,12 +70,22 @@ export function mount(root, { api, T, esc }) {
     return { short, lines };
   }
 
-  function row(kind, id, title, status, { short, lines }) {
+  /** What roll back puts back, from the test's changes (module.key). */
+  function restores(test) {
+    if (!test.changes.length) return T('dc_setup_restores_nothing', 'Nothing it saved yet; roll back only forgets the test.');
+    const byModule = new Map();
+    for (const change of test.changes) byModule.set(change.module, [...(byModule.get(change.module) || []), change.key]);
+    return `${T('dc_setup_restores', 'Roll back restores')} ${[...byModule].map(([module, keys]) => `${module} (${keys.join(', ')})`).join('; ')}.`;
+  }
+  /** Test and Roll back under a question. */
+  const stepActions = (step) => `<span class="fm-dc-setup-acts"><button type="button" class="fm-dc-btn" data-dc-setup-test="${esc(step.id)}"><i class="fas fa-play" aria-hidden="true"></i> ${esc(T('dc_setup_test', 'Test'))}</button>${step.test ? `<button type="button" class="fm-dc-btn" data-dc-setup-rollback="${esc(step.id)}"><i class="fas fa-rotate-left" aria-hidden="true"></i> ${esc(T('dc_setup_rollback', 'Roll back'))}</button>` : ''}</span>`;
+
+  function row(kind, id, title, status, { short, lines }, actions = '') {
     const [icon, tone, label] = STATUS[status] || STATUS.not_started;
     const key = `${kind}:${id}`, expanded = open.has(key);
     return `<li class="fm-dc-row fm-dc-setup-row" data-dc-setup-row="${esc(key)}" title="${esc(lines.join('\n'))}" aria-expanded="${expanded}" tabindex="0">
       <i class="fas ${icon} fm-dc-setup-icon ${tone}" aria-hidden="true"></i>
-      <span><strong>${esc(title)}</strong>${short ? `<small>${esc(short)}</small>` : ''}${expanded ? `<small class="fm-dc-setup-more">${lines.map(esc).join('<br>')}</small>` : ''}</span>
+      <span><strong>${esc(title)}</strong>${short ? `<small>${esc(short)}</small>` : ''}${expanded ? `<small class="fm-dc-setup-more">${lines.map(esc).join('<br>')}</small>` : ''}${actions}</span>
       <span class="fm-dc-badge ${tone}">${esc(T(...label))}</span></li>`;
   }
   const count = (list) => `${list.filter((entry) => entry.status === 'done').length}/${list.length}`;
@@ -80,7 +99,7 @@ export function mount(root, { api, T, esc }) {
     const tours = data.guides.filter((guide) => guide.group === 'tour').sort(byState);
     root.innerHTML = `<p class="fm-dc-intro">${esc(T('dc_setup_intro', 'Every setup this organization has been through. Hover or tap a row for where and when it was done.'))}</p>
       <div class="fm-dc-actions"><button type="button" class="fm-dc-btn" data-dc-setup-reload><i class="fas fa-arrows-rotate" aria-hidden="true"></i> ${esc(T('dc_setup_reload', 'Refresh'))}</button></div>
-      ${group(T('dc_setup_questions', 'Questions asked once'), data.steps, (step) => row('step', step.id, step.title, step.status, stepLines(step)), T('dc_setup_questions_note', 'Setup steps: whichever setup asks first saves the answer; the others skip it.'))}
+      ${group(T('dc_setup_questions', 'Questions asked once'), data.steps, (step) => row('step', step.id, step.title, step.status, stepLines(step), stepActions(step)), T('dc_setup_questions_note', 'Setup steps: whichever setup asks first saves the answer; the others skip it. Test asks one again and saves it for real; Roll back undoes its tests.'))}
       ${group(T('dc_setup_guided', 'Guided setups'), setups, (guide) => row('guide', guide.id, guide.title, guide.status, guideLines(guide)))}
       ${group(T('dc_setup_apps', 'App setups'), apps, (app) => row('app', app.key, app.label, app.status, appLines(app)))}
       ${tours.length ? `<details class="fm-dc-setup-tours"${open.has('tours') ? ' open' : ''}><summary class="fm-dc-h">${esc(T('dc_setup_tours', 'Tours'))} · ${count(tours)}</summary><ul class="fm-dc-list">${tours.map((guide) => row('guide', guide.id, guide.title, guide.status, guideLines(guide))).join('')}</ul></details>` : ''}`;
@@ -117,13 +136,92 @@ export function mount(root, { api, T, esc }) {
   };
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-dc-setup-reload]')) { load(); return; }
+    const test = event.target.closest('[data-dc-setup-test]');
+    if (test) { openTest(test.dataset.dcSetupTest); return; }
+    const back = event.target.closest('[data-dc-setup-rollback]');
+    if (back) { rollback(back.dataset.dcSetupRollback); return; }
     const rowEl = event.target.closest('[data-dc-setup-row]');
     if (rowEl) toggle(rowEl);
   });
   root.addEventListener('keydown', (event) => {
     const rowEl = event.target.closest?.('[data-dc-setup-row]');
-    if (rowEl && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); toggle(rowEl); }
+    if (rowEl && event.target === rowEl && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); toggle(rowEl); }
   });
+  const stepOf = (id) => data?.steps.find((step) => step.id === id) || null;
+  const base = (id) => `/v1/signup-sandbox/development/console/setup/steps/${encodeURIComponent(id)}`;
+
+  async function rollback(id, after) {
+    const step = stepOf(id);
+    if (!step?.test) return;
+    const ok = await Promise.resolve(window.confirm(`${T('dc_setup_rollback_confirm', 'Roll back')} “${step.title}”? ${restores(step.test)} ${T('dc_setup_rollback_events', 'Its progress and the events its tests recorded go too.')}`));
+    if (!ok) return;
+    try {
+      const result = await api(`${base(id)}/rollback`, { method: 'POST', body: {} });
+      toast(result.restored?.length ? T('dc_setup_rolled_back', 'Rolled back. Reload the page to see it everywhere.') : T('dc_setup_rolled_back_nothing', 'Rolled back; the test had saved nothing.'));
+    } catch (error) { toast(error.message); }
+    await load();
+    after?.();
+  }
+
+  /**
+   * The test overlay: the step in a frame (../setup-test.html). On a desktop it covers the page beside the console and
+   * switches the frame's width; on a phone it covers everything and is the phone.
+   */
+  function openTest(id) {
+    const step = stepOf(id);
+    if (!step) return;
+    document.querySelector('.fm-dc-test')?.dispatchEvent(new Event('fm-dc-test-close'));
+    const small = phone();
+    const shell = document.createElement('div');
+    shell.className = `fm-dc-test${small ? ' fm-dc-test-phone' : ''}`;
+    shell.setAttribute('data-fmr-ignore', ''); shell.setAttribute('role', 'dialog'); shell.setAttribute('aria-modal', 'true');
+    shell.setAttribute('aria-label', `${T('dc_setup_test', 'Test')}: ${step.title}`);
+    const src = () => `/libraries/dev-console/setup-test.html?step=${encodeURIComponent(id)}&v=${encodeURIComponent(VERSION)}&t=${Date.now()}`;
+    shell.innerHTML = `<header class="fm-dc-test-bar">
+        <span class="fm-dc-test-title"><strong>${esc(step.title)}</strong><small data-test-state>${esc(T('dc_setup_test_loading', 'Loading…'))}</small></span>
+        ${small ? '' : `<span class="fm-dc-test-devices" role="group" aria-label="${esc(T('dc_setup_device', 'Device'))}">${Object.entries(DEVICES).map(([key, [icon, label]]) => `<button type="button" data-test-device="${key}" aria-pressed="${key === device}" title="${esc(T(...label))}"><i class="fas ${icon}" aria-hidden="true"></i><span>${esc(T(...label))}</span></button>`).join('')}</span>`}
+        <span class="fm-dc-test-acts"><button type="button" class="fm-dc-btn" data-test-again hidden><i class="fas fa-play" aria-hidden="true"></i> ${esc(T('dc_setup_test_again', 'Test again'))}</button><button type="button" class="fm-dc-btn" data-test-rollback hidden><i class="fas fa-rotate-left" aria-hidden="true"></i> ${esc(T('dc_setup_rollback', 'Roll back'))}</button><button type="button" class="fm-dc-btn" data-test-close aria-label="${esc(T('dc_setup_test_close', 'Close'))}" title="${esc(T('dc_setup_test_close', 'Close'))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></span>
+      </header>
+      <div class="fm-dc-test-stage" data-device="${small ? 'native' : device}"><iframe title="${esc(step.title)}" src="${esc(src())}"></iframe></div>`;
+    // Over the page beside the console on a desktop (the docked body holds fixed layers); over everything on a phone.
+    (small ? document.documentElement : document.body).append(shell);
+    const frame = shell.querySelector('iframe'), stateEl = shell.querySelector('[data-test-state]');
+    const tested = () => { shell.querySelector('[data-test-rollback]').hidden = !stepOf(id)?.test; };
+    let playing = false;
+    const onMessage = (event) => {
+      if (event.origin !== location.origin || event.source !== frame.contentWindow || event.data?.type !== 'fm-dc-setup-test' || event.data.step !== id) return;
+      const { state, outcome, message } = event.data;
+      playing = state === 'playing';
+      stateEl.textContent = state === 'playing' ? T('dc_setup_test_playing', 'Testing: answers are saved for real.')
+        : state === 'failed' ? message || T('dc_setup_test_failed', 'The test could not start.')
+        : outcome?.status === 'completed' ? T('dc_setup_test_answered', 'Answered.') : T('dc_setup_test_closed', 'Closed without finishing.');
+      shell.querySelector('[data-test-again]').hidden = state === 'playing';
+      load().then(tested);
+    };
+    window.addEventListener('message', onMessage);
+    const close = () => {
+      window.removeEventListener('message', onMessage); document.removeEventListener('keydown', onKey, true);
+      // A test closed while it plays is ended here: its frame is gone before it can say so.
+      if (playing) api(`${base(id)}/test/end`, { method: 'POST', body: {} }).catch(() => null).finally(load);
+      shell.remove();
+    };
+    const onKey = (event) => { if (event.key === 'Escape' && !playing) { event.stopPropagation(); close(); } };
+    document.addEventListener('keydown', onKey, true);
+    shell.addEventListener('fm-dc-test-close', close);
+    shell.addEventListener('click', (event) => {
+      const pick = event.target.closest('[data-test-device]');
+      if (pick) {
+        device = pick.dataset.testDevice;
+        shell.querySelector('.fm-dc-test-stage').dataset.device = device;
+        shell.querySelectorAll('[data-test-device]').forEach((button) => button.setAttribute('aria-pressed', String(button === pick)));
+      }
+      if (event.target.closest('[data-test-close]')) close();
+      if (event.target.closest('[data-test-again]')) { playing = false; stateEl.textContent = T('dc_setup_test_loading', 'Loading…'); frame.src = src(); }
+      if (event.target.closest('[data-test-rollback]')) rollback(id, () => { tested(); stateEl.textContent = T('dc_setup_test_rolled_back', 'Rolled back.'); });
+    });
+    tested();
+  }
+
   root.addEventListener('toggle', (event) => { if (event.target.matches?.('.fm-dc-setup-tours')) event.target.open ? open.add('tours') : open.delete('tours'); }, true);
   load();
   return { shown: load };
