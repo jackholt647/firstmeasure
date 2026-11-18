@@ -245,6 +245,10 @@
         </section>`;
       document.body.appendChild(host);
       const releasePage = G()?.holdPage ? G().holdPage(host) : () => {};
+      // The phone's back control is the sheet's Back (FM-554): one history entry per step behind the one on screen, and
+      // one more that leaves the first step. Back on the finish closes it, as the X does.
+      const backHistory = root.Portal?.navigation?.steps?.({ onBack: (count) => { for (let n = 0; n < count && !closed; n += 1) pressBack(); syncBack(); } }) || null;
+      const syncBack = () => backHistory?.depth(closed || (finished && !doneWaiter) ? 0 : doneWaiter ? (bookPane ? 2 : 1) : (visited.length || index) + 1);
       const $ = (selector) => host.querySelector(selector);
       const stage = $('.gxs-stage'), status = $('.gxs-status'), chat = $('.gxs-chat');
       /**
@@ -466,6 +470,7 @@
         }
         footer();
         fitTo(el);
+        syncBack();
         setTimeout(() => { if (generation === paneGeneration) el.querySelector('button,input')?.focus?.({ preventScroll: true }); }, reduced() ? 0 : 450);
         track('step_view', { step_id: step.id, selections });
       }
@@ -550,7 +555,7 @@
           const lines = array(experience.completion?.say).map((copy) => L(copy));
           persist({ phase: 'done', choice: choice || '' });
           say(lines, choice, 'done');
-          const how = await new Promise((resolveDone) => { doneWaiter = resolveDone; });
+          const how = await new Promise((resolveDone) => { doneWaiter = resolveDone; syncBack(); });
           book?.destroy?.(); book = null;
           const handoff = agentic && array(experience.completion?.then).some((entry) => entry.handoff === 'assistant_tray');
           await close(handoff ? 'handoff' : 'plain');
@@ -587,6 +592,7 @@
           done?.classList.remove('gxs-above'); if (done) { done.inert = false; done.removeAttribute('aria-hidden'); }
           setHeadTitle('');
           foot.querySelector('[data-gxs=view]').focus({ preventScroll: true });
+          syncBack();
           return;
         }
         if (bookPane) return;
@@ -594,6 +600,7 @@
         const pane = document.createElement('div'); pane.className = 'gxs-step gxs-book-step' + (reduced() ? '' : ' gxs-below'); pane.dataset.fill = ''; pane.dataset.gxStep = 'pricebook';
         pane.innerHTML = `<div class="gxs-titlebar"><h2>${H('gx_ui_book_title', 'Your price book')}</h2><div class="gxs-title-actions"><span class="gxs-book-count">${ids.size} ${H('gx_ui_book_items', 'items set up')}</span></div></div><div class="gxs-body"><div class="gxs-book"></div></div>`;
         stage.appendChild(pane); bookPane = pane;
+        syncBack();
         setHeadTitle(H('gx_ui_book_title', 'Your price book'));
         if (done) { done.classList.add('gxs-above'); done.inert = true; done.setAttribute('aria-hidden', 'true'); }
         requestAnimationFrame(() => requestAnimationFrame(() => pane.classList.remove('gxs-below')));
@@ -645,7 +652,7 @@
         const action = event.target.closest?.('[data-gxs]')?.dataset.gxs;
         if (action === 'next') next(false);
         else if (action === 'skip') next(true);
-        else if (action === 'back' && !doneWaiter && (visited.length || index > 0)) { track('back', { step_id: steps[index].id }); show(visited.length ? visited.pop() : index - 1, -1); }
+        else if (action === 'back' && !doneWaiter && (visited.length || index > 0)) back();
         else if (action === 'generate' && doneWaiter) { const go = doneWaiter; doneWaiter = null; go('generate'); }
         else if (action === 'view' && doneWaiter) showPricebook(true);
         else if (action === 'book-back' && doneWaiter) showPricebook(false);
@@ -654,6 +661,20 @@
         else if (action === 'keep') keepGoing();
         else if (action === 'dismiss' && !host.dataset.dismissing) { host.dataset.dismissing = 'true'; (async () => { await track('dismiss', { step_id: steps[index]?.id, selections }); await close('plain'); resolve({ status: 'dismissed' }); })(); }
       });
+      function back(){ track('back', { step_id: steps[index].id }); show(visited.length ? visited.pop() : index - 1, -1); }
+      /**
+       * The phone's back control, as Escape does with one difference: on a step with steps behind it, it goes back one.
+       * A step saving, or hidden under a guide it runs, stays where it is.
+       */
+      function pressBack(){
+        if (host.hidden) return;
+        if (host.querySelector('.gxs-ask')) keepGoing();
+        else if (doneWaiter && bookPane) showPricebook(false);
+        else if (doneWaiter) { const go = doneWaiter; doneWaiter = null; go(); }
+        else if (busy || mounted?.escape?.() === true) return;
+        else if (visited.length || index > 0) back();
+        else confirmSkip();
+      }
       // Escape never reaches the page (the project window closes on it). A step that has something of its own open
       // (a dropdown) closes that first: its `escape()` returns true.
       const onKey = (event) => { if (event.key === 'Escape' && !closed) { event.preventDefault(); event.stopPropagation(); if (!doneWaiter && !host.querySelector('.gxs-ask') && mounted?.escape?.() === true) return; if (doneWaiter && bookPane) showPricebook(false); else if (doneWaiter) { const go = doneWaiter; doneWaiter = null; go(); } else if (host.querySelector('.gxs-ask')) keepGoing(); else confirmSkip(); } };
@@ -662,6 +683,8 @@
       /** Closes the sheet. `handoff` flies the conversation to the project's agent tray, which opens with it. */
       async function close(mode){
         closed = true;
+        // The sheet's history entries come off first, so whatever opens next adds its own after the page's.
+        const unwound = backHistory?.release() || Promise.resolve();
         fitSize?.disconnect(); fitFill?.disconnect();
         document.removeEventListener('keydown', onKey, true);
         mounted?.destroy?.();
@@ -673,6 +696,7 @@
         host.remove();
         releasePage();
         try { previousFocus?.focus?.({ preventScroll: true }); } catch (_) {}
+        await unwound;
       }
       /**
        * The hand-off, one choreographed transition on a single timeline (one duration, one easing, started on the same
