@@ -710,15 +710,22 @@ export function mount(el, ctx){
         el.innerHTML = `<div class="gxd"><p>${esc(t('prices_none', 'Your price book has nothing for these yet. Skip this step and set your prices in the price book any time.'))}</p></div>`;
         return;
       }
-      // Back from a later step: the lines as they were left, new ones included.
-      const on = givenLines ? new Set(array(givenLines.on)) : null;
+      // Back from a later step (or the setup played again): the lines as they were left, new ones included. A new line
+      // a finish already wrote is in the price book now, by its name: it is that item.
+      const byName = new Map([...items, ...array(sheet.catalog)].map((item) => [clean(item.name).toLowerCase(), item]));
+      const written = new Map(array(givenLines?.new_items).filter((entry) => byName.has(clean(entry.name).toLowerCase())).map((entry) => [entry.key, byName.get(clean(entry.name).toLowerCase())]));
+      const on = givenLines ? new Set(array(givenLines.on).map((id) => written.get(id)?.id || id)) : null;
       lines = items.map((item) => lineFrom(item, on ? on.has(item.id) : item.on !== false));
       if (givenLines) {
-        for (const id of array(givenLines.on)) {
+        for (const id of on) {
           const item = array(sheet.catalog).find((entry) => entry.id === id);
           if (item && !lines.some((line) => line.id === id)) lines.push(lineFrom(item, true));
         }
-        for (const entry of array(givenLines.new_items)) lines.push({ id: entry.key, name: entry.name, unit: entry.unit, category: '', book: null, price: priceText(entry.unit_price), on: true, isNew: true, initial: false, terms: termsOf(array(entry.formula)) || [{ factor: 1, key: '' }], waste: !!entry.include_waste, formula: '' });
+        for (const entry of array(givenLines.new_items)) {
+          const item = written.get(entry.key);
+          if (item) { const line = lines.find((candidate) => candidate.id === item.id); if (line && entry.unit_price !== line.book) line.price = priceText(entry.unit_price); continue; }
+          lines.push({ id: entry.key, name: entry.name, unit: entry.unit, category: '', book: null, price: priceText(entry.unit_price), on: true, isNew: true, initial: false, terms: termsOf(array(entry.formula)) || [{ factor: 1, key: '' }], waste: !!entry.include_waste, formula: '' });
+        }
       }
       phase = givenLines || given.size ? 'list' : 'start';
       draw();
