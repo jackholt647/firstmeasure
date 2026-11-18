@@ -79,7 +79,7 @@ function choicesFor(part, selections){
   if (part === 'kind') return { key: 'document_kind', choices: [
     c('proposal', 'fa-file-signature', 'kind_proposal', 'Proposal', 'Price the work for your customer to approve and sign.'),
     c('invoice', 'fa-file-invoice-dollar', 'kind_invoice', 'Invoice', 'Bill a deposit, the balance or extra charges.'),
-    c('change_order', 'fa-file-pen', 'kind_change_order', 'Change order', 'Add or change work on a signed agreement.'),
+    c('change_order', 'fa-pen-to-square', 'kind_change_order', 'Change order', 'Add or change work on a signed agreement.'),
     c('completion_certificate', 'fa-award', 'kind_certificate', 'Completion certificate', 'Your customer signs off that the work is done.')
   ] };
   if (part === 'presentation') return { key: 'presentation', choices: [
