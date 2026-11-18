@@ -142,6 +142,9 @@ export async function startCommsSetup(ctx: PublicationContext, value: unknown) {
     await ensureOrgEmailInbox(ctx.organizationId, auth.branchId || "default");
   } else {
     await saveCapabilityValues(ctx.organizationId, PHONE_SWITCHES);
+    // FM-584: the company inbox is live as soon as any channel is: the hosted SMS policy pages give it as the contact
+    // address, and mail to it lands in Communications (with a notification) even before email is set up.
+    await ensureOrgEmailInbox(ctx.organizationId, auth.branchId || "default");
     // On development there is no carrier: registration is simulated, and once it is submitted the shared test line
     // stands in for the number (as Phone Settings' "Skip to fully onboarded"). Before that, the setup runs the workflow.
     const development = await developmentCallStatus(ctx.organizationId);

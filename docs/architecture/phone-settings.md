@@ -46,6 +46,13 @@ domain, but a generic FirstMate policy would be refused. So FirstMate hosts one 
   out. A save is refused if it uses an unknown placeholder, if the title does not name the business, if the page
   gives no contact details, if the privacy policy drops the no-sharing statement, or if the terms drop STOP, HELP,
   frequency, rates or the privacy link. Edit it with `node tools/config-library/cli.mjs`; no release.
+- `{{support_email}}` is the company inbox when there is one (FM-584, `orgPublicEmailAddress` in `email/engine.ts`): the
+  company's own domain once its email records check out, else its FirstMate Mail address; the registration's typed
+  email only before either exists. Mail to it lands in the Communications inbox and notifies like any inbound email,
+  whether or not the sender is a customer and whether or not email is set up. The inbox is created as soon as any
+  channel is set up (`startCommsSetup`) or a registration is saved (`ensureDefaultSenderIdentities`).
+- The page is self-contained (inline CSS, system fonts, no scripts or images): the business name and initials, both
+  pages as tabs, numbered sections with an on-this-page list and a contact card, with dark mode and print styles.
 - Campaign submission accepts exactly the registration's own hosted URLs without fetching them (it checks the business
   name, the contact details and the wording instead). Any other link must still be a public HTTPS page on the
   registered business website (`verifyPublicPolicyUrl`).

@@ -65,7 +65,10 @@ function displayPhone(value: unknown) {
   return us.length === 10 ? `(${us.slice(0, 3)}) ${us.slice(3, 6)}-${us.slice(6)}` : clean(value);
 }
 
-function smsPolicyValues(profile: { id: string; external_organization_id: string; brand?: unknown; campaign?: unknown }): Record<Placeholder, string> {
+/** What the page is given besides the registration: the business's public email (FM-584), from its mail setup. */
+export type HostedSmsPolicyOptions = { supportEmail?: string };
+
+function smsPolicyValues(profile: { id: string; external_organization_id: string; brand?: unknown; campaign?: unknown }, options: HostedSmsPolicyOptions = {}): Record<Placeholder, string> {
   const brand = asObject(profile.brand);
   const person = [clean(brand.firstName), clean(brand.lastName)].filter(Boolean).join(" ");
   const brandName = clean(brand.displayName) || clean(brand.companyName) || person;
@@ -78,7 +81,8 @@ function smsPolicyValues(profile: { id: string; external_organization_id: string
     brand_name: brandName,
     legal_name: legalName.toLowerCase() === brandName.toLowerCase() ? "" : legalName,
     website: website && !/^https?:\/\//i.test(website) ? `https://${website}` : website,
-    support_email: clean(brand.email),
+    // The company inbox (its own domain, else FirstMate Mail) so mail reaches Communications; the typed email otherwise.
+    support_email: clean(options.supportEmail) || clean(brand.email),
     support_phone: displayPhone(brand.phone),
     address: [clean(brand.street), clean(brand.address2), clean(brand.city), [clean(brand.state), clean(brand.postalCode)].filter(Boolean).join(" ")].filter(Boolean).join(", "),
     message_types: messages.length > 1 ? `${messages.slice(0, -1).join(", ")} and ${messages[messages.length - 1]}` : messages[0] || "updates about your service",
@@ -118,8 +122,8 @@ function pageWording(page: SmsPolicyPageId) {
 }
 
 /** Why this registration's hosted pages cannot be published yet (empty when they can). */
-export function hostedSmsPolicyProblems(profile: { id: string; external_organization_id: string; brand?: unknown; campaign?: unknown }) {
-  const values = smsPolicyValues(profile);
+export function hostedSmsPolicyProblems(profile: { id: string; external_organization_id: string; brand?: unknown; campaign?: unknown }, options: HostedSmsPolicyOptions = {}) {
+  const values = smsPolicyValues(profile, options);
   const problems: string[] = [];
   if (!values.brand_name) problems.push("Add the business name before using FirstMate's hosted policy pages.");
   if (!values.support_email && !values.support_phone) problems.push("Add a support email or phone number before using FirstMate's hosted policy pages.");
@@ -195,10 +199,10 @@ article p{margin:0 0 12px}article p:last-child{margin-bottom:0}article p.detail{
 @media print{:root{--bg:#fff;--card:#fff;--shadow:none}.tabs,.toc{display:none}.layout{display:block}article{border:0;padding:0}aside{margin-top:24px}a{color:inherit}}`;
 
 /** The page as HTML, or null when the registration has none (not hosted, or not ready). */
-export function renderHostedSmsPolicyPage(profile: { id: string; external_organization_id: string; brand?: unknown; campaign?: unknown }, page: SmsPolicyPageId) {
-  if (!usesHostedSmsPolicies(profile.campaign) || hostedSmsPolicyProblems(profile).length) return null;
+export function renderHostedSmsPolicyPage(profile: { id: string; external_organization_id: string; brand?: unknown; campaign?: unknown }, page: SmsPolicyPageId, options: HostedSmsPolicyOptions = {}) {
+  if (!usesHostedSmsPolicies(profile.campaign) || hostedSmsPolicyProblems(profile, options).length) return null;
   const wording = pageWording(page)!;
-  const values = smsPolicyValues(profile);
+  const values = smsPolicyValues(profile, options);
   const title = fill(wording.title, values);
   const names = { [values.privacy_url]: PAGE_NAMES.privacy, [values.terms_url]: PAGE_NAMES.terms };
   const paragraphs = (list: readonly string[]) => list.map((text) => fill(text, values)).filter(Boolean)

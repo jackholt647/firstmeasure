@@ -32,6 +32,9 @@ test('Communications setup turns on texts or email as the person, and reports wh
   assert.equal(phone.value.phone.texts, true);
   for (const key of ['comms.sms', 'apps.messaging', 'platform.sms_settings']) assert.equal(await capabilities.isCapabilityEnabled(orgId, key), true, key);
   assert.equal(await capabilities.isCapabilityEnabled(orgId, 'comms.email'), false, 'texts and calls leave email alone');
+  // FM-584: the company inbox (FirstMate Mail) exists as soon as any channel does, so mail to it reaches Communications.
+  const { orgPublicEmailAddress } = await import('../email/engine.js');
+  assert.match(await orgPublicEmailAddress(orgId), /^commssetuptest@/, 'texts and calls create the FirstMate Mail inbox');
   // FM-510: the setup runs carrier registration next, and the status says where it stands (read without creating anything).
   assert.equal(phone.value.phone.registration, 'none');
   assert.deepEqual(phone.value.phone.channels, { texts: 'setup', calls: 'setup' }, 'FM-588: turning texts on is not texts working');
