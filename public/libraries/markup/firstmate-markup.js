@@ -2203,6 +2203,8 @@
       if (audio) { audio.pause?.(); audio.hidden = true; audio.removeAttribute('src'); }
       const fallback = this.el.querySelector('[data-media-fallback]');
       if (fallback) fallback.hidden = true;
+      const videoEditDock = this.el.querySelector('[data-video-editdock]');
+      if (videoEditDock) videoEditDock.hidden = true;
       const state = this.emptyState || {};
       const empty = this.el.querySelector('[data-media-empty]');
       if (empty) {
@@ -2836,7 +2838,7 @@
               <button type="button" class="fm-photo-nav next" data-photo-next aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_next","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button>
               <div class="fmv-zoom" data-media-zoom><button type="button" data-zoom-out aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_zoom_out","Zoom out") ?? "Zoom out")}"><i class="fas fa-minus"></i></button><button type="button" data-zoom-reset title="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_zoom_fit","Fit to screen") ?? "Fit to screen")}">100%</button><button type="button" data-zoom-in aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_zoom_in","Zoom in") ?? "Zoom in")}"><i class="fas fa-plus"></i></button></div>
               <div class="fm-photo-mobile-bar"><button type="button" class="fm-photo-details-btn" data-photo-details aria-expanded="false" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_mobile_details_label","Details and comments") ?? "Details and comments")}"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_mobile_details","Details") ?? "Details")}<span data-photo-mobile-counter></span></button></div>
-              <div class="fm-video-editdock" data-video-editdock>
+              <div class="fm-video-editdock" data-video-editdock hidden>
                 <button type="button" class="r-proposal-markup-btn" data-video-edit data-fm-tooltip="Edit Video" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_297d0c5325cbc2","Edit video") ?? "Edit video")}"><i class="fas fa-scissors"></i></button>
               </div>
             </div>

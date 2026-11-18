@@ -171,3 +171,37 @@ test('without the shared carousel the rail falls back to its own stage and films
     assert.deepEqual(errors, []);
   } finally { await browser.close(); await new Promise((resolve) => server.close(resolve)); }
 });
+
+test('an empty project shows no Edit video button beside "No photos yet"; a video still has it (FM-617)', async () => {
+  const server = await serve();
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const tab = await browser.newPage({ viewport: { width: 1000, height: 820 } });
+    const errors = []; tab.on('pageerror', (error) => errors.push(String(error)));
+    await tab.goto(`http://127.0.0.1:${server.address().port}/`);
+    await tab.evaluate(fixture);
+    await tab.evaluate(async () => {
+      window.FirstMateVideoEditor = { isSupported: () => true };
+      PlatformAPI.media.list = async () => ({ media: [] });
+      widgetContext.read = async () => ({ status: 'ready', value: { media: [] } });
+      const mod = await import('/libraries/apps/materials/rail-media.js?v=20261118-fm616-doc-previews');
+      const stage = document.createElement('div'); stage.style.cssText = 'position:relative;height:700px'; document.querySelector('aside').append(stage);
+      window.view = mod.mountRailPhotos(stage, { context: widgetContext, host });
+      view.setVisible(true);
+    });
+    await tab.getByText('No photos yet', { exact: true }).waitFor();
+    assert.equal(await tab.locator('[data-video-editdock]').count(), 1);
+    assert.equal(await tab.locator('[data-video-editdock]').isVisible(), false);
+    await tab.evaluate(() => view.destroy());
+
+    await tab.evaluate(async () => {
+      PlatformAPI.media.list = async () => ({ media: [{ id: 'clip', kind: 'video', owner: { type: 'project', id: 'project' }, metadata: { name: 'Walkthrough', content_type: 'video/mp4', uploaded_at: '2026-10-22T12:00:00.000Z' } }] });
+      const mod = await import('/libraries/apps/materials/rail-media.js?v=20261118-fm616-doc-previews');
+      const stage = document.createElement('div'); stage.style.cssText = 'position:relative;height:700px'; document.querySelector('aside').append(stage);
+      window.view = mod.mountRailPhotos(stage, { context: widgetContext, host });
+      view.setVisible(true);
+    });
+    await tab.locator('[data-video-editdock]:visible').waitFor();
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); await new Promise((resolve) => server.close(resolve)); }
+});
