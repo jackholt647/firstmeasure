@@ -31,6 +31,11 @@ import { MEASUREMENT_FIELDS, PRICEBOOK_FORMULA_TOKEN_TYPES, PRICEBOOK_OPERATORS,
  * `pricebook.prices.update`), and each proposal's prices can still be changed on that proposal. What was answered is
  * kept in the default branch's `document_setup` module, apart from the templates. The first proposal style chosen there
  * is also the organization's style for new documents (`default_theme_id`, FM-612; settings.ts readDefaultDocumentThemeId).
+ *
+ * After the style, the person reads the template's own wording and may change it (FM-614): its copy is every text node of
+ * fixed words on its pages (the title, the opening, the headings and the terms; `copyFields`), and what they change goes
+ * in as `copy` ({ node id: text }) over the template the answers make. "Advanced" publishes the template and opens it in
+ * the template editor; what they publish there is kept (`keep_edits`): the finish then starts from it, not the library's.
  */
 export { DOCUMENT_SETUP_MODULE };
 export const DOCUMENT_SETUP_KINDS = ["proposal", "invoice", "change_order", "completion_certificate"] as const;
@@ -143,6 +148,58 @@ function retarget(value: unknown, from: string, to: string): unknown {
   return Object.fromEntries(Object.entries(value as JsonObject).map(([key, entry]) => [key, key === "template_ref" && entry === from ? to : retarget(entry, from, to)]));
 }
 
+// ── The template's wording (FM-614) ─────────────────────────────────────
+/** A text node of fixed words: every run plain text, none bound to data. */
+const runsOf = (node: JsonObject) => list(object(node.props).blocks).flatMap((block) => list(object(block).runs).map(object));
+const plainText = (node: JsonObject) => list(object(node.props).blocks).map((block) => list(object(block).runs).map((run) => String(object(run).text ?? "")).join("")).join("\n\n");
+const HEADINGS = new Set(["h1", "h2", "h3", "title", "heading"]);
+const isHeading = (node: JsonObject) => list(object(node.props).blocks).some((block) => HEADINGS.has(text(object(block).style_ref)));
+function isCopy(node: JsonObject) {
+  if (text(node.type) !== "text") return false;
+  const runs = runsOf(node);
+  if (!runs.length || runs.some((run) => run.bind !== undefined && run.bind !== null && run.bind !== "" || typeof run.text !== "string")) return false;
+  const words = plainText(node).trim();
+  // A heading, or a sentence or more: short fixed labels ("TOTAL", "Prepared for") are part of the layout, not the copy.
+  return !!words && (isHeading(node) || words.length >= 40);
+}
+function eachPageNode(definition: JsonObject, visit: (node: JsonObject) => void) {
+  const walk = (value: unknown) => { for (const node of list(value).map(object)) { visit(node); walk(node.children); } };
+  for (const page of list(definition.pages).map(object)) walk(page.children);
+}
+export type CopyField = { node_id: string; role: "title" | "heading" | "text"; text: string };
+/** The template's copy, top to bottom: its first heading is the title; the rest are headings and the text under them. */
+export function copyFields(definition: JsonObject): CopyField[] {
+  const fields: CopyField[] = [];
+  eachPageNode(definition, (node) => {
+    if (!isCopy(node) || !text(node.id)) return;
+    const heading = isHeading(node);
+    fields.push({ node_id: text(node.id), role: heading ? (fields.some((field) => field.role === "title") ? "heading" : "title") : "text", text: plainText(node) });
+  });
+  return fields;
+}
+/**
+ * The person's wording over a definition's copy: each node named gets the text given, a paragraph per blank-line
+ * separated part, each in its first block's style and its first run's font. Only copy nodes change. The setup's step
+ * applies the same to its preview as the person types (documents-setup.js applyCopy).
+ */
+export function applyCopy(definition: JsonObject, copy: Record<string, string>) {
+  if (!Object.keys(copy).length) return definition;
+  eachPageNode(definition, (node) => {
+    const value = copy[text(node.id)];
+    if (typeof value !== "string" || !isCopy(node) || value === plainText(node)) return;
+    const props = object(node.props), blocks = list(props.blocks).map(object);
+    const parts = value.replace(/\r\n?/g, "\n").split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
+    props.blocks = (parts.length ? parts : [""]).map((part, at) => {
+      const like = blocks[Math.min(at, blocks.length - 1)] || {};
+      const { text: _text, ...run } = object(list(like.runs)[0]);
+      return { ...like, id: text(blocks[at]?.id) || `${text(blocks[0]?.id) || "blk"}_${at}`, runs: [{ ...run, text: part }] };
+    });
+    node.props = props;
+  });
+  return definition;
+}
+const copySchema = z.record(z.string().regex(/^[A-Za-z0-9_.:-]{1,120}$/), z.string().max(6000)).refine((value) => Object.keys(value).length <= 80, "Too many copy changes.");
+
 /** The organization's published copy of a template or workflow, else the library's entry adapted to it. */
 async function source(asset: "template" | "workflow", orgId: string, id: string): Promise<{ data: JsonObject; definition: JsonObject } | null> {
   const read = asset === "template" ? readDocumentTemplate : readDocumentWorkflow;
@@ -172,8 +229,19 @@ async function currentDefault(orgId: string, kind: DocumentSetupKind) {
     || null;
 }
 
-/** The template the answers make, not saved: its definition with the theme, and its workflow's. */
-async function buildDocument(orgId: string, answers: Answers, themeId: string) {
+/** Their own setup template's published definition, when it was made from this base (Advanced, FM-614). */
+async function editedDefinition(orgId: string, kind: DocumentSetupKind, base: string) {
+  const own = await readDocumentTemplate(orgId, setupTemplateId(kind)).catch(() => null);
+  if (!own || text(object(object(own.metadata).document_setup).based_on) !== base || !(Number(own.current_version) > 0)) return null;
+  const version = await readDocumentTemplateVersion(orgId, setupTemplateId(kind), Number(own.current_version)).catch(() => null);
+  return version && Object.keys(object(version.definition)).length ? clone(object(version.definition)) : null;
+}
+
+/**
+ * The template the answers make, not saved: its definition with the theme and the person's wording, and its workflow's.
+ * With `keepEdits`, a template they edited in the template editor (Advanced) is the start, not the library's.
+ */
+async function buildDocument(orgId: string, answers: Answers, themeId: string, options: { copy?: Record<string, string>; keepEdits?: boolean } = {}) {
   const plan = planDocument(answers);
   if (plan.kind !== "proposal") {
     // Their own setup's template keeps its base; otherwise their current default, else the library's.
@@ -183,14 +251,16 @@ async function buildDocument(orgId: string, answers: Answers, themeId: string) {
   }
   const template = await source("template", orgId, plan.base);
   if (!template) throw badRequest("document_setup_template", `There is no ${KIND_NAME[plan.kind].toLowerCase()} template to start from.`);
-  let definition = template.definition;
+  const edited = options.keepEdits ? await editedDefinition(orgId, plan.kind, plan.base) : null;
+  let definition = edited || template.definition;
   definition.theme_ref = { theme_id: themeId };
-  setParamDefaults(object(definition.params), plan.params);
+  if (!edited) setParamDefaults(object(definition.params), plan.params);
   // The template's page regions were placed for its own style (the itemized proposal's body clears the Margin rail):
   // they move to the margins of the style chosen, as choosing a style in the editor does.
   const theme = await themeDefinition(orgId, themeId);
   const ops = theme ? FMDocModel.pageSetupOverrides(definition, theme) : [];
   if (ops.length) definition = FMDocModel.applyOverrides(definition, ops).document as JsonObject;
+  applyCopy(definition, options.copy || {});
   const metadata = object(template.data.metadata);
   const workflowId = text(metadata.default_workflow_id || object(template.data.initial_metadata).default_workflow_id);
   const workflow = workflowId ? await source("workflow", orgId, workflowId) : null;
@@ -201,7 +271,7 @@ async function buildDocument(orgId: string, answers: Answers, themeId: string) {
     setParamDefaults(object(object(workflowDefinition.contract).params), plan.params);
     workflowDefinition.name = plan.name;
   }
-  return { plan, template, definition, workflow: workflow ? { id: workflowId, data: workflow.data, definition: workflowDefinition! } : null };
+  return { plan, template, definition, edited: !!edited, workflow: workflow ? { id: workflowId, data: workflow.data, definition: workflowDefinition! } : null };
 }
 
 // ── What was answered ───────────────────────────────────────────────────
@@ -411,26 +481,52 @@ function sampleAccountParams(kind: DocumentSetupKind): JsonObject {
   return { account, completed_at: today, warranty_start: today, amount_due_cents: 1085510, work_summary: "Tear-off and replacement of the main house roof with architectural shingles, new underlayment, ice & water shield, drip edge and ridge vent.", warranty_summary: "Lifetime manufacturer warranty on the shingles and ten years on workmanship." };
 }
 
-/** The document the answers make, in each of the three styles, resolved as a draft with a sample customer and roof. */
-export async function documentSetupPreviews(orgId: string, args: unknown) {
-  const answers = checkedAnswers(args);
-  await ensureDefaultDocumentAssets(orgId);
-  const { resolveDocumentInstance, resolveDocumentParams } = await import("./service.js");
-  const { definition, plan } = await buildDocument(orgId, answers, DOCUMENT_SETUP_THEMES[0]);
+/** A sample draft of the document the answers make: the sample customer and roof (or account) in its params. */
+async function sampleDocument(orgId: string, answers: Answers, plan: DocumentPlan, definition: JsonObject): Promise<JsonObject> {
+  const { resolveDocumentParams } = await import("./service.js");
   const explicit: JsonObject = { customer: SAMPLE_CUSTOMER, project: { title: SAMPLE_CUSTOMER.address, address: SAMPLE_CUSTOMER.address } };
   if (plan.kind === "proposal") explicit.scope_items = await sampleScope(orgId, plan, answers);
   if (plan.kind === "proposal" && answers.scope_write_up && object(definition.params).content_blocks) explicit.content_blocks = [{ id: "cb_sample", title: "Your roof today", body: "We found lifted and missing shingles on the south slope, worn pipe boots and soft decking near the chimney. Here is what we will do about each.", layout: "auto", display: "inline" }];
   else Object.assign(explicit, sampleAccountParams(plan.kind));
   const params = resolveDocumentParams(object(definition.params), explicit, {});
-  const document: JsonObject = { id: `preview_${plan.kind}`, document_type: plan.kind, status: "draft", branch_id: "default", params, outputs: {} };
+  return { id: `preview_${plan.kind}`, document_type: plan.kind, status: "draft", branch_id: "default", params, outputs: {} };
+}
+async function preview(orgId: string, document: JsonObject, definition: JsonObject, theme: { id: string; name: string; description: string }) {
+  const { resolveDocumentInstance } = await import("./service.js");
+  const resolved = await resolveDocumentInstance(orgId, document, { definition, themeRef: { theme_id: theme.id }, target: "static" });
+  return { theme_id: theme.id, name: theme.name, description: theme.description, resolved_definition: resolved.resolved_definition, widget_data: resolved.widget_data, theme: resolved.theme, theme_vars: resolved.theme_vars };
+}
+
+/** The document the answers make, in each of the three styles, resolved as a draft with a sample customer and roof. */
+export async function documentSetupPreviews(orgId: string, args: unknown) {
+  const answers = checkedAnswers(args);
+  await ensureDefaultDocumentAssets(orgId);
+  const { definition, plan } = await buildDocument(orgId, answers, DOCUMENT_SETUP_THEMES[0]);
+  const document = await sampleDocument(orgId, answers, plan, definition);
   const { themes } = await readDocumentSetup(orgId);
   const previews = [];
   for (const theme of themes) {
     const styled = theme.id === DOCUMENT_SETUP_THEMES[0] ? definition : (await buildDocument(orgId, answers, theme.id)).definition;
-    const resolved = await resolveDocumentInstance(orgId, document, { definition: styled, themeRef: { theme_id: theme.id }, target: "static" });
-    previews.push({ theme_id: theme.id, name: theme.name, description: theme.description, resolved_definition: resolved.resolved_definition, widget_data: resolved.widget_data, theme: resolved.theme, theme_vars: resolved.theme_vars });
+    previews.push(await preview(orgId, document, styled, theme));
   }
   return { kind: plan.kind, name: plan.name, description: plan.description, base: plan.base, previews };
+}
+
+const copyArgsSchema = answersSchema.extend({ theme_id: z.enum(DOCUMENT_SETUP_THEMES), keep_edits: z.boolean().optional() });
+/**
+ * The copy step (FM-614): the wording of the template the answers make in the style chosen (`fields`, top to bottom,
+ * as the template has it), and that document as a sample (`preview`). The person's changes are not sent: the step
+ * lays them over both as they type (`applyCopy`), and the finish saves them. With `keep_edits`, the template they
+ * edited in the template editor. Nothing is saved.
+ */
+export async function documentSetupCopy(orgId: string, args: unknown) {
+  const parsed = copyArgsSchema.parse(args);
+  const answers = checkedAnswers(parsed);
+  await ensureDefaultDocumentAssets(orgId);
+  const { definition, plan, edited } = await buildDocument(orgId, answers, parsed.theme_id, { keepEdits: parsed.keep_edits === true });
+  const document = await sampleDocument(orgId, answers, plan, definition);
+  const theme = (await readDocumentSetup(orgId)).themes.find((entry) => entry.id === parsed.theme_id)!;
+  return { kind: plan.kind, name: plan.name, base: plan.base, edited, template_id: setupTemplateId(plan.kind), fields: copyFields(definition), preview: await preview(orgId, document, definition, theme) };
 }
 
 // ── The finish ──────────────────────────────────────────────────────────
@@ -440,8 +536,22 @@ const applySchema = answersSchema.extend({
   /** The price step's prices (sell prices, per unit), written to the price book; none when it was skipped. */
   prices: z.array(priceSchema).max(120).default([]),
   /** The price step's lines (FM-610): which are on the proposal, and lines added that the price book does not have. */
-  lines: linesSchema.optional()
+  lines: linesSchema.optional(),
+  /** The person's wording, { text node id: text } over the template's copy (the copy step, FM-614). */
+  copy: copySchema.default({}),
+  /** Start from the template they published in the template editor (Advanced), not the library's. */
+  keep_edits: z.boolean().default(false)
 });
+
+/** Two definitions the same, whatever order their keys were written in. */
+function same(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) || Array.isArray(b)) return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((entry, at) => same(entry, b[at]));
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    return [...keys].every((key) => same((a as JsonObject)[key], (b as JsonObject)[key]));
+  }
+  return a === b;
+}
 
 async function saveAsset(kind: "template" | "workflow", orgId: string, id: string, input: JsonObject, ctx: PlatformAuthContext) {
   const read = kind === "template" ? readDocumentTemplate : readDocumentWorkflow;
@@ -449,6 +559,14 @@ async function saveAsset(kind: "template" | "workflow", orgId: string, id: strin
   if (!existing) return kind === "template" ? createDocumentTemplate(orgId, { ...input, id, status: "active" }, ctx) : createDocumentWorkflow(orgId, { ...input, id, status: "active" }, ctx);
   const publish = kind === "template" ? publishDocumentTemplate : publishDocumentWorkflow;
   if (kind === "template" && text(existing.status) === "archived") await patchDocumentTemplate(orgId, id, { status: "active" }, ctx);
+  // Finishing again with nothing changed (the first proposal step saved it a moment ago, FM-614) adds no version.
+  const readVersion = kind === "template" ? readDocumentTemplateVersion : readDocumentWorkflowVersion;
+  const current = Number(existing.current_version || 0) > 0 ? await readVersion(orgId, id, Number(existing.current_version)).catch(() => null) : null;
+  if (current && text(existing.status) !== "archived" && same(current.definition, input.definition)) {
+    const { applied_at: _at, applied_by: _by, ...setup } = object(object(input.metadata).document_setup);
+    const { applied_at: _was, applied_by: _wasBy, ...had } = object(object(existing.metadata).document_setup);
+    if (same(setup, had)) return existing;
+  }
   return publish(orgId, id, { definition: input.definition, metadata: input.metadata, expected_version: Number(existing.current_version || 0) }, ctx);
 }
 
@@ -467,17 +585,20 @@ export async function applyDocumentSetup(ctx: PublicationContext, auth: Platform
   const answers = checkedAnswers(parsed);
   const orgId = auth.orgId;
   const lines = parsed.lines ? await applyLines(orgId, parsed.lines) : { added: 0, changed: false };
-  if (parsed.prices.length) {
+  // Only prices that differ from the price book's: finishing after the first proposal step saved them changes nothing.
+  const sheet = parsed.prices.length ? await readPriceSheet(orgId).catch(() => ({ items: [] as { id: string; unit_price: number | null }[] })) : { items: [] };
+  const prices = parsed.prices.filter((entry) => sheet.items.find((item) => item.id === entry.item_id)?.unit_price !== entry.unit_price);
+  if (prices.length) {
     const { invokeAction } = await import("../platform/publication/actions.js");
     await invokeAction({ ...ctx, mode: "command" as const }, { action: "pricebook.prices.update", target: { scope: "organization", organizationId: orgId } },
-      { changes: parsed.prices.map((entry) => ({ item_id: entry.item_id, unit_price: entry.unit_price, source: "document setup" })), note: "Prices from the document setup" },
+      { changes: prices.map((entry) => ({ item_id: entry.item_id, unit_price: entry.unit_price, source: "document setup" })), note: "Prices from the document setup" },
       { idempotencyKey: `document-setup:prices:${orgId}:${Date.now()}` });
   }
-  await ensureDefaultDocumentAssets(orgId, auth, { refresh: parsed.prices.length > 0 || lines.changed });
-  const built = await buildDocument(orgId, answers, parsed.theme_id);
+  await ensureDefaultDocumentAssets(orgId, auth, { refresh: prices.length > 0 || lines.changed });
+  const built = await buildDocument(orgId, answers, parsed.theme_id, { copy: parsed.copy, keepEdits: parsed.keep_edits });
   const { plan } = built;
   const templateId = setupTemplateId(plan.kind);
-  const setup = { ...answers, theme_id: parsed.theme_id, based_on: plan.base, applied_at: new Date().toISOString(), applied_by: auth.userId };
+  const setup = { ...answers, theme_id: parsed.theme_id, based_on: plan.base, ...(built.edited ? { edited: true } : {}), applied_at: new Date().toISOString(), applied_by: auth.userId };
   let workflowId = "";
   if (built.workflow) {
     workflowId = setupWorkflowId(plan.kind);
@@ -504,7 +625,7 @@ export async function applyDocumentSetup(ctx: PublicationContext, auth: Platform
   // The first proposal style chosen becomes the style for new documents; choosing another later changes only proposals.
   const defaultThemeId = text(data.default_theme_id) || (plan.kind === "proposal" ? parsed.theme_id : "");
   await saveBranchModule(orgId, "default", DOCUMENT_SETUP_MODULE, { data: { ...data, ...(defaultThemeId ? { default_theme_id: defaultThemeId } : {}), kinds: { ...object(data.kinds), [plan.kind]: { ...setup, template_id: templateId, workflow_id: workflowId || null } } } as JsonObject, expected_revision: Number(record?.revision || 0) }, { replace: true });
-  return { kind: plan.kind, template_id: templateId, workflow_id: workflowId || null, name: plan.name, theme_id: parsed.theme_id, pinned_template_ids: pins, prices_updated: parsed.prices.length, lines_added: lines.added, lines_changed: lines.changed };
+  return { kind: plan.kind, template_id: templateId, workflow_id: workflowId || null, name: plan.name, theme_id: parsed.theme_id, pinned_template_ids: pins, prices_updated: prices.length, lines_added: lines.added, lines_changed: lines.changed };
 }
 
 // ── Publication ─────────────────────────────────────────────────────────
@@ -541,10 +662,13 @@ export function registerDocumentSetupPublication() {
       read: async (ctx) => ({ value: await readPriceSheet(ctx.organizationId) }) },
     previews: { description: "The document the setup's answers (args: document_kind and, for a proposal, presentation, customer_changes, detail, scope_write_up) would make, resolved with a sample customer and roof in each of the three styles. Nothing is saved.",
       schema: { type: "object" } as JsonSchema, argsSchema: json(answersSchema.strict()), schemaVersion: "1", access: setupAccess,
-      read: async (ctx, ref) => ({ value: await documentSetupPreviews(ctx.organizationId, ref.args || {}) }) }
+      read: async (ctx, ref) => ({ value: await documentSetupPreviews(ctx.organizationId, ref.args || {}) }) },
+    copy: { description: "The copy step: the wording of the template the setup's answers make in the style chosen (args: the previews' answers, theme_id and keep_edits to start from the template published in the template editor), as fields top to bottom ({ node_id, role: title | heading | text, text }), and that document resolved with a sample customer (preview). The finish (documents.setup.apply) takes changes as copy { node_id: text }. Nothing is saved.",
+      schema: { type: "object" } as JsonSchema, argsSchema: json(copyArgsSchema.strict()), schemaVersion: "1", access: setupAccess,
+      read: async (ctx, ref) => ({ value: await documentSetupCopy(ctx.organizationId, ref.args || {}) }) }
   } });
   registerAction({ id: "documents.setup.apply", version: "1", domain: "documents", implementation: backendImplementationDigest(),
-    description: "Finish the document setup for one kind of document (document_kind: proposal, invoice, change_order or completion_certificate) in a style (theme_id: thm_clean, thm_margin or thm_triangles). For a proposal also: presentation (options | single), customer_changes (mix | pick | ask), detail (itemized | rough), scope_write_up (boolean), and optionally prices ([{ item_id, unit_price }] sell prices written to the price book) and lines ({ on: the item ids the proposal's roof_replacement has, in order, with the keys of new_items; new_items: [{ key: new_<x>, name, unit: sq|lf|ea, unit_price, formula: price book formula tokens over measurements, include_waste }] for lines the price book lacks }). Makes or republishes the organization's own template for that kind (tpl_setup_<kind>) and its workflow, makes it the kind's default and pins it in New document.",
+    description: "Finish the document setup for one kind of document (document_kind: proposal, invoice, change_order or completion_certificate) in a style (theme_id: thm_clean, thm_margin or thm_triangles). For a proposal also: presentation (options | single), customer_changes (mix | pick | ask), detail (itemized | rough), scope_write_up (boolean), and optionally prices ([{ item_id, unit_price }] sell prices written to the price book) and lines ({ on: the item ids the proposal's roof_replacement has, in order, with the keys of new_items; new_items: [{ key: new_<x>, name, unit: sq|lf|ea, unit_price, formula: price book formula tokens over measurements, include_waste }] for lines the price book lacks }). Optionally copy ({ text node id: text }, the template's wording changed, from document-setup.copy) and keep_edits (start from the template published in the template editor). Makes or republishes the organization's own template for that kind (tpl_setup_<kind>) and its workflow, makes it the kind's default and pins it in New document.",
     inputSchema: json(applySchema) as Record<string, unknown>, outputSchema: { type: "object" },
     effect: "write", idempotency: "required", executionKinds: ["api", "agent", "module"],
     policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.documents"] },

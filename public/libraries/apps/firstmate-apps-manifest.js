@@ -219,7 +219,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261118-fm572-tray-dim-warm')
+        versionedBundle('documents/project.js', '20261118-fm614-setup-embed')
       ]
     },
     {
@@ -248,7 +248,7 @@
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
         versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'),
-        versionedBundle('documents/studio.js', '20260930-app-groups-v1')
+        versionedBundle('documents/studio.js', '20261118-fm614-setup-embed')
       ]
     },
     {

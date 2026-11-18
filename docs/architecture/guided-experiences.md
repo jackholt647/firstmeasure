@@ -896,6 +896,25 @@ step is the module `guided-experiences/documents-setup.js` with its own `part`:
   its bottom edge with no bar or divider and leaves them out of the sheet's height, and the step keeps that corner
   clear (the style's name and dots sit between them; on a phone, above them). A question with two answers shows them
   as two tall, near-square tiles. Tests: `tests/documents-setup-carousel-browser.test.mjs`.
+- `copy` (FM-614): the template's wording beside it. The style chosen slides to the right (the step leaving keeps a
+  copy of its document and the next glides it into place), and on the left are the template's own words, top to bottom
+  (`document-setup.copy`): every text node of fixed words on its pages, a heading or a sentence or more (`copyFields`
+  in `documents/setup.ts`); its first heading is the title. Typing changes the document at once (the step lays the same
+  rewrite the finish saves, `applyCopy`, over its preview) and the field with focus marks its text there. Changes are
+  the selection `copy` (`{ node id: text }`, a blank line starts a paragraph in the same style). **Advanced** (beside
+  the title) saves the template now and opens it in Doc Studio's template editor over the sheet (`documents.studio`
+  with `params.embed = { templateId, onClose }`); its "Back to setup" publishes what was changed and comes back, the
+  wording is read again from that template and `keep_edits` is set, so the finish starts from it, not the library's.
+- `first` (FM-614): the first proposal from the new template, for a proposal set up inside a project. The template is
+  saved (`documents.setup.apply`), a draft is made from it for the project's customer and its own workflow runs in the
+  sheet: the Docs app (`project.documents`, embed `startFromTemplate`, with `history: false`, `focus: false` and
+  `workflowOptions`) with its top bar hidden, the wording's document gliding into the workflow's preview. It is how every
+  proposal starts from now on. The step is its own navigation (a module step may return `handlesNavigation`, `back`
+  and `backDepth`, like the Operations workflow): Previous on the workflow's first step goes back to the wording, a
+  phone's back walks its steps, and Send's Done finishes the setup with `resume: false`, so New document does not open
+  over the proposal. Going back and on again reopens the same draft (`first_document_id`). Anywhere else (another kind,
+  no project, the setup Operations' Proposals card starts) the step finishes the setup at once. Operations' own
+  `operations-document` step builds Operations' fixed proposal through the `operations.*` actions and is not this one.
 
 A payment widget (`doc.payment_schedule`, `doc.pay_now`) in an organization with payments off (`documents.payments`,
 marked `disabled` in the resolved definition or off in the renderer's `capabilities`) still draws what is owed: the
@@ -913,7 +932,10 @@ theme's margins (`FMDocModel.pageSetupOverrides`, as choosing a style in the edi
 laid out for the Margin rail). It is the kind's `default_for_type`
 (the mark leaves every other template of the kind), replaces the kind's first pin in New document, and is never a
 library copy (no `preset`, `library`), so the library neither upgrades nor retires it. Running it again republishes
-the same template. The answers are kept in the default branch's `document_setup` module (`document-setup.status`).
+the same template; with nothing changed since (the first proposal saved it a moment before) it adds no version and
+writes no prices again. `copy` is laid over the template's wording, and `keep_edits` starts from the template as it was
+published in the template editor (when made from the same library template), with the style chosen applied over it.
+The answers are kept in the default branch's `document_setup` module (`document-setup.status`).
 Tests: `tests/document-setup.test.ts` (library entry in `tests/fixtures/document-setup-library.json`).
 
 ## Limits (prototype)

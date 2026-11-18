@@ -55,8 +55,8 @@
         "text": "Set up your documents"
       },
       "description": {
-        "key": "gx_docs_setup_description",
-        "text": "Which document you make first, how you write your proposals, your prices and your style."
+        "key": "gx_docs_setup_description_2",
+        "text": "Which document you make first, how you write your proposals, your prices, your style and your wording, then your first proposal."
       },
       "intro": {
         "key": "gx_docs_setup_intro",
@@ -97,7 +97,7 @@
         {
           "id": "kind",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_kind_title",
@@ -130,7 +130,7 @@
         {
           "id": "presentation",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614",
           "requires": [
             "company.type",
             "company.services",
@@ -156,7 +156,7 @@
         {
           "id": "changes",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_changes_title",
@@ -178,7 +178,7 @@
         {
           "id": "detail",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_detail_title",
@@ -200,7 +200,7 @@
         {
           "id": "scope",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_scope_title",
@@ -222,7 +222,7 @@
         {
           "id": "prices",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_prices_title",
@@ -247,7 +247,7 @@
         {
           "id": "style",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm582j",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_style_title",
@@ -265,6 +265,51 @@
             "theme_id"
           ],
           "required": true
+        },
+        {
+          "id": "copy",
+          "widget": "module",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614",
+          "requires": [],
+          "title": {
+            "key": "gx_docs_setup_copy_title",
+            "text": "Check your wording"
+          },
+          "subtitle": {
+            "key": "gx_docs_setup_copy_subtitle",
+            "text": "Your template in the style you chose. Change any of its wording here; Advanced opens the full template editor."
+          },
+          "say": [],
+          "options": {
+            "part": "copy"
+          },
+          "selects": [
+            "copy",
+            "keep_edits"
+          ],
+          "required": true
+        },
+        {
+          "id": "first",
+          "widget": "module",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614",
+          "requires": [],
+          "title": {
+            "key": "gx_docs_setup_first_title",
+            "text": "Now make your first proposal"
+          },
+          "subtitle": {
+            "key": "gx_docs_setup_first_subtitle",
+            "text": "Congratulations, your template is set up. This is how every proposal starts from it: fill in the steps for this project’s customer, then send it."
+          },
+          "say": [],
+          "options": {
+            "part": "first"
+          },
+          "selects": [
+            "first_document_id"
+          ],
+          "required": false
         }
       ],
       "completion": {

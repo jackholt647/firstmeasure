@@ -72,15 +72,17 @@ test("the library entry parses, and its checks pass against the running code", a
 test("a proposal asks the unanswered company steps first; another kind goes straight to its style", async () => {
   const service = await setup();
   const setupOf = async () => (await service.availableExperiences(owner, { tab: "project.docs" })).experiences.find((entry: any) => entry.id === "documents.setup");
-  assert.deepEqual(ids(await setupOf()), ["kind", "company.type", "company.services", "company.sales_team", "presentation", "changes", "detail", "scope", "prices", "style"]);
+  assert.deepEqual(ids(await setupOf()), ["kind", "company.type", "company.services", "company.sales_team", "presentation", "changes", "detail", "scope", "prices", "style", "copy", "first"]);
   await invoke(owner, "company-profile.save", { company_type: "roofing_contractor", services: ["roof_replacement"], sales_team: "just_me" }, "profile-1");
-  assert.deepEqual(ids(await setupOf()), ["kind", "presentation", "changes", "detail", "scope", "prices", "style"], "answered by scheduling or another setup: not asked again");
+  assert.deepEqual(ids(await setupOf()), ["kind", "presentation", "changes", "detail", "scope", "prices", "style", "copy", "first"], "answered by scheduling or another setup: not asked again");
   const definition = library.guided_experience.find((entry: any) => entry.id === "documents.setup");
   const variant = definition.variants[0];
   const { experienceSchema } = await import("../guided-experiences/contracts.js");
   const parsed = experienceSchema.parse(definition);
   assert.equal(service.nextStep(parsed, variant, "kind", { document_kind: "proposal" }), "presentation");
   for (const kind of ["invoice", "change_order", "completion_certificate"]) assert.equal(service.nextStep(parsed, variant, "kind", { document_kind: kind }), "style", kind);
+  assert.equal(service.nextStep(parsed, variant, "style", { document_kind: "invoice" }), "copy", "every kind reads its wording after its style");
+  assert.equal(service.nextStep(parsed, variant, "copy", { document_kind: "invoice" }), "first", "the first proposal step finishes at once for another kind");
   const member = person("member", { role: "member", permissions: { view_projects: true } });
   assert.equal((await service.availableExperiences(member, { tab: "project.docs" })).experiences.some((entry: any) => entry.id === "documents.setup"), false, "only someone who manages company settings sets it up");
 });
@@ -233,4 +235,50 @@ test("an estimate's lines are kept to known items, sound formulas and one line e
     { name: "Invented", unit: "lf", unit_price: 3.33, item_id: null, formula: [{ type: "measurement", value: "eavesLf" }] },
     { name: "Broken formula", unit: "ea", unit_price: 5, item_id: null, formula: null }
   ]);
+});
+
+test("the copy step reads the template's wording, the finish saves the changes, and Advanced edits are kept (FM-614)", async () => {
+  await setup();
+  const storage = await import("../documents/storage.js");
+  const before = (await storage.listDocumentTemplates(ORG)).map((template: any) => template.id).sort();
+  const copy = await value(owner, "document-setup", "copy", { ...proposal, theme_id: "thm_margin" });
+  assert.equal(copy.template_id, "tpl_setup_proposal");
+  assert.deepEqual((await storage.listDocumentTemplates(ORG)).map((template: any) => template.id).sort(), before, "reading the copy saves nothing");
+  const fields = copy.fields;
+  assert.equal(fields[0].role, "title", "the first heading is the title");
+  assert.ok(fields.some((field: any) => field.role === "text" && field.text.length >= 40), "the opening and the terms are there");
+  assert.ok(fields.every((field: any) => !/Jordan Sample|\{\{/.test(field.text)), "nothing filled in per customer is copy");
+  assert.ok(JSON.stringify(copy.preview.resolved_definition).includes("Jordan Sample"), "the preview is the sample document");
+  const terms = fields.filter((field: any) => field.role === "text").at(-1);
+
+  // The finish saves the wording into the template; a paragraph break makes two paragraphs in the same style.
+  await invoke(owner, "documents.setup.apply", { ...proposal, theme_id: "thm_margin", copy: { [fields[0].node_id]: "Your new roof", [terms.node_id]: "Valid for 60 days.\n\nDeposit due at signing." } }, "copy-apply-1");
+  const node = (definition: any, id: string) => { let found: any = null; const walk = (list: any[]) => { for (const entry of list || []) { if (entry.id === id) found = entry; walk(entry.children); } }; for (const page of definition.pages) walk(page.children); return found; };
+  let version: any = await storage.readDocumentTemplateVersion(ORG, "tpl_setup_proposal");
+  assert.equal(node(version.definition, fields[0].node_id).props.blocks[0].runs[0].text, "Your new roof");
+  assert.ok(/^h[1-3]$/.test(node(version.definition, fields[0].node_id).props.blocks[0].style_ref), "the title keeps its heading style");
+  assert.deepEqual(node(version.definition, terms.node_id).props.blocks.map((block: any) => block.runs[0].text), ["Valid for 60 days.", "Deposit due at signing."]);
+  const published = Number((await storage.readDocumentTemplate(ORG, "tpl_setup_proposal") as any).current_version);
+
+  // Finishing again with the same answers and wording (the first proposal step saved it first) adds no version.
+  await invoke(owner, "documents.setup.apply", { ...proposal, theme_id: "thm_margin", copy: { [fields[0].node_id]: "Your new roof", [terms.node_id]: "Valid for 60 days.\n\nDeposit due at signing." } }, "copy-apply-2");
+  assert.equal(Number((await storage.readDocumentTemplate(ORG, "tpl_setup_proposal") as any).current_version), published);
+
+  // Advanced: they publish their own change in the template editor; the copy step and the finish start from it.
+  const edited = structuredClone(version.definition);
+  node(edited, terms.node_id).props.blocks = [{ ...node(edited, terms.node_id).props.blocks[0], runs: [{ text: "Terms written in the template editor, long enough to be copy." }] }];
+  await storage.publishDocumentTemplate(ORG, "tpl_setup_proposal", { definition: edited, expected_version: published }, owner);
+  const again = await value(owner, "document-setup", "copy", { ...proposal, theme_id: "thm_margin", keep_edits: true });
+  assert.equal(again.edited, true);
+  assert.equal(again.fields.find((field: any) => field.node_id === terms.node_id).text, "Terms written in the template editor, long enough to be copy.");
+  assert.equal(again.fields[0].text, "Your new roof");
+  await invoke(owner, "documents.setup.apply", { ...proposal, theme_id: "thm_clean", keep_edits: true, copy: { [fields[0].node_id]: "Our roof proposal" } }, "copy-apply-3");
+  version = await storage.readDocumentTemplateVersion(ORG, "tpl_setup_proposal");
+  assert.equal(node(version.definition, terms.node_id).props.blocks[0].runs[0].text, "Terms written in the template editor, long enough to be copy.", "the editor's change is kept");
+  assert.equal(node(version.definition, fields[0].node_id).props.blocks[0].runs[0].text, "Our roof proposal");
+  assert.deepEqual(version.definition.theme_ref, { theme_id: "thm_clean" }, "a style chosen after is applied over it");
+  // Without keep_edits the answers make the template again from the library.
+  await invoke(owner, "documents.setup.apply", { ...proposal, theme_id: "thm_clean" }, "copy-apply-4");
+  version = await storage.readDocumentTemplateVersion(ORG, "tpl_setup_proposal");
+  assert.equal(node(version.definition, terms.node_id).props.blocks[0].runs[0].text, terms.text.split("\n\n")[0]);
 });

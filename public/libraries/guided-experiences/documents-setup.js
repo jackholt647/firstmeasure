@@ -3,9 +3,12 @@
 // of document they want to make, then for a proposal (after the company type, the kinds of work and who sells, each
 // asked only while unanswered) how they present it, whether the customer may change it, how much detail it carries,
 // whether a written scope of work goes with it, their prices (optional), and for every kind one of three styles,
-// previewed with what their answers make. Each step is this module with its own `part`; the answers are the setup's
-// selections and its finish (documents.setup.apply) makes the kind's template. It reads through the publication layer
-// only (document-setup.price_sheet, .previews) and writes nothing itself.
+// previewed with what their answers make. Then the template's wording, to read and change beside it (`copy`, FM-614;
+// Advanced opens the template itself in the template editor), and for a proposal started in a project the first
+// proposal made from it, through the Docs app's own workflow (`first`). Each step is this module with its own `part`;
+// the answers are the setup's selections and its finish (documents.setup.apply) makes the kind's template. It reads
+// through the publication layer (document-setup.price_sheet, .previews, .copy); only Advanced and the first proposal
+// save the template before the finish, because they need it.
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
@@ -171,6 +174,41 @@ const css = `
 .gxd-view .gxd-arrow[data-view-go="-1"]{left:16px}
 .gxd-view .gxd-arrow[data-view-go="1"]{right:16px}
 @keyframes gxdViewIn{from{opacity:0}to{opacity:1}}
+/* The wording beside the document (FM-614): the fields on the left, the document on the right, its pages scrolling. */
+.gxd-copy{display:grid;grid-template-columns:minmax(280px,5fr) minmax(0,6fr);gap:22px;flex:1 1 auto;min-height:0}
+.gxd-copy-edit{display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;padding:2px 6px 18px 2px;animation:gxdSlideIn .45s cubic-bezier(.22,1,.36,1) both}
+@keyframes gxdSlideIn{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+.gxd-copy-edit label{display:flex;flex-direction:column;gap:5px;font-size:11.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:#667085}
+.gxd-copy-edit input,.gxd-copy-edit textarea{width:100%;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:8px 10px;font:inherit;font-size:13.5px;font-weight:400;letter-spacing:0;text-transform:none;color:#101828;line-height:1.5;resize:none;overflow:hidden;transition:border-color .15s,box-shadow .15s}
+.gxd-copy-edit input:focus,.gxd-copy-edit textarea:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12)}
+.gxd-copy-edit .gxd-copy-title{font-size:16px;font-weight:700}
+.gxd-copy-section{display:flex;flex-direction:column;gap:7px;padding-top:10px;border-top:1px solid #eaecf0}
+.gxd-copy-section>input{font-weight:700;border-color:transparent;background:#f9fafb}
+.gxd-copy-section>input:hover{border-color:#d0d5dd}
+.gxd-copy-edited{font-size:12px;color:#067647!important}
+.gxd-copy-view{position:relative;min-height:0;border-radius:12px;background:#eef0f3;overflow:hidden}
+.gxd-copy-view .gxd-doc{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:14px;box-sizing:border-box}
+.gxd-copy-view .gxd-doc>div{margin:0 auto}
+.gxd-copy-view [data-node-id].gxd-copy-mark{outline:2px solid var(--primary,#d93025);outline-offset:3px;border-radius:2px}
+.gxd-advanced{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;font:inherit;font-size:13px;font-weight:650;color:#344054;cursor:pointer}
+.gxd-advanced:hover{background:#f9fafb}
+.gxd-advanced:disabled{opacity:.6;cursor:default}
+/* The template editor over the sheet (Advanced). */
+.gxd-studio{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;background:#fff;border-radius:inherit;overflow:hidden;animation:gxdViewIn .2s ease both}
+.gxd-studio>.gxd-studio-app{flex:1 1 auto;min-height:0;position:relative;overflow:auto}
+.gxd-studio .gxd-busy{position:absolute;inset:0}
+/* The first proposal: the Docs app's own workflow for the new template, without its top bar (the sheet is its frame). */
+.gxd-first{display:flex;flex-direction:column;gap:10px;flex:1 1 auto;min-height:0}
+.gxd-first-lead{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;background:#ecfdf3;color:#05603a!important;font-size:13px!important}
+.gxd-first-lead i{font-size:15px}
+.gxd-first-app{position:relative;flex:1 1 auto;min-height:0;overflow:hidden;border-radius:10px}
+.gxd-first-app .fmdx-editor-top,.gxd-first-app .fmdx-doc-card-row{display:none!important}
+.gxd-first .gxd-busy{flex:1 1 auto;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;min-height:100%;color:#475467;font-size:13px}
+.gxd-ghost-doc{position:fixed;margin:0;z-index:2147483600;transform-origin:0 0;overflow:hidden!important;pointer-events:none;background:#eef0f3;border-radius:12px;box-shadow:0 18px 50px rgba(16,24,40,.22);transition:transform .6s cubic-bezier(.22,1,.36,1),opacity .3s}
+@media (max-width:760px){
+  .gxd-copy{grid-template-columns:1fr;grid-template-rows:auto minmax(320px,1fr);overflow-y:auto}
+  .gxd-copy-edit{overflow:visible}
+}
 .gxd-busy{display:grid;place-items:center;min-height:180px}
 .gxd-error{color:#b42318!important}
 .gxd-error:empty{display:none}
@@ -203,6 +241,90 @@ async function renderer(){
   if (!window.FMDocWidgets) await loadScript('/libraries/doc-widgets/firstmate-doc-widgets.js').catch(() => null);
   if (!window.FMDocRenderer) await loadScript('/libraries/doc-renderer/firstmate-doc-renderer.js');
   return window.FMDocRenderer;
+}
+
+/**
+ * The person's wording over a definition's copy, as the finish saves it (documents/setup.ts applyCopy, which this
+ * mirrors): each text node named gets the text given, a paragraph per blank-line separated part, in its first block's
+ * style and its first run's font. The copy step lays it over its preview as they type.
+ */
+function applyCopy(definition, copy){
+  const rewrite = (node, value) => {
+    const props = object(node.props), blocks = array(props.blocks).map(object);
+    const parts = value.replace(/\r\n?/g, '\n').split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
+    props.blocks = (parts.length ? parts : ['']).map((part, at) => {
+      const like = blocks[Math.min(at, blocks.length - 1)] || {};
+      const { text: _text, ...run } = object(array(like.runs)[0]);
+      return { ...like, id: clean(blocks[at]?.id) || `${clean(blocks[0]?.id) || 'blk'}_${at}`, runs: [{ ...run, text: part }] };
+    });
+    node.props = props;
+  };
+  const walk = (list) => { for (const node of array(list)) { const value = copy[clean(node?.id)]; if (typeof value === 'string' && node.type === 'text') rewrite(node, value); walk(node?.children); } };
+  for (const page of array(definition?.pages)) walk(page?.children);
+  return definition;
+}
+
+/**
+ * The document carried from one step to the next (FM-614): the style chosen moves to the right of its wording, and from
+ * there into the first proposal's preview. A step leaving keeps a copy of its document and where it was; the next lays
+ * it over the page and glides it into its own place, and lets it go once its own document is drawn.
+ */
+let handoff = null;
+function keepDocument(node){
+  if (!node?.isConnected) return;
+  const rect = node.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const ghost = node.cloneNode(true);
+  ghost.querySelectorAll('[id]').forEach((child) => child.removeAttribute('id'));
+  handoff = { at: Date.now(), rect, ghost, scroll: node.scrollTop || 0 };
+}
+const reducedMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+/** Lays the carried document where it was, over `container`; null when there is none to carry. */
+function liftDocument(container){
+  const from = handoff; handoff = null;
+  if (!from || Date.now() - from.at > 3000 || reducedMotion() || !container) return null;
+  const ghost = from.ghost;
+  ghost.classList.add('gxd-ghost-doc');
+  ghost.setAttribute('aria-hidden', 'true');
+  Object.assign(ghost.style, { left: `${from.rect.left}px`, top: `${from.rect.top}px`, width: `${from.rect.width}px`, height: `${from.rect.height}px`, transform: '', inset: 'auto' });
+  container.append(ghost);
+  ghost.scrollTop = from.scroll;
+  return { ghost, rect: from.rect };
+}
+/** Where an element will be once its step has slid into place (the player slides a new step in from below). */
+function settledRect(target){
+  const rect = target.getBoundingClientRect(), pane = target.closest('.gxs-step');
+  if (!pane?.offsetParent) return rect;
+  const shift = pane.getBoundingClientRect().top - (pane.offsetParent.getBoundingClientRect().top + pane.offsetTop + pane.offsetParent.clientTop);
+  return { left: rect.left, top: rect.top - shift, width: rect.width, height: rect.height };
+}
+function glide(lifted, target){
+  if (!lifted || !target?.isConnected) return;
+  const to = settledRect(target), from = lifted.rect;
+  if (!to.width) return;
+  const scale = to.width / from.width;
+  lifted.ghost.style.height = `${Math.min(from.height, to.height / scale)}px`;
+  requestAnimationFrame(() => { lifted.ghost.style.transform = `translate(${to.left - from.left}px,${to.top - from.top}px) scale(${scale})`; });
+}
+function drop(lifted){
+  if (!lifted || lifted.dropped) return;
+  lifted.dropped = true;
+  lifted.ghost.style.opacity = '0';
+  setTimeout(() => lifted.ghost.remove(), 320);
+}
+
+/**
+ * Saves the organization's own template for the kind now, with the answers so far (documents.setup.apply, as the finish
+ * does): Advanced opens it and the first proposal is made from it (FM-614). The finish saves it again, which changes
+ * nothing when nothing has changed since.
+ */
+async function saveTemplate(ctx, selections, extra = {}){
+  const input = { document_kind: clean(selections.document_kind) || 'proposal', theme_id: clean(selections.theme_id), prices: array(selections.prices), copy: object(extra.copy), keep_edits: extra.keep_edits === true };
+  if (input.document_kind === 'proposal') for (const name of ['presentation', 'customer_changes', 'detail', 'scope_write_up']) if (selections[name] !== undefined) input[name] = selections[name];
+  // The price step's lines (FM-610): the first proposal is priced from them.
+  if (selections.lines && typeof selections.lines === 'object') input.lines = selections.lines;
+  const result = await window.PlatformAPI.publication.invoke(ctx.orgId, 'documents.setup.apply', { scope: 'organization', organizationId: ctx.orgId }, input, { idempotencyKey: `documents.setup.save:${ctx.orgId}:${Date.now()}:${Math.random().toString(36).slice(2)}` });
+  return object(result?.value ?? result?.result ?? result);
 }
 
 /** The questions with one answer each: the choices, with their copy (gx_docs_setup_* keys). */
@@ -245,6 +367,8 @@ export function mount(el, ctx){
   const selections = object(ctx.selections);
   if (part === 'prices') return pricesPart();
   if (part === 'style') return stylePart();
+  if (part === 'copy') return copyPart();
+  if (part === 'first') return firstPart();
   const question = choicesFor(part, selections);
   if (!question) { el.innerHTML = `<p class="gxd-error">${esc(t('unknown', 'This step cannot be shown here.'))}</p>`; return { valid: () => false }; }
 
@@ -850,12 +974,285 @@ export function mount(el, ctx){
       // Escape (and a phone's back) closes the full-screen view first.
       escape: () => closeView(),
       destroy(){
+        // The style chosen goes on with the setup, to the right of its wording (FM-614).
+        if (cards[center]) keepDocument(cards[center].doc);
         alive = false; clearTimeout(timer); observer?.disconnect(); closeView();
         if (!wasWide) sheet?.classList.remove('gxs-wide');
         el.removeEventListener('click', onClick); el.removeEventListener('dblclick', onDoubleClick); el.removeEventListener('keydown', onKey);
         el.removeEventListener('pointerdown', onPointerDown); el.removeEventListener('pointermove', onPointerMove);
         el.removeEventListener('pointerup', onPointerUp); el.removeEventListener('pointercancel', onPointerCancel); el.removeEventListener('dragstart', onDragStart);
         cards.forEach((card) => { try { card.handle?.destroy?.(); } catch (_) {} });
+      }
+    };
+  }
+
+  // ── The template's wording, beside the document (FM-614) ──────────────
+  // The fields are the template's own copy, top to bottom (document-setup.copy): its title, its opening, its headings
+  // and what is under them. What is changed is the setup's `copy` and goes into the template when it is saved. Advanced
+  // saves the template and opens it in the template editor; what is published there is kept (`keep_edits`).
+  function copyPart(){
+    let alive = true, data = null, Renderer = null, handle = null, timer = 0, studio = null, opening = false;
+    const edits = { ...object(selections.copy) };
+    let keepEdits = selections.keep_edits === true;
+    const sheet = el.closest('.gxs'), wasWide = !!sheet?.classList.contains('gxs-wide');
+    sheet?.classList.add('gxs-wide');
+    const pane = el.closest('.gxs-step');
+    pane?.setAttribute('data-fill', '');
+    el.innerHTML = `<div class="gxd gxd-fill"><div class="gxd-copy">
+      <div class="gxd-copy-edit"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div></div>
+      <div class="gxd-copy-view"><div class="gxd-doc"></div></div>
+    </div><p class="gxd-error" role="alert"></p></div>`;
+    const fieldsHost = el.querySelector('.gxd-copy-edit'), view = el.querySelector('.gxd-copy-view'), docHost = view.querySelector('.gxd-doc'), error = el.querySelector('.gxd-error');
+    // The style chosen slides over to the right; it stays there until its document has been drawn in this step.
+    const lifted = liftDocument(sheet || document.body);
+    glide(lifted, view);
+    // Advanced, beside the step's title.
+    const advanced = document.createElement('button');
+    advanced.type = 'button'; advanced.className = 'gxd-advanced'; advanced.dataset.advanced = '';
+    advanced.innerHTML = `<i class="fas fa-pen-ruler" aria-hidden="true"></i>${esc(t('copy_advanced', 'Advanced'))}`;
+    advanced.title = t('copy_advanced_hint', 'Open your template in the full template editor');
+    ctx.actions?.append(advanced);
+    const answers = () => {
+      const args = { document_kind: clean(selections.document_kind) || 'proposal', theme_id: clean(selections.theme_id) };
+      if (args.document_kind === 'proposal') for (const name of ['presentation', 'customer_changes', 'detail', 'scope_write_up']) if (selections[name] !== undefined) args[name] = selections[name];
+      return args;
+    };
+    const report = () => {
+      const count = Object.keys(edits).length;
+      ctx.change({ copy: { ...edits }, keep_edits: keepEdits }, count ? t('copy_summary', '{count} changes').replace('{count}', String(count)) : (keepEdits ? t('copy_summary_edited', 'Edited in the template editor') : ''));
+    };
+    function draw(){
+      if (!data || !Renderer) return;
+      const width = Math.max(200, Math.min(docHost.clientWidth - 28, 760));
+      const preview = data.preview;
+      const definition = applyCopy(JSON.parse(JSON.stringify(preview.resolved_definition)), edits);
+      const keep = docHost.scrollTop;
+      try { handle?.destroy?.(); } catch (_) {}
+      docHost.innerHTML = '<div></div>';
+      try {
+        handle = Renderer.render(docHost.firstElementChild, { document: definition, theme: preview.theme, themeContext: { overrides: object(preview.theme_vars) }, widgetData: object(preview.widget_data), mode: 'static', scale: width / (612 * 96 / 72) });
+      } catch (failure) { docHost.textContent = clean(failure?.message); }
+      docHost.scrollTop = keep;
+    }
+    const redraw = () => { clearTimeout(timer); timer = setTimeout(() => { if (alive) draw(); }, 180); };
+    /** The text a field is about, in the document: scrolled to and marked while the field has focus. */
+    function mark(id){
+      docHost.querySelectorAll('.gxd-copy-mark').forEach((node) => node.classList.remove('gxd-copy-mark'));
+      const node = id ? docHost.querySelector(`[data-node-id="${CSS.escape(id)}"]`) : null;
+      if (!node) return;
+      node.classList.add('gxd-copy-mark');
+      const top = node.getBoundingClientRect().top - docHost.getBoundingClientRect().top + docHost.scrollTop;
+      docHost.scrollTo({ top: Math.max(0, top - 60), behavior: reducedMotion() ? 'auto' : 'smooth' });
+    }
+    const grow = (area) => { area.style.height = 'auto'; area.style.height = `${area.scrollHeight + 2}px`; };
+    function fields(){
+      const list = array(data?.fields);
+      if (!list.length) return `<p>${esc(t('copy_none', 'This document has no wording of its own to change here. Advanced opens it in the template editor.'))}</p>`;
+      const value = (field) => esc(edits[field.node_id] ?? field.text);
+      const input = (field, cls = '', label = '') => `<input type="text" data-copy="${esc(field.node_id)}" class="${cls}" value="${value(field)}"${label ? ` aria-label="${esc(label)}"` : ''}>`;
+      const area = (field, label = '') => `<textarea data-copy="${esc(field.node_id)}" rows="2"${label ? ` aria-label="${esc(label)}"` : ''}>${value(field)}</textarea>`;
+      let html = '', open = false, opened = false;
+      for (const field of list) {
+        if (field.role === 'title') html += `<label>${esc(t('copy_title', 'Title'))}${input(field, 'gxd-copy-title')}</label>`;
+        else if (field.role === 'heading') { html += `${open ? '</div>' : ''}<div class="gxd-copy-section">${input(field, '', t('copy_heading', 'Heading'))}`; open = true; }
+        else if (!open && !opened) { html += `<label>${esc(t('copy_opening', 'Opening'))}${area(field)}</label>`; opened = true; }
+        else html += area(field, t('copy_text', 'Text'));
+      }
+      return html + (open ? '</div>' : '');
+    }
+    function showFields(){
+      fieldsHost.innerHTML = `<p>${esc(t('copy_lead', 'Read it through and change anything you’d say differently. The document on the right changes as you type; customer details and prices fill in on each proposal.'))}</p>
+        ${keepEdits ? `<p class="gxd-copy-edited"><i class="fas fa-circle-check" aria-hidden="true"></i> ${esc(t('copy_edited', 'Your changes from the template editor are kept.'))}</p>` : ''}
+        ${fields()}`;
+      fieldsHost.querySelectorAll('textarea').forEach(grow);
+    }
+    async function load(){
+      error.textContent = '';
+      const [value, loaded] = await Promise.all([ctx.read('document-setup', 'copy', { args: { ...answers(), ...(keepEdits ? { keep_edits: true } : {}) } }), renderer()]);
+      if (!alive) return;
+      data = object(value); Renderer = loaded;
+      // A change that no longer names a field of this template (another style or answer since) is dropped.
+      const known = new Set(array(data.fields).map((field) => field.node_id));
+      for (const id of Object.keys(edits)) if (!known.has(id) || edits[id] === array(data.fields).find((field) => field.node_id === id)?.text) delete edits[id];
+      showFields();
+      draw();
+      report();
+      setTimeout(() => drop(lifted), 60);
+    }
+    const onInput = (event) => {
+      const field = event.target.closest?.('[data-copy]'); if (!field) return;
+      const id = field.dataset.copy, original = array(data?.fields).find((entry) => entry.node_id === id)?.text;
+      if (field.value === original) delete edits[id]; else edits[id] = field.value;
+      if (field.tagName === 'TEXTAREA') grow(field);
+      report(); redraw();
+    };
+    const onFocus = (event) => { const field = event.target.closest?.('[data-copy]'); if (field) mark(field.dataset.copy); };
+    const onBlur = () => mark('');
+    fieldsHost.addEventListener('input', onInput);
+    fieldsHost.addEventListener('focusin', onFocus);
+    fieldsHost.addEventListener('focusout', onBlur);
+    const observer = window.ResizeObserver ? new ResizeObserver(() => redraw()) : null;
+    observer?.observe(view);
+
+    // ── Advanced: the template itself, in the template editor ──
+    async function openStudio(){
+      if (opening || studio) return;
+      opening = true; advanced.disabled = true; error.textContent = '';
+      const layer = document.createElement('div');
+      layer.className = 'gxd-studio';
+      layer.innerHTML = `<div class="gxd-studio-app"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div></div>`;
+      (sheet?.querySelector('.gxs-sheet') || sheet || document.body).append(layer);
+      studio = { layer, handle: null };
+      try {
+        // The editor opens the organization's own template: saved now with the answers and the wording so far.
+        const saved = await saveTemplate(ctx, selections, { copy: edits, keep_edits: keepEdits });
+        if (!alive || studio?.layer !== layer) return;
+        const app = layer.querySelector('.gxd-studio-app');
+        app.innerHTML = '';
+        studio.handle = await window.FirstMateEmbeddableApps.mount(app, 'documents.studio', { orgId: ctx.orgId, surface: 'portal_tab', active: true, params: { embed: {
+          templateId: clean(saved.template_id) || `tpl_setup_${clean(selections.document_kind) || 'proposal'}`,
+          backLabel: t('copy_back_to_setup', 'Back to setup'),
+          onClose: () => { void closeStudio(true); }
+        } } });
+        if (studio?.handle?.denied) throw new Error(t('copy_studio_off', 'The template editor is not turned on for your organization.'));
+      } catch (failure) {
+        await closeStudio(false);
+        if (alive) error.textContent = clean(failure?.message) || t('copy_studio_failed', 'The template editor didn’t open. Try again.');
+      } finally { opening = false; if (alive) advanced.disabled = false; }
+    }
+    /** Back from the editor: the wording is read again from the template as it was published there. */
+    async function closeStudio(reload){
+      const open = studio; studio = null;
+      if (!open) return;
+      try { open.handle?.destroy?.(); } catch (_) {}
+      open.layer.remove();
+      if (!reload || !alive) return;
+      keepEdits = true;
+      for (const id of Object.keys(edits)) delete edits[id];
+      report();
+      fieldsHost.innerHTML = '<div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div>';
+      await load().catch(fail);
+    }
+    const onAdvanced = () => { void openStudio(); };
+    advanced.addEventListener('click', onAdvanced);
+    const fail = (failure) => { if (!alive) return; drop(lifted); fieldsHost.innerHTML = ''; error.textContent = clean(failure?.message) || t('copy_failed', 'Your wording didn’t load. Go back and try again.'); };
+    load().catch(fail);
+    return {
+      valid: () => !!data,
+      summary: () => { const count = Object.keys(edits).length; return count ? t('copy_summary', '{count} changes').replace('{count}', String(count)) : ''; },
+      // Escape (and a phone's back) while the template editor is open goes back to the wording, as its back arrow does.
+      escape: () => { if (!studio) return false; studio.layer.querySelector('[data-tpl-back]')?.click(); return true; },
+      destroy(){
+        // The document goes on with the setup, into the first proposal's preview.
+        keepDocument(docHost);
+        alive = false; clearTimeout(timer); observer?.disconnect(); drop(lifted);
+        void closeStudio(false);
+        advanced.removeEventListener('click', onAdvanced); advanced.remove();
+        fieldsHost.removeEventListener('input', onInput); fieldsHost.removeEventListener('focusin', onFocus); fieldsHost.removeEventListener('focusout', onBlur);
+        try { handle?.destroy?.(); } catch (_) {}
+        if (!wasWide) sheet?.classList.remove('gxs-wide');
+      }
+    };
+  }
+
+  // ── The first proposal from the new template (FM-614) ─────────────────
+  // For a proposal set up inside a project: the template is saved, a draft is made from it for this project's customer
+  // and its own workflow runs here, in the Docs app (project.documents) as the Docs tab runs it, so this is how every
+  // proposal starts from now on. The workflow's Previous on its first step comes back to the wording, a phone's back
+  // walks its steps, and sending it finishes the setup on that proposal. Anywhere else (no project, another kind, a
+  // setup another setup started) the setup finishes here.
+  function firstPart(){
+    const projectId = clean(ctx.where?.projectId || window.FirstMateGuides?.where?.()?.projectId);
+    const kind = clean(selections.document_kind) || 'proposal';
+    if (kind !== 'proposal' || !projectId || ctx.nested || !window.FirstMateEmbeddableApps?.mount) {
+      el.innerHTML = '<div class="gxd"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div></div>';
+      setTimeout(() => { Promise.resolve(ctx.complete?.()).catch(() => {}); }, 0);
+      return { valid: () => true };
+    }
+    let alive = true, engine = null, service = null, finished = false, lifted = null;
+    const sheet = el.closest('.gxs'), wasWide = !!sheet?.classList.contains('gxs-wide');
+    sheet?.classList.add('gxs-wide');
+    const pane = el.closest('.gxs-step');
+    pane?.setAttribute('data-fill', '');
+    el.innerHTML = `<div class="gxd gxd-fill gxd-first">
+      <p class="gxd-first-lead"><i class="fas fa-circle-check" aria-hidden="true"></i><span>${esc(t('first_lead', 'Your proposal template is ready. From now on, every proposal starts here: fill in these steps for the customer and send it.'))}</span></p>
+      <div class="gxd-first-app"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span><span data-first-status>${esc(t('first_saving', 'Saving your template…'))}</span></div></div>
+      <p class="gxd-error" role="alert"></p>
+    </div>`;
+    const app = el.querySelector('.gxd-first-app'), error = el.querySelector('.gxd-error');
+    const status = (text) => { const node = el.querySelector('[data-first-status]'); if (node) node.textContent = text; };
+    // The wording's document waits where it was, then slides into the workflow's preview once that is drawn.
+    lifted = liftDocument(sheet || document.body);
+    const intoPreview = () => {
+      if (!lifted) return;
+      const started = Date.now();
+      const look = () => {
+        if (!alive || !lifted) return;
+        const stage = app.querySelector('[data-fmdw-preview-stage]');
+        if (stage && stage.getBoundingClientRect().width) { glide(lifted, stage); const done = lifted; lifted = null; setTimeout(() => drop(done), 900); return; }
+        if (Date.now() - started > 15000) { drop(lifted); lifted = null; return; }
+        setTimeout(look, 120);
+      };
+      look();
+    };
+    async function finish(doc){
+      if (finished || !alive) return;
+      finished = true;
+      ctx.change({ first_document_id: clean(doc?.id) || clean(selections.first_document_id) });
+      // Done with the proposal: the setup finishes on it, without opening New document over it.
+      try { await ctx.complete?.({ resume: false }); } catch (_) { finished = false; }
+    }
+    async function open(){
+      error.textContent = '';
+      const saved = await saveTemplate(ctx, selections, { copy: object(selections.copy), keep_edits: selections.keep_edits === true });
+      if (!alive) return;
+      status(t('first_opening', 'Starting your first proposal…'));
+      const record = await window.PlatformAPI.projects.get(ctx.orgId, projectId).catch(() => null);
+      const project = { ...object(object(record?.document).data), id: projectId, organization_id: ctx.orgId };
+      app.innerHTML = '';
+      engine = await window.FirstMateEmbeddableApps.mount(app, 'project.documents', { orgId: ctx.orgId, projectId, project, surface: 'project_modal', active: true, params: { embed: {
+        enabled: true, history: false, focus: false,
+        onReady: (api) => { service = api; },
+        onWorkflowStep: () => ctx.syncBack?.(),
+        workflowOptions: {
+          showWorkflowTitle: false, phoneSteps: 'bottom',
+          onStepTitle: ({ title } = {}) => { if (alive) ctx.setTitle?.(title); },
+          // Previous on the workflow's first step goes back to the wording.
+          onBackFromFirst: () => { if (alive) ctx.back?.(); }
+        }
+      } } });
+      if (!alive) return;
+      if (!service || engine?.denied) throw new Error(t('first_unavailable', 'Documents could not open here. Finish the setup and make your proposal in Docs.'));
+      const onFinish = (doc) => { void finish(doc); };
+      const previous = clean(selections.first_document_id);
+      const existing = previous ? await window.DocumentsAPI?.documents?.get?.(ctx.orgId, previous).then((result) => object(result.document || result.doc || result)).catch(() => null) : null;
+      if (!alive) return;
+      if (existing?.id && clean(existing.status) === 'draft' && clean(existing.project_id) === projectId) await service.openDocument(existing, { onFinish });
+      else {
+        const doc = await service.startFromTemplate(clean(saved.template_id) || 'tpl_setup_proposal', { onFinish });
+        if (alive) ctx.change({ first_document_id: clean(doc?.id) });
+      }
+      intoPreview();
+      ctx.syncBack?.();
+    }
+    open().catch((failure) => {
+      if (!alive) return;
+      drop(lifted); lifted = null;
+      app.innerHTML = `<div class="gxd-busy"><button type="button" class="gxd-advanced" data-retry>${esc(t('first_retry', 'Try again'))}</button></div>`;
+      error.textContent = clean(failure?.message) || t('first_failed', 'Your first proposal didn’t start.');
+      app.querySelector('[data-retry]')?.addEventListener('click', () => { app.innerHTML = `<div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span><span data-first-status></span></div>`; void open().catch((again) => { if (alive) error.textContent = clean(again?.message); }); });
+    });
+    const stepsBehind = () => Math.max(0, Number(service?.workflowPosition?.()?.index) || 0);
+    return {
+      valid: () => true,
+      // The workflow is the step's navigation: Previous on its first step, Send on its last (the sheet's footer hides).
+      handlesNavigation: true,
+      backDepth: stepsBehind,
+      back: () => (stepsBehind() ? service.workflowBack() === true : false),
+      destroy(){
+        alive = false; drop(lifted); lifted = null;
+        try { engine?.destroy?.(); } catch (_) {}
+        if (!wasWide) sheet?.classList.remove('gxs-wide');
       }
     };
   }

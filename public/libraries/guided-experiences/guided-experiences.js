@@ -414,10 +414,13 @@
    * generate (the price book setup's "Start generating materials") presses the tab's own Generate when no click was held.
    * A `play` with `held` follows only when a click was (true) or was not (false) held: the Scheduling tour that points at
    * New Appointment follows the setup its tab started, not the one New Appointment's own click started (FM-553).
+   * An outcome with `resume: false` lets no held click through: the document setup that ended on a proposal it opened
+   * does not open New document over it (FM-614).
    */
   async function follow(experience, outcome, held, selector = ''){
     let resumed = false;
     const wasHeld = !!held;
+    if (outcome.resume === false) held = null;
     if (outcome.generate && !held) { held = document.querySelector('[data-mt-generate-materials]'); selector = '[data-mt-generate-materials]'; }
     for (const step of array(experience.completion?.then)) {
       if (step.resume && held && !resumed) { resumed = true; letThrough(held, selector); }
