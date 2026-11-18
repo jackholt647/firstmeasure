@@ -166,8 +166,8 @@ answer from before any test has nothing to roll back to.
 **Run again** on a guided setup in the Setup section plays it where the page plays guides: in the open project
 window when there is one (as the Guided experiences section does), else on the page; on a phone the console folds
 first. A finished or skipped setup that is `replayable` (the Communications setup is) plays as a replay
-(`FirstMateGuides.play(id, { replay: true, force: true })`): its saves are real, but its progress stays finished. One
-that is not replayable is not offered once finished, so Run again resets it first and it plays as new. A setup not
+(`FirstMateGuides.play(id, { replay: true, force: true })`), as the app's own "Set up" buttons play it: its saves are
+real and its progress shows where the replay got (Started, then Done or Skipped). One that is not replayable is not offered once finished, so Run again resets it first and it plays as new. A setup not
 started or stopped part way shows **Start** or **Continue** instead. **Reset** clears its progress, its exposure and
 its scripted lines (`POST /v1/guided-experiences/organizations/:orgId/dev/reset` with scope `me`, which for an
 organization setup clears the organization's progress too), so its own triggers play it again. Neither undoes what

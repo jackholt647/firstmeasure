@@ -87,9 +87,11 @@ test('dev console: scope-filtered nested contracts and synthetic data fit deskto
   await page.locator('[data-dc-setup-rollback-now="company.type"]').click();
   await page.waitForFunction(()=>!document.querySelector('[data-dc-setup-rollback="company.type"]'));
   assert.equal(testCalls.at(-1),'company.type rollback');
-  // Guided setups (FM-589): a finished setup plays again from its row, as a replay when it allows one (its progress
-  // stays); one that allows none (not offered once finished) is reset first and plays as new. Reset alone clears it.
-  await page.evaluate(()=>{window.__plays=[];window.__listed=new Set(['comms.setup','appointments.setup']);window.FirstMateGuides={refresh:async()=>null,experience:(id)=>window.__listed.has(id)?{id}:null,isPlaying:()=>false,play:async(id,options)=>{window.__plays.push([id,options]);return{status:'completed'};}};});
+  // Guided setups (FM-589): a finished setup plays again from its row, as a replay when it allows one; one that allows
+  // none (not offered once finished) is reset first and plays as new. Reset alone clears its progress.
+  await page.evaluate(()=>{window.__plays=[];window.__listed=new Set(['comms.setup','appointments.setup']);window.FirstMateGuides={refresh:async()=>null,experience:(id)=>window.__listed.has(id)?{id}:null,isPlaying:()=>false,play:async(id,options)=>{window.__plays.push([id,options]);return{status:'completed'};}};
+   // The portal's spare project window: laid out but hidden, so nothing plays in it.
+   const spare=document.createElement('iframe');spare.style.visibility='hidden';document.body.append(spare);spare.contentWindow.FirstMateGuides={...window.FirstMateGuides,play:async()=>{window.__plays.push(['spare frame']);return{status:'completed'};}};});
   assert.match(await page.locator('[data-dc-setup-row="guide:comms.setup"]').innerText(),/Finished by Jack Holt[\s\S]*Run again[\s\S]*Reset[\s\S]*Done/);
   assert.match(await page.locator('[data-dc-setup-play="appointments.setup"]').innerText(),/Continue/);
   await page.locator('[data-dc-setup-play="comms.setup"]').click();

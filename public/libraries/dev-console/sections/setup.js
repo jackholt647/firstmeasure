@@ -11,9 +11,9 @@
  * (development/setup-tests.ts).
  *
  * Each guided setup can be played again (FM-589): Run again plays it on the page (in the open project window when there
- * is one) as a replay when it allows one, so its progress stays as it is; one that does not is reset first and plays as
- * new. Reset puts its progress back to never shown, so its triggers play it again (POST …/dev/reset, guided-experiences
- * dev.ts).
+ * is one) as a replay when it allows one, like the app's own "Set up" buttons (its progress shows where the replay
+ * got); one that does not is reset first and plays as new. Reset puts its progress back to never shown, so its triggers
+ * play it again (POST …/dev/reset, guided-experiences dev.ts).
  */
 const DEVICES = { desktop: ['fa-desktop', ['dc_setup_desktop', 'Desktop']], tablet: ['fa-tablet-screen-button', ['dc_setup_tablet', 'Tablet']], phone: ['fa-mobile-screen-button', ['dc_setup_phone', 'Phone']] };
 let device = 'desktop';
@@ -111,7 +111,7 @@ export function mount(root, { api, T, esc, toast, phone, close, orgId, VERSION }
     root.innerHTML = `<p class="fm-dc-intro">${esc(T('dc_setup_intro', 'Every setup this organization has been through. Hover or tap a row for where and when it was done.'))}</p>
       <div class="fm-dc-actions"><button type="button" class="fm-dc-btn" data-dc-setup-reload><i class="fas fa-arrows-rotate" aria-hidden="true"></i> ${esc(T('dc_setup_reload', 'Refresh'))}</button></div>
       ${group(T('dc_setup_questions', 'Questions asked once'), data.steps, (step) => row('step', step.id, step.title, step.status, stepLines(step), stepActions(step)), T('dc_setup_questions_note', 'Setup steps: whichever setup asks first saves the answer; the others skip it. Test asks one again and saves it for real; Roll back undoes its tests.'))}
-      ${group(T('dc_setup_guided', 'Guided setups'), setups, (guide) => row('guide', guide.id, guide.title, guide.status, guideLines(guide), guideActions(guide)), T('dc_setup_guided_note', 'Run again plays a setup here, as a replay when it allows one (its progress stays); Reset makes it never shown, so it plays again when its trigger comes.'))}
+      ${group(T('dc_setup_guided', 'Guided setups'), setups, (guide) => row('guide', guide.id, guide.title, guide.status, guideLines(guide), guideActions(guide)), T('dc_setup_guided_note', 'Run again plays a setup here again, saving for real; Reset makes it never shown, so it plays when its trigger comes.'))}
       ${group(T('dc_setup_apps', 'App setups'), apps, (app) => row('app', app.key, app.label, app.status, appLines(app)))}
       ${tours.length ? `<details class="fm-dc-setup-tours"${open.has('tours') ? ' open' : ''}><summary class="fm-dc-h">${esc(T('dc_setup_tours', 'Tours'))} · ${count(tours)}</summary><ul class="fm-dc-list">${tours.map((guide) => row('guide', guide.id, guide.title, guide.status, guideLines(guide))).join('')}</ul></details>` : ''}`;
   }
@@ -189,10 +189,13 @@ export function mount(root, { api, T, esc, toast, phone, close, orgId, VERSION }
   let busy = false;
   const guideOf = (id) => data?.guides.find((guide) => guide.id === id) || null;
   const resetProgress = (id) => api(`/v1/guided-experiences/organizations/${encodeURIComponent(orgId())}/dev/reset`, { method: 'POST', body: { experience_id: id, scope: 'me' } });
-  /** The guided library that plays it: the open project window's, as the Guided experiences section does, else the page's. */
+  /**
+   * The guided library that plays it: the open project window's, as the Guided experiences section does, else the
+   * page's. The portal keeps a spare project window ready, laid out but hidden: a setup played there is never seen.
+   */
   function guidesHere() {
     for (const frame of document.querySelectorAll('iframe')) {
-      try { const guides = frame.contentWindow?.FirstMateGuides; if (guides?.play && frame.getClientRects().length && guides !== window.FirstMateGuides) return guides; } catch (_) { /* another origin */ }
+      try { const guides = frame.contentWindow?.FirstMateGuides; if (guides?.play && guides !== window.FirstMateGuides && frame.getClientRects().length && getComputedStyle(frame).visibility === 'visible') return guides; } catch (_) { /* another origin */ }
     }
     return window.FirstMateGuides?.play ? window.FirstMateGuides : null;
   }
