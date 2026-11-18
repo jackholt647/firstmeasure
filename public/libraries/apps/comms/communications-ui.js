@@ -27,7 +27,7 @@
     if (document.getElementById('fm-communications-css')) return;
     const link = document.createElement('link'); link.id='fm-communications-css'; link.rel='stylesheet';
     const source=new URL(document.currentScript?.src || `${location.origin}/libraries/apps/comms/communications-ui.js`);
-    link.href=new URL('communications.css?v=20261118-fm550-tab-strip',source).href;
+    link.href=new URL('communications.css?v=20261118-fm594-setup-panel',source).href;
     document.head.append(link);
   }
   css();
@@ -51,6 +51,10 @@
   const area=(title,name,value='',extra='')=>`<label class="fmcm-field">${esc(title)}<textarea aria-label="${esc(title)}" name="${esc(name)}" ${extra}>${esc(value)}</textarea></label>`;
   const select=(title,name,values,selected='')=>`<label class="fmcm-field">${esc(title)}<select aria-label="${esc(title)}" name="${esc(name)}">${values.map(v=>{const [key,text]=Array.isArray(v)?v:[v,label(v)];return `<option value="${esc(key)}" ${key===selected?'selected':''}>${esc(text)}</option>`;}).join('')}</select></label>`;
   const empty=(title,body,action='')=>`<div class="fmcm-empty">${icon('comments')}<h3>${esc(title)}</h3><p>${esc(body)}</p>${action}</div>`;
+  // FM-594: a channel that is not set up yet (a project's Texts and Calls) says so in this one panel, so both look the
+  // same. title and body are HTML; `button` is {label (HTML), attrs, note} where note is the attribute of the line that
+  // says why setup could not open. The panel's own classes style it inside and outside .fmcm (communications.css).
+  const setupPanel=({status,icon:name,title,body,attrs='',button=null})=>`<div class="fmcm-setup" data-setup-status="${esc(status)}" role="status" ${attrs}><strong>${icon(name)}<span>${title}</span></strong><p>${body}</p>${button?`<button type="button" class="fmcm-setup-btn" ${button.attrs}>${button.label}</button><div class="fmcm-setup-note" ${button.note}></div>`:''}</div>`;
   const projectField=(selected='')=>`<div data-project-picker>${field('Find a project','project_search','','search','placeholder="Search by project or customer name" autocomplete="off"')}${select('Project','project_id',[['','No project'],...(selected?[[selected,selected]]:[])],selected)}<p class="fmcm-help" data-project-status></p></div>`;
   function bindProjectPicker(el,selected=''){
     const host=el.querySelector('[data-project-picker]');if(!host)return;
@@ -146,5 +150,5 @@
   function callStatus(call){if(!call.connected_at&&call.direction==='inbound'&&['no_answer','busy','rejected'].includes(call.state))return 'Missed call';if(!call.connected_at&&call.state==='no_answer')return 'No answer';const start=Date.parse(call.connected_at||''),end=Date.parse(call.ended_at||'');if(Number.isFinite(start)&&Number.isFinite(end)&&end>=start){const seconds=Math.round((end-start)/1000);return `${Math.floor(seconds/60)}m ${String(seconds%60).padStart(2,'0')}s`;}if(call.state==='ended'&&!call.connected_at)return call.direction==='inbound'?'Missed call':'No answer';return label(call.state);}
   function voicePlayer(url){return `<div class="fm-voice-player"><audio controls preload="none" src="${esc(url)}"></audio><select aria-label="Playback speed"><option value="1">1x</option><option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2x</option><option value="0.75">0.75x</option></select><a href="${esc(url)}" download="voicemail.mp3" aria-label="Download voicemail" title="Download voicemail">${icon('download')}</a></div>`;}
   function bindVoicePlayer(root){root.querySelectorAll('.fm-voice-player').forEach(player=>{player.querySelector('select').onchange=event=>{player.querySelector('audio').playbackRate=Number(event.target.value);};const link=player.querySelector('a');let busy=false;link.onclick=async event=>{event.preventDefault();if(busy)return;busy=true;link.setAttribute('aria-busy','true');player.querySelector('[data-download-error]')?.remove();try{const response=await fetch(link.href,{credentials:'same-origin'});if(!response.ok)throw new Error('Recording unavailable');const blob=await response.blob(),url=URL.createObjectURL(blob),download=document.createElement('a');download.href=url;download.download=/wav/i.test(blob.type)?'voicemail.wav':'voicemail.mp3';document.body.append(download);download.click();download.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch{const error=document.createElement('small');error.dataset.downloadError='';error.setAttribute('role','alert');error.textContent='Could not download the voicemail. Please try again.';player.append(error);}finally{busy=false;link.removeAttribute('aria-busy');}};});}
-  Portal.CommunicationsUI={esc,org,user,request,uid,icon,date,label,notice,dialog,field,area,select,empty,project,navigate,projectField,bindProjectPicker,callStatus,voicePlayer,bindVoicePlayer};
+  Portal.CommunicationsUI={esc,org,user,request,uid,icon,date,label,notice,dialog,field,area,select,empty,setupPanel,project,navigate,projectField,bindProjectPicker,callStatus,voicePlayer,bindVoicePlayer};
 })();

@@ -215,3 +215,13 @@
 .fmcc .fmcc-stats{gap:8px;margin-bottom:12px}.fmcc .fmcc-stat{padding:10px 12px}.fmcc .fmcc-stat strong{font-size:20px;margin-top:2px}
 .fmcc .fmcc-history-row,.fmcc .fmcc-agent,.fmcc .fmcc-managed-list{padding:12px 14px}.fmcc .fmcc-row-actions button{min-height:36px;font-size:12px}.fmcc .fmcc-agent>.fmcc-row-actions{padding-left:46px}.fmcc .fmcc-managed-leads{padding:0 14px 10px}
 }
+/* FM-594: the not-set-up panel of a project's Texts and Calls (CommunicationsUI.setupPanel). Its rules name its own
+   classes twice over so .fmcm's button and text rules never reach it: it looks the same in the Comms tab and in Calls. */
+.fmcm-setup{border:1px dashed #d0d5dd;border-radius:12px;background:#fcfcfd;padding:14px 16px;display:grid;gap:6px;justify-items:start;text-align:left;color:#667085}
+.fmcm-setup-page{max-width:460px;margin:28px auto;padding:0 12px}.fmcm-view>.fmcm-setup{margin-bottom:12px}
+.fmcm-setup>strong{display:flex;align-items:center;gap:8px;margin:0;font-size:13.5px;line-height:1.35;font-weight:700;color:#101828}.fmcm-setup>strong>i{color:#667085;margin:0;font-size:inherit}
+.fmcm-setup>p{margin:0;max-width:none;font-size:12.5px;line-height:1.45;color:#667085}
+.fmcm-setup[data-setup-status=pending]{border-style:solid;border-color:#fedf89;background:#fffcf5}.fmcm-setup[data-setup-status=pending]>strong>i{color:#dc6803}.fmcm-setup[data-setup-status=attention]>strong>i{color:#d92d20}
+.fmcm-setup .fmcm-setup-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:0;margin-top:4px;padding:6px 12px;border:1px solid var(--primary,#d93025);border-radius:8px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:inherit;font-size:12px;font-weight:800;line-height:1.45;cursor:pointer;white-space:nowrap}
+.fmcm-setup .fmcm-setup-btn:hover{background:var(--primary,#d93025);border-color:var(--primary,#d93025);filter:brightness(.94)}.fmcm-setup .fmcm-setup-btn:disabled{opacity:.5;cursor:default;filter:none}
+.fmcm-setup .fmcm-setup-note{font-size:12px;color:#667085}.fmcm-setup .fmcm-setup-note:empty{display:none}

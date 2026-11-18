@@ -168,6 +168,8 @@
       .fmco-head-icon,.fmco-phone-only,.fmco-ai-btn[hidden]{display:none}
       .fmco-body{flex:1;min-height:0;display:flex}
       .fmco-content{flex:1;min-width:0;min-height:0;overflow-y:auto;padding:16px}
+      /* FM-594: the project's Calls (comms/workspace.js) sit on the tab like every other channel: no second background or padding. */
+      .fmco-content:has(>.fmcm){padding:0}.fmco-content>.fmcm{background:transparent;min-height:0}.fmco-content>.fmcm>.fmcm-view{padding:16px}
       .fmco-agent-col{width:340px;flex:0 0 auto;border-left:1px solid #e4e7ec;background:#fff;display:flex;flex-direction:column;min-height:0}
       /* display:flex would otherwise override the [hidden] attribute and
          leave a permanently blank right column. */
@@ -177,8 +179,7 @@
       .fmco-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
       .fmco-card{background:#fff;border:1px solid #e4e7ec;border-radius:12px;padding:14px 16px;display:grid;gap:6px;align-content:start}
       .fmco-setup-card{border-style:dashed;background:#fcfcfd;align-content:start}.fmco-setup-card .fmco-btn{justify-self:start;margin-top:4px}.fmco-setup-card [data-co-setup-note]:empty{display:none}.fmco-setup-card .fmco-card-sub{white-space:normal;overflow:visible;text-overflow:clip}
-      .fmco-phone-setup{border:1px dashed #d0d5dd;border-radius:12px;background:#fcfcfd;padding:14px 16px;display:grid;gap:6px;justify-items:start;text-align:left}.fmco-phone-setup strong{display:flex;align-items:center;gap:8px;font-size:13.5px;color:#101828}.fmco-phone-setup strong i{color:#667085}.fmco-phone-setup p{margin:0;font-size:12.5px;line-height:1.45;color:#667085}.fmco-phone-setup .fmco-btn{margin-top:4px}.fmco-phone-setup [data-co-setup-note]{font-size:12px;color:#667085}.fmco-phone-setup [data-co-setup-note]:empty{display:none}
-      .fmco-phone-setup[data-co-phone-setup="pending"]{border-style:solid;border-color:#fedf89;background:#fffcf5}.fmco-phone-setup[data-co-phone-setup="pending"] strong i{color:#dc6803}.fmco-phone-setup[data-co-phone-setup="attention"] strong i{color:#d92d20}.fmco-phone-setup-page{max-width:460px;margin:28px auto;padding:0 12px}.fmco-composer[hidden]{display:none!important}
+      .fmco-composer[hidden]{display:none!important}
       .fmco-card-top{display:flex;align-items:center;justify-content:space-between}
       .fmco-card-title{font-size:10.5px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:#98a2b3;display:flex;align-items:center;gap:7px}
       .fmco-card-title i{color:#667085}
@@ -390,7 +391,7 @@
         .fmco-tab.active{border-color:var(--primary,#d93025)}
         .fmco-phone-only{display:inline-flex}
         .fmco-content{padding:12px}
-        .fmco-content:has(>.fmco-split.thread-mode),.fmco-content:has(>.fmcm){padding:0}
+        .fmco-content:has(>.fmco-split.thread-mode),.fmco-content:has(>.fmcm){padding:0}.fmco-content>.fmcm>.fmcm-view{padding:12px}
         .fmco-cards{grid-template-columns:repeat(var(--fmco-channels,2),minmax(0,1fr));gap:8px;margin-bottom:14px}
         .fmco-card{position:relative;padding:11px 12px;gap:3px;min-width:0;grid-template-columns:minmax(0,1fr);align-content:space-between}
         .fmco-card-top{gap:4px}
@@ -1522,15 +1523,17 @@
 
   function phoneChannel(channel){ return clean(object(state.phone?.channels)[channel]) || 'ready'; }
 
+  // FM-594: the same panel as the project's Calls (CommunicationsUI.setupPanel in comms/communications-ui.js).
   function phoneSetupHtml(channel){
     const status = phoneChannel(channel);
     const setUp = status !== 'pending' && typeof rootWindow.FirstMateGuides?.play === 'function';
     const copy = status === 'pending'
-      ? `<strong><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_2285049db07c36","Texts are pending approval") ?? "Texts are pending approval")}</strong><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_8517b659bbefd9","Carriers are reviewing your texting registration. This can take a few days, so check back later.") ?? "Carriers are reviewing your texting registration. This can take a few days, so check back later.")}</p>`
+      ? { icon:'hourglass-half', title:`${(globalThis.PlatformLanguage?.htmlText("comms","m_2285049db07c36","Texts are pending approval") ?? "Texts are pending approval")}`, body:`${(globalThis.PlatformLanguage?.htmlText("comms","m_8517b659bbefd9","Carriers are reviewing your texting registration. This can take a few days, so check back later.") ?? "Carriers are reviewing your texting registration. This can take a few days, so check back later.")}` }
       : status === 'attention'
-        ? `<strong><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_856e6f0aa78a99","Texting registration needs changes") ?? "Texting registration needs changes")}</strong><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_6a5f5a12429e2d","Carriers did not approve your texting registration. Continue setup to fix it and send it again.") ?? "Carriers did not approve your texting registration. Continue setup to fix it and send it again.")}</p>`
-        : `<strong><i class="fa-solid fa-comment-sms" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_976928725a48f4","Texts are not set up yet") ?? "Texts are not set up yet")}</strong><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_53db3de27dfd79","Finish setting up texts and calls to text customers from their project.") ?? "Finish setting up texts and calls to text customers from their project.")}</p>`;
-    return `<div class="fmco-phone-setup" data-co-phone-setup="${esc(status)}" role="status">${copy}${setUp ? `<button type="button" class="fmco-btn primary" data-co-setup="phone">${(globalThis.PlatformLanguage?.htmlText("comms","m_00f67583b123a0","Continue setup") ?? "Continue setup")}</button><div data-co-setup-note></div>` : ''}</div>`;
+        ? { icon:'triangle-exclamation', title:`${(globalThis.PlatformLanguage?.htmlText("comms","m_856e6f0aa78a99","Texting registration needs changes") ?? "Texting registration needs changes")}`, body:`${(globalThis.PlatformLanguage?.htmlText("comms","m_6a5f5a12429e2d","Carriers did not approve your texting registration. Continue setup to fix it and send it again.") ?? "Carriers did not approve your texting registration. Continue setup to fix it and send it again.")}` }
+        : { icon:'comment-sms', title:`${(globalThis.PlatformLanguage?.htmlText("comms","m_976928725a48f4","Texts are not set up yet") ?? "Texts are not set up yet")}`, body:`${(globalThis.PlatformLanguage?.htmlText("comms","m_53db3de27dfd79","Finish setting up texts and calls to text customers from their project.") ?? "Finish setting up texts and calls to text customers from their project.")}` };
+    return Portal.CommunicationsUI.setupPanel({ status, ...copy, attrs:`data-co-phone-setup="${esc(status)}"`,
+      button: setUp ? { label:`${(globalThis.PlatformLanguage?.htmlText("comms","m_00f67583b123a0","Continue setup") ?? "Continue setup")}`, attrs:'data-co-setup="phone"', note:'data-co-setup-note' } : null });
   }
 
   function smsListHtml(){
@@ -1574,7 +1577,7 @@
     const ready = phoneChannel('texts') === 'ready';
     if (!ready) state.smsComposeOpen = false;
     if (!ready && !smsConversations().length) {
-      root.innerHTML = `${errorHtml()}<div class="fmco-phone-setup-page">${phoneSetupHtml('texts')}</div>`;
+      root.innerHTML = `${errorHtml()}<div class="fmcm-setup-page">${phoneSetupHtml('texts')}</div>`;
       bindSmsList(root);
       return;
     }
