@@ -18,13 +18,16 @@
     function rememberListScroll(){root.querySelectorAll('[data-list-scroll]').forEach(el=>listScroll.set(el.dataset.listScroll,el.scrollTop));}
     instances.add(state);
     const chrome=window.AppChrome;
+    // FM-550: the shared tab strip carries the views and Settings; a standalone view keeps the settings button in its
+    // header, except the Call Center, whose own strip ends with Settings.
+    const settingsTab={id:'setup',title:'Settings',icon:'fa-gear',attribute:'data-view'};
     function header(){
       const member=views.find(v=>v[0]===options.standalone);
       return chrome.header({title:options.standalone?(member?.[1] || 'Call scripts'):'Communications',icon:options.standalone?'fa-'+(member?.[2] || 'file-lines'):'fa-comments',
-        tabs:options.standalone?'':chrome.tabs('communications',state.view,'data-view'),
-        actions:'<button type="button" data-view="setup" aria-label="Communications settings" title="Communications settings">'+icon('gear')+'</button>'});
+        strip:options.standalone?'':chrome.tabs('communications',state.view,'data-view',{},{strip:true,extra:[settingsTab]}),
+        actions:options.standalone && options.standalone!=='center'?'<button type="button" data-view="setup" aria-label="Communications settings" title="Communications settings">'+icon('gear')+'</button>':''});
     }
-    root.innerHTML=`<div class="fmcm">${options.projectId?'':header()}<div class="fmcm-inbox" data-inbox hidden></div><main class="fmcm-view" data-content></main></div>`;
+    root.innerHTML=`<div class="fmcm">${options.projectId?'':header()}<div class="fmcm-subtabs" data-subtabs hidden></div><div class="fmcm-inbox" data-inbox hidden></div><main class="fmcm-view" data-content></main></div>`;
 
     state.host=root.querySelector('[data-content]');
     root.addEventListener('click',onClick);root.addEventListener('input',onInput);root.addEventListener('change',onChange);
@@ -35,6 +38,7 @@
       root.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-current',b.dataset.view===view?'page':'false'));
       root.querySelector('[data-view][aria-current="page"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
       state.host.classList.toggle('fmcm-lists-view',view==='lists');
+      root.querySelector('[data-subtabs]').hidden=view!=='center';
       const inbox=root.querySelector('[data-inbox]');inbox.hidden=view!=='inbox';state.host.hidden=view==='inbox';
       if(view==='inbox'&&!state.inboxHandle&&options.mountInbox)state.inboxHandle=options.mountInbox(inbox,{tab:options.standalone?'chat.inbox':'chat'})||{};
       if(!fromRoute&&!options.projectId&&!options.standalone&&!Portal.navigation?.applying)Portal.navigation?.push?.({tab:'chat',communicationsView:view});
@@ -189,7 +193,16 @@
     function phoneButton(){const status=phone.takingCalls?'Taking calls':'Not taking calls',tone=phone.takingCalls?'available':'off';return `<button type="button" class="fmcm-phone-status" data-action="phone-menu" data-phone-status="${tone}" aria-label="Incoming calls: ${esc(status)}. Incoming calls and audio devices" title="Incoming calls: ${esc(status)}. Incoming calls and audio devices">${icon('headset')}<i class="fmcm-phone-dot" aria-hidden="true"></i><span>${esc(status)}</span></button>`;}
     function matches(value){return !state.query||JSON.stringify(value).toLowerCase().includes(state.query.toLowerCase());}
     function centerDepartmentPicker(){const context=state.departmentContext;return context?.show_selector?`<label class="fmcc-department"><span>${esc(context.department_label||'Department')}</span><select data-department><option value="">All available ${esc((context.departments_label||'departments').toLowerCase())}</option>${context.departments.map(d=>`<option value="${esc(d.id)}" ${state.departmentId===d.id?'selected':''}>${esc(d.label)}</option>`).join('')}</select></label>`:'';}
-    function centerSwitch(){const canManage=['manage','monitor','whisper','barge','takeover'].some(key=>state.status?.permissions?.[key]);return `<div class="fmcc-top"><div class="fmcc-title"><h2>Call Center</h2><p>Calls, leads and your team in one workspace.</p></div>${centerDepartmentPicker()}</div><div class="fmcc-modebar"><div class="fmcc-switch" role="tablist" aria-label="Call Center view">${[['personal','Personal'],['call','Call center'],...(canManage?[['manager','Manager view']]:[])].map(([id,title])=>`<button type="button" role="tab" data-center-mode="${id}" aria-selected="${state.centerMode===id}" tabindex="${state.centerMode===id?'0':'-1'}">${title}</button>`).join('')}</div><button type="button" class="fmcc-settings" data-view="setup" aria-label="Communications settings">${icon('gear')}</button></div>`;}
+    function centerSwitch(){return `<div class="fmcc-top"><div class="fmcc-title"><h2>Call Center</h2><p>Calls, leads and your team in one workspace.</p></div>${centerDepartmentPicker()}</div>`;}
+    // The Call Center's views, and Settings when it stands alone, as the shared tab strip under the header (FM-550).
+    function centerTabs(){
+      const canManage=['manage','monitor','whisper','barge','takeover'].some(key=>state.status?.permissions?.[key]);
+      return chrome.tabStrip({label:'Call Center view',attribute:'data-center-mode',selected:state.centerMode,items:[
+        {id:'personal',title:'Personal',icon:'fa-user'},{id:'call',title:'Call center',short:'Calls',icon:'fa-headset'},
+        ...(canManage?[{id:'manager',title:'Manager view',short:'Manager',icon:'fa-user-tie'}]:[]),
+        // Inside Communications its own strip already ends with Settings.
+        ...(options.standalone==='center'?[settingsTab]:[])]});
+    }
     function renderPersonal(){
       const calls=state.personalCalls;
       const filters=`<div class="fmcc-filters"><label class="fmcc-search">Search calls<input type="search" data-center-search placeholder="Name, number or notes" value="${esc(state.centerQuery)}"></label><label>When<select data-center-period>${[['7','Past 7 days'],['30','Past 30 days'],['90','Past 90 days'],['all','All time']].map(([value,title])=>`<option value="${value}" ${state.centerPeriod===value?'selected':''}>${title}</option>`).join('')}</select></label><label>Direction<select data-center-direction><option value="all">All calls</option><option value="outbound" ${state.centerDirection==='outbound'?'selected':''}>Outgoing</option><option value="inbound" ${state.centerDirection==='inbound'?'selected':''}>Incoming</option></select></label><label>Status<select data-center-wrap><option value="all">All outcomes</option><option value="needs_wrap_up" ${state.centerWrap==='needs_wrap_up'?'selected':''}>Needs outcome</option></select></label></div>`;
@@ -218,6 +231,9 @@
     }
     function renderCenter(){
       const active=document.activeElement,searchActive=active?.matches?.('[data-center-search]'),cursor=searchActive?active.selectionStart:0;
+      const tabs=centerTabs(),tabsHost=root.querySelector('[data-subtabs]');
+      if(state.centerTabs!==tabs){state.centerTabs=tabs;tabsHost.innerHTML=tabs;}
+      tabsHost.hidden=false;
       state.host.innerHTML=`<div class="fmcc">${centerSwitch()}${state.centerMode==='personal'?renderPersonal():state.centerMode==='manager'?renderManager():renderCaller()}</div>`;
       if(searchActive){const input=state.host.querySelector('[data-center-search]');input?.focus();try{input?.setSelectionRange(cursor,cursor);}catch{}}
       if(state.error)showError();
@@ -327,7 +343,7 @@
     const onSession=()=>{if(!state.disposed&&(state.error||state.sessionScope!==`${ui.org()}:${ui.user()}`))void load();};
     window.addEventListener('fm:platform-session:updated',onSession);
     window.addEventListener('fm:customer-calls:next',onNext);window.addEventListener('fm:customer-calls:changed',updatePhone);
-    const onLayout=()=>{if(options.projectId)return;root.querySelector('[data-app-header]')?.remove();root.querySelector('.fmcm').insertAdjacentHTML('afterbegin',header());if(!options.standalone&&!['setup','layout'].includes(state.view))nav(chrome.resolve('communications',route().communicationsView),true);};
+    const onLayout=()=>{if(options.projectId)return;root.querySelectorAll('.fmcm>:is([data-app-header],app-tab-strip)').forEach(el=>el.remove());root.querySelector('.fmcm').insertAdjacentHTML('afterbegin',header());if(!options.standalone&&!['setup','layout'].includes(state.view))nav(chrome.resolve('communications',route().communicationsView),true);};
     window.addEventListener('fm:app-placements:updated',onLayout);
     let active=true,ticks=0;
     const timer=setInterval(()=>{ticks++;if(active&&!state.disposed&&!document.hidden&&!root.contains(document.activeElement)&&!['setup','layout','inbox'].includes(state.view)&&(state.view==='center'||ticks%6===0))void load(false,true);},5000);
