@@ -1223,7 +1223,7 @@
   function smsImageHtml(message){
     const id = clean(object(object(message?.metadata).sms_image).media_id);
     const url = id && rootWindow.PlatformAPI?.media?.fileUrl ? rootWindow.PlatformAPI.media.fileUrl(orgId(), id, 'original') : '';
-    return url ? `<a class="fmco-msg-image" href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="" loading="lazy"></a>` : '';
+    return url ? `<a class="fmco-msg-image" href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt=""></a>` : '';
   }
 
   function emailAttachmentsHtml(message){
@@ -1430,8 +1430,8 @@
       mountComposer(root, composer);
       root.querySelector('.fmco-rich-send')?.addEventListener('click', () => sendComposer(composer, active));
     }
-    scrollBottom(root);
     rootWindow.FirstMateAudioNotes?.hydrate?.(root);
+    scrollBottom(root);
   }
 
   // Portal chat ---------------------------------------------------------------
@@ -1862,7 +1862,12 @@
 
   function scrollBottom(root){
     const scroll = root.querySelector('[data-co-scroll]');
-    if (scroll) scroll.scrollTop = scroll.scrollHeight;
+    if (!scroll) return;
+    scroll.scrollTop = scroll.scrollHeight;
+    // A text's image has no height until it loads: stay at the bottom when it arrives (FM-587).
+    scroll.querySelectorAll('.fmco-msg-image img').forEach((image) => {
+      if (!image.complete) image.addEventListener('load', () => { if (scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < image.offsetHeight + 80) scroll.scrollTop = scroll.scrollHeight; }, { once:true });
+    });
   }
 
   function schedulePoll(){
