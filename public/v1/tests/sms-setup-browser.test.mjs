@@ -245,6 +245,65 @@ test('automatic registration checks poll the provider, pause when hidden, back o
   } finally {await browser.close();}
 });
 
+// FM-595: who hosts the privacy policy and texting terms is one switch beside Website, on by default, with a tooltip;
+// only turning it off asks for the business's own links. Website starts from the one the company gave at onboarding.
+test('FM-595: policy pages are one switch beside Website, and Website starts from the company', async () => {
+  const browser = await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try {
+    const page=await browser.newPage({viewport:{width:1100,height:900}});
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.setContent('<style>body{font-family:Arial;margin:0}*{box-sizing:border-box}</style>');
+    await page.addScriptTag({content:shell});await page.addStyleTag({content:styles});
+    await page.addScriptTag({content:`
+      let smsRegistrationLiveMode=true;const state={};const currentOrgId=()=> 'fixture-org';
+      const normalizeOrganizationBusinessAddress=v=>v||{};const organizationBusinessAddressFromState=()=>({});const formatOrganizationBusinessAddress=()=>'';
+      const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      const formatPhoneUS=v=>v;const readSettingsRoute=()=>({});const writeSettingsRoute=()=>{};const showToast=()=>{};const renderSmsSettings=()=>{};
+      window.saved=${JSON.stringify({...fixture,brand_status:'draft',provider_refs:{},brand:{...fixture.brand,website:''},campaign:{...fixture.campaign,privacyPolicyLink:'',termsAndConditionsLink:''},hosted_policy_pages:{privacy:'https://dev.1m8.ai/v1/public/sms-policies/fixture/privacy',terms:'https://dev.1m8.ai/v1/public/sms-policies/fixture/terms'}})};
+      const messagingRequest=async(path,options={})=>{
+        if(options.method==='PATCH')window.saved={...window.saved,...structuredClone(options.body)};
+        return {profile:structuredClone(window.saved)};
+      };
+      ${envShim}${helpers}
+      ${wizard}
+      window.start=()=>openSmsWizard(smsPrefillProfile(window.saved,{organization:{contact:{website:'ridgeline-roofing.test'}}}),{initialStep:'business'});
+    `});
+    await page.evaluate(()=>window.start());
+    const website=page.locator('[data-sms-field="brand.website"]');
+    assert.equal(await website.inputValue(),'https://ridgeline-roofing.test','Website starts from the company');
+    const hosted=page.locator('[data-sms-policy-hosted]');
+    assert.equal(await hosted.isChecked(),true,'FirstMate hosts the pages by default');
+    assert.equal(await hosted.getAttribute('role'),'switch');
+    assert.equal(await page.locator('input[type="radio"][data-sms-field="campaign.policyPages"]').count(),0);
+    assert.match(await page.locator('.sms-policy-field .fm-ui-help').getAttribute('data-fm-tooltip'),/FirstMate publishes both for you/);
+    assert.deepEqual(await page.locator('[data-sms-hosted-policy]').evaluateAll(links=>links.map(a=>a.getAttribute('href'))),['https://dev.1m8.ai/v1/public/sms-policies/fixture/privacy','https://dev.1m8.ai/v1/public/sms-policies/fixture/terms']);
+    assert.equal(await page.locator('[data-sms-field="campaign.privacyPolicyLink"]').count(),0);
+    assert.equal(await page.getByText('What carriers need on these pages',{exact:true}).count(),0);
+    // Beside Website, not a section of its own below it.
+    const field=await page.locator('.sms-field:has([data-sms-field="brand.website"])').boundingBox();
+    const toggle=await page.locator('.sms-policy-field').boundingBox();
+    assert.ok(Math.abs(toggle.y-field.y)<2 && toggle.x>field.x+field.width-1,'the switch sits to the right of Website');
+    const switchBox=await page.locator('.sms-policy-switch').boundingBox(), input=await website.boundingBox();
+    assert.ok(Math.abs(switchBox.height-input.height)<2,'the switch box is as tall as the Website input');
+    if(process.env.SMS_SCREENSHOTS){await mkdir(process.env.SMS_SCREENSHOTS,{recursive:true});await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/policy-hosted.png'});}
+    await hosted.uncheck();
+    await page.locator('[data-sms-field="campaign.privacyPolicyLink"]').waitFor();
+    assert.equal(await page.locator('[data-sms-field="campaign.termsAndConditionsLink"]').count(),1);
+    assert.equal(await page.getByText('What carriers need on these pages',{exact:true}).count(),1);
+    assert.equal(await page.locator('[data-sms-hosted-policy]').count(),0);
+    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/policy-own.png'});
+    await page.locator('[data-sms-policy-hosted]').check();
+    await page.locator('[data-sms-hosted-policy]').first().waitFor();
+    assert.equal(await page.locator('[data-sms-field="campaign.privacyPolicyLink"]').count(),0);
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.locator('.fm-wizard-pane').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
+    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/policy-mobile.png'});
+    assert.deepEqual(errors,[]);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('business identity switches paths, formats EIN and website, and preserves unit and brand choices', async () => {
   const browser = await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try {

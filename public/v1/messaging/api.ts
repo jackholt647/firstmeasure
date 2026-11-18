@@ -9,7 +9,7 @@ import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
 import "./instructions.js";
-import { storeMediaUpload, readMediaMetadata, readMediaFile } from "../platform/storage.js";
+import { storeMediaUpload, readMediaMetadata, readMediaFile, readGlobal } from "../platform/storage.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { badRequest, conflict, forbidden, notFound, PlatformError } from "../platform/errors.js";
@@ -178,6 +178,13 @@ async function verifyCampaignPolicyUrls(profile: SmsComplianceProfile) {
     if (isHostedSmsPolicyUrl(profile, campaign[page.field], page.id)) continue;
     await verifyPublicPolicyUrl(campaign[page.field], asObject(profile.brand).website, page.id === "privacy" ? "Privacy policy" : "Terms and conditions");
   }
+}
+
+/** What the company already gave (FM-595): its website from onboarding, to start a registration with. */
+async function smsOrganizationContact(orgId: string) {
+  const data = asObject((await readGlobal(orgId).catch(() => null))?.data);
+  const website = normalizeWebsite(asObject(data.contact).website || asObject(asObject(data.legacy_org_snapshot).contact).website);
+  return website ? { website } : {};
 }
 
 function changesStoredFields(current: unknown, patch: JsonObject) {
@@ -1794,10 +1801,10 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     const orgId = param(request.params, "orgId");
     await requireSmsSettingsAccess(request, orgId);
     const organization = await ensureMessagingOrganization(orgId);
-    const profiles = await listSmsComplianceProfiles(organization.id);
+    const [profiles, contact] = await Promise.all([listSmsComplianceProfiles(organization.id), smsOrganizationContact(orgId)]);
     return {
       ok: true,
-      organization: publicMessagingOrganization(organization),
+      organization: { ...publicMessagingOrganization(organization), contact },
       profiles: profiles.map((profile) => publicSmsComplianceProfile({
         ...profile,
         validation: profileValidation(profile)

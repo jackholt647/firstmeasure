@@ -912,6 +912,12 @@ test("10DLC compliance profile workflow saves drafts and builds dry-run provider
   assert.equal(emptySetup.ok, true);
   assert.equal(emptySetup.organization.external_organization_id, orgId);
   assert.deepEqual(emptySetup.profiles, []);
+  // FM-595: a new registration starts with the website the company gave at onboarding (contact.website).
+  assert.deepEqual(emptySetup.organization.contact, {});
+  const { saveGlobal } = await import("../platform/storage.js");
+  await saveGlobal(orgId, { data: { contact: { website: "ridgeline-roofing.test" } } });
+  const websiteSetup = await client.request("GET", `/v1/messaging/organizations/${orgId}/sms/setup`);
+  assert.deepEqual(websiteSetup.organization.contact, { website: "https://ridgeline-roofing.test" });
 
   const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, {
     brand: {
