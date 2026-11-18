@@ -9,6 +9,8 @@ import ts from 'typescript';
 const api = await readFile(new URL('../firstmeasure/api.ts', import.meta.url), 'utf8');
 const measurements = await readFile(new URL('../../libraries/apps/measurements/project.js', import.meta.url), 'utf8');
 const request = await readFile(new URL('../../libraries/apps/project-request/app.js', import.meta.url), 'utf8');
+const exteriors = await readFile(new URL('../firstmeasure/exteriors.ts', import.meta.url), 'utf8');
+const viewer = await readFile(new URL('../../libraries/apps/projects/viewer.js', import.meta.url), 'utf8');
 
 // The source of one top-level function, by name.
 function fn(source: string, name: string){
@@ -28,10 +30,12 @@ const EXTERIOR = 'exteriors_' + 'e'.repeat(32);
 // The rejection copy and email functions, runnable.
 function rejectionCopy(){
   const ctx = vm.createContext({asRecord: (x: any) => x && typeof x === 'object' ? x : {}, isCustomerExteriorId, URL,
-    escapeHtml: (s: string) => s, normalizeStructureReorderProjectType: () => '', projectTypeLabelForCustomer: (x: unknown) => String(x)});
+    escapeHtml: (s: string) => s});
   const names = ['buildRejectionMessageParagraphs', 'isFullExteriorRejection', 'fullExteriorRejectionParagraphs', 'rejectionEmailTitle',
-    'rejectionEmailFootageAction', 'buildRejectionRefundText', 'buildRejectionEmailTextBody', 'buildRejectionEmailHtmlBody'];
-  vm.runInContext(transpile([api.match(/const APP_ORDER_REPORT_URL = [^;]+;/)![0], ...names.map((name) => fn(api, name))].join('\n')), ctx);
+    'rejectionEmailFootageAction', 'buildRejectionRefundText', 'buildRejectionEmailTextBody', 'buildRejectionEmailHtmlBody',
+    'fullExteriorUnofferedProjectType', 'rejectionEmailReorderUrl', 'normalizeStructureReorderProjectType', 'projectTypeLabelForCustomer'];
+  vm.runInContext(transpile([api.match(/const APP_ORDER_REPORT_URL = [^;]+;/)![0], exteriors.match(/export const fullExteriorOffered = [^;]+;/)![0].replace('export ', ''),
+    ...names.map((name) => fn(api, name))].join('\n')), ctx);
   return (expression: string) => vm.runInContext(expression, ctx);
 }
 
@@ -67,6 +71,8 @@ test('a Full Exterior rejection email says Full Exterior, in Full Exterior words
     assert.match(run(`buildRejectionEmailHtmlBody(${exterior(reason)})`), /font-weight:700;">Unable to complete Full Exterior report<\/p>/, reason);
   }
   assert.match(run(`buildRejectionEmailTextBody(${exterior('no_satellite_image')})`), /aerial imagery coverage for this address/);
+  // Ben's review (FM-532): the coverage copy no longer explains how a Full Exterior uses aerial imagery.
+  assert.doesNotMatch(run(`buildRejectionEmailTextBody(${exterior('no_satellite_image')})`), /measures the roof from aerial imagery|as well as your footage/);
   // A footage reason links to the project, whose card starts the new order.
   const link = `https://app.1m8.ai/portal/?tab=viewer&project=${EXTERIOR}`;
   assert.ok(run(`buildRejectionEmailTextBody(${exterior('incorrect_footage')})`).includes(`Upload the correct footage: ${link}`));
@@ -80,6 +86,29 @@ test('a Full Exterior rejection email says Full Exterior, in Full Exterior words
   assert.doesNotMatch(roof, /Full Exterior|https:/);
   // The subject is the title.
   assert.match(fn(api, 'sendProjectRejectionEmail'), /const subject = `\$\{rejectionEmailTitle\(legacy\)\} - \$\{address\}`;/);
+});
+
+// FM-532 review: no Full Exterior can be ordered for a commercial or multi-family building (the order form and
+// requireExteriorAccess offer it for residential only), so one rejected as that type says so and links no reorder.
+test('a Full Exterior rejected as commercial says we do not offer them, with no reorder; a roof still reorders', () => {
+  assert.match(fn(exteriors, 'requireExteriorAccess'), /!fullExteriorOffered\(projectType\)/);
+  const run = rejectionCopy();
+  const stored = {reorder_url: 'https://app.1m8.ai/portal/?reorder=1', rejection_reorder: {url: 'https://app.1m8.ai/portal/?reorder=1'}};
+  for (const [type, label] of [['commercial', 'commercial'], ['multifamily', 'multi-family']]) {
+    const order = JSON.stringify({id: EXTERIOR, address: '1 Main St', rejection_reason: 'incorrect_structure_type', correct_project_type: type, ...stored});
+    assert.deepEqual([...run(`buildRejectionMessageParagraphs(${order})`)], [`It seems to be a ${label} building and we currently don't offer exterior reports for ${label} buildings.`]);
+    const text = run(`buildRejectionEmailTextBody(${order})`);
+    assert.match(text, /^Unable to complete Full Exterior report\n/);
+    assert.doesNotMatch(text, /https:|Reorder/, type);
+    assert.doesNotMatch(run(`buildRejectionEmailHtmlBody(${order})`), /href=|Reorder/, type);
+  }
+  const roof = JSON.stringify({id: 'roof_fixture', address: '1 Main St', rejection_reason: 'incorrect_structure_type', correct_project_type: 'commercial', project_type: 'residential', ...stored});
+  assert.match(run(`buildRejectionEmailTextBody(${roof})`), /Reorder this project: https:\/\/app\.1m8\.ai\/portal\/\?reorder=1/);
+  assert.match(run(`buildRejectionEmailHtmlBody(${roof})`), />Reorder as commercial<\/a>/);
+  // The reject route stores no reorder link for it, and its customer copy is the same sentence.
+  const reject = fn(api, 'rejectCoverageProject');
+  assert.match(reject, /if \(fullExteriorUnofferedProjectType\(unoffered\)\) \{\s*rejectionPatch\.customer_rejection_message = buildRejectionMessageParagraphs\(unoffered\)\.join\(" "\);\s*\} else \{\s*rejectionPatch\.reorder_project_type/);
+  assert.equal(reject.match(/rejectionPatch\.reorder_url = /g)?.length, 1);
 });
 
 test('footage reasons are refused for a roof order', async () => {
@@ -118,19 +147,21 @@ test('a rejected Full Exterior is never reopened in place', async () => {
 });
 
 // The left column's rejected report card, rendered from the real functions with the project as state.
-function renderRejected(project: Record<string, any>, {exteriorsOffered = true} = {}){
+function renderRejected(project: Record<string, any>, {exteriorsOffered = true, summary = false} = {}){
   const names = ['rejectionReasonLabel', 'rejectedReportHtml', 'reportOrderReorderType', 'normalizeProjectTypeLabel',
-    'customerRejectionCopy', 'fallbackCustomerRejectionCopy', 'reportOrderMeasurement', 'reportOrderManifest', 'reportOrderIsExterior'];
+    'customerRejectionCopy', 'fallbackCustomerRejectionCopy', 'reportOrderMeasurement', 'reportOrderManifest', 'reportOrderIsExterior',
+    'rejectedExteriorUnofferedType', 'rejectionDetails', 'rejectionSummarySectionHtml'];
   const body = [
     'let activeBaseProject = project, selectedType = project.project_type || "residential";',
     'const reportOrderExpediteKey = () => String(reportOrderMeasurement().report_expedite_option || "");',
     'const escapeHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");',
     'const fmtCredit = (n) => "$" + n;',
     ...names.map((name) => fn(measurements, name)),
-    'return rejectedReportHtml();',
+    'const reportOrderIsRejected = () => true;',
+    'return summary ? rejectionSummarySectionHtml() : rejectedReportHtml();',
   ].join('\n');
   const window = {Portal: {ExteriorOrder: {offersChoice: (type: string) => exteriorsOffered && type === 'residential'}}};
-  const html = new Function('project', 'window', 'globalThis', body)(project, window, {});
+  const html = new Function('project', 'window', 'globalThis', 'summary', body)(project, window, {}, summary);
   const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   const unescape = (value: string) => value.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
   const tooltip = (attrs: string) => unescape(attrs.match(/data-fm-tooltip="([^"]*)"/)?.[1] ?? '');
@@ -305,4 +336,42 @@ test("a route naming the open project's order is that project (its window keeps 
   assert.equal(matches('exteriors_' + 'f'.repeat(32)), false);
   assert.equal(matches('project_other'), false);
   assert.equal(new Function('order', body)('')(''), false);
+});
+
+// FM-532 review: the card of a Full Exterior rejected as commercial offered "Reorder as Commercial", a roof report.
+test('a Full Exterior rejected as commercial or multi-family says we do not offer them and offers no reorder', () => {
+  for (const [type, label] of [['commercial', 'commercial'], ['multifamily', 'multi-family']]) {
+    // Stored before this review: the old copy and a reorder.
+    const card = renderRejected(rejected('full_house', 'incorrect_structure_type', {correct_project_type: type,
+      customer_rejection_message: 'This was ordered as residential, but it appears to require a commercial report.', rejection_reorder: {project_type: type}}));
+    assert.equal(card.text, 'Full Exterior report rejected Reason It needs a different project type');
+    assert.equal(card.why, `It seems to be a ${label} building and we currently don't offer exterior reports for ${label} buildings.`);
+    assert.deepEqual(card.buttons, [], type);
+  }
+  // A roof keeps its reorder.
+  assert.deepEqual(renderRejected(rejected('roof', 'incorrect_structure_type', {correct_project_type: 'commercial'})).buttons, ['data-reorder-rejected-report Reorder as Commercial']);
+  // The older projects viewer doesn't offer it either.
+  const button = new Function('escapeHtml', 'globalThis', `${fn(viewer, 'rejectedReorderButtonHtml')}; return rejectedReorderButtonHtml;`)((x: string) => x, {});
+  assert.equal(button({id: EXTERIOR, correct_project_type: 'commercial'}), '');
+  assert.equal(button({id: 'roof', measurement_scope: 'full_house', correct_project_type: 'commercial'}), '');
+  assert.match(button({id: 'roof', correct_project_type: 'commercial'}), /Reorder as Commercial/);
+});
+
+test('a Full Exterior coverage rejection stored with the aerial-imagery sentence shows without it', () => {
+  const card = renderRejected(rejected('full_house', 'no_satellite_image', {customer_rejection_message:
+    'We were not able to complete this Full Exterior report because we do not currently have aerial imagery coverage for this address. A Full Exterior report measures the roof from aerial imagery, so it needs coverage of the house as well as your footage. We\'ve logged your interest.'}));
+  assert.equal(card.why, "We were not able to complete this Full Exterior report because we do not currently have aerial imagery coverage for this address. We've logged your interest.");
+});
+
+// FM-532 review: on a phone Reports opens on Summary, which said only REJECTED; the reason was a tab further on.
+test("a rejected order's summary shows its reason, why, the refund and the card's actions, in the open", () => {
+  const order = {...rejected('full_house', 'incorrect_footage', {customer_rejection_message: "The uploaded footage doesn't seem to match the provided address."}), refund_amount: 25};
+  const summary = renderRejected(order, {summary: true});
+  assert.equal(summary.text, "Why it was rejected Reason Incorrect footage uploaded The uploaded footage doesn't seem to match the provided address. $25 returned to credits Upload the correct footage Order just the roof");
+  assert.deepEqual(summary.buttons, ['data-reorder-rejected-exterior="full_house" Upload the correct footage', 'data-reorder-rejected-exterior="roof" Order just the roof']);
+  const commercial = renderRejected(rejected('full_house', 'incorrect_structure_type', {correct_project_type: 'commercial'}), {summary: true});
+  assert.equal(commercial.text, "Why it was rejected Reason It needs a different project type It seems to be a commercial building and we currently don't offer exterior reports for commercial buildings.");
+  // It leads the summary; nothing is drawn for an order that wasn't rejected.
+  assert.match(fn(measurements, 'reportSummaryHtml'), /<div class="r-report-summary-grid">\s*\$\{rejectionSummarySectionHtml\(\)\}/);
+  assert.match(fn(measurements, 'rejectionSummarySectionHtml'), /if \(!reportOrderIsRejected\(\)\) return '';/);
 });
