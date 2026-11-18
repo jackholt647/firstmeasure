@@ -52,8 +52,8 @@ const css = `
 .gxd-money input{width:96px;height:34px;padding:0 10px;border:1px solid #d0d5dd;border-radius:9px;font:inherit;font-size:14px;text-align:right;color:#101828}
 .gxd-money input:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.14)}
 .gxd-note{font-size:12px!important;color:#667085!important}
-.gxd.gxd-fill{flex:1 1 auto;min-height:0;padding-bottom:0}
-.gxd-styles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:minmax(0,1fr);gap:16px;flex:1 1 auto;min-height:0}
+.gxd.gxd-fill{flex:1 1 auto;padding-bottom:0}
+.gxd-styles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:minmax(0,1fr);gap:16px;flex:1 1 auto;min-height:340px}
 .gxd-style{display:flex;flex-direction:column;gap:10px;min-height:0;padding:10px;border:1px solid #e4e7ec;border-radius:16px;background:#fff;font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,box-shadow .2s}
 .gxd-style:hover{border-color:#c4c9d2}
 .gxd-style:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
@@ -221,7 +221,10 @@ export function mount(el, ctx){
     // The previews want room: the sheet widens (the player's wide sheet) and this step fills it.
     const sheet = el.closest('.gxs'), wasWide = !!sheet?.classList.contains('gxs-wide');
     sheet?.classList.add('gxs-wide');
-    el.closest('.gxs-step')?.setAttribute('data-fill', '');
+    const pane = el.closest('.gxs-step');
+    pane?.setAttribute('data-fill', '');
+    // Filled, the step does not scroll by itself; on a short window the cards keep a least size and the step scrolls.
+    if (pane) pane.style.overflowY = 'auto';
     el.innerHTML = '<div class="gxd"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div></div>';
     const report = () => { const entry = previews.find((preview) => preview.theme_id === chosen); ctx.change(entry ? { theme_id: chosen } : {}, entry ? entry.name : ''); };
     const onClick = (event) => {
@@ -234,14 +237,36 @@ export function mount(el, ctx){
     };
     // A card is not a button (it holds the rendered document): Enter and Space choose it.
     const onKey = (event) => { if ((event.key === 'Enter' || event.key === ' ') && event.target.matches?.('[data-theme]')) { event.preventDefault(); onClick(event); } };
+    // The wheel over a preview turns its pages; before the first page or past the last it scrolls the step as usual.
+    let wheelSum = 0, wheelUntil = 0;
+    const onWheel = (event) => {
+      const box = event.target.closest?.('.gxd-page'); if (!box) return;
+      const card = cards.find((entry) => entry.el.contains(box)); if (!card) return;
+      const count = (card.handle?.pageElements?.() || []).length;
+      const step = event.deltaY > 0 ? 1 : event.deltaY < 0 ? -1 : 0;
+      if (!step || card.page + step < 0 || card.page + step >= count) { wheelSum = 0; return; }
+      event.preventDefault();
+      if (Date.now() < wheelUntil) return;
+      wheelSum += event.deltaY;
+      if (Math.abs(wheelSum) < 40) return;
+      wheelSum = 0; wheelUntil = Date.now() + 380;
+      showPage(card, card.page + step);
+    };
     el.addEventListener('click', onClick);
     el.addEventListener('keydown', onKey);
+    el.addEventListener('wheel', onWheel, { passive: false });
     const PAGE_W = 612 * 96 / 72, PAGE_H = 792 * 96 / 72;
     function showPage(card, page){
       const pages = card.handle?.pageElements?.() || [];
       card.page = Math.max(0, Math.min(page, pages.length - 1));
       const inner = card.holder.firstElementChild;
-      if (inner && pages[card.page]) inner.style.transform = `translateY(${-((pages[card.page].offsetTop || 0) - (pages[0].offsetTop || 0))}px)`;
+      // Measured on screen: the renderer scales its pages with a transform, which offsetTop does not see.
+      if (inner && pages[card.page]) {
+        inner.style.transition = 'none'; inner.style.transform = 'none';
+        const shift = pages[card.page].getBoundingClientRect().top - pages[0].getBoundingClientRect().top;
+        void inner.offsetHeight; inner.style.transition = '';
+        inner.style.transform = `translateY(${-shift}px)`;
+      }
       const pager = card.el.querySelector('.gxd-pager');
       if (pager) {
         pager.hidden = pages.length < 2;
@@ -299,7 +324,7 @@ export function mount(el, ctx){
       destroy(){
         alive = false; clearTimeout(timer); observer?.disconnect();
         if (!wasWide) sheet?.classList.remove('gxs-wide');
-        el.removeEventListener('click', onClick); el.removeEventListener('keydown', onKey);
+        el.removeEventListener('click', onClick); el.removeEventListener('keydown', onKey); el.removeEventListener('wheel', onWheel);
         cards.forEach((card) => { try { card.handle?.destroy?.(); } catch (_) {} });
       }
     };
