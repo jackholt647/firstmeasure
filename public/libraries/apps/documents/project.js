@@ -456,16 +456,31 @@
     const back = document.createElement('div');
     back.className = 'fmdx-modal-back';
     back.innerHTML = `<div class="fmdx-modal ${String(esc(options.className || ''))}" role="dialog" aria-modal="true">${String(contentHtml)}<button type="button" class="fmdx-modal-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("documents","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>`;
-    const close = () => { back.remove(); options.onClose?.(); };
+    const entry = { back, dismiss: null };
+    const forget = () => { const at = openModals.indexOf(entry); if (at >= 0) openModals.splice(at, 1); };
+    const close = () => { forget(); back.remove(); options.onClose?.(); modalsChanged(); };
     const tray = options.tray && isPhone() ? phoneTray(back, back.querySelector('.fmdx-modal'), close) : null;
     const dismiss = tray ? tray.dismiss : close;
+    // Back: a wizard's own Back while it shows one, otherwise the dialog closes (and leaves the list at once).
+    entry.dismiss = () => {
+      const inner = [...back.querySelectorAll('[data-create-back],[data-types-back]')].find((button) => !button.disabled && button.offsetParent);
+      if (inner) { inner.click(); return; }
+      forget(); dismiss(); modalsChanged();
+    };
     back.querySelector('.fmdx-modal-close').addEventListener('click', dismiss);
     back.addEventListener('mousedown', (event) => { if (event.target === back && options.dismissable !== false) dismiss(); });
     document.body.appendChild(back);
+    openModals.push(entry);
+    modalsChanged();
     // shape(tray, change): a tray dialog runs change() as a tray (true) or full screen (false); elsewhere it just runs it.
     // away(): a tray steps out of the way of what opens behind it; it returns a call that brings it back.
     return { el: back, body: back.querySelector('.fmdx-modal'), close, shape: tray ? tray.shape : (on, change) => change?.(), away: tray?.away };
   }
+  // The dialogs open on this page, newest last, so the phone's back control closes the one on top (FM-579). Each
+  // Documents tab watches them to keep its back history (backHistory) one entry per dialog.
+  const openModals = [];
+  const modalWatchers = new Set();
+  const modalsChanged = () => modalWatchers.forEach((watch) => { try { watch(); } catch (e) {} });
   /**
    * A phone tray (openModal's options.tray, FM-570): the dialog rises from the
    * bottom, as tall as what it shows, up to the platform's phone sheet (the
@@ -1327,6 +1342,7 @@
       // A phone opens documents on the page; the Data tray covers it, so it starts closed there.
       dataPanelOpen: !isPhone(),
       previewCleanup: null,
+      sentEditor: null,               // "Edit manually" (FMDocSentEditor) while it is open
       // workflow view (contracts §8)
       docWorkflow: null,              // { definition, state } for the open doc (null = none)
       workflowHandle: null,           // FMDocWorkflow mount handle
@@ -1341,6 +1357,42 @@
       pieceCatalog: null,             // cached scope-template piece vocabulary
       cardTotalCents: null            // live total from the last resolve (rail doc card)
     };
+
+    // ====================================================== back control
+    // The phone's back control walks what is on screen, newest first (FM-579): a dialog closes, Preview closes,
+    // "Edit manually" closes, the layout editor goes back to the steps, a step goes to the one before it, and the
+    // first step leaves the document for the list. One history entry each (Portal.navigation.steps, FM-554), so
+    // Android's back and iOS's swipe never leave for another project tab while a document is open.
+    const backHistory = window.Portal?.navigation?.steps?.({ onBack: (count) => {
+      for (let n = 0; n < count && !state.destroyed; n += 1) if (!pressBack()) break;
+      syncBack();
+    } }) || null;
+    // The layout editor goes back to the steps when "Back to steps" would (updateModeToggle).
+    const stepsBehindEditor = () => !!state.docWorkflow && !isReadOnlyStatus(state.doc?.status);
+    function docBackDepth(){
+      if (state.view !== 'editor') return 0;
+      const steps = state.workflowHandle?.position?.();
+      const onSteps = steps ? steps.index + 1 : 1;
+      if (state.docView === 'workflow') return onSteps;
+      return stepsBehindEditor() ? onSteps + 1 : 1;
+    }
+    function syncBack(){
+      if (!backHistory || state.destroyed) return;
+      backHistory.depth(openModals.length + (state.previewCleanup ? 1 : 0) + (state.sentEditor ? 1 : 0) + docBackDepth());
+    }
+    /** One back press: true when something went back. */
+    function pressBack(){
+      const modal = openModals[openModals.length - 1];
+      if (modal) { modal.dismiss(); return true; }
+      if (state.previewCleanup) { state.previewCleanup(); return true; }
+      if (state.sentEditor) { state.sentEditor.close(); return true; }
+      if (state.view !== 'editor') return false;
+      if (state.docView === 'editor' && stepsBehindEditor()) { setDocView('workflow'); return true; }
+      if (state.docView === 'workflow' && state.workflowHandle?.position?.().index > 0) { state.workflowHandle.back(); return true; }
+      closeDocScreen();
+      return true;
+    }
+    modalWatchers.add(syncBack);
 
     const orgId = () => firstText(context.orgId, window.Portal?.cfg?.userOrgId, window.__APP?.userOrgId, window.__APP?.orgId);
     const project = () => context.project || context.activeProject || context.host?.getProject?.() || {};
@@ -2064,6 +2116,7 @@
      *  workflow segment (and therefore the whole toggle) is hidden when the
      *  instance has no attached workflow or is locked read-only. */
     function updateModeToggle(){
+      syncBack();
       const toggle = root.querySelector('[data-fmdx-mode-toggle]');
       if (!toggle) return;
       // A document with steps opens on them; this is the way back after "Edit manually".
@@ -2482,7 +2535,7 @@
           // Announced with the opened workflow, so a guide can play the first time a kind of document is built.
           document: { id: doc.id, type: cleanText(doc.document_type) },
           onWrite: (path, value) => queueWorkflowWrite(path, value),
-          onStepState: (stepState) => { persistWorkflowStepState(stepState); syncDeliverableButtons(objectValue(stepState).ready); },
+          onStepState: (stepState) => { persistWorkflowStepState(stepState); syncDeliverableButtons(objectValue(stepState).ready); syncBack(); },
           labels: { finish: 'Send' },
           // Finishing the workflow means the document is ready to go out —
           // open the Send flow directly (the editor stays one toggle away).
@@ -2502,6 +2555,7 @@
           services: workflowServices()
         });
         if (state.wfAgentOpen) setWfRunAgentOpen(true);
+        syncBack();
       } catch (error) {
         console.warn('Workflow runtime mount failed — falling back to the editor', error);
         destroyWorkflowView();
@@ -3182,6 +3236,7 @@
       state.cardTotalCents = null;
       state.cardTotalWaits = false;
       renderDocScreen();
+      syncBack();
       // Attach the instance's workflow when the caller didn't hand one over
       // (silent — reveals the [Workflow | Editor] toggle when found).
       if (!state.docWorkflow) {
@@ -3285,6 +3340,7 @@
       state.editorLoaded = false;
       state.docView = 'editor';
       render();
+      syncBack();
       loadDocs({ silent: true });
       if (closing?.id && cleanText(state.returnTo?.docId) === cleanText(closing.id)) finishDocumentReturn(closing);
     }
@@ -5293,11 +5349,13 @@
         try { viewer?.destroy?.(); } catch (e) {}
         overlay.remove();
         document.removeEventListener('keydown', onKey);
-        state.previewCleanup = null;
+        if (state.previewCleanup === close) state.previewCleanup = null;
+        syncBack();
       };
       const onKey = (event) => { if (event.key === 'Escape') close(); };
       document.addEventListener('keydown', onKey);
       state.previewCleanup = close;
+      syncBack();
 
       let resolved = objectValue(options.resolved);
       const frozen = !resolved.resolved_definition && isReadOnlyStatus(doc.status) ? await frozenRenderOptions(doc) : null;
@@ -5351,7 +5409,7 @@
         }
         return res;
       };
-      window.FMDocSentEditor.open({
+      const editor = window.FMDocSentEditor.open({
         title: firstText(state.doc.title, 'Document'),
         themeContext: { branding: objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding) },
         load: traced,
@@ -5366,6 +5424,8 @@
           { id: 'done', label: 'Done', icon: 'fa-check', primary: true, run: (editor) => editor.close() }
         ],
         onClose: (changed) => {
+          if (state.sentEditor === editor) state.sentEditor = null;
+          syncBack();
           if (!changed) return;
           state.workflowTouched = true; // the template editor re-resolves on its next open
           try { state.workflowHandle?.refresh?.({ params: clone(objectValue(state.doc?.params)), outputs: clone(objectValue(state.doc?.outputs)) }); } catch (e) {}
@@ -5373,6 +5433,8 @@
           renderDocCard();
         }
       });
+      state.sentEditor = editor || null;
+      syncBack();
     }
 
     // ================================================================= pdf
@@ -5966,6 +6028,8 @@
         flushAutosave();
         flushWorkflowWrites();
         try { state.previewCleanup?.(); } catch (e) {}
+        modalWatchers.delete(syncBack);
+        backHistory?.release();
         try { setEditorFocus(false); } catch (e) {}
         destroyWorkflowView();
         destroyEditor();
