@@ -847,8 +847,10 @@ or the documents app's (`[data-fmdx-new]`, `[data-fmdx-empty-new]`), through its
 held click opens the New document dialog (`then: resume`). Its intro says documents of all sorts are made here. Every
 step is the module `guided-experiences/documents-setup.js` with its own `part`:
 
-- `kind`: a proposal, an invoice, a change order or a completion certificate (`document_kind`). A proposal goes on to
-  its questions; another kind goes straight to `style` (a branch on `selections.document_kind`).
+- `kind`: a proposal, an invoice, a change order or a completion certificate (`document_kind`). The proposal is the
+  large, recommended choice and is already picked (Jack: most people start there); the others sit in a smaller row
+  below. A proposal goes on to its questions; another kind goes straight to `style` (a branch on
+  `selections.document_kind`).
 - `presentation` requires the [setup steps](setup-steps.md) `company.type`, `company.services` and
   `company.sales_team` (who sells, the question the appointment setup asks too), each asked only while unanswered.
   Then: several options to choose from (good, better, best) or one main option (`presentation`); whether the customer
@@ -860,14 +862,19 @@ step is the module `guided-experiences/documents-setup.js` with its own `part`:
   finish. It says default prices change in the price book any time, and a proposal's prices on that proposal.
 - `style`: the three themes (`thm_clean`, `thm_margin`, `thm_triangles`), each previewed with what the answers make:
   `document-setup.previews` resolves the planned template, unsaved, with a sample customer, roof and account
-  (`resolveDocumentInstance` with `definition`), and the module renders it with `FMDocRenderer` (`theme_id`).
+  (`resolveDocumentInstance` with `definition`), and the module renders it with `FMDocRenderer` (`theme_id`). The step
+  widens the sheet (`gxs-wide`) and fills it; each card shows one page as large as it allows, turned with a pager,
+  never scrolling inside the card (the setup frame contains overscroll, so anything inside it that is a scroll
+  container keeps the wheel: clip, do not hide, what must not scroll).
 
 The finish, `documents.setup.apply` (`documents/setup.ts`), picks the library template the answers describe
 (`planDocument`: options → Good / Better / Best; one option, itemized → the itemized proposal with line prices; a
 broad estimate with a written scope → the itemized proposal without line prices; a broad estimate alone → the one-page
 proposal; another kind → its current default), and publishes the organization's own copy, `tpl_setup_<kind>` (with
 its workflow `wfl_setup_<kind>`: no Photos & description step without a written scope, no customer's choosing step
-when the customer cannot change it, previews retargeted), in the chosen theme. It is the kind's `default_for_type`
+when the customer cannot change it, previews retargeted), in the chosen theme, with its page regions refitted to that
+theme's margins (`FMDocModel.pageSetupOverrides`, as choosing a style in the editor does; the library proposals are
+laid out for the Margin rail). It is the kind's `default_for_type`
 (the mark leaves every other template of the kind), replaces the kind's first pin in New document, and is never a
 library copy (no `preset`, `library`), so the library neither upgrades nor retires it. Running it again republishes
 the same template. The answers are kept in the default branch's `document_setup` module (`document-setup.status`).
