@@ -149,7 +149,7 @@
   }
   function closed(token){
     const record = records.get(token); if (!record) return;
-    records.delete(token); record.priorityHeaderAbort?.abort(); record.resolveReady?.(null); clearTimeout(record.timer); record.modal?.unregister?.();
+    records.delete(token); record.camera?.close(); record.priorityHeaderAbort?.abort(); record.resolveReady?.(null); clearTimeout(record.timer); record.modal?.unregister?.();
     record.controller?.destroy(); record.layer.remove(); clearRoutePrecover();
     if (active === record) {
       active = null;
@@ -240,8 +240,38 @@
   // Not sooner: a spare booting beside the portal's own boot slows both (a project link took twice as long). A
   // link or reload that names a project boots none until that project's window has loaded.
   if (ownsProjectWindows && typeof root.PlatformCommerce?.onReady === 'function' && !new URLSearchParams(root.location.search).get('project')) root.PlatformCommerce.onReady(() => scheduleSpare(2500));
+  // The quick camera (FM-559): `camera` opens the shared camera at once, over the window, while the window opens on
+  // its Photos tab and loads behind it; Done shows the window. Each photo goes straight into the project's media and
+  // the window's Photos tab reads them again as they arrive. The camera ends when its window closes.
+  function openCamera(record, camera){
+    if (record.camera || typeof root.FirstMateCamera?.open !== 'function') return;
+    const settings = camera && typeof camera === 'object' ? camera : {};
+    const photosArrived = () => record.ready.then(() => {
+      const child = records.get(record.token) === record ? record.frame.contentWindow : null;
+      child?.dispatchEvent(new child.CustomEvent('fm:project-photos-uploaded', {detail:{projectId:String(settings.projectId || record.projectId)}}));
+    }).catch(() => {});
+    try {
+      record.camera = root.FirstMateCamera.open({
+        orgId:sessionOrgId(),
+        projectId:String(settings.projectId || record.projectId),
+        projectTitle:settings.title || record.project?.title || record.project?.address || '',
+        onDone:(entries) => {
+          record.camera = null;
+          const taken = Array.isArray(entries) ? entries : [];
+          if (taken.length) {
+            photosArrived();
+            const late = taken.filter(entry => entry?.status === 'pending' || entry?.status === 'uploading').map(entry => entry.settled);
+            if (late.length) Promise.allSettled(late).then(photosArrived);
+          }
+          try { settings.onDone?.(taken); } catch (error) { console.warn('Camera onDone failed', error); }
+        }
+      });
+    } catch (error) { record.camera = null; console.warn('The camera could not be opened', error); }
+  }
   function open(project, options = {}){
     if (!host() || !root.FirstMateWindows) return null;
+    const camera = options.camera;
+    if (camera) { options = {...options, tab:'photos'}; delete options.camera; }
     styles();
     root.Portal?.modules?.request?.ensureStyles?.();
     root.FirstMateWindows.ensureStyles?.();
@@ -266,6 +296,7 @@
         else {existing.options={...existing.options,...options};existing.routeParams=routeParams;}
       }
       else applyRouteParams(existing,routeParams);
+      if (camera) openCamera(existing, camera);
       return existing;
     }
     const warm = takeSpare();
@@ -373,6 +404,7 @@
     // Once this window has loaded (not while it loads: the downloads would compete with it), the project is kept
     // on the device and the next open gets a spare too.
     record.ready.catch(()=>{}).then(()=>{record.loaded=true;keepOnDevice(record.projectId || projectId);scheduleSpare(1500);});
+    if (camera) openCamera(record, camera);
     return record;
   }
   function accepts(token, child){

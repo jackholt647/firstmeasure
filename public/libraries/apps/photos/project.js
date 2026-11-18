@@ -1840,12 +1840,15 @@
     hydrateOwnedProjectMedia();
   });
 
-  window.addEventListener('fm:project-note-media-uploaded', (event) => {
+  // Photos uploaded for this project from outside the tab (a note, or the quick camera over its window, FM-559).
+  const projectMediaUploaded = (event) => {
     const projectId = String(event?.detail?.projectId || '').trim();
     if (!projectId || projectId !== activeProjectId()) return;
     state.mediaHydrationPromise = null;
     if (state.active) hydrateOwnedProjectMedia();
-  });
+  };
+  window.addEventListener('fm:project-note-media-uploaded', projectMediaUploaded);
+  window.addEventListener('fm:project-photos-uploaded', projectMediaUploaded);
 
   Portal.modules = Portal.modules || {};
   Portal.modules.projectPhotosTab = api;
