@@ -10,6 +10,7 @@ const selector = await readFile(new URL('../../libraries/project-selector/projec
 const configuration = await readFile(new URL('../../libraries/appointment-booking/configuration.js', import.meta.url), 'utf8');
 const booking = await readFile(new URL('../../libraries/appointment-booking/booking.js', import.meta.url), 'utf8');
 const scheduling = await readFile(new URL('../../libraries/apps/scheduling/app.js', import.meta.url), 'utf8');
+const navigation = await readFile(new URL('../../libraries/navigation/portal-navigation.js', import.meta.url), 'utf8');
 test('booking styles never use a font shorthand with inherit as the family (FM-503)',()=>{
   // `font:16px/1.2 inherit` is invalid CSS: the browser drops the whole declaration, so older Inter rules won.
   assert.doesNotMatch(styles,/font:[^;}]*\sinherit\s*[;}]/);
@@ -345,5 +346,58 @@ test('phones make a new project in its own step, every field optional, or book w
   assert.match(await page.locator('[data-summary]').innerText(),/No project/);
   await page.locator('[data-prev]').click();assert.equal(await page.locator('[data-no-project]').getAttribute('aria-pressed'),'true');assert.equal(await next.isDisabled(),false);
   await search.fill('x');assert.equal(await next.isDisabled(),true);
+ }finally{await browser.close();}
+});
+
+test('the phone back control is Previous: each step, the Advanced sheet, then closing, with nothing left behind (FM-554)',async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:390,height:844},hasTouch:true});page.setDefaultTimeout(5000);
+  await page.route('http://localhost/**',r=>r.fulfill({body:'<html><body><button id="book">New appointment</button></body></html>',contentType:'text/html'}));await page.goto('http://localhost/?tab=scheduling');await page.addStyleTag({content:styles});
+  for(const content of [navigation,picker,selector,configuration,booking])await page.addScriptTag({content});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.evaluate(()=>{
+   const base={department_ids:[],delivery:false,timing_mode:'timed',duration_days:2,location:{mode:'project',address:''},window_minutes:90,slot_minutes:30,requirements:[],recurrence:null};
+   const catalog={departments:[],groups:[],presets:[{id:'sales',label:'Sales appointment',configuration:{...base,title:'Sales appointment',duration_minutes:90,window_minutes:90}}]};
+   window.routeApplies=0;Portal.navigation.registerHandler('test',{apply:()=>{window.routeApplies++;}});
+   window.PlatformAPI={projects:{get:async(o,id)=>({document:{id,data:{title:'Smith residence',address:'123 Maple Street'}}})},
+    search:{projectsAndContacts:async()=>({results:[{id:'p1',title:'Smith residence',subtitle:'123 Maple Street'}]})},
+    appointments:{catalog:async()=>({can_manage:true,revision:4,resources:[],catalog}),saveCatalog:async()=>({}),
+     preview:async()=>({slots:[{available:true,start_at:'2026-11-17T15:00:00Z',label:'10:00 AM'}]}),book:async()=>({ok:true})}};
+   document.querySelector('#book').addEventListener('click',()=>FirstMateBooking.open({orgId:'org'}));
+  });
+  const visibleStep=()=>page.evaluate(()=>document.querySelector('[data-step]:not([hidden])')?.dataset.step);
+  const depth=n=>page.waitForFunction(n=>(history.state?.fmSteps?.depth??0)===n,n);
+  const back=()=>page.evaluate(()=>history.back());
+  const before=await page.evaluate(()=>history.length);
+  await page.locator('#book').click();await page.locator('dialog.fm-booking-steps').waitFor();
+  await depth(1);
+  await page.locator('.fm-ap-type[data-preset-button=sales]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-step=project]:not([hidden])'));await depth(2);
+  // Back from Project is Type; Next again, then the address takes it to When.
+  await back();await page.waitForFunction(()=>document.querySelector('[data-step=type]:not([hidden])'));await depth(1);
+  await page.locator('.fm-ap-type[data-preset-button=sales]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-step=project]:not([hidden])'));await depth(2);
+  const search=page.getByRole('combobox',{name:'Search projects or type an address'});
+  await search.fill('42 Unknown Road');await page.getByRole('option',{name:/Use “42 Unknown Road”/}).click();
+  assert.equal(await visibleStep(),'when');await depth(3);
+  // Advanced is one more back press: it closes the sheet and stays on When.
+  await page.getByRole('button',{name:'Advanced'}).click();await depth(4);
+  await back();await page.waitForFunction(()=>document.querySelector('[data-advanced-open]').getAttribute('aria-expanded')==='false');
+  assert.equal(await visibleStep(),'when');await depth(3);
+  // Previous in the footer takes its entry off too.
+  await page.locator('[data-prev]').click();assert.equal(await visibleStep(),'project');await depth(2);
+  await back();await page.waitForFunction(()=>document.querySelector('[data-step=type]:not([hidden])'));await depth(1);
+  // Back on the first step closes the booking, and the page is where it was.
+  await back();await page.locator('dialog').waitFor({state:'detached'});
+  assert.equal(await page.evaluate(()=>history.state?.fmSteps),undefined);
+  assert.equal(await page.evaluate(()=>location.search),'?tab=scheduling');
+  // Closing with the X from a later step takes every entry off.
+  await page.locator('#book').click();await page.locator('dialog.fm-booking-steps').waitFor();await depth(1);
+  await page.locator('.fm-ap-type[data-preset-button=sales]').click();await depth(2);
+  await page.getByRole('button',{name:'Close appointment booking'}).click();await page.locator('dialog').waitFor({state:'detached'});
+  await depth(0);
+  assert.equal(await page.evaluate(()=>window.routeApplies),0,'no back press re-applied the route');
+  assert.ok(await page.evaluate(()=>history.length)>=before);
  }finally{await browser.close();}
 });

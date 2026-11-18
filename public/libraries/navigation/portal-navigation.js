@@ -13,6 +13,8 @@
   let applying = false;
   let applyPromise = null;
   let sequence = 0;
+  // A user input since this page last added a history entry (steps() below).
+  let inputSinceEntry = false;
 
   const clean = (value) => String(value ?? '').trim();
   const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -132,7 +134,9 @@
   }
 
   function navigationState(method, keys, options = {}, before = {}, after = {}){
-    const previous = object(root.history.state);
+    // A new entry is never one of a sheet's steps (steps() below); replacing one keeps its mark.
+    const { fmSteps, ...rest } = object(root.history.state);
+    const previous = method === 'pushState' ? rest : object(root.history.state);
     const previousNavigation = object(previous.fmNavigation);
     const depth = method === 'pushState' ? Number(previousNavigation.depth || 0) + 1 : Number(previousNavigation.depth || 0);
     return {
@@ -169,6 +173,7 @@
     const method = historyMode === 'push' ? 'pushState' : 'replaceState';
     try {
       root.history[method](navigationState(method, keys, options, before, after), '', next);
+      if (method === 'pushState') inputSinceEntry = false;
     } catch (error) {
       console.warn('FirstMate navigation write failed', error);
     }
@@ -354,6 +359,100 @@
     };
   }
 
+  /*
+   * The steps of a sheet or dialog (a guided setup, the phone booking steps) as history entries on the page's own URL,
+   * so the phone's back control (Android's back button or gesture and iOS's swipe both walk WebView history) goes to
+   * the previous step instead of leaving the page (FM-554). The owner says with depth(n) how many back presses stay
+   * inside it: one per step behind the one on screen, plus one that leaves its first step. A back press calls
+   * onBack(count); the owner goes back (or closes) and says its depth again. release() takes its entries off before
+   * the sheet goes. These pops never re-apply the route.
+   *
+   * Chrome skips an entry on Back when the page added the next one without a user input since its last entry, so an
+   * entry is added only after an input, one per input: one that cannot be yet waits for the next tap or key.
+   */
+  const stepOwners = [];
+  // A tap or click ends with one pointerup whatever the pointer: one input, not one per event it fires.
+  ['pointerup', 'keydown'].forEach((name) => root.addEventListener?.(name, (event) => {
+    if (!event.isTrusted) return;
+    inputSinceEntry = true;
+    stepOwners.forEach((owner) => owner.reconcile());
+  }, true));
+
+  function steps(options = {}){
+    const token = `fm_steps_${Date.now().toString(36)}_${(++sequence).toString(36)}`;
+    let actual = 0, desired = 0, pending = 0, released = false, href = '', settled = null, settleTimer = 0;
+    const onBack = typeof options.onBack === 'function' ? options.onBack : () => {};
+    const owner = {
+      token,
+      reconcile(){
+        if (pending) return;
+        if (desired > actual) {
+          if (!inputSinceEntry) return;
+          if (!actual) href = currentHref();
+          const route = read();
+          // One per input: a jump of several steps adds the rest on the next taps.
+          try { root.history.pushState({ ...navigationState('pushState', [], { source: 'steps' }, route, route), fmSteps: { token, depth: actual + 1 } }, '', currentHref()); actual += 1; }
+          catch (_) {}
+          inputSinceEntry = false;
+        } else if (desired < actual) {
+          pending = root.setTimeout(() => { pending = 0; actual = desired; owner.reconcile(); }, 1000);
+          root.history.go(desired - actual);
+          return;
+        }
+        if (released && !actual) finish();
+      },
+      pop(state){
+        const mine = state.fmSteps?.token === token;
+        if (!mine && !actual && !pending) return null;
+        const depth = mine ? Number(state.fmSteps.depth || 0) : 0;
+        const same = currentHref() === href;
+        const was = actual;
+        actual = depth;
+        if (pending) { root.clearTimeout(pending); pending = 0; owner.reconcile(); }
+        else if (depth < was) { desired = depth; if (!released) onBack(was - depth); else owner.reconcile(); }
+        else if (depth > was) owner.reconcile();
+        else return null;
+        return same;
+      }
+    };
+    function finish(){
+      const at = stepOwners.indexOf(owner);
+      if (at >= 0) stepOwners.splice(at, 1);
+      root.clearTimeout(settleTimer);
+      settled?.resolve();
+    }
+    stepOwners.push(owner);
+    return {
+      depth(count){
+        if (released) return;
+        desired = Math.max(0, Math.floor(Number(count) || 0));
+        owner.reconcile();
+      },
+      /** Takes the entries off; resolves when they are gone, so whatever comes next adds its own after them. */
+      release(){
+        if (!released) {
+          released = true;
+          desired = 0;
+          let resolve;
+          settled = { promise: new Promise((done) => { resolve = done; }), resolve: () => resolve() };
+          settleTimer = root.setTimeout(finish, 1200);
+          owner.reconcile();
+        }
+        return settled.promise;
+      }
+    };
+  }
+
+  /** A pop between a sheet's steps: true when it is handled and the route is the same. */
+  function stepPop(event){
+    const state = object(event?.state);
+    for (let at = stepOwners.length - 1; at >= 0; at -= 1) {
+      const handled = stepOwners[at].pop(state);
+      if (handled !== null) return handled;
+    }
+    return false;
+  }
+
   const api = {
     read,
     get: read,
@@ -366,6 +465,7 @@
     reconcile,
     clear,
     backOrClose,
+    steps,
     ownsAny,
     registerSchema,
     registerApp,
@@ -386,6 +486,6 @@
   }
   if (!root.__FM_NAVIGATION_POPSTATE_BOUND) {
     root.__FM_NAVIGATION_POPSTATE_BOUND = true;
-    root.addEventListener('popstate', () => applyCurrent({ source: 'popstate', force: true }));
+    root.addEventListener('popstate', (event) => { if (!stepPop(event)) applyCurrent({ source: 'popstate', force: true }); });
   }
 })(window);
