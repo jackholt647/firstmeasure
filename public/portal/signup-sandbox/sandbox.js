@@ -722,6 +722,7 @@
         icon.innerHTML = `<i class="fa-solid ${/^fa-[a-z0-9-]+$/.test(app.icon) ? app.icon : 'fa-cube'}" aria-hidden="true"></i>`;
         tile.appendChild(icon);
         tile.appendChild(el('span', 'sbx-app-title', app.title));
+        if (app.views && app.views.length) tile.appendChild(el('span', 'sbx-app-views', `with ${app.views.map((view) => view.title).join(', ')}`));
         const badge = el('span', 'sbx-app-state');
         badge.setAttribute('aria-hidden', 'true');
         badge.appendChild(el('span', 'sbx-state-dot'));
@@ -832,6 +833,11 @@
         }
         pop.appendChild(choices);
         pop.appendChild(el('p', 'sbx-app-pop-why', appExplanation(workflowId, app)));
+
+        if (app.views && app.views.length) {
+            const names = app.views.map((view) => `${view.title} (${view.id})`).join(', ');
+            pop.appendChild(el('p', 'sbx-app-pop-views', `Includes ${names}: ${app.views.length > 1 ? 'views' : 'a view'} of this app that App experience gives to some roles, such as the field. ${app.views.length > 1 ? 'They are' : 'It is'} on, offered or off with it.`));
+        }
 
         const together = [...new Set([...(app.offer_siblings || []), ...(app.shared_with || [])])];
         if (together.length) {
