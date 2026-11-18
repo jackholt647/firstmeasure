@@ -125,7 +125,7 @@ library's editor flag); `readAccess` in `dev-console.js` says so.
 
 | Section | What | Where it came from |
 |---|---|---|
-| Setup | first in the rail: a checklist of every setup this organization has been through, each Done, Started, Skipped or Not started. **Questions asked once** are the [setup steps](setup-steps.md) (answered is read as setups read it); hovering or tapping one says where it was answered, asked or skipped (the newest guided event naming the step: the setup, or "on its own" for `FirstMateGuides.require`, who and when), or that no guided setup saved it (Settings, signup, an agent or an import), and which setups ask it. **Guided setups** (modal and agentic guided experiences) and **Tours** (overlays and announcements, folded) show their progress: where it stopped, who finished or skipped it. **App setups** are the app catalog's setup workflows (`FirstMateAppSetupWorkflows`, read from the page). Each question has **Test** and, once tested, **Roll back** (below, "Setup tests") | new (FM-571); `GET /v1/signup-sandbox/development/console/setup` (`devConsoleSetup`) |
+| Setup | first in the rail: a checklist of every setup this organization has been through, each Done, Started, Skipped or Not started. **Questions asked once** are the [setup steps](setup-steps.md) (answered is read as setups read it); hovering or tapping one says where it was answered, asked or skipped (the newest guided event naming the step: the setup, or "on its own" for `FirstMateGuides.require`, who and when), or that no guided setup saved it (Settings, signup, an agent or an import), and which setups ask it. **Guided setups** (modal and agentic guided experiences) and **Tours** (overlays and announcements, folded) show their progress: where it stopped, who finished or skipped it. **App setups** are the app catalog's setup workflows (`FirstMateAppSetupWorkflows`, read from the page). Each question has **Test** and, once tested, **Roll back** (below, "Setup tests"). Each guided setup has **Run again** (Start, Continue) and **Reset** (below, "Running a guided setup again") | new (FM-571, FM-589); `GET /v1/signup-sandbox/development/console/setup` (`devConsoleSetup`) |
 | Test run | the sandbox workflow's stages, the showing one, Open, the workflow builder | the bottom test-run bar (`portal/signup-sandbox/devbar.js` still runs the stages and exposes `window.SignupSandboxRun`) |
 | Leads | add 1 to 25 made-up leads, choosing what each has (name, phone, email, address, source, note) and, when the organization has a source catalog, which source or a random one. Each is sent through `receiveLead`, so contact matching, source stamping, intake routing and the organization's `lead.received` rules run as for a real lead. Phones are 555-01xx and emails `@example.com`; the source carries `synthetic: true` | new (FM-552); `GET`/`POST /v1/signup-sandbox/development/synthetic-leads` (`development/synthetic-leads.ts`) |
 | Flags and settings | this test organization's flags, scope flags and settings beside what it started with; flip one, Restore one, or **Restore initial state** (which also replays every Get Started tour and setup); record a start when none was | new; the config library's `/v1/config-library/organizations/:orgId/state` (`PATCH`, `/restore`, `/capture`) |
@@ -160,6 +160,19 @@ the first value. **Roll back** (`…/rollback`, after a confirm listing what it 
 the step is as before the first test: a question nobody had answered is unanswered again, side effects included
 (the appointment kinds' catalog). A key something else changed while the overlay was open is rolled back too. An
 answer from before any test has nothing to roll back to.
+
+## Running a guided setup again
+
+**Run again** on a guided setup in the Setup section plays it where the page plays guides: in the open project
+window when there is one (as the Guided experiences section does), else on the page; on a phone the console folds
+first. A finished or skipped setup that is `replayable` (the Communications setup is) plays as a replay
+(`FirstMateGuides.play(id, { replay: true, force: true })`), as the app's own "Set up" buttons play it: its saves are
+real and its progress shows where the replay got (Started, then Done or Skipped). One that is not replayable is not offered once finished, so Run again resets it first and it plays as new. A setup not
+started or stopped part way shows **Start** or **Continue** instead. **Reset** clears its progress, its exposure and
+its scripted lines (`POST /v1/guided-experiences/organizations/:orgId/dev/reset` with scope `me`, which for an
+organization setup clears the organization's progress too), so its own triggers play it again. Neither undoes what
+the setup saved; questions it asked stay answered (Test and Roll back them above). Tours keep Replay and Reset in the
+Guided experiences section.
 
 ## Rules
 

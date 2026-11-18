@@ -7,12 +7,14 @@ test('dev console: scope-filtered nested contracts and synthetic data fit deskto
  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  try{
   const page=await browser.newPage({viewport:{width:1400,height:950}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  const leadPosts=[],testCalls=[],saved=[];const layers={items:[{id:'projects.profile',layer:'data',origin:'Projects',declarationScope:'global',scopes:['project'],details:{schema:{type:'object',properties:{address:{type:'object',properties:{city:{type:'string'}}}}}}},{id:'custom-fields-project.roof',layer:'data',origin:'Custom fields',declarationScope:'organization',scopes:['project'],details:{schema:{type:'number'}}},{id:'doc.audio',layer:'widgets',origin:'Documents',declarationScope:'global',scopes:['project'],details:{schema:{type:'object'}}},{id:'doc.video',layer:'widgets',origin:'Documents',declarationScope:'global',scopes:['project'],details:{schema:{type:'object'}}},{id:'doc.media.gallery',layer:'widgets',origin:'Documents',declarationScope:'global',scopes:['project'],details:{schema:{type:'object'}}}],projects:[{id:'project',label:'Roof project'}],notes:['Declarations only.']};
+  const leadPosts=[],testCalls=[],saved=[],resets=[];const layers={items:[{id:'projects.profile',layer:'data',origin:'Projects',declarationScope:'global',scopes:['project'],details:{schema:{type:'object',properties:{address:{type:'object',properties:{city:{type:'string'}}}}}}},{id:'custom-fields-project.roof',layer:'data',origin:'Custom fields',declarationScope:'organization',scopes:['project'],details:{schema:{type:'number'}}},{id:'doc.audio',layer:'widgets',origin:'Documents',declarationScope:'global',scopes:['project'],details:{schema:{type:'object'}}},{id:'doc.video',layer:'widgets',origin:'Documents',declarationScope:'global',scopes:['project'],details:{schema:{type:'object'}}},{id:'doc.media.gallery',layer:'widgets',origin:'Documents',declarationScope:'global',scopes:['project'],details:{schema:{type:'object'}}}],projects:[{id:'project',label:'Roof project'}],notes:['Declarations only.']};
   const at='2026-11-17T15:04:00Z',setupState={steps:[
    {id:'company.type',scope:'organization',title:'What kind of company are you?',requires:[],status:'done',answered_in:{experience_id:'documents.setup',experience_title:'Set up Documents',on_its_own:false,by:'Jack Holt',at},last:null,last_type:'step_done',asked_by:['Set up Documents']},
    {id:'company.services',scope:'organization',title:'What kind of work do you do?',requires:['company.type'],status:'done',answered_in:null,last:null,last_type:null,asked_by:[]},
    {id:'company.sales_team',scope:'organization',title:'Who does the sales in your company?',requires:['company.type'],status:'skipped',answered_in:null,last:{experience_id:'appointments.setup',experience_title:'Set up your appointments',on_its_own:false,by:'Jack Holt',at},last_type:'step_skip',asked_by:['Set up your appointments']}],
    guides:[{id:'appointments.setup',title:'Set up your appointments',kind:'modal',scope:'organization',group:'setup',status:'started',step:{id:'company.sales_team',title:'Who does the sales in your company?'},started_at:at,updated_at:at,finished_at:null,finished_by:'',asks:[]},
+   {id:'comms.setup',title:'Set up texts, calls and email',kind:'modal',scope:'organization',group:'setup',status:'done',step:null,started_at:at,updated_at:at,finished_at:at,finished_by:'Jack Holt',asks:[]},
+   {id:'operations.setup',title:'Set up Operations',kind:'modal',scope:'organization',group:'setup',status:'skipped',step:null,started_at:at,updated_at:at,finished_at:at,finished_by:'Jack Holt',asks:[]},
    {id:'docs.tab_tutorial',title:'Docs tour',kind:'overlay',scope:'person',group:'tour',status:'not_started',step:null,started_at:null,updated_at:null,finished_at:null,finished_by:'',asks:[]}]};
   await page.route('http://development.test/**',async route=>{const url=new URL(route.request().url()),p=url.pathname,json=data=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,...data})});
    if(p==='/libraries/setup-steps/fm571-stub.js')return route.fulfill({contentType:'application/javascript',body:"export function mount(el,ctx){el.innerHTML='<button type=\"button\" data-stub-pick>Roofing</button>';let picked=false;el.querySelector('[data-stub-pick]').onclick=()=>{picked=true;ctx.change({company_type:'roofing_contractor'},'Roofing');};return{valid:()=>picked,answer:()=>({company_type:'roofing_contractor'}),summary:()=>'Roofing',destroy(){}};}"});
@@ -25,6 +27,7 @@ test('dev console: scope-filtered nested contracts and synthetic data fit deskto
    }
    if(p.startsWith('/v1/publication/')){if(p.endsWith('/actions/invoke'))saved.push(route.request().postDataJSON());return json({result:{status:'ready',value:{}}});}
    if(p.startsWith('/v1/platform/'))return json({});
+   if(/^\/v1\/guided-experiences\/organizations\/[^/]+\/dev\/reset$/.test(p)){resets.push(`${p.split('/')[4]} ${JSON.stringify(route.request().postDataJSON())}`);return json({progress:1});}
    if(p.startsWith('/v1/guided-experiences/'))return json({experiences:[]});
    if(p==='/v1/signup-sandbox/development/console/setup')return json(setupState);
    if(p==='/v1/signup-sandbox/development/console')return json({sections:{setup:true,test_run:false,synthetic_data:true,synthetic_leads:true,software_layers:true,guided:false,live:false}});
@@ -84,6 +87,26 @@ test('dev console: scope-filtered nested contracts and synthetic data fit deskto
   await page.locator('[data-dc-setup-rollback-now="company.type"]').click();
   await page.waitForFunction(()=>!document.querySelector('[data-dc-setup-rollback="company.type"]'));
   assert.equal(testCalls.at(-1),'company.type rollback');
+  // Guided setups (FM-589): a finished setup plays again from its row, as a replay when it allows one; one that allows
+  // none (not offered once finished) is reset first and plays as new. Reset alone clears its progress.
+  await page.evaluate(()=>{window.__plays=[];window.__listed=new Set(['comms.setup','appointments.setup']);window.FirstMateGuides={refresh:async()=>null,experience:(id)=>window.__listed.has(id)?{id}:null,isPlaying:()=>false,play:async(id,options)=>{window.__plays.push([id,options]);return{status:'completed'};}};
+   // The portal's spare project window: laid out but hidden, so nothing plays in it.
+   const spare=document.createElement('iframe');spare.style.visibility='hidden';document.body.append(spare);spare.contentWindow.FirstMateGuides={...window.FirstMateGuides,play:async()=>{window.__plays.push(['spare frame']);return{status:'completed'};}};});
+  assert.match(await page.locator('[data-dc-setup-row="guide:comms.setup"]').innerText(),/Finished by Jack Holt[\s\S]*Run again[\s\S]*Reset[\s\S]*Done/);
+  assert.match(await page.locator('[data-dc-setup-play="appointments.setup"]').innerText(),/Continue/);
+  await page.locator('[data-dc-setup-play="comms.setup"]').click();
+  await page.waitForFunction(()=>window.__plays.length===1);
+  assert.deepEqual(await page.evaluate(()=>window.__plays),[['comms.setup',{replay:true,force:true}]]);
+  assert.deepEqual(resets,[],'a replay resets nothing');
+  await page.locator('[data-dc-setup-play="operations.setup"]').click();
+  await page.waitForFunction(()=>window.__plays.length===2);
+  assert.deepEqual(resets,['org_t {"experience_id":"operations.setup","scope":"me"}']);
+  assert.deepEqual(await page.evaluate(()=>window.__plays[1]),['operations.setup',{replay:false,force:true}]);
+  await page.locator('[data-dc-setup-reset="comms.setup"]').click();
+  await page.getByText(/^Reset: it plays as new/).waitFor();
+  assert.equal(resets.at(-1),'org_t {"experience_id":"comms.setup","scope":"me"}');
+  assert.equal(await page.locator('[data-dc-setup-reset="docs.tab_tutorial"]').count(),0,'tours keep their tools in Guided experiences');
+  await page.evaluate(()=>{delete window.FirstMateGuides;});
   await page.locator('[data-dc-section="layers"]').click();await page.getByText('5 of 5 declarations',{exact:true}).waitFor();
   assert.equal(await page.locator('[data-namespace="doc"]').count(),1);
   assert.equal(await page.getByText('doc.audio',{exact:true}).count(),0);
@@ -102,7 +125,8 @@ test('dev console: scope-filtered nested contracts and synthetic data fit deskto
   await page.waitForFunction(()=>{const r=document.querySelector('.fm-dc').getBoundingClientRect();return r.left===0&&r.right===innerWidth;},null,{timeout:3000}).catch(()=>assert.fail('across the phone'));
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no sideways scroll');
   await page.locator('[data-dc-section="setup"]').click();
-  assert.ok(await page.locator('[data-dc-setup-row="step:company.sales_team"]').evaluate(el=>el.getBoundingClientRect().right<=innerWidth&&el.querySelector('.fm-dc-badge').getBoundingClientRect().top<el.querySelector('small').getBoundingClientRect().bottom),'a setup row keeps its badge beside it on a phone');
+  // Opening the section reads the setup state again and redraws it, so the row is read once it is drawn.
+  await page.waitForFunction(()=>{const el=document.querySelector('[data-dc-setup-row="step:company.sales_team"]');return el&&el.getClientRects().length&&el.getBoundingClientRect().right<=innerWidth&&el.querySelector('.fm-dc-badge').getBoundingClientRect().top<el.querySelector('small').getBoundingClientRect().bottom;},null,{timeout:3000}).catch(()=>assert.fail('a setup row keeps its badge beside it on a phone'));
   await page.locator('[data-dc-section="synthetic"]').click();await page.locator('[data-dev-generate]').waitFor({state:'visible'});
   assert.equal(await page.locator('[data-dev-category="projects"]').isChecked(),true);
   // Leads (FM-552): near the top, count defaults to 1, the chosen fields and source are sent, the leads are listed.
