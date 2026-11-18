@@ -151,6 +151,8 @@
   function css(){
     const text = `
       .fmco-shell{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f8fa;color:#101828}
+      /* Before mount the window shows only its own "Loading…" status (GP-8). */
+      .fmco-shell[data-co-pending]{display:none}
       .fmco-head{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #e4e7ec;background:#fff;flex:0 0 auto;flex-wrap:wrap}
       .fmco-tabs{display:flex;gap:4px;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
       .fmco-tabs::-webkit-scrollbar{display:none}
@@ -439,9 +441,12 @@
 
   // ── Shell ────────────────────────────────────────────────────────────────
 
+  // The project window draws this, with its own "Loading…" status, before the app mounts: the tab's styles go in
+  // first and the shell stays hidden until mount() takes it, so nothing paints unstyled (GP-8, as FM-564).
   function panelHtml(){
+    css();
     return `
-      <div class="fmco-shell" data-comms-root style="position:relative">
+      <div class="fmco-shell" data-comms-root data-co-pending style="position:relative">
         <div class="fmco-head">
           <span class="fmco-head-icon" aria-hidden="true"><i class="fa-solid fa-comments"></i></span>
           <div class="fmco-tabs" data-co-tabs></div>
@@ -706,6 +711,13 @@
     renderAgentPanel();
     const root = contentRoot();
     if (!root) return;
+    // Texts' setup panel and Calls are drawn with communications.css: keep the loading state until it has loaded (GP-8).
+    const ui = Portal.CommunicationsUI;
+    if (ui?.cssLoaded && !ui.cssLoaded()) {
+      if (!root.querySelector(':scope > .fmco-empty[data-co-css-wait]')) root.innerHTML = loadingHtml().replace('class="fmco-empty"', 'class="fmco-empty" data-co-css-wait');
+      if (!state.cssWait) state.cssWait = ui.cssReady.then(() => { state.cssWait = null; render(); });
+      return;
+    }
     if (state.search.open) { renderSearch(root); return; }
     if (state.view === 'overview') renderOverview(root);
     else if (state.view === 'email') renderEmail(root);
@@ -2122,6 +2134,7 @@
     if (state.panelRoot && !state.panelRoot.querySelector('[data-comms-root]')) {
       state.panelRoot.innerHTML = panelHtml();
     }
+    state.panelRoot?.querySelector('[data-comms-root]')?.removeAttribute('data-co-pending');
     // The host may pre-render panelHtml() into the panel before mount runs,
     // so header bindings happen here — idempotently via a marker attribute.
     bindSearch();

@@ -28,6 +28,7 @@
         actions:options.standalone && options.standalone!=='center'?'<button type="button" data-view="setup" aria-label="Communications settings" title="Communications settings">'+icon('gear')+'</button>':''});
     }
     root.innerHTML=`<div class="fmcm">${options.projectId?'':header()}<div class="fmcm-subtabs" data-subtabs hidden></div><div class="fmcm-inbox" data-inbox hidden></div><main class="fmcm-view" data-content></main></div>`;
+    ui.whenStyled?.(root.firstElementChild);// GP-8: a styled "Loading…" until communications.css has loaded
 
     state.host=root.querySelector('[data-content]');
     root.addEventListener('click',onClick);root.addEventListener('input',onInput);root.addEventListener('change',onChange);
