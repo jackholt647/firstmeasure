@@ -489,7 +489,7 @@
       .mn-receipt-targets{display:flex;flex-direction:column;gap:8px}
       .mn-optional{font-weight:500;color:#98a2b3}
       .mn-setting-row strong{white-space:normal!important}
-      .mn-setting-row small{display:block;margin-top:2px;font-size:11px;color:#667085}
+      .mn-setting-row small{display:block;margin-top:2px;font-size:11px;color:#667085;white-space:normal!important;overflow:visible!important}
       .mn-receipt-target-choice{min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:9px;border:1px solid #eaecf0;border-radius:10px;padding:9px 10px;cursor:pointer}
       .mn-receipt-target-choice:has(input:checked){border-color:rgba(var(--primary-rgb,217,48,37),.4);background:rgba(var(--primary-rgb,217,48,37),.05)}
       .mn-receipt-target-choice input{accent-color:var(--primary,#d93025)}
