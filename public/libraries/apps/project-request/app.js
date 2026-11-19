@@ -250,6 +250,9 @@ window.PlatformCommerce.onReady(async function(){
   let projectRouteBatching = false;
   let viewingExistingProject = false;
   let newProjectCreationSession = false;
+  // A new project started from a schedule item's "Create a new project"
+  // button: { eventId, sent } until the window closes (GP-111).
+  let scheduleEventLink = null;
   let reportOrderState = null;
   let requestedWorkflow = 'project';
   let developmentReportSample = null;
@@ -3094,6 +3097,7 @@ window.PlatformCommerce.onReady(async function(){
     syncProjectPresence();
     const projectId = activeProjectRouteId();
     if (!projectId || !activeBaseProject) return;
+    reportScheduleEventProject();
     const patch = { project: projectId, projectTab: activePreviewTab, projectFullscreen: projectModalFullscreen ? '1' : null, contact:null, user:null, userTab:null, pin:null, day:null, callQueue:null, callIndex:null, callStep:null, ...extra };
     if ((patch.projectTab || activePreviewTab) !== 'photos' && !patch.photo) {
       patch.photo = null;
@@ -9539,6 +9543,34 @@ window.PlatformCommerce.onReady(async function(){
     renderProjectStageBar();
   }
 
+  // Tells the schedule item a new project was started from that the project
+  // exists, so the item takes it as its project: Scheduling listens for
+  // fm:project-created on the top page (GP-111). Sent once when the project is
+  // first saved and again on close (final) if its title or address changed;
+  // discarded:true takes it back from an empty project dropped on close.
+  function reportScheduleEventProject({ discarded = false, final = false } = {}){
+    const link = scheduleEventLink;
+    const projectId = discarded ? link?.projectId : projectOpenId();
+    if (!link?.eventId || !projectId || (discarded ? !link.sent : (link.sent && !final))) return;
+    const project = activeBaseProject || {};
+    const detail = discarded
+      ? { projectId, scheduleEventId:link.eventId, source:'scheduling-event', discarded:true }
+      : {
+        projectId,
+        scheduleEventId:link.eventId,
+        source:'scheduling-event',
+        title:projectText(manualProjectTitle(), projectTitleAlias(project), project.customer_name, primaryContact().name, $('#rAddress')?.value, project.address),
+        address:projectText($('#rAddress')?.value, project.address)
+      };
+    const key = JSON.stringify(detail);
+    if (key === link.sent) return;
+    link.sent = key;
+    link.projectId = projectId;
+    let owner = window;
+    try { while (owner.parent !== owner && owner.parent.document) owner = owner.parent; } catch (_) {}
+    owner.dispatchEvent(new owner.CustomEvent('fm:project-created', { detail }));
+  }
+
   function persistActiveBaseProject(options = {}){
     // Routed shells, provisional records and contact hydration contain
     // incomplete field values. They must never overwrite the saved project.
@@ -9627,6 +9659,7 @@ window.PlatformCommerce.onReady(async function(){
       events: Array.isArray(activeBaseProject.events) ? activeBaseProject.events : [],
       proposals
     });
+    reportScheduleEventProject();
   }
 
   function renderProjectCustomFields(){
@@ -12276,6 +12309,8 @@ window.PlatformCommerce.onReady(async function(){
     requestedDocumentResume = baseProject ? null : (options.resumeDocument && typeof options.resumeDocument === 'object' ? options.resumeDocument : null);
     viewingExistingProject = !!baseProject;
     newProjectCreationSession = !baseProject || continuingCreationSession || unfinishedReportDraft;
+    if (!baseProject) scheduleEventLink = String(options.scheduleEventId || '').trim() ? { eventId:String(options.scheduleEventId).trim(), sent:'' } : null;
+    else if (!continuingCreationSession) scheduleEventLink = null;
     activeContactContext = baseProject ? normalizeContactContext(options.contactContext, baseProject) : null;
     modalInitialProjectIds = new Set((window.Portal.ProjectStore?.cachedIds?.() || []).map(String));
     ensureOverviewDetails();
@@ -12418,7 +12453,10 @@ window.PlatformCommerce.onReady(async function(){
     projectTodoController?.destroy?.();
     projectTodoController = null;
     projectTodoLoadedFor = '';
+    if (scheduleEventLink && !isEmptyNewProjectDraft()) reportScheduleEventProject({ final:true });
     const discarded = discardEmptyNewProjectDraft();
+    if (discarded) reportScheduleEventProject({ discarded:true });
+    scheduleEventLink = null;
     disposeInstantMeasurement();
     setMobileProjectNotesOpen(false, { fromRoute:true });
     const ov = $('#rOverlay');
@@ -12479,7 +12517,7 @@ window.PlatformCommerce.onReady(async function(){
         window.Portal.modules.contacts.open();
         return;
       }
-      open(null, { workflow, documentType: event?.detail?.documentType || '', orderScope: event?.detail?.orderScope || '' });
+      open(null, { workflow, documentType: event?.detail?.documentType || '', orderScope: event?.detail?.orderScope || '', scheduleEventId: event?.detail?.scheduleEventId || '' });
     });
     loadBranchPresentationStyle().catch(() => null);
     loadBranchProposalTemplates().catch(() => null);
