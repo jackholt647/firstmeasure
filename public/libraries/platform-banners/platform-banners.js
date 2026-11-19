@@ -484,12 +484,22 @@
     return cleanText(cfg.userOrgId || cfg.orgId);
   }
 
+  // One read at a time, and none while the tab is hidden: every portal tab polls, and over HTTP/1.1 they
+  // share six connections to the site (GP-14). A tab that is shown again catches up at once.
+  let polling = false, lastPollAt = 0;
+  function poll(){
+    const org = portalOrgId() || currentOrgId;
+    if (!org || polling || document.hidden) return;
+    polling = true; lastPollAt = Date.now();
+    load(org).catch(() => null).finally(() => { polling = false; });
+  }
+
   function startPolling(){
     if (pollTimer) return;
-    pollTimer = setInterval(() => {
-      const org = portalOrgId() || currentOrgId;
-      if (org) load(org).catch(() => null);
-    }, POLL_MS);
+    pollTimer = setInterval(poll, POLL_MS);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && Date.now() - lastPollAt >= POLL_MS) poll();
+    });
   }
 
   function boot(){

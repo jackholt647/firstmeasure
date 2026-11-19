@@ -14,12 +14,19 @@ import { repairRule } from './repair.js';
 type Json=Record<string,unknown>;
 const obj=(v:unknown):Json=>v&&typeof v==='object'&&!Array.isArray(v)?v as Json:{};
 const strings=(v:unknown)=>Array.isArray(v)?v.map(String):[];
-async function authorizedEvent(org:string,user:string,event:Json,note:Json){
+type RecipientReads={auth:()=>ReturnType<typeof backgroundAuthContext>,rules:()=>ReturnType<typeof effectiveRules>};
+// One recipient's auth context and rules, read once for a whole list of notifications (GP-14: a read per
+// notification and delivery method made every topbar poll take seconds).
+function recipientReads(org:string,user:string):RecipientReads{
+ let auth:ReturnType<typeof backgroundAuthContext>|undefined,rules:ReturnType<typeof effectiveRules>|undefined;
+ return {auth:()=>auth??=backgroundAuthContext(org,user),rules:()=>rules??=effectiveRules(org,user)};
+}
+async function authorizedEvent(org:string,user:string,event:Json,note:Json,reads:RecipientReads=recipientReads(org,user)){
  if(note.source==='notification_rule'){
   const id=String(obj(note.context).rule_id||'');
-  if(!(await effectiveRules(org,user)).some(rule=>rule.id===id&&rule.enabled))return false;
+  if(!(await reads.rules()).some(rule=>rule.id===id&&rule.enabled))return false;
  }
- const auth=await backgroundAuthContext(org,user);
+ const auth=await reads.auth();
  if(note.source==='sms_registration' && (!hasPermission(auth,'manage_company_settings') || !await isAppFlagEnabled(org,'platform','sms_settings')))return false;
  if(strings(note.target_department_ids).length && !matchesDepartmentNotificationTarget(note,user,strings(auth.user.roles),auth.organizationStructure?.users.find(member=>member.id===user)?.department_ids || []))return false;
  if(auth.branchId&&auth.branchId!==String(note.branch_id||'default'))return false;
@@ -222,7 +229,7 @@ export async function drainNotifications(limit=20){
   }
  }finally{draining=false;}
 }
-export async function recipientDeliveries(org:string,user:string){const rows=await notificationStore().prepare('SELECT r.notification_id,r.note_json,r.event_json,r.state AS recipient_state,r.audit_json,d.method,d.state,d.id,d.due_at FROM notification_recipients r LEFT JOIN notification_deliveries d ON d.recipient_id=r.id WHERE r.organization_id=? AND r.user_id=?').all(org,user);const result=new Map<string,Json>();for(const row of rows){if(!await authorizedEvent(org,user,JSON.parse(String(row.event_json)),JSON.parse(String(row.note_json))).catch(()=>false))continue;const value=result.get(String(row.notification_id))||{state:row.recipient_state,methods:{},groups:JSON.parse(String(row.audit_json)).filter((a:Json)=>a.group)};if(row.method)(value.methods as Json)[String(row.method)]={id:row.id,state:row.state,due_at:row.due_at};result.set(String(row.notification_id),value);}return result;}
+export async function recipientDeliveries(org:string,user:string,reads:RecipientReads=recipientReads(org,user)){const rows=await notificationStore().prepare('SELECT r.notification_id,r.note_json,r.event_json,r.state AS recipient_state,r.audit_json,d.method,d.state,d.id,d.due_at FROM notification_recipients r LEFT JOIN notification_deliveries d ON d.recipient_id=r.id WHERE r.organization_id=? AND r.user_id=?').all(org,user);const result=new Map<string,Json>(),allowed=new Map<string,Promise<boolean>>();for(const row of rows){const key=`${row.note_json}\u0000${row.event_json}`;if(!allowed.has(key))allowed.set(key,authorizedEvent(org,user,JSON.parse(String(row.event_json)),JSON.parse(String(row.note_json)),reads).catch(()=>false));if(!await allowed.get(key))continue;const value=result.get(String(row.notification_id))||{state:row.recipient_state,methods:{},groups:JSON.parse(String(row.audit_json)).filter((a:Json)=>a.group)};if(row.method)(value.methods as Json)[String(row.method)]={id:row.id,state:row.state,due_at:row.due_at};result.set(String(row.notification_id),value);}return result;}
 export async function acknowledgeDelivery(org:string,user:string,id:string){const result=await notificationStore().prepare("UPDATE notification_deliveries SET state='presented' WHERE id=? AND state='available' AND recipient_id IN (SELECT id FROM notification_recipients WHERE organization_id=? AND user_id=?)").run(id,org,user);return result.changes===1;}
 
 /** Called only after resolving an owner portal token; never included in guest projections. */
