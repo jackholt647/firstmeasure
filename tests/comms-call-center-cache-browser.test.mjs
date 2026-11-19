@@ -52,6 +52,7 @@ test('the Call Center draws each mode at once and fills it in as its data arrive
       if (!name) return route.fulfill({ contentType: 'text/html', body: PAGE });
       return route.fulfill({ contentType: (name.endsWith('.css') ? 'text/css' : 'text/javascript') + '; charset=utf-8', body: file(name) });
     });
+    await page.clock.install();
     await page.goto(`${ORIGIN}/`, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => { window.__handle = Portal.CommunicationsWorkspace.mount(document.getElementById('app'), { standalone: 'center' }); });
     await page.waitForFunction(() => Portal.CommunicationsUI.cssLoaded());
@@ -63,8 +64,12 @@ test('the Call Center draws each mode at once and fills it in as its data arrive
     assert.equal(now.blank, false, 'no full-view loading message');
     assert.ok(now.placeholders >= 1);
     assert.doesNotMatch(now.text, /Browser calling is off/, 'no setup notice before the status is known');
+    assert.deepEqual((await page.evaluate(() => window.__waiting())).sort(), ['call-lists/queue', 'call-scripts', 'voice/status'], 'leads are asked for with the status, not after it');
+    // The 5-second refresh does not start the view over while it is still on its way (a slow answer was dropped every time).
+    await page.evaluate(() => document.activeElement?.blur());
+    await page.clock.runFor(16000);
+    assert.equal((await page.evaluate(() => window.__waiting())).length, 3, 'no refresh over a load in flight');
     await page.evaluate((status) => window.__release('voice/status', status), STATUS);
-    await page.waitForFunction(() => window.__waiting().includes('call-lists/queue'));
     await page.evaluate((queue) => { window.__release('call-lists/queue', queue); window.__release('call-scripts', { scripts: [] }); }, QUEUE);
     await page.waitForFunction(() => document.querySelector('.fmcc-lead'));
     assert.equal((await shown(page)).placeholders, 0);
