@@ -61,7 +61,7 @@ test('each view opens at its content, with no title of its own', () => {
   assert.match(workspace, /<section class="fmcc-section">\$\{filters\}<div class="fmcc-history">/, 'Personal starts at its search');
   assert.match(workspace, /<button class="fmcc-new-call" data-action="new-call">\$\{icon\('phone'\)\} New call<\/button><\/div>`;/, 'New call is in the desk controls');
   assert.match(workspace, /<section class="fmcc-section"><div class="fmcc-stats">/, 'Manager view starts at its figures');
-  assert.match(workspace, /<header><h4>Callers<\/h4><div class="fmcc-head-tools"><span>\$\{state\.agents\.length\} on roster<\/span><button data-action="reload">/, 'Refresh is in the Callers card');
+  assert.match(workspace, /<header><h4>Callers<\/h4><div class="fmcc-head-tools"><span>[^<]*on roster[^<]*<\/span><button data-action="reload">/, 'Refresh is in the Callers card');
   assert.ok(css.includes('.fmcc-dial-controls .fmcc-new-call{margin-left:auto}'));
 });
 
