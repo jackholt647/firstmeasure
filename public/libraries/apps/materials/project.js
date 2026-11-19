@@ -1218,6 +1218,8 @@
         .mt-phone-lists .mt-workspace-actions::-webkit-scrollbar{display:none}
         .mt-phone-lists .mt-workspace-actions button,.mt-phone-lists .mt-workspace-actions .mt-icon-toggles button{min-height:36px;min-width:36px}
         .mt-phone-lists .mt-collapsed-pills [data-mt-restore-type]{display:none}
+        /* A setup tab is its icon, its Setup tag on the corner (its name stays in its tooltip and aria-label). */
+        .mt-phone-lists .mt-collapsed-pills{flex-wrap:nowrap;padding-top:4px}.mt-phone-lists .mt-collapsed-pills .mt-setup-tab{min-height:36px;min-width:40px;margin-right:22px}.mt-phone-lists .mt-setup-name{display:none}
         /* The header fits a phone: the projected total is just the figure, and Category, Schedule and Closeout are icons (their tooltip and aria-label stay). */
         .mt-phone-lists .mt-projected-total{padding-right:8px}.mt-phone-lists .mt-projected-total span{display:none}
         .mt-phone-lists .mt-workspace-actions :is([data-mt-new-category],.mt-schedule-job,.mt-closeout){height:36px;width:36px;padding:0;justify-content:center;flex:none}.mt-phone-lists .mt-workspace-actions :is([data-mt-new-category],.mt-schedule-job,.mt-closeout)>span{display:none}
@@ -4848,7 +4850,7 @@
     const label=globalThis.PlatformLanguage?.htmlText?.("materials","m_b06faf127e1505","Setup") ?? "Setup";
     return ['labor','equipment'].filter(setupPending).map(type=>{
       const fallback=RESOURCE_SETUPS[type],category=resourceCategories().find(row=>row.id===type)||{},name=category.name||fallback.name,title=`Set up ${name}`;
-      return `<button type="button" class="mt-setup-tab" data-mt-open-setup="${escapeHtml(type)}" style="--tab-color:${escapeHtml(category.color||fallback.color)}" data-fm-tooltip="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"${state.openingSetup?' disabled':''}><i class="fas ${escapeHtml(category.icon||fallback.icon)}"></i> ${escapeHtml(name)}<span class="mt-setup-badge" aria-hidden="true">${state.openingSetup===type?'<i class="fas fa-rotate mt-spin"></i>':label}</span></button>`;
+      return `<button type="button" class="mt-setup-tab" data-mt-open-setup="${escapeHtml(type)}" style="--tab-color:${escapeHtml(category.color||fallback.color)}" data-fm-tooltip="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"${state.openingSetup?' disabled':''}><i class="fas ${escapeHtml(category.icon||fallback.icon)}"></i><span class="mt-setup-name"> ${escapeHtml(name)}</span><span class="mt-setup-badge" aria-hidden="true">${state.openingSetup===type?'<i class="fas fa-rotate mt-spin"></i>':label}</span></button>`;
     }).join('');
   }
   async function openResourceSetup(type){
