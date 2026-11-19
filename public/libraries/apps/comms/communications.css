@@ -225,3 +225,16 @@
 .fmcm-setup .fmcm-setup-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:0;margin-top:4px;padding:6px 12px;border:1px solid var(--primary,#d93025);border-radius:8px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:inherit;font-size:12px;font-weight:800;line-height:1.45;cursor:pointer;white-space:nowrap}
 .fmcm-setup .fmcm-setup-btn:hover{background:var(--primary,#d93025);border-color:var(--primary,#d93025);filter:brightness(.94)}.fmcm-setup .fmcm-setup-btn:disabled{opacity:.5;cursor:default;filter:none}
 .fmcm-setup .fmcm-setup-note{font-size:12px;color:#667085}.fmcm-setup .fmcm-setup-note:empty{display:none}
+/* GP-12: every click answers at once. Pressed buttons give; one that starts something slow (New call, opening a call)
+   shows a spinner until it is done; a view's rows move in when they replace "Loading…", instead of snapping. */
+.fmcm button,.fmcm .fmcm-call-row{transition:background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .12s ease}
+.fmcm button:active:not(:disabled){transform:scale(.96)}
+.fmcm button[aria-busy="true"]{position:relative;color:transparent!important;cursor:progress}
+.fmcm button[aria-busy="true"]::after{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;box-sizing:border-box;border-radius:50%;border:2px solid var(--cm-muted,#647182);border-right-color:transparent;animation:fmcm-busy-spin .7s linear infinite}
+.fmcm .fmcm-primary[aria-busy="true"]::after{border-color:var(--cm-on-accent,#fff);border-right-color:transparent}
+.fmcm-view.fmcm-arrive>*{animation:fmcm-arrive .26s cubic-bezier(.2,.8,.2,1) both}
+.fmcm-view>.fmcm-empty[role=status]{animation:fmcm-fade .3s ease .12s both}
+@keyframes fmcm-busy-spin{to{transform:rotate(360deg)}}
+@keyframes fmcm-arrive{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes fmcm-fade{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.fmcm button:active:not(:disabled){transform:none}.fmcm button[aria-busy="true"]::after{animation:fmcm-busy-spin 1.4s linear infinite!important}}

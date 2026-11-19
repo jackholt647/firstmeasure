@@ -54,7 +54,8 @@
       if(target.dataset.centerMode){state.centerMode=target.dataset.centerMode;state.centerCursor='';try{sessionStorage.setItem(`firstmate:call-center-mode:${ui.org()}:${ui.user()}`,state.centerMode);}catch{}void load();return;}
       if(target.dataset.view){nav(target.dataset.view);return;}
       const action=target.dataset.action;if(!action)return;
-      target.disabled=true;
+      // GP-12: the button gives at once, and shows a spinner if what it starts takes more than a moment.
+      target.disabled=true;const slow=setTimeout(()=>target.setAttribute('aria-busy','true'),120);
       try{
         if(action==='new-call')await phone.open({project_id:options.projectId||''});
         else if(action==='center-record')await phone.open({call_id:target.dataset.id},{artifacts:true});
@@ -107,7 +108,7 @@
         else if(action==='available'){await phone.availability(!phone.takingCalls);await load();}
         else if(action==='agent-up'||action==='agent-down'){const row=target.closest('[data-agent-row]'),sibling=action==='agent-up'?row.previousElementSibling:row.nextElementSibling;if(sibling){if(action==='agent-up')sibling.before(row);else sibling.after(row);}}
       }catch(error){state.error=error.message;showError();}
-      finally{if(target.isConnected)target.disabled=false;}
+      finally{clearTimeout(slow);target.removeAttribute('aria-busy');if(target.isConnected)target.disabled=false;}
     }
     async function openEntry(entry,fromRoute=false){
       if(await phone.open({entry,project_id:entry.project_id,entry_id:entry.id},{fromRoute})===false)return;
@@ -135,7 +136,7 @@
       const reuseLists=state.view==='lists'&&state.listScope===state.sessionScope;
       if(reuseLists)render();
       state.host.setAttribute('aria-busy','true');
-      if(!append&&!silent&&!reuseLists)state.host.innerHTML=`<div class="fmcm-empty" role="status">${(globalThis.PlatformLanguage?.htmlText("comms","m_55449dc99935d5","Loading communications…") ?? "Loading communications…")}</div>`;
+      if(!append&&!silent&&!reuseLists){state.arrive=true;state.host.innerHTML=`<div class="fmcm-empty" role="status">${(globalThis.PlatformLanguage?.htmlText("comms","m_55449dc99935d5","Loading communications…") ?? "Loading communications…")}</div>`;}
       try{
         const view=state.view;let result;
         if(view==='lists'){result=await request('call-lists/queue'+(state.departmentId?'?department_id='+encodeURIComponent(state.departmentId):''));}
@@ -177,7 +178,9 @@
         }
         else if(view==='scripts')state.scripts=result.scripts||[];
         else if(view==='setup')state.status=result;
-        state.host.setAttribute('aria-busy','false');render();void phone.refreshStatus().then(updatePhone).catch(()=>{});
+        state.host.setAttribute('aria-busy','false');render();
+        if(state.arrive){state.arrive=false;const host=state.host;host.classList.remove('fmcm-arrive');void host.offsetWidth;host.classList.add('fmcm-arrive');setTimeout(()=>host.classList.remove('fmcm-arrive'),500);}// GP-12: rows move in over "Loading…"
+        void phone.refreshStatus().then(updatePhone).catch(()=>{});
         if(view==='lists'&&!route().customerCall){const current=route();let entry=state.columns.flatMap(c=>c.tasks).find(t=>t.id===current.communicationsEntry);
           if(!entry&&current.callQueue){const column=state.columns.find(c=>c.id===current.callQueue||c.key===current.callQueue);entry=column?.tasks[Math.max(0,Math.min(Number(current.callIndex)||0,(column?.tasks.length||1)-1))];
             if(entry&&!Portal.navigation?.applying)Portal.navigation?.replace?.({communicationsEntry:entry.id,callQueue:null,callIndex:null,callStep:null});}
@@ -306,6 +309,7 @@
       split.classList.toggle('thread-mode',!!selected);
       callPane();
     }
+    const motion=(node,name)=>{if(!node)return;node.classList.remove(name);void node.offsetWidth;node.classList.add(name);clearTimeout(node.__fmcmMotion);node.__fmcmMotion=setTimeout(()=>node.classList.remove(name),600);};
     const callLength=call=>{const start=Date.parse(call.connected_at||''),end=Date.parse(call.ended_at||'');if(!Number.isFinite(start)||!Number.isFinite(end)||end<start)return '';const seconds=Math.round((end-start)/1000);return `${Math.floor(seconds/60)}m ${String(seconds%60).padStart(2,'0')}s`;};
     // A call logged from another phone has no connection times; its outcome says whether anyone answered.
     const callMissed=call=>call.result?.disposition?['no_answer','busy'].includes(call.result.disposition):call.mode==='browser'&&!call.connected_at&&['ended','no_answer','busy','rejected','canceled','failed'].includes(call.state);
@@ -315,6 +319,11 @@
       const pane=state.host.querySelector('[data-call-detail]');if(!pane)return;
       const view=state.callView||{},key=state.callId?`${state.callId}:${view.version||0}`:'';
       if(pane.dataset.shown===key)return;pane.dataset.shown=key;
+      // GP-12: another call moves in (on a phone it slides over the list, which slides back on Close); a call's details
+      // fade in over its "Loading call…". comms/project.js styles fmco-enter / fmco-back / fmco-fill.
+      const callKey=state.callId||'',first=pane.dataset.call===undefined;
+      if(!first)motion(pane.dataset.call!==callKey?(callKey?pane:state.host.querySelector('[data-call-list]')):pane,pane.dataset.call!==callKey?(callKey?'fmco-enter':'fmco-back'):'fmco-fill');
+      pane.dataset.call=callKey;
       if(!state.callId){pane.innerHTML=`<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-phone"></i><p>Select a call to see its details, recording and transcript.</p></div>`;return;}
       const listed=state.calls.find(c=>c.id===state.callId)||{},call=view.detail?.call||listed;
       const name=call.customer_name||call.customer_number||'Unknown caller',close=`<button type="button" class="fmco-btn" data-action="close-call" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_3742924668fb10","Close") ?? "Close")}" title="${(globalThis.PlatformLanguage?.htmlText("comms","m_3742924668fb10","Close") ?? "Close")}">${icon('xmark')}</button>`;

@@ -1292,7 +1292,10 @@
       "message": "cc {v1}",
       "format": "icu"
     },
-    "m_270ef93292386e": "Show trimmed content"
+    "m_270ef93292386e": "Show trimmed content",
+    "m_01589413ee03d7": "Sending…",
+    "m_9fcfa20f91b853": "Not sent",
+    "m_f643f568915438": "Remove"
   },
   "contacts": {
     "m_bdd2018a2c9640": {
