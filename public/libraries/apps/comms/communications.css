@@ -242,3 +242,6 @@
 @media(prefers-reduced-motion:reduce){.fmcm button:active:not(:disabled){transform:none}.fmcm button[aria-busy="true"]::after{animation:fmcm-busy-spin 1.4s linear infinite!important}}
 /* GP-79: Settings › Phone Settings (settings/phone.js) mounted in the Settings tab keeps its own buttons, not .fmcm's. */
 .fmcm-phone-settings .ph button{font-weight:400;padding:9px 13px;white-space:normal}.fmcm-phone-settings .ph .ph-nav button{justify-content:flex-start;text-align:left}.fmcm-phone-settings .ph .ph-nav button[aria-current=page]{font-weight:700}
+/* GP-81: a Call Center list whose rows have not arrived yet (its first visit on this page) keeps its place with grey lines. */
+.fmcc-skeleton{display:grid;gap:11px;padding:18px 16px}.fmcc-skeleton i{display:block;height:11px;border-radius:6px;background:linear-gradient(90deg,var(--cm-line) 0%,color-mix(in srgb,var(--cm-line) 35%,white) 50%,var(--cm-line) 100%) 0 0/200% 100%;animation:fmcc-shimmer 1.3s linear infinite}.fmcc-skeleton i:nth-child(2){width:74%}.fmcc-skeleton i:nth-child(3){width:46%}
+@keyframes fmcc-shimmer{to{background-position:-200% 0}}

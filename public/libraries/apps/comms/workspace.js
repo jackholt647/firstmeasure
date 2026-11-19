@@ -6,6 +6,10 @@
   const {esc,request,uid,icon,label,date,field,area,select,dialog,empty}=ui;
   const views=[['inbox','Inbox','inbox'],['lists','Call lists','list-check'],['followups','Follow-ups','calendar-check'],['history','History','clock-rotate-left'],['center','Call center','headset']];
   const instances=new Set();
+  // GP-81: what each Call Center mode showed last, for this page, per person, department and filters. A mode opens from
+  // it at once and refreshes behind it; only a mode never shown before draws its layout with placeholders.
+  const centerCache=new Map(),centerFields={personal:['personalCalls','centerNextCursor','centerTotal'],manager:['calls','agents','columns','centerToday'],call:['columns','scripts']};
+  const canManage=status=>['manage','monitor','whisper','barge','takeover'].some(key=>status?.permissions?.[key]);
   const route=()=>Portal.navigation?.read?.()||{};
   Portal.navigation?.registerSchema?.('communicationsView',{history:'push',values:[...views.map(v=>v[0]),'setup','layout','scripts'],scopes:[{tab:'chat'}]});
   Portal.navigation?.registerSchema?.('communicationsFilter',{history:'replace',scopes:[{tab:'chat'}]});
@@ -137,10 +141,16 @@
       if(state.view==='layout'){state.host.innerHTML=settingsTabs()+chrome.settings('communications');return;}
       if(state.view==='setup'){renderPhoneSettings();return;}
       if(state.view==='inbox'){void phone.refreshStatus().then(updatePhone).catch(()=>{});return;}
-      const reuseLists=state.view==='lists'&&state.listScope===state.sessionScope;
+      const reuseLists=state.view==='lists'&&state.listScope===state.sessionScope,center=state.view==='center';
       if(reuseLists)render();
+      if(center&&!append&&!silent){
+        state.status=state.status||phone.status||null;
+        if(state.centerMode==='manager'&&state.status?.permissions&&!canManage(state.status))state.centerMode='call';
+        const cached=!state.centerCursor&&centerCache.get(centerKey());
+        if(cached)Object.assign(state,cached);state.centerPending=!cached;render();
+      }
       state.host.setAttribute('aria-busy','true');
-      if(!append&&!silent&&!reuseLists){state.arrive=true;state.host.innerHTML=`<div class="fmcm-empty" role="status">${(globalThis.PlatformLanguage?.htmlText("comms","m_55449dc99935d5","Loading communications…") ?? "Loading communications…")}</div>`;}
+      if(!append&&!silent&&!reuseLists&&!center){state.arrive=true;state.host.innerHTML=`<div class="fmcm-empty" role="status">${(globalThis.PlatformLanguage?.htmlText("comms","m_55449dc99935d5","Loading communications…") ?? "Loading communications…")}</div>`;}
       try{
         const view=state.view;let result;
         if(view==='lists'){result=await request('call-lists/queue'+(state.departmentId?'?department_id='+encodeURIComponent(state.departmentId):''));}
@@ -149,11 +159,11 @@
           const params={department_id:state.departmentId||'',limit:'50',query:state.query,project_id:options.projectId||'',...(state.filter==='wrap_up'?{wrap_up_state:'needs_wrap_up'}:{}),...(state.filter==='mine'?{owner_user_id:ui.user()}:{}),cursor:state.cursor};
           result=await request(`calls?${Object.entries(params).filter(([,v])=>v).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&')}`);
         }else if(view==='center'){
-          const status=await phone.refreshStatus();
+          // GP-81: the phone status is fetched beside the mode's data, not before it; the last one known picks the mode.
+          const statusRun=phone.refreshStatus();statusRun.catch(()=>{});
+          const known=phone.status?.permissions?phone.status:await statusRun;
           if(sequence!==state.sequence||state.disposed)return;
-          state.status=status;
-          const manager=['manage','monitor','whisper','barge','takeover'].some(key=>status.permissions?.[key]);
-          if(state.centerMode==='manager'&&!manager)state.centerMode='call';
+          if(state.centerMode==='manager'&&!canManage(known))state.centerMode='call';
           const department=state.departmentId?`department_id=${encodeURIComponent(state.departmentId)}`:'';
           if(state.centerMode==='personal'){
             const since=state.centerPeriod==='all'?'':new Date(Date.now()-Number(state.centerPeriod)*86400000).toISOString();
@@ -166,6 +176,10 @@
             const [lists,scripts]=await Promise.all([request(`call-lists/queue${department?'?'+department:''}`),request(`call-scripts?published=true${department?'&'+department:''}`)]);
             result={...lists,scripts:scripts.scripts||[]};
           }
+          const status=await statusRun;
+          if(sequence!==state.sequence||state.disposed)return;
+          state.status=status;
+          if(state.centerMode==='manager'&&!canManage(status)){state.centerMode='call';return load(false,silent);}
         }
         else if(view==='scripts'){result=await request('call-scripts'+(state.departmentId?'?department_id='+encodeURIComponent(state.departmentId):''));}
         if(sequence!==state.sequence||state.disposed)return;
@@ -178,19 +192,29 @@
           if(state.centerMode==='personal'){state.personalCalls=append?[...state.personalCalls,...(result.calls||[])]:result.calls||[];state.centerNextCursor=result.next_cursor||'';state.centerTotal=result.total||0;}
           else if(state.centerMode==='manager'){state.calls=result.calls||[];state.agents=result.agents||[];state.columns=result.columns||[];state.centerToday=result.center_today||0;}
           else{state.columns=result.columns||[];state.scripts=result.scripts||[];}
+          if(!append&&!state.centerCursor)rememberCenter();
+          state.centerPending=false;
         }
         else if(view==='scripts')state.scripts=result.scripts||[];
         state.host.setAttribute('aria-busy','false');render();
         if(state.arrive){state.arrive=false;const host=state.host;host.classList.remove('fmcm-arrive');void host.offsetWidth;host.classList.add('fmcm-arrive');setTimeout(()=>host.classList.remove('fmcm-arrive'),500);}// GP-12: rows move in over "Loading…"
-        void phone.refreshStatus().then(updatePhone).catch(()=>{});
+        if(view==='center')updatePhone();else void phone.refreshStatus().then(updatePhone).catch(()=>{});
         if(view==='lists'&&!route().customerCall){const current=route();let entry=state.columns.flatMap(c=>c.tasks).find(t=>t.id===current.communicationsEntry);
           if(!entry&&current.callQueue){const column=state.columns.find(c=>c.id===current.callQueue||c.key===current.callQueue);entry=column?.tasks[Math.max(0,Math.min(Number(current.callIndex)||0,(column?.tasks.length||1)-1))];
             if(entry&&!Portal.navigation?.applying)Portal.navigation?.replace?.({communicationsEntry:entry.id,callQueue:null,callIndex:null,callStep:null});}
           if(entry&&phone.currentEntry!==entry.id)await openEntry(entry,true);
         }
-      }catch(error){if(sequence!==state.sequence)return;state.host.setAttribute('aria-busy','false');state.error=error.message;state.host.innerHTML=empty('Could not load this view',error.message,`<button data-action="reload">${(globalThis.PlatformLanguage?.htmlText("comms","m_ef39ad5e614a24","Try again") ?? "Try again")}</button>`);}
+      }catch(error){if(sequence!==state.sequence)return;state.centerPending=false;state.host.setAttribute('aria-busy','false');state.error=error.message;state.host.innerHTML=empty('Could not load this view',error.message,`<button data-action="reload">${(globalThis.PlatformLanguage?.htmlText("comms","m_ef39ad5e614a24","Try again") ?? "Try again")}</button>`);}
     }
     state.load=load;
+    function centerKey(){return [ui.org(),ui.user(),state.centerMode,state.departmentId||'',...(state.centerMode==='personal'?[state.centerQuery,state.centerPeriod,state.centerDirection,state.centerWrap]:[])].join('\u0001');}
+    function rememberCenter(){
+      const key=centerKey(),fields=centerFields[state.centerMode]||centerFields.call;
+      centerCache.delete(key);centerCache.set(key,Object.fromEntries([...fields,'departmentContext','canManageDepartments'].map(name=>[name,state[name]])));
+      while(centerCache.size>24)centerCache.delete(centerCache.keys().next().value);
+    }
+    // GP-81: the shape of a list whose rows have not arrived yet (a mode's first visit on this page).
+    function placeholder(text){return `<div class="fmcc-skeleton"${text?` role="status" aria-label="${esc(text)}"`:' aria-hidden="true"'}><i></i><i></i><i></i></div>`;}
     function updatePhone(){if(phone.diagnostic&&state.diagnostic!==phone.diagnostic){state.diagnostic=phone.diagnostic;render();}
       if(options.projectId&&state.view==='history'&&state.callsSetup!==undefined&&state.callsSetup!==callsState())render();const button=root.querySelector('[data-phone-status]');if(button)button.outerHTML=phoneButton();
 
@@ -245,11 +269,12 @@
     function renderPersonal(){
       const calls=state.personalCalls;
       const filters=`<div class="fmcc-filters"><label class="fmcc-search">Search calls<input type="search" data-center-search placeholder="Name, number or notes" value="${esc(state.centerQuery)}"></label><label>When<select data-center-period>${[['7','Past 7 days'],['30','Past 30 days'],['90','Past 90 days'],['all','All time']].map(([value,title])=>`<option value="${value}" ${state.centerPeriod===value?'selected':''}>${title}</option>`).join('')}</select></label><label>Direction<select data-center-direction><option value="all">All calls</option><option value="outbound" ${state.centerDirection==='outbound'?'selected':''}>Outgoing</option><option value="inbound" ${state.centerDirection==='inbound'?'selected':''}>Incoming</option></select></label><label>Status<select data-center-wrap><option value="all">All outcomes</option><option value="needs_wrap_up" ${state.centerWrap==='needs_wrap_up'?'selected':''}>Needs outcome</option></select></label></div>`;
-      const rows=calls.map(c=>{const duration=c.connected_at&&c.ended_at?Math.max(0,Math.floor((Date.parse(c.ended_at)-Date.parse(c.connected_at))/1000)):0;return `<article class="fmcc-history-row"><div class="fmcc-history-icon">${icon(c.direction==='inbound'?'phone-volume':'phone')}</div><div class="fmcc-history-main"><strong>${esc(c.customer_name||c.customer_number||'Unknown caller')}</strong><small>${esc(c.customer_number||'')} · ${esc(date(c.created_at))} · ${esc(label(c.direction))}${duration?` · ${Math.floor(duration/60)}m ${duration%60}s`:''}</small><span>${esc(label(c.result?.disposition||c.state||'Call'))}${c.wrap_up_state==='needs_wrap_up'?' · Needs outcome':''}</span></div><div class="fmcc-row-actions"><button data-action="open-call" data-id="${esc(c.id)}">Details</button>${c.mode==='browser'&&state.status?.permissions?.recordings?`<button data-action="center-record" data-id="${esc(c.id)}">Recording & transcript</button>`:''}</div></article>`;}).join('');
-      return `<section class="fmcc-section">${filters}<div class="fmcc-history">${rows||empty('No matching calls','Try another search or date range. Calls you make will appear here.')}</div>${state.centerNextCursor?'<div class="fmcc-more"><button data-action="center-more">Load more calls</button></div>':''}</section>`;
+      const pending=state.centerPending;
+      const rows=pending?'':calls.map(c=>{const duration=c.connected_at&&c.ended_at?Math.max(0,Math.floor((Date.parse(c.ended_at)-Date.parse(c.connected_at))/1000)):0;return `<article class="fmcc-history-row"><div class="fmcc-history-icon">${icon(c.direction==='inbound'?'phone-volume':'phone')}</div><div class="fmcc-history-main"><strong>${esc(c.customer_name||c.customer_number||'Unknown caller')}</strong><small>${esc(c.customer_number||'')} · ${esc(date(c.created_at))} · ${esc(label(c.direction))}${duration?` · ${Math.floor(duration/60)}m ${duration%60}s`:''}</small><span>${esc(label(c.result?.disposition||c.state||'Call'))}${c.wrap_up_state==='needs_wrap_up'?' · Needs outcome':''}</span></div><div class="fmcc-row-actions"><button data-action="open-call" data-id="${esc(c.id)}">Details</button>${c.mode==='browser'&&state.status?.permissions?.recordings?`<button data-action="center-record" data-id="${esc(c.id)}">Recording & transcript</button>`:''}</div></article>`;}).join('');
+      return `<section class="fmcc-section">${filters}<div class="fmcc-history">${pending?placeholder('Loading your calls…'):rows||empty('No matching calls','Try another search or date range. Calls you make will appear here.')}</div>${!pending&&state.centerNextCursor?'<div class="fmcc-more"><button data-action="center-more">Load more calls</button></div>':''}</section>`;
     }
     function renderCaller(){
-      const columns=state.columns;
+      const columns=state.columns,pending=state.centerPending;
       if(state.centerList!=='all'&&!columns.some(c=>c.id===state.centerList))state.centerList='all';
       const selected=state.centerList==='all'?columns:columns.filter(c=>c.id===state.centerList);
       const ready=selected.flatMap(c=>(c.tasks||[]).filter(t=>t.ready).map(t=>({...t,listTitle:c.title})));
@@ -258,15 +283,16 @@
       const controls=`<div class="fmcc-dial-controls"><label>Lead list<select data-center-list><option value="all">All call lists</option>${columns.map(c=>`<option value="${esc(c.id)}" ${state.centerList===c.id?'selected':''}>${esc(c.title)}</option>`).join('')}</select></label><label>Dialing<select data-center-dial-mode><option value="manual" ${state.centerDialMode==='manual'?'selected':''}>Manual · Call Next</option><option value="power" ${state.centerDialMode==='power'?'selected':''}>Power dial</option></select></label>${state.centerDialMode==='power'?(dialer.active?'<button data-action="center-pause">Pause dialing</button>':`<button class="fmcm-primary" data-action="center-power" ${selected.length?'':'disabled'}>Start power dialing</button>`):`<button class="fmcm-primary" data-action="center-next" ${ready.some(t=>!state.centerSeen.has(t.id))&&canAdvance?'':'disabled'}>Call Next</button>`}<button class="fmcc-new-call" data-action="new-call">${icon('phone')} New call</button></div>`;
       const queue=ready.slice(0,30).map((e,i)=>`<div class="fmcc-lead"><span class="fmcc-position">${i+1}</span><div><strong>${esc(e.name||e.title||e.phone)}</strong><small>${esc(e.listTitle)} · ${esc(e.phone||'No number')}${e.title&&e.title!==e.name?' · '+esc(e.title):''}</small></div><button data-action="open-entry" data-id="${esc(e.id)}" aria-label="Open ${esc(e.name||e.title||'lead')}">${icon('arrow-right')}</button></div>`).join('');
       const scripts=state.scripts.map(s=>`<article class="fmcc-script"><div><strong>${esc(s.title)}</strong><small>Published version ${esc(s.version)}</small></div>${(s.data?.sections||[]).slice(0,2).map(section=>`<p><b>${esc(section.title)}</b> ${esc(String(section.body||'').slice(0,180))}</p>`).join('')}${state.status?.permissions?.manage||state.canManageDepartments?`<button data-action="center-script" data-id="${esc(s.id)}">Edit script</button>`:''}</article>`).join('');
-      return `<section class="fmcc-section">${!state.status?.settings?.enabled?`<p class="fmcc-notice">Browser calling is off. You can still review leads and log calls with an external phone.${state.status?.permissions?.manage&&window.FirstMateGuides?.play?' <button data-action="comms-setup">Set up texts and calls</button>':''}</p>`:''}${controls}<div class="fmcc-columns"><div class="fmcc-stack"><section class="fmcc-card"><header><h4>Next leads</h4><span>${ready.length} ready</span></header>${queue||empty('No leads ready','New leads from the selected lists will appear here.')}</section></div><div class="fmcc-stack">${current?`<section class="fmcc-card fmcc-current"><header><h4>Current call</h4><span>${esc(label(current.state))}</span></header><strong>${esc(current.customer_name||current.customer_number)}</strong><p>${esc(current.customer_number||'')}</p><button data-action="open-call" data-id="${esc(current.id)}">Open phone and notes</button></section>`:''}<section class="fmcc-card"><header><h4>Call scripts</h4><span>${state.scripts.length} published</span></header>${scripts||empty('No published scripts','Published scripts will appear here and in the phone workspace.')}</section></div></div></section>`;
+      return `<section class="fmcc-section">${state.status&&!state.status.settings?.enabled?`<p class="fmcc-notice">Browser calling is off. You can still review leads and log calls with an external phone.${state.status?.permissions?.manage&&window.FirstMateGuides?.play?' <button data-action="comms-setup">Set up texts and calls</button>':''}</p>`:''}${controls}<div class="fmcc-columns"><div class="fmcc-stack"><section class="fmcc-card"><header><h4>Next leads</h4><span>${pending?'':`${ready.length} ready`}</span></header>${pending?placeholder('Loading leads…'):queue||empty('No leads ready','New leads from the selected lists will appear here.')}</section></div><div class="fmcc-stack">${current?`<section class="fmcc-card fmcc-current"><header><h4>Current call</h4><span>${esc(label(current.state))}</span></header><strong>${esc(current.customer_name||current.customer_number)}</strong><p>${esc(current.customer_number||'')}</p><button data-action="open-call" data-id="${esc(current.id)}">Open phone and notes</button></section>`:''}<section class="fmcc-card"><header><h4>Call scripts</h4><span>${pending?'':`${state.scripts.length} published`}</span></header>${pending?placeholder():scripts||empty('No published scripts','Published scripts will appear here and in the phone workspace.')}</section></div></div></section>`;
     }
     function renderManager(){
+      const pending=state.centerPending;
       const live=state.calls.filter(c=>!['created','ended','failed','canceled','no_answer','busy','rejected'].includes(c.state));
       const connected=live.filter(c=>['connected','held'].includes(c.state)).length,waiting=live.filter(c=>c.state==='queued').length,available=state.agents.filter(a=>a.availability==='available').length;
-      const stats=[['Calls · 24 hours',state.centerToday],['Connected now',connected],['Waiting',waiting],['Available reps',available]].map(([name,value])=>`<div class="fmcc-stat"><span>${name}</span><strong>${value}</strong></div>`).join('');
+      const stats=[['Calls · 24 hours',state.centerToday],['Connected now',connected],['Waiting',waiting],['Available reps',available]].map(([name,value])=>`<div class="fmcc-stat"><span>${name}</span><strong>${pending?'–':value}</strong></div>`).join('');
       const agents=state.agents.map(a=>{const call=live.find(c=>c.owner_user_id===a.user_id),permissions=call?.supervision?.permissions||{},session=call?.supervision?.session;return `<article class="fmcc-agent"><div class="fmcc-person"><span class="fmcc-avatar">${esc((a.name||'?').charAt(0).toUpperCase())}</span><div><strong>${esc(a.name||a.user_id)}</strong><small>${call?`${esc(label(call.state))} · ${esc(call.customer_name||call.customer_number)}`:a.availability==='available'?'Ready for calls':esc(label(a.availability||'offline'))}</small></div></div>${call?`<div class="fmcc-row-actions">${[['monitor','Listen'],['whisper','Whisper'],['barge','Barge in'],['takeover','Take over']].filter(([mode])=>permissions[mode]).map(([mode,title])=>`<button data-action="center-supervise" data-id="${esc(call.id)}" data-mode="${mode}" ${session?.mode===mode&&session?.state==='active'?'disabled':''}>${title}</button>`).join('')}<button data-action="open-call" data-id="${esc(call.id)}">Call details</button></div>`:''}</article>`;}).join('');
       const lists=state.columns.map(c=>`<article class="fmcc-manager-list"><div class="fmcc-managed-list"><div><strong>${esc(c.title)}</strong><small>${(c.tasks||[]).filter(t=>t.ready).length} ready · ${(c.tasks||[]).length} total leads</small></div><div class="fmcc-row-actions"><button data-action="center-list-toggle" data-id="${esc(c.id)}" aria-expanded="${state.centerExpandedList===c.id}">${state.centerExpandedList===c.id?'Hide leads':'View leads'}</button><button data-action="add-entry" data-id="${esc(c.key||c.id)}">Add lead</button><button data-action="list-settings" data-id="${esc(c.id)}">Manage list</button></div></div>${state.centerExpandedList===c.id?`<div class="fmcc-managed-leads">${(c.tasks||[]).map(e=>`<div class="fmcc-managed-lead"><div><strong>${esc(e.name||e.title||e.phone||'Lead')}</strong><small>${esc(e.phone||'No phone number')} · ${esc(e.ready?'Ready':e.blocked_reason||'Not ready')}</small></div><button data-action="center-remove-lead" data-id="${esc(e.id)}" data-name="${esc(e.name||e.title||'this lead')}">Remove</button></div>`).join('')||empty('No leads in this list','Add a lead to start the queue.')}</div>`:''}</article>`).join('');
-      return `<section class="fmcc-section"><div class="fmcc-stats">${stats}</div><div class="fmcc-columns"><section class="fmcc-card"><header><h4>Callers</h4><div class="fmcc-head-tools"><span>${state.agents.length} on roster</span><button data-action="reload">${icon('rotate-right')} Refresh</button></div></header>${agents||empty('No callers connected','Callers appear here while they are on a call or taking incoming calls.')}</section><section class="fmcc-card"><header><h4>Leads and call lists</h4><button data-action="new-list">${icon('plus')} New list</button></header>${lists||empty('No call lists','Create a list to organize leads for your team.')}</section></div></section>`;
+      return `<section class="fmcc-section"><div class="fmcc-stats">${stats}</div><div class="fmcc-columns"><section class="fmcc-card"><header><h4>Callers</h4><div class="fmcc-head-tools"><span>${pending?'':`${state.agents.length} on roster`}</span><button data-action="reload">${icon('rotate-right')} Refresh</button></div></header>${pending?placeholder('Loading your team…'):agents||empty('No callers connected','Callers appear here while they are on a call or taking incoming calls.')}</section><section class="fmcc-card"><header><h4>Leads and call lists</h4><button data-action="new-list">${icon('plus')} New list</button></header>${pending?placeholder():lists||empty('No call lists','Create a list to organize leads for your team.')}</section></div></section>`;
     }
     function renderCenter(){
       const active=document.activeElement,searchActive=active?.matches?.('[data-center-search]'),cursor=searchActive?active.selectionStart:0;
