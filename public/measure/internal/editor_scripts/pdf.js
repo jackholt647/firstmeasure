@@ -1040,9 +1040,31 @@ async function saveStandalonePdfState(sourceState = null, options = {}) {
     }
 
     window.lastSavedStandalonePdfSnapshot = snapshot;
+    await syncSubmittedModelXml(state, snapshot.folderId);
     return true;
 }
 window.saveStandalonePdfState = saveStandalonePdfState;
+
+// model_data.xml is written from the same state as the PDF. Submit always wrote it, but a QA correction or a later
+// update only saved the PDF state, so the customer's XML and the portal's totals kept the first submitted model.
+// Once a report has been submitted, every PDF state save rewrites the XML too; a draft gets its first one on submit.
+function projectHasSubmittedModel() {
+    const manifest = window.currentProjectManifest || {};
+    const status = String(manifest.status || '').trim().toLowerCase();
+    return status === 'completed' || status === 'awaiting_review' || !!manifest.artifacts?.has_model_data;
+}
+
+async function syncSubmittedModelXml(state, folderId) {
+    if (!folderId || !projectHasSubmittedModel()) return;
+    if (typeof generateRoofXML !== 'function' || typeof window.firstMeasureUploadArtifact !== 'function') return;
+    try {
+        const xmlString = generateRoofXML(state);
+        if (!xmlString) return;
+        await window.firstMeasureUploadArtifact(folderId, new Blob([xmlString], { type: 'text/xml' }), 'model_data.xml');
+    } catch (error) {
+        console.warn('[XML] The PDF state was saved, but model_data.xml could not be updated:', error);
+    }
+}
 
 const PDF_GEOMETRY_MAX_LINE_FT = 999;
 const PDF_GEOMETRY_MAX_FACE_EDGE_FT = 999;
