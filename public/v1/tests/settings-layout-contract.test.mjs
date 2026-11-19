@@ -120,16 +120,26 @@ test('nested settings views have one reusable bubble-tab primitive', () => {
   }
 });
 
-test('Money owns Payments, Accounts, and Disputes as canonical nested settings views', () => {
+test('Money owns Payments, Payouts, Disputes, Accounts and Manage as canonical nested settings views (GP-76)', () => {
+  const label = (text) => `label:\\(globalThis\\.PlatformLanguage\\?\\.text\\("settings","m_[0-9a-f]+","${text}"\\) \\?\\? "${text}"\\)`;
   assert.match(company, /async function renderMoneySettings\(options = \{\}\)/);
   assert.doesNotMatch(company.match(/const settingsSections = \[([\s\S]*?)\n    \];/)?.[1] || '', /id:'payments'/);
   assert.match(company, /FirstMateSettingsPages\?\.subTabs\?\.\(\{/);
-  assert.match(company, /HOSTED_MONEY_SETTINGS_VIEWS = Object\.freeze\(\{\s*accounts:\{ label:'Accounts', path:'\/settings' \},\s*disputes:\{ label:'Disputes', path:'\/disputes' \}/);
-  assert.match(company, /items:\[\s*\{ id:'payments', label:'Payments' \},\s*\{ id:'accounts', label:'Accounts' \},\s*\{ id:'disputes', label:'Disputes' \}/);
-  assert.doesNotMatch(company, /data-money-view(?:-pane)?="payouts"/);
-  assert.match(company, /MONEY_SETTINGS_VIEWS = \['payments', \.\.\.Object\.keys\(HOSTED_MONEY_SETTINGS_VIEWS\)\]/);
-  assert.match(company, /MONEY_SETTINGS_VIEWS\.includes\(route\.settingsView\) \? route\.settingsView : 'payments'/);
+  // Accounts and Manage embed Forward; Payouts and Disputes are the shared payments widgets, never a hosted iframe.
+  assert.match(company, new RegExp(`HOSTED_MONEY_SETTINGS_VIEWS = Object\\.freeze\\(\\{\\s*accounts:\\{ ${label('Accounts')}, path:'/settings' \\}`));
+  assert.doesNotMatch(company.match(/HOSTED_MONEY_SETTINGS_VIEWS = Object\.freeze\(\{([\s\S]*?)\n    \}\);/)?.[1] || '', /disputes:|payouts:/);
+  assert.match(company, /const MONEY_WIDGET_VIEWS = \['payouts', 'disputes'\]/);
+  assert.match(company, /MONEY_SETTINGS_VIEWS = \['payments', \.\.\.MONEY_WIDGET_VIEWS, \.\.\.Object\.keys\(HOSTED_MONEY_SETTINGS_VIEWS\)\]/);
+  assert.match(company, /moneyViewAvailable\(route\.settingsView\) \? route\.settingsView : 'payments'/);
+  assert.match(company, /widgets\.mountDisputes\(pane, /);
+  assert.match(company, /widgets\.mountPayouts\(pane, /);
+  assert.match(company, /data-money-view-pane="payouts" data-settings-autosave="off" hidden/);
+  assert.match(company, /data-money-view-pane="disputes" data-settings-autosave="off" hidden/);
   assert.match(company, /FirstMateSettingsPages\.bindSubTabs\(paneMoney, 'money'/);
+  // Payments: grouped rows with tips; the sales tax rate sits on the toggle's row.
+  assert.match(company, /data-mpay-section="invoices"/);
+  assert.match(company, /class="mpay-num" id="paymentDefaultTaxPercent"/);
+  assert.doesNotMatch(company, /When disabled, sales tax controls are completely hidden/);
   assert.match(company, /targetPath:viewConfig\.path/);
   assert.match(company, /viewLabel = viewConfig\.label/);
   assert.match(company, /title:`Loading \$\{viewLabel\}…`/);
@@ -140,7 +150,7 @@ test('Money owns Payments, Accounts, and Disputes as canonical nested settings v
   assert.doesNotMatch(company, /data-money-iframe-blocker="accounts-secondary"/);
   assert.match(company, /data-money-iframe-blocker="\$\{view\}" aria-hidden="true"/);
   assert.match(company, /\.money-iframe-blocker\{position:absolute;z-index:1;pointer-events:auto;background:#fff;border:0\}/);
-  assert.match(company, /\.money-iframe-blocker-disputes\{top:130px;left:380px;width:120px;height:40px\}/);
+  assert.doesNotMatch(company, /\.money-iframe-blocker-disputes/);
   assert.doesNotMatch(company, /hostedMoneyHeader|data-money-portal-refresh/);
   assert.match(company, /mountHostedMoneyFrame\(frame, loginUrl/);
   assert.match(company, /const accountsController = view === 'accounts' \? mountMoneyAccountControls\(frame\) : null/);

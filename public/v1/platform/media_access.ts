@@ -47,7 +47,22 @@ export function canSeeUnassignedPhoto(contextValue: unknown, mediaValue: unknown
   return hasResourcePermission(context, "view_media", { branch_id: branchId, department_ids: departmentIds }) && canSeeBranches(branchScope(context), [branchId]);
 }
 
+/**
+ * Evidence a company uploaded to answer a card dispute (payments/disputes.ts): customer records, so only people who
+ * manage company settings (who answer disputes) see it in media lists and files; payments serves it on its own route.
+ */
+export function isDisputeEvidenceMedia(mediaValue: unknown) {
+  const media = asObject(mediaValue);
+  return cleanText(media.slot || asObject(media.owner).slot) === "dispute_evidence";
+}
+
+function managesCompanySettings(contextValue: unknown) {
+  const permissions = asObject(asObject(contextValue).permissions);
+  return permissions["*"] === true || permissions.manage_company_settings === true;
+}
+
 export function canReadReceiptMedia(mediaValue: unknown, contextValue: unknown) {
+  if (isDisputeEvidenceMedia(mediaValue)) return managesCompanySettings(contextValue);
   if (isUnassignedPhoto(mediaValue)) return canSeeUnassignedPhoto(contextValue, mediaValue);
   if (cleanText(asObject(asObject(mediaValue).owner).type)==="contact") {
     const permissions=asObject(asObject(contextValue).permissions);
@@ -67,6 +82,7 @@ export function canReadReceiptMedia(mediaValue: unknown, contextValue: unknown) 
 }
 
 export function canWriteReceiptMedia(mediaValue: unknown, contextValue: unknown) {
+  if (isDisputeEvidenceMedia(mediaValue)) return managesCompanySettings(contextValue);
   if (isUnassignedPhoto(mediaValue)) return canSeeUnassignedPhoto(contextValue, mediaValue);
   if (cleanText(asObject(asObject(mediaValue).owner).type)==="contact") {
     const permissions=asObject(asObject(contextValue).permissions);

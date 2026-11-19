@@ -9,9 +9,9 @@ import { refundInFlight } from "./provider_refunds.js";
 import { createForwardBoardingAdapter, forwardConfigured } from "./providers/forward.js";
 import {
   PROVIDER_WEBHOOK_CTX,
-  upsertDisputeFromEvent,
   upsertPayoutFromEvent
 } from "./payouts.js";
+import { upsertDisputeFromEvent } from "./disputes.js";
 import {
   failRecordedPayment,
   PAYMENT_INTENT_COLLECTION,

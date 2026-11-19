@@ -195,6 +195,14 @@ export type ProviderDispute = {
   raw: JsonObject;
 };
 
+/**
+ * One page of disputes. Forward pages with a `starting_after` cursor and at
+ * most 50 per page, and filters by status only (GP-76).
+ */
+export type DisputeListOptions = ListOptions & {
+  status?: string;
+};
+
 export type SurchargeCalculationInput = {
   amount_cents: number;
   payment_method_id?: string;
@@ -285,7 +293,7 @@ export interface PaymentProviderAdapter {
   listPayouts(options?: ListOptions): Promise<ProviderPayout[]>;
   getPayout(payoutId: string): Promise<ProviderPayout>;
   getBalances(): Promise<ProviderBalance[]>;
-  listDisputes(options?: ListOptions): Promise<ProviderDispute[]>;
+  listDisputes(options?: DisputeListOptions): Promise<ProviderDispute[]>;
   getDispute(disputeId: string): Promise<ProviderDispute>;
   calculateSurcharge(input: SurchargeCalculationInput): Promise<SurchargeCalculation>;
   createPaymentMethodIntent(input?: CreatePaymentMethodIntentInput): Promise<ProviderPaymentMethodIntent>;

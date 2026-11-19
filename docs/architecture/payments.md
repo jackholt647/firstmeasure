@@ -103,7 +103,7 @@ merchant processing off (the MVP platform names it in `DISABLED`).
 
 Settings › Money embeds Forward's merchant portal (cross-origin iframes signed in
 with a single-use magic link, `POST …/merchant-portal/login-url`): **Accounts**
-and **Disputes** show one calibrated piece of it; **Manage** (GP-77) is the whole
+shows one calibrated piece of it; **Manage** (GP-77) is the whole
 portal, interactive, with its own header, scrolling and idle prompt (no renewal
 timer). Forward draws the portal in one colour (`#007a76`). Its pixels cannot be
 read or restyled from our page, so every embedded portal frame (and the Payments
@@ -211,6 +211,47 @@ idempotency key (backoff), and never retries a write without a key.
   mirrored from webhooks.
 - A payment recorded by hand is reversed on our books only.
 
+## Settings › Money: Payments, Payouts, Disputes (GP-76)
+
+Money's sub-tabs are Payments, Payouts, Disputes, Accounts and Manage. Payments
+is our own form in grouped rows (Invoices: sales tax with its rate on one row,
+payment terms; Online payments: refund policy; Payment processing), with the
+explanations in (i) tips. Payouts and Disputes appear when merchant processing
+is on and are the shared widgets in `libraries/payments-widgets/` that
+Financials › Payouts and Financials › Disputes mount too: one implementation,
+two places. Each widget loads its own data and keeps its state across the
+host's re-renders.
+
+## Disputes
+
+Forward's dispute API is read-only (`GET /disputes`, `GET /disputes/{id}`;
+cursor paging, 50 a page, status the only filter). There is no endpoint to
+accept, contest or upload evidence, and evidence files filed in Forward's
+portal come back only as file ids, so they cannot be shown here.
+
+- `payment_disputes` holds one record per dispute (`payments/disputes.ts`),
+  projected from Forward's dispute object (reason text and network code, due
+  date and original due date, dispute/received/closed dates, card last four,
+  authorization code, original charge, the response and notes on file) and
+  linked through the payment to our payment record and its project. Webhooks
+  (`v2.dispute.*`) and a pull of every page (`POST …/disputes/sync`, at most
+  every 30 s per organization; the widget asks on open) both write it.
+- The company answers in the Disputes widget: fight (a short letter, the
+  evidence fields the card networks ask for by kind of reason, and files) or
+  accept, saved as a draft and submitted (`PUT …/disputes/:id/response`,
+  `manage_company_settings`). Evidence files are uploaded to the dispute
+  (`POST …/disputes/:id/evidence`: PDF, images, Word or text, 10 MB each, 20
+  in all), stored in the `dispute_evidence` media slot, readable only by people
+  who manage company settings, and served only as downloads.
+- FirstMate staff (platform administrators) see every company's submitted
+  responses under **FirstMate filing** in the same widget
+  (`GET /staff/dispute-responses`), file each one in Forward's portal, then
+  mark it filed or send it back with a note
+  (`POST /staff/organizations/:org/disputes/:id/response`). A filed response
+  can no longer change; Forward's own status then follows by the next pull or
+  webhook. Run `npm run test:payments` and
+  `tests/payments-widgets-browser.test.mjs` (with `CHROME_PATH`) for changes here.
+
 ## Webhooks
 
 `payments/webhooks_forward.ts` verifies the Svix signature, routes by Forward
@@ -231,8 +272,12 @@ which drives the real Forward adapter against a fake Forward API) and
 
 - Apple Pay and Google Pay buttons (the Payment Element supports them; needs a
   merchant id and domain verification).
-- Pulling Forward's transaction list for reconciliation (payouts and disputes
-  come from webhooks today).
+- Pulling Forward's transaction list for reconciliation (payouts come from
+  webhooks today; disputes are also pulled, see Disputes).
+- A notification to FirstMate staff when a company submits a dispute response
+  (staff check the FirstMate filing list).
+- The FirstMate filing list reads every organization's disputes ([the
+  optimization backlog](../optimization-backlog.md#dispute-filing-queue-scans-organizations)).
 - Two full scans are listed in [the optimization backlog](../optimization-backlog.md#payment-checkouts-and-refunds-scan-collections):
   finding a checkout by payment id without its derived id, and listing a
   payment's refunds.

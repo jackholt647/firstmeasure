@@ -30,6 +30,17 @@ yielding between batches. It runs only when an administrator opens the console o
 **Why it can wait.** A handful of people use it, it never runs on a customer's request, and a percentage is evaluated
 per organization at read time without any of this.
 
+## Dispute filing queue scans organizations
+
+**Today.** FirstMate staff's dispute filing list (`listDisputeFilingQueue` in `payments/disputes.ts`, GP-76) lists every
+organization and reads each one's `payment_disputes` to find responses waiting to be filed in Forward. It runs only
+when a platform administrator opens **FirstMate filing** in the Disputes widget.
+
+**Where the change goes.** Index the response status in the dispute's metadata (already written as
+`response_status`) and query it across organizations, or keep a small cross-organization queue record per submission.
+
+**Why it can wait.** Few organizations take card payments yet, disputes are rare, and only staff open it.
+
 ## Customer summaries load every order's manifest
 
 **Today.** Each internal Customers row (`buildOrganizationSummaryRow` in `internal/api.ts`) is built from the
