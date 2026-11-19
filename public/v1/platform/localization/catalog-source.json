@@ -8582,7 +8582,9 @@
     "m_19b0fb98166c35": {
       "message": "“{v0}” is scheduled for {v1}.{v2}{v3}{v4}{v5}",
       "format": "icu"
-    }
+    },
+    "m_b06faf127e1505": "Setup",
+    "m_a5481224995f93": "Set up your appointments"
   },
   "settings": {
     "m_a54bc20fe42cea": " Loading your board…",

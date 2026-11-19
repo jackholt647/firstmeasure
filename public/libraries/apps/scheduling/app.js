@@ -651,6 +651,10 @@
       .dash-filter-menu{left:calc(var(--dash-mode-col) + var(--dash-stat-gap));right:auto;width:650px}
     }
       .dash-new-appointment{background:#d93025!important;color:#fff!important;border:0!important;border-radius:8px;padding:9px 13px;font:inherit;font-weight:700;cursor:pointer;white-space:nowrap}
+    /* GP-58: the Setup tag while Scheduling's setup is to do (the same tag as Operations' Labor/Equipment and Money's). */
+    .dash-new-appointment[data-setup-pending]{position:relative;overflow:visible}
+    .dash-new-appointment .dash-setup-pill{position:absolute;top:-9px;right:-8px;border:1px solid #f2ca72;border-radius:20px;background:#fff0cb;color:#794c00;padding:0 5px;font-size:9px;font-weight:700;line-height:14px;white-space:nowrap;pointer-events:none;box-shadow:0 1px 2px rgba(16,24,40,.12)}
+    .dash-mobile-appointment .dash-setup-pill{top:-6px;right:-6px}
     .dash-mobile-toolbar{display:none}
     @media(max-width:720px){
       /* Phone Routing lanes: the person's name gets the full label width and
@@ -823,6 +827,67 @@
    * read-only states from this one helper. */
   function canEditSchedule(){
     return sessionHasPermission('manage_schedule');
+  }
+  /* GP-58: Scheduling's own setup (the guided experience appointments.setup). While it is not finished (the published
+   * appointment-setup status has no applied_at), whoever can run it sees a Setup tag on the New appointment button,
+   * and the button plays the setup every time, a skip included, before booking. pending is null when unknown (not
+   * read yet, not this person's to run, or the read failed): no tag, and the button books as it always did. */
+  const APPOINTMENT_SETUP_GUIDE = 'appointments.setup';
+  const appointmentSetupState = { org:'', pending:null, loading:null, endedAt:0 };
+  function canRunAppointmentSetup(){
+    return window.Portal?.util?.hasPerm?.('manage_company_settings') === true && typeof window.FirstMateGuides?.play === 'function';
+  }
+  function appointmentSetupPending(){
+    return appointmentSetupState.org === orgId() && appointmentSetupState.pending === true && canRunAppointmentSetup();
+  }
+  function loadAppointmentSetupStatus(force = false){
+    const org = orgId();
+    if (!org || !canRunAppointmentSetup() || !window.PlatformAPI?.publication?.read) return Promise.resolve(null);
+    if (!force && appointmentSetupState.org === org && (appointmentSetupState.pending !== null || appointmentSetupState.loading)) return appointmentSetupState.loading || Promise.resolve(appointmentSetupState.pending);
+    const before = appointmentSetupPending();
+    if (appointmentSetupState.org !== org) Object.assign(appointmentSetupState, { org, pending:null });
+    const loading = Promise.resolve()
+      .then(() => window.PlatformAPI.publication.read(org, { provider:'appointment-setup', export:'status', target:{ scope:'organization', organizationId:org } }))
+      .then((result) => { const value = result?.result ?? result; return value?.status === 'ready' && value.value?.answered ? value.value.answered.types !== true : null; }, () => null)
+      .then((pending) => {
+        if (appointmentSetupState.loading !== loading) return appointmentSetupState.pending;
+        appointmentSetupState.loading = null;
+        if (appointmentSetupState.org === org) appointmentSetupState.pending = pending;
+        if (rootEl && appointmentSetupPending() !== before) render();
+        return pending;
+      });
+    appointmentSetupState.loading = loading;
+    return loading;
+  }
+  // A setup that ended anywhere (its before_action trigger on this button, Settings, a replay): ask again, so the tag goes.
+  window.addEventListener('fm:guides:ended', (event) => {
+    if (event.detail?.id !== APPOINTMENT_SETUP_GUIDE) return;
+    appointmentSetupState.endedAt = Date.now();
+    void loadAppointmentSetupStatus(true);
+  });
+  function appointmentSetupText(){
+    return (globalThis.PlatformLanguage?.text("scheduling","m_a5481224995f93","Set up your appointments") ?? "Set up your appointments");
+  }
+  function appointmentSetupTagHtml(){
+    return `<span class="dash-setup-pill" aria-hidden="true">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_b06faf127e1505","Setup") ?? "Setup")}</span>`;
+  }
+  /* New appointment. While the setup is to do it plays first, every time (force: a skip or a put-off does not stop the
+   * next press). The click its before_action trigger held and lets through when the setup ends (a script's click, not
+   * the person's) has just seen the setup: it books. Whatever the setup ends with, the booking opens after it, as the
+   * setup's skip note promises. */
+  async function startNewAppointment(event){
+    if (!canEditSchedule()) return;
+    const letThrough = event?.isTrusted === false && Date.now() - appointmentSetupState.endedAt < 1500;
+    if (appointmentSetupPending() && !letThrough) {
+      // Someone may have finished it in another tab or window since the tag was drawn.
+      const pending = await loadAppointmentSetupStatus(true);
+      if (pending === true && canRunAppointmentSetup()) {
+        const outcome = await window.FirstMateGuides.play(APPOINTMENT_SETUP_GUIDE, { replay:true, force:true }).catch(() => null);
+        // Already showing (a second press): that one carries on and books when it ends.
+        if (outcome?.status === 'busy') return;
+      }
+    }
+    await openBookingWidget();
   }
   function scheduleReadOnlyMessage(){
     return (globalThis.PlatformLanguage?.text("scheduling","m_readonly_schedule","You can view the schedule, but you don't have permission to change it.") ?? "You can view the schedule, but you don't have permission to change it.");
@@ -1146,10 +1211,16 @@
   const hiddenAppointmentDepartments=new Set();
   function schedulingDepartments(){return schedulingConfig?.appointment_catalog?.departments || [{id:'sales',label:'Sales'},{id:'production',label:'Production'}];}
   function eventDepartments(event){return Array.isArray(event.department_ids)?event.department_ids:[calendarEventCategory(event)].filter(id=>id!=='other');}
-  function departmentVisible(id){return id==='sales'?showSalesSchedule:id==='production'?showProductionSchedule:id==='other'?showOtherSchedule:!hiddenAppointmentDepartments.has(id);}
+  // GP-58: the department chips filter between real departments. An organization with none has no chips (not even
+  // 'No department', which then means every event), so nothing is filtered out where nothing could turn it back on.
+  // 'No department' is offered only beside them and while some event has no department: otherwise it filters nothing.
+  function departmentFiltersOffered(){return schedulingDepartments().length>0;}
+  function noDepartmentFilterOffered(){return departmentFiltersOffered()&&(!showOtherSchedule||allEvents.some(event=>!eventDepartments(event).length)||floatingEvents.some(event=>!eventDepartments(event).length));}
+  function departmentVisible(id){if(!departmentFiltersOffered())return true;return id==='sales'?showSalesSchedule:id==='production'?showProductionSchedule:id==='other'?showOtherSchedule:!hiddenAppointmentDepartments.has(id);}
   function departmentFiltersHtml(){
+    if(!departmentFiltersOffered())return '';
     const button=(id,label)=>`<button type="button" class="dash-type-chip ${departmentVisible(id)?'active':''}" data-appointment-department="${escapeHtml(id)}" aria-pressed="${departmentVisible(id)}">${escapeHtml(label)}</button>`;
-    return schedulingDepartments().map(d=>button(d.id,d.label)).join('')+button('other','No department')+(schedulingConfig?.appointment_catalog?.groups||[]).map(g=>`<button type="button" class="dash-btn" data-department-group="${escapeHtml(g.id)}">${escapeHtml(g.label)}</button>`).join('');
+    return schedulingDepartments().map(d=>button(d.id,d.label)).join('')+(noDepartmentFilterOffered()?button('other',(globalThis.PlatformLanguage?.text("scheduling","m_1219b46c201c34","No department") ?? "No department")):'')+(schedulingConfig?.appointment_catalog?.groups||[]).map(g=>`<button type="button" class="dash-btn" data-department-group="${escapeHtml(g.id)}">${escapeHtml(g.label)}</button>`).join('');
   }
   function eventMatchesMode(event){
     const departments=eventDepartments(event);
@@ -8717,7 +8788,7 @@
     return `<div class="dash-routing-placement-dock"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2e5bd1a487b333","Projects to place") ?? "Projects to place")}</strong><div class="dash-routing-placement-track">${String(tiles.length ? tiles.join('') : `<div class="dash-routing-placement-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8b9aa12deed5b3","No projects waiting to be placed.") ?? "No projects waiting to be placed.")}</div>`)}</div></div>`;
   }
   function renderDepartmentRouting(){
-    return `<div class="dash-card dash-schedule-card">${[...schedulingDepartments().filter(d=>!['sales','production'].includes(d.id)),{id:'other',label:'No department'}].filter(d=>departmentVisible(d.id)).map(d=>`<section class="dash-routing-pane"><h3>${escapeHtml(d.label)}</h3><div data-department-routing="${escapeHtml(d.id)}"></div></section>`).join('')}</div>`;
+    return `<div class="dash-card dash-schedule-card">${[...schedulingDepartments().filter(d=>!['sales','production'].includes(d.id)),{id:'other',label:departmentFiltersOffered()?'No department':(globalThis.PlatformLanguage?.text("scheduling","m_4a04382820d2e1","Other") ?? "Other")}].filter(d=>departmentVisible(d.id)).map(d=>`<section class="dash-routing-pane"><h3>${escapeHtml(d.label)}</h3><div data-department-routing="${escapeHtml(d.id)}"></div></section>`).join('')}</div>`;
   }
   function mountDepartmentRouting(){
     rootEl.querySelectorAll('[data-department-routing]').forEach(mount=>{
@@ -10553,7 +10624,8 @@
     // Category filters are checkable chips, visually distinct from the view
     // switch, and shown in every view so the header never shifts.
     const typeChip = (type, label, on) => `<button type="button" class="dash-type-chip ${type} ${on ? 'active' : ''}" data-schedule-type-toggle="${type}" aria-pressed="${on ? 'true' : 'false'}"><span class="dash-type-chip-box" aria-hidden="true"><i class="fas fa-check"></i></span>${escapeHtml(label)}</button>`;
-    const modeButtons=`<span class="dash-type-chips" role="group" aria-label="Departments">${departmentFiltersHtml()}</span>`;
+    const departmentChips=departmentFiltersHtml();
+    const modeButtons=departmentChips?`<span class="dash-type-chips" role="group" aria-label="Departments">${departmentChips}</span>`:'';
     const displayButtons = ENABLE_CALENDAR_DISPLAY_SWITCH ? `
       <span class="dash-control-group">
         <span class="dash-control-label">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2b8e4c9b866e80","View") ?? "View")}</span>
@@ -10568,8 +10640,10 @@
       ['week', window.Portal?.terminology?.get?.('scheduling.week_view', 'Week') || 'Week', 'fa-table-columns'],
       ['month', window.Portal?.terminology?.get?.('scheduling.month_view', 'Month') || 'Month', 'fa-calendar-days']
     ];
-    const appointmentButton = canEditSchedule() && window.Portal?.appFlags?.has?.('scheduling', 'appointment_slots') !== false ? '<button type="button" class="dash-new-appointment" data-new-appointment><i class="fas fa-plus" aria-hidden="true"></i> Appointment</button>' : '';
-    const mobileToolbarExtras = `${canEditSchedule() ? '' : `<button type="button" class="dash-mobile-view-only" data-view-only-info aria-label="${escapeHtml(`${(globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only")}: ${scheduleReadOnlyMessage()}`)}" title="${escapeHtml(scheduleReadOnlyMessage())}"><i class="fas fa-eye" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_view_short","View") ?? "View")}</span></button>`}<span class="dash-mobile-menu-wrap"><button type="button" class="dash-mobile-control dash-mobile-show" data-mobile-schedule-menu aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2ea71a7fc7dec5","Choose schedules to show") ?? "Choose schedules to show")}" aria-expanded="${String(mobileScheduleMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><i class="fas fa-chevron-down" style="font-size:8px"></i></button>${String(mobileScheduleMenuOpen ? `<div class="dash-mobile-popover schedules" role="menu" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_92e47dd97f2a57","Schedules to show") ?? "Schedules to show")}"><button type="button" class="${showSalesSchedule ? 'active' : ''}" data-schedule-type-toggle="sales" role="menuitemcheckbox" aria-checked="${showSalesSchedule ? 'true' : 'false'}"><i class="fas fa-handshake"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2680c31facb03d","Sales") ?? "Sales")}</button><button type="button" class="${showProductionSchedule ? 'active' : ''}" data-schedule-type-toggle="production" role="menuitemcheckbox" aria-checked="${showProductionSchedule ? 'true' : 'false'}"><i class="fas fa-helmet-safety"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c2e6380e130020","Production") ?? "Production")}</button><button type="button" class="${showOtherSchedule ? 'active' : ''}" data-schedule-type-toggle="other" role="menuitemcheckbox" aria-checked="${showOtherSchedule ? 'true' : 'false'}"${viewMode === 'appointment_schedule' ? ` disabled aria-disabled="true" title="${escapeHtml(globalThis.PlatformLanguage?.text("scheduling","m_other_not_in_routing","Routing shows sales and production lanes only") ?? "Routing shows sales and production lanes only")}"` : ''}><i class="fas fa-calendar-plus"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_4a04382820d2e1","Other") ?? "Other")}</button></div>` : '')}</span><button type="button" class="dash-mobile-control dash-mobile-type" data-mobile-tray-open aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_858d2ae4d1a804","Open projects to schedule") ?? "Open projects to schedule")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><i class="fas fa-inbox"></i></button>`;
+    const setupPending = appointmentSetupPending();
+    const setupAttrs = setupPending ? ` data-setup-pending data-fm-tooltip="${escapeHtml(appointmentSetupText())}"` : '';
+    const appointmentButton = canEditSchedule() && window.Portal?.appFlags?.has?.('scheduling', 'appointment_slots') !== false ? `<button type="button" class="dash-new-appointment" data-new-appointment${setupAttrs}><i class="fas fa-plus" aria-hidden="true"></i> Appointment${setupPending ? appointmentSetupTagHtml() : ''}</button>` : '';
+    const mobileToolbarExtras = `${canEditSchedule() ? '' : `<button type="button" class="dash-mobile-view-only" data-view-only-info aria-label="${escapeHtml(`${(globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only")}: ${scheduleReadOnlyMessage()}`)}" title="${escapeHtml(scheduleReadOnlyMessage())}"><i class="fas fa-eye" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_view_short","View") ?? "View")}</span></button>`}${departmentChips ? `<span class="dash-mobile-menu-wrap"><button type="button" class="dash-mobile-control dash-mobile-show" data-mobile-schedule-menu aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2ea71a7fc7dec5","Choose schedules to show") ?? "Choose schedules to show")}" aria-expanded="${String(mobileScheduleMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><i class="fas fa-chevron-down" style="font-size:8px"></i></button>${String(mobileScheduleMenuOpen ? `<div class="dash-mobile-popover schedules" role="menu" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_92e47dd97f2a57","Schedules to show") ?? "Schedules to show")}"><button type="button" class="${showSalesSchedule ? 'active' : ''}" data-schedule-type-toggle="sales" role="menuitemcheckbox" aria-checked="${showSalesSchedule ? 'true' : 'false'}"><i class="fas fa-handshake"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2680c31facb03d","Sales") ?? "Sales")}</button><button type="button" class="${showProductionSchedule ? 'active' : ''}" data-schedule-type-toggle="production" role="menuitemcheckbox" aria-checked="${showProductionSchedule ? 'true' : 'false'}"><i class="fas fa-helmet-safety"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c2e6380e130020","Production") ?? "Production")}</button><button type="button" class="${showOtherSchedule ? 'active' : ''}" data-schedule-type-toggle="other" role="menuitemcheckbox" aria-checked="${showOtherSchedule ? 'true' : 'false'}"${viewMode === 'appointment_schedule' ? ` disabled aria-disabled="true" title="${escapeHtml(globalThis.PlatformLanguage?.text("scheduling","m_other_not_in_routing","Routing shows sales and production lanes only") ?? "Routing shows sales and production lanes only")}"` : ''}><i class="fas fa-calendar-plus"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_4a04382820d2e1","Other") ?? "Other")}</button></div>` : '')}</span>` : ''}<button type="button" class="dash-mobile-control dash-mobile-type" data-mobile-tray-open aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_858d2ae4d1a804","Open projects to schedule") ?? "Open projects to schedule")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><i class="fas fa-inbox"></i></button>`;
     const mobileToolbar = window.PlatformScheduleView?.mobileCalendarToolbarHtml?.({
       view: viewMode,
       date: anchorDate,
@@ -10579,7 +10653,7 @@
       pickerMonth: mobilePickerMonth,
       pickerYear: mobilePickerYear,
       years: mobileYearChoices(),
-      trailingHtml: mobileToolbarExtras + (appointmentButton ? '<button type="button" class="dash-new-appointment dash-mobile-appointment" data-new-appointment aria-label="New appointment" title="New appointment"><i class="fas fa-plus" aria-hidden="true"></i></button>' : ''),
+      trailingHtml: mobileToolbarExtras + (appointmentButton ? `<button type="button" class="dash-new-appointment dash-mobile-appointment" data-new-appointment aria-label="New appointment"${setupPending ? `${setupAttrs}` : ' title="New appointment"'}><i class="fas fa-plus" aria-hidden="true"></i>${setupPending ? appointmentSetupTagHtml() : ''}</button>` : ''),
       attributes: {
         viewMenu:'data-mobile-view-menu',
         view:'data-dash-view',
@@ -11144,9 +11218,9 @@
       syncScheduleRoute({ scheduleType:typesValue }, { history:'replace', source:'schedule-type', ownedKeys:['scheduleType'] });
       render();
     }));
-    rootEl.querySelectorAll('[data-new-appointment]').forEach(button => button.addEventListener('click', async () => {
+    rootEl.querySelectorAll('[data-new-appointment]').forEach(button => button.addEventListener('click', async (event) => {
       if (!canEditSchedule()) return;
-      try { await openBookingWidget(); }
+      try { await startNewAppointment(event); }
       catch (error) { showToast('Appointment booking', error.message, false); }
     }));
     rootEl.querySelectorAll('[data-calendar-display]').forEach((btn) => btn.addEventListener('click', () => {
@@ -11612,6 +11686,7 @@
         )
       ]);
       schedulingConfig = loadedSchedulingConfig;
+      void loadAppointmentSetupStatus();
       if (confirmationSettings) Scheduling.setConfirmationSettings(confirmationSettings);
       dashboardConfig = loadedDashboardConfig;
       branchProjectConfig = normalizeProjectConfig(loadedProjectConfig?.data || loadedProjectConfig || {});
@@ -11748,6 +11823,7 @@
   }
   function mount(el){
     rootEl = el;
+    void loadAppointmentSetupStatus(true);
     mobileLayout = isMobileScheduleLayout();
     if (mount._placementKeyHandler) document.removeEventListener('keydown', mount._placementKeyHandler);
     mount._placementKeyHandler = (event) => {

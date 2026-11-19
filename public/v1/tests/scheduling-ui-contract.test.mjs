@@ -1366,3 +1366,34 @@ test('the project schedule shows its surface switcher only when there is another
   assert.match(projectScheduleSource, /projectGanttViewEnabled\(\) \|\| surfaceActive\('gantt'\) \? \[\['gantt', ganttLabel\]\] : \[\]/);
   assert.match(projectScheduleSource, /surfaces\.length > 1 \? `<span class="r-schedule-view-group surface">/);
 });
+
+test('New appointment carries a Setup tag and plays the appointment setup every time until it is finished (GP-58)', () => {
+  // Finished is the published appointment-setup status (applied_at), read for those who can run the setup.
+  assert.match(schedulingSource, /publication\.read\(org, \{ provider:'appointment-setup', export:'status'/);
+  assert.match(schedulingSource, /value\.value\.answered\.types !== true/);
+  assert.match(schedulingSource, /hasPerm\?\.\('manage_company_settings'\) === true/);
+  // Both buttons (desktop and phone) show the tag while it is to do.
+  const toolbar = schedulingSource.match(/function toolbarHtml\(\)\{([\s\S]*?)function openDayModal/);
+  assert.ok(toolbar, 'toolbarHtml should be present');
+  assert.equal((toolbar[1].match(/setupPending \? appointmentSetupTagHtml\(\) : ''/g) || []).length, 2);
+  // Every press plays it (force: a skip does not end it), except the click the setup's own trigger lets through.
+  assert.match(schedulingSource, /data-new-appointment\]'\)\.forEach\(button => button\.addEventListener\('click', async \(event\) => \{[\s\S]{0,120}startNewAppointment\(event\)/);
+  const start = schedulingSource.match(/async function startNewAppointment\(event\)\{([\s\S]*?)\n  \}/);
+  assert.ok(start, 'startNewAppointment should be present');
+  assert.match(start[1], /event\?\.isTrusted === false/);
+  assert.match(start[1], /FirstMateGuides\.play\(APPOINTMENT_SETUP_GUIDE, \{ replay:true, force:true \}\)/);
+  assert.match(start[1], /await openBookingWidget\(\);\s*$/);
+  assert.match(schedulingSource, /const APPOINTMENT_SETUP_GUIDE = 'appointments\.setup';/);
+});
+
+test('department chips show only real departments, and No department only when it filters something (GP-58)', () => {
+  const filters = schedulingSource.match(/function departmentFiltersHtml\(\)\{([\s\S]*?)\n  \}/);
+  assert.ok(filters, 'departmentFiltersHtml should be present');
+  assert.match(filters[1], /if\(!departmentFiltersOffered\(\)\)return '';/);
+  assert.match(filters[1], /noDepartmentFilterOffered\(\)\?button\('other'/);
+  assert.doesNotMatch(filters[1], /\+button\('other','No department'\)\+/);
+  assert.match(schedulingSource, /function noDepartmentFilterOffered\(\)\{return departmentFiltersOffered\(\)&&\(!showOtherSchedule\|\|allEvents\.some\(event=>!eventDepartments\(event\)\.length\)/);
+  // With no chips nothing is filtered out (nothing could turn it back on), and the phone has no empty Show menu.
+  assert.match(schedulingSource, /function departmentVisible\(id\)\{if\(!departmentFiltersOffered\(\)\)return true;/);
+  assert.match(schedulingSource, /\$\{departmentChips \? `<span class="dash-mobile-menu-wrap">/);
+});
