@@ -53,8 +53,9 @@
     const style = document.createElement('style');
     style.id = 'fm-measurement-defaults-style';
     style.textContent = `
-      .md-wrap,.md-dd-pop{font-family:var(--md-font,${FONT})}
-      .md-wrap.md-wrap :is(div,p,h3,h4,button,a,input,label,span,strong,small,summary){font-family:inherit}
+      /* The editor takes the portal's fonts (fonts.css on each element), as the rest of the app does: the body's Inter is
+         never loaded, so forcing it gave the system font (GP-15). The dropdown, drawn on the body, copies its button's. */
+      .md-dd-pop{font-family:var(--md-font,${FONT})}
       .md-dd-pop.md-dd-pop :is(div,button,input,small,span){font-family:inherit}
       .md-wrap{display:flex;flex-direction:column;gap:12px;font-size:12.5px;color:#344054;max-width:1180px}
       .md-bar{display:flex;align-items:center;gap:10px;min-height:32px}
@@ -262,7 +263,6 @@
 
     function render(){
       closePop();
-      host.style.setProperty('--md-font', getComputedStyle(document.body).fontFamily || FONT);
       if (state.loading) { host.innerHTML = `<div class="md-wrap"><div class="md-card md-loading">${esc(t('md_loading_calculations', 'Loading calculations…'))}</div></div>`; return; }
       if (!state.settings) { host.innerHTML = `<div class="md-wrap"><div class="md-card md-loading"><div class="md-status error">${esc(state.status || t('md_load_failed', 'The defaults could not load.'))}</div></div></div>`; return; }
       const s = state.settings, w = s.materials.waste;

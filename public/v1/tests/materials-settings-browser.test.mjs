@@ -112,17 +112,19 @@ const visiblePane = (page) => page.evaluate(() => [...document.querySelectorAll(
 const selectedTab = (page) => page.evaluate(() => document.querySelector('.mts-tab[aria-selected="true"]')?.dataset.mtsTab);
 const tabIds = (page) => page.evaluate(() => [...document.querySelectorAll('[data-mts-tab]')].map((tab) => tab.dataset.mtsTab));
 
-// Every element in the shell renders in the page body's font, never fonts.css's Montserrat or a browser default.
+// Every element in the shell renders in the rest of the portal's font: fonts.css's Montserrat, which a portal tab's divs,
+// buttons and inputs get. Never the body's Inter, which is not loaded, so it shows a system font (GP-15). A supplier's
+// initials (.gxsc-badge) are set in their own font wherever they show.
 async function assertFonts(page, scope){
   await page.evaluate(() => document.fonts.ready);
   const report = await page.evaluate((scope) => {
-    const body = getComputedStyle(document.body).fontFamily;
-    const wrong = [...document.querySelectorAll(`${scope}, ${scope} *`)].filter((el) => el.getClientRects().length && !el.closest('i, svg, [data-stub-assistant], [data-stub-pricebook]') && !/^(I|SVG|PATH)$/i.test(el.tagName))
-      .map((el) => ({ tag: el.tagName, cls: String(el.className).split(' ')[0], font: getComputedStyle(el).fontFamily })).filter((row) => row.font !== body);
-    return { body, wrong: wrong.slice(0, 8), count: wrong.length };
+    const portal = getComputedStyle(document.querySelector('.r-tab-content')).fontFamily;
+    const wrong = [...document.querySelectorAll(`${scope}, ${scope} *`)].filter((el) => el.getClientRects().length && !el.closest('i, svg, [data-stub-assistant], [data-stub-pricebook], .gxsc-badge') && !/^(I|SVG|PATH)$/i.test(el.tagName))
+      .map((el) => ({ tag: el.tagName, cls: String(el.className).split(' ')[0], font: getComputedStyle(el).fontFamily })).filter((row) => row.font !== portal);
+    return { portal, wrong: wrong.slice(0, 8), count: wrong.length };
   }, scope);
-  assert.match(report.body, /^'?Inter/);
-  assert.deepEqual(report.wrong, [], `${report.count} elements use another font than the body's (${report.body})`);
+  assert.match(report.portal, /^'?Montserrat/);
+  assert.deepEqual(report.wrong, [], `${report.count} elements use another font than the portal's (${report.portal})`);
 }
 
 // Every tab icon is a Font Awesome 6.0 glyph (the portal's version): its ::before has content.
@@ -151,8 +153,8 @@ test('the gear opens the materials settings modal; its sub-tabs switch, each mou
     await openTab(page);
     const gear = page.locator('[data-mt-materials-settings]');
     await gear.waitFor();
-    assert.equal(await gear.getAttribute('aria-label'), 'Materials settings');
-    assert.equal(await gear.getAttribute('data-fm-tooltip'), 'Materials settings', 'a tooltip, not subtitle text');
+    assert.equal(await gear.getAttribute('aria-label'), 'Operations settings');
+    assert.equal(await gear.getAttribute('data-fm-tooltip'), 'Operations settings', 'a tooltip, not subtitle text');
     assert.equal(await page.evaluate(() => document.querySelector('.mt-workspace-actions').lastElementChild.matches('[data-mt-materials-settings]')), true);
 
     await gear.click();
@@ -384,6 +386,40 @@ test('sub-tabs follow the organization features and the person; with none allowe
     assert.equal(await denied.locator('[data-mt-materials-settings]').count(), 0);
     assert.deepEqual(await denied.evaluate(() => window.FirstMateMaterialsSettings.sections({ categories: {} })), []);
     assert.equal(await denied.evaluate(() => window.FirstMateMaterialsSettings.mountInline(document.getElementById('settingsPane'), { orgId: 'org' })), null);
+  } finally { await browser.close(); server.close(); }
+});
+
+// GP-15: the Equipment tab is a sub-tab of Operations settings, with the Equipment app on and a fleet permission. It
+// mounts the tab itself, keeping its view to itself (params.routed false), and goes when the settings close.
+test('Operations settings shows the Equipment tab as a sub-tab while the Equipment app is on', async () => {
+  const server = await serve();
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
+    const errors = await stub(page, server.address().port, { flags: ['platform.pricebook', 'apps.firstmeasure', 'platform.materials', 'apps.equipment'], supplierTools: 'none', assistant: false });
+    assert.deepEqual(await page.evaluate(() => window.FirstMateMaterialsSettings.sections({ categories: {} })), ['pricebook', 'suppliers', 'calculations', 'categories'], 'no Equipment where the app runtime cannot mount it');
+    await page.evaluate(() => {
+      window.mounted = []; window.destroyed = 0;
+      window.FirstMateEmbeddableApps.mount = async (host, id, context) => { mounted.push({ id, surface: context.surface, params: context.params }); host.innerHTML = '<div data-stub-equipment>Fleet</div>'; return { destroy(){ destroyed++; } }; };
+    });
+    await openTab(page);
+    await page.locator('[data-mt-materials-settings]').click();
+    await page.locator('.mts-overlay.is-open').waitFor();
+    assert.deepEqual(await tabIds(page), ['pricebook', 'suppliers', 'calculations', 'categories', 'equipment']);
+    assert.equal(await page.locator('#mtsTitle').innerText(), 'Operations settings');
+    await page.locator('[data-mts-tab="equipment"]').click();
+    await page.locator('[data-mts-pane="equipment"] [data-stub-equipment]').waitFor();
+    assert.deepEqual(await page.evaluate(() => window.mounted), [{ id: 'portal.equipment', surface: 'portal_tab', params: { routed: false } }]);
+    await assertFonts(page, '.mts-shell');
+    await page.locator('[data-mts-close]').click();
+    await page.locator('.mts-overlay').waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => window.destroyed), 1);
+    assert.deepEqual(errors, []);
+    // Without the app, or without a fleet permission, there is no Equipment sub-tab.
+    const off = await browser.newPage({ viewport: { width: 1500, height: 900 } });
+    await stub(off, server.address().port, { flags: ['platform.materials'], off: ['apps.equipment'], supplierTools: 'none', assistant: false });
+    await off.evaluate(() => { window.FirstMateEmbeddableApps.mount = async () => ({}); });
+    assert.deepEqual(await off.evaluate(() => window.FirstMateMaterialsSettings.sections({ surface: 'settings' })), ['categories']);
   } finally { await browser.close(); server.close(); }
 });
 

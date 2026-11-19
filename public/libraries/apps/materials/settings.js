@@ -1,7 +1,7 @@
 /* public/libraries/apps/materials/settings.js
- * Materials settings: one set of sub-tabs for the organization-wide materials settings, shown in two places with one
- * implementation:
- *   open(options)               the modal behind the gear at the top right of a project's Materials tab
+ * Operations settings (GP-15; it was Materials settings): one set of sub-tabs for the organization-wide Operations
+ * settings, shown in two places with one implementation:
+ *   open(options)               the modal behind the gear at the top right of a project's Operations tab
  *   mountInline(host, options)  Settings › Materials (settings/company.js)
  * Each sub-tab mounts the panel the Settings app already uses, so there is one editor per setting:
  *   Price book           FirstMatePricebook.mount (material costs and the optional labor prices are price book items)
@@ -10,6 +10,8 @@
  *   Calculations         FirstMateMeasurementDefaults.mount (settings/measurement-defaults.js)
  *   Resource categories  the Materials tab's own category writers, handed in by project.js; in Settings, the same
  *                        resource type writers (MaterialsAPI.resourceTypes) for the organization
+ *   Equipment            the Equipment tab itself (portal.equipment through FirstMateEmbeddableApps, its route kept
+ *                        to itself), while the organization has the Equipment app on and the person may see the fleet
  * These are the Materials app's settings: with the app off (platform.materials) there are none, so Settings has no
  * Materials section (FM-394: Calculations alone showed it to FirstMeasure organizations without the app; they keep it
  * in Settings › Reports). With the app on, a sub-tab shows only when the organization has its feature on and the person
@@ -23,14 +25,12 @@
 
   const scriptSrc = document.currentScript?.src || `${location.origin}/libraries/apps/materials/settings.js`;
   const suppliersUrl = new URL('../settings/suppliers.js?v=20261012-logos', scriptSrc).href;
-  const defaultsUrl = new URL('../settings/measurement-defaults.js?v=20261025-calculations', scriptSrc).href;
+  const defaultsUrl = new URL('../settings/measurement-defaults.js?v=20261119-gp15', scriptSrc).href;
   const t = (key, fallback) => root.PlatformLanguage?.text?.('materials', key, fallback) ?? fallback;
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const clean = (value) => String(value ?? '').trim();
   const term = (key, fallback) => root.Portal?.terminology?.get?.(key, fallback) || fallback;
   const reducedMotion = () => !!root.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  // The platform font is the page body's (portal/index.php); fonts.css gives bare divs, buttons and inputs another.
-  const PLATFORM_FONT = `'Inter',system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif`;
   const AGENT_KEY = 'fm.materialsSettings.agentCollapsed';
 
   // Permission and organization feature checks, the same ones Settings uses for these panels.
@@ -68,7 +68,13 @@
       // materials.resource_categories (on by default) turns the sub-tab off. A project hands in its own writers; Settings
       // uses the organization's.
       allowed:(options) => perm('manage_projects') && flag('platform', 'materials') && flag('materials', 'resource_categories', true) && (!!options?.categories || options?.surface === 'settings'),
-      mount:mountCategories }
+      mount:mountCategories },
+    { id:'equipment', icon:'fa-truck-pickup',
+      label:() => term('equipment.portal_tab', t('materials_settings_tab_equipment', 'Equipment')),
+      tip:() => t('materials_settings_tip_equipment', 'Your fleet, its types and the facilities it is kept at'),
+      // The Equipment tab's own checks: the app on (apps.equipment) and a permission its fleet routes accept.
+      allowed:() => flag('apps', 'equipment') && ['equipment.view', 'equipment.manage', 'equipment.service', 'manage_company_settings'].some(perm) && typeof root.FirstMateEmbeddableApps?.mount === 'function',
+      mount:mountEquipment }
   ];
 
   function sections(options = {}){
@@ -99,9 +105,9 @@
     style.textContent = `
       .mts-overlay{position:fixed;inset:0;z-index:2147483300;display:flex;padding:20px;box-sizing:border-box;background:rgba(15,23,42,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;transition:opacity .22s ease}
       .mts-overlay.is-open{opacity:1}.mts-overlay.is-closing{opacity:0;transition-duration:.18s}
-      /* Every element takes the platform font: fonts.css names another for bare divs, headings, buttons and inputs. */
-      .mts-overlay,.mts-shell{font-family:var(--mts-font,${PLATFORM_FONT});color:#101828}
-      .mts-shell.mts-shell :is(div,p,h1,h2,h3,h4,h5,h6,button,a,input,select,textarea,label,span,strong,small,b,em,td,th){font-family:inherit}
+      /* The font is the rest of the portal's (fonts.css on each element): forcing the body's family here gave the
+         system font, as the body's Inter is never loaded (GP-15). */
+      .mts-overlay,.mts-shell{color:#101828}
       .mts-shell{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;background:#fff;box-sizing:border-box}
       .mts-modal{flex:1;width:100%;height:100%;border:1px solid rgba(15,23,42,.08);border-radius:16px;box-shadow:0 40px 120px rgba(15,23,42,.32),0 2px 6px rgba(15,23,42,.06);overflow:hidden;transform:translateY(10px) scale(.975);opacity:0;transition:transform .32s cubic-bezier(.2,.8,.25,1),opacity .24s ease}
       .mts-overlay.is-open .mts-modal{transform:none;opacity:1}.mts-overlay.is-closing .mts-modal{transform:translateY(6px) scale(.98);opacity:0;transition-duration:.18s}
@@ -142,6 +148,8 @@
       .mts-section-title{display:flex;align-items:center;gap:8px;margin:0 16px 10px;font-size:13px;font-weight:650;color:#101828}.mts-section-title i{color:#98a2b3;font-size:12px}
       .mts-pane[data-mts-pane="suppliers"] .sup-wrap{height:clamp(480px,64vh,700px);min-height:0}
       .mts-pane[data-mts-pane="calculations"]>.mts-pane-fill{padding:16px}
+      /* The Equipment tab fills its pane as it fills a portal tab, and scrolls itself. */
+      .mts-pane[data-mts-pane="equipment"]{overflow:hidden;background:#fff}.mts-equipment{position:relative;overflow:auto}
       .mts-state{margin:auto;display:flex;flex-direction:column;align-items:center;gap:10px;padding:40px;color:#667085;font-size:13px;font-weight:600}.mts-state i{font-size:20px;color:#98a2b3}
       .mts-spin{animation:mts-spin 1s linear infinite}@keyframes mts-spin{to{transform:rotate(360deg)}}
       .mts-cats{width:min(760px,100%);margin:0 auto;padding:18px 16px 28px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px}
@@ -214,6 +222,18 @@
       handle = root.FirstMateMeasurementDefaults.mount(fill, { orgId:ctx.orgId, toast:ctx.toast, surface:'materials_settings' });
     }).catch(() => { if (!destroyed) fill.innerHTML = stateMarkup('fa-triangle-exclamation', t('materials_settings_calculations_failed', 'Calculations could not load.')); });
     return { reload(){ return handle?.reload?.(); }, destroy(){ destroyed = true; try { handle?.destroy?.(); } catch (error) {} } };
+  }
+
+  // The Equipment tab itself, mounted the way a portal tab is; its view stays its own (params.routed false).
+  function mountEquipment(host, ctx){
+    let child = null, destroyed = false;
+    host.innerHTML = `<div class="mts-pane-fill mts-equipment">${stateMarkup('fa-circle-notch', t('materials_settings_loading_equipment', 'Loading equipment…'), true)}</div>`;
+    const fill = host.firstElementChild;
+    Promise.resolve(root.FirstMateEmbeddableApps.mount(fill, 'portal.equipment', { orgId:ctx.orgIdText(), surface:'portal_tab', active:true, params:{ routed:false } })).then((handle) => {
+      if (destroyed) { try { handle?.destroy?.(); } catch (error) {} return; }
+      child = handle;
+    }).catch(() => { if (!destroyed) fill.innerHTML = stateMarkup('fa-triangle-exclamation', t('materials_settings_equipment_failed', 'Equipment could not load.')); });
+    return { destroy(){ destroyed = true; try { child?.destroy?.(); } catch (error) {} } };
   }
 
   // In Settings there is no project: the organization's resource types, written through the same routes project.js uses.
@@ -331,7 +351,8 @@
     pricebook:() => [t('materials_settings_ask_pricebook_1', 'Which price book items are missing a cost?'), t('materials_settings_ask_pricebook_2', 'Add the materials for a shingle roof replacement.')],
     suppliers:() => [t('materials_settings_ask_suppliers_1', 'Set my supplier costs from a price sheet.'), t('materials_settings_ask_suppliers_2', 'Which items does no supplier carry?')],
     calculations:() => [t('materials_settings_ask_calculations_1', 'How is the shingle quantity worked out?'), t('materials_settings_ask_calculations_2', 'Use 12% waste on every roof.')],
-    categories:() => [t('materials_settings_ask_categories_1', 'Add a category for dumpsters.')]
+    categories:() => [t('materials_settings_ask_categories_1', 'Add a category for dumpsters.')],
+    equipment:() => [t('materials_settings_ask_equipment_1', 'Which equipment can haul debris?')]
   };
   function mountAgent(host, shell, ctx){
     let wasPending = false;
@@ -364,9 +385,8 @@
     const shell = document.createElement('section');
     shell.className = `mts-shell ${inline ? 'is-inline' : 'mts-modal'}`;
     shell.dataset.mtsShell = inline ? 'settings' : 'modal';
-    shell.style.setProperty('--mts-font', getComputedStyle(document.body).fontFamily || PLATFORM_FONT);
     if (!inline) { shell.setAttribute('role', 'dialog'); shell.setAttribute('aria-modal', 'true'); shell.setAttribute('aria-labelledby', 'mtsTitle'); }
-    const title = t('materials_settings_title', 'Materials settings');
+    const title = t('materials_settings_title_operations', 'Operations settings');
     shell.innerHTML = `
       <header class="mts-head">
         ${inline ? '' : `<span class="mts-mark" aria-hidden="true"><i class="fas fa-sliders"></i></span><h2 id="mtsTitle">${esc(title)}</h2>`}
@@ -456,7 +476,7 @@
     return state;
   }
 
-  // ---- The modal (a project's Materials tab).
+  // ---- The modal (a project's Operations tab).
   let current = null;
 
   function open(options = {}){
@@ -468,7 +488,6 @@
     const overlay = document.createElement('div');
     overlay.className = 'mts-overlay';
     overlay.dataset.mtsOverlay = '';
-    overlay.style.setProperty('--mts-font', getComputedStyle(document.body).fontFamily || PLATFORM_FONT);
     overlay.append(shellState.shell);
     const modal = shellState.shell;
     // Grow from the gear that opened it.

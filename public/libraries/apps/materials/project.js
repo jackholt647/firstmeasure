@@ -7769,7 +7769,7 @@
     if (!state.lists.some((list) => resourceType(list) === 'labor' && listItems(list).length)) return '';
     return `<button type="button" class="mt-closeout" data-mt-closeout data-fm-tooltip="Close out this project: check change orders, signatures, payments, requirements, receipts and expenses, then finalize every work order to be paid" aria-label="Close out project"><i class="fas fa-flag-checkered" aria-hidden="true"></i><span>Closeout</span></button>`;
   }
-  // ---- Materials settings (materials/settings.js): the gear at the top right opens the organization's materials
+  // ---- Operations settings (materials/settings.js, GP-15): the gear at the top right opens the organization's materials
   // settings (price book, suppliers, report defaults, resource categories). It shows when at least one is allowed.
   function materialsSettingsOptions(){
     return { orgId, toast:showToast, categories:materialsSettingsCategories() };
@@ -7777,7 +7777,7 @@
   function materialsSettingsButton(){
     const settings = window.FirstMateMaterialsSettings;
     if (!settings?.sections?.(materialsSettingsOptions()).length) return '';
-    const label = globalThis.PlatformLanguage?.text("materials", "materials_settings_button", "Materials settings") ?? "Materials settings";
+    const label = globalThis.PlatformLanguage?.text("materials", "materials_settings_button_operations", "Operations settings") ?? "Operations settings";
     return `<button type="button" class="mt-settings-btn" data-mt-materials-settings data-fm-tooltip="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" aria-haspopup="dialog"><i class="fas fa-gear" aria-hidden="true"></i></button>`;
   }
   function openMaterialsSettings(button){

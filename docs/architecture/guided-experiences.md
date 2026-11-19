@@ -824,8 +824,8 @@ tab opens its setup. Labor is set up once its column shows (`shown: when_configu
 `operations.workforce.setup` (after `operations.workforce.setup.start`, as the card does); equipment is set up once
 `operations.setup.status` says the fleet has a unit, and until then has no column and no lists in the work order
 unless this project already has equipment on its lists. It opens `operations.equipment.setup`, the hub's ready step
-with `options.card: equipment`, which opens that one card at once and finishes when it is left. Materials are what
-the setup itself builds and never get a Setup tag.
+with `options.card: equipment`, which opens that one card at once (the equipment setup, below) and finishes when it is
+left. Materials are what the setup itself builds and never get a Setup tag.
 
 This Labor visibility check shares the existing full material-list scan recorded
 in the [optimization backlog](../optimization-backlog.md#the-labor-column-reads-every-material-list-when-nobody-does-labor).
@@ -876,6 +876,44 @@ name (`sales_team`, `crew`, `subcontractor`, through `saveAssigneeType`; groups 
 People). A type with `on_my_way: false` drops the text from the visit's "On my way" step (`workforce/crew_api.ts`);
 `reminder` is recorded on the type but no reminder is sent yet. Tests: `tests/appointment-setup.test.ts`,
 `tests/appointment-setup-browser.test.mjs`.
+
+## Equipment setup
+
+`equipment.setup` (GP-15, a modal, organization scope) sets up the fleet by asking about the company rather than
+showing the Equipment tab: Operations' Equipment card plays it (after starting the Equipment app when it was only
+offered), so does the Operations tab's Equipment Setup tag (`operations.equipment.setup`), and so does the first view
+of the Equipment tab (`tab_opened` `portal.equipment` with `skip: "later"`), whose tour (`equipment.tab_tutorial`)
+follows it there (`then: play, held: false`; entries are read by id, so the setup arms before the tour). Who sees it:
+`apps.equipment` and `equipment.manage|manage_company_settings`. It requires `company.type` and `company.locations`
+([setup steps](setup-steps.md)), each asked only while unanswered.
+
+Its one step (widget `equipment-setup`, `guided-experiences/equipment-setup.js`) keeps its own pages, and Back and the
+phone's back walk them:
+
+1. **Where do you keep your equipment?** One facility (the Equipment app's yard) per location the company said it
+   works out of, named here; the facilities the fleet already has come back as they are, and one can be added. The
+   address is added later in Equipment › Facilities (it is a Google address there).
+2. **What equipment do you use?** The kinds in the step's `options.equipment`, grouped by `options.groups` and offered
+   by the company's industry (`industries`, or `company_types`; none means everyone; a company that has not said what
+   it is sees them all): pickup trucks, dump trucks and dump trailers, trailers, its own or rented dumpsters, porta
+   potties, lifts, and the person's own by name. Each kind names its category (a built-in category's seed key), icon,
+   functions (`provides`: debris disposal in cubic yards, per load or not), and whether it is rented (`ownership`,
+   `units: false`: a rental company drops one off, nothing to count). The list is library data, not code.
+3. **How many do you have?** A count per kind per location.
+4. **We've set up your equipment.** Pressing Set up runs `equipment.setup.apply` (a key of its own each time); this page
+   follows only once it succeeded, says "You can adjust your equipment at any time in the Equipment tab" and lists what
+   the fleet now has. Done finishes the setup (no completion action).
+
+`equipment/setup.ts` holds the action and the `equipment-setup` provider (`status`: facilities, the kinds the setup
+made with their units per facility, totals, when it was finished). The action writes through the Equipment app's own
+writers and only adds: a facility given back keeps its id (renamed if its name changed), a kind made before
+(`seed_key` `setup.<key>`) is reused, and each facility gets only the units it is short of, named `<kind> <n>` with the
+facility as their home. What was set up is kept in the default branch's `equipment_setup` module. Run
+`tests/equipment-setup.test.ts` and `tests/equipment-setup-browser.test.mjs` for changes here.
+
+Operations settings (the gear on the Operations tab, `materials/settings.js`, Materials settings before GP-15) has the
+Equipment tab itself as a sub-tab while the app is on, mounted with `params.routed: false` so it never writes the
+page's route.
 
 ## Document setup
 

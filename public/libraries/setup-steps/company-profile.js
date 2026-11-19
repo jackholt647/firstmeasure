@@ -1,6 +1,7 @@
 // The company setup steps' own code (docs/architecture/setup-steps.md): "What kind of company are you?" (part `type`),
 // "What kind of work do you do?" (part `services`), and who does the sales and who does the work (parts `sales_team`
-// and `workforce`, FM-515: one choice each). A setup-step module: the player loads it, mounts it in the
+// and `workforce`, FM-515: one choice each), and how many locations it works out of (part `locations`, GP-15: one,
+// two, three, or more with the number typed). A setup-step module: the player loads it, mounts it in the
 // standard step frame and saves `answer()` with the step's action (company-profile.save). Everything it shows is read
 // through the publication layer: the catalog (company-profile.catalog) and what was answered before
 // (company-profile.profile). It writes nothing itself.
@@ -53,10 +54,15 @@ const css = `
 .gxc-all:hover{background:#f9fafb}
 .gxc-all:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
 .gxc-loading{display:grid;place-items:center;min-height:160px}
+.gxc-grid.gxc-count{grid-template-columns:repeat(4,minmax(0,1fr))}
+.gxc-count .gxc-tile{min-height:64px;justify-content:center}
+.gxc-more{display:flex;align-items:center;gap:10px;animation:gxcIn .25s ease both}
+.gxc-more .gxc-input{width:110px;padding-left:14px}
+.gxc-more[hidden]{display:none}
 .gxc-error{color:#b42318;font-size:13px;margin:0}
 @keyframes gxcIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media(max-width:560px){.gxc-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.gxc-tile{min-height:64px;padding:10px 34px 10px 12px}.gxc-tile.gxc-service{min-height:56px}.gxc-tile small{display:none}.gxc-tick{top:8px;right:8px;width:20px;height:20px}}
-@media(max-width:560px){.gxc-grid.gxc-team{grid-template-columns:1fr}.gxc-team .gxc-tile small{display:block}}
+@media(max-width:560px){.gxc-grid.gxc-team{grid-template-columns:1fr}.gxc-team .gxc-tile small{display:block}.gxc-grid.gxc-count{grid-template-columns:repeat(2,minmax(0,1fr))}.gxc-count .gxc-tile small{display:block}}
 @media(prefers-reduced-motion:reduce){.gxc *{animation:none!important;transition:none!important}}
 `;
 const searchIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
@@ -87,7 +93,7 @@ export function mount(el, ctx){
   const L = ctx.L, esc = ctx.esc;
   const t = (key, fallback) => esc(L(`gx_step_${key}`, fallback));
   const label = (entry) => L(entry.label);
-  const part = ['services', 'sales_team', 'workforce'].includes(ctx.options.part) ? ctx.options.part : 'type';
+  const part = ['services', 'sales_team', 'workforce', 'locations'].includes(ctx.options.part) ? ctx.options.part : 'type';
   const answer = object(ctx.answer);
   let alive = true, catalog = null, profile = null, ui = null;
   el.innerHTML = '<div class="gxc-loading"><span class="gxs-spin" aria-hidden="true"></span></div>';
@@ -95,7 +101,7 @@ export function mount(el, ctx){
   Promise.all([ctx.read('company-profile', 'catalog'), ctx.read('company-profile', 'profile').catch(() => null)]).then(([read, current]) => {
     if (!alive) return;
     catalog = object(read); profile = object(current);
-    ui = part === 'type' ? typePart() : part === 'services' ? servicesPart() : teamPart(part);
+    ui = part === 'type' ? typePart() : part === 'services' ? servicesPart() : part === 'locations' ? locationsPart() : teamPart(part);
     ctx.change({}, ui.summary());
   }).catch((error) => {
     if (!alive) return;
@@ -184,6 +190,40 @@ export function mount(el, ctx){
       hint: () => L('gx_step_company_team_hint', 'Choose the answer that fits best.'),
       answer: () => ({ [name]: chosen }),
       destroy(){ el.removeEventListener('click', onClick); }
+    };
+  }
+
+  // ── How many locations do you work out of? (one, two, three, or more with the number) ─────
+  function locationsPart(){
+    const MAX = 20;
+    const given = Number(answer.locations ?? profile.locations) || 0;
+    let chosen = given >= 4 ? 'more' : given ? String(given) : '';
+    const tiles = [['1', L('gx_step_company_locations_one', 'One location'), L('gx_step_company_locations_one_hint', 'We work out of one shop or yard.')],
+      ['2', L('gx_step_company_locations_two', 'Two'), ''], ['3', L('gx_step_company_locations_three', 'Three'), ''],
+      ['more', L('gx_step_company_locations_more', 'More than three'), '']];
+    el.innerHTML = `<div class="gxc"><div class="gxc-grid gxc-count" role="radiogroup" aria-label="${esc(L('gx_step_company_locations_title', 'How many locations do you work out of?'))}">${tiles.map(([id, text, hint]) => `<button type="button" class="gxc-tile" role="radio" data-count="${id}" aria-checked="${chosen === id}" aria-selected="${chosen === id}"><strong>${esc(text)}</strong>${hint ? `<small>${esc(hint)}</small>` : ''}${tick}</button>`).join('')}</div>
+      <div class="gxc-more" data-more ${chosen === 'more' ? '' : 'hidden'}><label class="gxc-lead" for="gxc-locations">${esc(L('gx_step_company_locations_how_many', 'How many?'))}</label><input id="gxc-locations" class="gxc-input" type="number" inputmode="numeric" min="4" max="${MAX}" value="${given >= 4 ? given : 4}"></div></div>`;
+    const more = el.querySelector('[data-more]'), input = more.querySelector('input');
+    const count = () => chosen === 'more' ? Math.round(Number(input.value)) : Number(chosen) || 0;
+    const valid = () => count() >= 1 && count() <= MAX;
+    const summary = () => !valid() ? '' : count() === 1 ? L('gx_step_company_locations_one', 'One location') : L('gx_step_company_locations_n', '{n} locations').replace('{n}', String(count()));
+    const report = () => ctx.change(valid() ? { locations: count() } : {}, summary());
+    const onClick = (event) => {
+      const tile = event.target.closest('[data-count]'); if (!tile) return;
+      chosen = tile.dataset.count;
+      el.querySelectorAll('[data-count]').forEach((node) => { const on = node.dataset.count === chosen; node.setAttribute('aria-checked', String(on)); node.setAttribute('aria-selected', String(on)); });
+      more.hidden = chosen !== 'more';
+      if (chosen === 'more') input.focus();
+      report();
+    };
+    el.addEventListener('click', onClick);
+    input.addEventListener('input', report);
+    if (chosen) report();
+    return {
+      summary, valid,
+      hint: () => chosen === 'more' ? L('gx_step_company_locations_hint_range', 'Type how many, up to 20.') : L('gx_step_company_team_hint', 'Choose the answer that fits best.'),
+      answer: () => ({ locations: count() }),
+      destroy(){ el.removeEventListener('click', onClick); input.removeEventListener('input', report); }
     };
   }
 
