@@ -5,7 +5,8 @@
  *   window.FirstMateGuides
  *     refresh()                     reload what this person may play for the current page
  *     preload(projectId)            read once what may play on a project's tabs, so a tab's tour starts at once
- *     play(id, { replay })          play one now (a tutorial replay, a setup from a button)
+ *     play(id, { replay, over })    play one now (a tutorial replay, a setup from a button); `over` plays a tour over
+ *                                   the setup playing in this frame rather than after it
  *     preview(id)                   play one as if seen for the first time, recording nothing (trying an announcement)
  *     test(resolved)                development: play one the server resolved for a test (dev console Setup tests)
  *     require(stepId)               ask a setup step (and what it requires) only if the data says it is unanswered
@@ -199,6 +200,9 @@
    * (`options.held`, `options.selector`) and play the next experience.
    */
   async function play(id, options = {}){
+    // `over`: a tour of something inside the setup playing in this frame (the document workflow it embeds) plays over
+    // that setup now, as its sub-guide, instead of waiting for the setup to end.
+    if (options.over && shared.active?.frame === root && state.current && state.current.experience?.kind !== 'overlay') return playChild(id, { replay: false });
     let ran = null;
     const outcome = await playOne(id, options, (experience) => { ran = experience; });
     if (ran || options.held) await follow(ran || { completion: {} }, outcome || {}, options.held, options.selector);
