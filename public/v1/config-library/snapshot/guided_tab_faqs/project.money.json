@@ -1,0 +1,47 @@
+{
+  "kind": "guided_tab_faqs",
+  "id": "project.money",
+  "revision": 1,
+  "sha256": "3df693eb9a4ba1a0a3e25afa733320bfb2ce902b4dde9538d66fb45970adc321",
+  "title": "Questions on project.money",
+  "updated_at": "2026-11-19T18:27:00.122Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
+  "data": {
+    "tab": "project.money",
+    "questions": [
+      {
+        "id": "money.take_payment",
+        "text": {
+          "key": "gx_faq_money_take_payment",
+          "text": "How do I take a payment?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "money.invoice",
+        "text": {
+          "key": "gx_faq_money_invoice",
+          "text": "How do I send the customer an invoice?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "money.receipts",
+        "text": {
+          "key": "gx_faq_money_receipts",
+          "text": "How do I add an expense or a receipt?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "money.tour",
+        "text": {
+          "key": "gx_faq_money_tour",
+          "text": "Show me the tutorial again"
+        },
+        "action": "play",
+        "experience": "money.tab_tutorial"
+      }
+    ]
+  }
+}

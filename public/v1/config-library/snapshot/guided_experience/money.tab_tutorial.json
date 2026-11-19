@@ -1,0 +1,180 @@
+{
+  "kind": "guided_experience",
+  "id": "money.tab_tutorial",
+  "revision": 1,
+  "sha256": "652ecdc7d89e305b5cc688cfe4dfc128d5a10f3b16477b3f2e6032b8b84f9a41",
+  "title": "Finance tour",
+  "updated_at": "2026-11-19T18:26:59.771Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
+  "data": {
+    "id": "money.tab_tutorial",
+    "version": 1,
+    "kind": "overlay",
+    "scope": "person",
+    "salt": "2026-11",
+    "title": {
+      "key": "gx_fnt_title",
+      "text": "Finance tour"
+    },
+    "tab": "project.money",
+    "eligibility": {
+      "capabilities": [
+        "platform.money"
+      ],
+      "permissions": []
+    },
+    "triggers": [
+      {
+        "kind": "tab_opened",
+        "tab": "project.money",
+        "once": true,
+        "delay_ms": 900
+      }
+    ],
+    "variants": [
+      {
+        "id": "tour",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "intro",
+        "title": {
+          "key": "gx_fnt_intro_title",
+          "text": "Welcome to Finance"
+        },
+        "body": {
+          "key": "gx_fnt_intro_body",
+          "text": "Everything this project earns and spends lives here. Here's a quick look around."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "totals",
+        "title": {
+          "key": "gx_fnt_totals_title",
+          "text": "The totals"
+        },
+        "body": {
+          "key": "gx_fnt_totals_body",
+          "text": "What the project is worth, what has been collected and what is still owed, kept up to date as payments come in."
+        },
+        "targets": [
+          ".mn-metrics"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "ledger",
+        "title": {
+          "key": "gx_fnt_ledger_title",
+          "text": "The ledger"
+        },
+        "body": {
+          "key": "gx_fnt_ledger_body",
+          "text": "Every payment, expense and invoice for this project, in one list you can search and filter."
+        },
+        "targets": [
+          ".mn-ledger"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "actions",
+        "title": {
+          "key": "gx_fnt_actions_title",
+          "text": "Add to it"
+        },
+        "body": {
+          "key": "gx_fnt_actions_body",
+          "text": "Take a payment, upload receipts, send an invoice or make a report from here."
+        },
+        "targets": [
+          "[data-money-open-modal=add_menu]",
+          ".mn-tools"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "payments",
+        "title": {
+          "key": "gx_fnt_payments_title",
+          "text": "Set up payments"
+        },
+        "body": {
+          "key": "gx_fnt_payments_body",
+          "text": "Set up your payment account once to take card and bank payments here. Skip it for now and Setup stays on Take a payment."
+        },
+        "targets": [],
+        "cases": [
+          {
+            "targets": [
+              ".mn-add-menu.mn-has-setup"
+            ],
+            "body": {
+              "key": "gx_fnt_payments_phone_body",
+              "text": "Set up your payment account once to take card and bank payments here. Skip it for now and the warning stays on +."
+            }
+          },
+          {
+            "targets": [
+              "[data-money-take-payment].mn-has-setup"
+            ]
+          }
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500,
+        "action": {
+          "setup": "platform.money",
+          "label": {
+            "key": "gx_fnt_payments_action",
+            "text": "Set up payments"
+          }
+        },
+        "eligibility": {
+          "capabilities": [],
+          "permissions": [
+            "manage_company_settings"
+          ]
+        }
+      },
+      {
+        "id": "outro",
+        "title": {
+          "key": "gx_fnt_outro_title",
+          "text": "You're all set"
+        },
+        "body": {
+          "key": "gx_fnt_outro_body",
+          "text": "Want this tour again? Ask the agent \"Show me the tutorial again\"."
+        },
+        "targets": [
+          ".fm-project-tray-tabs [data-tray=agent]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      }
+    ],
+    "completion": {
+      "screen": "pricebook",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

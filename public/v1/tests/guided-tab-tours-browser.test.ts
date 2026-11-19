@@ -17,11 +17,14 @@ Object.assign(process.env, { NODE_ENV: "test", PLATFORM_STORAGE_ROOT: path.join(
 const ORG = "org_tab_tours_browser";
 // The tabs, and the features their gated steps name (step eligibility), all on.
 const CAPABILITIES = { "platform.project_photos": true, "apps.firstmeasure": true, "platform.customer_portal": true,
-  "firstmeasure.measurement_report_summary": true, "firstmeasure.report_followup": true, "scheduling.customer_rescheduling": true, "customer_portal.guest_links": true, "platform.customer_portal_media": true };
+  "firstmeasure.measurement_report_summary": true, "firstmeasure.report_followup": true, "scheduling.customer_rescheduling": true, "customer_portal.guest_links": true, "platform.customer_portal_media": true,
+  "platform.money": true };
 const core = await readFile(new URL("../../libraries/guided-experiences/guided-experiences.js", import.meta.url), "utf8");
 /** Per-person capability changes over CAPABILITIES. */
 const OVERRIDES: Record<string, Record<string, boolean>> = {};
-const person = (userId: string) => ({ orgId: ORG, userId, role: "member", permissions: { view_projects: true }, branchId: "default", organization: { data: {} }, capabilities: { effectiveByKey: { ...CAPABILITIES, ...OVERRIDES[userId] } } }) as any;
+/** Per-person permissions over view_projects. */
+const PERMISSIONS: Record<string, Record<string, boolean>> = {};
+const person = (userId: string) => ({ orgId: ORG, userId, role: "member", permissions: { view_projects: true, ...PERMISSIONS[userId] }, branchId: "default", organization: { data: {} }, capabilities: { effectiveByKey: { ...CAPABILITIES, ...OVERRIDES[userId] } } }) as any;
 
 // The Reports tour is off for now (removed from the config library on Nov 2; revision 1 of reports.tab_tutorial brings
 // it back). Its tests stay, skipped, for when it returns.
@@ -49,8 +52,21 @@ const TABS = {
       <div class="cpo-options"><label class="cpo-switch" data-cpo-resched-switch><input type="checkbox" data-cpo-rescheduling> Customer can reschedule</label><label class="cpo-switch" data-cpo-guest-switch><input type="checkbox" data-cpo-sharing> Customer can share guest links</label></div></section>
       <section class="cpo-card" data-cpo-media>Media</section></div><aside class="cpo-card" data-cpo-history>History</aside></div></div>`,
     titles: ["Welcome to the Customer Portal", "The customer's link", "Preview", "What the customer can do", "Photos they see", "History", "You're all set"]
+  },
+  // Payments set up (or someone who may not set them up): no payment setup step.
+  money: {
+    id: "money.tab_tutorial", route: "money", app: "project.money",
+    html: MONEY_HTML(false, false),
+    titles: ["Welcome to Finance", "The totals", "The ledger", "Add to it", "You're all set"]
   }
 };
+/** The Finance tab's hooks, on a computer or a phone (the + menu), with payments set up or not (GP-40). */
+function MONEY_HTML(pending: boolean, phone: boolean) {
+  return `<div class="mn-shell" data-money-shell><div class="mn-toolbar"><div class="mn-tools">
+    <button type="button" class="mn-btn primary${pending ? " mn-has-setup" : ""}" data-money-take-payment${phone ? ' style="display:none"' : ""}>Take a payment${pending ? '<span class="mn-setup-pill" data-money-payments-setup>Setup</span>' : ""}</button>
+    <button type="button" class="mn-btn primary icon mn-add-menu${pending ? " mn-has-setup" : ""}" data-money-open-modal="add_menu"${phone ? "" : ' style="display:none"'}>+${pending ? '<span class="mn-setup-alert" data-money-setup-alert>!</span>' : ""}</button>
+    </div></div><div class="mn-metrics"><span>Revenue</span><span>Collected</span><span>Remaining</span></div><section class="mn-ledger">Ledger</section></div>`;
+}
 
 let browser: Browser;
 let serverDelay = 0;
@@ -105,7 +121,9 @@ const heading = (page: Page) => page.evaluate(() => document.querySelector(".gx-
 async function walk(page: Page, experienceId: string) {
   const service = await import("../guided-experiences/service.js"), { experience } = await import("../guided-experiences/registry.js");
   service.ensureGuidedDefinitions();
-  const steps = experience(experienceId)!.steps as { title: { text: string }; targets: string[] }[];
+  // A step with cases points at its cases' targets.
+  const steps = (experience(experienceId)!.steps as { title: { text: string }; targets: string[]; cases?: { targets: string[] }[] }[])
+    .map((step) => ({ ...step, targets: [...step.targets, ...(step.cases ?? []).flatMap((entry) => entry.targets)] }));
   const titles: string[] = [];
   await page.waitForSelector(".gx-pop h3", { timeout: 8000 });
   for (let guard = 0; guard < 20; guard++) {
@@ -122,7 +140,8 @@ async function walk(page: Page, experienceId: string) {
           const ring = document.querySelector(".gx-ov-ring");
           if (!ring || ring.hasAttribute("hidden")) return false;
           const box = ring.getBoundingClientRect();
-          const target = selectors.map((selector) => document.querySelector(selector)).find(Boolean);
+          // The first one on the page, as the tour picks it (the Finance tab's + is drawn but hidden on a computer).
+          const target = selectors.map((selector) => document.querySelector(selector)).find((el) => !!el && el.getClientRects().length > 0);
           if (!target) return false;
           const r = target.getBoundingClientRect();
           return Math.abs(box.left + 6 - r.left) < 2 && Math.abs(box.top + 6 - r.top) < 2 && Math.abs(box.width - 12 - r.width) < 2;
@@ -469,4 +488,61 @@ test("Equipment's global tour preloads without a project and explains scope requ
     assert.deepEqual(titles,['Equipment that fits the work','Add what you use','Say what it can do','Bring it into Operations','Start with one unit']);
     assert.deepEqual(errors,[]);
   } finally {await page.close();}
+});
+
+// GP-40: someone who may set payments up, while they are not set up, gets a last step whose Set up payments button
+// finishes the tour and runs the Money app setup in the portal; Skip step goes on to the outro without it.
+for (const phone of [false, true]) {
+  test(`money: the payment setup step starts the Money setup, or is skipped (${phone ? "phone" : "computer"})`, async () => {
+    for (const choice of ["action", "skip"] as const) {
+      const userId = `money_setup_${phone ? "phone" : "desk"}_${choice}`;
+      PERMISSIONS[userId] = { manage_company_settings: true };
+      const { page, errors } = await open(TABS.money, userId, MONEY_HTML(true, phone));
+      try {
+        await page.evaluate(() => { (window as any).setupRuns = []; (window as any).Portal.appSetup = { has: (key: string) => key === "platform.money", run: (key: string) => { (window as any).setupRuns.push(key); return Promise.resolve(); } }; });
+        await opened(page, TABS.money.app);
+        await page.waitForSelector(".gx-pop h3", { timeout: 8000 });
+        for (let guard = 0; guard < 8 && (await heading(page)) !== "Set up payments"; guard++) {
+          const title = await heading(page);
+          await page.click(".gx-pop [data-gx=next]");
+          await page.waitForFunction((previous) => (document.querySelector(".gx-pop h3")?.textContent?.trim() || "") !== previous, title);
+        }
+        assert.equal(await heading(page), "Set up payments");
+        const target = phone ? "[data-money-open-modal=add_menu]" : "[data-money-take-payment]";
+        assert.ok(await page.waitForFunction((selector) => {
+          const ring = document.querySelector(".gx-ov-ring"), el = document.querySelector(selector);
+          if (!ring || ring.hasAttribute("hidden") || !el) return false;
+          return Math.abs(ring.getBoundingClientRect().left + 6 - el.getBoundingClientRect().left) < 2;
+        }, target, { timeout: 3000 }).then(() => true, () => false), "it rings the control that carries the warning");
+        assert.match(await page.locator(".gx-pop p").innerText(), phone ? /warning stays on \+/ : /Setup stays on Take a payment/);
+        assert.deepEqual(await page.locator(".gx-pop footer .gx-b").allInnerTexts(), ["Back", "Skip step", "Set up payments"], "no Next: set up now or skip");
+        const { listEvents } = await import("../guided-experiences/store.js");
+        if (choice === "action") {
+          await page.click(".gx-pop [data-gx=action]");
+          await page.waitForFunction(() => !document.querySelector(".gx-pop"));
+          await page.waitForFunction(() => (window as any).setupRuns.length === 1);
+          assert.deepEqual(await page.evaluate(() => (window as any).setupRuns), ["platform.money"]);
+          await waitUntilAsync(async () => (await listEvents(ORG, TABS.money.id)).some((event: any) => event.user_id === userId && event.type === "complete"), "taking up the setup completes the tour");
+        } else {
+          await page.click(".gx-pop [data-gx=skip]");
+          await page.waitForFunction(() => document.querySelector(".gx-pop h3")?.textContent?.trim() === "You're all set");
+          await page.click(".gx-pop [data-gx=next]");
+          await page.waitForFunction(() => !document.querySelector(".gx-pop"));
+          assert.deepEqual(await page.evaluate(() => (window as any).setupRuns), [], "skipping starts nothing");
+        }
+        assert.deepEqual(errors, []);
+      } finally { await page.close(); }
+    }
+  });
+}
+
+test("money: where the page cannot run the setup, the payment step offers Next", async () => {
+  const userId = "money_setup_no_host";
+  PERMISSIONS[userId] = { manage_company_settings: true };
+  const { page, errors } = await open(TABS.money, userId, MONEY_HTML(true, false));
+  try {
+    await opened(page, TABS.money.app);
+    assert.deepEqual(await walk(page, TABS.money.id), ["Welcome to Finance", "The totals", "The ledger", "Add to it", "Set up payments", "You're all set"]);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
 });
