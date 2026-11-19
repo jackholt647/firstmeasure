@@ -18,7 +18,8 @@
 //   see     having said yes: what the crews' members see in the app (the step's `crew_apps`, library data), saved as
 //           each crew's App experience settings. The last page before done writes everything.
 //   done    what was set up, after operations.workforce.setup.apply wrote it; Done finishes the setup.
-// The cards sit side by side; more than three scroll as a carousel that shows part of the cards on either side. What a
+// The cards sit side by side, on a large sheet (ctx.setWide); more than three scroll as a carousel that shows part of
+// the cards on either side. What a
 // group or company is called comes from the terminology system ("crew" is not a platform word). Everything it shows is
 // read through the publication layer (workforce-setup.status); the writes are published actions, run as the person with
 // a key of their own each time: someone new is added with workforce.users.add when the setup is saved, and invited with
@@ -53,45 +54,58 @@ const css = `
 /* The cards: side by side, as many as fit (three at most). More scroll sideways as a carousel that keeps three in the
    middle and part of the one before and after in view (3.5 card widths), so nobody misses the ones off to the side. */
 .gxw-deck{position:relative;min-width:0}
-.gxw-track{display:grid;grid-auto-flow:column;grid-auto-columns:min(340px,calc((100% - (var(--n,1) - 1) * 12px) / var(--n,1)));align-items:start;gap:12px;overflow-x:auto;overflow-y:visible;scroll-snap-type:x mandatory;padding:2px 2px 10px;scrollbar-width:thin;overscroll-behavior-x:contain}
-.gxw-track[data-more]{grid-auto-columns:calc((100% - 4px - 48px) / 3.5)}
-.gxw-card{scroll-snap-align:center;display:flex;flex-direction:column;gap:12px;min-width:0;padding:14px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.04)}
-.gxw-card header{display:flex;align-items:center;gap:8px;min-width:0}
-.gxw-kind{flex:none;font-size:11px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:3px 8px;background:#eff8ff;color:#175cd3}
+.gxw-track{display:grid;grid-auto-flow:column;grid-auto-columns:min(480px,calc((100% - 4px - (var(--n,1) - 1) * 16px) / var(--n,1)));align-items:start;gap:16px;overflow-x:auto;overflow-y:visible;scroll-snap-type:x mandatory;padding:2px 2px 12px;scrollbar-width:thin;overscroll-behavior-x:contain}
+.gxw-track[data-more]{grid-auto-columns:calc((100% - 4px - 64px) / 3.5)}
+/* A card: its name as the title with what it is (crew, subcontractor) at the top right, then roomy sections. */
+.gxw-card{position:relative;scroll-snap-align:center;display:flex;flex-direction:column;gap:20px;min-width:0;padding:20px;border:1px solid #e4e7ec;border-radius:18px;background:#fff;box-shadow:0 1px 3px rgba(16,24,40,.06)}
+.gxw-card>header{display:flex;align-items:flex-start;gap:12px;min-width:0}
+.gxw-card>header>strong,.gxw-title{flex:1 1 auto;min-width:0}
+.gxw-card>header>strong{font-size:18px;font-weight:700;line-height:1.3;padding-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gxw-name{display:block;width:100%;box-sizing:border-box;height:40px;margin:-4px 0 0 -10px;width:calc(100% + 10px);border:1px solid transparent;border-radius:10px;background:transparent;padding:0 10px;font:inherit;font-size:18px;font-weight:700;color:#101828;outline:none;transition:border-color .15s,background .15s}
+.gxw-name:hover:not([readonly]){background:#f9fafb;border-color:#eaecf0}
+.gxw-name:focus{background:#fff;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.14)}
+.gxw-name[readonly]{cursor:default}
+.gxw-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.gxw-kind{flex:none;margin-top:5px;font-size:11px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;border-radius:999px;padding:4px 10px;background:#eff8ff;color:#175cd3}
 .gxw-kind[data-kind=organization_connection]{background:#fdf2fa;color:#c11574}
-.gxw-card header strong{min-width:0;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gxw-sec{display:flex;flex-direction:column;gap:10px;min-width:0}
+.gxw-sec>h4{display:flex;align-items:baseline;gap:6px;margin:0;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#667085}
+.gxw-sec>h4 small{font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;color:#98a2b3}
 .gxw-input{width:100%;box-sizing:border-box;height:40px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:0 11px;font:inherit;font-size:14px;color:#101828;outline:none}
 .gxw-input:focus,.gxw-select:focus{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.14)}
 .gxw-select{height:36px;max-width:100%;border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:0 8px;font:inherit;font-size:13px;color:#344054;outline:none}
 .gxw-field{display:flex;flex-direction:column;gap:6px;min-width:0}
 .gxw-field>b{font-size:11.5px;font-weight:700;color:#667085;letter-spacing:.02em}
-.gxw-chips{display:flex;flex-wrap:wrap;gap:6px}
-.gxw-chip{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:4px 11px;text-align:left;line-height:1.25;border:1px solid #d0d5dd;border-radius:999px;background:#fff;font:inherit;font-size:12.5px;font-weight:600;color:#344054;cursor:pointer}
+.gxw-chips{display:flex;flex-wrap:wrap;gap:8px}
+.gxw-chip{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:6px 14px;font-size:13.5px!important;text-align:left;line-height:1.25;border:1px solid #d0d5dd;border-radius:999px;background:#fff;font:inherit;font-size:12.5px;font-weight:600;color:#344054;cursor:pointer}
 .gxw-chip[aria-pressed=true]{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary,#d93025)}
 .gxw-chip.gxw-other{border-style:dashed;color:#475467}
 .gxw-chip[aria-expanded=true]{border-color:var(--primary,#d93025);color:var(--primary,#d93025)}
 .gxw-chip i{font-size:11px}
 /* The kinds of each service: the service's name, then its kinds as small tags and a box to type a new one. */
-.gxw-kinds{display:flex;flex-direction:column;gap:8px}
-.gxw-kindset{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
-.gxw-kindset>span{font-size:12px;font-weight:650;color:#344054;margin-right:2px}
-.gxw-kindset .gxw-chips{display:contents}
-.gxw-tag.gxw-more{border-style:dashed;background:#fff;color:#475467}
-.gxw-tag.gxw-more[aria-expanded=true]{border-style:solid;border-color:#98a2b3}
-.gxw-tag{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border:1px solid #e4e7ec;border-radius:999px;background:#f9fafb;font:inherit;font-size:12px;font-weight:600;color:#475467;cursor:pointer}
-.gxw-tag:hover{border-color:#d0d5dd}
+/* Specialties: one panel per service it does, its suggestions in view at once and a box for your own. */
+.gxw-kinds{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr));gap:10px}
+.gxw-kindset{display:flex;flex-direction:column;gap:9px;min-width:0;padding:12px 12px 13px;border-radius:14px;background:#f9fafb;border:1px solid #f2f4f7}
+.gxw-kindset>strong{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#101828;line-height:1.3}
+.gxw-kindset>strong i{flex:none;width:24px;height:24px;border-radius:8px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary,#d93025);font-size:11px}
+.gxw-kindset .gxw-chips{gap:6px}
+.gxw-tag.gxw-more{border-style:dashed;border-color:#c4c9d2;background:transparent;color:#475467}
+.gxw-tag{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;font:inherit;font-size:12.5px;font-weight:600;color:#475467;cursor:pointer}
+.gxw-tag:hover{border-color:#c4c9d2;color:#344054}
 .gxw-tag[aria-pressed=true]{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:#fff}
 .gxw-tag i{font-size:10px}
-.gxw-tag-new{width:132px;height:26px;box-sizing:border-box;border:1px dashed #d0d5dd;border-radius:999px;background:#fff;padding:0 10px;font:inherit;font-size:12px;color:#101828;outline:none}
+.gxw-tag-new{width:120px;height:30px;box-sizing:border-box;border:1px dashed #d0d5dd;border-radius:999px;background:#fff;padding:0 11px;font:inherit;font-size:12.5px;color:#101828;outline:none}
 .gxw-tag-new:focus{border-style:solid;border-color:var(--primary,#d93025)}
-.gxw-person{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 4px 0 10px;border-radius:999px;background:#f2f4f7;font-size:12.5px;font-weight:600;color:#344054;max-width:100%}
+.gxw-person{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 6px 0 4px;border-radius:999px;background:#f2f4f7;font-size:13.5px;font-weight:600;color:#344054;max-width:100%}
 .gxw-person>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gxw-person[data-lead=true]{background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary,#d93025)}
+.gxw-person>.gxw-avatar{width:28px;height:28px;background:#fff}
+.gxw-people{display:flex;flex-wrap:wrap;gap:8px}
 .gxw-person button{flex:none;width:22px;height:22px;border:0;border-radius:50%;background:transparent;color:#98a2b3;cursor:pointer;display:grid;place-items:center;font-size:11px}
 .gxw-person button:hover{background:#e4e7ec;color:#475467}
 .gxw-person [data-gxw-lead][aria-pressed=true]{color:var(--primary,#d93025)}
 .gxw-person em{flex:none;font-style:normal;font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 6px;background:#fff;color:#475467}
-.gxw-pick{align-self:flex-start;display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 11px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;font:inherit;font-size:12.5px;font-weight:650;color:#344054;cursor:pointer}
+.gxw-pick{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;border:1px solid #d0d5dd;border-radius:11px;background:#fff;font:inherit;font-size:13.5px;font-weight:650;color:#344054;cursor:pointer}
 .gxw-pick[aria-expanded=true]{border-color:var(--primary,#d93025);color:var(--primary,#d93025)}
 .gxw-pick i:last-child{font-size:10px;color:#98a2b3}
 /* A dropdown of our own (people, other services): it opens in the card, under what opened it. */
@@ -160,7 +174,7 @@ const css = `
 .gxw-error{color:#b42318!important;font-size:13px}
 .gxw-error:empty{display:none}
 /* A phone: one card at a time with the cards either side peeking in (the choices stack as every setup's do: .gxs-choices). */
-@media(max-width:560px){.gxw-track,.gxw-track[data-more]{grid-auto-columns:84%}.gxw-nav{display:none}.gxw-actions .gxw-btn{flex:1 1 auto}.gxw-sees{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:560px){.gxw-track,.gxw-track[data-more]{grid-auto-columns:86%;gap:12px}.gxw-card{padding:16px;gap:16px}.gxw-kinds{grid-template-columns:minmax(0,1fr)}.gxw-nav{display:none}.gxw-actions .gxw-btn{flex:1 1 auto}.gxw-sees{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.gxw *{transition:none!important}.gxw-track{scroll-behavior:auto}}
 `;
 function installStyle(){
@@ -455,7 +469,7 @@ export function mount(el, ctx){
       const first = whole.length ? whole[0] : 0, last = whole.length ? whole[whole.length - 1] + 1 : 1;
       where.textContent = !more ? '' : last === first + 1 ? L('gx_wfs_where_one', '{at} of {n}', { at: first + 1, n: cards.length }) : L('gx_wfs_where', '{from}–{to} of {n}', { from: first + 1, to: last, n: cards.length });
     };
-    const step = (direction) => { const width = track.firstElementChild?.getBoundingClientRect().width || track.clientWidth; track.scrollBy({ left: direction * (width + 12), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
+    const step = (direction) => { const width = track.firstElementChild?.getBoundingClientRect().width || track.clientWidth; track.scrollBy({ left: direction * (width + 16), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
     prev.addEventListener('click', () => step(-1)); next.addEventListener('click', () => step(1));
     track.addEventListener('scroll', update, { passive: true });
     // A field tabbed into on a card out of view brings that card in, sideways only (a click is never moved from under the pointer).
@@ -468,7 +482,8 @@ export function mount(el, ctx){
     if (rect.left < box.left) track.scrollLeft -= box.left - rect.left + 2;
     else if (rect.right > box.right) track.scrollLeft += rect.right - box.right + 2;
   }
-  const head = (row) => `<header><span class="gxw-kind" data-kind="${row.kind}">${esc(kindWord(row.kind))}</span><strong title="${esc(row.name)}">${esc(row.name)}</strong></header>`;
+  const kindTag = (row) => `<span class="gxw-kind" data-kind="${row.kind}">${esc(kindWord(row.kind))}</span>`;
+  const head = (row) => `<header><strong title="${esc(row.name)}">${esc(row.name)}</strong>${kindTag(row)}</header>`;
 
   // ── Name each one and say what they do ─────────────────────────────────
   // The kinds offered for a service: the library's (the step's `service_tags`), the ones the organization's crews and
@@ -508,31 +523,39 @@ export function mount(el, ctx){
       ${can().add_people ? `<button type="button" class="gxw-menu-new" data-gxw-newperson><span class="gxw-avatar"><i class="fas fa-user-plus" aria-hidden="true"></i></span>${esc(L('gx_wfs_member_new', 'New {member_lower}', { member_lower: member.toLowerCase() }))}</button>` : ''}
     </div>`;
   }
+  // How many of a service's suggestions are in view before "more".
+  const SHOWN_KINDS = 4;
+  function kindPanel(row, entry){
+    // A service's specialties: the ones picked, then the first few suggestions; "more" shows the rest. Your own are typed in.
+    const opened = kindsOpen.has(`${row.key}|${entry.id}`), offered = kindsOffered(entry.id, row);
+    const rest = offered.filter((tag) => !hasTag(row, entry.id, tag));
+    const shown = [...offered.filter((tag) => hasTag(row, entry.id, tag)), ...(opened ? rest : rest.slice(0, SHOWN_KINDS))];
+    const hidden = opened ? 0 : rest.length - Math.min(rest.length, SHOWN_KINDS);
+    const tag = (text) => { const on = hasTag(row, entry.id, text); return `<button type="button" class="gxw-tag" data-gxw-tag="${esc(text)}" aria-pressed="${on}"><i class="fas ${on ? 'fa-check' : 'fa-plus'}" aria-hidden="true"></i>${esc(text)}</button>`; };
+    return `<div class="gxw-kindset" data-gxw-kinds="${esc(entry.id)}"><strong>${esc(entry.label)}</strong><div class="gxw-chips">${shown.map(tag).join('')}${hidden || opened ? `<button type="button" class="gxw-tag gxw-more" data-gxw-kinds-open aria-expanded="${opened}">${esc(opened ? L('gx_wfs_kind_fewer', 'Fewer') : L('gx_wfs_kind_more_n', '{n} more', { n: hidden }))}</button>` : ''}<input class="gxw-tag-new" data-gxw-tag-new maxlength="60" placeholder="${esc(L('gx_wfs_kind_add', '+ Your own'))}" aria-label="${esc(L('gx_wfs_kind_add_label', 'Add a kind of {service}', { service: entry.label.toLowerCase() }))}" enterkeyhint="done"></div></div>`;
+  }
+  function personChip(row, id, leadOn){
+    const lead = row.lead_user_id === id, saved = array(row.saved_members).includes(id), name = personName(id);
+    const flag = leadOn || lead ? `<button type="button" data-gxw-lead="${esc(id)}" aria-pressed="${lead}" title="${esc(lead ? L('gx_wfs_lead', 'In charge') : L('gx_wfs_lead_make', 'Make them the one in charge'))}" aria-label="${esc(L('gx_wfs_lead_label', '{name} is in charge', { name }))}"><i class="${lead ? 'fas' : 'far'} fa-flag" aria-hidden="true"></i></button>` : '';
+    const remove = saved ? '' : `<button type="button" data-gxw-unmember="${esc(id)}" aria-label="${esc(L('gx_wfs_member_remove', 'Take off'))} ${esc(name)}"><i class="fas fa-xmark" aria-hidden="true"></i></button>`;
+    return `<span class="gxw-person" data-gxw-person="${esc(id)}" data-lead="${lead}"><span class="gxw-avatar" aria-hidden="true">${esc(initials(name))}</span><span>${esc(name)}</span>${personOf(id)?.pending ? `<em>${esc(L('gx_wfs_member_new_badge', 'New'))}</em>` : ''}${flag}${remove}${!flag && !remove ? '<span style="width:6px"></span>' : ''}</span>`;
+  }
   function workCard(row){
     const chosen = new Set(row.service_ids);
     const open = (kind) => menu?.row === row.key && menu.kind === kind;
     const leadOn = row.member_user_ids.length > 1;
     const chosenServices = services().filter((entry) => chosen.has(entry.id));
     return `<article class="gxw-card" data-gxw-card="${esc(row.key)}">
-      <header><span class="gxw-kind" data-kind="${row.kind}">${esc(kindWord(row.kind))}</span></header>
-      <label class="gxw-field"><b>${esc(L('gx_wfs_name', 'Name'))}</b><input class="gxw-input" data-gxw-name value="${esc(row.name)}" maxlength="300" ${row.existing ? 'readonly title="' + esc(L('gx_wfs_name_people', 'Rename it in People')) + '"' : ''}></label>
-      <div class="gxw-field"><b>${esc(L('gx_wfs_does', 'What they do'))}</b><div class="gxw-chips">${services().map((entry) => `<button type="button" class="gxw-chip" data-gxw-service="${esc(entry.id)}" aria-pressed="${chosen.has(entry.id)}">${chosen.has(entry.id) ? '<i class="fas fa-check" aria-hidden="true"></i>' : ''}${esc(entry.label)}</button>`).join('')}<button type="button" class="gxw-chip gxw-other" data-gxw-other aria-expanded="${open('other')}"><i class="fas fa-magnifying-glass" aria-hidden="true"></i>${esc(L('gx_wfs_other', 'Other'))}</button></div>
-        ${open('other') ? otherMenu(row) : ''}</div>
-      ${chosenServices.length ? `<div class="gxw-field"><b>${esc(L('gx_wfs_kinds', 'Specialties (optional)'))}</b><div class="gxw-kinds">${chosenServices.map((entry) => {
-        // Closed, a service shows the specialties picked and an Add; open, the ones to pick from and a box to type one.
-        const opened = kindsOpen.has(`${row.key}|${entry.id}`), picked = array(object(row.service_tags)[entry.id]);
-        const tags = opened ? kindsOffered(entry.id, row) : picked;
-        return `<div class="gxw-kindset" data-gxw-kinds="${esc(entry.id)}"><span>${esc(entry.label)}</span><div class="gxw-chips">${tags.map((tag) => `<button type="button" class="gxw-tag" data-gxw-tag="${esc(tag)}" aria-pressed="${hasTag(row, entry.id, tag)}">${hasTag(row, entry.id, tag) ? '<i class="fas fa-check" aria-hidden="true"></i>' : ''}${esc(tag)}</button>`).join('')}${opened ? `<input class="gxw-tag-new" data-gxw-tag-new maxlength="60" placeholder="${esc(L('gx_wfs_kind_add', 'Type your own'))}" aria-label="${esc(L('gx_wfs_kind_add_label', 'Add a kind of {service}', { service: entry.label.toLowerCase() }))}" enterkeyhint="done">` : ''}<button type="button" class="gxw-tag gxw-more" data-gxw-kinds-open aria-expanded="${opened}">${opened ? esc(L('gx_wfs_kind_done', 'Done')) : `<i class="fas fa-plus" aria-hidden="true"></i>${esc(picked.length ? L('gx_wfs_kind_more', 'More') : L('gx_wfs_kind_open', 'Add'))}`}</button></div></div>`;
-      }).join('')}</div></div>` : ''}
-      ${row.kind === GROUP ? `<div class="gxw-field"><b>${esc(L('gx_wfs_members', 'Who’s on it (optional)'))}</b>
-        ${row.member_user_ids.length ? `<div class="gxw-chips">${row.member_user_ids.map((id) => {
-          const lead = row.lead_user_id === id, saved = array(row.saved_members).includes(id);
-          return `<span class="gxw-person" data-gxw-person="${esc(id)}" data-lead="${lead}">${leadOn || lead ? `<button type="button" data-gxw-lead="${esc(id)}" aria-pressed="${lead}" title="${esc(lead ? L('gx_wfs_lead', 'In charge') : L('gx_wfs_lead_make', 'Make them the one in charge'))}" aria-label="${esc(L('gx_wfs_lead_label', '{name} is in charge', { name: personName(id) }))}"><i class="${lead ? 'fas' : 'far'} fa-flag" aria-hidden="true"></i></button>` : ''}<span>${esc(personName(id))}</span>${personOf(id)?.pending ? `<em>${esc(L('gx_wfs_member_new_badge', 'New'))}</em>` : ''}${saved ? '<span style="width:6px"></span>' : `<button type="button" data-gxw-unmember="${esc(id)}" aria-label="${esc(L('gx_wfs_member_remove', 'Take off'))} ${esc(personName(id))}"><i class="fas fa-xmark" aria-hidden="true"></i></button>`}</span>`;
-        }).join('')}</div>` : ''}
+      <header><label class="gxw-title"><span class="gxw-sr">${esc(L('gx_wfs_name', 'Name'))}</span><input class="gxw-name" data-gxw-name value="${esc(row.name)}" maxlength="300" placeholder="${esc(L('gx_wfs_name', 'Name'))}" ${row.existing ? 'readonly title="' + esc(L('gx_wfs_name_people', 'Rename it in People')) + '"' : ''}></label>${kindTag(row)}</header>
+      <section class="gxw-sec"><h4>${esc(L('gx_wfs_does', 'What they do'))}</h4><div class="gxw-chips">${services().map((entry) => `<button type="button" class="gxw-chip" data-gxw-service="${esc(entry.id)}" aria-pressed="${chosen.has(entry.id)}">${chosen.has(entry.id) ? '<i class="fas fa-check" aria-hidden="true"></i>' : ''}${esc(entry.label)}</button>`).join('')}<button type="button" class="gxw-chip gxw-other" data-gxw-other aria-expanded="${open('other')}"><i class="fas fa-magnifying-glass" aria-hidden="true"></i>${esc(L('gx_wfs_other', 'Other'))}</button></div>
+        ${open('other') ? otherMenu(row) : ''}</section>
+      ${chosenServices.length ? `<section class="gxw-sec"><h4>${esc(L('gx_wfs_kinds_title', 'Specialties'))}<small>${esc(L('gx_wfs_optional', 'optional'))}</small></h4><div class="gxw-kinds">${chosenServices.map((entry) => kindPanel(row, entry)).join('')}</div></section>` : ''}
+      ${row.kind === GROUP ? `<section class="gxw-sec"><h4>${esc(L('gx_wfs_members_title', 'Who’s on it'))}<small>${esc(L('gx_wfs_optional', 'optional'))}</small></h4>
+        ${row.member_user_ids.length ? `<div class="gxw-people">${row.member_user_ids.map((id) => personChip(row, id, leadOn)).join('')}</div>` : ''}
         ${leadOn && !row.lead_user_id ? `<p class="gxw-note">${esc(L('gx_wfs_lead_hint', 'Tap the flag next to whoever is in charge.'))}</p>` : ''}
         <button type="button" class="gxw-pick" data-gxw-pick aria-haspopup="listbox" aria-expanded="${open('people')}"><i class="fas fa-user-plus" aria-hidden="true"></i>${esc(L('gx_wfs_member_add', 'Add someone'))}<i class="fas fa-chevron-down" aria-hidden="true"></i></button>
         ${open('people') ? peopleMenu(row) : ''}
-      </div>` : ''}
+      </section>` : ''}
     </article>`;
   }
   function drawWork(focus){
@@ -578,7 +601,7 @@ export function mount(el, ctx){
       const row = rowOf(button), service = button.closest('[data-gxw-kinds]')?.dataset.gxwKinds; if (!row || !service) return;
       const id = `${row.key}|${service}`, opening = !kindsOpen.has(id);
       if (opening) kindsOpen.add(id); else kindsOpen.delete(id);
-      redraw(row, `[data-gxw-kinds="${CSS.escape(service)}"] ${opening ? '[data-gxw-tag],[data-gxw-tag-new]' : '[data-gxw-kinds-open]'}`);
+      redraw(row, `[data-gxw-kinds="${CSS.escape(service)}"] [data-gxw-kinds-open]`);
     }));
     el.querySelectorAll('[data-gxw-tag-new]').forEach((input) => {
       const add = () => {
@@ -871,6 +894,8 @@ export function mount(el, ctx){
     if (!alive) return;
     whoStep?.destroy?.(); whoStep = null;
     const name = pages[page];
+    // The cards need room: their pages take the large sheet (about the project window's size), the others its usual size.
+    ctx.setWide?.(name === 'work' || name === 'pay');
     if (name === 'who') drawWho();
     else if (name === 'count') drawCount();
     else if (name === 'work') drawWork();
@@ -918,7 +943,7 @@ export function mount(el, ctx){
     // The phone's back walks these pages first; once everything is written there is nothing to go back to.
     backDepth: () => pages[page] === 'done' ? 0 : pages.slice(0, page).filter((name) => !skip(name)).length,
     back(){ if (pages[page] === 'done' || page === 0) return false; go(page - 1); return true; },
-    destroy(){ alive = false; whoStep?.destroy?.(); el.removeEventListener('click', outside); }
+    destroy(){ alive = false; whoStep?.destroy?.(); el.removeEventListener('click', outside); ctx.setWide?.(false); }
   };
 }
 export default mount;
