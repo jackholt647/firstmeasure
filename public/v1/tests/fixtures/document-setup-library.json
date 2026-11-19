@@ -1322,7 +1322,7 @@
                             "style_ref": "h3",
                             "runs": [
                               {
-                                "text": "If your claim is approved"
+                                "text": "Claim approved"
                               }
                             ]
                           }
@@ -1411,7 +1411,7 @@
                             "style_ref": "h3",
                             "runs": [
                               {
-                                "text": "If your claim is denied"
+                                "text": "Claim denied"
                               }
                             ]
                           }
@@ -1500,7 +1500,7 @@
                             "style_ref": "h3",
                             "runs": [
                               {
-                                "text": "Your insurance payments"
+                                "text": "Insurance payments"
                               }
                             ]
                           }
@@ -1589,7 +1589,7 @@
                             "style_ref": "h3",
                             "runs": [
                               {
-                                "text": "Your right to cancel"
+                                "text": "Right to cancel"
                               }
                             ]
                           }

@@ -192,6 +192,8 @@ const css = `
 .gxd-copy{display:grid;grid-template-columns:minmax(300px,1fr) clamp(320px,38%,520px);grid-template-rows:minmax(0,1fr);gap:22px;flex:1 1 auto;min-height:0}
 .gxd-copy-fields{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0}
 .gxd-copy-edit{flex:1 1 auto;display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;padding:2px 6px 18px 2px;animation:gxdSlideIn .45s cubic-bezier(.22,1,.36,1) both}
+/* Each field keeps its own height when they are more than the column holds (GP-55: a textarea, overflow hidden, shrank to a sliver). */
+.gxd-copy-edit>*{flex-shrink:0}
 /* Wording below the column's edge (GP-29): the edge fades and a pill says how many fields are left; tapping it scrolls on. */
 .gxd-copy-fields.gxd-more .gxd-copy-edit{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 56px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 56px),transparent)}
 .gxd-copy-more{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 13px;border:0;border-radius:999px;background:#101828;color:#fff;font:inherit;font-size:12.5px;font-weight:650;white-space:nowrap;cursor:pointer;box-shadow:0 6px 16px rgba(16,24,40,.22);touch-action:none}
@@ -824,7 +826,7 @@ export function mount(el, ctx){
     };
     const choices = [
       { id: 'retail', icon: 'fa-file-signature', title: ['gx_docs_setup_proposal_kinds_retail', 'Retail proposals'], hint: ['gx_docs_setup_proposal_kinds_retail_hint', 'You price the job and the homeowner pays you.'] },
-      { id: 'insurance', icon: 'fa-house-circle-check', title: ['gx_docs_setup_proposal_kinds_insurance', 'Insurance agreements'], hint: ['gx_docs_setup_proposal_kinds_insurance_hint', 'A contingency agreement: the homeowner signs that you do the work their insurance approves, for what it approves.'] }
+      { id: 'insurance', icon: 'fa-house-crack', title: ['gx_docs_setup_proposal_kinds_insurance', 'Insurance agreements'], hint: ['gx_docs_setup_proposal_kinds_insurance_hint', 'A contingency agreement: the homeowner signs that you do the work their insurance approves, for what it approves.'] }
     ];
     const report = () => {
       const value = picked.has('retail') && picked.has('insurance') ? 'both' : picked.has('insurance') ? 'insurance' : picked.has('retail') ? 'retail' : undefined;
@@ -1385,7 +1387,7 @@ export function mount(el, ctx){
     }
     const firstChoices = [
       { id: 'retail', icon: 'fa-file-signature', title: ['gx_docs_setup_first_retail', 'A retail proposal'], hint: ['gx_docs_setup_first_retail_hint', 'Priced from the measurements and your price book, for the customer to sign.'] },
-      { id: 'insurance', icon: 'fa-house-circle-check', title: ['gx_docs_setup_first_insurance', 'An insurance agreement'], hint: ['gx_docs_setup_first_insurance_hint', 'The homeowner signs that you do the work their insurance approves.'] }
+      { id: 'insurance', icon: 'fa-house-crack', title: ['gx_docs_setup_first_insurance', 'An insurance agreement'], hint: ['gx_docs_setup_first_insurance_hint', 'The homeowner signs that you do the work their insurance approves.'] }
     ];
     function drawChoice(){
       app = null; error = null;
