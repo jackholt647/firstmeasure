@@ -2096,7 +2096,7 @@
     if (state.receiptReview?.phase !== 'ready' || state.receiptBatch) return false;
     const target = event.composedPath?.()[0] || event.target;
     if (target?.closest?.('input:not([type="checkbox"]):not([type="radio"]),textarea,select,[contenteditable="true"],[contenteditable=""],fm-date-time-picker,.fm-select-list-menu')) return false;
-    if (target?.isContentEditable || document.querySelector('fm-date-time-picker')) return false;
+    if (target?.isContentEditable || document.querySelector('fm-date-time-picker[popover]')) return false;
     if (rootNode()?.querySelector('.fm-select-list-trigger[aria-expanded="true"]')) return false;
     return true;
   }
@@ -3147,8 +3147,8 @@
     const layer = rootNode()?.querySelector('[data-money-modal-layer]');
     const handled = () => { event.preventDefault(); event.stopImmediatePropagation(); };
     if (!layer?.firstElementChild) return;
-    // An open select list (GP-107) closes itself on this Escape.
-    if (layer.querySelector('.fm-select-list-trigger[aria-expanded="true"]')) return;
+    // An open select list (GP-107) or date picker (GP-109) closes itself on this Escape.
+    if (layer.querySelector('.fm-select-list-trigger[aria-expanded="true"]') || document.querySelector('fm-date-time-picker[popover]')) return;
     handled();
     const emailModal = layer.querySelector('[data-money-invoice-email-modal]');
     if (emailModal) { emailModal.remove(); return; }
