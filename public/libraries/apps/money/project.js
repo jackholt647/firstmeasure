@@ -685,6 +685,28 @@
     return moneyCategories().find((item) => item.id === key)?.label || builtInCategoryLabel(key);
   }
 
+  // A receipt can be filed under an expense category (`expense_category:<id>`, GP-108) as well as under the
+  // project's projected expense lists; the server lists the categories in `category_targets`.
+  function categoryTargets(){
+    return Array.isArray(expenseData().category_targets) ? expenseData().category_targets : [];
+  }
+
+  function targetTitle(target){
+    return target?.source_type === 'expense_category' ? categoryLabel(target.category_id) : cleanText(target?.title, term('expense_list'));
+  }
+
+  function expenseTargetTitle(key){
+    const wanted = cleanText(key);
+    const groupTargets = (expenseData().groups || []).flatMap((group) => Array.isArray(group?.targets) ? group.targets : []);
+    const target = [...(expenseData().targets || []), ...categoryTargets(), ...groupTargets].find((item) => cleanText(item?.target_key) === wanted);
+    return target ? targetTitle(target) : '';
+  }
+
+  function receiptCategoryIds(receipt){
+    const prefix = 'expense_category:';
+    return (receipt?.attributed_target_keys || []).map(cleanText).filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length));
+  }
+
   // ---- Ledger entries -----------------------------------------------------------------------------------------
 
   function expenseReceipts(expense){
@@ -775,10 +797,11 @@
       });
     });
     receipts().forEach((receipt) => {
+      const filedUnder = (receipt.attributed_target_keys || []).map(expenseTargetTitle).filter(Boolean);
       records.push({
         key:`receipt:${cleanText(receipt.id)}`, kind:'receipt', type:'record', id:cleanText(receipt.id), source:receipt,
         at:cleanText(receipt.purchase_date, receipt.effective?.purchase_date, receipt.uploaded_at, receipt.created_at), createdAt:cleanText(receipt.created_at),
-        title:receiptTitle(receipt), detail:cleanText(receipt.file?.file_name),
+        title:receiptTitle(receipt), detail:filedUnder.join(', ') || cleanText(receipt.file?.file_name), categories:receiptCategoryIds(receipt),
         category:'receipt', categoryLabel:term('receipt'), icon:'fa-receipt',
         status:cleanText(receipt.status || 'ready'), amount:receiptTotal(receipt), signed:0, balance:null, receipts:[receipt]
       });
@@ -793,7 +816,7 @@
     if (filter === 'invoices') return row.kind === 'invoice';
     if (filter === 'receipts') return row.kind === 'receipt';
     if (filter === 'recurring') return row.recurring === true;
-    if (filter.startsWith('cat:')) return row.kind === 'expense' && row.category === filter.slice(4);
+    if (filter.startsWith('cat:')) return (row.kind === 'expense' && row.category === filter.slice(4)) || (row.kind === 'receipt' && (row.categories || []).includes(filter.slice(4)));
     return true;
   }
 
@@ -964,7 +987,7 @@
 
   function filterOptionsHtml(){
     const entries = ledgerEntries();
-    const categoriesInUse = new Set(entries.filter((row) => row.kind === 'expense').map((row) => row.category));
+    const categoriesInUse = new Set(entries.flatMap((row) => row.kind === 'expense' ? [row.category] : row.kind === 'receipt' ? (row.categories || []) : []));
     const categories = moneyCategories().filter((category) => !category.hidden || categoriesInUse.has(category.id));
     categoriesInUse.forEach((id) => { if (!categories.some((category) => category.id === id)) categories.push({ id, label:categoryLabel(id) }); });
     const hasRecurring = entries.some((row) => row.recurring);
@@ -1428,7 +1451,7 @@
   function expenseListsModalHtml(){
     const expenses = expenseData();
     const totals = expenses.totals || {};
-    const targetOrder = new Map((Array.isArray(expenses.targets) ? expenses.targets : []).map((target, index) => [cleanText(target?.target_key), index]));
+    const targetOrder = new Map([...(Array.isArray(expenses.targets) ? expenses.targets : []), ...categoryTargets()].map((target, index) => [cleanText(target?.target_key), index]));
     const groups = (Array.isArray(expenses.groups) ? [...expenses.groups] : []).sort((a, b) => {
       const displayOrder = (group) => {
         const positions = (Array.isArray(group?.targets) ? group.targets : []).map((target) => targetOrder.get(cleanText(target?.target_key))).filter((position) => Number.isInteger(position));
@@ -1455,7 +1478,7 @@
     const canSetActual = canManageMoney() && target?.actual_override_enabled !== false && !hasReceipts && systemActual == null;
     const shown = systemActual != null ? systemActual : manualActual != null ? manualActual : group?.actual_cents != null && (group.targets || []).length === 1 ? cents(group.actual_cents) : cents(target?.projected_cents);
     const tip = systemActual != null ? 'Accrued from the commission ledger' : manualActual != null ? `Actual entered by hand; projected ${money(target?.projected_cents || 0)}` : hasReceipts ? `From ${term('receipts').toLowerCase()}; projected ${money(group?.projected_cents || 0)}` : 'Projected';
-    return `<div class="mn-list-row" style="--dot:${escapeHtml(target?.color || '#98a2b3')}"><span class="mn-dot" aria-hidden="true"></span><div><strong>${escapeHtml(target?.title || term('expense_list'))}</strong><small>${escapeHtml(titleText(target?.resource_type || 'other'))}${group?.grouped ? ` · ${escapeHtml(group.title || '')}` : ''}</small></div><span class="mn-amount" data-fm-tooltip="${escapeHtml(tip)}">${escapeHtml(money(shown))}</span>${canSetActual ? `<button type="button" class="mn-btn small icon" data-money-set-actual="${escapeHtml(target?.target_key)}" data-current-actual="${manualActual == null ? '' : escapeHtml(manualActual)}" data-projected="${escapeHtml(target?.projected_cents || 0)}" data-actual-revision="${escapeHtml(actualRevision || '')}" ${busyAttr()} aria-label="${escapeHtml(manualActual == null ? 'Set actual' : 'Edit actual')}" data-fm-tooltip="${escapeHtml(manualActual == null ? 'Set actual' : 'Edit actual')}"><i class="fas fa-pen"></i></button>` : '<span class="mn-btn small icon" aria-hidden="true" style="visibility:hidden"></span>'}</div>`;
+    return `<div class="mn-list-row" style="--dot:${escapeHtml(target?.color || '#98a2b3')}"><span class="mn-dot" aria-hidden="true"></span><div><strong>${escapeHtml(targetTitle(target))}</strong><small>${target?.source_type === 'expense_category' ? (globalThis.PlatformLanguage?.htmlText("money","m_c478c1907a4d4f","Category") ?? "Category") : escapeHtml(titleText(target?.resource_type || 'other'))}${group?.grouped ? ` · ${escapeHtml(group.title || '')}` : ''}</small></div><span class="mn-amount" data-fm-tooltip="${escapeHtml(tip)}">${escapeHtml(money(shown))}</span>${canSetActual ? `<button type="button" class="mn-btn small icon" data-money-set-actual="${escapeHtml(target?.target_key)}" data-current-actual="${manualActual == null ? '' : escapeHtml(manualActual)}" data-projected="${escapeHtml(target?.projected_cents || 0)}" data-actual-revision="${escapeHtml(actualRevision || '')}" ${busyAttr()} aria-label="${escapeHtml(manualActual == null ? 'Set actual' : 'Edit actual')}" data-fm-tooltip="${escapeHtml(manualActual == null ? 'Set actual' : 'Edit actual')}"><i class="fas fa-pen"></i></button>` : '<span class="mn-btn small icon" aria-hidden="true" style="visibility:hidden"></span>'}</div>`;
   }
 
   function fact(label, value){
@@ -1487,7 +1510,7 @@
     } else if (row.kind === 'refund') {
       facts = [fact('Date', shortDate(row.at)), fact('Reason', row.detail)];
     } else if (row.kind === 'expense') {
-      const targetNames = (source.expense_target_keys || []).map((key) => (expenseData().targets || []).find((target) => cleanText(target.target_key) === cleanText(key))?.title).filter(Boolean);
+      const targetNames = (source.expense_target_keys || []).map(expenseTargetTitle).filter(Boolean);
       const open = Math.max(0, cents(source.amount_cents) - cents(source.paid_cents));
       const canRemove = cents(source.paid_cents) === 0 && !['paid', 'void'].includes(cleanText(row.status));
       const later = row.recurring && cleanText(source.metadata?.recurrence_group_id) ? laterRecurringExpenses(source) : [];
@@ -1506,7 +1529,7 @@
         ${manage && !['paid', 'due', 'overdue'].includes(status) ? `<button type="button" class="mn-btn primary" data-money-invoice-due="${escapeHtml(row.id)}" ${busyAttr()} data-fm-tooltip="Publish to the customer portal for payment"><i class="fas fa-calendar-check"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_4ab97a813f8f30","Mark Due") ?? "Mark Due")}</button>` : ''}`;
     } else if (row.kind === 'receipt') {
       const image = receiptImageUrl(source);
-      const attributed = (source.attributed_target_keys || []).map((key) => (expenseData().targets || []).find((target) => cleanText(target.target_key) === cleanText(key))?.title).filter(Boolean);
+      const attributed = (source.attributed_target_keys || []).map(expenseTargetTitle).filter(Boolean);
       extra = `<button type="button" class="mn-preview" data-money-open-receipt="${escapeHtml(row.id)}" aria-label="${escapeHtml(`Open ${row.title}`)}">${image ? `<img src="${escapeHtml(image)}" alt="">` : '<i class="fas fa-file-lines"></i>'}</button>`;
       facts = [fact('Purchased', shortDate(cleanText(source.purchase_date, source.effective?.purchase_date))), fact('Status', titleText(row.status)), fact(term('expense_lists'), attributed.join(', ')), fact('Uploaded', dateTime(cleanText(source.uploaded_at, source.created_at))), source.reimbursement?.payee_ref?.name ? fact('Reimburse', source.reimbursement.payee_ref.name) : ''];
       foot = `${manage ? `<button type="button" class="mn-btn danger mn-spacer" data-money-void-receipt="${escapeHtml(row.id)}" ${busyAttr()}><i class="fas fa-ban"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_ce16922c5208b8","Void") ?? "Void")}</button>` : ''}
@@ -1566,8 +1589,11 @@
     if (review.phase === 'uploading') return modalFrame({ title:(globalThis.PlatformLanguage?.text("money","m_c1767dcd832c57","Reading purchase document") ?? "Reading purchase document"), icon:'fa-receipt', body:`<div class="mn-receipt-loading"><i class="fas fa-circle-notch fa-spin"></i><div>Pulling totals and purchase details…</div><span class="mn-muted">${escapeHtml(review.fileName || term('receipt'))}</span></div>`, attrs:'data-money-receipt-modal' });
     if (review.phase === 'error') return modalFrame({ title:(globalThis.PlatformLanguage?.text("money","m_c9b0194ff9817b","Receipt upload needs attention") ?? "Receipt upload needs attention"), icon:'fa-triangle-exclamation', body:`<div class="mn-receipt-loading"><div>${escapeHtml(review.error || 'Could not process this file.')}</div></div>`, foot:'<button type="button" class="mn-btn" data-money-receipt-close>Close</button>', attrs:'data-money-receipt-modal' });
     const receipt = review.receipt || {};
-    const targets = (expenseData().targets || []).filter((target) => target?.receipt_attribution_enabled !== false);
     const selected = new Set((Array.isArray(receipt.attributed_target_keys) && receipt.attributed_target_keys.length ? receipt.attributed_target_keys : receipt.suggested_target_keys) || []);
+    const targets = [
+      ...(expenseData().targets || []).filter((target) => target?.receipt_attribution_enabled !== false),
+      ...categoryTargets().filter((target) => !target?.hidden || selected.has(target.target_key))
+    ];
     const lines = Array.isArray(receipt.extraction?.line_items) ? receipt.extraction.line_items : [];
     const warnings = Array.isArray(receipt.extraction?.warnings) ? receipt.extraction.warnings : [];
     const readOnly = !canManageMoney();
@@ -1594,7 +1620,7 @@
           <label class="wide" data-money-reimburse-other hidden><span>${(globalThis.PlatformLanguage?.htmlText("money","m_5875991c412359","Person to pay back") ?? "Person to pay back")}</span><input class="mn-input" name="reimburse_other_name" type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_8cf345002184e5","Name") ?? "Name")}" ${reviewDisabled}></label>
         </div>
       </div><div class="mn-receipt-targets"><div class="mn-section-label"><span>${((v17) => globalThis.PlatformLanguage?.htmlText("money","m_3c334ae999e449",`Apply to ${v17} `,{v17}) ?? `Apply to ${v17} `)(escapeHtml(term('expense_lists').toLowerCase()))}<i class="fas fa-circle-info mn-help" tabindex="0" data-fm-tooltip="Suggested from the total. Select every list this document covers."></i></span></div>
-        ${targets.map((target) => `<label class="mn-receipt-target-choice"><input type="checkbox" name="target_key" value="${escapeHtml(target.target_key)}" ${selected.has(target.target_key) ? 'checked' : ''} ${reviewDisabled}><span><strong>${escapeHtml(target.title || term('expense_list'))}</strong><span>${escapeHtml(titleText(target.resource_type || 'other'))}</span></span><strong>${money(target.projected_cents || 0)}</strong></label>`).join('') || `<div class="mn-empty">${((v0) => globalThis.PlatformLanguage?.text("money","m_2076b6166d76ad",`No ${v0} yet.`,{v0}) ?? `No ${v0} yet.`)(escapeHtml(term('expense_lists').toLowerCase()))}</div>`}
+        ${targets.map((target) => { const category = target.source_type === 'expense_category'; return `<label class="mn-receipt-target-choice"${category ? ' data-money-receipt-category' : ''}><input type="checkbox" name="target_key" value="${escapeHtml(target.target_key)}" ${selected.has(target.target_key) ? 'checked' : ''} ${reviewDisabled}><span><strong>${escapeHtml(targetTitle(target))}</strong><span>${category ? (globalThis.PlatformLanguage?.htmlText("money","m_c478c1907a4d4f","Category") ?? "Category") : escapeHtml(titleText(target.resource_type || 'other'))}</span></span>${category ? '' : `<strong>${money(target.projected_cents || 0)}</strong>`}</label>`; }).join('') || `<div class="mn-empty">${((v0) => globalThis.PlatformLanguage?.text("money","m_2076b6166d76ad",`No ${v0} yet.`,{v0}) ?? `No ${v0} yet.`)(escapeHtml(term('expense_lists').toLowerCase()))}</div>`}
       </div></div>
       <div class="mn-modal-foot"><a class="mn-btn mn-spacer" href="${escapeHtml(rootWindow.PaymentsAPI?.receipts?.fileUrl?.(orgId(), receipt.id) || receipt.file_url || '#')}" target="_blank" rel="noopener"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_7211fc5d40302a","Original") ?? "Original")}</a><button type="button" class="mn-btn" data-money-receipt-close ${state.saving ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("money","m_3742924668fb10","Close") ?? "Close")}</button>${canManageMoney() ? `<button type="submit" class="mn-btn primary" ${moneyMutationBusy() || !targets.length ? 'disabled' : ''}><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_f1a988cdd500c6","Apply Receipt") ?? "Apply Receipt")}</button>` : ''}</div>
     </form></div>`;

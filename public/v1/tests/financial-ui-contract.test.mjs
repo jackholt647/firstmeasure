@@ -119,6 +119,15 @@ test('receipt intake supports mixed-file parallel batches across Money and Crew'
   assert.match(crew, /receiptBatchHtml\(receiptBatchItems, \{ review:true \}\)/);
 });
 
+test('receipt review offers the organization\'s expense categories beside the project\'s expense lists (GP-108)', async () => {
+  const money = await readFile(moneyUrl, 'utf8');
+  // A fresh project has no projected lists; the categories from Settings are still somewhere to file a receipt.
+  assert.match(money, /function receiptReviewHtml\(\)[\s\S]*\.\.\.categoryTargets\(\)\.filter\(\(target\) => !target\?\.hidden \|\| selected\.has\(target\.target_key\)\)/);
+  assert.match(money, /function categoryTargets\(\)\{\s*return Array\.isArray\(expenseData\(\)\.category_targets\)/);
+  // Receipts filed under a category show under that category in the ledger filter.
+  assert.match(money, /row\.kind === 'receipt' && \(row\.categories \|\| \[\]\)\.includes\(filter\.slice\(4\)\)/);
+});
+
 test('receipt intake exposes gated reimbursement choices and an office settlement queue', async () => {
   const [crew, receipts, paymentsApi] = await Promise.all([
     readFile(crewUrl, 'utf8'),
