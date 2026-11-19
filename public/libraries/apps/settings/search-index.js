@@ -4,7 +4,7 @@ window.FirstMateSettingsIndex = {
   "inputs": [
     [
       "libraries/apps/settings/company.js",
-      "6c6a0b61e9eb79c34cc68b2496e60a552d77ec9f7301e13afb6b76343265ce20"
+      "0198bec8bf0ec2090cb3ff8fbc5299ae012f609b79c76a258df7e0dd4dbeaba7"
     ],
     [
       "libraries/appointment-booking/settings.js",
@@ -12,7 +12,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/materials/settings.js",
-      "a6c97b1bd05e23cf662dfb9513c2090118a6aeb2b3130d5bac9e314d2cfb120e"
+      "080f4c417352b3108a4b9ec633d2c7e7f105ccf250143b86a19967a0ffa89e86"
     ],
     [
       "libraries/apps/people/app-grid.js",
@@ -5406,7 +5406,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "materials",
-      "tab": "Materials",
+      "tab": "Material calculations",
       "view": "",
       "source": "libraries/apps/materials/settings.js",
       "title": "Agent",
@@ -5416,7 +5416,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "materials",
-      "tab": "Materials",
+      "tab": "Material calculations",
       "view": "",
       "source": "libraries/apps/materials/settings.js",
       "title": "Calculations",
@@ -5426,7 +5426,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "materials",
-      "tab": "Materials",
+      "tab": "Material calculations",
       "view": "",
       "source": "libraries/apps/materials/settings.js",
       "title": "Category name",
@@ -5436,36 +5436,38 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "materials",
-      "tab": "Materials",
+      "tab": "Material calculations",
+      "view": "",
+      "source": "libraries/apps/materials/settings.js",
+      "title": "Crews and Subcontractors",
+      "description": "",
+      "kind": "control",
+      "selector": "",
+      "terminology": "workforce.settings_tab"
+    },
+    {
+      "section": "materials",
+      "tab": "Material calculations",
       "view": "",
       "source": "libraries/apps/materials/settings.js",
       "title": "Equipment",
       "description": "",
       "kind": "control",
-      "selector": ""
+      "selector": "",
+      "terminology": "equipment.portal_tab"
     },
     {
       "section": "materials",
-      "tab": "Materials",
-      "title": "Materials",
-      "description": "Price book, suppliers, calculations and resource categories for materials.",
+      "tab": "Material calculations",
+      "title": "Material calculations",
+      "description": "How materials and labor are worked out from a measurement report, and the columns on the Materials tab.",
       "view": "",
       "kind": "section",
       "selector": ""
     },
     {
       "section": "materials",
-      "tab": "Materials",
-      "view": "",
-      "source": "libraries/apps/materials/settings.js",
-      "title": "Materials settings",
-      "description": "",
-      "kind": "heading",
-      "selector": "[id=\"mtsTitle\"]"
-    },
-    {
-      "section": "materials",
-      "tab": "Materials",
+      "tab": "Material calculations",
       "view": "",
       "source": "libraries/apps/materials/settings.js",
       "title": "New category",
@@ -5475,7 +5477,17 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "materials",
-      "tab": "Materials",
+      "tab": "Material calculations",
+      "view": "",
+      "source": "libraries/apps/materials/settings.js",
+      "title": "Operations settings",
+      "description": "",
+      "kind": "heading",
+      "selector": "[id=\"mtsTitle\"]"
+    },
+    {
+      "section": "materials",
+      "tab": "Material calculations",
       "view": "",
       "source": "libraries/apps/materials/settings.js",
       "title": "Price book",
@@ -5486,7 +5498,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "materials",
-      "tab": "Materials",
+      "tab": "Material calculations",
       "view": "",
       "source": "libraries/apps/materials/settings.js",
       "title": "Resource categories",
@@ -5496,7 +5508,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "materials",
-      "tab": "Materials",
+      "tab": "Material calculations",
       "view": "",
       "source": "libraries/apps/materials/settings.js",
       "title": "SKU only",
@@ -5506,7 +5518,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "materials",
-      "tab": "Materials",
+      "tab": "Material calculations",
       "view": "",
       "source": "libraries/apps/materials/settings.js",
       "title": "Suppliers",
@@ -5516,7 +5528,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "materials",
-      "tab": "Materials",
+      "tab": "Material calculations",
       "view": "",
       "source": "libraries/apps/materials/settings.js",
       "title": "Suppliers, locations and delivery",

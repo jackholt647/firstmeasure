@@ -1367,8 +1367,10 @@
     const leadFlags = leadImportFlagState();
     const canForms = canCompany && (leadFlags.forms || leadFlags.email);
     const canPricebook = canCompany && appFlag('platform', 'pricebook');
-    // Settings › Materials: the same sub-tabs as a project's Materials settings (materials/settings.js, mountInline),
-    // each by its own capability and permission; the section shows when at least one is allowed.
+    // Settings › Material calculations: the Operations settings that have no Settings page of their own (GP-73:
+    // materials/settings.js, mountInline: Calculations and Resource categories), each by its own capability and
+    // permission; the section shows when at least one is allowed. The price book and its suppliers are Pricebook, crews
+    // are People › Groups, and equipment is the Equipment app; a project's Operations settings show them all together.
     const canMaterials = (window.FirstMateMaterialsSettings?.sections?.({ surface:'settings' }) || []).length > 0;
     const companyFontsEnabled = appFlag('platform', 'documents');
     const canDocuments = canCompany && appFlag('platform', 'project_docs') && appBelongsInSettings('documents.studio');
@@ -1418,7 +1420,7 @@
       { id:'domains', allowed:canDomains, icon:'fas fa-globe', term:'settings.domains_tab', title:(globalThis.PlatformLanguage?.text("settings","m_7e6427ce4061f4","Domains & Hosting") ?? "Domains & Hosting"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c02d45f8191c42","Register, connect, and manage website domains.") ?? "Register, connect, and manage website domains."), tabId:'csTabDomains', paneId:'csPaneDomains' },
       { id:'app_flags', allowed:canAppFlags, icon:'fas fa-code', term:'settings.developer_settings_tab', title:(globalThis.PlatformLanguage?.text("settings","developer_settings_title","Developer Settings") ?? "Developer Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","developer_settings_subtitle","Developer tools, feature flags, and app configuration.") ?? "Developer tools, feature flags, and app configuration."), tabId:'csTabAppFlags', paneId:'csPaneAppFlags' },
       { id:'pricebook', allowed:canPricebook, icon:'fas fa-book', term:'pricebook.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_f574625863d5b7","Pricebook") ?? "Pricebook"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c23b3b22698ba1","Manage the organization price book, global references, variants, and artifact pricing rules.") ?? "Manage the organization price book, global references, variants, and artifact pricing rules."), tabId:'csTabPricebook', paneId:'csPanePricebook' },
-      { id:'materials', allowed:canMaterials, icon:'fas fa-boxes-stacked', title:(globalThis.PlatformLanguage?.text("settings","materials_settings_section","Materials") ?? "Materials"), subtitle:(globalThis.PlatformLanguage?.text("settings","materials_settings_section_subtitle","Price book, suppliers, calculations and resource categories for materials.") ?? "Price book, suppliers, calculations and resource categories for materials."), tabId:'csTabMaterials', paneId:'csPaneMaterials' },
+      { id:'materials', allowed:canMaterials, icon:'fas fa-boxes-stacked', title:(globalThis.PlatformLanguage?.text("settings","material_calculations_section","Material calculations") ?? "Material calculations"), subtitle:(globalThis.PlatformLanguage?.text("settings","material_calculations_section_subtitle","How materials and labor are worked out from a measurement report, and the columns on the Materials tab.") ?? "How materials and labor are worked out from a measurement report, and the columns on the Materials tab."), tabId:'csTabMaterials', paneId:'csPaneMaterials' },
       { id:'forms', allowed:canForms, icon:'fas fa-clipboard-list', term:'leads.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_1399dd735044f0","Forms and Leads") ?? "Forms and Leads"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3f2edc28d5ce68","Configure lead capture forms and inbound lead sources.") ?? "Configure lead capture forms and inbound lead sources."), tabId:'csTabForms', paneId:'csPaneForms' },
       { id:'billing', allowed:canBilling || canPlatformBilling, icon:'fas fa-credit-card', term:'billing.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_15b15ae2348691","Manage plan billing, balance, and automatic top-ups.") ?? "Manage plan billing, balance, and automatic top-ups."), tabId:'csTabBilling', paneId:'csPaneBilling' },
       { id:'app_download', allowed:appFlag('mobile','app_download'), icon:'fas fa-mobile-alt', title:(globalThis.PlatformLanguage?.text("settings","m_547bfda0c7f70d","App download") ?? "App download"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_18f3026e47ac02","FirstMeasure on your phone.") ?? "FirstMeasure on your phone."), tabId:'csTabAppDownload', paneId:'csPaneAppDownload' },
@@ -10936,7 +10938,7 @@
       });
     }
 
-    // Settings › Materials: the Materials settings sub-tabs, mounted once into the page (materials/settings.js).
+    // Settings › Material calculations: its Operations settings sub-tabs, mounted once into the page (materials/settings.js).
     let materialsSettingsHandle = null;
     function renderMaterialsSettings(){
       const host = panel.querySelector('#csPaneMaterials');

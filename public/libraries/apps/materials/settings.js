@@ -1,8 +1,11 @@
 /* public/libraries/apps/materials/settings.js
  * Operations settings (GP-15; it was Materials settings): one set of sub-tabs for the organization-wide Operations
  * settings, shown in two places with one implementation:
- *   open(options)               the modal behind the gear at the top right of a project's Operations tab
- *   mountInline(host, options)  Settings › Materials (settings/company.js)
+ *   open(options)               the modal behind the gear at the top right of a project's Operations tab: every sub-tab,
+ *                               the one view of everything that affects Operations
+ *   mountInline(host, options)  Settings › Material calculations (settings/company.js): only the sub-tabs that have no
+ *                               Settings page of their own (GP-73). The price book and its suppliers are Settings ›
+ *                               Pricebook, crews are People › Groups, and equipment is the Equipment app.
  * Each sub-tab mounts the panel the Settings app already uses, so there is one editor per setting:
  *   Price book           FirstMatePricebook.mount (material costs and the optional labor prices are price book items)
  *   Suppliers            FirstMateSupplierTools.mount (guided-experiences/supplier-columns.js) over
@@ -12,14 +15,17 @@
  *                        resource type writers (MaterialsAPI.resourceTypes) for the organization
  *   Equipment            the Equipment tab itself (portal.equipment through FirstMateEmbeddableApps, its route kept
  *                        to itself), while the organization has the Equipment app on and the person may see the fleet
- *   Workforce            who does the work (GP-28): the crews and subcontractors, what each does, who is on a crew and
- *                        how each is paid, as the workforce setup (operations.workforce.setup) saved them
+ *   Crews and            who does the work (GP-28): the crews and subcontractors, what each does, who is on a crew and
+ *   Subcontractors       how each is paid, as the workforce setup (operations.workforce.setup) saved them
  *                        (workforce-setup.status); its button plays that setup again over this window
+ * Suppliers, Equipment and Crews and Subcontractors each have a setup (GP-73). In the modal, until the organization has
+ * done it (operations.setup.status, the same checklist as Operations' setup cards), the sub-tab plays its setup the
+ * first time it is opened and offers it again after; once it is done the sub-tab is its settings page.
  * These are the Materials app's settings: with the app off (platform.materials) there are none, so Settings has no
- * Materials section (FM-394: Calculations alone showed it to FirstMeasure organizations without the app; they keep it
- * in Settings › Reports). With the app on, a sub-tab shows only when the organization has its feature on and the person
- * holds the permission its server routes require; the checks match Settings. Resource categories is also an
- * organization switch (materials.resource_categories). No configuration is ever checked.
+ * Material calculations section (FM-394: Calculations alone showed it to FirstMeasure organizations without the app;
+ * they keep it in Settings › Reports). With the app on, a sub-tab shows only when the organization has its feature on
+ * and the person holds the permission its server routes require; the checks match Settings. Resource categories is
+ * also an organization switch (materials.resource_categories). No configuration is ever checked.
  * The global assistant is docked on the right of every sub-tab, in the person's private `materials-settings`
  * conversation (v1/materials/settings-assistant.ts); it can be collapsed.
  */
@@ -44,6 +50,8 @@
     return flags.has?.(group, name) === true || flags.value?.(group, name, fallback) === true;
   }
 
+  // `settings`: also a sub-tab of Settings › Material calculations; the others are only in the Operations modal (GP-73).
+  // `setup`: the setup the sub-tab plays until it is done (its key in operations.setup.status, the guide that plays).
   const SECTIONS = [
     { id:'pricebook', icon:'fa-book',
       label:() => term('pricebook.pricebook', t('materials_settings_tab_pricebook', 'Price book')),
@@ -56,6 +64,9 @@
       tip:() => t('materials_settings_tip_suppliers', 'Who provides your materials, what each supplier carries and at what price, and their delivery fees'),
       // Settings › Pricebook › Suppliers; supplier writes need manage_company_settings. Its catalogue is price book items.
       allowed:() => perm('manage_company_settings') && flag('platform', 'pricebook'),
+      setup:{ status:'suppliers', guide:'operations.suppliers.setup', icon:'fa-truck',
+        title:() => t('materials_settings_setup_suppliers', 'Set up your suppliers'),
+        body:() => t('materials_settings_setup_suppliers_body', 'Choose who supplies your materials and add their costs. Once they are set up, this is where you change them.') },
       mount:mountSuppliers },
     { id:'calculations', icon:'fa-calculator',
       label:() => t('materials_settings_tab_calculations', 'Calculations'),
@@ -63,6 +74,7 @@
       // Settings › Reports › Default materials and labor (manage_report_settings, apps.firstmeasure); the
       // measurement-defaults routes also require manage_company_settings.
       allowed:() => perm('manage_report_settings') && perm('manage_company_settings') && flag('apps', 'firstmeasure'),
+      settings:true,
       mount:mountDefaults },
     { id:'categories', icon:'fa-layer-group',
       label:() => t('materials_settings_tab_categories', 'Resource categories'),
@@ -71,25 +83,35 @@
       // materials.resource_categories (on by default) turns the sub-tab off. A project hands in its own writers; Settings
       // uses the organization's.
       allowed:(options) => perm('manage_projects') && flag('platform', 'materials') && flag('materials', 'resource_categories', true) && (!!options?.categories || options?.surface === 'settings'),
+      settings:true,
       mount:mountCategories },
     { id:'equipment', icon:'fa-truck-pickup',
       label:() => term('equipment.portal_tab', t('materials_settings_tab_equipment', 'Equipment')),
       tip:() => t('materials_settings_tip_equipment', 'Your fleet, its types and the facilities it is kept at'),
       // The Equipment tab's own checks: the app on (apps.equipment) and a permission its fleet routes accept.
       allowed:() => flag('apps', 'equipment') && ['equipment.view', 'equipment.manage', 'equipment.service', 'manage_company_settings'].some(perm) && typeof root.FirstMateEmbeddableApps?.mount === 'function',
+      // The Operations tab's own equipment setup: it turns the Equipment app on if it was only offered (FM-619).
+      setup:{ status:'equipment', guide:'operations.equipment.setup', icon:'fa-truck-pickup',
+        title:() => t('materials_settings_setup_equipment', 'Set up your equipment'),
+        body:() => t('materials_settings_setup_equipment_body', 'Add the equipment you use and where it is kept. Once it is set up, this is where you manage it.') },
       mount:mountEquipment },
     { id:'workforce', icon:'fa-users',
-      label:() => term('workforce.resource_group_plural', t('materials_settings_tab_workforce', 'Workforce')),
+      // Both kinds of who does the work (GP-73); People › Groups keeps the groups themselves.
+      label:() => term('workforce.settings_tab', t('materials_settings_tab_workforce', 'Crews and Subcontractors')),
       tip:() => t('materials_settings_tip_workforce', 'Who does the work: your crews and subcontractors, what each does and how you pay them'),
       // The setup's own checks: company settings and the Materials app; the workforce app is turned on by the setup's
       // start action, which needs a project, so without one it shows only where the app is already on.
       allowed:(options) => perm('manage_company_settings') && flag('platform', 'materials') && (flag('apps', 'crew') || !!options?.projectId) && !!root.PlatformAPI?.publication?.read,
+      setup:{ status:'workforce', guide:'operations.workforce.setup', icon:'fa-users', before:startWorkforce,
+        title:() => t('materials_settings_workforce_start', 'Set up who does the work'),
+        body:() => t('materials_settings_setup_workforce_body', 'Add your crews and subcontractors, what each one does and how you pay them. Once they are set up, this is where you see and change them.') },
       mount:mountWorkforce }
   ];
 
   function sections(options = {}){
     if (!flag('platform', 'materials')) return [];
-    return SECTIONS.filter((section) => { try { return section.allowed(options); } catch (error) { return false; } }).map((section) => section.id);
+    const settings = options.surface === 'settings';
+    return SECTIONS.filter((section) => { try { return (!settings || section.settings === true) && section.allowed(options); } catch (error) { return false; } }).map((section) => section.id);
   }
 
   function loadScript(url, ready){
@@ -166,6 +188,11 @@
       .mts-wf-icon{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary,#d93025)}
       .mts-wf-text{flex:1 1 auto;min-width:0}.mts-wf-text strong{display:block;font-size:14px;color:#101828}.mts-wf-text small{display:block;margin-top:2px;font-size:12px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .mts-wf-pay{flex:none;font-size:12.5px;font-weight:650;color:#344054}.mts-wf-empty{margin:8px 0;color:#667085;font-size:13px}.mts-wf-actions{display:flex;justify-content:flex-end;padding-top:6px}
+      /* A sub-tab whose setup is not done yet (GP-73): what the setup does and its start button, in the middle of the pane. */
+      .mts-setup{margin:auto;width:min(440px,100%);padding:32px 24px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+      .mts-setup-mark{width:52px;height:52px;border-radius:15px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary-readable,var(--primary,#d93025));font-size:21px}
+      .mts-setup h3{margin:6px 0 0;font-size:17px;font-weight:700;letter-spacing:-.01em;color:#101828}.mts-setup p{margin:0 0 8px;color:#475467;font-size:13.5px;line-height:1.55}
+      .mts-setup .mts-setup-start{height:40px;padding:0 18px;border-radius:10px;font-size:13px}
       @media(max-width:560px){.mts-wf-row{flex-wrap:wrap}.mts-wf-pay{width:100%;padding-left:48px}}
       .mts-cats{width:min(760px,100%);margin:0 auto;padding:18px 16px 28px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px}
       .mts-cat{display:grid;grid-template-columns:38px minmax(0,1fr) auto 34px;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.04);animation:mts-pane-in .26s cubic-bezier(.2,.8,.25,1) both;transition:border-color .15s ease,box-shadow .15s ease}
@@ -287,25 +314,112 @@
       host.querySelector('[data-mts-wf-setup]').addEventListener('click', (event) => play(event.currentTarget));
     }
     async function play(button){
-      const guides = root.FirstMateGuides;
+      const guides = guidesLibrary();
       if (!guides?.play) { ctx.toast(t('materials_settings_workforce_unavailable', 'The setup is not available here.'), 'error'); return; }
       button.disabled = true;
       const overlay = host.closest('.mts-overlay');
       try {
-        // In a project, the setup's start turns the workforce app on (as Operations' Workforce card does).
-        if (ctx.projectId) {
-          await root.PlatformAPI.publication.invoke(orgId(), 'operations.workforce.setup.start', { scope:'project', organizationId:orgId(), projectId:ctx.projectId }, {}, { idempotencyKey:`operations.workforce.start:${orgId()}:${crypto.randomUUID()}` });
-          await Promise.all([root.PlatformAPI.capabilities?.load?.(orgId(), { refresh:true }), root.PlatformAPI.appFlags?.load?.(orgId(), { refresh:true })]).catch(() => null);
-          await root.Portal?.auth?.syncPlatformSession?.()?.catch?.(() => null);
-        }
+        await startWorkforce(ctx);
         if (overlay) overlay.style.visibility = 'hidden';
         const outcome = await guides.play('operations.workforce.setup', { replay:true, force:true });
         if (outcome?.status === 'unavailable') ctx.toast(t('materials_settings_workforce_unavailable', 'The setup is not available here.'), 'error');
       } catch (error) { ctx.toast(error?.message || t('materials_settings_workforce_unavailable', 'The setup is not available here.'), 'error'); }
-      finally { if (overlay) overlay.style.visibility = ''; if (!destroyed) load(); }
+      finally { if (overlay) overlay.style.visibility = ''; ctx.setupStatus = null; if (!destroyed) load(); }
     }
     load();
     return { reload:load, destroy(){ destroyed = true; } };
+  }
+
+  // In a project, the workforce setup's start turns the workforce app on first (as Operations' Workforce card does), with
+  // a key of its own each time (a receipt holds the backend release and the person, FM-619).
+  async function startWorkforce(ctx){
+    if (!ctx.projectId) return;
+    const orgId = ctx.orgIdText();
+    await root.PlatformAPI.publication.invoke(orgId, 'operations.workforce.setup.start', { scope:'project', organizationId:orgId, projectId:ctx.projectId }, {}, { idempotencyKey:`operations.workforce.start:${orgId}:${crypto.randomUUID()}` });
+    await Promise.all([root.PlatformAPI.capabilities?.load?.(orgId, { refresh:true }), root.PlatformAPI.appFlags?.load?.(orgId, { refresh:true })]).catch(() => null);
+    await root.Portal?.auth?.syncPlatformSession?.()?.catch?.(() => null);
+  }
+
+  // The guide player of this frame, else of the portal around it (the project window is a frame).
+  function guidesLibrary(){
+    if (root.FirstMateGuides?.play) return root.FirstMateGuides;
+    try { return root.top?.FirstMateGuides || null; } catch (error) { return null; }
+  }
+
+  // ---- Setups (GP-73). What the organization has set up is Operations' setup checklist (operations.setup.status: a
+  // supplier saved, a unit in the fleet, the workforce setup finished or a pay sheet), read once per window and again
+  // after a setup plays. It is per project (manage_projects); where it cannot be read, every sub-tab is its settings.
+  function setupStatus(ctx, force = false){
+    if (!force && ctx.setupStatus) return ctx.setupStatus;
+    const orgId = ctx.orgIdText();
+    if (!ctx.projectId || !orgId || !perm('manage_projects') || typeof root.PlatformAPI?.publication?.invoke !== 'function') return Promise.resolve(null);
+    ctx.setupStatus = Promise.resolve(root.PlatformAPI.publication.invoke(orgId, 'operations.setup.status', { scope:'project', organizationId:orgId, projectId:ctx.projectId }, {}))
+      .then((result) => { const value = result?.value ?? result?.result ?? result; return value?.setup && typeof value.setup === 'object' ? value.setup : null; }, () => null);
+    return ctx.setupStatus;
+  }
+  const isSetUp = (value) => value === true || value?.complete === true || value?.completed === true;
+
+  /**
+   * A sub-tab with a setup, in the modal: until it is done, opening it plays the setup over this window (hidden while it
+   * plays) and the pane offers it again; once it is done (or finished here) the pane is the sub-tab's settings page.
+   */
+  function mountSetupGate(section, host, ctx){
+    const setup = section.setup;
+    let inner = null, destroyed = false, playing = false, played = false;
+    const settingsPage = () => {
+      if (destroyed || inner) return;
+      host.innerHTML = '';
+      try { inner = section.mount(host, ctx) || {}; } catch (error) { inner = {}; host.innerHTML = stateMarkup('fa-triangle-exclamation', error?.message || t('materials_settings_failed', 'This setting could not load.')); }
+    };
+    const offer = () => {
+      host.innerHTML = `<div class="mts-pane-fill"><div class="mts-setup" data-mts-setup="${esc(section.id)}">
+        <span class="mts-setup-mark" aria-hidden="true"><i class="fas ${setup.icon}"></i></span>
+        <h3>${esc(setup.title())}</h3>
+        <p>${esc(setup.body())}</p>
+        <button type="button" class="mts-btn mts-setup-start" data-mts-setup-start><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>${esc(t('materials_settings_setup_start', 'Start setup'))}</button>
+      </div></div>`;
+      host.querySelector('[data-mts-setup-start]').addEventListener('click', () => play());
+    };
+    const check = (force) => {
+      host.innerHTML = `<div class="mts-pane-fill">${stateMarkup('fa-circle-notch', t('materials_settings_setup_checking', 'Checking your setup…'), true)}</div>`;
+      return setupStatus(ctx, force).then((status) => {
+        if (destroyed) return;
+        if (!status || isSetUp(status[setup.status])) { settingsPage(); return; }
+        offer();
+        // The first time the sub-tab is opened it goes straight into its setup.
+        if (!played) play();
+      });
+    };
+    async function play(){
+      if (playing || destroyed) return;
+      const guides = guidesLibrary();
+      if (!guides?.play) { settingsPage(); return; }
+      playing = true; played = true;
+      host.querySelector('[data-mts-setup-start]')?.setAttribute('disabled', '');
+      const overlay = host.closest('.mts-overlay');
+      let outcome = null;
+      try {
+        await setup.before?.(ctx);
+        if (overlay) overlay.style.visibility = 'hidden';
+        outcome = await guides.play(setup.guide, { replay:true, force:true });
+      } catch (error) { outcome = { status:'failed', error }; }
+      finally { if (overlay) overlay.style.visibility = ''; playing = false; }
+      if (destroyed) return;
+      ctx.setupStatus = null;
+      // Finished, or nothing left to ask: the settings page. A setup this person cannot play here leaves the settings too.
+      if (['completed', 'satisfied', 'unavailable'].includes(outcome?.status)) {
+        if (outcome.status === 'unavailable') ctx.toast(t('materials_settings_setup_unavailable', 'The setup is not available here.'), 'error');
+        settingsPage();
+        return;
+      }
+      if (outcome?.status === 'failed') ctx.toast(outcome.error?.message || t('materials_settings_setup_unavailable', 'The setup is not available here.'), 'error');
+      check(true);
+    }
+    check(false);
+    return {
+      reload(){ if (inner) return inner.reload?.(); },
+      destroy(){ destroyed = true; try { inner?.destroy?.(); } catch (error) {} }
+    };
   }
 
   // In Settings there is no project: the organization's resource types, written through the same routes project.js uses.
@@ -517,7 +631,7 @@
         if (!handles.has(section.id)) {
           const pane = shell.querySelector(`[data-mts-pane="${section.id}"]`);
           let handle = {};
-          try { handle = section.mount(pane, ctx) || {}; } catch (error) { pane.innerHTML = stateMarkup('fa-triangle-exclamation', error?.message || t('materials_settings_failed', 'This setting could not load.')); }
+          try { handle = (section.setup && !inline ? mountSetupGate(section, pane, ctx) : section.mount(pane, ctx)) || {}; } catch (error) { pane.innerHTML = stateMarkup('fa-triangle-exclamation', error?.message || t('materials_settings_failed', 'This setting could not load.')); }
           handles.set(section.id, handle);
         }
         shell.dispatchEvent(new CustomEvent('mts:section', { detail:{ section:section.id } }));
@@ -637,6 +751,14 @@
   const DEFAULTS_SOURCE = 'libraries/apps/settings/measurement-defaults.js';
   root.FirstMateSettingsSearch?.registerExclusion?.((entry) => !flag('platform', 'materials')
     && (entry.source === DEFAULTS_SOURCE || (entry.section === 'reports' && entry.view === 'defaults')));
+
+  // Settings search: Settings › Material calculations has only Calculations and Resource categories (GP-73). The index
+  // reads every sub-tab from this file, so the ones only a project's Operations settings show (the price book and
+  // suppliers are Settings › Pricebook, equipment the Equipment app, crews People › Groups) are left out of it.
+  const SOURCE = 'libraries/apps/materials/settings.js';
+  const OPERATIONS_ONLY = new Set(['Price book', 'Suppliers', 'Suppliers, locations and delivery', 'Equipment', 'Crews and Subcontractors', 'Workforce', 'Operations settings']);
+  root.FirstMateSettingsSearch?.registerExclusion?.((entry) => entry.section === 'materials' && entry.source === SOURCE
+    && (OPERATIONS_ONLY.has(entry.title) || entry.terminology === 'pricebook.pricebook'));
 
   root.FirstMateMaterialsSettings = { sections, open, close, mountInline, isOpen:() => !!current };
 })(window);

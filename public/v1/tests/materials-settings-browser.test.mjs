@@ -1,5 +1,6 @@
-// Materials settings (materials/settings.js): one set of sub-tabs shown in a project's Materials tab (the gear opens a
-// modal) and in Settings › Materials (mountInline). Each sub-tab mounts the panel the Settings app already uses (price
+// Operations settings (materials/settings.js): one set of sub-tabs shown in a project's Operations tab (the gear opens a
+// modal with every sub-tab) and, for the ones with no Settings page of their own, in Settings › Material calculations
+// (mountInline, GP-73). Each sub-tab mounts the panel the Settings app already uses (price
 // book, suppliers, calculations) or the Materials tab's resource categories. A sub-tab shows only when the organization
 // has its feature on and the person may use it; with none allowed there is no gear and no Settings section. The global
 // assistant is docked on the right in a private materials-settings conversation and can be collapsed.
@@ -159,8 +160,8 @@ test('the gear opens the materials settings modal; its sub-tabs switch, each mou
 
     await gear.click();
     await page.locator('.mts-overlay.is-open').waitFor();
-    assert.deepEqual(await tabIds(page), ['pricebook', 'suppliers', 'calculations', 'categories']);
-    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[data-mts-tab]')].map((tab) => tab.textContent.trim())), ['Price book', 'Suppliers', 'Calculations', 'Resource categories']);
+    assert.deepEqual(await tabIds(page), ['pricebook', 'suppliers', 'calculations', 'categories', 'workforce']);
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[data-mts-tab]')].map((tab) => tab.textContent.trim())), ['Price book', 'Suppliers', 'Calculations', 'Resource categories', 'Crews and Subcontractors']);
     assert.equal(await page.evaluate(() => document.querySelector('.mts-modal').getAttribute('role')), 'dialog');
     assert.equal(await page.evaluate(() => [...document.querySelectorAll('[data-mts-tab]')].every((tab) => tab.dataset.fmTooltip.length > 10)), true);
     // It nearly fills the window it opens in, with a small inset.
@@ -181,7 +182,7 @@ test('the gear opens the materials settings modal; its sub-tabs switch, each mou
     assert.ok(calls.some(([kind, org]) => kind === 'assistant-mount' && org === 'org'));
     const agentBox = await page.locator('[data-mts-agent]').boundingBox();
     assert.ok(agentBox.width >= 320 && agentBox.x + agentBox.width >= box.x + box.width - 2, 'the agent is on the right');
-    assert.deepEqual(await page.evaluate(() => window.assistantOptions.getContext()), { surface: 'materials_settings', tab: 'pricebook' });
+    assert.deepEqual(await page.evaluate(() => window.assistantOptions.getContext()), { surface: 'materials_settings', tab: 'pricebook', projectId: 'p1' });
     await assertFonts(page, '.mts-overlay');
     await assertIcons(page);
     await shot(page, 'modal-1600-pricebook');
@@ -266,7 +267,7 @@ test('the gear opens the materials settings modal; its sub-tabs switch, each mou
     await page.keyboard.press('Home');
     assert.equal(await selectedTab(page), 'pricebook');
     await page.keyboard.press('ArrowLeft');
-    assert.equal(await selectedTab(page), 'categories');
+    assert.equal(await selectedTab(page), 'workforce');
     assert.equal((await page.evaluate(() => window.calls)).filter(([kind]) => kind === 'pricebook-mount').length, 1);
 
     // Escape closes it and unmounts the panels and the agent.
@@ -297,22 +298,30 @@ test('the gear opens the materials settings modal; its sub-tabs switch, each mou
   } finally { await browser.close(); server.close(); }
 });
 
-test('Settings › Materials mounts the same sub-tabs inline, with the organization\'s resource categories and the agent', async () => {
+test('Settings › Material calculations mounts only Calculations and Resource categories inline, with the agent', async () => {
   const company = await readFile(new URL('../../libraries/apps/settings/company.js', import.meta.url), 'utf8');
   // The section is declared once, gated by the same checks, and mounts the shared shell.
   assert.match(company, /const canMaterials = \(window\.FirstMateMaterialsSettings\?\.sections\?\.\(\{ surface:'settings' \}\) \|\| \[\]\)\.length > 0;/);
-  assert.match(company, /\{ id:'materials', allowed:canMaterials, icon:'fas fa-boxes-stacked'/);
+  assert.match(company, /\{ id:'materials', allowed:canMaterials, icon:'fas fa-boxes-stacked', title:\(globalThis\.PlatformLanguage\?\.text\("settings","material_calculations_section","Material calculations"\)/, 'GP-73: the section is Material calculations');
   assert.match(company, /FirstMateMaterialsSettings\?\.mountInline\?\.\(host, \{ orgId:\(\) => currentOrgId\(\)/);
   assert.match(company, /FirstMateSupplierSettings\.mount\(suppliersPane, \{ orgId:\(\) => currentOrgId\(\),/, 'Settings › Pricebook › Suppliers passes the organization id, not the function');
+  // GP-73: Equipment is not a Settings section (it is the Equipment app), and Crews links land on People › Groups.
+  assert.match(company, /\n\s*const canEquipment = false;/);
+  assert.match(company, /if \(normalized\.sub === 'crews'\) \{ normalized\.sub = 'people';/);
   const server = await serve();
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     for (const [width, height] of [[1600, 1000], [1280, 800]]) {
       const page = await browser.newPage({ viewport: { width, height } });
-      const errors = await stub(page, server.address().port);
+      const errors = await stub(page, server.address().port, { flags: ['platform.pricebook', 'apps.firstmeasure', 'platform.materials', 'apps.assistant', 'apps.equipment', 'apps.crew'] });
+      await page.evaluate(() => { window.FirstMateEmbeddableApps.mount = async () => ({}); });
+      // The price book, its suppliers, equipment and crews have Settings pages of their own (GP-73).
+      assert.deepEqual(await page.evaluate(() => window.FirstMateMaterialsSettings.sections({ surface: 'settings' })), ['calculations', 'categories']);
+      assert.deepEqual(await page.evaluate(() => window.FirstMateMaterialsSettings.sections({ categories: {}, projectId: 'p1' })), ['pricebook', 'suppliers', 'calculations', 'categories', 'equipment', 'workforce']);
       await page.evaluate(() => { document.getElementById('rOverlay').style.display = 'none'; window.inline = window.FirstMateMaterialsSettings.mountInline(document.getElementById('settingsPane'), { orgId: () => 'org' }); });
-      await page.locator('[data-mts-shell="settings"] [data-stub-pricebook]').waitFor();
-      assert.deepEqual(await tabIds(page), ['pricebook', 'suppliers', 'calculations', 'categories']);
+      await page.locator('[data-mts-shell="settings"] [data-mts-pane="calculations"] [data-md-rule="0"]').waitFor();
+      assert.deepEqual(await tabIds(page), ['calculations', 'categories']);
+      assert.equal(await page.locator('[data-mts-shell="settings"] [data-stub-pricebook]').count(), 0);
       assert.equal(await page.locator('[data-mts-shell="settings"] [data-mts-close]').count(), 0, 'no close button inside Settings');
       assert.equal(await page.locator('[data-mts-shell="settings"] h2').count(), 0, 'the Settings heading names it');
       await page.locator('[data-mts-shell="settings"] [data-mts-agent] [data-stub-assistant]').waitFor();
@@ -320,15 +329,6 @@ test('Settings › Materials mounts the same sub-tabs inline, with the organizat
       assert.ok(shell.y + shell.height <= height && shell.y + shell.height >= height - 40, `the page fills the window: ${JSON.stringify(shell)}`);
       await assertFonts(page, '[data-mts-shell="settings"]');
       await assertIcons(page);
-      await shot(page, `settings-${width}-pricebook`);
-      await page.locator('[data-mts-tab="suppliers"]').click();
-      await page.locator('[data-mts-supplier-tools] .gxsc-col').waitFor();
-      await page.locator('[data-mts-pane="suppliers"] .sup-wrap').waitFor();
-      assert.doesNotMatch(await page.locator('[data-mts-pane="suppliers"]').innerText(), /function|exceeding|could not/i);
-      await shot(page, `settings-${width}-suppliers`);
-      await page.locator('[data-mts-tab="calculations"]').click();
-      await page.locator('[data-mts-pane="calculations"] [data-md-rule="0"]').waitFor();
-      await assertFonts(page, '[data-mts-shell="settings"]');
       await shot(page, `settings-${width}-calculations`);
       // Resource categories in Settings write the organization's resource types directly.
       await page.locator('[data-mts-tab="categories"]').click();
@@ -358,7 +358,7 @@ test('sub-tabs follow the organization features and the person; with none allowe
     await openTab(page);
     await page.locator('[data-mt-materials-settings]').click();
     await page.locator('.mts-overlay.is-open').waitFor();
-    assert.deepEqual(await tabIds(page), ['categories'], 'no price book, suppliers or calculations without their features');
+    assert.deepEqual(await tabIds(page), ['categories', 'workforce'], 'no price book, suppliers or calculations without their features');
     assert.equal(await page.locator('[data-mts-agent-toggle]').count(), 0, 'no agent without the assistant');
     await page.locator('[data-mts-close]').click();
     await page.locator('.mts-overlay').waitFor({ state: 'detached' });
@@ -368,10 +368,14 @@ test('sub-tabs follow the organization features and the person; with none allowe
     const mvp = await browser.newPage({ viewport: { width: 1500, height: 900 } });
     await stub(mvp, server.address().port, { flags: ['platform.pricebook', 'apps.firstmeasure', 'platform.materials'], off: ['materials.resource_categories'], supplierTools: 'none', assistant: false });
     assert.deepEqual(await mvp.evaluate(() => window.FirstMateMaterialsSettings.sections({ categories: {} })), ['pricebook', 'suppliers', 'calculations']);
-    assert.deepEqual(await mvp.evaluate(() => window.FirstMateMaterialsSettings.sections({ surface: 'settings' })), ['pricebook', 'suppliers', 'calculations']);
+    assert.deepEqual(await mvp.evaluate(() => window.FirstMateMaterialsSettings.sections({ surface: 'settings' })), ['calculations']);
     const onlyCategories = await browser.newPage({ viewport: { width: 1500, height: 900 } });
     await stub(onlyCategories, server.address().port, { flags: ['platform.materials'], off: ['materials.resource_categories'], supplierTools: 'none', assistant: false });
     assert.deepEqual(await onlyCategories.evaluate(() => window.FirstMateMaterialsSettings.sections({ surface: 'settings' })), [], 'no Settings section when nothing is allowed');
+    // The price book alone is Settings › Pricebook, not a Material calculations section (GP-73).
+    const onlyPricebook = await browser.newPage({ viewport: { width: 1500, height: 900 } });
+    await stub(onlyPricebook, server.address().port, { flags: ['platform.pricebook', 'platform.materials'], off: ['materials.resource_categories', 'apps.firstmeasure'], supplierTools: 'none', assistant: false });
+    assert.deepEqual(await onlyPricebook.evaluate(() => window.FirstMateMaterialsSettings.sections({ surface: 'settings' })), []);
     // FM-394: the settings belong to the Materials app. A FirstMeasure organization without it (every customer today) has
     // no Materials section, though the price book is on (nor Reports › Default materials and labor: the next test).
     const noApp = await browser.newPage({ viewport: { width: 1500, height: 900 } });
@@ -405,7 +409,7 @@ test('Operations settings shows the Equipment tab as a sub-tab while the Equipme
     await openTab(page);
     await page.locator('[data-mt-materials-settings]').click();
     await page.locator('.mts-overlay.is-open').waitFor();
-    assert.deepEqual(await tabIds(page), ['pricebook', 'suppliers', 'calculations', 'categories', 'equipment']);
+    assert.deepEqual(await tabIds(page), ['pricebook', 'suppliers', 'calculations', 'categories', 'equipment', 'workforce']);
     assert.equal(await page.locator('#mtsTitle').innerText(), 'Operations settings');
     await page.locator('[data-mts-tab="equipment"]').click();
     await page.locator('[data-mts-pane="equipment"] [data-stub-equipment]').waitFor();
@@ -420,6 +424,85 @@ test('Operations settings shows the Equipment tab as a sub-tab while the Equipme
     await stub(off, server.address().port, { flags: ['platform.materials'], off: ['apps.equipment'], supplierTools: 'none', assistant: false });
     await off.evaluate(() => { window.FirstMateEmbeddableApps.mount = async () => ({}); });
     assert.deepEqual(await off.evaluate(() => window.FirstMateMaterialsSettings.sections({ surface: 'settings' })), ['categories']);
+  } finally { await browser.close(); server.close(); }
+});
+
+// GP-73: in a project's Operations settings, Suppliers, Equipment and Crews and Subcontractors play their setup until the
+// organization has done it (operations.setup.status), over the modal, and are their settings page once it is done.
+test('Operations settings plays a sub-tab\'s setup until it is done, then shows its settings', async () => {
+  const server = await serve();
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
+    const errors = await stub(page, server.address().port, { flags: ['platform.pricebook', 'apps.firstmeasure', 'platform.materials', 'apps.equipment', 'apps.crew'], supplierTools: 'none', assistant: false });
+    await page.evaluate(() => {
+      window.STATUS = { suppliers: { complete: false }, equipment: { complete: true }, workforce: { complete: false } };
+      window.played = []; window.mounted = [];
+      // The first workforce setup is closed without finishing; every other one finishes.
+      let workforcePlays = 0;
+      window.FirstMateGuides = { play: async (id, options) => {
+        window.played.push({ id, replay: options?.replay, force: options?.force, hidden: document.querySelector('.mts-overlay')?.style.visibility === 'hidden' });
+        if (id === 'operations.workforce.setup' && !workforcePlays++) return { status: 'dismissed' };
+        if (id === 'operations.suppliers.setup') window.STATUS.suppliers = { complete: true };
+        if (id === 'operations.workforce.setup') window.STATUS.workforce = { complete: true };
+        return { status: 'completed' };
+      } };
+      window.PlatformAPI.publication.invoke = async (org, action, target, input, options) => {
+        window.calls.push(['invoke', action, target.scope, target.projectId, !!options?.idempotencyKey]);
+        if (action === 'operations.setup.status') return { value: { scope_ready: false, setup: JSON.parse(JSON.stringify(window.STATUS)) } };
+        return { value: { started: true } };
+      };
+      window.PlatformAPI.publication.read = async (org, input) => input?.provider === 'workforce-setup'
+        ? { value: window.STATUS.workforce.complete ? { profile: { services: [{ id: 'roof', label: 'Roofing' }] }, assignees: [{ kind: 'resource_group', ref: { id: 'g1' }, name: 'Alpha crew', service_ids: ['roof'], members: 3, pay: null }] } : {} }
+        : { status: 'missing' };
+      window.FirstMateEmbeddableApps.mount = async (host, id) => { window.mounted.push(id); host.innerHTML = '<div data-stub-equipment>Fleet</div>'; return { destroy(){} }; };
+    });
+    await openTab(page);
+    await page.locator('[data-mt-materials-settings]').click();
+    await page.locator('.mts-overlay.is-open').waitFor();
+    assert.deepEqual(await tabIds(page), ['pricebook', 'suppliers', 'calculations', 'categories', 'equipment', 'workforce']);
+    assert.equal(await page.locator('[data-mts-tab="workforce"]').innerText(), 'Crews and Subcontractors');
+    await page.locator('[data-stub-pricebook]').waitFor();
+    assert.deepEqual(await page.evaluate(() => window.played), [], 'the price book has no setup');
+
+    // Suppliers: not set up, so opening it plays the supplier setup over the hidden modal; finished, it is the editor.
+    await page.locator('[data-mts-tab="suppliers"]').click();
+    await page.locator('[data-mts-pane="suppliers"] .sup-wrap').waitFor();
+    assert.deepEqual(await page.evaluate(() => window.played), [{ id: 'operations.suppliers.setup', replay: true, force: true, hidden: true }]);
+    assert.equal(await page.evaluate(() => document.querySelector('.mts-overlay').style.visibility), '', 'the modal shows again');
+    assert.equal(await page.locator('[data-mts-pane="suppliers"] [data-mts-setup]').count(), 0);
+    let calls = await page.evaluate(() => window.calls.filter(([kind]) => kind === 'invoke'));
+    assert.ok(calls.length >= 1 && calls.every(([, action, scope, projectId]) => action === 'operations.setup.status' && scope === 'project' && projectId === 'p1'), JSON.stringify(calls));
+
+    // Equipment is set up already: its settings at once, no setup.
+    await page.locator('[data-mts-tab="equipment"]').click();
+    await page.locator('[data-mts-pane="equipment"] [data-stub-equipment]').waitFor();
+    assert.equal((await page.evaluate(() => window.played)).length, 1);
+
+    // Crews and Subcontractors: the setup starts the workforce app first; closed unfinished, the pane offers it again.
+    await page.locator('[data-mts-tab="workforce"]').click();
+    const start = page.locator('[data-mts-pane="workforce"] [data-mts-setup="workforce"] [data-mts-setup-start]');
+    await start.waitFor();
+    await page.waitForFunction(() => window.played.length === 2);
+    await page.waitForFunction(() => !document.querySelector('[data-mts-setup-start]:disabled'));
+    assert.equal(await page.locator('[data-mts-pane="workforce"] [data-mts-workforce]').count(), 0, 'no settings before the setup is done');
+    calls = await page.evaluate(() => window.calls.filter(([kind]) => kind === 'invoke').map(([, action, , , keyed]) => [action, keyed]));
+    assert.ok(calls.some(([action, keyed]) => action === 'operations.workforce.setup.start' && keyed), 'the workforce setup starts with a key of its own');
+    await assertFonts(page, '.mts-shell');
+    await shot(page, 'modal-setup-workforce');
+    await start.click();
+    await page.locator('[data-mts-pane="workforce"] [data-mts-wf="resource_group:g1"]').waitFor();
+    assert.deepEqual((await page.evaluate(() => window.played)).map((row) => row.id), ['operations.suppliers.setup', 'operations.workforce.setup', 'operations.workforce.setup']);
+    assert.equal(await page.locator('[data-mts-pane="workforce"] [data-mts-setup]').count(), 0);
+    await page.locator('[data-mts-close]').click();
+    await page.locator('.mts-overlay').waitFor({ state: 'detached' });
+
+    // Settings has no project and none of these sub-tabs: it never reads the setup checklist.
+    const before = await page.evaluate(() => window.calls.length);
+    await page.evaluate(() => { window.inline = window.FirstMateMaterialsSettings.mountInline(document.getElementById('settingsPane'), { orgId: () => 'org' }); });
+    await page.locator('[data-mts-shell="settings"] [data-mts-pane="calculations"] [data-md-rule="0"]').waitFor();
+    assert.equal(await page.evaluate((before) => window.calls.slice(before).filter(([kind]) => kind === 'invoke').length, before), 0);
+    assert.deepEqual(errors, []);
   } finally { await browser.close(); server.close(); }
 });
 
@@ -478,6 +561,12 @@ test('Settings › Reports shows Default materials and labor, and search finds i
     assert.equal(await on.page.locator('[data-rp-subpane="defaults"]').innerText(), 'Calculations editor');
     assert.equal(await on.page.locator('[data-rp-subpane="report"]').isHidden(), true);
     assert.ok((await found(on.page, 'Default materials and labor')).length > 0, 'search finds it with the Materials app');
+    // GP-73: Settings search finds Material calculations and its sub-tabs, not the ones only a project's Operations
+    // settings show (the price book and suppliers are found in Pricebook).
+    const materials = (query) => on.page.evaluate((query) => window.FirstMateSettingsSearch.search(query, { sections: ['materials'] }).map((item) => item.title), query);
+    assert.ok((await materials('Material calculations')).includes('Material calculations'), 'the section is found by its name');
+    assert.ok((await materials('Resource categories')).includes('Resource categories'));
+    for (const query of ['Equipment', 'Crews and Subcontractors', 'Suppliers, locations and delivery', 'Operations settings']) assert.deepEqual(await materials(query), [], `search "${query}" finds nothing in Material calculations`);
     assert.deepEqual(on.errors, []);
   } finally { await browser.close(); server.close(); }
 });
