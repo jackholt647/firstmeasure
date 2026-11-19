@@ -456,7 +456,7 @@
       bundles: [
         versionedBundle('../documents-api/documents-api.js', '20261119-gp69'),
         versionedBundle('../doc-viewer/firstmate-doc-viewer.js', '20261119-gp69'),
-        versionedBundle('documents/company.js', '20261119-gp69')
+        versionedBundle('documents/company.js', '20261119-gp112')
       ]
     },
     {
