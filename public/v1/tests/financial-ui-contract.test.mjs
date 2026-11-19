@@ -208,7 +208,7 @@ test('Take a Payment wears the Operations Setup pill while online payments are n
   const z = Number(setup.match(/\.fmp-modal\{position:fixed;inset:0;z-index:(\d+);/)?.[1]);
   assert.ok(z > 2147483200 && z < 2147483300, `payments setup z-index ${z}`);
   // Its header looks like the guided setups': a coloured tag with an icon and a round × close, not a grey pill and a "Close" button (GP-75).
-  assert.match(setup, /<span class="fmp-modal-title" aria-hidden="true"><i class="fas fa-[a-z-]+" aria-hidden="true"><\/i><span>Set up payments<\/span><\/span>/);
+  assert.match(setup, /<div class="fmp-modal-title" aria-hidden="true"><i class="fas fa-[a-z-]+" aria-hidden="true"><\/i><span>Set up payments<\/span><\/div>/);
   assert.match(setup, /<button type="button" class="fmp-modal-close" data-close aria-label="Close payment setup"[^>]*><span class="fmp-x" aria-hidden="true">&times;<\/span><\/button>/);
   assert.match(setup, /\.fmp-modal-title\{[^}]*color:var\(--primary,#d93025\)/);
 });
