@@ -296,7 +296,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261119-gp40-setup-alert2')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261119-gp60-new-invoice')]
     },
     {
       id: 'project.request',
@@ -305,7 +305,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261118-fm559-camera-first'), versionedBundle('project-request/app.js', '20261119-fm621-phone-landscape')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261119-gp60-money-view'), versionedBundle('project-request/app.js', '20261119-gp60-money-view')]
     },
     {
       id: 'firstmeasure.order',
@@ -450,7 +450,7 @@
       order: 51,
       bundles: [
         versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
-        versionedBundle('invoices/app.js', '20260803-invoices-tab')
+        versionedBundle('invoices/app.js', '20261119-gp60-invoices-parity')
       ]
     },
     {
@@ -954,7 +954,7 @@
     channels: { channel:{ history:'push' }, channelThread:{ history:'replace' }, channelMessage:{ history:'replace' }, channelsView:{ default:'channel', values:['channel','saved','search'], history:'replace' } },
     canvassing: { pin:{ history:'push' }, canvassingStatus:{ history:'replace' } },
     settings: { sub:{ history:'push' }, settingsView:{ history:'push' }, settingsEntity:{ history:'push' }, scopeTemplateView:{ default:'details', values:['details','boards','scheduling','developer','automations','todos','checklists','documents','materials','events','notifications','communications','resources','fields','calls','transitions','workflows','portal','payments','other','assistant'], history:'push' }, scopeArtifact:{ history:'replace' }, scopeArtifactFilter:{ default:'all', values:['all','conditional','inactive'], history:'replace' }, scopeAutomation:{ history:'push' }, scopeEventFocus:{ history:'push' }, scopeEventFilter:{ default:'all', values:['all','connected','unused','actions','documents','todos','events','materials','checklists','notifications'], history:'replace' }, previewMode:{ history:'replace' }, terminologyQuery:{ history:'replace' }, terminologySection:{ history:'replace' }, terminologyStatus:{ history:'replace' }, workflow:{ history:'push' }, workflow_step:{ history:'push' } },
-    money: { moneyView:{ default:'overview', values:['overview','ledger','payments','invoices','recurring','expenses','receipts','take_payment'], history:'push' }, receipt:{ history:'push' } },
+    money: { moneyView:{ default:'overview', values:['overview','ledger','payments','invoices','recurring','expenses','receipts','take_payment','new_invoice'], history:'push' }, receipt:{ history:'push' } },
     receipts: { receipt:{ history:'push' } },
     invoices: { invoicesView:{ default:'outstanding', values:['outstanding','needs_invoicing','history'], history:'push' }, invoice:{ history:'push' }, invoicesStatus:{ history:'replace' } },
     docs: { document:{ history:'push' }, documentView:{ default:'tiles', values:['tiles','list'], history:'replace' } },

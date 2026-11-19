@@ -74,10 +74,11 @@
   // screen (and its own loading state); a leftover skeleton would sit over the
   // page, blocking clicks, as soon as the window closes or stops being modal.
   function clearRoutePrecover(){ document.getElementById('fmProjectRoutePrecover')?.remove(); }
-  const PROJECT_SCOPED_ROUTE_KEYS=['projectScheduleView','projectScheduleTarget','projectScheduleDate'];
+  const PROJECT_SCOPED_ROUTE_KEYS=['projectScheduleView','projectScheduleTarget','projectScheduleDate','moneyView'];
   // Route keys a window's own navigation mirrors to the browser address while
   // it is the routed project (the portal already mirrors project/projectTab
-  // on focus; the Schedule tab's view, target and date live in the window).
+  // on focus; the Schedule tab's view, target and date and the Finance tab's
+  // view (GP-60: the Invoices tab's New invoice) live in the window).
   function mirrorRouteFromWindow(record, detail = {}){
     const route = detail?.route || {};
     const changed = Array.isArray(detail?.changedKeys) ? detail.changedKeys : [];
@@ -106,7 +107,11 @@
     const child=record?.frame?.contentWindow;
     const navigation=child?.Portal?.navigation;
     if(!navigation || !Object.keys(params || {}).length)return;
-    try{ navigation.replace?.(params,{source:'project-window-deep-link'}); navigation.applyCurrent?.({source:'project-window-deep-link',only:'project-schedule-route'}); }catch(_){}
+    try{
+      navigation.replace?.(params,{source:'project-window-deep-link'});
+      navigation.applyCurrent?.({source:'project-window-deep-link',only:'project-schedule-route'});
+      if(params.moneyView)navigation.applyCurrent?.({source:'project-window-deep-link',only:'project-money-route',force:true});
+    }catch(_){}
   }
   // Schedule changes in one surface refresh the others: a window's changes are
   // relayed to the portal as its usual refresh events, and portal refreshes
@@ -153,7 +158,7 @@
     record.controller?.destroy(); record.layer.remove(); clearRoutePrecover();
     if (active === record) {
       active = null;
-      if ((root.Portal?.routeState?.get?.() || {}).project === record.projectId) root.Portal?.routeState?.set?.({project:null,projectTab:null,projectFullscreen:null,projectScheduleView:null,projectScheduleTarget:null,projectScheduleDate:null},{history:'replace',source:'project-window-close'});
+      if ((root.Portal?.routeState?.get?.() || {}).project === record.projectId) root.Portal?.routeState?.set?.({project:null,projectTab:null,projectFullscreen:null,projectScheduleView:null,projectScheduleTarget:null,projectScheduleDate:null,moneyView:null},{history:'replace',source:'project-window-close'});
     }
     root.dispatchEvent(new CustomEvent('fm:projects:refresh', {detail:{redraw:true}}));
   }

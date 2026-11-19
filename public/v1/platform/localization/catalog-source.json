@@ -4069,7 +4069,17 @@
       "format": "icu"
     },
     "m_b994bd2b738d8c": " Reminder",
-    "m_fdb7ef8e6fc7a5": " Void"
+    "m_fdb7ef8e6fc7a5": " Void",
+    "m_de6ee4c6322778": "Let customers pay invoices online",
+    "m_9970407359bd63": "Set up payments so every invoice you send has a Pay button for card or bank.",
+    "m_95c81d9a92d972": "Set up payments",
+    "m_037eec2bba8822": "New invoice",
+    "m_bb1cabbe06f3b9": "Search projects, addresses or customers",
+    "m_a7a980ff5c5a8f": "Find a project",
+    "m_8a6e4a83bbdc2b": " Loading projects…",
+    "m_cb65e06a640330": "All projects",
+    "m_0e31fa9fe147f8": "No matching projects.",
+    "m_3fe33cd11f8a29": "History"
   },
   "materials": {
     "m_c44abe253b114a": "Shingles",
@@ -5667,7 +5677,8 @@
     "back_to_workspace": {
       "message": "Back to {workspace}",
       "format": "icu"
-    }
+    },
+    "m_67f39fd217c909": "Customers can't pay this invoice online until payments are set up."
   },
   "onboarding": {
     "m_a0d673c98d109b": "Order Reports",

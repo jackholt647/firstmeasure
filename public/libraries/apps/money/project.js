@@ -397,6 +397,7 @@
       .mn-sub-panel>strong{font-size:13px}
       .mn-alloc-row{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:8px;align-items:end}
       .mn-alert{display:flex;align-items:flex-start;gap:8px;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:600;background:#fffaeb;color:#93370d}
+      .mn-invoice-setup{flex-wrap:wrap;align-items:center;border:1px solid #f2ca72}.mn-invoice-setup>span{flex:1 1 150px;min-width:0;line-height:1.4}
       .mn-alert.error{background:#fef3f2;color:#b42318}
       .mn-list{display:flex;flex-direction:column;border:1px solid #eaecf0;border-radius:12px;overflow:hidden}
       .mn-list-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #f2f4f7;min-width:0}
@@ -536,6 +537,7 @@
         .mn-invoice-main,.mn-invoice-side{display:contents}
         .mn-invoice-note{order:1}
         .mn-invoice-total-box{order:2;margin-top:0;padding:10px 12px;border:0;background:#f9fafb}
+        .mn-invoice-setup{order:3}
         .mn-invoice-total-row.grand{display:none}
         .mn-invoice-picker-list{grid-template-columns:1fr}
         .mn-invoice-cols,.mn-invoice-line{grid-template-columns:minmax(0,1fr) 96px 32px}
@@ -1118,7 +1120,7 @@
   // The route's moneyView names what the ledger shows. Older views (Overview, the Expense lists, Recurring and
   // Receipts tabs, the phone's Ledger and Payments tabs) land on the ledger with the matching filter.
   function filterForView(view){
-    return ({ payments:'in', expenses:'out', invoices:'invoices', receipts:'receipts', recurring:'recurring' })[cleanText(view)] || 'all';
+    return ({ payments:'in', expenses:'out', invoices:'invoices', new_invoice:'invoices', receipts:'receipts', recurring:'recurring' })[cleanText(view)] || 'all';
   }
 
   function viewForFilter(filter){
@@ -1200,6 +1202,9 @@
       if (rootWindow.Portal?.navigation?.read?.()?.moneyView === 'take_payment') {
         rootWindow.Portal.navigation.replace?.({ moneyView:viewForFilter(state.ledgerFilter) }, { source:'project-money-take-payment-close', ownedKeys:['moneyView'] });
       }
+    }
+    if (state.modal?.type === 'invoice' && rootWindow.Portal?.navigation?.read?.()?.moneyView === 'new_invoice') {
+      rootWindow.Portal.navigation.replace?.({ moneyView:viewForFilter(state.ledgerFilter) }, { source:'project-money-new-invoice-close', ownedKeys:['moneyView'] });
     }
     state.modal = null;
     renderModal({ force:true });
@@ -1343,6 +1348,7 @@
           ${taxEnabled ? `<label class="mn-invoice-setting"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_265aee5b3f6c36","Sales tax") ?? "Sales tax")}</span><span class="mn-switch"><input type="checkbox" name="tax_enabled" data-money-invoice-tax-toggle role="switch" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_3c60eff258a89d","Enable sales tax") ?? "Enable sales tax")}" checked><span aria-hidden="true"></span></span></label><label class="mn-invoice-setting" data-money-invoice-tax-percent-row><span>${(globalThis.PlatformLanguage?.htmlText("money","m_609bec5738d42c","Tax %") ?? "Tax %")}</span><input class="mn-input" type="number" name="tax_percent" data-money-invoice-tax-percent min="0" max="100" step="0.01" inputmode="decimal" value="${escapeHtml(String(defaultTaxPercent))}"></label>` : ''}
         </div>
         <div class="mn-invoice-total-box"><div class="mn-invoice-total-row"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2fc5623e2a7511","Subtotal") ?? "Subtotal")}</span><span data-money-invoice-subtotal>${money(0)}</span></div>${taxEnabled ? `<div class="mn-invoice-total-row" data-money-invoice-tax-row-total><span>${(globalThis.PlatformLanguage?.htmlText("money","m_9920e005677da9","Tax") ?? "Tax")}</span><span data-money-invoice-tax-total>${money(0)}</span></div>` : ''}<div class="mn-invoice-total-row grand"><span>${escapeHtml(term('invoice_total'))}</span><span data-money-invoice-total>${money(0)}</span></div></div>
+        ${paymentsSetupPending() && canSetUpPayments() ? `<div class="mn-alert mn-invoice-setup"><i class="fas fa-credit-card" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_67f39fd217c909","Customers can't pay this invoice online until payments are set up.") ?? "Customers can't pay this invoice online until payments are set up.")}</span><button type="button" class="mn-btn small primary" data-money-invoice-setup>${escapeHtml(setUpPaymentsText())}</button></div>` : ''}
       </div>
     </form>`;
     const foot = `<div class="mn-invoice-foot-total" aria-hidden="true"><span>${escapeHtml(term('invoice_total'))}</span><strong data-money-invoice-foot-total>${money(0)}</strong></div><button type="button" class="mn-btn mn-spacer mn-invoice-cancel" data-money-modal-close>${(globalThis.PlatformLanguage?.htmlText("money","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="submit" form="mnInvoiceForm" class="mn-btn" data-money-invoice-submit disabled><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_92e593a70bd06d","Generate & Download") ?? "Generate & Download")}</button><button type="button" class="mn-btn primary" data-money-invoice-submit data-money-invoice-email-review disabled><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_61ede0befce19b","Generate an Email") ?? "Generate an Email")}</button>`;
@@ -1687,6 +1693,7 @@
       if (event.target.closest?.('[data-money-payments-setup]') && canSetUpPayments() && !moneyMutationBusy()) { startPaymentSetup(); return; }
       runAddAction(cleanText(button.dataset.moneyAddAction));
     }));
+    layer.querySelector('[data-money-invoice-setup]')?.addEventListener('click', () => { if (canSetUpPayments() && !moneyMutationBusy()) startPaymentSetup(); });
     layer.querySelectorAll('[data-money-item-action]').forEach((button) => button.addEventListener('click', () => {
       if (!state.modal) return;
       state.modal = { ...state.modal, action:cleanText(button.dataset.moneyItemAction) };
@@ -3011,6 +3018,9 @@
     const view = cleanText(route.moneyView);
     if (view === 'take_payment') {
       if (canManageMoney() && state.modal?.type !== 'take_payment') openModal({ type:'take_payment' });
+    } else if (view === 'new_invoice') {
+      // GP-60: the global Invoices tab's New invoice opens this project's Generate invoice dialog.
+      if (canManageMoney() && state.modal?.type !== 'invoice' && !moneyMutationBusy()) openModal({ type:'invoice' });
     } else if (viewForFilter(state.ledgerFilter) !== (view || 'overview') && !(view === 'ledger' && state.ledgerFilter === 'all')) {
       setLedgerFilter(filterForView(view), { route:false });
       const select = rootNode()?.querySelector('[data-money-ledger-filter]');
