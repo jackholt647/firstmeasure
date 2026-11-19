@@ -2875,23 +2875,40 @@
   // preferences My Settings also sets; one section always stays on.
   const SIDEBAR_SECTION_PREFERENCES = { apps:'left_column_apps', todo:'left_column_todo_list', channels:'left_column_channels', agents:'left_column_agents' };
   let sidebarSectionSave = Promise.resolve();
-  function renderSidebarSections(){
+  function sidebarSectionsMarkup(){
     const sidebar = document.getElementById('mainSidebar');
-    const tabs = sidebar?.querySelector('.sidebar-mode-tabs');
-    if (!tabs) return;
+    if (!sidebar) return '';
     const modes = [
       { key:'apps', tab:document.getElementById('sidebarAppsTab'), enabled:sidebar.classList.contains('apps-list-enabled') },
       { key:'todo', tab:document.getElementById('sidebarTodoTab'), enabled:sidebar.classList.contains('todo-list-enabled') },
       { key:'channels', tab:document.getElementById('sidebarChannelsTab'), enabled:sidebar.classList.contains('channels-tab-enabled') },
       { key:'agents', tab:document.getElementById('sidebarAgentsTab'), enabled:sidebar.classList.contains('agents-tab-enabled') }
     ];
-    let row = document.getElementById('sidebarSections');
     const allowed = window.Portal?.appFlags?.has?.('platform', 'left_column_settings', false) === true;
     // Channels is offered once Channels is on and this person has it.
     const offered = (mode) => mode.tab && sidebarSectionAvailable(mode.key)
       && (mode.key !== 'channels' || (window.Portal?.can?.('apps.channels') === true && launcherAppInExperience({ appId:'portal.channels' })));
     const sections = allowed && advancedAppMenuEnabled() ? modes.filter(offered) : [];
-    if (sections.length < 2) {
+    if (sections.length < 2) return '';
+    const onCount = sections.filter((mode) => mode.enabled).length;
+    return sections.map((mode) => {
+      const label = escapeHtml(cleanText(mode.tab.textContent) || mode.key);
+      const lastOn = mode.enabled && onCount < 2;
+      return `<button type="button" class="fm-sidebar-section${mode.enabled ? ' is-on' : ''}" data-sidebar-section="${escapeHtml(mode.key)}" role="switch" aria-checked="${mode.enabled ? 'true' : 'false'}"${lastOn ? ' disabled' : ''} title="${lastOn ? `${(globalThis.PlatformLanguage?.htmlText("platform","m_425aa108496d81","One section stays on") ?? "One section stays on")}` : mode.enabled ? `${(globalThis.PlatformLanguage?.htmlText("platform","m_aa4cf82d48e36a","Shown in your left column") ?? "Shown in your left column")}` : `${(globalThis.PlatformLanguage?.htmlText("platform","m_4ea56ca20d437a","Hidden from your left column") ?? "Hidden from your left column")}`}"><span>${label}</span><span class="fm-sidebar-section-switch" aria-hidden="true"></span></button>`;
+    }).join('');
+  }
+  function onSidebarSectionClick(event){
+    const button = event.target.closest?.('[data-sidebar-section]');
+    if (button && !button.disabled) toggleSidebarSection(button.dataset.sidebarSection);
+  }
+  // A wide column shows the switches in place of its section headers; a thin
+  // one has no room, so More apps shows them beside Thin and Wide.
+  function renderSidebarSections(){
+    const tabs = document.querySelector('#mainSidebar .sidebar-mode-tabs');
+    if (!tabs) return;
+    const markup = sidebarSectionsMarkup();
+    let row = document.getElementById('sidebarSections');
+    if (!markup) {
       row?.remove();
       return;
     }
@@ -2902,18 +2919,10 @@
       row.setAttribute('role', 'group');
       row.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("platform","m_121f1beba90822","Left column sections") ?? "Left column sections"));
       tabs.after(row);
-      row.addEventListener('click', (event) => {
-        const button = event.target.closest?.('[data-sidebar-section]');
-        if (button && !button.disabled) toggleSidebarSection(button.dataset.sidebarSection);
-      });
+      row.addEventListener('click', onSidebarSectionClick);
     }
-    const onCount = sections.filter((mode) => mode.enabled).length;
     const focused = row.contains(document.activeElement) ? document.activeElement.dataset.sidebarSection : '';
-    row.innerHTML = sections.map((mode) => {
-      const label = escapeHtml(cleanText(mode.tab.textContent) || mode.key);
-      const lastOn = mode.enabled && onCount < 2;
-      return `<button type="button" class="fm-sidebar-section${mode.enabled ? ' is-on' : ''}" data-sidebar-section="${escapeHtml(mode.key)}" role="switch" aria-checked="${mode.enabled ? 'true' : 'false'}"${lastOn ? ' disabled' : ''} title="${lastOn ? `${(globalThis.PlatformLanguage?.htmlText("platform","m_425aa108496d81","One section stays on") ?? "One section stays on")}` : mode.enabled ? `${(globalThis.PlatformLanguage?.htmlText("platform","m_aa4cf82d48e36a","Shown in your left column") ?? "Shown in your left column")}` : `${(globalThis.PlatformLanguage?.htmlText("platform","m_4ea56ca20d437a","Hidden from your left column") ?? "Hidden from your left column")}`}"><span>${label}</span><span class="fm-sidebar-section-switch" aria-hidden="true"></span></button>`;
-    }).join('');
+    row.innerHTML = markup;
     if (focused) row.querySelector(`[data-sidebar-section="${CSS.escape(focused)}"]`)?.focus({ preventScroll:true });
   }
   // A left-column preference changes at once and saves behind it; a failed
@@ -3564,6 +3573,7 @@
     const focusSelector = !focused ? '' : focused.dataset.advancedAppPin ? `[data-advanced-app-pin="${CSS.escape(focused.dataset.advancedAppPin)}"]`
       : focused.dataset.advancedAppOpen ? `.${CSS.escape(focused.classList[0] || 'fm-advanced-app-open')}[data-advanced-app-open="${CSS.escape(focused.dataset.advancedAppOpen)}"]`
       : focused.dataset.advancedSidebarWidth ? `[data-advanced-sidebar-width="${CSS.escape(focused.dataset.advancedSidebarWidth)}"]`
+      : focused.dataset.sidebarSection ? `.fm-advanced-apps-sections [data-sidebar-section="${CSS.escape(focused.dataset.sidebarSection)}"]`
       : focused.hasAttribute('data-advanced-apps-edit') ? '[data-advanced-apps-edit]' : '';
     const scrollTop = overlay?.querySelector('.fm-advanced-apps-scroll')?.scrollTop || 0;
     if (!overlay) {
@@ -3579,10 +3589,11 @@
     setSidebarEdge();
     window.setTimeout(setSidebarEdge, 210);
     const thinColumn = !!sidebar?.classList.contains('sidebar-compact');
+    const sectionsMarkup = thinColumn ? sidebarSectionsMarkup() : '';
     overlay.innerHTML = `
       <section class="fm-advanced-apps-panel" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_a151b65da51bfd","All apps") ?? "All apps")}">
         <button type="button" class="fm-advanced-apps-close" data-advanced-apps-close aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_0838136c759dc3","Close apps") ?? "Close apps")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
-        <div class="fm-advanced-apps-width" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_7af6be7c241afb","Left column width") ?? "Left column width")}"><button type="button" data-advanced-sidebar-width="thin" aria-pressed="${thinColumn ? 'true' : 'false'}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_dedf030c4eae88","Narrow left column with instant tooltips") ?? "Narrow left column with instant tooltips")}"><i class="fas fa-grip-lines-vertical" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_17c93bdd5a0f99","Thin") ?? "Thin")}</button><button type="button" data-advanced-sidebar-width="wide" aria-pressed="${thinColumn ? 'false' : 'true'}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_606db014592e3c","Full-width left column all the time") ?? "Full-width left column all the time")}"><i class="fas fa-table-columns" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_9246870f32f935","Wide") ?? "Wide")}</button></div>
+        <div class="fm-advanced-apps-column"><div class="fm-advanced-apps-width" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_7af6be7c241afb","Left column width") ?? "Left column width")}"><button type="button" data-advanced-sidebar-width="thin" aria-pressed="${thinColumn ? 'true' : 'false'}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_dedf030c4eae88","Narrow left column with instant tooltips") ?? "Narrow left column with instant tooltips")}"><i class="fas fa-grip-lines-vertical" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_17c93bdd5a0f99","Thin") ?? "Thin")}</button><button type="button" data-advanced-sidebar-width="wide" aria-pressed="${thinColumn ? 'false' : 'true'}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_606db014592e3c","Full-width left column all the time") ?? "Full-width left column all the time")}"><i class="fas fa-table-columns" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_9246870f32f935","Wide") ?? "Wide")}</button></div>${thinColumn && sectionsMarkup ? `<div class="fm-advanced-apps-sections" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_121f1beba90822","Left column sections") ?? "Left column sections")}">${sectionsMarkup}</div>` : ''}</div>
         <div class="fm-advanced-apps-scroll">
           <nav class="fm-advanced-apps-grid" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_290b7f9d844e1e","Active apps") ?? "Active apps")}">${String(enabled.map((entry, index) => appTile(entry, index)).join(''))}</nav>
         </div>
@@ -3594,6 +3605,7 @@
     }, { signal });
     overlay.querySelector('[data-advanced-apps-close]')?.addEventListener('click', () => closeAdvancedAppMenu(), { signal });
     overlay.querySelectorAll('[data-advanced-sidebar-width]').forEach((button) => button.addEventListener('click', () => setLeftColumnWidthMode(button.dataset.advancedSidebarWidth), { signal }));
+    overlay.querySelector('.fm-advanced-apps-sections')?.addEventListener('click', onSidebarSectionClick, { signal });
     overlay.querySelector('[data-advanced-apps-manage]')?.addEventListener('click', () => {
       closeAdvancedAppMenu({ restoreFocus:false });
       window.Portal?.navigation?.navigate?.(
@@ -4437,12 +4449,17 @@
       .fm-link.is-reordering{z-index:3;cursor:grabbing;background:#fff;box-shadow:0 8px 20px rgba(15,23,42,.18)}
       .fm-link.is-reordering .fm-sidebar-app-move{opacity:0!important}
       .sidebar.sidebar-compact.sidebar-manual:not(.sidebar-compact-expanded) .fm-sidebar-app-move,.sidebar.sidebar-compact.sidebar-manual:not(.sidebar-compact-expanded) .fm-sidebar-app-home{display:none}
-      .fm-advanced-apps-width{position:absolute;z-index:3;top:calc(-1 * clamp(10px,1.5vw,24px));left:calc(-1 * clamp(10px,1.5vw,24px));display:flex;gap:2px;padding:3px;border:1px solid rgba(255,255,255,.18);border-radius:11px;background:rgba(255,255,255,.08)}
+      .fm-advanced-apps-column{position:absolute;z-index:3;top:calc(-1 * clamp(10px,1.5vw,24px));left:calc(-1 * clamp(10px,1.5vw,24px));display:flex;align-items:center;gap:8px}
+      .fm-advanced-apps-width,.fm-advanced-apps-sections{display:flex;gap:2px;padding:3px;border:1px solid rgba(255,255,255,.18);border-radius:11px;background:rgba(255,255,255,.08)}
+      .fm-advanced-apps-sections .fm-sidebar-section{min-height:32px;padding:0 10px;border-radius:8px;color:rgba(255,255,255,.6);font-size:11px}
+      .fm-advanced-apps-sections .fm-sidebar-section:hover,.fm-advanced-apps-sections .fm-sidebar-section:focus-visible{background:rgba(255,255,255,.15);color:#fff}
+      .fm-advanced-apps-sections .fm-sidebar-section.is-on{color:#fff}
+      .fm-advanced-apps-sections .fm-sidebar-section-switch{background:rgba(255,255,255,.28)}
       .fm-advanced-apps-width button{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border:0;border-radius:8px;background:transparent;color:rgba(255,255,255,.72);font:inherit;font-size:11px;font-weight:900;cursor:pointer;transition:background .16s ease,color .16s ease}
       .fm-advanced-apps-width button:hover,.fm-advanced-apps-width button:focus-visible{background:rgba(255,255,255,.15);color:#fff;outline:none}
       .fm-advanced-apps-width button[aria-pressed="true"]{background:#fff;color:#101828}
-      .fm-advanced-apps-overlay.is-compact .fm-advanced-apps-width{display:none}
-      @media(max-width:820px){.fm-advanced-apps-width{display:none}}
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-apps-column{display:none}
+      @media(max-width:820px){.fm-advanced-apps-column{display:none}}
       .fm-advanced-app-home{margin-right:5px;color:var(--primary-readable,var(--primary,#d93025));font-size:.9em}
       .fm-sidebar-sections{display:none}
       .sidebar.sidebar-advanced-apps-open:not(.sidebar-manual) .fm-sidebar-sections,.sidebar.sidebar-advanced-apps-open.sidebar-manual:not(.sidebar-compact) .fm-sidebar-sections{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);margin:0 -14px;border:1px solid rgba(0,0,0,.07);border-bottom:0;background:#f7f8fa}
