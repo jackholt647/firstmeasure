@@ -4,7 +4,7 @@
 (function(){
   const contactsModuleUrl = new URL('../contacts/modal.js?v=20261101-prod-sync', document.currentScript.src);
   const registryUrl = new URL('../../window-manager/project-windows.js?v=20261118-fm559-camera-first', document.currentScript.src);
-  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20261025-split-close-width-v1', document.currentScript.src);
+  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20261119-gp19-order-pane', document.currentScript.src);
   const shellUrl = new URL('../../window-manager/window-shell.js?v=20261026-phone-tab-labels', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
 window.PlatformCommerce.onReady(async function(){
@@ -2682,6 +2682,8 @@ window.PlatformCommerce.onReady(async function(){
   // Leave the ordering UI without submitting, deleting, or replacing the project or its fields.
   function cancelMobileReportOrdering(){
     if (!shouldUseMobileOrderPagination() || orderSubmissionPending) return false;
+    // A pane ordering on a phone is a dialog that holds only the order (a proposal's, GP-19): leaving it closes it.
+    if (projectContentPane && projectWindowBridge?.closed) { projectWindowBridge.closed(projectWindowToken); return true; }
     requestedWorkflow = 'project';
     overviewWorkflowMode = '';
     reportProjectChoice = '';
@@ -7712,6 +7714,20 @@ window.PlatformCommerce.onReady(async function(){
       },
       canOrderMeasurements: () => firstMeasureReportOrdersEnabled() && hasPerm('order_reports') && !hasReportOrdered(),
       orderMeasurements: () => startMeasurementOrder(),
+      // A report ordered for this project in another of its documents (a proposal's order dialog, GP-19): read
+      // the project again and take it as opening it would, staying on this tab, so this window never saves over
+      // the order. project is that document's copy; the server's wins for what it stores.
+      adoptProject: async (project) => {
+        const sameProject = (record) => !!record && !!activeBaseProject && projectOpenId(record) === projectOpenId(activeBaseProject);
+        if (!sameProject(project)) return null;
+        const record = await hydratePlatformProjectForOpen(project).catch((error) => { console.warn('The ordered project could not be read again', error); return project; });
+        if (!sameProject(record)) return null;
+        const tab = activePreviewTab;
+        hydrateFromBaseProject(record, { preferredTab: tab });
+        renderWorkflowState({ preserveRouteTab: true });
+        if (activePreviewTab !== tab) setActivePreviewTab(tab, { syncRoute: false });
+        return activeBaseProject;
+      },
       setReportOrderState: (nextState) => {
         reportOrderState = nextState || null;
         return reportOrderState;

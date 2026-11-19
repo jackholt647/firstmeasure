@@ -444,6 +444,8 @@
       // keeping projectId blank so the engine creates org-scoped documents.
       project: pid ? project() : {},
       projectId: pid,
+      // The project window's host: what the engine asks of the project (its report order; ordering measurements, GP-19).
+      host: pid ? state.host || undefined : undefined,
       active: state.active,
       params: {
         embed: {

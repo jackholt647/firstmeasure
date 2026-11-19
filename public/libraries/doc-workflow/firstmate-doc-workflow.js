@@ -1275,9 +1275,14 @@
       const state = structureState();
       const structures = structureList(state);
       const manualKeys = structures.length ? combineStructures(state).manualKeys : [];
+      const orderable = !hasProject && orderOffered();
       const statusLine = report.status === 'loading'
         ? `<p class="fmdw-hint fmdw-meas-source"><i class="fas fa-circle-notch fa-spin"></i> Reading this project's measurements…</p>`
-        : (!hasProject && cleanText(ctx.item.prefill) ? `<p class="fmdw-hint fmdw-meas-source"><i class="fas fa-circle-info"></i> ${esc(report.status === 'error' ? 'This project\'s measurements could not be read. Enter them by hand.' : 'This project has no measurement report yet. Enter the measurements by hand.')}</p>` : '');
+        : (report.status === 'ordered' && !hasProject
+          ? `<p class="fmdw-hint fmdw-meas-source"><i class="fas fa-circle-check"></i> ${esc(L('measurements_ordered', 'Measurements ordered. They fill in here when the report is ready; until then you can enter them by hand.'))}</p>`
+          : (orderable
+            ? `<div class="fmdw-meas-order"><p class="fmdw-hint fmdw-meas-source"><i class="fas fa-circle-info"></i> ${esc(L('measurements_order_hint', 'This project has no measurement report yet. Order one, or enter the measurements by hand.'))}</p><button type="button" class="fmdw-btn ghost" data-fmdw-meas-order><i class="fas fa-ruler-combined"></i> ${esc(L('measurements_order', 'Order measurements'))}</button></div>`
+            : (!hasProject && cleanText(ctx.item.prefill) ? `<p class="fmdw-hint fmdw-meas-source"><i class="fas fa-circle-info"></i> ${esc(report.status === 'error' ? 'This project\'s measurements could not be read. Enter them by hand.' : 'This project has no measurement report yet. Enter the measurements by hand.')}</p>` : '')));
       // The values the estimate prices from, and the only ones typed here: under the one structure, or under the total.
       const valuesHtml = `
         ${list.length ? `
@@ -1351,25 +1356,53 @@
         wrap.classList?.toggle('needed', cleanText(input.value) === '');
       }));
       el.querySelector('[data-fmdw-meas-reload]')?.addEventListener('click', () => { applyProject(true); render(); });
+      el.querySelector('[data-fmdw-meas-order]')?.addEventListener('click', (event) => orderMeasurements(event.currentTarget));
       el.querySelector('[data-fmdw-meas-clear]')?.addEventListener('click', () => { ctx.write(null); render(); });
       bindStructures();
     };
 
-    // Start from the project automatically. Values already entered are kept;
-    // only what is still empty is filled in.
-    if (!ctx.readonly && Object.keys(projectValues()).length) applyProject(false);
-    render();
-    if (report.status === 'loading') {
+    /** Read the project's measurements and fill what is still empty. A report ordered and not ready yet (just now,
+     *  or as the host says: services.measurementsOrdered) leaves the step "ordered" rather than "missing". */
+    function readReport(orderedNow){
+      const pending = () => {
+        try { return orderedNow || services.measurementsOrdered?.() === true; } catch (e) { return orderedNow; }
+      };
       Promise.resolve().then(() => services.projectMeasurements()).then((result) => {
+        const ordered = pending();
         const values = obj(obj(result).values);
         // Structures the report measured separately, with the dataset they came from.
-        report = { status: Object.keys(values).length ? 'ready' : 'missing', values, source: cleanText(obj(result).source), structures: arr(obj(result).structures), units: obj(obj(result).units), dataset_id: cleanText(obj(result).dataset_id), revision: obj(result).revision };
-      }).catch(() => { report = { status: 'error', values: {}, source: '' }; }).then(() => {
+        report = { status: Object.keys(values).length ? 'ready' : (ordered ? 'ordered' : 'missing'), values, source: cleanText(obj(result).source), structures: arr(obj(result).structures), units: obj(obj(result).units), dataset_id: cleanText(obj(result).dataset_id), revision: obj(result).revision };
+      }).catch(() => { report = { status: pending() ? 'ordered' : 'error', values: {}, source: '' }; }).then(() => {
         if (!el.isConnected) return;
         if (!ctx.readonly && Object.keys(projectValues()).length) applyProject(false);
         render();
       });
     }
+    // Ordering them (GP-19): while the project has no measurements, a host that can order them for the measurements
+    // this step asks for (FirstMeasure roof reports) offers its own order workflow here, and the step reads the
+    // project again once an order is placed. orderMeasurements() resolves true when one was.
+    function orderOffered(){
+      if (ctx.readonly || !cleanText(ctx.item.prefill) || typeof services.orderMeasurements !== 'function') return false;
+      if (report.status !== 'missing' && report.status !== 'error') return false;
+      try { return services.canOrderMeasurements?.({ keys: fields().map((field) => field.key) }) === true; } catch (e) { return false; }
+    }
+    async function orderMeasurements(button){
+      if (button) button.disabled = true;
+      let placed = false;
+      try { placed = await services.orderMeasurements({ keys: fields().map((field) => field.key) }) === true; }
+      catch (error) { console.warn('FMDocWorkflow: the measurement order could not be opened', error); }
+      if (!el.isConnected) return;
+      if (!placed) { render(); return; }
+      report = { status: 'loading', values: {}, source: '' };
+      render();
+      readReport(true);
+    }
+
+    // Start from the project automatically. Values already entered are kept;
+    // only what is still empty is filled in.
+    if (!ctx.readonly && Object.keys(projectValues()).length) applyProject(false);
+    render();
+    if (report.status === 'loading') readReport(false);
     return {
       validate: () => {
         const error = requiredError(ctx);
@@ -4254,6 +4287,7 @@
 .fmdw-meas-field.derived input{background:#f2f4f7}
 .fmdw-meas-note{margin:0;font-size:11px;font-weight:900;color:#b58a00}
 .fmdw-meas-source{margin:0}
+.fmdw-meas-order{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px}.fmdw-meas-order .fmdw-meas-source{flex:1 1 220px}.fmdw-meas-order .fmdw-btn{flex:none}
 .fmdw-meas-extra summary{cursor:pointer;font-size:11px;font-weight:900;color:var(--fmdw-muted)}
 .fmdw-meas-extra .fmdw-stat-grid{margin-top:8px}
 .fmdw-meas-step>.fmdw-row-actions .fmdw-btn{min-height:30px;padding:0 8px}

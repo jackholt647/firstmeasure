@@ -56,7 +56,7 @@
     versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
     versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261118-fm608-payments-off'),
     versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261118-fm608-payments-off'),
-    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261118-fm604'),
+    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261119-gp19-order-measurements'),
     versionedBundle('signatures/project.js', '20261019-forward-cert')
   ];
   const crewBundles = [
@@ -191,7 +191,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('docs/project.js', '20261119-gp21-doc-trash')]
+      bundles: [versionedBundle('docs/project.js', '20261119-gp19-order-measurements')]
     },
     {
       id: 'project.documents',
@@ -219,7 +219,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261118-fm614-setup-embed')
+        versionedBundle('documents/project.js', '20261119-gp19-order-measurements')
       ]
     },
     {
@@ -305,7 +305,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261118-fm559-camera-first'), versionedBundle('project-request/app.js', '20261118-fm616-doc-previews')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261118-fm559-camera-first'), versionedBundle('project-request/app.js', '20261119-gp19-order-measurements')]
     },
     {
       id: 'firstmeasure.order',
