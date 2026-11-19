@@ -250,6 +250,8 @@ test('a receipt is one screen: file beside its review form, applied at a glance,
   assert.match(money, /if \(receiptArrowKey\(event\)\) \{\s*event\.preventDefault\(\);\s*moveReceipt\(event\.key === 'ArrowLeft' \? -1 : 1\);/);
   assert.match(money, /input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\),textarea,select/);
   assert.match(money, /keepReceiptDraft\(\);/);
+  // Escape with the date picker open closes the picker, not the receipt.
+  assert.match(money, /if \(layer\.querySelector\('\.fm-select-list-trigger\[aria-expanded="true"\]'\) \|\| document\.querySelector\('fm-date-time-picker\[popover\]'\)\) return;/);
   // Purchase date and time are optional unless the organization's receipt settings require them.
   assert.match(money, /name="purchase_date" type="date" data-picker-near value="[^"]*" \$\{settings\.require_date \? 'required' : ''\}/);
   assert.match(money, /name="purchase_time" type="time" step="60" data-picker-near value="[^"]*" \$\{settings\.require_time \? 'required' : ''\}/);
