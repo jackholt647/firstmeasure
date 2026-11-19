@@ -2460,13 +2460,14 @@
     Promise.resolve(setup).then(recheckPaymentsSetup, () => openPaymentSettings());
   }
 
-  // Online payments have not been set up (or turned on) yet, by the server's
-  // readiness answer loaded with the tab. Unknown (not asked, or the ask
-  // failed) is not "not set up": the pill only shows on a definite answer.
+  // Online payments are not set up yet (off, no merchant account, or the
+  // application not approved), by the server's readiness answer loaded with
+  // the tab. Paused processing or a provider outage is not setup, and unknown
+  // (not asked, or the ask failed) is not "not set up": no pill for those.
   function paymentsSetupPending(){
     const entry = state.paymentIntakeConfig;
     const config = entry && entry.key === `${orgId()}:${projectId()}` ? entry.config : null;
-    return !!config && config.ready !== true && ['online_processing_off', 'no_merchant_account'].includes(cleanText(config.not_ready_reason));
+    return !!config && config.ready !== true && ['online_processing_off', 'no_merchant_account', 'not_approved'].includes(cleanText(config.not_ready_reason));
   }
 
   function setUpPaymentsText(){
