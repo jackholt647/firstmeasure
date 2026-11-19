@@ -2799,7 +2799,7 @@
 
     /**
      * A new draft from one template, opened on its workflow, as New document starts one (its parameters' defaults, its
-     * workflow, the project's name in the title): for a host that has already chosen the template (the document setup's
+     * workflow, the kind's name as its title, GP-106): for a host that has already chosen the template (the document setup's
      * first proposal, FM-614). options.onFinish: the person goes back to the host when done with it. Returns the draft.
      */
     async function startFromTemplate(templateId, options = {}){
@@ -2822,7 +2822,7 @@
         document_type: type,
         template_id: template.id,
         workflow_id: record ? workflowId : null,
-        title: firstText(options.title, `${typeMeta(type, state.catalog?.types).label} — ${firstText(project().name, project().customer_name, 'New Document')}`),
+        title: firstText(options.title, typeMeta(type, state.catalog?.types).label),
         params
       });
       const doc = objectValue(res.document || res.doc || res);
@@ -3242,7 +3242,7 @@
             document_type: wizard.type,
             template_id: wizard.template?.id || null,
             workflow_id: workflowId,
-            title: firstText(prefill.title, `${meta.label} — ${firstText(project().name, project().customer_name, 'New Document')}`),
+            title: firstText(prefill.title, meta.label),
             params
           });
           const doc = objectValue(res.document || res.doc || res);
@@ -3286,7 +3286,7 @@
           .join('');
         body.innerHTML = `
           <div class="fmdx-form-grid">
-            <label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_29dbd3d8b69f55","Title") ?? "Title")}</span><input type="text" data-create-title value="${String(esc(firstText(prefill.title, firstText(project().name, project().customer_name) ? `${meta.label} — ${firstText(project().name, project().customer_name)}` : meta.label)))}"></label>
+            <label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_29dbd3d8b69f55","Title") ?? "Title")}</span><input type="text" data-create-title value="${String(esc(firstText(prefill.title, meta.label)))}"></label>
             ${String(fieldsHtml || `<p class="fmdx-data-hint wide">${(globalThis.PlatformLanguage?.htmlText("documents","m_8c43f5efc8b00c","This template has no inputs — you can add data later from the editor’s Data panel.") ?? "This template has no inputs — you can add data later from the editor’s Data panel.")}</p>`)}
           </div>
           <div class="fmdx-modal-foot">
@@ -3829,7 +3829,6 @@
       const params = objectValue(source.params);
       openCreateModal({
         document_type: 'change_order',
-        title: ((v0) => globalThis.PlatformLanguage?.text("documents","m_24d875eaf00564",`Change Order — ${v0}`,{v0}) ?? `Change Order — ${v0}`)(firstText(source.title, 'Document')),
         params: {
           source_document_id: firstText(source.id),
           ...(params.tax_percent !== undefined ? { tax_percent: params.tax_percent } : {})
