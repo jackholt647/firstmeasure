@@ -6,19 +6,19 @@
       "scope": "organization",
       "title": {
         "key": "gx_step_company_locations_title",
-        "text": "How many locations do you work out of?"
+        "text": "How many of your own locations do you store equipment at?"
       },
       "subtitle": {
         "key": "gx_step_company_locations_subtitle",
-        "text": "Your shops, yards or offices where the work starts. Each one gets its own facility for your equipment."
+        "text": "Count your own shops, yards and offices, not job sites. Each one gets its own facility for your equipment."
       },
       "description": {
         "key": "gx_step_company_locations_description",
-        "text": "How many locations the organization works out of: its shops, yards or offices."
+        "text": "How many of its own locations (shops, yards or offices, not job sites) the organization stores equipment at."
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/company-profile.js?v=20261119-gp15"
+        "module": "/libraries/setup-steps/company-profile.js?v=20261119-gp57"
       },
       "options": {
         "part": "locations"
@@ -57,10 +57,6 @@
       "description": {
         "key": "gx_eqs_setup_description",
         "text": "Where you keep your equipment, what you use on your jobs, and how many of each you have."
-      },
-      "intro": {
-        "key": "gx_eqs_setup_intro",
-        "text": "A few questions about your equipment, so your projects know what you can bring to the job."
       },
       "skip_note": {
         "key": "gx_eqs_setup_skip_note",

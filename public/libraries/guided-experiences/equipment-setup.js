@@ -137,7 +137,7 @@ export function mount(el, ctx){
     title(L('gx_eqs_locations_title', 'Where do you keep your equipment?'));
     const single = locations.length === 1;
     el.innerHTML = `<div class="gxe" data-gxe-page="locations">
-      <p>${esc(single ? L('gx_eqs_locations_lead_one', 'Your equipment comes from one place. Give it a name your team uses.') : L('gx_eqs_locations_lead', 'Each location you work out of gets its own facility, so every unit has a home. Give each one a name your team uses.'))}</p>
+      <p>${esc(single ? L('gx_eqs_locations_lead_one', 'Your equipment comes from one place. Give it a name your team uses.') : L('gx_eqs_locations_lead', 'Each of your locations gets its own facility, so every unit has a home. Give each one a name your team uses.'))}</p>
       <div class="gxe-rows">${locations.map((row, at) => `<div class="gxe-loc" data-gxe-loc="${esc(row.key)}">${icon('fa-warehouse')}<input class="gxe-input" data-gxe-loc-name value="${esc(row.name)}" maxlength="120" aria-label="${esc(L('gx_eqs_location_name', 'Location name'))}" placeholder="${esc(L('gx_eqs_location_n', 'Location {n}', { n: at + 1 }))}">${!row.id && locations.length > 1 ? `<button type="button" class="gxe-remove" data-gxe-loc-remove aria-label="${esc(L('gx_eqs_location_remove', 'Remove this location'))}"><i class="fas fa-xmark" aria-hidden="true"></i></button>` : ''}</div>`).join('')}</div>
       ${locations.length < MAX_LOCATIONS ? `<button type="button" class="gxe-link" data-gxe-loc-add><i class="fas fa-plus" aria-hidden="true"></i>${esc(L('gx_eqs_location_add', 'Add a location'))}</button>` : ''}
       <p class="gxe-note">${esc(L('gx_eqs_locations_note', 'You can add each one’s address in Equipment › Facilities.'))}</p>

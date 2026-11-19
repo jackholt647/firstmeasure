@@ -73,6 +73,12 @@ test("the library entries parse, and their checks pass against the running code"
   for (const entry of offered) assert.equal(entry.label.key.startsWith("gx_eqs_kind_"), true, entry.id);
   // Font Awesome 6.0 (what the portal loads) has no fa-toilet-portable or fa-arrows-up-to-line: their tiles were blank.
   for (const entry of offered) assert.ok(!["fa-toilet-portable", "fa-arrows-up-to-line"].includes(entry.icon), `${entry.id} has an icon Font Awesome 6.0 draws`);
+  // GP-57: the locations question is about the company's own places that keep equipment, not job sites ("work out of"
+  // read as either), and its first page carries no intro line under the title that no other page has.
+  const locations = library.setup_step.find((step: any) => step.id === "company.locations");
+  assert.match(locations.title.text, /your own locations.*equipment/i);
+  assert.doesNotMatch(`${locations.title.text} ${locations.subtitle.text}`, /work out of/i);
+  assert.equal(experience.intro, undefined);
 });
 
 test("the setup asks the company type and how many locations only while unanswered", async () => {

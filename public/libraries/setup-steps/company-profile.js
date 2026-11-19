@@ -195,15 +195,15 @@ export function mount(el, ctx){
     };
   }
 
-  // ── How many locations do you work out of? (one, two, three, or more with the number) ─────
+  // ── How many of your own locations do you store equipment at? (one, two, three, or more with the number) ─────
   function locationsPart(){
     const MAX = 20;
     const given = Number(answer.locations ?? profile.locations) || 0;
     let chosen = given >= 4 ? 'more' : given ? String(given) : '';
-    const tiles = [['1', L('gx_step_company_locations_one', 'One location'), L('gx_step_company_locations_one_hint', 'We work out of one shop or yard.')],
+    const tiles = [['1', L('gx_step_company_locations_one', 'One location'), L('gx_step_company_locations_one_hint', 'We keep it all at one shop or yard.')],
       ['2', L('gx_step_company_locations_two', 'Two'), ''], ['3', L('gx_step_company_locations_three', 'Three'), ''],
       ['more', L('gx_step_company_locations_more', 'More than three'), '']];
-    el.innerHTML = `<div class="gxc"><div class="gxc-grid gxc-count" role="radiogroup" aria-label="${esc(L('gx_step_company_locations_title', 'How many locations do you work out of?'))}">${tiles.map(([id, text, hint]) => `<button type="button" class="gxc-tile" role="radio" data-count="${id}" aria-checked="${chosen === id}" aria-selected="${chosen === id}"><strong>${esc(text)}</strong>${hint ? `<small>${esc(hint)}</small>` : ''}${tick}</button>`).join('')}</div>
+    el.innerHTML = `<div class="gxc"><div class="gxc-grid gxc-count" role="radiogroup" aria-label="${esc(L('gx_step_company_locations_title', 'How many of your own locations do you store equipment at?'))}">${tiles.map(([id, text, hint]) => `<button type="button" class="gxc-tile" role="radio" data-count="${id}" aria-checked="${chosen === id}" aria-selected="${chosen === id}"><strong>${esc(text)}</strong>${hint ? `<small>${esc(hint)}</small>` : ''}${tick}</button>`).join('')}</div>
       <div class="gxc-more" data-more ${chosen === 'more' ? '' : 'hidden'}><label class="gxc-lead" for="gxc-locations">${esc(L('gx_step_company_locations_how_many', 'How many?'))}</label><input id="gxc-locations" class="gxc-input" type="number" inputmode="numeric" min="4" max="${MAX}" value="${given >= 4 ? given : 4}"></div></div>`;
     const more = el.querySelector('[data-more]'), input = more.querySelector('input');
     const count = () => chosen === 'more' ? Math.round(Number(input.value)) : Number(chosen) || 0;
