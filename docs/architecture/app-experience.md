@@ -138,6 +138,15 @@ and CSS, real localized copy and a Get Started button; it is not a new guide
 engine. Opening it neither records `seen_tabs` nor launches a guide, and New
 remains visible regardless of personal seen history.
 
+Advertisements (the app welcome and the project tab promos in
+`apps/tab-promos/project.js`) are white and drawn in the organization's colours:
+its primary (`--primary-readable`) for accents, the Get Started button and the
+FirstMate mark (`logo_square.png` as a CSS mask, never the red image), its
+secondary, darkened until it reads on white, in the illustration and the promo
+footer. An app's `theme` picks the illustration; its colour is only the fallback
+on a page with no theme. Status pills (Free Forever, Setup required, Coming soon)
+keep their own colours.
+
 `POST /v1/platform/organizations/:orgId/app-offers/:appId/start` requires a
 verified organization session, CSRF, and an app the caller can see. Anyone with
 that visibility can currently activate it; `mayStartOfferedApp` is the single
