@@ -52,3 +52,14 @@ test('embedded People opens on the named sub-page and leaves the page route alon
   assert.match(people, /const embedded = pane\.dataset\.settingsEmbedded === '1';/);
   assert.match(people, /mount\(pane, embedded \? \{ route:false, view:pane\.dataset\.settingsView \|\| '', entity:pane\.dataset\.settingsEntity \|\| '' \} : \{\}\)/);
 });
+
+// GP-123: in a window that scrolls, the Settings card grows to its content and never scrolls itself;
+// overscroll-behavior:contain on it kept the mouse wheel from reaching the window, so only dragging
+// the scrollbar moved Scheduling settings.
+test('the mouse wheel reaches the window an embedded Settings card sits in', () => {
+  const contain = company.indexOf('.cs-main>.cs-card,.cs-wrap.forms-wide .cs-main>.cs-card{height:100%;min-height:0;max-height:none;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain');
+  const embedded = company.indexOf('.cs-wrap.embedded-tab-only .cs-main>.cs-card{overscroll-behavior:auto}');
+  assert.ok(contain > 0, 'Settings card scroll rule not found');
+  assert.ok(embedded > contain, 'embedded Settings card must not contain the wheel (and must come after the rule that does)');
+  assert.match(scheduling, /\.dash-crew-settings-modal>\.dash-modal-body\{[^}]*overflow:auto/);
+});
