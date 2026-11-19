@@ -4,6 +4,7 @@ import { registerChecklistDefaultsPublication } from '../../workforce/checklist-
 import { registerCommsSetupPublication } from '../../comms/setup.js';
 import { registerCompanyProfilePublication } from '../../company-profile/publication.js';
 import { registerAppointmentSetupPublication } from '../../appointments/setup.js';
+import { registerEquipmentSetupPublication } from '../../equipment/setup.js';
 import { registerDocumentSetupPublication } from '../../documents/setup.js';
 import { registerSetupStepPublication } from '../../guided-experiences/publication.js';
 import { registerSandboxSetupActions } from '../../signup-sandbox/setup-actions.js';
@@ -92,6 +93,7 @@ export function initializePublication() {
   registerCommsSetupPublication();
   registerCompanyProfilePublication();
   registerAppointmentSetupPublication();
+  registerEquipmentSetupPublication();
   registerDocumentSetupPublication();
   registerSetupStepPublication();
   registerSandboxSetupActions();

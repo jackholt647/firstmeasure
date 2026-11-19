@@ -1,0 +1,469 @@
+{
+  "setup_step": [
+    {
+      "id": "company.locations",
+      "version": 1,
+      "scope": "organization",
+      "title": {
+        "key": "gx_step_company_locations_title",
+        "text": "How many locations do you work out of?"
+      },
+      "subtitle": {
+        "key": "gx_step_company_locations_subtitle",
+        "text": "Your shops, yards or offices where the work starts. Each one gets its own facility for your equipment."
+      },
+      "description": {
+        "key": "gx_step_company_locations_description",
+        "text": "How many locations the organization works out of: its shops, yards or offices."
+      },
+      "ui": {
+        "widget": "module",
+        "module": "/libraries/setup-steps/company-profile.js?v=20261119-gp15"
+      },
+      "options": {
+        "part": "locations"
+      },
+      "requires": [
+        "company.type"
+      ],
+      "eligibility": {
+        "capabilities": [],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "satisfied": {
+        "provider": "company-profile",
+        "export": "profile",
+        "path": "/answered/locations"
+      },
+      "writes": {
+        "action": "company-profile.save",
+        "target": "organization"
+      }
+    }
+  ],
+  "guided_experience": [
+    {
+      "id": "equipment.setup",
+      "version": 1,
+      "kind": "modal",
+      "scope": "organization",
+      "salt": "equipment-v1",
+      "title": {
+        "key": "gx_eqs_setup_title",
+        "text": "Set up your equipment"
+      },
+      "description": {
+        "key": "gx_eqs_setup_description",
+        "text": "Where you keep your equipment, what you use on your jobs, and how many of each you have."
+      },
+      "intro": {
+        "key": "gx_eqs_setup_intro",
+        "text": "A few questions about your equipment, so your projects know what you can bring to the job."
+      },
+      "skip_note": {
+        "key": "gx_eqs_setup_skip_note",
+        "text": "You can still add equipment yourself in the Equipment tab."
+      },
+      "tab": "portal.equipment",
+      "eligibility": {
+        "capabilities": [
+          "apps.equipment"
+        ],
+        "permissions": [
+          "equipment.manage|manage_company_settings"
+        ]
+      },
+      "triggers": [
+        {
+          "kind": "tab_opened",
+          "tab": "portal.equipment",
+          "once": true,
+          "delay_ms": 600,
+          "skip": "later",
+          "skip_note": {
+            "key": "gx_eqs_setup_skip_later",
+            "text": "No problem. Set it up any time from Operations, or add equipment here yourself."
+          }
+        },
+        {
+          "kind": "manual"
+        }
+      ],
+      "variants": [
+        {
+          "id": "default",
+          "weight": 1,
+          "content": {}
+        }
+      ],
+      "requires": [
+        "company.type",
+        "company.locations"
+      ],
+      "steps": [
+        {
+          "id": "equipment",
+          "widget": "equipment-setup",
+          "requires": [],
+          "title": {
+            "key": "gx_eqs_step_title",
+            "text": "Your equipment"
+          },
+          "subtitle": {
+            "key": "gx_eqs_step_subtitle",
+            "text": "Where you keep it, what you use, and how many of each."
+          },
+          "say": [],
+          "options": {
+            "groups": [
+              {
+                "id": "vehicles",
+                "label": {
+                  "key": "gx_eqs_group_vehicles",
+                  "text": "Getting to the job"
+                }
+              },
+              {
+                "id": "debris",
+                "label": {
+                  "key": "gx_eqs_group_debris",
+                  "text": "Hauling debris"
+                }
+              },
+              {
+                "id": "site",
+                "label": {
+                  "key": "gx_eqs_group_site",
+                  "text": "On the job site"
+                }
+              }
+            ],
+            "equipment": [
+              {
+                "id": "pickup_truck",
+                "group": "vehicles",
+                "label": {
+                  "key": "gx_eqs_kind_pickup_truck",
+                  "text": "Pickup trucks"
+                },
+                "hint": {
+                  "key": "gx_eqs_kind_pickup_truck_hint",
+                  "text": "Getting the team and tools to the job."
+                },
+                "icon": "fa-truck-pickup",
+                "kind": "vehicle",
+                "category": "vehicles"
+              },
+              {
+                "id": "work_van",
+                "group": "vehicles",
+                "label": {
+                  "key": "gx_eqs_kind_work_van",
+                  "text": "Work vans"
+                },
+                "hint": {
+                  "key": "gx_eqs_kind_work_van_hint",
+                  "text": "Stocked vans for service and install work."
+                },
+                "icon": "fa-van-shuttle",
+                "kind": "vehicle",
+                "category": "vehicles",
+                "industries": [
+                  "hvac",
+                  "plumbing",
+                  "electrical",
+                  "painting",
+                  "home_improvement",
+                  "general_contractor",
+                  "exteriors",
+                  "solar"
+                ]
+              },
+              {
+                "id": "trailer",
+                "group": "vehicles",
+                "label": {
+                  "key": "gx_eqs_kind_trailer",
+                  "text": "Trailers"
+                },
+                "hint": {
+                  "key": "gx_eqs_kind_trailer_hint",
+                  "text": "Flatbed, utility or enclosed trailers you tow."
+                },
+                "icon": "fa-trailer",
+                "kind": "trailer",
+                "category": "trailers"
+              },
+              {
+                "id": "dump_truck",
+                "group": "debris",
+                "label": {
+                  "key": "gx_eqs_kind_dump_truck",
+                  "text": "Dump trucks"
+                },
+                "hint": {
+                  "key": "gx_eqs_kind_dump_truck_hint",
+                  "text": "Haul tear-off and debris away, a load at a time."
+                },
+                "icon": "fa-truck",
+                "kind": "vehicle",
+                "category": "vehicles",
+                "provides": [
+                  {
+                    "item": "disposal.debris",
+                    "capacity": 10,
+                    "per_load": true
+                  }
+                ],
+                "industries": [
+                  "roofing",
+                  "exteriors",
+                  "general_contractor",
+                  "home_improvement",
+                  "landscaping"
+                ]
+              },
+              {
+                "id": "dump_trailer",
+                "group": "debris",
+                "label": {
+                  "key": "gx_eqs_kind_dump_trailer",
+                  "text": "Dump trailers"
+                },
+                "hint": {
+                  "key": "gx_eqs_kind_dump_trailer_hint",
+                  "text": "Pulled behind a truck, dumped and used again."
+                },
+                "icon": "fa-trailer",
+                "kind": "trailer",
+                "category": "trailers",
+                "provides": [
+                  {
+                    "item": "disposal.debris",
+                    "capacity": 14,
+                    "per_load": true
+                  }
+                ],
+                "industries": [
+                  "roofing",
+                  "exteriors",
+                  "general_contractor",
+                  "home_improvement",
+                  "landscaping"
+                ]
+              },
+              {
+                "id": "dumpster_owned",
+                "group": "debris",
+                "label": {
+                  "key": "gx_eqs_kind_dumpster_owned",
+                  "text": "Our own dumpsters"
+                },
+                "hint": {
+                  "key": "gx_eqs_kind_dumpster_owned_hint",
+                  "text": "Roll-offs you drop at the job and pick up full."
+                },
+                "icon": "fa-dumpster",
+                "kind": "other",
+                "category": "site_services",
+                "provides": [
+                  {
+                    "item": "disposal.debris",
+                    "capacity": 20,
+                    "per_load": false
+                  }
+                ],
+                "industries": [
+                  "roofing",
+                  "exteriors",
+                  "general_contractor",
+                  "home_improvement",
+                  "landscaping"
+                ]
+              },
+              {
+                "id": "dumpster_rented",
+                "group": "debris",
+                "label": {
+                  "key": "gx_eqs_kind_dumpster_rented",
+                  "text": "Rented dumpsters"
+                },
+                "hint": {
+                  "key": "gx_eqs_kind_dumpster_rented_hint",
+                  "text": "A rental company drops them off at the job."
+                },
+                "icon": "fa-dumpster",
+                "kind": "other",
+                "category": "site_services",
+                "provides": [
+                  {
+                    "item": "disposal.debris",
+                    "capacity": 20,
+                    "per_load": false
+                  }
+                ],
+                "ownership": "rented",
+                "units": false,
+                "note": {
+                  "key": "gx_eqs_kind_dumpster_rented_note",
+                  "text": "Dropped off by your rental company when you need one: nothing to count."
+                },
+                "industries": [
+                  "roofing",
+                  "exteriors",
+                  "general_contractor",
+                  "home_improvement",
+                  "landscaping"
+                ]
+              },
+              {
+                "id": "portable_toilet",
+                "group": "site",
+                "label": {
+                  "key": "gx_eqs_kind_portable_toilet",
+                  "text": "Porta potties"
+                },
+                "hint": {
+                  "key": "gx_eqs_kind_portable_toilet_hint",
+                  "text": "Portable toilets you take to longer jobs."
+                },
+                "icon": "fa-toilet-portable",
+                "kind": "other",
+                "category": "site_services",
+                "industries": [
+                  "roofing",
+                  "exteriors",
+                  "general_contractor",
+                  "home_improvement",
+                  "solar",
+                  "landscaping"
+                ]
+              },
+              {
+                "id": "material_lift",
+                "group": "site",
+                "label": {
+                  "key": "gx_eqs_kind_material_lift",
+                  "text": "Ladder lifts and hoists"
+                },
+                "hint": {
+                  "key": "gx_eqs_kind_material_lift_hint",
+                  "text": "Get shingles and materials up to the roof."
+                },
+                "icon": "fa-up-long",
+                "kind": "tool",
+                "category": "tools",
+                "industries": [
+                  "roofing",
+                  "exteriors",
+                  "solar"
+                ]
+              },
+              {
+                "id": "magnetic_sweeper",
+                "group": "site",
+                "label": {
+                  "key": "gx_eqs_kind_magnetic_sweeper",
+                  "text": "Magnetic sweepers"
+                },
+                "hint": {
+                  "key": "gx_eqs_kind_magnetic_sweeper_hint",
+                  "text": "Pick up nails from the yard and driveway."
+                },
+                "icon": "fa-magnet",
+                "kind": "tool",
+                "category": "tools",
+                "industries": [
+                  "roofing",
+                  "exteriors"
+                ]
+              },
+              {
+                "id": "aerial_lift",
+                "group": "site",
+                "label": {
+                  "key": "gx_eqs_kind_aerial_lift",
+                  "text": "Boom and scissor lifts"
+                },
+                "hint": {
+                  "key": "gx_eqs_kind_aerial_lift_hint",
+                  "text": "Reach high walls, roofs and ceilings."
+                },
+                "icon": "fa-arrows-up-to-line",
+                "kind": "other",
+                "category": "heavy_equipment",
+                "industries": [
+                  "painting",
+                  "general_contractor",
+                  "solar",
+                  "electrical",
+                  "exteriors"
+                ]
+              },
+              {
+                "id": "skid_steer",
+                "group": "site",
+                "label": {
+                  "key": "gx_eqs_kind_skid_steer",
+                  "text": "Skid steers and excavators"
+                },
+                "hint": {
+                  "key": "gx_eqs_kind_skid_steer_hint",
+                  "text": "Dig, grade and move material."
+                },
+                "icon": "fa-tractor",
+                "kind": "other",
+                "category": "heavy_equipment",
+                "industries": [
+                  "landscaping",
+                  "general_contractor"
+                ]
+              },
+              {
+                "id": "compressor_generator",
+                "group": "site",
+                "label": {
+                  "key": "gx_eqs_kind_compressor_generator",
+                  "text": "Compressors and generators"
+                },
+                "hint": {
+                  "key": "gx_eqs_kind_compressor_generator_hint",
+                  "text": "Power for nail guns and tools on site."
+                },
+                "icon": "fa-bolt",
+                "kind": "tool",
+                "category": "tools",
+                "industries": [
+                  "roofing",
+                  "exteriors",
+                  "general_contractor",
+                  "home_improvement",
+                  "painting"
+                ]
+              }
+            ]
+          },
+          "selects": [
+            "facilities",
+            "equipment"
+          ],
+          "required": true
+        }
+      ],
+      "completion": {
+        "screen": "none",
+        "say": [],
+        "then": [
+          {
+            "play": "equipment.tab_tutorial",
+            "held": false
+          }
+        ]
+      },
+      "replayable": true,
+      "reveal": []
+    }
+  ]
+}

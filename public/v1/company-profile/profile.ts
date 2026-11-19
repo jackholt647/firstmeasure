@@ -10,6 +10,8 @@ import { COMPANY_TYPES, OTHER_COMPANY_TYPE, SALES_TEAMS, SERVICES, WORKFORCES, c
  * `company-profile` provider. Whether a setup step is answered is read from here, never from configuration.
  */
 export const COMPANY_PROFILE_MODULE = "company_profile";
+/** The most locations the profile records; the equipment setup makes a facility for each. */
+export const MAX_LOCATIONS = 20;
 
 const words = z.string().trim().max(120).transform((value) => value.replace(/[<>]/g, ""));
 /** A partial answer: a step saves only its own part, and the rest of the profile stays. */
@@ -22,6 +24,8 @@ export const companyProfilePatchSchema = z.object({
   sales_team: z.string().trim().max(60).optional(),
   /** Who does most of the work (FM-515): an id from the catalog's workforces. */
   workforce: z.string().trim().max(60).optional(),
+  /** How many locations the company works out of (GP-15): its shops or yards, one facility each. */
+  locations: z.number().int().min(1).max(MAX_LOCATIONS).optional(),
   expected_revision: z.number().int().min(0).optional()
 }).strict();
 export type CompanyProfilePatch = z.infer<typeof companyProfilePatchSchema>;
@@ -36,8 +40,10 @@ export type CompanyProfile = {
   /** Who sells and who does most of the work, ids from the catalog (FM-515); `*_team` says the answer is a group of people. */
   sales_team: string | null; sales_team_label: string | null; sales_is_team: boolean;
   workforce: string | null; workforce_label: string | null; workforce_is_team: boolean;
+  /** How many locations it works out of (GP-15), or null while unanswered. */
+  locations: number | null;
   /** Whether each part has been answered: what setup steps read to know they are satisfied. */
-  answered: { type: boolean; services: boolean; sales_team: boolean; workforce: boolean };
+  answered: { type: boolean; services: boolean; sales_team: boolean; workforce: boolean; locations: boolean };
   updated_at: string | null;
   revision: number;
 };
@@ -53,6 +59,7 @@ export function profileFrom(data: Record<string, unknown>, revision = 0, updated
   const services = [...new Set(strings(data.services))].map(serviceOf).filter((entry) => !!entry).map((entry) => ({ id: entry!.id, label: entry!.label.text, work_kind: entry!.work_kind || null }));
   const servicesOther = [...new Set(strings(data.services_other))].slice(0, 20);
   const sales = salesTeamOf(String(data.sales_team || "")), workforce = workforceOf(String(data.workforce || ""));
+  const locations = Number.isInteger(data.locations) && Number(data.locations) >= 1 ? Math.min(MAX_LOCATIONS, Number(data.locations)) : null;
   return {
     company_type: type ? type.id : other ? OTHER_COMPANY_TYPE : null,
     company_type_label: type ? type.label.text : other,
@@ -63,7 +70,8 @@ export function profileFrom(data: Record<string, unknown>, revision = 0, updated
     work_kinds: [...new Set(services.map((entry) => entry.work_kind as string | null).filter((kind): kind is string => !!kind))],
     sales_team: sales ? sales.id : null, sales_team_label: sales ? sales.label.text : null, sales_is_team: !!sales?.team,
     workforce: workforce ? workforce.id : null, workforce_label: workforce ? workforce.label.text : null, workforce_is_team: !!workforce?.team,
-    answered: { type: !!type || !!other, services: services.length + servicesOther.length > 0, sales_team: !!sales, workforce: !!workforce },
+    locations,
+    answered: { type: !!type || !!other, services: services.length + servicesOther.length > 0, sales_team: !!sales, workforce: !!workforce, locations: locations !== null },
     updated_at: updatedAt,
     revision
   };
@@ -106,6 +114,7 @@ export async function saveCompanyProfile(orgId: string, input: unknown, userId: 
     if (!workforceOf(patch.workforce)) throw badRequest("company_workforce_unknown", "Choose who does your work from the list.");
     next.workforce = patch.workforce;
   }
+  if (patch.locations !== undefined) next.locations = patch.locations;
   if (patch.services_other !== undefined) next.services_other = [...new Set(patch.services_other.filter(Boolean))];
   next.updated_by = userId;
   const saved = await saveBranchModule(orgId, "default", COMPANY_PROFILE_MODULE, { data: next, expected_revision: revision }, { replace: true });

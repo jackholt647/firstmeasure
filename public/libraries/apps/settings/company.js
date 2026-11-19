@@ -11236,7 +11236,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         defaultsPane.textContent = settingsText("rp_defaults_loading", "Loading default materials and labor…");
         const base = document.querySelector('script[src*="apps/settings/company.js"]')?.src || `${location.origin}/libraries/apps/settings/company.js`;
         const script = document.createElement('script');
-        script.src = new URL('./measurement-defaults.js?v=20261025-calculations', base).href;
+        script.src = new URL('./measurement-defaults.js?v=20261119-gp15', base).href;
         script.onload = start;
         script.onerror = () => { defaultsRequested = false; defaultsPane.textContent = settingsText("rp_defaults_failed", "Default materials and labor could not load."); };
         document.head.append(script);

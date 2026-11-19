@@ -186,96 +186,49 @@ test('the Proposals card opens the document setup for a proposal and ticks when 
   }finally{await browser.close();}
 });
 
-// FM-606: the Equipment card is the Equipment tab itself (one fleet, one tour), with Back at the bottom left as the
-// sheet's other steps have it and no line of copy above the app. Back waits for the tour's overlay to go, not for the
-// tour's server refresh after it; the phone's back (backDepth/back) leaves the same way.
-test('the Equipment card shows the Equipment app with Back at the bottom left, and Back returns to the cards',async()=>{
+// GP-15: the Equipment card plays the equipment setup (where the equipment is kept, what kinds, how many), not the
+// Equipment tab and its tour: Equipment is started first when it was only offered, and the card ticks when the fleet
+// has a unit (the status reads the fleet, wherever it was added).
+test('the Equipment card starts Equipment and plays the equipment setup, then shows the cards',async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try{
     const page=await open(browser);
     await page.evaluate(()=>{
       Object.assign(selections,{operations_project_id:'p1',operations_document_id:'doc1'});
       Portal.currentUser.appEntitlements.push({id:'portal.equipment',offered:true});
-      window.mounted=[];window.destroyed=0;window.titles=[];window.synced=0;window.guideCalls=[];
-      FirstMateEmbeddableApps.mount=async(host,id,context)=>{mounted.push({id,surface:context.surface});host.innerHTML='<div style="height:100%"><button data-eq-add-unit>Add unit</button></div>';return {destroy(){destroyed++;}};};
-      // The tour: its overlay is up until endTour(); its runGuide settles later, as the server refresh after it does.
-      const ctx={...widgetContext,setTitle:text=>titles.push(text),syncBack:()=>synced++,
-        // window.startingTour: the tour has not put its overlay up yet.
-        runGuide:(id,options)=>{guideCalls.push({id,keepVisible:options.keepVisible,signal:options.signal instanceof AbortSignal});window.tourSignal=options.signal;
-          const overlay=document.createElement('div');overlay.className='gx-ov';if(!window.startingTour)document.body.append(overlay);
-          return new Promise(resolve=>{options.signal.addEventListener('abort',()=>{overlay.remove();resolve({status:'ended'});});window.endTour=()=>{overlay.remove();setTimeout(()=>resolve({status:'dismissed'}),3000);};});}};
-      // window.slowStatus: the setup status waits for releaseStatus().
-      const invoke=PlatformAPI.publication.invoke;
-      PlatformAPI.publication.invoke=async(...args)=>{if(args[1]==='operations.setup.status'&&window.slowStatus)await new Promise(resolve=>{window.releaseStatus=resolve;});return invoke(...args);};
+      window.mounted=[];window.guideCalls=[];
+      FirstMateEmbeddableApps.mount=async(host,id)=>{mounted.push(id);return {destroy(){}};};
+      const ctx={...widgetContext,options:{setups:[{id:'equipment',label:'Equipment',minutes:3,appId:'portal.equipment',experience:'equipment.setup'}]},
+        runGuide:async(id,options)=>{guideCalls.push({id,options});setupState.setup.equipment.complete=true;return {status:'completed'};}};
       window.widget=operations.mountWidget('operations-ready',document.getElementById('host'),ctx);
     });
     await page.waitForSelector('[data-setup=equipment]');
-    assert.equal(await page.evaluate(()=>widget.back()),false,'on the cards the sheet goes back itself');
-    await page.locator('[data-setup=equipment]').click();
-    await page.waitForSelector('.ops-app [data-eq-add-unit]');
-    assert.deepEqual(await page.evaluate(()=>mounted),[{id:'portal.equipment',surface:'portal_tab'}]);
-    assert.deepEqual(await page.evaluate(()=>activations),['/organizations/org1/app-offers/portal.equipment/start'],'Equipment is started before it opens');
-    assert.deepEqual(await page.evaluate(()=>guideCalls),[{id:'equipment.tab_tutorial',keepVisible:true,signal:true}],'the Equipment tab\'s own tour');
-    const layout=await page.evaluate(()=>{const host=document.getElementById('host'),back=host.querySelector('[data-return]'),app=host.querySelector('.ops-app');const b=back.getBoundingClientRect(),a=app.getBoundingClientRect(),h=host.getBoundingClientRect();
-      return {text:host.innerText.replace(/\s+/g,' ').trim(),backBelowApp:b.top>=a.bottom,backLeft:Math.round(b.left-a.left),backBottomGap:Math.round(h.bottom-16-b.bottom),aboveApp:[...app.parentElement.children].indexOf(app)};});
-    assert.equal(layout.text,'Add unit Back','only the app and Back: no line of copy above the app');
-    assert.equal(layout.aboveApp,0,'nothing above the app');
-    assert.ok(layout.backBelowApp&&layout.backLeft===0&&layout.backBottomGap<=1,`Back at the bottom left: ${JSON.stringify(layout)}`);
-    assert.deepEqual(await page.evaluate(()=>[titles.at(-1),widget.backDepth()]),['Equipment',1]);
-    assert.ok(await page.evaluate(()=>synced)>0,'the phone\'s back learns the extra page');
-    // Under the tour, neither Back leaves.
-    await page.locator('[data-return]').click({force:true});
-    assert.equal(await page.evaluate(()=>widget.back()),true);
-    assert.equal(await page.locator('.ops-app').count(),1);
-    // Back shows the cards at once (from the last status), and equipment added in the app (anywhere: the status reads
-    // the fleet) ticks the card when the status answers.
-    await page.evaluate(()=>{setupState.setup.equipment.complete=true;endTour();window.slowStatus=true;});
-    await page.locator('[data-return]').click();
-    assert.equal(await page.locator('[data-setup=equipment]').count(),1,'the cards are back before the status answers');
     assert.equal(await page.locator('[data-setup=equipment] .ops-check').count(),0);
-    await page.evaluate(()=>{window.slowStatus=false;releaseStatus();});
-    await page.waitForSelector('[data-setup=equipment] .ops-check',{timeout:2000});
-    assert.deepEqual(await page.evaluate(()=>[destroyed,widget.backDepth(),titles.at(-1)]),[1,0,'']);
-    // The phone's back leaves the same way.
-    await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,3100)));
     await page.locator('[data-setup=equipment]').click();
-    await page.waitForSelector('.ops-app [data-eq-add-unit]');
-    await page.evaluate(()=>endTour());
-    assert.equal(await page.evaluate(()=>widget.back()),true);
     await page.waitForSelector('[data-setup=equipment] .ops-check');
-    assert.equal(await page.evaluate(()=>widget.backDepth()),0);
-    // Back while the tour is still starting stops it, so it never comes up over the cards.
-    await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,3100)));
-    await page.evaluate(()=>{window.startingTour=true;});
-    await page.locator('[data-setup=equipment]').click();
-    await page.waitForSelector('.ops-app [data-eq-add-unit]');
-    await page.locator('[data-return]').click();
-    await page.waitForSelector('[data-setup=equipment] .ops-check');
-    assert.equal(await page.evaluate(()=>tourSignal.aborted),true);
+    assert.deepEqual(await page.evaluate(()=>guideCalls),[{id:'equipment.setup',options:{}}],'the equipment setup, not the tab\'s tour');
+    assert.deepEqual(await page.evaluate(()=>activations),['/organizations/org1/app-offers/portal.equipment/start'],'Equipment is started before its setup');
+    assert.deepEqual(await page.evaluate(()=>mounted),[],'the Equipment tab is not put in the sheet');
+    assert.deepEqual(await page.evaluate(()=>[widget.backDepth(),widget.back()]),[0,false],'the cards have no page of their own to go back from');
   }finally{await browser.close();}
 });
 
 // FM-619: the Operations tab's Equipment Setup tag plays operations.equipment.setup, the ready step with
-// `options.card`: the Equipment page opens at once (no status read, no scope check, no cards), and Done finishes it.
-test('one card on its own opens at once and Done finishes the setup',async()=>{
+// `options.card`: the equipment setup opens at once (no status read, no scope check, no cards), and it finishes with it.
+test('one card on its own opens its setup at once and finishes with it',async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try{
     const page=await open(browser);
     await page.evaluate(()=>{
       Portal.currentUser.appEntitlements.push({id:'portal.equipment',offered:true});
-      window.mounted=[];window.destroyed=0;
-      FirstMateEmbeddableApps.mount=async(host,id,context)=>{mounted.push(id);host.innerHTML='<button data-eq-add-unit>Add unit</button>';return {destroy(){destroyed++;}};};
-      const ctx={...widgetContext,options:{card:'equipment'},setTitle:()=>{},syncBack:()=>{},runGuide:async()=>({status:'dismissed'})};
+      window.guideCalls=[];
+      const ctx={...widgetContext,options:{card:'equipment'},runGuide:async(id)=>{guideCalls.push(id);return {status:'dismissed'};}};
       window.widget=operations.mountWidget('operations-ready',document.getElementById('host'),ctx);
     });
-    await page.waitForSelector('.ops-app [data-eq-add-unit]');
-    assert.deepEqual(await page.evaluate(()=>mounted),['portal.equipment']);
+    await page.waitForFunction(()=>completed.length===1);
+    assert.deepEqual(await page.evaluate(()=>guideCalls),['equipment.setup'],'the card\'s own setup, without the library naming it');
     assert.equal(await page.locator('[data-setup]').count(),0,'no cards');
     assert.equal(await page.evaluate(()=>calls.some(call=>call.action==='operations.setup.status')),false,'no scope check');
-    assert.equal((await page.locator('[data-return]').innerText()).trim(),'Done');
-    await page.locator('[data-return]').click();
-    await page.waitForFunction(()=>completed.length===1);
-    assert.deepEqual(await page.evaluate(()=>[destroyed,document.querySelectorAll('[data-setup]').length]),[1,0],'it finishes instead of showing the cards');
   }finally{await browser.close();}
 });
 

@@ -90,7 +90,7 @@ test("the setup asks only what is unanswered: company type, work, who sells, who
   await assert.rejects(() => invoke(owner, "company-profile.save", { sales_team: "everyone" }, "profile-bad"), /from the list/);
   await invoke(owner, "company-profile.save", { sales_team: "small_team", workforce: "crews_and_subs" }, "profile-2");
   const profile = await value(owner, "company-profile", "profile");
-  assert.deepEqual(profile.answered, { type: true, services: true, sales_team: true, workforce: true });
+  assert.deepEqual(profile.answered, { type: true, services: true, sales_team: true, workforce: true, locations: false });
   assert.equal(profile.sales_is_team, true);
   assert.equal(profile.workforce_label, "Crews and subcontractors");
   assert.deepEqual(ids(await setupOf()), ["appointments.kinds", "types"]);

@@ -323,6 +323,9 @@
     injectCss();
     let destroyed = false;
     const organizationId = orgId(context);
+    // Embedded in another page (Operations settings, GP-15: params.routed false) it keeps its view to itself: the
+    // portal's route stays the page's, and a route change never reaches it.
+    const routed = context.params?.routed !== false;
     const costingOn = () => capabilityOn('equipment', 'costing');
     const state = {
       view:'fleet',
@@ -541,7 +544,7 @@
     window.addEventListener('beforeunload', beforeUnload);
 
     const writeRoute = (history, patch, options = {}) => {
-      if (Portal.navigation?.applying) return;
+      if (!routed || Portal.navigation?.applying) return;
       Portal.navigation?.write?.({ tab:'equipment', ...patch }, { history, source:options.source || 'equipment', ownedKeys:options.ownedKeys || Object.keys(patch) });
     };
 
@@ -2148,9 +2151,9 @@
         root.innerHTML = '';
       }
     };
-    activeEquipmentHandle = handle;
+    if (routed) activeEquipmentHandle = handle;
 
-    const initialRoute = Portal.navigation?.read?.() || {};
+    const initialRoute = routed ? Portal.navigation?.read?.() || {} : {};
     if (initialRoute.tab === 'equipment' && (clean(initialRoute.equipmentView) || clean(initialRoute.equipmentItem))) {
       state.view = clean(initialRoute.equipmentView) || 'fleet';
       render();

@@ -189,6 +189,13 @@ proposal's questions):
 What was answered about appointments is kept in the default branch's `appointment_setup` module, apart from the
 catalog: the catalog says what can be booked, this what the organization told us.
 
+## How many locations (GP-15)
+
+`company.locations`, "How many locations do you work out of?": one, two, three, or more with the number typed (up to
+20), part `locations` of `company-profile.js`, requiring `company.type`. Saved in the company profile with
+`company-profile.save` (`locations`) and read from `company-profile.profile` (`locations`, `answered.locations`). The
+[equipment setup](guided-experiences.md#equipment-setup) requires it and makes a facility for each location.
+
 ## Tests
 
 `tests/setup-steps.test.ts` (schema, graph, injection and removal as answers arrive,

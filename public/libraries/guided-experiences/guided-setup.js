@@ -838,7 +838,7 @@
     render(el,ctx){
       let disposed=false, handle=null;
       el.textContent=L('gx_operations_loading','Opening Operations…');
-      import(new URL('./operations-setup.js?v=20261118-fm619b-start-key',scriptUrl).href).then(module=>{
+      import(new URL('./operations-setup.js?v=20261119-gp15',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mountWidget(id,el,ctx);
       }).catch(error=>{if(!disposed)el.textContent=error?.message||L('gx_operations_load_error','Could not open this step. Close and try again.');});
       return {valid:()=>handle?.valid?.()!==false,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
@@ -866,6 +866,19 @@
         if(!disposed)handle=module.mount(el,ctx);
       }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
       return {valid:()=>true,escape:()=>handle?.escape?.()===true,destroy(){disposed=true;handle?.destroy?.();}};
+    }
+  });
+  // The equipment setup (GP-15): one step with its own pages (locations, equipment, how many, the finish); Back and the
+  // phone's back walk its pages.
+  registerWidget('equipment-setup', {
+    handlesNavigation:true,
+    render(el,ctx){
+      let disposed=false, handle=null;
+      el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
+      import(new URL('./equipment-setup.js?v=20261119-gp15',scriptUrl).href).then(module=>{
+        if(!disposed)handle=module.mount(el,ctx);
+      }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
+      return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
     }
   });
   const widgetCss = `
