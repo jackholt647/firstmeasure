@@ -12,11 +12,12 @@
     const view = (route = {}) => ['delivery', 'workflow', 'responses'].includes(route.feedbackView) ? route.feedbackView : 'responses';
     const host = document.createElement('div');
     host.className = 'fm-feedback-host';
-    // On a phone the portal's own inset is the only margin, as in every other app (FM-481).
+    // A full-bleed tab like every other app (GP-71): no grey shell inset around it; the host is the white page and its
+    // own scroller, with the portal's usual content inset inside it (12px on a phone, FM-481).
     if (!document.getElementById('fm-feedback-host-style')) {
       const style = document.createElement('style');
       style.id = 'fm-feedback-host-style';
-      style.textContent = '.fm-feedback-host{padding:24px;max-width:1600px;margin:0 auto;width:100%;box-sizing:border-box}@media(max-width:820px){.fm-feedback-host{padding:0}}';
+      style.textContent = '.fm-feedback-host{height:100%;overflow:auto;overscroll-behavior:contain;background:#fff;padding:24px;box-sizing:border-box}.fm-feedback-host>.fb-root{max-width:1600px;margin:0 auto}@media(max-width:820px){.fm-feedback-host{padding:12px}}';
       document.head.appendChild(style);
     }
     root.appendChild(host);
