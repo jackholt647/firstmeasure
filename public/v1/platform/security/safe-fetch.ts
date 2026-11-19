@@ -13,16 +13,20 @@ import http from "node:http";
 import https from "node:https";
 import { BlockList, isIP, type LookupFunction } from "node:net";
 
-const blocked = new BlockList();
+// One list per family: a BlockList holding the IPv6 rule ::ffff:0:0/96 also
+// matches every plain IPv4 address (it compares IPv4 as IPv4-mapped IPv6), so
+// a shared list refused every public IPv4 host (GP-32).
+const blockedV4 = new BlockList();
 for (const [network, prefix] of [
   ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16],
   ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.0.2.0", 24], ["192.88.99.0", 24], ["192.168.0.0", 16],
   ["198.18.0.0", 15], ["198.51.100.0", 24], ["203.0.113.0", 24], ["224.0.0.0", 4], ["240.0.0.0", 4]
-] as const) blocked.addSubnet(network, prefix, "ipv4");
+] as const) blockedV4.addSubnet(network, prefix, "ipv4");
+const blockedV6 = new BlockList();
 for (const [network, prefix] of [
   ["::", 128], ["::1", 128], ["::ffff:0:0", 96], ["64:ff9b::", 96], ["64:ff9b:1::", 48], ["100::", 64],
   ["2001::", 23], ["2001:db8::", 32], ["2002::", 16], ["fc00::", 7], ["fe80::", 10], ["fec0::", 10], ["ff00::", 8]
-] as const) blocked.addSubnet(network, prefix, "ipv6");
+] as const) blockedV6.addSubnet(network, prefix, "ipv6");
 
 /** Whether an address literal may be connected to. */
 export function isPublicAddress(address: string) {
@@ -31,9 +35,9 @@ export function isPublicAddress(address: string) {
   if (family === 6) {
     const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
     if (mapped) return isPublicAddress(mapped[1]!);
-    return !blocked.check(address, "ipv6");
+    return !blockedV6.check(address, "ipv6");
   }
-  return !blocked.check(address, "ipv4");
+  return !blockedV4.check(address, "ipv4");
 }
 
 export class SafeFetchError extends Error {
