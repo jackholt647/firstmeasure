@@ -455,6 +455,100 @@ test('sales hourly Routing persists dragged assignees and keeps cards behind the
   assert.deepEqual({ ...layout(20, 30, 30, 1) }, { bridge:false, insufficient:false, widthPercent:20 / 30 * 100 });
 });
 
+// GP-111: "Create a new project" in an item's editor used to open the new
+// project with no link back, so the project was never put on the item.
+test('a project created from a schedule item becomes that item\'s project', async () => {
+  const requestSource = await readSource('libraries/apps/project-request/app.js');
+  assert.match(requestSource, /scheduleEventId: event\?\.detail\?\.scheduleEventId \|\| ''/);
+  assert.match(requestSource, /owner\.dispatchEvent\(new owner\.CustomEvent\('fm:project-created', \{ detail \}\)\)/);
+  assert.match(schedulingSource, /window\.addEventListener\('fm:project-created', \(event\) => \{ linkCreatedProject\(/);
+  const start = schedulingSource.indexOf('  async function linkCreatedProject');
+  const end = schedulingSource.indexOf('  function floatingEventIsDisposableDraft', start);
+  assert.ok(start >= 0 && end > start);
+  const run = (items, options = {}) => {
+    const context = {
+      saved: [], staged: [], toasts: [], document: { querySelector: () => (options.editorOpen ? {} : null) },
+      setTimeout: () => 0, console,
+    };
+    vm.runInNewContext(`
+      let floatingEvents = ${JSON.stringify(items)};
+      let eventDraftPopoverId = ${JSON.stringify(options.popoverId || '')};
+      let eventEditorDraft = ${JSON.stringify(options.editorDraft || null)};
+      const clean = (value) => String(value ?? '').trim();
+      const floatingEventIsDisposableDraft = (event) => event?.__draft === true || clean(event?.status) === 'draft';
+      const baseEventEditorContext = () => ({ kind:'floating', event:floatingEvents.find((item) => item.id === eventDraftPopoverId) });
+      const eventEditorContext = baseEventEditorContext;
+      const stageEditorEdit = (ctx, patch) => staged.push({ id:ctx.event.id, patch });
+      const render = () => {};
+      const renderEventDraftPopover = () => {};
+      const editorAnchorFor = () => null;
+      const canEditSchedule = () => true;
+      const checkStoredScheduleEvent = async () => (${JSON.stringify(options.fresh || null)} ? { fresh:${JSON.stringify(options.fresh || null)}, conflict:false, remoteGroups:[] } : { fresh:null, conflict:false, remoteGroups:[] });
+      const decorateFloatingEvent = (event) => event;
+      const eventTypeId = (event) => event.type_id || '';
+      const eventTypeMeta = () => ({ title:'Other' });
+      const updateFloatingEvent = (event) => { floatingEvents = [event, ...floatingEvents.filter((item) => item.id !== event.id)]; return event; };
+      const persistFloatingEvent = async (event) => { saved.push(event); return {}; };
+      const isStaleSaveError = () => false;
+      const reloadAfterStaleChange = async () => {};
+      const scheduleSaveErrorMessage = (error, fallback) => fallback;
+      const showToast = (...args) => toasts.push(args);
+      ${schedulingSource.slice(start, end)}
+      this.link = linkCreatedProject;
+      this.state = () => ({ floatingEvents, eventDraftPopoverId, eventEditorDraft });
+    `, context);
+    return context;
+  };
+  const created = { projectId:'project_new', scheduleEventId:'ev1', title:'Jane Roe', address:'1 Main St' };
+
+  // A stored item takes the project and saves only that.
+  let ctx = run([{ id:'ev1', title:'Work', type_id:'work', status:'scheduled', event_revision:3 }], { editorDraft:{ id:'ev1', patch:{ project_id:'' } } });
+  await ctx.link(created);
+  assert.equal(ctx.saved.length, 1);
+  assert.equal(ctx.saved[0].project_id, 'project_new');
+  assert.equal(ctx.saved[0].project_title, 'Jane Roe');
+  assert.equal(ctx.saved[0].project_address, '1 Main St');
+  assert.equal(ctx.saved[0].status, 'scheduled');
+  assert.equal(ctx.state().eventEditorDraft.patch.project_id, 'project_new', 'unsaved editor edits must not put the old project back');
+
+  // A new draft is saved as a scheduled item with its project.
+  ctx = run([{ id:'ev1', title:'Work', type_id:'work', status:'draft', __draft:true }], { popoverId:'ev1' });
+  await ctx.link(created);
+  assert.equal(ctx.saved.length, 1);
+  assert.equal(ctx.saved[0].project_id, 'project_new');
+  assert.equal(ctx.saved[0].status, 'scheduled');
+  assert.equal(ctx.saved[0].__draft, false);
+  assert.equal(ctx.state().eventDraftPopoverId, '');
+
+  // An editor open on the item shows the project, for the person to save.
+  ctx = run([{ id:'ev1', title:'Work', status:'scheduled' }], { popoverId:'ev1', editorOpen:true });
+  await ctx.link(created);
+  assert.equal(ctx.saved.length, 0);
+  assert.equal(ctx.staged[0].patch.project_id, 'project_new');
+
+  // An item given another project since (here or elsewhere) is left alone.
+  ctx = run([{ id:'ev1', title:'Work', status:'scheduled', project_id:'project_other' }]);
+  await ctx.link(created);
+  assert.equal(ctx.saved.length, 0);
+  ctx = run([{ id:'ev1', title:'Work', status:'scheduled' }], { fresh:{ id:'ev1', title:'Work', status:'scheduled', project_id:'project_other' } });
+  await ctx.link(created);
+  assert.equal(ctx.saved.length, 0);
+
+  // Reported again unchanged: nothing to save. A dropped empty project is taken back.
+  ctx = run([{ id:'ev1', title:'Work', status:'scheduled', project_id:'project_new', project_title:'Jane Roe', project_address:'1 Main St' }]);
+  await ctx.link(created);
+  assert.equal(ctx.saved.length, 0);
+  await ctx.link({ projectId:'project_new', scheduleEventId:'ev1', discarded:true });
+  assert.equal(ctx.saved.length, 1);
+  assert.equal(ctx.saved[0].project_id, '');
+
+  // No item id (the global New button), or an unknown item: nothing happens.
+  ctx = run([{ id:'ev1', title:'Work', status:'scheduled' }]);
+  await ctx.link({ projectId:'project_new' });
+  await ctx.link({ projectId:'project_new', scheduleEventId:'ev2' });
+  assert.equal(ctx.saved.length, 0);
+});
+
 test('new appointment project links can create, clear, or undo before save', () => {
   const deleteEditorStart = schedulingSource.indexOf('async function deleteEventEditor');
   const deleteEditorEnd = schedulingSource.indexOf('  function eventEditorContext', deleteEditorStart);
@@ -462,12 +556,13 @@ test('new appointment project links can create, clear, or undo before save', () 
   const popoverStart = schedulingSource.indexOf('function renderEventDraftPopover');
   const popoverEnd = schedulingSource.indexOf('  function openPlacedCalendarEvent', popoverStart);
   const popoverSource = popoverStart >= 0 && popoverEnd > popoverStart ? schedulingSource.slice(popoverStart, popoverEnd) : '';
-  assert.match(schedulingSource, /data-event-project-create aria-label="Create a new project"/);
-  assert.match(schedulingSource, /new CustomEvent\('fm:new-project-workflow', \{ detail:\{ workflow:'project', source:'scheduling-event' \} \}\)/);
+  assert.match(schedulingSource, /data-event-project-create aria-label="\$\{\(globalThis\.PlatformLanguage\?\.htmlText\("scheduling","m_89250227eee734","Create a new project"\)/);
+  // The new project is linked to the item it was started from (GP-111).
+  assert.match(schedulingSource, /new CustomEvent\('fm:new-project-workflow', \{ detail:\{ workflow:'project', source:'scheduling-event', scheduleEventId:String\(current\?\.id \|\| ''\) \} \}\)/);
   assert.match(popoverSource, /const canClearProject = disposableFloatingDraft && !!clean\(draft\.project_id\);/);
   assert.match(popoverSource, /const projectNameRowHtml = clearableProjectNameHtml \|\| canClearProject/);
   assert.doesNotMatch(deleteEditorSource, /projectNameRowHtml|projectNameHtml|projectLabel/);
-  assert.match(schedulingSource, /data-event-project-clear aria-label="Remove selected project"/);
+  assert.match(schedulingSource, /data-event-project-clear aria-label="\$\{\(globalThis\.PlatformLanguage\?\.htmlText\("scheduling","m_998fea4513bf2a","Remove selected project"\)/);
   assert.match(schedulingSource, /function rememberFloatingProjectAssignment\(event = \{\}\)/);
   assert.match(schedulingSource, /function restoreFloatingProjectAssignment\(\)/);
   assert.match(schedulingSource, /String\(event\.key \|\| ''\)\.toLowerCase\(\) !== 'z'[\s\S]*?restoreFloatingProjectAssignment\(\)/);
