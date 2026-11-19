@@ -51,6 +51,7 @@ test("Good / Better / Best are three complete roofs generated from one set of me
   assert.deepEqual([...new Set(packages.map((line) => line.selection.group_id))], ["roof_package"], "one choice group: the customer picks one roof");
   assert.deepEqual(packages.map((line) => line.selection.selected), [false, true, false], "Better is the recommendation");
   assert.deepEqual(packages.map((line) => refId((line.children as Line[])[0]!)), ["gaf_ns", "gaf_hd", "gaf_uhdz"], "each option leads with its shingle");
+  assert.ok(packages.every((line) => !line.description), "an option has no subtitle: its name, its price and its lines");
   assert.deepEqual(packages[2]!.highlights, ["GAF Timberline UHDZ", "GAF Tiger Paw", "GAF WeatherWatch", "Lifetime pipe boots", "GAF Silver Pledge warranty"]);
   for (const option of packages) {
     const lines = option.children as Line[];

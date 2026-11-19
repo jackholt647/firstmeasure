@@ -340,9 +340,9 @@ type ChoiceGroup = {
  * single choice: each is a whole set of lines, so picking one swaps the lot.
  */
 type PackageOption = {
+  // No description: an option is its name, its price and its lines (GP-20).
   id: string;
   title: string;
-  description: string;
   /** The product this option takes from each choice group, by group id. */
   picks: Record<string, string>;
   /** Extras this option includes in its price. */
@@ -398,11 +398,11 @@ const ROOF_REPLACEMENT_OPTIONS: PieceRecipe = {
   packages: {
     group: "roof_package", title: "Roof", defaultOption: "better",
     options: [
-      { id: "good", title: "Good", description: "A dependable architectural roof at the lowest price.",
+      { id: "good", title: "Good",
         picks: { shingle_profile: "gaf_ns", underlayment_profile: "underlayment", leak_barrier_profile: "ice_water" }, include: [] },
-      { id: "better", title: "Better", description: "Our most chosen roof: high-definition shingles and a 50-year system warranty.",
+      { id: "better", title: "Better",
         picks: { shingle_profile: "gaf_hd", underlayment_profile: "gaf_feltbuster", leak_barrier_profile: "gaf_weatherwatch" }, include: ["warranty_system_plus"] },
-      { id: "best", title: "Best", description: "The thickest shingle, premium underlayment, lifetime pipe boots and manufacturer-backed workmanship coverage.",
+      { id: "best", title: "Best",
         picks: { shingle_profile: "gaf_uhdz", underlayment_profile: "gaf_tiger_paw", leak_barrier_profile: "gaf_weatherwatch" }, include: ["pipe_boot_lifetime", "warranty_silver_pledge"] }
     ]
   }
@@ -574,7 +574,7 @@ function packageLine(catalog: JsonObject, recipe: PieceRecipe, option: PackageOp
   option.include.forEach(add);
   children.push(...shared);
   return {
-    id: scopeLineId(option.id), type: "scope_item", name: option.title, display_name: option.title, description: option.description,
+    id: scopeLineId(option.id), type: "scope_item", name: option.title, display_name: option.title,
     // What sets this option apart, for the comparison the customer sees.
     highlights,
     unit: "ea", quantity: "1", base_price: 0, unit_price: 0, included: false, price_driving: true,

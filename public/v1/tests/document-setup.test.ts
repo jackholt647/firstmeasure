@@ -114,6 +114,7 @@ test("the style step previews what the answers make in three styles, saving noth
   const text = JSON.stringify(previews.previews[0].resolved_definition);
   assert.ok(text.includes("Jordan Sample"), "the sample customer is in the preview");
   assert.ok(text.includes("Good") && text.includes("Better") && text.includes("Architectural shingles"), "the sample options and the chosen one's lines are in the preview");
+  assert.ok(text.includes("Designer shingles") && !text.includes("Best warranty"), "each sample option lists its lines, not a tagline");
   assert.ok(!/\{\{\s*params\.(customer|project)/.test(text), "the sample customer's bindings are resolved");
   assert.notDeepEqual(previews.previews[0].theme, previews.previews[2].theme, "the styles differ");
   const invoice = await value(owner, "document-setup", "previews", { document_kind: "invoice" });
