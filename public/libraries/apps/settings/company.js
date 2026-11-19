@@ -1468,6 +1468,8 @@
       if (normalized.sub === 'crews') { normalized.sub = 'people'; normalized.settingsView = normalized.settingsView === 'connections' ? 'subcontractors' : 'groups'; }
       return normalized;
     };
+    // An embedded tab is named like a link (GP-120: Scheduling's Crew settings asked for the retired `crews` tab and got My settings).
+    if (embeddedSettings) Object.assign(embeddedRoute, normalizeSettingsLocation(embeddedRoute));
     const readSettingsRoute = () => {
       if (embeddedSettings) return { ...embeddedRoute };
       try {
@@ -1511,7 +1513,7 @@
       initialRoute.sub = 'money';
       initialRoute.settingsView = initialRoute.settingsView || 'payments';
     }
-    if (embeddedSettings && tabAllowed(embeddedSettingsTab)) viewState.activeTab = embeddedSettingsTab;
+    if (embeddedSettings && tabAllowed(embeddedRoute.sub)) viewState.activeTab = embeddedRoute.sub;
     if (initialRoute.sub && tabAllowed(initialRoute.sub)) viewState.activeTab = initialRoute.sub;
     let activeTab = tabAllowed(viewState.activeTab) ? viewState.activeTab : defaultActiveTab;
     viewState.activeTab = activeTab;
@@ -3733,7 +3735,9 @@
     `);
     const activeSection = navSection(sectionFor(activeTab) || sectionFor(defaultActiveTab));
     const sectionTabHtml = (section) => `<button class="cs-tab ${navSelected(section.id, activeTab) ? 'active' : ''}" id="${section.tabId}" type="button" role="tab" aria-selected="${navSelected(section.id, activeTab)}" data-settings-section="${section.id}"><i class="${section.icon}" aria-hidden="true"></i><span ${section.term ? `data-settings-terminology-key="${escapeHtml(section.term)}"` : ''}>${escapeHtml(sectionTitle(section))}</span></button>`;
-    const sectionPaneHtml = (section) => `<div class="cs-pane ${activeTab === section.id ? 'active' : ''}" id="${section.paneId}" role="tabpanel" data-settings-pane="${section.id}"></div>`;
+    // An embedded pane says so, with its sub-page, so a self-mounting category (People) opens there and leaves the page's route alone.
+    const embeddedPaneAttrs = (section) => embeddedSettings && section.id === activeTab ? ` data-settings-embedded="1" data-settings-view="${escapeHtml(embeddedRoute.settingsView)}" data-settings-entity="${escapeHtml(embeddedRoute.settingsEntity)}"` : '';
+    const sectionPaneHtml = (section) => `<div class="cs-pane ${activeTab === section.id ? 'active' : ''}" id="${section.paneId}" role="tabpanel" data-settings-pane="${section.id}"${embeddedPaneAttrs(section)}></div>`;
     const headerHtml = `
       <div class="cs-wrap ${String(embeddedSettings ? 'embedded-tab-only' : '')} ${String(activeTab === 'pricebook' ? 'pricebook-wide' : '')} ${String(activeTab === 'forms' ? 'forms-wide' : '')} ${String(activeTab === 'materials' ? 'materials-wide' : '')}">
         <div class="cs-layout no-subtabs">

@@ -160,9 +160,12 @@
   function bind(pane){
     let instance = null;
     let wasActive = false;
+    /* Settings embedded in a window over another app (Scheduling's Crew settings) names the sub-page on the pane; the page's route belongs to that app. */
+    const embedded = pane.dataset.settingsEmbedded === '1';
     const sync = () => {
       const isActive = pane.classList.contains('active');
-      if (isActive && !instance) instance = mount(pane);
+      if (isActive && !instance) instance = mount(pane, embedded ? { route:false, view:pane.dataset.settingsView || '', entity:pane.dataset.settingsEntity || '' } : {});
+      else if (isActive && !wasActive && embedded) instance.refresh();
       else if (isActive && !wasActive) {
         /* Coming back through the sidebar lands where the route says: the overview unless a sub-page is routed. */
         const next = readRoute();
