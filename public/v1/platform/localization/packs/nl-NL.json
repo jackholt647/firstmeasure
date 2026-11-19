@@ -3203,7 +3203,9 @@
     "back_to_workspace": {
       "message": "Terug naar {workspace}",
       "format": "icu"
-    }
+    },
+    "m_0b00bfad983f3f": "Personen zoeken",
+    "m_e6261fd56b82c2": "Geen overeenkomsten"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Rapporten bestellen",

@@ -3059,7 +3059,9 @@
     "back_to_workspace": {
       "message": "Zpět na {workspace}",
       "format": "icu"
-    }
+    },
+    "m_0b00bfad983f3f": "Hledat osoby",
+    "m_e6261fd56b82c2": "Žádné výsledky"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Objednávat reporty",
