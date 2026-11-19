@@ -13,7 +13,7 @@ test("a lead is a contact plus a project; existing people are matched, never rew
     FIRSTMEASURE_DATABASE_MODE: process.env.TEST_POSTGRES_URL ? "postgres" : "local", DATABASE_URL: process.env.TEST_POSTGRES_URL || "", POSTGRES_POOL_MAX: "4", POSTGRES_AUTO_MIGRATE: "false" });
   const storage = await import("../platform/storage.js");
   const contacts = await import("../contacts/records.js");
-  const { receiveLead } = await import("../leads/receive.js");
+  const { receiveLead, localArrival } = await import("../leads/receive.js");
   const { receiveChatLead } = await import("../chat/service.js");
   const { listEventRecords } = await import("../work/storage.js");
   const { readSmsConsent } = await import("../messaging/communications_storage.js");
@@ -28,6 +28,11 @@ test("a lead is a contact plus a project; existing people are matched, never rew
   assert.deepEqual([first.project.id, first.matched_contact_ids, (first.project.data.contacts as unknown[]).length, first.project.data.primary_contact_id], ["lead_one", [], 1, gia.id]);
   assert.deepEqual((first.project.data.lead_source as Record<string, unknown>).form_id, "f1", "source fields stay on the project");
   assert.deepEqual(await contacts.contactProjectIds(ORG, gia.id), ["lead_one"]);
+  // When it arrived on the organization's clock, so intake routing can split leads by time (GP-110).
+  const arrival = (first.project.data.lead_source as Record<string, Record<string, unknown>>).received_local!;
+  assert.ok(Number.isInteger(arrival.hour) && /^(sun|mon|tue|wed|thu|fri|sat)$/.test(String(arrival.weekday)) && arrival.time_zone, "the arrival hour and weekday are stamped");
+  assert.deepEqual(localArrival("2026-11-21T03:30:00.000Z", "America/New_York"), { hour: 22, weekday: "fri", time_zone: "America/New_York" }, "a Saturday morning in UTC is Friday night in New York");
+  assert.deepEqual(localArrival("2026-11-21T00:05:00.000Z", "UTC"), { hour: 0, weekday: "sat", time_zone: "UTC" });
   assert.equal((await readSmsConsent(ORG, "+15550201000"))?.status, "opted_in", "a ticked SMS consent is recorded");
   assert.equal((await listEventRecords(ORG, { project_id: "lead_one", type: "lead.received" })).length, 1);
   await assert.rejects(() => receiveLead(ORG, { project_id: "lead_one", source: { kind: "web_form" }, address: "1 Elm St" }), /already exists/, "a retried submission never makes a second lead");

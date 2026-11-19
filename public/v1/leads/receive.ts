@@ -5,11 +5,22 @@ import { routeNewLead } from "../scopes/router.js";
 import { contactSettings } from "../contacts/service.js";
 import { createContact, findExactMatches, refreshProjections, setProjectContactLinks, type ContactRecord } from "../contacts/records.js";
 import { normalizePhone } from "../contacts/normalize.js";
+import { resolveOrganizationTimezone } from "../platform/timezone.js";
 
 // The one way a lead arrives (docs/architecture/opportunities.md). Every source
 // (forms, email, Connections, chat, canvassing, the API, the published action)
 // builds a LeadSubmission and calls receiveLead; delivery idempotency stays with
 // the source's own ledger (leads/intake.ts) or project id.
+
+/**
+ * When a lead arrived on the organization's clock (GP-110): intake routing can split leads by the time they come in
+ * (`lead_source.received_local.hour` 0-23, `.weekday` sun..sat) with the one condition contract.
+ */
+export function localArrival(instant: string, timeZone: string) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", hourCycle: "h23", weekday: "short" })
+    .formatToParts(new Date(instant)).map((part) => [part.type, part.value]));
+  return { hour: Number(parts.hour) % 24, weekday: String(parts.weekday || "").slice(0, 3).toLowerCase(), time_zone: timeZone };
+}
 
 export type LeadContactInput = {
   /** An existing contact this lead is for (a rule starting a lead for a contact); used as it is. */
@@ -75,6 +86,7 @@ export async function receiveLead(org: string, submission: LeadSubmission) {
   for (const input of contacts) resolved.push({ ...(await contactFor(org, branchId, input, settings.auto_attach_exact !== false)), role: input.role || "" });
 
   const now = new Date().toISOString();
+  const arrival = localArrival(now, await resolveOrganizationTimezone(org, branchId).catch(() => "UTC"));
   const { provider = "", confidence = 0, provider_fields = {}, raw = {}, ...sourceRest } = submission.source || { kind: sourceKind };
   const projectData = { ...object(submission.project_data) };
   for (const key of ["contacts", "customers", "customer_ids", "primary_customer_id", "customer_id", "contact_id", "primary_contact_id"]) delete projectData[key];
@@ -86,7 +98,7 @@ export async function receiveLead(org: string, submission: LeadSubmission) {
       branch_id: branchId,
       address, title: text(submission.title || address || summary || contacts[0]?.name || "New lead"), summary,
       events: [], source: sourceKind,
-      lead_source: { ...sourceRest, kind: sourceKind, provider: text(provider), confidence: Number(confidence) || 0, provider_fields: object(provider_fields), raw: object(raw), contacts, received_at: now },
+      lead_source: { ...sourceRest, kind: sourceKind, provider: text(provider), confidence: Number(confidence) || 0, provider_fields: object(provider_fields), raw: object(raw), contacts, received_at: now, received_local: arrival },
       created_at: now, updated_at: now
     },
     metadata: { kind: "platform_project", source: sourceKind, branch_id: branchId }

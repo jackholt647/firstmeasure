@@ -1164,6 +1164,11 @@ copies) are no tiles of their own: until the organization has a proposal of its 
 starting it (or a pinned library proposal) plays this setup at `proposal_kinds` for someone who may run it.
 Tests: `tests/document-setup.test.ts` (library entry in `tests/fixtures/document-setup-library.json`).
 
+## Automations setup
+
+`automations.setup` (GP-110) plays embedded in the Automations Hub's right-hand panel, beside the flowchart it
+sets up, and previews each answer on the chart before it is saved. See [Automations Hub](automations-hub.md).
+
 ## Limits (prototype)
 
 - The scripted turns are stored in English; the person sees their own language.
