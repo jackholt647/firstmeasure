@@ -219,7 +219,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261119-gp98-library')
+        versionedBundle('documents/project.js', '20261119-gp100-tray-flow')
       ]
     },
     {
@@ -305,7 +305,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261119-gp60-money-view'), versionedBundle('project-request/app.js', '20261119-gp60-money-view')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261119-gp60-money-view'), versionedBundle('project-request/app.js', '20261119-gp100-tray-flow')]
     },
     {
       id: 'firstmeasure.order',
