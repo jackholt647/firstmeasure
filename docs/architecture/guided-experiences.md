@@ -367,11 +367,28 @@ frame's first announcement names (a replay started before it) carries on. A setu
 the page and writes for the organization, not the tab, so it carries on; only
 the tour after it is held to the tab.
 
+**A tour closed before it was used is not done yet** (GP-36). When a tab's tour
+that its visit started (not a replay, not a `skip: "later"` trigger) is closed
+before the person used it (no Next, Back or step skip of theirs), nothing is
+recorded at once. The close counts, as `dismiss` with `after_skip: true`, only
+once the person then does something on the tab: a tap or a key in that frame,
+not on a guide, after which they are still on the tab 800 ms later. If they
+leave first (another tab, the window closed, the page closed), nothing is
+recorded, progress stays `started`, and the tab's next visit plays it again. A
+panel over the tab meanwhile (the details tray) does not end the wait, and the
+tour is not played again on that visit. Closing a tour after using it, or
+finishing it, is recorded at once as before. This is all in the browser
+(`holdSkip`); the server sees an ordinary `dismiss` or nothing.
+
 **One experience at a time.** The portal and every project window (an iframe of
 the portal) load this library, so the lock and queue live on the top window
 (`__fmGuidedLock`): a second request waits, the same experience asked for again
 is ignored, and every play re-reads progress from the server first, so nothing
-finished replays (a preloaded tab tour re-reads it while it shows, and fades
+finished replays. A frame that goes away holding the lock or waiting in the queue
+(a project window closed in the middle of its tour: the frame is removed, so the
+play never finishes) lets go of both, on its `pagehide` and whenever another
+frame finds it closed (`releaseGone`); before GP-36 every later tour on the page
+waited behind it for good (a preloaded tab tour re-reads it while it shows, and fades
 away if it was finished). Events are sent in order in the background; nothing on screen
 waits for them. In a setup, Next moves at once (only a step with `branches`
 waits for the server) and a burst of presses within 250 ms counts once; in a

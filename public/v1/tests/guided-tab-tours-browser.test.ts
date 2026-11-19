@@ -279,6 +279,8 @@ test("photos: a preloaded tour shows its first frame within 150 ms on a slow ser
     assert.equal(await heading(page), "Welcome to Photos");
     await page.click(".gx-pop [data-gx=close]");
     await page.waitForFunction(() => !document.querySelector(".gx-pop"));
+    // Closed on its first step: it counts once the person does something on the tab (GP-36).
+    await page.click(".pf-upload");
     const { listEvents } = await import("../guided-experiences/store.js");
     const types = async () => (await listEvents(ORG, TABS.photos.id)).filter((event: any) => event.user_id === userId).map((event: any) => event.type).reverse();
     await waitUntilAsync(async () => (await types()).includes("dismiss"), "the close is recorded once the server confirms", 12000);
@@ -331,6 +333,121 @@ test("portal: a preloaded tour the server says is already done fades away and re
     assert.deepEqual(recorded, ["dismiss"], "only the other tab's close");
     assert.deepEqual(errors, []);
   } finally { serverDelay = 0; await page.close(); }
+});
+
+/** Two tabs, Photos and Docs, shown and announced as project-request/app.js does (the host's isActive, then the route). */
+async function twoTabs(page: Page) {
+  await page.evaluate(() => {
+    const w = window as any;
+    document.getElementById("tab")!.insertAdjacentHTML("beforeend", `<div data-pane="docs" hidden><button type="button" data-docs-new>New</button></div>`);
+    document.getElementById("rPhotoFeedMount")!.setAttribute("data-pane", "photos");
+    w.activeTab = "";
+    w.show = (name: string) => {
+      w.activeTab = name;
+      document.querySelectorAll<HTMLElement>("[data-pane]").forEach((pane) => { pane.hidden = pane.dataset.pane !== name; });
+      window.dispatchEvent(new CustomEvent("fm:project-tab:opened", { detail: { appId: `project.${name}`, tabId: name, isActive: () => w.activeTab === name } }));
+      w.route = { ...w.route, projectTab: name };
+      window.dispatchEvent(new CustomEvent("fm:route-state:updated", { detail: w.route }));
+    };
+  });
+  return (name: string) => page.evaluate((tab) => (window as any).show(tab), name);
+}
+
+// GP-36: a tab's tour closed before it was used (perhaps tapped away by accident) is not done until the person does
+// something on the tab. Closed and left, it plays on the next visit; closed and then used, it is done for good.
+test("photos: a tour closed on its first step plays again after leaving the tab untouched, and is done once the tab is used", async () => {
+  const userId = "user_photos_skip_untouched";
+  const { page, errors } = await open(TABS.photos, userId);
+  const { listEvents, readProgress } = await import("../guided-experiences/store.js");
+  const types = async () => (await listEvents(ORG, TABS.photos.id)).filter((event: any) => event.user_id === userId).map((event: any) => event.type);
+  try {
+    const show = await twoTabs(page);
+    await page.evaluate(() => (window as any).FirstMateGuides.preload("p1"));
+    await show("photos");
+    await page.waitForSelector(".gx-pop h3", { timeout: 8000 });
+    assert.equal(await heading(page), "Welcome to Photos");
+    await page.click(".gx-pop [data-gx=close]");
+    await page.waitForFunction(() => !document.querySelector(".gx-pop"));
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator(".gx-pop").count(), 0, "not again on the same visit");
+    assert.ok(!(await types()).includes("dismiss"), "the close alone is not recorded");
+
+    // Leaving by tapping another tab is not doing something on the tab.
+    await page.click("#faqHost textarea");
+    await show("docs");
+    await page.waitForTimeout(1200);
+    assert.ok(!(await types()).includes("dismiss"), JSON.stringify(await types()));
+    assert.equal((await readProgress(ORG, userId, TABS.photos.id))?.status, "started", "still to do");
+
+    // The next visit plays it again. Closed, and then the person uses the tab: now it is done.
+    await show("photos");
+    await page.waitForSelector(".gx-pop h3", { timeout: 8000 });
+    assert.equal(await heading(page), "Welcome to Photos", "plays again on the next visit");
+    await page.click(".gx-pop [data-gx=close]");
+    await page.waitForFunction(() => !document.querySelector(".gx-pop"));
+    await page.click(".pf-upload");
+    await waitUntilAsync(async () => (await types()).includes("dismiss"), "the close counts once the tab is used");
+    const dismiss = (await listEvents(ORG, TABS.photos.id)).find((event: any) => event.user_id === userId && event.type === "dismiss");
+    assert.equal(dismiss?.properties.after_skip, true);
+    assert.equal((await readProgress(ORG, userId, TABS.photos.id))?.status, "dismissed");
+    await show("docs");
+    await show("photos");
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator(".gx-pop").count(), 0, "done: it does not play again");
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("photos: a tour closed after using it is done at once", async () => {
+  const userId = "user_photos_used_then_closed";
+  const { page, errors } = await open(TABS.photos, userId);
+  const { readProgress } = await import("../guided-experiences/store.js");
+  try {
+    const show = await twoTabs(page);
+    await page.evaluate(() => (window as any).FirstMateGuides.preload("p1"));
+    await show("photos");
+    await page.waitForSelector(".gx-pop h3", { timeout: 8000 });
+    await page.click(".gx-pop [data-gx=next]");
+    await page.waitForFunction(() => document.querySelector(".gx-pop h3")?.textContent?.trim() === "Upload");
+    await page.click(".gx-pop [data-gx=close]");
+    await waitUntilAsync(async () => (await readProgress(ORG, userId, TABS.photos.id))?.status === "dismissed", "closed after Next is dismissed at once");
+    await show("docs");
+    await show("photos");
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator(".gx-pop").count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+// GP-36: a project window closed in the middle of its tour is removed with its frame, so that play never finishes. The
+// page-wide lock it held must not keep every later tour waiting.
+test("a frame removed while its tour plays lets go of the page's lock, so the next tab's tour plays", async () => {
+  const userId = "user_lock_frame_removed";
+  const { page, errors } = await open(TABS.photos, userId);
+  try {
+    await page.evaluate(async (code) => {
+      const frame = document.createElement("iframe");
+      frame.id = "projectWindow";
+      frame.style.cssText = "width:600px;height:500px";
+      document.body.append(frame);
+      const child = frame.contentWindow as any;
+      child.document.body.innerHTML = `<div id="tab">${document.getElementById("tab")!.innerHTML}</div>`;
+      child.__name = (fn: unknown) => fn;
+      child.__APP = (window as any).__APP;
+      child.route = { project: "p2", projectTab: "photos" };
+      child.Portal = { navigation: { read: () => child.route }, can: () => true, tabs: { activateTab() {} }, util: { currentBranchId: () => "default" } };
+      child.eval(code);
+      // The window's tour (a replay here: anything playing in that frame) is up when the window closes.
+      child.FirstMateGuides.play("photos.tab_tutorial", { replay: true });
+    }, core);
+    await page.frameLocator("#projectWindow").locator(".gx-pop h3").waitFor({ timeout: 8000 });
+    assert.equal(await page.evaluate(() => (window as any).__fmGuidedLock.active?.id), "photos.tab_tutorial", "the frame holds the lock");
+    await page.evaluate(() => document.getElementById("projectWindow")!.remove());
+    await opened(page, TABS.photos.app);
+    await page.waitForSelector(".gx-pop h3", { timeout: 8000 });
+    assert.equal(await heading(page), "Welcome to Photos", "the tab's tour plays in the page");
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
 });
 
 async function waitUntilAsync(check: () => Promise<boolean>, message: string, timeout = 8000) {

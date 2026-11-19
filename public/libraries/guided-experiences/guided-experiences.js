@@ -23,7 +23,9 @@
  * `app_loaded` plays once when the portal loads, for announcements; `workflow_opened` plays when a document workflow
  * opens for a kind of document (`document_type`); `panel_opened` and `panel_closed` play when a project window panel
  * that is not a tab (the details tray, `project.details`) opens or the person closes it. While such a panel covers the
- * page (the tray on a phone) a tab's tour waits, and plays when it closes. What
+ * page (the tray on a phone) a tab's tour waits, and plays when it closes. A tab's tour closed before it was used
+ * counts as dismissed only once the person then does something on the tab; left without that, it plays again on the
+ * next visit (holdSkip, GP-36). What
  * someone has seen is kept on the server (progress), never in this page. The overlay and every popover are left out
  * of session replays (data-fmr-ignore).
  */
@@ -114,7 +116,7 @@
   // ── State ──────────────────────────────────────────────────────────────
   // `visit`: the project tab this frame shows now (see onTabOpened); `current`: the experience playing in this frame.
   const state = { reveals: null, experiences: new Map(), faqs: new Map(), loaded: '', loading: null, playing: null, bypass: new WeakSet(), tabTimers: new Set(),
-    visit: { key: '', tab: '', projectId: '', generation: 0, armed: false, isActive: null }, current: null };
+    visit: { key: '', tab: '', projectId: '', generation: 0, armed: false, isActive: null }, current: null, skipped: null };
   const kinds = new Map();
 
   /*
@@ -189,7 +191,23 @@
     try { if (root.top && root.top !== root && root.top.document) host = root.top; } catch (_) { host = root; }
     return host.__fmGuidedLock || (host.__fmGuidedLock = { active: null, queue: [] });
   })();
+  /**
+   * A frame that went away while it held the lock or waited in the queue (a project window closed in the middle of its
+   * tour: its frame is removed, so its play never finishes) lets go of both. Otherwise every later tour in the page
+   * would wait behind it for good (GP-36).
+   */
+  const gone = (win) => { try { return !win || win.closed || !win.document; } catch (_) { return true; } };
+  function releaseGone(){
+    if (shared.active && shared.active.frame !== root && gone(shared.active.frame)) shared.active = null;
+    for (let i = shared.queue.length - 1; i >= 0; i--) if (gone(shared.queue[i].frame)) shared.queue.splice(i, 1);
+  }
+  root.addEventListener?.('pagehide', () => {
+    if (shared.active?.frame === root) shared.active = null;
+    for (let i = shared.queue.length - 1; i >= 0; i--) if (shared.queue[i].frame === root) shared.queue.splice(i, 1);
+    try { nextInQueue(); } catch (_) {}
+  });
   function nextInQueue(){
+    releaseGone();
     while (!shared.active && shared.queue.length) {
       const request = shared.queue.shift();
       try { request.run(); return; } catch (_) { /* that frame is gone */ }
@@ -210,6 +228,7 @@
   }
   async function playOne(id, options, started){
     // The same experience asked for again (a second trigger, a double click) is ignored, never stacked.
+    releaseGone();
     if (shared.active?.id === id || shared.queue.some((entry) => entry.id === id)) return { status: 'busy' };
     if (shared.active) {
       // A play bound to a tab visit (`options.bound`) is taken off the queue when this frame leaves that tab (leave()).
@@ -264,6 +283,7 @@
       if (experience && ['completed', 'dismissed'].includes(outcome?.status) && !options.replay) markFinished(experience.id, outcome.status);
       // Put off: nothing but a manual play starts it again from this page before the server's list says otherwise.
       if (experience && outcome?.status === 'deferred') markDeferred(experience.id);
+      if (experience && outcome?.status === 'skipped') holdSkip(experience, outcome.commit);
       if (shared.active === token) shared.active = null;
       if (experience) root.dispatchEvent?.(new CustomEvent('fm:guides:ended', { detail: { id: experience.id } }));
       refresh(true).finally(nextInQueue);
@@ -276,6 +296,7 @@
    * trigger comes. From the console: FirstMateGuides.preview('exteriors.introduction').
    */
   async function preview(id){
+    releaseGone();
     if (shared.active) return { status: 'busy' };
     const here = where();
     const experience = object((await api.preview(clean(id), here.tab, here.projectId)).experience);
@@ -450,6 +471,7 @@
 
   // before_action: hold the click, play, then let it through.
   document?.addEventListener('click', (event) => {
+    releaseGone();
     if (shared.active || event.defaultPrevented) return;
     const target = event.target?.closest?.('button,[role=button],a,[data-mt-generate-materials],[data-mt-generate-column]');
     if (!target || state.bypass.has(target)) { if (target) state.bypass.delete(target); return; }
@@ -511,6 +533,8 @@
     for (const experience of snapshot.experiences.values()) {
       const trigger = array(experience.triggers).find((entry) => entry.kind === 'tab_opened' && entry.tab === tab);
       if (!trigger || (experience.progress && experience.progress.status !== 'started')) continue;
+      // Closed on this visit and still waiting (a panel covered the tab meanwhile): not again until the next visit.
+      if (state.skipped?.id === experience.id && state.skipped.key === state.visit.key) continue;
       if (experience.kind === 'overlay' && kinds.has('overlay')) {
         if (!startsHere(experience, bound)) return false;
         play(experience.id, { bound, instant: true });
@@ -529,6 +553,8 @@
    */
   function leave(nextTab = '', nextProject = ''){
     const previous = state.visit;
+    // A close still waiting for the person to do something on the tab: they left without doing anything (holdSkip).
+    state.skipped = null;
     state.visit = { key: '', tab: '', projectId: '', generation: state.visit.generation + 1, armed: false, isActive: null };
     state.tabTimers.forEach((timer) => clearTimeout(timer));
     state.tabTimers.clear();
@@ -557,6 +583,33 @@
   root.addEventListener?.('fm:project-tab:opened', onTabOpened);
 
   /*
+   * A tab's tour closed before it was used (GP-36): the person may have tapped it away by accident. It counts as
+   * dismissed only once they then do something on the tab: a tap or a key in this frame (not on a guide) that does not
+   * take them off it. A tap that does (another tab, closing the project window) ends the visit first (leave()), and so
+   * does closing the page; then nothing is recorded, progress stays to do, and the tab's next visit plays it again.
+   */
+  const SKIP_SETTLE_MS = 800;
+  function holdSkip(experience, commit){
+    if (typeof commit !== 'function') return;
+    if (!state.visit.key) { commit(); markFinished(experience.id, 'dismissed'); return; }
+    state.skipped = { id: experience.id, key: state.visit.key, commit, timer: 0 };
+  }
+  function onSkipInteraction(event){
+    const skipped = state.skipped;
+    if (!skipped || skipped.timer || event.isTrusted === false || event.target?.closest?.('[data-gx-overlay]')) return;
+    // Wait for what the tap does: a tab change or a closed window ends the visit (leave clears state.skipped).
+    skipped.timer = setTimeout(() => {
+      if (state.skipped !== skipped) return;
+      if (state.visit.key !== skipped.key) { state.skipped = null; return; }
+      state.skipped = null;
+      skipped.commit();
+      markFinished(skipped.id, 'dismissed');
+    }, SKIP_SETTLE_MS);
+  }
+  document?.addEventListener('pointerdown', onSkipInteraction, true);
+  document?.addEventListener('keydown', onSkipInteraction, true);
+
+  /*
    * panel_opened / panel_closed: a project window panel that is not a tab (the details tray, `project.details`) opened,
    * or the person closed it, in this frame. The host announces `fm:project-panel:opened` and `fm:project-panel:closed`
    * with { panel, covers, user, isOpen(), covering() }: `covers` says whether it covers the page (the tray is a sheet
@@ -575,9 +628,12 @@
   }
   function suspendVisit(){
     if (!state.visit.key || !state.visit.armed) return;
-    const { key, tab, projectId, isActive } = state.visit;
+    const { key, tab, projectId, isActive } = state.visit, skipped = state.skipped;
     leave();
+    // A panel over the tab does not end the visit: a close waiting on it still waits (and the panel was opened by
+    // something the person did).
     Object.assign(state.visit, { key, tab, projectId, isActive });
+    state.skipped = skipped;
   }
   function playPanelTrigger(kind, detail, showing){
     const start = () => {
@@ -1007,15 +1063,30 @@
     }
   };
 
-  kinds.set('overlay', async ({ experience, track: record, control }) => {
-    const result = await overlay.run(experience.steps, { experienceId: experience.id, control, onStep: ({ type, step }) => { if (type !== 'dismiss') record(type, { step_id: step }); } });
+  kinds.set('overlay', async ({ experience, track: record, control, options = {} }) => {
+    // Whether the person used the tour (Next, Back, skipping a step) before closing it. A step skipped because its
+    // target is not on the page is not theirs.
+    let engaged = false;
+    const result = await overlay.run(experience.steps, { experienceId: experience.id, control, onStep: ({ type, step, missing }) => {
+      if (['step_done', 'step_skip', 'back'].includes(type) && !missing) engaged = true;
+      if (type !== 'dismiss') record(type, { step_id: step });
+    } });
     // Stopped because the tab changed, or withdrawn because the server said it is not to play: nothing is recorded,
     // and progress stays as it was, so the tab's next visit plays it again when it is still to play.
     if (result.status === 'ended' || result.status === 'withdrawn') return result;
     if (result.status === 'completed') await record('complete', { step_id: result.last, properties: { shown: result.shown } });
+    else if (!engaged && heldSkip(experience, options)) {
+      // A tab's tour closed before it was used (GP-36) is not done yet: the close counts once the person does something
+      // on the tab (holdSkip). Left without doing anything, nothing is recorded and the next visit plays it again.
+      return { ...result, status: 'skipped', commit: () => record('dismiss', { step_id: result.last, properties: { shown: result.shown, after_skip: true } }) };
+    }
     else await record('dismiss', { step_id: result.last, properties: { shown: result.shown } });
     return result;
   });
+  /** A tour its tab's visit started (not a replay, not a skip its trigger puts off for later), so its close may wait. */
+  function heldSkip(experience, options){
+    return !options.replay && !options.preview && !options.nested && !!options.bound && !!clean(experience.tab) && options.trigger?.skip !== 'later';
+  }
 
   // ── Assistant suggestions (FAQs) ───────────────────────────────────────
   const faqCss = `
@@ -1380,7 +1451,7 @@
     registerKind(kind, player){ kinds.set(kind, player); },
     experience: (id) => state.experiences.get(id) || null,
     experiences: () => [...state.experiences.values()],
-    isPlaying: () => !!shared.active,
+    isPlaying: () => { releaseGone(); return !!shared.active; },
     L, esc, api, injectCss, holdPage, reducedMotion
   };
   if (document?.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => refresh(), { once: true }); else setTimeout(() => refresh(), 0);
