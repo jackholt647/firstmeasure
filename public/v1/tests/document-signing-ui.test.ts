@@ -116,7 +116,11 @@ test("send dialog offers the company email setup once, before the dialog, where 
   assert.deepEqual(await page.evaluate(()=>(window as any).played),[['documents.send_email_setup',{}]]);
   // Skipped: the dialog reads where its email comes from again, and still offers the setup from the preview.
   assert.equal(await page.evaluate(()=>(window as any).previewReads),2);
+  // Typed, then the button pressed at once: the field's change on blur must not swallow the press.
+  await page.locator('[data-send-contact="0"]').uncheck();
+  await page.locator('[data-send-extra]').fill('pat@example.test');
+  assert.match(await page.locator('.fmdx-send-mail-body').textContent() || '', /^Hi there,/, "an added address has no name to greet");
   await page.locator('[data-send-email-setup]').click();
-  await page.waitForFunction('window.played.length === 2');
+  await page.waitForFunction('window.played.length === 2', null, { timeout: 5000 });
   assert.deepEqual(await page.evaluate(()=>(window as any).played[1]),['documents.send_email_setup',{replay:true}]);
 });
