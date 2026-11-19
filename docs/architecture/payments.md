@@ -99,6 +99,24 @@ organization that has Money but has not started its setup gets no payments
 onboarding banner, card or notification. A configuration that offers Money keeps
 merchant processing off (the MVP platform names it in `DISABLED`).
 
+## Forward's merchant portal, in the organization's colour
+
+Settings › Money embeds Forward's merchant portal (cross-origin iframes signed in
+with a single-use magic link, `POST …/merchant-portal/login-url`): **Accounts**
+and **Disputes** show one calibrated piece of it; **Manage** (GP-77) is the whole
+portal, interactive, with its own header, scrolling and idle prompt (no renewal
+timer). Forward draws the portal in one colour (`#007a76`). Its pixels cannot be
+read or restyled from our page, so every embedded portal frame (and the Payments
+"open portal" window) carries an SVG colour matrix as its CSS `filter`
+(`libraries/brand-colorize/brand-colorize.js`, `FirstMateBrandColorize.attach`):
+greys, white and black stay exactly as they are, Forward's colour becomes the
+organization's `--primary-readable`, and each tint or shade of it the same tint or
+shade of the brand colour. By default only colours leaning towards Forward's hue
+are recoloured (its greens and blues lean that way and change too; reds and
+ambers keep theirs). The dev console's **Brand colour** section previews any
+colour on a sample and on the open portal. Run
+`tests/brand-colorize-browser.test.mjs` (with `CHROME_PATH`) for changes here.
+
 ## The checkout: one attempt to take one payment
 
 Forward's secure element (card or bank) pays a payment intent that already
