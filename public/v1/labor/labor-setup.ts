@@ -14,6 +14,7 @@ import { readCompanyProfile } from "../company-profile/profile.js";
 import { WORKFORCES, industrySetsFor } from "../company-profile/catalog.js";
 import { listPaySheets, type PaySheet } from "./pay-sheets.js";
 import { listDeclaredCapabilities } from "./capabilities.js";
+import { assigneeTypeIds } from "../assignees/base.js";
 
 /**
  * Who does the labor, as the price book setup asks it (docs/architecture/guided-experiences.md, "Who does your
@@ -119,11 +120,14 @@ export async function laborSetupOptions(orgId: string) {
   const sheetFor = (type: string, id: string) => sheets.find((sheet) => sheet.subject.type === type && sheet.subject.id === id && (sheet.schema_ids.includes(SCHEMA_ID) || !sheet.schema_ids.length));
   const pay = (type: string, id: string) => { const sheet = sheetFor(type, id); return sheet ? { sheet_id: sheet.id, name: sheet.name, lines: sheet.entries.length, simple: simplePay(sheet) } : null; };
   const types = (rows: unknown) => (Array.isArray(rows) ? rows : []).filter((row) => text((row as { status?: unknown }).status || "active") !== "archived").map((row) => ({ id: text((row as { id?: unknown }).id), name: text((row as { name?: unknown }).name) || text((row as { id?: unknown }).id) }));
+  // Each one's types as the assignee base keeps them (a company's types are not its relationship types).
+  const typeIds = async (type: "resource_group" | "organization_connection", id: string, fallback: string[]) => { const found = await assigneeTypeIds(orgId, { type, id }).catch(() => [] as string[]); return found.length ? found : fallback; };
+  const withTypes = <T extends { ref: { type: string; id: string }; type_ids: string[] }>(rows: T[]) => Promise.all(rows.map(async (row) => ({ ...row, type_ids: await typeIds(row.ref.type as "resource_group", row.ref.id, row.type_ids) })));
   return {
-    assignees: [
+    assignees: await withTypes([
       ...groups.map((group) => ({ ref: { type: "resource_group", id: text(group.id) }, kind: "resource_group", name: text(group.name), type_id: text(group.kind_id), type_ids: [text(group.kind_id)].filter(Boolean), members: membersOf(group).length, member_user_ids: membersOf(group), service_ids: servicesOf("resource_group", text(group.id)), pay: pay("resource_group", text(group.id)) })),
       ...companies.map((company) => ({ ref: { type: "organization_connection", id: text(company.id) }, kind: "organization_connection", name: text(company.name), type_id: text((Array.isArray(company.relationship_type_ids) ? company.relationship_type_ids : [])[0]), type_ids: (Array.isArray(company.relationship_type_ids) ? company.relationship_type_ids : []).map(text).filter(Boolean), members: 0, member_user_ids: [] as string[], service_ids: servicesOf("organization_connection", text(company.id)), pay: pay("organization_connection", text(company.id)) }))
-    ],
+    ]),
     profile: {
       company_type: profile.company_type, industry: profile.industry, industry_sets: industrySetsFor(profile.industry),
       services: profile.services.map((entry) => ({ id: entry.id, label: entry.label, work_kind: entry.work_kind })),
