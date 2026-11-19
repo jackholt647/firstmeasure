@@ -244,6 +244,7 @@ export function openDrivers({ api, T, esc, phone }) {
       return { title: s.title, icon: 'fa-wand-magic', lines: [
         state === 'off' ? `🔒 ${T('dc_setup_map_apps_off', 'Not offered here: an app it needs is off, or you lack its permission')} (${[...s.apps.capabilities, ...s.apps.permissions].join(', ')})`
           : state === 'not' ? `✗ ${T('dc_setup_map_not_offered', 'Not offered to this kind of company')}` : `✓ ${T('dc_setup_map_offered', 'Offered to this company')}`,
+        ...(state === 'off' && s.when ? [s.fits ? `✓ ${T('dc_setup_map_fits', 'This kind of company would get it')}` : `✗ ${T('dc_setup_map_not_offered', 'Not offered to this kind of company')}`] : []),
         ...ruleLines(s.when),
         ...s.triggers.map((trigger) => `${T(...(TRIGGERS[trigger.kind] || TRIGGERS.manual).slice(0, 2))}${trigger.on ? `: ${trigger.kind === 'after_experience' ? setupTitle(trigger.on) : trigger.on}` : ''}${trigger.when ? ` (${ruleLines(trigger.when, false).join(' ').replace(/^· /, '')})` : ''}`),
         ...(s.requires.length ? [`${T('dc_setup_map_asks_first', 'Asks first')}: ${s.requires.map(questionTitle).join(', ')}`] : []),
@@ -284,7 +285,8 @@ export function openDrivers({ api, T, esc, phone }) {
   function renderMatrix() {
     const { columns, rows } = data.matrix;
     const byId = new Map(data.setups.map((setup) => [setup.id, setup]));
-    const key = (cell) => cell.offered ? cell.variants.join('+') || '·' : '—';
+    // What the kind of company decides (`fits`); an app that is off here is the row's lock, the same in every column.
+    const key = (cell) => cell.fits ? cell.variants.join('+') || '·' : '—';
     const varies = (row) => new Set(row.cells.map(key)).size > 1;
     const list = rows.filter((row) => byId.has(row.id));
     const changing = list.filter(varies), same = list.filter((row) => !varies(row));
@@ -292,12 +294,12 @@ export function openDrivers({ api, T, esc, phone }) {
     const tone = (setupId, variant) => { const k = `${setupId}:${variant}`; if (!palette.has(k)) palette.set(k, byId.get(setupId).variants.findIndex((entry) => entry.id === variant) % 6); return palette.get(k); };
     const cellHtml = (row, cell, index) => {
       const column = columns[index], setup = byId.get(row.id);
-      const why = !setup.apps_on ? T('dc_setup_map_apps_off', 'Not offered here: an app it needs is off, or you lack its permission') : !cell.offered ? T('dc_setup_map_not_offered', 'Not offered to this kind of company') : cell.variants.length ? `${T('dc_setup_map_gets', 'Gets')} ${cell.variants.join(' / ')}` : '';
+      const why = !cell.fits ? T('dc_setup_map_not_offered', 'Not offered to this kind of company') : `${cell.variants.length ? `${T('dc_setup_map_gets', 'Gets')} ${cell.variants.join(' / ')}` : T('dc_setup_map_offered_short', 'Offered')}${setup.apps_on ? '' : ` (${T('dc_setup_map_app_off_here', 'its app is off here')})`}`;
       const title = `${setup.title} · ${column.label}: ${why}`;
-      return `<td data-col="${esc(column.key)}" data-shown="${column.key === shown}" title="${esc(title)}">${!cell.offered ? `<i class="fas ${setup.apps_on ? 'fa-minus' : 'fa-lock'} fm-dc-map-off" aria-label="${esc(why)}"></i>`
+      return `<td data-col="${esc(column.key)}" data-shown="${column.key === shown}" data-app-off="${!setup.apps_on}" title="${esc(title)}">${!cell.fits ? `<i class="fas fa-minus fm-dc-map-off" aria-label="${esc(why)}"></i>`
         : setup.variants.length > 1 ? cell.variants.map((variant) => `<span class="fm-dc-map-pill" data-tone="${tone(row.id, variant)}">${esc(variant)}</span>`).join('') : '<i class="fas fa-circle-check fm-dc-map-yes" aria-hidden="true"></i>'}</td>`;
     };
-    const rowHtml = (row) => `<tr><th scope="row" title="${esc(row.id)}">${esc(byId.get(row.id).title)}<small>${esc(byId.get(row.id).group === 'setup' ? T('dc_setup_map_setup', 'setup') : T('dc_setup_map_tour', 'tour'))}</small></th>${row.cells.map((cell, index) => cellHtml(row, cell, index)).join('')}</tr>`;
+    const rowHtml = (row) => `<tr><th scope="row" title="${esc(row.id)}">${byId.get(row.id).apps_on ? '' : `<i class="fas fa-lock fm-dc-map-off" title="${esc(`${T('dc_setup_map_apps_off', 'Not offered here: an app it needs is off, or you lack its permission')} (${[...byId.get(row.id).apps.capabilities, ...byId.get(row.id).apps.permissions].join(', ')})`)}"></i> `}${esc(byId.get(row.id).title)}<small>${esc(byId.get(row.id).group === 'setup' ? T('dc_setup_map_setup', 'setup') : T('dc_setup_map_tour', 'tour'))}</small></th>${row.cells.map((cell, index) => cellHtml(row, cell, index)).join('')}</tr>`;
     const header = `<tr><th></th>${columns.map((column) => `<th scope="col" data-shown="${column.key === shown}"><button type="button" data-map-show="${esc(column.key)}" title="${esc(`${column.label}${column.industry ? ` · ${column.industry}` : ''}${column.industry_sets.length ? ` · ${column.industry_sets.map(setLabel).join(', ')}` : ''}`)}"><span>${esc(column.label)}</span></button></th>`).join('')}</tr>`;
     stage.innerHTML = `<div class="fm-dc-map-matrix">
       <p class="fm-dc-map-note">${esc(T('dc_setup_map_matrix_note', 'Each column is a kind of company; each cell is what that company gets. A name heading a column opens the diagram for it.'))}</p>

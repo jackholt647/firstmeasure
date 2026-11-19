@@ -196,6 +196,7 @@
 .fm-dc-map-matrix [data-shown=true]{background:#f4f3ff}
 .fm-dc-map-matrix td{min-width:38px}
 .fm-dc-map-off{color:#d0d5dd}
+.fm-dc-map-matrix td[data-app-off=true]>*{opacity:.5}
 .fm-dc-map-yes{color:#079455}
 .fm-dc-map-pill{display:inline-block;margin:1px;padding:1px 7px;border-radius:999px;font-size:10.5px;font-weight:600;white-space:nowrap;background:#f4f3ff;color:#6941c6}
 .fm-dc-map-pill[data-tone="1"]{background:#fef0c7;color:#93370d}

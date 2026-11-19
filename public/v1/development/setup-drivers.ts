@@ -65,7 +65,7 @@ function evaluate(definition: ExperienceDefinition, context: ChooserContext, app
   const eligible = variants.filter((entry) => entry.variant.weight > 0 && (!entry.when || entry.when.matched));
   const total = eligible.reduce((sum, entry) => sum + entry.variant.weight, 0);
   return {
-    offered: appsOn && (!when || when.matched), apps_on: appsOn, when,
+    offered: appsOn && (!when || when.matched), apps_on: appsOn, fits: !when || when.matched, when,
     variants: variants.map(({ variant, when: trace }) => {
       const picked = eligible.some((entry) => entry.variant.id === variant.id);
       return {
@@ -144,7 +144,8 @@ export async function setupDrivers(ctx: PlatformAuthContext, shownInput = "") {
     });
   }
 
-  // Every company type at once: which setups each gets, and with which variant.
+  // Every company type at once: which setups each gets, and with which variant. `fits` is the company's part alone, so a
+  // setup whose app is off here still shows how it would differ by trade (the row says the app is off).
   const columns = [
     ...COMPANY_TYPES.map((type) => ({ key: type.id, label: type.label.text, industry: type.industry, industry_sets: industrySetsFor(type.industry) })),
     { key: OTHER_COMPANY_TYPE, label: "Other", industry: "", industry_sets: [] as string[] },
@@ -155,7 +156,7 @@ export async function setupDrivers(ctx: PlatformAuthContext, shownInput = "") {
     id: definition.id,
     cells: contexts.map((each) => {
       const result = evaluate(definition, each, appsOn.get(definition.id) || false);
-      return { offered: result.offered, when: result.when ? result.when.matched : null, variants: result.variants.filter((variant) => variant.chosen).map((variant) => variant.id) };
+      return { offered: result.offered, fits: result.fits, variants: result.variants.filter((variant) => variant.chosen).map((variant) => variant.id) };
     })
   }));
 
