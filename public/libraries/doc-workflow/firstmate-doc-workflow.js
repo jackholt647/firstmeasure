@@ -2134,6 +2134,12 @@
   // Writes the scope-item tree (params.scope_items). An item with
   // generate:false has nothing to generate from (a change order's added
   // work): its lines are added by hand or from the price book.
+  // The line items' short tour (documents.compare_tutorial: adding lines,
+  // Compare and List, the preview, reading the columns). Its trigger is
+  // manual: the first time this page shows a compare view, it is asked for
+  // once; the guided experiences runtime keeps who has seen it.
+  const COMPARE_TOUR = 'documents.compare_tutorial';
+  let compareTourAsked = false;
   registerKind('line_items_review', (el, ctx) => {
     const services = obj(ctx.services);
     const generates = ctx.item.generate !== false;
@@ -2625,17 +2631,48 @@
       return out.join('');
     }
     const nestedHtml = (item) => (arr(item.children).length ? `<div class="fmdw-lir-fold-body ${folded.has(item.id) ? 'folded' : ''}" data-fmdw-fold-body="${esc(item.id)}"><div class="fmdw-lir-children">${childrenHtml(item.children)}</div></div>` : '');
+    /** The same line in every column: the price book item, or else the name. */
+    const compareKey = (line) => {
+      const ref = obj(line.pricebook_ref);
+      const id = firstText(ref.item_id, ref.catalog_item_id);
+      return id ? `pb:${id}` : `name:${firstText(line.display_name, line.name).toLowerCase()}`;
+    };
+    /** A typed amount: "$1,250.50" or "1250.5". NaN when it is not a number. */
+    const amountTyped = (text) => {
+      const digits = String(text ?? '').replace(/[^0-9.\-]/g, '');
+      return digits === '' ? NaN : Number(digits);
+    };
+    const amountText = (dollars) => (Number(dollars) || 0).toLocaleString((globalThis.PlatformLanguage?.formatLocale?.('en-US') || 'en-US'), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    /** The columns' widths: the chosen option a little wider than the others. */
+    const compareColumns = (options) => options.map((option) => (options.length > 1 && scopeItemSelected(option) ? 'minmax(0,1.3fr)' : 'minmax(0,1fr)')).join(' ');
+    const lastColumns = new Map();
     /**
-     * The options of a choice group as columns: the same lines row for row
-     * where the options share them, so prices can be read across. Choosing
-     * works here; editing a line is done in List.
+     * The options of a choice group as columns, so prices can be read across.
+     * The chosen option is a little wider and is edited in place: a line's
+     * name and price, a line added from the price book (+ at the bottom), a
+     * line taken off. Hovering a line marks the same line in every column.
      */
     function compareHtml(options){
       const group = cleanText(choiceGroupOf(options[0]));
       const column = (option) => {
         const on = scopeItemSelected(option);
+        const editing = on && !ctx.readonly;
         const lines = [];
         walkItems(option.children, (line) => { if (!arr(line.children).length) lines.push(line); });
+        const lineHtml = (line) => {
+          const off = scopeItemSelected(line) || !cleanText(obj(line.selection).mode) || cleanText(obj(line.selection).mode) === 'fixed' ? '' : 'off';
+          const name = firstText(line.display_name, line.name);
+          const attrs = `data-fmdw-cmp-line="${esc(line.id)}" data-fmdw-cmp-key="${esc(compareKey(line))}"`;
+          if (!editing) return `<li class="${off}" ${attrs}><span>${esc(name)}</span><b>${esc(moneyFromDollars(lineAmount(line)))}</b></li>`;
+          const quantity = Number(line.quantity || 0) || 0;
+          const per = quantity !== 1 && line.price_driving !== false ? `${formatNumber(quantity)} ${line.unit || 'ea'} × ${moneyFromDollars(line.unit_price)}` : 'Price';
+          return `
+            <li class="${off} edit" ${attrs}>
+              <input type="text" class="fmdw-cmp-name" data-fmdw-cmp-name value="${esc(name)}" maxlength="160" aria-label="Name on this estimate" title="Name on this estimate">
+              <label class="fmdw-cmp-price" title="${esc(per)}"><i>$</i><input type="text" inputmode="decimal" data-fmdw-cmp-price value="${esc(amountText(lineAmount(line)))}" aria-label="Price of ${esc(name)}" ${line.price_driving === false ? 'disabled' : ''}></label>
+              <button type="button" class="fmdw-cmp-remove" data-fmdw-cmp-remove title="Take this line off" aria-label="Take ${esc(name)} off"><i class="fas fa-xmark"></i></button>
+            </li>`;
+        };
         return `
           <div class="fmdw-lir-col ${on ? 'on' : ''}" data-fmdw-lir="${esc(option.id)}">
             <label class="fmdw-lir-col-head">
@@ -2643,10 +2680,140 @@
               <span class="fmdw-lir-name">${nameHtml(option, 'Option')}${descHtml(option)}</span>
             </label>
             <b class="fmdw-lir-col-total" data-fmdw-lir-amount="${esc(option.id)}">${esc(moneyFromDollars(rowAmount(option)))}</b>
-            ${lines.length ? `<ul class="fmdw-lir-col-lines">${lines.map((line) => `<li class="${scopeItemSelected(line) || !cleanText(obj(line.selection).mode) || cleanText(obj(line.selection).mode) === 'fixed' ? '' : 'off'}"><span>${esc(firstText(line.display_name, line.name))}</span><b>${esc(moneyFromDollars(lineAmount(line)))}</b></li>`).join('')}</ul>` : (cleanText(option.description) ? '' : '<p class="fmdw-lir-col-empty">No lines under this option.</p>')}
+            ${lines.length ? `<ul class="fmdw-lir-col-lines">${lines.map(lineHtml).join('')}</ul>` : (cleanText(option.description) && !editing ? '' : '<p class="fmdw-lir-col-empty">No lines under this option.</p>')}
+            ${editing ? `<div class="fmdw-cmp-add" data-fmdw-cmp-add="${esc(option.id)}"><button type="button" class="fmdw-cmp-add-open" data-fmdw-cmp-add-open title="Add a line to ${esc(firstText(option.display_name, option.name, 'this option'))}"><i class="fas fa-plus"></i> Add line</button></div>` : ''}
           </div>`;
       };
-      return `<div class="fmdw-lir-compare" style="--fmdw-cols:${options.length}">${options.map(column).join('')}</div>`;
+      return `<div class="fmdw-lir-compare" data-fmdw-cmp-group="${esc(group)}" style="--fmdw-cols:${options.length};--fmdw-cmp-cols:${compareColumns(options)}">${options.map(column).join('')}</div>`;
+    }
+
+    function offerCompareTour(){
+      const guides = root.FirstMateGuides;
+      if (compareTourAsked || typeof guides?.play !== 'function') return;
+      compareTourAsked = true;
+      const showing = () => el.isConnected && el.getClientRects().length > 0 && !!el.querySelector('.fmdw-lir-compare .fmdw-lir-col.on');
+      // After the step has laid out; inside a setup it plays over the setup (`over`).
+      setTimeout(() => { if (showing()) Promise.resolve(guides.play(COMPARE_TOUR, { over: true, showing })).catch(() => {}); }, 700);
+    }
+
+    // ------------------------------------------------- add a line in Compare
+    let pricebookItems = null;
+    /** The organization's price book items, loaded once; [] where there is none. */
+    async function loadPricebookItems(){
+      if (pricebookItems) return pricebookItems;
+      const book = root.FirstMatePricebook || root.Portal?.modules?.pricebook || null;
+      try { await Promise.resolve(book?.loadState?.()); } catch (e) { /* the list below may still be there */ }
+      let list = [];
+      try { list = arr(obj(book?.getState?.()).items); } catch (e) { list = []; }
+      if (!list.length) { try { list = arr(obj(services.pricebook?.getState?.()).items); } catch (e) { list = []; } }
+      pricebookItems = list.map(obj).filter((item) => cleanText(item.id) && firstText(item.display_name, item.name) && item.active !== false && !item.archived);
+      return pricebookItems;
+    }
+    /** A price book item as a line, sized from this document's measurements where the price book can. */
+    function lineFromPricebook(entry){
+      const book = root.FirstMatePricebook || root.Portal?.modules?.pricebook || null;
+      let made = null;
+      try { made = book?.scopeItemFromPricebook?.(entry.id, clone(measurements())); } catch (e) { made = null; }
+      return normalizeScopeItem(made || {
+        name: firstText(entry.name, entry.display_name, 'Line item'),
+        display_name: firstText(entry.display_name, entry.name),
+        description: cleanText(entry.description),
+        unit: firstText(entry.unit, 'ea'),
+        quantity: '1',
+        unit_price: Number(entry.unit_price ?? entry.base_price ?? entry.basePrice ?? 0) || 0,
+        base_price: Number(entry.base_price ?? entry.basePrice ?? entry.unit_price ?? 0) || 0,
+        pricebook_ref: { item_id: entry.id, catalog_item_id: entry.id }
+      });
+    }
+    /**
+     * The + at the bottom of the chosen column opens a small row: type a name
+     * (price book items that match are offered under it) and a price, Enter.
+     * A price book item keeps its quantity and unit price; a typed price is
+     * the line's price.
+     */
+    function openCompareAdd(holder){
+      const optionId = holder.dataset.fmdwCmpAdd;
+      holder.classList.add('open');
+      holder.innerHTML = `
+        <div class="fmdw-cmp-add-row">
+          <input type="text" class="fmdw-cmp-name" data-fmdw-cmp-add-name placeholder="Name, or search your price book" maxlength="160" aria-label="New line name" autocomplete="off">
+          <label class="fmdw-cmp-price"><i>$</i><input type="text" inputmode="decimal" data-fmdw-cmp-add-price placeholder="0.00" aria-label="New line price"></label>
+          <button type="button" class="fmdw-cmp-remove" data-fmdw-cmp-add-cancel title="Cancel (Esc)" aria-label="Cancel"><i class="fas fa-xmark"></i></button>
+        </div>
+        <div class="fmdw-cmp-suggest" data-fmdw-cmp-suggest role="listbox" hidden></div>
+        <small class="fmdw-cmp-add-hint">Enter adds it. Pick a price book item to use its price.</small>`;
+      const nameInput = holder.querySelector('[data-fmdw-cmp-add-name]');
+      const priceInput = holder.querySelector('[data-fmdw-cmp-add-price]');
+      const suggest = holder.querySelector('[data-fmdw-cmp-suggest]');
+      let matches = [];
+      let active = -1;
+      const close = () => { root.removeEventListener('keydown', onEscape, true); render(); };
+      const add = (line) => {
+        const found = findItem(items, optionId);
+        if (!found) return close();
+        root.removeEventListener('keydown', onEscape, true);
+        found.item.children = [...arr(found.item.children), line];
+        commit();
+        ctx.requestPreview();
+        render();
+        // Ready for the next one.
+        [...el.querySelectorAll('[data-fmdw-cmp-add]')].find((next) => next.dataset.fmdwCmpAdd === optionId)?.querySelector('[data-fmdw-cmp-add-open]')?.click();
+      };
+      const addTyped = () => {
+        const name = cleanText(nameInput.value);
+        if (!name) { nameInput.focus(); return; }
+        const price = Math.max(0, amountTyped(priceInput.value) || 0);
+        add(makeScopeItem({ name, display_name: name, unit_price: price, base_price: price }));
+      };
+      const drawSuggestions = () => {
+        const needle = cleanText(nameInput.value).toLowerCase();
+        matches = needle && pricebookItems ? pricebookItems.filter((entry) => `${firstText(entry.display_name, entry.name)} ${cleanText(entry.description)}`.toLowerCase().includes(needle)).slice(0, 6) : [];
+        active = matches.length ? Math.min(Math.max(active, 0), matches.length - 1) : -1;
+        suggest.hidden = !matches.length;
+        suggest.innerHTML = matches.map((entry, index) => `
+          <button type="button" class="fmdw-cmp-suggest-row ${index === active ? 'active' : ''}" data-fmdw-cmp-pick="${index}" role="option" aria-selected="${index === active}">
+            <span>${esc(firstText(entry.display_name, entry.name))}</span>
+            <b>${esc(moneyFromDollars(Number(entry.unit_price ?? entry.base_price ?? 0) || 0))}<i>/${esc(entry.unit || 'ea')}</i></b>
+          </button>`).join('');
+        suggest.querySelectorAll('[data-fmdw-cmp-pick]').forEach((button) => {
+          // mousedown, so the name field's blur does not close the list first.
+          button.addEventListener('mousedown', (event) => { event.preventDefault(); add(lineFromPricebook(matches[Number(button.dataset.fmdwCmpPick)])); });
+        });
+      };
+      // Escape cancels here, before the window behind (a project window) takes it as "close".
+      function onEscape(event){
+        if (event.key !== 'Escape' || !holder.isConnected || !holder.contains(document.activeElement)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        close();
+      }
+      root.addEventListener('keydown', onEscape, true);
+      nameInput.addEventListener('input', () => { active = 0; drawSuggestions(); });
+      nameInput.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          if (!matches.length) return;
+          event.preventDefault();
+          active = (active + (event.key === 'ArrowDown' ? 1 : matches.length - 1)) % matches.length;
+          drawSuggestions();
+        } else if (event.key === 'Enter') {
+          event.preventDefault();
+          // A typed price means the typed line; otherwise the highlighted price book item, if any.
+          if (matches[active] && !cleanText(priceInput.value)) add(lineFromPricebook(matches[active]));
+          else if (cleanText(priceInput.value)) addTyped();
+          else priceInput.focus();
+        } else if (event.key === 'Tab' && !event.shiftKey) {
+          suggest.hidden = true;
+        }
+      });
+      priceInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); addTyped(); } });
+      holder.querySelector('[data-fmdw-cmp-add-cancel]').addEventListener('click', (event) => { event.stopPropagation(); close(); });
+      holder.addEventListener('click', (event) => event.stopPropagation());
+      // Left empty and clicked away from: the + comes back.
+      holder.addEventListener('focusout', () => setTimeout(() => {
+        if (holder.isConnected && !holder.contains(document.activeElement) && !cleanText(nameInput.value) && !cleanText(priceInput.value)) close();
+      }, 0));
+      nameInput.focus();
+      loadPricebookItems().then(() => { if (holder.isConnected) drawSuggestions(); }).catch(() => {});
     }
 
     function rootHtml(item){
@@ -2726,6 +2893,77 @@
         radio.checked = true;
         radio.dispatchEvent(new Event('change', { bubbles: true }));
       }));
+      el.querySelectorAll('.fmdw-lir-compare').forEach((grid) => {
+        // The chosen column widens: from the widths it had, so it slides.
+        const group = grid.dataset.fmdwCmpGroup;
+        const columns = grid.style.getPropertyValue('--fmdw-cmp-cols');
+        const before = lastColumns.get(group);
+        lastColumns.set(group, columns);
+        if (before && before !== columns && !root.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+          grid.style.setProperty('--fmdw-cmp-cols', before);
+          void grid.offsetWidth;
+          grid.style.setProperty('--fmdw-cmp-cols', columns);
+        }
+        // Hovering a line marks the same line in every column.
+        const mark = (key) => grid.querySelectorAll('[data-fmdw-cmp-key]').forEach((line) => line.classList.toggle('hover', !!key && line.dataset.fmdwCmpKey === key));
+        const keyAt = (target) => cleanText(target?.closest?.('[data-fmdw-cmp-key]')?.dataset.fmdwCmpKey);
+        grid.addEventListener('mouseover', (event) => mark(keyAt(event.target)));
+        grid.addEventListener('mouseleave', () => mark(keyAt(grid.querySelector('[data-fmdw-cmp-key]:focus-within'))));
+        grid.addEventListener('focusin', (event) => mark(keyAt(event.target)));
+        grid.addEventListener('focusout', () => setTimeout(() => { if (grid.isConnected && !grid.contains(document.activeElement)) mark(''); }, 0));
+      });
+      // The chosen column's lines are edited in place: name, price, taken off.
+      if (!ctx.readonly) el.querySelectorAll('.fmdw-lir-col.on [data-fmdw-cmp-line]').forEach((line) => {
+        const id = line.dataset.fmdwCmpLine;
+        const name = line.querySelector('[data-fmdw-cmp-name]');
+        const price = line.querySelector('[data-fmdw-cmp-price]');
+        const shown = () => findItem(items, id);
+        name?.addEventListener('change', () => {
+          const found = shown();
+          if (!found) return;
+          const title = cleanText(name.value);
+          // The price book name stays as `name`; this estimate shows display_name.
+          if (!title) { name.value = firstText(found.item.display_name, found.item.name); return; }
+          if (title !== cleanText(found.item.name)) found.item.display_name = title; else delete found.item.display_name;
+          line.dataset.fmdwCmpKey = compareKey(found.item);
+          commit();
+          ctx.requestPreview();
+        });
+        price?.addEventListener('change', () => {
+          const found = shown();
+          if (!found) return;
+          const typed = amountTyped(price.value);
+          if (!Number.isFinite(typed)) { price.value = amountText(lineAmount(found.item)); return; }
+          const amount = Math.max(0, typed);
+          // The quantity stays (it may come from the measurements); the unit price makes up the amount.
+          let quantity = Number(found.item.quantity || 0) || 0;
+          if (quantity <= 0) { quantity = 1; found.item.quantity = '1'; found.item.manual_quantity = true; }
+          found.item.unit_price = Math.round((amount / quantity) * 10000) / 10000;
+          commit();
+          ctx.requestPreview();
+          price.value = amountText(lineAmount(found.item));
+          const label = price.closest('.fmdw-cmp-price');
+          if (label && quantity !== 1) label.title = `${formatNumber(quantity)} ${found.item.unit || 'ea'} × ${moneyFromDollars(found.item.unit_price)}`;
+          refreshAmounts();
+        });
+        [name, price].forEach((input) => input?.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') { event.preventDefault(); input.blur(); }
+        }));
+        line.querySelector('[data-fmdw-cmp-remove]')?.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const found = shown();
+          if (!found) return;
+          found.list.splice(found.list.indexOf(found.item), 1);
+          commit();
+          ctx.requestPreview();
+          render();
+        });
+      });
+      el.querySelectorAll('[data-fmdw-cmp-add-open]').forEach((button) => button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openCompareAdd(button.closest('[data-fmdw-cmp-add]'));
+      }));
+      if (!ctx.readonly && el.querySelector('.fmdw-lir-compare .fmdw-lir-col.on')) offerCompareTour();
       el.querySelectorAll('[data-fmdw-lir-view]').forEach((button) => button.addEventListener('click', () => {
         compared.set(button.dataset.fmdwLirViewGroup, button.dataset.fmdwLirView === 'compare');
         render();
@@ -4393,7 +4631,7 @@
 .fmdw-lir-view button{border:0;background:transparent;color:#667085;font:inherit;font-size:10.5px;font-weight:900;padding:4px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
 .fmdw-lir-view button.on{background:#111827;color:#fff}
 .fmdw-lir-choice-head .fmdw-lir-add-option{margin-left:0}
-.fmdw-lir-compare{display:grid;grid-template-columns:repeat(var(--fmdw-cols,3),minmax(0,1fr));gap:8px;margin-left:22px}
+.fmdw-lir-compare{display:grid;grid-template-columns:var(--fmdw-cmp-cols,repeat(var(--fmdw-cols,3),minmax(0,1fr)));gap:8px;margin-left:22px;transition:grid-template-columns .24s cubic-bezier(.3,.8,.3,1)}
 .fmdw-lir-col{cursor:pointer;display:flex;flex-direction:column;gap:8px;min-width:0;border:1.5px solid var(--fmdw-line);border-radius:12px;background:#fff;padding:10px 11px;transition:border-color .14s ease,box-shadow .14s ease}
 .fmdw-lir-col.on{border-color:var(--fmdw-primary);box-shadow:0 0 0 1px var(--fmdw-primary)}
 .fmdw-lir-col-head{display:flex;align-items:flex-start;gap:8px;cursor:pointer;min-width:0}
@@ -4411,8 +4649,43 @@
 .fmdw-lir-col-lines li b{font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
 .fmdw-lir-col-lines li.off{color:#98a2b3;text-decoration:line-through}
 .fmdw-lir-col-empty{margin:0;font-size:11px;font-weight:800;color:var(--fmdw-muted)}
+.fmdw-lir-col:not(.on):hover{border-color:#cdd3e0;box-shadow:0 2px 10px rgba(16,24,40,.06)}
+/* the same line in every column, marked while one of them is hovered */
+.fmdw-lir-col-lines li{margin:0 -6px;padding:1px 6px;border-radius:6px;transition:background .1s ease}
+.fmdw-lir-col-lines li.hover{background:#eef1f6}
+.fmdw-lir-col.on .fmdw-lir-col-lines li.hover{background:color-mix(in srgb,var(--fmdw-primary) 7%,transparent)}
+/* the chosen column is edited in place: name, price, take off, add */
+.fmdw-lir-col-lines li.edit{display:grid;grid-template-columns:minmax(0,1fr) auto 18px;align-items:center;gap:4px;padding-right:0}
+.fmdw-lir-compare input.fmdw-cmp-name,.fmdw-lir-compare .fmdw-cmp-price input{max-width:none;min-width:0;box-shadow:none;box-sizing:border-box;border:1px solid transparent;border-radius:6px;background:transparent;color:inherit;font:inherit;font-size:11px;font-weight:800;padding:2px 5px;margin:-3px 0 -3px -5px;outline:none;transition:border-color .12s ease,background .12s ease}
+.fmdw-lir-compare input.fmdw-cmp-name{width:calc(100% + 5px);text-overflow:ellipsis}
+.fmdw-cmp-price{display:inline-flex;align-items:center;justify-content:flex-end;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap;cursor:text}
+.fmdw-cmp-price i{font-style:normal}
+.fmdw-lir-compare .fmdw-cmp-price input{width:10ch;margin:-3px -5px -3px -3px;padding-left:2px;text-align:right;font-weight:900;font-variant-numeric:tabular-nums}
+.fmdw-lir-compare li.edit:hover input.fmdw-cmp-name,.fmdw-lir-compare li.edit:hover .fmdw-cmp-price input,.fmdw-lir-compare .fmdw-cmp-add input.fmdw-cmp-name,.fmdw-lir-compare .fmdw-cmp-add .fmdw-cmp-price input{border-color:#d4d9e6;background:#fff}
+.fmdw-lir-compare input.fmdw-cmp-name:focus,.fmdw-lir-compare .fmdw-cmp-price input:focus{border-color:var(--fmdw-primary)!important;background:#fff;box-shadow:none}
+.fmdw-lir-col-lines li.off .fmdw-cmp-name,.fmdw-lir-col-lines li.off .fmdw-cmp-price{text-decoration:line-through}
+.fmdw-cmp-remove{width:18px;height:18px;padding:0;border:0;border-radius:5px;background:transparent;color:#98a2b3;font-size:10px;cursor:pointer;display:grid;place-items:center;opacity:0;transition:opacity .12s ease,background .12s ease}
+.fmdw-cmp-remove:hover{background:#fdecea;color:#b42318}
+.fmdw-lir-col-lines li.edit:hover .fmdw-cmp-remove,.fmdw-lir-col-lines li.edit:focus-within .fmdw-cmp-remove,.fmdw-cmp-add .fmdw-cmp-remove,.fmdw-cmp-remove:focus-visible{opacity:1}
+@media (hover:none){.fmdw-cmp-remove{opacity:1}}
+.fmdw-cmp-add{position:relative;margin-top:auto;padding-top:6px;border-top:1px dashed #e4e7ec}
+.fmdw-cmp-add-open{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:7px;background:transparent;color:var(--fmdw-primary);font:inherit;font-size:11px;font-weight:900;padding:4px 6px;margin-left:-6px;cursor:pointer}
+.fmdw-cmp-add-open:hover{background:color-mix(in srgb,var(--fmdw-primary) 8%,transparent)}
+.fmdw-cmp-add-row{display:grid;grid-template-columns:minmax(0,1fr) auto 18px;align-items:center;gap:4px;font-size:11px;font-weight:800;color:#344054}
+.fmdw-lir-compare .fmdw-cmp-add input.fmdw-cmp-name,.fmdw-lir-compare .fmdw-cmp-add .fmdw-cmp-price input{margin-top:0;margin-bottom:0;padding-top:4px;padding-bottom:4px}
+.fmdw-lir-compare .fmdw-cmp-add input.fmdw-cmp-name{margin-left:0;width:100%}
+.fmdw-lir-compare .fmdw-cmp-add .fmdw-cmp-price input{margin-right:0;min-width:7ch}
+@supports (field-sizing:content){.fmdw-lir-compare .fmdw-cmp-price input{field-sizing:content;width:auto;min-width:4ch}.fmdw-lir-compare .fmdw-cmp-add .fmdw-cmp-price input{min-width:7ch}}
+.fmdw-cmp-add-hint{display:block;margin-top:4px;font-size:10px;font-weight:800;color:var(--fmdw-muted)}
+.fmdw-cmp-suggest{position:absolute;left:0;right:0;top:calc(100% - 16px);z-index:5;display:flex;flex-direction:column;gap:2px;padding:4px;border:1px solid var(--fmdw-line);border-radius:10px;background:#fff;box-shadow:0 12px 28px rgba(16,24,40,.16)}
+.fmdw-cmp-suggest[hidden]{display:none}
+.fmdw-cmp-suggest-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border:0;border-radius:7px;background:transparent;font:inherit;font-size:11.5px;font-weight:800;color:#111827;text-align:left;padding:6px 8px;cursor:pointer}
+.fmdw-cmp-suggest-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fmdw-cmp-suggest-row b{flex:none;font-weight:900;font-variant-numeric:tabular-nums}
+.fmdw-cmp-suggest-row b i{font-style:normal;font-weight:800;color:#98a2b3}
+.fmdw-cmp-suggest-row:hover,.fmdw-cmp-suggest-row.active{background:#f2f4f8}
 @container (max-width:560px){.fmdw-lir-compare{grid-template-columns:1fr}}
-@media (prefers-reduced-motion:reduce){.fmdw-lir-fold-body,.fmdw-lir-edit,.fmdw-lir-fold{transition:none}}
+@media (prefers-reduced-motion:reduce){.fmdw-lir-fold-body,.fmdw-lir-edit,.fmdw-lir-fold,.fmdw-lir-compare{transition:none}}
 .fmdw-lir-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:2px 10px;padding:7px 9px 7px 12px;border:1px solid var(--fmdw-line);border-radius:11px;background:#fff;min-width:0;transition:border-color .12s ease,box-shadow .12s ease}
 .fmdw-lir-row:hover,.fmdw-lir-row:focus-within{border-color:#cdd3e0;box-shadow:0 2px 10px rgba(16,24,40,.06)}
 .fmdw-lir-row.pick{grid-template-columns:auto minmax(0,1fr) auto auto}
