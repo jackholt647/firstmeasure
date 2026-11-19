@@ -111,6 +111,58 @@ html[data-fm-doc-phone] .fmdx-order-pane{border-radius:0;padding-bottom:env(safe
 .fmdx-send-more[open]>summary::before{transform:rotate(90deg)}
 .fmdx-send-more>summary::-webkit-details-marker{display:none}
 .fmdx-send-more>label{display:block;margin-top:8px}
+/* Send (GP-27): who gets it and what it says on the left, the email as they will get it on the right. */
+.fmdx-modal.fmdx-send-modal{width:min(1060px,100%);height:min(88dvh,800px);max-height:none;padding:0;gap:0;overflow:hidden}
+.fmdx-send-modal>h2{padding:20px 64px 0 24px}
+.fmdx-send-modal>.fmdx-modal-sub{margin:4px 0 0;padding:0 24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fmdx-send{flex:1;min-height:0;display:grid;grid-template-columns:minmax(330px,410px) minmax(0,1fr);margin-top:16px;border-top:1px solid #eef0f4}
+.fmdx-send-tabs{display:none}
+.fmdx-send-form{min-height:0;overflow:auto;padding:18px 24px 22px;display:flex;flex-direction:column;gap:20px}
+.fmdx-send-preview{min-height:0;overflow:auto;padding:18px 24px 22px;background:#f3f5f9;border-left:1px solid #eef0f4;display:flex;flex-direction:column;gap:12px}
+.fmdx-send-group{display:flex;flex-direction:column;gap:8px;min-width:0}
+.fmdx-send-label{font-size:11px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:#667085}
+.fmdx-send-form input:not([type=checkbox]),.fmdx-send-form textarea{width:100%;min-width:0;border:1px solid #d4d9e6;border-radius:10px;background:#fff;color:#111827;padding:9px 11px;font:inherit;font-size:13px;font-weight:600;outline:none}
+.fmdx-send-form textarea{min-height:92px;resize:vertical;line-height:1.5;font-weight:500}
+.fmdx-send-form input:not([type=checkbox]):focus,.fmdx-send-form textarea:focus{border-color:var(--fmdx-primary,#d93025);box-shadow:0 0 0 3px color-mix(in srgb,var(--fmdx-primary,#d93025) 12%,transparent)}
+.fmdx-send-signer{display:flex;flex-direction:column;gap:8px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;padding:10px 12px}
+.fmdx-send-signer-role{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:800;color:#111827}
+.fmdx-send-signer-role i{color:var(--primary-readable,var(--fmdx-primary,#d93025));font-size:12px}
+.fmdx-send-signer-role small{font-size:11px;font-weight:700;color:#98a2b3}
+.fmdx-send-signer-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:8px}
+.fmdx-send-signer .fmdx-send-more>label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:700;color:#667085}
+.fmdx-send-form .fmdx-recipient-list{padding:6px;gap:4px}
+.fmdx-send-add{display:flex;align-items:center;gap:8px;border:1px dashed #d0d5dd;border-radius:10px;background:#fff;padding:0 4px 0 12px;color:#98a2b3;font-size:12px}
+.fmdx-send-add:focus-within{border-style:solid;border-color:var(--fmdx-primary,#d93025)}
+.fmdx-send-form .fmdx-send-add input{border:0;box-shadow:none;padding:9px 6px 9px 0;background:transparent}
+.fmdx-send-form .fmdx-send-add input:focus{box-shadow:none}
+.fmdx-send-toggle{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;cursor:pointer}
+.fmdx-send-toggle:has(input:disabled){cursor:default}
+.fmdx-send-toggle input{width:16px;height:16px;margin:2px 0 0;flex:none;accent-color:var(--fmdx-primary,#d93025)}
+.fmdx-send-toggle span{display:flex;flex-direction:column;gap:1px;min-width:0}
+.fmdx-send-toggle strong{font-size:13px;font-weight:800;color:#111827}
+.fmdx-send-toggle small{font-size:11.5px;font-weight:600;color:#667085}
+.fmdx-send-mail{background:#fff;border:1px solid #e4e7ec;border-radius:14px;box-shadow:0 1px 2px rgba(16,24,40,.05),0 10px 28px rgba(16,24,40,.06);overflow:hidden;transition:opacity .15s}
+.fmdx-send-mail.off{opacity:.45}
+.fmdx-send-mail-head{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 14px;margin:0;padding:14px 20px;border-bottom:1px solid #eef0f4;font-size:12.5px;line-height:1.45}
+.fmdx-send-mail-head dt{color:#98a2b3;font-weight:700}
+.fmdx-send-mail-head dd{margin:0;color:#111827;font-weight:700;min-width:0;overflow-wrap:anywhere;display:flex;flex-wrap:wrap;gap:2px 12px}
+.fmdx-send-addr{color:#667085;font-weight:500}
+.fmdx-send-to em{font-style:normal;font-size:10.5px;font-weight:800;color:var(--primary-readable,var(--fmdx-primary,#d93025));background:color-mix(in srgb,var(--fmdx-primary,#d93025) 9%,#fff);border-radius:999px;padding:1px 7px;margin-left:2px}
+.fmdx-modal .fmdx-send-subject{margin:0;padding:18px 20px 0;font-size:17px;font-weight:800;line-height:1.3;color:#111827;display:block}
+.fmdx-send-mail-body{padding:12px 20px 20px;font-size:14px;font-weight:500;line-height:1.65;color:#1f2937;white-space:pre-wrap;overflow-wrap:anywhere}
+.fmdx-send-default{color:#475467}
+.fmdx-send-link{color:var(--primary-readable,var(--fmdx-primary,#d93025));text-decoration:underline;text-underline-offset:2px}
+.fmdx-send-attach{display:inline-flex;align-items:center;gap:8px;margin:0 20px 20px;padding:8px 12px;border:1px solid #e4e7ec;border-radius:10px;background:#f9fafb;font-size:12.5px;font-weight:700;color:#344054;max-width:calc(100% - 40px)}
+.fmdx-send-attach i{color:#d92d20}
+.fmdx-send-hint{margin:0;font-size:12px;font-weight:600;color:#667085}
+.fmdx-send-warn{margin:0;display:flex;gap:8px;align-items:flex-start;padding:9px 12px;border-radius:10px;background:#fffaeb;color:#93370d;font-size:12.5px;font-weight:700}
+.fmdx-send-from-note{margin:0;display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;font-size:12.5px;font-weight:600;color:#475467}
+.fmdx-send-from-note>i{color:#98a2b3}
+.fmdx-send-from-note>span{flex:1 1 220px;min-width:0}
+.fmdx-send-from-note .fmdx-btn{flex:none}
+.fmdx-send-modal>.fmdx-modal-foot{margin:0;padding:12px 24px;border-top:1px solid #eef0f4;background:#fff}
+.fmdx-send-modal>.fmdx-modal-foot .fmdx-btn.primary{min-width:120px;justify-content:center}
+.fmdx-modal.fmdx-send-modal.fmdx-send-done{width:min(560px,100%);height:auto;max-height:min(88dvh,860px);padding:22px;overflow:auto}
 .fmdx-send-error{margin-right:auto;font-size:12px;font-weight:900;color:#b42318;display:inline-flex;align-items:center;gap:6px}
 .fmdx-send-error[hidden]{display:none}
 .fmdx-modal h2{margin:0;font-size:18px;font-weight:1000;padding-right:44px;display:flex;align-items:center;gap:10px}
@@ -688,6 +740,28 @@ html[data-fm-doc-phone] .fmdx-form-grid{grid-template-columns:minmax(0,1fr)}
 html[data-fm-doc-phone] .fmdx-modal fieldset.fmdx-field{margin:0;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:13px;padding:8px 12px 12px;background:#fbfcfe}
 html[data-fm-doc-phone] .fmdx-modal fieldset.fmdx-field>legend{padding:0 4px}
 html[data-fm-doc-phone] .fmdx-modal fieldset.fmdx-field>label{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+
+/* Send (GP-27): Email and Preview tabs, the composer scrolling between them and the Send bar. */
+html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-send-modal{padding:max(14px,env(safe-area-inset-top)) 0 0;gap:0;overflow:hidden}
+html[data-fm-doc-phone] .fmdx-send-modal>h2{padding:0 58px 0 16px}
+html[data-fm-doc-phone] .fmdx-send{display:flex;flex-direction:column;margin-top:10px;border-top:0}
+html[data-fm-doc-phone] .fmdx-send-tabs{display:flex;gap:4px;margin:0 16px;padding:4px;border-radius:12px;background:#f2f4f7;flex:none}
+html[data-fm-doc-phone] .fmdx-send-tabs button{flex:1;min-height:38px;border:0;border-radius:9px;background:transparent;color:#475467;font:inherit;font-size:13.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}
+html[data-fm-doc-phone] .fmdx-send-tabs button[aria-selected=true]{background:#fff;color:#111827;box-shadow:0 1px 3px rgba(16,24,40,.12)}
+html[data-fm-doc-phone] .fmdx-send-tabs button i{font-size:12px}
+html[data-fm-doc-phone] .fmdx-send>[data-send-pane]{flex:1;min-height:0;padding:16px 16px 20px}
+html[data-fm-doc-phone] .fmdx-send:not([data-tab=preview])>.fmdx-send-preview,html[data-fm-doc-phone] .fmdx-send[data-tab=preview]>.fmdx-send-form{display:none}
+html[data-fm-doc-phone] .fmdx-send-preview{border-left:0;margin-top:12px;padding-top:12px}
+html[data-fm-doc-phone] .fmdx-send-signer-fields{grid-template-columns:minmax(0,1fr)}
+html[data-fm-doc-phone] .fmdx-send-form input:not([type=checkbox]),html[data-fm-doc-phone] .fmdx-send-form textarea{min-height:44px;border-radius:12px}
+html[data-fm-doc-phone] .fmdx-send-toggle{padding:12px 14px}
+html[data-fm-doc-phone] .fmdx-send-mail-head{padding:12px 14px}
+html[data-fm-doc-phone] .fmdx-modal .fmdx-send-subject{padding:14px 14px 0;font-size:16px}
+html[data-fm-doc-phone] .fmdx-send-mail-body{padding:10px 14px 16px;font-size:14.5px}
+html[data-fm-doc-phone] .fmdx-send-attach{margin:0 14px 16px;max-width:calc(100% - 28px)}
+html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-send-modal>.fmdx-modal-foot{margin:0;padding:10px 16px max(12px,env(safe-area-inset-bottom));flex-wrap:wrap}
+html[data-fm-doc-phone] .fmdx-send-modal>.fmdx-modal-foot .fmdx-send-error{flex-basis:100%}
+html[data-fm-doc-phone] .fmdx-modal-back>.fmdx-modal.fmdx-send-modal.fmdx-send-done{padding:max(14px,env(safe-area-inset-top)) 16px 0;overflow:auto}
 
 /* New document: search with Upload beside it. */
 html[data-fm-doc-phone] .fmdx-modal.fmdx-create-modal{height:100%;padding-bottom:0}

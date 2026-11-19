@@ -118,6 +118,7 @@ import {
   resolveDocumentInstance,
   editDocumentAsSent,
   sendDocument,
+  documentSendPreview,
   updateDocumentWorkflowState,
   voidDocumentInstance,
   updateUploadedDocumentFields,
@@ -835,6 +836,13 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
     const body = issueDocumentSchema.parse(request.body ?? {});
     const result = await issueDocument(orgId, getParam(request.params, "documentId"), body, ctx);
     return { ok: true, document: result.document, missing_params: result.missing_params };
+  });
+
+  // GP-27: what the send dialog previews (from, subject, text) and whether the company's email is set up. Reads only.
+  app.get("/organizations/:orgId/documents/:documentId/send/preview", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
+    return { ok: true, ...(await documentSendPreview(orgId, getParam(request.params, "documentId"), ctx)) };
   });
 
   app.post("/organizations/:orgId/documents/:documentId/send", async (request) => {

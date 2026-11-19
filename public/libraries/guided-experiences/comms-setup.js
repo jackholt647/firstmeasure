@@ -9,6 +9,8 @@
 // action run as the person (comms.setup.start). Copy is gx_ keys with English fallbacks; the library entry's options
 // may replace the title (`headline`) and the line under it (`subtitle`), and say which channel a place starts with (`first`).
 // Texts and calls are set up by texting-setup.js, shared with the appointment setup (FM-515), so both work the same.
+// GP-27: an entry may set up email alone (`only: 'email'`, the document Send dialog's first use): it opens on the email
+// page, offers nothing else, finishes as soon as FirstMate Mail is on, and its last button says `finish`.
 import { commsAction, isRegistered, loadScript, registrationOf, setUpTexting, syncSessions, workflowWindow } from './texting-setup.js?v=20261118-gp7';
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -101,7 +103,9 @@ export function mount(el, ctx){
   const text = (copy, fallback = '') => { const value = object(copy); return value.key ? ctx.L(value.key, clean(value.text) || fallback) : clean(copy) || fallback; };
   const orgId = String(window.__APP?.userOrgId || window.Portal?.currentUser?.orgId || ctx.orgId || '');
   const options = object(ctx.options);
-  const first = options.first === 'email' ? 'email' : 'phone';
+  const first = options.first === 'email' || options.only === 'email' ? 'email' : 'phone';
+  const only = options.only === 'email' ? 'email' : '';
+  const finishLabel = () => text(options.finish, L('gx_comms_go', 'Go to Communications'));
   let alive = true, busy = false, watcher = null, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, domains = null, registering = false;
 
   const invoke = (action, input = {}) => commsAction(orgId, action, input);
@@ -205,19 +209,19 @@ export function mount(el, ctx){
         : row('done', 'fa-check', L('gx_comms_email_name', 'Email'), '', '', address(domain.state === 'ready' ? domain.address : email.address))
       : row('offer', 'fa-plus', L('gx_comms_offer_email', 'Add email'), '', button('data-gxc-email', L('gx_comms_set_up', 'Set up'), !done.phone || registered()));
     el.innerHTML = `<div class="gxc">
-      <div class="gxc-rows">${(done.phone || !done.email ? [phoneRow, emailRow] : [emailRow, phoneRow]).join('')}<div data-gxc-plan-row hidden></div></div>
+      <div class="gxc-rows">${(only ? [emailRow] : done.phone || !done.email ? [phoneRow, emailRow] : [emailRow, phoneRow]).join('')}<div data-gxc-plan-row hidden></div></div>
       ${errorLine}
       <div class="gxc-actions">
-        <button type="button" class="gxc-btn" data-gxc-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>
+        ${only && done.email ? '' : `<button type="button" class="gxc-btn" data-gxc-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>`}
         <span class="gxc-spacer"></span>
-        <button type="button" class="gxc-btn primary" data-gxc-finish>${esc(L('gx_comms_go', 'Go to Communications'))}</button>
+        <button type="button" class="gxc-btn primary" data-gxc-finish>${esc(finishLabel())}</button>
       </div>
     </div>`;
-    el.querySelector('[data-gxc-back]').addEventListener('click', () => show('intro'));
+    el.querySelector('[data-gxc-back]')?.addEventListener('click', () => show(only ? 'email' : 'intro'));
     el.querySelector('[data-gxc-phone]')?.addEventListener('click', (event) => startPhone(event.currentTarget));
     el.querySelector('[data-gxc-email]')?.addEventListener('click', () => show('email'));
     // The texting plan, where platform billing sells one and the organization has none yet.
-    if (done.phone) void billingAvailable().then((available) => {
+    if (done.phone && !only) void billingAvailable().then((available) => {
       const slot = el.querySelector('[data-gxc-plan-row]');
       if (!available || !slot || !alive || page !== 'done' || currentPlan()) return;
       slot.outerHTML = row('offer', 'fa-credit-card', L('gx_comms_plan_row', 'Texting plan'), L('gx_comms_plan_row_body', 'Pick a monthly plan now, or later in Settings › Billing.'), button('data-gxc-plans', L('gx_comms_plan_choose', 'Choose a plan')));
@@ -252,11 +256,11 @@ export function mount(el, ctx){
       </div>
       <p class="gxc-note" data-gxc-email-cost>${esc(L('gx_comms_email_cost', 'FirstMate Mail and your own domain are free. A domain bought through FirstMate is billed every year, with privacy included free.'))}</p>
       ${errorLine}
-      <div class="gxc-actions">
+      ${only ? '' : `<div class="gxc-actions">
         <button type="button" class="gxc-btn" data-gxc-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>
-      </div>
+      </div>`}
     </div>`;
-    el.querySelector('[data-gxc-back]').addEventListener('click', () => show(object(status.done).phone ? 'done' : 'intro'));
+    el.querySelector('[data-gxc-back]')?.addEventListener('click', () => show(object(status.done).phone ? 'done' : 'intro'));
     el.querySelectorAll('[data-gxc-email-way]').forEach((button) => button.addEventListener('click', () => {
       const way = button.dataset.gxcEmailWay;
       // A domain that already has its address (connected in Settings › Domains) only needs email turned on.
@@ -344,6 +348,8 @@ export function mount(el, ctx){
     try { await turnOn('email'); if (alive) show('done'); }
     catch (error) { fail(error); }
     finally { busy = false; if (button?.isConnected) button.disabled = false; }
+    // Email alone: FirstMate Mail is ready at once, so there is nothing more to say here; back to what asked.
+    if (alive && only && object(status.done).email) await finish();
   }
   // Texts and calls: on at once, then straight into carrier registration. When it closes having just been submitted
   // (GP-7), the setup goes on to what is left: email when it is not on yet, else it is finished and closes, and
@@ -385,7 +391,7 @@ export function mount(el, ctx){
   el.innerHTML = '<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>';
   // Where the setup was asked for a channel (an Overview button), it starts that channel at once.
   const top = (() => { try { return window.top.__fmCommsSetupStart !== undefined ? window.top : window; } catch { return window; } })();
-  const asked = window.__fmCommsSetupStart || top.__fmCommsSetupStart;
+  const asked = only || window.__fmCommsSetupStart || top.__fmCommsSetupStart;
   const start = ['phone', 'email'].includes(asked) ? asked : '';
   window.__fmCommsSetupStart = ''; try { top.__fmCommsSetupStart = ''; } catch {}
   invoke('comms.setup.status').then((value) => {

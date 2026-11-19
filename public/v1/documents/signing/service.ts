@@ -4,7 +4,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { badRequest, conflict, forbidden, notFound } from "../../platform/errors.js";
 import { hasPermission, type PlatformAuthContext } from "../../platform/auth.js";
-import { readOrganization, readMediaFile, type JsonObject } from "../../platform/storage.js";
+import { readOrganization, readMediaFile, readDocument, readGlobal, type JsonObject } from "../../platform/storage.js";
 import { readDocumentInstance, readDocumentSnapshot, saveDocumentInstance, saveDocumentSnapshot, recordDocumentEvent } from "../storage.js";
 import { FMDocModel } from "../schemas.js";
 import { buildRenderHarnessHtml } from "../render.js";
@@ -44,6 +44,27 @@ export async function revokeSigningPackages(orgId: string, documentId: string, s
   }
 }
 
+/**
+ * GP-27: who a signer contacts for a paper copy or to withdraw consent when the sender names nobody (the send dialog
+ * no longer asks): the company's email (Settings › Company saves it on the branch), else the address its customer mail
+ * comes from (its domain, else its FirstMate Mail inbox), else the company phone. Never an address that cannot receive
+ * mail, such as a sandbox login; the person sending is only the last resort (`consent_contact_fallback`).
+ */
+export async function companyConsentContact(orgId: string, branchId = "default") {
+  const [org, global, branch] = await Promise.all([
+    readOrganization(orgId).then(object).catch(() => ({} as JsonObject)),
+    readGlobal(orgId).catch(() => null),
+    readDocument(orgId, "branch", branchId || "default").catch(() => null)
+  ]);
+  const data = object(object(global).data);
+  const company = { ...object(object(data.legacy_org_snapshot).contact), ...object(data.contact) };
+  const branchContact = object(object(object(branch).data).contact);
+  const { deliverableEmailAddress, organizationContactEmail } = await import("../../email/engine.js");
+  const saved = deliverableEmailAddress(branchContact.email) || deliverableEmailAddress(company.email) || deliverableEmailAddress(org.email) || deliverableEmailAddress(object(org.data).email);
+  const { email } = await organizationContactEmail(orgId, saved).catch(() => ({ email: saved }));
+  return text(email) || text(branchContact.phone) || text(company.phone);
+}
+
 export async function validateSigningIssue(orgId: string, document: JsonObject, recipients: JsonObject[], input: JsonObject = {}) {
   validateDeliverables(document.materials_deliverables);
   const fields = signatureDefinitions(document.output_defs);
@@ -51,8 +72,7 @@ export async function validateSigningIssue(orgId: string, document: JsonObject, 
   if (["signed", "completed"].includes(text(document.status))) throw conflict("document_locked_signed", "Create a replacement or amendment rather than reissuing an executed document.");
   await assertSigningEditable(orgId, text(document.id));
   const signers = signerPlan(fields, recipients);
-  const org = object(await readOrganization(orgId));
-  const contact = text(input.consent_contact || object(document.metadata).consent_contact || org.email || object(org.data).email || input.consent_contact_fallback);
+  const contact = text(input.consent_contact || object(document.metadata).consent_contact) || await companyConsentContact(orgId, text(document.branch_id) || "default") || text(input.consent_contact_fallback);
   if (!contact) throw badRequest("signature_contact_required", "Set an organization contact or consent_contact for signing support and paper copies.");
   for (const signer of signers) {
     if (signer.required && !signer.email && !signer.user_id) throw badRequest("signature_recipient_required", `Assign an email recipient or organization user to required signer '${signer.id}'.`);
