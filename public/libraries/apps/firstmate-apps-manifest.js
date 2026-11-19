@@ -219,7 +219,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261119-gp69-viewer')
+        versionedBundle('documents/project.js', '20261119-gp106-titles')
       ]
     },
     {

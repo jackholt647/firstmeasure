@@ -1148,3 +1148,13 @@ test('editor actions inherit organization branding with accessible contrast', ()
   assert.match(documentEditor, /applyEditorBranding\(el\("div", \{ class: "fmde-dialog-backdrop"/);
   assert.match(documentEditor, /applyEditorBranding\(el\("div", \{ class: "fmde-menu/);
 });
+
+test('new documents are titled by their kind alone, never "<kind> — <project or New Document>" (GP-106)', () => {
+  assert.doesNotMatch(documentProject, /'New Document'/);
+  assert.doesNotMatch(documentProject, /label\} — \$\{/);
+  assert.match(documentProject, /title: firstText\(options\.title, typeMeta\(type, state\.catalog\?\.types\)\.label\)/);
+  assert.match(documentProject, /title: firstText\(prefill\.title, meta\.label\)/);
+  assert.match(documentProject, /data-create-title value="\$\{String\(esc\(firstText\(prefill\.title, meta\.label\)\)\)\}"/);
+  const amend = documentProject.slice(documentProject.indexOf('function amendToChangeOrder'), documentProject.indexOf('function amendToChangeOrder') + 600);
+  assert.doesNotMatch(amend, /title:/);
+});
