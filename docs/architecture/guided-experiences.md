@@ -494,9 +494,13 @@ Library entries `guided_experience/checklists.setup`, `checklists.punchlist_tuto
   organization's default checklists and adds them to that project once each (source key `setup:<use case>`, which
   the Checklists app marks with a quiet Default tag, `data-fmcl-default`), then plays the punch list tour and the
   tour. Playing it again changes only its own picks. **Checklist settings** (the gear on the Checklists tab,
-  `checklistView=settings`, GP-1) edit the same defaults afterwards: per pipeline (scope template), the stages each
-  default is added in (`"all"` or stage ids), making one of the project's checklists a default, or removing one
-  (`workforce/checklist-defaults.ts`; provider `checklist-defaults.settings`, action `checklists.defaults.save`). A
+  `checklistView=settings`, GP-1, GP-72) edit the same defaults afterwards: the defaults listed on the left and the
+  open one edited on the right like a project checklist with nothing to tick (title, items, sign-off, customer
+  access; `update`), a new one (`create`), making one of the project's checklists a default, or removing one
+  (`workforce/checklist-defaults.ts`; provider `checklist-defaults.settings`, action `checklists.defaults.save`).
+  The stages each default is added in, per pipeline (scope template, `"all"` or stage ids), are saved by the same
+  action and belong to the Automations Hub (`portal.automations_hub`, a placeholder for now), which the page's "See
+  Advanced Controls" opens; a new default is on for all stages of every pipeline someone set up. A
   pipeline nobody set up adds every default when a scope starts, as before; a set-up one adds its all-stages lists
   and the starting stage's at scope start and each stage's when the project reaches it
   (`checklists.addStageDefaults.v1`, default organization rules `platform_checklists_stage_defaults` on
