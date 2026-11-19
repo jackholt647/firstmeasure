@@ -57,7 +57,8 @@
     }); } catch (error) {}
   }
   const DEFAULT_MEDIA_FILTERS = ['photo', 'video'];
-  const DEFAULT_ACTIVITY_FILTERS = ['payments', 'documents', 'engagement', 'calls', 'messages', 'uploads', 'project', 'scheduling', 'field'];
+  // 'media' is the photos and videos themselves (and their upload events); 'uploads' is every other file.
+  const DEFAULT_ACTIVITY_FILTERS = ['payments', 'documents', 'engagement', 'calls', 'messages', 'media', 'uploads', 'project', 'scheduling', 'field'];
   const DOCUMENT_FILTERS = [
     { id:'receipt', label:(globalThis.PlatformLanguage?.text("photos","m_fc54001a0cc000","Receipts") ?? "Receipts"), icon:'fa-receipt' },
     { id:'invoice', label:(globalThis.PlatformLanguage?.text("photos","m_74b68c454b06a0","Invoices") ?? "Invoices"), icon:'fa-file-invoice-dollar' },
@@ -71,6 +72,7 @@
     { id:'engagement', label:(globalThis.PlatformLanguage?.text("photos","m_3f573261ee80e3","Views & signatures") ?? "Views & signatures"), icon:'fa-signature' },
     { id:'calls', label:(globalThis.PlatformLanguage?.text("photos","m_e830f5588df87c","Calls") ?? "Calls"), icon:'fa-phone' },
     { id:'messages', label:(globalThis.PlatformLanguage?.text("photos","m_09d530e429d079","Messages & feedback") ?? "Messages & feedback"), icon:'fa-message' },
+    { id:'media', label:(globalThis.PlatformLanguage?.text("photos","m_49e775f365e4e6","Media") ?? "Media"), icon:'fa-photo-film' },
     { id:'uploads', label:(globalThis.PlatformLanguage?.text("photos","m_5f42004754205c","Uploads") ?? "Uploads"), icon:'fa-cloud-arrow-up' },
     { id:'project', label:(globalThis.PlatformLanguage?.text("photos","m_ca88698f97c379","Project updates") ?? "Project updates"), icon:'fa-briefcase' },
     { id:'scheduling', label:(globalThis.PlatformLanguage?.text("photos","m_4249990706c50e","Scheduling") ?? "Scheduling"), icon:'fa-calendar-check' },
@@ -414,13 +416,25 @@
   function activityContext(event = {}){
     return objectValue(event.context);
   }
+  // A photo or video added (or shared): the Media filter. A document or other file stays an upload.
+  function feedEventIsPhotoOrVideo(event = {}){
+    const type = cleanText(event.type).toLowerCase();
+    if (!/^(media\.(uploaded|shared)|customer\.upload\.added)$/.test(type)) return false;
+    const payload = activityPayload(event);
+    const kind = firstText(payload.kind, payload.media_kind).toLowerCase();
+    const contentType = cleanText(payload.content_type).toLowerCase();
+    if (kind) return /^(photo|image|video)$/.test(kind);
+    if (contentType) return /^(image|video)\//.test(contentType);
+    return type.startsWith('media.');
+  }
   function feedActivityCategory(event = {}){
+    const type = cleanText(event.type).toLowerCase();
+    if (feedEventIsPhotoOrVideo(event)) return 'media';
     const group = event.feed_presentation?.group;
     const categories = {payments:'payments',expenses:'payments',payroll:'payments',signatures:'engagement',documents:'documents',files:'uploads',messages:'messages',feedback:'messages',scheduling:'scheduling',scopes:'project',tasks:'project',materials:'field',field_work:'field',measurements:'field'};
     if (group && categories[group]) return categories[group];
-    const type = cleanText(event.type).toLowerCase();
     if (/^(payment|invoice|expense|payroll)\./.test(type)) return 'payments';
-    if (/^(media\.uploaded|receipt\.uploaded|document\.ingested)/.test(type)) return 'uploads';
+    if (/^(receipt\.uploaded|document\.ingested)/.test(type)) return 'uploads';
     if (/^(proposal|document|contract)\./.test(type)) return /\.(viewed|opened|signed|completed|declined)$/.test(type) ? 'engagement' : 'documents';
     if (type.startsWith('call.')) return 'calls';
     if (/^(communication|sms|email|feedback)\./.test(type)) return 'messages';
@@ -1471,6 +1485,7 @@
   }
   function feedEntries(options = {}){
     const mediaEntries = state.items
+      .filter(() => feedMediaShown())
       .filter((item) => !isPhotoTrashed(item.photo))
       .filter((item) => state.visibleMedia.has(isVideoMedia(item.photo) ? 'video' : 'photo'))
       .filter((item) => !state.visibleTags.size || itemTags(item).some((tag) => state.visibleTags.has(normalizeMediaTags([tag])[0])))
@@ -1580,8 +1595,14 @@
       return [];
     }
   }
+  function feedMediaShown(){
+    return state.visibleActivity.has('media');
+  }
+  // Media is written only when hidden ('m:none'): a list saved before the Media filter existed has no
+  // media token and still shows photos and videos.
   function serializeFeedShown(){
-    return state.visibleActivity.size ? [...state.visibleActivity].sort().map((id) => `a:${id}`).join(',') : 'a:none';
+    const activity = [...state.visibleActivity].filter((id) => id !== 'media').sort().map((id) => `a:${id}`);
+    return [...(activity.length ? activity : ['a:none']), ...(feedMediaShown() ? [] : ['m:none'])].join(',');
   }
   function applyFeedRoute(route = window.Portal?.navigation?.read?.() || {}){
     if (route.feedDensity) state.density = ({loose:'large',comfortable:'small',compact:'mosaic'})[route.feedDensity] || (['list','small','large','mosaic','posts'].includes(route.feedDensity) ? route.feedDensity : 'small');
@@ -1590,7 +1611,8 @@
     if (!route.feedShown) return;
     const tokens = cleanText(route.feedShown).split(',').map(cleanText).filter(Boolean);
     state.visibleMedia = new Set(DEFAULT_MEDIA_FILTERS);
-    state.visibleActivity = new Set(tokens.filter((token) => token.startsWith('a:')).map((token) => token.slice(2)).filter((id) => DEFAULT_ACTIVITY_FILTERS.includes(id)));
+    state.visibleActivity = new Set(tokens.filter((token) => token.startsWith('a:')).map((token) => token.slice(2)).filter((id) => id !== 'media' && DEFAULT_ACTIVITY_FILTERS.includes(id)));
+    if (!tokens.includes('m:none')) state.visibleActivity.add('media');
     state.visibleDocuments = new Set(DOCUMENT_FILTERS.map(entry=>entry.id));
     state.visibleTags = new Set();
     if (state.loaded && state.visibleDocuments.size && !state.documentsLoaded) void loadFeedDocuments();
@@ -1607,7 +1629,7 @@
     const query = cleanText(state.query).toLowerCase();
     const modeItems = state.items
       .filter((item) => state.trashMode ? isPhotoTrashed(item.photo) : !isPhotoTrashed(item.photo))
-      .filter((item) => state.trashMode || state.visibleMedia.has(isVideoMedia(item.photo) ? 'video' : 'photo'))
+      .filter((item) => state.trashMode || (feedMediaShown() && state.visibleMedia.has(isVideoMedia(item.photo) ? 'video' : 'photo')))
       .filter((item) => state.trashMode || !state.visibleTags.size || itemTags(item).some((tag) => state.visibleTags.has(normalizeMediaTags([tag])[0])));
     // Unpaired photos lead the list (their group is at the top), so selection and the viewer reach them too.
     const unassigned = visibleUnassigned();
@@ -3418,7 +3440,7 @@
       .sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
   }
   function visibleUnassigned(){
-    if (state.trashMode || !Array.isArray(state.unassigned)) return [];
+    if (state.trashMode || !feedMediaShown() || !Array.isArray(state.unassigned)) return [];
     const query = cleanText(state.query).toLowerCase();
     return state.unassigned
       .filter((item) => feedEntryInScope({ kind:'media', media:item.departmentIds.length ? { ...item.photo, department_ids:item.departmentIds } : item.photo }))
