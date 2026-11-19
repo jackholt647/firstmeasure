@@ -126,7 +126,11 @@ test("the profile, the catalog and the step status are published data", async ()
   const roofing = catalog.value.company_types.find((entry: any) => entry.id === "roofing_contractor");
   assert.deepEqual(roofing.services.slice(0, 4), ["roof_replacement", "roof_repair", "roof_inspection", "storm_insurance"]);
   assert.ok(roofing.terms.includes("roofer"), "typing roofer finds a roofing contractor");
-  for (const id of ["general_contractor", "exterior_remodeler", "siding_contractor", "gutter_contractor", "windows_doors", "solar_installer", "painting_contractor", "hvac_contractor", "plumbing_contractor", "electrical_contractor", "landscaping"]) assert.ok(catalog.value.company_types.some((entry: any) => entry.id === id), id);
+  for (const id of ["general_contractor", "exterior_remodeler", "siding_contractor", "gutter_contractor", "windows_doors", "solar_installer", "painting_contractor", "hvac_contractor", "plumbing_contractor", "electrical_contractor", "landscaping", "moving_company"]) assert.ok(catalog.value.company_types.some((entry: any) => entry.id === id), id);
+  const moving = catalog.value.company_types.find((entry: any) => entry.id === "moving_company");
+  assert.equal(moving.industry, "moving", "a moving company is its own industry (GP-84)");
+  assert.ok(moving.terms.includes("movers"), "typing movers finds a moving company");
+  assert.deepEqual(moving.services.slice(0, 3), ["local_moving", "long_distance_moving", "packing"]);
   assert.ok(catalog.value.services.every((entry: any) => /^gx_service_[a-z0-9_]+$/.test(entry.label.key)), "every label is a language key");
   const steps = await read(owner, "setup-steps", "catalog");
   const services = steps.value.find((entry: any) => entry.id === "company.services");

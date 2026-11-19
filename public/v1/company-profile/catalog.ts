@@ -89,7 +89,15 @@ export const SERVICES: readonly Service[] = Object.freeze([
   service("tree_service", "Tree service", ["tree trimming", "tree removal"]),
   service("snow_removal", "Snow removal", ["plowing", "snow"]),
   service("fencing", "Fencing", ["fence", "gates"]),
-  service("concrete", "Concrete", ["driveway", "slab", "sidewalk"])
+  service("concrete", "Concrete", ["driveway", "slab", "sidewalk"]),
+  service("local_moving", "Local moves", ["moving", "movers", "residential move", "house move", "apartment move"]),
+  service("long_distance_moving", "Long-distance moves", ["interstate", "cross country", "out of state", "relocation"]),
+  service("commercial_moving", "Office and commercial moves", ["office move", "business relocation", "commercial move"]),
+  service("packing", "Packing and unpacking", ["packing", "unpacking", "boxes", "crating"]),
+  service("moving_storage", "Storage", ["storage", "storage units", "warehouse", "pods"]),
+  service("specialty_moving", "Piano and specialty moves", ["piano", "safe", "antiques", "fine art", "hot tub"]),
+  service("loading_help", "Loading and unloading help", ["labor only", "loading", "unloading", "moving help", "truck loading"]),
+  service("junk_removal", "Junk removal", ["junk", "hauling", "haul away", "debris removal", "cleanouts"])
 ]);
 
 export const COMPANY_TYPES: readonly CompanyType[] = Object.freeze([
@@ -118,7 +126,9 @@ export const COMPANY_TYPES: readonly CompanyType[] = Object.freeze([
   type("electrical_contractor", "Electrical contractor", ["electrician", "electrical", "wiring", "panel"], "electrical", "home_services",
     ["electrical_repair", "panel_upgrades", "ev_chargers", "lighting", "generators"]),
   type("landscaping", "Landscaping company", ["landscaper", "lawn", "yard", "hardscape"], "landscaping", "home_services",
-    ["lawn_care", "landscape_design", "hardscaping", "irrigation", "tree_service", "snow_removal"])
+    ["lawn_care", "landscape_design", "hardscaping", "irrigation", "tree_service", "snow_removal"]),
+  type("moving_company", "Moving company", ["movers", "moving", "mover", "relocation", "van lines", "moving and storage"], "moving", "home_services",
+    ["local_moving", "long_distance_moving", "packing", "moving_storage", "commercial_moving", "specialty_moving", "loading_help", "junk_removal"])
 ]);
 
 /**
