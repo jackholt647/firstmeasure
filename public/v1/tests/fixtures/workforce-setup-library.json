@@ -52,6 +52,14 @@
           },
           "say": [],
           "options": {
+            "work_group_types": [
+              "crew"
+            ],
+            "other_company_types": [
+              "haul_off",
+              "delivery_partner",
+              "supplier"
+            ],
             "pay_defaults": [
               {
                 "industry_sets": [

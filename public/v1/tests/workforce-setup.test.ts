@@ -100,6 +100,7 @@ test("the finish adds each crew and subcontractor with what it does, who is on i
   const value = await status();
   const by = (name: string) => value.assignees.find((entry: any) => entry.name === name);
   assert.deepEqual(by("Crew A").member_user_ids.sort(), ["ana", "ben"]);
+  assert.deepEqual(by("Crew A").type_ids, ["crew"]);
   assert.deepEqual(by("Crew A").service_ids, ["roof_replacement", "roof_repair"]);
   assert.deepEqual(by("Gutter Pros").service_ids, ["gutters"]);
   assert.deepEqual(by("Crew B").pay.simple, { method: "per_measurement", rate: 70, measurement: "roof.squares" });
@@ -137,6 +138,11 @@ test("the setup's browser module defaults pay by industry, copies pay and sends 
   assert.deepEqual(module.defaultPay(options, { industry_sets: [], work_kinds: [] }, "resource_group"), { method: "hourly", rate: 0 });
   // A piece rate is on a roofing measurement: a company with no roofing work is paid hourly by default.
   assert.deepEqual(module.defaultPay(options, { industry_sets: ["roofing_exteriors"], work_kinds: ["siding"] }, "resource_group"), { method: "hourly", rate: 0 });
+  // A sales team or a dumpster company the organization has is not part of who does the work.
+  assert.equal(module.inWorkforce(options, { kind: "resource_group", type_ids: ["crew"] }), true);
+  assert.equal(module.inWorkforce(options, { kind: "resource_group", type_ids: ["sales_team"] }), false);
+  assert.equal(module.inWorkforce(options, { kind: "organization_connection", type_ids: ["work_provider", "haul_off"] }), false);
+  assert.equal(module.inWorkforce(options, { kind: "organization_connection", type_ids: ["work_provider"] }), true);
   assert.deepEqual(module.kindsFor("crews_and_subs"), { groups: true, companies: true });
   assert.deepEqual(module.kindsFor("just_me"), { groups: true, companies: false });
   const rows = [
