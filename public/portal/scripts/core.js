@@ -3511,6 +3511,17 @@
       });
   }
 
+  // An app in the apps menu, not in the left column, that shows "New" (offered, or not opened yet) puts "New" on the
+  // More apps launcher too, or nobody would find it (GP-70). Only "New": a pending setup never marks the launcher.
+  function moreAppsNewPill(){
+    for (const entry of appLauncherEntries()) {
+      if (entry.placement !== 'more') continue;
+      const pill = portalAppPill(entry.key);
+      if (pill?.kind === 'new') return pill;
+    }
+    return null;
+  }
+
   // Opening an app from the overlay opens it. Its setup workflow runs instead
   // only while setup is required and not complete; optional or finished setup
   // stays in Settings and the add-apps catalog.
@@ -3984,6 +3995,16 @@
       }
       moreButton.title = resolvedLauncherLabel;
       if (iconRow) moreButton.innerHTML = '<span class="fm-nine-dot-icon" aria-hidden="true"></span>';
+      const newPill = moreAppsNewPill();
+      if (newPill) {
+        const pill = document.createElement('span');
+        pill.className = iconRow ? 'fm-more-apps-new' : 'fm-global-app-new';
+        pill.dataset.moreAppsNew = '';
+        pill.setAttribute('aria-hidden', 'true');
+        pill.textContent = newPill.label;
+        (iconRow ? moreButton : moreButton.querySelector('.tx'))?.appendChild(pill);
+        moreButton.setAttribute('aria-label', `${resolvedLauncherLabel} (${newPill.label})`);
+      }
 
       const popover = document.createElement('section');
       popover.className = 'fm-more-apps-popover';
@@ -4443,6 +4464,10 @@
       #sidebarBottomLinks>.fm-link{width:100%;text-align:left}
       .sidebar-launcher-icon{display:grid;place-items:center;justify-self:center;width:28px;height:32px;padding:0;border:0;background:transparent;color:#6b7280;font:inherit;font-size:15px;line-height:1;text-align:center;cursor:pointer}
       #sidebarBottomLinks .sidebar-launcher-icon.active{color:#6b7280}
+      /* "New" on the More apps icon (GP-70); on phones a round star badge, as the project window's tabs (tab-guides.js). */
+      .sidebar-launcher-icon[data-launcher="more"]{position:relative}
+      .fm-more-apps-new{position:absolute;top:-6px;right:-9px;padding:1px 4px;border-radius:99px;background:#e8f5ee;color:#0f6b3a;box-shadow:0 0 0 1.5px #fff;font-size:8px;font-weight:800;line-height:1.4;white-space:nowrap;pointer-events:none}
+      @media(max-width:820px){.fm-more-apps-new{top:2px;right:auto;left:calc(50% + 3px);width:13px;height:13px;padding:0;display:grid;place-items:center;border-radius:50%;background:#16a34a;box-shadow:0 0 0 1.5px #fff,0 1px 2px 1.5px rgba(15,23,42,.18);font-size:0;line-height:0}.fm-more-apps-new::before{content:"";width:9px;height:9px;background:#fff;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.5l3.2 6.9 7.5.9-5.5 5.2 1.4 7.5L12 18.3 5.4 22l1.4-7.5L1.3 9.3l7.5-.9z'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.5l3.2 6.9 7.5.9-5.5 5.2 1.4 7.5L12 18.3 5.4 22l1.4-7.5L1.3 9.3l7.5-.9z'/%3E%3C/svg%3E") center/contain no-repeat}}
       .sidebar-launcher-divider{width:1px;height:22px;background:#e3e6eb;flex:0 0 1px}
       #sidebarBottomLinks.sidebar-launchers-split + .sidebar-footer{margin-top:-6px;padding-top:7px}
       .sidebar-footer.sidebar-user-integrated{display:none!important}

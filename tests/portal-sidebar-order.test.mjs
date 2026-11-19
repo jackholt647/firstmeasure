@@ -17,7 +17,8 @@ function functionSource(name){
 
 function sorter(pills){
   const portalAppPill = (appId) => pills[appId] ? { kind: pills[appId] } : null;
-  return new Function('portalAppPill', `${functionSource('portalTabUseRank')}\n${functionSource('sortPortalTabs')}\nreturn sortPortalTabs;`)(portalAppPill);
+  const cleanText = (value) => String(value ?? '').trim();
+  return new Function('portalAppPill', 'pinnedAppOrder', 'cleanText', `${functionSource('portalTabUseRank')}\n${functionSource('sortPortalTabs')}\nreturn sortPortalTabs;`)(portalAppPill, () => [], cleanText);
 }
 
 const tab = (id, order, placement = 'sidebar') => ({ id, appId: `portal.${id}`, order, placement });
@@ -42,4 +43,16 @@ test('renderTabs and the pinned subviews both use the shared sort', () => {
   assert.match(functionSource('insertSidebarSubviewLinks'), /sortPortalTabs\(/);
   // No second copy of the old placement-then-order sort that ignores the pills.
   assert.doesNotMatch(source, /\?\? 3\) \|\| a\.order - b\.order/);
+});
+
+// GP-70: "New" on the More apps launcher when an app only in the apps menu is new; never for "Setup" or a pinned app.
+test('the More apps launcher says New only for a new app outside the left column', () => {
+  const launcherPill = (entries, pills) => new Function('appLauncherEntries', 'portalAppPill',
+    `${functionSource('moreAppsNewPill')}\nreturn moreAppsNewPill();`)(() => entries, (id) => pills[id] ? { kind: pills[id], label: pills[id] } : null);
+  const entry = (key, placement) => ({ key, placement });
+  assert.equal(launcherPill([entry('portal.crm', 'sidebar')], { 'portal.crm': 'new' }), null);
+  assert.equal(launcherPill([entry('portal.pricebook', 'more')], { 'portal.pricebook': 'setup' }), null);
+  assert.equal(launcherPill([entry('portal.pricebook', 'more')], { 'portal.pricebook': 'coming_soon' }), null);
+  assert.equal(launcherPill([entry('portal.money', 'more'), entry('portal.pricebook', 'more')], { 'portal.money': 'setup', 'portal.pricebook': 'new' })?.kind, 'new');
+  assert.match(functionSource('renderSidebarLaunchers'), /moreAppsNewPill\(\)/);
 });
