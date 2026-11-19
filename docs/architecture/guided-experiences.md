@@ -809,6 +809,15 @@ finishes it in the other. The Operations save carries on when something else sav
 document first (its Send or Present editor, the document reopened after a reload): it reads the
 latest revision and saves over it once, and the preview never waits on a save succeeding.
 
+**The line items tour** (`documents.compare_tutorial`: overlay, per person, replayable,
+`platform.documents`) covers a proposal's line items in Compare: reading the options side by side,
+editing the chosen (wider) column in place, its Add line, Compare or List, and hiding or showing the
+preview (a case for each preview control the host has). Its trigger is `manual`: the workflow's
+`line_items_review` asks `FirstMateGuides.play(id, { over: true, showing })` once per page, the
+first time a compare view with a chosen option shows. `over` plays it over the setup playing in the
+same frame (the document setup's first proposal) as that setup's sub-guide, instead of after it;
+`showing` drops it if the compare view is gone by the time it would start.
+
 The hub offers optional supplier, equipment, workforce and proposal setup with
 estimates of 5, 3, 5 and 10 minutes. Each writer is a published action run as the
 person. Labor defaults to `shown: when_configured`, which waits for assignees,
