@@ -19,10 +19,14 @@
 
   const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.rtf,.png,.jpg,.jpeg,.webp,image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv';
   const SETTINGS_MODULE_ID = 'document_settings';
+  // Menu order is the order shown in "Items shown" (GP-38). Proposals and reports read the
+  // organization's terms when the menu is drawn, so a renamed "Proposals" shows its own word.
+  const docsTerm = (key, fallback) => globalThis.PlatformTerminology?.get?.(key, fallback) || fallback;
   const DOCUMENT_CATEGORIES = [
+    { id:'proposal', get label(){ return docsTerm('proposals.proposals', 'Proposals'); }, icon:'fa-file-signature' },
+    { id:'report', get label(){ return docsTerm('reports.reports', 'Reports'); }, icon:'fa-file-lines' },
     { id:'receipt', label:(globalThis.PlatformLanguage?.text("docs","m_fc54001a0cc000","Receipts") ?? "Receipts"), icon:'fa-receipt' },
     { id:'invoice', label:(globalThis.PlatformLanguage?.text("docs","m_74b68c454b06a0","Invoices") ?? "Invoices"), icon:'fa-file-invoice-dollar' },
-    { id:'proposal_report', label:(globalThis.PlatformLanguage?.text("docs","m_ada47216ef90f3","Proposals & Reports") ?? "Proposals & Reports"), icon:'fa-file-signature' },
     { id:'other', label:(globalThis.PlatformLanguage?.text("docs","m_4a04382820d2e1","Other") ?? "Other"), icon:'fa-folder-open' }
   ];
 
@@ -57,7 +61,7 @@
     invoices: [],
     requiredDocs: [],
     loading: false,
-    visibleDocumentCategories: new Set(['receipt', 'invoice', 'proposal_report', 'other']),
+    visibleDocumentCategories: new Set(DOCUMENT_CATEGORIES.map((category) => category.id)),
     categoryMenuOpen: false,
     viewMode: 'tiles',
     galleryDensity: 'loose',
@@ -199,7 +203,8 @@
     const type = docType(doc);
     if (isReceiptDoc(doc)) return 'receipt';
     if (type === 'invoice' || firstText(doc.invoice_id, doc.metadata?.invoice_id)) return 'invoice';
-    if (type === 'proposal' || type === 'change_order' || type.includes('report')) return 'proposal_report';
+    if (type === 'proposal' || type === 'change_order') return 'proposal';
+    if (type.includes('report')) return 'report';
     return 'other';
   }
   // ------------------------------------------------- embedded document engine
@@ -574,7 +579,7 @@
     const oid = orgId();
     const pid = projectId();
     if (state.loadedForProjectId && state.loadedForProjectId !== pid) {
-      state.visibleDocumentCategories = new Set(['receipt', 'invoice', 'proposal_report', 'other']);
+      state.visibleDocumentCategories = new Set(DOCUMENT_CATEGORIES.map((category) => category.id));
       state.categoryMenuOpen = false;
       state.reportAssets = null;
     }
