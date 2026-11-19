@@ -68,8 +68,9 @@ test('the style carousel turns with a mouse drag, slides the wrapping card in an
 // FM-614: after the style, the template's wording beside it (part `copy`). The fields are the template's copy, typing
 // changes the document on the right at once (the same rewrite the finish saves), a field's text is marked in the
 // document while it has focus, and the changes are the setup's `copy` selection.
-// GP-13: no lead paragraph; each part of the document is named over its fields; Advanced is offered only where the
+// GP-13: no lead paragraph; Advanced is offered only where the
 // template editor would open; the document carried to the next step starts exactly where it was (not mid-sheet).
+// GP-18: the fields are one list, each labelled for what it is ("Title", "Opening", "Option heading").
 test('the wording step edits the template copy beside its document', async () => {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
   try {
@@ -82,10 +83,11 @@ test('the wording step edits the template copy beside its document', async () =>
     await page.evaluate(() => {
       const definition = FMDocModel.createDocument({ kind: 'document' });
       const text = (id, words, style) => ({ ...FMDocModel.createNode('text'), id, props: { blocks: [{ id: `${id}_b`, type: 'paragraph', align: 'left', ...(style ? { style_ref: style } : {}), runs: [{ text: words, font: { weight: 700 } }] }] } });
-      definition.pages[0].children = [text('nd_title', 'Roof replacement proposal', 'h1'), text('nd_intro', 'Complete tear-off and replacement of the roof at the address above.'), text('nd_terms_h', 'Terms', 'h2'), text('nd_terms', 'This proposal is valid for 30 days. Work is scheduled once it is signed.')];
+      definition.pages[0].children = [text('nd_title', 'Roof replacement proposal', 'h1'), text('nd_intro', 'Complete tear-off and replacement of the roof at the address above.'), text('nd_option_h', 'What your selected option includes', 'h2'), text('nd_terms_h', 'Terms', 'h2'), text('nd_terms', 'This proposal is valid for 30 days. Work is scheduled once it is signed.')];
       const fields = [
         { node_id: 'nd_title', role: 'title', text: 'Roof replacement proposal' },
         { node_id: 'nd_intro', role: 'text', text: 'Complete tear-off and replacement of the roof at the address above.' },
+        { node_id: 'nd_option_h', role: 'heading', text: 'What your selected option includes' },
         { node_id: 'nd_terms_h', role: 'heading', text: 'Terms' },
         { node_id: 'nd_terms', role: 'text', text: 'This proposal is valid for 30 days. Work is scheduled once it is signed.' }
       ];
@@ -106,9 +108,11 @@ test('the wording step edits the template copy beside its document', async () =>
     assert.equal((await page.evaluate(() => window.reads[0][2])).theme_id, 'thm_clean', 'the wording of the style chosen');
     assert.equal(await page.locator('.gxs-title-actions [data-advanced]').count(), 1, 'Advanced sits beside the step title');
     assert.equal(await page.locator('.gxd-copy-edit > p').count(), 0, 'no lead paragraph: the fields come first');
-    assert.deepEqual(await page.locator('.gxd-copy-name').allTextContents(), ['Title and opening', 'Terms'], 'each part is named');
+    // GP-18: one list, no parts; each field says what it is, a heading by its own words.
+    assert.equal(await page.locator('.gxd-copy-section, .gxd-copy-name').count(), 0, 'no parts over the fields');
+    assert.deepEqual(await page.locator('.gxd-copy-edit > label').evaluateAll((labels) => labels.map((label) => label.firstChild.textContent)), ['Title', 'Opening', 'Option heading', 'Terms heading']);
     await page.locator('[data-copy="nd_terms_h"]').fill('Payment terms');
-    assert.deepEqual(await page.locator('.gxd-copy-name').allTextContents(), ['Title and opening', 'Payment terms'], 'a part is named as its heading reads');
+    assert.equal(await page.locator('.gxd-copy-heading').last().evaluate((label) => label.firstChild.textContent), 'Terms heading', 'the label stays put while the heading is typed');
     await page.locator('[data-copy="nd_terms_h"]').fill('Terms');
     assert.equal(await page.locator('[data-copy="nd_title"]').inputValue(), 'Roof replacement proposal');
     const shown = (id) => page.evaluate((node) => document.querySelector(`.gxd-copy-view [data-node-id="${node}"]`)?.textContent.trim(), id);

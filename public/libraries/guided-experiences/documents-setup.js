@@ -12,6 +12,20 @@
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
+// What a heading is called in its field's label (GP-18): its own words, kept short. A phrase is cut at its first
+// separator ("Roof replacement · Itemized proposal" is "Roof replacement"), and one of more than three words is called
+// by its first word that names something ("What your selected option includes" is "Option").
+const HEADING_FILLER = new Set('a an and are at be by for here how in includes include included including is it its my of on or our paid selected still that the their these this those to was we were what when where which who why will with you your'.split(' '));
+function headingName(text){
+  const whole = clean(text).replace(/\s+/g, ' ');
+  let words = (whole.split(/\s[·•|—–-]\s|[,:;(]/)[0].trim() || whole).split(' ');
+  if (words.length > 3) {
+    const named = words.find((word) => !HEADING_FILLER.has(word.toLowerCase().replace(/[^a-z]/g, '')));
+    if (named) words = [named];
+  }
+  const name = words.join(' ');
+  return name.charAt(0).toLocaleUpperCase() + name.slice(1);
+}
 
 const css = `
 .gxd{display:flex;flex-direction:column;gap:14px;min-width:0;padding:2px 0 8px;color:#101828}
@@ -187,11 +201,9 @@ const css = `
 .gxd-copy-edit input,.gxd-copy-edit textarea{width:100%;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:8px 10px;font:inherit;font-size:13.5px;font-weight:400;letter-spacing:0;text-transform:none;color:#101828;line-height:1.5;resize:none;overflow:hidden;transition:border-color .15s,box-shadow .15s}
 .gxd-copy-edit input:focus,.gxd-copy-edit textarea:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12)}
 .gxd-copy-edit .gxd-copy-title{font-size:16px;font-weight:700}
-/* Each part of the document under its own name (GP-13): the title and opening, then a part per heading. */
-.gxd-copy-section{display:flex;flex-direction:column;gap:7px;padding-top:12px;border-top:1px solid #eaecf0}
-.gxd-copy-section:first-child{padding-top:0;border-top:0}
-.gxd-copy-edit h3.gxd-copy-name{margin:0 0 1px;font-size:14.5px;line-height:1.3;font-weight:750;letter-spacing:-.005em;color:#101828;text-transform:none;overflow-wrap:anywhere}
-.gxd-copy-section>label>input:not(.gxd-copy-title){font-weight:700}
+/* A heading's field (GP-18): a little room above it, where a part of the document starts, and its words bold as they print. */
+.gxd-copy-edit .gxd-copy-heading{margin-top:6px}
+.gxd-copy-heading>input{font-weight:700}
 .gxd-copy-edited{font-size:12px;color:#067647!important}
 .gxd-copy-view{position:relative;min-height:0;border-radius:12px;background:#eef0f3;overflow:hidden}
 .gxd-copy-view .gxd-doc{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:14px;box-sizing:border-box}
@@ -1087,17 +1099,19 @@ export function mount(el, ctx){
       const value = (field) => esc(edits[field.node_id] ?? field.text);
       const input = (field, cls = '', label = '') => `<input type="text" data-copy="${esc(field.node_id)}" class="${cls}" value="${value(field)}"${label ? ` aria-label="${esc(label)}"` : ''}>`;
       const area = (field, label = '') => `<textarea data-copy="${esc(field.node_id)}" rows="2"${label ? ` aria-label="${esc(label)}"` : ''}>${value(field)}</textarea>`;
-      // A part per heading, named by it (GP-13), so it is clear which part of the document each field is in; what comes
-      // before the first heading is the title and opening.
-      let html = '', open = false, opened = false;
-      const start = (name, id = '') => { html += `${open ? '</div>' : ''}<div class="gxd-copy-section"><h3 class="gxd-copy-name"${id ? ` data-copy-name="${esc(id)}"` : ''}>${esc(name)}</h3>`; open = true; };
+      // One list, top to bottom, each field named for what it is (GP-18): "Title", "Opening", then each heading by its
+      // own words ("Approval heading") with the text under it.
+      let html = '', opened = false;
       for (const field of list) {
-        if (field.role === 'title') { if (!open) start(t('copy_section_title', 'Title and opening')); html += `<label>${esc(t('copy_title', 'Title'))}${input(field, 'gxd-copy-title')}</label>`; }
-        else if (field.role === 'heading') { start(edits[field.node_id] ?? field.text, field.node_id); html += `<label>${esc(t('copy_heading', 'Heading'))}${input(field)}</label>`; opened = true; }
-        else if (!opened) { if (!open) start(t('copy_section_title', 'Title and opening')); html += `<label>${esc(t('copy_opening', 'Opening'))}${area(field)}</label>`; opened = true; }
+        if (field.role === 'title') html += `<label>${esc(t('copy_title', 'Title'))}${input(field, 'gxd-copy-title')}</label>`;
+        else if (field.role === 'heading') {
+          const name = t('copy_heading_named', '{name} heading').replace('{name}', headingName(field.text));
+          html += `<label class="gxd-copy-heading">${esc(name)}${input(field)}</label>`; opened = true;
+        }
+        else if (!opened) { html += `<label>${esc(t('copy_opening', 'Opening'))}${area(field)}</label>`; opened = true; }
         else html += area(field, t('copy_text', 'Text'));
       }
-      return html + (open ? '</div>' : '');
+      return html;
     }
     function showFields(){
       fieldsHost.innerHTML = `${keepEdits ? `<p class="gxd-copy-edited"><i class="fas fa-circle-check" aria-hidden="true"></i> ${esc(t('copy_edited', 'Your changes from the template editor are kept.'))}</p>` : ''}
@@ -1122,8 +1136,6 @@ export function mount(el, ctx){
       const id = field.dataset.copy, original = array(data?.fields).find((entry) => entry.node_id === id)?.text;
       if (field.value === original) delete edits[id]; else edits[id] = field.value;
       if (field.tagName === 'TEXTAREA') grow(field);
-      const name = fieldsHost.querySelector(`[data-copy-name="${CSS.escape(id)}"]`);
-      if (name) name.textContent = field.value.trim() || original || '';
       report(); redraw();
     };
     const onFocus = (event) => { const field = event.target.closest?.('[data-copy]'); if (field) mark(field.dataset.copy); };
@@ -1221,6 +1233,8 @@ export function mount(el, ctx){
       <p class="gxd-error" role="alert"></p>
     </div>`;
     const app = el.querySelector('.gxd-first-app'), error = el.querySelector('.gxd-error');
+    // The message is for the workflow's first step, once (GP-18): past it, it is gone, Previous included.
+    const leaveLead = () => { if (Number(service?.workflowPosition?.()?.index) > 0) el.querySelector('.gxd-first-lead')?.remove(); };
     const status = (text) => { const node = el.querySelector('[data-first-status]'); if (node) node.textContent = text; };
     // The wording's document waits where it was, then slides into the workflow's preview once that is drawn.
     lifted = liftDocument(sheet || document.body);
@@ -1259,7 +1273,7 @@ export function mount(el, ctx){
       engine = await window.FirstMateEmbeddableApps.mount(app, 'project.documents', { orgId: ctx.orgId, projectId, project, surface: 'project_modal', active: true, params: { embed: {
         enabled: true, history: false, focus: false,
         onReady: (api) => { service = api; },
-        onWorkflowStep: () => ctx.syncBack?.(),
+        onWorkflowStep: () => { leaveLead(); ctx.syncBack?.(); },
         workflowOptions: {
           showWorkflowTitle: false, phoneSteps: 'bottom',
           onStepTitle: ({ title } = {}) => { if (alive) ctx.setTitle?.(title); },
@@ -1278,6 +1292,7 @@ export function mount(el, ctx){
         const doc = await service.startFromTemplate(clean(saved.template_id) || 'tpl_setup_proposal', { onFinish });
         if (alive) ctx.change({ first_document_id: clean(doc?.id) });
       }
+      leaveLead();
       intoPreview();
       ctx.syncBack?.();
     }
