@@ -47,8 +47,8 @@ export function mount(root, { T, esc, toast }) {
         <label><input type="radio" name="fm-dc-bc-mode" value="all" ${state.mode === 'all' ? 'checked' : ''}> ${esc(T('dc_bc_all', 'Every colour'))}</label>
       </div>
       <p class="fm-dc-sub">${esc(state.mode === 'family'
-        ? T('dc_bc_family_note', 'Colours leaning towards Forward\'s teal (its greens and blues too) take the brand colour; colours on the other side (red, amber) keep theirs.')
-        : T('dc_bc_all_note', 'Every colour turns by the same amount as Forward\'s teal, so a red error or an amber warning changes colour too.'))}</p>
+        ? T('dc_bc_family_note2', 'Colours leaning towards Forward\'s teal (its greens and blues too) take the brand colour; near-greys and colours on the other side (red, amber) keep theirs.')
+        : T('dc_bc_all_note2', 'Every colour turns by the same amount as Forward\'s teal, so a red error, an amber warning and Forward\'s faintly blue greys change colour too.'))}</p>
       <div data-dc-bc-out></div>
       <h3 class="fm-dc-h">${esc(T('dc_bc_presets', 'Every preset'))}</h3>
       <div class="fm-dc-bc-grid">${swatches().map((c) => {
