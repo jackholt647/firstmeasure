@@ -14,7 +14,7 @@ import {
   readDocumentThemeVersion, readDocumentWorkflow, readDocumentWorkflowVersion
 } from "./storage.js";
 import { FMDocModel } from "./schemas.js";
-import { ensureDefaultDocumentAssets, libraryAssetDefinition } from "./library-copies.js";
+import { ensureDefaultDocumentAssets, ensureThemeCopies, libraryAssetDefinition } from "./library-copies.js";
 import { DEFAULT_PINNED_TEMPLATE_IDS, DOCUMENT_SETUP_MODULE, readPinnedTemplateIds, savePinnedTemplateIds } from "./settings.js";
 import { MEASUREMENT_FIELDS, PRICEBOOK_FORMULA_TOKEN_TYPES, PRICEBOOK_OPERATORS, PRICEBOOK_PARENS } from "../pricebook/constants.js";
 
@@ -548,6 +548,8 @@ async function preview(orgId: string, document: JsonObject, definition: JsonObje
 export async function documentSetupPreviews(orgId: string, args: unknown) {
   const answers = checkedAnswers(args);
   await ensureDefaultDocumentAssets(orgId);
+  // The styles show the company's colors as they are now, saved a moment ago too (GP-95).
+  await ensureThemeCopies(orgId);
   const { definition, plan } = await buildDocument(orgId, answers, DOCUMENT_SETUP_THEMES[0]);
   const document = await sampleDocument(orgId, answers, plan, definition);
   const { themes } = await readDocumentSetup(orgId);
@@ -574,6 +576,7 @@ export async function documentSetupCopy(orgId: string, args: unknown) {
   const parsed = copyArgsSchema.parse(args);
   const answers = checkedAnswers(parsed);
   await ensureDefaultDocumentAssets(orgId);
+  await ensureThemeCopies(orgId);
   const insurance = parsed.agreement === "insurance";
   if (insurance && !makesInsurance(answers)) throw badRequest("document_setup_agreement", "Choose insurance agreements as a kind of proposal first.");
   const { definition, plan, edited } = await buildDocument(orgId, answers, parsed.theme_id, { keepEdits: parsed.keep_edits === true, insurance });

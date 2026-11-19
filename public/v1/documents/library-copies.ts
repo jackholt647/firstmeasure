@@ -159,7 +159,38 @@ async function ensureCopy(asset: Asset, orgId: string, entry: AnyEntry, ctx: Pla
   const state = copyState(entry, existing);
   if (state === "missing") return await writeCopy(asset, orgId, entry, null, ctx);
   if (state === "behind") return await writeCopy(asset, orgId, entry, existing, ctx).catch(() => null);
+  if (state === "library" && asset === "theme" && !(await themeFollowsBrand(orgId, entry, existing!))) {
+    return await writeCopy(asset, orgId, entry, existing, ctx).catch(() => null);
+  }
   return existing;
+}
+
+/** A theme's tokens the company's brand fills (theme-defaults.ts), in a form two definitions compare by. */
+function brandTokens(definition: JsonObject) {
+  const sorted = (value: unknown): unknown => Array.isArray(value) ? value.map(sorted)
+    : value && typeof value === "object" ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, sorted((value as JsonObject)[key])])) : value;
+  const tokens = obj(definition.tokens);
+  return JSON.stringify(sorted({ colors: tokens.colors ?? null, fonts: tokens.fonts ?? null }));
+}
+
+/**
+ * Whether an untouched theme copy carries the company's current colors and fonts (GP-95). A copy takes them when it
+ * is made, and a new organization's copies are made with the signup's default red, before the company sets its own:
+ * an untouched copy follows the brand, so its documents and the document setup's style previews show the company's
+ * colors. A theme the organization edited keeps what it chose.
+ */
+async function themeFollowsBrand(orgId: string, entry: AnyEntry, copy: JsonObject) {
+  const version = await readDocumentThemeVersion(orgId, entry.id, Number(copy.current_version || 0) || undefined).catch(() => null);
+  if (!version) return true;
+  return brandTokens(obj(version.definition)) === brandTokens(await copyDefinition("theme", orgId, entry));
+}
+
+/**
+ * Brings only the organization's theme copies up to the library and its brand, without the TTL: what the document
+ * setup's previews call, so a brand saved a moment ago shows in the styles it offers.
+ */
+export async function ensureThemeCopies(orgId: string, ctx: PlatformAuthContext | null = null) {
+  for (const entry of libraryEntries<DocumentThemeEntry>(DOCUMENT_THEME_KIND)) await ensureCopy("theme", orgId, entry, ctx).catch(() => null);
 }
 
 /** The organization's copy of a presentation deck (documents/modules/presentation-service.ts). */
