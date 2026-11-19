@@ -129,11 +129,14 @@
 
   function offered(appId){
     const user = root.Portal?.currentUser || {};
+    let found = false;
     for (const value of [user.appEntitlements, user.entitlements, user.accessProfile?.app_entitlements]) {
       const entry = Array.isArray(value) ? value.find(app => app.id === appId) : value?.[appId];
       if (entry?.offered === true) return true;
+      if (entry) found = true;
     }
-    return false;
+    // An app with no entitlement of its own uses another's (an app group member, the Call center): offered with it (GP-87).
+    return !found && root.FirstMateEmbeddableApps?.evaluateAccess?.(appId)?.entitlement?.offered === true;
   }
 
   // An app whose required setup is unfinished is "launched" for a person once they press Get Started on its welcome or
