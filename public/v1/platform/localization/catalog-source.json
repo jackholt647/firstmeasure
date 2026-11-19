@@ -4792,7 +4792,17 @@
     "m_61885bcbd4c690": {
       "message": "Minimize {v19}",
       "format": "icu"
-    }
+    },
+    "materials_settings_tab_workforce": "Crews and Subcontractors",
+    "materials_settings_setup_start": "Start setup",
+    "materials_settings_setup_checking": "Checking your setup…",
+    "materials_settings_setup_unavailable": "The setup is not available here.",
+    "materials_settings_setup_suppliers": "Set up your suppliers",
+    "materials_settings_setup_suppliers_body": "Choose who supplies your materials and add their costs. Once they are set up, this is where you change them.",
+    "materials_settings_setup_equipment": "Set up your equipment",
+    "materials_settings_setup_equipment_body": "Add the equipment you use and where it is kept. Once it is set up, this is where you manage it.",
+    "materials_settings_workforce_start": "Set up who does the work",
+    "materials_settings_setup_workforce_body": "Add your crews and subcontractors, what each one does and how you pay them. Once they are set up, this is where you see and change them."
   },
   "measurements": {
     "m_aaf397f737f7b1": "Residential",
@@ -13820,7 +13830,9 @@
     "m_d81d17e8de0532": "FirstMate publishes your privacy policy and texting terms",
     "m_ad58d95d403348": "Turn this off to use pages on your own website.",
     "m_c6c266475a1775": "Privacy policy &amp; texting terms",
-    "m_b96151d06a07de": "Hosted by FirstMate"
+    "m_b96151d06a07de": "Hosted by FirstMate",
+    "material_calculations_section": "Material calculations",
+    "material_calculations_section_subtitle": "How materials and labor are worked out from a measurement report, and the columns on the Materials tab."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Add Work",
