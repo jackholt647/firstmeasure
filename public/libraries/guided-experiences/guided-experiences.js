@@ -6,7 +6,10 @@
  *     refresh()                     reload what this person may play for the current page
  *     preload(projectId)            read once what may play on a project's tabs, so a tab's tour starts at once
  *     play(id, { replay, over })    play one now (a tutorial replay, a setup from a button); `over` plays a tour over
- *                                   the setup playing in this frame rather than after it
+ *                                   the setup playing in this frame rather than after it; `container` (an element of
+ *                                   this frame) draws a setup's sheet inside it rather than over the page, only for the
+ *                                   caller that asks (a setup started from a settings pane, GP-78), and `signal`
+ *                                   aborting ends it there
  *     preview(id)                   play one as if seen for the first time, recording nothing (trying an announcement)
  *     test(resolved)                development: play one the server resolved for a test (dev console Setup tests)
  *     require(stepId)               ask a setup step (and what it requires) only if the data says it is unanswered
@@ -358,7 +361,7 @@
     state.current = { experience, control }; state.playing = experience.id;
     try {
       track(experience, replay?'replay':'exposure'); if(!replay)track(experience, 'start');
-      const outcome = await player({ experience, api, track:(type, extra)=>track(experience,type,extra), where, L, esc, reducedMotion, options:{ nested:true,replay,...(childOptions.selections?{selections:childOptions.selections}:{}),...(childOptions.start?{start:childOptions.start}:{}) }, control, playChild });
+      const outcome = await player({ experience, api, track:(type, extra)=>track(experience,type,extra), where, L, esc, reducedMotion, options:{ nested:true,replay,...(childOptions.selections?{selections:childOptions.selections}:{}),...(childOptions.start?{start:childOptions.start}:{}),...(childOptions.container?{container:childOptions.container,signal:childOptions.signal}:{}) }, control, playChild });
       if (['completed','dismissed'].includes(outcome?.status)) markFinished(experience.id,outcome.status);
       return outcome || { status:'ended' };
     } finally {

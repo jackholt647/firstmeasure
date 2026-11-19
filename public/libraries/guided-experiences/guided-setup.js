@@ -212,6 +212,10 @@
       .gxs-titlebar{justify-content:flex-end;margin:0 0 10px}
       .gxs-titlebar:has(>.gxs-title-actions:empty){display:none}
     }
+    /* Embedded (GP-78): played with a container (Operations settings' sub-tab), the sheet is that container's content:
+       no scrim, no shadow, as large as the container, on a phone too. The container is positioned. */
+    .gxs.gxs-embedded{position:absolute;inset:0;z-index:5;display:block}
+    .gxs.gxs-embedded[data-kind] .gxs-sheet,.gxs.gxs-embedded.gxs-wide .gxs-sheet{width:100%;height:100%;min-height:0;border-radius:0;box-shadow:none;animation:gxsFade .25s ease both}
 ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none!important;transition:none!important}}
   `;
 
@@ -269,10 +273,13 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
       index = entryOf(index);
       const first = start >= 0 ? index : 0;
 
+      // Played with a `container` (an element in this page, GP-78), the sheet is drawn inside it instead of over the page:
+      // a setup started from a settings pane plays in that pane. `signal` aborting (the pane went away) ends it.
+      const container = ctx.options?.container?.nodeType === 1 && ctx.options.container.isConnected && ctx.options.container.ownerDocument === document ? ctx.options.container : null;
       const host = document.createElement('div');
-      host.className = 'gxs'; host.dataset.kind = agentic ? 'agentic' : 'modal'; host.setAttribute('data-fmr-ignore', ''); host.setAttribute('data-gx-setup', experience.id);
-      host.innerHTML = `<div class="gxs-scrim"></div>
-        <section class="gxs-sheet" role="dialog" aria-modal="true" aria-label="${esc(L(experience.title))}">
+      host.className = container ? 'gxs gxs-embedded' : 'gxs'; host.dataset.kind = agentic ? 'agentic' : 'modal'; host.setAttribute('data-fmr-ignore', ''); host.setAttribute('data-gx-setup', experience.id);
+      host.innerHTML = `${container ? '' : '<div class="gxs-scrim"></div>'}
+        <section class="gxs-sheet" ${container ? 'role="region"' : 'role="dialog" aria-modal="true"'} aria-label="${esc(L(experience.title))}">
           <button type="button" class="gxs-close" data-gxs="close" aria-label="${esc(L('gx_ui_close_setup', 'Close setup'))}" title="${esc(L('gx_ui_close_setup', 'Close setup'))}"><span class="gxs-x" aria-hidden="true">&times;</span></button>
           <div class="gxs-widget">
             <header class="gxs-head"><span class="gxs-badge"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${H(experience.title)}</span></span><div class="gxs-head-title" role="heading" aria-level="2"></div></header>
@@ -287,8 +294,8 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
             <div class="gxs-assistant"></div>
           </aside>
         </section>`;
-      document.body.appendChild(host);
-      const releasePage = G()?.holdPage ? G().holdPage(host) : () => {};
+      (container || document.body).appendChild(host);
+      const releasePage = !container && G()?.holdPage ? G().holdPage(host) : () => {};
       // The phone's back control is the sheet's Back (FM-554): one history entry per step behind the one on screen, and
       // one more that leaves the first step. Back on the finish closes it, as the X does. A step with steps of its own
       // (the Operations workflow) adds one per step of its own behind the one it shows (`backDepth`, FM-604).
@@ -518,7 +525,7 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
           back(){ if (currentPane === el && !closed && !busy && (visited.length || index > first)) back(); }, syncBack(){ if (currentPane === el) syncBack(); },
           // The step names what is on screen now (plain text); empty goes back to the step's own title.
           setTitle(text){ if (currentPane !== el || closed) return; const value = clean(text); if (value) setHeadTitle(esc(value)); else setHeadTitle(H(step.title), infoHtml(step)); }, checkpoint:()=>track('step_view',{step_id:step.id,selections}), restart(){visited.length=0;show(0,-1);},
-          async runGuide(id,options={}){ if(!options.keepVisible){host.hidden=true;host.inert=true;}try{return await ctx.playChild?.(id,options);}finally{if(!closed){host.hidden=false;host.inert=false;}} },
+          async runGuide(id,options={}){ if(!options.keepVisible){host.hidden=true;host.inert=true;}try{return await ctx.playChild?.(id,{...options,...(container?{container,signal:ctx.options?.signal}:{})});}finally{if(!closed){host.hidden=false;host.inert=false;}} },
           change(patch, summary){ Object.assign(global ? answers[step.id] : selections, patch); if (summary !== undefined) summaries[step.id] = summary; status.textContent = ''; status.classList.remove('err'); footer(); } }) : null;
         if (!widget) el.querySelector('.gxs-body').textContent = L('gx_ui_widget_missing', 'This step cannot be shown here.');
         if (old) {
@@ -806,8 +813,8 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
           resolve([
             chat.animate([{ transform: `translate(${startX}px, ${startY}px)`, clipPath: clip(from) }, { transform: 'translate(0px, 0px)', clipPath: clip(to) }], options),
             sheet.animate([{ clipPath: 'inset(0px round 20px)', opacity: 1 }, { clipPath: `inset(${from.top - box.top}px ${box.right - from.right}px ${box.bottom - from.bottom}px ${from.left - box.left}px round 20px)`, opacity: 0 }], options),
-            scrim.animate([{ opacity: getComputedStyle(scrim).opacity }, { opacity: 0 }], options)
-          ]);
+            scrim?.animate([{ opacity: getComputedStyle(scrim).opacity }, { opacity: 0 }], options)
+          ].filter(Boolean));
         }));
         await Promise.all(frames.map((animation) => animation.finished.catch(() => null)));
         // The real tray is underneath at the same bounds: wait until it shows the conversation, then fade the card.
@@ -822,6 +829,11 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
         restore.forEach(([node, value]) => { if (node) node.style.transition = value || ''; });
       }
 
+      // Embedded: the container's owner took it away (Operations settings closed). It ends, neither done nor dismissed.
+      const signal = container ? ctx.options?.signal : null;
+      const abort = () => { if (closed) return; close('plain').then(() => resolve({ status: 'ended' }), () => resolve({ status: 'ended' })); };
+      if (signal?.aborted) { abort(); return; }
+      signal?.addEventListener?.('abort', abort, { once: true });
       enter(index, 1, '');
       // The very first time, the scripted greeting already ran in enter(); a resumed setup says where it left off.
     });
