@@ -651,14 +651,14 @@ export async function applyReceiptAttribution(orgId: string, receiptId: string, 
     current = await readReceipt(orgId, receiptId);
   }
   if (!cleanText(current.project_id)) throw badRequest("receipt_project_required", "Associate this receipt with a project before applying it to project expenses.");
-  const targetKeys = await assertExpenseTargetKeys(orgId, cleanText(current.project_id), input.target_keys || input.attributed_target_keys);
+  const targetKeys = await assertExpenseTargetKeys(orgId, cleanText(current.project_id), input.target_keys || input.attributed_target_keys, { categories: true });
   if (!targetKeys.length) throw badRequest("receipt_attribution_required", "Select at least one expense list for this receipt.");
   const effective = receiptEffective(current);
   if (integerCents(effective.total_cents) <= 0) throw badRequest("receipt_total_required", "Enter the receipt total before applying it.");
   if (cleanText(effective.currency).toUpperCase() !== "USD") throw badRequest("unsupported_receipt_currency", "Project expense tracking currently requires a USD receipt total.");
   if (cleanText(asObject(current.extraction).amount_direction).toLowerCase() === "credit") throw badRequest("receipt_credit_review_required", "Credit documents require a dedicated credit allocation workflow before they can change project expenses.");
   const expenseSummary = await projectExpenseSummary(orgId, cleanText(current.project_id));
-  const targetsByKey = new Map(asArray(expenseSummary.targets).map(asObject).map((target) => [cleanText(target.target_key), target]));
+  const targetsByKey = new Map([...asArray(expenseSummary.targets), ...asArray(expenseSummary.category_targets)].map(asObject).map((target) => [cleanText(target.target_key), target]));
   const targetSnapshots = targetKeys.map((targetKey) => {
     const target = asObject(targetsByKey.get(targetKey));
     return {

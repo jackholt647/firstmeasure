@@ -662,6 +662,78 @@ test("the legacy proposal page takes no payment: no Pay button, and the old depo
   assert.equal(intake.tokenization, null);
 });
 
+test("a project with no expense lists files a receipt under one of the organization's expense categories (GP-108)", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const projectId = "project_expense_categories_test";
+  await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
+    data: { id: projectId, title: "Fresh Project", address: "1 Category Court", documents: [] },
+    metadata: { kind: "platform_project" }
+  });
+  const summaryUrl = `/v1/payments/organizations/${orgId}/projects/${projectId}/expense-summary`;
+
+  // Before any settings are saved the built-in four are offered, and none of them is a cost line yet.
+  let summary = (await client.request("GET", summaryUrl)).expense_summary;
+  assert.equal(summary.targets.length, 0);
+  assert.deepEqual(summary.category_targets.map((target: any) => target.target_key), [
+    "expense_category:labor", "expense_category:material_order", "expense_category:reimbursement", "expense_category:other"
+  ]);
+  assert.ok(summary.category_targets.every((target: any) => target.projected_cents === 0 && target.hidden === false));
+  assert.equal(summary.groups.length, 0);
+
+  // Settings rename, hide and add categories (branch module money_settings, written by the Money tab).
+  const { saveBranchModule } = await import("../platform/storage.js");
+  await saveBranchModule(orgId, "default", "money_settings", { data: { expense_categories: [
+    { id: "material_order", label: "Supplies" },
+    { id: "reimbursement", label: "Reimbursement", hidden: true },
+    { id: "permits", label: "Permits" }
+  ] } });
+  summary = (await client.request("GET", summaryUrl)).expense_summary;
+  const byKey = new Map(summary.category_targets.map((target: any) => [target.target_key, target]));
+  assert.equal((byKey.get("expense_category:material_order") as any).title, "Supplies");
+  assert.equal((byKey.get("expense_category:material_order") as any).resource_type, "material");
+  assert.equal((byKey.get("expense_category:reimbursement") as any).hidden, true);
+  assert.equal((byKey.get("expense_category:permits") as any).resource_type, "other");
+
+  const upload = await client.request("POST", `/v1/payments/organizations/${orgId}/projects/${projectId}/receipts`, {
+    file_name: "lumber.txt",
+    content_type: "text/plain",
+    file_base64: Buffer.from("Lumber Yard\nReceipt #CAT-1\nTotal $250.00\n").toString("base64")
+  });
+  const unknownCategory = await client.raw("POST", `/v1/payments/organizations/${orgId}/receipts/${upload.receipt.id}/apply`, {
+    target_keys: ["expense_category:nonexistent"],
+    total_cents: 25_000
+  });
+  assert.equal(unknownCategory.statusCode, 400);
+  const applied = await client.request("POST", `/v1/payments/organizations/${orgId}/receipts/${upload.receipt.id}/apply`, {
+    target_keys: ["expense_category:material_order"],
+    total_cents: 25_000
+  });
+  assert.equal(applied.receipt.status, "applied");
+  const group = applied.expense_summary.groups.find((value: any) => value.target_keys.includes("expense_category:material_order"));
+  assert.ok(group, "the category becomes a cost line once a receipt is filed under it");
+  assert.equal(group.title, "Supplies");
+  assert.equal(group.unresolved_attribution, false);
+  assert.equal(group.projected_cents, 0);
+  assert.equal(group.actual_cents, 25_000);
+  assert.equal(applied.expense_summary.groups.length, 1);
+  assert.equal(applied.expense_summary.by_resource.material.actual_cents, 25_000);
+  assert.equal(applied.expense_summary.totals.actual_cents, 25_000);
+
+  const money = (await client.request("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/money-summary`)).summary;
+  assert.equal(money.forecast_expenses_cents, 25_000);
+  assert.equal(money.actual_expenses_cents, 25_000);
+
+  // A category is somewhere to file receipts, not a projected list a payable can be counted against.
+  const payable = await client.raw("POST", `/v1/payments/organizations/${orgId}/payables`, {
+    project_id: projectId,
+    kind: "material_order",
+    amount_cents: 1_000,
+    expense_target_keys: ["expense_category:material_order"]
+  });
+  assert.equal(payable.statusCode, 400);
+});
+
 test("expense tracking projects labor from its list lines, preserves receipt evidence, and groups overlapping attributions transitively", async () => {
   const client = createSessionClient();
   const { orgId, userId } = await register(client);

@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 import type { PlatformAuthContext } from "../platform/auth.js";
 import { badRequest, conflict, notFound } from "../platform/errors.js";
-import { listDocuments, readDocument, upsertDocument, type JsonObject } from "../platform/storage.js";
+import { listDocuments, readBranchModule, readDocument, upsertDocument, type JsonObject } from "../platform/storage.js";
 import { listPayrollLedgerEntries } from "../payroll/storage.js";
 import { emitWorkEvent } from "../work/engine.js";
 
@@ -16,7 +16,11 @@ export type ExpenseSummarySources = {
   overrides: JsonObject[];
   receipts: JsonObject[];
   payrollLedgerEntries?: JsonObject[];
+  /** The organization's expense categories (moneyExpenseCategories); when absent, only categories receipts were filed under are known. */
+  expenseCategories?: ExpenseCategory[];
 };
+
+export type ExpenseCategory = { id: string; label: string; hidden: boolean; built_in: boolean };
 
 const EXPENSE_SCHEMA_VERSION = 1;
 
@@ -421,6 +425,81 @@ function scopeResourceListDisplayOrder(lists: JsonObject[]) {
   });
 }
 
+/**
+ * Expense categories (GP-108) are the Money tab's payable kinds: the built-in four, renamed or hidden in the
+ * branch module `money_settings`, and the organization's own. A receipt can be filed under one as
+ * `expense_category:<id>`, beside or instead of the project's projected expense lists, so a project with no
+ * lists still has somewhere to put its receipts. A category projects nothing; what is filed under it is actual.
+ */
+export const EXPENSE_CATEGORY_TARGET_PREFIX = "expense_category:";
+const BUILT_IN_EXPENSE_CATEGORIES: Record<string, { label: string; resource_type: string }> = {
+  labor: { label: "Labor", resource_type: "labor" },
+  material_order: { label: "Materials", resource_type: "material" },
+  reimbursement: { label: "Reimbursement", resource_type: "other" },
+  other: { label: "Other", resource_type: "other" }
+};
+
+/** Same list, order and labels as the Money tab's moneyCategories (money/project.js). */
+export function moneyExpenseCategories(settings: unknown): ExpenseCategory[] {
+  const saved = asArray(asObject(settings).expense_categories).map(asObject);
+  const list: ExpenseCategory[] = [];
+  for (const entry of saved) {
+    const id = cleanText(entry.id);
+    if (!id || list.some((item) => item.id === id)) continue;
+    list.push({ id, label: cleanText(entry.label) || BUILT_IN_EXPENSE_CATEGORIES[id]?.label || id, hidden: entry.hidden === true, built_in: id in BUILT_IN_EXPENSE_CATEGORIES });
+  }
+  for (const [id, builtIn] of Object.entries(BUILT_IN_EXPENSE_CATEGORIES)) {
+    if (!list.some((item) => item.id === id)) list.push({ id, label: builtIn.label, hidden: false, built_in: true });
+  }
+  return list;
+}
+
+export async function readExpenseCategories(orgId: string, branchIdValue: unknown) {
+  const branchId = cleanText(branchIdValue) || "default";
+  const direct = await readBranchModule(orgId, branchId, "money_settings").catch(() => null);
+  const module = direct || (branchId !== "default" ? await readBranchModule(orgId, "default", "money_settings").catch(() => null) : null);
+  return moneyExpenseCategories(asObject(module).data);
+}
+
+function expenseCategoryTarget(category: ExpenseCategory, displayOrder: number): ExpenseTarget {
+  return {
+    target_key: `${EXPENSE_CATEGORY_TARGET_PREFIX}${category.id}`,
+    source_type: "expense_category",
+    source_id: category.id,
+    category_id: category.id,
+    title: category.label,
+    resource_type: BUILT_IN_EXPENSE_CATEGORIES[category.id]?.resource_type || "other",
+    color: "#667085",
+    projected_cents: 0,
+    actual_override_cents: null,
+    actual_override_enabled: false,
+    hidden: category.hidden,
+    display_order: displayOrder,
+    metadata: {}
+  };
+}
+
+/** Every category a receipt may be filed under, plus any a counted receipt was filed under that settings no longer lists. */
+function expenseCategoryTargets(categories: ExpenseCategory[], receipts: JsonObject[], firstDisplayOrder: number) {
+  const targets = categories.map((category, index) => expenseCategoryTarget(category, firstDisplayOrder + index));
+  const known = new Set(targets.map((target) => target.target_key));
+  for (const receipt of receipts.filter(countableAppliedReceipt)) {
+    const snapshots = new Map(asArray(asObject(receipt.attribution).target_snapshots).map(asObject).map((snapshot) => [cleanText(snapshot.target_key || snapshot.key), snapshot]));
+    for (const key of receiptTargets(receipt)) {
+      if (!key.startsWith(EXPENSE_CATEGORY_TARGET_PREFIX) || known.has(key)) continue;
+      const id = key.slice(EXPENSE_CATEGORY_TARGET_PREFIX.length);
+      known.add(key);
+      targets.push(expenseCategoryTarget({
+        id,
+        label: cleanText(asObject(snapshots.get(key)).title) || BUILT_IN_EXPENSE_CATEGORIES[id]?.label || id,
+        hidden: true,
+        built_in: id in BUILT_IN_EXPENSE_CATEGORIES
+      }, firstDisplayOrder + targets.length));
+    }
+  }
+  return targets;
+}
+
 async function projectExpenseTargets(orgId: string, projectId: string, sources?: ExpenseSummarySources): Promise<ExpenseTarget[]> {
   const [listDocs, supplemental, overrides] = sources
     ? [sources.materialLists, sources.supplementalExpenses.filter((item) => cleanText(item.project_id) === projectId && cleanText(item.status || "active") !== "archived"), sources.overrides.filter((item) => cleanText(item.project_id) === projectId)]
@@ -743,8 +822,12 @@ async function accruedPayrollLaborExpense(orgId: string, projectId: string, sour
 }
 
 export async function projectExpenseSummary(orgId: string, projectId: string) {
-  const sources = await loadExpenseSummarySources(orgId);
-  return projectExpenseSummaryFromSources(orgId, projectId, sources);
+  const [sources, project] = await Promise.all([
+    loadExpenseSummarySources(orgId),
+    readDocument(orgId, "projects", projectId).catch(() => null)
+  ]);
+  const expenseCategories = await readExpenseCategories(orgId, documentData(project).branch_id);
+  return projectExpenseSummaryFromSources(orgId, projectId, { ...sources, expenseCategories });
 }
 
 export async function projectExpenseSummaryFromSources(orgId: string, projectId: string, sources: ExpenseSummarySources) {
@@ -757,8 +840,11 @@ export async function projectExpenseSummaryFromSources(orgId: string, projectId:
   const commission = (await accruedCommissionExpense(orgId, projectId, sources));
   const payrollLabor = (await accruedPayrollLaborExpense(orgId, projectId, sources));
   const targets = [...trackedTargets, ...(commission ? [commission.target] : []), ...(payrollLabor ? [payrollLabor.target] : [])];
+  // Categories take part in the groups only once a receipt is filed under one; an empty category is not a cost line.
+  const categoryTargets = expenseCategoryTargets(sources.expenseCategories || [], receipts, trackedTargets.length);
+  const filedCategoryKeys = new Set(receipts.filter(countableAppliedReceipt).flatMap(receiptTargets));
   const groups = [
-    ...expenseGroups(trackedTargets, receipts),
+    ...expenseGroups([...trackedTargets, ...categoryTargets.filter((target) => filedCategoryKeys.has(target.target_key))], receipts),
     ...(commission ? [commission.group] : []),
     ...(payrollLabor ? [payrollLabor.group] : [])
   ];
@@ -815,6 +901,7 @@ export async function projectExpenseSummaryFromSources(orgId: string, projectId:
     project_id: projectId,
     currency: "USD",
     targets,
+    category_targets: categoryTargets,
     groups,
     receipts: receipts.map(summaryReceiptView),
     totals: {
@@ -832,12 +919,14 @@ export async function projectExpenseSummaryFromSources(orgId: string, projectId:
   };
 }
 
-export async function assertExpenseTargetKeys(orgId: string, projectId: string, targetKeysValue: unknown) {
+/** Categories are offered only where `categories` is set (receipts); a payable or a manual actual names a projected list. */
+export async function assertExpenseTargetKeys(orgId: string, projectId: string, targetKeysValue: unknown, options: { categories?: boolean } = {}) {
   const requested = uniqueText(targetKeysValue);
   const summary = await projectExpenseSummary(orgId, projectId);
   const available = new Set(asArray(summary.targets).map(asObject)
     .filter((target) => target.receipt_attribution_enabled !== false && target.actual_override_enabled !== false)
     .map((target) => cleanText(target.target_key)));
+  if (options.categories) asArray(summary.category_targets).map(asObject).forEach((target) => available.add(cleanText(target.target_key)));
   const invalid = requested.filter((key) => !available.has(key));
   if (invalid.length) throw badRequest("invalid_expense_targets", "One or more selected expense lists are not available for this project.", { invalid_target_keys: invalid });
   return requested;
