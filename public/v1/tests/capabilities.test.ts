@@ -263,6 +263,21 @@ test("legacy /app-flags API keeps working over the capability registry", async (
   assert.equal(tabbed.app_placements["portal.equipment"], "more");
   assert.deepEqual((await client.request("GET", `/v1/platform/organizations/${orgId}/app-flags`)).project_tabs, tabbed.project_tabs);
   assert.equal((await client.raw("PATCH", `/v1/platform/organizations/${orgId}/global`, { data: { project_tabs: { order: [] } } })).statusCode, 403);
+  // The left column's app order (GP-52) is organization data beside placements; an order-only write keeps the rest.
+  assert.deepEqual(tabbed.app_order, []);
+  const ordered = await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/app-flags`, {
+    app_placements: { "portal.equipment": "sidebar", "portal.payroll": "settings" },
+    app_order: ["Portal.Equipment", "portal.crm", "portal.equipment", "not an id"]
+  });
+  assert.deepEqual(ordered.app_order, ["portal.equipment", "portal.crm"]);
+  assert.equal(ordered.app_placements["portal.equipment"], "sidebar");
+  const reordered = await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/app-flags`, { app_order: ["portal.crm", "portal.equipment"] });
+  assert.deepEqual(reordered.app_order, ["portal.crm", "portal.equipment"]);
+  assert.equal(reordered.app_placements["portal.equipment"], "sidebar");
+  assert.equal(reordered.effective.platform.photos_feed, true);
+  assert.deepEqual(reordered.project_tabs, tabbed.project_tabs);
+  assert.deepEqual((await client.request("GET", `/v1/platform/organizations/${orgId}/app-flags`)).app_order, ["portal.crm", "portal.equipment"]);
+  assert.equal((await client.raw("PATCH", `/v1/platform/organizations/${orgId}/global`, { data: { app_order: [] } })).statusCode, 403);
   const { isAppFlagEnabled } = await import("../platform/app_flags.js");
   assert.equal(await isAppFlagEnabled(orgId, "platform", "proposals"), true);
   assert.equal(await isAppFlagEnabled(orgId, "platform", "materials"), false);

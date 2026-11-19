@@ -14656,7 +14656,27 @@
     "m_cade29468d2218": "Your workspace is taking longer to load. Please try again.",
     "m_b39f2fc77d6729": "Reload workspace",
     "m_e29e003014f22e": "Edit pins",
-    "m_03ae7f7f0d0d32": "Tap apps to pin or unpin them."
+    "m_03ae7f7f0d0d32": "Tap apps to pin or unpin them.",
+    "m_121f1beba90822": "Left column sections",
+    "m_ca7b8b550c1acc": "Home: the app that opens first",
+    "m_6c49b60faab921": {
+      "message": "Move {v0} up",
+      "format": "icu"
+    },
+    "m_f51d0d563b4d76": "Move up",
+    "m_c3ae6be7678b0c": {
+      "message": "Move {v2} down",
+      "format": "icu"
+    },
+    "m_8dda6677ff0f34": "Move down",
+    "m_425aa108496d81": "One section stays on",
+    "m_aa4cf82d48e36a": "Shown in your left column",
+    "m_4ea56ca20d437a": "Hidden from your left column",
+    "m_17c93bdd5a0f99": "Thin",
+    "m_9246870f32f935": "Wide",
+    "m_7af6be7c241afb": "Left column width",
+    "m_dedf030c4eae88": "Narrow left column with instant tooltips",
+    "m_606db014592e3c": "Full-width left column all the time"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Office",

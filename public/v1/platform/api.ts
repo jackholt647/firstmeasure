@@ -65,7 +65,7 @@ import { emitWorkEvent } from "../work/engine.js";
 import { createWorkPlan, listWorkTodos, patchWorkNode, transitionWorkNode } from "../work/service.js";
 import { readScopeTemplate } from "../scopes/storage.js";
 import { readNodeRecord } from "../work/storage.js";
-import { appFlagState, canManageOrgAppFlags, canManageTestAppFlags, containsAppFlagMutation, effectiveAppFlags, enabledOnlyAppFlags, isAppFlagEnabled, newOrganizationAppFlagDefaults, normalizeAppFlagInput, normalizeAppPlacementInput, normalizeAppVariantInput, normalizeProjectTabsInput } from "./app_flags.js";
+import { appFlagState, canManageOrgAppFlags, canManageTestAppFlags, containsAppFlagMutation, effectiveAppFlags, enabledOnlyAppFlags, isAppFlagEnabled, newOrganizationAppFlagDefaults, normalizeAppFlagInput, normalizeAppOrderInput, normalizeAppPlacementInput, normalizeAppVariantInput, normalizeProjectTabsInput } from "./app_flags.js";
 import {
   applyCapabilityPreset,
   capabilityState,
@@ -1493,12 +1493,14 @@ app.get("/auth/google/config", async () => ({
     const hasExplicitFlagInput = Object.prototype.hasOwnProperty.call(body, "app_flags") || Object.prototype.hasOwnProperty.call(body, "flags");
     const hasPlacementInput = Object.prototype.hasOwnProperty.call(body, "app_placements");
     const hasProjectTabsInput = Object.prototype.hasOwnProperty.call(body, "project_tabs");
+    const hasOrderInput = Object.prototype.hasOwnProperty.call(body, "app_order");
     const patchData: JsonObject = {};
-    if (hasExplicitFlagInput || (!hasVariantInput && !hasPlacementInput && !hasProjectTabsInput)) patchData.app_flags = normalizeAppFlagInput(body);
+    if (hasExplicitFlagInput || (!hasVariantInput && !hasPlacementInput && !hasProjectTabsInput && !hasOrderInput)) patchData.app_flags = normalizeAppFlagInput(body);
     if (hasVariantInput) {
       patchData.app_variants = normalizeAppVariantInput(body);
     }
     if (hasPlacementInput) patchData.app_placements = normalizeAppPlacementInput(body.app_placements);
+    if (hasOrderInput) patchData.app_order = normalizeAppOrderInput(body.app_order);
     if (hasProjectTabsInput) patchData.project_tabs = normalizeProjectTabsInput(body.project_tabs);
     await mutateGlobal(orgId, global => {
       const patch = { ...patchData };

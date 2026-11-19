@@ -161,7 +161,9 @@
       ? sidebarPreference('left_column_locked_expanded', sidebarCompactExpanded) === true : sidebarCompactExpanded;
     if (!sidebar) return compact;
     if (!compact || expanded || behavior !== 'adaptive') sidebar.classList.remove('sidebar-compact-edge-held');
-    if (behavior !== 'adaptive') sidebar.classList.remove('sidebar-hover-expanded', 'sidebar-advanced-apps-open');
+    if (behavior !== 'adaptive') sidebar.classList.remove('sidebar-hover-expanded');
+    // More apps keeps its pins and order controls in every behavior (GP-52).
+    if (behavior !== 'adaptive' && !document.body.classList.contains('fm-advanced-app-menu-open')) sidebar.classList.remove('sidebar-advanced-apps-open');
     sidebar.classList.toggle('sidebar-forced', behavior.startsWith('forced_'));
     sidebar.classList.toggle('sidebar-manual', behavior !== 'adaptive');
     sidebar.classList.toggle('sidebar-instant-tooltips', behavior === 'tooltip');
@@ -2681,6 +2683,23 @@
     return sidebarPreference('left_column_apps', true) !== false;
   }
 
+  // Whether a left-column section could be on for this person here, whatever
+  // their preference says (GP-52: More apps lists these with switches).
+  function sidebarSectionAvailable(key){
+    const phone = window.matchMedia?.('(max-width: 820px)')?.matches;
+    if (key === 'apps') return true;
+    if (key === 'todo') return window.Portal?.util?.hasPerm?.('view_projects') === true;
+    // On phones the sidebar is a pop-out drawer, so the left-column channels
+    // integration only adds indirection: mobile always uses the standalone
+    // channels tab, regardless of the desktop preference.
+    if (key === 'channels') return !phone && window.Portal?.can?.('apps.channels') !== false;
+    if (key === 'agents') {
+      return !phone && window.Portal?.can?.('apps.assistant') !== false
+        && ['use_assistant', 'view_projects', 'manage_projects', 'manage_company_settings'].some((permission) => window.Portal?.util?.hasPerm?.(permission));
+    }
+    return false;
+  }
+
   function applySidebarAppsFeatureFlag(){
     const sidebar = document.getElementById('mainSidebar');
     const enabled = sidebarAppsFeatureEnabled();
@@ -2689,9 +2708,7 @@
   }
 
   function sidebarTodoFeatureEnabled(){
-    const currentUser = window.Portal?.currentUser;
-    const canViewProjects = window.Portal?.util?.hasPerm?.('view_projects') === true;
-    return canViewProjects
+    return sidebarSectionAvailable('todo')
       && sidebarPreference('left_column_todo_list', false) === true;
   }
 
@@ -2737,12 +2754,7 @@
   }
 
   function sidebarChannelsFeatureEnabled(){
-    // On phones the sidebar is a pop-out drawer, so the left-column channels
-    // integration only adds indirection: mobile always uses the standalone
-    // channels tab, regardless of the desktop preference.
-    if (window.matchMedia?.('(max-width: 820px)')?.matches) return false;
-    if (window.Portal?.can?.('apps.channels') === false) return false;
-    return sidebarPreference('left_column_channels', false) === true;
+    return sidebarSectionAvailable('channels') && sidebarPreference('left_column_channels', false) === true;
   }
 
   function applySidebarChannelsFeatureFlag(){
@@ -2757,10 +2769,7 @@
   }
 
   function sidebarAgentsFeatureEnabled(){
-    if (window.matchMedia?.('(max-width: 820px)')?.matches) return false;
-    if (window.Portal?.can?.('apps.assistant') === false) return false;
-    if (!['use_assistant', 'view_projects', 'manage_projects', 'manage_company_settings'].some((permission) => window.Portal?.util?.hasPerm?.(permission))) return false;
-    return sidebarPreference('left_column_agents', false) === true;
+    return sidebarSectionAvailable('agents') && sidebarPreference('left_column_agents', false) === true;
   }
 
   function applySidebarAgentsFeatureFlag(){
@@ -2857,6 +2866,88 @@
         ? active
         : sidebarDefaultMode();
     setSidebarPanel(available.some((mode) => mode.key === preferred) ? preferred : (available[0]?.key || ''));
+    renderSidebarSections();
+  }
+
+  // While More apps is open the left column lists every section this person
+  // could have (Apps, To Do, Channels, AI), on or off, each with a switch for
+  // their own left column (GP-52). These are the personal `left_column_*`
+  // preferences My Settings also sets; one section always stays on.
+  const SIDEBAR_SECTION_PREFERENCES = { apps:'left_column_apps', todo:'left_column_todo_list', channels:'left_column_channels', agents:'left_column_agents' };
+  let sidebarSectionSave = Promise.resolve();
+  function renderSidebarSections(){
+    const sidebar = document.getElementById('mainSidebar');
+    const tabs = sidebar?.querySelector('.sidebar-mode-tabs');
+    if (!tabs) return;
+    const modes = [
+      { key:'apps', tab:document.getElementById('sidebarAppsTab'), enabled:sidebar.classList.contains('apps-list-enabled') },
+      { key:'todo', tab:document.getElementById('sidebarTodoTab'), enabled:sidebar.classList.contains('todo-list-enabled') },
+      { key:'channels', tab:document.getElementById('sidebarChannelsTab'), enabled:sidebar.classList.contains('channels-tab-enabled') },
+      { key:'agents', tab:document.getElementById('sidebarAgentsTab'), enabled:sidebar.classList.contains('agents-tab-enabled') }
+    ];
+    let row = document.getElementById('sidebarSections');
+    const allowed = window.Portal?.appFlags?.has?.('platform', 'left_column_settings', false) === true;
+    // Channels is offered once Channels is on and this person has it.
+    const offered = (mode) => mode.tab && sidebarSectionAvailable(mode.key)
+      && (mode.key !== 'channels' || (window.Portal?.can?.('apps.channels') === true && launcherAppInExperience({ appId:'portal.channels' })));
+    const sections = allowed && advancedAppMenuEnabled() ? modes.filter(offered) : [];
+    if (sections.length < 2) {
+      row?.remove();
+      return;
+    }
+    if (!row) {
+      row = document.createElement('div');
+      row.id = 'sidebarSections';
+      row.className = 'fm-sidebar-sections';
+      row.setAttribute('role', 'group');
+      row.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("platform","m_121f1beba90822","Left column sections") ?? "Left column sections"));
+      tabs.after(row);
+      row.addEventListener('click', (event) => {
+        const button = event.target.closest?.('[data-sidebar-section]');
+        if (button && !button.disabled) toggleSidebarSection(button.dataset.sidebarSection);
+      });
+    }
+    const onCount = sections.filter((mode) => mode.enabled).length;
+    const focused = row.contains(document.activeElement) ? document.activeElement.dataset.sidebarSection : '';
+    row.innerHTML = sections.map((mode) => {
+      const label = escapeHtml(cleanText(mode.tab.textContent) || mode.key);
+      const lastOn = mode.enabled && onCount < 2;
+      return `<button type="button" class="fm-sidebar-section${mode.enabled ? ' is-on' : ''}" data-sidebar-section="${escapeHtml(mode.key)}" role="switch" aria-checked="${mode.enabled ? 'true' : 'false'}"${lastOn ? ' disabled' : ''} title="${lastOn ? `${(globalThis.PlatformLanguage?.htmlText("platform","m_425aa108496d81","One section stays on") ?? "One section stays on")}` : mode.enabled ? `${(globalThis.PlatformLanguage?.htmlText("platform","m_aa4cf82d48e36a","Shown in your left column") ?? "Shown in your left column")}` : `${(globalThis.PlatformLanguage?.htmlText("platform","m_4ea56ca20d437a","Hidden from your left column") ?? "Hidden from your left column")}`}"><span>${label}</span><span class="fm-sidebar-section-switch" aria-hidden="true"></span></button>`;
+    }).join('');
+    if (focused) row.querySelector(`[data-sidebar-section="${CSS.escape(focused)}"]`)?.focus({ preventScroll:true });
+  }
+  // A left-column preference changes at once and saves behind it; a failed
+  // save puts it back.
+  function saveSidebarPreference(preference, value){
+    const identity = window.Portal?.currentUser?.identity;
+    if (!identity || !window.PlatformAPI?.preferences?.patch) return;
+    const previous = identity.preferences?.[preference];
+    identity.preferences = { ...(identity.preferences || {}), [preference]: value };
+    applySidebarFeatureFlags();
+    if (advancedAppMenuOpen) renderAdvancedAppMenu();
+    sidebarSectionSave = sidebarSectionSave.catch(() => {}).then(() => window.PlatformAPI.preferences.patch({ [preference]: value }));
+    sidebarSectionSave.then((saved) => {
+      // Keep choices made while this one saved.
+      const preferences = { ...(identity.preferences || {}), [preference]: saved?.preferences?.[preference] ?? value };
+      window.dispatchEvent(new CustomEvent('fm:user-preferences:updated', { detail:{ preferences } }));
+    }).catch((error) => {
+      identity.preferences = { ...(identity.preferences || {}), [preference]: previous };
+      applySidebarFeatureFlags();
+      if (advancedAppMenuOpen) renderAdvancedAppMenu();
+      window.PlatformUI?.showToast?.(error?.message || 'Could not update your left column.');
+    });
+  }
+  function toggleSidebarSection(key){
+    const preference = SIDEBAR_SECTION_PREFERENCES[key];
+    if (!preference) return;
+    saveSidebarPreference(preference, !(key === 'apps' ? sidebarAppsFeatureEnabled() : sidebarPreference(preference, false) === true));
+  }
+  // More apps switches the left column between thin (narrow, with instant
+  // tooltips) and wide (full width all the time) on desktop (GP-52): the
+  // personal `left_column_behavior` My Settings also sets.
+  function setLeftColumnWidthMode(mode){
+    const behavior = mode === 'thin' ? 'tooltip' : 'forced_expanded';
+    if (sidebarBehavior() !== behavior) saveSidebarPreference('left_column_behavior', behavior);
   }
 
   function initializeSidebarModes(){
@@ -3307,14 +3398,24 @@
   let advancedAppMenuEditing = false;
   let advancedAppMenuOrder = null;
   let advancedAppMenuPopped = '';
+  let moreAppsTourAsked = false;
   let advancedAppMenuQuietClicksUntil = 0;
 
+  // Once the left column has an order (GP-52), a newly pinned app joins it
+  // at the bottom and an unpinned one leaves it.
   async function updateAdvancedAppPin(appId, pinned){
     const normalizedId = cleanText(appId).toLowerCase();
     if (!normalizedId) return null;
     const placements = { ...(window.Portal?.appFlags?.current?.()?.app_placements || {}) };
     placements[normalizedId] = pinned ? 'sidebar' : 'more';
-    return window.Portal?.appFlags?.updatePlacements?.(placements);
+    const order = pinnedAppOrder();
+    let nextOrder;
+    if (order.length) {
+      const ids = pinnedAppIds().filter((id) => id !== normalizedId);
+      if (pinned) ids.push(normalizedId);
+      nextOrder = [...ids, ...order.filter((id) => id !== normalizedId && !ids.includes(id))];
+    }
+    return window.Portal?.appFlags?.updatePlacements?.(placements, nextOrder);
   }
 
   function closeAdvancedAppMenu(options = {}){
@@ -3422,8 +3523,15 @@
     });
 
     const entries = appLauncherEntries();
+    // Pinned apps lead in the left column's order, its home app first (GP-52).
+    const pinnedOrder = pinnedAppIds();
+    const homeAppId = pinnedOrder[0] || '';
+    const pinnedRank = (entry) => {
+      const index = pinnedOrder.indexOf(entry.appId);
+      return index < 0 ? pinnedOrder.length : index;
+    };
     const sorted = [...entries]
-      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.label.localeCompare(b.label));
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || (a.pinned && b.pinned ? pinnedRank(a) - pinnedRank(b) : 0) || a.label.localeCompare(b.label));
     if (!advancedAppMenuOrder) advancedAppMenuOrder = sorted.map((entry) => entry.key);
     const rank = (entry) => {
       const index = advancedAppMenuOrder.indexOf(entry.key);
@@ -3445,7 +3553,7 @@
             <span class="fm-advanced-app-icon"><i class="fas ${escapeHtml(entry.icon)}" aria-hidden="true"></i></span>
           </button>
         </div>
-        <button type="button" class="fm-advanced-app-open" data-advanced-app-open="${escapeHtml(entry.key)}" aria-label="${setupRequired ? 'Set up' : 'Open'} ${escapeHtml(entry.label)}"><strong>${escapeHtml(entry.label)}</strong></button>
+        <button type="button" class="fm-advanced-app-open" data-advanced-app-open="${escapeHtml(entry.key)}" aria-label="${setupRequired ? 'Set up' : 'Open'} ${escapeHtml(entry.label)}"><strong>${entry.pinned && entry.appId === homeAppId ? `<i class="fas fa-house fm-advanced-app-home" data-advanced-app-home title="${(globalThis.PlatformLanguage?.htmlText("platform","m_ca7b8b550c1acc","Home: the app that opens first") ?? "Home: the app that opens first")}" aria-hidden="true"></i>` : ''}${escapeHtml(entry.label)}</strong></button>
         ${subviewExtras.html}
       </article>`;
     };
@@ -3455,6 +3563,7 @@
     const focused = overlay?.contains(document.activeElement) && document.activeElement.matches?.(':focus-visible') ? document.activeElement : null;
     const focusSelector = !focused ? '' : focused.dataset.advancedAppPin ? `[data-advanced-app-pin="${CSS.escape(focused.dataset.advancedAppPin)}"]`
       : focused.dataset.advancedAppOpen ? `.${CSS.escape(focused.classList[0] || 'fm-advanced-app-open')}[data-advanced-app-open="${CSS.escape(focused.dataset.advancedAppOpen)}"]`
+      : focused.dataset.advancedSidebarWidth ? `[data-advanced-sidebar-width="${CSS.escape(focused.dataset.advancedSidebarWidth)}"]`
       : focused.hasAttribute('data-advanced-apps-edit') ? '[data-advanced-apps-edit]' : '';
     const scrollTop = overlay?.querySelector('.fm-advanced-apps-scroll')?.scrollTop || 0;
     if (!overlay) {
@@ -3469,9 +3578,11 @@
     };
     setSidebarEdge();
     window.setTimeout(setSidebarEdge, 210);
+    const thinColumn = !!sidebar?.classList.contains('sidebar-compact');
     overlay.innerHTML = `
       <section class="fm-advanced-apps-panel" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_a151b65da51bfd","All apps") ?? "All apps")}">
         <button type="button" class="fm-advanced-apps-close" data-advanced-apps-close aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_0838136c759dc3","Close apps") ?? "Close apps")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+        <div class="fm-advanced-apps-width" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_7af6be7c241afb","Left column width") ?? "Left column width")}"><button type="button" data-advanced-sidebar-width="thin" aria-pressed="${thinColumn ? 'true' : 'false'}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_dedf030c4eae88","Narrow left column with instant tooltips") ?? "Narrow left column with instant tooltips")}"><i class="fas fa-grip-lines-vertical" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_17c93bdd5a0f99","Thin") ?? "Thin")}</button><button type="button" data-advanced-sidebar-width="wide" aria-pressed="${thinColumn ? 'false' : 'true'}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_606db014592e3c","Full-width left column all the time") ?? "Full-width left column all the time")}"><i class="fas fa-table-columns" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_9246870f32f935","Wide") ?? "Wide")}</button></div>
         <div class="fm-advanced-apps-scroll">
           <nav class="fm-advanced-apps-grid" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_290b7f9d844e1e","Active apps") ?? "Active apps")}">${String(enabled.map((entry, index) => appTile(entry, index)).join(''))}</nav>
         </div>
@@ -3482,6 +3593,7 @@
       if (event.target === overlay) closeAdvancedAppMenu();
     }, { signal });
     overlay.querySelector('[data-advanced-apps-close]')?.addEventListener('click', () => closeAdvancedAppMenu(), { signal });
+    overlay.querySelectorAll('[data-advanced-sidebar-width]').forEach((button) => button.addEventListener('click', () => setLeftColumnWidthMode(button.dataset.advancedSidebarWidth), { signal }));
     overlay.querySelector('[data-advanced-apps-manage]')?.addEventListener('click', () => {
       closeAdvancedAppMenu({ restoreFocus:false });
       window.Portal?.navigation?.navigate?.(
@@ -3678,7 +3790,27 @@
     window.FirstMateAccountSwitcher?.close?.();
     advancedAppMenuOpen = true;
     advancedAppMenuLauncher = launcher;
+    // The left column shows its apps, to pin and order them (GP-52).
+    if (sidebarAppsFeatureEnabled()) {
+      sidebarModeUserSelected = true;
+      setSidebarPanel('apps');
+    }
+    renderSidebarSections();
     renderAdvancedAppMenu(launcher);
+    offerMoreAppsTour();
+  }
+
+  // The first time someone opens More apps, the guided experience
+  // platform.more_apps_tour (config library) shows what it is for (GP-52):
+  // every app, pins, the left column's order and home app, thin or wide, and
+  // its sections. The guides runtime keeps who has seen it. Asked once per page.
+  function offerMoreAppsTour(){
+    if (moreAppsTourAsked || typeof window.FirstMateGuides?.play !== 'function') return;
+    moreAppsTourAsked = true;
+    window.setTimeout(() => {
+      if (!advancedAppMenuOpen) { moreAppsTourAsked = false; return; }
+      Promise.resolve(window.FirstMateGuides.play('platform.more_apps_tour')).catch(() => {});
+    }, 450);
   }
 
   function initSidebarAppScrolling(){
@@ -4050,20 +4182,142 @@
     if (shown.at(-1)?.classList.contains('sidebar-launcher-divider')) shown.at(-1).remove();
   }
 
-  // The left column's order: by placement, then apps in use, then apps still waiting on setup ("Setup required"),
-  // then apps not started yet ("New"), each by the tab's order (FM-479). A new app never sits above one people use.
+  // The left column's order: by placement, then the pinned apps in the organization's order (`app_order`, GP-52:
+  // set in More apps, the first is the home app the portal opens on), then apps in use, then apps still waiting on
+  // setup ("Setup required"), then apps not started yet ("New"), each by the tab's order (FM-479). A new app never
+  // sits above one people use unless it was put there.
   function portalTabUseRank(tab){
     const kind = portalAppPill(tab?.appId)?.kind;
     return kind === 'new' ? 2 : kind === 'setup' ? 1 : 0;
   }
+  function pinnedAppOrder(){
+    const order = window.PlatformAPI?.appFlags?.current?.()?.app_order;
+    return Array.isArray(order) ? order.map((id) => cleanText(id).toLowerCase()).filter(Boolean) : [];
+  }
   function sortPortalTabs(tabs){
     const placementOrder = { sidebar:0, more:1, settings:2 };
     const rank = new Map(tabs.map((tab) => [tab, portalTabUseRank(tab)]));
+    const order = pinnedAppOrder();
+    const listed = new Map(tabs.map((tab) => {
+      const index = tab.placement === 'sidebar' ? order.indexOf(cleanText(tab.appId).toLowerCase()) : -1;
+      return [tab, index < 0 ? order.length : index];
+    }));
     return [...tabs].sort((a, b) => (
       (placementOrder[a.placement] ?? 3) - (placementOrder[b.placement] ?? 3)
+      || listed.get(a) - listed.get(b)
       || rank.get(a) - rank.get(b)
       || a.order - b.order
     ));
+  }
+  // The apps in the left column, top first: the first is the home app.
+  function pinnedAppIds(){
+    return sortPortalTabs([...TabRegistry.tabs.values()].filter((tab) => tab.placement === 'sidebar' && tab.appId))
+      .map((tab) => cleanText(tab.appId).toLowerCase());
+  }
+  // Saves the left column's apps in this order. Apps this person does not see
+  // keep their place in the saved order after them.
+  function saveSidebarAppOrder(ids){
+    const next = [...ids, ...pinnedAppOrder().filter((id) => !ids.includes(id))];
+    advancedAppMenuOrder = null;
+    const placements = { ...(window.Portal?.appFlags?.current?.()?.app_placements || {}) };
+    return window.Portal?.appFlags?.updatePlacements?.(placements, next);
+  }
+  // Dragging an app up or down the left column while More apps is open moves
+  // it there (GP-52). Mouse and pen only: on touch the arrows do it, and the
+  // column keeps scrolling.
+  let sidebarAppDrag = null;
+  function sidebarAppLinks(){
+    return [...document.querySelectorAll('#sidebarMainLinks .fm-link[data-sidebar-app]')];
+  }
+  function endSidebarAppDrag(cancel = false){
+    const drag = sidebarAppDrag;
+    sidebarAppDrag = null;
+    if (!drag) return;
+    window.removeEventListener('pointermove', moveSidebarAppDrag, true);
+    window.removeEventListener('pointerup', finishSidebarAppDrag, true);
+    window.removeEventListener('pointercancel', cancelSidebarAppDrag, true);
+    window.removeEventListener('keydown', escapeSidebarAppDrag, true);
+    if (!drag.started) return;
+    drag.link.classList.remove('is-reordering');
+    drag.link.style.removeProperty('transform');
+    document.getElementById('sidebarMainLinks')?.classList.remove('fm-sidebar-apps-reordering');
+    const block = (event) => { event.preventDefault(); event.stopPropagation(); };
+    window.addEventListener('click', block, { capture:true, once:true });
+    window.setTimeout(() => window.removeEventListener('click', block, { capture:true }), 400);
+    const ids = sidebarAppLinks().map((node) => node.dataset.sidebarApp);
+    if (cancel || ids.join('|') === drag.before) {
+      if (ids.join('|') !== drag.before) renderTabs();
+      return;
+    }
+    Promise.resolve(saveSidebarAppOrder(ids)).catch((error) => window.PlatformUI?.showToast?.(error?.message || 'Could not update the sidebar.'));
+  }
+  function moveSidebarAppDrag(event){
+    const drag = sidebarAppDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (!drag.started) {
+      if (Math.abs(event.clientY - drag.startY) < 5) return;
+      drag.started = true;
+      drag.link.classList.add('is-reordering');
+      document.getElementById('sidebarMainLinks')?.classList.add('fm-sidebar-apps-reordering');
+      window.getSelection?.()?.removeAllRanges?.();
+    }
+    event.preventDefault();
+    const others = sidebarAppLinks().filter((node) => node !== drag.link);
+    const before = others.find((node) => {
+      const rect = node.getBoundingClientRect();
+      return event.clientY < rect.top + rect.height / 2;
+    });
+    // Pinned subviews are hidden while dragging and return with the save.
+    const last = others.at(-1);
+    if (before) {
+      if (drag.link.nextElementSibling !== before) before.before(drag.link);
+    } else if (last) {
+      let tail = last;
+      while (tail.nextElementSibling?.classList.contains('fm-link-subview')) tail = tail.nextElementSibling;
+      if (tail !== drag.link && tail.nextElementSibling !== drag.link) tail.after(drag.link);
+    }
+    drag.link.style.transform = 'none';
+    const rect = drag.link.getBoundingClientRect();
+    drag.link.style.transform = `translateY(${Math.round(event.clientY - drag.grabY - rect.top)}px)`;
+  }
+  function finishSidebarAppDrag(event){
+    if (sidebarAppDrag && event.pointerId === sidebarAppDrag.pointerId) endSidebarAppDrag(false);
+  }
+  function cancelSidebarAppDrag(){
+    endSidebarAppDrag(true);
+  }
+  function escapeSidebarAppDrag(event){
+    if (event.key !== 'Escape' || !sidebarAppDrag?.started) return;
+    event.preventDefault();
+    event.stopPropagation();
+    endSidebarAppDrag(true);
+  }
+  function startSidebarAppDrag(event){
+    if (sidebarAppDrag || event.button !== 0 || event.pointerType === 'touch' || event.isPrimary === false) return;
+    const link = event.target.closest?.('#sidebarMainLinks .fm-link[data-sidebar-app]');
+    if (!link || !link.closest('.sidebar-advanced-apps-open') || event.target.closest('button')) return;
+    if (sidebarAppLinks().length < 2) return;
+    sidebarAppDrag = {
+      link,
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      grabY: event.clientY - link.getBoundingClientRect().top,
+      started: false,
+      before: sidebarAppLinks().map((node) => node.dataset.sidebarApp).join('|')
+    };
+    window.addEventListener('pointermove', moveSidebarAppDrag, true);
+    window.addEventListener('pointerup', finishSidebarAppDrag, true);
+    window.addEventListener('pointercancel', cancelSidebarAppDrag, true);
+    window.addEventListener('keydown', escapeSidebarAppDrag, true);
+  }
+  document.addEventListener('pointerdown', startSidebarAppDrag, true);
+  function moveSidebarApp(appId, offset){
+    const ids = pinnedAppIds();
+    const from = ids.indexOf(cleanText(appId).toLowerCase());
+    const to = from + offset;
+    if (from < 0 || to < 0 || to >= ids.length) return null;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    return saveSidebarAppOrder(ids);
   }
 
   // Pinned app subviews are personal (left-column-pins.js). Each follows its
@@ -4169,6 +4423,40 @@
       .fm-sidebar-app-pin{position:absolute;top:50%;left:0;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;color:#98a2b3;opacity:0;pointer-events:none;cursor:pointer;transform:translate(-10px,-50%) rotate(-18deg);transition:opacity .16s ease,background .16s ease,color .16s ease,transform .22s ease}
       .sidebar-advanced-apps-open .fm-link{padding-left:32px}
       .sidebar-advanced-apps-open .fm-sidebar-app-pin{opacity:1;pointer-events:auto;animation:fmSidebarPinIn .28s cubic-bezier(.2,.9,.25,1) both}
+      .fm-sidebar-app-home,.fm-sidebar-app-move{display:none}
+      .sidebar-advanced-apps-open .fm-link[data-sidebar-app]{padding-right:4px}
+      .sidebar-advanced-apps-open .fm-sidebar-app-home{display:inline-grid;place-items:center;flex:0 0 auto;width:20px;height:20px;margin-left:auto;border-radius:6px;background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025));font-size:10px}
+      .sidebar-advanced-apps-open .fm-sidebar-app-move{position:absolute;top:50%;right:2px;display:flex;gap:2px;padding:2px;border-radius:8px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.14);opacity:0;pointer-events:none;transform:translateY(-50%);transition:opacity .14s ease}
+      .sidebar-advanced-apps-open .fm-link[data-sidebar-app]:hover .fm-sidebar-app-move,.sidebar-advanced-apps-open .fm-link[data-sidebar-app]:focus-within .fm-sidebar-app-move{opacity:1;pointer-events:auto}
+      .fm-sidebar-app-move button{width:22px;height:22px;padding:0;border:0;border-radius:6px;background:transparent;color:#667085;font-size:10px;cursor:pointer}
+      .fm-sidebar-app-move button:hover,.fm-sidebar-app-move button:focus-visible{background:#f1f3f5;color:var(--primary-readable,var(--primary,#d93025));outline:none}
+      .fm-sidebar-app-move button:disabled{opacity:.3;cursor:default;background:transparent;color:#98a2b3}
+      .sidebar-advanced-apps-open .fm-link[data-sidebar-app]{cursor:grab}
+      .fm-sidebar-apps-reordering .fm-link-subview{display:none}
+      .fm-sidebar-apps-reordering .fm-link[data-sidebar-app]{transition:none}
+      .fm-link.is-reordering{z-index:3;cursor:grabbing;background:#fff;box-shadow:0 8px 20px rgba(15,23,42,.18)}
+      .fm-link.is-reordering .fm-sidebar-app-move{opacity:0!important}
+      .sidebar.sidebar-compact.sidebar-manual:not(.sidebar-compact-expanded) .fm-sidebar-app-move,.sidebar.sidebar-compact.sidebar-manual:not(.sidebar-compact-expanded) .fm-sidebar-app-home{display:none}
+      .fm-advanced-apps-width{position:absolute;z-index:3;top:calc(-1 * clamp(10px,1.5vw,24px));left:calc(-1 * clamp(10px,1.5vw,24px));display:flex;gap:2px;padding:3px;border:1px solid rgba(255,255,255,.18);border-radius:11px;background:rgba(255,255,255,.08)}
+      .fm-advanced-apps-width button{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border:0;border-radius:8px;background:transparent;color:rgba(255,255,255,.72);font:inherit;font-size:11px;font-weight:900;cursor:pointer;transition:background .16s ease,color .16s ease}
+      .fm-advanced-apps-width button:hover,.fm-advanced-apps-width button:focus-visible{background:rgba(255,255,255,.15);color:#fff;outline:none}
+      .fm-advanced-apps-width button[aria-pressed="true"]{background:#fff;color:#101828}
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-apps-width{display:none}
+      @media(max-width:820px){.fm-advanced-apps-width{display:none}}
+      .fm-advanced-app-home{margin-right:5px;color:var(--primary-readable,var(--primary,#d93025));font-size:.9em}
+      .fm-sidebar-sections{display:none}
+      .sidebar.sidebar-advanced-apps-open:not(.sidebar-manual) .fm-sidebar-sections,.sidebar.sidebar-advanced-apps-open.sidebar-manual:not(.sidebar-compact) .fm-sidebar-sections{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);margin:0 -14px;border:1px solid rgba(0,0,0,.07);border-bottom:0;background:#f7f8fa}
+      .sidebar.sidebar-advanced-apps-open:not(.sidebar-manual) .sidebar-mode-tabs,.sidebar.sidebar-advanced-apps-open.sidebar-manual:not(.sidebar-compact) .sidebar-mode-tabs{display:none!important}
+      .fm-sidebar-section{display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:30px;padding:0 6px;border:0;background:transparent;color:#98a2b3;font:inherit;font-size:12px;font-weight:950;line-height:1;cursor:pointer;transition:background .16s ease,color .16s ease}
+      .fm-sidebar-section>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fm-sidebar-section:hover,.fm-sidebar-section:focus-visible{background:#fff;color:#475467;outline:none}
+      .fm-sidebar-section.is-on{color:#202124}
+      .fm-sidebar-section:disabled{cursor:default}
+      .fm-sidebar-section-switch{position:relative;flex:0 0 auto;width:22px;height:12px;border-radius:99px;background:#d0d5dd;transition:background .16s ease}
+      .fm-sidebar-section-switch:after{content:"";position:absolute;top:2px;left:2px;width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.25);transition:transform .16s ease}
+      .fm-sidebar-section.is-on .fm-sidebar-section-switch{background:var(--primary,#d93025)}
+      .fm-sidebar-section.is-on .fm-sidebar-section-switch:after{transform:translateX(10px)}
+      @media(prefers-reduced-motion:reduce){.fm-sidebar-section-switch,.fm-sidebar-section-switch:after,.fm-sidebar-app-move{transition:none}}
       .sidebar-advanced-apps-open .fm-link .ic{transform:translateX(3px);transition:transform .24s cubic-bezier(.2,.8,.2,1),color .14s ease}
       .fm-sidebar-app-pin:hover,.fm-sidebar-app-pin:focus-visible{background:#f1f3f5;color:var(--primary-readable,var(--primary,#d93025));outline:none;transform:translate(0,-50%) rotate(-12deg)}
       .fm-sidebar-app-pin:disabled{opacity:.45;cursor:wait}
@@ -4272,16 +4560,34 @@
       }
     });
 
+    // In More apps the left column's apps can be reordered (GP-52): up and down
+    // arrows, or a drag; the top one is the home app and shows a house.
+    const orderedAppIds = advancedAppMenuEnabled()
+      ? list.filter((tab) => tab.placement === 'sidebar' && tab.appId).map((tab) => cleanText(tab.appId).toLowerCase())
+      : [];
     for (const t of list){
       const title = terminologyLabel(t.terminologyKey, t.title);
       const item = document.createElement('div');
       item.className = 'fm-link';
       item.dataset.tab = t.id;
+      const orderIndex = t.placement === 'sidebar' ? orderedAppIds.indexOf(cleanText(t.appId).toLowerCase()) : -1;
+      if (orderIndex >= 0) item.dataset.sidebarApp = orderedAppIds[orderIndex];
+      const moveControls = orderIndex < 0 ? '' : `${orderIndex === 0 ? `<span class="fm-sidebar-app-home" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_ca7b8b550c1acc","Home: the app that opens first") ?? "Home: the app that opens first")}"><i class="fas fa-house" aria-hidden="true"></i></span>` : ''}${orderedAppIds.length > 1 ? `<span class="fm-sidebar-app-move"><button type="button" data-sidebar-app-move="-1" aria-label="${((v0) => globalThis.PlatformLanguage?.htmlText("platform","m_6c49b60faab921",`Move ${v0} up`,{v0}) ?? `Move ${v0} up`)(escapeHtml(title))}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_f51d0d563b4d76","Move up") ?? "Move up")}"${orderIndex === 0 ? ' disabled' : ''}><i class="fas fa-chevron-up" aria-hidden="true"></i></button><button type="button" data-sidebar-app-move="1" aria-label="${((v2) => globalThis.PlatformLanguage?.htmlText("platform","m_c3ae6be7678b0c",`Move ${v2} down`,{v2}) ?? `Move ${v2} down`)(escapeHtml(title))}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_8dda6677ff0f34","Move down") ?? "Move down")}"${orderIndex === orderedAppIds.length - 1 ? ' disabled' : ''}><i class="fas fa-chevron-down" aria-hidden="true"></i></button></span>` : ''}`;
       item.innerHTML = `
         ${advancedAppMenuEnabled() && t.placement === 'sidebar' ? `<button type="button" class="fm-sidebar-app-pin is-pinned" data-sidebar-app-pin="${String(escapeHtml(t.appId))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform","m_db4217ef113961",`Unpin ${v1} from the sidebar`,{v1}) ?? `Unpin ${v1} from the sidebar`)(escapeHtml(title))}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_faf31575fe991d","Unpin from sidebar") ?? "Unpin from sidebar")}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>` : ''}
         <div class="ic"><i class="fas ${escapeHtml(t.icon)}"></i></div>
         <div class="tx">${escapeHtml(title)}${portalAppPill(t.appId) ? `<span class="fm-global-app-new fm-global-app-pill--${escapeHtml(portalAppPill(t.appId).kind || 'new')}">${escapeHtml(portalAppPill(t.appId).label)}</span>` : ''}</div>
+        ${moveControls}
       `;
+      item.querySelectorAll('[data-sidebar-app-move]').forEach((button) => button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const appId = item.dataset.sidebarApp;
+        Promise.resolve(moveSidebarApp(appId, Number(button.dataset.sidebarAppMove))).then(() => {
+          const moved = [...document.querySelectorAll('#sidebarMainLinks [data-sidebar-app]')].find((node) => node.dataset.sidebarApp === appId);
+          moved?.querySelector(`[data-sidebar-app-move="${button.dataset.sidebarAppMove}"]:not(:disabled)`)?.focus({ preventScroll:true });
+        }).catch((error) => window.PlatformUI?.showToast?.(error?.message || 'Could not update the sidebar.'));
+      }));
       item.addEventListener('click', ()=>activateTab(t.id, false, { history:'push', source:'portal-tab' }));
       item.querySelector('[data-sidebar-app-pin]')?.addEventListener('click', async (event) => {
         event.preventDefault();
@@ -5106,26 +5412,32 @@
   };
   // A placement change shows at once (FM-480): the left column and the apps
   // overlay move before the save, saves run one at a time carrying the
-  // newest placements, and a failed save puts back what the server last
-  // confirmed. Every caller of the change still gets the save's outcome.
+  // newest placements and pinned-app order (GP-52), and a failed save puts
+  // back what the server last confirmed. Every caller of the change still
+  // gets the save's outcome.
   const placementSaves = { confirmed:null, queued:null, shown:'', running:false, waiters:[] };
   function announcePlacements(detail){
     window.dispatchEvent(new CustomEvent('fm:app-placements:updated', { detail: detail || {} }));
   }
-  function savePlacementsOptimistically(placements = {}){
+  function placementLayoutKey(state){
+    return stableJson({ placements: state?.app_placements || {}, order: state?.app_order || [] });
+  }
+  // `order` is the pinned apps' new order; left out, the current one is kept.
+  function savePlacementsOptimistically(placements = {}, order){
     const api = window.PlatformAPI.appFlags;
-    if (!placementSaves.confirmed) placementSaves.confirmed = { ...(api.current?.()?.app_placements || {}) };
-    placementSaves.queued = { ...placements };
-    if (!api.applyPlacements(placementSaves.queued)) {
+    const current = api.current?.() || {};
+    if (!placementSaves.confirmed) placementSaves.confirmed = { placements:{ ...(current.app_placements || {}) }, order:[...(current.app_order || [])] };
+    placementSaves.queued = { placements:{ ...placements }, order:[...(Array.isArray(order) ? order : (current.app_order || []))] };
+    if (!api.applyPlacements(placementSaves.queued.placements, placementSaves.queued.order)) {
       placementSaves.confirmed = null;
       placementSaves.queued = null;
-      return api.updatePlacements(APP.userOrgId, placements).then((result) => {
+      return api.updatePlacements(APP.userOrgId, placements, order).then((result) => {
         lastAppFlagsKey = stableJson(result || {});
         announcePlacements(result);
         return result;
       });
     }
-    placementSaves.shown = stableJson(api.current?.()?.app_placements || {});
+    placementSaves.shown = placementLayoutKey(api.current?.());
     announcePlacements(api.current());
     const saved = new Promise((resolve, reject) => placementSaves.waiters.push({ resolve, reject }));
     drainPlacementSaves();
@@ -5141,12 +5453,12 @@
       while (placementSaves.queued) {
         const next = placementSaves.queued;
         placementSaves.queued = null;
-        result = await api.updatePlacements(APP.userOrgId, next);
-        placementSaves.confirmed = { ...(result?.app_placements || next) };
+        result = await api.updatePlacements(APP.userOrgId, next.placements, next.order);
+        placementSaves.confirmed = { placements:{ ...(result?.app_placements || next.placements) }, order:[...(result?.app_order || next.order)] };
         // The save replaced the cache; keep showing changes made meanwhile.
         if (placementSaves.queued) {
-          api.applyPlacements(placementSaves.queued);
-          placementSaves.shown = stableJson(api.current?.()?.app_placements || {});
+          api.applyPlacements(placementSaves.queued.placements, placementSaves.queued.order);
+          placementSaves.shown = placementLayoutKey(api.current?.());
         }
       }
     } catch (error) {
@@ -5154,18 +5466,18 @@
       placementSaves.queued = null;
     }
     const shown = placementSaves.shown;
-    const confirmed = placementSaves.confirmed || {};
+    const confirmed = placementSaves.confirmed || { placements:{}, order:[] };
     const waiters = placementSaves.waiters.splice(0);
     placementSaves.confirmed = null;
     placementSaves.running = false;
     if (failure) {
-      api.applyPlacements(confirmed);
+      api.applyPlacements(confirmed.placements, confirmed.order);
       announcePlacements(api.current());
       waiters.forEach((waiter) => waiter.reject(failure));
       return;
     }
     lastAppFlagsKey = stableJson(result || {});
-    if (stableJson(result?.app_placements || {}) !== shown) announcePlacements(result);
+    if (placementLayoutKey(result) !== shown) announcePlacements(result);
     waiters.forEach((waiter) => waiter.resolve(result));
   }
   window.Portal.appFlags = {
@@ -5186,10 +5498,10 @@
       window.dispatchEvent(new CustomEvent('fm:app-flags:updated', { detail: result || {} }));
       return result;
     },
-    updatePlacements: async (placements = {}) => {
+    updatePlacements: async (placements = {}, order) => {
       if (!APP.userOrgId || !window.PlatformAPI?.appFlags?.updatePlacements) return null;
-      if (window.PlatformAPI.appFlags.applyPlacements) return savePlacementsOptimistically(placements);
-      const result = await window.PlatformAPI.appFlags.updatePlacements(APP.userOrgId, placements);
+      if (window.PlatformAPI.appFlags.applyPlacements) return savePlacementsOptimistically(placements, order);
+      const result = await window.PlatformAPI.appFlags.updatePlacements(APP.userOrgId, placements, order);
       lastAppFlagsKey = stableJson(result || {});
       window.dispatchEvent(new CustomEvent('fm:app-placements:updated', { detail: result || {} }));
       return result;
@@ -5399,6 +5711,8 @@
     },
     pinApp: (appId) => updateAdvancedAppPin(appId, true),
     landingBefore: (payload) => {
+      // An ordered left column takes a new app at the bottom (updateAdvancedAppPin).
+      if (pinnedAppOrder().length) return null;
       const order = TabRegistry.tabs.get(payload.tabId)?.order ?? 1000;
       return [...(document.getElementById('sidebarMainLinks')?.children || [])].find((node) => (
         node.dataset?.tab && TabRegistry.tabs.get(node.dataset.tab)?.order > order

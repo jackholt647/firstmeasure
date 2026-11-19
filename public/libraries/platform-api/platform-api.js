@@ -1772,6 +1772,10 @@
       const allowed = new Set(['sidebar', 'more', 'settings', 'hidden']);
       return Object.fromEntries(Object.entries(source).map(([id, placement]) => [cleanText(id).toLowerCase(), cleanText(placement).toLowerCase()]).filter(([id, placement]) => id && allowed.has(placement)));
     }
+    // The order of the apps pinned to the left column; the first is the home app (GP-52).
+    function normalizeAppOrder(value){
+      return [...new Set((Array.isArray(value) ? value : []).map((id) => cleanText(id).toLowerCase()).filter(Boolean))];
+    }
     // The organization's project tab order and pills (docs/architecture/project-tab-guides.md).
     function normalizeProjectTabs(value){
       const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -1791,6 +1795,7 @@
         effective: result?.effective && typeof result.effective === 'object' ? result.effective : {},
         effective_variants: result?.effective_variants && typeof result.effective_variants === 'object' ? result.effective_variants : {},
         app_placements: normalizePlacements(result?.app_placements),
+        app_order: normalizeAppOrder(result?.app_order),
         project_tabs: normalizeProjectTabs(result?.project_tabs),
         definitions: Array.isArray(result?.definitions) ? result.definitions : [],
         variant_definitions: Array.isArray(result?.variant_definitions) ? result.variant_definitions : [],
@@ -1886,12 +1891,13 @@
         cache = stateFromResult(normalizedOrgId, result);
         return cache;
       },
-      async updatePlacements(orgId, placements = {}){
+      // `order` (optional) is the pinned apps' order, saved with the placements.
+      async updatePlacements(orgId, placements = {}, order){
         const normalizedOrgId = cleanText(orgId);
         if (!normalizedOrgId) return null;
         const result = await request(orgPath(normalizedOrgId, '/app-flags'), {
           method: 'PUT',
-          body: { app_placements: normalizePlacements(placements) }
+          body: { app_placements: normalizePlacements(placements), ...(Array.isArray(order) ? { app_order: normalizeAppOrder(order) } : {}) }
         });
         cacheOrgId = normalizedOrgId;
         cache = stateFromResult(normalizedOrgId, result);
@@ -1899,10 +1905,13 @@
       },
       // Shows placements before they are saved (the portal saves them right
       // after, and puts the confirmed ones back if that fails). Local only.
-      applyPlacements(placements = {}){
+      applyPlacements(placements = {}, order){
         if (!cache) return null;
-        cache = { ...cache, app_placements: normalizePlacements(placements) };
+        cache = { ...cache, app_placements: normalizePlacements(placements), ...(Array.isArray(order) ? { app_order: normalizeAppOrder(order) } : {}) };
         return cache;
+      },
+      appOrder(){
+        return cache?.app_order || [];
       },
       projectTabs(){
         return cache?.project_tabs || { order: [], pills: {} };
