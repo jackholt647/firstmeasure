@@ -15,7 +15,7 @@ import {
 } from "./storage.js";
 import { FMDocModel } from "./schemas.js";
 import { ensureDefaultDocumentAssets, ensureThemeCopies, libraryAssetDefinition } from "./library-copies.js";
-import { DEFAULT_PINNED_TEMPLATE_IDS, DOCUMENT_SETUP_MODULE, readPinnedTemplateIds, savePinnedTemplateIds } from "./settings.js";
+import { DEFAULT_PINNED_TEMPLATE_IDS, DOCUMENT_SETUP_MODULE, documentSetupDefaultThemeId, readPinnedTemplateIds, savePinnedTemplateIds } from "./settings.js";
 import { MEASUREMENT_FIELDS, PRICEBOOK_FORMULA_TOKEN_TYPES, PRICEBOOK_OPERATORS, PRICEBOOK_PARENS } from "../pricebook/constants.js";
 
 /**
@@ -29,8 +29,9 @@ import { MEASUREMENT_FIELDS, PRICEBOOK_FORMULA_TOKEN_TYPES, PRICEBOOK_OPERATORS,
  *
  * Nothing here prices anything: prices are the price book's (the optional price step writes them with
  * `pricebook.prices.update`), and each proposal's prices can still be changed on that proposal. What was answered is
- * kept in the default branch's `document_setup` module, apart from the templates. The first proposal style chosen there
- * is also the organization's style for new documents (`default_theme_id`, FM-612; settings.ts readDefaultDocumentThemeId).
+ * kept in the default branch's `document_setup` module, apart from the templates. The first style chosen there, for any
+ * kind, is also the organization's style for new documents (`default_theme_id`, FM-612, GP-102; settings.ts
+ * readDefaultDocumentThemeId), and the style step of a kind not set up yet opens on it.
  *
  * After the style, the person reads the template's own wording and may change it (FM-614): its copy is every text node of
  * fixed words on its pages (the title, the opening, the headings and the terms; `copyFields`), and what they change goes
@@ -336,7 +337,7 @@ export async function readDocumentSetup(orgId: string) {
     answered: Object.fromEntries(DOCUMENT_SETUP_KINDS.map((kind) => [kind, !!text(object(kinds[kind]).applied_at)])) as Record<DocumentSetupKind, boolean>,
     kinds: Object.fromEntries(DOCUMENT_SETUP_KINDS.filter((kind) => kinds[kind]).map((kind) => [kind, object(kinds[kind])])),
     themes: DOCUMENT_SETUP_THEMES.map((id) => ({ id, name: text(byId.get(id)?.name) || id.replace(/^thm_/, ""), description: text(byId.get(id)?.description) })),
-    default_theme_id: text(object(record?.data).default_theme_id || object(kinds.proposal).theme_id) || null,
+    default_theme_id: documentSetupDefaultThemeId(object(record?.data)),
     company_type: profile.company_type, sales_team: profile.sales_team, sales_is_team: profile.sales_is_team,
     revision: Number(record?.revision || 0)
   };
@@ -552,13 +553,15 @@ export async function documentSetupPreviews(orgId: string, args: unknown) {
   await ensureThemeCopies(orgId);
   const { definition, plan } = await buildDocument(orgId, answers, DOCUMENT_SETUP_THEMES[0]);
   const document = await sampleDocument(orgId, answers, plan, definition);
-  const { themes } = await readDocumentSetup(orgId);
+  const { themes, kinds, default_theme_id } = await readDocumentSetup(orgId);
+  // The style the step opens on: the kind's own when it was set up, else the organization's (GP-102).
+  const start = text(object(kinds[plan.kind]).theme_id) || default_theme_id;
   const previews = [];
   for (const theme of themes) {
     const styled = theme.id === DOCUMENT_SETUP_THEMES[0] ? definition : (await buildDocument(orgId, answers, theme.id)).definition;
     previews.push(await preview(orgId, document, styled, theme));
   }
-  return { kind: plan.kind, name: plan.name, description: plan.description, base: plan.base, previews };
+  return { kind: plan.kind, name: plan.name, description: plan.description, base: plan.base, theme_id: themes.some((theme) => theme.id === start) ? start : themes[0]!.id, previews };
 }
 
 const copyArgsSchema = answersSchema.extend({
@@ -702,8 +705,9 @@ export async function applyDocumentSetup(ctx: PublicationContext, auth: Platform
   const { plan } = first;
   const record = await stored(orgId);
   const data = object(record?.data);
-  // The first proposal style chosen becomes the style for new documents; choosing another later changes only proposals.
-  const defaultThemeId = text(data.default_theme_id) || (plan.kind === "proposal" ? parsed.theme_id : "");
+  // The first style chosen, whatever the kind, becomes the style for new documents (GP-102); a later choice changes only
+  // its own kind.
+  const defaultThemeId = documentSetupDefaultThemeId(data) || parsed.theme_id;
   const kindRecord = {
     ...first.setup, template_id: plan.template_id, workflow_id: first.workflowId || null,
     ...(agreement ? { insurance_template_id: agreement.plan.template_id, insurance_workflow_id: agreement.workflowId || null } : {})
@@ -742,13 +746,13 @@ export function registerDocumentSetupPublication() {
   if (registered) return;
   registered = true;
   registerDataProvider({ id: "document-setup", version: "1", apps: ["documents"], exports: {
-    status: { description: "What the organization said about its documents in the document setup: for each kind set up (proposal, invoice, change_order, completion_certificate) its answers, style (theme_id) and the template made (template_id, the kind's default); the three styles offered; the style for new documents (default_theme_id: the first proposal style chosen, null before); who sells.",
+    status: { description: "What the organization said about its documents in the document setup: for each kind set up (proposal, invoice, change_order, completion_certificate) its answers, style (theme_id) and the template made (template_id, the kind's default); the three styles offered; the style for new documents (default_theme_id: the first style chosen, for any kind, null before); who sells.",
       schema: json(statusSchema), schemaVersion: "1", access: readAccess,
       read: async (ctx) => { const value = await readDocumentSetup(ctx.organizationId); return { value, revision: String(value.revision) }; } },
     price_sheet: { description: "The document setup's price step: the lines a roofing proposal is made of (items; on = on the proposal, from the roof_replacement assembly; editable = that assembly exists), each with its sell price per unit (null when not set) and quantity formula in words; the rest of the price book (catalog), to add a line from; and the measurements a new line's quantity can be worked out from.",
       schema: json(priceSheetSchema), schemaVersion: "2", access: setupAccess,
       read: async (ctx) => ({ value: await readPriceSheet(ctx.organizationId) }) },
-    previews: { description: "The document the setup's answers (args: document_kind and, for a proposal, presentation, customer_changes, detail, scope_write_up, and proposal_kinds: retail | insurance | both, where insurance alone previews the insurance contingency agreement) would make, resolved with a sample customer and roof in each of the three styles. Nothing is saved.",
+    previews: { description: "The document the setup's answers (args: document_kind and, for a proposal, presentation, customer_changes, detail, scope_write_up, and proposal_kinds: retail | insurance | both, where insurance alone previews the insurance contingency agreement) would make, resolved with a sample customer and roof in each of the three styles, and the style to start on (theme_id: the kind's own when it was set up, else the style for new documents). Nothing is saved.",
       schema: { type: "object" } as JsonSchema, argsSchema: json(answersSchema.strict()), schemaVersion: "1", access: setupAccess,
       read: async (ctx, ref) => ({ value: await documentSetupPreviews(ctx.organizationId, ref.args || {}) }) },
     copy: { description: "The copy step: the wording of the template the setup's answers make in the style chosen (args: the previews' answers, theme_id, keep_edits to start from the template published in the template editor, and agreement: insurance for the insurance agreement's wording when proposal_kinds is both), as fields top to bottom ({ node_id, role: title | heading | text, text }), and that document resolved with a sample customer (preview). The finish (documents.setup.apply) takes changes as copy { node_id: text }. Nothing is saved.",

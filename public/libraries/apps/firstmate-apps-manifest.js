@@ -55,7 +55,7 @@
     // single load; the field checkout resolves provider tokenization here.
     versionedBundle('../payments-api/payments-api.js', '20261119-gp69'),
     versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261118-fm608-payments-off'),
-    versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261118-fm608-payments-off'),
+    versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261119-gp102-focal'),
     versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261119-gp99-payment'),
     versionedBundle('signatures/project.js', '20261019-forward-cert')
   ];
@@ -212,7 +212,7 @@
         versionedBundle('../documents-api/documents-api.js', '20261119-gp69'),
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261118-fm608-payments-off'),
-        versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261118-fm608-payments-off'),
+        versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261119-gp102-focal'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261113-touch-gestures'),
         versionedBundle('../doc-sent-editor/firstmate-doc-sent-editor.js', '20261026-mobile-documents-2'),
         versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'),
@@ -241,7 +241,7 @@
         versionedBundle('../documents-api/documents-api.js', '20261119-gp69'),
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261118-fm608-payments-off'),
-        versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261118-fm608-payments-off'),
+        versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261119-gp102-focal'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261113-touch-gestures'),
         versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'),
         bundle('../agents-api/agents-api.js'),
@@ -265,7 +265,7 @@
         versionedBundle('../domains-api/domains-api.js', '20261116-fm516'),
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261118-fm608-payments-off'),
-        versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261118-fm608-payments-off'),
+        versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261119-gp102-focal'),
         versionedBundle('../web-widgets/firstmate-web-widgets.js', '20260728-web-editor-v1'),
         versionedBundle('../portal-widgets/firstmate-portal-widgets.js', '20261101-prod-sync'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261113-touch-gestures'),

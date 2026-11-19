@@ -29,15 +29,23 @@ export async function readDocumentDeliveryDefaults(orgId: string, branchId = "de
 export const DOCUMENT_SETUP_MODULE = "document_setup";
 /**
  * The organization's style for new documents (FM-612): a hidden setting the document setup writes the first time a
- * proposal style is chosen, and not again. Documents the platform writes by itself (a checklist's printable copy) take
- * it. An organization that set up its proposals before the setting existed has its proposal's style. With `kind`, the
- * style chosen for that kind of document in the setup comes first (an invoice set up in its own style). null: none yet.
+ * style is chosen, for any kind of document (GP-102), and not again. Documents the platform writes by itself (a
+ * checklist's printable copy) take it, and the setup opens on it for a kind not set up yet. An organization that set up
+ * documents before the setting was written has the style of the first kind it set up. With `kind`, the style chosen for
+ * that kind of document in the setup comes first (an invoice set up in its own style). null: none yet.
  */
+/** The style for new documents in what the document setup kept: its setting, else the first kind's style it set up. */
+export function documentSetupDefaultThemeId(data: JsonObject): string | null {
+  const saved = String(data.default_theme_id || "").trim();
+  if (saved) return saved;
+  const first = Object.values(object(data.kinds)).map(object).filter((kind) => String(kind.theme_id || "").trim())
+    .sort((a, b) => String(a.applied_at || "").localeCompare(String(b.applied_at || "")))[0];
+  return first ? String(first.theme_id).trim() : null;
+}
 export async function readDefaultDocumentThemeId(orgId: string, kind?: string): Promise<string | null> {
   try {
     const data = object(object(await readBranchModule(orgId, "default", DOCUMENT_SETUP_MODULE)).data);
-    const kinds = object(data.kinds);
-    return String((kind && object(kinds[kind]).theme_id) || data.default_theme_id || object(kinds.proposal).theme_id || "").trim() || null;
+    return String((kind && object(object(data.kinds)[kind]).theme_id) || "").trim() || documentSetupDefaultThemeId(data);
   } catch (error) {
     if (error instanceof PlatformError && error.statusCode === 404) return null;
     throw error;

@@ -1354,7 +1354,9 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
       img.style.objectPosition = "center";
     }
     const focal = props.focal || props.focal_point;
-    if (focal) img.style.objectPosition = Math.round((Number(focal.x) || 0.5) * 100) + "% " + Math.round((Number(focal.y) || 0.5) * 100) + "%";
+    // 0 is an edge (a logo set left in its box), not unset.
+    const focalAt = (value) => { const n = Number(value); return value !== null && value !== "" && Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0.5; };
+    if (focal) img.style.objectPosition = Math.round(focalAt(focal.x) * 100) + "% " + Math.round(focalAt(focal.y) * 100) + "%";
     const filters = (node.style || {}).filters;
     if (filters) {
       const filterCss = m.filtersToCss(filters);
