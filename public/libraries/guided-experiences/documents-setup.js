@@ -34,7 +34,7 @@ const css = `
 .gxd-tile{position:relative;display:flex;align-items:flex-start;gap:12px;min-height:76px;padding:14px 42px 14px 14px;border:1px solid #e4e7ec;border-radius:13px;background:#fff;font:inherit;text-align:left;color:#101828;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .2s,transform .15s}
 .gxd-tile:hover{border-color:#c4c9d2;transform:translateY(-1px)}
 .gxd-tile:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
-.gxd-tile>span:not(.gxd-icon):not(.gxd-tick){display:flex;flex-direction:column;gap:3px;min-width:0}
+.gxd-tile>span:not(.gxd-icon):not(.gxd-tick):not(.gxs-choice-text){display:flex;flex-direction:column;gap:3px;min-width:0}
 .gxd-tile strong{font-size:14px;font-weight:700;line-height:1.25}
 .gxd-tile small{font-size:12px;color:#667085;line-height:1.4}
 .gxd-tile[aria-checked=true]{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.06);box-shadow:0 0 0 1px var(--primary,#d93025)}
@@ -57,17 +57,8 @@ const css = `
 .gxd-small .gxd-tile strong{font-size:13.5px}
 .gxd-small .gxd-tile small{font-size:11.5px}
 .gxd-small .gxd-tick{width:20px;height:20px;top:9px;right:9px}
-/* A question with two answers: two tall tiles, close to square, centred with room around them (Jack: not flat).
-   FM-615: the gutter between them equals the room either side of them (space-evenly, with side padding as wide as
-   the gap), and more room above than below in the grid so the pair sits midway between the question and the footer,
-   whose step padding adds to the room below. */
-.gxd-grid.gxd-pair{grid-template-columns:repeat(2,minmax(0,290px));justify-content:space-evenly;gap:22px;padding:30px 22px 8px}
-.gxd-pair .gxd-tile{flex-direction:column;align-items:center;justify-content:flex-start;gap:16px;min-height:250px;padding:46px 26px 30px;text-align:center}
-.gxd-pair .gxd-tile>span:not(.gxd-icon):not(.gxd-tick){align-items:center;gap:6px}
-.gxd-pair .gxd-icon{width:64px;height:64px;border-radius:18px;font-size:27px}
-.gxd-pair .gxd-tile strong{font-size:17px}
-.gxd-pair .gxd-tile small{font-size:13px;max-width:220px}
-.gxd-pair .gxd-tick{top:14px;right:14px;width:24px;height:24px}
+/* A question with two answers lays them out as every setup's choices do (GP-46: guided-setup.js, .gxs-choices): two
+   near-square tiles on a desktop (FM-615), two stacked rectangles on a phone. */
 /* The price step (FM-610): two columns of lines, each with its picture, price and switch, in the wide sheet. */
 .gxd-lead{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
 .gxd-lead p{flex:1 1 320px}
@@ -131,7 +122,7 @@ const css = `
 .gxd-reading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:260px;text-align:center}
 .gxd-reading strong{font-size:16px}
 .gxd-reading small{font-size:13px;color:#667085}
-.gxd-pair .gxd-badge{align-self:center}
+.gxs-choices .gxd-badge{align-self:auto}
 .gxd-note{font-size:12px!important;color:#667085!important}
 .gxd.gxd-fill{flex:1 1 auto;gap:10px;padding-bottom:0}
 /* The styles as a looping carousel (Jack): the one in the middle large, its pages scrolling; the others peek in smaller.
@@ -258,7 +249,6 @@ const css = `
 @media(max-width:640px){.gxd-stage>.gxd-arrow{display:none}.gxd-view .gxd-arrow{top:auto;bottom:16px}}
 /* On a phone the sheet's Back and Done have the bottom line to themselves: the name and dots sit above them. */
 @media(max-width:760px){.gxd-under{padding:0 0 58px}}
-@media(max-width:640px){.gxd-grid.gxd-pair{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:8px 0 12px}.gxd-pair .gxd-tile{min-height:190px;padding:32px 12px 18px;gap:12px}.gxd-pair .gxd-icon{width:52px;height:52px;font-size:22px}.gxd-pair .gxd-tile strong{font-size:15px}.gxd-pair .gxd-tile small{font-size:12px}}
 @media(prefers-reduced-motion:reduce){.gxd *{transition:none!important}}
 `;
 function installStyle(){
@@ -266,6 +256,7 @@ function installStyle(){
   const style = document.createElement('style'); style.id = 'gxd-css'; style.textContent = css; document.head.append(style);
 }
 const tick = '<span class="gxd-tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>';
+const choiceTick = '<span class="gxd-tick gxs-choice-tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>';
 const scripts = new Map();
 function loadScript(path){
   if (!scripts.has(path)) scripts.set(path, new Promise((resolve, reject) => {
@@ -423,15 +414,16 @@ export function mount(el, ctx){
   // other kinds sit in a smaller row below it. Its size says it is the one to start with: no badge (FM-615).
   const featured = part === 'kind' ? choices.find((choice) => choice.id === 'proposal') : null;
   let chosen = choices.find((choice) => valueOf(choice) === selections[key]) || featured || null;
-  const tileHtml = (choice, big = false) => `
-    <button type="button" class="gxd-tile${big ? ' gxd-feature' : ''}" role="radio" data-choice="${esc(choice.id)}" aria-checked="${chosen === choice}">
-      <span class="gxd-icon" aria-hidden="true"><i class="fas ${esc(choice.icon)}"></i></span>
-      <span><strong>${esc(L(choice.title))}</strong><small>${esc(L(choice.hint))}</small></span>${tick}
+  // A tile of the standard choice row (GP-46) carries the shared .gxs-choice classes; the first question's are its own.
+  const tileHtml = (choice, big = false, row = !featured) => `
+    <button type="button" class="gxd-tile${big ? ' gxd-feature' : ''}${row ? ' gxs-choice' : ''}" role="radio" data-choice="${esc(choice.id)}" aria-checked="${chosen === choice}">
+      <span class="gxd-icon${row ? ' gxs-choice-icon' : ''}" aria-hidden="true"><i class="fas ${esc(choice.icon)}"></i></span>
+      <span${row ? ' class="gxs-choice-text"' : ''}><strong>${esc(L(choice.title))}</strong><small>${esc(L(choice.hint))}</small></span>${row ? choiceTick : tick}
     </button>`;
   const others = choices.filter((choice) => choice !== featured);
   el.innerHTML = `<div class="gxd"><div role="radiogroup" aria-label="${esc(ctx.L(ctx.step.title))}" class="gxd-group">${featured
     ? `${tileHtml(featured, true)}<p class="gxd-others">${esc(t('kind_others', 'Or set up another kind of document'))}</p><div class="gxd-grid gxd-small">${others.map((choice) => tileHtml(choice)).join('')}</div>`
-    : `<div class="gxd-grid${choices.length === 2 ? ' gxd-pair' : ''}">${choices.map((choice) => tileHtml(choice)).join('')}</div>`}</div></div>`;
+    : `<div class="gxs-choices" style="--gxs-n:${choices.length}">${choices.map((choice) => tileHtml(choice)).join('')}</div>`}</div></div>`;
   const report = () => ctx.change(chosen ? { [key]: valueOf(chosen) } : {}, chosen ? L(chosen.title) : '');
   const onClick = (event) => {
     const tile = event.target.closest('[data-choice]'); if (!tile) return;
@@ -527,9 +519,9 @@ export function mount(el, ctx){
     function startHtml(){
       return `<div class="gxd">
         <p>${esc(t('prices_start_lead', 'Your proposals are priced from these lines. Start from an estimate you already send, or go through them yourself.'))}</p>
-        <div class="gxd-grid gxd-pair" role="group" aria-label="${esc(ctx.L(ctx.step.title))}">
-          <button type="button" class="gxd-tile" data-start="estimate"><span class="gxd-icon" aria-hidden="true"><i class="fas fa-file-arrow-up"></i></span><span><em class="gxd-badge">${esc(t('prices_start_fastest', 'Fastest'))}</em><strong>${esc(t('prices_start_estimate', 'Upload an existing estimate'))}</strong><small>${esc(t('prices_start_estimate_hint', 'We read your lines and prices from it to start. You check them before anything is saved.'))}</small></span></button>
-          <button type="button" class="gxd-tile" data-start="manual"><span class="gxd-icon" aria-hidden="true"><i class="fas fa-list-check"></i></span><span><strong>${esc(t('prices_start_manual', 'Review my prices manually'))}</strong><small>${esc(t('prices_start_manual_hint', 'Go through the usual lines of a roof and set what you charge for each.'))}</small></span></button>
+        <div class="gxs-choices" style="--gxs-n:2" role="group" aria-label="${esc(ctx.L(ctx.step.title))}">
+          <button type="button" class="gxd-tile gxs-choice" data-start="estimate"><span class="gxd-icon gxs-choice-icon" aria-hidden="true"><i class="fas fa-file-arrow-up"></i></span><span class="gxs-choice-text"><em class="gxd-badge">${esc(t('prices_start_fastest', 'Fastest'))}</em><strong>${esc(t('prices_start_estimate', 'Upload an existing estimate'))}</strong><small>${esc(t('prices_start_estimate_hint', 'We read your lines and prices from it to start. You check them before anything is saved.'))}</small></span></button>
+          <button type="button" class="gxd-tile gxs-choice" data-start="manual"><span class="gxd-icon gxs-choice-icon" aria-hidden="true"><i class="fas fa-list-check"></i></span><span class="gxs-choice-text"><strong>${esc(t('prices_start_manual', 'Review my prices manually'))}</strong><small>${esc(t('prices_start_manual_hint', 'Go through the usual lines of a roof and set what you charge for each.'))}</small></span></button>
         </div>
         <p class="gxd-error" role="alert" data-error></p>
       </div>`;

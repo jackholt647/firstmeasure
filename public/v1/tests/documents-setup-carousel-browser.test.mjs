@@ -8,6 +8,8 @@ import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
 
 const lib = (name) => readFile(new URL('../../libraries/' + name, import.meta.url), 'utf8');
+// The choice row every setup shares (GP-46), from the setup player; the player injects it before a step mounts.
+const choiceCss = async () => (await lib('guided-experiences/guided-setup.js')).match(/const choiceCss = `([\s\S]*?)`;/)[1];
 
 test('the style carousel turns with a mouse drag, slides the wrapping card in and opens a style full screen', async () => {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
@@ -225,10 +227,11 @@ test('two-answer questions are spaced evenly and the first question has no recom
     page.on('pageerror', (e) => errors.push(e.message));
     await page.addScriptTag({ type: 'module', content: (await lib('guided-experiences/documents-setup.js')) + '\nwindow.__mount = mount;' });
     await page.waitForFunction(() => typeof window.__mount === 'function');
-    const show = (part, width) => page.evaluate(({ part, width }) => {
-      document.body.innerHTML = `<div class="gxs"><div class="gxs-step" style="width:${width}px;box-sizing:border-box;padding:8px 28px 24px;display:flex;flex-direction:column"><h2 style="margin:4px 0 12px;font-size:22px">Question</h2><div class="gxs-body"></div></div></div>`;
+    const css = await choiceCss();
+    const show = (part, width) => page.evaluate(({ part, width, css }) => {
+      document.body.innerHTML = `<style>${css}</style><div class="gxs"><div class="gxs-step" style="width:${width}px;box-sizing:border-box;padding:8px 28px 24px;display:flex;flex-direction:column"><h2 style="margin:4px 0 12px;font-size:22px">Question</h2><div class="gxs-body"></div></div></div>`;
       window.__mount(document.querySelector('.gxs-body'), { options: { part }, selections: {}, step: { title: 'Question' }, L: (key, text) => text, esc: (value) => String(value), change: () => {} });
-    }, { part, width });
+    }, { part, width, css });
     await show('kind', 900);
     assert.equal(await page.locator('.gxd-feature').count(), 1, 'the proposal is still the large choice');
     assert.equal(await page.locator('.gxd-badge').count(), 0, 'no "Recommended to start" badge');
@@ -236,11 +239,42 @@ test('two-answer questions are spaced evenly and the first question has no recom
       await show(part, width);
       const m = await page.evaluate(() => {
         const box = (node) => node.getBoundingClientRect(), step = box(document.querySelector('.gxs-step')), title = box(document.querySelector('h2'));
-        const [a, b] = [...document.querySelectorAll('.gxd-pair .gxd-tile')].map(box);
+        const [a, b] = [...document.querySelectorAll('.gxs-choices .gxd-tile')].map(box);
         return { left: a.left - step.left - 28, middle: b.left - a.right, right: step.right - 28 - b.right, above: a.top - title.bottom, below: step.bottom - Math.max(a.bottom, b.bottom) };
       });
       assert.ok(Math.abs(m.left - m.middle) <= 1 && Math.abs(m.right - m.middle) <= 1, `${part} at ${width}px: even gutters ${JSON.stringify(m)}`);
       assert.ok(Math.abs(m.above - m.below) <= 4, `${part} at ${width}px: as much room above as below ${JSON.stringify(m)}`);
+    }
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+// GP-46: on a phone the two answers are full-width rectangles, one above the other, sharing the sheet's height evenly
+// (two side-by-side squares wasted the tray): each fills the step's width, they are equally tall, and together they
+// take the room the sheet gives the step.
+test('on a phone two answers stack as equal full-width rectangles that fill the step', async () => {
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 433, height: 870 } }), errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.addScriptTag({ type: 'module', content: (await lib('guided-experiences/documents-setup.js')) + '\nwindow.__mount = mount;' });
+    await page.waitForFunction(() => typeof window.__mount === 'function');
+    const css = await choiceCss();
+    for (const part of ['presentation', 'detail', 'scope']) {
+      const m = await page.evaluate(({ part, css }) => {
+        // The sheet's step on a phone: a fixed height (two-thirds of the screen less the head and foot), 16px sides.
+        document.body.innerHTML = `<style>body{margin:0}.gxs-body{flex:0 0 auto}${css}</style><div class="gxs"><div class="gxs-step" style="height:460px;box-sizing:border-box;padding:6px 16px 20px;display:flex;flex-direction:column"><div class="gxs-body"></div></div></div>`;
+        window.__mount(document.querySelector('.gxs-body'), { options: { part }, selections: {}, step: { title: 'Question' }, L: (key, text) => text, esc: (value) => String(value), change: () => {} });
+        const step = document.querySelector('.gxs-step').getBoundingClientRect();
+        const tiles = [...document.querySelectorAll('.gxs-choices .gxd-tile')].map((node) => node.getBoundingClientRect());
+        return { step: { left: step.left + 16, right: step.right - 16, height: step.height - 26 }, tiles: tiles.map((r) => ({ left: r.left, right: r.right, top: r.top, bottom: r.bottom, height: r.height })) };
+      }, { part, css });
+      const [a, b] = m.tiles;
+      assert.equal(m.tiles.length, 2, part);
+      assert.ok(b.top >= a.bottom, `${part}: the second answer is below the first ${JSON.stringify(m)}`);
+      for (const tile of m.tiles) assert.ok(Math.abs(tile.left - m.step.left) <= 1 && Math.abs(tile.right - m.step.right) <= 1, `${part}: each answer is as wide as the step ${JSON.stringify(m)}`);
+      assert.ok(Math.abs(a.height - b.height) <= 1, `${part}: equally tall ${JSON.stringify(m)}`);
+      assert.ok(a.height < a.right - a.left && a.height >= 190, `${part}: wider than tall, and they take the room (${a.height}px each) ${JSON.stringify(m)}`);
     }
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }

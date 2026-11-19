@@ -21,7 +21,6 @@ const MAX_EACH = 20;
 const css = `
 .gxw{display:flex;flex-direction:column;gap:16px;min-width:0;padding:2px 0 8px;color:#101828}
 .gxw p{margin:0;color:#475467;line-height:1.5}
-.gxw-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .gxw-choice{position:relative;display:flex;align-items:flex-start;gap:12px;min-height:76px;padding:14px 42px 14px 14px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;font:inherit;text-align:left;color:#101828;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .2s,transform .15s}
 .gxw-choice:hover{border-color:#c4c9d2;transform:translateY(-1px)}
 .gxw-choice span{display:flex;flex-direction:column;gap:3px;min-width:0}
@@ -99,11 +98,11 @@ const css = `
 .gxw-busy{display:flex;align-items:center;gap:10px;min-height:120px;justify-content:center;color:#475467}
 .gxw-error{color:#b42318!important;font-size:13px}
 .gxw-error:empty{display:none}
-/* A phone: one choice per row, and one card at a time with the next one peeking in. */
-@media(max-width:560px){.gxw-choices{grid-template-columns:minmax(0,1fr)}.gxw-track{grid-auto-columns:86%}.gxw-nav{display:none}.gxw-actions .gxw-btn{flex:1 1 auto}}
+/* A phone: one card at a time with the next one peeking in (the choices stack as every setup's do: .gxs-choices). */
+@media(max-width:560px){.gxw-track{grid-auto-columns:86%}.gxw-nav{display:none}.gxw-actions .gxw-btn{flex:1 1 auto}}
 @media(prefers-reduced-motion:reduce){.gxw *{transition:none!important}.gxw-track{scroll-behavior:auto}}
 `;
-const tick = '<span class="gxw-tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>';
+const choiceTick = '<span class="gxw-tick gxs-choice-tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>';
 function installStyle(){
   if (document.getElementById('gxw-css')) return;
   const style = document.createElement('style'); style.id = 'gxw-css'; style.textContent = css; document.head.append(style);
@@ -182,7 +181,7 @@ export function mount(el, ctx){
   const fail = (error) => { const node = el.querySelector('[data-gxw-error]'); if (node) node.textContent = clean(error?.message) || L('gx_wfs_error', 'That didn’t work. Try again.'); };
   const heading = el.closest('.gxs-step')?.querySelector('.gxs-titlebar h2'), stepHeading = heading?.innerHTML || '';
   function title(value){ ctx.setTitle?.(value); if (heading) heading.innerHTML = value ? esc(value) : stepHeading; }
-  const icon = (name) => `<span class="gxw-icon" aria-hidden="true"><i class="fas ${esc(name)}"></i></span>`;
+  const icon = (name, more = '') => `<span class="gxw-icon${more ? ` ${more}` : ''}" aria-hidden="true"><i class="fas ${esc(name)}"></i></span>`;
   const kindWord = (kind) => kind === GROUP ? crew : sub;
   const services = () => array(profile.services);
   const serviceLabel = (id) => services().find((entry) => entry.id === id)?.label || id;
@@ -211,7 +210,7 @@ export function mount(el, ctx){
     const answers = array(status.workforces);
     el.innerHTML = `<div class="gxw" data-gxw-page="who">
       <p>${esc(L('gx_wfs_who_lead', 'Tell us how your work gets done. Next you’ll name each {crew_lower} and {sub_lower}, say what they do and how you pay them.', { crew_lower: crew.toLowerCase(), sub_lower: sub.toLowerCase() }))}</p>
-      <div class="gxw-choices" role="radiogroup">${answers.map((entry) => `<button type="button" class="gxw-choice" data-gxw-who="${esc(entry.id)}" role="radio" aria-pressed="${workforce === entry.id}" aria-checked="${workforce === entry.id}">${icon(WHO_ICONS[entry.id] || 'fa-users')}<span><strong>${esc(copy(entry.label, entry.id))}</strong><small>${esc(copy(entry.hint))}</small></span>${tick}</button>`).join('')}</div>
+      <div class="gxs-choices" style="--gxs-n:${answers.length}" role="radiogroup">${answers.map((entry) => `<button type="button" class="gxw-choice gxs-choice" data-gxw-who="${esc(entry.id)}" role="radio" aria-pressed="${workforce === entry.id}" aria-checked="${workforce === entry.id}">${icon(WHO_ICONS[entry.id] || 'fa-users', 'gxs-choice-icon')}<span class="gxs-choice-text"><strong>${esc(copy(entry.label, entry.id))}</strong><small>${esc(copy(entry.hint))}</small></span>${choiceTick}</button>`).join('')}</div>
       ${errorLine}
       <div class="gxw-actions"><span class="gxw-spacer"></span>${nextButton()}</div>
     </div>`;

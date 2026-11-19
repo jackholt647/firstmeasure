@@ -33,6 +33,34 @@
   const money = (value) => { try { return new Intl.NumberFormat(undefined, { style:'currency', currency:'USD' }).format(Number(value) || 0); } catch (_) { return '$' + (Number(value) || 0).toFixed(2); } };
   const widgets = new Map();
 
+  const choiceCss = `
+    /* GP-46: one layout for a step whose answer is one of a few choices, in every setup. The row is .gxs-choices with
+       --gxs-n, how many there are; each choice is a .gxs-choice holding its .gxs-choice-icon, its .gxs-choice-text (a
+       title and a line) and its .gxs-choice-tick. A desktop shows tall, near-square tiles side by side, evenly spaced
+       (the room either side is the gap), narrower and shorter the more there are; a phone shows full-width rectangles,
+       one above the other, sharing the sheet's height evenly. The setup keeps its own border, colours and ticked look. */
+    .gxs-choices{--gxs-n:2;--gxs-gap:calc(10px + 24px / var(--gxs-n));display:grid;grid-template-columns:repeat(var(--gxs-n),minmax(0,calc(130px + 320px / var(--gxs-n))));justify-content:space-evenly;gap:var(--gxs-gap);padding:30px var(--gxs-gap) 8px}
+    .gxs-choices>.gxs-choice{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:16px;min-width:0;min-height:calc(170px + 160px / var(--gxs-n));padding:46px 22px 30px;text-align:center}
+    .gxs-choices>.gxs-choice>.gxs-choice-icon{flex:none;width:64px;height:64px;margin:0;border-radius:18px;display:grid;place-items:center;font-size:27px}
+    .gxs-choices>.gxs-choice>.gxs-choice-text{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+    .gxs-choices>.gxs-choice .gxs-choice-text strong{font-size:17px;line-height:1.25}
+    .gxs-choices>.gxs-choice .gxs-choice-text small{font-size:13px;line-height:1.45;max-width:220px}
+    .gxs-choices>.gxs-choice>.gxs-choice-tick{top:14px;right:14px;width:24px;height:24px}
+    /* A phone (GP-46): the choices stacked, each as wide as the step, and between them they take the height the sheet
+       has left (the step, and whatever holds the row inside it, grow to it); each is at least a comfortable tap and at
+       most 220px tall, and a short row sits in the middle of the room. */
+    @media(max-width:640px){
+      .gxs-step:has(.gxs-choices) .gxs-body,.gxs-body :has(.gxs-choices){display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+      .gxs-choices{grid-template-columns:minmax(0,1fr);grid-auto-rows:minmax(104px,1fr);gap:12px;flex:1 1 auto;max-height:calc(var(--gxs-n) * 232px);margin-block:auto;padding:4px 0 8px}
+      .gxs-choices>.gxs-choice{flex-direction:row;align-items:center;gap:16px;min-height:0;padding:18px 52px 18px 18px;text-align:left}
+      .gxs-choices>.gxs-choice>.gxs-choice-icon{width:52px;height:52px;border-radius:15px;font-size:22px}
+      .gxs-choices>.gxs-choice>.gxs-choice-text{align-items:flex-start;gap:4px}
+      .gxs-choices>.gxs-choice .gxs-choice-text strong{font-size:16px}
+      .gxs-choices>.gxs-choice .gxs-choice-text small{max-width:none}
+      .gxs-choices>.gxs-choice>.gxs-choice-tick{top:calc(50% - 12px);right:16px}
+    }
+  `;
+
   const css = `
     .gxs,.gxs *,.gxs *::before,.gxs *::after{box-sizing:border-box}
     .gxs [hidden]{display:none!important}
@@ -184,7 +212,7 @@
       .gxs-titlebar{justify-content:flex-end;margin:0 0 10px}
       .gxs-titlebar:has(>.gxs-title-actions:empty){display:none}
     }
-    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none!important;transition:none!important}}
+${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none!important;transition:none!important}}
   `;
 
   function injectCss(){ G()?.injectCss ? G().injectCss('gx-setup-css', css) : null; }
@@ -854,7 +882,7 @@
     render(el,ctx){
       let disposed=false, handle=null;
       el.textContent=L('gx_operations_loading','Opening Operations…');
-      import(new URL('./operations-setup.js?v=20261119-gp15',scriptUrl).href).then(module=>{
+      import(new URL('./operations-setup.js?v=20261119-gp46',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mountWidget(id,el,ctx);
       }).catch(error=>{if(!disposed)el.textContent=error?.message||L('gx_operations_load_error','Could not open this step. Close and try again.');});
       return {valid:()=>handle?.valid?.()!==false,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
@@ -866,7 +894,7 @@
     render(el,ctx){
       let disposed=false, handle=null;
       el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      import(new URL('./comms-setup.js?v=20261119-gp27',scriptUrl).href).then(module=>{
+      import(new URL('./comms-setup.js?v=20261119-gp46',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mount(el,ctx);
       }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
       return {valid:()=>true,destroy(){disposed=true;handle?.destroy?.();}};
@@ -904,7 +932,7 @@
     render(el,ctx){
       let disposed=false, handle=null;
       el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      import(new URL('./workforce-setup.js?v=20261119-gp28e',scriptUrl).href).then(module=>{
+      import(new URL('./workforce-setup.js?v=20261119-gp46',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mount(el,ctx);
       }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
       return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
@@ -1425,5 +1453,6 @@
     return true;
   }
   if (!register()) root.addEventListener?.('DOMContentLoaded', register, { once: true });
-  root.FirstMateGuidedSetup = { registerWidget, widgets: () => [...widgets.keys()] };
+  // choiceCss: the shared choice row, for a setup module drawn outside the player (its browser tests).
+  root.FirstMateGuidedSetup = { registerWidget, widgets: () => [...widgets.keys()], choiceCss };
 })(window);

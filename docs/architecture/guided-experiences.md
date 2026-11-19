@@ -214,6 +214,20 @@ and the X (with the step's (i) explanation), instead of a badge row and a title 
 title actions. `prefers-reduced-motion` turns every animation off. Without the
 assistant (or without a project) the same steps play as a modal.
 
+**Choices.** A step whose answer is one of a few choices draws them with the
+player's shared choice row (GP-46, `choiceCss` in `guided-setup.js`), not a grid
+of its own: the row is `.gxs-choices` with `--gxs-n` (how many), each choice a
+`.gxs-choice` holding `.gxs-choice-icon`, `.gxs-choice-text` (a title and a line)
+and, if it has one, `.gxs-choice-tick`. On a desktop the choices are tall,
+near-square tiles side by side, evenly spaced (the room either side equals the
+gap; two are 290 × 250px, more are narrower and shorter). At 640px and under they
+are full-width rectangles stacked in one column, equally tall, sharing the height
+the sheet gives the step (at least 104px and at most about 220px each). The setup
+keeps its own border, colours and ticked look. Used by the document setup's
+two-answer questions and price start, the Operations path, Who does the work and
+the email address step of Communications; the document setup's first question
+(a large proposal over smaller kinds) keeps its own layout.
+
 **One scroller.** A player that covers the page (a setup sheet, an announcement)
 calls `FirstMateGuides.holdPage(cover)` while it is up. The page under it no longer
 scrolls (`html` and `body` `overflow: hidden`, `overscroll-behavior: none`), and
@@ -1033,7 +1047,7 @@ step is the module `guided-experiences/documents-setup.js` with its own `part`:
   that first (the step's `escape()`). The step marks itself `data-float-foot`: the player floats Back and Done over
   its bottom edge with no bar or divider and leaves them out of the sheet's height, and the step keeps that corner
   clear (the style's name and dots sit between them; on a phone, above them). A question with two answers shows them
-  as two tall, near-square tiles. Tests: `tests/documents-setup-carousel-browser.test.mjs`.
+  in the shared choice row (Choices, above): two tall, near-square tiles, stacked rectangles on a phone. Tests: `tests/documents-setup-carousel-browser.test.mjs`.
 - `copy` (FM-614): the template's wording beside it. The style chosen slides to the right (the step leaving keeps a
   copy of its document and the next glides it into place), and on the left are the template's own words, top to bottom
   (`document-setup.copy`): every text node of fixed words on its pages, a heading or a sentence or more (`copyFields`
