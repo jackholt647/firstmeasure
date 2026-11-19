@@ -195,7 +195,13 @@ const css = `
 /* The step holds still and each column scrolls on its own: a field taking focus never scrolls the step's title away. */
 .gxd.gxd-fill.gxd-copy-step,.gxd.gxd-fill.gxd-first{min-height:0}
 .gxd-copy{display:grid;grid-template-columns:minmax(300px,1fr) clamp(320px,38%,520px);grid-template-rows:minmax(0,1fr);gap:22px;flex:1 1 auto;min-height:0}
-.gxd-copy-edit{display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;padding:2px 6px 18px 2px;animation:gxdSlideIn .45s cubic-bezier(.22,1,.36,1) both}
+.gxd-copy-fields{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0}
+.gxd-copy-edit{flex:1 1 auto;display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;padding:2px 6px 18px 2px;animation:gxdSlideIn .45s cubic-bezier(.22,1,.36,1) both}
+/* Wording below the column's edge (GP-29): the edge fades and a pill says how many fields are left; tapping it scrolls on. */
+.gxd-copy-fields.gxd-more .gxd-copy-edit{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 56px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 56px),transparent)}
+.gxd-copy-more{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 13px;border:0;border-radius:999px;background:#101828;color:#fff;font:inherit;font-size:12.5px;font-weight:650;white-space:nowrap;cursor:pointer;box-shadow:0 6px 16px rgba(16,24,40,.22);touch-action:none}
+.gxd-copy-more[hidden]{display:none}
+.gxd-copy-more:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
 @keyframes gxdSlideIn{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
 .gxd-copy-edit label{display:flex;flex-direction:column;gap:5px;font-size:11.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:#667085}
 .gxd-copy-edit input,.gxd-copy-edit textarea{width:100%;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:8px 10px;font:inherit;font-size:13.5px;font-weight:400;letter-spacing:0;text-transform:none;color:#101828;line-height:1.5;resize:none;overflow:hidden;transition:border-color .15s,box-shadow .15s}
@@ -238,8 +244,10 @@ const css = `
 }
 .gxd-ghost-doc{position:fixed;margin:0;z-index:2147483600;transform-origin:0 0;overflow:hidden!important;pointer-events:none;background:#eef0f3;border-radius:12px;box-shadow:0 18px 50px rgba(16,24,40,.22);transition:transform .6s cubic-bezier(.22,1,.36,1),opacity .3s}
 @media (max-width:760px){
-  .gxd-copy{grid-template-columns:1fr;grid-template-rows:auto minmax(320px,1fr);overflow-y:auto}
-  .gxd-copy-edit{overflow:visible}
+  /* A phone: the fields over the document, each scrolling on its own. The fields take what the document leaves (it keeps
+     at least 300px, or 45% on a short screen or with the keyboard up); unbounded, they ran on under the document and
+     could not be scrolled to (GP-29). */
+  .gxd-copy{grid-template-columns:1fr;grid-template-rows:minmax(0,auto) minmax(min(300px,45%),1fr);gap:14px}
 }
 .gxd-busy{display:grid;place-items:center;min-height:180px}
 .gxd-error{color:#b42318!important}
@@ -1051,10 +1059,10 @@ export function mount(el, ctx){
     const pane = el.closest('.gxs-step');
     pane?.setAttribute('data-fill', '');
     el.innerHTML = `<div class="gxd gxd-fill gxd-copy-step"><div class="gxd-copy">
-      <div class="gxd-copy-edit"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div></div>
+      <div class="gxd-copy-fields"><div class="gxd-copy-edit"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div></div><button type="button" class="gxd-copy-more" data-copy-more hidden></button></div>
       <div class="gxd-copy-view"><div class="gxd-doc"></div></div>
     </div><p class="gxd-error" role="alert"></p></div>`;
-    const fieldsHost = el.querySelector('.gxd-copy-edit'), view = el.querySelector('.gxd-copy-view'), docHost = view.querySelector('.gxd-doc'), error = el.querySelector('.gxd-error');
+    const fieldsHost = el.querySelector('.gxd-copy-edit'), more = el.querySelector('[data-copy-more]'), view = el.querySelector('.gxd-copy-view'), docHost = view.querySelector('.gxd-doc'), error = el.querySelector('.gxd-error');
     // The style chosen slides over to the right; it stays there until its document has been drawn in this step.
     const lifted = liftDocument(sheet || document.body);
     glide(lifted, view);
@@ -1124,7 +1132,34 @@ export function mount(el, ctx){
       fieldsHost.innerHTML = `${keepEdits ? `<p class="gxd-copy-edited"><i class="fas fa-circle-check" aria-hidden="true"></i> ${esc(t('copy_edited', 'Your changes from the template editor are kept.'))}</p>` : ''}
         ${fields()}`;
       fieldsHost.querySelectorAll('textarea').forEach(grow);
+      below();
     }
+    /** The fields not yet seen in full, below the column's edge: counted on the pill, which scrolls to the next one. */
+    const hidden = () => {
+      const edge = fieldsHost.getBoundingClientRect().bottom - 2;
+      return [...fieldsHost.children].filter((node) => node.matches('label,textarea') && node.getBoundingClientRect().bottom > edge);
+    };
+    function below(){
+      const left = alive && fieldsHost.scrollHeight - fieldsHost.clientHeight - fieldsHost.scrollTop > 2 ? hidden() : [];
+      more.hidden = !left.length;
+      more.parentElement.classList.toggle('gxd-more', !!left.length);
+      if (left.length) more.innerHTML = `${esc(t('copy_more', '{count} more below').replace('{count}', String(left.length)))} <i class="fas fa-arrow-down" aria-hidden="true"></i>`;
+    }
+    // A finger that lands on the pill and drags scrolls the fields under it, as anywhere else on them; a tap scrolls on.
+    let pull = null, dragged = 0;
+    const onPullDown = (event) => { pull = { id: event.pointerId, y: event.clientY, top: fieldsHost.scrollTop, moved: false }; };
+    const onPullMove = (event) => {
+      if (!pull || event.pointerId !== pull.id) return;
+      if (Math.abs(event.clientY - pull.y) > 6) pull.moved = true;
+      if (pull.moved) fieldsHost.scrollTop = pull.top - (event.clientY - pull.y);
+    };
+    const onPullUp = (event) => { if (!pull || event.pointerId !== pull.id) return; if (pull.moved) dragged = performance.now(); pull = null; };
+    const onMore = () => {
+      if (performance.now() - dragged < 400) return;
+      const next = hidden()[0]; if (!next) return;
+      const top = next.getBoundingClientRect().top - fieldsHost.getBoundingClientRect().top + fieldsHost.scrollTop;
+      fieldsHost.scrollTo({ top: Math.max(0, top - 8), behavior: reducedMotion() ? 'auto' : 'smooth' });
+    };
     async function load(){
       error.textContent = '';
       const [value, loaded] = await Promise.all([ctx.read('document-setup', 'copy', { args: { ...answers(), ...(keepEdits ? { keep_edits: true } : {}) } }), renderer()]);
@@ -1143,15 +1178,23 @@ export function mount(el, ctx){
       const id = field.dataset.copy, original = array(data?.fields).find((entry) => entry.node_id === id)?.text;
       if (field.value === original) delete edits[id]; else edits[id] = field.value;
       if (field.tagName === 'TEXTAREA') grow(field);
-      report(); redraw();
+      report(); redraw(); below();
     };
     const onFocus = (event) => { const field = event.target.closest?.('[data-copy]'); if (field) mark(field.dataset.copy); };
     const onBlur = () => mark('');
     fieldsHost.addEventListener('input', onInput);
     fieldsHost.addEventListener('focusin', onFocus);
     fieldsHost.addEventListener('focusout', onBlur);
+    fieldsHost.addEventListener('scroll', below, { passive: true });
+    more.addEventListener('click', onMore);
+    more.addEventListener('pointerdown', onPullDown);
+    more.addEventListener('pointermove', onPullMove);
+    more.addEventListener('pointerup', onPullUp);
+    more.addEventListener('pointercancel', onPullUp);
     const observer = window.ResizeObserver ? new ResizeObserver(() => redraw()) : null;
     observer?.observe(view);
+    const fieldsObserver = window.ResizeObserver ? new ResizeObserver(() => below()) : null;
+    fieldsObserver?.observe(fieldsHost);
 
     // ── Advanced: the template itself, in the template editor ──
     async function openStudio(){
@@ -1205,10 +1248,12 @@ export function mount(el, ctx){
       destroy(){
         // The document goes on with the setup, into the first proposal's preview.
         keepDocument(docHost);
-        alive = false; clearTimeout(timer); observer?.disconnect(); drop(lifted);
+        alive = false; clearTimeout(timer); observer?.disconnect(); fieldsObserver?.disconnect(); drop(lifted);
         void closeStudio(false);
         advanced?.removeEventListener('click', onAdvanced); advanced?.remove();
         fieldsHost.removeEventListener('input', onInput); fieldsHost.removeEventListener('focusin', onFocus); fieldsHost.removeEventListener('focusout', onBlur);
+        fieldsHost.removeEventListener('scroll', below); more.removeEventListener('click', onMore);
+        more.removeEventListener('pointerdown', onPullDown); more.removeEventListener('pointermove', onPullMove); more.removeEventListener('pointerup', onPullUp); more.removeEventListener('pointercancel', onPullUp);
         try { handle?.destroy?.(); } catch (_) {}
         if (!wasWide) sheet?.classList.remove('gxs-wide');
       }

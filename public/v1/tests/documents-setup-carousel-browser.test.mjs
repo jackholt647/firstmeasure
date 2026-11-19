@@ -150,6 +150,71 @@ test('the wording step edits the template copy beside its document', async () =>
   } finally { await browser.close(); }
 });
 
+// GP-29: on a phone the fields sit over the document and scroll on their own (they used to run on under the document,
+// out of reach), and a pill says how many are left below the edge; tapping it scrolls to the next. The heading's (i)
+// tip is drawn above the style cards and their arrows.
+test('on a phone the wording scrolls above the document and says how much is left', async () => {
+  const guided = await lib('guided-experiences/guided-setup.js');
+  const tipLayer = Number(/\.gxs-info-tip\{[^}]*z-index:(\d+)/.exec(guided)?.[1]);
+  const cardLayers = Math.max(10, ...[...(await lib('guided-experiences/documents-setup.js')).matchAll(/\.gxd-(?:arrow|card|expand)[^{]*\{[^}]*z-index:(\d+)/g)].map((m) => Number(m[1])));
+  assert.ok(tipLayer > cardLayers, `the (i) tip (${tipLayer}) is above the style cards and arrows (${cardLayers})`);
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 760 }, hasTouch: true }), errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.setContent('<div class="gxs"><div class="gxs-step" style="height:620px;display:flex;flex-direction:column;padding:6px 16px 20px;box-sizing:border-box"><div class="gxs-title-actions"></div><div class="gxs-body" style="flex:1 1 auto;min-height:0;display:flex;flex-direction:column"></div></div></div>');
+    for (const name of ['doc-model/firstmate-doc-model.js', 'doc-widgets/firstmate-doc-widgets.js', 'doc-renderer/firstmate-doc-renderer.js']) await page.addScriptTag({ content: await lib(name) });
+    await page.addScriptTag({ type: 'module', content: (await lib('guided-experiences/documents-setup.js')) + '\nwindow.__mount = mount;' });
+    await page.waitForFunction(() => typeof window.__mount === 'function');
+    await page.evaluate(() => {
+      const definition = FMDocModel.createDocument({ kind: 'document' });
+      const text = (id, words) => ({ ...FMDocModel.createNode('text'), id, props: { blocks: [{ id: `${id}_b`, type: 'paragraph', align: 'left', runs: [{ text: words }] }] } });
+      const words = 'Signing accepts the option marked as selected, any add-ons listed with it, and the total shown.';
+      const fields = [{ node_id: 'nd_title', role: 'title', text: 'Roof Estimate' }, { node_id: 'nd_intro', role: 'text', text: words }];
+      for (const name of ['Option', 'Approval', 'Payment terms', 'Warranty', 'Next steps']) fields.push({ node_id: `nd_${fields.length}`, role: 'heading', text: name }, { node_id: `nd_${fields.length + 1}`, role: 'text', text: words });
+      definition.pages[0].children = fields.map((field) => text(field.node_id, field.text));
+      window.FirstMateEmbeddableApps = { mount: async () => ({}), getApp: () => null, evaluateAccess: () => ({ allowed: false }) };
+      window.handle = window.__mount(document.querySelector('.gxs-body'), {
+        options: { part: 'copy' }, selections: { document_kind: 'proposal', theme_id: 'thm_clean' }, step: { title: 'Check your wording' },
+        actions: document.querySelector('.gxs-title-actions'), L: (key, text) => text, esc: (value) => String(value), change: () => {},
+        read: async () => ({ fields, preview: { theme_id: 'thm_clean', resolved_definition: definition, widget_data: {}, theme: null, theme_vars: {} } })
+      });
+    });
+    await page.waitForSelector('[data-copy="nd_title"]');
+    await page.waitForTimeout(600);
+    const geometry = () => page.evaluate(() => {
+      const edit = document.querySelector('.gxd-copy-edit'), view = document.querySelector('.gxd-copy-view'), more = document.querySelector('[data-copy-more]');
+      return { editBottom: edit.getBoundingClientRect().bottom, viewTop: view.getBoundingClientRect().top, viewHeight: view.getBoundingClientRect().height, scrollable: edit.scrollHeight > edit.clientHeight + 2, scrollTop: edit.scrollTop, more: more.hidden ? '' : more.textContent.trim() };
+    });
+    const start = await geometry();
+    assert.ok(start.editBottom <= start.viewTop + 1, `the fields end above the document (${start.editBottom} vs ${start.viewTop})`);
+    assert.ok(start.viewHeight >= 250, `the document keeps its room (${start.viewHeight}px)`);
+    assert.ok(start.scrollable, 'the fields scroll on their own');
+    assert.match(start.more, /^\d+ more below$/, 'the pill says how many fields are left');
+    const left = Number(start.more.split(' ')[0]);
+    // A finger that lands on the pill and drags scrolls the fields, as it does anywhere else on them.
+    const pill = await page.locator('[data-copy-more]').boundingBox(), cdp = await page.context().newCDPSession(page);
+    const x = pill.x + pill.width / 2, y = pill.y + pill.height / 2;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    for (let i = 1; i <= 8; i += 1) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - i * 5 }] }); await page.waitForTimeout(16); }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(500);
+    assert.ok(Math.abs((await geometry()).scrollTop - 40) <= 6, `a drag on the pill moves the fields with the finger (${(await geometry()).scrollTop})`);
+    await page.evaluate(() => { document.querySelector('.gxd-copy-edit').scrollTop = 0; });
+    await page.waitForTimeout(200);
+    await page.locator('[data-copy-more]').tap();
+    await page.waitForTimeout(700);
+    const moved = await geometry();
+    assert.ok(moved.scrollTop > 0, 'tapping the pill scrolls to the next field');
+    assert.ok(!moved.more || Number(moved.more.split(' ')[0]) < left, `fewer are left after it (${moved.more})`);
+    await page.evaluate(() => { const edit = document.querySelector('.gxd-copy-edit'); edit.scrollTop = edit.scrollHeight; });
+    await page.waitForTimeout(200);
+    assert.equal((await geometry()).more, '', 'at the end the pill goes');
+    assert.equal(await page.locator('.gxd-copy-fields.gxd-more').count(), 0, 'and so does the fade');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
 // FM-615: the first question's large proposal says it is the one to start with by its size alone (no badge), and a
 // question with two answers has the same gutter between its tiles as either side of them, and sits midway between
 // the question and the footer (the sheet's own step padding, 8px above and 24px below, framing it as in guided-setup.js).
