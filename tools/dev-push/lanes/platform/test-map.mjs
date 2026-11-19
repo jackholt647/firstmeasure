@@ -8,6 +8,7 @@ const LIB = "public/libraries/";
 /** [path prefixes or regexes, tests] */
 export const AREAS = [
   [[`${V1}platform/security/`, `${V1}firstmeasure/access.ts`, /^public\/v1\/.*\/api\.ts$/], ["v1:tests/route-access.test.ts"]],
+  [[`${V1}platform/security/safe-fetch.ts`], ["v1:tests/safe-fetch.test.ts"]],
   [["tools/live-layer/", `${LIB}live-assets/`, `${V1}platform/live_assets.ts`], ["root:tests/live-layer.test.mjs"]],
   [["tools/frontend-bridge/"], ["root:tests/frontend-bridge.test.mjs"]],
   [["tools/dev-push/"], ["root:tests/dev-push-router.test.mjs"]],
@@ -60,7 +61,8 @@ export const ALWAYS = new Set([
   "v1:tests/view-presence-client.test.mjs", // 0.78 s
   "root:tests/frontend-bridge.test.mjs", // 1.6 s
   "root:tests/portal-tracking-pixels.test.mjs", // 0.1 s, reads files only
-  "root:tests/release-node-readers.test.mjs" // 0.9 s on fm-agents-1, reads files only (FM-388)
+  "root:tests/release-node-readers.test.mjs", // 0.9 s on fm-agents-1, reads files only (FM-388)
+  "v1:tests/safe-fetch.test.ts" // 0.7 s on fm-agents-1, no network (GP-32)
 ]);
 
 /** Cheap checks that need no test file: what `cmd:` ids run, from public/v1. */
