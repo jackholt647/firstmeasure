@@ -1,5 +1,6 @@
 /* FirstMate camera capture: a phone camera for taking photos into the platform, in the look of the
- * FirstMeasure exteriors capture (dark viewport, round shutter, the photos just taken in a strip above it).
+ * FirstMeasure exteriors capture (dark viewport, round shutter, the photos just taken in a strip above it, with
+ * Done at the strip's right end where a thumb reaches it, GP-62).
  * The bar that opens it is drawn in the organization's colours (--primary, with a --secondary accent),
  * and keeps above whatever the host puts at the bottom of the screen (--fm-safe-bottom, see project-trays).
  *
@@ -99,7 +100,8 @@
 .fmc-round[aria-pressed=true]{background:#fdb022;border-color:#fdb022;color:#101828}
 .fmc-round:disabled{opacity:.35}
 .fmc-round[hidden],.fmc-shell [hidden]{display:none!important}
-.fmc-done{flex:none;height:36px;padding:0 14px;border:0;border-radius:999px;background:var(--primary,#d93025);color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.fmc-shell .fmc-done{flex:none;align-self:center;display:inline-flex;align-items:center;gap:7px;height:48px;padding:0 18px;border:0;border-radius:999px;background:var(--primary,#d93025);color:#fff;font:inherit;font-size:15px;font-weight:700;white-space:nowrap;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.45);-webkit-tap-highlight-color:transparent;animation:fmcPop .24s ease-out}
+.fmc-shell .fmc-done:active{transform:scale(.95)}
 .fmc-stage{position:relative;flex:1;min-height:0;overflow:hidden;background:linear-gradient(145deg,#1d2939,#101828);touch-action:none}
 .fmc-stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;visibility:hidden;transform-origin:center}
 .fmc-stage.live video{visibility:visible}
@@ -112,7 +114,8 @@
 .fmc-pick{height:44px;padding:0 18px;border:0;border-radius:12px;background:#fff;color:#101828;font:inherit;font-size:14px;font-weight:700;display:inline-flex;align-items:center;gap:8px;cursor:pointer}
 .fmc-tools{position:relative;z-index:4;flex:none;display:flex;flex-direction:column;gap:10px;padding:10px 12px calc(var(--fmc-safe,env(safe-area-inset-bottom,0px)) + 14px);background:#000}
 .fmc-shell.fullscreen{--fmc-safe:env(safe-area-inset-bottom,0px)}
-.fmc-strip{display:flex;gap:8px;min-height:0;overflow-x:auto;overflow-y:hidden;padding:2px 2px 2px 2px;scrollbar-width:none;overscroll-behavior-x:contain}
+.fmc-tray{display:flex;align-items:center;gap:10px;min-height:0}
+.fmc-strip{flex:1;min-width:0;display:flex;gap:8px;min-height:0;overflow-x:auto;overflow-y:hidden;padding:2px 2px 2px 2px;scrollbar-width:none;overscroll-behavior-x:contain}
 .fmc-strip::-webkit-scrollbar{display:none}
 .fmc-strip:empty{display:none}
 .fmc-tile{position:relative;flex:0 0 64px;width:64px;height:64px;border-radius:12px;overflow:hidden;background:#1d2939;border:2px solid transparent;animation:fmcTileIn .26s cubic-bezier(.2,.8,.2,1)}
@@ -137,7 +140,8 @@
 .fmc-status{position:absolute;left:12px;right:12px;bottom:12px;z-index:3;padding:8px 12px;border-radius:12px;background:rgba(16,24,40,.72);color:#fff;font-size:12px;line-height:1.4;text-align:center;pointer-events:none}
 .fmc-status:empty{display:none}
 .fmc-step{position:absolute;inset:0;z-index:8;display:flex;flex-direction:column;background:#fff;color:#101828;animation:fmcStepIn .28s cubic-bezier(.2,.8,.2,1)}
-.fmc-step-head{display:flex;align-items:center;gap:8px;min-height:52px;padding:calc(env(safe-area-inset-top,0px) + 6px) 10px 6px;border-bottom:1px solid #eaecf0}
+.fmc-step-head{display:flex;align-items:center;gap:8px;min-height:52px;padding:calc(var(--fm-window-safe-top,env(safe-area-inset-top,0px)) + 6px) 10px 6px;border-bottom:1px solid #eaecf0}
+.fmc-shell:not(.fullscreen) .fmc-step-head{padding-top:6px}
 .fmc-step-head strong{flex:1;min-width:0;font-size:16px}
 .fmc-step-head .fmc-round{background:#f2f4f7;color:#344054;border-color:transparent}
 .fmc-step-body{flex:1;min-height:0;overflow:auto;padding:12px}
@@ -146,7 +150,7 @@
 @keyframes fmcTileIn{from{opacity:0;transform:translateY(10px) scale(.9)}}
 @keyframes fmcPop{from{transform:scale(.4);opacity:0}}
 @keyframes fmcStepIn{from{opacity:0;transform:translateY(16px)}}
-@media(prefers-reduced-motion:reduce){.fmc-shell,.fmc-bar{transition:none}.fmc-tile,.fmc-step,.fmc-ok{animation:none}.fmc-flash.fire{animation-duration:.01s}}
+@media(prefers-reduced-motion:reduce){.fmc-shell,.fmc-bar{transition:none}.fmc-tile,.fmc-step,.fmc-ok,.fmc-done{animation:none}.fmc-flash.fire{animation-duration:.01s}}
 `;
     document.head.append(style);
   }
@@ -196,7 +200,6 @@
         <button type="button" class="fmc-round" data-fmc-back aria-label="${esc(fullscreen ? T('close_camera', 'Close camera') : T('back', 'Back'))}"><i class="fas ${fullscreen ? 'fa-xmark' : 'fa-chevron-left'}" aria-hidden="true"></i></button>
         <div class="fmc-head-title">${title ? `${esc(title)}${options.subtitle ? `<small>${esc(options.subtitle)}</small>` : ''}` : ''}</div>
         <button type="button" class="fmc-round" data-fmc-torch aria-label="${esc(T('torch', 'Light'))}" aria-pressed="false" hidden><i class="fas fa-bolt" aria-hidden="true"></i></button>
-        <button type="button" class="fmc-done" data-fmc-done hidden>${esc(T('done', 'Done'))}</button>
       </header>
       <div class="fmc-stage">
         <video autoplay muted playsinline aria-label="${esc(T('preview', 'Live camera preview'))}"></video>
@@ -205,7 +208,10 @@
         <div class="fmc-status" role="status" aria-live="polite"></div>
       </div>
       <div class="fmc-tools">
-        <div class="fmc-strip" aria-label="${esc(T('taken', 'Photos taken'))}"></div>
+        <div class="fmc-tray" hidden>
+          <div class="fmc-strip" aria-label="${esc(T('taken', 'Photos taken'))}"></div>
+          <button type="button" class="fmc-done" data-fmc-done hidden></button>
+        </div>
         <div class="fmc-zoom" role="group" aria-label="${esc(T('zoom', 'Zoom'))}"></div>
         <div class="fmc-row">
           <button type="button" class="fmc-library" data-fmc-library aria-label="${esc(T('choose_photos', 'Choose photos'))}" title="${esc(T('choose_photos', 'Choose photos'))}"><i class="fas fa-images" aria-hidden="true"></i></button>
@@ -215,7 +221,7 @@
       </div>
       <input type="file" accept="image/*" capture="environment" multiple hidden data-fmc-input>`;
     const $ = (sel) => shell.querySelector(sel);
-    const video = $('video'), stage = $('.fmc-stage'), strip = $('.fmc-strip'), zoomGroup = $('.fmc-zoom'), status = $('.fmc-status');
+    const video = $('video'), stage = $('.fmc-stage'), strip = $('.fmc-strip'), tray = $('.fmc-tray'), zoomGroup = $('.fmc-zoom'), status = $('.fmc-status');
     const shutter = $('[data-fmc-shutter]'), torchBtn = $('[data-fmc-torch]'), flip = $('[data-fmc-switch]'), doneBtn = $('[data-fmc-done]'), input = $('[data-fmc-input]');
     let stream = null, facing = 'environment', starting = false, torchOn = false, zoom = null, devices = 0, active = false, sessionId = '';
     let entries = [], sessionEntries = [], queue = Promise.resolve(), statusTimer = 0, step = null;
@@ -285,7 +291,8 @@
       zoomGroup.innerHTML = presets.length > 1 ? presets.map((v) => `<button type="button" data-zoom="${v}" aria-pressed="${Math.abs(v - zoom.value) < 0.05}" aria-label="${esc(T('zoom_to', 'Zoom {level}', { level: label(v) }))}">${label(v)}</button>`).join('') : '';
       const count = sessionEntries.length;
       doneBtn.hidden = !count;
-      doneBtn.textContent = count ? `${T('done', 'Done')} · ${count}` : T('done', 'Done');
+      doneBtn.innerHTML = `<i class="fas fa-check" aria-hidden="true"></i>${esc(count ? `${T('done', 'Done')} · ${count}` : T('done', 'Done'))}`;
+      tray.hidden = !count && !strip.children.length;
     }
     async function setZoom(value){
       const track = stream?.getVideoTracks()[0];
@@ -564,5 +571,5 @@
     };
   }
 
-  root.FirstMateCamera = { mount, open, version: '20261118-on-started' };
+  root.FirstMateCamera = { mount, open, version: '20261119-done-in-strip' };
 })(window);
