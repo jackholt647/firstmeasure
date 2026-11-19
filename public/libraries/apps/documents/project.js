@@ -2274,12 +2274,110 @@
       return state.pieceCatalog;
     }
 
+    // ---- ordering measurements from a proposal (GP-19)
+    // A measurements step that asks for what a FirstMeasure roof report measures (its loader's keys) offers the
+    // project's own order workflow while the project has none: the same order form and map, in another document of
+    // this project (FirstMateProjectLayout.frame) inside a dialog. Once the order is placed the project window that
+    // holds this document takes the ordered record (host.adoptProject), so it never saves over the order.
+    function firstMeasureMeasures(keys){
+      let known = [];
+      try { known = Object.keys(objectValue(window.FirstMeasureAPI?.roofMeasurements?.normalize?.({}))); } catch (e) { known = []; }
+      return arrayValue(keys).map(cleanText).some((key) => key && key !== 'wastePercent' && (known.length ? known.includes(key) : /(Squares|Lf|Ea)$/.test(key)));
+    }
+    function hostProject(){
+      const current = objectValue(context.host?.getProject?.());
+      return firstText(current.id) && firstText(current.id) === projectId() ? current : objectValue(project());
+    }
+    function canOrderProjectMeasurements(keys){
+      const host = context.host;
+      if (!host || typeof host.canOrderMeasurements !== 'function' || typeof host.adoptProject !== 'function') return false;
+      if (typeof window.FirstMateProjectLayout?.frame !== 'function' || !firstText(objectValue(host.getProject?.()).id)) return false;
+      try { return host.canOrderMeasurements() === true && firstMeasureMeasures(keys); } catch (e) { return false; }
+    }
+    function projectMeasurementsOrdered(){
+      const order = objectValue(context.host?.getReportOrderState?.());
+      return order.ordered === true && !['cancelled', 'rejected_no_coverage'].includes(cleanText(order.status));
+    }
+    /** Resolves true once an order was placed (the dialog has closed by then), false when it closed without one. */
+    function orderProjectMeasurements(){
+      const host = context.host;
+      const current = objectValue(host?.getProject?.());
+      const id = firstText(current.id);
+      if (!id || typeof window.FirstMateProjectLayout?.frame !== 'function') return Promise.resolve(false);
+      return new Promise((resolve) => {
+        let placed = null;
+        let pane = null;
+        let closing = false;
+        const title = globalThis.PlatformLanguage?.text('documents', 'order_measurements_title', 'Order measurements') ?? 'Order measurements';
+        const onKey = (event) => {
+          // Escape here closes this dialog, not the project window behind it.
+          if (event.key !== 'Escape' || closing) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          modal.close();
+        };
+        const modal = openModal(`
+          <h2>${esc(title)}</h2>
+          <div class="fmdx-order-pane" data-order-pane></div>`, {
+          className: 'fmdx-order-modal',
+          dismissable: false,
+          onClose: () => {
+            if (closing) return;
+            closing = true;
+            window.removeEventListener('keydown', onKey, true);
+            pane?.remove();
+            // The step reads the project again once this window holds the ordered record.
+            Promise.resolve().then(() => (placed ? host.adoptProject(placed) : null))
+              .catch((error) => console.warn('The ordered project could not be taken into this window', error))
+              .then(() => resolve(!!placed));
+          }
+        });
+        window.addEventListener('keydown', onKey, true);
+        const sameProject = (record) => [record.id, record.platform_project_id, record.base_project_id].some((value) => cleanText(value) === id);
+        // The order form saves the ordered project as it finishes: close once that save has gone, never mid-request.
+        const closeAfterSave = (child) => {
+          const started = Date.now();
+          const wait = () => {
+            let saving = false;
+            try { saving = child.Portal?.ProjectStore?.hasPendingSave?.(id) === true; } catch (e) { saving = false; }
+            if (saving && Date.now() - started < 10000) { setTimeout(wait, 150); return; }
+            modal.close();
+          };
+          setTimeout(wait, 150);
+        };
+        try {
+          pane = window.FirstMateProjectLayout.frame(modal.body.querySelector('[data-order-pane]'), {
+            project: current,
+            tab: 'map',
+            options: { workflow: 'report' },
+            label: title,
+            loading: globalThis.PlatformLanguage?.text('documents', 'order_measurements_opening', 'Opening the order form…') ?? 'Opening the order form…',
+            onReady: (child) => child.addEventListener('fm:projects:optimistic-update', (event) => {
+              const record = objectValue(event.detail?.project);
+              if (placed || cleanText(record.workflow_state) !== 'measurement_ordered' || !sameProject(record)) return;
+              placed = JSON.parse(JSON.stringify(record));
+              closeAfterSave(child);
+            }),
+            // The order form closed itself (its own close or Escape).
+            onClosed: () => modal.close()
+          });
+        } catch (error) {
+          console.warn('The measurement order could not be opened', error);
+          modal.close();
+        }
+      });
+    }
+
     function workflowServices(){
       const pricebook = pricebookModule();
       return {
         api: { signing: { organizationId: orgId(), documentId: state.doc?.id } },
         // Native step-1 vocabulary (piece_select cards).
         pieceCatalog: () => loadPieceCatalog(),
+        // Ordering them when the project has none (GP-19, above).
+        canOrderMeasurements: ({ keys } = {}) => canOrderProjectMeasurements(keys),
+        orderMeasurements: () => orderProjectMeasurements(),
+        measurementsOrdered: () => projectMeasurementsOrdered(),
         // The project's selected measurement dataset (FirstMeasure report or
         // an import), flattened to { key: number } for the measurements item.
         projectMeasurements: async () => {
@@ -2302,7 +2400,7 @@
           }
           // The shared loader reads the project's measurement dataset and, for
           // a report that was never published as one, the report itself.
-          const subject = { ...objectValue(project()), id: projectId, organization_id: orgId() };
+          const subject = { ...hostProject(), id: projectId, organization_id: orgId() };
           // The host knows which report the project is linked to even when
           // the project record itself does not carry the link yet.
           const options = { force: true, reportOrderState: objectValue(context.host?.getReportOrderState?.()) };

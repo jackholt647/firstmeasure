@@ -154,7 +154,7 @@ html.project-content-pane .r-overlay.project-layout-prototype .r-contact-context
   function openTab(item){
     if(!item.api||item.closed)return;
     const tab=item.tab,version=item.version=(item.version||0)+1;
-    Promise.resolve().then(()=>item.api.openProject(item.project,{tab,fromRoute:false})).then(()=>{
+    Promise.resolve().then(()=>item.api.openProject(item.project,{...item.options,tab,fromRoute:false})).then(()=>{
       if(item.closed||item.version!==version)return;
       item.ready=true;clearTimeout(item.timer);item.status.hidden=true;
       if(item.tab!==tab)openTab(item);
@@ -165,11 +165,25 @@ html.project-content-pane .r-overlay.project-layout-prototype .r-contact-context
   }
   function ready(token,child,api){
     const item=children.get(token);if(!item||!accepts(token,child)||item.api)return;
-    item.api=api;child.document.addEventListener('pointerdown',()=>{item.focus();item.element.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));},true);openTab(item);
+    item.api=api;child.document.addEventListener('pointerdown',()=>{item.focus();item.element.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));},true);item.onReady?.(child);openTab(item);
+  }
+  // A project pane outside the split: the same project in its own document, put wherever the caller shows it (a
+  // proposal's measurement order dialog, GP-19). options go to the pane's openProject ({workflow:'report'}).
+  // label names the pane, loading is said while it opens. onReady(child) runs once its document is up; onClosed runs
+  // when it goes, by remove() or by closing itself.
+  function frame(container,{project,tab='map',options={},label='',loading='',onReady,onClosed}={}){
+    if(!project||!container)throw Error('A project pane needs a project and a place to show it.');
+    const token=crypto.randomUUID(),element=document.createElement('section'),frame=document.createElement('iframe'),status=document.createElement('div'),message=document.createElement('span'),close=document.createElement('button');
+    element.className='r-project-docked-pane';element.dataset.projectPane=tab;frame.name='fm-project-pane:'+token;frame.setAttribute('aria-label',label||tab);frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');status.className='r-project-pane-status';message.textContent=loading||label||(globalThis.PlatformLanguage?.text("window-manager","project","Project") ?? "Project");close.type='button';close.textContent=(globalThis.PlatformLanguage?.text("window-manager","close_pane","Close pane") ?? "Close pane");status.append(message,close);element.append(frame,status);
+    const item={token,tab,options,element,frame,status,project,onReady,changed(){},focus(){},remove(){if(item.closed)return;item.closed=true;children.delete(token);clearTimeout(item.timer);element.remove();onClosed?.();}};
+    close.onclick=e=>{e.preventDefault();e.stopPropagation();item.remove();};children.set(token,item);container.append(element);
+    const url=new URL(location.href);url.search='';url.hash='';url.searchParams.set('projectPane',token);frame.src=url.href;
+    item.timer=setTimeout(()=>{message.textContent=(globalThis.PlatformLanguage?.text("window-manager","pane_slow","This pane is taking longer to load. You can close it and try again.") ?? "This pane is taking longer to load. You can close it and try again.");},45000);
+    return {element,frame,remove:()=>item.remove(),get ready(){return item.ready===true;}};
   }
   function attach(token,child){
     const item=children.get(token);if(!item||!accepts(token,child))throw Error('Unknown project pane');
     return {state:{mode:'full'},setVisible(visible){if(visible&&!item.closed){clearTimeout(item.timer);item.status.hidden=true;}},setMode(){},restore(){},focus(){},destroy(){}};
   }
-  root.FirstMateProjectLayout={config,mount,accepts,ready,attach,async openContact(token,child,contact,options){if(!accepts(token,child))throw Error('Unknown project pane');await root.Portal.modules.request.openContact(contact,options);},update(){},tabChanged(token,child,tab){const item=children.get(token);if(!item?.ready||!accepts(token,child)||!tab||item.tab===tab)return;item.tab=tab;item.changed();},closed(token){children.get(token)?.remove();}};
+  root.FirstMateProjectLayout={config,mount,frame,accepts,ready,attach,async openContact(token,child,contact,options){if(!accepts(token,child))throw Error('Unknown project pane');await root.Portal.modules.request.openContact(contact,options);},update(){},tabChanged(token,child,tab){const item=children.get(token);if(!item?.ready||!accepts(token,child)||!tab||item.tab===tab)return;item.tab=tab;item.changed();},closed(token){children.get(token)?.remove();}};
 })(window);
