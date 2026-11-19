@@ -902,13 +902,16 @@ in the [optimization backlog](../optimization-backlog.md#the-labor-column-reads-
 
 `operations.workforce.setup` (GP-28; modal, organization, replayable; library entry with its copy) is the Workforce card
 of the hub, the Labor Setup tag of the Operations tab and the button of Operations settings' Workforce sub-tab. It
-`requires` `company.type` and `company.services`, so what kind of company it is and what work it does are asked first
-while unanswered. Its one step (widget `workforce-setup`, `public/libraries/guided-experiences/workforce-setup.js`) keeps
-its own pages and reads `workforce-setup.status` when it shows (the steps before it may have just answered the profile):
+`requires` `company.type`, `company.services` and `company.workforce`, so what kind of company it is, what work it does
+and who does most of it are asked first while unanswered. "Who does most of the work?" is one question for every setup
+(GP-65): the `company.workforce` [setup step](setup-steps.md), which the appointment setup requires too, asked once.
+Its one step (widget `workforce-setup`, `public/libraries/guided-experiences/workforce-setup.js`) keeps its own pages
+and reads `workforce-setup.status` when it shows (the steps before it may have just answered the profile):
 
-1. **Who does the work at your company?** Just me, our own crews, subcontractors, or both: the company profile's
-   `workforce` answer (the `company.workforce` setup step's), shown chosen and saved with `company-profile.save` when it
-   changes.
+1. **Who does most of the work?** Only when it is still unanswered, or when someone goes Back to change it: the shared
+   step's own part (`setup-steps/company-profile.js`, part `workforce`, the same tiles as everywhere), shown chosen and
+   saved with `company-profile.save` when it changes. Answered, the setup starts at the next page. The setup never
+   draws a question of its own for it.
 2. **How many do you have?** A count of crews and of subcontractors. The groups and outside companies the organization
    already has are counted and kept; "just me" skips this and makes one crew of the person.
 3. **Name each one and say what they do.** One card each: its name, which of the company's services it does (all of

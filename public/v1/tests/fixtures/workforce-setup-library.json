@@ -1,4 +1,48 @@
 {
+  "setup_step": [
+    {
+      "id": "company.workforce",
+      "version": 1,
+      "scope": "organization",
+      "title": {
+        "key": "gx_step_company_workforce_title",
+        "text": "Who does most of the work?"
+      },
+      "subtitle": {
+        "key": "gx_step_company_workforce_subtitle",
+        "text": "This decides who goes to the work itself, and which teams FirstMate sets up for you."
+      },
+      "description": {
+        "key": "gx_step_company_workforce_description",
+        "text": "Who does most of the organization's work: the owner, its own crews, subcontractors, or both."
+      },
+      "ui": {
+        "widget": "module",
+        "module": "/libraries/setup-steps/company-profile.js?v=20261119-gp65"
+      },
+      "options": {
+        "part": "workforce"
+      },
+      "requires": [
+        "company.type"
+      ],
+      "eligibility": {
+        "capabilities": [],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "satisfied": {
+        "provider": "company-profile",
+        "export": "profile",
+        "path": "/answered/workforce"
+      },
+      "writes": {
+        "action": "company-profile.save",
+        "target": "organization"
+      }
+    }
+  ],
   "guided_experience": [
     {
       "id": "operations.workforce.setup",
@@ -35,7 +79,8 @@
       ],
       "requires": [
         "company.type",
-        "company.services"
+        "company.services",
+        "company.workforce"
       ],
       "steps": [
         {

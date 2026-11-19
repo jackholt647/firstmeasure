@@ -1,6 +1,7 @@
 // The company setup steps' own code (docs/architecture/setup-steps.md): "What kind of company are you?" (part `type`),
 // "What kind of work do you do?" (part `services`), and who does the sales and who does the work (parts `sales_team`
-// and `workforce`, FM-515: one choice each), and how many locations it works out of (part `locations`, GP-15: one,
+// and `workforce`, FM-515: one choice each, drawn as every setup's choice row with an icon each, GP-65; the workforce
+// setup mounts this same part when someone goes back to change the answer), and how many locations it works out of (part `locations`, GP-15: one,
 // two, three, or more with the number typed). A setup-step module: the player loads it, mounts it in the
 // standard step frame and saves `answer()` with the step's action (company-profile.save). Everything it shows is read
 // through the publication layer: the catalog (company-profile.catalog) and what was answered before
@@ -31,9 +32,18 @@ const css = `
 .gxc-tile[aria-selected=true],.gxc-tile[aria-pressed=true]{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.06);box-shadow:0 0 0 1px var(--primary,#d93025)}
 .gxc-tick{position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;border:1.5px solid #d0d5dd;display:grid;place-items:center;transition:background .15s,border-color .15s}
 .gxc-tick svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:3;opacity:0;transition:opacity .15s}
-[aria-selected=true]>.gxc-tick,[aria-pressed=true]>.gxc-tick{background:var(--primary,#d93025);border-color:var(--primary,#d93025)}
-[aria-selected=true]>.gxc-tick svg,[aria-pressed=true]>.gxc-tick svg{opacity:1}
-.gxc-grid.gxc-team{grid-template-columns:repeat(2,minmax(0,1fr))}
+[aria-selected=true]>.gxc-tick,[aria-pressed=true]>.gxc-tick,[aria-checked=true]>.gxc-tick{background:var(--primary,#d93025);border-color:var(--primary,#d93025)}
+[aria-selected=true]>.gxc-tick svg,[aria-pressed=true]>.gxc-tick svg,[aria-checked=true]>.gxc-tick svg{opacity:1}
+/* Who sells, who does the work (GP-65): one choice each, as tiles with an icon in every setup's choice row (.gxs-choices,
+   guided-setup.js); without that row they lie one per line. The tick has rules of its own: span rules here leave it alone. */
+.gxc-choice{position:relative;display:flex;align-items:flex-start;gap:12px;min-height:76px;padding:14px 42px 14px 14px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;font:inherit;text-align:left;color:#101828;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .2s,transform .15s;animation:gxcIn .3s cubic-bezier(.22,1,.36,1) both}
+.gxc-choice:hover{border-color:#c4c9d2;transform:translateY(-1px)}
+.gxc-choice:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+.gxc-choice>span:not(.gxc-icon):not(.gxc-tick){display:flex;flex-direction:column;gap:3px;min-width:0}
+.gxc-choice strong{font-size:14.5px;font-weight:700;line-height:1.25}
+.gxc-choice small{font-size:12.5px;color:#667085;line-height:1.4}
+.gxc-choice[aria-checked=true]{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.05);box-shadow:0 0 0 1px var(--primary,#d93025)}
+.gxc-icon{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary,#d93025);font-size:17px}
 .gxc-tile.gxc-other-tile{border-style:dashed}
 .gxc-tile.gxc-service{min-height:54px;justify-content:center}
 .gxc-other{display:flex;flex-direction:column;gap:6px;animation:gxcIn .25s ease both}
@@ -64,15 +74,21 @@ const css = `
 .gxc-error{color:#b42318;font-size:13px;margin:0}
 @keyframes gxcIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media(max-width:560px){.gxc-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.gxc-tile{min-height:64px;padding:10px 34px 10px 12px}.gxc-tile.gxc-service{min-height:56px}.gxc-tile small{display:none}.gxc-tick{top:8px;right:8px;width:20px;height:20px}}
-@media(max-width:560px){.gxc-grid.gxc-team{grid-template-columns:1fr}.gxc-team .gxc-tile small{display:block}.gxc-grid.gxc-count{grid-template-columns:repeat(2,minmax(0,1fr))}.gxc-count .gxc-tile small{display:block}}
+@media(max-width:560px){.gxc-grid.gxc-count{grid-template-columns:repeat(2,minmax(0,1fr))}.gxc-count .gxc-tile small{display:block}}
 @media(prefers-reduced-motion:reduce){.gxc *{animation:none!important;transition:none!important}}
 `;
 const searchIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
 const tick = '<span class="gxc-tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>';
+const choiceTick = '<span class="gxc-tick gxs-choice-tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>';
+// Each answer's icon (Font Awesome 6.0); an answer the catalog adds later gets the group one until it has its own.
+const TEAM_ICONS = {
+  sales_team: { just_me: 'fa-user', small_team: 'fa-users', managed_team: 'fa-sitemap', no_sales: 'fa-phone' },
+  workforce: { just_me: 'fa-user', crews: 'fa-users', subcontractors: 'fa-handshake', crews_and_subs: 'fa-users-gear' }
+};
 
 function installStyle(){
-  if (document.getElementById('gx-company-profile-style')) return;
-  const style = document.createElement('style'); style.id = 'gx-company-profile-style'; style.textContent = css; document.head.append(style);
+  if (document.getElementById('gx-company-profile-style-gp65')) return;
+  const style = document.createElement('style'); style.id = 'gx-company-profile-style-gp65'; style.textContent = css; document.head.append(style);
 }
 
 /** How well an entry matches what was typed: its label first, then the words people use for it. 0 is no match. */
@@ -175,7 +191,8 @@ export function mount(el, ctx){
   function teamPart(name){
     const choices = array(name === 'sales_team' ? catalog.sales_teams : catalog.workforces);
     let chosen = clean(answer[name]) || clean(profile[name]);
-    el.innerHTML = `<div class="gxc"><div class="gxc-grid gxc-team" role="radiogroup" aria-label="${esc(L(`gx_step_company_${name}_title`, name === 'sales_team' ? 'Who does the sales?' : 'Who does the work?'))}">${choices.map((entry) => `<button type="button" class="gxc-tile" role="radio" data-team="${esc(entry.id)}" aria-checked="${chosen === entry.id}" aria-selected="${chosen === entry.id}"><strong>${esc(L(entry.label))}</strong><small>${esc(L(entry.hint))}</small>${tick}</button>`).join('')}</div></div>`;
+    const icon = (id) => `<span class="gxc-icon gxs-choice-icon" aria-hidden="true"><i class="fas ${esc(TEAM_ICONS[name][id] || 'fa-users')}"></i></span>`;
+    el.innerHTML = `<div class="gxc"><div class="gxc-choices gxs-choices" style="--gxs-n:${choices.length}" role="radiogroup" aria-label="${esc(L(`gx_step_company_${name}_title`, name === 'sales_team' ? 'Who does the sales?' : 'Who does most of the work?'))}">${choices.map((entry) => `<button type="button" class="gxc-choice gxs-choice" role="radio" data-team="${esc(entry.id)}" aria-checked="${chosen === entry.id}" aria-selected="${chosen === entry.id}">${icon(entry.id)}<span class="gxs-choice-text"><strong>${esc(L(entry.label))}</strong><small>${esc(L(entry.hint))}</small></span>${choiceTick}</button>`).join('')}</div></div>`;
     const summary = () => { const entry = choices.find((row) => row.id === chosen); return entry ? L(entry.label) : ''; };
     const report = () => ctx.change(chosen ? { [name]: chosen } : {}, summary());
     const onClick = (event) => {
