@@ -34,6 +34,9 @@ test("development tools: who may use them, copy in the library for everyone, his
   await assert.rejects(() => dev.saveCopy(plainOwner, { key: "gx_mps_makers_title", text: "Nope" }), /development/i);
   assert.equal((await service.availableExperiences(plainOwner, {})).dev, undefined);
   assert.ok((await service.availableExperiences(admin, {})).dev?.experiences.some((entry: any) => entry.id === "materials.tab_tutorial"));
+  // The dev list says where this person is in each experience, so the console can show what a reset would change.
+  const devStatus = async (ctx: any, id: string) => (await service.availableExperiences(ctx, {})).dev?.experiences.find((entry: any) => entry.id === id)?.status;
+  assert.equal(await devStatus(admin, "materials.tab_tutorial"), "not_started");
 
   // An edit is plain text and a new revision of the library entry that holds the key, shown to everyone (another
   // person, another organization) on their next read.
@@ -87,9 +90,14 @@ test("development tools: who may use them, copy in the library for everyone, his
   await agents.appendAgentMessage("assistant", PLAIN, thread.id, { role: "assistant", content: "Which roofing manufacturers do you use?", data: { source: "guided_experience", line_key: "materials.pricebook_setup.roofing:brands:say:1" } });
   await agents.appendAgentMessage("assistant", PLAIN, thread.id, { role: "assistant", content: "An ordinary answer.", data: {} });
   assert.equal((await service.availableExperiences(admin, {})).reveals.length, 0, "the tour was finished, so Materials shows everywhere");
+  assert.equal(await devStatus(admin, "materials.tab_tutorial"), "skipped", "dismissed");
+  assert.equal(await devStatus(admin, "materials.pricebook_setup.roofing"), "done", "the organization's progress");
+  await service.recordGuidedEvent(admin, "materials.tab_tutorial", { type: "replay", step_id: "intro" });
+  assert.equal(await devStatus(admin, "materials.tab_tutorial"), "started");
   await assert.rejects(() => dev.resetExperience(plainOwner, { experience_id: "materials.tab_tutorial" }), /development/i);
   const mine = await dev.resetExperience(admin, { experience_id: "materials.tab_tutorial", scope: "me" });
   assert.equal(mine.progress, 1);
+  assert.equal(await devStatus(admin, "materials.tab_tutorial"), "not_started", "reset");
   assert.equal((await service.availableExperiences(admin, {})).reveals.length, 0, "resetting a tour never hides Operations");
   assert.equal((await service.availableExperiences(plainOwner, {})).reveals.length, 0, "only mine");
   assert.equal(await store.wasExposed(PLAIN, "materials.tab_tutorial", `person:${PLAIN}:admin`), false, "counted as new");
