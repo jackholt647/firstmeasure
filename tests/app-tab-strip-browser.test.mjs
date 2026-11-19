@@ -1,6 +1,7 @@
 // FM-550: global apps' sub-tabs are one shared tab strip (AppChrome.tabStrip in app-runtime/app-chrome.js), a
 // full-width row of icon + label tabs like the project view. When the full labels do not fit it shows each tab's
-// short label, then icons only; under 600 px every tab gets an equal column with its label under the icon.
+// short label, then icons only; on a phone, under 600 px every tab gets an equal column with its label under the icon.
+// GP-63: on a desktop it is a segmented control like My Projects' and My Contacts' views, beside the header's title.
 // Runs the real library in Chromium with a stubbed app runtime.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,8 +29,8 @@ const ITEMS = [
   { id:'setup', title:'Settings', icon:'fa-gear', attribute:'data-settings' }
 ];
 
-async function open(browser) {
-  const page = await browser.newPage({ viewport: { width: 1200, height: 700 } });
+async function open(browser, width = 1200) {
+  const page = await browser.newPage({ viewport: { width, height: 700 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.setContent('<!doctype html><html><head></head><body style="margin:0;font-family:Arial"><div id="host"></div></body></html>');
@@ -110,7 +111,7 @@ test('when full labels do not fit, short labels; then icons only, named by toolt
 test('a phone-width strip stacks label under icon in equal columns, short once a full label is cut', async () => {
   const browser = await chromium.launch({ executablePath: CHROME });
   try {
-    const { page, errors } = await open(browser);
+    const { page, errors } = await open(browser, 700);
     const roomy = await render(page, 560, ITEMS.slice(0, 3));
     assert.equal(roomy.stacked, true);
     assert.equal(roomy.fit, 'full');
@@ -129,7 +130,7 @@ test('a phone-width strip stacks label under icon in equal columns, short once a
 test('the strip refits when its container is resized', async () => {
   const browser = await chromium.launch({ executablePath: CHROME });
   try {
-    const { page, errors } = await open(browser);
+    const { page, errors } = await open(browser, 700);
     await render(page, 1100);
     await page.evaluate(() => { document.getElementById('host').style.width = '330px'; });
     await page.waitForFunction(() => document.querySelector('app-tab-strip').dataset.fit === 'short' && 'stacked' in document.querySelector('app-tab-strip').dataset);
@@ -156,8 +157,78 @@ test('group tabs render the strip only when asked; other apps keep the header pi
     assert.match(result.strip, /data-demo="a" aria-current="false" aria-label="Alpha view"><i class="fas fa-a" aria-hidden="true"><\/i><span class="app-tab-label"><span class="app-tab-long">Alpha view<\/span><span class="app-tab-short" aria-hidden="true">Alpha<\/span>/);
     assert.match(result.strip, /data-demo="b" aria-current="page"/);
     assert.match(result.strip, /data-other="setup" aria-current="false" aria-label="Settings"><i class="fas fa-gear"/);
-    // The strip sits under the header, full width, not among the header's tools.
-    assert.match(result.header, /<\/header><app-tab-strip /);
+    // The strip is in the header, beside the title (GP-63), not among the header's tools.
+    assert.match(result.header, /<\/h1><\/div><\/div><div class="app-header-strip"><app-tab-strip [^]*<\/app-tab-strip><\/div><div class="app-header-tools"><\/div><\/header>$/);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+// GP-63: what a header with a strip looks like at a viewport width, once fitted.
+const renderHeader = (page, width) => page.evaluate(async width => {
+  const host = document.getElementById('host');
+  host.style.width = `${width}px`;
+  host.innerHTML = window.AppChrome.header({ title:'Communications', icon:'fa-comments',
+    strip: window.AppChrome.tabStrip({ label:'Demo', attribute:'data-view', selected:'lists', items: [
+      { id:'inbox', title:'Inbox', icon:'fa-inbox' }, { id:'lists', title:'Call lists', short:'Lists', icon:'list-check' },
+      { id:'history', title:'History', icon:'fa-clock-rotate-left' }, { id:'setup', title:'Settings', icon:'fa-gear' }] }) });
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const header = host.querySelector('header'), title = header.querySelector('h1'), strip = header.querySelector('app-tab-strip');
+  const buttons = [...strip.querySelectorAll('button')], box = el => el.getBoundingClientRect(), css = el => getComputedStyle(el);
+  return {
+    fit: strip.dataset.fit, stacked: 'stacked' in strip.dataset, overflow: strip.scrollWidth > strip.clientWidth + 1,
+    header: box(header).toJSON(), title: box(title).toJSON(), strip: box(strip).toJSON(),
+    first: box(buttons[0]).toJSON(), last: box(buttons.at(-1)).toJSON(),
+    radius: [css(buttons[0]).borderTopLeftRadius, css(buttons.at(-1)).borderBottomRightRadius],
+    border: css(buttons[1]).borderTopWidth, stripBorder: css(strip).borderTopWidth,
+    current: css(buttons[1]).backgroundImage, other: css(buttons[0]).backgroundImage, shadow: css(buttons[1]).boxShadow
+  };
+}, width);
+
+test('on a desktop the strip is a segmented control beside the title, right-aligned, and never stacks', async () => {
+  const browser = await chromium.launch({ executablePath: CHROME });
+  try {
+    const { page, errors } = await open(browser, 1200);
+    const wide = await renderHeader(page, 1100);
+    assert.equal(wide.fit, 'full');
+    assert.equal(wide.stacked, false);
+    const middle = value => value.top + value.height / 2;
+    assert.ok(Math.abs(middle(wide.first) - middle(wide.title)) < 6, 'tabs on the title row');
+    assert.ok(wide.first.left > wide.title.right, 'tabs after the title');
+    assert.ok(Math.abs(wide.header.right - 22 - wide.last.right) <= 1, `right-aligned: ${wide.last.right} in ${wide.header.right}`);
+    assert.deepEqual(wide.radius, ['10px', '10px']);
+    assert.equal(wide.border, '1px');
+    assert.equal(wide.stripBorder, '0px');
+    assert.match(wide.current, /gradient/, 'the current tab is tinted');
+    assert.equal(wide.other, 'none');
+    assert.equal(wide.shadow, 'none', 'no underline');
+    // Little room beside the title: icons only, still on one row, never the phone's stacked columns.
+    const narrow = await renderHeader(page, 520);
+    assert.equal(narrow.stacked, false);
+    assert.equal(narrow.fit, 'icons');
+    assert.equal(narrow.overflow, false);
+    assert.ok(Math.abs(middle(narrow.first) - middle(narrow.title)) < 6);
+    // And the labels come back when there is room again.
+    assert.equal((await renderHeader(page, 1100)).fit, 'full');
+    // A strip outside a header, under 600 px, does not stack on a desktop either.
+    assert.equal((await render(page, 560, ITEMS.slice(0, 3))).stacked, false);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('on a phone the header strip is the full-width row under the title', async () => {
+  const browser = await chromium.launch({ executablePath: CHROME });
+  try {
+    const { page, errors } = await open(browser, 390);
+    const phone = await renderHeader(page, 390);
+    assert.equal(phone.stacked, true);
+    assert.ok(phone.strip.top >= phone.title.bottom, 'under the title');
+    assert.equal(Math.round(phone.strip.left), Math.round(phone.header.left));
+    assert.equal(Math.round(phone.strip.width), Math.round(phone.header.width));
+    assert.equal(Math.round(phone.strip.bottom), Math.round(phone.header.bottom), 'the header ends with the strip');
+    assert.equal(phone.stripBorder, '1px');
+    assert.equal(phone.border, '0px');
+    assert.notEqual(phone.shadow, 'none', 'the current tab is underlined');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

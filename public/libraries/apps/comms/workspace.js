@@ -19,15 +19,17 @@
     instances.add(state);
     const chrome=window.AppChrome;
     // FM-550: the shared tab strip carries the views and Settings; a standalone view keeps the settings button in its
-    // header, except the Call Center, whose own strip ends with Settings.
+    // header, except the Call Center, whose own strip ends with Settings. GP-63: the strip is in the header (beside
+    // the title on a desktop), the standalone Call Center's too; inside Communications its views get their own row.
     const settingsTab={id:'setup',title:'Settings',icon:'fa-gear',attribute:'data-view'};
+    const subtabs='<div class="fmcm-subtabs" data-subtabs hidden></div>',centerAlone=options.standalone==='center'&&!options.projectId;
     function header(){
       const member=views.find(v=>v[0]===options.standalone);
       return chrome.header({title:options.standalone?(member?.[1] || 'Call scripts'):'Communications',icon:options.standalone?'fa-'+(member?.[2] || 'file-lines'):'fa-comments',
-        strip:options.standalone?'':chrome.tabs('communications',state.view,'data-view',{},{strip:true,extra:[settingsTab]}),
+        strip:centerAlone?subtabs:options.standalone?'':chrome.tabs('communications',state.view,'data-view',{},{strip:true,extra:[settingsTab]}),
         actions:options.standalone && options.standalone!=='center'?'<button type="button" data-view="setup" aria-label="Communications settings" title="Communications settings">'+icon('gear')+'</button>':''});
     }
-    root.innerHTML=`<div class="fmcm">${options.projectId?'':header()}<div class="fmcm-subtabs" data-subtabs hidden></div><div class="fmcm-inbox" data-inbox hidden></div><main class="fmcm-view" data-content></main></div>`;
+    root.innerHTML=`<div class="fmcm">${options.projectId?'':header()}${centerAlone?'':subtabs}<div class="fmcm-inbox" data-inbox hidden></div><main class="fmcm-view" data-content></main></div>`;
     ui.whenStyled?.(root.firstElementChild);// GP-8: a styled "Loading…" until communications.css has loaded
 
     state.host=root.querySelector('[data-content]');
@@ -436,7 +438,7 @@
     const onSession=()=>{if(!state.disposed&&(state.error||state.sessionScope!==`${ui.org()}:${ui.user()}`))void load();};
     window.addEventListener('fm:platform-session:updated',onSession);
     window.addEventListener('fm:customer-calls:next',onNext);window.addEventListener('fm:customer-calls:changed',updatePhone);
-    const onLayout=()=>{if(options.projectId)return;root.querySelectorAll('.fmcm>:is([data-app-header],app-tab-strip)').forEach(el=>el.remove());root.querySelector('.fmcm').insertAdjacentHTML('afterbegin',header());if(!options.standalone&&!['setup','layout'].includes(state.view))nav(chrome.resolve('communications',route().communicationsView),true);};
+    const onLayout=()=>{if(options.projectId)return;root.querySelectorAll('.fmcm>:is([data-app-header],app-tab-strip)').forEach(el=>el.remove());root.querySelector('.fmcm').insertAdjacentHTML('afterbegin',header());if(centerAlone){state.centerTabs='';if(state.view==='center')render();}if(!options.standalone&&!['setup','layout'].includes(state.view))nav(chrome.resolve('communications',route().communicationsView),true);};
     window.addEventListener('fm:app-placements:updated',onLayout);
     let active=true,ticks=0;
     const timer=setInterval(()=>{ticks++;if(active&&!state.disposed&&!document.hidden&&!root.contains(document.activeElement)&&!['setup','layout','inbox'].includes(state.view)&&(state.view==='center'||ticks%6===0))void load(false,true);},5000);

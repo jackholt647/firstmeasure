@@ -355,7 +355,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'), versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261119-gp12-busy'), versionedBundle('comms/phone-tray.js', '20261119-gp64-loading'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'), versionedBundle('comms/workspace.js', '20261119-gp12-instant'), versionedBundle('comms/project.js', '20261119-gp12-instant')]
+      bundles: [versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'), versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261119-gp63-tabs'), versionedBundle('comms/phone-tray.js', '20261119-gp64-loading'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'), versionedBundle('comms/workspace.js', '20261119-gp63-tabs'), versionedBundle('comms/project.js', '20261119-gp12-instant')]
     },
     {
       id: 'project.measurements',
@@ -519,10 +519,10 @@
         versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
-        versionedBundle('comms/communications-ui.js', '20261119-gp12-busy'),
+        versionedBundle('comms/communications-ui.js', '20261119-gp63-tabs'),
         versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'),
         versionedBundle('comms/phone-tray.js', '20261119-gp64-loading'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'),
-        versionedBundle('comms/workspace.js', '20261119-gp12-instant'),
+        versionedBundle('comms/workspace.js', '20261119-gp63-tabs'),
         versionedBundle('chat/app.js', '20261118-fm550-tab-strip')
       ]
     },
@@ -1057,7 +1057,7 @@
   };
 
   apps.forEach((app) => {
-    app.bundles = [versionedBundle('../app-runtime/app-chrome.js', '20261118-fm550-tab-strip'), ...(app.bundles || [])];
+    app.bundles = [versionedBundle('../app-runtime/app-chrome.js', '20261119-gp63-tabs'), ...(app.bundles || [])];
     app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260930-scheduling-qa-v2'), ...(app.bundles || [])];
     const capability = appCapabilities[app.id];
     if (capability) app.access = { ...(app.access || {}), capability };
