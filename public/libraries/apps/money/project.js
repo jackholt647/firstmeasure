@@ -400,7 +400,7 @@
       /* Generate invoice (GP-4): the items on the left, dates, switches and totals in a panel on the right. */
       .mn-modal.mn-invoice-modal{width:min(820px,100%)}
       .mn-invoice-modal .mn-modal-body{padding:0;gap:0}
-      .mn-invoice{flex:1 0 auto;display:grid;grid-template-columns:minmax(0,1fr) 280px}
+      .mn-invoice{flex:1 0 auto;display:grid;grid-template-columns:minmax(0,1fr) 300px}
       .mn-invoice-main{min-width:0;padding:18px;display:flex;flex-direction:column;gap:16px}
       .mn-invoice-side{min-width:0;padding:18px;display:flex;flex-direction:column;gap:14px;background:#f9fafb;border-left:1px solid #eaecf0}
       .mn-invoice-note{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:#344054}
@@ -408,7 +408,7 @@
       .mn-invoice-items{border:1px solid #eaecf0;border-radius:12px;overflow:hidden;background:#fff}
       .mn-invoice-items-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid #eaecf0}
       .mn-invoice-items-head strong{font-size:13px}
-      .mn-invoice-item-picker{padding:10px 12px;border-bottom:1px solid #eaecf0;background:#fcfcfd}
+      .mn-invoice-item-picker{padding:10px 12px;background:#fcfcfd}
       .mn-invoice-picker-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:220px;overflow:auto}
       .mn-invoice-picker-choice{display:flex;align-items:center;gap:10px;width:100%;min-width:0;border:1px solid #eaecf0;border-radius:10px;background:#fff;padding:8px 10px;text-align:left;cursor:pointer;font:inherit;color:inherit}
       .mn-invoice-picker-choice:hover{border-color:rgba(var(--primary-rgb,217,48,37),.35);background:rgba(var(--primary-rgb,217,48,37),.03)}
@@ -418,11 +418,13 @@
       .mn-invoice-picker-choice span span{display:block;color:#667085;font-size:11px;font-variant-numeric:tabular-nums}
       .mn-invoice-picker-add{flex:none;color:var(--primary,#d93025);font-size:12px}
       .mn-invoice-cols,.mn-invoice-line{display:grid;grid-template-columns:minmax(0,1fr) 120px 32px;gap:8px;align-items:center;padding:0 12px}
-      .mn-invoice-cols{padding-top:10px;font-size:11px;font-weight:700;color:#667085}
+      .mn-invoice-cols{padding-top:10px;border-top:1px solid #eaecf0;font-size:11px;font-weight:700;color:#667085}
+      .mn-invoice-item-picker[hidden]+.mn-invoice-cols{border-top:0}
       .mn-invoice-cols span:nth-child(2){text-align:right}
       .mn-invoice-cols[hidden]{display:none}
-      .mn-invoice-lines{display:flex;flex-direction:column;padding:4px 0}
+      .mn-invoice-lines{display:flex;flex-direction:column}
       .mn-invoice-line{padding-top:5px;padding-bottom:5px}
+      .mn-invoice-line:last-child{padding-bottom:10px}
       .mn-invoice-line label{display:block;min-width:0}
       .mn-invoice-line [data-money-invoice-line-amount]{text-align:right;font-variant-numeric:tabular-nums}
       .mn-invoice-line-remove{width:32px;height:32px;border:0;background:transparent;color:#98a2b3;cursor:pointer;border-radius:8px;display:grid;place-items:center}
@@ -434,9 +436,9 @@
       .mn-invoice-setting{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:50px;padding:7px 12px;border-bottom:1px solid #f2f4f7;font-size:13px;font-weight:600;color:#344054}
       .mn-invoice-setting:last-child{border-bottom:0}
       .mn-invoice-setting[hidden]{display:none}
-      .mn-invoice-setting>span:first-child{display:inline-flex;align-items:center;gap:5px;min-width:0}
-      .mn-invoice-setting .mn-input{width:148px;height:34px;flex:none}
-      .mn-invoice-setting .mn-input[type=number]{width:84px;text-align:right}
+      .mn-invoice-setting>span:first-child{display:inline-flex;align-items:center;gap:5px;min-width:0;white-space:nowrap}
+      .mn-invoice-setting .mn-input{flex:0 1 150px;width:150px;min-width:0;height:34px}
+      .mn-invoice-setting .mn-input[type=number]{flex-basis:96px;width:96px;text-align:right}
       .mn-invoice-total-box{margin-top:auto;display:flex;flex-direction:column;gap:6px;padding:14px;border:1px solid #eaecf0;border-radius:12px;background:#fff}
       .mn-invoice-total-row{display:flex;justify-content:space-between;gap:15px;font-size:13px;color:#475467;font-variant-numeric:tabular-nums}
       .mn-invoice-total-row[hidden]{display:none}
@@ -503,6 +505,7 @@
         .mn-modal[data-money-tray-drag]{padding-top:10px}
         .mn-modal[data-money-tray-drag]::before{content:"";position:absolute;top:6px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:2px;background:#d0d5dd;pointer-events:none}
         .mn-modal[data-money-tray-drag]>.mn-modal-head{touch-action:none;padding-top:8px}
+        .mn-intake-modal[data-money-tray-drag]{padding-top:24px}
         .mn-modal-foot .mn-btn{height:44px;font-size:13px}
         .mn-invoice{display:flex;flex-direction:column;gap:14px;padding:14px 16px 16px}
         .mn-invoice-main,.mn-invoice-side{display:contents}

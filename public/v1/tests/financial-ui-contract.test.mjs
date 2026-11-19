@@ -147,3 +147,24 @@ test('Take a Payment leads to payment setup when the organization cannot take pa
   // A not-ready answer is asked again on the next open, so finishing setup shows at once.
   assert.match(money, /modal\.type === 'take_payment' && state\.paymentIntakeConfig\?\.config\?\.ready !== true\) state\.paymentIntakeConfig = null/);
 });
+
+test('Generate invoice is a two-column composer, and money dialogs are bottom trays on a phone (GP-4)', async () => {
+  const money = await readFile(moneyUrl, 'utf8');
+  // Items and the note on the left; dates, switches and totals in a panel beside them.
+  assert.match(money, /<form class="mn-invoice" data-money-invoice-form id="mnInvoiceForm">\s*<div class="mn-invoice-main">/);
+  assert.match(money, /<div class="mn-invoice-side">\s*<div class="mn-invoice-settings">/);
+  assert.match(money, /size:'mn-invoice-modal'/);
+  // The total stays in view in the footer on a phone, kept current with the form.
+  assert.match(money, /data-money-invoice-foot-total/);
+  assert.match(money, /querySelectorAll\('\[data-money-invoice-foot-total\]'\)\.forEach/);
+  // Classes that set display honour hidden.
+  assert.match(money, /\.mn-invoice-total-row\[hidden\]\{display:none\}/);
+  assert.match(money, /\.mn-invoice-setting\[hidden\]\{display:none\}/);
+  // Phone: dialogs rise from the bottom edge to edge, and both the invoice and its email step drag or tap away.
+  assert.match(money, /@container money \(max-width:640px\)\{[\s\S]*\.mn-modal-shade\{padding:0;align-items:flex-end;backdrop-filter:none\}[\s\S]*border-radius:18px 18px 0 0/);
+  assert.match(money, /function bindTray\(shade, close, options = \{\}\)/);
+  assert.match(money, /const tray = bindTray\(layer\.querySelector\('\[data-money-modal-shade\]'\), closeModal,/);
+  assert.match(money, /const tray = bindTray\(shade, \(\) => shade\?\.remove\(\), \{ opening:true \}\)/);
+  // Dialogs that must not close from outside (receipt review, a payment in progress) stay put.
+  assert.match(money, /dismissible:\(\) => !state\.receiptBatch && !state\.receiptReview && !\(state\.modal\?\.type === 'take_payment' && moneyMutationBusy\(\)\)/);
+});
