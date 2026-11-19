@@ -122,3 +122,34 @@ test('the wording step edits the template copy beside its document', async () =>
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
+
+// FM-615: the first question's large proposal says it is the one to start with by its size alone (no badge), and a
+// question with two answers has the same gutter between its tiles as either side of them, and sits midway between
+// the question and the footer (the sheet's own step padding, 8px above and 24px below, framing it as in guided-setup.js).
+test('two-answer questions are spaced evenly and the first question has no recommended badge', async () => {
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 } }), errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.addScriptTag({ type: 'module', content: (await lib('guided-experiences/documents-setup.js')) + '\nwindow.__mount = mount;' });
+    await page.waitForFunction(() => typeof window.__mount === 'function');
+    const show = (part, width) => page.evaluate(({ part, width }) => {
+      document.body.innerHTML = `<div class="gxs"><div class="gxs-step" style="width:${width}px;box-sizing:border-box;padding:8px 28px 24px;display:flex;flex-direction:column"><h2 style="margin:4px 0 12px;font-size:22px">Question</h2><div class="gxs-body"></div></div></div>`;
+      window.__mount(document.querySelector('.gxs-body'), { options: { part }, selections: {}, step: { title: 'Question' }, L: (key, text) => text, esc: (value) => String(value), change: () => {} });
+    }, { part, width });
+    await show('kind', 900);
+    assert.equal(await page.locator('.gxd-feature').count(), 1, 'the proposal is still the large choice');
+    assert.equal(await page.locator('.gxd-badge').count(), 0, 'no "Recommended to start" badge');
+    for (const [part, width] of [['presentation', 900], ['detail', 1200], ['scope', 700]]) {
+      await show(part, width);
+      const m = await page.evaluate(() => {
+        const box = (node) => node.getBoundingClientRect(), step = box(document.querySelector('.gxs-step')), title = box(document.querySelector('h2'));
+        const [a, b] = [...document.querySelectorAll('.gxd-pair .gxd-tile')].map(box);
+        return { left: a.left - step.left - 28, middle: b.left - a.right, right: step.right - 28 - b.right, above: a.top - title.bottom, below: step.bottom - Math.max(a.bottom, b.bottom) };
+      });
+      assert.ok(Math.abs(m.left - m.middle) <= 1 && Math.abs(m.right - m.middle) <= 1, `${part} at ${width}px: even gutters ${JSON.stringify(m)}`);
+      assert.ok(Math.abs(m.above - m.below) <= 4, `${part} at ${width}px: as much room above as below ${JSON.stringify(m)}`);
+    }
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
