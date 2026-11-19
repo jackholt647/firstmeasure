@@ -620,8 +620,9 @@
 
   function renderTrayHead(){
     if (!state.root) return;
-    // Every project in the list, collapsed stages included: their headers still count them.
-    const visible = state.order.map((id) => state.items.get(id)).filter(Boolean);
+    // The title counts every project in the list, collapsed stages included; the line under it is about the expanded ones.
+    const total = state.order.length;
+    const visible = visibleItems();
     const located = visible.filter((item) => item.point).length;
     const missing = visible.length - located;
     const title = state.root.querySelector('.pm-tray-title strong');
@@ -632,15 +633,16 @@
       state.root.querySelector('.pm-reopen-count').textContent = '0';
       return;
     }
-    if (visible.length === 1) title.textContent = (globalThis.PlatformLanguage?.text("projects","m_a5aed43e7f4a23","1 project") ?? "1 project");
-    else title.textContent = ((v0) => globalThis.PlatformLanguage?.text("projects","m_79e82d0b1623d6",`${v0} projects`,{v0}) ?? `${v0} projects`)(visible.length);
+    if (total === 1) title.textContent = (globalThis.PlatformLanguage?.text("projects","m_a5aed43e7f4a23","1 project") ?? "1 project");
+    else title.textContent = ((v0) => globalThis.PlatformLanguage?.text("projects","m_79e82d0b1623d6",`${v0} projects`,{v0}) ?? `${v0} projects`)(total);
     const locating = state.geocodeRunning || state.geocodeQueue.length;
     sub.innerHTML = `${locating ? '<i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>' : ''}<span></span>`;
     const subText = sub.querySelector('span');
     if (locating) subText.textContent = ((v0) => globalThis.PlatformLanguage?.text("projects","m_657063d3eb6d4c",`Locating ${v0} addresses…`,{v0}) ?? `Locating ${v0} addresses…`)(state.geocodeQueue.length + 1);
+    else if (!visible.length) subText.textContent = '';
     else if (missing) subText.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("projects","m_bb6033be5beecd",`${v0} on the map · ${v1} without a location`,{v0,v1}) ?? `${v0} on the map · ${v1} without a location`)(located,missing);
     else subText.textContent = (globalThis.PlatformLanguage?.text("projects","m_fd6f1fb0ffdb94","All on the map") ?? "All on the map");
-    state.root.querySelector('.pm-reopen-count').textContent = String(visible.length);
+    state.root.querySelector('.pm-reopen-count').textContent = String(total);
   }
 
   // A project still named by its address shows the address once: line 1 as the title, line 2 beneath.
