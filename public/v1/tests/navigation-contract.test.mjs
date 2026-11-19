@@ -482,10 +482,10 @@ test('receipt browsers share a routed global tab and the viewer project Money op
   assert.match(manifest, /portalTabId: 'receipts'/);
   assert.match(manifest, /moneyView:\{ default:'overview', values:\[[^\]]*'receipts'/);
   assert.match(manifest, /receipts: \{ receipt:\{ history:'push' \} \}/);
-  // Money lists receipts in its ledger and opens them in the shared viewer, routed by `receipt`.
-  assert.match(moneyApp, /Portal\.ReceiptsBrowser\.openViewer\(\{/);
-  assert.match(moneyApp, /onReview:canManageMoney\(\) \? \(receipt\) => openReceiptReview\(receipt\)/);
-  assert.match(moneyApp, /routeReceipt\(receipt\.id, 'replace'\)/);
+  // Money lists receipts in its ledger and opens each as its own receipt screen (GP-109), routed by `receipt`.
+  assert.match(moneyApp, /key\.startsWith\('receipt:'\) \? openReceiptViewer\(key\.slice\(8\)\)/);
+  assert.match(moneyApp, /state\.receiptViewer = \{ receiptId:\(\) => cleanText\(state\.receiptReview\?\.receipt\?\.id\), close:closeReceiptReview \}/);
+  assert.match(moneyApp, /routeReceipt\(id, 'replace'\)/);
   assert.match(moneyApp, /backOrClose\?\.\(\['receipt'\], \{ receipt:null \}/);
   assert.doesNotMatch(moneyApp, /function receiptsSection\(|data-money-receipts-browser/);
   assert.match(receiptsApp, /Portal\.PhotoFeed\.mountProjectGallery/);

@@ -227,9 +227,17 @@
     };
 
     const current = () => items[index] || null;
+    // GP-109: the arrow keys step through the receipts too, unless a field has focus.
+    const onKey = (event) => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(event.key) || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.target?.closest?.('input,textarea,select,[contenteditable="true"],[contenteditable=""]')) return;
+      event.preventDefault();
+      move(event.key === 'ArrowLeft' ? -1 : 1);
+    };
     const close = ({ fromRoute = false } = {}) => {
       if (closed) return;
       closed = true;
+      document.removeEventListener('keydown', onKey, true);
       previewGeneration += 1;
       clearPreviewObjectUrl();
       shade.remove();
@@ -271,6 +279,7 @@
     };
     shade.addEventListener('click', (event) => { if (event.target === shade) close(); });
     document.body.appendChild(shade);
+    document.addEventListener('keydown', onKey, true);
     render();
     return { close, receiptId:() => cleanText(current()?.photo?.receipt?.id) };
   }

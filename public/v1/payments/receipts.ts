@@ -4,6 +4,7 @@ import { readOrganizationConnection } from "../connections/storage.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
 import { badRequest, conflict, forbidden, notFound } from "../platform/errors.js";
 import {
+  readBranchModule,
   readDocument,
   readMediaFile,
   readMediaMetadata,
@@ -261,6 +262,38 @@ function receiptEffective(receipt: JsonObject) {
     purchase_time: cleanText(overrides.purchase_time || extraction.purchase_time),
     purchase_timezone: cleanText(overrides.purchase_timezone || extraction.purchase_timezone)
   };
+}
+
+// Receipt settings (GP-109): the Receipts section of the Money tab's settings, stored in the branch's
+// `money_settings` module as `receipts`. Purchase date and time are optional unless an organization requires
+// them; expense lists are suggested for a new total unless automatic categorizing is turned off.
+export const RECEIPT_SETTING_DEFAULTS = Object.freeze({ require_date: false, require_time: false, auto_categorize: true });
+
+export function normalizeReceiptSettings(value: unknown) {
+  const settings = asObject(value);
+  return {
+    require_date: settings.require_date === true,
+    require_time: settings.require_time === true,
+    auto_categorize: settings.auto_categorize !== false
+  };
+}
+
+export async function readReceiptSettings(orgId: string, branchId = "default") {
+  for (const id of uniqueText([cleanText(branchId) || "default", "default"])) {
+    try {
+      const module = asObject(await readBranchModule(orgId, id, "money_settings"));
+      if (Object.keys(module).length) return normalizeReceiptSettings(asObject(module.data).receipts);
+    } catch {
+      // No Money settings saved for this branch: fall through to the default branch, then the defaults.
+    }
+  }
+  return { ...RECEIPT_SETTING_DEFAULTS };
+}
+
+async function suggestedTargetKeys(orgId: string, branchId: string, projectId: string, totalCents: number) {
+  if (!projectId || totalCents <= 0) return [];
+  if (!(await readReceiptSettings(orgId, branchId)).auto_categorize) return [];
+  return await receiptSuggestionForProject(orgId, projectId, totalCents);
 }
 
 function receiptApplicationIssue(receipt: JsonObject) {
@@ -584,7 +617,7 @@ async function createReceiptFromUploadResolved(orgId: string, input: ReceiptUplo
   const effectiveTotal = Object.prototype.hasOwnProperty.call(asObject(baseRecord.user_overrides), "total_cents")
     ? integerCents(asObject(baseRecord.user_overrides).total_cents)
     : integerCents(extraction.total_cents);
-  const suggestions = effectiveTotal > 0 && associatedProjectId ? await receiptSuggestionForProject(orgId, associatedProjectId, effectiveTotal) : [];
+  const suggestions = await suggestedTargetKeys(orgId, cleanText(baseRecord.branch_id), associatedProjectId, effectiveTotal);
   const attempt = {
     id: generatedId("receipt_extraction"),
     schema_version: RECEIPT_EXTRACTION_SCHEMA_VERSION,
@@ -626,7 +659,7 @@ export async function patchReceipt(orgId: string, receiptId: string, input: Json
   const draft = { ...current, user_overrides: nextOverrides };
   const effective = receiptEffective(draft);
   const suggestions = Object.prototype.hasOwnProperty.call(input, "total_cents") && cleanText(current.status) !== "applied"
-    ? await receiptSuggestionForProject(orgId, cleanText(current.project_id), integerCents(effective.total_cents))
+    ? await suggestedTargetKeys(orgId, cleanText(current.branch_id), cleanText(current.project_id), integerCents(effective.total_cents))
     : uniqueText(current.suggested_target_keys);
   const applicationIssue = cleanText(current.status) === "applied" ? receiptApplicationIssue(draft) : "";
   const saved = await saveReceiptRecord(orgId, {
@@ -655,6 +688,9 @@ export async function applyReceiptAttribution(orgId: string, receiptId: string, 
   if (!targetKeys.length) throw badRequest("receipt_attribution_required", "Select at least one expense list for this receipt.");
   const effective = receiptEffective(current);
   if (integerCents(effective.total_cents) <= 0) throw badRequest("receipt_total_required", "Enter the receipt total before applying it.");
+  const receiptSettings = await readReceiptSettings(orgId, cleanText(current.branch_id));
+  if (receiptSettings.require_date && !cleanText(effective.purchase_date)) throw badRequest("receipt_purchase_date_required", "Enter the purchase date before applying this receipt.");
+  if (receiptSettings.require_time && !cleanText(effective.purchase_time)) throw badRequest("receipt_purchase_time_required", "Enter the purchase time before applying this receipt.");
   if (cleanText(effective.currency).toUpperCase() !== "USD") throw badRequest("unsupported_receipt_currency", "Project expense tracking currently requires a USD receipt total.");
   if (cleanText(asObject(current.extraction).amount_direction).toLowerCase() === "credit") throw badRequest("receipt_credit_review_required", "Credit documents require a dedicated credit allocation workflow before they can change project expenses.");
   const expenseSummary = await projectExpenseSummary(orgId, cleanText(current.project_id));
@@ -748,7 +784,7 @@ export async function reextractReceipt(orgId: string, receiptId: string, ctx: Pl
   const remainsApplied = cleanText(current.status) === "applied" && !applicationIssue;
   const suggestions = remainsApplied || !cleanText(current.project_id)
     ? uniqueText(current.suggested_target_keys)
-    : await receiptSuggestionForProject(orgId, cleanText(current.project_id), integerCents(effective.total_cents));
+    : await suggestedTargetKeys(orgId, cleanText(current.branch_id), cleanText(current.project_id), integerCents(effective.total_cents));
   const saved = await saveReceiptRecord(orgId, {
     ...draft,
     status: remainsApplied ? "applied" : (integerCents(effective.total_cents) > 0 && !applicationIssue ? "ready" : "needs_review"),
@@ -810,7 +846,7 @@ export async function associateReceiptWithProject(
   }
   const effective = receiptEffective(current);
   const suggestions = integerCents(effective.total_cents) > 0
-    ? await receiptSuggestionForProject(orgId, projectId, integerCents(effective.total_cents))
+    ? await suggestedTargetKeys(orgId, cleanText(current.branch_id), projectId, integerCents(effective.total_cents))
     : uniqueText(current.suggested_target_keys);
   const saved = await saveReceiptRecord(orgId, {
     ...current,

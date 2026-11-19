@@ -53,10 +53,13 @@
     const clamp=(n,min,max)=>Math.max(min,Math.min(n,Math.max(min,max)));
     // Inside a dialog/editor, sit beside that surface first so the picker never
     // covers its other fields or its Save button; otherwise beside the input.
-    const surface=input.closest('[role="dialog"],dialog');
+    // `data-picker-near` keeps it on the field itself, below it first (GP-109).
+    const near=input.hasAttribute('data-picker-near');
+    const surface=near?null:input.closest('[role="dialog"],dialog');
     const around=surface&&surface.getBoundingClientRect().width<width*.7?surface.getBoundingClientRect():null;
     const beside=around?[{x:around.right+gap,y:clamp(box.top,minY,maxY)},{x:around.left-size.width-gap,y:clamp(box.top,minY,maxY)}]:[];
-    const candidates=[...beside,{x:box.right+gap,y:box.top},{x:box.left-size.width-gap,y:box.top},{x:box.left,y:box.bottom+gap},{x:box.left,y:box.top-size.height-gap}];
+    const sides=[{x:box.right+gap,y:box.top},{x:box.left-size.width-gap,y:box.top}],stacked=[{x:box.left,y:box.bottom+gap},{x:box.left,y:box.top-size.height-gap}];
+    const candidates=near?[...stacked,{x:box.right-size.width,y:box.bottom+gap},{x:box.right-size.width,y:box.top-size.height-gap},...sides]:[...beside,...sides,...stacked];
     const fitting=candidates.find(p=>p.x>=minX&&p.x<=maxX&&p.y>=minY&&p.y<=maxY);
     const overlap=p=>Math.max(0,Math.min(p.x+size.width,box.right)-Math.max(p.x,box.left))*Math.max(0,Math.min(p.y+size.height,box.bottom)-Math.max(p.y,box.top));
     const placed=fitting||candidates.map(p=>({x:clamp(p.x,minX,maxX),y:clamp(p.y,minY,maxY)})).sort((a,b)=>overlap(a)-overlap(b))[0];

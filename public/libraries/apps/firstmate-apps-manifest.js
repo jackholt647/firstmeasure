@@ -143,7 +143,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'receipts',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'), versionedBundle('receipts/app.js', '20261119-gp109')]
     },
     {
       // DEPRECATED (2026-08): legacy proposals surface — hidden by its bundle
@@ -296,7 +296,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261119-gp69'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261119-gp108')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261119-gp69'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'), versionedBundle('receipts/app.js', '20261119-gp109'), versionedBundle('money/project.js', '20261119-gp109')]
     },
     {
       id: 'project.request',
