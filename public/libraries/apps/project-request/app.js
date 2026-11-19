@@ -253,6 +253,8 @@ window.PlatformCommerce.onReady(async function(){
   // A new project started from a schedule item's "Create a new project"
   // button: { eventId, sent } until the window closes (GP-111).
   let scheduleEventLink = null;
+  // The project's name as the window's header shows it ('' before it has one).
+  let projectShownTitle = '';
   let reportOrderState = null;
   let requestedWorkflow = 'project';
   let developmentReportSample = null;
@@ -9533,6 +9535,7 @@ window.PlatformCommerce.onReady(async function(){
       mobileDisplayTitle = savedTitle || (globalThis.PlatformLanguage?.text("project-request","m_4de8a87782a9e4","Loading project…") ?? "Loading project…");
     }
     if (mobileTitle) mobileTitle.textContent = mobileDisplayTitle;
+    projectShownTitle = savedTitle || customerName || address ? mobileDisplayTitle : '';
     const windowTitle = document.getElementById('rWindowProjectTitle');
     if (windowTitle) {
       const identityHtml=projectHeaderIdentityHtml(mobileDisplayTitle,customerName,address);
@@ -9545,13 +9548,20 @@ window.PlatformCommerce.onReady(async function(){
 
   // Tells the schedule item a new project was started from that the project
   // exists, so the item takes it as its project: Scheduling listens for
-  // fm:project-created on the top page (GP-111). Sent once when the project is
-  // first saved and again on close (final) if its title or address changed;
-  // discarded:true takes it back from an empty project dropped on close.
-  function reportScheduleEventProject({ discarded = false, final = false } = {}){
+  // fm:project-created on the top page (GP-111). Saves report it once edits
+  // pause (again whenever the title or address shown changed); close reports
+  // it at once (now), and discarded:true takes it back from an empty project
+  // dropped on close.
+  function reportScheduleEventProject({ discarded = false, now = false } = {}){
     const link = scheduleEventLink;
-    const projectId = discarded ? link?.projectId : projectOpenId();
-    if (!link?.eventId || !projectId || (discarded ? !link.sent : (link.sent && !final))) return;
+    if (!link?.eventId) return;
+    clearTimeout(link.timer);
+    if (!discarded && !now) {
+      link.timer = setTimeout(() => { if (scheduleEventLink === link) reportScheduleEventProject({ now:true }); }, 1500);
+      return;
+    }
+    const projectId = discarded ? link.projectId : projectOpenId();
+    if (!projectId || (discarded && !link.sent)) return;
     const project = activeBaseProject || {};
     const detail = discarded
       ? { projectId, scheduleEventId:link.eventId, source:'scheduling-event', discarded:true }
@@ -9559,7 +9569,7 @@ window.PlatformCommerce.onReady(async function(){
         projectId,
         scheduleEventId:link.eventId,
         source:'scheduling-event',
-        title:projectText(manualProjectTitle(), projectTitleAlias(project), project.customer_name, primaryContact().name, $('#rAddress')?.value, project.address),
+        title:projectText(projectShownTitle, manualProjectTitle(), projectTitleAlias(project)),
         address:projectText($('#rAddress')?.value, project.address)
       };
     const key = JSON.stringify(detail);
@@ -11943,6 +11953,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function resetNewProjectState(){
+    projectShownTitle = '';
     if (mobileTypeTransitionTimer) clearTimeout(mobileTypeTransitionTimer);
     mobileTypeTransitioning = false;
     window.Portal.ExteriorOrder?.reset();
@@ -12453,9 +12464,10 @@ window.PlatformCommerce.onReady(async function(){
     projectTodoController?.destroy?.();
     projectTodoController = null;
     projectTodoLoadedFor = '';
-    if (scheduleEventLink && !isEmptyNewProjectDraft()) reportScheduleEventProject({ final:true });
+    if (scheduleEventLink && !isEmptyNewProjectDraft()) reportScheduleEventProject({ now:true });
     const discarded = discardEmptyNewProjectDraft();
     if (discarded) reportScheduleEventProject({ discarded:true });
+    clearTimeout(scheduleEventLink?.timer);
     scheduleEventLink = null;
     disposeInstantMeasurement();
     setMobileProjectNotesOpen(false, { fromRoute:true });
