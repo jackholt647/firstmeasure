@@ -23,7 +23,7 @@ const css = `
 .gxw p{margin:0;color:#475467;line-height:1.5}
 .gxw-choice{position:relative;display:flex;align-items:flex-start;gap:12px;min-height:76px;padding:14px 42px 14px 14px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;font:inherit;text-align:left;color:#101828;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .2s,transform .15s}
 .gxw-choice:hover{border-color:#c4c9d2;transform:translateY(-1px)}
-.gxw-choice span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.gxw-choice>span:not(.gxw-icon):not(.gxw-tick){display:flex;flex-direction:column;gap:3px;min-width:0}
 .gxw-choice strong{font-size:14.5px;font-weight:700;line-height:1.25}
 .gxw-choice small{font-size:12.5px;color:#667085;line-height:1.4}
 .gxw-choice[aria-pressed=true]{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.05);box-shadow:0 0 0 1px var(--primary,#d93025)}
