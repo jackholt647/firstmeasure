@@ -415,7 +415,41 @@
     "m_650753184df105": "Stop adding this checklist to new projects",
     "m_284ec50ae04050": "No default checklists yet. Make one of this project's checklists a default below.",
     "m_3746f0e0bded17": "Make default",
-    "m_96441aab558ca5": "Every checklist on this project is already a default."
+    "m_96441aab558ca5": "Every checklist on this project is already a default.",
+    "m_a56d2946747d1a": "One of your default checklists: projects get it automatically. Edit the defaults in Checklist settings (the gear above).",
+    "m_5d1f0c6c509647": "Checklist settings",
+    "m_5be12a31e41de3": "Item",
+    "m_f51d0d563b4d76": "Move up",
+    "m_8dda6677ff0f34": "Move down",
+    "m_79a02ecd535f66": "Remove item",
+    "m_3ece8cdfdc8f9b": "Sign-off",
+    "m_ae84485ae82566": "New projects get this checklist as it is here. Projects that already have it keep their own copy.",
+    "m_ee46d9fb237b0a": "All default checklists",
+    "m_ddee911886da7c": "Stop using this default",
+    "m_7918c0153eb156": "Whoever completes this checklist signs it once every item is done.",
+    "m_4d801afb3ef0c9": "Add item",
+    "m_1f82a9db4e55ee": "See Advanced Controls",
+    "m_378fe929a360bf": "Which stages of each pipeline add these checklists, and every other automation",
+    "m_387824e7b68078": "The checklists every new project starts with",
+    "m_f022d992b0b768": "Back to checklists",
+    "m_ef39ad5e614a24": "Try again",
+    "m_4ae111c6fc7f79": "No default checklists yet.",
+    "m_33e591a7801d92": "Make one of this project's checklists a default",
+    "m_248b0ab76b63a4": "Default checklists",
+    "m_96834d2fc9c9a5": "New",
+    "m_b70354af94995d": "Start a new default checklist",
+    "m_05523fba86481f": "New default checklist",
+    "m_1103d5f7be003c": "It is a default now: new projects get it.",
+    "m_ced420c92bde61": "People rate this item Good, Okay or Needs work",
+    "m_b52a1341da2a7d": "No items yet. Add the first one below.",
+    "m_c281ea265d6247": "No access",
+    "m_2b8e4c9b866e80": "View",
+    "m_a6e985d454b190": "Pick a default checklist to edit it.",
+    "m_f331b29f9416fd": "Start a default checklist with New, or make one of this project's checklists a default.",
+    "m_980cb65630546e": {
+      "message": "Stop adding \"{v0}\" to projects? Projects that have it keep it.",
+      "format": "icu"
+    }
   },
   "comms": {
     "m_3ec5c7fbb09941": "Call from this device",
@@ -3499,7 +3533,8 @@
     "m_e0ddf988d08b23": "Pricebook Bridge",
     "m_f0cd67d228d884": "Tutorial",
     "m_4aaef822b47692": "FirstMate Assistant",
-    "m_b34fe21ea2f9e3": "Partners"
+    "m_b34fe21ea2f9e3": "Partners",
+    "m_a677e3388e9b31": "Automations Hub"
   },
   "firstmeasure": {
     "m_0747045bf3d919": "New Project",
@@ -22203,5 +22238,16 @@
     "corner_top_right": "Top right corner",
     "corner_bottom_right": "Bottom right corner",
     "corner_bottom_left": "Bottom left corner"
+  },
+  "automations-hub": {
+    "m_33c5a083d85018": "Stage checklists",
+    "m_7348ac2bb6f314": "Which default checklists a project gets, and at which stage of each pipeline.",
+    "m_d55a6b90d72ddf": "Stage automations",
+    "m_bc78e1e52a9471": "What happens when a project reaches a stage: to-dos, documents, messages and more.",
+    "m_3d2ee10c8043b7": "Every pipeline",
+    "m_dec132b00d9c95": "All of your pipelines and their stages, set up from one place.",
+    "m_a677e3388e9b31": "Automations Hub",
+    "m_9011dd5d1fb41c": "Coming soon",
+    "m_ebe9355ae447d7": "Set up everything that happens automatically as projects move through your pipelines, stage by stage. We are building it now."
   }
 }

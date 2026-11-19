@@ -378,7 +378,7 @@
       requiresContext: ['project'],
       bundles: [
         versionedBundle('../crew-api/crew-api.js', '20261111-offline-uploads'),
-        versionedBundle('checklists/app.js', '20261118-gp1-stage-defaults')
+        versionedBundle('checklists/app.js', '20261119-gp72-default-editor')
       ]
     },
     {
@@ -614,6 +614,22 @@
       fullBleed: true,
       dependencies: ['pricebook.bridge'],
       bundles: [versionedBundle('pricebook/app.js', '20261024-full-page-v1')]
+    },
+    {
+      // Automations by pipeline and stage (GP-72, a placeholder for now). In More apps and never pinned by default;
+      // without the apps menu it has no place of its own and opens from Checklist settings' "See Advanced Controls".
+      id: 'portal.automations_hub',
+      package: 'automations-hub',
+      title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_a677e3388e9b31","Automations Hub") ?? "Automations Hub"),
+      icon: 'fa-diagram-project',
+      kind: 'portal_tab',
+      surfaces: ['portal_tab'],
+      portalTabId: 'automations_hub',
+      order: 62,
+      placement: 'more',
+      placementWithoutAppsMenu: 'settings',
+      fullBleed: true,
+      bundles: [versionedBundle('automations-hub/app.js', '20261119-gp72')]
     },
     {
       id: 'portal.company_settings',
@@ -1032,6 +1048,7 @@
     'portal.payroll': 'apps.payroll',
     'portal.feedback': 'apps.feedback',
     'portal.pricebook': 'platform.pricebook',
+    'portal.automations_hub': 'apps.projects',
     'portal.crm': 'apps.crm',
     // The global communications center: shown when the comms hub is on (the
     // live-chat channel additionally gates itself inside the app).

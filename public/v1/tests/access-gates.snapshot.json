@@ -50,10 +50,10 @@
       }
     },
     "tabs": {
-      "total": 55,
+      "total": 56,
       "by_surface": {
         "contact_modal": 3,
-        "portal_tab": 31,
+        "portal_tab": 32,
         "project_modal": 21
       }
     }
@@ -2660,6 +2660,7 @@
     "contact.projects": {"surface":"contact_modal","devices":["mobile","desktop"],"default_visible":true,"capabilities":["platform.contacts"]},
     "documents.studio": {"surface":"portal_tab","devices":["desktop"],"default_visible":true,"capabilities":["documents.templates_studio"]},
     "portal.assistant": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["apps.assistant"]},
+    "portal.automations_hub": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["apps.projects"]},
     "portal.canvassing": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["canvassing.app"]},
     "portal.channels": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["apps.channels"]},
     "portal.chat": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["apps.comms"]},
