@@ -191,7 +191,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('docs/project.js', '20261119-gp19-order-measurements')]
+      bundles: [versionedBundle('docs/project.js', '20261119-gp38-document-filter-order')]
     },
     {
       id: 'project.documents',
