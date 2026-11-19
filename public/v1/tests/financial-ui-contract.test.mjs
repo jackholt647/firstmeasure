@@ -209,7 +209,11 @@ test('Take a Payment wears the Operations Setup pill while online payments are n
   assert.ok(z > 2147483200 && z < 2147483300, `payments setup z-index ${z}`);
   // Its header looks like the guided setups': a coloured tag with an icon and a round × close, not a grey pill and a "Close" button (GP-75).
   assert.match(setup, /<div class="fmp-modal-title" aria-hidden="true"><i class="fas fa-[a-z-]+" aria-hidden="true"><\/i><span>Set up payments<\/span><\/div>/);
-  assert.match(setup, /<button type="button" class="fmp-modal-close" data-close aria-label="Close payment setup"[^>]*><span class="fmp-x" aria-hidden="true">&times;<\/span><\/button>/);
+  // The × is a drawn icon in a block box, not a text glyph: a glyph sits below the button's centre (GP-103).
+  assert.match(setup, /<button type="button" class="fmp-modal-close" data-close aria-label="Close payment setup"[^>]*><svg class="fmp-x" viewBox="0 0 24 24"[^>]*aria-hidden="true"[^>]*><path d="M6 6l12 12M18 6L6 18"\/><\/svg><\/button>/);
+  assert.match(setup, /\.fmp-modal-close \.fmp-x\{display:block;width:18px;height:18px\}/);
+  assert.match(setup, /class="fmp-close"[^>]*><svg class="fmp-x"[^>]*><path d="M6 6l12 12M18 6L6 18"\/><\/svg><\/button>/);
+  assert.doesNotMatch(setup, /&times;|×<\/button>/);
   assert.match(setup, /\.fmp-modal-title\{[^}]*color:var\(--primary,#d93025\)/);
 });
 
