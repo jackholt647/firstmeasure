@@ -83,8 +83,11 @@ on joining (`member_role_ids`), and those roles bring their apps
 
 ### Offered apps
 
-Photos, Documents, Customer Portal and Materials begin as pending offers in new
-organizations (`global.data.app_offers`). The configured organization switches
+Documents, Customer Portal and Materials begin as pending offers in new
+organizations (`global.data.app_offers`). Photos does not (GP-88): where it is on
+it is on from the start, with no "New" pill and no welcome, and is the project
+window's first tab; its tour (`photos.tab_tutorial`) still plays on its first
+open. The configured organization switches
 are still the ceiling: an off or commercially unavailable app is not advertised.
 Existing organizations without this field retain their current active apps.
 Any app with an organization switch can be offered (FM-468): its offer holds back the app's own switches (registry
@@ -104,7 +107,8 @@ Checklists (`project.checklists`) can also be offered,
 but no new organization starts with them (`NEW_ORGANIZATION_APP_OFFERS`). A
 signup sandbox configuration names its own offers as data
 (`settings.app_offers`, written after the demo content is seeded); the MVP
-platform offers both. Marking an app offered (or on) in the sandbox Apps tab
+platform offers both, so Financials shows its welcome rather than going
+straight into its tour (GP-88). Marking an app offered (or on) in the sandbox Apps tab
 when it was off also turns on the features under its switches that are on by
 default (`capability_defaults`), since a base such as `expanded_access_off`
 turns them all off (FM-470: CRM started with its views off); a feature

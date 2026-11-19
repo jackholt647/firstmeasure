@@ -731,6 +731,13 @@ tab's own tour (Photos on a new project) waits under the tray and plays after th
 phone a tour card sits along the top when its target is in the lower half of the screen,
 so it never covers the bottom buttons it points at.
 
+On a desktop the tray is the window's left column, not a sheet, and has its own tour (GP-88):
+`project.column_tutorial` (`panel_opened`, `covering: false`) plays the first time the column opens: the
+column, the customer, the address, measurements, the project's name that hides and shows the column, the tabs and
+the trays at the top right. The window announces its first tab a moment before the column, so a tab's tour waits
+(at most 1.5 s, `WINDOW_TOUR_WAIT_MS`) while such a tour is still to play, then queues behind it: on a new project
+the column tour plays first and hands off to the Photos tour.
+
 ## Schedule: the delivery tour
 
 `project_schedule.delivery_tutorial` (overlay, person, replayable, phone only) shows how a

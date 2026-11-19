@@ -26,7 +26,9 @@
  * `app_loaded` plays once when the portal loads, for announcements; `workflow_opened` plays when a document workflow
  * opens for a kind of document (`document_type`); `panel_opened` and `panel_closed` play when a project window panel
  * that is not a tab (the details tray, `project.details`) opens or the person closes it. While such a panel covers the
- * page (the tray on a phone) a tab's tour waits, and plays when it closes. A tab's tour closed before it was used
+ * page (the tray on a phone) a tab's tour waits, and plays when it closes. Where the panel is a column beside the tab
+ * (the tray on a desktop), a tour of it still to play (`covering: false`) goes first and the tab's tour follows it
+ * (GP-88). A tab's tour closed before it was used
  * counts as dismissed only once the person then does something on the tab; left without that, it plays again on the
  * next visit (holdSkip, GP-36). What
  * someone has seen is kept on the server (progress), never in this page. The overlay and every popover are left out
@@ -118,7 +120,7 @@
 
   // ── State ──────────────────────────────────────────────────────────────
   // `visit`: the project tab this frame shows now (see onTabOpened); `current`: the experience playing in this frame.
-  const state = { reveals: null, experiences: new Map(), faqs: new Map(), loaded: '', loading: null, playing: null, bypass: new WeakSet(), tabTimers: new Set(),
+  const state = { reveals: null, experiences: new Map(), faqs: new Map(), loaded: '', loading: null, playing: null, bypass: new WeakSet(), tabTimers: new Set(), windowTourHold: null,
     visit: { key: '', tab: '', projectId: '', generation: 0, armed: false, isActive: null }, current: null, skipped: null };
   const kinds = new Map();
 
@@ -540,7 +542,8 @@
       if (state.skipped?.id === experience.id && state.skipped.key === state.visit.key) continue;
       if (experience.kind === 'overlay' && kinds.has('overlay')) {
         if (!startsHere(experience, bound)) return false;
-        play(experience.id, { bound, instant: true });
+        if (windowTourAhead(snapshot)) holdForWindowTour(experience.id, bound);
+        else play(experience.id, { bound, instant: true });
         return true;
       }
       const timer = setTimeout(() => { state.tabTimers.delete(timer); if (onItsTab(experience, bound)) play(experience.id, { bound, trigger }); }, bound.activated ? 0 : Number(trigger.delay_ms || 700));
@@ -548,6 +551,37 @@
       break;
     }
     return false;
+  }
+  /**
+   * A tour of the window's column (the details tray beside the tab on a desktop: a `panel_opened` trigger with
+   * `covering: false`) still to play goes before the tab's tour (GP-88): the window opens with its first tab, then the
+   * column, so the tab's tour waits for the panel's announcement and queues behind the panel's tour. It waits at most
+   * WINDOW_TOUR_WAIT_MS, so a window whose column never opens still plays the tab's tour. A panel tour already playing
+   * or queued needs no wait: the tab's tour queues behind it.
+   */
+  const WINDOW_TOUR_WAIT_MS = 1500;
+  function windowTourAhead(snapshot){
+    let ahead = false;
+    for (const experience of snapshot.experiences.values()) {
+      if (experience.progress && experience.progress.status !== 'started') continue;
+      if (!array(experience.triggers).some((entry) => entry.kind === 'panel_opened' && entry.covering === false)) continue;
+      if (shared.active?.id === experience.id || shared.queue.some((entry) => entry.id === experience.id)) return false;
+      ahead = true;
+    }
+    return ahead;
+  }
+  function holdForWindowTour(id, bound){
+    const hold = {};
+    hold.release = () => {
+      if (state.windowTourHold !== hold) return;
+      state.windowTourHold = null;
+      clearTimeout(hold.timer);
+      state.tabTimers.delete(hold.timer);
+      play(id, { bound, instant: true });
+    };
+    hold.timer = setTimeout(hold.release, WINDOW_TOUR_WAIT_MS);
+    state.tabTimers.add(hold.timer);
+    state.windowTourHold = hold;
   }
   /**
    * Ends this frame's visit: pending triggers are cancelled, queued tab plays dropped and a tab's tour ends quietly.
@@ -561,6 +595,7 @@
     state.visit = { key: '', tab: '', projectId: '', generation: state.visit.generation + 1, armed: false, isActive: null };
     state.tabTimers.forEach((timer) => clearTimeout(timer));
     state.tabTimers.clear();
+    state.windowTourHold = null;
     for (let i = shared.queue.length - 1; i >= 0; i--) {
       const entry = shared.queue[i];
       if (entry.frame === root && entry.bound) { shared.queue.splice(i, 1); try { entry.drop?.(); } catch (_) {} }
@@ -648,8 +683,10 @@
       }
       return false;
     };
-    if (state.loaded) return start();
-    refresh().then((loaded) => { if (loaded) start(); });
+    // A tab's tour held for this panel's tour (holdForWindowTour) is asked for once the panel's is: it queues behind it.
+    const go = () => { const started = start(); if (kind === 'panel_opened') state.windowTourHold?.release(); return started; };
+    if (state.loaded) return go();
+    refresh().then((loaded) => { if (loaded) go(); else if (kind === 'panel_opened') state.windowTourHold?.release(); });
     return false;
   }
   root.addEventListener?.('fm:project-panel:opened', (event) => {

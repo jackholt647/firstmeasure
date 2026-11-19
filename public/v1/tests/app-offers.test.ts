@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isOfferableApp, maskOfferedCapabilities, offerSiblings, offerSwitches, offeredAppIds } from "../platform/app-experience/offers.js";
+import { NEW_ORGANIZATION_APP_OFFERS, isOfferableApp, maskOfferedCapabilities, offerSiblings, offerSwitches, offeredAppIds } from "../platform/app-experience/offers.js";
 import { appDefinitions } from "../platform/app-experience/registry.js";
 import { resolveCapabilities } from "../platform/capabilities.js";
 import "../platform/capability_defs.js";
@@ -61,6 +61,11 @@ test("only known offers are accepted and duplicate values are removed", () => {
   assert.deepEqual(offeredAppIds(["project.docs", "project.docs", "platform.expanded_access", null]), ["project.docs"]);
   assert.deepEqual(maskOfferedCapabilities({ "platform.expanded_access": true }, ["platform.expanded_access"]),
     { "platform.expanded_access": true });
+});
+
+test("Photos is never a new organization's offer: where it is on it is on, the window's first tab (GP-88)", () => {
+  assert.equal(NEW_ORGANIZATION_APP_OFFERS.includes("project.photos"), false);
+  assert.deepEqual(offeredAppIds(NEW_ORGANIZATION_APP_OFFERS), NEW_ORGANIZATION_APP_OFFERS, "every default offer can be offered");
 });
 
 test("every app with an organization switch can be offered, with a placeholder welcome until it has its own", () => {

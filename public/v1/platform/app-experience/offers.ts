@@ -44,8 +44,12 @@ export function offerableAppIds(): OfferedAppId[] {
   return [...new Set([...Object.keys(APP_OFFERS), ...appDefinitions().map(app => app.id)])].filter(isOfferableApp);
 }
 
-/** What every new organization starts with. A signup sandbox configuration may name its own list (settings.app_offers). */
-export const NEW_ORGANIZATION_APP_OFFERS: OfferedAppId[] = ["project.photos", "project.docs", "project.customer_portal", "project.materials", "portal.equipment"];
+/**
+ * What every new organization starts with. A signup sandbox configuration may name its own list (settings.app_offers).
+ * Photos is not offered: where it is on it is simply on, the project window's first tab, with its tour and no welcome
+ * (GP-88).
+ */
+export const NEW_ORGANIZATION_APP_OFFERS: OfferedAppId[] = ["project.docs", "project.customer_portal", "project.materials", "portal.equipment"];
 
 /** Offers that start together with this one: the same switches are the same app. */
 export function offerSiblings(id: OfferedAppId): OfferedAppId[] {

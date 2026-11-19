@@ -830,7 +830,7 @@ test('a workflow_opened trigger plays the proposal tutorial once the proposal wo
 // covers the page a tab's tour waits; the tray's own tour plays over it, and when the person closes it the window tour
 // (tabs and bottom buttons) plays first, then the tab's tour. A tab tour already playing when the tray covers the page
 // ends quietly and plays again once it closes.
-async function panelPage(browser){
+async function panelPage(browser, before = null){
   const page = await browser.newPage({ viewport: { width: 390, height: 800 } });
   const errors = []; page.on('pageerror', (error) => errors.push(error.message));
   await page.route('https://gx.test/**', async (route) => {
@@ -866,6 +866,7 @@ async function panelPage(browser){
     document.getElementById('close').addEventListener('click', () => setTray(false, true));
     window.openTab = () => dispatchEvent(new CustomEvent('fm:project-tab:opened', { detail: { appId: 'project.photos', isActive: () => true } }));
   });
+  if (before) await page.evaluate(before);
   await page.addScriptTag({ url: 'https://gx.test/libraries/guided-experiences/guided-experiences.js' });
   return { page, errors };
 }
@@ -902,6 +903,47 @@ test('a covering panel holds the tab tour; its own tour plays over it, then clos
     await page.evaluate(() => { setTray(true, true); setTray(false, true); });
     await page.waitForTimeout(600);
     assert.equal(await page.locator('.gx-pop').count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+// GP-88: on a desktop the details tray is a column beside the tab, announced just after the window's first tab. Its tour
+// (`covering: false`) goes first and the tab's tour follows it, rather than the tab's tour starting at once.
+test('a column panel tour still to play goes before the tab tour announced just ahead of it', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await panelPage(browser, () => {
+      tours[0].triggers = [{ kind: 'panel_opened', panel: 'project.details', covering: false, once: true }];
+      tours[0].steps[1].advance = 'next';
+      const panel = document.getElementById('panel');
+      window.openColumn = () => { panel.hidden = false; dispatchEvent(new CustomEvent('fm:project-panel:opened', { detail: { panel: 'project.details', covers: false, user: false, isOpen: () => true, covering: () => false, element: panel } })); };
+    });
+    await page.evaluate(() => FirstMateGuides.preload('p1'));
+    // As project-request/app.js on a desktop: the tab is announced, then the tray a moment later.
+    await page.evaluate(() => { openTab(); setTimeout(openColumn, 60); });
+    await tourStep(page, 'Your details');
+    assert.equal(await page.locator('.gx-pop h3', { hasText: 'Photos here' }).count(), 0, 'the tab tour waits');
+    await page.locator('.gx-pop [data-gx=next]').click();
+    await tourStep(page, 'Close the tray');
+    await page.locator('.gx-pop [data-gx=next]').click();
+    await tourStep(page, 'Photos here');
+    await page.locator('.gx-pop [data-gx=next]').click();
+    await page.waitForFunction(() => events.includes('photos.tab_tutorial:complete'));
+    const starts = await page.evaluate(() => events.filter((entry) => entry.endsWith(':start')));
+    assert.deepEqual(starts, ['project.details_tutorial:start', 'photos.tab_tutorial:start']);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('a tab tour waiting for a column panel that never opens still plays', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await panelPage(browser, () => { tours[0].triggers = [{ kind: 'panel_opened', panel: 'project.details', covering: false, once: true }]; });
+    await page.evaluate(() => FirstMateGuides.preload('p1'));
+    await page.evaluate(() => openTab());
+    await tourStep(page, 'Photos here');
+    const starts = await page.evaluate(() => events.filter((entry) => entry.endsWith(':start')));
+    assert.deepEqual(starts, ['photos.tab_tutorial:start']);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
