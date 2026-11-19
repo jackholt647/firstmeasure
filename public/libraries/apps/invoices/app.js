@@ -49,33 +49,46 @@
 
   function injectStyles(){
     injectCSS('invoices-tab-css', `
-      .inv-shell{box-sizing:border-box;height:100%;min-height:0;display:flex;flex-direction:column;background:#f8fafc}
+      .inv-shell{box-sizing:border-box;height:100%;min-height:0;display:flex;flex-direction:column;background:transparent;color:#101828}
       .inv-shell *{box-sizing:border-box}
-      .inv-top{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 22px 0}
-      .inv-heading{display:flex;align-items:center;gap:13px}
-      .inv-heading-icon{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:var(--primary,#d93025);color:#fff;font-size:18px}
-      .inv-heading h1{margin:0;font-size:21px}
-      .inv-heading p{margin:3px 0 0;color:#667085;font-size:12px;font-weight:700}
+      .inv-top{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 22px 0}
+      .inv-heading{display:flex;align-items:center;gap:11px;min-width:0}
+      .inv-heading>i{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;background:var(--primary,#d93025);color:#fff}
+      .inv-heading h1{margin:0;font-size:26px;line-height:36px;font-weight:1000;letter-spacing:-.3px}
+      .inv-mobile-title{display:none}
+      .inv-actions{display:flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+      /* GP-60: the view switch is My Projects' (.v-view-switch): one bordered group, the chosen view tinted in the primary colour. */
+      .inv-switch{flex-shrink:0;display:flex;border:1px solid #d0d5dd;border-radius:10px;overflow:hidden;background:#fff}
+      .inv-switch button{height:36px;border:0;border-radius:0;background:#fff;color:#667085;padding:0 12px;font:inherit;font-size:12px;font-weight:900;white-space:nowrap;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:background .16s ease,color .16s ease}
+      .inv-switch button+button{border-left:1px solid #eaecf0}
+      .inv-switch button:hover{background:#f8fafc;color:var(--primary-readable,var(--primary,#d93025))}
+      .inv-switch button.active{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
+      .inv-count{min-width:18px;padding:1px 6px;border-radius:999px;background:#eef2f6;color:#344054;font-size:10px;font-weight:1000;line-height:16px;text-align:center}
+      .inv-switch button.active .inv-count{background:rgba(var(--primary-rgb,217,48,37),.14);color:var(--primary-readable,var(--primary,#d93025))}
+      .inv-new{height:38px;padding:0 13px;border-radius:10px}
+      .inv-setup{flex:0 0 auto;display:flex;align-items:center;gap:12px;margin:14px 22px 0;padding:10px 12px 10px 14px;border:1px solid #f2ca72;border-radius:12px;background:#fffaeb;color:#794c00}
+      .inv-setup>i{flex:0 0 auto;font-size:15px}
+      .inv-setup span{flex:1;min-width:0;font-size:12.5px;font-weight:700;line-height:1.4}
+      .inv-setup span strong{display:block;color:#101828;font-size:13px;font-weight:900}
+      .inv-setup span small{display:block;font-size:inherit}
+      .inv-setup .inv-btn{flex:0 0 auto}
+      .inv-modal .inv-setup{margin:0}
       .inv-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:7px 13px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;color:#344054;font-size:12px;font-weight:900;cursor:pointer}
       .inv-btn:disabled{opacity:.55;cursor:default}
       .inv-btn.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff}
       .inv-btn.subtle{border-color:transparent;background:transparent}
-      .inv-cards{flex:0 0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;padding:16px 22px 0}
+      .inv-cards{flex:0 0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;padding:14px 22px 0}
       .inv-card{border:1px solid #e4e7ec;border-radius:13px;background:#fff;padding:13px 15px}
       .inv-card span{display:block;color:#667085;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.06em}
       .inv-card strong{display:block;margin-top:6px;font-size:21px}
       .inv-card em{display:block;margin-top:3px;color:#667085;font-size:11px;font-style:normal;font-weight:800}
       .inv-card.alert strong{color:#b42318}
       .inv-card.hold strong{color:#93370d}
-      .inv-tabs-row{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:16px 22px 0}
-      .inv-tabs{display:inline-flex;border:1px solid #e4e7ec;border-radius:11px;background:#fff;padding:4px;gap:4px}
-      .inv-tabs button{border:0;border-radius:8px;background:transparent;color:#475467;padding:8px 14px;font-size:12px;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
-      .inv-tabs button.active{background:#101828;color:#fff}
-      .inv-tabs .inv-count{min-width:20px;padding:2px 6px;border-radius:999px;background:#eef2f6;color:#344054;font-size:10px;font-weight:1000}
-      .inv-tabs button.active .inv-count{background:rgba(255,255,255,.2);color:#fff}
+      .inv-filters-row{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:14px 22px 0}
       .inv-filters{display:inline-flex;gap:6px;flex-wrap:wrap}
       .inv-chip{border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#475467;padding:6px 12px;font-size:11px;font-weight:900;cursor:pointer}
-      .inv-chip.active{border-color:#101828;background:#101828;color:#fff}
+      .inv-chip:hover{border-color:rgba(var(--primary-rgb,217,48,37),.35);color:var(--primary-readable,var(--primary,#d93025))}
+      .inv-chip.active{border-color:rgba(var(--primary-rgb,217,48,37),.35);background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
       .inv-body{flex:1;min-height:0;overflow:auto;padding:14px 22px 24px}
       .inv-table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid #e4e7ec;border-radius:13px;overflow:hidden}
       .inv-table th{position:sticky;top:0;background:#f9fafb;color:#475467;text-align:left;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;padding:11px 12px;border-bottom:1px solid #e4e7ec}
@@ -134,7 +147,72 @@
       .inv-detail-actions{display:flex;flex-wrap:wrap;gap:8px}
       .inv-hold-note{border:1px solid #fedf89;background:#fffaeb;color:#93370d;border-radius:11px;padding:10px 12px;font-size:12px;font-weight:800;display:flex;gap:9px;align-items:flex-start}
       .inv-state{flex:1;display:flex;align-items:center;justify-content:center;color:#667085;font-weight:800;gap:10px}
-      @media(max-width:760px){.inv-table th:nth-child(3),.inv-table td:nth-child(3),.inv-table th:nth-child(4),.inv-table td:nth-child(4){display:none}.inv-top,.inv-cards,.inv-tabs-row{padding-left:14px;padding-right:14px}.inv-body{padding:12px 14px 20px}}
+      /* GP-60 phone: the portal's mobile top bar already carries the app's title and icon, so the content starts with
+         one compact control row (what is shown, the view switch as icons, New invoice), the summary is one row that
+         scrolls sideways, and each invoice is a card. */
+      @media(max-width:820px){
+        .inv-top{gap:8px;padding:12px 12px 0}
+        .inv-heading{display:none}
+        .inv-mobile-title{display:block;min-width:0;margin-right:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#667085;font-size:13px;font-weight:800}
+        .inv-actions{flex-wrap:nowrap;gap:6px;margin-left:0}
+        .inv-switch{border-radius:11px}
+        .inv-switch button{position:relative;width:42px;height:38px;padding:0;justify-content:center;font-size:14px}
+        .inv-switch .btn-label{display:none}
+        .inv-switch .inv-count{position:absolute;top:3px;right:2px;min-width:15px;padding:0 4px;font-size:9px;line-height:14px}
+        .inv-switch .inv-count[data-zero]{display:none}
+        .inv-new{width:40px;height:40px;padding:0;border-radius:12px;font-size:15px}
+        .inv-new .btn-label{display:none}
+        .inv-setup{margin:10px 12px 0;padding:9px 10px 9px 12px;gap:10px}
+        .inv-setup span small{display:none}
+        .inv-setup span strong{font-size:12.5px;line-height:1.3}
+        .inv-setup .inv-btn{min-height:34px;padding:6px 11px}
+        .inv-cards{display:flex;gap:8px;padding:10px 12px 2px;overflow-x:auto;scroll-snap-type:x proximity;scroll-padding-inline:12px;scrollbar-width:none}
+        .inv-cards::-webkit-scrollbar{display:none}
+        .inv-card{flex:0 0 auto;min-width:118px;max-width:62%;padding:9px 11px;border-radius:12px;scroll-snap-align:start}
+        .inv-card span{font-size:9.5px;letter-spacing:.04em;white-space:nowrap}
+        .inv-card strong{margin-top:3px;font-size:17px;white-space:nowrap}
+        .inv-card em{font-size:10.5px;white-space:nowrap}
+        .inv-filters-row{padding:10px 12px 0}
+        .inv-filters{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -12px;padding:0 12px}
+        .inv-filters::-webkit-scrollbar{display:none}
+        .inv-chip{flex:0 0 auto;white-space:nowrap}
+        .inv-body{padding:10px 12px 20px}
+        .inv-table,.inv-table tbody{display:block;border:0;background:transparent;border-radius:0;overflow:visible}
+        .inv-table thead{display:none}
+        .inv-table tr[data-invoice]{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;margin-bottom:8px;padding:11px 12px;border:1px solid #e4e7ec;border-radius:12px;background:#fff}
+        .inv-table tr[data-invoice]:hover td{background:transparent}
+        .inv-table td{display:block;padding:0;border:0;min-width:0}
+        .inv-table td:nth-child(1){grid-column:1;grid-row:1}
+        .inv-table td:nth-child(6){grid-column:2;grid-row:1;justify-self:end}
+        .inv-table td:nth-child(2){grid-column:1 / -1;grid-row:2}
+        .inv-table td:nth-child(5){grid-column:1;grid-row:3;align-self:end;color:#667085;font-size:11.5px;font-weight:700}
+        .inv-table td:nth-child(8){grid-column:2;grid-row:3;align-self:end;font-size:14px}
+        .inv-table td:is(:nth-child(3),:nth-child(4),:nth-child(7)){display:none}
+        .inv-table td:nth-child(5)::before{content:attr(data-label) ' '}
+        .inv-proj span{overflow-wrap:anywhere}
+        .inv-group-head{padding:12px}
+        .inv-group-head aside{width:100%;gap:12px}
+        .inv-group-head aside .inv-btn{margin-left:auto}
+        .inv-obl{flex-wrap:wrap;padding:10px 12px;row-gap:4px}
+        .inv-obl label{flex:1 1 100%}
+        .inv-obl .inv-obl-due{padding-left:25px}
+        .inv-shade{align-items:flex-end;padding:0}
+        .inv-modal{width:100%;max-height:calc(var(--fm-visual-vh,100vh) - 28px);border-radius:18px 18px 0 0;padding-bottom:env(safe-area-inset-bottom,0px);animation:invTrayUp .28s cubic-bezier(.2,.8,.2,1)}
+        .inv-detail-grid{grid-template-columns:1fr 1fr}
+      }
+      @keyframes invTrayUp{from{transform:translateY(100%)}to{transform:none}}
+      @media(prefers-reduced-motion:reduce){.inv-modal{animation:none}}
+      .inv-pick-search{width:100%;border:1px solid #d0d5dd;border-radius:10px;padding:10px 12px;font:inherit;font-size:14px}
+      .inv-pick-list{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;max-height:min(52vh,420px);overflow:auto;margin:0 -2px;padding:0 2px}
+      .inv-pick-list h3{margin:6px 0 0;color:#667085;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.06em}
+      .inv-pick{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:9px 12px;border:1px solid #e4e7ec;border-radius:11px;background:#fff;color:#101828;font:inherit;font-size:13px;text-align:left;cursor:pointer}
+      .inv-pick .inv-proj strong{font-weight:800}
+      .inv-pick:hover,.inv-pick:focus-visible{border-color:rgba(var(--primary-rgb,217,48,37),.35);background:#f8fafc;outline:none}
+      .inv-pick .inv-proj{flex:1;min-width:0}
+      .inv-pick .inv-proj strong,.inv-pick .inv-proj span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .inv-pick em{flex:0 0 auto;color:#067647;font-size:12px;font-style:normal;font-weight:900}
+      .inv-pick>i{flex:0 0 auto;color:#98a2b3;font-size:12px}
+      .inv-pick-note{margin:0;color:#667085;font-size:12px;font-weight:700;text-align:center;padding:14px 0}
     `);
   }
 
@@ -158,6 +236,8 @@
       loadToken:0,
       loadedAt:0,
       active:false,
+      paymentsReadiness:null,
+      projects:null,
       openInvoiceId:clean(route.tab) === 'invoices' ? clean(route.invoice) : ''
     };
     let shade = null;
@@ -186,6 +266,7 @@
         state.settings = object(listResult?.settings);
         state.uninvoiced = array(uninvoicedResult?.projects);
         state.loadedAt = Date.now();
+        void loadPaymentsReadiness();
       } catch (error) {
         if (state.destroyed || token !== state.loadToken) return;
         state.error = error;
@@ -202,6 +283,117 @@
     }
     function readyProjects(){
       return state.uninvoiced.filter((group) => (Number(group.ready_cents) || 0) > 0).length;
+    }
+
+    /* ---------- payments setup + new invoice (GP-60) ---------- */
+
+    const hasPerm = (permission) => Portal.util?.hasPerm?.(permission) === true;
+    function canCreateInvoices(){ return hasPerm('manage_projects'); }
+    function canSetUpPayments(){ return hasPerm('manage_company_settings'); }
+
+    // Online payments are not set up yet (off, no merchant account, or the application not approved), by the
+    // server's readiness answer: the same reasons the Finance tab's Setup pill uses. Paused processing or a provider
+    // outage is not setup, and an unknown answer is not "not set up".
+    function paymentsSetupPending(){
+      const readiness = state.paymentsReadiness;
+      return !!readiness && readiness.ready !== true && ['online_processing_off', 'no_merchant_account', 'not_approved'].includes(clean(readiness.reason));
+    }
+    async function loadPaymentsReadiness(){
+      if (!canSetUpPayments() || !api()?.intake?.readiness) return;
+      const before = paymentsSetupPending();
+      try {
+        const result = await api().intake.readiness(state.orgId);
+        if (state.destroyed) return;
+        state.paymentsReadiness = result?.readiness && typeof result.readiness.ready === 'boolean' ? result.readiness : null;
+      } catch (_) {
+        return;
+      }
+      if (paymentsSetupPending() !== before && !state.loading) render();
+    }
+    // Only opens the payment setup (Portal.appSetup / payments-setup.js); nothing is charged from here.
+    function startPaymentsSetup(){
+      closeModal();
+      const setup = Portal.appSetup?.has?.('platform.money')
+        ? Portal.appSetup.run('platform.money')
+        : window.FirstMatePaymentsSetup?.open?.({ orgId:state.orgId });
+      if (!setup) {
+        Portal.navigation?.navigate?.(
+          { tab:'company_settings', sub:'money', settingsView:'payments', settingsEntity:'' },
+          { source:'invoices-payment-setup', ownedKeys:['tab', 'sub', 'settingsView', 'settingsEntity'] }
+        );
+        return;
+      }
+      Promise.resolve(setup).finally(() => { void loadPaymentsReadiness(); });
+    }
+    function paymentsSetupHtml(){
+      if (!canSetUpPayments() || !paymentsSetupPending()) return '';
+      return `<div class="inv-setup" role="status" data-inv-setup-note><i class="fas fa-credit-card" aria-hidden="true"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("invoices","m_de6ee4c6322778","Let customers pay invoices online") ?? "Let customers pay invoices online")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("invoices","m_9970407359bd63","Set up payments so every invoice you send has a Pay button for card or bank.") ?? "Set up payments so every invoice you send has a Pay button for card or bank.")}</small></span><button type="button" class="inv-btn primary" data-inv-setup>${(globalThis.PlatformLanguage?.htmlText("invoices","m_95c81d9a92d972","Set up payments") ?? "Set up payments")}</button></div>`;
+    }
+
+    // New invoice: pick the project, then the project's Finance tab opens its own Generate invoice dialog
+    // (moneyView=new_invoice), so there is one invoice editor.
+    function projectRow(document){
+      const data = object(document?.data);
+      const id = clean(data.platform_project_id, data.base_project_id, data.id, document?.id);
+      if (!id) return null;
+      const contacts = array(data.contacts);
+      const contact = object(contacts.find((entry) => object(entry).primary === true) || contacts[0]);
+      return {
+        id,
+        title:clean(data.title, data.project_title, data.project_name, data.name, data.address, 'Project'),
+        address:clean(data.address),
+        customer:clean(object(data.customer).name, contact.name),
+        updated:Date.parse(clean(data.updated_at, document?.updated_at, data.created_at)) || 0
+      };
+    }
+    async function loadProjects(){
+      if (state.projects) return state.projects;
+      const result = await window.PlatformAPI?.projects?.list?.(state.orgId);
+      const seen = new Set();
+      state.projects = array(result?.documents).map(projectRow).filter((row) => row && !seen.has(row.id) && seen.add(row.id))
+        .sort((a, b) => b.updated - a.updated);
+      return state.projects;
+    }
+    function openInvoiceForProject(projectId){
+      closeModal();
+      Portal.navigation?.navigate?.({ project:clean(projectId), projectTab:'money', moneyView:'new_invoice' }, { source:'invoices-tab-new-invoice', ownedKeys:['project', 'projectTab', 'moneyView'] });
+    }
+    function openNewInvoice(){
+      if (!canCreateInvoices()) return;
+      const ready = state.uninvoiced.filter((group) => (Number(group.ready_cents) || 0) > 0);
+      const modal = openModal((globalThis.PlatformLanguage?.text("invoices","m_037eec2bba8822","New invoice") ?? "New invoice"), `
+        ${String(paymentsSetupHtml())}
+        <input type="search" class="inv-pick-search" data-inv-pick-search placeholder="${(globalThis.PlatformLanguage?.htmlText("invoices","m_bb1cabbe06f3b9","Search projects, addresses or customers") ?? "Search projects, addresses or customers")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("invoices","m_a7a980ff5c5a8f","Find a project") ?? "Find a project")}" autocomplete="off">
+        <div class="inv-pick-list" data-inv-pick-list><p class="inv-pick-note"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_8a6e4a83bbdc2b"," Loading projects…") ?? " Loading projects…")}</p></div>
+      `, '');
+      const list = modal.querySelector('[data-inv-pick-list]');
+      const search = modal.querySelector('[data-inv-pick-search]');
+      const row = (item, amount = '') => {
+        const detail = [item.customer, item.address !== item.title ? item.address : ''].filter(Boolean).join(' · ');
+        return `<button type="button" class="inv-pick" data-inv-pick="${esc(item.id)}"><span class="inv-proj"><strong>${esc(item.title)}</strong>${detail ? `<span>${esc(detail)}</span>` : ''}</span>${amount ? `<em>${esc(amount)}</em>` : ''}<i class="fas fa-chevron-right" aria-hidden="true"></i></button>`;
+      };
+      const draw = () => {
+        const query = clean(search.value).toLowerCase();
+        const matches = (item) => !query || [item.title, item.address, item.customer].some((text) => clean(text).toLowerCase().includes(query));
+        const readyRows = ready.map((group) => ({ id:clean(group.project_id), title:clean(group.project_title, 'Project'), address:clean(group.project_address), customer:clean(object(group.customer).name), ready:Number(group.ready_cents) || 0 })).filter(matches);
+        const readyIds = new Set(readyRows.map((item) => item.id));
+        const others = (state.projects || []).filter((item) => !readyIds.has(item.id) && matches(item)).slice(0, 60);
+        const parts = [];
+        if (readyRows.length) parts.push(`<h3>${(globalThis.PlatformLanguage?.htmlText("invoices","m_54cfffd37995ce","Ready to bill") ?? "Ready to bill")}</h3>${readyRows.map((item) => row(item, money(item.ready))).join('')}`);
+        if (others.length) parts.push(`${readyRows.length ? `<h3>${(globalThis.PlatformLanguage?.htmlText("invoices","m_cb65e06a640330","All projects") ?? "All projects")}</h3>` : ''}${others.map((item) => row(item)).join('')}`);
+        if (!parts.length && state.projects) parts.push(`<p class="inv-pick-note">${(globalThis.PlatformLanguage?.htmlText("invoices","m_0e31fa9fe147f8","No matching projects.") ?? "No matching projects.")}</p>`);
+        if (parts.length) list.innerHTML = parts.join('');
+        list.querySelectorAll('[data-inv-pick]').forEach((button) => button.addEventListener('click', () => openInvoiceForProject(button.dataset.invPick)));
+      };
+      search.addEventListener('input', draw);
+      modal.querySelector('[data-inv-setup]')?.addEventListener('click', () => startPaymentsSetup());
+      if (ready.length) draw();
+      loadProjects().then(() => { if (shade === modal) draw(); }, (error) => {
+        if (shade !== modal) return;
+        state.projects = null;
+        if (!ready.length) list.innerHTML = `<p class="inv-pick-note">${esc(error?.message || 'Projects could not load.')}</p>`;
+      });
+      if (!window.matchMedia?.('(pointer: coarse)')?.matches) search.focus();
     }
 
     /* ---------- header + summary ---------- */
@@ -261,7 +453,7 @@
             <td class="inv-proj"><strong>${esc(clean(project.title, 'Project'))}</strong><span>${esc(clean(project.address))}</span></td>
             <td>${esc(clean(customer.name, '—'))}</td>
             <td>${esc(shortDate(invoice.issue_date))}</td>
-            <td>${esc(shortDate(invoice.due_date))}${late > 0 ? `<span class="inv-late">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("invoices","m_3102505341c544",`${v0} day${v1} late`,{v0,v1}) ?? `${v0} day${v1} late`)(late,late === 1 ? '' : 's')}</span>` : ''}</td>
+            <td data-label="${(globalThis.PlatformLanguage?.htmlText("invoices","m_3dac4d5769efeb","Due") ?? "Due")}">${esc(shortDate(invoice.due_date))}${late > 0 ? `<span class="inv-late">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("invoices","m_3102505341c544",`${v0} day${v1} late`,{v0,v1}) ?? `${v0} day${v1} late`)(late,late === 1 ? '' : 's')}</span>` : ''}</td>
             <td><span class="inv-pill ${esc(status)}">${esc(statusLabel(status))}</span></td>
             <td class="num">${esc(money(invoice.total_cents))}</td>
             <td class="num"><strong>${esc(money(invoice.balance_due_cents))}</strong></td>
@@ -520,7 +712,7 @@
         const action = button.dataset.invAction;
         if (action === 'project') {
           closeModal();
-          Portal.navigation?.push?.({ project:clean(invoice.project_id), projectTab:'money', moneyView:'invoices' }, { source:'invoices-tab-project', ownedKeys:['project', 'projectTab'] });
+          Portal.navigation?.navigate?.({ project:clean(invoice.project_id), projectTab:'money', moneyView:'invoices' }, { source:'invoices-tab-project', ownedKeys:['project', 'projectTab', 'moneyView'] });
           return;
         }
         state.openInvoiceId = '';
@@ -547,26 +739,35 @@
         return;
       }
       const needsCount = readyProjects();
+      const views = [
+        ['outstanding', 'fa-hourglass-half', (globalThis.PlatformLanguage?.text("invoices","m_4dbdd1ef75b232","Outstanding") ?? "Outstanding"), null],
+        ['needs_invoicing', 'fa-bolt', (globalThis.PlatformLanguage?.text("invoices","m_2d68d3be56a5d5","Needs invoicing") ?? "Needs invoicing"), needsCount],
+        ['history', 'fa-clock-rotate-left', (globalThis.PlatformLanguage?.text("invoices","m_3fe33cd11f8a29","History") ?? "History"), null]
+      ];
+      const current = views.find(([key]) => key === state.view) || views[0];
+      const shownCount = state.view === 'needs_invoicing' ? state.uninvoiced.length : visibleInvoices().length;
+      const canCreate = canCreateInvoices();
       root.innerHTML = `<div class="inv-shell">
-        <header class="inv-top">
-          <div class="inv-heading"><span class="inv-heading-icon"><i class="fas fa-file-invoice-dollar"></i></span><span><h1>${String(esc(Portal.terminology?.get?.('invoices.portal_tab', 'Invoices') || 'Invoices'))}</h1><p>${(globalThis.PlatformLanguage?.htmlText("invoices","m_98f85e256f1ab1","Outstanding balances, jobs to bill, and payment status across every project.") ?? "Outstanding balances, jobs to bill, and payment status across every project.")}</p></span></div>
-          <button type="button" class="inv-btn" data-inv-refresh ${String(state.loading ? 'disabled' : '')}><i class="fas ${String(state.loading ? 'fa-circle-notch fa-spin' : 'fa-rotate')}"></i><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_78973ce0cf3403","Refresh") ?? "Refresh")}</span></button>
-        </header>
-        ${String(summaryCardsHtml())}
-        <div class="inv-tabs-row">
-          <div class="inv-tabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("invoices","m_fae86dba7fee35","Invoice views") ?? "Invoice views")}">
-            <button type="button" role="tab" data-inv-view="outstanding" class="${String(state.view === 'outstanding' ? 'active' : '')}" aria-selected="${String(state.view === 'outstanding')}"><i class="fas fa-hourglass-half"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_9d1ec8c49d6f47"," Outstanding") ?? " Outstanding")}</button>
-            <button type="button" role="tab" data-inv-view="needs_invoicing" class="${String(state.view === 'needs_invoicing' ? 'active' : '')}" aria-selected="${String(state.view === 'needs_invoicing')}"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_8c92e8f6e62299"," Needs invoicing ") ?? " Needs invoicing ")}<span class="inv-count">${String(needsCount)}</span></button>
-            <button type="button" role="tab" data-inv-view="history" class="${String(state.view === 'history' ? 'active' : '')}" aria-selected="${String(state.view === 'history')}"><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_b78c21a6c3a083"," History") ?? " History")}</button>
+        <header class="inv-top" data-app-header>
+          <div class="inv-heading"><i class="fas fa-file-invoice-dollar" aria-hidden="true"></i><h1>${String(esc(Portal.terminology?.get?.('invoices.portal_tab', 'Invoices') || 'Invoices'))}</h1></div>
+          <span class="inv-mobile-title">${String(esc(current[2]))} · ${String(shownCount)}</span>
+          <div class="inv-actions">
+            <div class="inv-switch" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("invoices","m_fae86dba7fee35","Invoice views") ?? "Invoice views")}">
+              ${String(views.map(([key, icon, label, count]) => `<button type="button" role="tab" data-inv-view="${key}" class="${state.view === key ? 'active' : ''}" aria-selected="${String(state.view === key)}" aria-label="${esc(label)}" data-fm-tooltip="${esc(label)}"><i class="fas ${icon}" aria-hidden="true"></i><span class="btn-label">${esc(label)}</span>${count === null ? '' : `<span class="inv-count"${count ? '' : ' data-zero'}>${String(count)}</span>`}</button>`).join(''))}
+            </div>
+            ${String(canCreate ? `<button type="button" class="inv-btn primary inv-new" data-inv-new aria-label="${(globalThis.PlatformLanguage?.htmlText("invoices","m_037eec2bba8822","New invoice") ?? "New invoice")}"><i class="fas fa-plus" aria-hidden="true"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("invoices","m_037eec2bba8822","New invoice") ?? "New invoice")}</span></button>` : '')}
           </div>
-          ${String(state.view === 'outstanding' ? agingChipsHtml() : '')}
-        </div>
+        </header>
+        ${String(paymentsSetupHtml())}
+        ${String(summaryCardsHtml())}
+        ${String(state.view === 'outstanding' ? `<div class="inv-filters-row">${agingChipsHtml()}</div>` : '')}
         <div class="inv-body">
           ${String(state.view === 'needs_invoicing' ? needsInvoicingHtml() : invoiceRowsHtml(visibleInvoices()))}
         </div>
       </div>`;
 
-      root.querySelector('[data-inv-refresh]')?.addEventListener('click', () => load());
+      root.querySelector('[data-inv-new]')?.addEventListener('click', () => openNewInvoice());
+      root.querySelector('[data-inv-setup]')?.addEventListener('click', () => startPaymentsSetup());
       root.querySelectorAll('[data-inv-view]').forEach((button) => button.addEventListener('click', () => {
         if (state.view === button.dataset.invView) return;
         state.view = button.dataset.invView;
