@@ -137,7 +137,7 @@ test('More apps orders pinned tiles like the left column and lists the left colu
   assert.match(render, /entry\.pinned && entry\.appId === homeAppId \? `<i class="fas fa-house fm-advanced-app-home"/);
   const open = slice('  function openAdvancedAppMenu(', '  function initSidebarAppScrolling(');
   assert.match(open, /setSidebarPanel\('apps'\);[\s\S]{0,80}renderSidebarSections\(\);/, 'opening More apps shows the apps and the section switches');
-  const sections = slice('  function renderSidebarSections(){', '  // Once the left column has an order');
+  const sections = slice('  function sidebarSectionsMarkup(){', '  // Once the left column has an order');
   assert.match(sections, /const offered = \(mode\) => mode\.tab && sidebarSectionAvailable\(mode\.key\)/, 'a section that is off is still listed');
   assert.match(sections, /mode\.key !== 'channels' \|\| \(window\.Portal\?\.can\?\.\('apps\.channels'\) === true && launcherAppInExperience\(\{ appId:'portal\.channels' \}\)\)/, 'Channels is offered only once this person has Channels');
   assert.match(sections, /role="switch" aria-checked=/);
@@ -153,10 +153,11 @@ test('More apps switches the left column between thin and wide and plays its tou
   const render = slice('  function renderAdvancedAppMenu(', '  function openAdvancedAppMenu(');
   assert.match(render, /data-advanced-sidebar-width="thin"[\s\S]{0,600}data-advanced-sidebar-width="wide"/);
   assert.match(render, /setLeftColumnWidthMode\(button\.dataset\.advancedSidebarWidth\)/);
+  assert.match(render, /\$\{thinColumn && sectionsMarkup \? `<div class="fm-advanced-apps-sections"/, 'a thin column has its section switches beside Thin and Wide');
   const width = slice('  function setLeftColumnWidthMode(mode){', '\n  }\n');
   assert.match(width, /mode === 'thin' \? 'tooltip' : 'forced_expanded'/, 'thin is instant tooltips, wide is always expanded');
   assert.match(width, /saveSidebarPreference\('left_column_behavior', behavior\)/, 'the width is the personal sidebar behavior');
-  assert.match(core, /@media\(max-width:820px\)\{\.fm-advanced-apps-width\{display:none\}\}/, 'desktop only');
+  assert.match(core, /@media\(max-width:820px\)\{\.fm-advanced-apps-column\{display:none\}\}/, 'desktop only');
   assert.match(core, /if \(behavior !== 'adaptive' && !document\.body\.classList\.contains\('fm-advanced-app-menu-open'\)\) sidebar\.classList\.remove\('sidebar-advanced-apps-open'\);/,
     'a thin or wide column keeps its More apps controls');
   const tour = slice('  function offerMoreAppsTour(){', '\n  }\n');
