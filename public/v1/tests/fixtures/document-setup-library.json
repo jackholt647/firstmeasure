@@ -97,7 +97,7 @@
         {
           "id": "kind",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp50",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_kind_title",
@@ -130,7 +130,7 @@
         {
           "id": "proposal_kinds",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp50",
           "requires": [
             "company.type",
             "company.services",
@@ -167,7 +167,7 @@
         {
           "id": "presentation",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp50",
           "requires": [
             "company.type",
             "company.services",
@@ -193,7 +193,7 @@
         {
           "id": "changes",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp50",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_changes_title",
@@ -215,7 +215,7 @@
         {
           "id": "detail",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp50",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_detail_title",
@@ -237,15 +237,15 @@
         {
           "id": "scope",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp50",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_scope_title",
-            "text": "Do you write up a scope of work?"
+            "text": "Do you add a description or photos to your proposal?"
           },
           "subtitle": {
             "key": "gx_docs_setup_scope_subtitle",
-            "text": "Photos and descriptions from the estimating appointment, shown before the pricing."
+            "text": "What you found at the estimate and what you’ll do, shown before the price."
           },
           "say": [],
           "options": {
@@ -259,7 +259,7 @@
         {
           "id": "prices",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp50",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_prices_title",
@@ -288,7 +288,7 @@
         {
           "id": "style",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp50",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_style_title",
@@ -310,7 +310,7 @@
         {
           "id": "copy",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp50",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_copy_title",
@@ -345,7 +345,7 @@
         {
           "id": "copy_insurance",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp50",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_copy_insurance_title",
@@ -369,7 +369,7 @@
         {
           "id": "first",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp50",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_first_title",

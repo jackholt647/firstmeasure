@@ -70,6 +70,9 @@ test("the library entry parses, and its checks pass against the running code", a
   for (const selector of ['[data-gallery-toolbar-action="new_document"]', "[data-fmdx-new]", "[data-fmdx-empty-new]"]) assert.ok(experience.triggers[0].selector.includes(selector), `New document ${selector} plays it`);
   assert.deepEqual(experience.completion.then, [{ resume: true }], "the New document dialog opens after it");
   assert.equal(experience.completion.action.id, "documents.setup.apply");
+  const scope = experience.steps.find((step: any) => step.id === "scope");
+  assert.match(scope.title.text, /description or photos/, "GP-50: the scope step asks about a description or photos, not a \"scope of work\"");
+  assert.doesNotMatch(`${scope.title.text} ${scope.subtitle.text}`, /scope of work/i);
 });
 
 test("a proposal asks the unanswered company steps first; another kind goes straight to its style", async () => {
