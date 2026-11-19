@@ -7,7 +7,7 @@ import { closePlatformFixtureStores, enableExpandedPlatformFixture } from "./hel
 
 // FM-582: the document setup. The first New document asks which kind of document; a proposal asks the company steps
 // still unanswered (type, work, who sells), how proposals are presented, whether the customer may change them, how much
-// detail and whether a written scope goes with them, then prices (optional) and one of three styles, previewed. The
+// detail and whether a written scope goes with them, then prices (optional) and one of the styles, previewed. The
 // finish makes the kind's own template (tpl_setup_<kind>), its default and its pin. The library entry is the one put on
 // dev (tests/fixtures/document-setup-library.json).
 const dir = await mkdtemp(path.join(os.tmpdir(), "document-setup-"));
@@ -119,7 +119,7 @@ test("the answers choose and adapt a template", async () => {
   assert.equal(planDocument({ document_kind: "invoice" } as any).base, "tpl_invoice_default");
 });
 
-test("the style step previews what the answers make in three styles, saving nothing", async () => {
+test("the style step previews what the answers make in each style, saving nothing", async () => {
   await setup();
   const { listDocumentTemplates } = await import("../documents/storage.js");
   // The organization's copies of the library's defaults are made as on any documents read; past that nothing is saved.
@@ -466,4 +466,37 @@ test("the copy step lists the agreement's parts and the finish removes and adds 
   for (const id of denied.nodes) assert.ok(!saved.includes(`"${id}"`), `${id} is removed with its part`);
   assert.ok(saved.indexOf("Right to cancel") < saved.indexOf("\"Warranty\"") && saved.includes("ten years from the day"), "the part added follows the one it was added after");
   await assert.rejects(() => invoke(owner, "documents.setup.apply", { ...insuranceOnly, theme_id: "thm_clean", copy_sections: { added: [{ id: "bad id", after: cancel.id }] } }, "sections-bad"), /./, "ids are checked");
+});
+
+test("the styles are the library's themes in their order: a theme put in the library is offered and applied (GP-96)", async () => {
+  await setup();
+  const { applyLibraryChange } = await import("../config-library/library.js");
+  const { documentThemeKind } = await import("../config-library/kinds/document-theme.js");
+  const clean = JSON.parse(await readFile(new URL("../config-library/snapshot/document_theme/thm_clean.json", import.meta.url), "utf8")).data;
+  // A style with no chrome at all: no header band, no rail, no corners.
+  const blank = { ...structuredClone(clean), name: "Blank", description: "No border, band or corners.", order: 110 };
+  blank.definition.name = "Blank";
+  blank.definition.page_masters = [{ id: "m_blank_body", match: { role: "*" }, chrome: [], content_inset: { top: 48, left: 48, right: 48, bottom: 48 } }];
+  const parsed = documentThemeKind.schema.parse(blank);
+  assert.equal(parsed.order, 110, "a theme says where it stands");
+  assert.deepEqual(documentThemeKind.validate!(parsed, {} as any), [], "the entry passes the kind's checks");
+  applyLibraryChange({ kind: "document_theme", id: "thm_test_blank", revision: 1, sha256: "test-thm_test_blank", title: "Blank", data: blank, updated_at: "", updated_by: "test" });
+  try {
+    const status = await value(owner, "document-setup", "status");
+    assert.deepEqual(status.themes.map((theme: any) => theme.id), ["thm_clean", "thm_margin", "thm_triangles", "thm_test_blank"], "after the themes with no order, by its own");
+    assert.equal(status.themes.at(-1).name, "Blank");
+    const previews = await value(owner, "document-setup", "previews", { document_kind: "change_order" });
+    const preview = previews.previews.find((entry: any) => entry.theme_id === "thm_test_blank");
+    assert.ok(preview && preview.resolved_definition.pages.length > 0, "the new style is previewed");
+    await invoke(owner, "documents.setup.apply", { document_kind: "change_order", theme_id: "thm_test_blank" }, "gp96-blank");
+    const storage = await import("../documents/storage.js");
+    assert.deepEqual(((await storage.readDocumentTemplateVersion(ORG, "tpl_setup_change_order")) as any).definition.theme_ref, { theme_id: "thm_test_blank" });
+    await assert.rejects(() => invoke(owner, "documents.setup.apply", { document_kind: "change_order", theme_id: "thm_nothing" }, "gp96-unknown"), /no style thm_nothing/);
+    // The editor's catalog lists the organization's copies in the same order, each with its place.
+    const { themesInStyleOrder } = await import("../documents/library-copies.js");
+    const listed = themesInStyleOrder([{ id: "thm_own" }, { id: "thm_test_blank" }, { id: "thm_triangles" }, { id: "thm_clean" }] as any[]);
+    assert.deepEqual(listed.map((theme: any) => [theme.id, theme.order]), [["thm_clean", 100], ["thm_triangles", 100], ["thm_test_blank", 110], ["thm_own", undefined]]);
+  } finally {
+    applyLibraryChange({ kind: "document_theme", id: "thm_test_blank", revision: 2, deleted: true });
+  }
 });

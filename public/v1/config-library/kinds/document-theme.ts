@@ -37,9 +37,18 @@ const libraryThemeDefinitionSchema = z.object({
 export const documentThemeEntrySchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: plainText(2000).default(""),
+  /**
+   * Where the style stands wherever styles are offered (the document setup's "Choose your style", the editor's Page
+   * style; GP-96), lowest first. Without one a theme stands at DEFAULT_THEME_ORDER; equal places go by id.
+   */
+  order: z.number().int().min(0).max(10_000).optional(),
   definition: libraryThemeDefinitionSchema
 }).strict();
 export type DocumentThemeEntry = z.infer<typeof documentThemeEntrySchema>;
+
+export const DEFAULT_THEME_ORDER = 100;
+/** A theme's place among the styles (`order`, GP-96). */
+export const themeOrder = (data: Pick<DocumentThemeEntry, "order">) => data.order ?? DEFAULT_THEME_ORDER;
 
 export const documentThemeKind: LibraryKind<DocumentThemeEntry> = {
   kind: DOCUMENT_THEME_KIND,

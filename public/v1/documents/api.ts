@@ -130,7 +130,7 @@ import { listDocumentTypes } from "./types/registry.js";
 import { refusePreviewDocumentToken } from "./preview-links.js";
 import { listDocumentWidgetResolvers } from "./widgets/registry.js";
 import { registerBuiltinDocumentWidgetResolvers } from "./widgets/builtins.js";
-import { ensureDefaultDocumentAssets, themesFollowingBrand } from "./library-copies.js";
+import { ensureDefaultDocumentAssets, themesFollowingBrand, themesInStyleOrder } from "./library-copies.js";
 import { ingestDocumentUpload } from "./ingestion.js";
 import { registerCollabRoutes } from "./collab/routes.js";
 import { registerVersionRoutes } from "./versions/routes.js";
@@ -182,8 +182,9 @@ async function themesWithCurrentDefinitions(orgId: string, themes: JsonObject[])
       : null;
     return { ...theme, definition: version ? asObject(version).definition : null };
   }));
-  // Every theme sample shows the company's colors: untouched copies follow the brand (GP-105).
-  return await themesFollowingBrand(orgId, rows);
+  // Every theme sample shows the company's colors: untouched copies follow the brand (GP-105). The library's styles
+  // come first, in their order (GP-96).
+  return themesInStyleOrder(await themesFollowingBrand(orgId, rows));
 }
 
 export const registerDocumentsApi: FastifyPluginAsync = async (app) => {

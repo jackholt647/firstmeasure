@@ -1072,18 +1072,17 @@ test('Page Setup is a wide responsive page-style workspace with readable actions
   assert.match(documentEditor, /fmde-page-setup-dialog\{width:min\(920px/);
   assert.match(documentEditor, /fmde-page-margin-grid\{display:grid;grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(documentEditor, /button\.primary\{background:var\(--fmde-accent,#d93025\)!important;color:var\(--fmde-on-accent,#fff\)!important/);
-  assert.match(documentEditor, /thm_triangles[\s\S]*?thm_margin[\s\S]*?thm_clean/);
   assert.match(documentEditor, /<h3>Page style<\/h3>/);
-  assert.match(documentEditor, /Triangles[\s\S]*?Left border[\s\S]*?Simple/);
+  // The styles are the catalog's themes in their library order, sampled from their own chrome: none is named (GP-96).
+  assert.doesNotMatch(documentEditor, /thm_(?:clean|margin|triangles)/);
+  assert.match(documentEditor, /const styleOrder = function \(theme\) \{ return typeof theme\.order === "number"/);
+  assert.match(documentEditor, /const stylePreviewHtml = function \(theme\)[\s\S]*?master\.chrome[\s\S]*?clip-path:polygon/);
   assert.match(documentEditor, /type: "theme\.apply"[\s\S]*?theme_ref/);
   assert.match(documentEditor, /data-theme-id[\s\S]*?page-style/);
 });
 
 test('selecting a page style applies its content inset to Page Setup', () => {
   assert.match(documentEditor, /function \(theme, fallback\)[\s\S]*?definition\.page_masters[\s\S]*?master\.content_inset/);
-  assert.match(documentEditor, /thm_triangles[\s\S]*?margins_pt: \{ top: 104, right: 64, bottom: 104, left: 64 \}/);
-  assert.match(documentEditor, /thm_margin[\s\S]*?margins_pt: \{ top: 48, right: 48, bottom: 48, left: 104 \}/);
-  assert.match(documentEditor, /thm_clean[\s\S]*?margins_pt: \{ top: 80, right: 48, bottom: 48, left: 48 \}/);
   assert.match(documentEditor, /const applyStyleSetupToDialog = function \(setup\)[\s\S]*?data-margin-[\s\S]*?style\.setup/);
 });
 
