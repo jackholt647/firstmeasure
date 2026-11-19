@@ -37,6 +37,7 @@
     function nav(view,fromRoute=false){
       rememberListScroll();
       if(!options.projectId && !['setup','layout'].includes(view))view=options.standalone || chrome.resolve('communications',view);
+      if(view!=='setup'){state.phoneSettings?.destroy?.();state.phoneSettings=null;}
       state.view=view;state.cursor='';state.nextCursor='';
       root.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-current',b.dataset.view===view?'page':'false'));
       root.querySelector('[data-view][aria-current="page"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
@@ -134,6 +135,7 @@
       state.sessionScope=`${ui.org()}:${ui.user()}`;
       if(!state.view){state.host.innerHTML=empty('No grouped apps','Use Communications settings to choose tabs.');return;}
       if(state.view==='layout'){state.host.innerHTML=settingsTabs()+chrome.settings('communications');return;}
+      if(state.view==='setup'){renderPhoneSettings();return;}
       if(state.view==='inbox'){void phone.refreshStatus().then(updatePhone).catch(()=>{});return;}
       const reuseLists=state.view==='lists'&&state.listScope===state.sessionScope;
       if(reuseLists)render();
@@ -166,7 +168,6 @@
           }
         }
         else if(view==='scripts'){result=await request('call-scripts'+(state.departmentId?'?department_id='+encodeURIComponent(state.departmentId):''));}
-        else if(view==='setup'){result=await phone.refreshStatus();if(result.permissions?.manage){const extras=await Promise.all([request('voice/health'),request('voice/people')]);result.health=extras[0];result.people=extras[1].people||[];}}
         if(sequence!==state.sequence||state.disposed)return;
         if(result.department_context)state.departmentContext=result.department_context;
         state.canManageDepartments=!!result.can_manage_departments;
@@ -179,7 +180,6 @@
           else{state.columns=result.columns||[];state.scripts=result.scripts||[];}
         }
         else if(view==='scripts')state.scripts=result.scripts||[];
-        else if(view==='setup')state.status=result;
         state.host.setAttribute('aria-busy','false');render();
         if(state.arrive){state.arrive=false;const host=state.host;host.classList.remove('fmcm-arrive');void host.offsetWidth;host.classList.add('fmcm-arrive');setTimeout(()=>host.classList.remove('fmcm-arrive'),500);}// GP-12: rows move in over "Loading…"
         void phone.refreshStatus().then(updatePhone).catch(()=>{});
@@ -200,6 +200,14 @@
     }
     function showError(){let host=root.querySelector('[data-workspace-error]');if(!host){host=document.createElement('p');host.className='fmcm-error';host.dataset.workspaceError='';host.setAttribute('role','alert');state.host.prepend(host);}host.textContent=state.error;}
     function settingsTabs(){return chrome.settingsTabs('communications',state.view,'data-view',options.standalone || chrome.resolve('communications'));}
+    // GP-79: Settings shows Phone Settings here, the same page as Settings › Phone Settings, instead of leaving the app.
+    function renderPhoneSettings(){
+      state.phoneSettings?.destroy?.();state.phoneSettings=null;
+      state.host.innerHTML=settingsTabs()+'<div class="fmcm-phone-settings" data-phone-settings></div>';
+      const pane=state.host.querySelector('[data-phone-settings]'),kit=window.FirstMateSmsRegistration;
+      if(!kit?.mountPhoneSettings){pane.innerHTML=empty('Phone Settings could not load','Refresh the page and try again.');return;}
+      state.phoneSettings=kit.mountPhoneSettings(pane,{orgId:ui.org()});
+    }
     function toolbar(title,action='',filters=false){return `<div class="fmcm-toolbar${title?'':' fmcm-toolbar-bare'}">${title?`<h3>${String(title)}</h3>`:''}${state.departmentContext?.show_selector?`<select data-department aria-label="${esc(state.departmentContext.department_label||'Department')}"><option value="">All available ${esc((state.departmentContext.departments_label||'Departments').toLowerCase())}</option>${state.departmentContext.departments.map(d=>`<option value="${esc(d.id)}" ${state.departmentId===d.id?"selected":""}>${esc(d.label)}</option>`).join("")}</select>`:""}${String(['lists','followups','history'].includes(state.view)&&!options.projectId?`<input class="fmcm-search" type="search" data-search placeholder="${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_eb57b9fe518a5c",`Search ${v0}…`,{v0}) ?? `Search ${v0}…`)(state.view==='lists'?'contacts':state.view==='history'?'calls':'follow-ups')}" value="${esc(state.query)}" aria-label="${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_f45808974d5c6c",`Search ${v2}`,{v2}) ?? `Search ${v2}`)(state.view)}">`:'')}${String(filters?`<select data-filter aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_86e8933389c299","Filter communications") ?? "Filter communications")}"><option value="all" ${state.filter==='all'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</option><option value="mine" ${state.filter==='mine'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_b67cf521d59f4e","Assigned to me") ?? "Assigned to me")}</option>${state.view==='history'?`<option value="wrap_up" ${state.filter==='wrap_up'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_54e60445f18e2e","Needs wrap-up") ?? "Needs wrap-up")}</option>`:''}</select>`:'')}${String(action)}${['center','lists','history'].includes(state.view)?callActions():''}</div>`;}
     // One way to start a call (FM-491): the phone opens to dial or to log a call made elsewhere.
     // FM-511: in a project's Comms tab New call is an icon.
@@ -291,7 +299,7 @@
         state.host.innerHTML=toolbar('Call scripts','<button class="fmcm-primary" data-action="new-script">'+icon('plus')+' New script</button>')+
           `<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_58f99d4623b8fc","Published scripts are available in the call workspace. Every call keeps the version used at the time.") ?? "Published scripts are available in the call workspace. Every call keeps the version used at the time.")}</p>`+
           ((state.scripts||[]).length?`<div class="fmcm-grid">${state.scripts.map(s=>`<section class="fmcm-card"><header class="fmcm-card-head"><h3>${String(esc(s.title))}</h3><span class="fmcm-pill">v${String(s.version)} · ${String(esc(s.status))}</span></header><div style="padding:18px"><p>${String(esc(s.data?.sections?.[0]?.body?.slice(0,220)||''))}</p><button data-action="edit-script" data-id="${String(esc(s.id))}">${(globalThis.PlatformLanguage?.htmlText("comms","m_79c5dcac1f6211","Edit script") ?? "Edit script")}</button></div></section>`).join('')}</div>`:empty('Support a natural conversation','Create prompts and questions that stay beside your notes during a call.',`<button data-action="new-script">${(globalThis.PlatformLanguage?.htmlText("comms","m_933c94351d5ffc","Create a script") ?? "Create a script")}</button>`));
-      }else if(state.view==='setup'){ui.navigate({tab:'company_settings',sub:'sms'});}
+      }
       root.querySelectorAll('[data-list-scroll]').forEach(el=>{el.scrollTop=listScroll.get(el.dataset.listScroll)||0;});
       if(searchActive){const input=root.querySelector('[data-search]');input?.focus();try{input?.setSelectionRange(cursor,cursor);}catch{}}
       if(state.error)showError();
@@ -444,7 +452,7 @@
     const timer=setInterval(()=>{ticks++;if(active&&!state.disposed&&!document.hidden&&!root.contains(document.activeElement)&&!['setup','layout','inbox'].includes(state.view)&&(state.view==='center'||ticks%6===0))void load(false,true);},5000);
     nav(state.view,true);
     function search(query){query=String(query||'');if(query===state.query)return;state.query=query;state.cursor='';clearTimeout(state.searchTimer);state.searchTimer=setTimeout(()=>{if(!state.disposed)void load(false,true);},240);}
-    return {refresh:load,search,setActive(value){active=!!value;if(active&&state.view==='inbox')state.inboxHandle?.activate?.();},destroy(){if(phone.dialer?.active)phone.pauseDialer('Automatic dialing paused when you left the workspace.');window.removeEventListener('fm:app-placements:updated',onLayout);state.disposed=true;state.sequence++;clearInterval(timer);clearTimeout(state.searchTimer);clearTimeout(state.changeTimer);state.inboxHandle?.destroy?.();instances.delete(state);root.removeEventListener('click',onClick);root.removeEventListener('input',onInput);root.removeEventListener('change',onChange);window.removeEventListener('fm:platform-session:updated',onSession);window.removeEventListener('fm:customer-calls:next',onNext);window.removeEventListener('fm:customer-calls:changed',updatePhone);}};
+    return {refresh:load,search,setActive(value){active=!!value;if(active&&state.view==='inbox')state.inboxHandle?.activate?.();},destroy(){if(phone.dialer?.active)phone.pauseDialer('Automatic dialing paused when you left the workspace.');window.removeEventListener('fm:app-placements:updated',onLayout);state.disposed=true;state.sequence++;state.phoneSettings?.destroy?.();clearInterval(timer);clearTimeout(state.searchTimer);clearTimeout(state.changeTimer);state.inboxHandle?.destroy?.();instances.delete(state);root.removeEventListener('click',onClick);root.removeEventListener('input',onInput);root.removeEventListener('change',onChange);window.removeEventListener('fm:platform-session:updated',onSession);window.removeEventListener('fm:customer-calls:next',onNext);window.removeEventListener('fm:customer-calls:changed',updatePhone);}};
   }
   Portal.navigation?.registerHandler?.('communications-workspace',{priority:420,apply:route=>{for(const state of instances){if(state.options.projectId||state.options.standalone)continue;if(route.tab!=='chat')continue;const target=route.communicationsView||window.AppChrome.resolve('communications');if(target!==state.view)state.nav(target,true);else if(target==='lists'&&route.communicationsEntry&&route.communicationsEntry!==phone.currentEntry)void state.load();}}});
   Portal.CommunicationsWorkspace={mount};
