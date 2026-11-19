@@ -19,15 +19,16 @@ function xmlFace(outline, holes, rise) {
   const z = ([x, y]) => [x, y, y * rise / 12];
   return {points: outline.map(z), holes: holes.map(h => h.map(z)), pitch: Math.round(rise), area: Math.round((plan(outline) - holes.reduce((s, h) => s + plan(h), 0)) * slope(rise))};
 }
-// The report's Area Diagram label for that face: Math.round of the sloped outline, holes not taken off.
+// A pre-FM-520 report's Area Diagram label for that face: Math.round of the sloped outline, holes not taken off.
 const reportLabel = (outline, rise) => Math.round(plan(outline) * slope(rise));
 
 test('the report rounding the viewer copies is still the report generator\'s rounding', async () => {
   const pdf = await source('measure/internal/editor_scripts/pdf.js');
   const xml = await source('measure/internal/editor_scripts/xml_generator.js');
   const exterior = await source('measure/internal/editor_scripts/exterior_pdf.js');
-  // Face area: whole square feet of the outline (no hole subtraction) at the face's pitch.
-  assert.match(pdf, /const areaPx = Math\.abs\(getSignedArea\(face\.points\)\);[\s\S]{0,1600}lbl\.areaText = `\$\{Math\.round\(areaSqFt\)\}`;/);
+  // Face area: whole square feet of the outline less its holes (FM-520) at the face's pitch, as model_data.xml's size=.
+  assert.match(pdf, /const areaPx = getPdfFaceNetAreaPx\(face\);[\s\S]{0,1600}lbl\.areaText = `\$\{Math\.round\(areaSqFt\)\}`;/);
+  assert.match(pdf, /function getPdfFaceNetAreaPx\(face\) \{[\s\S]{0,900}return Math\.max\(0, outer - holes\);/);
   assert.match(xml, /size="\$\{Math\.round\(areaSqFt\)\}"/);
   assert.match(xml, /const pitch = Math\.max\(0, Math\.round\(Math\.abs\(pitchRise12\)\)\);/);
   // Roof lines: whole feet. Wall edges and openings: one decimal.
@@ -75,20 +76,48 @@ test('a face shows the report\'s square feet as whole squares rounded up', async
   const plain = xmlFace([[0, 0], [30, 0], [30, 15], [0, 15]], [], 7);
   assert.equal(V.reportFaceSqFt(plain), reportLabel([[0, 0], [30, 0], [30, 15], [0, 15]], 7));
   assert.equal(V.reportSquares(V.reportFaceSqFt(plain)), Math.ceil(plain.area / 100));
-  // A chimney hole: the XML's size is net, the report's label is the whole outline. Here they straddle 400 sq ft:
-  // net rounds up to 4 squares, the report's 410 sq ft to 5, and the viewer must say 5.
+  // A chimney hole: the XML's size is net, and since FM-520 so is the report's label: the viewer shows size=.
+  // Here net and outline straddle 400 sq ft: net rounds up to 4 squares, the whole outline's 410 sq ft to 5.
   const outline = [[0, 0], [24.5, 0], [24.5, 15], [0, 15]], chimney = [[10, 5], [13.5, 5], [13.5, 8.5], [10, 8.5]];
   const holed = xmlFace(outline, [chimney], 6);
   assert.ok(holed.area <= 400 && reportLabel(outline, 6) > 400, `${holed.area} / ${reportLabel(outline, 6)}`);
-  assert.equal(V.reportFaceSqFt(holed), reportLabel(outline, 6));
-  assert.equal(V.reportSquares(V.reportFaceSqFt(holed)), 5);
+  assert.equal(V.reportFaceSqFt(holed), holed.area);
+  assert.equal(V.reportSquares(V.reportFaceSqFt(holed)), 4);
+  assert.ok(Math.abs(V.reportFaceExactSqFt(holed) - (plan(outline) - plan(chimney)) * slope(6)) < 1e-9);
+  // A report whose PDF predates FM-520 printed the whole outline; its model adds the holes back to match: 5 squares.
+  const old = {holesInPdf: true};
+  assert.equal(V.reportFaceSqFt(holed, old), reportLabel(outline, 6));
+  assert.equal(V.reportSquares(V.reportFaceSqFt(holed, old)), 5);
+  assert.ok(Math.abs(V.reportFaceExactSqFt(holed, old) - plan(outline) * slope(6)) < 1e-9);
   // A hand-set fractional pitch (6.5/12) the XML writes as 7: the slope is recovered from size= and the label still matches.
   const odd = xmlFace(outline, [chimney], 6.5);
   assert.equal(odd.pitch, 7);
-  assert.equal(V.reportFaceSqFt(odd), reportLabel(outline, 6.5));
+  assert.equal(V.reportFaceSqFt(odd), odd.area);
+  assert.equal(V.reportFaceSqFt(odd, old), reportLabel(outline, 6.5));
+  // A face with no size= at all: net of its holes, or the whole outline for an old PDF.
+  const bare = {...holed, area: null};
+  assert.ok(Math.abs(V.reportFaceExactSqFt(bare) - (plan(outline) - plan(chimney)) * slope(6)) < 1e-9);
+  assert.ok(Math.abs(V.reportFaceExactSqFt(bare, old) - plan(outline) * slope(6)) < 1e-9);
   // Whole squares, always up; 400 is exactly 4.
   assert.deepEqual([1, 99, 100, 101, 400, 401, 1299].map(V.reportSquares), [1, 1, 1, 2, 4, 5, 13]);
   assert.equal(V.reportSquares(null), null);
+});
+
+test('only a PDF rendered before FM-520 reached production counts holes in face areas', async () => {
+  const V = await viewer();
+  const synced = (at, status = 'completed') => ({pdf_sync: {status, completed_at: at}, timestamps: {completed_at: '2026-11-01 10:00:00'}});
+  // The worker took FM-520 at 22:00:44 UTC on November 16; renders after it subtract holes.
+  assert.equal(V.pdfIncludesHoleArea(synced('2026-11-16T21:49:49.000Z')), true);
+  assert.equal(V.pdfIncludesHoleArea(synced('2026-11-16T22:00:43.000Z')), true);
+  assert.equal(V.pdfIncludesHoleArea(synced('2026-11-16T23:08:51.000Z')), false);
+  // A re-render after the fix moves an old order onto the new rule.
+  assert.equal(V.pdfIncludesHoleArea({...synced('2026-11-18T18:09:23.737Z'), timestamps: {completed_at: '2026-05-02 08:00:00'}}), false);
+  // No completed sync: the order's own completion (stored without a zone, in UTC) stands in.
+  assert.equal(V.pdfIncludesHoleArea(synced('2026-11-17T01:00:00Z', 'failed')), true);
+  assert.equal(V.pdfIncludesHoleArea({timestamps: {completed_at: '2026-04-20 12:00:00'}}), true);
+  assert.equal(V.pdfIncludesHoleArea({timestamps: {completed_at: '2026-11-18 18:10:21'}}), false);
+  // Unknown (the order record could not be read): the model shows the corrected areas.
+  for (const manifest of [undefined, null, {}, {pdf_sync: {status: 'completed', completed_at: 'not a date'}}]) assert.equal(V.pdfIncludesHoleArea(manifest), false);
 });
 
 test('line lengths carry the report\'s precision and no more', async () => {
