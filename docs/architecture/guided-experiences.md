@@ -808,14 +808,14 @@ Optional setup returns to the hub; skipping it does not mark it complete.
 The hub derives supplier and fleet completion from their domain readers; the
 current collection reads are recorded in the [optimization backlog](../optimization-backlog.md#operations-setup-checklist-lists-suppliers-and-equipment).
 
-The Operations tab keeps a way back into these setups (FM-619): for someone who may run them, each kind
-of resource whose card `operations.setup.status` does not mark done (materials: suppliers, labor:
-workforce, equipment) shows a Setup badge, on its column's heading or, with no column showing (labor
-before its setup, a minimized column, equipment inside the work order), on a tag in the header like a
-minimized column's. It plays the card's own setup: `operations.suppliers.setup`,
-`operations.workforce.setup` (after `operations.workforce.setup.start`, as the card does) or
-`operations.equipment.setup`, the hub's ready step with `options.card: equipment`, which opens that one
-card at once and finishes when it is left.
+The Operations tab treats a kind of resource that is not set up as not a list yet (FM-619): for someone who may run
+the setups, it is a tab in the header, coloured like a minimized column's, with a Setup tag on its corner, and the
+tab opens its setup. Labor is set up once its column shows (`shown: when_configured` above) and opens
+`operations.workforce.setup` (after `operations.workforce.setup.start`, as the card does); equipment is set up once
+`operations.setup.status` says the fleet has a unit, and until then has no column and no lists in the work order
+unless this project already has equipment on its lists. It opens `operations.equipment.setup`, the hub's ready step
+with `options.card: equipment`, which opens that one card at once and finishes when it is left. Materials are what
+the setup itself builds and never get a Setup tag.
 
 This Labor visibility check shares the existing full material-list scan recorded
 in the [optimization backlog](../optimization-backlog.md#the-labor-column-reads-every-material-list-when-nobody-does-labor).
