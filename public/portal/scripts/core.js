@@ -4000,6 +4000,7 @@
         const pill = document.createElement('span');
         pill.className = iconRow ? 'fm-more-apps-new' : 'fm-global-app-new';
         pill.dataset.moreAppsNew = '';
+        pill.dataset.fmTooltipPill = 'new';
         pill.setAttribute('aria-hidden', 'true');
         pill.textContent = newPill.label;
         (iconRow ? moreButton : moreButton.querySelector('.tx'))?.appendChild(pill);
@@ -4638,7 +4639,7 @@
       item.innerHTML = `
         ${advancedAppMenuEnabled() && t.placement === 'sidebar' ? `<button type="button" class="fm-sidebar-app-pin is-pinned" data-sidebar-app-pin="${String(escapeHtml(t.appId))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform","m_db4217ef113961",`Unpin ${v1} from the sidebar`,{v1}) ?? `Unpin ${v1} from the sidebar`)(escapeHtml(title))}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_faf31575fe991d","Unpin from sidebar") ?? "Unpin from sidebar")}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>` : ''}
         <div class="ic"><i class="fas ${escapeHtml(t.icon)}"></i></div>
-        <div class="tx">${escapeHtml(title)}${portalAppPill(t.appId) ? `<span class="fm-global-app-new fm-global-app-pill--${escapeHtml(portalAppPill(t.appId).kind || 'new')}">${escapeHtml(portalAppPill(t.appId).kind === 'setup' ? sidebarSetupPillLabel() : portalAppPill(t.appId).label)}</span>` : ''}</div>
+        <div class="tx">${escapeHtml(title)}${portalAppPill(t.appId) ? `<span class="fm-global-app-new fm-global-app-pill--${escapeHtml(portalAppPill(t.appId).kind || 'new')}" data-fm-tooltip-pill="${escapeHtml(portalAppPill(t.appId).kind || 'new')}">${escapeHtml(portalAppPill(t.appId).kind === 'setup' ? sidebarSetupPillLabel() : portalAppPill(t.appId).label)}</span>` : ''}</div>
         ${moveControls}
       `;
       item.querySelectorAll('[data-sidebar-app-move]').forEach((button) => button.addEventListener('click', (event) => {

@@ -77,6 +77,8 @@
       .fm-tooltip-row:first-of-type,.fm-tip-row:first-of-type{border-top:0}
       .fm-tooltip-name,.fm-tip-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(255,255,255,.84)}
       .fm-tooltip-value,.fm-tip-value{font-weight:1000;color:#fff}
+      .fm-tooltip-pill{display:inline-block;margin-left:7px;padding:2px 6px;border-radius:99px;background:#e8f5ee;color:#0f6b3a;font-size:9px;font-weight:800;line-height:1.4;vertical-align:middle;white-space:nowrap}
+      .fm-tooltip-pill[data-kind="setup"]{background:#fff0cb;color:#794c00}
       .fm-ui-help{
         display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;
         border:1px solid rgba(15,23,42,.10);background:#eef2f7;color:#344054;
@@ -195,6 +197,8 @@
   function tooltipContentFromTarget(target){
     if (!target) return null;
     if (instantSidebarTooltip(target)) {
+      const withPills = sidebarTooltipWithPills(target);
+      if (withPills) return withPills;
       const text = target.getAttribute('aria-label') || target.getAttribute('data-fm-tooltip') ||
         target.getAttribute('data-fm-native-title') || target.getAttribute('title') || target.textContent;
       return text?.trim() ? { text: text.trim() } : null;
@@ -203,6 +207,21 @@
     if (html) return { html };
     const text = String(target.getAttribute('data-fm-tooltip') || '').trim();
     return text ? { text } : null;
+  }
+
+  // A compact sidebar item's pills (Setup, New) show as pills in its tooltip,
+  // not as text glued onto the name ("FinancialsSetup", GP-74).
+  function sidebarTooltipWithPills(target){
+    const pills = [...target.querySelectorAll('[data-fm-tooltip-pill]')];
+    if (!pills.length) return null;
+    const label = (target.querySelector('.tx') || target).cloneNode(true);
+    label.querySelectorAll('[data-fm-tooltip-pill]').forEach((pill) => pill.remove());
+    const name = String(label.textContent || target.getAttribute('data-fm-native-title') || target.getAttribute('data-fm-tooltip') || '').trim();
+    const tags = pills.map((pill) => {
+      const text = String(pill.textContent || '').trim();
+      return text ? `<span class="fm-tooltip-pill" data-kind="${escapeHtml(pill.getAttribute('data-fm-tooltip-pill') || 'new')}">${escapeHtml(text)}</span>` : '';
+    }).join('');
+    return name || tags ? { html: `${escapeHtml(name)}${tags}` } : null;
   }
 
   function adoptNativeTooltip(target){
