@@ -102,7 +102,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/appointment-kinds.js?v=20261119-gp85"
+        "module": "/libraries/setup-steps/appointment-kinds.js?v=20261119-gp85b"
       },
       "options": {},
       "requires": [
