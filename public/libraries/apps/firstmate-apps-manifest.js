@@ -652,7 +652,7 @@
       placement: 'more',
       placementWithoutAppsMenu: 'settings',
       fullBleed: true,
-      bundles: [versionedBundle('automations-hub/app.js', '20261119-gp110b')]
+      bundles: [versionedBundle('automations-hub/app.js', '20261119-gp119')]
     },
     {
       id: 'portal.company_settings',

@@ -37,19 +37,39 @@ The setup is the guided experience `automations.setup` (config library, `guided_
 runtime **embedded** in the hub's right-hand panel (GP-78's `container`), not as a modal, so the chart stays visible.
 It plays by itself while intake routing was never saved (revision 0), and from the Setup button. It requires the setup
 step `company.type` (asked first, only while unanswered). Its one step is the module
-`public/libraries/guided-experiences/automations-setup.js`:
+`public/libraries/guided-experiences/automations-setup.js`.
 
-1. **Where do new leads go?** The boards, the one whose name matches what the company does first
-   (`suggestBoards`; a roofer gets the roofing board).
-2. **Is that board the whole job?** One board from lead to finished job (it spans Sales and Production; the default
-   for roofing and exteriors) or the sales part. Continue saves both with the published action
-   `automations.setup.apply` (`scopes/flow-setup.ts`): intake routing's default entry and the board's lane
-   categories; rules are kept.
-3. **Different leads, different boards** and 4. **Connect your boards**: how to split leads and connect boards,
-   pointing at the chart.
+**It asks how the company runs, never how to configure anything** (GP-119). Someone who has never used the system
+cannot say where new leads should go or which lane a board belongs in; they can say whether they call a lead first.
+The questions, saved on the company profile as `lead_flow` (`company-profile/catalog.ts`, read by anyone through
+`company-profile.profile`):
 
-While it plays, each answer is drawn before it is saved (the hub's `preview`) and each page points at what it talks
-about (`spotlight`, a pulsing ring). The hub's handle for this is `window.FirstMateAutomationsHub.active`.
+| Question | Answers | What it makes |
+|---|---|---|
+| When a new lead comes in, do you already know what the job is? (`job_known`) | yes (almost always), mostly, no | no: new leads wait as [new leads](opportunities.md#new-leads) ("No board yet") until a call says what the job is; otherwise they go straight onto the pipeline |
+| Do you call each new lead before anything else? (`first_call`, not asked when `job_known` is no) | yes, no | yes: the pipeline's first stage becomes "First call" (to-do "Call the customer", the sales pipeline's call list); its own steps move to the next stage |
+| Do you meet the customer before you give a price? (`visit`) | yes, no | yes: an "Appointment" stage after the first (to-do "Meet the customer"; without a first call, the first stage's to-do is "Book the appointment") |
+| Once a job is sold, who runs it? (`handoff`) | same, separate | same: the pipeline spans Sales and Production. separate: it is in Sales, ends at the signature (the step that marks the sale won) and its last stage starts the production board `roof_replacement`, which is turned on and put in Production |
+
+**Everyone starts on one pipeline**: the MVP platform's (`generic_roofing`, as the sandbox configuration
+`swf_mvp_platform` installs it), from new lead to finished job, in the Sales and Production lanes, new leads straight
+onto it. Unanswered questions mean exactly that. The server builds the pipeline from that source every time
+(`pipelineDefinition` in `scopes/flow-setup.ts`), installing it when the organization lacks it; a wire someone drew
+from one of its stages is kept, a renamed pipeline keeps its name, and the steps the setup adds (`setup_` ids) are
+rebuilt, never repeated. A production board the setup turned on is turned off again when the job is no longer handed
+off. The added steps tick themselves when a later step happens (an appointment booked, measurements ordered, a
+proposal made or signed), like the pipeline's own.
+
+After each answer the chart draws what the answers would make: the published read `automations-setup.plan` (args:
+the answers; nothing saved) returns the pipeline and production board as they would be and routing's default, and
+the hub's `preview({ routing, templates })` draws them over the saved state. "Set up my flow" saves with the
+published action `automations.setup.apply` (same answers; `manage_company_settings`), run as the person: the answers,
+the boards, which are on, their lanes and intake routing's default (rules are kept). The last page says what was set
+up, in words. Each page points at the part of the chart it talks about (`spotlight`, a pulsing ring). The hub's
+handle for this is `window.FirstMateAutomationsHub.active`.
+
+**No small print on the chart.** What explains a name (New leads, the Sales lane, "Any new lead", "No board yet", a
+rule's conditions) is a tooltip: an (i) beside the name, or the box's own; nothing is printed under it all the time.
 
 ## Not yet
 
@@ -61,4 +81,4 @@ about (`spotlight`, a pulsing ring). The hub's handle for this is `window.FirstM
 ## Tests
 
 `tests/automations-hub-model.test.mjs` (what the chart draws and what a drag writes), `tests/automations-setup.test.ts`
-(the setup action) and `tests/lead-receive.test.ts` (the arrival time stamp).
+(what the answers make and the setup action) and `tests/lead-receive.test.ts` (the arrival time stamp).

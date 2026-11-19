@@ -88,3 +88,21 @@ test("connecting two boards adds one activateTemplate binding to the last stage;
   assert.deepEqual(removed.work_plan.root_nodes[0].children[1].automation_bindings.onCompleted.map((b) => b.id), ["won"], "the sale is still marked won");
   assert.equal(model.linksOf({ id: "roof_replacement", definition: model.withoutLink(next, link) }).length, 0);
 });
+
+// GP-119: nothing under a name is printed all the time; what explains it is a tooltip (an (i), or the box's own).
+test("the chart's explanations are tooltips, not small print under the names", () => {
+  for (const rule of [".fmah-lead small", ".fmah-sink small", ".fmah-lane-label small"]) assert.equal(source.includes(`${rule}{`), false, `${rule} is gone`);
+  assert.match(source, /\$\{info\(routingNote\)\}/, "New leads explains itself in a tooltip");
+  assert.match(source, /lane\.id === SALES \? info\(/, "so does the Sales lane");
+  assert.match(source, /\$\{summary \? ` title="\$\{esc\(summary\)\}"` : ''\}/, "a lead box's summary (\"Any new lead\": click to split) is its tooltip");
+  assert.match(source, /data-sink="unscoped" title=/, "and No board yet's");
+});
+
+// GP-119: the setup asks how the company runs, and skips what an answer already says.
+test("the setup asks business questions, never where leads go", async () => {
+  const setup = await import(new URL("../../libraries/guided-experiences/automations-setup.js", import.meta.url));
+  assert.deepEqual(setup.pagesFor({}), ["job_known", "first_call", "visit", "handoff", "done"]);
+  assert.deepEqual(setup.pagesFor({ job_known: "no" }), ["job_known", "visit", "handoff", "done"], "someone who finds out on the phone calls first");
+  const text = await readFile(new URL("../../libraries/guided-experiences/automations-setup.js", import.meta.url), "utf8");
+  assert.equal(/Where do (your )?new leads go/i.test(text), false);
+});

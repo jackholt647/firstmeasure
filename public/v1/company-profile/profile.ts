@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { readBranchModule, saveBranchModule, type JsonObject } from "../platform/storage.js";
 import { PlatformError, badRequest, conflict } from "../platform/errors.js";
-import { COMPANY_TYPES, OTHER_COMPANY_TYPE, SALES_TEAMS, SERVICES, WORKFORCES, companyType, salesTeamOf, serviceOf, workforceOf } from "./catalog.js";
+import { COMPANY_TYPES, LEAD_FLOW_ANSWERS, OTHER_COMPANY_TYPE, SALES_TEAMS, SERVICES, WORKFORCES, companyType, salesTeamOf, serviceOf, workforceOf } from "./catalog.js";
 
 /**
  * The organization's company profile: what kind of company it is and the kinds of work it does
@@ -26,6 +26,13 @@ export const companyProfilePatchSchema = z.object({
   workforce: z.string().trim().max(60).optional(),
   /** How many locations the company works out of (GP-15): its shops or yards, one facility each. */
   locations: z.number().int().min(1).max(MAX_LOCATIONS).optional(),
+  /** How new leads become jobs (GP-119, the Automations Hub setup): any of the four answers; the others are kept. */
+  lead_flow: z.object({
+    job_known: z.enum(LEAD_FLOW_ANSWERS.job_known).optional(),
+    first_call: z.enum(LEAD_FLOW_ANSWERS.first_call).optional(),
+    visit: z.enum(LEAD_FLOW_ANSWERS.visit).optional(),
+    handoff: z.enum(LEAD_FLOW_ANSWERS.handoff).optional()
+  }).strict().optional(),
   expected_revision: z.number().int().min(0).optional()
 }).strict();
 export type CompanyProfilePatch = z.infer<typeof companyProfilePatchSchema>;
@@ -42,6 +49,8 @@ export type CompanyProfile = {
   workforce: string | null; workforce_label: string | null; workforce_is_team: boolean;
   /** How many locations it works out of (GP-15), or null while unanswered. */
   locations: number | null;
+  /** How new leads become jobs (GP-119): each answer or null; `answered` once every question that applies is answered. */
+  lead_flow: { job_known: string | null; first_call: string | null; visit: string | null; handoff: string | null; answered: boolean };
   /** Whether each part has been answered: what setup steps read to know they are satisfied. */
   answered: { type: boolean; services: boolean; sales_team: boolean; workforce: boolean; locations: boolean };
   updated_at: string | null;
@@ -59,6 +68,9 @@ export function profileFrom(data: Record<string, unknown>, revision = 0, updated
   const services = [...new Set(strings(data.services))].map(serviceOf).filter((entry) => !!entry).map((entry) => ({ id: entry!.id, label: entry!.label.text, work_kind: entry!.work_kind || null }));
   const servicesOther = [...new Set(strings(data.services_other))].slice(0, 20);
   const sales = salesTeamOf(String(data.sales_team || "")), workforce = workforceOf(String(data.workforce || ""));
+  const flow = object(data.lead_flow);
+  const pick = <K extends keyof typeof LEAD_FLOW_ANSWERS>(key: K) => (LEAD_FLOW_ANSWERS[key] as readonly string[]).includes(String(flow[key] || "")) ? String(flow[key]) : null;
+  const leadFlow = { job_known: pick("job_known"), first_call: pick("first_call"), visit: pick("visit"), handoff: pick("handoff") };
   const locations = Number.isInteger(data.locations) && Number(data.locations) >= 1 ? Math.min(MAX_LOCATIONS, Number(data.locations)) : null;
   return {
     company_type: type ? type.id : other ? OTHER_COMPANY_TYPE : null,
@@ -71,6 +83,8 @@ export function profileFrom(data: Record<string, unknown>, revision = 0, updated
     sales_team: sales ? sales.id : null, sales_team_label: sales ? sales.label.text : null, sales_is_team: !!sales?.team,
     workforce: workforce ? workforce.id : null, workforce_label: workforce ? workforce.label.text : null, workforce_is_team: !!workforce?.team,
     locations,
+    // Someone who finds out what the job is on the phone calls first: first_call is not asked of them.
+    lead_flow: { ...leadFlow, answered: !!leadFlow.job_known && (leadFlow.job_known === "no" || !!leadFlow.first_call) && !!leadFlow.visit && !!leadFlow.handoff },
     answered: { type: !!type || !!other, services: services.length + servicesOther.length > 0, sales_team: !!sales, workforce: !!workforce, locations: locations !== null },
     updated_at: updatedAt,
     revision
@@ -115,6 +129,7 @@ export async function saveCompanyProfile(orgId: string, input: unknown, userId: 
     next.workforce = patch.workforce;
   }
   if (patch.locations !== undefined) next.locations = patch.locations;
+  if (patch.lead_flow !== undefined) next.lead_flow = { ...object(next.lead_flow), ...Object.fromEntries(Object.entries(patch.lead_flow).filter(([, value]) => value !== undefined)) } as JsonObject;
   if (patch.services_other !== undefined) next.services_other = [...new Set(patch.services_other.filter(Boolean))];
   next.updated_by = userId;
   const saved = await saveBranchModule(orgId, "default", COMPANY_PROFILE_MODULE, { data: next, expected_revision: revision }, { replace: true });

@@ -288,18 +288,19 @@
     .fmah-row{display:grid;grid-template-columns:var(--fmah-gutter,150px) auto;align-items:start}
     .fmah-gutter{position:sticky;left:0;z-index:4;display:flex;flex-direction:column;gap:3px;padding:10px 12px 10px 20px;background:inherit}
     .fmah-gutter strong{font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.05em;color:#344054}
-    .fmah-gutter small{color:#667085;font-size:11px;font-weight:650;line-height:1.35}
+    .fmah-gutter small{color:#b42318;font-size:11px;font-weight:650;line-height:1.35}
+    .fmah-named{display:flex;align-items:center;gap:5px;min-width:0}
+    .fmah-info{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;color:#98a2b3;font-size:11.5px;cursor:help;outline:none}
+    .fmah-info:hover,.fmah-info:focus-visible{color:#475467;background:#f2f4f7}
     .fmah-leads{background:#f5f7fa}
     .fmah-lead-list{display:flex;align-items:stretch;gap:12px;flex-wrap:nowrap;padding:4px 0 28px}
     .fmah-lead{position:relative;z-index:2;min-width:170px;max-width:240px;display:grid;grid-template-columns:auto 1fr;gap:3px 9px;align-items:center;padding:11px 13px 15px;border:1.5px solid rgba(var(--primary-rgb,217,48,37),.35);border-radius:14px;background:#fff;box-shadow:0 6px 16px rgba(15,23,42,.06);cursor:pointer;user-select:none;touch-action:none}
     .fmah-lead:hover{border-color:var(--primary,#d93025)}
-    .fmah-lead>i{grid-row:span 2;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
+    .fmah-lead>i{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
     .fmah-lead strong{font-size:13px;font-weight:900;line-height:1.2}
-    .fmah-lead small{color:#667085;font-size:11px;font-weight:700;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
     .fmah-lead.off{opacity:.55;border-style:dashed}
     .fmah-sink{position:relative;z-index:2;min-width:150px;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:10px 13px;border:1.5px dashed #d0d5dd;border-radius:14px;color:#667085;background:rgba(255,255,255,.6)}
     .fmah-sink strong{font-size:12px;font-weight:900;color:#475467}
-    .fmah-sink small{font-size:11px;font-weight:650}
     .fmah-port{position:absolute;left:0;right:0;bottom:0;height:12px;display:flex;justify-content:center;align-items:flex-end;cursor:crosshair;touch-action:none}
     .fmah-port::after{content:'';width:12px;height:12px;margin-bottom:-6px;border-radius:50%;background:#fff;border:2px solid var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12);transition:transform .15s}
     .fmah-lead:hover .fmah-port::after,.fmah-board:hover .fmah-port::after,.fmah-port:hover::after{transform:scale(1.25)}
@@ -313,7 +314,6 @@
     .fmah-lane-label .fmah-lane-tools{display:flex;gap:4px}
     .fmah-lane-label .fmah-icon{width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:#98a2b3;cursor:pointer}
     .fmah-lane-label .fmah-icon:hover{background:#f2f4f7;color:#475467}
-    .fmah-lane-label small{color:#98a2b3;font-size:10.5px;font-weight:700;line-height:1.35}
     .fmah-lane.drop{background:rgba(var(--primary-rgb,217,48,37),.07)}
     .fmah-edge-drop{position:absolute;left:var(--fmah-gutter,150px);right:0;height:0;border-top:3px dashed var(--primary,#d93025);z-index:2;pointer-events:none}
     .fmah-edge-drop span{position:absolute;left:12px;top:-12px;padding:2px 9px;border-radius:999px;background:var(--primary,#d93025);color:#fff;font-size:10.5px;font-weight:900;white-space:nowrap}
@@ -441,9 +441,12 @@
     function view(){
       const lanes = lanesOf(state.categories);
       let templates = state.templates, routing = state.routing;
-      if (preview?.entry) {
-        routing = { ...(routing || {}), default_entry:'scope', default_template_id:preview.entry };
-        if (typeof preview.one_board === 'boolean') templates = templates.map((template) => template.id !== preview.entry ? template : { ...template, definition:{ ...object(template.definition), category_ids:[SALES, ...(preview.one_board ? ['production'] : []), ...categoryIdsOf(template.definition).filter((id) => ![SALES, 'production', INTAKE].includes(id))] } });
+      // The setup's answers as the server would save them (automations-setup.plan): routing's default and the boards.
+      if (preview?.routing) routing = { ...(routing || {}), ...object(preview.routing) };
+      const planned = array(preview?.templates).map(object).filter((template) => clean(template.id));
+      if (planned.length) {
+        const byId = new Map(planned.map((template) => [clean(template.id), template]));
+        templates = [...templates.map((template) => byId.get(clean(template.id)) || template), ...planned.filter((template) => !templates.some((saved) => clean(saved.id) === clean(template.id)))];
       }
       const boards = boardsOf(templates, lanes);
       const links = boards.flatMap((board) => linksOf(board.template)).filter((link) => link.proposal || boards.some((board) => board.id === link.to));
@@ -474,26 +477,28 @@
           ${canEdit ? `<div class="fmah-port" data-port="board:${esc(board.id)}" title="${esc(t('m_d662abe07525e4', 'Drag to another board to connect, or click here and then click the board.'))}"></div>` : ''}
         </article>`;
       };
+      /** What used to be a line of small print under a name: an (i) beside it, read on hover or focus (GP-119). */
+      const info = (tip) => tip ? `<span class="fmah-info" tabindex="0" role="img" aria-label="${esc(tip)}" title="${esc(tip)}"><i class="fas fa-circle-info" aria-hidden="true"></i></span>` : '';
       const leadHtml = (lead) => {
         const icon = lead.fallback ? 'fa-inbox' : lead.rule && clean(object(array(object(lead.rule.formula).conditions)[0]).field) === 'lead_source.kind' ? (SOURCE_KINDS.find((entry) => entry[0] === clean(object(array(lead.rule.formula.conditions)[0]).value).split(',')[0])?.[3] || 'fa-filter') : 'fa-filter';
         const title = lead.fallback ? (lead.split ? t('m_4f43c5a5ac49ee', 'Every other new lead') : t('m_fd1d0520a6a1af', 'Any new lead')) : (lead.title || t('m_6fb3b59b9b8aa2', 'Some leads'));
         const summary = lead.fallback ? (canEdit ? t('m_5bdf13d84119e4', 'Click to split by source, time or place') : '') : lead.summary;
-        return `<div class="fmah-lead${lead.off ? ' off' : ''}" data-lead="${esc(lead.id)}" role="button" tabindex="0" aria-label="${esc(title)}"><i class="fas ${esc(icon)}" aria-hidden="true"></i><strong>${esc(title)}</strong><small>${esc(summary)}</small>${canEdit ? `<div class="fmah-port" data-port="lead:${esc(lead.id)}"></div>` : ''}</div>`;
+        return `<div class="fmah-lead${lead.off ? ' off' : ''}" data-lead="${esc(lead.id)}" role="button" tabindex="0" aria-label="${esc(title)}"${summary ? ` title="${esc(summary)}"` : ''}><i class="fas ${esc(icon)}" aria-hidden="true"></i><strong>${esc(title)}</strong>${canEdit ? `<div class="fmah-port" data-port="lead:${esc(lead.id)}"></div>` : ''}</div>`;
       };
       const placed = v.boards.filter((board) => v.place[board.id] !== undefined);
       const other = v.boards.filter((board) => v.place[board.id] === undefined);
       const routingNote = !canEdit ? t('m_a50323b27b6a50', 'Only people who manage company settings can see and change where new leads go.')
-        : !v.routing ? t('m_36861042095732', 'Where new leads go could not be read.') : '';
+        : t('m_780f3723687c0f', 'Where each new lead goes first. The first box that matches wins.');
+      const routingError = canEdit && !v.routing ? t('m_36861042095732', 'Where new leads go could not be read.') : '';
       const ignored = v.routing && v.routing.routing_mode === 'default' && array(v.routing.rules).length;
       scroll.innerHTML = `<div class="fmah-canvas${armed ? ' fmah-arming' : ''}" data-canvas style="--fmah-gutter:150px">
         <svg class="fmah-wires" data-wires aria-hidden="true"></svg>
         ${armed ? `<div class="fmah-hint" data-hint><i class="fas fa-link" aria-hidden="true"></i>${esc(t('m_84763d916c71bc', 'Now click the board it goes to. Esc cancels.'))}</div>` : ''}
-        <div class="fmah-row fmah-leads" data-leads-row><div class="fmah-gutter"><strong>${esc(t('m_b71569e0651789', 'New leads'))}</strong><small>${esc(routingNote || t('m_780f3723687c0f', 'Where each new lead goes first. The first box that matches wins.'))}</small>${ignored ? `<button type="button" class="fmah-btn" data-use-rules>${esc(t('m_055dc73aca32e9', 'Use the saved rules'))}</button>` : ''}</div>
-          <div class="fmah-lead-list">${v.leads.map(leadHtml).join('')}${v.routing ? `<div class="fmah-sink" data-sink="unscoped"><strong>${esc(t('m_e7ee25698227ac', 'No board yet'))}</strong><small>${esc(t('m_e68aec92ca9c47', 'Stays a new lead until someone picks a board'))}</small></div>` : ''}</div></div>
+        <div class="fmah-row fmah-leads" data-leads-row><div class="fmah-gutter"><span class="fmah-named"><strong>${esc(t('m_b71569e0651789', 'New leads'))}</strong>${info(routingNote)}</span>${routingError ? `<small role="alert">${esc(routingError)}</small>` : ''}${ignored ? `<button type="button" class="fmah-btn" data-use-rules>${esc(t('m_055dc73aca32e9', 'Use the saved rules'))}</button>` : ''}</div>
+          <div class="fmah-lead-list">${v.leads.map(leadHtml).join('')}${v.routing ? `<div class="fmah-sink" data-sink="unscoped" title="${esc(t('m_e68aec92ca9c47', 'Stays a new lead until someone picks a board'))}"><strong>${esc(t('m_e7ee25698227ac', 'No board yet'))}</strong></div>` : ''}</div></div>
         <div class="fmah-grid" data-grid style="grid-template-columns:var(--fmah-gutter) repeat(${columns}, auto)">
           ${v.lanes.map((lane, index) => `<div class="fmah-lane" data-lane="${index}" style="grid-row:${index + 1}"></div>
-            <div class="fmah-lane-label" data-lane-label="${index}" style="grid-row:${index + 1}"><strong ${canEdit ? `data-rename="${esc(lane.id)}" tabindex="0" role="button" title="${esc(t('m_e32e6dab52dcf9', 'Rename'))}"` : ''}>${esc(lane.label)}</strong>
-              ${lane.id === SALES ? `<small>${esc(t('m_cad3474c3275e4', 'A project on a Sales board is an open opportunity.'))}</small>` : ''}
+            <div class="fmah-lane-label" data-lane-label="${index}" style="grid-row:${index + 1}"><span class="fmah-named"><strong ${canEdit ? `data-rename="${esc(lane.id)}" tabindex="0" role="button" title="${esc(t('m_e32e6dab52dcf9', 'Rename'))}"` : ''}>${esc(lane.label)}</strong>${lane.id === SALES ? info(t('m_cad3474c3275e4', 'A project on a Sales board is an open opportunity.')) : ''}</span>
               ${canEdit && !lane.builtin ? `<span class="fmah-lane-tools"><button type="button" class="fmah-icon" data-lane-remove="${esc(lane.id)}" aria-label="${esc(t('m_bd4f3c88abfbb0', 'Remove this lane'))}" title="${esc(t('m_bd4f3c88abfbb0', 'Remove this lane'))}"><i class="fas fa-trash" aria-hidden="true"></i></button></span>` : ''}</div>`).join('')}
           ${placed.map((board) => `<div class="fmah-cell" style="grid-column:${v.place[board.id] + 2};grid-row:${board.rows[0] + 1} / ${board.rows[board.rows.length - 1] + 2}">${boardHtml(board)}</div>`).join('')}
         </div>
@@ -531,7 +536,7 @@
         const target = lead.to ? boardEl(lead.to) : canvas.querySelector('[data-sink]');
         if (!el || !target) continue;
         const a = box(el), b = box(target);
-        const previewing = preview?.entry && lead.fallback;
+        const previewing = !!preview?.routing && lead.fallback;
         const start = { x:a.x + a.w / 2, y:a.y + a.h };
         // To "No board yet", beside it in the same row: a loop under both boxes.
         const d = lead.to ? curve(start, { x:b.x + b.w / 2, y:b.y }) : `M${start.x},${start.y} C${start.x},${start.y + 34} ${b.x + b.w / 2},${b.y + b.h + 34} ${b.x + b.w / 2},${b.y + b.h}`;
