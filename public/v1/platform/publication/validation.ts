@@ -36,9 +36,38 @@ export function jsonClone<T>(value: T, maxBytes = 2_000_000): T {
   return clean as T;
 }
 
-export function validateJson(schema: JsonSchema, value: unknown, label = "value"): void {
+// Callers that build a schema on every read (custom field definitions) pass a new object with the same content
+// each time: compiled validators are also kept by content, or Ajv compiles and keeps another copy per call
+// (GP-14: a fifth of dev web's CPU). Only plain JSON is keyed by content, and nothing with an $id.
+const validatorsByContent = new Map<string, ValidateFunction>();
+function contentKey(schema: JsonSchema): string | null {
+  try {
+    const key = JSON.stringify(schema, function (this: Record<string, unknown>, name: string, value: unknown) {
+      const raw = this[name];
+      if (raw === undefined) return "\u0000undefined";
+      if (typeof raw === "number" && !Number.isFinite(raw)) return `\u0000${raw}`;
+      if (typeof raw === "function" || typeof raw === "symbol" || typeof raw === "bigint") throw new Error("not JSON");
+      if (raw && typeof raw === "object" && !Array.isArray(raw) && ![Object.prototype, null].includes(Object.getPrototypeOf(raw))) throw new Error("not JSON");
+      return value;
+    });
+    return key.includes('"$id"') ? null : key;
+  } catch { return null; }
+}
+export function compiledValidator(schema: JsonSchema): ValidateFunction {
   let validate = validators.get(schema);
-  if (!validate) { validate = ajv.compile(schema); validators.set(schema, validate); }
+  if (validate) return validate;
+  const key = typeof schema === "object" && schema ? contentKey(schema) : null;
+  validate = key === null ? undefined : validatorsByContent.get(key);
+  if (!validate) {
+    validate = ajv.compile(schema);
+    if (key !== null) { if (validatorsByContent.size >= 5000) validatorsByContent.clear(); validatorsByContent.set(key, validate); }
+  }
+  validators.set(schema, validate);
+  return validate;
+}
+
+export function validateJson(schema: JsonSchema, value: unknown, label = "value"): void {
+  const validate = compiledValidator(schema);
   jsonClone(value);
   if (!validate(value)) throw badRequest("publication_schema_invalid", `${label} does not match its declared schema.`, validate.errors?.map(e => ({ path: e.instancePath, keyword: e.keyword, message: e.message })));
 }
