@@ -1,11 +1,11 @@
 {
   "kind": "guided_experience",
   "id": "customer_portal.tab_tutorial",
-  "revision": 1,
-  "sha256": "c047c1dbdf0aedf563fe5e11e868b3f17cc578965dd91037f91a05441e97e4f0",
+  "revision": 2,
+  "sha256": "883c51ebc5791e1aa0459a214a3aecd3e2e8c0170455085cefc571cd272c99e3",
   "title": "Customer Portal tour",
-  "updated_at": "2026-10-28T00:40:02.983Z",
-  "updated_by": "generator",
+  "updated_at": "2026-11-19T18:04:22.652Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "id": "customer_portal.tab_tutorial",
     "version": 1,
@@ -163,8 +163,10 @@
           "key": "gx_cpt_outro_body",
           "text": "Want this tour again? Ask the agent \"Show me the tutorial again\"."
         },
-        "targets": [],
-        "placement": "center",
+        "targets": [
+          ".fm-project-tray-tabs [data-tray=agent]"
+        ],
+        "placement": "auto",
         "advance": "next",
         "wait_ms": 1500
       }

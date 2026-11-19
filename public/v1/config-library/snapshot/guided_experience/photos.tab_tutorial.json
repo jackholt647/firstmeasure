@@ -1,10 +1,10 @@
 {
   "kind": "guided_experience",
   "id": "photos.tab_tutorial",
-  "revision": 3,
-  "sha256": "4d857dd358d3b0c8d59786bd925ca7b12675c0ba99f31e6c16c6843bc66cbd74",
+  "revision": 4,
+  "sha256": "2726a25d44756d8492d3f0aff03452962bcfa6671dd3a263f38a4aeb0d442fd8",
   "title": "Photos tour",
-  "updated_at": "2026-11-19T17:38:41.008Z",
+  "updated_at": "2026-11-19T18:04:21.489Z",
   "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "id": "photos.tab_tutorial",
@@ -102,8 +102,10 @@
           "key": "gx_pt_outro_body",
           "text": "Want this tour again? Ask the agent \"Show me the tutorial again\"."
         },
-        "targets": [],
-        "placement": "center",
+        "targets": [
+          ".fm-project-tray-tabs [data-tray=agent]"
+        ],
+        "placement": "auto",
         "advance": "next",
         "wait_ms": 1500
       }
