@@ -43,8 +43,11 @@ const css = `
 .gxd-small .gxd-tile strong{font-size:13.5px}
 .gxd-small .gxd-tile small{font-size:11.5px}
 .gxd-small .gxd-tick{width:20px;height:20px;top:9px;right:9px}
-/* A question with two answers: two tall tiles, close to square, centred with room around them (Jack: not flat). */
-.gxd-grid.gxd-pair{grid-template-columns:repeat(2,minmax(0,290px));justify-content:center;gap:22px;padding:18px 0 22px}
+/* A question with two answers: two tall tiles, close to square, centred with room around them (Jack: not flat).
+   FM-615: the gutter between them equals the room either side of them (space-evenly, with side padding as wide as
+   the gap), and more room above than below in the grid so the pair sits midway between the question and the footer,
+   whose step padding adds to the room below. */
+.gxd-grid.gxd-pair{grid-template-columns:repeat(2,minmax(0,290px));justify-content:space-evenly;gap:22px;padding:30px 22px 8px}
 .gxd-pair .gxd-tile{flex-direction:column;align-items:center;justify-content:flex-start;gap:16px;min-height:250px;padding:46px 26px 30px;text-align:center}
 .gxd-pair .gxd-tile>span:not(.gxd-icon):not(.gxd-tick){align-items:center;gap:6px}
 .gxd-pair .gxd-icon{width:64px;height:64px;border-radius:18px;font-size:27px}
@@ -376,14 +379,14 @@ export function mount(el, ctx){
   // ── One answer from a few choices ─────────────────────────────────────
   const { key, choices } = question;
   const valueOf = (choice) => choice.value;
-  // Most people start with a proposal (FM-582): on the first question it is the large, recommended choice, already
-  // picked, and the other kinds sit in a smaller row below it.
+  // Most people start with a proposal (FM-582): on the first question it is the large choice, already picked, and the
+  // other kinds sit in a smaller row below it. Its size says it is the one to start with: no badge (FM-615).
   const featured = part === 'kind' ? choices.find((choice) => choice.id === 'proposal') : null;
   let chosen = choices.find((choice) => valueOf(choice) === selections[key]) || featured || null;
   const tileHtml = (choice, big = false) => `
     <button type="button" class="gxd-tile${big ? ' gxd-feature' : ''}" role="radio" data-choice="${esc(choice.id)}" aria-checked="${chosen === choice}">
       <span class="gxd-icon" aria-hidden="true"><i class="fas ${esc(choice.icon)}"></i></span>
-      <span>${big ? `<em class="gxd-badge">${esc(t('kind_recommended', 'Recommended to start'))}</em>` : ''}<strong>${esc(L(choice.title))}</strong><small>${esc(L(choice.hint))}</small></span>${tick}
+      <span><strong>${esc(L(choice.title))}</strong><small>${esc(L(choice.hint))}</small></span>${tick}
     </button>`;
   const others = choices.filter((choice) => choice !== featured);
   el.innerHTML = `<div class="gxd"><div role="radiogroup" aria-label="${esc(ctx.L(ctx.step.title))}" class="gxd-group">${featured
