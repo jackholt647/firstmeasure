@@ -187,6 +187,7 @@ export function requirementsFor(attendees: AppointmentAttendee | AppointmentAtte
   return [{ ...department, subject_type: "organization_user", mode: "count", count: 1 }];
 }
 const CATEGORY_DEPARTMENT: Record<AppointmentCategory, string | null> = { sales: "sales", production: "production", other: null };
+const SETUP_DEPARTMENTS = new Set(Object.values(CATEGORY_DEPARTMENT).filter(Boolean));
 
 /**
  * Puts the setup's kinds into the person's branch's appointment types, through the catalog's own writer. A catalog
@@ -194,22 +195,28 @@ const CATEGORY_DEPARTMENT: Record<AppointmentCategory, string | null> = { sales:
  * type it has and gains the kinds it lacks. `answers` (by kind id) also sets each type's texts and who goes. A new sales
  * or production type needs a project (FM-557); an other one (a team meeting) does not.
  */
-async function writeTypes(auth: PlatformAuthContext, kinds: StoredKind[], answers: Map<string, StoredType> | null, profile: Pick<CompanyProfile, "sales_team">) {
+async function writeTypes(auth: PlatformAuthContext, kinds: StoredKind[], answers: Map<string, StoredType> | null, profile: Pick<CompanyProfile, "sales_team">, departments: Partial<Record<AppointmentCategory, string>> = {}) {
   const bundle = await readAppointmentCatalog(auth);
   const saved = bundle.revision > 0;
   // A company with no sales appointments makes no distinction between sales and production (GP-85): its types name no
   // department.
   const activeDepartments = new Set(noSales(profile) ? [] : bundle.catalog.departments.filter((entry) => entry.status === "active").map((entry) => entry.id));
+  const departmentOf = (category: AppointmentCategory) => [departments[category], CATEGORY_DEPARTMENT[category]].find((id) => !!id && activeDepartments.has(id)) || undefined;
   const presets = saved ? [...bundle.catalog.presets] : [];
   for (const entry of kinds) {
     const known = kindById.get(entry.id);
-    const departmentId = CATEGORY_DEPARTMENT[entry.category] && activeDepartments.has(CATEGORY_DEPARTMENT[entry.category]!) ? CATEGORY_DEPARTMENT[entry.category]! : undefined;
+    const departmentId = departmentOf(entry.category);
     const at = presets.findIndex((preset) => preset.id === entry.id);
     const answer = answers?.get(entry.id);
     if (at >= 0 && !answer) continue;
     const base = at >= 0 ? presets[at]!.configuration : appointmentConfigurationSchema.parse({ title: entry.label, ...(known?.configuration || { duration_minutes: 60, window_minutes: 60 }), department_ids: departmentId ? [departmentId] : [], requires_project: entry.category !== "other" });
+    // A type saved before its department existed gains it, since who goes is narrowed to it (GP-122); with no sales
+    // appointments it names neither sales nor production.
+    const departmentIds = !answer ? base.department_ids
+      : noSales(profile) ? base.department_ids.filter((id) => !SETUP_DEPARTMENTS.has(id))
+      : departmentId && !base.department_ids.includes(departmentId) ? [...base.department_ids, departmentId] : base.department_ids;
     const configuration = answer
-      ? appointmentConfigurationSchema.parse({ ...base, requirements: requirementsFor(answer.attendees, auth.userId, departmentId), customer_texts: { reminder: answer.reminder, on_my_way: answer.on_my_way } })
+      ? appointmentConfigurationSchema.parse({ ...base, department_ids: departmentIds, requirements: requirementsFor(answer.attendees, auth.userId, departmentId), customer_texts: { reminder: answer.reminder, on_my_way: answer.on_my_way } })
       : appointmentConfigurationSchema.parse({ ...base, requirements: requirementsFor("anyone", auth.userId, departmentId) });
     const preset = { id: entry.id, label: at >= 0 ? presets[at]!.label : entry.label, configuration };
     if (at >= 0) presets[at] = preset; else presets.push(preset);
@@ -235,6 +242,50 @@ async function ensureTeamTypes(auth: PlatformAuthContext, profile: CompanyProfil
   }
   return added;
 }
+
+/**
+ * Gives the organization the departments its kinds say it has (GP-122): sales appointments mean a Sales department and
+ * work appointments a Production department, in the person's branch, so People › Departments shows them. An existing
+ * one is used (the same id, or the same name in this branch) and made active again; a new one is made with the
+ * scheduling defaults' colour and roles. The team types the answers send there (a sales team, crews) are put in it, so
+ * a type that narrows who goes to its department still finds them. Written through the People departments writer, as
+ * the person. A company with no sales appointments has no departments (GP-85). Returns each category's department.
+ */
+async function ensureDepartments(auth: PlatformAuthContext, kinds: StoredKind[], answers: StoredType[], profile: Pick<CompanyProfile, "sales_team">) {
+  const result: Partial<Record<AppointmentCategory, string>> = {};
+  if (noSales(profile)) return result;
+  const wanted = APPOINTMENT_CATEGORIES.filter((category) => CATEGORY_DEPARTMENT[category] && kinds.some((entry) => entry.category === category));
+  if (!wanted.length) return result;
+  const [{ readOrganizationDepartments, saveDepartmentSettings }, { defaultAppointmentCatalog }, { listAccessRoles }, { readWorkforceConfiguration }] = await Promise.all([import("../workforce/departments.js"), import("./defaults.js"), import("../workforce/access.js"), import("../workforce/storage.js")]);
+  const [current, roles, configuration] = await Promise.all([readOrganizationDepartments(auth.orgId), listAccessRoles(auth.orgId), readWorkforceConfiguration(auth.orgId)]);
+  const roleIds = new Set(roles.map((role: JsonObject) => text(role.id)));
+  const groupKinds = new Set((configuration.resource_group_kinds as JsonObject[]).filter((entry) => text(entry.status || "active") === "active").map((entry) => text(entry.id)));
+  const branchId = text(auth.branchId) || "default";
+  const departments = current.departments.map((entry) => ({ ...entry }));
+  let changed = false;
+  for (const category of wanted) {
+    const template = defaultAppointmentCatalog().departments.find((entry) => entry.id === CATEGORY_DEPARTMENT[category])!;
+    const sameName = (entry: { label: string }) => entry.label.trim().toLowerCase() === template.label.toLowerCase();
+    const here = departments.filter((entry) => entry.branch_id === branchId);
+    let department = here.find((entry) => entry.id === template.id && entry.status === "active") || here.find((entry) => sameName(entry) && entry.status === "active")
+      || here.find((entry) => entry.id === template.id) || here.find(sameName);
+    if (!department) {
+      // An id another branch's department has is not reused: this branch gets its own.
+      const id = [template.id, `${template.id}_${slug(branchId)}`].find((candidate) => !departments.some((entry) => entry.id === candidate));
+      if (!id) continue;
+      department = { ...template, id, branch_id: branchId, status: "active", role_ids: template.role_ids.filter((role) => roleIds.has(role)), group_kind_ids: template.group_kind_ids.filter((kind) => groupKinds.has(kind)), subject_keys: [] };
+      departments.push(department);
+      changed = true;
+    } else if (department.status !== "active") { department.status = "active"; changed = true; }
+    const team = category === "sales" ? (answers.some((entry) => kindCategory(kinds, entry.id) === "sales" && entry.attendees.includes("sales_team")) ? SALES_TEAM_TYPE.id : "")
+      : (answers.some((entry) => kindCategory(kinds, entry.id) === "production" && entry.attendees.includes("crews")) ? CREW_TYPE.id : "");
+    if (team && groupKinds.has(team) && !department.group_kind_ids.includes(team)) { department.group_kind_ids = [...department.group_kind_ids, team]; changed = true; }
+    result[category] = department.id;
+  }
+  if (changed) await saveDepartmentSettings(auth, { departments, terminology: current.terminology, revision: current.revision, ...(current.revision ? {} : { legacy_token: current.legacy_token }) });
+  return result;
+}
+const kindCategory = (kinds: StoredKind[], id: string) => kinds.find((entry) => entry.id === id)?.category;
 
 export const kindsInputSchema = z.object({
   kinds: z.array(z.object({
@@ -280,12 +331,15 @@ export async function applyAppointmentSetup(auth: PlatformAuthContext, input: un
   if (unknown.length) throw badRequest("appointment_kind_unknown", `${unknown.join(", ")} is not one of the kinds of appointments you chose.`);
   // A kind not given keeps what was answered before, or the defaults.
   const answers = new Map<string, StoredType>(current.kinds.map((entry) => [entry.id, given.get(entry.id) || { id: entry.id, reminder: entry.reminder, on_my_way: entry.on_my_way, attendees: entry.attendees }]));
-  await writeTypes(auth, current.kinds.map(({ id, label, category, custom }) => ({ id, label, category, custom: !!custom })), answers, profile);
+  const kinds = current.kinds.map(({ id, label, category, custom }) => ({ id, label, category, custom: !!custom }));
+  // The team types first, so the departments can name them; the departments before the types that are narrowed to them.
   const added = await ensureTeamTypes(auth, profile, [...answers.values()]);
+  const departments = await ensureDepartments(auth, kinds, [...answers.values()], profile);
+  await writeTypes(auth, kinds, answers, profile, departments);
   await writeRecord(auth.orgId, { types: [...answers.values()].map((entry) => ({ ...entry, attendee: entry.attendees[0]! })) as unknown as JsonObject[], applied_at: new Date().toISOString() }, auth.userId);
   const { listResourceGroups } = await import("../workforce/storage.js");
   const crews = (await listResourceGroups(auth.orgId)).filter((group: JsonObject) => text(group.kind_id) === "crew" && text(group.status || "active") === "active").length;
-  return { ...(await readAppointmentSetup(auth.orgId)), types_added: added, crews };
+  return { ...(await readAppointmentSetup(auth.orgId)), types_added: added, departments, crews };
 }
 
 // ── Publication ─────────────────────────────────────────────────────────

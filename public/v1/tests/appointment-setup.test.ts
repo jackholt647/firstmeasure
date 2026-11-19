@@ -142,6 +142,23 @@ test("the kinds become appointment types; the finish sets texts and who goes, an
   const types = (await listAssigneeTypes(ORG)).types.map((type) => `${type.kind}:${type.id}`);
   for (const id of ["resource_group:sales_team", "resource_group:crew", "organization_connection:subcontractor"]) assert.ok(types.includes(id), id);
 
+  // GP-122: sales and work appointments mean Sales and Production departments, shown in People › Departments, and the
+  // types are narrowed to them. Crews are in Production and the sales team in Sales.
+  assert.deepEqual(applied.departments, { sales: "sales", production: "production" });
+  const { departmentSettings } = await import("../workforce/departments.js");
+  const people = await departmentSettings(owner);
+  const department = (id: string) => people.departments.find((entry: any) => entry.id === id)!;
+  assert.deepEqual(people.departments.map((entry: any) => [entry.id, entry.label, entry.status, entry.branch_id]), [["sales", "Sales", "active", "default"], ["production", "Production", "active", "default"]]);
+  assert.ok(department("production").group_kind_ids.includes("crew"), "crews are in Production");
+  assert.ok(department("sales").group_kind_ids.includes("sales_team") === false, "nobody said a salesperson goes: sales is the person who set it up");
+  assert.deepEqual(byId.get("repair")!.department_ids, ["production"], "a type saved before its department existed gains it");
+  assert.deepEqual(byId.get("repair")!.requirements.map((r: any) => r.department_id), ["production"]);
+  assert.deepEqual(byId.get("sales")!.department_ids, ["sales"]);
+  const { resolveOrganizationStructure, departmentIdsForSubject } = await import("../workforce/organization-structure.js");
+  const { createResourceGroup } = await import("../workforce/storage.js");
+  const crew = await createResourceGroup(ORG, { name: "Crew A" });
+  assert.deepEqual(departmentIdsForSubject(await resolveOrganizationStructure(ORG), "resource_group", String(crew.id)), ["production"], "a crew added later is in Production");
+
   // Asked again (a replay), it keeps what each kind was answered; a saved catalog keeps the types it has.
   const again = await value(owner, "appointment-setup", "status");
   assert.deepEqual(again.kinds.map((kind: any) => [kind.id, kind.attendee, kind.reminder]), [["sales", "me", true], ["repair", "crews", false], ["custom_estimate_b", "subcontractors", false]]);
