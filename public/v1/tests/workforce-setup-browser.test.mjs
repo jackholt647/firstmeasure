@@ -31,7 +31,8 @@ async function open(browser,workforce,extra={}){
     window.__APP={userOrgId:'o',userId:'me',userName:'Mia Owner'};
     const read=async(provider,name)=>provider==='workforce-setup'?{profile,workforces,assignees:[],people:[],...(extra.status||{})}:name==='catalog'?{workforces,services}:{workforce};
     const module=await import('/libraries/guided-experiences/workforce-setup.js');
-    window.handle=module.mount(document.querySelector('#step'),{options:extra.options||{},L:eval(L),esc,read,change(){},syncBack(){}});
+    window.wide=[];
+    window.handle=module.mount(document.querySelector('#step'),{options:extra.options||{},L:eval(L),esc,read,change(){},syncBack(){},setWide(on){wide.push(on);}});
   },{L,workforce,extra});
   return {page,errors};
 }
@@ -120,6 +121,10 @@ test('how many: the icon and the stepper are the same on both rows, and each can
     await page.locator('[data-gxw-next]').click();
     await page.locator('[data-gxw-page="work"]').waitFor();
     assert.equal(await page.locator('.gxw-card').count(),2,'two crews and no subcontractor');
+    // The cards' pages take the large sheet; how many does not.
+    assert.deepEqual(await page.evaluate(()=>wide),[false,true]);
+    // Each card: its name on top with what it is at the top right.
+    assert.deepEqual(await page.locator('.gxw-card').first().evaluate(card=>{const name=card.querySelector('[data-gxw-name]').getBoundingClientRect(),kind=card.querySelector('.gxw-kind').getBoundingClientRect();return [name.top<kind.bottom&&kind.top<name.bottom,kind.left>name.left,card.querySelector('header').firstElementChild.contains(card.querySelector('[data-gxw-name]'))];}),[true,true,true]);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
@@ -161,17 +166,18 @@ test('a crew: Other, specialties, a picked and a new member, who is in charge; i
     await card.locator('[data-gxw-service-add="gutters"]').click();
     assert.equal(await card.locator('[data-gxw-service="gutters"]').getAttribute('aria-pressed'),'true');
     // Specialties: the library's to pick from, and one typed in.
+    // Each service is its own panel, a few suggestions in view at once, the rest behind "more".
     const roofs=card.locator('[data-gxw-kinds="roof_replacement"]');
-    assert.equal(await roofs.locator('[data-gxw-tag]').count(),0,'closed, a service shows only what was picked');
-    await roofs.locator('[data-gxw-kinds-open]').click();
+    assert.deepEqual(await roofs.locator('[data-gxw-tag]').allTextContents(),['Asphalt shingles','Metal roofs','Flat roofs','Tile roofs']);
+    assert.equal(await roofs.locator('[data-gxw-kinds-open]').textContent(),'2 more');
     await roofs.locator('[data-gxw-tag="Metal roofs"]').click();
     await roofs.locator('[data-gxw-tag-new]').fill('Steep slope');
     await roofs.locator('[data-gxw-tag-new]').press('Enter');
     assert.equal(await roofs.locator('[data-gxw-tag="Steep slope"]').getAttribute('aria-pressed'),'true');
+    assert.deepEqual((await roofs.locator('[data-gxw-tag]').allTextContents()).slice(0,2),['Metal roofs','Steep slope'],'what was picked comes first');
     await roofs.locator('[data-gxw-kinds-open]').click();
-    assert.deepEqual(await roofs.locator('[data-gxw-tag]').allTextContents(),['Metal roofs','Steep slope'],'closed again: what was picked');
-    await card.locator('[data-gxw-kinds="gutters"] [data-gxw-kinds-open]').click();
-    assert.equal(await card.locator('[data-gxw-kinds="gutters"] [data-gxw-tag="Seamless"]').count(),1,'gutters has its own kinds');
+    assert.ok((await roofs.locator('[data-gxw-tag]').allTextContents()).includes('Slate'),'more shows the rest');
+    assert.equal(await card.locator('[data-gxw-kinds="gutters"] [data-gxw-tag="Seamless"]').count(),1,'gutters has its own kinds, in view at once');
     // Who's on it: our own dropdown, then someone new from its bottom.
     assert.equal(await card.locator('select').count(),0,'no browser dropdown');
     await card.locator('[data-gxw-pick]').click();
