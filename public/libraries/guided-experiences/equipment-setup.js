@@ -60,6 +60,8 @@ const css = `
 .gxe-step input::-webkit-outer-spin-button,.gxe-step input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .gxe-step:focus-within{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12)}
 .gxe-rented{grid-column:2 / -1;font-size:12.5px;color:#667085}
+.gxe-cell{display:flex;flex-direction:column;gap:4px;justify-self:start;min-width:0}
+.gxe-at{display:none;font-size:11.5px;font-weight:600;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gxe-done{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;background:#ecfdf3;color:#05603a}
 .gxe-done i{font-size:22px}
 .gxe-done p{color:#05603a;font-size:14px;font-weight:600}
@@ -77,7 +79,8 @@ const css = `
 .gxe-error{color:#b42318;font-size:13px;margin:0}
 .gxe-error:empty{display:none}
 .gxe-note{font-size:12.5px}
-@media(max-width:560px){.gxe-grid{grid-template-columns:minmax(0,1fr)}.gxe-trow{grid-template-columns:minmax(0,1fr) repeat(var(--cols,1),minmax(92px,1fr))}.gxe-trow.wide{grid-template-columns:minmax(0,1fr)}.gxe-actions .gxe-btn{flex:1 1 auto}}
+/* A phone: each kind's name on its own line, its counts below it, each named by its location. */
+@media(max-width:560px){.gxe-grid{grid-template-columns:minmax(0,1fr)}.gxe-trow{grid-template-columns:repeat(var(--cols,1),minmax(0,1fr));row-gap:8px}.gxe-trow .gxe-name,.gxe-rented{grid-column:1 / -1}.gxe-trow.head{display:none}.gxe-at{display:block}.gxe-actions .gxe-btn{flex:1 1 auto}}
 @media(prefers-reduced-motion:reduce){.gxe *{transition:none!important}}
 `;
 const tick = '<span class="gxe-tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>';
@@ -204,12 +207,12 @@ export function mount(el, ctx){
   function drawUnits(){
     title(L('gx_eqs_units_title', 'How many do you have?'));
     const cols = locations.length;
-    const stepper = (kind, row) => `<span class="gxe-step" data-gxe-count="${esc(kind.id)}" data-at="${esc(row.key)}"><button type="button" data-gxe-minus aria-label="${esc(L('gx_eqs_fewer', 'One fewer'))}">−</button><input type="number" inputmode="numeric" min="0" max="${MAX_UNITS}" value="${unitsOf(kind, row.key)}" aria-label="${esc(`${kind.label} · ${clean(row.name)}`)}"><button type="button" data-gxe-plus aria-label="${esc(L('gx_eqs_more', 'One more'))}">+</button></span>`;
+    const stepper = (kind, row) => `<span class="gxe-cell">${cols > 1 ? `<small class="gxe-at">${esc(row.name)}</small>` : ''}<span class="gxe-step" data-gxe-count="${esc(kind.id)}" data-at="${esc(row.key)}"><button type="button" data-gxe-minus aria-label="${esc(L('gx_eqs_fewer', 'One fewer'))}">−</button><input type="number" inputmode="numeric" min="0" max="${MAX_UNITS}" value="${unitsOf(kind, row.key)}" aria-label="${esc(`${kind.label} · ${clean(row.name)}`)}"><button type="button" data-gxe-plus aria-label="${esc(L('gx_eqs_more', 'One more'))}">+</button></span></span>`;
     el.innerHTML = `<div class="gxe" data-gxe-page="units">
       <p>${esc(cols > 1 ? L('gx_eqs_units_lead_many', 'How many of each do you have at each location? We’ll add them to your fleet, numbered, and you can fill in the details later.') : L('gx_eqs_units_lead', 'How many of each do you have? We’ll add them to your fleet, numbered, and you can fill in the details later.'))}</p>
       <div class="gxe-table" style="--cols:${cols}">
         ${cols > 1 ? `<div class="gxe-trow head"><span></span>${locations.map((row) => `<span title="${esc(row.name)}">${esc(row.name)}</span>`).join('')}</div>` : ''}
-        ${chosen().map((kind) => `<div class="gxe-trow${counted(kind) ? '' : ' wide'}" data-gxe-unit-row="${esc(kind.id)}"><span class="gxe-name">${icon(kind.icon)}<span><strong>${esc(kind.label)}</strong>${kind.existing ? `<small>${esc(L('gx_eqs_units_have', '{n} in your fleet now', { n: kind.existing }))}</small>` : ''}</span></span>${counted(kind) ? locations.map((row) => stepper(kind, row)).join('') : `<span class="gxe-rented">${esc(copy(kind.note, L('gx_eqs_units_rented', 'Rented when you need one: nothing to count.')))}</span>`}</div>`).join('')}
+        ${chosen().map((kind) => `<div class="gxe-trow" data-gxe-unit-row="${esc(kind.id)}"><span class="gxe-name">${icon(kind.icon)}<span><strong>${esc(kind.label)}</strong>${kind.existing ? `<small>${esc(L('gx_eqs_units_have', '{n} in your fleet now', { n: kind.existing }))}</small>` : ''}</span></span>${counted(kind) ? locations.map((row) => stepper(kind, row)).join('') : `<span class="gxe-rented">${esc(copy(kind.note, L('gx_eqs_units_rented', 'Rented when you need one: nothing to count.')))}</span>`}</div>`).join('')}
       </div>
       ${errorLine}
       <div class="gxe-actions">${backButton()}<span class="gxe-spacer"></span><button type="button" class="gxe-btn primary" data-gxe-apply>${esc(L('gx_eqs_apply', 'Set up my equipment'))}</button></div>

@@ -131,6 +131,10 @@ test('a setup asked again starts from the fleet: its facilities, the kinds it ma
     assert.deepEqual(await page.locator('[data-gxe-unit-row=dump_truck] input').evaluateAll(nodes=>nodes.map(node=>node.value)),['2','1']);
     assert.match(await page.locator('[data-gxe-unit-row=dump_truck]').innerText(),/3 in your fleet now/);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no sideways scroll on a phone');
+    // On a phone a kind's name has its own line and its counts sit below it, each named by its location.
+    const layout=await page.evaluate(()=>{const row=document.querySelector('[data-gxe-unit-row=dump_truck]');const name=row.querySelector('.gxe-name').getBoundingClientRect(),cells=[...row.querySelectorAll('.gxe-cell')].map(cell=>cell.getBoundingClientRect());
+      return {below:cells.every(cell=>cell.top>=name.bottom-1),labels:[...row.querySelectorAll('.gxe-at')].map(node=>getComputedStyle(node).display!=='none'?node.textContent:''),overlap:cells[0].right>cells[1].left};});
+    assert.deepEqual(layout,{below:true,labels:['Shop','Lot'],overlap:false});
     await page.locator('[data-gxe-apply]').click();
     await page.waitForSelector('[data-gxe-page=done]');
     assert.deepEqual(await page.evaluate(()=>calls[0].input.facilities),[{key:'yard1',id:'yard_a',name:'Shop'},{key:'yard2',id:'yard_b',name:'Lot'}],'facilities go back by id');
