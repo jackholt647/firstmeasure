@@ -1258,9 +1258,9 @@
     const item = (action, icon, label, hint, disabled = false) => `<button type="button" class="mn-add-item" data-money-add-action="${action}" ${disabled ? 'disabled' : ''}><i class="fas ${icon}" aria-hidden="true"></i><span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(hint)}</small></span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>`;
     const body = `<div class="mn-add-list">
       ${manage ? item('take_payment', 'fa-credit-card', term('take_collected_payment'), 'Charge a card or bank account now', busy) : ''}
-      ${manage ? item('upload_receipts', 'fa-file-arrow-up', `Upload ${term('receipts').toLowerCase()}`, 'Photos or files of receipts and bills; totals are read for you', busy || state.receiptUploadInFlight) : ''}
+      ${manage ? item('upload_receipts', 'fa-file-arrow-up', `Upload ${term('receipts').toLowerCase()}`, 'Receipts and bills; totals are read for you', busy || state.receiptUploadInFlight) : ''}
       ${manage ? item('invoice', 'fa-file-invoice-dollar', term('generate_invoice'), 'Bill scheduled payments or custom items', busy) : ''}
-      ${item('reports', 'fa-chart-column', 'Generate report', manage ? 'Make a report from a template, or open one made before' : 'Open reports made for this project')}
+      ${item('reports', 'fa-chart-column', 'Generate report', manage ? 'From a template, or open a past one' : 'Open reports made for this project')}
     </div>`;
     return modalFrame({ title:term('workspace'), icon:'fa-plus', body, size:'mn-add-modal' });
   }
