@@ -229,6 +229,13 @@ const css = `
 .gxd-first-app{position:relative;flex:1 1 auto;min-height:0;overflow:hidden;border-radius:10px}
 .gxd-first-app .fmdx-editor-top,.gxd-first-app .fmdx-doc-card-row{display:none!important}
 .gxd-first .gxd-busy{flex:1 1 auto;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;min-height:100%;color:#475467;font-size:13px}
+/* The wide steps (style, prices, wording, first proposal) take the project window's size (GP-23): on the page the
+   window manager's modal (min(1720, 96%) x min(1180, 92%), centred), in a project window the whole window. A phone keeps
+   the player's full-screen sheet. */
+@media (min-width:761px){
+  .gxs.gxs-wide[data-gx-setup="documents.setup"] .gxs-sheet{width:min(1720px,96vw);height:min(1180px,calc(var(--gx-vh,100vh) * .92));border-radius:12px}
+  .project-window-embedded .gxs.gxs-wide[data-gx-setup="documents.setup"] .gxs-sheet{width:100vw;height:var(--gx-vh,100vh);border-radius:0;box-shadow:none}
+}
 .gxd-ghost-doc{position:fixed;margin:0;z-index:2147483600;transform-origin:0 0;overflow:hidden!important;pointer-events:none;background:#eef0f3;border-radius:12px;box-shadow:0 18px 50px rgba(16,24,40,.22);transition:transform .6s cubic-bezier(.22,1,.36,1),opacity .3s}
 @media (max-width:760px){
   .gxd-copy{grid-template-columns:1fr;grid-template-rows:auto minmax(320px,1fr);overflow-y:auto}
