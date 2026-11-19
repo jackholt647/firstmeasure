@@ -1429,7 +1429,8 @@ test('the event editor offers the organization\'s appointment types, and the gea
   const toolbar = schedulingSource.match(/function toolbarHtml\(\)\{([\s\S]*?)function openDayModal/);
   assert.ok(toolbar, 'toolbarHtml should be present');
   assert.match(toolbar[1], /data-schedule-settings/);
-  assert.match(toolbar[1], /\$\{settingsButton\}\s*<\/div>\s*<\/div>/);
+  // Right of the Day / 4 Day / Week / Month (and Routing / Timeline) switch, before the department chips.
+  assert.match(toolbar[1], /\.join\(''\)\}<\/span>`\)\.join\(''\)\}\s*\$\{settingsButton\}\s*\$\{String\(modeButtons\)\}/);
   const open = fn('openSchedulingSettings');
   assert.match(open, /params:\{ embedded:true, settingsTab:'scheduling' \}/);
   assert.match(open, /onClose:\(\) => \{ void loadAppointmentTypes\(true\); \}/);

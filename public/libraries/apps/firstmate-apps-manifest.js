@@ -390,7 +390,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
-      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261119-gp91-appointment-types')]
+      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261119-gp91-types-gear')]
     },
     {
       id: 'portal.training',
