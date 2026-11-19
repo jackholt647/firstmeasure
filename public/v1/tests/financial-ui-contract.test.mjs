@@ -9,6 +9,7 @@ const crewUrl = new URL('../../libraries/apps/crew/app.js', import.meta.url);
 const receiptsUrl = new URL('../../libraries/apps/receipts/app.js', import.meta.url);
 const paymentsApiUrl = new URL('../../libraries/payments-api/payments-api.js', import.meta.url);
 const financialsApiUrl = new URL('../../libraries/financials-api/financials-api.js', import.meta.url);
+const paymentsSetupUrl = new URL('../../libraries/payments-setup/payments-setup.js', import.meta.url);
 
 test('global financials registers as a routed portal app', async () => {
   const [app, manifest] = await Promise.all([
@@ -185,7 +186,27 @@ test('on a phone the Finance actions and Reports are one + menu beside Settings;
   assert.match(money, /\$\{manage \? item\('take_payment'[\s\S]*\$\{manage \? item\('upload_receipts'[\s\S]*\$\{manage \? item\('invoice'[\s\S]*\$\{item\('reports'/);
   // A choice closes the menu first, so its dialog rises as a fresh tray; receipts open the file picker in the same tap.
   assert.match(money, /function runAddAction\(action\)\{\s*closeModal\(\);\s*if \(action === 'upload_receipts'\) \{[^}]*querySelector\('\[data-money-receipt-input\]'\)\?\.click\(\)/);
-  assert.match(money, /querySelectorAll\('\[data-money-add-action\]'\)\.forEach\(\(button\) => button\.addEventListener\('click', \(\) => runAddAction/);
+  assert.match(money, /querySelectorAll\('\[data-money-add-action\]'\)\.forEach\(\(button\) => button\.addEventListener\('click', \(event\) => \{[^}]*\}\s*runAddAction\(cleanText\(button\.dataset\.moneyAddAction\)\)/);
+});
+
+test('Take a Payment wears the Operations Setup pill while online payments are not set up, and it opens setup (GP-17)', async () => {
+  const money = await readFile(moneyUrl, 'utf8');
+  const setup = await readFile(paymentsSetupUrl, 'utf8');
+  // Only on a definite not-set-up answer for this project's organization; paused or unavailable is not setup.
+  assert.match(money, /function paymentsSetupPending\(\)\{[^}]*entry\.key === `\$\{orgId\(\)\}:\$\{projectId\(\)\}`[^}]*!!config && config\.ready !== true && \['online_processing_off', 'no_merchant_account', 'not_approved'\]\.includes/);
+  // Desktop button and the phone + menu item both carry it, with the Operations badge's copy and colours.
+  assert.match(money, /data-money-take-payment[^\n]*\$\{setupPending \? paymentsSetupPillHtml\(\) : ''\}<\/button>/);
+  assert.match(money, /item\('take_payment',[^\n]*setupPending \? paymentsSetupPillHtml\(\) : ''\)/);
+  assert.match(money, /<span class="mn-setup-pill" data-money-payments-setup>\$\{\(globalThis\.PlatformLanguage\?\.htmlText\("money","m_b06faf127e1505","Setup"\)/);
+  assert.match(money, /\.mn-setup-pill\{[^}]*border:1px solid #f2ca72;border-radius:20px;background:#fff0cb;color:#794c00/);
+  // The pill opens payment setup for whoever can set payments up; the rest of the button still opens Take a payment.
+  assert.match(money, /closest\?\.\('\[data-money-payments-setup\]'\) && canSetUpPayments\(\)\) \{ startPaymentSetup\(\); return; \}\s*openModal\(\{ type:'take_payment' \}\)/);
+  assert.match(money, /closest\?\.\('\[data-money-payments-setup\]'\) && canSetUpPayments\(\) && !moneyMutationBusy\(\)\) \{ startPaymentSetup\(\); return; \}/);
+  // When the setup closes, readiness is asked again so the pill goes once payments are ready.
+  assert.match(money, /Promise\.resolve\(setup\)\.then\(recheckPaymentsSetup, \(\) => openPaymentSettings\(\)\)/);
+  // Setup is started from inside the project window (z-index 2147483200): it has to open above it, below guides.
+  const z = Number(setup.match(/\.fmp-modal\{position:fixed;inset:0;z-index:(\d+);/)?.[1]);
+  assert.ok(z > 2147483200 && z < 2147483300, `payments setup z-index ${z}`);
 });
 
 test('the Finance tab placeholder is its one loading message: styled before mount and marked as a status (GP-9)', async () => {
