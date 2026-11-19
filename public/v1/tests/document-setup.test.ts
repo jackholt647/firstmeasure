@@ -77,7 +77,7 @@ test("the library entry parses, and its checks pass against the running code", a
   const choices = await readFile(new URL("../../libraries/guided-experiences/documents-setup.js", import.meta.url), "utf8");
   const detailCopy = `${detail.subtitle.text} ${choices.match(/part === 'detail'[\s\S]*?\] \};/)![0]}`;
   assert.match(detailCopy, /exact scope of work, down to each material and the labor/, "GP-49: every line item is built from the job's scope of work");
-  assert.match(detailCopy, /broad materials selected and the overall measurements/, "GP-49: a broad estimate comes from the main materials and measurements");
+  assert.match(detailCopy, /broad materials selected and the job’s overall measurements/, "GP-49: a broad estimate comes from the main materials and measurements");
   assert.doesNotMatch(detailCopy, /squares|shingle|underlayment|ice and water/i, "GP-49: the detail step is not roofing-only");
 });
 

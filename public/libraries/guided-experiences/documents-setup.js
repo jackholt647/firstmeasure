@@ -411,7 +411,7 @@ function choicesFor(part, selections){
   ] };
   if (part === 'detail') return { key: 'detail', choices: [
     c('itemized', 'fa-list-check', 'detail_itemized', 'Every line item', 'Built from the job’s exact scope of work, down to each material and the labor.'),
-    c('rough', 'fa-ruler-combined', 'detail_rough', 'A broad estimate', 'Based on the broad materials selected and the overall measurements of the job.')
+    c('rough', 'fa-ruler-combined', 'detail_rough', 'A broad estimate', 'Based on the broad materials selected and the job’s overall measurements.')
   ] };
   if (part === 'scope') return { key: 'scope_write_up', choices: [
     c('yes', 'fa-images', 'scope_yes', 'Yes, a description and photos', 'What you found and what you’ll do, then the price.', true),
