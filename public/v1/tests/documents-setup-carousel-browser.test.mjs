@@ -68,6 +68,8 @@ test('the style carousel turns with a mouse drag, slides the wrapping card in an
 // FM-614: after the style, the template's wording beside it (part `copy`). The fields are the template's copy, typing
 // changes the document on the right at once (the same rewrite the finish saves), a field's text is marked in the
 // document while it has focus, and the changes are the setup's `copy` selection.
+// GP-13: no lead paragraph; each part of the document is named over its fields; Advanced is offered only where the
+// template editor would open; the document carried to the next step starts exactly where it was (not mid-sheet).
 test('the wording step edits the template copy beside its document', async () => {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
   try {
@@ -87,19 +89,27 @@ test('the wording step edits the template copy beside its document', async () =>
         { node_id: 'nd_terms_h', role: 'heading', text: 'Terms' },
         { node_id: 'nd_terms', role: 'text', text: 'This proposal is valid for 30 days. Work is scheduled once it is signed.' }
       ];
-      window.changes = []; window.reads = [];
-      window.handle = window.__mount(document.querySelector('.gxs-body'), {
+      window.changes = []; window.reads = []; window.studioOn = true;
+      // The template editor's access, as the app runtime answers it.
+      window.FirstMateEmbeddableApps = { mount: async () => ({}), getApp: () => null, evaluateAccess: (app) => ({ allowed: app.id === 'documents.studio' && window.studioOn }) };
+      window.mountCopy = () => window.__mount(document.querySelector('.gxs-body'), {
         options: { part: 'copy' }, selections: { document_kind: 'invoice', theme_id: 'thm_clean' }, step: { title: 'Check your wording' },
         actions: document.querySelector('.gxs-title-actions'),
         L: (key, text) => text, esc: (value) => String(value).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
         change: (patch) => window.changes.push(patch),
         read: async (provider, name, ref) => { window.reads.push([provider, name, ref.args]); return { fields, preview: { theme_id: 'thm_clean', resolved_definition: definition, widget_data: {}, theme: null, theme_vars: {} } }; }
       });
+      window.handle = window.mountCopy();
     });
     await page.waitForSelector('[data-copy="nd_terms"]');
     assert.deepEqual(await page.evaluate(() => window.reads[0].slice(0, 2)), ['document-setup', 'copy']);
     assert.equal((await page.evaluate(() => window.reads[0][2])).theme_id, 'thm_clean', 'the wording of the style chosen');
     assert.equal(await page.locator('.gxs-title-actions [data-advanced]').count(), 1, 'Advanced sits beside the step title');
+    assert.equal(await page.locator('.gxd-copy-edit > p').count(), 0, 'no lead paragraph: the fields come first');
+    assert.deepEqual(await page.locator('.gxd-copy-name').allTextContents(), ['Title and opening', 'Terms'], 'each part is named');
+    await page.locator('[data-copy="nd_terms_h"]').fill('Payment terms');
+    assert.deepEqual(await page.locator('.gxd-copy-name').allTextContents(), ['Title and opening', 'Payment terms'], 'a part is named as its heading reads');
+    await page.locator('[data-copy="nd_terms_h"]').fill('Terms');
     assert.equal(await page.locator('[data-copy="nd_title"]').inputValue(), 'Roof replacement proposal');
     const shown = (id) => page.evaluate((node) => document.querySelector(`.gxd-copy-view [data-node-id="${node}"]`)?.textContent.trim(), id);
     await page.waitForFunction(() => document.querySelector('.gxd-copy-view [data-node-id="nd_title"]'));
@@ -117,6 +127,19 @@ test('the wording step edits the template copy beside its document', async () =>
     await page.locator('[data-copy="nd_intro"]').focus();
     assert.equal(await page.locator('.gxd-copy-view [data-node-id="nd_intro"].gxd-copy-mark').count(), 1);
     assert.equal(await page.evaluate(() => window.handle.valid()), true);
+    await page.locator('[data-copy="nd_intro"]').blur();
+    // Leaving keeps the document where it is; the next step lays it over the page in exactly that place.
+    const carried = await page.evaluate(() => {
+      const r = document.querySelector('.gxd-copy-view .gxd-doc').getBoundingClientRect();
+      window.handle.destroy();
+      window.studioOn = false;
+      window.handle = window.mountCopy();
+      const ghost = document.querySelector('.gxd-ghost-doc')?.getBoundingClientRect();
+      return { from: [r.left, r.top, r.width].map(Math.round), ghost: ghost && [ghost.left, ghost.top, ghost.width].map(Math.round) };
+    });
+    assert.deepEqual(carried.ghost, carried.from, 'the carried document starts where it was');
+    await page.waitForSelector('[data-copy="nd_terms"]');
+    assert.equal(await page.locator('.gxs-title-actions [data-advanced]').count(), 0, 'no Advanced without the template editor');
     await page.evaluate(() => window.handle.destroy());
     assert.equal(await page.locator('.gxs-title-actions [data-advanced]').count(), 0, 'Advanced leaves with the step');
     assert.deepEqual(errors, []);
