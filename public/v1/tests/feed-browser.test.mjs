@@ -85,6 +85,19 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await page.locator('[data-feed-shown-menu]').count(),0,'Escape closes Filters');
   await page.getByRole('button',{name:'Filter',exact:true}).click();
   await page.getByRole('button',{name:'Close',exact:true}).click();
+  // GP-61: photos and videos are their own Media filter, apart from Uploads (other files).
+  const photoRows=()=>page.locator('.pf-feed-list-row',{hasText:'uploaded 20 photos'}).count();
+  await page.getByRole('button',{name:'Filter',exact:true}).click();
+  assert.equal((await page.locator('[data-feed-filter-group="activity"][data-feed-filter-id="media"]').textContent()).trim(),'Media');
+  await page.locator('[data-feed-filter-id="uploads"]').click();
+  assert.equal(await photoRows(),1,'hiding Uploads keeps photos');
+  await page.locator('[data-feed-filter-id="media"]').click();
+  assert.equal(await page.locator('[data-feed-filter-id="media"]').getAttribute('aria-pressed'),'false');
+  assert.equal(await photoRows(),0,'hiding Media hides photos');
+  await page.locator('[data-feed-filter-id="media"]').click();
+  await page.locator('[data-feed-filter-id="uploads"]').click();
+  assert.equal(await photoRows(),1,'showing Media brings photos back');
+  await page.getByRole('button',{name:'Close',exact:true}).click();
   const batchRow=page.locator('.pf-feed-list-row').first();
   assert.ok([16,17].includes(await page.locator('.pf-feed-list-row').count()),'fixture events render once; current Scope presentation may include the scope-start activity');
   assert.equal(await page.locator('.pf-day').first().locator('.pf-feed-grid>.pf-feed-list-row').count()>1,true);
