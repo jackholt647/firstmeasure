@@ -181,7 +181,7 @@ export function mount(el, ctx){
 
   function drawDone(){
     title(L('gx_appt_done_title', 'Your appointment types are ready'));
-    const goes = (kind) => kind.attendees.map(who).join(L('gx_appt_done_or', ' or '));
+    const goes = (kind) => kind.attendees.map(who).map((text, at) => at ? text.charAt(0).toLowerCase() + text.slice(1) : text).join(L('gx_appt_done_or', ' or '));
     // Before scheduling, an optional detour: set up who does the work, when any kind sends crews or subcontractors.
     const offerTeams = workforceSetup() && kinds.some((kind) => kind.attendees.includes('crews') || kind.attendees.includes('subcontractors') || kind.attendees.includes('technician'));
     const texts = (kind) => kind.reminder && kind.on_my_way ? L('gx_appt_done_texts_both', 'Reminder and on-my-way texts') : kind.reminder ? L('gx_appt_done_texts_reminder', 'Reminder text') : kind.on_my_way ? L('gx_appt_done_texts_way', 'On-my-way text') : L('gx_appt_done_texts_none', 'No texts');

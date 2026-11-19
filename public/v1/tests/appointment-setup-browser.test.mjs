@@ -95,6 +95,10 @@ test('the kinds: two columns; a company with no sales gets no sales kinds and no
     assert.equal(await page.locator('[data-gxk-kind="sales"],[data-gxk-kind="inspection"]').count(),0);
     assert.equal(await page.locator('.gxk-pills').first().isVisible(),false,'no sales or production to choose');
     assert.deepEqual(await page.evaluate(()=>handle.answer()),{kinds:[{id:'installation',category:'production'},{id:'repair',category:'production'},{id:'delivery',category:'production'}]});
+    // And back to a sales team: the sales appointment is picked again, with what was picked before.
+    await page.evaluate(()=>mountKinds({kinds:[{id:'installation',category:'production'}],no_sales:false}));
+    await page.locator('[data-gxk-kind="sales"]').waitFor();
+    assert.deepEqual((await page.evaluate(()=>handle.answer())).kinds.map(kind=>kind.id),['sales','installation','repair','delivery']);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

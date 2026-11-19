@@ -198,3 +198,6 @@ button.fm-booking-chip{cursor:pointer;transition:background .15s}button.fm-booki
 #fm-booking-dialog .fm-booking-staffing-setup{flex:none;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:1px solid var(--primary,#d93025);border-radius:999px;background:#fff;color:var(--primary,#d93025);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
 #fm-booking-dialog .fm-booking-staffing-setup:hover{background:var(--primary,#d93025);color:var(--on-primary,#fff)}
 #fm-booking-dialog .fm-booking-staffing-setup:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+/* How many could go at each time (GP-85): beside the time, on the right; a long arrival window wraps it under. */
+#fm-booking-dialog .fm-availability .fmle-slot:has(.fmle-free){display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:2px 8px;height:auto;padding-left:10px;padding-right:10px;text-align:left}
+#fm-booking-dialog .fm-availability .fmle-slot .fmle-free{display:inline;margin:0 0 0 auto;font-size:11px;font-weight:500;opacity:.7;white-space:nowrap}

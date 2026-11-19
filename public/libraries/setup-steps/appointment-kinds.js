@@ -67,8 +67,13 @@ export function mount(el, ctx){
     const salesKind = new Set(array(catalog.kinds).filter((entry) => entry.category === 'sales').map((entry) => entry.id));
     const known = array(catalog.kinds).filter((entry) => !noSales || !salesKind.has(entry.id));
     const before = array(object(status).kinds);
-    const given = builtFor.get(answer) === noSales ? array(answer.kinds) : [];
-    const startFrom = (given.length ? given : before.length ? before : array(catalog.suggested).map((id) => ({ id }))).filter((entry) => !noSales || !salesKind.has(clean(entry.id)));
+    // Who sells changed since the list was last built (the person went Back): no sales drops the sales kinds; a sales
+    // team gets the suggested sales kinds back.
+    const changed = builtFor.has(answer) && builtFor.get(answer) !== noSales;
+    const given = changed ? [] : array(answer.kinds);
+    const previous = changed ? (array(answer.kinds).length ? array(answer.kinds) : before) : [];
+    const suggested = array(catalog.suggested).map((id) => ({ id }));
+    const startFrom = (given.length ? given : changed ? [...previous, ...suggested.filter((entry) => salesKind.has(entry.id))] : before.length ? before : suggested).filter((entry) => !noSales || !salesKind.has(clean(entry.id)));
     const picked = new Map(startFrom.map((entry) => [clean(entry.id) || `custom_${fold(entry.label)}`, entry]));
     const category = (value, fallback) => noSales && value === 'sales' ? 'production' : CATEGORIES.includes(value) ? value : fallback;
     rows = known.map((entry) => ({ id: entry.id, label: L(entry.label), category: category(clean(picked.get(entry.id)?.category), entry.category), on: picked.has(entry.id), custom: false }));
