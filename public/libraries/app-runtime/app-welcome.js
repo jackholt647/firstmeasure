@@ -13,6 +13,7 @@ const icons = {
   money:'<rect x="2" y="6" width="20" height="13" rx="2"/><circle cx="12" cy="12.5" r="3"/><path d="M6 10v5M18 10v5"/>',
   checklists:'<path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 6 1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17"/>',
   scheduling:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h3v3H8z"/>',
+  comms:'<path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/><path d="M8 9h9M8 13h5"/>',
   // An app with no welcome of its own yet (offers.ts placeholderWelcome).
   generic:'<rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><path d="M17.25 13.5v7.5M13.5 17.25H21"/>'
 };
@@ -24,7 +25,7 @@ const css = `
    the eyebrow, the checks, the illustration's ring, figures and tick. An app's theme colour is only the fallback on a page
    without a theme. */
 .fm-app-welcome{--offer-theme:#d93025;--offer-accent:var(--primary-readable,var(--primary,var(--offer-theme)));--offer-second:var(--secondary,#202124);--offer-tint:color-mix(in srgb,var(--offer-accent) 10%,#fff);--offer-tint-2:color-mix(in srgb,var(--offer-second) 12%,#fff);container-type:inline-size;overflow:auto;overscroll-behavior:contain;height:100%;min-height:0;background:#fff;color:#202124;text-align:left;font-family:Montserrat,Arial,sans-serif}
-.fm-app-welcome *{box-sizing:border-box}.fm-app-welcome[data-theme=photos]{--offer-theme:#287471}.fm-app-welcome[data-theme=portal]{--offer-theme:#5367a8}.fm-app-welcome[data-theme=equipment],.fm-app-welcome[data-theme=materials]{--offer-theme:#9d6636}.fm-app-welcome[data-theme=money]{--offer-theme:#2f7a4f}.fm-app-welcome[data-theme=checklists]{--offer-theme:#4b5fa8}.fm-app-welcome[data-theme=scheduling]{--offer-theme:#7a4fb5}.fm-app-welcome[data-theme=generic]{--offer-theme:#4f5d73}
+.fm-app-welcome *{box-sizing:border-box}.fm-app-welcome[data-theme=photos]{--offer-theme:#287471}.fm-app-welcome[data-theme=portal]{--offer-theme:#5367a8}.fm-app-welcome[data-theme=equipment],.fm-app-welcome[data-theme=materials]{--offer-theme:#9d6636}.fm-app-welcome[data-theme=money]{--offer-theme:#2f7a4f}.fm-app-welcome[data-theme=checklists]{--offer-theme:#4b5fa8}.fm-app-welcome[data-theme=scheduling]{--offer-theme:#7a4fb5}.fm-app-welcome[data-theme=comms]{--offer-theme:#2b6cb0}.fm-app-welcome[data-theme=generic]{--offer-theme:#4f5d73}
 .faw-wrap{max-width:1120px;margin:auto;padding:clamp(22px,4cqw,46px);min-height:100%;display:flex;flex-direction:column;justify-content:center;gap:26px}
 .faw-top{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;font-weight:800}.faw-brand{display:flex;align-items:center;gap:8px}.faw-logo{width:23px;height:23px;flex:none;background:var(--offer-accent);-webkit-mask:var(--fm-mark) center/contain no-repeat;mask:var(--fm-mark) center/contain no-repeat}.faw-free{font-size:10px;letter-spacing:.03em;color:#285743;background:#e6f2e9;padding:7px 10px;border-radius:99px;white-space:nowrap}
 .faw-hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:center;gap:36px}.faw-copy{min-width:0}.faw-eyebrow{display:flex;align-items:center;gap:9px;font-size:10px;font-weight:850;letter-spacing:.12em;text-transform:uppercase;color:var(--offer-second);margin:0 0 13px!important}.faw-eyebrow:before{content:'';width:20px;height:3px;border-radius:2px;background:var(--offer-second);flex:none}
@@ -70,6 +71,7 @@ function illustration(theme){
   else if (theme === 'money') body = row(t('demo_money_deposit','Deposit received'),t('demo_money_deposit_sub','Card payment'),'$4,200')+row(t('demo_money_balance','Balance due'),t('demo_money_balance_sub','On completion'),'$9,800')+row(t('demo_money_profit','Project profit'),t('demo_money_profit_sub','After materials and labor'),'32%');
   else if (theme === 'checklists') body = row(t('demo_check_start','Job start'),t('demo_check_start_sub','Completed by the crew lead'),'✓')+row(t('demo_check_quality','Quality inspection'),t('demo_check_quality_sub','Photos on every item'),'✓')+row(t('demo_check_closeout','Closeout'),t('demo_check_closeout_sub','Ready for review'),'↗');
   else if (theme === 'scheduling') body = row(t('demo_schedule_sales','Sales appointment'),t('demo_schedule_sales_sub','Tuesday, with the homeowner'),'9:00')+row(t('demo_schedule_crew','Installation'),t('demo_schedule_crew_sub','Your crew, booked for the job'),t('demo_schedule_crew_end','3 days'))+row(t('demo_schedule_delivery','Material delivery'),t('demo_schedule_delivery_sub','The morning the work starts'),'✓');
+  else if (theme === 'comms') body = row(t('demo_comms_call','Call from the homeowner'),t('demo_comms_call_sub','Saved to Oak Street'),'2:14')+row(t('demo_comms_text','Text: running 10 minutes late'),t('demo_comms_text_sub','From your business number'),'✓')+row(t('demo_comms_center','Call center'),t('demo_comms_center_sub','New leads ready to call'),'12');
   else if (theme === 'generic') body = row(t('demo_generic_projects','Your projects'),t('demo_generic_projects_sub','Already connected'),'✓')+row(t('demo_generic_team','Your team'),t('demo_generic_team_sub','Everyone who uses it'),'✓')+row(t('demo_generic_start','Ready when you are'),t('demo_generic_start_sub','One click to start'),'↗');
   else if (theme === 'equipment') body = row(t('demo_equipment_trailer','Dump trailer'),t('demo_equipment_trailer_sub','Hauling & debris removal'),'✓')+row(t('demo_equipment_lift','Material lift'),t('demo_equipment_lift_sub','Lifting & roof access'),'✓')+row(t('demo_equipment_project','Project requirements'),t('demo_equipment_project_sub','Match the equipment to the work'),'↗');
   else body = row(t('demo_shingles','Roofing shingles'),t('demo_shingles_sub','Selected product & color'),'24')+row(t('demo_underlay','Underlayment'),t('demo_underlay_sub','Ready for the next step'),'3')+row(t('demo_trim','Drip edge'),t('demo_trim_sub','The details are on the list'),'18');
@@ -192,7 +194,8 @@ export function mountWelcome(context){
     pending=true;button.disabled=true;root.querySelector('.faw-error').textContent='';
     let finishTransition;
     try {
-      if (!started) await window.PlatformAPI.request(`/organizations/${encodeURIComponent(context.orgId)}/app-offers/${encodeURIComponent(context.appId)}/start`,{method:'POST',body:{}});
+      // The offer is the entitlement's app: an app group member (the Call center) starts its parent's (GP-87).
+      if (!started) await window.PlatformAPI.request(`/organizations/${encodeURIComponent(context.orgId)}/app-offers/${encodeURIComponent(context.entitlement?.id || context.appId)}/start`,{method:'POST',body:{}});
       started=true;
       await preload;
       if(!destroyed)finishTransition=transitionFrom(root,context.appId);

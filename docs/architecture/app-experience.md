@@ -142,6 +142,12 @@ and CSS, real localized copy and a Get Started button; it is not a new guide
 engine. Opening it neither records `seen_tabs` nor launches a guide, and New
 remains visible regardless of personal seen history.
 
+An app's code registers its portal tab while the app is offered, not only once its switch is on (Scheduling,
+Communications): the offer holds the switch off, so a tab that waits for it is never listed and its welcome never
+shows (GP-87). A member of an app group (`AppChrome.registerGroup`, such as Communications' Call center) has no
+entitlement of its own: it uses its parent's, so it is offered, marked New and shows the welcome with its parent, and
+Get Started starts the offer of the entitlement's app (`context.entitlement.id`), not the member's id.
+
 Advertisements (the app welcome and the project tab promos in
 `apps/tab-promos/project.js`) are white and drawn in the organization's colours.
 The primary leads (`--primary-readable`): the FirstMate mark, Get Started, the
@@ -167,8 +173,8 @@ sample content. Development operators may reset selected welcome screens with
 `PUT /v1/platform/organizations/:orgId/app-offers` and `{ apps: [...] }`; this
 reset endpoint refuses production. It does not erase any app data.
 
-Tests: `app-offers.test.ts`, `app-experience.test.ts`, and
-`app-welcome-browser.test.mjs`.
+Tests: `app-offers.test.ts`, `app-experience.test.ts`,
+`app-welcome-browser.test.mjs` and `tests/comms-offered-apps-browser.test.mjs`.
 
 The session (`GET /v1/platform/auth/session`) returns `app_entitlements` and
 `app_experience: { device_types, app_ids }`. The runtime

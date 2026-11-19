@@ -152,7 +152,9 @@
         portalTabId:member.appId.replace(/^portal\./,''),surfaces:['portal_tab','app_group'],fullBleed:true,
         route:{parent:'portal',params:{...(parent?.route?.params || {}),tab:{default:member.appId.replace(/^portal\./,''),history:'push'}}},
         order:(parent?.order || 100)+group.members.indexOf(member)/100,
-        access:parent?.access || {},
+        // A member has no app entitlement of its own: it is its parent's, so it is offered with it, shows the parent's
+        // welcome and Get Started starts the parent (GP-87: the Call center while Communications is offered).
+        access:{...(parent?.access || {}),entitlementKey:group.parent},
         enabled:context=>runtime.evaluateAccess(group.parent,{...context,surface:'portal_tab'}).allowed && (!member.available || member.available(context)),
         visible:context=>context.surface==='app_group' || ['standalone','both'].includes(placement(group.id,member.id)),
         mount:context=>group.mount(member.id,context)});

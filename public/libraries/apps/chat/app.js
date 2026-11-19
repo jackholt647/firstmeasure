@@ -1429,7 +1429,10 @@
       if (window.Portal?.appFlags?.load) await window.Portal.appFlags.load().catch(() => null);
       // The global communications center shows when EITHER live chat or the
       // comms hub is enabled; each channel gates itself inside the app.
-      const on = window.Portal?.appFlags?.has?.('apps', 'live_chat') || window.Portal?.appFlags?.has?.('apps', 'comms');
+      // GP-87: an offered Communications holds its switch off until started; it stays registered (with its Call center)
+      // so More apps lists it and the runtime shows its welcome, as Scheduling does.
+      const offered = (window.Portal?.currentUser?.appEntitlements || []).some?.((app) => app?.id === 'portal.chat' && app.offered === true);
+      const on = offered || window.Portal?.appFlags?.has?.('apps', 'live_chat') || window.Portal?.appFlags?.has?.('apps', 'comms');
       if (on && !registered) {
         registered = true;
         window.Portal.apps.registerPortalApp({ id: 'portal.chat', tabId: 'chat', title: (globalThis.PlatformLanguage?.text("chat","m_643fa01aa77d59","Communications") ?? "Communications"), terminologyKey: 'chat.portal_tab', icon: 'fa-inbox', order: 23, fullBleed: true, mount });
