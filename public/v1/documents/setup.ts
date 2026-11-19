@@ -14,7 +14,7 @@ import {
   readDocumentThemeVersion, readDocumentWorkflow, readDocumentWorkflowVersion
 } from "./storage.js";
 import { FMDocModel } from "./schemas.js";
-import { ensureDefaultDocumentAssets, ensureThemeCopies, libraryAssetDefinition } from "./library-copies.js";
+import { ensureDefaultDocumentAssets, ensureThemeCopies, libraryAssetDefinition, libraryThemeStyles } from "./library-copies.js";
 import { DEFAULT_PINNED_TEMPLATE_IDS, DOCUMENT_SETUP_MODULE, documentSetupDefaultThemeId, readPinnedTemplateIds, savePinnedTemplateIds } from "./settings.js";
 import { MEASUREMENT_FIELDS, PRICEBOOK_FORMULA_TOKEN_TYPES, PRICEBOOK_OPERATORS, PRICEBOOK_PARENS } from "../pricebook/constants.js";
 
@@ -23,9 +23,9 @@ import { MEASUREMENT_FIELDS, PRICEBOOK_FORMULA_TOKEN_TYPES, PRICEBOOK_OPERATORS,
  * a document they say which kind (a proposal, an invoice, a change order or a completion certificate), and for a
  * proposal how they present one (options to choose from or a single option), whether the customer may change it, how
  * much detail it carries and whether a written scope of work goes with it; then, optionally, their prices, and one of
- * three styles. The answers choose a library template and adapt it (its parameter defaults, its workflow's steps, its
- * theme) into the organization's own template for that kind, which becomes the kind's default and its pin in New
- * document. Running the setup again for a kind republishes the same template (`tpl_setup_<kind>`), so there is one.
+ * the styles (every library `document_theme`, in its `order`, GP-96). The answers choose a library template and adapt
+ * it (its parameter defaults, its workflow's steps, its theme) into the organization's own template for that kind,
+ * which becomes the kind's default and its pin in New document. Running the setup again for a kind republishes the same template (`tpl_setup_<kind>`), so there is one.
  *
  * Nothing here prices anything: prices are the price book's (the optional price step writes them with
  * `pricebook.prices.update`), and each proposal's prices can still be changed on that proposal. What was answered is
@@ -47,7 +47,6 @@ import { MEASUREMENT_FIELDS, PRICEBOOK_FORMULA_TOKEN_TYPES, PRICEBOOK_OPERATORS,
  */
 export { DOCUMENT_SETUP_MODULE };
 export const DOCUMENT_SETUP_KINDS = ["proposal", "invoice", "change_order", "completion_certificate"] as const;
-export const DOCUMENT_SETUP_THEMES = ["thm_clean", "thm_margin", "thm_triangles"] as const;
 export type DocumentSetupKind = typeof DOCUMENT_SETUP_KINDS[number];
 /** The kinds of proposals a company that does insurance work makes (GP-55). Retail is every other company's. */
 export const PROPOSAL_KINDS = ["retail", "insurance", "both"] as const;
@@ -60,6 +59,15 @@ const object = (value: unknown): JsonObject => value && typeof value === "object
 const list = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
 const text = (value: unknown) => String(value ?? "").trim();
 const clone = <T>(value: T): T => structuredClone(value);
+
+/**
+ * The styles the setup offers (GP-96): every library theme, in its `order` (documents/library-copies.ts
+ * libraryThemeStyles). A new style is a new `document_theme` entry, never a change here.
+ */
+export const documentSetupThemeIds = () => libraryThemeStyles().map((entry) => entry.id);
+const themeIdSchema = z.string().trim().min(1).max(160).refine((id) => documentSetupThemeIds().includes(id), (id) => ({
+  message: `There is no style ${id}. Choose one of: ${documentSetupThemeIds().join(", ")}.`
+}));
 
 // ── The answers ─────────────────────────────────────────────────────────
 const proposalAnswers = {
@@ -424,7 +432,8 @@ export async function readDocumentSetup(orgId: string) {
   return {
     answered: Object.fromEntries(DOCUMENT_SETUP_KINDS.map((kind) => [kind, !!text(object(kinds[kind]).applied_at)])) as Record<DocumentSetupKind, boolean>,
     kinds: Object.fromEntries(DOCUMENT_SETUP_KINDS.filter((kind) => kinds[kind]).map((kind) => [kind, object(kinds[kind])])),
-    themes: DOCUMENT_SETUP_THEMES.map((id) => ({ id, name: text(byId.get(id)?.name) || id.replace(/^thm_/, ""), description: text(byId.get(id)?.description) })),
+    // The organization's copy names a style (it may have renamed it), else the library does.
+    themes: libraryThemeStyles().map(({ id, data }) => ({ id, name: text(byId.get(id)?.name) || data.name, description: text(byId.get(id)?.description) || data.description })),
     default_theme_id: documentSetupDefaultThemeId(object(record?.data)),
     company_type: profile.company_type, sales_team: profile.sales_team, sales_is_team: profile.sales_is_team,
     revision: Number(record?.revision || 0)
@@ -633,27 +642,28 @@ async function preview(orgId: string, document: JsonObject, definition: JsonObje
   return { theme_id: theme.id, name: theme.name, description: theme.description, resolved_definition: resolved.resolved_definition, widget_data: resolved.widget_data, theme: resolved.theme, theme_vars: resolved.theme_vars };
 }
 
-/** The document the answers make, in each of the three styles, resolved as a draft with a sample customer and roof. */
+/** The document the answers make, in each of the styles, resolved as a draft with a sample customer and roof. */
 export async function documentSetupPreviews(orgId: string, args: unknown) {
   const answers = checkedAnswers(args);
   await ensureDefaultDocumentAssets(orgId);
   // The styles show the company's colors as they are now, saved a moment ago too (GP-95).
   await ensureThemeCopies(orgId);
-  const { definition, plan } = await buildDocument(orgId, answers, DOCUMENT_SETUP_THEMES[0]);
-  const document = await sampleDocument(orgId, answers, plan, definition);
   const { themes, kinds, default_theme_id } = await readDocumentSetup(orgId);
+  if (!themes.length) throw badRequest("document_setup_styles", "There are no document styles to choose from.");
+  const { definition, plan } = await buildDocument(orgId, answers, themes[0]!.id);
+  const document = await sampleDocument(orgId, answers, plan, definition);
   // The style the step opens on: the kind's own when it was set up, else the organization's (GP-102).
   const start = text(object(kinds[plan.kind]).theme_id) || default_theme_id;
   const previews = [];
   for (const theme of themes) {
-    const styled = theme.id === DOCUMENT_SETUP_THEMES[0] ? definition : (await buildDocument(orgId, answers, theme.id)).definition;
+    const styled = theme.id === themes[0]!.id ? definition : (await buildDocument(orgId, answers, theme.id)).definition;
     previews.push(await preview(orgId, document, styled, theme));
   }
   return { kind: plan.kind, name: plan.name, description: plan.description, base: plan.base, theme_id: themes.some((theme) => theme.id === start) ? start : themes[0]!.id, previews };
 }
 
 const copyArgsSchema = answersSchema.extend({
-  theme_id: z.enum(DOCUMENT_SETUP_THEMES), keep_edits: z.boolean().optional(),
+  theme_id: themeIdSchema, keep_edits: z.boolean().optional(),
   /** The insurance agreement's wording, for a company that makes both kinds of proposals (its second wording page, GP-55). */
   agreement: z.literal("insurance").optional()
 });
@@ -679,7 +689,7 @@ export async function documentSetupCopy(orgId: string, args: unknown) {
 // ── The finish ──────────────────────────────────────────────────────────
 const priceSchema = z.object({ item_id: z.string().min(1).max(160), unit_price: z.number().finite().min(0).max(1e6) }).strict();
 const applySchema = answersSchema.extend({
-  theme_id: z.enum(DOCUMENT_SETUP_THEMES),
+  theme_id: themeIdSchema,
   /** The price step's prices (sell prices, per unit), written to the price book; none when it was skipped. */
   prices: z.array(priceSchema).max(120).default([]),
   /** The price step's lines (FM-610): which are on the proposal, and lines added that the price book does not have. */
@@ -838,13 +848,13 @@ export function registerDocumentSetupPublication() {
   if (registered) return;
   registered = true;
   registerDataProvider({ id: "document-setup", version: "1", apps: ["documents"], exports: {
-    status: { description: "What the organization said about its documents in the document setup: for each kind set up (proposal, invoice, change_order, completion_certificate) its answers, style (theme_id) and the template made (template_id, the kind's default); the three styles offered; the style for new documents (default_theme_id: the first style chosen, for any kind, null before); who sells.",
+    status: { description: "What the organization said about its documents in the document setup: for each kind set up (proposal, invoice, change_order, completion_certificate) its answers, style (theme_id) and the template made (template_id, the kind's default); the styles offered, in order; the style for new documents (default_theme_id: the first style chosen, for any kind, null before); who sells.",
       schema: json(statusSchema), schemaVersion: "1", access: readAccess,
       read: async (ctx) => { const value = await readDocumentSetup(ctx.organizationId); return { value, revision: String(value.revision) }; } },
     price_sheet: { description: "The document setup's price step: the lines a roofing proposal is made of (items; on = on the proposal, from the roof_replacement assembly; editable = that assembly exists), each with its sell price per unit (null when not set) and quantity formula in words; the rest of the price book (catalog), to add a line from; and the measurements a new line's quantity can be worked out from.",
       schema: json(priceSheetSchema), schemaVersion: "2", access: setupAccess,
       read: async (ctx) => ({ value: await readPriceSheet(ctx.organizationId) }) },
-    previews: { description: "The document the setup's answers (args: document_kind and, for a proposal, presentation, customer_changes, detail, scope_write_up, and proposal_kinds: retail | insurance | both, where insurance alone previews the insurance contingency agreement) would make, resolved with a sample customer and roof in each of the three styles, and the style to start on (theme_id: the kind's own when it was set up, else the style for new documents). Nothing is saved.",
+    previews: { description: "The document the setup's answers (args: document_kind and, for a proposal, presentation, customer_changes, detail, scope_write_up, and proposal_kinds: retail | insurance | both, where insurance alone previews the insurance contingency agreement) would make, resolved with a sample customer and roof in each of the styles (the status's themes, in order), and the style to start on (theme_id: the kind's own when it was set up, else the style for new documents). Nothing is saved.",
       schema: { type: "object" } as JsonSchema, argsSchema: json(answersSchema.strict()), schemaVersion: "1", access: setupAccess,
       read: async (ctx, ref) => ({ value: await documentSetupPreviews(ctx.organizationId, ref.args || {}) }) },
     copy: { description: "The copy step: the wording of the template the setup's answers make in the style chosen (args: the previews' answers, theme_id, keep_edits to start from the template published in the template editor, and agreement: insurance for the insurance agreement's wording when proposal_kinds is both), as fields top to bottom ({ node_id, role: title | heading | text, text }), the parts they make (sections: { id, heading, texts, nodes, title, removable }), and that document resolved with a sample customer (preview). The finish (documents.setup.apply) takes changes as copy { node_id: text } and copy_sections { removed: [section id], added: [{ id, after: section id }] }, an added part's heading and text being copy <id>_h and <id>_t. Nothing is saved.",
@@ -852,7 +862,7 @@ export function registerDocumentSetupPublication() {
       read: async (ctx, ref) => ({ value: await documentSetupCopy(ctx.organizationId, ref.args || {}) }) }
   } });
   registerAction({ id: "documents.setup.apply", version: "1", domain: "documents", implementation: backendImplementationDigest(),
-    description: "Finish the document setup for one kind of document (document_kind: proposal, invoice, change_order or completion_certificate) in a style (theme_id: thm_clean, thm_margin or thm_triangles). For a proposal also: proposal_kinds (retail | insurance | both, GP-55; retail when absent: a company that does insurance work may make insurance contingency agreements, tpl_setup_insurance_agreement, instead of or as well as retail proposals); for retail: presentation (options | single), customer_changes (mix | pick | ask), detail (itemized | rough), scope_write_up (boolean), and optionally prices ([{ item_id, unit_price }] sell prices written to the price book) and lines ({ on: the item ids the proposal's roof_replacement has, in order, with the keys of new_items; new_items: [{ key: new_<x>, name, unit: sq|lf|ea, unit_price, formula: price book formula tokens over measurements, include_waste }] for lines the price book lacks }). Optionally copy ({ text node id: text }, the template's wording changed, from document-setup.copy; with insurance only, the agreement's), copy_sections ({ removed: [section id], added: [{ id, after: section id }] }: parts of the wording taken out or added, an added part's heading and text being copy <id>_h and <id>_t) and keep_edits (start from the template published in the template editor), and with both kinds insurance_copy, insurance_copy_sections and insurance_keep_edits for the agreement. Makes or republishes the organization's own template for that kind (tpl_setup_<kind>, and the insurance agreement) and its workflow, makes it its type's default and pins it in New document.",
+    description: "Finish the document setup for one kind of document (document_kind: proposal, invoice, change_order or completion_certificate) in a style (theme_id: one of the document-setup status's themes). For a proposal also: proposal_kinds (retail | insurance | both, GP-55; retail when absent: a company that does insurance work may make insurance contingency agreements, tpl_setup_insurance_agreement, instead of or as well as retail proposals); for retail: presentation (options | single), customer_changes (mix | pick | ask), detail (itemized | rough), scope_write_up (boolean), and optionally prices ([{ item_id, unit_price }] sell prices written to the price book) and lines ({ on: the item ids the proposal's roof_replacement has, in order, with the keys of new_items; new_items: [{ key: new_<x>, name, unit: sq|lf|ea, unit_price, formula: price book formula tokens over measurements, include_waste }] for lines the price book lacks }). Optionally copy ({ text node id: text }, the template's wording changed, from document-setup.copy; with insurance only, the agreement's), copy_sections ({ removed: [section id], added: [{ id, after: section id }] }: parts of the wording taken out or added, an added part's heading and text being copy <id>_h and <id>_t) and keep_edits (start from the template published in the template editor), and with both kinds insurance_copy, insurance_copy_sections and insurance_keep_edits for the agreement. Makes or republishes the organization's own template for that kind (tpl_setup_<kind>, and the insurance agreement) and its workflow, makes it its type's default and pins it in New document.",
     inputSchema: json(applySchema) as Record<string, unknown>, outputSchema: { type: "object" },
     effect: "write", idempotency: "required", executionKinds: ["api", "agent", "module"],
     policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.documents"] },

@@ -1096,7 +1096,8 @@ step is the module `guided-experiences/documents-setup.js` with its own `part`:
   their formula, merged by name with an item already there) and sets the assembly's components to the lines left on,
   keeping how a kept line is offered (a shingle choice, an optional upgrade) and picking a choice's first when its
   picked one was turned off. Without the assembly the step shows prices only.
-- `style`: the three themes (`thm_clean`, `thm_margin`, `thm_triangles`), each previewed with what the answers make:
+- `style`: every library `document_theme`, in its `order` (GP-96: a new style is a new entry, put with the config
+  library CLI; the editor's Page style lists the same themes in the same order), each previewed with what the answers make:
   `document-setup.previews` resolves the planned template, unsaved, with a sample customer, roof and account
   (`resolveDocumentInstance` with `definition`), and the module renders it with `FMDocRenderer` (`theme_id`). The step
   widens the sheet (`gxs-wide`) and fills it with a looping carousel (Jack): the style in the middle is large and is

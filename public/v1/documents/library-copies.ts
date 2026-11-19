@@ -3,7 +3,7 @@ import type { JsonObject } from "../platform/storage.js";
 import type { LibraryEntry, OrgCopyStatus } from "../config-library/contracts.js";
 import { libraryEntries, libraryEntry, libraryStamp, type LibraryStamp } from "../config-library/library.js";
 import { DOCUMENT_TEMPLATE_KIND, DOCUMENT_THEME_KIND, DOCUMENT_WORKFLOW_KIND, PRESENTATION_DECK_KIND } from "../config-library/kinds/document-shared.js";
-import type { DocumentThemeEntry } from "../config-library/kinds/document-theme.js";
+import { themeOrder, type DocumentThemeEntry } from "../config-library/kinds/document-theme.js";
 import type { DocumentTemplateEntry } from "../config-library/kinds/document-template.js";
 import { workflowDeckId, type DocumentWorkflowEntry } from "../config-library/kinds/document-workflow.js";
 import { applyOrganizationThemeDefaults, organizationBranding, repairIncorrectCompanyAccent, themeDefinitionWithOrganizationDefaults } from "./theme-defaults.js";
@@ -204,6 +204,27 @@ export async function themesFollowingBrand(orgId: string, themes: JsonObject[], 
     const version = copy ? await readDocumentThemeVersion(orgId, entry.id, Number(copy.current_version || 0) || undefined).catch(() => null) : null;
     return copy && version ? { ...copy, definition: obj(version.definition) } : theme;
   }));
+}
+
+/**
+ * The styles every organization has (GP-96): the library's themes, in their `order`. Whatever offers a choice of style
+ * (the document setup, the editor's Page style, the theme menus) lists these, so a new style is a new library entry.
+ */
+export function libraryThemeStyles() {
+  return libraryEntries<DocumentThemeEntry>(DOCUMENT_THEME_KIND).sort((a, b) => themeOrder(a.data) - themeOrder(b.data) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/**
+ * An organization's theme list in style order (GP-96): its copies of the library's styles first, in the library's
+ * order and each with that `order`, then its own themes as they were listed.
+ */
+export function themesInStyleOrder<T extends JsonObject>(themes: T[]): Array<T & { order?: number }> {
+  const places = new Map(libraryThemeStyles().map((entry, at) => [entry.id, { at, order: themeOrder(entry.data) }]));
+  const place = (theme: T) => places.get(text(theme.id));
+  return themes
+    .map((theme, at) => ({ theme, at, place: place(theme) }))
+    .sort((a, b) => (a.place ? a.place.at : places.size + a.at) - (b.place ? b.place.at : places.size + b.at))
+    .map(({ theme, place }) => (place ? { ...theme, order: place.order } : theme));
 }
 
 /**
