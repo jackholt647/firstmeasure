@@ -563,7 +563,7 @@
     .dash-event-assign-menu button:hover{background:#f8fafc}
     .dash-event-assign-menu small{color:#98a2b3;font-weight:800}.dash-event-type-pill{height:30px;border-radius:999px;background:#f2f4f7;color:#344054;padding:0 10px;display:inline-flex;align-items:center;width:max-content;max-width:100%;font-size:11px;font-weight:1000}.dash-event-status-pill{height:30px;border:1px dotted #b54708;border-radius:999px;background:#fffaeb;color:#93370d;padding:0 10px;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:1000}
     .dash-event-type-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-    .dash-event-type-btn{height:32px;border:1px solid rgba(15,23,42,.10);border-radius:10px;background:#f8fafc;color:#344054;font-size:11px;font-weight:950;cursor:pointer}
+    .dash-event-type-btn{height:32px;min-width:0;padding:0 6px;border:1px solid rgba(15,23,42,.10);border-radius:10px;background:#f8fafc;color:#344054;font-size:11px;font-weight:950;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .dash-event-type-btn:hover{border-color:rgba(15,23,42,.22);background:#fff}
     .dash-event-type-btn.active{border-color:var(--primary,#d93025);box-shadow:inset 0 0 0 1px var(--primary,#d93025);background:rgba(var(--primary-rgb),.07);color:#101828}
     .dash-event-project-picker{position:relative;z-index:3}.dash-event-project-picker:has(.dash-event-project-list:not([hidden])){z-index:7}.dash-event-project-picker-row{display:grid;grid-template-columns:minmax(0,1fr) 38px;gap:7px}.dash-event-project-create{width:38px;height:38px;border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#fff;color:#475467;display:grid;place-items:center;cursor:pointer}.dash-event-project-create:hover,.dash-event-project-create:focus-visible{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb),.06);color:var(--primary,#d93025);outline:none}.dash-event-search{width:100%;height:38px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:10px;padding:0 10px;font-size:12px;font-weight:850;color:#101828;outline:none}
@@ -864,7 +864,55 @@
     if (event.detail?.id !== APPOINTMENT_SETUP_GUIDE) return;
     appointmentSetupState.endedAt = Date.now();
     void loadAppointmentSetupStatus(true);
+    void loadAppointmentTypes(true);
   });
+  /* GP-91: the event editor's type buttons are the organization's appointment types (the scheduling catalog's
+   * presets, written by the appointment setup and edited in Settings › Scheduling), not a fixed list. presets is null
+   * until read and empty when they cannot be read (no appointment slots, or the read failed): then the editor offers
+   * the built-in Sales / Work / Delivery / Other. */
+  const appointmentTypesState = { org:'', presets:null, loading:null };
+  function appointmentTypes(){
+    return appointmentTypesState.org === orgId() && Array.isArray(appointmentTypesState.presets) ? appointmentTypesState.presets : [];
+  }
+  function loadAppointmentTypes(force = false){
+    const org = orgId();
+    if (!org || typeof window.PlatformAPI?.appointments?.catalog !== 'function' || window.Portal?.appFlags?.has?.('scheduling', 'appointment_slots') === false) return Promise.resolve([]);
+    if (!force && appointmentTypesState.org === org && (appointmentTypesState.presets !== null || appointmentTypesState.loading)) return appointmentTypesState.loading || Promise.resolve(appointmentTypes());
+    if (appointmentTypesState.org !== org) Object.assign(appointmentTypesState, { org, presets:null });
+    const loading = Promise.resolve()
+      .then(() => window.PlatformAPI.appointments.catalog(org))
+      .then((response) => (Array.isArray(response?.catalog?.presets) ? response.catalog.presets : []).filter((preset) => clean(preset?.id) && clean(preset?.label)), () => [])
+      .then((presets) => {
+        if (appointmentTypesState.loading === loading) appointmentTypesState.loading = null;
+        if (appointmentTypesState.org !== org) return presets;
+        const before = JSON.stringify(appointmentTypesState.presets);
+        appointmentTypesState.presets = presets;
+        // An open editor redraws with the types it did not have yet (or that Settings just changed).
+        if (before !== JSON.stringify(presets) && eventDraftPopoverId && document.querySelector('.dash-event-popover')) renderEventDraftPopover(editorAnchorFor(eventDraftPopoverId));
+        return presets;
+      });
+    appointmentTypesState.loading = loading;
+    return loading;
+  }
+  /* The built-in kind an appointment type's events are (sales, work, delivery), so the editor offers the right people
+   * and the calendar files it under the right chip: the type's own event type, else what its departments, delivery
+   * flag and who goes say. */
+  function appointmentTypeEventTypeId(preset = {}){
+    const config = preset.configuration || {};
+    const departments = Array.isArray(config.department_ids) ? config.department_ids : [];
+    if (clean(config.event_type_id)) return clean(config.event_type_id);
+    if (config.delivery === true) return 'delivery';
+    if (departments.includes('sales')) return 'sales_appointment';
+    if (departments.includes('production') || (config.requirements || []).some((rule) => rule?.subject_type === 'resource_group')) return 'project_work';
+    return 'appointment';
+  }
+  // The booking dialog's short names: "Sales appointment" is "Sales" on a button.
+  function appointmentTypeButtonLabel(preset = {}){
+    return clean(preset.label).replace(/ appointments$/i, '').replace(/ appointment$/i, '') || clean(preset.label);
+  }
+  function appointmentTypeTitle(preset = {}){
+    return clean(preset.configuration?.title) || clean(preset.label);
+  }
   function appointmentSetupText(){
     return (globalThis.PlatformLanguage?.text("scheduling","m_a5481224995f93","Set up your appointments") ?? "Set up your appointments");
   }
@@ -3364,7 +3412,8 @@
     return ['equipment_maintenance', 'equipment_reservation', 'equipment_booking'].includes(kind) || ['equipment_maintenance', 'equipment_reservation', 'equipment_booking'].includes(type) || event?.vehicle_booking === true;
   }
   function defaultEventTitles(){
-    return new Set(['New Event', 'Untyped Event', 'Sales Appointment', 'Sales Follow-up', 'Work', 'Project', 'Delivery', 'Material Delivery']);
+    return new Set(['New Event', 'Untyped Event', 'Sales Appointment', 'Sales Follow-up', 'Work', 'Project', 'Delivery', 'Material Delivery',
+      ...appointmentTypes().flatMap((preset) => [appointmentTypeTitle(preset), clean(preset.label)])]);
   }
   function shouldAutoTitle(event = {}){
     if (event.title_is_custom === true) return false;
@@ -4514,22 +4563,55 @@
     window.dispatchEvent(new CustomEvent('fm:open-user-settings', { detail: { user: profile, userId: id } }));
   }
   function openScheduleWorkResourceSettings(resource = {}){
-    activeCrewSettingsModal?.close?.();
     const resourceId = clean(resource?.id);
     const resourceKind = clean(resource?.resource_kind || resource?.kind || resource?.resource_type).toLowerCase();
     const settingsView = resourceKind.includes('connection') || resourceKind.includes('organization') ? 'connections' : 'groups';
     const resourceName = clean(resource?.name || resource?.display_name || resource?.label || 'crew');
+    openEmbeddedSettingsModal({
+      modalId:'schedule-crew-settings',
+      source:'scheduling-crew-settings-modal',
+      label:(globalThis.PlatformLanguage?.htmlText("scheduling","m_4fb8b80d0a5d90","Crew settings") ?? "Crew settings"),
+      headHtml:`<h3>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_772109319abfee","Crew Settings") ?? "Crew Settings")}</h3><div class="dash-sub">${((v0) => globalThis.PlatformLanguage?.htmlText("scheduling","m_f6886ec5b464b4",`Editing ${v0} without leaving Production Routing`,{v0}) ?? `Editing ${v0} without leaving Production Routing`)(escapeHtml(resourceName))}</div>`,
+      loadingHtml:(globalThis.PlatformLanguage?.htmlText("scheduling","m_7a62a2885f694e"," Loading crew settings...") ?? " Loading crew settings..."),
+      unavailableHtml:(globalThis.PlatformLanguage?.htmlText("scheduling","m_76aa8eafe399cb","Crew settings are unavailable.") ?? "Crew settings are unavailable."),
+      failText:'Could not load crew settings.',
+      params:{ embedded:true, settingsTab:'crews', settingsView, settingsEntity:resourceId }
+    });
+  }
+  /* GP-91: the gear beside the view switch opens Settings › Scheduling (appointment types first) here, in the same
+   * embedded Settings the crew window uses; closing it reloads the appointment types the event editor offers. */
+  function canOpenSchedulingSettings(){
+    return window.Portal?.util?.hasPerm?.('manage_company_settings') === true && typeof window.FirstMateEmbeddableApps?.mount === 'function';
+  }
+  function openSchedulingSettings(){
+    const title = (globalThis.PlatformLanguage?.htmlText("scheduling","m_scheduling_settings","Scheduling settings") ?? "Scheduling settings");
+    openEmbeddedSettingsModal({
+      modalId:'schedule-scheduling-settings',
+      source:'scheduling-settings-modal',
+      label:title,
+      headHtml:`<h3>${title}</h3><div class="dash-sub">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_scheduling_settings_sub","Appointment types, confirmations, availability and assignment rules") ?? "Appointment types, confirmations, availability and assignment rules")}</div>`,
+      loadingHtml:` ${(globalThis.PlatformLanguage?.htmlText("scheduling","m_scheduling_settings_loading","Loading scheduling settings...") ?? "Loading scheduling settings...")}`,
+      unavailableHtml:(globalThis.PlatformLanguage?.htmlText("scheduling","m_scheduling_settings_unavailable","Scheduling settings are unavailable.") ?? "Scheduling settings are unavailable."),
+      failText:'Could not load scheduling settings.',
+      params:{ embedded:true, settingsTab:'scheduling' },
+      onClose:() => { void loadAppointmentTypes(true); }
+    });
+  }
+  /* A Settings tab in a window over the schedule (portal.company_settings mounted embedded on one tab). */
+  function openEmbeddedSettingsModal({ modalId, source, label, headHtml, loadingHtml, unavailableHtml, failText, params, onClose = null }){
+    activeCrewSettingsModal?.close?.();
     const back = document.createElement('div');
     back.className = 'dash-modal-backdrop';
     back.dataset.crewSettingsModal = '1';
+    back.dataset.settingsModal = modalId;
     back.innerHTML = `
-      <div class="dash-modal dash-crew-settings-modal" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_4fb8b80d0a5d90","Crew settings") ?? "Crew settings")}">
+      <div class="dash-modal dash-crew-settings-modal" role="dialog" aria-modal="true" aria-label="${label}">
         <div class="dash-modal-head">
-          <div><h3>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_772109319abfee","Crew Settings") ?? "Crew Settings")}</h3><div class="dash-sub">${((v0) => globalThis.PlatformLanguage?.htmlText("scheduling","m_f6886ec5b464b4",`Editing ${v0} without leaving Production Routing`,{v0}) ?? `Editing ${v0} without leaving Production Routing`)(escapeHtml(resourceName))}</div></div>
+          <div>${headHtml}</div>
           <button type="button" class="dash-modal-close" data-modal-close aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
         </div>
         <div class="dash-modal-body">
-          <div class="dash-crew-settings-host" data-crew-settings-host><div class="dash-crew-settings-loading"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_7a62a2885f694e"," Loading crew settings...") ?? " Loading crew settings...")}</div></div>
+          <div class="dash-crew-settings-host" data-crew-settings-host><div class="dash-crew-settings-loading"><i class="fas fa-spinner fa-spin"></i>${loadingHtml}</div></div>
         </div>
       </div>`;
     const host = back.querySelector('[data-crew-settings-host]');
@@ -4545,32 +4627,33 @@
       appHandle = null;
       back.remove();
       if (activeCrewSettingsModal?.element === back) activeCrewSettingsModal = null;
+      onClose?.();
     };
     back.querySelector('[data-modal-close]')?.addEventListener('click', close);
     document.body.appendChild(back);
     activeCrewSettingsModal = { element:back, close };
     modalHandle = window.Portal?.modals?.register?.(back, {
-      id:'schedule-crew-settings',
+      id:modalId,
       closeOnEscape:true,
       closeOnBackdrop:true,
       onClose:close
     }) || null;
     const runtime = window.FirstMateEmbeddableApps;
     if (!host || typeof runtime?.mount !== 'function') {
-      if (host) host.innerHTML = `<div class="dash-crew-settings-loading">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_76aa8eafe399cb","Crew settings are unavailable.") ?? "Crew settings are unavailable.")}</div>`;
+      if (host) host.innerHTML = `<div class="dash-crew-settings-loading">${unavailableHtml}</div>`;
       return;
     }
     Promise.resolve(runtime.mount(host, 'portal.company_settings', {
       surface:'portal_tab',
-      source:'scheduling-crew-settings-modal',
+      source,
       chrome:'modal',
-      params:{ embedded:true, settingsTab:'crews', settingsView, settingsEntity:resourceId },
+      params,
       roots:{ main:host }
     })).then((handle) => {
       if (closed) handle?.destroy?.();
       else appHandle = handle;
     }).catch((error) => {
-      if (!closed && host) host.innerHTML = `<div class="dash-crew-settings-loading">${escapeHtml(error?.message || 'Could not load crew settings.')}</div>`;
+      if (!closed && host) host.innerHTML = `<div class="dash-crew-settings-loading">${escapeHtml(error?.message || failText)}</div>`;
     });
   }
   function assignmentResourcesForEvent(event){
@@ -7133,6 +7216,18 @@
     if (readOnly) pop.classList.add('read-only');
     const activeType = eventTypeId(draft);
     const typeButton = (id, label) => `<button type="button" class="dash-event-type-btn ${activeType === id ? 'active' : ''}" data-event-type="${escapeHtml(id)}">${escapeHtml(label)}</button>`;
+    // GP-91: the organization's appointment types, then Other for an event that is none of them. An event of a type
+    // that is not one of them (an older Work event) shows that type in Other's place, as before.
+    const typesOffered = appointmentTypes();
+    const activePresetId = typesOffered.some((preset) => preset.id === clean(draft.appointment_preset_id)) ? clean(draft.appointment_preset_id) : '';
+    const otherLabel = (globalThis.PlatformLanguage?.text("scheduling","m_4a04382820d2e1","Other") ?? "Other");
+    const typeButtonsHtml = typesOffered.length
+      ? typesOffered.map((preset) => `<button type="button" class="dash-event-type-btn ${activePresetId === preset.id ? 'active' : ''}" data-event-appointment-type="${escapeHtml(preset.id)}" title="${escapeHtml(preset.label)}">${escapeHtml(appointmentTypeButtonLabel(preset))}</button>`).join('')
+        + (activePresetId || ['', 'custom'].includes(activeType) ? typeButton('custom', otherLabel) : `<button type="button" class="dash-event-type-btn active" data-event-type="${escapeHtml(activeType)}">${escapeHtml(eventTypeMeta(activeType).label)}</button>`)
+      : `${typeButton('sales_appointment', 'Sales')}
+          ${typeButton('project_work', 'Work')}
+          ${typeButton('delivery', 'Delivery')}
+          ${['', 'sales_appointment', 'project_work', 'delivery'].includes(activeType) ? typeButton('custom', otherLabel) : `<button type="button" class="dash-event-type-btn active" data-event-type="${escapeHtml(activeType)}">${escapeHtml(eventTypeMeta(activeType).label)}</button>`}`;
     const results = projectSearchResults(eventDraftProjectQuery);
     const typeMeta = eventTypeMeta(activeType);
     const projectLabel = project?.id ? projectTitle(project) : (draft.project_title && draft.project_title !== draft.title ? draft.project_title : 'No project selected');
@@ -7248,10 +7343,7 @@
       </div>
       ${String(noticeHtml)}
       ${String(ctx.kind === 'floating' && !equipmentWindow ? `<div class="dash-event-type-row" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_event_type","Event type") ?? "Event type")}">
-          ${typeButton('sales_appointment', 'Sales')}
-          ${typeButton('project_work', 'Work')}
-          ${typeButton('delivery', 'Delivery')}
-          ${['', 'sales_appointment', 'project_work', 'delivery'].includes(activeType) ? typeButton('custom', 'Other') : `<button type="button" class="dash-event-type-btn active" data-event-type="${escapeHtml(activeType)}">${escapeHtml(typeMeta.label)}</button>`}
+          ${typeButtonsHtml}
         </div>` : `${equipmentWindowHtml}${String(typePillsRowHtml)}`)}
       ${String(requirementAlertHtml(draft))}
       ${String(eventAssigneeSectionHtml(ctx, draft))}
@@ -7366,6 +7458,32 @@
         event_type_default_id: id,
         title: shouldAutoTitle(current) ? meta.title : current.title,
         project_title: current.project_id ? current.project_title : (shouldAutoTitle(current) ? meta.title : current.project_title),
+        title_is_custom: current.title_is_custom === true,
+        // Leaving an appointment type drops what it gave the event (GP-91).
+        ...(clean(current.appointment_preset_id) ? { appointment_preset_id: undefined, department_ids: undefined } : {})
+      });
+      if (!editorUsesDraftCopy(editCtx || ctx)) render();
+      setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.id)), 0);
+    }));
+    // GP-91: an appointment type gives the event its name, its departments and its built-in kind; the type's id is
+    // kept as appointment_preset_id, as the CRM reads it.
+    pop.querySelectorAll('[data-event-appointment-type]').forEach((btn) => btn.addEventListener('click', () => {
+      const preset = appointmentTypes().find((entry) => entry.id === btn.dataset.eventAppointmentType);
+      if (!preset) return;
+      const id = appointmentTypeEventTypeId(preset);
+      const title = appointmentTypeTitle(preset);
+      const departments = (preset.configuration?.department_ids || []).map(clean).filter(Boolean);
+      const editCtx = eventEditorContext();
+      const current = editCtx?.event || draft;
+      const autoTitle = shouldAutoTitle(current);
+      stageEditorEdit(editCtx || ctx, {
+        type_id: id,
+        event_type_id: id,
+        event_type_default_id: id,
+        appointment_preset_id: preset.id,
+        department_ids: departments.length ? departments : undefined,
+        title: autoTitle ? title : current.title,
+        project_title: current.project_id ? current.project_title : (autoTitle ? title : current.project_title),
         title_is_custom: current.title_is_custom === true
       });
       if (!editorUsesDraftCopy(editCtx || ctx)) render();
@@ -10675,7 +10793,9 @@
     const setupPending = appointmentSetupPending();
     const setupAttrs = setupPending ? ` data-setup-pending data-fm-tooltip="${escapeHtml(appointmentSetupText())}"` : '';
     const appointmentButton = canEditSchedule() && window.Portal?.appFlags?.has?.('scheduling', 'appointment_slots') !== false ? `<button type="button" class="dash-new-appointment" data-new-appointment${setupAttrs}><i class="fas fa-plus" aria-hidden="true"></i> Appointment${setupPending ? appointmentSetupTagHtml() : ''}</button>` : '';
-    const mobileToolbarExtras = `${canEditSchedule() ? '' : `<button type="button" class="dash-mobile-view-only" data-view-only-info aria-label="${escapeHtml(`${(globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only")}: ${scheduleReadOnlyMessage()}`)}" title="${escapeHtml(scheduleReadOnlyMessage())}"><i class="fas fa-eye" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_view_short","View") ?? "View")}</span></button>`}${departmentChips ? `<span class="dash-mobile-menu-wrap"><button type="button" class="dash-mobile-control dash-mobile-show" data-mobile-schedule-menu aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2ea71a7fc7dec5","Choose schedules to show") ?? "Choose schedules to show")}" aria-expanded="${String(mobileScheduleMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><i class="fas fa-chevron-down" style="font-size:8px"></i></button>${String(mobileScheduleMenuOpen ? `<div class="dash-mobile-popover schedules" role="menu" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_92e47dd97f2a57","Schedules to show") ?? "Schedules to show")}"><button type="button" class="${showSalesSchedule ? 'active' : ''}" data-schedule-type-toggle="sales" role="menuitemcheckbox" aria-checked="${showSalesSchedule ? 'true' : 'false'}"><i class="fas fa-handshake"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2680c31facb03d","Sales") ?? "Sales")}</button><button type="button" class="${showProductionSchedule ? 'active' : ''}" data-schedule-type-toggle="production" role="menuitemcheckbox" aria-checked="${showProductionSchedule ? 'true' : 'false'}"><i class="fas fa-helmet-safety"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c2e6380e130020","Production") ?? "Production")}</button><button type="button" class="${showOtherSchedule ? 'active' : ''}" data-schedule-type-toggle="other" role="menuitemcheckbox" aria-checked="${showOtherSchedule ? 'true' : 'false'}"${viewMode === 'appointment_schedule' ? ` disabled aria-disabled="true" title="${escapeHtml(globalThis.PlatformLanguage?.text("scheduling","m_other_not_in_routing","Routing shows sales and production lanes only") ?? "Routing shows sales and production lanes only")}"` : ''}><i class="fas fa-calendar-plus"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_4a04382820d2e1","Other") ?? "Other")}</button></div>` : '')}</span>` : ''}<button type="button" class="dash-mobile-control dash-mobile-type" data-mobile-tray-open aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_858d2ae4d1a804","Open projects to schedule") ?? "Open projects to schedule")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><i class="fas fa-inbox"></i></button>`;
+    const settingsLabel = escapeHtml(globalThis.PlatformLanguage?.text("scheduling","m_scheduling_settings","Scheduling settings") ?? "Scheduling settings");
+    const settingsButton = canOpenSchedulingSettings() ? `<span class="dash-segmented dash-settings-group"><button type="button" class="has-icon" data-schedule-settings aria-label="${settingsLabel}" title="${settingsLabel}"><i class="fas fa-gear" aria-hidden="true"></i></button></span>` : '';
+    const mobileToolbarExtras = `${canOpenSchedulingSettings() ? `<button type="button" class="dash-mobile-control" data-schedule-settings aria-label="${settingsLabel}" title="${settingsLabel}"><i class="fas fa-gear" aria-hidden="true"></i></button>` : ''}${canEditSchedule() ? '' : `<button type="button" class="dash-mobile-view-only" data-view-only-info aria-label="${escapeHtml(`${(globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only")}: ${scheduleReadOnlyMessage()}`)}" title="${escapeHtml(scheduleReadOnlyMessage())}"><i class="fas fa-eye" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_view_short","View") ?? "View")}</span></button>`}${departmentChips ? `<span class="dash-mobile-menu-wrap"><button type="button" class="dash-mobile-control dash-mobile-show" data-mobile-schedule-menu aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2ea71a7fc7dec5","Choose schedules to show") ?? "Choose schedules to show")}" aria-expanded="${String(mobileScheduleMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><i class="fas fa-chevron-down" style="font-size:8px"></i></button>${String(mobileScheduleMenuOpen ? `<div class="dash-mobile-popover schedules" role="menu" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_92e47dd97f2a57","Schedules to show") ?? "Schedules to show")}"><button type="button" class="${showSalesSchedule ? 'active' : ''}" data-schedule-type-toggle="sales" role="menuitemcheckbox" aria-checked="${showSalesSchedule ? 'true' : 'false'}"><i class="fas fa-handshake"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2680c31facb03d","Sales") ?? "Sales")}</button><button type="button" class="${showProductionSchedule ? 'active' : ''}" data-schedule-type-toggle="production" role="menuitemcheckbox" aria-checked="${showProductionSchedule ? 'true' : 'false'}"><i class="fas fa-helmet-safety"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c2e6380e130020","Production") ?? "Production")}</button><button type="button" class="${showOtherSchedule ? 'active' : ''}" data-schedule-type-toggle="other" role="menuitemcheckbox" aria-checked="${showOtherSchedule ? 'true' : 'false'}"${viewMode === 'appointment_schedule' ? ` disabled aria-disabled="true" title="${escapeHtml(globalThis.PlatformLanguage?.text("scheduling","m_other_not_in_routing","Routing shows sales and production lanes only") ?? "Routing shows sales and production lanes only")}"` : ''}><i class="fas fa-calendar-plus"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_4a04382820d2e1","Other") ?? "Other")}</button></div>` : '')}</span>` : ''}<button type="button" class="dash-mobile-control dash-mobile-type" data-mobile-tray-open aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_858d2ae4d1a804","Open projects to schedule") ?? "Open projects to schedule")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><i class="fas fa-inbox"></i></button>`;
     const mobileToolbar = window.PlatformScheduleView?.mobileCalendarToolbarHtml?.({
       view: viewMode,
       date: anchorDate,
@@ -10739,6 +10859,7 @@
           ].filter((group) => group.length).map((group) => `<span class="dash-segmented" role="group">${group.map(([mode, label, icon]) => `<button type="button" class="${viewMode === mode ? 'active' : ''} ${icon ? 'has-icon' : ''}" data-dash-view="${mode}" aria-pressed="${viewMode === mode ? 'true' : 'false'}"${icon ? ` aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"` : ''}>${icon ? `<i class="fas ${icon}" aria-hidden="true"></i>` : ''}<span class="dash-view-label">${escapeHtml(label)}</span></button>`).join('')}</span>`).join('')}
           ${String(modeButtons)}
           ${String(viewMode !== 'appointment_schedule' ? displayButtons : '')}
+          ${settingsButton}
         </div>
       </div>
     `;
@@ -11204,6 +11325,7 @@
       syncScheduleRoute({ scheduleResource:breakdownValue === 'all' ? null : breakdownValue }, { history:'replace', source:'schedule-filter' });
       render();
     }));
+    rootEl.querySelectorAll('[data-schedule-settings]').forEach((btn) => btn.addEventListener('click', () => openSchedulingSettings()));
     rootEl.querySelectorAll('[data-dash-view]').forEach((btn) => btn.addEventListener('click', () => {
       const nextView = btn.dataset.dashView || 'week';
       const enteringSchedule = viewMode !== 'appointment_schedule' && nextView === 'appointment_schedule';
@@ -11719,6 +11841,7 @@
       ]);
       schedulingConfig = loadedSchedulingConfig;
       void loadAppointmentSetupStatus();
+      void loadAppointmentTypes();
       if (confirmationSettings) Scheduling.setConfirmationSettings(confirmationSettings);
       dashboardConfig = loadedDashboardConfig;
       branchProjectConfig = normalizeProjectConfig(loadedProjectConfig?.data || loadedProjectConfig || {});
