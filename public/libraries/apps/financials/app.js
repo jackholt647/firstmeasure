@@ -50,6 +50,9 @@
     });
   }
 
+  // Payouts and Disputes are the shared payments widgets (GP-76), the same
+  // ones Settings › Money shows.
+  const WIDGET_VIEWS = ['payouts', 'disputes'];
   const normalizeFinancialView = (value) => ['cashflow', 'reconcile', 'payouts', 'disputes'].includes(String(value ?? '').trim()) ? String(value).trim() : 'projects';
 
   function money(value, compact = false){
@@ -511,9 +514,7 @@
       return false;
     }
     function merchantProcessingEnabled(){ return capabilityEnabled('money.merchant_processing'); }
-    // Payouts and Disputes are the shared payments widgets (GP-76), the same
-    // ones Settings › Money shows.
-    const WIDGET_VIEWS = ['payouts', 'disputes'];
+
     function normalizeView(value){
       if(value==='')return '';
       const view = normalizeFinancialView(value);

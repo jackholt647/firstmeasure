@@ -117,6 +117,12 @@ test('disputes: pulled on open, answered with evidence, submitted to FirstMate',
   await tab.click('[data-pmw-submit]');
   assert.match(await tab.locator('.pmw-actions .pmw-status').textContent(), /Write a few sentences/);
   await tab.fill('[data-pmw-summary]', 'The customer signed our proposal on Oct 1 and we finished the roof on Oct 20.');
+  // The portal's confirm answers with a promise: Cancel there must stop the submission.
+  await tab.evaluate(() => { window.confirm = () => Promise.resolve(false); });
+  await tab.click('[data-pmw-submit]');
+  await tab.waitForTimeout(200);
+  assert.equal(await tab.evaluate(() => window.__requests.some((entry) => entry.method === 'PUT' && entry.body.action === 'submit')), false);
+  await tab.evaluate(() => { window.confirm = () => Promise.resolve(true); });
   await tab.click('[data-pmw-submit]');
   await tab.waitForSelector('.pmw-note.info');
   const submit = await tab.evaluate(() => window.__requests.filter((entry) => entry.method === 'PUT').pop().body);
@@ -138,7 +144,7 @@ test('disputes: FirstMate staff see every company\'s submissions and mark them f
   await tab.evaluate(() => {
     window.__state.staff = true;
     window.__state.dispute = { ...window.__state.dispute, response: { status: 'submitted', decision: 'accept', summary: 'Refund it.', submitted_at: '2026-11-03', submitted_by: 'Owner' } };
-    window.prompt = () => 'Filed in Forward';
+    window.prompt = () => Promise.resolve('Filed in Forward');
     window.FirstMatePaymentsWidgets.mountDisputes(document.getElementById('host'), { orgId: 'org_1' });
   });
   await tab.waitForSelector('[data-pmw-filter="queue"]');
