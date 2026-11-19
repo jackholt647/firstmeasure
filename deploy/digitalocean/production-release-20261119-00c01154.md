@@ -56,13 +56,15 @@ the second.
 - Installed on compatibility and the worker; channel published against `8dd524f7`'s archive.
 - Web nodes one at a time, 01:38:11–01:50:53 UTC. Each passed every assert and came back behind the load balancer.
 - Worker activated 01:52:09 UTC with no running jobs.
-- Compatibility: through `compat_gate.sh` (legacy-action under 420/min); see Verification for when it opened.
+- Compatibility: through `compat_gate.sh` (legacy-action under 420/min); the gate opened at 01:57:36 UTC. Rolling
+  replace, `COMPAT_DONE` at 01:58:37, with 0 Node 500s and 0 worker exits in the 20 s after.
 
 ## Verification
 
 - Through the load balancer, 12/12 requests each: `roof-viewer.js` `1fdb27febe05…`, `project-widgets.js`
   `2e1fb1ce0975…`, `measurements/project.js` `ee36f6f1f10f…`, apps manifest `c3f64532f54a…`, all equal to the release.
-- Readiness 10/10 reports `00c01154`.
+- Readiness 10/10 reports `00c01154`. `current` is `00c01154` on all 8 hosts.
+- Compatibility, 01:49-01:59 UTC: 0 Node 500s, 0 watchdog kills.
 - Web 5xx 01:38–01:53 UTC against the 30 minutes before: 0.03–0.08 % (3–9 per node) against 0.04–0.07 %; every one is
   the long-standing `/measure/internal/top_view_reroll_proxy.php`.
 
