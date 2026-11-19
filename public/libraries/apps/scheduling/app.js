@@ -650,7 +650,7 @@
       .dash-stats-row{grid-template-columns:var(--dash-mode-col) minmax(126px,var(--dash-filter-col)) repeat(var(--dash-stat-count),minmax(92px,1fr));overflow-x:auto;padding-bottom:2px}
       .dash-filter-menu{left:calc(var(--dash-mode-col) + var(--dash-stat-gap));right:auto;width:650px}
     }
-      .dash-new-appointment{background:#d93025!important;color:#fff!important;border:0!important;border-radius:8px;padding:9px 13px;font:inherit;font-weight:700;cursor:pointer;white-space:nowrap}
+      .dash-new-appointment{background:var(--primary,#d93025)!important;color:var(--on-primary,#fff)!important;border:0!important;border-radius:8px;padding:9px 13px;font:inherit;font-weight:700;cursor:pointer;white-space:nowrap}
     /* GP-58: the Setup tag while Scheduling's setup is to do (the same tag as Operations' Labor/Equipment and Money's). */
     .dash-new-appointment[data-setup-pending]{position:relative;overflow:visible}
     .dash-new-appointment .dash-setup-pill{position:absolute;top:-9px;right:-8px;border:1px solid #f2ca72;border-radius:20px;background:#fff0cb;color:#794c00;padding:0 5px;font-size:9px;font-weight:700;line-height:14px;white-space:nowrap;pointer-events:none;box-shadow:0 1px 2px rgba(16,24,40,.12)}
@@ -672,7 +672,7 @@
       .dash-shell .prs-mobile-control.month{width:100%;max-width:none;min-width:0;padding:0 4px;box-sizing:border-box}
       .dash-shell .prs-mobile-control.today,.dash-shell .prs-mobile-control.nav{flex-shrink:0}
       .dash-shell .dash-mobile-appointment{display:inline-flex;align-items:center;justify-content:center;flex:0 0 40px;width:40px;height:40px;padding:0;margin-left:2px;border-radius:10px;font-size:20px;line-height:1}
-      .dash-mobile-appointment:focus-visible{outline:2px solid #b42318;outline-offset:2px}
+      .dash-mobile-appointment:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
       .dash-mobile-toolbar{position:relative;z-index:40;display:flex;align-items:center;gap:2px;height:50px;padding:0 6px;background:#fff;border-bottom:0;box-sizing:border-box;white-space:nowrap}
       .dash-mobile-menu-wrap{position:relative;flex:0 0 auto}
       .dash-mobile-control{height:34px;border:0;border-radius:8px;background:transparent;color:#344054;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:0 8px;font:inherit;font-size:12px;font-weight:1000;cursor:pointer}

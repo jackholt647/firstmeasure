@@ -390,7 +390,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
-      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261119-gp58-setup-tag')]
+      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261119-gp83-primary-button')]
     },
     {
       id: 'portal.training',
