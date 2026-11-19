@@ -435,7 +435,7 @@
       order: 57,
       bundles: [
         versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'),
-        versionedBundle('equipment/app.js', '20261119-gp15')
+        versionedBundle('equipment/app.js', '20261119-gp15b')
       ]
     },
     {

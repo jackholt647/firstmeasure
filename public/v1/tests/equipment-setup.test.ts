@@ -71,6 +71,8 @@ test("the library entries parse, and their checks pass against the running code"
   // It is ordered before the tab's tour (entries are read by id), so a first visit arms the setup, not the tour.
   assert.ok("equipment.setup" < "equipment.tab_tutorial");
   for (const entry of offered) assert.equal(entry.label.key.startsWith("gx_eqs_kind_"), true, entry.id);
+  // Font Awesome 6.0 (what the portal loads) has no fa-toilet-portable or fa-arrows-up-to-line: their tiles were blank.
+  for (const entry of offered) assert.ok(!["fa-toilet-portable", "fa-arrows-up-to-line"].includes(entry.icon), `${entry.id} has an icon Font Awesome 6.0 draws`);
 });
 
 test("the setup asks the company type and how many locations only while unanswered", async () => {

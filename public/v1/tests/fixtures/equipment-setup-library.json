@@ -329,7 +329,7 @@
                   "key": "gx_eqs_kind_portable_toilet_hint",
                   "text": "Portable toilets you take to longer jobs."
                 },
-                "icon": "fa-toilet-portable",
+                "icon": "fa-toilet",
                 "kind": "other",
                 "category": "site_services",
                 "industries": [
@@ -391,7 +391,7 @@
                   "key": "gx_eqs_kind_aerial_lift_hint",
                   "text": "Reach high walls, roofs and ceilings."
                 },
-                "icon": "fa-arrows-up-to-line",
+                "icon": "fa-elevator",
                 "kind": "other",
                 "category": "heavy_equipment",
                 "industries": [
