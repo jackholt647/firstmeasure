@@ -135,7 +135,7 @@
       else await run();
     }
     async function load(append=false,silent=false){
-      const sequence=++state.sequence;state.error='';
+      const sequence=++state.sequence;state.error='';state.loading=false;
       state.sessionScope=`${ui.org()}:${ui.user()}`;
       if(!state.view){state.host.innerHTML=empty('No grouped apps','Use Communications settings to choose tabs.');return;}
       if(state.view==='layout'){state.host.innerHTML=settingsTabs()+chrome.settings('communications');return;}
@@ -149,7 +149,7 @@
         const cached=!state.centerCursor&&centerCache.get(centerKey());
         if(cached)Object.assign(state,cached);state.centerPending=!cached;render();
       }
-      state.host.setAttribute('aria-busy','true');
+      state.host.setAttribute('aria-busy','true');state.loading=true;
       if(!append&&!silent&&!reuseLists&&!center){state.arrive=true;state.host.innerHTML=`<div class="fmcm-empty" role="status">${(globalThis.PlatformLanguage?.htmlText("comms","m_55449dc99935d5","Loading communications…") ?? "Loading communications…")}</div>`;}
       try{
         const view=state.view;let result;
@@ -159,11 +159,14 @@
           const params={department_id:state.departmentId||'',limit:'50',query:state.query,project_id:options.projectId||'',...(state.filter==='wrap_up'?{wrap_up_state:'needs_wrap_up'}:{}),...(state.filter==='mine'?{owner_user_id:ui.user()}:{}),cursor:state.cursor};
           result=await request(`calls?${Object.entries(params).filter(([,v])=>v).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&')}`);
         }else if(view==='center'){
-          // GP-81: the phone status is fetched beside the mode's data, not before it; the last one known picks the mode.
+          // GP-81: the phone status is fetched beside the mode's data, not before it. Only Manager view waits for one (it
+          // says whether the person may see it) when none is known yet.
           const statusRun=phone.refreshStatus();statusRun.catch(()=>{});
-          const known=phone.status?.permissions?phone.status:await statusRun;
-          if(sequence!==state.sequence||state.disposed)return;
-          if(state.centerMode==='manager'&&!canManage(known))state.centerMode='call';
+          if(state.centerMode==='manager'){
+            const known=phone.status?.permissions?phone.status:await statusRun;
+            if(sequence!==state.sequence||state.disposed)return;
+            if(!canManage(known))state.centerMode='call';
+          }
           const department=state.departmentId?`department_id=${encodeURIComponent(state.departmentId)}`:'';
           if(state.centerMode==='personal'){
             const since=state.centerPeriod==='all'?'':new Date(Date.now()-Number(state.centerPeriod)*86400000).toISOString();
@@ -205,6 +208,7 @@
           if(entry&&phone.currentEntry!==entry.id)await openEntry(entry,true);
         }
       }catch(error){if(sequence!==state.sequence)return;state.centerPending=false;state.host.setAttribute('aria-busy','false');state.error=error.message;state.host.innerHTML=empty('Could not load this view',error.message,`<button data-action="reload">${(globalThis.PlatformLanguage?.htmlText("comms","m_ef39ad5e614a24","Try again") ?? "Try again")}</button>`);}
+      finally{if(sequence===state.sequence)state.loading=false;}
     }
     state.load=load;
     function centerKey(){return [ui.org(),ui.user(),state.centerMode,state.departmentId||'',...(state.centerMode==='personal'?[state.centerQuery,state.centerPeriod,state.centerDirection,state.centerWrap]:[])].join('\u0001');}
@@ -477,7 +481,8 @@
     const onLayout=()=>{if(options.projectId)return;root.querySelectorAll('.fmcm>:is([data-app-header],app-tab-strip)').forEach(el=>el.remove());root.querySelector('.fmcm').insertAdjacentHTML('afterbegin',header());if(centerAlone){state.centerTabs='';if(state.view==='center')render();}if(!options.standalone&&!['setup','layout'].includes(state.view))nav(chrome.resolve('communications',route().communicationsView),true);};
     window.addEventListener('fm:app-placements:updated',onLayout);
     let active=true,ticks=0;
-    const timer=setInterval(()=>{ticks++;if(active&&!state.disposed&&!document.hidden&&!root.contains(document.activeElement)&&!['setup','layout','inbox'].includes(state.view)&&(state.view==='center'||ticks%6===0))void load(false,true);},5000);
+    // GP-81: a refresh never starts over a load still on its way (a slow answer would be dropped every 5 s, forever).
+    const timer=setInterval(()=>{ticks++;if(active&&!state.disposed&&!state.loading&&!document.hidden&&!root.contains(document.activeElement)&&!['setup','layout','inbox'].includes(state.view)&&(state.view==='center'||ticks%6===0))void load(false,true);},5000);
     nav(state.view,true);
     function search(query){query=String(query||'');if(query===state.query)return;state.query=query;state.cursor='';clearTimeout(state.searchTimer);state.searchTimer=setTimeout(()=>{if(!state.disposed)void load(false,true);},240);}
     return {refresh:load,search,setActive(value){active=!!value;if(active&&state.view==='inbox')state.inboxHandle?.activate?.();},destroy(){if(phone.dialer?.active)phone.pauseDialer('Automatic dialing paused when you left the workspace.');window.removeEventListener('fm:app-placements:updated',onLayout);state.disposed=true;state.sequence++;state.phoneSettings?.destroy?.();clearInterval(timer);clearTimeout(state.searchTimer);clearTimeout(state.changeTimer);state.inboxHandle?.destroy?.();instances.delete(state);root.removeEventListener('click',onClick);root.removeEventListener('input',onInput);root.removeEventListener('change',onChange);window.removeEventListener('fm:platform-session:updated',onSession);window.removeEventListener('fm:customer-calls:next',onNext);window.removeEventListener('fm:customer-calls:changed',updatePhone);}};
