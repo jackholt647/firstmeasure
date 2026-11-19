@@ -1315,6 +1315,8 @@
       active: context.active !== false,
       view: 'list',                    // 'list' | 'editor'
       returnTo: null,                  // { onFinish, docId, armed }: the host that started a document takes the person back (finishDocumentReturn)
+      newDocIds: new Set(),            // documents made here and not yet left: a new document is a flow (syncDetailsTrayHold, GP-100)
+      trayRelease: null,               // the project window's release while that flow holds its details tray
       docs: [],
       loading: false,
       loadError: null,
@@ -1411,9 +1413,14 @@
     // (doc-first flows attach the document to a project later via PATCH).
     function createDocumentRecord(body = {}){
       const pid = projectId();
-      return pid
+      return (pid
         ? api().documents.createForProject(orgId(), pid, body)
-        : api().documents.createStandalone(orgId(), body);
+        : api().documents.createStandalone(orgId(), body)
+      ).then((res) => {
+        const id = cleanText(objectValue(objectValue(res).document || objectValue(res).doc || res).id);
+        if (id) state.newDocIds.add(id);
+        return res;
+      });
     }
     function rememberStandaloneDoc(doc){
       if (projectId() || !doc?.id) return;
@@ -2777,6 +2784,7 @@
     function showOpeningScreen(title){
       state.openingDoc = true;
       setEditorFocus(true);
+      syncDetailsTrayHold();
       root.innerHTML = `
         <div class="fmdx-shell">
           <div class="fmdx-editor-screen workflow-view" data-fmdx-opening>
@@ -2789,7 +2797,7 @@
           </div>
         </div>`;
       if (embedded) embed.onDocScreen?.();
-      return { cancel(){ const shown = state.openingDoc && !!root.querySelector('[data-fmdx-opening]'); state.openingDoc = false; if (!shown) return; setEditorFocus(false); render(); } };
+      return { cancel(){ const shown = state.openingDoc && !!root.querySelector('[data-fmdx-opening]'); state.openingDoc = false; syncDetailsTrayHold(); if (!shown) return; setEditorFocus(false); render(); } };
     }
 
     /** Entry: open the unified document screen (one top bar for both views). */
@@ -3419,6 +3427,25 @@
       if (active) setTimeout(() => { try { state.editorHandle?.zoom?.('fit-width'); } catch (e) {} }, 620);
     }
 
+    // A new document is a flow that needs the window's width (GP-100): from the moment a picked kind starts opening one
+    // until the person leaves it, the project window's details tray steps aside (its host's holdDetailsTray) and opens
+    // again after if this closed it. Leaving the tab ends that run; coming back to the document starts another. A
+    // document opened from the list is not new. Hosts without the tray (no holdDetailsTray, or a frame of their own)
+    // keep the window as it is.
+    function syncDetailsTrayHold(){
+      const docId = cleanText(state.doc?.id);
+      const runs = !state.destroyed && state.active && !(embedded && embed.focus === false)
+        && (state.openingDoc || (state.view === 'editor' && !!docId && state.newDocIds.has(docId)));
+      if (runs && !state.trayRelease) {
+        const release = context.host?.holdDetailsTray?.('documents.new');
+        state.trayRelease = typeof release === 'function' ? release : null;
+      } else if (!runs && state.trayRelease) {
+        const release = state.trayRelease;
+        state.trayRelease = null;
+        try { release(); } catch (error) { console.warn('The project details tray could not be given back', error); }
+      }
+    }
+
     /** One document screen shell for BOTH views. options:
      *  { view: 'editor'|'workflow', workflow?: {definition,state} } */
     async function openDocScreen(docRecord, options = {}){
@@ -3428,6 +3455,7 @@
       state.openingDoc = false;
       state.view = 'editor';
       state.doc = objectValue(docRecord);
+      syncDetailsTrayHold();
       // The document a host's create wizard just made is the one to come back from; any other one ends that return.
       if (state.returnTo?.armed && !state.returnTo.docId) state.returnTo.docId = cleanText(state.doc.id);
       else if (state.returnTo?.docId && state.returnTo.docId !== cleanText(state.doc.id)) state.returnTo = null;
@@ -3558,6 +3586,8 @@
       setEditorFocus(false);
       state.view = 'list';
       state.doc = null;
+      if (closing?.id) state.newDocIds.delete(cleanText(closing.id));
+      syncDetailsTrayHold();
       state.docWorkflow = null;
       state.resolved = null;
       state.editorLoaded = false;
@@ -6426,6 +6456,7 @@
         const focused = state.view === 'editor';
         if (!active && focused) setEditorFocus(false);
         if (active && focused) setEditorFocus(true);
+        syncDetailsTrayHold();
         if (active && state.loaded && state.view === 'list') loadDocs({ silent: true });
       },
       update(){ /* context refreshes handled lazily */ },
@@ -6439,6 +6470,7 @@
         modalWatchers.delete(syncBack);
         backHistory?.release();
         try { setEditorFocus(false); } catch (e) {}
+        syncDetailsTrayHold();
         destroyWorkflowView();
         destroyEditor();
         root.innerHTML = '';

@@ -4901,7 +4901,6 @@ window.PlatformCommerce.onReady(async function(){
   // since the form is the work then. A person's close holds until another project opens.
   const detailsTrayText=(key,fallback)=>globalThis.PlatformLanguage?.text('project-request',key,fallback) ?? fallback;
   let detailsTrayOpen=false,detailsTrayProjectKey=null,detailsTrayUserChoice=false;
-  const detailsTrayOperations={closed:false,held:false,visit:0};
   function detailsTraySheet(){
     return document.querySelector('#rOverlay .r-window-bar')?.dataset.windowMobile==='true' || isMobileProjectOrder();
   }
@@ -4955,8 +4954,9 @@ window.PlatformCommerce.onReady(async function(){
     const overlay=document.getElementById('rOverlay'),tray=ensureDetailsTray();
     if(!overlay || !tray)return;
     if(options.user)detailsTrayUserChoice=true;
-    // Opened by anything, or set by hand, the tray is no longer Operations' to give back (FM-611).
-    if(open || options.user){detailsTrayOperations.closed=false;if(options.user && activePreviewTab==='materials')detailsTrayOperations.held=true;}
+    // Opened by anything, or set by hand, the tray is no longer the flows' to give back; set by hand, it holds for
+    // every flow running (GP-100, holdDetailsTray).
+    if(open || options.user){detailsTrayFlowsClosed=false;if(options.user)detailsTrayFlows.forEach(flow=>{flow.held=true;});}
     // The order pages hold the form, so nothing opens the tray over them by itself: opening it focused its close
     // button and closing it again at once left nothing focused, which shut the phone's keyboard on every letter typed.
     if(open && !options.user && detailsTraySheet() && (shouldUseMobileOrderPagination() || overlay.classList.contains('mobile-order')))open=false;
@@ -5004,7 +5004,7 @@ window.PlatformCommerce.onReady(async function(){
       // A new project taking its id (an autosave, a placed order) is still the same project on screen.
       const saved=!!projectOpenId() && (detailsTrayProjectKey==='new' || detailsTrayProjectKey==='unsaved');
       detailsTrayProjectKey=key;
-      if(!saved){detailsTrayUserChoice=false;detailsTrayOperations.held=false;setDetailsTrayOpen(detailsTrayStartsOpen() || detailsTrayAsked);syncDetailsTrayOperations();}
+      if(!saved){detailsTrayUserChoice=false;detailsTrayFlows.clear();detailsTrayFlowsClosed=false;setDetailsTrayOpen(detailsTrayStartsOpen() || detailsTrayAsked);syncDetailsTrayOperations();}
       detailsTrayAsked=false;
     }else if(detailsTrayWorkflow() && !detailsTrayOpen && !detailsTrayUserChoice)setDetailsTrayOpen(true);
     placeOverviewDetails();
@@ -5035,11 +5035,35 @@ window.PlatformCommerce.onReady(async function(){
     if(event.key==='Escape' && detailsTrayOpen && document.getElementById('rOverlay')?.classList.contains('details-tray-sheet')){event.preventDefault();event.stopImmediatePropagation();setDetailsTrayOpen(false,{user:true});}
   },true);
 
+  // A flow that needs the window's width (GP-100): holdDetailsTray(owner) says it has started, and the tray steps aside
+  // while it runs; the release it returns says it ended, and when the last running flow ends the tray opens again if a
+  // flow closed it. Opening or closing the tray by hand while flows run holds for each of them for the rest of that run
+  // (asking again then leaves the tray alone) and is what stays after; anything else opening it ends the giving back
+  // too. holdDetailsTray(owner,{close:false}) only says the flow runs, for one that closes the tray later (Operations
+  // once its setup is read). Owners are names ('operations', 'documents.new'); asking again for a running owner is the
+  // same run. A desktop only: on a phone the tray is a sheet that is not open over a flow anyway; and never while the form
+  // is the work (detailsTrayWorkflow). Not a choice (`detailsTrayUserChoice` is untouched), nothing is kept in the
+  // browser, and another project drops every run. Tab apps reach it as their host's holdDetailsTray.
+  const detailsTrayFlows=new Map();let detailsTrayFlowsClosed=false;
+  function holdDetailsTray(owner,options={}){
+    const key=String(owner || 'flow');
+    let flow=detailsTrayFlows.get(key);
+    if(!flow){flow={held:false};detailsTrayFlows.set(key,flow);}
+    if(options.close!==false && !flow.held && detailsTrayOpen && !detailsTraySheet() && !detailsTrayWorkflow()){
+      setDetailsTrayOpen(false);
+      detailsTrayFlowsClosed=true;
+    }
+    return ()=>{if(detailsTrayFlows.get(key)===flow)releaseDetailsTray(key);};
+  }
+  function releaseDetailsTray(owner){
+    if(!detailsTrayFlows.delete(String(owner || 'flow')) || detailsTrayFlows.size)return;
+    const reopen=detailsTrayFlowsClosed && !detailsTrayOpen && !detailsTraySheet();
+    detailsTrayFlowsClosed=false;
+    if(reopen)setDetailsTrayOpen(true);
+  }
   // Operations (project.materials, tab `materials`) shows the project's measurements itself, so once Operations is set
-  // up the tray steps aside while that tab shows, and opens again on leaving it if Operations closed it (FM-611). A
-  // desktop only: on a phone the tray is a sheet that is not open there anyway. Opening or closing the tray by hand on
-  // Operations holds for the rest of that visit, and the tray then stays as the person left it. This is not a choice
-  // (`detailsTrayUserChoice` is untouched), and nothing is kept in the browser. Its state is `detailsTrayOperations`.
+  // up it is a flow while that tab shows (FM-611): the tray steps aside, and opens again on leaving the tab if
+  // Operations closed it. Each visit is one run of the flow.
   // Set up: Operations is on (an app only offered shows its welcome) and the organization finished its setup
   // (`operations.setup`, organization-wide), or the setup is not offered to this person, who then has nothing to set up
   // first. A skipped or unfinished setup is not set up.
@@ -5051,21 +5075,14 @@ window.PlatformCommerce.onReady(async function(){
     const setup=snapshot.experiences.get('operations.setup');
     return !setup || setup.progress?.status==='completed';
   }
+  let detailsTrayOperationsVisit=0;
   function syncDetailsTrayOperations(){
-    const ops=detailsTrayOperations,visit=++ops.visit;
-    if(activePreviewTab!=='materials'){
-      const reopen=ops.closed && !detailsTrayOpen && !detailsTraySheet();
-      ops.closed=false;ops.held=false;
-      if(reopen)setDetailsTrayOpen(true);
-      return;
-    }
-    const closes=()=>visit===ops.visit && activePreviewTab==='materials' && detailsTrayOpen && !ops.closed && !ops.held && !detailsTraySheet() && !detailsTrayWorkflow();
+    const visit=++detailsTrayOperationsVisit;
+    if(activePreviewTab!=='materials'){releaseDetailsTray('operations');return;}
+    holdDetailsTray('operations',{close:false});
+    const closes=()=>visit===detailsTrayOperationsVisit && activePreviewTab==='materials' && detailsTrayOpen && !detailsTraySheet() && !detailsTrayWorkflow();
     if(!closes())return;
-    operationsSetUp().then(ready=>{
-      if(!ready || !closes())return;
-      setDetailsTrayOpen(false);
-      ops.closed=true;
-    });
+    operationsSetUp().then(ready=>{if(ready && closes())holdDetailsTray('operations');});
   }
   // Finishing Operations setup the first time, on the Operations tab, closes the tray as an Operations visit would.
   window.addEventListener('fm:guides:ended',event=>{if(event?.detail?.id==='operations.setup' && activePreviewTab==='materials')syncDetailsTrayOperations();});
@@ -7770,6 +7787,9 @@ window.PlatformCommerce.onReady(async function(){
         return reportOrderState;
       },
       persistProject: () => persistActiveBaseProject(),
+      // A flow that needs the window's width (a new document) closes the details tray while it runs; call the returned
+      // release when it ends (GP-100).
+      holdDetailsTray: (owner, options = {}) => holdDetailsTray(owner, options),
       // A tab app's first write on a new project saves it here, as the trays do; reads never call this.
       ensureProject: () => ensureProjectForWrite(),
       saveContactEmail: async ({ contact_id: contactId = '', index = 0, email = '' } = {}) => {

@@ -28,6 +28,9 @@ const harness=`
     tab(id){activePreviewTab=id;syncDetailsTrayOperations();},
     opsSetup(status,on=true){window.PlatformAPI={capabilities:{can:key=>key==='platform.materials' && on}};window.FirstMateGuides={preload:async()=>({experiences:new Map(status===undefined?[]:[['operations.setup',{id:'operations.setup',progress:status?{status}:null}]])})};},
     setupFinished(){window.FirstMateGuides.preload=async()=>({experiences:new Map([['operations.setup',{progress:{status:'completed'}}]])});window.dispatchEvent(new CustomEvent('fm:guides:ended',{detail:{id:'operations.setup'}}));},
+    // A flow (GP-100): its start asks for the tray, its end calls the release it was given.
+    hold(owner){(window.flowReleases||={})[owner]=holdDetailsTray(owner);},
+    end(owner){window.flowReleases[owner]();},
     setPhone(on){phone=on;window.dispatchEvent(new Event('resize'));},
     isOpen:()=>document.getElementById('rOverlay').classList.contains('details-tray-open'),
     isSheet:()=>document.getElementById('rOverlay').classList.contains('details-tray-sheet'),
@@ -266,6 +269,84 @@ test('on a phone Operations leaves the tray sheet alone',async()=>{
     assert.equal(await isOpen(),false,'never opened over the page by leaving Operations');
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
+});
+
+// GP-100: any flow that needs the window's width (Operations, a new document) closes the tray while it runs and gives
+// it back when it ends, unless the person set the tray by hand meanwhile.
+test('a flow closes the tray while it runs and gives it back when it ends',async()=>{
+  const browser=await launch();
+  try{
+    const {run,isOpen,errors,page}=await mount(browser,1280);
+    const settle=()=>page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,20)));
+    await page.evaluate(()=>{window.panelEvents=[];addEventListener('fm:project-panel:closed',e=>panelEvents.push(e.detail.user));document.getElementById('rOverlay').classList.add('active');});
+    await run('openProject','project_a');
+    await run('hold','documents.new');
+    assert.equal(await isOpen(),false,'a new document closes it');
+    assert.deepEqual(await page.evaluate(()=>panelEvents),[false],'not the person\'s close');
+    await run('end','documents.new');
+    assert.equal(await isOpen(),true,'leaving the document opens it again');
+    await run('end','documents.new');
+    assert.equal(await isOpen(),true,'a release twice is one end');
+    // A tray that was closed when the flow started stays closed after it.
+    await run('userSet',false);
+    await run('hold','documents.new');await run('end','documents.new');
+    assert.equal(await isOpen(),false,'never opened by a flow that did not close it');
+    // Opening it by hand during the flow cancels the giving back and holds: asking again leaves it open.
+    await run('userSet',true);
+    await run('hold','documents.new');
+    await run('userSet',true);
+    assert.equal(await isOpen(),true);
+    await run('hold','documents.new');
+    assert.equal(await isOpen(),true,'the same run asking again leaves the person\'s tray alone');
+    await run('userSet',false);
+    await run('end','documents.new');
+    assert.equal(await isOpen(),false,'closed by hand during the flow stays closed after it');
+    // Flows overlap: the tray comes back when the last one ends.
+    await run('opsSetup','completed');
+    await run('userSet',true);
+    await run('tab','materials');await settle();
+    assert.equal(await isOpen(),false,'Operations is one of them');
+    await run('hold','documents.new');
+    await run('tab','docs');await settle();
+    assert.equal(await isOpen(),false,'still closed while the document runs');
+    await run('end','documents.new');
+    assert.equal(await isOpen(),true,'given back when the last flow ends');
+    // Another project drops every run: its release later does nothing.
+    await run('hold','documents.new');
+    await run('openProject','project_b');
+    assert.equal(await isOpen(),true);
+    await run('userSet',false);
+    await run('end','documents.new');
+    assert.equal(await isOpen(),false,'a run from the last project gives nothing back');
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+test('on a phone a flow leaves the tray sheet alone',async()=>{
+  const browser=await launch();
+  try{
+    const {run,isOpen,errors}=await mount(browser,390);
+    await run('openProject','');
+    assert.equal(await isOpen(),true,'a new project is filled in on the sheet');
+    await run('hold','documents.new');
+    assert.equal(await isOpen(),true);
+    await run('openProject','project_a');
+    await run('hold','documents.new');await run('end','documents.new');
+    assert.equal(await isOpen(),false,'never opened over the page when a flow ends');
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+test('tab apps reach the flows through their host, and a new document is one',async()=>{
+  assert.match(source,/holdDetailsTray: \(owner, options = \{\}\) => holdDetailsTray\(owner, options\)/);
+  const documents=(await readFile(new URL('../../libraries/apps/documents/project.js',import.meta.url),'utf8')).replace(/\r\n/g,'\n');
+  assert.match(documents,/context\.host\?\.holdDetailsTray\?\.\('documents\.new'\)/);
+  // Made here and not yet left, opening it, leaving it, the tab and the end of the engine all say so.
+  assert.match(documents,/if \(id\) state\.newDocIds\.add\(id\);/);
+  assert.match(documents,/state\.openingDoc = true;\n\s+setEditorFocus\(true\);\n\s+syncDetailsTrayHold\(\);/);
+  assert.match(documents,/state\.doc = objectValue\(docRecord\);\n\s+syncDetailsTrayHold\(\);/);
+  assert.match(documents,/state\.newDocIds\.delete\(cleanText\(closing\.id\)\);\n\s+syncDetailsTrayHold\(\);/);
+  assert.ok((documents.match(/syncDetailsTrayHold\(\);/g) || []).length>=6);
 });
 
 test('the window tells the tray about every tab change',()=>{
