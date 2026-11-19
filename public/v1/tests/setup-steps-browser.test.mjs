@@ -177,6 +177,12 @@ test('phone: the company step fits the screen without sideways scrolling',async(
     await page.waitForSelector('.gxc [data-service]');
     await page.click('[data-service=roof_replacement]');await page.click('[data-service=roof_repair]');
     await page.waitForTimeout(350);await shot(page,'company-services-phone');
+    // Select all is on the lead's line, at its right: the title actions row is a row of its own on a phone (GP-44).
+    const all=await page.evaluate(()=>{const step=document.querySelector('.gxs-step:not(.gxs-above)'),lead=step.querySelector('.gxc-lead').getBoundingClientRect(),button=step.querySelector('.gxc [data-all]').getBoundingClientRect(),actions=step.querySelector('.gxs-title-actions');return {inTitle:!!actions?.querySelector('[data-all]'),titleRow:!!actions&&actions.getClientRects().length>0,sameLine:Math.abs((lead.top+lead.bottom)/2-(button.top+button.bottom)/2)<=2,rightOfLead:button.left>=lead.right,height:button.height};});
+    assert.deepEqual(all,{inTitle:false,titleRow:false,sameLine:true,rightOfLead:true,height:28});
+    await page.click('.gxc [data-all]');
+    assert.equal(await page.locator('[data-service][aria-pressed=true]').count(),await page.locator('[data-service]').count(),'Select all picks every suggestion');
+    assert.equal((await page.textContent('.gxc [data-all]')).trim(),'Clear');
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
