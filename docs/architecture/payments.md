@@ -56,6 +56,15 @@ Review & send shows green when the proposal carries a pay link and amber when
 the payment terms print read-only, with a quiet Set up payments. Run
 `tests/doc-workflow-payments-onboarding-browser.test.mjs` for changes here.
 
+The Finance tab says it the same way (GP-17, GP-40): while payments are not
+set up (`online_processing_off`, `no_merchant_account`, `not_approved`), Take a
+payment carries a Setup pill on a computer, and on a phone the + button carries
+a small warning triangle (`[data-money-setup-alert]`) whose menu shows the
+pill. The tab's first-visit tour (`money.tab_tutorial`) ends with a skippable
+step that starts the same Money app setup; the setup dialog
+(`payments-setup.js`) is a bottom tray on a phone. The tab asks readiness again
+whenever the setup announces `fm:payments-setup-updated`.
+
 The in-process simulator (`providers/mock.ts`) stands in for Forward only
 outside production data (`mockProviderAllowed()`); on production data it is
 never selectable, never a default, and its controls refuse.

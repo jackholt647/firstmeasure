@@ -61,7 +61,11 @@ An **experience** (`experienceSchema`):
   on the page decides where the step points and what it says, so the copy names
   only what is on screen and the tour still shows one dot for the step (the
   project details tour's Measurements step has a case for each set of buttons the
-  ordering widget offers, `data-measurement-options`). Setup steps: `widget` (a registered browser renderer), `title`,
+  ordering widget offers, `data-measurement-options`), and `action` (`setup`, an
+  app's capability key, and `label`): a button in place of Next that completes
+  the tour and runs that app's setup (`Portal.appSetup.run`, in the outermost
+  portal that has it), with Skip step beside it; where the page cannot run that
+  setup the step shows Next (the Finance tour's payment setup, GP-40). Setup steps: `widget` (a registered browser renderer), `title`,
   `subtitle`, `say` (the agent's lines, programmatic), `options` (fixed data) or
   `source` (filled on the server), `selects` (the keys it writes), `required`.
   Either kind may have `next`: a step id, or `branches` whose `when` reads
@@ -671,7 +675,7 @@ has; where `apps.crew` is off it always shows. The setting is data on the
 organization's Labor type, never a configuration check.
 
 
-## Tab tours: Photos, Docs, Reports, Customer Portal
+## Tab tours: Photos, Docs, Reports, Customer Portal, Finance
 
 One overlay tour per tab, each its own `guided_experience` entry:
 `photos.tab_tutorial` (`project.photos`, `platform.project_photos`),
@@ -699,7 +703,12 @@ shows a Cover pill, `[data-project-cover-current]`). Docs: measurement reports l
 Upload, and New, whose dialog starts proposals, contracts, change orders, invoices and work orders. The tour points
 at New and names those types rather than stepping inside the New dialog: the documents modal
 (`.fmdx-modal-back`, z-index 2147483530) sits above the tour's scrim and card (2147483300/2147483400), so a step
-there would be hidden behind it. `tests/guided-tab-tours.test.ts` checks the data and
+there would be hidden behind it. Finance (`money.tab_tutorial`, `project.money`, `platform.money`, GP-40): the
+totals, the ledger, the actions (the + menu on a phone), then, for someone who
+may set payments up (`manage_company_settings`) and only while they are not set
+up (its targets are the Setup pill and the + button's warning, drawn only then),
+a step whose Set up payments button starts the Money app setup; Skip step leaves
+it to the pill and the warning. `tests/guided-tab-tours.test.ts` checks the data and
 that every target's hooks are in the tab's source;
 `tests/guided-tab-tours-browser.test.ts` plays each tour against the real
 service.
