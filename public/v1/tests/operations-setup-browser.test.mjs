@@ -560,13 +560,14 @@ test('phone: one title in the top bar, the step numbers along the bottom, the pr
   }finally{await browser.close();}
 });
 
-// FM-604: the first page's two answers are two tall tiles side by side, as tall as the document setup's pair
-// (documents-setup.js .gxd-pair: 250px, 190px on a phone). The workflow's first step has Previous back to them, and the
-// phone's back control walks the workflow's steps, then the choice, one history entry each.
+// FM-604: the first page's two answers are the choice row every setup shares (GP-46, guided-setup.js .gxs-choices):
+// on a desktop two tall tiles side by side (250px); on a phone two full-width rectangles, one above the other, filling
+// the sheet. The workflow's first step has Previous back to them, and the phone's back control walks the workflow's
+// steps, then the choice, one history entry each.
 test('the two path tiles are tall, and Back (the button and the phone\'s) returns from the workflow to them',async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try{
-    for(const [width,height,minimum] of [[1100,850,250],[390,844,190]]){
+    for(const [width,height,minimum,stacked] of [[1100,850,250,false],[390,844,150,true]]){
       const page=await open(browser,'',width);
       await page.setViewportSize({width,height});
       await page.evaluate(()=>{
@@ -591,7 +592,8 @@ test('the two path tiles are tall, and Back (the button and the phone\'s) return
       const tiles=await page.evaluate(()=>[...document.querySelectorAll('.gxs-step:not(.gxs-above) .ops-choice')].map(el=>({rect:el.getBoundingClientRect(),height:el.offsetHeight})).map(({rect,height})=>({top:rect.top,left:rect.left,right:rect.right,height})));
       assert.equal(tiles.length,2);
       assert.ok(tiles.every(tile=>tile.height>=minimum-0.5),`${width}px: both tiles at least ${minimum}px tall (${JSON.stringify(tiles)})`);
-      assert.ok(Math.abs(tiles[0].top-tiles[1].top)<1&&tiles[0].right<=tiles[1].left,`${width}px: the tiles sit side by side (${JSON.stringify(tiles)})`);
+      if(stacked)assert.ok(tiles[1].top>=tiles[0].top+tiles[0].height&&Math.abs(tiles[0].left-tiles[1].left)<1&&tiles[0].right-tiles[0].left>width-40,`${width}px: the tiles are stacked, each as wide as the step (${JSON.stringify(tiles)})`);
+      else assert.ok(Math.abs(tiles[0].top-tiles[1].top)<1&&tiles[0].right<=tiles[1].left,`${width}px: the tiles sit side by side (${JSON.stringify(tiles)})`);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
       const depth=()=>page.evaluate(()=>depths.at(-1));
       const onPath=()=>page.waitForSelector('.gxs-step:not(.gxs-above) [data-path=scope]');

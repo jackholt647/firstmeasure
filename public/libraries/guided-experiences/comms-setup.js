@@ -51,7 +51,6 @@ const css = `
 .gxc-choice strong{display:block;font-size:15px}.gxc-choice small{display:block;font-size:13px;color:#667085;margin-top:2px}
 .gxc-choice>span:last-child{flex:1;min-width:0}
 .gxc-choice[data-first]{border-color:var(--primary,#d93025);box-shadow:0 0 0 1px var(--primary,#d93025)}
-.gxc-emails{display:grid;gap:10px}
 .gxc-tag{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:#ecfdf3;color:#067647;font-size:11px;font-weight:750;line-height:18px;vertical-align:1px}
 .gxc-tag[data-paid]{background:#f2f4f7;color:#475467}
 .gxc-label{font-size:13px;font-weight:750;color:#344054}
@@ -109,7 +108,7 @@ export function mount(el, ctx){
   let alive = true, busy = false, watcher = null, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, domains = null, registering = false;
 
   const invoke = (action, input = {}) => commsAction(orgId, action, input);
-  const icon = (name) => `<span class="gxc-icon" aria-hidden="true"><i class="fas ${name}"></i></span>`;
+  const icon = (name, more = '') => `<span class="gxc-icon${more ? ` ${more}` : ''}" aria-hidden="true"><i class="fas ${name}"></i></span>`;
   const mark = (name) => `<span class="gxc-mark" aria-hidden="true"><i class="fas ${name}"></i></span>`;
   const errorLine = '<p class="gxc-error" role="alert" data-gxc-error></p>';
   const fail = (error) => { const node = el.querySelector('[data-gxc-error]'); if (node) node.textContent = clean(error?.message) || L('gx_comms_error', 'That didn’t work. Try again.'); };
@@ -246,10 +245,10 @@ export function mount(el, ctx){
     title(L('gx_comms_email_title', 'Your email address'));
     const domain = object(object(status.email).domain), started = domain.name && !domain.address;
     const tag = (paid) => `<span class="gxc-tag"${paid ? ' data-paid' : ''}>${esc(paid ? L('gx_comms_paid', 'Paid') : L('gx_comms_free', 'Free'))}</span>`;
-    const card = (id, iconName, name, body, paid, { disabled = false, first = false } = {}) => `<button type="button" class="gxc-choice" data-gxc-email-way="${id}" ${first ? 'data-first' : ''} ${disabled ? 'disabled' : ''}>${icon(iconName)}<span><strong>${esc(name)}${disabled ? '' : tag(paid)}</strong><small>${esc(body)}</small></span></button>`;
+    const card = (id, iconName, name, body, paid, { disabled = false, first = false } = {}) => `<button type="button" class="gxc-choice gxs-choice" data-gxc-email-way="${id}" ${first ? 'data-first' : ''} ${disabled ? 'disabled' : ''}>${icon(iconName, 'gxs-choice-icon')}<span class="gxs-choice-text"><strong>${esc(name)}${disabled ? '' : tag(paid)}</strong><small>${esc(body)}</small></span></button>`;
     const buy = domains?.buy !== false;
     el.innerHTML = `<div class="gxc">
-      <div class="gxc-emails">
+      <div class="gxs-choices" style="--gxs-n:3">
         ${card('firstmate', 'fa-paper-plane', L('gx_comms_email_firstmate', 'FirstMate Mail'), L('gx_comms_email_firstmate_body', 'Ready now, on firstmatemail.com'), false, { first: !domain.name })}
         ${card('existing', 'fa-globe', L('gx_comms_email_yours', 'Use your own domain'), domain.address || (started ? L('gx_comms_email_own_resume', 'Finish connecting {domain}', { domain: domain.name }) : L('gx_comms_email_own_body', 'you@yourcompany.com')), false, { first: !!domain.name })}
         ${card('register', 'fa-cart-shopping', L('gx_comms_email_buy_us', 'Buy a domain through FirstMate'), buy ? L('gx_comms_email_buy_us_body', 'Search for a name and see its yearly price') : L('gx_comms_email_buy_soon', 'Not available yet'), true, { disabled: !buy })}
