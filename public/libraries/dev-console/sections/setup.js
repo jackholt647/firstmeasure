@@ -14,6 +14,9 @@
  * is one) as a replay when it allows one, like the app's own "Set up" buttons (its progress shows where the replay
  * got); one that does not is reset first and plays as new. Reset puts its progress back to never shown, so its triggers
  * play it again (POST …/dev/reset, guided-experiences dev.ts).
+ *
+ * What drives setup (GP-16) opens a full-screen diagram of what decides each setup, variant and page, for this
+ * organization or any kind of company (setup-drivers.js).
  */
 const DEVICES = { desktop: ['fa-desktop', ['dc_setup_desktop', 'Desktop']], tablet: ['fa-tablet-screen-button', ['dc_setup_tablet', 'Tablet']], phone: ['fa-mobile-screen-button', ['dc_setup_phone', 'Phone']] };
 let device = 'desktop';
@@ -109,7 +112,7 @@ export function mount(root, { api, T, esc, toast, phone, close, orgId, VERSION }
     const setups = data.guides.filter((guide) => guide.group === 'setup').sort(byState);
     const tours = data.guides.filter((guide) => guide.group === 'tour').sort(byState);
     root.innerHTML = `<p class="fm-dc-intro">${esc(T('dc_setup_intro', 'Every setup this organization has been through. Hover or tap a row for where and when it was done.'))}</p>
-      <div class="fm-dc-actions"><button type="button" class="fm-dc-btn" data-dc-setup-reload><i class="fas fa-arrows-rotate" aria-hidden="true"></i> ${esc(T('dc_setup_reload', 'Refresh'))}</button></div>
+      <div class="fm-dc-actions"><button type="button" class="fm-dc-btn" data-dc-setup-reload><i class="fas fa-arrows-rotate" aria-hidden="true"></i> ${esc(T('dc_setup_reload', 'Refresh'))}</button><button type="button" class="fm-dc-btn fm-dc-primary" data-dc-setup-map title="${esc(T('dc_setup_map_hint', 'A full-screen diagram of what decides each setup and page: company type, answers, apps. Try it as another kind of company.'))}"><i class="fas fa-diagram-project" aria-hidden="true"></i> ${esc(T('dc_setup_map_open', 'What drives setup'))}</button></div>
       ${group(T('dc_setup_questions', 'Questions asked once'), data.steps, (step) => row('step', step.id, step.title, step.status, stepLines(step), stepActions(step)), T('dc_setup_questions_note', 'Setup steps: whichever setup asks first saves the answer; the others skip it. Test asks one again and saves it for real; Roll back undoes its tests.'))}
       ${group(T('dc_setup_guided', 'Guided setups'), setups, (guide) => row('guide', guide.id, guide.title, guide.status, guideLines(guide), guideActions(guide)), T('dc_setup_guided_note', 'Run again plays a setup here again, saving for real; Reset makes it never shown, so it plays when its trigger comes.'))}
       ${group(T('dc_setup_apps', 'App setups'), apps, (app) => row('app', app.key, app.label, app.status, appLines(app)))}
@@ -147,6 +150,7 @@ export function mount(root, { api, T, esc, toast, phone, close, orgId, VERSION }
   };
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-dc-setup-reload]')) { load(); return; }
+    if (event.target.closest('[data-dc-setup-map]')) { import(`./setup-drivers.js?v=${VERSION}`).then((module) => module.openDrivers({ api, T, esc, phone })).catch((error) => toast(error.message)); return; }
     const test = event.target.closest('[data-dc-setup-test]');
     if (test) { openTest(test.dataset.dcSetupTest); return; }
     const back = event.target.closest('[data-dc-setup-rollback]');

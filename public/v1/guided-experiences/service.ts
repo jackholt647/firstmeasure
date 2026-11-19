@@ -13,6 +13,7 @@ import { lastEvent, listProgress, readProgress, recordEvent, wasExposed, writePr
 import { ensureGuidedSources } from "./sources.js";
 import { checkSetupStepGraph, injectedStep, missingSetupSteps, setupStep, setupStepsVersion, type SatisfactionCache } from "./setup-steps.js";
 import { readCompanyProfile } from "../company-profile/profile.js";
+import { industrySetsFor } from "../company-profile/catalog.js";
 import { SETUP_STEP_EXPERIENCE_PREFIX } from "./library-checks.js";
 import { introductionRequested } from "../platform/flag-introductions.js";
 import { readGlobal } from "../platform/storage.js";
@@ -76,9 +77,10 @@ export async function chooserContext(ctx: PlatformAuthContext, surface: { tab?: 
   const finished = (await listProgress(ctx.orgId, [""])).filter((row) => row.status !== "started").map((row) => row.experience_id);
   // What the company said it is (the company.type setup step) comes first; an older organization field is the fallback.
   const profile = await readCompanyProfile(ctx.orgId).catch(() => null);
+  const industry = text(profile?.industry || industryRaw).toLowerCase();
   return {
-    organization: { id: ctx.orgId, region: regionForState(state), state, timezone, size: { users, tier: sizeTierFor(users) }, industry: text(profile?.industry || industryRaw).toLowerCase(),
-      company_type: profile?.company_type || "", services: (profile?.services || []).map((entry) => entry.id),
+    organization: { id: ctx.orgId, region: regionForState(state), state, timezone, size: { users, tier: sizeTierFor(users) }, industry,
+      company_type: profile?.company_type || "", services: (profile?.services || []).map((entry) => entry.id), industry_sets: industrySetsFor(industry),
       capabilities: { assistant, materials }, ...{ flags: { assistant, materials }, finished } } as ChooserContext["organization"],
     person: { id: ctx.userId, role: text(ctx.role), permissions: {} },
     surface: { tab: text(surface.tab).slice(0, 80), project_id: text(surface.projectId).slice(0, 160) }
@@ -86,7 +88,7 @@ export async function chooserContext(ctx: PlatformAuthContext, surface: { tab?: 
 }
 
 /** Capabilities and permissions, each required; `a|b` is either. */
-async function allowed(ctx: PlatformAuthContext, rules: { capabilities?: string[]; permissions?: string[] } | undefined) {
+export async function allowed(ctx: PlatformAuthContext, rules: { capabilities?: string[]; permissions?: string[] } | undefined) {
   for (const permission of rules?.permissions || []) if (!hasPermission(ctx, permission)) return false;
   for (const capability of rules?.capabilities || []) {
     let any = false;

@@ -146,7 +146,23 @@ module, only through `company-profile.save` (`manage_company_settings`; the gene
 branch-module route needs the same permission). It is read through
 `company-profile.profile` (`view_projects`) by setups, other apps, modules and agents
 (how-to `set_company_profile`). `chooserContext` exposes `organization.industry`,
-`organization.company_type` and `organization.services` to conditions.
+`organization.industry_sets`, `organization.company_type` and `organization.services`
+to conditions.
+
+### Industry sets
+
+What differs for a family of trades is decided in one place, the catalog's
+`INDUSTRY_SETS` (GP-16): a named set of `organization.industry` values, such as
+`roofing_exteriors` (roofing, exteriors, and the older organization field's
+`roofing_and_exteriors`). The chooser puts the sets an organization's industry belongs
+to in `organization.industry_sets` (`industrySetsFor`), so a condition says
+`{ field: "organization.industry_sets", operator: "contains", value: "roofing_exteriors" }`
+instead of repeating industries; a company type joins a set by its industry. Sets only
+grow, like the rest of the catalog. The `guided_experience` kind refuses a condition
+that names a set, company type or service the catalog does not have
+(`catalogConditionErrors`). The dev console's **What drives setup** diagram shows,
+for any company type, which questions, sets, variants and pages follow
+([dev console](dev-console.md)).
 
 ## Who sells, who does the work, and the kinds of appointments (FM-515)
 

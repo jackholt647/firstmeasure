@@ -125,7 +125,7 @@ library's editor flag); `readAccess` in `dev-console.js` says so.
 
 | Section | What | Where it came from |
 |---|---|---|
-| Setup | first in the rail: a checklist of every setup this organization has been through, each Done, Started, Skipped or Not started. **Questions asked once** are the [setup steps](setup-steps.md) (answered is read as setups read it); hovering or tapping one says where it was answered, asked or skipped (the newest guided event naming the step: the setup, or "on its own" for `FirstMateGuides.require`, who and when), or that no guided setup saved it (Settings, signup, an agent or an import), and which setups ask it. **Guided setups** (modal and agentic guided experiences) and **Tours** (overlays and announcements, folded) show their progress: where it stopped, who finished or skipped it. **App setups** are the app catalog's setup workflows (`FirstMateAppSetupWorkflows`, read from the page). Each question has **Test** and, once tested, **Roll back** (below, "Setup tests"). Each guided setup has **Run again** (Start, Continue) and **Reset** (below, "Running a guided setup again") | new (FM-571, FM-589); `GET /v1/signup-sandbox/development/console/setup` (`devConsoleSetup`) |
+| Setup | first in the rail: a checklist of every setup this organization has been through, each Done, Started, Skipped or Not started. **Questions asked once** are the [setup steps](setup-steps.md) (answered is read as setups read it); hovering or tapping one says where it was answered, asked or skipped (the newest guided event naming the step: the setup, or "on its own" for `FirstMateGuides.require`, who and when), or that no guided setup saved it (Settings, signup, an agent or an import), and which setups ask it. **Guided setups** (modal and agentic guided experiences) and **Tours** (overlays and announcements, folded) show their progress: where it stopped, who finished or skipped it. **App setups** are the app catalog's setup workflows (`FirstMateAppSetupWorkflows`, read from the page). Each question has **Test** and, once tested, **Roll back** (below, "Setup tests"). Each guided setup has **Run again** (Start, Continue) and **Reset** (below, "Running a guided setup again"). **What drives setup** opens the diagram (below) | new (FM-571, FM-589, GP-16); `GET /v1/signup-sandbox/development/console/setup` (`devConsoleSetup`) |
 | Test run | the sandbox workflow's stages, the showing one, Open, the workflow builder | the bottom test-run bar (`portal/signup-sandbox/devbar.js` still runs the stages and exposes `window.SignupSandboxRun`) |
 | Leads | add 1 to 25 made-up leads, choosing what each has (name, phone, email, address, source, note) and, when the organization has a source catalog, which source or a random one. Each is sent through `receiveLead`, so contact matching, source stamping, intake routing and the organization's `lead.received` rules run as for a real lead. Phones are 555-01xx and emails `@example.com`; the source carries `synthetic: true` | new (FM-552); `GET`/`POST /v1/signup-sandbox/development/synthetic-leads` (`development/synthetic-leads.ts`) |
 | Flags and settings | this test organization's flags, scope flags and settings beside what it started with; flip one, Restore one, or **Restore initial state** (which also replays every Get Started tour and setup); record a start when none was | new; the config library's `/v1/config-library/organizations/:orgId/state` (`PATCH`, `/restore`, `/capture`) |
@@ -174,6 +174,30 @@ organization setup clears the organization's progress too), so its own triggers 
 the setup saved; questions it asked stay answered (Test and Roll back them above). Tours keep Replay and Reset in the
 Guided experiences section.
 
+## What drives setup
+
+**What drives setup** in the Setup section (GP-16, `sections/setup-drivers.js`) opens a full-screen diagram, placed
+like the test overlay (beside the console on a desktop, over everything on a phone), of what decides each guided setup
+and page. Left to right: the **questions asked once** ([setup steps](setup-steps.md)), each after the ones it
+requires; the **facts** their answers set (company type, its industry, the catalog's industry sets, kinds of work) and
+any other fact a setup's condition reads (assistant on, the tab it opened from); the **guided setups**, each a card
+with its variants (the one chosen solid) and its pages (one the chosen variant skips, or that needs an app that is
+off, faded); and **then**, the tours and setups each plays or starts next. A line is a reason: blue, a question asked
+before the setup or page; purple, a condition that holds for the company shown; grey dashed, one that does not; dotted,
+what plays next. Hovering a node (tapping on a phone) lights up what it touches and says why in a tooltip: the rules
+with ✓ and ✗, the pages a variant plays, where a page branches.
+
+**Show for** plays it as another kind of company: This organization, any company type in the catalog, Other, or Not
+answered yet. Only the company facts change (`simulatedContext`); whether apps are on and the caller's permissions
+stay this organization's, and a setup that is off here shows a lock. **By company type** is every kind at once: a row
+per setup and tour, a column per company type, each cell the variant that company gets, or a dash where it is not
+offered; rows that differ come first. A column's name opens the diagram for it.
+
+`GET /v1/signup-sandbox/development/console/setup/drivers?company_type=<id|other|none>` (`devConsoleSetupDrivers`,
+`development/setup-drivers.ts`) builds it from the same data the runtime plays: setup step and guided experience
+entries, their `requires`, `eligibility.when`, variant `when`, triggers, branches and `completion.then`, evaluated with
+`explainConditions` over this organization's chooser context. It reads only.
+
 ## Rules
 
 - Everything the console draws is `data-fmr-ignore` (session replay leaves it out).
@@ -196,7 +220,7 @@ app and in a phone browser: shake, sign-in, the list, the screenshot without the
 the full menu, and a desktop keeping the strip); Android's `ShakeDetectorTest` runs the
 same shake cases.
 
-`public/v1/tests/dev-console.test.ts` (the endpoint, the Setup read and Setup tests: asked again when answered, ended, rolled back to before the first test), `public/v1/tests/development-leads.test.ts` (the Leads route),
+`public/v1/tests/dev-console.test.ts` (the endpoint, the Setup read and Setup tests: asked again when answered, ended, rolled back to before the first test; the What drives setup graph for this organization, another company type and every type at once), `public/v1/tests/development-leads.test.ts` (the Leads route),
 `tests/guided-experiences-flow-browser.test.mjs` (the guided section, folding,
 remembering, the phone tab and More entry, resizing across the project frame) and
 `tests/development-layers-browser.test.mjs` (Setup, its test overlay with the real player in its frame, the

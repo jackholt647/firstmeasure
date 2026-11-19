@@ -139,9 +139,19 @@ browser also sends each event to the existing analytics
 ## The chooser and A/B tests
 
 `chooserContext` gathers: `organization.{id, state, region, timezone, size.users,
-size.tier, industry, flags.assistant, flags.materials, finished}` (finished
-organization experiences), `person.{id, role}` and `surface.{tab, project_id}`.
-Navigation fields only choose content; they never authorize.
+size.tier, industry, industry_sets, company_type, services, flags.assistant,
+flags.materials, finished}` (finished organization experiences), `person.{id, role}`
+and `surface.{tab, project_id}`. Navigation fields only choose content; they never
+authorize.
+
+**Different by kind of company.** A setup, variant or page that differs by trade reads
+the company profile ([setup steps](setup-steps.md), "Industry sets"), never a list of its
+own: `organization.industry_sets` contains a set from the company-profile catalog
+(`roofing_exteriors`), or `organization.company_type` / `organization.services` name
+catalog ids. A save naming a set, type or service the catalog does not have is refused.
+Per-trade content is a variant with that `when` and its own `content` for the step's
+options, so it shows in the dev console's **What drives setup** diagram
+([dev console](dev-console.md)).
 
 `chooseVariant`: the variants whose `when` matches, weighted, picked by
 `bucketOf(unit, experience id, salt)`, a sha256 in [0, 1). The same unit always
@@ -431,7 +441,7 @@ Library entries `guided_experience/checklists.setup`, `checklists.punchlist_tuto
   (FM-600). Its steps are one module (`guided-experiences/checklists-setup.js`) in three modes. `use_cases` picks
   the checklists to start with: crew safety (signature required), work completion and, last, a customer punch list
   (the customer ticks items off in their portal), which starts unpicked (`selected: false`) and empty. What each
-  says is the step's options; the `roofing` variant (chosen when `organization.industry` is roofing or exteriors)
+  says is the step's options; the `roofing` variant (chosen when `organization.industry_sets` contains `roofing_exteriors`)
   has roofing items. Then one `edit_<use case>` page per picked checklist (branches on
   `selections.checklist_use_cases`), titled "Here's your … checklist": the default checklist as it will be, to change
   by typing or by dictating, with how to dictate on the first one. Dictating asks `/checklists/voice` in mode

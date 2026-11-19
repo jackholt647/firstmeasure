@@ -111,6 +111,11 @@ export const registerSignupSandboxApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request);
     return (await import("../development/console.js")).devConsoleSetup(ctx);
   });
+  // What drives what in setup (GP-16): the Setup section's diagram, for this organization or a company type picked there.
+  app.get("/development/console/setup/drivers", async (request) => {
+    const ctx = await requirePlatformAuth(request);
+    return (await import("../development/console.js")).devConsoleSetupDrivers(ctx, String((request.query as { company_type?: string } | undefined)?.company_type || ""));
+  });
   // A setup step tested from the Setup section: play it (answered or not), end the test, roll it back.
   for (const [suffix, what] of [["test", "start"], ["test/end", "end"], ["rollback", "rollback"]] as const) {
     app.post(`/development/console/setup/steps/:stepId/${suffix}`, async (request) => {

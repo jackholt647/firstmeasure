@@ -142,6 +142,13 @@ export async function devConsoleSetup(ctx: PlatformAuthContext) {
   return { ok: true, steps: stepRows, guides: guideRows };
 }
 
+/** The Setup section's diagram (development/setup-drivers.ts): what drives each setup, as a picked company type would get it. */
+export async function devConsoleSetupDrivers(ctx: PlatformAuthContext, companyType: string) {
+  await devConsoleAccess(ctx);
+  ensureGuidedDefinitions();
+  return { ok: true, ...(await (await import("./setup-drivers.js")).setupDrivers(ctx, companyType)) };
+}
+
 /** The Setup section's tests (development/setup-tests.ts): start one (play the step), end it, roll it back. */
 export async function devConsoleSetupTest(ctx: PlatformAuthContext, stepId: string, what: "start" | "end" | "rollback") {
   await devConsoleAccess(ctx);
