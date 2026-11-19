@@ -123,3 +123,26 @@ test('the "what next" step opens at once and each opening of a mounted camera is
   const second = await page.evaluate(() => window.__uploads[0].session);
   assert.ok(first && second && first !== second, `sessions ${first} and ${second}`);
 });
+
+// GP-62: Done is in the strip of photos, at its right end above the shutter row, where a thumb reaches it; the tray
+// takes no room until a photo is taken, and a strip too long to fit scrolls beside Done rather than under it.
+test('Done sits at the right end of the strip of photos, within thumb reach', async (t) => {
+  const page = await phone(t);
+  await page.evaluate(() => { FirstMateCamera.mount(document.getElementById('host'), { upload: window.__upload }).open(); });
+  await liveCamera(page);
+  assert.equal(await page.locator('.fmc-tray').isVisible(), false, 'no tray before a photo');
+  await page.evaluate(() => { for (let i = 0; i < 8; i++) document.querySelector('[data-fmc-shutter]').click(); });
+  await page.waitForFunction(() => document.querySelectorAll('.fmc-tile').length === 8);
+  await page.evaluate(() => Promise.all(document.querySelector('[data-fmc-done]').getAnimations().map((animation) => animation.finished.catch(() => null))));
+  const box = await page.evaluate(() => {
+    const rect = (sel) => document.querySelector(sel).getBoundingClientRect().toJSON();
+    return { done: rect('[data-fmc-done]'), strip: rect('.fmc-strip'), shutter: rect('[data-fmc-shutter]'), head: rect('.fmc-head'), text: document.querySelector('[data-fmc-done]').textContent, inHead: !!document.querySelector('.fmc-head [data-fmc-done]') };
+  });
+  assert.equal(box.inHead, false, 'Done is not in the top bar');
+  assert.match(box.text, /Done · 8/);
+  assert.ok(box.done.right >= 433 - 16 && box.done.right <= 433, `Done at the right edge (${box.done.right})`);
+  assert.ok(box.done.top >= box.strip.top - 4 && box.done.bottom <= box.strip.bottom + 4, 'Done on the strip row');
+  assert.ok(box.done.bottom <= box.shutter.top && box.done.top > 814 / 2, 'Done in the lower half, above the shutter');
+  assert.ok(box.strip.right <= box.done.left, 'the strip ends before Done');
+  assert.ok(box.done.height >= 44, 'a thumb-sized target');
+});

@@ -156,7 +156,16 @@ test('phone Feed camera: Leave unassigned keeps the photos, and they show in the
     assert.equal(await page.evaluate(()=>window.server.assigns.length),0,'nothing was assigned');
     assert.equal(await page.locator('[data-feed-unassigned-batch]').count(),1,'the burst is one batch');
     assert.equal(await page.locator('[data-feed-unassigned] .pf-thumb').count(),2);
-    assert.match(await page.locator('[data-feed-unassigned] .pf-unassigned-head').textContent(),/Unassigned\s*2 photos not in a project yet/);
+    assert.match(await page.locator('#pfUnassignedTitle').textContent(),/Unassigned: 2 photos not in a project yet/);
+    // GP-62: no header bar over the batches; each batch is one card with a small Unassigned flag (its Add to project),
+    // and two photos fill the card's width between them.
+    assert.equal(await page.locator('#pfUnassignedTitle').isVisible(),true,'the title is for screen readers only');
+    assert.ok((await rect(page,'#pfUnassignedTitle')).height<=1);
+    const flag=await rect(page,'[data-feed-unassigned-assign]'),card=await rect(page,'[data-feed-unassigned-batch]');
+    assert.ok(flag.height<=32&&flag.x+flag.width<=card.x+card.width-8,'a slim flag inside the card: '+JSON.stringify(flag));
+    assert.match(await page.locator('[data-feed-unassigned-assign]').textContent(),/Unassigned/);
+    const thumbs=await page.locator('[data-feed-unassigned] .pf-thumb').evaluateAll(list=>list.map(el=>el.getBoundingClientRect().width));
+    assert.ok(thumbs.reduce((a,b)=>a+b,0)>=card.width-8,'the photos fill the card: '+thumbs.join(','));
     assert.match(await page.locator('.pf-unassigned-batch-copy strong').textContent(),/Sam Rivera took 2 photos/);
     assert.equal(await page.evaluate(()=>window.toasts.at(-1)?.[0]),'Saved to Unassigned');
     const group=await rect(page,'[data-feed-unassigned]'),firstDay=await rect(page,'.pf-day');
