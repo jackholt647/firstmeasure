@@ -181,6 +181,8 @@
     // patch(orgId, documentId, { project_id }). listStandalone powers the
     // My Projects "Drafts" view.
     listStandalone(orgId){ return request(`/organizations/${enc(orgId)}/documents`); },
+    // Every document the person may see, on any project or none, each naming its project (the company Documents app, GP-69).
+    listOrganization(orgId){ return request(`/organizations/${enc(orgId)}/documents?scope=organization`); },
     createStandalone(orgId, body = {}){ return request(`/organizations/${enc(orgId)}/documents`, { method: 'POST', body: withDocumentId(body) }); },
     get(orgId, documentId){ return request(documentPath(orgId, documentId)); },
     patch(orgId, documentId, patch = {}){ return request(documentPath(orgId, documentId), { method: 'PATCH', body: patch }); },

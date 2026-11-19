@@ -680,6 +680,14 @@ export async function listProjectDocuments(orgId: string, projectId: string) {
     .sort((a, b) => cleanText(b.updated_at).localeCompare(cleanText(a.updated_at)));
 }
 
+/** Every document of the organization, on a project or not, newest first (the company Documents app, GP-69). */
+export async function listOrganizationDocuments(orgId: string) {
+  const docs = await listDocuments(orgId, DOCUMENT_COLLECTION);
+  return docs
+    .map(documentView)
+    .sort((a, b) => cleanText(b.updated_at).localeCompare(cleanText(a.updated_at)));
+}
+
 export async function saveDocumentInstance(orgId: string, documentId: string, data: JsonObject, options: { expectedRevision?: number; createOnly?: boolean } = {}) {
   const { withSigningLock } = await import("./signing/store.js");
   return withSigningLock(orgId, documentId, async () => {

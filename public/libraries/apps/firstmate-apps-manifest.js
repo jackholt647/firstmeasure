@@ -53,7 +53,7 @@
     versionedBundle('../payment-intake/payment-intake.js', '20261026-ach-link-wait'),
     // Same version string as crewBundles so the runtime's URL dedupe keeps a
     // single load; the field checkout resolves provider tokenization here.
-    versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
+    versionedBundle('../payments-api/payments-api.js', '20261119-gp69'),
     versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261118-fm608-payments-off'),
     versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261118-fm608-payments-off'),
     versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261119-gp26-payments'),
@@ -64,7 +64,7 @@
     ...fieldApprovalBundles,
     versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'),
     versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'),
-    versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
+    versionedBundle('../payments-api/payments-api.js', '20261119-gp69'),
     versionedBundle('../proposals-api/proposals-api.js', '20261019-forward-cert'),
     versionedBundle('payroll/my-pay.js', '20261019-people-gaps-v1'),
     versionedBundle('crew/app.js', '20261118-fm546-call-default')
@@ -132,7 +132,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards')]
     },
     {
       id: 'portal.receipts',
@@ -143,7 +143,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'receipts',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
     },
     {
       // DEPRECATED (2026-08): legacy proposals surface — hidden by its bundle
@@ -209,7 +209,7 @@
       // generator moves into the workflow runtime at legacy teardown.
       dependencies: ['pricebook.bridge', 'project.proposal'],
       bundles: [
-        versionedBundle('../documents-api/documents-api.js', '20261111-offline'),
+        versionedBundle('../documents-api/documents-api.js', '20261119-gp69'),
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261118-fm608-payments-off'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261118-fm608-payments-off'),
@@ -219,7 +219,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261119-gp26-payments')
+        versionedBundle('documents/project.js', '20261119-gp69-viewer')
       ]
     },
     {
@@ -238,7 +238,7 @@
         studioDocument: { history:'push' }
       },
       bundles: [
-        versionedBundle('../documents-api/documents-api.js', '20261111-offline'),
+        versionedBundle('../documents-api/documents-api.js', '20261119-gp69'),
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261118-fm608-payments-off'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261118-fm608-payments-off'),
@@ -284,7 +284,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261111-offline'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261119-gp78'), versionedBundle('materials/project.js', '20261119-gp28')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261119-gp78'), versionedBundle('materials/project.js', '20261119-gp28')]
     },
     {
       id: 'project.money',
@@ -296,7 +296,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261119-gp60-new-invoice')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261119-gp69'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261119-gp60-new-invoice')]
     },
     {
       id: 'project.request',
@@ -439,6 +439,27 @@
       ]
     },
     {
+      // Every company document (GP-69), each opened in the document viewer (the project Documents viewer in a modal;
+      // it mounts project.documents itself). In More apps and never pinned by default; without the apps menu it has no
+      // place of its own and opens from global search.
+      id: 'portal.documents',
+      package: 'documents',
+      title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_5d7c7ad6033624","Documents") ?? "Documents"),
+      icon: 'fa-file-signature',
+      kind: 'portal_tab',
+      surfaces: ['portal_tab'],
+      portalTabId: 'documents',
+      order: 41,
+      placement: 'more',
+      placementWithoutAppsMenu: 'settings',
+      fullBleed: true,
+      bundles: [
+        versionedBundle('../documents-api/documents-api.js', '20261119-gp69'),
+        versionedBundle('../doc-viewer/firstmate-doc-viewer.js', '20261119-gp69'),
+        versionedBundle('documents/company.js', '20261119-gp69')
+      ]
+    },
+    {
       id: 'portal.invoices',
       package: 'invoices',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_74b68c454b06a0","Invoices") ?? "Invoices"),
@@ -449,8 +470,9 @@
       portalTabId: 'invoices',
       order: 51,
       bundles: [
-        versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
-        versionedBundle('invoices/app.js', '20261119-gp60-invoices-parity')
+        versionedBundle('../payments-api/payments-api.js', '20261119-gp69'),
+        versionedBundle('../doc-viewer/firstmate-doc-viewer.js', '20261119-gp69'),
+        versionedBundle('invoices/app.js', '20261119-gp69-viewer')
       ]
     },
     {
@@ -470,7 +492,7 @@
       },
       bundles: [
         versionedBundle('../financials-api/financials-api.js', '20260715-financial-read-model'),
-        versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
+        versionedBundle('../payments-api/payments-api.js', '20261119-gp69'),
         versionedBundle('../payments-widgets/payments-widgets.js', '20261119-gp76b'),
         versionedBundle('financials/app.js', '20261119-gp76b')
       ]
@@ -937,6 +959,7 @@
     'portal.crm': { visible:true, fullBleed:true },
     'portal.pricebook': { visible:true, fullBleed:true },
     'portal.automations_hub': { visible:true, fullBleed:true },
+    'portal.documents': { visible:true, fullBleed:true },
     'portal.assistant': {
       visible:true,
       mount(context){
@@ -976,6 +999,7 @@
     settings: { sub:{ history:'push' }, settingsView:{ history:'push' }, settingsEntity:{ history:'push' }, scopeTemplateView:{ default:'details', values:['details','boards','scheduling','developer','automations','todos','checklists','documents','materials','events','notifications','communications','resources','fields','calls','transitions','workflows','portal','payments','other','assistant'], history:'push' }, scopeArtifact:{ history:'replace' }, scopeArtifactFilter:{ default:'all', values:['all','conditional','inactive'], history:'replace' }, scopeAutomation:{ history:'push' }, scopeEventFocus:{ history:'push' }, scopeEventFilter:{ default:'all', values:['all','connected','unused','actions','documents','todos','events','materials','checklists','notifications'], history:'replace' }, previewMode:{ history:'replace' }, terminologyQuery:{ history:'replace' }, terminologySection:{ history:'replace' }, terminologyStatus:{ history:'replace' }, workflow:{ history:'push' }, workflow_step:{ history:'push' } },
     money: { moneyView:{ default:'overview', values:['overview','ledger','payments','invoices','recurring','expenses','receipts','take_payment','new_invoice'], history:'push' }, receipt:{ history:'push' } },
     receipts: { receipt:{ history:'push' } },
+    documents: { doc:{ history:'push' }, documentsKind:{ history:'replace' } },
     invoices: { invoicesView:{ default:'outstanding', values:['outstanding','needs_invoicing','history'], history:'push' }, invoice:{ history:'push' }, invoicesStatus:{ history:'replace' } },
     docs: { document:{ history:'push' }, documentView:{ default:'tiles', values:['tiles','list'], history:'replace' } },
     materials: { materialList:{ history:'push' }, materialSection:{ default:'all', history:'replace' } },
@@ -1046,6 +1070,7 @@
     'portal.equipment': 'apps.equipment',
     'portal.financials': 'money.profitability',
     'portal.invoices': 'money.invoices',
+    'portal.documents': 'platform.documents',
     'portal.stats': 'apps.stats',
     'portal.payroll': 'apps.payroll',
     'portal.feedback': 'apps.feedback',

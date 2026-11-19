@@ -48,6 +48,8 @@ test("an app in More apps is listed before its bundle loads", () => {
   const definitions: any[] = [];
   const more = manifestApps(definitions).filter((entry) => entry.kind === "portal_tab" && entry.placement === "more").map((entry) => entry.id);
   assert.ok(more.includes("portal.automations_hub"));
+  // The company Documents app (GP-69) is in More apps, not pinned; global search opens documents in it.
+  assert.ok(more.includes("portal.documents"));
   const hidden = more.filter((id) => definitions.find((entry) => entry.id === id)?.visible !== true);
   assert.deepEqual(hidden, [], "Add these to initialAppDefinitions in firstmate-apps-manifest.js with visible:true");
 });

@@ -1777,3 +1777,26 @@ test("GP-27: the paper-copy contact a signer is given is the company's email, ne
   await upsertDocument(orgId, "branch", { id: "default", data: { contact: { email: "office@acmeroofing.com", phone: "555-010-0000" } } });
   assert.equal(await companyConsentContact(orgId), "office@acmeroofing.com");
 });
+
+test("the company list (scope=organization) has every document, on any project or none, each naming its project", async () => {
+  // GP-69: the company Documents app and global search read one list across projects.
+  const client = createSessionClient();
+  const { orgId } = await registerOrg(client);
+  await createProject(client, orgId, "project_company_a");
+  await createProject(client, orgId, "project_company_b");
+  const first = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/project_company_a/documents`, { document_type: "proposal", template_id: GENERIC_PROPOSAL, title: "Company list A" });
+  const second = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/project_company_b/documents`, { document_type: "proposal", template_id: GENERIC_PROPOSAL, title: "Company list B" });
+  const loose = await client.request("POST", `/v1/documents/organizations/${orgId}/documents`, { document_type: "proposal", template_id: GENERIC_PROPOSAL, title: "Company list draft" });
+
+  const all = await client.request("GET", `/v1/documents/organizations/${orgId}/documents?scope=organization`);
+  const ids = all.documents.map((doc: any) => doc.id);
+  for (const doc of [first.document, second.document, loose.document]) assert.ok(ids.includes(doc.id), `${doc.title} is listed`);
+  const listedA = all.documents.find((doc: any) => doc.id === first.document.id);
+  assert.equal(listedA.project.id, "project_company_a");
+  assert.ok(listedA.project.title, "the project's title comes with the document");
+  assert.equal(all.documents.find((doc: any) => doc.id === loose.document.id).project, undefined);
+
+  // Without the scope the list is still only the documents that have no project (the Drafts view).
+  const standalone = await client.request("GET", `/v1/documents/organizations/${orgId}/documents`);
+  assert.deepEqual(standalone.documents.map((doc: any) => doc.id), [loose.document.id]);
+});

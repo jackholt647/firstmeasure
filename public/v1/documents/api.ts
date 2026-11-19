@@ -60,6 +60,7 @@ import {
   createDocumentTemplate,
   createDocumentTheme,
   listDocumentEvents,
+  listOrganizationDocuments,
   listDocumentSnapshots,
   listDocumentTemplateVersions,
   listDocumentTemplates,
@@ -199,7 +200,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", async (request) => {
     const orgId = getParam(request.params, "orgId");
     if (!orgId) return;
-    const ctx = await requirePlatformAuth(request, { orgId, capability: DOCUMENT_CAPABILITIES.app, app: ["project.documents", "project.docs", "documents.studio", "portal.proposals", "project.proposal"] });
+    const ctx = await requirePlatformAuth(request, { orgId, capability: DOCUMENT_CAPABILITIES.app, app: ["project.documents", "project.docs", "documents.studio", "portal.proposals", "project.proposal", "portal.documents"] });
     const documentId = getParam(request.params, "documentId");
     const templateId = getParam(request.params, "templateId");
     const workflowId = getParam(request.params, "workflowId");
@@ -706,13 +707,35 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   });
 
   /** Standalone documents (doc-first flows): drafts with no project yet.
-   *  Powers the My Projects "Drafts" view. */
+   *  Powers the My Projects "Drafts" view. With ?scope=organization, every
+   *  document the person may see, on any project or none: the company
+   *  Documents app (GP-69). Each one names its project (title and address) so
+   *  the list shows where it belongs without a read per row. */
   app.get("/organizations/:orgId/documents", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const departmentCtx = await requirePlatformAuth(request, { orgId });
-    const documents = (await listProjectDocuments(orgId, "")).filter(document => canAccessDepartmentResource(departmentCtx, document, "view_projects") && hasResourcePermission(departmentCtx, "view_projects", document) && matchesDepartmentFilter(departmentCtx, document, cleanText(asObject(request.query).department_id)));
-    return { ok: true, documents, count: documents.length, department_context: relevantDepartmentContext(departmentCtx) };
+    const query = asObject(request.query);
+    const everything = cleanText(query.scope) === "organization";
+    const listed = everything ? await listOrganizationDocuments(orgId) : await listProjectDocuments(orgId, "");
+    const documents = listed.filter(document => canAccessDepartmentResource(departmentCtx, document, "view_projects") && hasResourcePermission(departmentCtx, "view_projects", document) && matchesDepartmentFilter(departmentCtx, document, cleanText(query.department_id)));
+    if (!everything) return { ok: true, documents, count: documents.length, department_context: relevantDepartmentContext(departmentCtx) };
+    const { listDocuments } = await import("../platform/storage.js");
+    const wanted = new Set(documents.map((document) => cleanText(document.project_id)).filter(Boolean));
+    const projects = new Map<string, JsonObject>();
+    if (wanted.size) {
+      for (const record of await listDocuments(orgId, "projects")) {
+        const id = cleanText(record.id);
+        if (!wanted.has(id)) continue;
+        const data = asObject((record as JsonObject).data);
+        projects.set(id, { id, title: cleanText(data.title || data.name), address: cleanText(data.address || data.formatted_address) });
+      }
+    }
+    const withProjects = documents.map((document) => {
+      const project = projects.get(cleanText(document.project_id));
+      return project ? { ...document, project } : document;
+    });
+    return { ok: true, documents: withProjects, count: withProjects.length, department_context: relevantDepartmentContext(departmentCtx) };
   });
 
   /** Standalone create (doc-first flows): no project yet. Attach one later via

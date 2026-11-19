@@ -584,6 +584,16 @@ already did.
 (docs/architecture/payments.md "Not built")
 
 
+## The company Documents list reads every document and project
+
+**Today.** `GET /v1/documents/organizations/:orgId/documents?scope=organization` (the company Documents app and
+global search, GP-69) lists the whole documents collection and, to name each document's project, the whole projects
+collection, then filters by department access in memory. It returns no priced summary (that would price every
+document), so the list's amount is the one the document's own data carries.
+
+**Better.** Page the list (newest first, by updated time) from an index on the documents table, and read only the
+projects on the page. (docs/architecture/app-experience.md, "The apps overlay")
+
 ## Typing into a document as sent resolves it twice
 
 **Today.** `editDocumentAsSent` (`public/v1/documents/service.ts`) runs a full traced resolution of the document to

@@ -62,6 +62,7 @@ import {
   markInvoiceDue,
   quickInvoiceCandidates,
   readInvoice,
+  prepareInvoiceDocument,
   renderInvoicePdf,
   setInvoiceProductionHold,
   voidInvoice
@@ -614,6 +615,14 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     reply.header("Content-Type", file.contentType);
     reply.header("Content-Disposition", `attachment; filename="${safeDownloadName(file.fileName)}"`);
     return reply.send(file.bytes);
+  });
+
+  // The invoice as a document, for the document viewer (GP-69): the same template, data and style as its PDF.
+  app.post("/organizations/:orgId/invoices/:invoiceId/document", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    const { invoice, document } = await prepareInvoiceDocument(orgId, getParam(request.params, "invoiceId"));
+    return { ok: true, invoice, document };
   });
 
   app.post("/organizations/:orgId/invoices/:invoiceId/mark-due", async (request) => {

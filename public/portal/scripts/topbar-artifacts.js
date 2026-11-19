@@ -83,17 +83,31 @@
         { tab:'receipts', receipt:receipt.id }, receipt
       ));
     },
+    // Document templates, opened in Doc Studio.
     document: async ({ orgId }) => {
-      const settled = await Promise.allSettled([
-        root.DocumentsAPI?.templates?.list?.(orgId),
-        root.DocumentsAPI?.documents?.listStandalone?.(orgId)
-      ]);
-      const templates = settled[0].status === 'fulfilled' ? docs(settled[0].value, 'templates') : [];
-      const standalone = settled[1].status === 'fulfilled' ? docs(settled[1].value, 'documents') : [];
-      return [
-        ...templates.map((item) => row('document', `template:${item.id}`, clean(item.name, item.title), 'Document template', [item.description, item.kind, item.status], { tab:'documents_studio', studioSection:'templates' }, item)),
-        ...standalone.map((item) => row('document', item.id, clean(item.name, item.title), 'Standalone document', [item.description, item.kind, item.status], { tab:'documents_studio', studioSection:'templates' }, item))
-      ];
+      const result = await root.DocumentsAPI?.templates?.list?.(orgId);
+      return docs(result, 'templates').map((item) => row('document', `template:${item.id}`, clean(item.name, item.title), 'Document template', [item.description, item.kind, item.status], { tab:'documents_studio', studioSection:'templates' }, item));
+    },
+    // Every company document, opened in the company Documents app's viewer (GP-69). Invoices are found as invoices
+    // (they open in the Invoices app) wherever that search is offered.
+    company_document: async ({ orgId }) => {
+      const result = await root.DocumentsAPI?.documents?.listOrganization?.(orgId);
+      // The viewer library says it best once loaded (with an app that uses it); until then the record's own words.
+      const words = (value) => clean(value).replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
+      const describe = (doc) => root.FMDocViewer?.describe?.(doc) || { typeLabel:words(doc.document_type), statusLabel:words(doc.status), totalCents:0, invoiceId:(object(doc.metadata).payment_invoice === true || /^doc_invoice_/.test(clean(doc.id))) ? 'invoice' : '' };
+      return docs(result, 'documents')
+        .filter((doc) => clean(doc.status).toLowerCase() !== 'void')
+        .filter((doc) => !(offer.sources.has('invoice') && describe(doc).invoiceId))
+        .map((doc) => {
+          const described = describe(doc);
+          const project = object(doc.project);
+          return row(
+            'document', doc.id, clean(doc.title, described.typeLabel, 'Document'),
+            [described.typeLabel || 'Document', clean(project.title, project.address), described.statusLabel, described.totalCents ? money(described.totalCents) : ''].filter(Boolean).join(' · '),
+            [project.address, doc.document_type, doc.status, doc.id],
+            { tab:'documents', doc:doc.id }, doc
+          );
+        });
     },
     scope: async ({ orgId, branchId }) => {
       const result = await root.PlatformAPI?.scopes?.list?.(orgId, branchId, { includeDisabled:true });
@@ -171,7 +185,7 @@
     const context = { orgId:clean(options.orgId), branchId:clean(options.branchId, 'default') };
     const providerTypes = Object.keys(providers)
       .filter((type) => offer.sources.has(type))
-      .filter((type) => active.has(type) || (active.has('document') && ['invoice','receipt'].includes(type)));
+      .filter((type) => active.has(type) || (active.has('document') && ['invoice','receipt','company_document'].includes(type)));
     const groups = await Promise.all(providerTypes.map((type) => providerRows(type, context)));
     const settings = active.has('setting')
       ? (root.FirstMateSettingsSearch?.search?.(query, { limit:40 }) || []).map((setting) => row(

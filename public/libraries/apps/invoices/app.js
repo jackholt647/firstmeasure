@@ -241,6 +241,9 @@
       openInvoiceId:clean(route.tab) === 'invoices' ? clean(route.invoice) : ''
     };
     let shade = null;
+    // The invoice open in the document viewer (GP-69), with the id it shows.
+    let viewer = null;
+    let viewerInvoiceId = '';
 
     const api = () => window.PaymentsAPI;
 
@@ -271,7 +274,12 @@
         if (state.destroyed || token !== state.loadToken) return;
         state.error = error;
       } finally {
-        if (!state.destroyed && token === state.loadToken) { state.loading = false; render(); }
+        if (!state.destroyed && token === state.loadToken) {
+          state.loading = false;
+          render();
+          // What the open invoice says (status, balance, which actions) follows what was just done to it.
+          if (viewer && viewerInvoiceId && options.silent) viewer.refresh();
+        }
       }
     }
 
@@ -662,9 +670,100 @@
       });
     }
 
+    /* ---------- the invoice in the document viewer (GP-69) ---------- */
+    // The invoice as a document in the shared viewer (libraries/doc-viewer, the project Documents viewer in a modal),
+    // with what it says and the invoice's actions in the column on the right. Without the viewer, the detail dialog.
+
+    function invoiceFacts(invoice){
+      const customer = object(invoice.customer);
+      const project = object(invoice.project_ref);
+      const deliveries = array(invoice.email_deliveries);
+      const last = object(deliveries[deliveries.length - 1]);
+      const paid = Number(invoice.amount_paid_cents) || 0;
+      return [
+        { label:(globalThis.PlatformLanguage?.text("invoices","m_74667921211303","Balance due") ?? "Balance due"), value:`${money(invoice.balance_due_cents)}${paid > 0 ? ` (${money(paid)} paid)` : ''}` },
+        { label:(globalThis.PlatformLanguage?.text("invoices","m_9403c7637d4905","Total") ?? "Total"), value:money(invoice.total_cents) },
+        { label:(globalThis.PlatformLanguage?.text("invoices","m_aaebd7ccba0b30","Project") ?? "Project"), value:clean(project.title, project.address) },
+        { label:(globalThis.PlatformLanguage?.text("invoices","m_ae8e4953e07d70","Customer") ?? "Customer"), value:clean(customer.name, customer.email) },
+        { label:(globalThis.PlatformLanguage?.text("invoices","m_103d1f897eea51","Issued") ?? "Issued"), value:clean(invoice.issue_date) ? shortDate(invoice.issue_date) : '' },
+        { label:(globalThis.PlatformLanguage?.text("invoices","m_3dac4d5769efeb","Due") ?? "Due"), value:clean(invoice.due_date) ? shortDate(invoice.due_date) : '' },
+        { label:(globalThis.PlatformLanguage?.text("invoices","m_f827be7b7c38f3","Last sent") ?? "Last sent"), value:clean(last.recipient) ? `${clean(last.recipient)} · ${shortDate(last.attempted_at)}` : '' }
+      ];
+    }
+
+    function invoiceActions(invoice){
+      const status = clean(invoice.status, 'draft');
+      const hold = object(invoice.production_hold);
+      const deliveries = array(invoice.email_deliveries);
+      const canSend = !['paid', 'void'].includes(status);
+      const actions = [];
+      if (canSend) actions.push({ id:'send', label:deliveries.length ? 'Resend' : 'Send', icon:'fa-paper-plane', primary:true, run:() => openSend(invoice) });
+      if (canSend && deliveries.length) actions.push({ id:'remind', label:(globalThis.PlatformLanguage?.text("invoices","m_2c8181c49f3f53","Reminder") ?? "Reminder"), icon:'fa-bell', run:() => openSend(invoice, { reminder:true }) });
+      if (canSend) actions.push({ id:'payment', label:(globalThis.PlatformLanguage?.text("invoices","m_6c304f124c6ef5","Record payment") ?? "Record payment"), icon:'fa-money-check-dollar', run:() => openRecordPayment(invoice) });
+      actions.push({ id:'pdf', label:(globalThis.PlatformLanguage?.text("invoices","m_2440c46d7ac5f3","PDF") ?? "PDF"), icon:'fa-file-pdf', href:api()?.invoices?.pdfUrl?.(state.orgId, invoice.id) || '' });
+      if (status !== 'void') actions.push({ id:'hold', label:hold.enabled === true ? 'Clear hold' : 'Hold production', icon:'fa-hand', run:() => openHold(invoice) });
+      if (canSend) actions.push({ id:'void', label:(globalThis.PlatformLanguage?.text("invoices","m_ce16922c5208b8","Void") ?? "Void"), icon:'fa-ban', danger:true, run:() => openVoid(invoice) });
+      actions.push({ id:'project', label:(globalThis.PlatformLanguage?.text("invoices","m_27136d1254783a","Open project") ?? "Open project"), icon:'fa-arrow-up-right-from-square', run:() => {
+        closeViewer();
+        Portal.navigation?.navigate?.({ project:clean(invoice.project_id), projectTab:'money', moneyView:'invoices' }, { source:'invoices-tab-project', ownedKeys:['project', 'projectTab', 'moneyView'] });
+      } });
+      return actions.filter((action) => action.id !== 'pdf' || action.href);
+    }
+
+    function invoiceView(invoice){
+      const hold = object(invoice.production_hold);
+      const status = clean(invoice.status, 'draft');
+      return {
+        title:`${clean(invoice.invoice_number)} · ${money(invoice.total_cents)}`,
+        subtitle:clean(object(invoice.project_ref).title, object(invoice.customer).name),
+        icon:'fa-file-invoice-dollar',
+        status:{ key:status, label:statusLabel(status) },
+        notice:hold.enabled === true ? { icon:'fa-hand', text:`Production hold${clean(hold.note) ? ` — ${clean(hold.note)}` : ''}. Work is blocked until this invoice is paid.` } : null,
+        facts:invoiceFacts(invoice),
+        actions:invoiceActions(invoice)
+      };
+    }
+
+    function closeViewer(){
+      const open = viewer;
+      viewer = null;
+      viewerInvoiceId = '';
+      open?.close?.();
+    }
+
     function openDetail(invoiceId, { fromRoute = false } = {}){
       const invoice = invoiceById(invoiceId);
       if (!invoice) return;
+      if (!window.FMDocViewer?.open) { openDetailDialog(invoice, { fromRoute }); return; }
+      if (viewer && viewerInvoiceId === clean(invoice.id)) return;
+      closeViewer();
+      if (!fromRoute) routePatch({ invoice:clean(invoice.id) }, 'push');
+      state.openInvoiceId = clean(invoice.id);
+      const id = clean(invoice.id);
+      viewerInvoiceId = id;
+      viewer = window.FMDocViewer.open({
+        orgId:state.orgId,
+        ...invoiceView(invoice),
+        actionsTitle:'Invoice',
+        // The invoice's document is written from the invoice (its lines, balance and style), so it is not edited,
+        // sent or voided as a document here: the invoice's own Send, Void and PDF do that.
+        documentActions:{ edit:false, send:false, pdf:false, project:false, void:false },
+        load:async () => {
+          const result = object(await api().invoices.document(state.orgId, id));
+          const fresh = { ...(invoiceById(id) || invoice), ...object(result.invoice) };
+          return { ...invoiceView(fresh), document:object(result.document) };
+        },
+        onClose:(reason) => {
+          if (viewerInvoiceId === id) { viewer = null; viewerInvoiceId = ''; }
+          state.openInvoiceId = '';
+          if (reason === 'person' && clean((Portal.navigation?.read?.() || {}).invoice) === id) {
+            Portal.navigation?.backOrClose?.(['invoice'], { invoice:null }, { source:'invoices-detail-close' });
+          }
+        }
+      });
+    }
+
+    function openDetailDialog(invoice, { fromRoute = false } = {}){
       if (!fromRoute) routePatch({ invoice:clean(invoice.id) }, 'push');
       state.openInvoiceId = clean(invoice.id);
       const customer = object(invoice.customer);
@@ -786,7 +885,7 @@
       });
       root.querySelectorAll('[data-inv-quick]').forEach((button) => button.addEventListener('click', () => openQuickSend(button.dataset.invQuick)));
 
-      if (state.openInvoiceId && !shade) openDetail(state.openInvoiceId, { fromRoute:true });
+      if (state.openInvoiceId && !shade && !viewer) openDetail(state.openInvoiceId, { fromRoute:true });
     }
 
     const unregisterRoute = Portal.navigation?.registerHandler?.(`invoices-route:${context.instanceId || 'main'}`, {
@@ -800,7 +899,7 @@
         const changed = state.view !== nextView || state.statusFilter !== nextFilter;
         state.view = nextView;
         state.statusFilter = nextFilter;
-        if (!nextInvoice && state.openInvoiceId) { state.openInvoiceId = ''; closeModal(); }
+        if (!nextInvoice && state.openInvoiceId) { state.openInvoiceId = ''; closeModal(); closeViewer(); }
         if (nextInvoice && nextInvoice !== state.openInvoiceId && state.invoices.length) openDetail(nextInvoice, { fromRoute:true });
         if (changed && !state.loading) render();
       }
@@ -816,6 +915,7 @@
         state.destroyed = true;
         state.loadToken++;
         closeModal();
+        closeViewer();
         unregisterRoute?.();
         refreshEvents.forEach((name) => window.removeEventListener(name, scheduleRefresh));
         root.innerHTML = '';

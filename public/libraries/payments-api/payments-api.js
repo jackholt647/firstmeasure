@@ -295,6 +295,8 @@
     quick(orgId, projectId, payload = {}){ return request(orgPath(orgId, `/projects/${enc(projectId)}/invoices/quick`), { method:'POST', body:payload || {} }); },
     get(orgId, invoiceId){ return request(orgPath(orgId, `/invoices/${enc(invoiceId)}`)); },
     pdfUrl(orgId, invoiceId){ return url(orgPath(orgId, `/invoices/${enc(invoiceId)}/pdf`)); },
+    // The invoice as a document for the document viewer (GP-69): POST, as it may write the invoice's document.
+    document(orgId, invoiceId){ return request(orgPath(orgId, `/invoices/${enc(invoiceId)}/document`), { method:'POST', body:{} }); },
     markDue(orgId, invoiceId, payload = {}){ return request(orgPath(orgId, `/invoices/${enc(invoiceId)}/mark-due`), { method:'POST', body:payload || {} }); },
     email(orgId, invoiceId, payload = {}){ return request(orgPath(orgId, `/invoices/${enc(invoiceId)}/email`), { method:'POST', body:payload || {} }); },
     voidInvoice(orgId, invoiceId, payload = {}){ return request(orgPath(orgId, `/invoices/${enc(invoiceId)}/void`), { method:'POST', body:payload || {} }); },

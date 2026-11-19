@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import { sendOrganizationTransactionalEmail } from "../email/organization_outbound.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
@@ -13,8 +13,9 @@ import {
   upsertDocument,
   type JsonObject
 } from "../platform/storage.js";
-import { publishTemplatedArtifact, renderTemplatedArtifact } from "../documents/artifacts.js";
+import { prepareTemplatedArtifact, publishTemplatedArtifact, renderTemplatedArtifact } from "../documents/artifacts.js";
 import { voidDocumentInstance } from "../documents/service.js";
+import { readDocumentInstance, saveDocumentInstance } from "../documents/storage.js";
 import { readDefaultDocumentThemeId } from "../documents/settings.js";
 import { emitWorkEvent } from "../work/engine.js";
 import {
@@ -919,6 +920,30 @@ export async function renderInvoiceDocumentPdf(orgId: string, invoice: JsonObjec
     document_id: rendered.documentId,
     snapshot_id: cleanText(asObject(rendered.snapshot).id)
   };
+}
+
+/**
+ * The invoice as a document (`doc_invoice_<id>`), for the document viewer (GP-69): written from the invoice as its
+ * PDF would be, without making a PDF. It is written again only when the invoice changed since, so viewing an invoice
+ * adds no document revisions, and it keeps the delivery status it had (as rendering the PDF does).
+ */
+export async function prepareInvoiceDocument(orgId: string, invoiceId: string) {
+  const invoice = await readInvoice(orgId, invoiceId);
+  const styled = await styledInvoiceArtifactInput(orgId, invoice);
+  // What the document is written from; its balance is derived from payments, so a date would not tell it changed.
+  const fingerprint = createHash("sha256").update(JSON.stringify([styled.title, styled.templateId, styled.themeId || "", styled.params])).digest("hex").slice(0, 24);
+  const input = { ...styled, metadata: { ...styled.metadata, artifact_fingerprint: fingerprint } };
+  const documentId = cleanText(input.documentId);
+  const existing = await readDocumentInstance(orgId, documentId).catch(() => null);
+  // A voided invoice's document stays as it was voided (writing it again would issue it again).
+  if (cleanText(invoice.status) === "void" || cleanText(existing?.status) === "void") return { invoice, document: existing };
+  if (existing && cleanText(asObject(existing.metadata).artifact_fingerprint) === fingerprint) return { invoice, document: existing };
+  const priorStatus = cleanText(existing?.status);
+  let { document } = await prepareTemplatedArtifact(input);
+  if (["sent", "viewed", "in_progress", "signed", "completed"].includes(priorStatus) && cleanText(document.status) !== priorStatus) {
+    document = await saveDocumentInstance(orgId, documentId, { ...document, status: priorStatus, updated_at: new Date().toISOString() });
+  }
+  return { invoice, document };
 }
 
 export async function renderInvoicePdf(orgId: string, invoiceId: string) {
