@@ -26,7 +26,8 @@ const tearoff = (price) => ({ name: 'Tear off', unit: 'sq', unit_price: price, i
 const estimates = {
   'a.pdf': { lines: [tearoff(90), guard(7)], notes: 'Read a.' },
   'b.pdf': { lines: [tearoff(100), guard(9)], notes: 'Read b.' },
-  'c.pdf': { lines: [tearoff(120)], notes: 'Read c.' },
+  // The same thing as an earlier estimate's matched line, unmatched here: it is that item too.
+  'c.pdf': { lines: [tearoff(120), { name: 'Gutter guard', unit: 'lf', unit_price: 8.5, item_id: null, formula: null }, { name: 'Tear off', unit: 'sq', unit_price: 100, item_id: null, formula: null }], notes: 'Read c.' },
   'd.png': { lines: [{ name: 'Drip edge', unit: 'lf', unit_price: 3.5, item_id: 'drip', formula: null }], notes: 'Read d.' }
 };
 const page = () => `<!doctype html><html><head><style>body{margin:0;font:14px Arial}</style></head><body>
@@ -91,7 +92,7 @@ test('the price step reads as many estimates as they upload, on a page of its ow
     assert.match(await tab.textContent('.gxd-uploads'), /The more estimates you upload, the better we can work out your prices\./);
     assert.equal(await tab.isDisabled('[data-uploads-done]'), true, 'nothing read yet');
     await settled(tab);
-    assert.deepEqual(await files(tab), [['a.pdf', 'done', '2 priced lines'], ['b.pdf', 'done', '2 priced lines'], ['bad.pdf', 'failed', 'That one could not be read.'], ['c.pdf', 'done', '1 priced line']]);
+    assert.deepEqual(await files(tab), [['a.pdf', 'done', '2 priced lines'], ['b.pdf', 'done', '2 priced lines'], ['bad.pdf', 'failed', 'That one could not be read.'], ['c.pdf', 'done', '3 priced lines']]);
     assert.deepEqual(await tab.evaluate(() => window.__reads), [['a.pdf'], ['b.pdf'], ['bad.pdf'], ['c.pdf']], 'one estimate per read');
     assert.equal(await tab.evaluate(() => window.__most), 2, 'two at a time');
 
@@ -109,11 +110,12 @@ test('the price step reads as many estimates as they upload, on a page of its ow
     const banner = await tab.textContent('.gxd-banner');
     assert.match(banner, /From 4 estimates: 2 lines matched your price book and 1 are new\./);
     assert.match(banner, /middle price/);
-    assert.equal(await price(tab, 'tearoff'), '100', 'the middle of 90, 100 and 120');
+    assert.equal(await price(tab, 'tearoff'), '100', 'the middle of 90, 100, 100 and 120');
     assert.equal(await price(tab, 'drip'), '3.5');
     assert.equal(await on(tab, 'Gutter guard'), 'true');
-    assert.equal(await tab.$$eval('.gxd-line', (rows) => rows.find((row) => row.querySelector('strong').textContent === 'Gutter guard').querySelector('[data-price]').value), '8', 'the middle of 7 and 9');
+    assert.equal(await tab.$$eval('.gxd-line', (rows) => rows.find((row) => row.querySelector('strong').textContent === 'Gutter guard').querySelector('[data-price]').value), '8.5', 'the middle of 7, 8.5 and 9');
     assert.equal(await on(tab, 'Ridge cap'), 'false', 'a line none of them has is off');
+    assert.equal(await tab.$$eval('.gxd-line', (rows) => rows.filter((row) => row.querySelector('strong').textContent === 'Tear off').length), 1, 'worded the same as a matched line: that line');
 
     // Back on the estimates page from the list: what was uploaded is still there, and nothing new leaves the lines as edited.
     await tab.fill('[data-price="tearoff"]', '105');
@@ -140,7 +142,7 @@ test('the price step reads as many estimates as they upload, on a page of its ow
     const answer = events.filter((event) => event.type === 'step_done' && event.step_id === 'prices').at(-1)?.selections;
     assert.deepEqual(answer.prices, [{ item_id: 'tearoff', unit_price: 105 }, { item_id: 'drip', unit_price: 3.5 }]);
     assert.deepEqual(answer.lines.on.slice(0, 2), ['tearoff', answer.lines.new_items[0].key]);
-    assert.deepEqual(answer.lines.new_items.map((item) => [item.name, item.unit, item.unit_price]), [['Gutter guard', 'lf', 8]]);
+    assert.deepEqual(answer.lines.new_items.map((item) => [item.name, item.unit, item.unit_price]), [['Gutter guard', 'lf', 8.5]]);
     assert.deepEqual(errors, []);
     await tab.close();
   } finally { await browser.close(); }

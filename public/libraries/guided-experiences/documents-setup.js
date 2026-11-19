@@ -131,6 +131,7 @@ const css = `
 .gxd-file .gxd-icon .gxs-spin{width:16px;height:16px}
 .gxd-file[data-state=failed]{border-color:#fecdca;background:#fffbfa}
 .gxd-file[data-state=failed] .gxd-icon{background:#fee4e2;color:#b42318}
+.gxd-file .gxd-line-main small{display:block}
 .gxd-file[data-state=failed] small{color:#b42318;white-space:normal}
 .gxd-file-ok{flex:none;color:#12b76a;font-size:16px}
 .gxd-drop{flex:none;flex-direction:column;gap:4px;min-height:96px;padding:14px;text-align:center}
@@ -753,12 +754,14 @@ export function mount(el, ctx){
     }
     /**
      * Every estimate read, as one: each line once, in the order they first show it, at the middle of the prices they
-     * charge for it (in the unit the first one sells it by), so one unusual job doesn't set the price.
+     * charge for it (in the unit the first one sells it by), so one unusual job doesn't set the price. A line one estimate
+     * matched to the price book is that item in the others too where they word it the same.
      */
     function combined(read){
-      const groups = new Map();
+      const groups = new Map(), named = new Map();
+      for (const entry of read) for (const line of array(entry.result?.lines)) if (clean(line.item_id)) named.set(clean(line.name).toLowerCase(), clean(line.item_id));
       for (const entry of read) for (const line of array(entry.result?.lines)) {
-        const key = clean(line.item_id) || clean(line.name).toLowerCase(); if (!key) continue;
+        const key = clean(line.item_id) || named.get(clean(line.name).toLowerCase()) || clean(line.name).toLowerCase(); if (!key) continue;
         const price = Number(line.unit_price), group = groups.get(key);
         if (!group) { groups.set(key, { ...line, prices: Number.isFinite(price) ? [price] : [] }); continue; }
         if (line.unit === group.unit && Number.isFinite(price)) group.prices.push(price);
