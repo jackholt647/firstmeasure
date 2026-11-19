@@ -9,6 +9,10 @@
 // the answers are the setup's selections and its finish (documents.setup.apply) makes the kind's template. It reads
 // through the publication layer (document-setup.price_sheet, .previews, .copy); only Advanced and the first proposal
 // save the template before the finish, because they need it.
+// A company that does insurance work is asked first which kinds of proposals it makes (GP-55, `proposal_kinds`): retail,
+// insurance contingency agreements, or both. Insurance only goes straight to the style and the agreement's wording;
+// both goes through the retail questions, then has a second wording page for the agreement (`copy_insurance`), and the
+// first proposal starts with a choice of which to make.
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
@@ -354,13 +358,34 @@ function drop(lifted){
  * nothing when nothing has changed since.
  */
 async function saveTemplate(ctx, selections, extra = {}){
-  const input = { document_kind: clean(selections.document_kind) || 'proposal', theme_id: clean(selections.theme_id), prices: array(selections.prices), copy: object(extra.copy), keep_edits: extra.keep_edits === true };
-  if (input.document_kind === 'proposal') for (const name of ['presentation', 'customer_changes', 'detail', 'scope_write_up']) if (selections[name] !== undefined) input[name] = selections[name];
+  const input = { ...answersOf(selections), theme_id: clean(selections.theme_id), prices: array(selections.prices),
+    copy: object(selections.copy), keep_edits: selections.keep_edits === true, ...extra };
+  // Both kinds of proposals: the insurance agreement's wording page is its own (GP-55).
+  if (proposalKinds(selections) === 'both') Object.assign(input, { insurance_copy: object(selections.insurance_copy), insurance_keep_edits: selections.insurance_keep_edits === true }, extra);
   // The price step's lines (FM-610): the first proposal is priced from them.
   if (selections.lines && typeof selections.lines === 'object') input.lines = selections.lines;
   const result = await window.PlatformAPI.publication.invoke(ctx.orgId, 'documents.setup.apply', { scope: 'organization', organizationId: ctx.orgId }, input, { idempotencyKey: `documents.setup.save:${ctx.orgId}:${Date.now()}:${Math.random().toString(36).slice(2)}` });
   return object(result?.value ?? result?.result ?? result);
 }
+
+/** Retail, insurance or both (GP-55): retail for any other kind of document, and for a company never asked. */
+function proposalKinds(selections){
+  return clean(selections.document_kind) === 'proposal' && ['insurance', 'both'].includes(clean(selections.proposal_kinds)) ? clean(selections.proposal_kinds) : 'retail';
+}
+/** What the server is told the answers are (document-setup previews and copy, documents.setup.apply). */
+function answersOf(selections){
+  const args = { document_kind: clean(selections.document_kind) || 'proposal' };
+  if (args.document_kind !== 'proposal') return args;
+  const kinds = proposalKinds(selections);
+  if (kinds !== 'retail') args.proposal_kinds = kinds;
+  if (kinds !== 'insurance') for (const name of ['presentation', 'customer_changes', 'detail', 'scope_write_up']) if (selections[name] !== undefined) args[name] = selections[name];
+  return args;
+}
+/**
+ * The setups (their selections) that went on past the proposal kinds step without showing it, because the company does
+ * no insurance work: coming back to it, Back goes on to the step before it.
+ */
+const passedKinds = new WeakSet();
 
 /** The questions with one answer each: the choices, with their copy (gx_docs_setup_* keys). */
 function choicesFor(part, selections){
@@ -404,6 +429,7 @@ export function mount(el, ctx){
   if (part === 'style') return stylePart();
   if (part === 'copy') return copyPart();
   if (part === 'first') return firstPart();
+  if (part === 'proposal_kinds') return kindsPart();
   const question = choicesFor(part, selections);
   if (!question) { el.innerHTML = `<p class="gxd-error">${esc(t('unknown', 'This step cannot be shown here.'))}</p>`; return { valid: () => false }; }
 
@@ -780,12 +806,80 @@ export function mount(el, ctx){
     };
   }
 
+  // ── Which kinds of proposals (GP-55) ──────────────────────────────────
+  // Only for a company that does insurance work (company.services `storm_insurance`, asked just before when it was not
+  // yet): retail proposals, insurance contingency agreements, or both, as many as apply. Any other company goes on
+  // without seeing it (retail), and Back from the next step passes it the other way.
+  function kindsPart(){
+    let alive = true, picked = null, timer = 0;
+    const pane = el.closest('.gxs-step');
+    const hide = (hidden) => { if (pane) pane.style.visibility = hidden ? 'hidden' : ''; };
+    const mountedAt = Date.now();
+    const handle = {
+      valid: () => !!picked?.size,
+      hint: () => t('proposal_kinds_hint', 'Choose at least one.'),
+      summary: () => picked?.size ? [...picked].map((id) => L(choices.find((choice) => choice.id === id).title)).join(', ') : '',
+      // A pane passed is left hidden as it goes: each step gets a pane of its own.
+      destroy(){ alive = false; clearTimeout(timer); el.removeEventListener('click', onClick); }
+    };
+    const choices = [
+      { id: 'retail', icon: 'fa-file-signature', title: ['gx_docs_setup_proposal_kinds_retail', 'Retail proposals'], hint: ['gx_docs_setup_proposal_kinds_retail_hint', 'You price the job and the homeowner pays you.'] },
+      { id: 'insurance', icon: 'fa-house-circle-check', title: ['gx_docs_setup_proposal_kinds_insurance', 'Insurance agreements'], hint: ['gx_docs_setup_proposal_kinds_insurance_hint', 'A contingency agreement: the homeowner signs that you do the work their insurance approves, for what it approves.'] }
+    ];
+    const report = () => {
+      const value = picked.has('retail') && picked.has('insurance') ? 'both' : picked.has('insurance') ? 'insurance' : picked.has('retail') ? 'retail' : undefined;
+      ctx.change({ proposal_kinds: value }, handle.summary());
+    };
+    function onClick(event){
+      const tile = event.target.closest('[data-kind]'); if (!tile || !picked) return;
+      const id = tile.dataset.kind;
+      if (picked.has(id)) picked.delete(id); else picked.add(id);
+      tile.setAttribute('aria-checked', String(picked.has(id)));
+      report();
+    }
+    el.addEventListener('click', onClick);
+    function show(){
+      const before = clean(selections.proposal_kinds);
+      picked = new Set(before === 'both' ? ['retail', 'insurance'] : before === 'insurance' ? ['insurance'] : before === 'retail' ? ['retail'] : []);
+      el.innerHTML = `<div class="gxd"><div class="gxs-choices" style="--gxs-n:2" role="group" aria-label="${esc(ctx.L(ctx.step.title))}">${choices.map((choice) => `
+        <button type="button" class="gxd-tile gxs-choice" role="checkbox" data-kind="${esc(choice.id)}" aria-checked="${picked.has(choice.id)}">
+          <span class="gxd-icon gxs-choice-icon" aria-hidden="true"><i class="fas ${esc(choice.icon)}"></i></span>
+          <span class="gxs-choice-text"><strong>${esc(L(choice.title))}</strong><small>${esc(L(choice.hint))}</small></span>${choiceTick}
+        </button>`).join('')}</div>
+        <p class="gxd-note">${esc(t('proposal_kinds_note', 'Pick both if you do both: we set up your retail proposal first, then your insurance agreement.'))}</p></div>`;
+      hide(false);
+      if (picked.size) report();
+    }
+    // Back to here after going on without it: on to the step before (once; then it is asked as it would be).
+    if (passedKinds.has(selections)) {
+      passedKinds.delete(selections);
+      hide(true);
+      ctx.back?.();
+      timer = setTimeout(() => { if (alive) show(); }, 700);
+      return handle;
+    }
+    hide(true);
+    el.innerHTML = '<div class="gxd"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div></div>';
+    ctx.read('company-profile', 'profile').then((profile) => {
+      if (!alive) return;
+      const services = array(object(profile).services).map((entry) => clean(entry?.id ?? entry));
+      if (services.includes('storm_insurance')) { show(); return; }
+      // No insurance work: retail, and on (after the press that brought it here has settled: the player counts a second
+      // press within a moment as the same one).
+      picked = new Set(['retail']);
+      ctx.change({ proposal_kinds: 'retail' }, '');
+      passedKinds.add(selections);
+      timer = setTimeout(() => { if (alive) ctx.advance?.(); }, Math.max(0, 320 - (Date.now() - mountedAt)));
+    }).catch(() => { if (alive) show(); });
+    return handle;
+  }
+
   // ── Three styles, previewed with what the answers make ────────────────
   function stylePart(){
     let alive = true, previews = [], Renderer = null, timer = 0, lastSize = '', center = 0, drag = null, dragged = false, view = null;
     const cards = [];
-    const args = { document_kind: clean(selections.document_kind) || 'proposal' };
-    if (args.document_kind === 'proposal') for (const name of ['presentation', 'customer_changes', 'detail', 'scope_write_up']) if (selections[name] !== undefined) args[name] = selections[name];
+    // Both kinds of proposals: the retail proposal's previews; the style chosen is the insurance agreement's too.
+    const args = answersOf(selections);
     // The previews want room: the sheet widens (the player's wide sheet) and this step fills it. The sheet's Back and
     // Done float over its bottom edge (data-float-foot), beside the style's name, so the carousel has the full height.
     const sheet = el.closest('.gxs'), wasWide = !!sheet?.classList.contains('gxs-wide');
@@ -1044,8 +1138,12 @@ export function mount(el, ctx){
   }
   function copyPart(){
     let alive = true, data = null, Renderer = null, handle = null, timer = 0, studio = null, opening = false;
-    const edits = { ...object(selections.copy) };
-    let keepEdits = selections.keep_edits === true;
+    // The insurance agreement's own page, for a company that makes both kinds of proposals (GP-55): its wording is kept
+    // apart. With insurance agreements only, the one wording page is the agreement's and its wording is `copy`.
+    const insurance = clean(ctx.options.target) === 'insurance';
+    const copyKey = insurance ? 'insurance_copy' : 'copy', keepKey = insurance ? 'insurance_keep_edits' : 'keep_edits';
+    const edits = { ...object(selections[copyKey]) };
+    let keepEdits = selections[keepKey] === true;
     const sheet = el.closest('.gxs'), wasWide = !!sheet?.classList.contains('gxs-wide');
     sheet?.classList.add('gxs-wide');
     const pane = el.closest('.gxs-step');
@@ -1055,8 +1153,9 @@ export function mount(el, ctx){
       <div class="gxd-copy-view"><div class="gxd-doc"></div></div>
     </div><p class="gxd-error" role="alert"></p></div>`;
     const fieldsHost = el.querySelector('.gxd-copy-edit'), more = el.querySelector('[data-copy-more]'), view = el.querySelector('.gxd-copy-view'), docHost = view.querySelector('.gxd-doc'), error = el.querySelector('.gxd-error');
-    // The style chosen slides over to the right; it stays there until its document has been drawn in this step.
-    const lifted = liftDocument(sheet || document.body);
+    // The style chosen slides over to the right; it stays there until its document has been drawn in this step. The
+    // insurance agreement's page shows another document: nothing is carried to it.
+    const lifted = insurance ? (handoff = null) : liftDocument(sheet || document.body);
     glide(lifted, view);
     // Advanced, a link beside the step's title: only where the template editor would open (GP-13). An organization
     // without it (or a phone, where it is not offered) never sees a button that can only fail.
@@ -1067,14 +1166,10 @@ export function mount(el, ctx){
       advanced.title = t('copy_advanced_hint', 'Open your template in the full template editor');
       ctx.actions?.append(advanced);
     }
-    const answers = () => {
-      const args = { document_kind: clean(selections.document_kind) || 'proposal', theme_id: clean(selections.theme_id) };
-      if (args.document_kind === 'proposal') for (const name of ['presentation', 'customer_changes', 'detail', 'scope_write_up']) if (selections[name] !== undefined) args[name] = selections[name];
-      return args;
-    };
+    const answers = () => ({ ...answersOf(selections), theme_id: clean(selections.theme_id), ...(insurance ? { agreement: 'insurance' } : {}) });
     const report = () => {
       const count = Object.keys(edits).length;
-      ctx.change({ copy: { ...edits }, keep_edits: keepEdits }, count ? t('copy_summary', '{count} changes').replace('{count}', String(count)) : (keepEdits ? t('copy_summary_edited', 'Edited in the template editor') : ''));
+      ctx.change({ [copyKey]: { ...edits }, [keepKey]: keepEdits }, count ? t('copy_summary', '{count} changes').replace('{count}', String(count)) : (keepEdits ? t('copy_summary_edited', 'Edited in the template editor') : ''));
     };
     function draw(){
       if (!data || !Renderer) return;
@@ -1199,12 +1294,12 @@ export function mount(el, ctx){
       studio = { layer, handle: null };
       try {
         // The editor opens the organization's own template: saved now with the answers and the wording so far.
-        const saved = await saveTemplate(ctx, selections, { copy: edits, keep_edits: keepEdits });
+        const saved = await saveTemplate(ctx, selections, { [copyKey]: { ...edits }, [keepKey]: keepEdits });
         if (!alive || studio?.layer !== layer) return;
         const app = layer.querySelector('.gxd-studio-app');
         app.innerHTML = '';
         studio.handle = await window.FirstMateEmbeddableApps.mount(app, 'documents.studio', { orgId: ctx.orgId, surface: 'portal_tab', active: true, params: { embed: {
-          templateId: clean(saved.template_id) || `tpl_setup_${clean(selections.document_kind) || 'proposal'}`,
+          templateId: (insurance ? clean(saved.insurance_template_id) : clean(saved.template_id)) || `tpl_setup_${clean(selections.document_kind) || 'proposal'}`,
           backLabel: t('copy_back_to_setup', 'Back to setup'),
           onClose: () => { void closeStudio(true); }
         } } });
@@ -1257,7 +1352,8 @@ export function mount(el, ctx){
   // and its own workflow runs here, in the Docs app (project.documents) as the Docs tab runs it, so this is how every
   // proposal starts from now on. The workflow's Previous on its first step comes back to the wording, a phone's back
   // walks its steps, and sending it finishes the setup on that proposal. Anywhere else (no project, another kind, a
-  // setup another setup started) the setup finishes here.
+  // setup another setup started) the setup finishes here. A company that makes both retail proposals and insurance
+  // agreements (GP-55) first picks which to start with; Previous on the workflow's first step comes back to that choice.
   function firstPart(){
     const projectId = clean(ctx.where?.projectId || window.FirstMateGuides?.where?.()?.projectId);
     const kind = clean(selections.document_kind) || 'proposal';
@@ -1266,33 +1362,50 @@ export function mount(el, ctx){
       setTimeout(() => { Promise.resolve(ctx.complete?.()).catch(() => {}); }, 0);
       return { valid: () => true };
     }
-    let alive = true, engine = null, service = null, finished = false, lifted = null;
+    const kinds = proposalKinds(selections), choosing = kinds === 'both';
+    let alive = true, engine = null, service = null, finished = false, lifted = null, generation = 0;
+    // Which to make: retail or insurance; with both, none until it is picked.
+    let which = choosing ? '' : kinds === 'insurance' ? 'insurance' : 'retail';
     const sheet = el.closest('.gxs'), wasWide = !!sheet?.classList.contains('gxs-wide');
     sheet?.classList.add('gxs-wide');
     const pane = el.closest('.gxs-step');
     pane?.setAttribute('data-fill', '');
-    el.innerHTML = `<div class="gxd gxd-fill gxd-first">
-      <p class="gxd-first-lead"><i class="fas fa-circle-check" aria-hidden="true"></i><span>${esc(t('first_lead', 'Your proposal template is ready. From now on, every proposal starts here: fill in these steps for the customer and send it.'))}</span></p>
-      <div class="gxd-first-app"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span><span data-first-status>${esc(t('first_saving', 'Saving your template…'))}</span></div></div>
-      <p class="gxd-error" role="alert"></p>
-    </div>`;
-    const app = el.querySelector('.gxd-first-app'), error = el.querySelector('.gxd-error');
+    let app = null, error = null;
+    const leads = {
+      retail: () => t('first_lead', 'Your proposal template is ready. From now on, every proposal starts here: fill in these steps for the customer and send it.'),
+      insurance: () => t('first_lead_insurance', 'Your insurance agreement is ready. From now on, every agreement starts here: fill in the homeowner’s claim and send it to sign.')
+    };
+    function drawWorkflow(){
+      el.innerHTML = `<div class="gxd gxd-fill gxd-first">
+        <p class="gxd-first-lead"><i class="fas fa-circle-check" aria-hidden="true"></i><span>${esc(leads[which]())}</span></p>
+        <div class="gxd-first-app"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span><span data-first-status>${esc(t('first_saving', 'Saving your template…'))}</span></div></div>
+        <p class="gxd-error" role="alert"></p>
+      </div>`;
+      app = el.querySelector('.gxd-first-app'); error = el.querySelector('.gxd-error');
+    }
+    const firstChoices = [
+      { id: 'retail', icon: 'fa-file-signature', title: ['gx_docs_setup_first_retail', 'A retail proposal'], hint: ['gx_docs_setup_first_retail_hint', 'Priced from the measurements and your price book, for the customer to sign.'] },
+      { id: 'insurance', icon: 'fa-house-circle-check', title: ['gx_docs_setup_first_insurance', 'An insurance agreement'], hint: ['gx_docs_setup_first_insurance_hint', 'The homeowner signs that you do the work their insurance approves.'] }
+    ];
+    function drawChoice(){
+      app = null; error = null;
+      el.innerHTML = `<div class="gxd">
+        <p class="gxd-first-lead"><i class="fas fa-circle-check" aria-hidden="true"></i><span>${esc(t('first_lead_both', 'Your retail proposal and your insurance agreement are ready. Which do you want to make first for this project? The other is always in New document.'))}</span></p>
+        <div class="gxs-choices" style="--gxs-n:2" role="radiogroup" aria-label="${esc(ctx.L(ctx.step.title))}">${firstChoices.map((choice) => `
+          <button type="button" class="gxd-tile gxs-choice" role="radio" data-first="${esc(choice.id)}" aria-checked="false">
+            <span class="gxd-icon gxs-choice-icon" aria-hidden="true"><i class="fas ${esc(choice.icon)}"></i></span>
+            <span class="gxs-choice-text"><strong>${esc(L(choice.title))}</strong><small>${esc(L(choice.hint))}</small></span>${choiceTick}
+          </button>`).join('')}</div></div>`;
+    }
     // The message is for the workflow's first step, once (GP-18): past it, it is gone, Previous included.
     const leaveLead = () => { if (Number(service?.workflowPosition?.()?.index) > 0) el.querySelector('.gxd-first-lead')?.remove(); };
     const status = (text) => { const node = el.querySelector('[data-first-status]'); if (node) node.textContent = text; };
-    // The wording's document waits where it was, then slides into the workflow's preview once that is drawn.
-    lifted = liftDocument(sheet || document.body);
-    // Meanwhile it moves down out of the way of the message above, on the side the workflow's preview will be (GP-13).
-    if (lifted) {
-      const box = settledRect(app), from = lifted.rect, width = Math.min(from.width, box.width);
-      glideTo(lifted, { left: Math.max(box.left, Math.min(from.left, box.left + box.width - width)), top: box.top, width, height: box.height });
-    }
     const intoPreview = () => {
       if (!lifted) return;
-      const started = Date.now();
+      const started = Date.now(), held = lifted;
       const look = () => {
-        if (!alive || !lifted) return;
-        const stage = app.querySelector('[data-fmdw-preview-stage]');
+        if (!alive || lifted !== held) return;
+        const stage = app?.querySelector('[data-fmdw-preview-stage]');
         if (stage && stage.getBoundingClientRect().width) { glide(lifted, stage); const done = lifted; lifted = null; setTimeout(() => drop(done), 900); return; }
         if (Date.now() - started > 15000) { drop(lifted); lifted = null; return; }
         setTimeout(look, 120);
@@ -1302,17 +1415,20 @@ export function mount(el, ctx){
     async function finish(doc){
       if (finished || !alive) return;
       finished = true;
-      ctx.change({ first_document_id: clean(doc?.id) || clean(selections.first_document_id) });
+      ctx.change({ first_document_id: clean(doc?.id) || clean(selections.first_document_id), first_kind: which });
       // Done with the proposal: the setup finishes on it, without opening New document over it.
       try { await ctx.complete?.({ resume: false }); } catch (_) { finished = false; }
     }
     async function open(){
+      const mine = generation;
+      const live = () => alive && mine === generation;
       error.textContent = '';
-      const saved = await saveTemplate(ctx, selections, { copy: object(selections.copy), keep_edits: selections.keep_edits === true });
-      if (!alive) return;
-      status(t('first_opening', 'Starting your first proposal…'));
+      const saved = await saveTemplate(ctx, selections);
+      if (!live()) return;
+      status(which === 'insurance' ? t('first_opening_insurance', 'Starting your first agreement…') : t('first_opening', 'Starting your first proposal…'));
       const record = await window.PlatformAPI.projects.get(ctx.orgId, projectId).catch(() => null);
       const project = { ...object(object(record?.document).data), id: projectId, organization_id: ctx.orgId };
+      if (!live()) return;
       app.innerHTML = '';
       engine = await window.FirstMateEmbeddableApps.mount(app, 'project.documents', { orgId: ctx.orgId, projectId, project, surface: 'project_modal', active: true, params: { embed: {
         enabled: true, history: false, focus: false,
@@ -1320,43 +1436,92 @@ export function mount(el, ctx){
         onWorkflowStep: () => { leaveLead(); ctx.syncBack?.(); },
         workflowOptions: {
           showWorkflowTitle: false, phoneSteps: 'bottom',
-          onStepTitle: ({ title } = {}) => { if (alive) ctx.setTitle?.(title); },
-          // Previous on the workflow's first step goes back to the wording.
-          onBackFromFirst: () => { if (alive) ctx.back?.(); }
+          onStepTitle: ({ title } = {}) => { if (live()) ctx.setTitle?.(title); },
+          // Previous on the workflow's first step goes back to the choice of which to make, else to the wording.
+          onBackFromFirst: () => { if (!live()) return; if (choosing) backToChoice(); else ctx.back?.(); }
         }
       } } });
-      if (!alive) return;
+      if (!live()) return;
       if (!service || engine?.denied) throw new Error(t('first_unavailable', 'Documents could not open here. Finish the setup and make your proposal in Docs.'));
       const onFinish = (doc) => { void finish(doc); };
-      const previous = clean(selections.first_document_id);
+      const templateId = which === 'insurance' ? clean(saved.insurance_template_id) || clean(saved.template_id) || 'tpl_setup_insurance_agreement' : clean(saved.template_id) || 'tpl_setup_proposal';
+      // A draft started here before, of the same kind, is picked up again.
+      const previous = (clean(selections.first_kind) || (kinds === 'insurance' ? 'insurance' : 'retail')) === which ? clean(selections.first_document_id) : '';
       const existing = previous ? await window.DocumentsAPI?.documents?.get?.(ctx.orgId, previous).then((result) => object(result.document || result.doc || result)).catch(() => null) : null;
-      if (!alive) return;
+      if (!live()) return;
       if (existing?.id && clean(existing.status) === 'draft' && clean(existing.project_id) === projectId) await service.openDocument(existing, { onFinish });
       else {
-        const doc = await service.startFromTemplate(clean(saved.template_id) || 'tpl_setup_proposal', { onFinish });
-        if (alive) ctx.change({ first_document_id: clean(doc?.id) });
+        const doc = await service.startFromTemplate(templateId, { onFinish });
+        if (live()) ctx.change({ first_document_id: clean(doc?.id), first_kind: which });
       }
       leaveLead();
       intoPreview();
       ctx.syncBack?.();
     }
-    open().catch((failure) => {
-      if (!alive) return;
+    function start(){
+      drawWorkflow();
+      if (!lifted && !choosing) {
+        // The wording's document waits where it was, then slides into the workflow's preview once that is drawn.
+        lifted = liftDocument(sheet || document.body);
+        // Meanwhile it moves down out of the way of the message above, on the side the workflow's preview will be (GP-13).
+        if (lifted) {
+          const box = settledRect(app), from = lifted.rect, width = Math.min(from.width, box.width);
+          glideTo(lifted, { left: Math.max(box.left, Math.min(from.left, box.left + box.width - width)), top: box.top, width, height: box.height });
+        }
+      }
+      open().catch((failure) => {
+        if (!alive || !app) return;
+        drop(lifted); lifted = null;
+        app.innerHTML = `<div class="gxd-busy"><button type="button" class="gxd-advanced" data-retry>${esc(t('first_retry', 'Try again'))}</button></div>`;
+        error.textContent = clean(failure?.message) || t('first_failed', 'Your first proposal didn’t start.');
+        app.querySelector('[data-retry]')?.addEventListener('click', () => { app.innerHTML = `<div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span><span data-first-status></span></div>`; void open().catch((again) => { if (alive && error) error.textContent = clean(again?.message); }); });
+      });
+    }
+    function stopWorkflow(){
+      generation += 1;
+      try { engine?.destroy?.(); } catch (_) {}
+      engine = null; service = null;
       drop(lifted); lifted = null;
-      app.innerHTML = `<div class="gxd-busy"><button type="button" class="gxd-advanced" data-retry>${esc(t('first_retry', 'Try again'))}</button></div>`;
-      error.textContent = clean(failure?.message) || t('first_failed', 'Your first proposal didn’t start.');
-      app.querySelector('[data-retry]')?.addEventListener('click', () => { app.innerHTML = `<div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span><span data-first-status></span></div>`; void open().catch((again) => { if (alive) error.textContent = clean(again?.message); }); });
-    });
+    }
+    function backToChoice(){
+      stopWorkflow();
+      which = '';
+      drawChoice();
+      ctx.setTitle?.('');
+      // The sheet's own Back and the phone's back are the step's again.
+      ctx.change({});
+      ctx.syncBack?.();
+    }
+    const onChoose = (event) => {
+      const tile = event.target.closest?.('[data-first]'); if (!tile || which) return;
+      which = tile.dataset.first;
+      tile.setAttribute('aria-checked', 'true');
+      ctx.change({ first_kind: which });
+      ctx.syncBack?.();
+      start();
+    };
+    el.addEventListener('click', onChoose);
+    if (choosing) {
+      // Nothing is carried into a choice: the agreement's page was last, and either document may come next.
+      handoff = null;
+      drawChoice();
+    } else start();
     const stepsBehind = () => Math.max(0, Number(service?.workflowPosition?.()?.index) || 0);
     return {
-      valid: () => true,
+      // While the choice is on screen the sheet's Back is the way back; Continue waits for a pick (which starts it).
+      valid: () => !choosing || !!which,
+      hint: () => t('first_choose_hint', 'Choose which to make first.'),
       // The workflow is the step's navigation: Previous on its first step, Send on its last (the sheet's footer hides).
-      handlesNavigation: true,
-      backDepth: stepsBehind,
-      back: () => (stepsBehind() ? service.workflowBack() === true : false),
+      get handlesNavigation(){ return !!which; },
+      backDepth: () => stepsBehind() + (choosing && which ? 1 : 0),
+      back: () => {
+        if (stepsBehind()) return service.workflowBack() === true;
+        if (choosing && which) { backToChoice(); return true; }
+        return false;
+      },
       destroy(){
-        alive = false; drop(lifted); lifted = null;
-        try { engine?.destroy?.(); } catch (_) {}
+        alive = false; stopWorkflow();
+        el.removeEventListener('click', onChoose);
         if (!wasWide) sheet?.classList.remove('gxs-wide');
       }
     };

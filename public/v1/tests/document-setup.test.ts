@@ -30,6 +30,9 @@ function setup() {
     initializePublication();
     const { registerSetupStepForTests } = await import("../guided-experiences/setup-steps.js");
     for (const step of library.setup_step) registerSetupStepForTests(step);
+    // GP-55: the insurance contingency agreement and its workflow, as put on dev (not in the snapshot).
+    const { applyLibraryChange } = await import("../config-library/library.js");
+    for (const kind of ["document_workflow", "document_template"]) for (const entry of library[kind]) applyLibraryChange({ kind, id: entry.id, revision: 1, sha256: `test-${entry.id}`, title: entry.data.name, data: entry.data, updated_at: "", updated_by: "test" });
     const { registerExperienceForTests } = await import("../guided-experiences/registry.js");
     for (const experience of library.guided_experience) registerExperienceForTests(experience);
     const service = await import("../guided-experiences/service.js");
@@ -72,14 +75,21 @@ test("the library entry parses, and its checks pass against the running code", a
 test("a proposal asks the unanswered company steps first; another kind goes straight to its style", async () => {
   const service = await setup();
   const setupOf = async () => (await service.availableExperiences(owner, { tab: "project.docs" })).experiences.find((entry: any) => entry.id === "documents.setup");
-  assert.deepEqual(ids(await setupOf()), ["kind", "company.type", "company.services", "company.sales_team", "presentation", "changes", "detail", "scope", "prices", "style", "copy", "first"]);
+  assert.deepEqual(ids(await setupOf()), ["kind", "company.type", "company.services", "company.sales_team", "proposal_kinds", "presentation", "changes", "detail", "scope", "prices", "style", "copy", "copy_insurance", "first"], "the company steps come before the kinds of proposals, which need the kinds of work");
   await invoke(owner, "company-profile.save", { company_type: "roofing_contractor", services: ["roof_replacement"], sales_team: "just_me" }, "profile-1");
-  assert.deepEqual(ids(await setupOf()), ["kind", "presentation", "changes", "detail", "scope", "prices", "style", "copy", "first"], "answered by scheduling or another setup: not asked again");
+  assert.deepEqual(ids(await setupOf()), ["kind", "proposal_kinds", "presentation", "changes", "detail", "scope", "prices", "style", "copy", "copy_insurance", "first"], "answered by scheduling or another setup: not asked again");
   const definition = library.guided_experience.find((entry: any) => entry.id === "documents.setup");
   const variant = definition.variants[0];
   const { experienceSchema } = await import("../guided-experiences/contracts.js");
   const parsed = experienceSchema.parse(definition);
-  assert.equal(service.nextStep(parsed, variant, "kind", { document_kind: "proposal" }), "presentation");
+  assert.equal(service.nextStep(parsed, variant, "kind", { document_kind: "proposal" }), "proposal_kinds");
+  // GP-55: retail and both go through the proposal questions; insurance agreements only go straight to the style.
+  for (const kinds of ["retail", "both"]) assert.equal(service.nextStep(parsed, variant, "proposal_kinds", { document_kind: "proposal", proposal_kinds: kinds }), "presentation", kinds);
+  assert.equal(service.nextStep(parsed, variant, "proposal_kinds", { document_kind: "proposal", proposal_kinds: "insurance" }), "style");
+  assert.equal(service.nextStep(parsed, variant, "copy", { document_kind: "proposal", proposal_kinds: "both" }), "copy_insurance", "both: a second wording page, the agreement's");
+  for (const kinds of ["retail", "insurance"]) assert.equal(service.nextStep(parsed, variant, "copy", { document_kind: "proposal", proposal_kinds: kinds }), "first", kinds);
+  assert.equal(service.nextStep(parsed, variant, "copy", { document_kind: "invoice", proposal_kinds: "both" }), "first", "a kind of proposals left from another run never adds the page to another document");
+  assert.equal(service.nextStep(parsed, variant, "copy_insurance", { document_kind: "proposal", proposal_kinds: "both" }), "first");
   for (const kind of ["invoice", "change_order", "completion_certificate"]) assert.equal(service.nextStep(parsed, variant, "kind", { document_kind: kind }), "style", kind);
   assert.equal(service.nextStep(parsed, variant, "style", { document_kind: "invoice" }), "copy", "every kind reads its wording after its style");
   assert.equal(service.nextStep(parsed, variant, "copy", { document_kind: "invoice" }), "first", "the first proposal step finishes at once for another kind");
@@ -282,6 +292,68 @@ test("the copy step reads the template's wording, the finish saves the changes, 
   await invoke(owner, "documents.setup.apply", { ...proposal, theme_id: "thm_clean" }, "copy-apply-4");
   version = await storage.readDocumentTemplateVersion(ORG, "tpl_setup_proposal");
   assert.equal(node(version.definition, terms.node_id).props.blocks[0].runs[0].text, terms.text.split("\n\n")[0]);
+});
+
+test("insurance agreements: previewed alone, a second wording page with both, made beside or instead of the retail proposal (GP-55)", async () => {
+  await setup();
+  const storage = await import("../documents/storage.js");
+  const { planDocument } = await import("../documents/setup.js");
+  assert.equal(planDocument({ document_kind: "proposal", proposal_kinds: "insurance" } as any).template_id, "tpl_setup_insurance_agreement");
+  assert.equal(planDocument({ ...proposal, proposal_kinds: "both" } as any).template_id, "tpl_setup_proposal", "both: the retail proposal leads");
+  const insuranceOnly = { document_kind: "proposal", proposal_kinds: "insurance" };
+
+  // Insurance only: none of the retail questions, and the agreement in three styles with a sample claim.
+  const previews = await value(owner, "document-setup", "previews", insuranceOnly);
+  assert.equal(previews.base, "tpl_insurance_contingency_agreement");
+  assert.equal(previews.previews.length, 3);
+  const shown = JSON.stringify(previews.previews[0].resolved_definition);
+  assert.ok(shown.includes("Jordan Sample") && shown.includes("Example Mutual Insurance"), "the sample homeowner and claim are in the preview");
+
+  // Its wording, headings named: the copy step's page for the agreement.
+  const alone = await value(owner, "document-setup", "copy", { ...insuranceOnly, theme_id: "thm_clean" });
+  assert.equal(alone.template_id, "tpl_setup_insurance_agreement");
+  assert.equal(alone.fields[0].role, "title");
+  assert.ok(alone.fields.filter((field: any) => field.role === "heading").length >= 3, "each part of the agreement is a heading");
+  const both = { ...proposal, proposal_kinds: "both" };
+  assert.equal((await value(owner, "document-setup", "copy", { ...both, theme_id: "thm_clean" })).template_id, "tpl_setup_proposal", "both: the first wording page is the retail proposal's");
+  const second = await value(owner, "document-setup", "copy", { ...both, theme_id: "thm_clean", agreement: "insurance" });
+  assert.equal(second.template_id, "tpl_setup_insurance_agreement", "and the second the agreement's");
+  await assert.rejects(() => value(owner, "document-setup", "copy", { ...proposal, theme_id: "thm_clean", agreement: "insurance" }), /insurance agreements/);
+
+  // Both: the retail proposal and the agreement, each with its own wording, each its type's default and pin.
+  const title = second.fields[0];
+  const retailTitle = (await value(owner, "document-setup", "copy", { ...both, theme_id: "thm_margin" })).fields[0];
+  const applied = await invoke(owner, "documents.setup.apply", { ...both, theme_id: "thm_margin", copy: { [retailTitle.node_id]: "Your roof" }, insurance_copy: { [title.node_id]: "Storm claim agreement" } }, "insurance-both");
+  assert.equal(applied.template_id, "tpl_setup_proposal");
+  assert.equal(applied.insurance_template_id, "tpl_setup_insurance_agreement");
+  const agreement: any = await storage.readDocumentTemplate(ORG, "tpl_setup_insurance_agreement");
+  assert.equal(agreement.document_type, "contract");
+  assert.equal(agreement.metadata.default_for_type, true);
+  assert.equal(agreement.metadata.default_workflow_id, "wfl_setup_insurance_agreement");
+  const text = (version: any, id: string) => JSON.stringify(version.definition).includes(id) && JSON.stringify(version.definition);
+  const agreementVersion: any = await storage.readDocumentTemplateVersion(ORG, "tpl_setup_insurance_agreement");
+  assert.deepEqual(agreementVersion.definition.theme_ref, { theme_id: "thm_margin" }, "one style for both");
+  assert.ok(text(agreementVersion, title.node_id).includes("Storm claim agreement"), "the agreement's own wording");
+  assert.ok(!text(agreementVersion, title.node_id).includes("Your roof"));
+  const retailVersion: any = await storage.readDocumentTemplateVersion(ORG, "tpl_setup_proposal");
+  assert.ok(JSON.stringify(retailVersion.definition).includes("Your roof"), "and the proposal's");
+  const workflow: any = await storage.readDocumentWorkflowVersion(ORG, "wfl_setup_insurance_agreement");
+  assert.ok(JSON.stringify(workflow.definition).includes("\"tpl_setup_insurance_agreement\""), "the agreement's workflow previews the organization's agreement");
+  const { readPinnedTemplateIds } = await import("../documents/settings.js");
+  const pins = (await readPinnedTemplateIds(ORG))!;
+  assert.ok(pins.includes("tpl_setup_proposal") && pins.includes("tpl_setup_insurance_agreement"), `both pinned: ${pins}`);
+  const status = await value(owner, "document-setup", "status");
+  assert.equal(status.kinds.proposal.proposal_kinds, "both");
+  assert.equal(status.kinds.proposal.insurance_template_id, "tpl_setup_insurance_agreement");
+
+  // Insurance only: the agreement alone, its wording from `copy`; no retail answers needed, the proposal left as it was.
+  const retailBefore = Number((await storage.readDocumentTemplate(ORG, "tpl_setup_proposal") as any).current_version);
+  const only = await invoke(owner, "documents.setup.apply", { ...insuranceOnly, theme_id: "thm_clean", copy: { [title.node_id]: "Insurance claim agreement" }, prices: [{ item_id: "tearoff", unit_price: 1 }] }, "insurance-only");
+  assert.equal(only.template_id, "tpl_setup_insurance_agreement");
+  assert.equal(only.prices_updated, 0, "an agreement carries no prices");
+  assert.ok(text(await storage.readDocumentTemplateVersion(ORG, "tpl_setup_insurance_agreement"), title.node_id).includes("Insurance claim agreement"));
+  assert.equal(Number((await storage.readDocumentTemplate(ORG, "tpl_setup_proposal") as any).current_version), retailBefore, "no retail proposal is made");
+  assert.equal((await value(owner, "document-setup", "status")).kinds.proposal.proposal_kinds, "insurance");
 });
 
 test("the copy step's title is a top-level heading or one that opens the document; a section heading stays one (FM-614)", async () => {

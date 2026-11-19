@@ -55,8 +55,8 @@
         "text": "Set up your documents"
       },
       "description": {
-        "key": "gx_docs_setup_description_2",
-        "text": "Which document you make first, how you write your proposals, your prices, your style and your wording, then your first proposal."
+        "key": "gx_docs_setup_description_3",
+        "text": "Which document you make first, how you write your proposals (retail, insurance agreements or both), your prices, your style and your wording, then your first proposal."
       },
       "intro": {
         "key": "gx_docs_setup_intro",
@@ -97,7 +97,7 @@
         {
           "id": "kind",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614b",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_kind_title",
@@ -121,16 +121,53 @@
                 "when": {
                   "selections.document_kind": "proposal"
                 },
-                "to": "presentation"
+                "to": "proposal_kinds"
               }
             ],
             "otherwise": "style"
           }
         },
         {
+          "id": "proposal_kinds",
+          "widget": "module",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
+          "requires": [
+            "company.type",
+            "company.services",
+            "company.sales_team"
+          ],
+          "title": {
+            "key": "gx_docs_setup_proposal_kinds_title",
+            "text": "What kinds of proposals do you make?"
+          },
+          "subtitle": {
+            "key": "gx_docs_setup_proposal_kinds_subtitle",
+            "text": "Pick all that apply. Insurance work is usually signed on a contingency agreement before the claim is decided; we set one up for you."
+          },
+          "say": [],
+          "options": {
+            "part": "proposal_kinds"
+          },
+          "selects": [
+            "proposal_kinds"
+          ],
+          "required": true,
+          "next": {
+            "branches": [
+              {
+                "when": {
+                  "selections.proposal_kinds": "insurance"
+                },
+                "to": "style"
+              }
+            ],
+            "otherwise": "presentation"
+          }
+        },
+        {
           "id": "presentation",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614b",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
           "requires": [
             "company.type",
             "company.services",
@@ -156,15 +193,15 @@
         {
           "id": "changes",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614b",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_changes_title",
-            "text": "Can your customer change their estimate?"
+            "text": "Can your customer change their estimate themselves?"
           },
           "subtitle": {
             "key": "gx_docs_setup_changes_subtitle",
-            "text": "Whether customers adjust the proposal themselves before they sign."
+            "text": "Whether customers adjust the proposal before they sign."
           },
           "say": [],
           "options": {
@@ -178,7 +215,7 @@
         {
           "id": "detail",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614b",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_detail_title",
@@ -200,7 +237,7 @@
         {
           "id": "scope",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614b",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_scope_title",
@@ -222,15 +259,15 @@
         {
           "id": "prices",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614b",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_prices_title",
             "text": "Set up your prices"
           },
           "subtitle": {
-            "key": "gx_docs_setup_prices_subtitle",
-            "text": "What you charge for the main parts of a roof. Skip this to use the prices in your price book."
+            "key": "gx_docs_setup_prices_subtitle_2",
+            "text": "The lines your proposals are made of and what you charge for each. Skip for now to use your price book as it is."
           },
           "say": [],
           "options": {
@@ -242,12 +279,16 @@
           "selects": [
             "prices"
           ],
-          "required": false
+          "required": false,
+          "skip_label": {
+            "key": "gx_docs_setup_prices_skip",
+            "text": "Skip for now"
+          }
         },
         {
           "id": "style",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614b",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_style_title",
@@ -269,7 +310,7 @@
         {
           "id": "copy",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614b",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_copy_title",
@@ -287,12 +328,48 @@
             "copy",
             "keep_edits"
           ],
+          "required": true,
+          "next": {
+            "branches": [
+              {
+                "when": {
+                  "selections.document_kind": "proposal",
+                  "selections.proposal_kinds": "both"
+                },
+                "to": "copy_insurance"
+              }
+            ],
+            "otherwise": "first"
+          }
+        },
+        {
+          "id": "copy_insurance",
+          "widget": "module",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
+          "requires": [],
+          "title": {
+            "key": "gx_docs_setup_copy_insurance_title",
+            "text": "Check your insurance agreement’s wording"
+          },
+          "subtitle": {
+            "key": "gx_docs_setup_copy_insurance_subtitle",
+            "text": "Your contingency agreement in the same style. Change any of its wording here. Rules for storm and insurance work differ by state: have it checked for yours."
+          },
+          "say": [],
+          "options": {
+            "part": "copy",
+            "target": "insurance"
+          },
+          "selects": [
+            "insurance_copy",
+            "insurance_keep_edits"
+          ],
           "required": true
         },
         {
           "id": "first",
           "widget": "module",
-          "module": "/libraries/guided-experiences/documents-setup.js?v=20261118-fm614b",
+          "module": "/libraries/guided-experiences/documents-setup.js?v=20261119-gp55",
           "requires": [],
           "title": {
             "key": "gx_docs_setup_first_title",
@@ -307,7 +384,8 @@
             "part": "first"
           },
           "selects": [
-            "first_document_id"
+            "first_document_id",
+            "first_kind"
           ],
           "required": false
         }
@@ -328,6 +406,1486 @@
       },
       "replayable": true,
       "reveal": []
+    }
+  ],
+  "document_template": [
+    {
+      "id": "tpl_insurance_contingency_agreement",
+      "data": {
+        "name": "Insurance · Contingency agreement",
+        "document_type": "contract",
+        "description": "The homeowner agrees that you do the work their insurance company approves, for the approved amount, while you help them through the claim. One page, signed.",
+        "status": "active",
+        "seeding": "on_request",
+        "definition": {
+          "schema_version": 1,
+          "kind": "document",
+          "settings": {
+            "paper": {
+              "size": "letter",
+              "orientation": "portrait"
+            },
+            "locale": "en-US",
+            "base_font_pt": 11
+          },
+          "theme_ref": {
+            "theme_id": "thm_clean"
+          },
+          "params": {
+            "insurance_carrier": {
+              "type": "string",
+              "label": "Insurance company"
+            },
+            "claim_number": {
+              "type": "string",
+              "label": "Claim number"
+            },
+            "date_of_loss": {
+              "type": "date",
+              "label": "Date of loss"
+            }
+          },
+          "computed": {},
+          "outputs": {
+            "sig_customer": {
+              "type": "signature",
+              "required": true,
+              "signer": "customer"
+            }
+          },
+          "styles": {
+            "h3": {
+              "family": "var(--fm-display-font)",
+              "size_pt": 11,
+              "weight": 800,
+              "color": "var(--fm-text)"
+            }
+          },
+          "components": {},
+          "chains": {},
+          "assets": [],
+          "edit_policy": {
+            "base_profile": "document",
+            "max_profile": "designer",
+            "features": {},
+            "unlock": {
+              "allowed": true
+            }
+          },
+          "metadata": {
+            "document_type": "contract"
+          },
+          "pages": [
+            {
+              "id": "pg_e0uf13bm89qmy",
+              "role": "body",
+              "name": "Agreement",
+              "master_ref": null,
+              "repeat": null,
+              "children": [
+                {
+                  "id": "nd_e0uf2ksn4tfof",
+                  "type": "frame",
+                  "name": "Body",
+                  "frame": {
+                    "x": 48,
+                    "y": 80,
+                    "w": 516,
+                    "h": 664,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "stretch",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "paginate",
+                    "page_region": "body"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_e0uf2bk1kmkng",
+                      "type": "frame",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "row",
+                          "gap": 20,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ],
+                          "align": "start",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [
+                        {
+                          "id": "nd_e0uf2xfyt12nc",
+                          "type": "frame",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            },
+                            "grow": 1
+                          },
+                          "style": {},
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "background": null,
+                            "clip": false,
+                            "flow": {
+                              "direction": "column",
+                              "gap": 4,
+                              "padding": [
+                                0,
+                                0,
+                                0,
+                                0
+                              ],
+                              "align": "stretch",
+                              "wrap": false
+                            },
+                            "overflow": "visible"
+                          },
+                          "children": [
+                            {
+                              "id": "nd_e0uf2ka5prtn8",
+                              "type": "image",
+                              "name": "",
+                              "frame": {
+                                "x": 0,
+                                "y": 0,
+                                "w": 150,
+                                "h": 34,
+                                "rotation": 0,
+                                "z": 0,
+                                "layout": "flow",
+                                "constraints": {
+                                  "h": "left",
+                                  "v": "top"
+                                }
+                              },
+                              "style": {},
+                              "locks": {},
+                              "bind": {
+                                "props": {
+                                  "props.media": "{{org.logo_url}}"
+                                },
+                                "if": "not_empty(org.logo_url)"
+                              },
+                              "visible": true,
+                              "props": {
+                                "media": null,
+                                "fit": "contain",
+                                "focal": {
+                                  "x": 0.5,
+                                  "y": 0.5
+                                },
+                                "crop": null,
+                                "alt": "Company logo"
+                              },
+                              "anchor": "flow"
+                            },
+                            {
+                              "id": "nd_e0uf25uieeynb",
+                              "type": "text",
+                              "name": "",
+                              "frame": {
+                                "x": 0,
+                                "y": 0,
+                                "w": 0,
+                                "h": "auto",
+                                "rotation": 0,
+                                "z": 0,
+                                "layout": "flow",
+                                "constraints": {
+                                  "h": "left",
+                                  "v": "top"
+                                }
+                              },
+                              "style": {
+                                "font": {
+                                  "family": "var(--fm-body-font)",
+                                  "size_pt": 10.5,
+                                  "color": "var(--fm-color-muted)",
+                                  "weight": 700
+                                }
+                              },
+                              "locks": {},
+                              "bind": null,
+                              "visible": true,
+                              "props": {
+                                "blocks": [
+                                  {
+                                    "id": "blk_e0uf2msqz3hn9",
+                                    "type": "paragraph",
+                                    "align": "left",
+                                    "runs": [
+                                      {
+                                        "text": "",
+                                        "bind": "coalesce(org.name, '')"
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "valign": "top",
+                                "auto_fit": false,
+                                "line_height": 1.4,
+                                "letter_spacing": 0
+                              },
+                              "anchor": "flow"
+                            }
+                          ],
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_e0uf2oon6acnf",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            },
+                            "grow": 1
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-body-font)",
+                              "size_pt": 11,
+                              "weight": 700
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uf2khyjd2nd",
+                                "type": "paragraph",
+                                "align": "right",
+                                "runs": [
+                                  {
+                                    "text": "Prepared for\n",
+                                    "font": {
+                                      "size_pt": 8.5,
+                                      "weight": 800,
+                                      "color": "var(--fm-color-muted)",
+                                      "transform": "uppercase"
+                                    }
+                                  },
+                                  {
+                                    "text": "",
+                                    "bind": "coalesce(customer.name, 'Customer')"
+                                  },
+                                  {
+                                    "text": "\n"
+                                  },
+                                  {
+                                    "text": "",
+                                    "bind": "coalesce(project.address, project.title, '')",
+                                    "font": {
+                                      "weight": 400,
+                                      "color": "var(--fm-color-muted)"
+                                    }
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        }
+                      ],
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uf2qhe0ujnh",
+                      "type": "frame",
+                      "name": "Spacer",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": 2,
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "column",
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ],
+                          "align": "stretch",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [],
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uf2840jt9nw",
+                      "type": "frame",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "row",
+                          "gap": 20,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ],
+                          "align": "center",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [
+                        {
+                          "id": "nd_e0uf2tm1jgtno",
+                          "type": "frame",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            },
+                            "grow": 1
+                          },
+                          "style": {},
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "background": null,
+                            "clip": false,
+                            "flow": {
+                              "direction": "column",
+                              "gap": 4,
+                              "padding": [
+                                0,
+                                0,
+                                0,
+                                0
+                              ],
+                              "align": "stretch",
+                              "wrap": false
+                            },
+                            "overflow": "visible"
+                          },
+                          "children": [
+                            {
+                              "id": "nd_e0uf2tczrtnnk",
+                              "type": "text",
+                              "name": "",
+                              "frame": {
+                                "x": 0,
+                                "y": 0,
+                                "w": 0,
+                                "h": "auto",
+                                "rotation": 0,
+                                "z": 0,
+                                "layout": "flow",
+                                "constraints": {
+                                  "h": "left",
+                                  "v": "top"
+                                }
+                              },
+                              "style": {},
+                              "locks": {},
+                              "bind": null,
+                              "visible": true,
+                              "props": {
+                                "blocks": [
+                                  {
+                                    "id": "blk_e0uf2rk07h8ni",
+                                    "type": "paragraph",
+                                    "align": "left",
+                                    "style_ref": "h2",
+                                    "runs": [
+                                      {
+                                        "text": "Contingency agreement"
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "valign": "top",
+                                "auto_fit": false,
+                                "line_height": 1.4,
+                                "letter_spacing": 0
+                              },
+                              "anchor": "flow"
+                            },
+                            {
+                              "id": "nd_e0uf285x5cwnn",
+                              "type": "text",
+                              "name": "",
+                              "frame": {
+                                "x": 0,
+                                "y": 0,
+                                "w": 0,
+                                "h": "auto",
+                                "rotation": 0,
+                                "z": 0,
+                                "layout": "flow",
+                                "constraints": {
+                                  "h": "left",
+                                  "v": "top"
+                                }
+                              },
+                              "style": {
+                                "font": {
+                                  "family": "var(--fm-body-font)",
+                                  "size_pt": 9.5,
+                                  "color": "var(--fm-color-muted)"
+                                }
+                              },
+                              "locks": {},
+                              "bind": null,
+                              "visible": true,
+                              "props": {
+                                "blocks": [
+                                  {
+                                    "id": "blk_e0uf2fxio03nl",
+                                    "type": "paragraph",
+                                    "align": "left",
+                                    "runs": [
+                                      {
+                                        "text": "You are filing, or have filed, a claim with your insurance company for damage to the property above. This agreement says what we do for you while your claim is decided, and what happens once it is."
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "valign": "top",
+                                "auto_fit": false,
+                                "line_height": 1.4,
+                                "letter_spacing": 0
+                              },
+                              "anchor": "flow"
+                            }
+                          ],
+                          "anchor": "flow"
+                        }
+                      ],
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_ins001",
+                      "type": "frame",
+                      "name": "Claim",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "fill": {
+                          "type": "solid",
+                          "color": "color-mix(in srgb, var(--fm-primary) 7%, var(--fm-color-paper))"
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "row",
+                          "gap": 18,
+                          "padding": [
+                            10,
+                            14,
+                            10,
+                            14
+                          ],
+                          "align": "start",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "anchor": "flow",
+                      "children": [
+                        {
+                          "id": "nd_ins002",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            },
+                            "grow": 1
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-body-font)",
+                              "size_pt": 10,
+                              "weight": 700,
+                              "color": "var(--fm-text)"
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_ins003",
+                                "type": "paragraph",
+                                "align": "left",
+                                "runs": [
+                                  {
+                                    "text": "Insurance company\n",
+                                    "font": {
+                                      "size_pt": 8,
+                                      "weight": 800,
+                                      "color": "var(--fm-color-muted)",
+                                      "transform": "uppercase"
+                                    }
+                                  },
+                                  {
+                                    "text": "",
+                                    "bind": "coalesce(params.insurance_carrier, '—')"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.45,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_ins004",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            },
+                            "grow": 1
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-body-font)",
+                              "size_pt": 10,
+                              "weight": 700,
+                              "color": "var(--fm-text)"
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_ins005",
+                                "type": "paragraph",
+                                "align": "left",
+                                "runs": [
+                                  {
+                                    "text": "Claim number\n",
+                                    "font": {
+                                      "size_pt": 8,
+                                      "weight": 800,
+                                      "color": "var(--fm-color-muted)",
+                                      "transform": "uppercase"
+                                    }
+                                  },
+                                  {
+                                    "text": "",
+                                    "bind": "coalesce(params.claim_number, '—')"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.45,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_ins006",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            },
+                            "grow": 1
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-body-font)",
+                              "size_pt": 10,
+                              "weight": 700,
+                              "color": "var(--fm-text)"
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_ins007",
+                                "type": "paragraph",
+                                "align": "left",
+                                "runs": [
+                                  {
+                                    "text": "Date of loss\n",
+                                    "font": {
+                                      "size_pt": 8,
+                                      "weight": 800,
+                                      "color": "var(--fm-color-muted)",
+                                      "transform": "uppercase"
+                                    }
+                                  },
+                                  {
+                                    "text": "",
+                                    "bind": "not_empty(params.date_of_loss) ? (params.date_of_loss | date) : '—'"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.45,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "nd_ins008",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_ins009",
+                            "type": "paragraph",
+                            "align": "left",
+                            "style_ref": "h3",
+                            "runs": [
+                              {
+                                "text": "What we do"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.45,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_ins00a",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 9.5,
+                          "color": "var(--fm-text)"
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_ins00b",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "We inspect and document the damage, meet your insurance company's adjuster at the property, and help you through your claim, including asking for anything the adjuster missed. There is no charge for this."
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.45,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_ins00c",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_ins00d",
+                            "type": "paragraph",
+                            "align": "left",
+                            "style_ref": "h3",
+                            "runs": [
+                              {
+                                "text": "If your claim is approved"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.45,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_ins00e",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 9.5,
+                          "color": "var(--fm-text)"
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_ins00f",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "You agree that we will do the work your insurance company approves, for the amount it approves for that work. You pay your deductible and anything you ask us for in writing beyond the approved work; you owe nothing else for the approved work."
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.45,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_ins00g",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_ins00h",
+                            "type": "paragraph",
+                            "align": "left",
+                            "style_ref": "h3",
+                            "runs": [
+                              {
+                                "text": "If your claim is denied"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.45,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_ins00i",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 9.5,
+                          "color": "var(--fm-text)"
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_ins00j",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "If your insurance company denies your claim, this agreement ends and you owe us nothing. We may offer you a separate proposal for the work."
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.45,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_ins00k",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_ins00l",
+                            "type": "paragraph",
+                            "align": "left",
+                            "style_ref": "h3",
+                            "runs": [
+                              {
+                                "text": "Your insurance payments"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.45,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_ins00m",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 9.5,
+                          "color": "var(--fm-text)"
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_ins00n",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "You agree to pay us the insurance payments for the approved work as you receive them, and to tell us about every decision your insurance company makes on your claim."
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.45,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_ins00o",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_ins00p",
+                            "type": "paragraph",
+                            "align": "left",
+                            "style_ref": "h3",
+                            "runs": [
+                              {
+                                "text": "Your right to cancel"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.45,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_ins00q",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 9.5,
+                          "color": "var(--fm-text)"
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_ins00r",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "You may cancel this agreement in writing within three business days of signing it, at no cost. We do not make decisions on your claim for you, and we do not give legal or insurance advice."
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.45,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_ins00s",
+                      "type": "frame",
+                      "name": "Spacer",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": 2,
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "column",
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ],
+                          "align": "stretch",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [],
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uf2907pw3oe",
+                      "type": "frame",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "row",
+                          "gap": 24,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ],
+                          "align": "start",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [
+                        {
+                          "id": "nd_e0uf2xwgxf9oc",
+                          "type": "widget",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": 88,
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            },
+                            "grow": 1
+                          },
+                          "style": {},
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "widget": "doc.signature@1",
+                            "config": {
+                              "output": "sig_customer",
+                              "label": "Property owner",
+                              "signer": "customer"
+                            }
+                          },
+                          "anchor": "flow"
+                        }
+                      ],
+                      "anchor": "flow"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "metadata": {
+          "default_workflow_id": "wfl_insurance_contingency_agreement",
+          "customer_presentation": {
+            "tab": {
+              "id": "documents",
+              "label": "Documents",
+              "icon": "fa-file-lines",
+              "order": 60
+            },
+            "mode": "hybrid",
+            "workflow_cta": "Review & sign"
+          },
+          "default": false
+        },
+        "initial_metadata": {},
+        "requires_pricebook_items": [],
+        "pricebook_defaults": []
+      }
+    }
+  ],
+  "document_workflow": [
+    {
+      "id": "wfl_insurance_contingency_agreement",
+      "data": {
+        "name": "Insurance · Contingency agreement",
+        "description": "The homeowner agrees that you do the work their insurance company approves, for the approved amount, while you help them through the claim. One page, signed.",
+        "status": "active",
+        "seeding": "with_template",
+        "metadata": {},
+        "pricebook_defaults": [],
+        "definition": {
+          "schema_version": 1,
+          "name": "Insurance · Contingency agreement",
+          "contract": {
+            "params": {
+              "project": {
+                "type": "entity",
+                "entity": "project"
+              },
+              "customer": {
+                "type": "entity",
+                "entity": "contact"
+              },
+              "insurance_carrier": {
+                "type": "string",
+                "label": "Insurance company"
+              },
+              "claim_number": {
+                "type": "string",
+                "label": "Claim number"
+              },
+              "date_of_loss": {
+                "type": "date",
+                "label": "Date of loss"
+              }
+            },
+            "outputs": {
+              "sig_customer": {
+                "type": "signature",
+                "required": true,
+                "signer": "customer"
+              }
+            }
+          },
+          "audiences": {
+            "internal": {},
+            "customer": {
+              "theme": "portal"
+            }
+          },
+          "steps": [
+            {
+              "id": "claim",
+              "title": "Claim",
+              "description": "The homeowner's claim, as far as it is known. Leave anything not known yet empty: the agreement shows a dash.",
+              "audience": [
+                "internal"
+              ],
+              "items": [
+                {
+                  "kind": "text",
+                  "writes": "params.insurance_carrier",
+                  "label": "Insurance company",
+                  "placeholder": "State Farm"
+                },
+                {
+                  "kind": "text",
+                  "writes": "params.claim_number",
+                  "label": "Claim number"
+                },
+                {
+                  "kind": "date",
+                  "writes": "params.date_of_loss",
+                  "label": "Date of loss"
+                }
+              ]
+            },
+            {
+              "id": "review",
+              "title": "Review & send",
+              "audience": [
+                "internal"
+              ],
+              "items": [
+                {
+                  "kind": "review",
+                  "label": "Before you send"
+                }
+              ],
+              "preview": {
+                "template_ref": "tpl_insurance_contingency_agreement",
+                "live": true
+              }
+            }
+          ]
+        }
+      }
     }
   ]
 }

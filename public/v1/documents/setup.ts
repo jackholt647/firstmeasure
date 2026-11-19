@@ -36,11 +36,23 @@ import { MEASUREMENT_FIELDS, PRICEBOOK_FORMULA_TOKEN_TYPES, PRICEBOOK_OPERATORS,
  * fixed words on its pages (the title, the opening, the headings and the terms; `copyFields`), and what they change goes
  * in as `copy` ({ node id: text }) over the template the answers make. "Advanced" publishes the template and opens it in
  * the template editor; what they publish there is kept (`keep_edits`): the finish then starts from it, not the library's.
+ *
+ * A company that does insurance work (the company.services answer `storm_insurance`) is also asked which kinds of
+ * proposals it makes (GP-55, `proposal_kinds`): retail proposals, insurance contingency agreements, or both. An
+ * insurance agreement is the library's `tpl_insurance_contingency_agreement` (a contract) made the organization's own
+ * (`tpl_setup_insurance_agreement`) in the style chosen, with its own wording (`insurance_copy`, or `copy` when it is
+ * the only kind); insurance only asks none of the retail questions and makes no retail proposal.
  */
 export { DOCUMENT_SETUP_MODULE };
 export const DOCUMENT_SETUP_KINDS = ["proposal", "invoice", "change_order", "completion_certificate"] as const;
 export const DOCUMENT_SETUP_THEMES = ["thm_clean", "thm_margin", "thm_triangles"] as const;
 export type DocumentSetupKind = typeof DOCUMENT_SETUP_KINDS[number];
+/** The kinds of proposals a company that does insurance work makes (GP-55). Retail is every other company's. */
+export const PROPOSAL_KINDS = ["retail", "insurance", "both"] as const;
+/** The library's insurance contingency agreement, and the organization's own made from it. */
+export const INSURANCE_AGREEMENT_BASE = "tpl_insurance_contingency_agreement";
+export const INSURANCE_TEMPLATE_ID = "tpl_setup_insurance_agreement";
+export const INSURANCE_WORKFLOW_ID = "wfl_setup_insurance_agreement";
 
 const object = (value: unknown): JsonObject => value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
 const list = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
@@ -63,12 +75,16 @@ const answersSchema = z.object({
   presentation: proposalAnswers.presentation.optional(),
   customer_changes: proposalAnswers.customer_changes.optional(),
   detail: proposalAnswers.detail.optional(),
-  scope_write_up: proposalAnswers.scope_write_up.optional()
+  scope_write_up: proposalAnswers.scope_write_up.optional(),
+  /** Retail proposals, insurance contingency agreements or both (GP-55); retail when not asked. */
+  proposal_kinds: z.enum(PROPOSAL_KINDS).optional()
 });
 type Answers = z.infer<typeof answersSchema>;
 function checkedAnswers(value: unknown): Answers {
   const answers = answersSchema.parse(value);
   if (answers.document_kind !== "proposal") return { document_kind: answers.document_kind };
+  // Insurance agreements only: none of the retail questions were asked.
+  if (answers.proposal_kinds === "insurance") return { document_kind: "proposal", proposal_kinds: "insurance" };
   const missing = (["presentation", "customer_changes", "detail", "scope_write_up"] as const).filter((key) => answers[key] === undefined);
   if (missing.length) throw badRequest("document_setup_answers", `Answer how you write proposals first (${missing.join(", ")}).`);
   // Picking one of the options given only exists when options are given; with one option the alternative is asking us.
@@ -76,6 +92,9 @@ function checkedAnswers(value: unknown): Answers {
   if (answers.presentation === "options" && answers.customer_changes === "ask") answers.customer_changes = "pick";
   return answers;
 }
+/** Whether the answers make a retail proposal (or another kind's document), and an insurance agreement. */
+export const makesRetail = (answers: Answers) => answers.document_kind !== "proposal" || answers.proposal_kinds !== "insurance";
+export const makesInsurance = (answers: Answers) => answers.document_kind === "proposal" && (answers.proposal_kinds === "insurance" || answers.proposal_kinds === "both");
 
 // ── What the answers make ───────────────────────────────────────────────
 /** The library template each kind starts from when the organization has no default of its own. */
@@ -90,6 +109,11 @@ export const setupWorkflowId = (kind: DocumentSetupKind) => `wfl_setup_${kind}`;
 
 export type DocumentPlan = {
   kind: DocumentSetupKind;
+  /** The document type its template is (a proposal's insurance agreement is a contract). */
+  document_type: string;
+  /** The organization's own template and workflow it makes. */
+  template_id: string;
+  workflow_id: string;
   /** The library template it starts from; for a kind other than a proposal, the organization's default when it has one. */
   base: string;
   name: string;
@@ -107,15 +131,17 @@ export type DocumentPlan = {
  * no Photos & description step. A customer who cannot change it: no customer's choosing step, so a change is a new
  * estimate.
  */
-export function planDocument(answers: Answers): DocumentPlan {
+export function planDocument(answers: Answers, options: { insurance?: boolean } = {}): DocumentPlan {
   if (answers.document_kind !== "proposal") {
     const kind = answers.document_kind;
-    return { kind, base: KIND_BASE[kind], name: KIND_NAME[kind], description: "", params: {}, drop_steps: [] };
+    return { kind, document_type: kind, template_id: setupTemplateId(kind), workflow_id: setupWorkflowId(kind), base: KIND_BASE[kind], name: KIND_NAME[kind], description: "", params: {}, drop_steps: [] };
   }
+  if (options.insurance || answers.proposal_kinds === "insurance") return planInsuranceAgreement();
+  const own = { kind: "proposal" as const, document_type: "proposal", template_id: setupTemplateId("proposal"), workflow_id: setupWorkflowId("proposal") };
   const writeUp = answers.scope_write_up === true;
   if (answers.presentation === "options") {
     return {
-      kind: "proposal", base: "tpl_instant_roofing_options", name: "Proposal · Good / Better / Best",
+      ...own, base: "tpl_instant_roofing_options", name: "Proposal · Good / Better / Best",
       description: answers.customer_changes === "mix"
         ? "Three complete options from one set of measurements. The customer compares them and can mix and match line items before signing."
         : "Three complete options from one set of measurements. The customer picks one, signs and pays the deposit.",
@@ -128,12 +154,22 @@ export function planDocument(answers: Answers): DocumentPlan {
     ? " The customer can add or remove optional lines before signing."
     : " Changes are a new estimate.";
   return {
-    kind: "proposal", base,
+    ...own, base,
     name: itemized ? "Proposal · Itemized" : "Proposal · Summary",
     description: (itemized ? "Every line priced from the measurements and your price book." : "The main products and add-ons with one total.")
       + (writeUp ? " A written scope of work with photos comes first." : "") + changes,
     params: base === "tpl_instant_roofing_detailed" ? { show_line_prices: itemized } : {},
     drop_steps: [...(base === "tpl_instant_roofing_detailed" && !writeUp ? ["details"] : []), ...(answers.customer_changes === "mix" ? [] : ["choose"])]
+  };
+}
+
+/** The insurance contingency agreement (GP-55): one page the homeowner signs, the same for every answer. */
+export function planInsuranceAgreement(): DocumentPlan {
+  return {
+    kind: "proposal", document_type: "contract", template_id: INSURANCE_TEMPLATE_ID, workflow_id: INSURANCE_WORKFLOW_ID, base: INSURANCE_AGREEMENT_BASE,
+    name: "Insurance · Contingency agreement",
+    description: "The homeowner agrees that you do the work their insurance company approves, for the approved amount, while you help them through the claim.",
+    params: {}, drop_steps: []
   };
 }
 
@@ -237,10 +273,10 @@ async function currentDefault(orgId: string, kind: DocumentSetupKind) {
 }
 
 /** Their own setup template's published definition, when it was made from this base (Advanced, FM-614). */
-async function editedDefinition(orgId: string, kind: DocumentSetupKind, base: string) {
-  const own = await readDocumentTemplate(orgId, setupTemplateId(kind)).catch(() => null);
-  if (!own || text(object(object(own.metadata).document_setup).based_on) !== base || !(Number(own.current_version) > 0)) return null;
-  const version = await readDocumentTemplateVersion(orgId, setupTemplateId(kind), Number(own.current_version)).catch(() => null);
+async function editedDefinition(orgId: string, plan: DocumentPlan) {
+  const own = await readDocumentTemplate(orgId, plan.template_id).catch(() => null);
+  if (!own || text(object(object(own.metadata).document_setup).based_on) !== plan.base || !(Number(own.current_version) > 0)) return null;
+  const version = await readDocumentTemplateVersion(orgId, plan.template_id, Number(own.current_version)).catch(() => null);
   return version && Object.keys(object(version.definition)).length ? clone(object(version.definition)) : null;
 }
 
@@ -248,8 +284,8 @@ async function editedDefinition(orgId: string, kind: DocumentSetupKind, base: st
  * The template the answers make, not saved: its definition with the theme and the person's wording, and its workflow's.
  * With `keepEdits`, a template they edited in the template editor (Advanced) is the start, not the library's.
  */
-async function buildDocument(orgId: string, answers: Answers, themeId: string, options: { copy?: Record<string, string>; keepEdits?: boolean } = {}) {
-  const plan = planDocument(answers);
+async function buildDocument(orgId: string, answers: Answers, themeId: string, options: { copy?: Record<string, string>; keepEdits?: boolean; insurance?: boolean } = {}) {
+  const plan = planDocument(answers, { insurance: options.insurance });
   if (plan.kind !== "proposal") {
     // Their own setup's template keeps its base; otherwise their current default, else the library's.
     const own = await readDocumentTemplate(orgId, setupTemplateId(plan.kind)).catch(() => null);
@@ -257,8 +293,8 @@ async function buildDocument(orgId: string, answers: Answers, themeId: string, o
     if (base) plan.base = base;
   }
   const template = await source("template", orgId, plan.base);
-  if (!template) throw badRequest("document_setup_template", `There is no ${KIND_NAME[plan.kind].toLowerCase()} template to start from.`);
-  const edited = options.keepEdits ? await editedDefinition(orgId, plan.kind, plan.base) : null;
+  if (!template) throw badRequest("document_setup_template", `There is no ${plan.base === INSURANCE_AGREEMENT_BASE ? "insurance agreement" : KIND_NAME[plan.kind].toLowerCase()} template to start from.`);
+  const edited = options.keepEdits ? await editedDefinition(orgId, plan) : null;
   let definition = edited || template.definition;
   definition.theme_ref = { theme_id: themeId };
   if (!edited) setParamDefaults(object(definition.params), plan.params);
@@ -273,7 +309,7 @@ async function buildDocument(orgId: string, answers: Answers, themeId: string, o
   const workflow = workflowId ? await source("workflow", orgId, workflowId) : null;
   let workflowDefinition: JsonObject | null = null;
   if (workflow) {
-    workflowDefinition = retarget(workflow.definition, plan.base, setupTemplateId(plan.kind)) as JsonObject;
+    workflowDefinition = retarget(workflow.definition, plan.base, plan.template_id) as JsonObject;
     workflowDefinition.steps = list(workflowDefinition.steps).filter((step) => !plan.drop_steps.includes(text(object(step).id)));
     setParamDefaults(object(object(workflowDefinition.contract).params), plan.params);
     workflowDefinition.name = plan.name;
@@ -494,11 +530,13 @@ function sampleAccountParams(kind: DocumentSetupKind): JsonObject {
 async function sampleDocument(orgId: string, answers: Answers, plan: DocumentPlan, definition: JsonObject): Promise<JsonObject> {
   const { resolveDocumentParams } = await import("./service.js");
   const explicit: JsonObject = { customer: SAMPLE_CUSTOMER, project: { title: SAMPLE_CUSTOMER.address, address: SAMPLE_CUSTOMER.address } };
-  if (plan.kind === "proposal") explicit.scope_items = await sampleScope(orgId, plan, answers);
-  if (plan.kind === "proposal" && answers.scope_write_up && object(definition.params).content_blocks) explicit.content_blocks = [{ id: "cb_sample", title: "Your roof today", body: "We found lifted and missing shingles on the south slope, worn pipe boots and soft decking near the chimney. Here is what we will do about each.", layout: "auto", display: "inline" }];
+  if (plan.base === INSURANCE_AGREEMENT_BASE) Object.assign(explicit, { insurance_carrier: "Example Mutual Insurance", claim_number: "CLM-2026-04172", date_of_loss: new Date(Date.now() - 21 * 86400000).toISOString().slice(0, 10) });
+  else if (plan.kind === "proposal") explicit.scope_items = await sampleScope(orgId, plan, answers);
+  if (plan.base === INSURANCE_AGREEMENT_BASE) { /* the claim is all it shows */ }
+  else if (plan.kind === "proposal" && answers.scope_write_up && object(definition.params).content_blocks) explicit.content_blocks = [{ id: "cb_sample", title: "Your roof today", body: "We found lifted and missing shingles on the south slope, worn pipe boots and soft decking near the chimney. Here is what we will do about each.", layout: "auto", display: "inline" }];
   else Object.assign(explicit, sampleAccountParams(plan.kind));
   const params = resolveDocumentParams(object(definition.params), explicit, {});
-  return { id: `preview_${plan.kind}`, document_type: plan.kind, status: "draft", branch_id: "default", params, outputs: {} };
+  return { id: `preview_${plan.kind}`, document_type: plan.document_type, status: "draft", branch_id: "default", params, outputs: {} };
 }
 async function preview(orgId: string, document: JsonObject, definition: JsonObject, theme: { id: string; name: string; description: string }) {
   const { resolveDocumentInstance } = await import("./service.js");
@@ -521,7 +559,11 @@ export async function documentSetupPreviews(orgId: string, args: unknown) {
   return { kind: plan.kind, name: plan.name, description: plan.description, base: plan.base, previews };
 }
 
-const copyArgsSchema = answersSchema.extend({ theme_id: z.enum(DOCUMENT_SETUP_THEMES), keep_edits: z.boolean().optional() });
+const copyArgsSchema = answersSchema.extend({
+  theme_id: z.enum(DOCUMENT_SETUP_THEMES), keep_edits: z.boolean().optional(),
+  /** The insurance agreement's wording, for a company that makes both kinds of proposals (its second wording page, GP-55). */
+  agreement: z.literal("insurance").optional()
+});
 /**
  * The copy step (FM-614): the wording of the template the answers make in the style chosen (`fields`, top to bottom,
  * as the template has it), and that document as a sample (`preview`). The person's changes are not sent: the step
@@ -532,10 +574,12 @@ export async function documentSetupCopy(orgId: string, args: unknown) {
   const parsed = copyArgsSchema.parse(args);
   const answers = checkedAnswers(parsed);
   await ensureDefaultDocumentAssets(orgId);
-  const { definition, plan, edited } = await buildDocument(orgId, answers, parsed.theme_id, { keepEdits: parsed.keep_edits === true });
+  const insurance = parsed.agreement === "insurance";
+  if (insurance && !makesInsurance(answers)) throw badRequest("document_setup_agreement", "Choose insurance agreements as a kind of proposal first.");
+  const { definition, plan, edited } = await buildDocument(orgId, answers, parsed.theme_id, { keepEdits: parsed.keep_edits === true, insurance });
   const document = await sampleDocument(orgId, answers, plan, definition);
   const theme = (await readDocumentSetup(orgId)).themes.find((entry) => entry.id === parsed.theme_id)!;
-  return { kind: plan.kind, name: plan.name, base: plan.base, edited, template_id: setupTemplateId(plan.kind), fields: copyFields(definition), preview: await preview(orgId, document, definition, theme) };
+  return { kind: plan.kind, name: plan.name, base: plan.base, edited, template_id: plan.template_id, fields: copyFields(definition), preview: await preview(orgId, document, definition, theme) };
 }
 
 // ── The finish ──────────────────────────────────────────────────────────
@@ -549,7 +593,10 @@ const applySchema = answersSchema.extend({
   /** The person's wording, { text node id: text } over the template's copy (the copy step, FM-614). */
   copy: copySchema.default({}),
   /** Start from the template they published in the template editor (Advanced), not the library's. */
-  keep_edits: z.boolean().default(false)
+  keep_edits: z.boolean().default(false),
+  /** With both kinds of proposals (GP-55): the insurance agreement's wording and its template editor edits. */
+  insurance_copy: copySchema.default({}),
+  insurance_keep_edits: z.boolean().default(false)
 });
 
 /** Two definitions the same, whatever order their keys were written in. */
@@ -580,7 +627,7 @@ async function saveAsset(kind: "template" | "workflow", orgId: string, id: strin
 }
 
 /** The organization's pins in New document, with this kind's first pinned template replaced by its own. */
-async function pinTemplate(orgId: string, kind: DocumentSetupKind, templateId: string) {
+async function pinTemplate(orgId: string, kind: string, templateId: string) {
   const templates = await listDocumentTemplates(orgId);
   const typeOf = new Map(templates.filter((template) => text(template.status) === "active").map((template) => [text(template.id), text(template.document_type)]));
   const pins = ((await readPinnedTemplateIds(orgId)) ?? DEFAULT_PINNED_TEMPLATE_IDS).filter((id) => typeOf.has(id) && id !== templateId);
@@ -589,28 +636,15 @@ async function pinTemplate(orgId: string, kind: DocumentSetupKind, templateId: s
   return savePinnedTemplateIds(orgId, pins);
 }
 
-export async function applyDocumentSetup(ctx: PublicationContext, auth: PlatformAuthContext, input: unknown) {
-  const parsed = applySchema.parse(input);
-  const answers = checkedAnswers(parsed);
-  const orgId = auth.orgId;
-  const lines = parsed.lines ? await applyLines(orgId, parsed.lines) : { added: 0, changed: false };
-  // Only prices that differ from the price book's: finishing after the first proposal step saved them changes nothing.
-  const sheet = parsed.prices.length ? await readPriceSheet(orgId).catch(() => ({ items: [] as { id: string; unit_price: number | null }[] })) : { items: [] };
-  const prices = parsed.prices.filter((entry) => sheet.items.find((item) => item.id === entry.item_id)?.unit_price !== entry.unit_price);
-  if (prices.length) {
-    const { invokeAction } = await import("../platform/publication/actions.js");
-    await invokeAction({ ...ctx, mode: "command" as const }, { action: "pricebook.prices.update", target: { scope: "organization", organizationId: orgId } },
-      { changes: prices.map((entry) => ({ item_id: entry.item_id, unit_price: entry.unit_price, source: "document setup" })), note: "Prices from the document setup" },
-      { idempotencyKey: `document-setup:prices:${orgId}:${Date.now()}` });
-  }
-  await ensureDefaultDocumentAssets(orgId, auth, { refresh: prices.length > 0 || lines.changed });
-  const built = await buildDocument(orgId, answers, parsed.theme_id, { copy: parsed.copy, keepEdits: parsed.keep_edits });
+/**
+ * Saves a template the answers built as the organization's own, with its workflow: its type's default, pinned in New
+ * document.
+ */
+async function saveSetupTemplate(orgId: string, built: Awaited<ReturnType<typeof buildDocument>>, setup: JsonObject, auth: PlatformAuthContext) {
   const { plan } = built;
-  const templateId = setupTemplateId(plan.kind);
-  const setup = { ...answers, theme_id: parsed.theme_id, based_on: plan.base, ...(built.edited ? { edited: true } : {}), applied_at: new Date().toISOString(), applied_by: auth.userId };
   let workflowId = "";
   if (built.workflow) {
-    workflowId = setupWorkflowId(plan.kind);
+    workflowId = plan.workflow_id;
     const base = built.workflow.data;
     await saveAsset("workflow", orgId, workflowId, {
       name: plan.name, description: plan.description || text(base.description), tags: base.tags,
@@ -619,22 +653,64 @@ export async function applyDocumentSetup(ctx: PublicationContext, auth: Platform
   }
   // The base's metadata minus what marks a library copy (an untouched copy is upgraded or retired by the library).
   const { preset: _preset, preset_id: _presetId, library: _library, based_on_preset: _basedOn, default: _default, ...baseMetadata } = object(built.template.data.metadata);
-  await saveAsset("template", orgId, templateId, {
-    name: plan.name, description: plan.description || text(built.template.data.description), document_type: plan.kind, tags: built.template.data.tags,
+  await saveAsset("template", orgId, plan.template_id, {
+    name: plan.name, description: plan.description || text(built.template.data.description), document_type: plan.document_type, tags: built.template.data.tags,
     definition: built.definition,
     metadata: { ...baseMetadata, ...(workflowId ? { default_workflow_id: workflowId } : {}), default_for_type: true, document_setup: setup }
   }, auth);
-  // The new template is the kind's default: no other keeps the mark.
-  for (const template of await listDocumentTemplates(orgId, { document_type: plan.kind })) {
-    if (text(template.id) !== templateId && object(template.metadata).default_for_type === true) await patchDocumentTemplate(orgId, text(template.id), { metadata: { default_for_type: false } }, auth);
+  // The new template is its type's default: no other keeps the mark.
+  for (const template of await listDocumentTemplates(orgId, { document_type: plan.document_type })) {
+    if (text(template.id) !== plan.template_id && object(template.metadata).default_for_type === true) await patchDocumentTemplate(orgId, text(template.id), { metadata: { default_for_type: false } }, auth);
   }
-  const pins = await pinTemplate(orgId, plan.kind, templateId);
+  const pins = await pinTemplate(orgId, plan.document_type, plan.template_id);
+  return { workflowId, pins };
+}
+
+export async function applyDocumentSetup(ctx: PublicationContext, auth: PlatformAuthContext, input: unknown) {
+  const parsed = applySchema.parse(input);
+  const answers = checkedAnswers(parsed);
+  const orgId = auth.orgId;
+  const retail = makesRetail(answers), insurance = makesInsurance(answers);
+  // Lines and prices are the retail proposal's (insurance agreements carry none).
+  const lines = parsed.lines && retail ? await applyLines(orgId, parsed.lines) : { added: 0, changed: false };
+  // Only prices that differ from the price book's: finishing after the first proposal step saved them changes nothing.
+  const sheet = parsed.prices.length && retail ? await readPriceSheet(orgId).catch(() => ({ items: [] as { id: string; unit_price: number | null }[] })) : { items: [] };
+  const prices = retail ? parsed.prices.filter((entry) => sheet.items.find((item) => item.id === entry.item_id)?.unit_price !== entry.unit_price) : [];
+  if (prices.length) {
+    const { invokeAction } = await import("../platform/publication/actions.js");
+    await invokeAction({ ...ctx, mode: "command" as const }, { action: "pricebook.prices.update", target: { scope: "organization", organizationId: orgId } },
+      { changes: prices.map((entry) => ({ item_id: entry.item_id, unit_price: entry.unit_price, source: "document setup" })), note: "Prices from the document setup" },
+      { idempotencyKey: `document-setup:prices:${orgId}:${Date.now()}` });
+  }
+  await ensureDefaultDocumentAssets(orgId, auth, { refresh: prices.length > 0 || lines.changed });
+  const appliedAt = new Date().toISOString();
+  // The retail proposal (or the kind's document), then the insurance agreement. Insurance only: its wording is `copy`.
+  const made: { plan: DocumentPlan; setup: JsonObject; workflowId: string; pins: string[] }[] = [];
+  for (const which of [...(retail ? ["main"] : []), ...(insurance ? ["insurance"] : [])] as const) {
+    const second = which === "insurance" && retail;
+    const built = await buildDocument(orgId, answers, parsed.theme_id, {
+      insurance: which === "insurance",
+      copy: second ? parsed.insurance_copy : parsed.copy, keepEdits: second ? parsed.insurance_keep_edits : parsed.keep_edits
+    });
+    const setup = { ...answers, theme_id: parsed.theme_id, based_on: built.plan.base, ...(built.edited ? { edited: true } : {}), applied_at: appliedAt, applied_by: auth.userId };
+    made.push({ plan: built.plan, setup, ...(await saveSetupTemplate(orgId, built, setup, auth)) });
+  }
+  const [first, agreement] = [made[0]!, made.find((entry) => entry.plan.base === INSURANCE_AGREEMENT_BASE) || null];
+  const { plan } = first;
   const record = await stored(orgId);
   const data = object(record?.data);
   // The first proposal style chosen becomes the style for new documents; choosing another later changes only proposals.
   const defaultThemeId = text(data.default_theme_id) || (plan.kind === "proposal" ? parsed.theme_id : "");
-  await saveBranchModule(orgId, "default", DOCUMENT_SETUP_MODULE, { data: { ...data, ...(defaultThemeId ? { default_theme_id: defaultThemeId } : {}), kinds: { ...object(data.kinds), [plan.kind]: { ...setup, template_id: templateId, workflow_id: workflowId || null } } } as JsonObject, expected_revision: Number(record?.revision || 0) }, { replace: true });
-  return { kind: plan.kind, template_id: templateId, workflow_id: workflowId || null, name: plan.name, theme_id: parsed.theme_id, pinned_template_ids: pins, prices_updated: prices.length, lines_added: lines.added, lines_changed: lines.changed };
+  const kindRecord = {
+    ...first.setup, template_id: plan.template_id, workflow_id: first.workflowId || null,
+    ...(agreement ? { insurance_template_id: agreement.plan.template_id, insurance_workflow_id: agreement.workflowId || null } : {})
+  };
+  await saveBranchModule(orgId, "default", DOCUMENT_SETUP_MODULE, { data: { ...data, ...(defaultThemeId ? { default_theme_id: defaultThemeId } : {}), kinds: { ...object(data.kinds), [plan.kind]: kindRecord } } as JsonObject, expected_revision: Number(record?.revision || 0) }, { replace: true });
+  return {
+    kind: plan.kind, template_id: plan.template_id, workflow_id: first.workflowId || null, name: plan.name, theme_id: parsed.theme_id,
+    ...(agreement ? { insurance_template_id: agreement.plan.template_id, insurance_workflow_id: agreement.workflowId || null } : {}),
+    pinned_template_ids: made.at(-1)!.pins, prices_updated: prices.length, lines_added: lines.added, lines_changed: lines.changed
+  };
 }
 
 // ── Publication ─────────────────────────────────────────────────────────
@@ -669,15 +745,15 @@ export function registerDocumentSetupPublication() {
     price_sheet: { description: "The document setup's price step: the lines a roofing proposal is made of (items; on = on the proposal, from the roof_replacement assembly; editable = that assembly exists), each with its sell price per unit (null when not set) and quantity formula in words; the rest of the price book (catalog), to add a line from; and the measurements a new line's quantity can be worked out from.",
       schema: json(priceSheetSchema), schemaVersion: "2", access: setupAccess,
       read: async (ctx) => ({ value: await readPriceSheet(ctx.organizationId) }) },
-    previews: { description: "The document the setup's answers (args: document_kind and, for a proposal, presentation, customer_changes, detail, scope_write_up) would make, resolved with a sample customer and roof in each of the three styles. Nothing is saved.",
+    previews: { description: "The document the setup's answers (args: document_kind and, for a proposal, presentation, customer_changes, detail, scope_write_up, and proposal_kinds: retail | insurance | both, where insurance alone previews the insurance contingency agreement) would make, resolved with a sample customer and roof in each of the three styles. Nothing is saved.",
       schema: { type: "object" } as JsonSchema, argsSchema: json(answersSchema.strict()), schemaVersion: "1", access: setupAccess,
       read: async (ctx, ref) => ({ value: await documentSetupPreviews(ctx.organizationId, ref.args || {}) }) },
-    copy: { description: "The copy step: the wording of the template the setup's answers make in the style chosen (args: the previews' answers, theme_id and keep_edits to start from the template published in the template editor), as fields top to bottom ({ node_id, role: title | heading | text, text }), and that document resolved with a sample customer (preview). The finish (documents.setup.apply) takes changes as copy { node_id: text }. Nothing is saved.",
+    copy: { description: "The copy step: the wording of the template the setup's answers make in the style chosen (args: the previews' answers, theme_id, keep_edits to start from the template published in the template editor, and agreement: insurance for the insurance agreement's wording when proposal_kinds is both), as fields top to bottom ({ node_id, role: title | heading | text, text }), and that document resolved with a sample customer (preview). The finish (documents.setup.apply) takes changes as copy { node_id: text }. Nothing is saved.",
       schema: { type: "object" } as JsonSchema, argsSchema: json(copyArgsSchema.strict()), schemaVersion: "1", access: setupAccess,
       read: async (ctx, ref) => ({ value: await documentSetupCopy(ctx.organizationId, ref.args || {}) }) }
   } });
   registerAction({ id: "documents.setup.apply", version: "1", domain: "documents", implementation: backendImplementationDigest(),
-    description: "Finish the document setup for one kind of document (document_kind: proposal, invoice, change_order or completion_certificate) in a style (theme_id: thm_clean, thm_margin or thm_triangles). For a proposal also: presentation (options | single), customer_changes (mix | pick | ask), detail (itemized | rough), scope_write_up (boolean), and optionally prices ([{ item_id, unit_price }] sell prices written to the price book) and lines ({ on: the item ids the proposal's roof_replacement has, in order, with the keys of new_items; new_items: [{ key: new_<x>, name, unit: sq|lf|ea, unit_price, formula: price book formula tokens over measurements, include_waste }] for lines the price book lacks }). Optionally copy ({ text node id: text }, the template's wording changed, from document-setup.copy) and keep_edits (start from the template published in the template editor). Makes or republishes the organization's own template for that kind (tpl_setup_<kind>) and its workflow, makes it the kind's default and pins it in New document.",
+    description: "Finish the document setup for one kind of document (document_kind: proposal, invoice, change_order or completion_certificate) in a style (theme_id: thm_clean, thm_margin or thm_triangles). For a proposal also: proposal_kinds (retail | insurance | both, GP-55; retail when absent: a company that does insurance work may make insurance contingency agreements, tpl_setup_insurance_agreement, instead of or as well as retail proposals); for retail: presentation (options | single), customer_changes (mix | pick | ask), detail (itemized | rough), scope_write_up (boolean), and optionally prices ([{ item_id, unit_price }] sell prices written to the price book) and lines ({ on: the item ids the proposal's roof_replacement has, in order, with the keys of new_items; new_items: [{ key: new_<x>, name, unit: sq|lf|ea, unit_price, formula: price book formula tokens over measurements, include_waste }] for lines the price book lacks }). Optionally copy ({ text node id: text }, the template's wording changed, from document-setup.copy; with insurance only, the agreement's) and keep_edits (start from the template published in the template editor), and with both kinds insurance_copy and insurance_keep_edits for the agreement. Makes or republishes the organization's own template for that kind (tpl_setup_<kind>, and the insurance agreement) and its workflow, makes it its type's default and pins it in New document.",
     inputSchema: json(applySchema) as Record<string, unknown>, outputSchema: { type: "object" },
     effect: "write", idempotency: "required", executionKinds: ["api", "agent", "module"],
     policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.documents"] },
