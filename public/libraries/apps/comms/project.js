@@ -434,7 +434,7 @@
       .fmco-content>.fmco-empty{animation:fmco-fade .3s ease .12s both}
       .fmco-thread-view.fmco-enter>*{animation:fmco-fade-up .28s cubic-bezier(.2,.8,.2,1) both}
       .fmco-thread-view.fmco-enter>.fmco-composer{animation-delay:.05s}
-      .fmco-msgs.fmco-fill>*{animation:fmco-fade .3s ease both}
+      .fmco-msgs.fmco-fill>*,.fmco-thread-view.fmco-fill>:not(.fmco-thread-head){animation:fmco-fade .3s ease both}
       .fmco-msg.fmco-new,.fmco-msg-meta.fmco-new{animation:fmco-msg-in .34s cubic-bezier(.2,.8,.2,1) both}
       .fmco-msg.outbound.fmco-new{transform-origin:100% 100%}.fmco-msg.inbound.fmco-new{transform-origin:0 100%}
       .fmco-msg{transition:opacity .25s ease,background-color .25s ease,color .25s ease,box-shadow .25s ease}
@@ -448,6 +448,7 @@
       .fmco-send-state button:hover{filter:brightness(.85)}
       .fmco-mail-card.fmco-new{animation:fmco-msg-in .34s cubic-bezier(.2,.8,.2,1) both;transform-origin:50% 100%}
       .fmco-mail-card.pending{border-style:dashed}
+      .fmco-mail-card-head .fmco-send-state{font-size:11.5px;white-space:nowrap;justify-self:end}
       .fmco-mail-card.failed{border-color:#fecdca;background:#fffbfa;animation:fmco-shake .4s ease both}
       .fmco-mail-card.pending .fmco-mail-avatar{animation:fmco-sending 1.2s ease-in-out infinite}
       .fmco-skeleton{border:1px solid #eef1f4;border-radius:12px;padding:14px;display:grid;grid-template-columns:36px minmax(0,1fr);gap:8px 10px}

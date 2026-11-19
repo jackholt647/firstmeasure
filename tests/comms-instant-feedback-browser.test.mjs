@@ -20,6 +20,7 @@ const PAGE = `<!doctype html><html><head><script>
   window.__hold=(name)=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return window.__holds[name]={promise,release:resolve,fail:reject};};
   const held=(name,value)=>(...args)=>{window.__calls.push([name,...args]);const hold=window.__holds[name];if(hold){delete window.__holds[name];window.__taken[name]=hold;return hold.promise;}return Promise.resolve(typeof value==='function'?value(...args):value);};
   const message=(id,direction,text,at)=>({id,direction,text,channel:'sms',created_at:at||'2026-11-19T10:00:00Z',sender:{}});
+  window.__call={id:'call_1',customer_name:'Pat Customer',customer_number:'+12065550100',direction:'outbound',mode:'browser',state:'ended',created_at:'2026-11-19T10:00:00Z',connected_at:'2026-11-19T10:00:05Z',ended_at:'2026-11-19T10:02:05Z'};
   window.__db={
     sms:[{id:'c1',participants:[{address:'+12065550100',name:'Pat Customer'}],messages:[message('m1','inbound','Hello there')]}],
     email:[{id:'e1',subject:'Roof quote',participants:[{address:'pat@example.com',name:'Pat Customer',type:'to'}],message_count:1,last_message_at:'2026-11-19T10:00:00Z',snippet:'Here it is',last_message:{id:'em1',text:'Here it is'}}]
@@ -27,7 +28,7 @@ const PAGE = `<!doctype html><html><head><script>
   const smsResult=()=>({conversations:window.__db.sms.map(c=>({...c,message_count:c.messages.length,last_message_at:c.messages.at(-1)?.created_at})),conversation:window.__db.sms[0]});
   window.CommsAPI={
     overview:held('overview',{overview:{contacts:[{name:'Pat Customer',phone:'+12065550100',email:'pat@example.com',primary:true}],channels:{}}}),
-    customer:held('customer',(org,path)=>path==='voice/status'?{channels:{texts:'ready',calls:'ready'}}:path.startsWith('calls?')?{calls:[]}:{}),
+    customer:held('customer',(org,path)=>path==='voice/status'?{channels:{texts:'ready',calls:'ready'}}:path.startsWith('calls?')?{calls:[window.__call]}:path.endsWith('/artifacts')?{artifacts:[]}:path.startsWith('calls/')?{call:window.__call}:{}),
     sms:{conversation:held('sms.conversation',smsResult),send:held('sms.send',(org,project,body)=>({message:{id:'m_sent',conversation_id:body.conversation_id||'c_new'}}))},
     email:{threads:held('email.threads',()=>({threads:window.__db.email})),thread:held('email.thread',(org,project,id)=>({thread:{id,subject:'Roof quote',participants:window.__db.email[0].participants,messages:[{id:'em1',direction:'inbound',text:'Here it is',created_at:'2026-11-19T10:00:00Z',sender:{name:'Pat Customer',address:'pat@example.com'}}]}})),send:held('email.send',{message:{id:'em_sent',conversation_id:'e1'}})},
     chat:{conversations:held('chat.conversations',{conversations:[]})},
@@ -178,6 +179,10 @@ test('a Calls button shows it is working while what it starts is slow', () => wi
   assert.equal(await page.locator('[data-action="new-call"]').isDisabled(), true);
   await release(page, 'phone.open', true);
   await page.waitForFunction(() => !document.querySelector('[data-action="new-call"]').hasAttribute('aria-busy'));
+  // Choosing a call moves its pane in at once, and its details fade in over "Loading call…".
+  await page.click('[data-action="select-call"]');
+  await page.waitForSelector('[data-call-detail].fmco-enter');
+  await page.waitForSelector('[data-call-detail] .fmco-call-facts');
 }));
 
 test('motion has a reduced-motion fallback', () => {

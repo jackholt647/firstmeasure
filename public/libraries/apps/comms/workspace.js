@@ -309,6 +309,7 @@
       split.classList.toggle('thread-mode',!!selected);
       callPane();
     }
+    const motion=(node,name)=>{if(!node)return;node.classList.remove(name);void node.offsetWidth;node.classList.add(name);clearTimeout(node.__fmcmMotion);node.__fmcmMotion=setTimeout(()=>node.classList.remove(name),600);};
     const callLength=call=>{const start=Date.parse(call.connected_at||''),end=Date.parse(call.ended_at||'');if(!Number.isFinite(start)||!Number.isFinite(end)||end<start)return '';const seconds=Math.round((end-start)/1000);return `${Math.floor(seconds/60)}m ${String(seconds%60).padStart(2,'0')}s`;};
     // A call logged from another phone has no connection times; its outcome says whether anyone answered.
     const callMissed=call=>call.result?.disposition?['no_answer','busy'].includes(call.result.disposition):call.mode==='browser'&&!call.connected_at&&['ended','no_answer','busy','rejected','canceled','failed'].includes(call.state);
@@ -318,6 +319,11 @@
       const pane=state.host.querySelector('[data-call-detail]');if(!pane)return;
       const view=state.callView||{},key=state.callId?`${state.callId}:${view.version||0}`:'';
       if(pane.dataset.shown===key)return;pane.dataset.shown=key;
+      // GP-12: another call moves in (on a phone it slides over the list, which slides back on Close); a call's details
+      // fade in over its "Loading call…". comms/project.js styles fmco-enter / fmco-back / fmco-fill.
+      const callKey=state.callId||'',first=pane.dataset.call===undefined;
+      if(!first)motion(pane.dataset.call!==callKey?(callKey?pane:state.host.querySelector('[data-call-list]')):pane,pane.dataset.call!==callKey?(callKey?'fmco-enter':'fmco-back'):'fmco-fill');
+      pane.dataset.call=callKey;
       if(!state.callId){pane.innerHTML=`<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-phone"></i><p>Select a call to see its details, recording and transcript.</p></div>`;return;}
       const listed=state.calls.find(c=>c.id===state.callId)||{},call=view.detail?.call||listed;
       const name=call.customer_name||call.customer_number||'Unknown caller',close=`<button type="button" class="fmco-btn" data-action="close-call" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_3742924668fb10","Close") ?? "Close")}" title="${(globalThis.PlatformLanguage?.htmlText("comms","m_3742924668fb10","Close") ?? "Close")}">${icon('xmark')}</button>`;
