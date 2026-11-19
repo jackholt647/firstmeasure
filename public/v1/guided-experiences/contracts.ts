@@ -52,6 +52,12 @@ const overlayStep = z.object({
   advance: z.enum(["next", "click"]).default("next"),
   /** How long to wait for a target to appear before the step is skipped. */
   wait_ms: z.number().int().min(0).max(10000).default(1500),
+  /**
+   * A button in place of Next that starts an app's setup (`Portal.appSetup`, by the app's capability key, in the portal
+   * that holds the page): pressing it finishes the tour and opens the setup; "Skip step" goes on without it (the Finance
+   * tour's payment setup, GP-40). Where that setup is not on the page, the step shows Next as usual.
+   */
+  action: z.object({ setup: id, label: copySchema }).strict().optional(),
   /** A step about a feature that can be switched off names its capability here (Reports' Support view). */
   eligibility: stepEligibility,
   next: next.optional()

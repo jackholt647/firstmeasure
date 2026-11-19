@@ -828,12 +828,29 @@
     poll();
   });
 
+  /**
+   * The window whose portal can run an app's setup (`Portal.appSetup`, by capability key): the outermost one that has
+   * it, since a project window's frame plays its tours inside the portal that holds it (GP-40). Null where it cannot.
+   */
+  function setupHost(key){
+    let found = null, frame = root;
+    try {
+      for (let guard = 0; guard < 8; guard++) {
+        if (frame.Portal?.appSetup?.has?.(key)) found = frame;
+        if (!frame.parent || frame.parent === frame) break;
+        frame = frame.parent;
+      }
+    } catch (_) { /* a foreign parent */ }
+    return found;
+  }
+
   const overlay = {
     /**
-     * Plays overlay steps: { id, title, body, targets[], placement, advance, wait_ms }. Every target found is left
+     * Plays overlay steps: { id, title, body, targets[], placement, advance, wait_ms, action }. Every target found is left
      * undimmed; the first is highlighted with the popover beside it. A step whose targets never appear is skipped.
      * Resolves { status: 'completed' | 'dismissed' | 'ended', shown, last }; 'ended' is `options.control.end()`, the
-     * runtime stopping it (the tab changed), which is neither done nor dismissed.
+     * runtime stopping it (the tab changed), which is neither done nor dismissed. A step with an `action` offers it in
+     * place of Next where the page can run it (an app's setup): pressing it completes the tour, then starts the setup.
      */
     run(steps, options = {}){
       injectCss('gx-overlay-css', overlayCss);
@@ -983,17 +1000,19 @@
           const total = list.length, position = index + 1, last = position >= total;
           // A step that waits for a click on its target has no Next, so it always offers Skip step, even last (FM-445).
           const waitsForClick = step.advance === 'click' && targets.length > 0;
+          // A step that starts a setup offers it in place of Next, and Skip step to go on without it.
+          const acts = !waitsForClick && !!step.action?.setup && !!setupHost(step.action.setup);
           pop.innerHTML = `<button type="button" class="gx-x" data-gx="close" aria-label="${esc(L('gx_ui_skip_tutorial', 'Skip tutorial'))}" title="${esc(L('gx_ui_skip_tutorial', 'Skip tutorial'))}">&times;</button>
             <h3>${H(step.title)}</h3><p>${H(step.body)}</p>
             <footer><span class="gx-dots" aria-label="${esc(L('gx_ui_step_of', 'Step') + ' ' + position + ' / ' + total)}">${list.map((_, i) => `<i class="${i === index ? 'on' : ''}"></i>`).join('')}</span>
               ${position > 1 ? `<button type="button" class="gx-b gx-link" data-gx="back">${H('gx_ui_back', 'Back')}</button>` : ''}
-              ${!last || waitsForClick ? `<button type="button" class="gx-b gx-link" data-gx="skip">${H('gx_ui_skip_step', 'Skip step')}</button>` : ''}
-              ${waitsForClick ? '' : `<button type="button" class="gx-b gx-primary" data-gx="next">${last ? H('gx_ui_done', 'Done') : H('gx_ui_next', 'Next')}</button>`}</footer>
+              ${!last || waitsForClick || acts ? `<button type="button" class="gx-b gx-link" data-gx="skip">${H('gx_ui_skip_step', 'Skip step')}</button>` : ''}
+              ${waitsForClick ? '' : acts ? `<button type="button" class="gx-b gx-primary" data-gx="action">${H(step.action.label)}</button>` : `<button type="button" class="gx-b gx-primary" data-gx="next">${last ? H('gx_ui_done', 'Done') : H('gx_ui_next', 'Next')}</button>`}</footer>
             ${targets.length && step.placement !== 'center' ? '<span class="gx-arrow" aria-hidden="true"></span>' : ''}`;
           pop.hidden = false;
           pop.setAttribute('aria-label', L(step.title)); pop.dataset.gxStep = step.id;
           pop.classList.remove('gx-enter'); void pop.offsetWidth; pop.classList.add('gx-enter');
-          setTimeout(() => pop.querySelector('[data-gx=next]')?.focus?.({ preventScroll: true }), 30);
+          setTimeout(() => pop.querySelector('[data-gx=next],[data-gx=action]')?.focus?.({ preventScroll: true }), 30);
         }
         /**
          * Moves to the next step that can show. Only the first step with a target waits for it to appear (the tab
@@ -1051,6 +1070,13 @@
             carryOn();
           }
           else if (action === 'next') { options.onStep?.({ type: 'step_done', step: current?.id }); go(index + 1, 1); }
+          else if (action === 'action') {
+            // The tour is done once the person takes it up; the setup opens over the page it leaves.
+            const key = clean(current?.action?.setup), host = key ? setupHost(key) : null;
+            options.onStep?.({ type: 'step_done', step: current?.id });
+            finish('completed');
+            if (host) Promise.resolve().then(() => host.Portal.appSetup.run(key, { source: 'guided_experience', experienceId: clean(options.experienceId) })).catch(() => {});
+          }
           else if (action === 'skip') { options.onStep?.({ type: 'step_skip', step: current?.id }); go(index + 1, 1); }
           else if (action === 'back') { options.onStep?.({ type: 'back', step: current?.id }); go(index - 1, -1); }
           else if (action === 'close') { options.onStep?.({ type: 'dismiss', step: current?.id }); finish('dismissed'); }

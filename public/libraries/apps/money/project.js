@@ -254,6 +254,8 @@
       .mn-tools .mn-btn .mn-setup-pill,.mn-setup-pill{display:inline-block;border:1px solid #f2ca72;border-radius:20px;background:#fff0cb;color:#794c00;padding:0 5px;font-size:9px;font-weight:700;line-height:14px;white-space:nowrap;box-shadow:0 1px 2px rgba(16,24,40,.12);cursor:pointer}
       .mn-btn .mn-setup-pill{position:absolute;top:-9px;right:-8px}
       .mn-add-item strong .mn-setup-pill{margin-left:6px;vertical-align:2px}
+      /* Phone: the + button's small warning while payments are not set up (GP-40); its menu shows the Setup pill. */
+      .mn-setup-alert{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(16,24,40,.28);display:grid;place-items:center;color:#f79009;font-size:11px;line-height:1;pointer-events:none}
       .mn-btn{height:38px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;padding:0 12px;font:inherit;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;white-space:nowrap;text-decoration:none;flex:none;transition:border-color .15s ease,color .15s ease,background-color .15s ease}
       .mn-btn:hover:not(:disabled){border-color:rgba(var(--primary-rgb,217,48,37),.4);color:var(--primary-readable,var(--primary,#d93025))}
       .mn-btn.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:var(--on-primary,#fff)}
@@ -863,7 +865,7 @@
             <button type="button" class="mn-btn collapse mn-desk-only" data-money-open-modal="invoice" ${busyAttr()} aria-label="${escapeHtml(term('generate_invoice'))}" data-fm-tooltip="${escapeHtml('Bill scheduled payments or custom items')}"><i class="fas fa-file-invoice-dollar"></i><span>${escapeHtml(term('generate_invoice'))}</span></button>
             <span class="mn-tool-sep mn-desk-only" aria-hidden="true"></span>` : ''}
           <button type="button" class="mn-btn icon mn-desk-only" data-money-open-modal="reports" aria-label="${escapeHtml(term('reports'))}" data-fm-tooltip="${escapeHtml(term('reports'))}"><i class="fas fa-chart-column"></i></button>
-          <button type="button" class="mn-btn primary icon mn-add-menu" data-money-open-modal="add_menu" aria-haspopup="dialog" aria-label="${escapeHtml('New')}"><i class="fas fa-plus"></i></button>
+          <button type="button" class="mn-btn primary icon mn-add-menu${setupPending ? ' mn-has-setup' : ''}" data-money-open-modal="add_menu" aria-haspopup="dialog" aria-label="${escapeHtml('New')}"${setupPending ? ` data-fm-tooltip="${escapeHtml(setUpPaymentsText())}"` : ''}><i class="fas fa-plus"></i>${setupPending ? paymentsSetupAlertHtml() : ''}</button>
           ${manage ? `<button type="button" class="mn-btn icon" data-money-open-modal="settings" aria-label="${escapeHtml('Settings')}" data-fm-tooltip="${escapeHtml('Settings')}"><i class="fas fa-gear"></i></button>` : ''}
         </div>
       </div>
@@ -2480,6 +2482,11 @@
     return `<span class="mn-setup-pill" data-money-payments-setup>${(globalThis.PlatformLanguage?.htmlText("money","m_b06faf127e1505","Setup") ?? "Setup")}</span>`;
   }
 
+  // GP-40: the same reminder on the phone's + button, as a small warning triangle (there is no room for the pill).
+  function paymentsSetupAlertHtml(){
+    return `<span class="mn-setup-alert" data-money-setup-alert role="img" aria-label="${escapeHtml(setUpPaymentsText())}"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i></span>`;
+  }
+
   // After the setup closes, ask again so the pill goes once payments are ready.
   function recheckPaymentsSetup(){
     const before = paymentsSetupPending();
@@ -2978,6 +2985,10 @@
   rootWindow.addEventListener('fm:branch-module:updated', refreshMoneyTerminology);
   rootWindow.addEventListener('fm:terminology:updated', () => { if (state.active && state.host) renderAll(); });
   rootWindow.addEventListener('keydown', onKeydown, true);
+  // Payment setup closed, wherever it was started (the Finance tour's setup step, GP-40): ask again, so the Setup pill
+  // and the + button's warning go once payments are ready.
+  const onPaymentsSetupUpdated = () => { if (state.active && state.paymentIntakeConfig) recheckPaymentsSetup(); };
+  for (const target of new Set([rootWindow, paymentsHostWindow()])) { try { target.addEventListener('fm:payments-setup-updated', onPaymentsSetupUpdated); } catch (_) { /* foreign window */ } }
 
   const api = {
     mount,
