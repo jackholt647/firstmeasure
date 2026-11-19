@@ -355,7 +355,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'), versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261119-gp8-css-ready'), versionedBundle('comms/phone-tray.js', '20261118-fm587-text-image'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261101-prod-sync'), versionedBundle('comms/workspace.js', '20261119-gp11-call-split'), versionedBundle('comms/project.js', '20261119-gp11-call-split')]
+      bundles: [versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'), versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261119-gp8-css-ready'), versionedBundle('comms/phone-tray.js', '20261118-fm587-text-image'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261101-prod-sync'), versionedBundle('comms/workspace.js', '20261119-gp11-external-calls'), versionedBundle('comms/project.js', '20261119-gp11-call-split')]
     },
     {
       id: 'project.measurements',
@@ -522,7 +522,7 @@
         versionedBundle('comms/communications-ui.js', '20261119-gp8-css-ready'),
         versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'),
         versionedBundle('comms/phone-tray.js', '20261118-fm587-text-image'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261101-prod-sync'),
-        versionedBundle('comms/workspace.js', '20261119-gp11-call-split'),
+        versionedBundle('comms/workspace.js', '20261119-gp11-external-calls'),
         versionedBundle('chat/app.js', '20261118-fm550-tab-strip')
       ]
     },
