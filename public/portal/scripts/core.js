@@ -2900,7 +2900,7 @@
     return sections.map((mode) => {
       const label = escapeHtml(cleanText(mode.tab.textContent) || mode.key);
       const lastOn = mode.enabled && onCount < 2;
-      return `<button type="button" class="fm-sidebar-section${mode.enabled ? ' is-on' : ''}" data-sidebar-section="${escapeHtml(mode.key)}" role="switch" aria-checked="${mode.enabled ? 'true' : 'false'}"${lastOn ? ' disabled' : ''} title="${lastOn ? `${(globalThis.PlatformLanguage?.htmlText("platform","m_425aa108496d81","One section stays on") ?? "One section stays on")}` : mode.enabled ? `${(globalThis.PlatformLanguage?.htmlText("platform","m_aa4cf82d48e36a","Shown in your left column") ?? "Shown in your left column")}` : `${(globalThis.PlatformLanguage?.htmlText("platform","m_4ea56ca20d437a","Hidden from your left column") ?? "Hidden from your left column")}`}"><span>${label}</span><span class="fm-sidebar-section-switch" aria-hidden="true"></span></button>`;
+      return `<button type="button" class="fm-sidebar-section${mode.enabled ? ' is-on' : ''}" data-sidebar-section="${escapeHtml(mode.key)}" aria-pressed="${mode.enabled ? 'true' : 'false'}"${lastOn ? ' disabled' : ''} title="${lastOn ? `${(globalThis.PlatformLanguage?.htmlText("platform","m_425aa108496d81","One section stays on") ?? "One section stays on")}` : mode.enabled ? `${(globalThis.PlatformLanguage?.htmlText("platform","m_0baabd1bb6cfd1","Hide from your left column") ?? "Hide from your left column")}` : `${(globalThis.PlatformLanguage?.htmlText("platform","m_1194a6e6b708e7","Show in your left column") ?? "Show in your left column")}`}"><span>${label}</span></button>`;
     }).join('');
   }
   function onSidebarSectionClick(event){
@@ -2908,7 +2908,7 @@
     if (button && !button.disabled) toggleSidebarSection(button.dataset.sidebarSection);
   }
   // A wide column shows the switches in place of its section headers; a thin
-  // one has no room, so More apps shows them beside Thin and Wide.
+  // one has no room, so it shows none.
   function renderSidebarSections(){
     const tabs = document.querySelector('#mainSidebar .sidebar-mode-tabs');
     if (!tabs) return;
@@ -2941,9 +2941,9 @@
     applySidebarFeatureFlags();
     if (advancedAppMenuOpen) renderAdvancedAppMenu();
     sidebarSectionSave = sidebarSectionSave.catch(() => {}).then(() => window.PlatformAPI.preferences.patch({ [preference]: value }));
-    sidebarSectionSave.then((saved) => {
-      // Keep choices made while this one saved.
-      const preferences = { ...(identity.preferences || {}), [preference]: saved?.preferences?.[preference] ?? value };
+    sidebarSectionSave.then(() => {
+      // What is shown now wins: a newer click is not undone by this save's answer.
+      const preferences = { ...(identity.preferences || {}) };
       window.dispatchEvent(new CustomEvent('fm:user-preferences:updated', { detail:{ preferences } }));
     }).catch((error) => {
       identity.preferences = { ...(identity.preferences || {}), [preference]: previous };
@@ -3588,7 +3588,6 @@
     const focusSelector = !focused ? '' : focused.dataset.advancedAppPin ? `[data-advanced-app-pin="${CSS.escape(focused.dataset.advancedAppPin)}"]`
       : focused.dataset.advancedAppOpen ? `.${CSS.escape(focused.classList[0] || 'fm-advanced-app-open')}[data-advanced-app-open="${CSS.escape(focused.dataset.advancedAppOpen)}"]`
       : focused.dataset.advancedSidebarWidth ? `[data-advanced-sidebar-width="${CSS.escape(focused.dataset.advancedSidebarWidth)}"]`
-      : focused.dataset.sidebarSection ? `.fm-advanced-apps-sections [data-sidebar-section="${CSS.escape(focused.dataset.sidebarSection)}"]`
       : focused.hasAttribute('data-advanced-apps-edit') ? '[data-advanced-apps-edit]' : '';
     const scrollTop = overlay?.querySelector('.fm-advanced-apps-scroll')?.scrollTop || 0;
     if (!overlay) {
@@ -3605,11 +3604,10 @@
     window.setTimeout(setSidebarEdge, 210);
     const thinColumn = sidebarShownThin();
     overlay.dataset.thinColumn = String(thinColumn);
-    const sectionsMarkup = thinColumn ? sidebarSectionsMarkup() : '';
     overlay.innerHTML = `
       <section class="fm-advanced-apps-panel" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_a151b65da51bfd","All apps") ?? "All apps")}">
         <button type="button" class="fm-advanced-apps-close" data-advanced-apps-close aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_0838136c759dc3","Close apps") ?? "Close apps")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
-        <div class="fm-advanced-apps-column"><div class="fm-advanced-apps-width" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_7af6be7c241afb","Left column width") ?? "Left column width")}"><button type="button" data-advanced-sidebar-width="thin" aria-pressed="${thinColumn ? 'true' : 'false'}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_dedf030c4eae88","Narrow left column with instant tooltips") ?? "Narrow left column with instant tooltips")}"><i class="fas fa-grip-lines-vertical" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_17c93bdd5a0f99","Thin") ?? "Thin")}</button><button type="button" data-advanced-sidebar-width="wide" aria-pressed="${thinColumn ? 'false' : 'true'}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_606db014592e3c","Full-width left column all the time") ?? "Full-width left column all the time")}"><i class="fas fa-table-columns" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_9246870f32f935","Wide") ?? "Wide")}</button></div>${thinColumn && sectionsMarkup ? `<div class="fm-advanced-apps-sections" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_121f1beba90822","Left column sections") ?? "Left column sections")}">${sectionsMarkup}</div>` : ''}</div>
+        <div class="fm-advanced-apps-column"><div class="fm-advanced-apps-width" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_7af6be7c241afb","Left column width") ?? "Left column width")}"><button type="button" data-advanced-sidebar-width="thin" aria-pressed="${thinColumn ? 'true' : 'false'}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_dedf030c4eae88","Narrow left column with instant tooltips") ?? "Narrow left column with instant tooltips")}"><i class="fas fa-grip-lines-vertical" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_17c93bdd5a0f99","Thin") ?? "Thin")}</button><button type="button" data-advanced-sidebar-width="wide" aria-pressed="${thinColumn ? 'false' : 'true'}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_606db014592e3c","Full-width left column all the time") ?? "Full-width left column all the time")}"><i class="fas fa-table-columns" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_9246870f32f935","Wide") ?? "Wide")}</button></div></div>
         <div class="fm-advanced-apps-scroll">
           <nav class="fm-advanced-apps-grid" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_290b7f9d844e1e","Active apps") ?? "Active apps")}">${String(enabled.map((entry, index) => appTile(entry, index)).join(''))}</nav>
         </div>
@@ -3621,7 +3619,6 @@
     }, { signal });
     overlay.querySelector('[data-advanced-apps-close]')?.addEventListener('click', () => closeAdvancedAppMenu(), { signal });
     overlay.querySelectorAll('[data-advanced-sidebar-width]').forEach((button) => button.addEventListener('click', () => setLeftColumnWidthMode(button.dataset.advancedSidebarWidth), { signal }));
-    overlay.querySelector('.fm-advanced-apps-sections')?.addEventListener('click', onSidebarSectionClick, { signal });
     overlay.querySelector('[data-advanced-apps-manage]')?.addEventListener('click', () => {
       closeAdvancedAppMenu({ restoreFocus:false });
       window.Portal?.navigation?.navigate?.(
@@ -4475,11 +4472,7 @@
       .fm-link.is-reordering .fm-sidebar-app-move{opacity:0!important}
       .sidebar.sidebar-compact.sidebar-manual:not(.sidebar-compact-expanded) .fm-sidebar-app-move,.sidebar.sidebar-compact.sidebar-manual:not(.sidebar-compact-expanded) .fm-sidebar-app-home{display:none}
       .fm-advanced-apps-column{position:absolute;z-index:3;top:calc(-1 * clamp(10px,1.5vw,24px));left:calc(-1 * clamp(10px,1.5vw,24px));display:flex;align-items:center;gap:8px}
-      .fm-advanced-apps-width,.fm-advanced-apps-sections{display:flex;gap:2px;padding:3px;border:1px solid rgba(255,255,255,.18);border-radius:11px;background:rgba(16,24,40,.92);box-shadow:0 6px 18px rgba(0,0,0,.24)}
-      .fm-advanced-apps-sections .fm-sidebar-section{min-height:32px;padding:0 10px;border-radius:8px;color:rgba(255,255,255,.6);font-size:11px}
-      .fm-advanced-apps-sections .fm-sidebar-section:hover,.fm-advanced-apps-sections .fm-sidebar-section:focus-visible{background:rgba(255,255,255,.15);color:#fff}
-      .fm-advanced-apps-sections .fm-sidebar-section.is-on{color:#fff}
-      .fm-advanced-apps-sections .fm-sidebar-section-switch{background:rgba(255,255,255,.28)}
+      .fm-advanced-apps-width{display:flex;gap:2px;padding:3px;border:1px solid rgba(255,255,255,.18);border-radius:11px;background:rgba(16,24,40,.92);box-shadow:0 6px 18px rgba(0,0,0,.24)}
       .fm-advanced-apps-width button{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border:0;border-radius:8px;background:transparent;color:rgba(255,255,255,.72);font:inherit;font-size:11px;font-weight:900;cursor:pointer;transition:background .16s ease,color .16s ease}
       .fm-advanced-apps-width button:hover,.fm-advanced-apps-width button:focus-visible{background:rgba(255,255,255,.15);color:#fff;outline:none}
       .fm-advanced-apps-width button[aria-pressed="true"]{background:#fff;color:#101828}
@@ -4487,18 +4480,19 @@
       @media(max-width:820px){.fm-advanced-apps-column{display:none}}
       .fm-advanced-app-home{margin-right:5px;color:var(--primary-readable,var(--primary,#d93025));font-size:.9em}
       .fm-sidebar-sections{display:none}
-      .sidebar.sidebar-advanced-apps-open:not(.sidebar-manual) .fm-sidebar-sections,.sidebar.sidebar-advanced-apps-open.sidebar-manual:not(.sidebar-compact) .fm-sidebar-sections,.sidebar.sidebar-advanced-apps-open.sidebar-manual.sidebar-compact-expanded .fm-sidebar-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:0 -14px;border:1px solid rgba(0,0,0,.07);border-bottom:0;background:#f7f8fa}
-      .sidebar.sidebar-advanced-apps-open:not(.sidebar-manual) .sidebar-mode-tabs,.sidebar.sidebar-advanced-apps-open.sidebar-manual:not(.sidebar-compact) .sidebar-mode-tabs,.sidebar.sidebar-advanced-apps-open.sidebar-manual.sidebar-compact-expanded .sidebar-mode-tabs{display:none!important}
-      .fm-sidebar-section{display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:30px;padding:0 6px;border:0;background:transparent;color:#98a2b3;font:inherit;font-size:12px;font-weight:950;line-height:1;cursor:pointer;transition:background .16s ease,color .16s ease}
-      .fm-sidebar-section>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .fm-sidebar-section:hover,.fm-sidebar-section:focus-visible{background:#fff;color:#475467;outline:none}
-      .fm-sidebar-section.is-on{color:#202124}
+      .fm-sidebar-section{position:relative;display:flex;align-items:center;justify-content:center;min-width:0;min-height:28px;padding:0 8px;border:0;background:transparent;color:#202124;font:inherit;font-size:12px;font-weight:950;line-height:1;cursor:pointer;transition:background .16s ease,color .16s ease}
+      .fm-sidebar-section>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:line-through transparent;text-decoration-thickness:1.5px;transition:text-decoration-color .16s ease}
+      .fm-sidebar-section:not(.is-on){color:#a0a6b1}
+      .fm-sidebar-section:not(.is-on)>span{text-decoration-color:currentColor}
+      .fm-sidebar-section:hover,.fm-sidebar-section:focus-visible{background:#fff;outline:none}
+      .fm-sidebar-section.is-on:not(:disabled):hover>span,.fm-sidebar-section.is-on:not(:disabled):focus-visible>span{text-decoration-color:rgba(32,33,36,.45)}
+      .fm-sidebar-section:not(.is-on):hover,.fm-sidebar-section:not(.is-on):focus-visible{color:#475467}
+      .fm-sidebar-section:not(.is-on):hover>span,.fm-sidebar-section:not(.is-on):focus-visible>span{text-decoration-color:transparent}
       .fm-sidebar-section:disabled{cursor:default}
-      .fm-sidebar-section-switch{position:relative;flex:0 0 auto;width:22px;height:12px;border-radius:99px;background:#d0d5dd;transition:background .16s ease}
-      .fm-sidebar-section-switch:after{content:"";position:absolute;top:2px;left:2px;width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.25);transition:transform .16s ease}
-      .fm-sidebar-section.is-on .fm-sidebar-section-switch{background:var(--primary,#d93025)}
-      .fm-sidebar-section.is-on .fm-sidebar-section-switch:after{transform:translateX(10px)}
-      @media(prefers-reduced-motion:reduce){.fm-sidebar-section-switch,.fm-sidebar-section-switch:after,.fm-sidebar-app-move{transition:none}}
+      .fm-sidebar-section:disabled:hover{background:transparent}
+      @media(prefers-reduced-motion:reduce){.fm-sidebar-section,.fm-sidebar-section>span,.fm-sidebar-app-move{transition:none}}
+      .sidebar.sidebar-advanced-apps-open:not(.sidebar-manual) .fm-sidebar-sections,.sidebar.sidebar-advanced-apps-open.sidebar-manual:not(.sidebar-compact) .fm-sidebar-sections,.sidebar.sidebar-advanced-apps-open.sidebar-manual.sidebar-compact-expanded .fm-sidebar-sections{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);margin:0 -14px;border:1px solid rgba(0,0,0,.07);border-bottom:0;background:#f7f8fa}
+      .sidebar.sidebar-advanced-apps-open:not(.sidebar-manual) .sidebar-mode-tabs,.sidebar.sidebar-advanced-apps-open.sidebar-manual:not(.sidebar-compact) .sidebar-mode-tabs,.sidebar.sidebar-advanced-apps-open.sidebar-manual.sidebar-compact-expanded .sidebar-mode-tabs{display:none!important}
       .sidebar-advanced-apps-open .fm-link .ic{transform:translateX(3px);transition:transform .24s cubic-bezier(.2,.8,.2,1),color .14s ease}
       .fm-sidebar-app-pin:hover,.fm-sidebar-app-pin:focus-visible{background:#f1f3f5;color:var(--primary-readable,var(--primary,#d93025));outline:none;transform:translate(0,-50%) rotate(-12deg)}
       .fm-sidebar-app-pin:disabled{opacity:.45;cursor:wait}
