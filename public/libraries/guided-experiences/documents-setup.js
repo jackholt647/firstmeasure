@@ -180,20 +180,29 @@ const css = `
 /* The wording beside the document (FM-614): the fields on the left, the document on the right, its pages scrolling. */
 /* The step holds still and each column scrolls on its own: a field taking focus never scrolls the step's title away. */
 .gxd.gxd-fill.gxd-copy-step,.gxd.gxd-fill.gxd-first{min-height:0}
-.gxd-copy{display:grid;grid-template-columns:minmax(280px,5fr) minmax(0,6fr);grid-template-rows:minmax(0,1fr);gap:22px;flex:1 1 auto;min-height:0}
+.gxd-copy{display:grid;grid-template-columns:minmax(300px,1fr) clamp(320px,38%,520px);grid-template-rows:minmax(0,1fr);gap:22px;flex:1 1 auto;min-height:0}
 .gxd-copy-edit{display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;padding:2px 6px 18px 2px;animation:gxdSlideIn .45s cubic-bezier(.22,1,.36,1) both}
 @keyframes gxdSlideIn{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
 .gxd-copy-edit label{display:flex;flex-direction:column;gap:5px;font-size:11.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:#667085}
 .gxd-copy-edit input,.gxd-copy-edit textarea{width:100%;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:8px 10px;font:inherit;font-size:13.5px;font-weight:400;letter-spacing:0;text-transform:none;color:#101828;line-height:1.5;resize:none;overflow:hidden;transition:border-color .15s,box-shadow .15s}
 .gxd-copy-edit input:focus,.gxd-copy-edit textarea:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12)}
 .gxd-copy-edit .gxd-copy-title{font-size:16px;font-weight:700}
-.gxd-copy-section{display:flex;flex-direction:column;gap:7px;padding-top:10px;border-top:1px solid #eaecf0}
-.gxd-copy-section>label>input{font-weight:700}
+/* Each part of the document under its own name (GP-13): the title and opening, then a part per heading. */
+.gxd-copy-section{display:flex;flex-direction:column;gap:7px;padding-top:12px;border-top:1px solid #eaecf0}
+.gxd-copy-section:first-child{padding-top:0;border-top:0}
+.gxd-copy-edit h3.gxd-copy-name{margin:0 0 1px;font-size:14.5px;line-height:1.3;font-weight:750;letter-spacing:-.005em;color:#101828;text-transform:none;overflow-wrap:anywhere}
+.gxd-copy-section>label>input:not(.gxd-copy-title){font-weight:700}
 .gxd-copy-edited{font-size:12px;color:#067647!important}
 .gxd-copy-view{position:relative;min-height:0;border-radius:12px;background:#eef0f3;overflow:hidden}
 .gxd-copy-view .gxd-doc{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:14px;box-sizing:border-box}
 .gxd-copy-view .gxd-doc>div{margin:0 auto}
 .gxd-copy-view [data-node-id].gxd-copy-mark{outline:2px solid var(--primary,#d93025);outline-offset:3px;border-radius:2px}
+/* Advanced: a link beside the step's title, only when the organization has the template editor (GP-13). */
+.gxs-titlebar:has(.gxd-studio-link) h2{flex:0 1 auto}
+.gxd-studio-link{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px;border:0;border-radius:7px;background:none;font:inherit;font-size:13px;font-weight:600;color:#475467;cursor:pointer}
+.gxd-studio-link:hover{background:#f2f4f7;color:#101828}
+.gxd-studio-link:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
+.gxd-studio-link:disabled{opacity:.6;cursor:default}
 .gxd-advanced{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;font:inherit;font-size:13px;font-weight:650;color:#344054;cursor:pointer}
 .gxd-advanced:hover{background:#f9fafb}
 .gxd-advanced:disabled{opacity:.6;cursor:default}
@@ -290,7 +299,8 @@ function liftDocument(container){
   const ghost = from.ghost;
   ghost.classList.add('gxd-ghost-doc');
   ghost.setAttribute('aria-hidden', 'true');
-  Object.assign(ghost.style, { left: `${from.rect.left}px`, top: `${from.rect.top}px`, width: `${from.rect.width}px`, height: `${from.rect.height}px`, transform: '', inset: 'auto' });
+  // `inset` first: set after them, the shorthand would clear left and top and drop the document mid-sheet (GP-13).
+  Object.assign(ghost.style, { inset: 'auto', left: `${from.rect.left}px`, top: `${from.rect.top}px`, width: `${from.rect.width}px`, height: `${from.rect.height}px`, transform: '' });
   container.append(ghost);
   ghost.scrollTop = from.scroll;
   return { ghost, rect: from.rect };
@@ -304,8 +314,11 @@ function settledRect(target){
 }
 function glide(lifted, target){
   if (!lifted || !target?.isConnected) return;
-  const to = settledRect(target), from = lifted.rect;
-  if (!to.width) return;
+  glideTo(lifted, settledRect(target));
+}
+function glideTo(lifted, to){
+  const from = lifted?.rect;
+  if (!from || !to?.width) return;
   const scale = to.width / from.width;
   lifted.ghost.style.height = `${Math.min(from.height, to.height / scale)}px`;
   requestAnimationFrame(() => { lifted.ghost.style.transform = `translate(${to.left - from.left}px,${to.top - from.top}px) scale(${scale})`; });
@@ -1001,6 +1014,15 @@ export function mount(el, ctx){
   // The fields are the template's own copy, top to bottom (document-setup.copy): its title, its opening, its headings
   // and what is under them. What is changed is the setup's `copy` and goes into the template when it is saved. Advanced
   // saves the template and opens it in the template editor; what is published there is kept (`keep_edits`).
+  /** Whether the template editor would open here: the runtime's own access check, as its mount makes it. */
+  function studioAvailable(){
+    const runtime = window.FirstMateEmbeddableApps;
+    if (!runtime?.mount || !runtime.evaluateAccess) return false;
+    try {
+      const app = runtime.getApp?.('documents.studio') || { id: 'documents.studio', portalTabId: 'documents_studio', surfaces: ['portal_tab'] };
+      return runtime.evaluateAccess(app, { orgId: ctx.orgId, surface: 'portal_tab', active: true }).allowed === true;
+    } catch (_) { return false; }
+  }
   function copyPart(){
     let alive = true, data = null, Renderer = null, handle = null, timer = 0, studio = null, opening = false;
     const edits = { ...object(selections.copy) };
@@ -1017,12 +1039,15 @@ export function mount(el, ctx){
     // The style chosen slides over to the right; it stays there until its document has been drawn in this step.
     const lifted = liftDocument(sheet || document.body);
     glide(lifted, view);
-    // Advanced, beside the step's title.
-    const advanced = document.createElement('button');
-    advanced.type = 'button'; advanced.className = 'gxd-advanced'; advanced.dataset.advanced = '';
-    advanced.innerHTML = `<i class="fas fa-pen-ruler" aria-hidden="true"></i>${esc(t('copy_advanced', 'Advanced'))}`;
-    advanced.title = t('copy_advanced_hint', 'Open your template in the full template editor');
-    ctx.actions?.append(advanced);
+    // Advanced, a link beside the step's title: only where the template editor would open (GP-13). An organization
+    // without it (or a phone, where it is not offered) never sees a button that can only fail.
+    const advanced = studioAvailable() ? document.createElement('button') : null;
+    if (advanced) {
+      advanced.type = 'button'; advanced.className = 'gxd-studio-link'; advanced.dataset.advanced = '';
+      advanced.innerHTML = `<i class="fas fa-pen-ruler" aria-hidden="true"></i>${esc(t('copy_advanced', 'Advanced'))}`;
+      advanced.title = t('copy_advanced_hint', 'Open your template in the full template editor');
+      ctx.actions?.append(advanced);
+    }
     const answers = () => {
       const args = { document_kind: clean(selections.document_kind) || 'proposal', theme_id: clean(selections.theme_id) };
       if (args.document_kind === 'proposal') for (const name of ['presentation', 'customer_changes', 'detail', 'scope_write_up']) if (selections[name] !== undefined) args[name] = selections[name];
@@ -1058,22 +1083,24 @@ export function mount(el, ctx){
     const grow = (area) => { area.style.height = 'auto'; area.style.height = `${area.scrollHeight + 2}px`; };
     function fields(){
       const list = array(data?.fields);
-      if (!list.length) return `<p>${esc(t('copy_none', 'This document has no wording of its own to change here. Advanced opens it in the template editor.'))}</p>`;
+      if (!list.length) return `<p>${esc(advanced ? t('copy_none', 'This document has no wording of its own to change here. Advanced opens it in the template editor.') : t('copy_none_plain', 'This document has no wording of its own to change here.'))}</p>`;
       const value = (field) => esc(edits[field.node_id] ?? field.text);
       const input = (field, cls = '', label = '') => `<input type="text" data-copy="${esc(field.node_id)}" class="${cls}" value="${value(field)}"${label ? ` aria-label="${esc(label)}"` : ''}>`;
       const area = (field, label = '') => `<textarea data-copy="${esc(field.node_id)}" rows="2"${label ? ` aria-label="${esc(label)}"` : ''}>${value(field)}</textarea>`;
+      // A part per heading, named by it (GP-13), so it is clear which part of the document each field is in; what comes
+      // before the first heading is the title and opening.
       let html = '', open = false, opened = false;
+      const start = (name, id = '') => { html += `${open ? '</div>' : ''}<div class="gxd-copy-section"><h3 class="gxd-copy-name"${id ? ` data-copy-name="${esc(id)}"` : ''}>${esc(name)}</h3>`; open = true; };
       for (const field of list) {
-        if (field.role === 'title') html += `<label>${esc(t('copy_title', 'Title'))}${input(field, 'gxd-copy-title')}</label>`;
-        else if (field.role === 'heading') { html += `${open ? '</div>' : ''}<div class="gxd-copy-section"><label>${esc(t('copy_heading', 'Heading'))}${input(field)}</label>`; open = true; }
-        else if (!open && !opened) { html += `<label>${esc(t('copy_opening', 'Opening'))}${area(field)}</label>`; opened = true; }
+        if (field.role === 'title') { if (!open) start(t('copy_section_title', 'Title and opening')); html += `<label>${esc(t('copy_title', 'Title'))}${input(field, 'gxd-copy-title')}</label>`; }
+        else if (field.role === 'heading') { start(edits[field.node_id] ?? field.text, field.node_id); html += `<label>${esc(t('copy_heading', 'Heading'))}${input(field)}</label>`; opened = true; }
+        else if (!opened) { if (!open) start(t('copy_section_title', 'Title and opening')); html += `<label>${esc(t('copy_opening', 'Opening'))}${area(field)}</label>`; opened = true; }
         else html += area(field, t('copy_text', 'Text'));
       }
       return html + (open ? '</div>' : '');
     }
     function showFields(){
-      fieldsHost.innerHTML = `<p>${esc(t('copy_lead_2', 'Read it through and change anything you’d say differently. Your document changes as you type; the customer’s details and prices fill in on each one you make.'))}</p>
-        ${keepEdits ? `<p class="gxd-copy-edited"><i class="fas fa-circle-check" aria-hidden="true"></i> ${esc(t('copy_edited', 'Your changes from the template editor are kept.'))}</p>` : ''}
+      fieldsHost.innerHTML = `${keepEdits ? `<p class="gxd-copy-edited"><i class="fas fa-circle-check" aria-hidden="true"></i> ${esc(t('copy_edited', 'Your changes from the template editor are kept.'))}</p>` : ''}
         ${fields()}`;
       fieldsHost.querySelectorAll('textarea').forEach(grow);
     }
@@ -1095,6 +1122,8 @@ export function mount(el, ctx){
       const id = field.dataset.copy, original = array(data?.fields).find((entry) => entry.node_id === id)?.text;
       if (field.value === original) delete edits[id]; else edits[id] = field.value;
       if (field.tagName === 'TEXTAREA') grow(field);
+      const name = fieldsHost.querySelector(`[data-copy-name="${CSS.escape(id)}"]`);
+      if (name) name.textContent = field.value.trim() || original || '';
       report(); redraw();
     };
     const onFocus = (event) => { const field = event.target.closest?.('[data-copy]'); if (field) mark(field.dataset.copy); };
@@ -1107,7 +1136,7 @@ export function mount(el, ctx){
 
     // ── Advanced: the template itself, in the template editor ──
     async function openStudio(){
-      if (opening || studio) return;
+      if (opening || studio || !advanced) return;
       opening = true; advanced.disabled = true; error.textContent = '';
       const layer = document.createElement('div');
       layer.className = 'gxd-studio';
@@ -1125,7 +1154,8 @@ export function mount(el, ctx){
           backLabel: t('copy_back_to_setup', 'Back to setup'),
           onClose: () => { void closeStudio(true); }
         } } });
-        if (studio?.handle?.denied) throw new Error(t('copy_studio_off', 'The template editor is not turned on for your organization.'));
+        // Turned off since the step opened: the button goes, rather than staying to fail again.
+        if (studio?.handle?.denied) { await closeStudio(false); advanced.remove(); return; }
       } catch (failure) {
         await closeStudio(false);
         if (alive) error.textContent = clean(failure?.message) || t('copy_studio_failed', 'The template editor didn’t open. Try again.');
@@ -1145,7 +1175,7 @@ export function mount(el, ctx){
       await load().catch(fail);
     }
     const onAdvanced = () => { void openStudio(); };
-    advanced.addEventListener('click', onAdvanced);
+    advanced?.addEventListener('click', onAdvanced);
     const fail = (failure) => { if (!alive) return; drop(lifted); fieldsHost.innerHTML = ''; error.textContent = clean(failure?.message) || t('copy_failed', 'Your wording didn’t load. Go back and try again.'); };
     load().catch(fail);
     return {
@@ -1158,7 +1188,7 @@ export function mount(el, ctx){
         keepDocument(docHost);
         alive = false; clearTimeout(timer); observer?.disconnect(); drop(lifted);
         void closeStudio(false);
-        advanced.removeEventListener('click', onAdvanced); advanced.remove();
+        advanced?.removeEventListener('click', onAdvanced); advanced?.remove();
         fieldsHost.removeEventListener('input', onInput); fieldsHost.removeEventListener('focusin', onFocus); fieldsHost.removeEventListener('focusout', onBlur);
         try { handle?.destroy?.(); } catch (_) {}
         if (!wasWide) sheet?.classList.remove('gxs-wide');
@@ -1194,6 +1224,11 @@ export function mount(el, ctx){
     const status = (text) => { const node = el.querySelector('[data-first-status]'); if (node) node.textContent = text; };
     // The wording's document waits where it was, then slides into the workflow's preview once that is drawn.
     lifted = liftDocument(sheet || document.body);
+    // Meanwhile it moves down out of the way of the message above, on the side the workflow's preview will be (GP-13).
+    if (lifted) {
+      const box = settledRect(app), from = lifted.rect, width = Math.min(from.width, box.width);
+      glideTo(lifted, { left: Math.max(box.left, Math.min(from.left, box.left + box.width - width)), top: box.top, width, height: box.height });
+    }
     const intoPreview = () => {
       if (!lifted) return;
       const started = Date.now();
