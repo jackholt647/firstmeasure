@@ -143,6 +143,8 @@ const css = `
 .gxd-uploads-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:auto;padding:12px 0 2px;border-top:1px solid #f2f4f7;background:#fff}
 .gxs-choices .gxd-badge{align-self:auto}
 .gxd-note{font-size:12px!important;color:#667085!important}
+/* GP-94: the proposal kinds note sits centred under its two tiles. */
+.gxd-note.gxd-note-center{text-align:center}
 .gxd.gxd-fill{flex:1 1 auto;gap:10px;padding-bottom:0}
 /* The styles as a looping carousel (Jack): the one in the middle large, its pages scrolling; the others peek in smaller.
    The cards keep a margin above and below for their shadows (FM-608: the top looked cut off), and dragging with a mouse
@@ -986,7 +988,7 @@ export function mount(el, ctx){
           <span class="gxd-icon gxs-choice-icon" aria-hidden="true"><i class="fas ${esc(choice.icon)}"></i></span>
           <span class="gxs-choice-text"><strong>${esc(L(choice.title))}</strong><small>${esc(L(choice.hint))}</small></span>${choiceTick}
         </button>`).join('')}</div>
-        <p class="gxd-note">${esc(t('proposal_kinds_note', 'Pick both if you do both: we set up your retail proposal first, then your insurance agreement.'))}</p></div>`;
+        <p class="gxd-note gxd-note-center">${esc(t('proposal_kinds_note', 'Select both if you do both.'))}</p></div>`;
       hide(false);
       if (picked.size) report();
     }

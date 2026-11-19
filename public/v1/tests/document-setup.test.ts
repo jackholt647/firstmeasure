@@ -79,6 +79,8 @@ test("the library entry parses, and its checks pass against the running code", a
   assert.match(detailCopy, /exact scope of work, down to each material and the labor/, "GP-49: every line item is built from the job's scope of work");
   assert.match(detailCopy, /broad materials selected and the job’s overall measurements/, "GP-49: a broad estimate comes from the main materials and measurements");
   assert.doesNotMatch(detailCopy, /squares|shingle|underlayment|ice and water/i, "GP-49: the detail step is not roofing-only");
+  assert.match(choices, /<p class="gxd-note gxd-note-center">\$\{esc\(t\('proposal_kinds_note', 'Select both if you do both\.'\)\)\}<\/p>/, "GP-94: the proposal kinds note is just \"Select both if you do both.\", centred");
+  assert.match(choices, /\.gxd-note\.gxd-note-center\{text-align:center\}/, "GP-94: the centred note's rule");
 });
 
 test("a proposal asks the unanswered company steps first; another kind goes straight to its style", async () => {
