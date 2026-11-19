@@ -1181,6 +1181,16 @@
     .gx-dev-row button:hover{background:#f9fafb}
     .gx-dev-history small{display:block;color:#667085}
     .gx-dev-empty{color:#667085;padding:6px 2px}
+    .gx-dev-head{display:flex;align-items:center;gap:8px;margin:12px 2px 6px}
+    .gx-dev-panel .gx-dev-head h4{flex:1;margin:0}
+    .gx-dev-head button{border:1px solid #d0d5dd;border-radius:7px;background:#fff;font:inherit;font-size:11.5px;font-weight:650;padding:4px 9px;cursor:pointer;color:#344054;white-space:nowrap}
+    .gx-dev-head button:hover:not(:disabled){background:#f9fafb}
+    .gx-dev-head button:disabled{opacity:.5;cursor:default}
+    .gx-dev-state{display:inline-block;margin-right:6px;padding:1px 7px;border-radius:999px;font-size:10.5px;font-weight:650;white-space:nowrap;vertical-align:1px}
+    .gx-dev-state.gx-dev-not_started{color:#667085;border:1px solid #eaecf0}
+    .gx-dev-state.gx-dev-started{background:#fef0c7;color:#93370d}
+    .gx-dev-state.gx-dev-done{background:#ecfdf3;color:#067647}
+    .gx-dev-state.gx-dev-skipped{background:#f2f4f7;color:#475467}
   `;
   const EDIT_KEY = 'fm-gx-edit-copy';
   // Copy editing is off until a development editor turns it on (the dev console's switch), in each browser.
@@ -1283,6 +1293,7 @@
   async function devAction(data, rerender){
     const kind = data.gxd, id = data.gxdId;
     try {
+      if (kind === 'reset-all') { await resetAll(rerender); return; }
       if (kind === 'revert') { await devApi.revert(data.gxdKey, Number(data.gxdRevision)); status(L('gx_dev_reverted', 'Reverted')); await refresh(true); rerender?.(); return; }
       if (kind === 'reset-me' || kind === 'reset-org') {
         const result = await devApi.reset(id, kind === 'reset-org' ? 'organization' : 'me');
@@ -1299,6 +1310,42 @@
       }
     } catch (error) { status(clean(error?.message) || L('gx_dev_failed', 'Not saved')); }
   }
+  /**
+   * Reset all: resets, for this person, each experience they have opened, one after the other, as "Reset me" would
+   * (an organization-wide experience's progress is the organization's, so it is reset too).
+   */
+  let resettingAll = false;
+  async function resetAll(rerender){
+    if (resettingAll) return;
+    const ids = array(state.devExperiences).filter((entry) => entry.status && entry.status !== 'not_started').map((entry) => entry.id);
+    if (!ids.length) { status(L('gx_dev_reset_all_nothing', 'Nothing to reset.')); return; }
+    resettingAll = true; rerender?.();
+    let done = 0;
+    try {
+      for (const id of ids) {
+        status(`${L('gx_dev_resetting', 'Resetting')} ${done + 1}/${ids.length}…`);
+        await devApi.reset(id, 'me');
+        done++;
+      }
+      status(`${L('gx_dev_reset_all_done', 'Reset')} ${done}/${ids.length}`);
+    } finally {
+      resettingAll = false;
+      await refresh(true).catch(() => null);
+      projectFrameGuides()?.refresh?.();
+      rerender?.();
+    }
+  }
+  /** What the dev console shows for where this person is in an experience (the Setup section's words). */
+  const DEV_STATES = {
+    not_started: ['gx_dev_not_started', 'Not started'],
+    started: ['gx_dev_in_progress', 'In progress'],
+    done: ['gx_dev_finished', 'Finished'],
+    skipped: ['gx_dev_skipped', 'Skipped']
+  };
+  const progressBadge = (entry) => {
+    const status = DEV_STATES[entry.status] ? entry.status : 'not_started';
+    return `<b class="gx-dev-state gx-dev-${status}">${esc(L(...DEV_STATES[status]))}</b>`;
+  };
   function projectFrameGuides(){
     for (const frame of document.querySelectorAll('iframe')) {
       try { const guides = frame.contentWindow?.FirstMateGuides; if (guides && frame.getClientRects().length && frame.contentWindow.FirstMateGuides !== root.FirstMateGuides) return guides; } catch (_) { /* another origin */ }
@@ -1311,7 +1358,7 @@
     try { if (root.__gxLastCopyKey) lastKey = root.__gxLastCopyKey; } catch (_) {}
     if (lastKey) history = array((await devApi.history(lastKey).catch(() => ({}))).history);
     panel.innerHTML = `<h4>${esc(L('gx_dev_field', 'Last edited copy'))}</h4>${lastKey ? `<div class="gx-dev-history">${history.map((entry) => `<div class="gx-dev-row"><span>${esc(entry.text || L('gx_dev_builtin_text', '(built-in text)'))}<small>${esc(entry.author)} · ${esc(new Date(entry.created_at).toLocaleString())} · r${entry.revision}</small></span><button type="button" data-gxd="revert" data-gxd-key="${esc(lastKey)}" data-gxd-revision="${entry.revision}">${esc(L('gx_dev_use', 'Use'))}</button></div>`).join('')}<div class="gx-dev-row"><span>${esc(lastKey)}</span><button type="button" data-gxd="revert" data-gxd-key="${esc(lastKey)}" data-gxd-revision="0">${esc(L('gx_dev_first_text', 'Use the first text'))}</button></div></div>` : `<div class="gx-dev-empty">${esc(L('gx_dev_no_field', 'Edit any copy to see its history here.'))}</div>`}
-      <h4>${esc(L('gx_dev_experiences', 'Experiences'))}</h4>${list.map((entry) => `<div class="gx-dev-row"><span title="${esc(entry.id)}">${esc(L(entry.title))}</span>${entry.kind === 'overlay' ? `<button type="button" data-gxd="replay" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_replay', 'Replay'))}</button>` : `<button type="button" data-gxd="restart" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_restart', 'Restart'))}</button>`}<button type="button" data-gxd="reset-me" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_reset_me', 'Reset me'))}</button><button type="button" data-gxd="reset-org" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_reset_org', 'Reset org'))}</button></div>`).join('') || `<div class="gx-dev-empty">${esc(L('gx_dev_none', 'No experiences.'))}</div>`}`;
+      <div class="gx-dev-head"><h4>${esc(L('gx_dev_experiences', 'Experiences'))}</h4>${list.length ? `<button type="button" data-gxd="reset-all"${resettingAll || !list.some((entry) => entry.status && entry.status !== 'not_started') ? ' disabled' : ''}>${esc(L('gx_dev_reset_all', 'Reset all'))}</button>` : ''}</div>${list.map((entry) => `<div class="gx-dev-row"><span title="${esc(entry.id)}">${progressBadge(entry)}${esc(L(entry.title))}</span>${entry.kind === 'overlay' ? `<button type="button" data-gxd="replay" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_replay', 'Replay'))}</button>` : `<button type="button" data-gxd="restart" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_restart', 'Restart'))}</button>`}<button type="button" data-gxd="reset-me" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_reset_me', 'Reset me'))}</button><button type="button" data-gxd="reset-org" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_reset_org', 'Reset org'))}</button></div>`).join('') || `<div class="gx-dev-empty">${esc(L('gx_dev_none', 'No experiences.'))}</div>`}`;
   }
   root.FirstMateGuides = {
     /** Development: re-reads the editing switch (the dev console on the page above calls it on project frames). */

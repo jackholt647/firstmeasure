@@ -194,6 +194,9 @@ async function resolve(definition: ExperienceDefinition, ctx: PlatformAuthContex
 }
 export type ResolvedExperience = NonNullable<Awaited<ReturnType<typeof resolve>>>;
 
+/** Where this person is in an experience, for the dev console: never opened, opened and not finished, finished, or skipped. */
+const devStatus = (progress?: Progress | null) => !progress ? "not_started" : progress.status === "started" ? "started" : progress.status === "completed" ? "done" : "skipped";
+
 /** Every experience this person may see now, and the suggested questions for the tab they are on. */
 export async function availableExperiences(ctx: PlatformAuthContext, surface: { tab?: string; projectId?: string } = {}) {
   ensureGuidedDefinitions();
@@ -232,7 +235,7 @@ export async function availableExperiences(ctx: PlatformAuthContext, surface: { 
     experiences: out, reveals,
     faqs: faqs ? { tab: faqs.tab, questions: faqs.questions.filter((question) => question.action !== "play" || playable.has(question.experience!)) } : null,
     ...(Object.keys(overrides).length ? { copy_overrides: overrides } : {}),
-    ...(dev.editor ? { dev: { editor: true, experiences: listExperiences().map((definition) => ({ id: definition.id, title: definition.title, kind: definition.kind, scope: definition.scope })) } } : {})
+    ...(dev.editor ? { dev: { editor: true, experiences: listExperiences().map((definition) => ({ id: definition.id, title: definition.title, kind: definition.kind, scope: definition.scope, status: devStatus(rows.find((row) => row.experience_id === definition.id && row.subject_id === subjectFor(definition, ctx))) })) } } : {})
   };
 }
 
