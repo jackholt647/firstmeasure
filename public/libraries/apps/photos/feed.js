@@ -2009,7 +2009,7 @@
 
       .pf-post-list-line{padding-left:15px}.pf-manual-text blockquote{display:inline-block;margin:2px 0;padding:1px 0 1px 10px;border-left:3px solid #cbd5e1;color:#667085}.pf-manual-text a{color:#2456a8;text-decoration:underline}
       .pf-compose-author{display:flex;align-items:center;gap:10px}.pf-compose-author .pf-post-avatar{width:40px;height:40px;flex:0 0 40px;border-radius:50%;object-fit:cover}.pf-compose-message{border:1px solid #d0d5dd;border-radius:12px;overflow:visible;background:#fff}.pf-compose-message:focus-within{border-color:#5792e4;box-shadow:0 0 0 2px #bfd7ff}.pf-post-formatbar{display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin:0 9px;padding:6px 0;border-bottom:1px solid #eaecf0}.pf-post-formatbar button{min-width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:#667085;font:inherit;font-size:13px;cursor:pointer}.pf-post-formatbar button:hover{background:#f2f4f7;color:#344054}.pf-compose-message [data-feed-compose-text]{min-height:300px;max-height:55vh;overflow-y:auto;margin:0;width:100%;box-sizing:border-box;padding:12px;border:0;border-radius:0;outline:0;resize:vertical;white-space:pre-wrap;overflow-wrap:anywhere}.pf-compose-message [data-feed-compose-text]:empty:before{content:attr(data-placeholder);color:#98a2b3;pointer-events:none}.pf-post-compose-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px 10px}.pf-post-compose-bottom .pf-action{min-width:64px}.pf-image-lightbox{background:#101828ba;backdrop-filter:blur(4px)}.pf-image-lightbox-panel{width:min(900px,94vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;border-radius:15px;background:#fff;box-shadow:0 25px 65px #10182855}.pf-image-lightbox-panel header{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:10px 15px;border-bottom:1px solid #e4e7ec}.pf-image-lightbox-panel header strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#344054;font-size:13px}.pf-image-lightbox-panel header button{position:static;width:34px;height:34px;flex:none;border-radius:8px;color:#344054;font-size:24px}.pf-image-lightbox-panel img{display:block;max-width:100%;max-height:calc(92vh - 57px);margin:auto;padding:12px;box-sizing:border-box;object-fit:contain}
-      .pf-feed-scope-control{position:relative;flex:none}.pf-feed-scope-trigger{display:flex;align-items:center;gap:8px;min-height:38px;padding:0 12px;border:1px solid #344054;border-radius:9px;background:#fff;color:#344054;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}.pf-feed-scope-trigger>span{color:#667085}.pf-feed-scope-trigger strong{font-weight:800;color:#182230}.pf-feed-scope-trigger i{margin-left:3px;font-size:10px}.pf-feed-scope-menu{position:absolute;top:calc(100% + 7px);left:0;z-index:30;width:300px;max-width:calc(100vw - 24px);box-sizing:border-box;padding:9px;background:#fff;border:1px solid #d0d5dd;border-radius:12px;box-shadow:0 14px 32px #10182822}.pf-feed-scope-menu>button,.pf-feed-scope-departments button{display:flex;align-items:center;justify-content:space-between;width:100%;padding:10px 11px;border:0;border-radius:8px;background:#fff;color:#344054;text-align:left;font:inherit;font-size:12px;cursor:pointer}.pf-feed-scope-menu button:hover,.pf-feed-scope-menu button[aria-selected="true"]{background:#f2f4f7}.pf-feed-scope-menu button i{color:var(--primary-readable,var(--primary,#d93025))}.pf-feed-scope-section{margin:6px 3px 8px;padding:11px 8px 0;border-top:1px solid #e4e7ec;color:#667085;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}.pf-feed-scope-search{display:flex;align-items:center;gap:8px;margin:0 2px 6px;padding:0 10px;border:1px solid #d0d5dd;border-radius:8px;color:#667085}.pf-feed-scope-search input{width:100%;min-width:0;height:35px;border:0;outline:0;font:inherit;font-size:12px}.pf-feed-scope-departments{max-height:220px;overflow:auto}.pf-list-controls{flex-wrap:nowrap;color:#667085;font-size:12px}.pf-list-segment{display:flex;align-items:center;padding:3px;border:1px solid #d0d5dd;border-radius:10px;background:#fff}.pf-list-segment button{border:0;border-radius:7px;background:transparent;color:#344054;padding:7px 12px;font:inherit;font-size:12px;cursor:pointer}.pf-list-segment button.active{background:#fff0ee;color:var(--primary-readable,var(--primary,#d93025));font-weight:850}
+      .pf-feed-scope-control{position:relative;flex:none}.pf-feed-scope-trigger{display:flex;align-items:center;gap:8px;min-height:38px;padding:0 12px;border:1px solid #344054;border-radius:9px;background:#fff;color:#344054;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}.pf-feed-scope-trigger>span{color:#667085}.pf-feed-scope-trigger strong{font-weight:800;color:#182230}.pf-feed-scope-trigger i{margin-left:3px;font-size:10px}.pf-feed-scope-menu{position:absolute;top:calc(100% + 7px);left:0;z-index:30;width:300px;max-width:calc(100vw - 24px);box-sizing:border-box;padding:9px;background:#fff;border:1px solid #d0d5dd;border-radius:12px;box-shadow:0 14px 32px #10182822}.pf-feed-scope-menu>button,.pf-feed-scope-departments button{display:flex;align-items:center;justify-content:space-between;width:100%;padding:10px 11px;border:0;border-radius:8px;background:#fff;color:#344054;text-align:left;font:inherit;font-size:12px;cursor:pointer}.pf-feed-scope-menu button:hover,.pf-feed-scope-menu button[aria-selected="true"]{background:#f2f4f7}.pf-feed-scope-menu button i{color:var(--primary-readable,var(--primary,#d93025))}.pf-feed-scope-section{margin:6px 3px 8px;padding:11px 8px 0;border-top:1px solid #e4e7ec;color:#667085;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}.pf-feed-scope-search{display:flex;align-items:center;gap:8px;margin:0 2px 6px;padding:0 10px;border:1px solid #d0d5dd;border-radius:8px;color:#667085}.pf-feed-scope-search input{width:100%;min-width:0;height:35px;border:0;outline:0;font:inherit;font-size:12px}.pf-feed-scope-departments{max-height:220px;overflow:auto}.pf-list-controls{flex-wrap:nowrap;color:#667085;font-size:12px}.pf-list-segment{display:flex;align-items:center;padding:3px;border:1px solid #d0d5dd;border-radius:10px;background:#fff}.pf-list-segment button{border:0;border-radius:7px;background:transparent;color:#344054;padding:7px 12px;font:inherit;font-size:12px;cursor:pointer}.pf-list-segment button.active{background:#eaecf0;color:#101828;font-weight:850}[data-feed-open-photo],[data-feed-open-entry]{cursor:pointer}.pf-wrap[data-density="list"] .pf-feed-list-row:is([data-feed-open-photo],[data-feed-open-entry]):hover{background:#f9fafb}
       .pf-compose-audience{display:inline-flex;justify-self:start;max-width:100%}.pf-compose-audience-picker{display:inline-flex;align-items:center;gap:6px;position:relative;max-width:100%;color:#182230;font-weight:750}.pf-compose-audience-picker select{position:absolute;inset:0;width:100%;height:100%;max-width:none;opacity:0;cursor:pointer}.pf-compose-audience-picker i{font-size:10px;pointer-events:none}
       .pf-comment-reactions{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.pf-comment-reactions button{border:1px solid #dce5f0;border-radius:999px;background:#fff;padding:2px 7px;color:#344054;font-size:11px;cursor:pointer}.pf-comment-reactions button:hover{background:#eef4ff;border-color:#b8c8ed}.pf-comment-actions .pf-comment-react{position:relative;display:inline-flex;align-items:center}.pf-comment-react>div{position:absolute;left:0;bottom:100%;z-index:12;display:flex;gap:2px;padding:6px;border:1px solid #e4e7ec;border-radius:20px;background:#fff;box-shadow:0 4px 20px #10182820;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .12s ease}.pf-comment-react:hover>div,.pf-comment-react:focus-within>div,.pf-comment-react.open>div{visibility:visible;opacity:1;pointer-events:auto}.pf-comment-actions .pf-comment-react>div button{font-size:20px;padding:3px 5px}
       .pf-feed-scope-trigger{border:0;padding:0 8px;background:transparent}.pf-feed-scope-trigger:hover,.pf-feed-scope-trigger[aria-expanded="true"]{background:#f2f4f7}.pf-feed-scope-trigger:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:2px}
@@ -2685,7 +2685,7 @@
     const doc = entry.document;
     const author = postAuthor({ kind:'document', document:doc, source:{ author:firstText(doc.uploaded_by_user_id,doc.created_by,doc.uploaded_by) } });
     return `
-      <article class="pf-feed-card pf-feed-document-card">
+      <article class="pf-feed-card pf-feed-document-card" data-feed-open-entry="${escapeHtml(entry.id)}">
         <button type="button" class="pf-document-preview" data-feed-document-id="${escapeHtml(entry.id)}"${doc.url ? '' : ' aria-disabled="true"'}>
           ${documentPreviewHtml(doc)}
           <span class="pf-document-badge" style="--feed-doc-color:${escapeHtml(doc.color || '#64748b')}">${escapeHtml(doc.type_label || 'Document')}</span>
@@ -2702,7 +2702,7 @@
     const event = entry.event;
     const author = postAuthor({ kind:'activity', event, source:{ author:cleanText(event.actor_user_id) } });
     return `
-      <article class="pf-feed-activity">
+      <article class="pf-feed-activity"${feedOpenEntryAttr(entry)}>
         ${actorAvatarHtml(author,feedActivityIcon(event))}
         <div class="pf-feed-activity-copy">
           <strong>${escapeHtml(feedActivitySummary(event))}</strong>
@@ -2713,7 +2713,7 @@
   }
   function feedNoteEntryHtml(entry = {}){
     const author = postAuthor({kind:'note',note:entry.note,source:{author:entry.note?.author?.id}});
-    return `<article class="pf-feed-activity pf-feed-note-card">${actorAvatarHtml(author,'fa-note-sticky')}<div class="pf-feed-activity-copy"><strong>${escapeHtml(author.name)} added a note:</strong>${feedNoteHtml(entry.note)}<div class="pf-feed-list-project">${feedProjectLinkHtml(entry.project,entry.projectId)}</div></div><time>${escapeHtml(feedListTime(entry.timestamp))}</time></article>`;
+    return `<article class="pf-feed-activity pf-feed-note-card"${feedOpenEntryAttr(entry)}>${actorAvatarHtml(author,'fa-note-sticky')}<div class="pf-feed-activity-copy"><strong>${escapeHtml(author.name)} added a note:</strong>${feedNoteHtml(entry.note)}<div class="pf-feed-list-project">${feedProjectLinkHtml(entry.project,entry.projectId)}</div></div><time>${escapeHtml(feedListTime(entry.timestamp))}</time></article>`;
   }
   function startFeedPolling(){
     clearInterval(state.feedTimer);
@@ -2888,7 +2888,7 @@
     const documentEntry=post.entries.find((entry)=>entry.kind==='document');
     const fallback=`${post.kind==='note' ? feedNoteHtml(post.note,true) : ''}${feedListMediaHtml(photos,post.projectId)}${post.kind==='document' ? feedListDocumentHtml(post.document,documentEntry?.id) : ''}`;
     const actionActor=post.kind==='activity' ? feedActor(post.event) : post.pairedEvent && action.startsWith(feedActor(post.pairedEvent)) ? feedActor(post.pairedEvent) : author.name;
-    const photoOpen=photos.length ? ` data-feed-open-photo="${escapeHtml(photos[0].mediaItem.id)}"` : '';
+    const photoOpen=photos.length ? ` data-feed-open-photo="${escapeHtml(photos[0].mediaItem.id)}"` : feedOpenEntryAttr(documentEntry || post.entries[0]);
     const projectLink=feedProjectLinkHtml(post.project,post.projectId,false,true);
     return `<article class="pf-feed-list-row${showProject?' pf-list-time-row':''}${fallback?'':' pf-no-preview'}" data-feed-entry="${escapeHtml(post.id)}"${photoOpen}>${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy">${feedListTitleHtml(post.timestamp,action,actionActor,!showProject)}${showProject?`<div class="pf-feed-list-project">${photos.length?projectLink.replace('data-feed-project-id=','data-feed-project-tab="photos" data-feed-project-id='):projectLink}</div>`:''}${fallback?`<div class="pf-feed-list-preview">${fallback}</div>`:''}</div>${showProject?`<time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedDayTime(post.timestamp))}</time>`:''}</article>`;
   }
@@ -2986,7 +2986,7 @@
     const amount=doc ? firstText(doc.total_formatted,doc.amount_formatted,doc.contract_value,doc.total,doc.amount) : firstText(activityPayload(post.event || {}).amount_formatted,activityPayload(post.event || {}).amount);
     const amountCents=Number(doc?.total_cents ?? doc?.amount_cents ?? activityPayload(post.event || {}).amount_cents);
     const money=Number.isFinite(amountCents)?new Intl.NumberFormat(undefined,{style:'currency',currency:doc?.currency || activityPayload(post.event || {}).currency || 'USD'}).format(amountCents/100):amount;
-    const body=post.kind==='manual' ? manualPostBodyHtml(post.manual) : photos.length ? `<p class="pf-post-caption">Uploaded ${uploadCountLabel(photos)}</p><div class="pf-post-collage count-${Math.min(photos.length,4)}">${photos.slice(0,4).map((entry,i)=>`<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media)?'video':'photo'} ${i+1}">${mediaThumbHtml(entry.mediaItem)}${i===3&&photos.length>4?`<span class="pf-post-overflow">+${photos.length-4}</span>`:''}</button>`).join('')}</div>` : post.kind==='document' ? `<div class="pf-post-document"><span class="pf-post-document-icon"><i class="fas ${escapeHtml(doc.icon || 'fa-file-contract')}"></i></span><div><small>${escapeHtml(doc.type_label || 'Document')}</small><strong>${escapeHtml(doc.title || 'Document')}</strong>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}<button type="button" class="pf-action" data-feed-document-id="${escapeHtml(doc.id)}">Open document</button></div></div>` : `<div class="pf-post-event"><i class="fas ${escapeHtml(feedActivityIcon(post.event))}"></i><p>${escapeHtml(feedActivitySummary(post.event))}</p>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}</div>`;
+    const body=post.kind==='manual' ? manualPostBodyHtml(post.manual) : photos.length ? `<p class="pf-post-caption">Uploaded ${uploadCountLabel(photos)}</p><div class="pf-post-collage count-${Math.min(photos.length,4)}">${photos.slice(0,4).map((entry,i)=>`<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media)?'video':'photo'} ${i+1}">${mediaThumbHtml(entry.mediaItem)}${i===3&&photos.length>4?`<span class="pf-post-overflow">+${photos.length-4}</span>`:''}</button>`).join('')}</div>` : post.kind==='document' ? `<div class="pf-post-document"><span class="pf-post-document-icon"><i class="fas ${escapeHtml(doc.icon || 'fa-file-contract')}"></i></span><div><small>${escapeHtml(doc.type_label || 'Document')}</small><strong>${escapeHtml(doc.title || 'Document')}</strong>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}<button type="button" class="pf-action" data-feed-document-id="${escapeHtml(post.entries.find(entry=>entry.kind==='document')?.id || doc.id)}">Open document</button></div></div>` : `<div class="pf-post-event"><i class="fas ${escapeHtml(feedActivityIcon(post.event))}"></i><p>${escapeHtml(feedActivitySummary(post.event))}</p>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}</div>`;
     const reactions=current.root?.reactions || [],liked=reactions.find(r=>r.emoji==='👍');
     const location=post.kind==='manual' ? `<span class="pf-post-scope"><i class="fas ${post.manual?.metadata?.feed_department_id?'fa-people-group':'fa-building'}"></i>${escapeHtml(manualPostScope(post.manual))}</span>` : feedProjectLinkHtml(post.project,post.projectId,false,true);
     return `<article class="pf-post" data-feed-post="${escapeHtml(post.id)}">
@@ -3227,6 +3227,76 @@
   // One card per entry; the responsive grid keeps all mobile tiles in two columns.
   function feedTileEntriesHtml(list = []){
     return list.map((entry) => entry.kind === 'manual' ? feedManualEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : entry.kind === 'document' ? feedDocumentEntryHtml(entry) : entry.kind === 'note' ? feedNoteEntryHtml(entry) : feedActivityEntryHtml(entry)).join('');
+  }
+  // Every Feed entry but a post opens when tapped (GP-116): a document, invoice or receipt in the shared file
+  // viewer (never as a download in a new tab), an activity or a note in its project on the tab it is about.
+  const FEED_ACTIVITY_PROJECT_TABS = { payments:'money', documents:'docs', engagement:'docs', uploads:'docs', messages:'comms', calls:'comms', scheduling:'schedule', media:'photos' };
+  function feedOpenEntryAttr(entry){
+    if (!entry || !['document','activity','note'].includes(entry.kind)) return '';
+    if (entry.kind !== 'document' && !cleanText(entry.projectId)) return '';
+    return ` data-feed-open-entry="${escapeHtml(entry.id)}"`;
+  }
+  function feedDocumentViewerItem(entry = {}){
+    const doc = entry.document || {};
+    const url = documentUrl(doc);
+    const contentType = firstText(doc.content_type, doc.mime_type).toLowerCase();
+    const name = firstText(doc.file_name, doc.title, url);
+    const mediaType = contentType.includes('pdf') || /\.pdf(?:$|[?#])/i.test(name) ? 'pdf'
+      : contentType.startsWith('image/') || /\.(?:png|jpe?g|gif|webp|avif|heic)(?:$|[?#])/i.test(name) ? 'image'
+      : contentType.startsWith('video/') ? 'video' : 'document';
+    const item = {
+      ...doc,
+      id:doc.id,
+      media_id:firstText(doc.media_id, doc.mediaId),
+      src:url,
+      url,
+      media_type:mediaType,
+      label:doc.title,
+      alt:doc.title,
+      uploaded_at:firstText(doc.uploaded_at, doc.created_at, doc.updated_at, entry.timestamp),
+      tags:[doc.type_label].filter(Boolean),
+      __project:entry.project || {},
+      __document:doc
+    };
+    // A file with no media of its own is discussed by its project and document id, as in the project's Docs (GP-68).
+    return item.media_id || !entry.projectId ? item : { ...item, comment_document:{ project_id:entry.projectId, document_id:doc.id, title:doc.title } };
+  }
+  function openFeedDocument(entry = {}){
+    const factory = window.FirstMateMarkup?.openMediaViewer || window.FirstMateMarkup?.openPhotoViewer;
+    // A document with no file (one made in the document engine) opens in its project's Docs.
+    if (!documentUrl(entry.document) || !factory) {
+      openProject(entry.project, { groupKey:entry.projectId, tab:'docs' }).catch((error) => {
+        console.warn('Could not open document project from Feed', error);
+        showToast?.((globalThis.PlatformLanguage?.text("photos","m_3d2585ab4e8b80","Project issue") ?? "Project issue"), error?.message || 'Could not open that project.', false);
+      });
+      return null;
+    }
+    const pool = feedEntries().filter((item) => item.kind === 'document' && documentUrl(item.document));
+    const index = Math.max(0, pool.findIndex((item) => item.id === entry.id));
+    state.activeFeedDocumentViewer?.close?.();
+    const viewer = factory({
+      photos:pool.map(feedDocumentViewerItem),
+      index,
+      project:entry.project || {},
+      itemNoun:'document',
+      collectionNoun:'documents',
+      canDelete:() => false,
+      onOpenProject:(project) => openProject(project, { tab:'docs' }).catch((error) => console.warn('Could not open document project', error)),
+      onClose:() => { if (state.activeFeedDocumentViewer === viewer) state.activeFeedDocumentViewer = null; }
+    });
+    state.activeFeedDocumentViewer = viewer;
+    return viewer;
+  }
+  function openFeedEntry(entry){
+    if (!entry) return null;
+    if (entry.kind === 'document') return openFeedDocument(entry);
+    if (!['activity','note'].includes(entry.kind) || !cleanText(entry.projectId)) return null;
+    const tab = entry.kind === 'activity' ? FEED_ACTIVITY_PROJECT_TABS[feedActivityCategory(entry.event)] || 'map' : 'map';
+    openProject(entry.project, { groupKey:entry.projectId, tab }).catch((error) => {
+      console.warn('Could not open project from Feed', error);
+      showToast?.((globalThis.PlatformLanguage?.text("photos","m_3d2585ab4e8b80","Project issue") ?? "Project issue"), error?.message || 'Could not open that project.', false);
+    });
+    return null;
   }
   async function openFeedViewerAt(index, options = {}){
     const items = filteredItems();
@@ -4398,16 +4468,18 @@
     rootEl.querySelectorAll('[data-feed-document-id]').forEach((btn) => {
       btn.addEventListener('click', (event) => {
         event.preventDefault();
+        event.stopPropagation();
         const id = cleanText(btn.dataset.feedDocumentId);
-        const entry = feedEntries().find((item) => item.id === id);
-        if (!entry?.document) return;
-        if (entry.document.url) {
-          window.open(entry.document.url, '_blank', 'noopener');
-          return;
-        }
-        openProject(entry.project, { groupKey:entry.projectId, tab:'docs' }).catch(() => null);
+        openFeedEntry(feedEntries().find((item) => item.id === id) || feedEntries().find((item) => item.document?.id === id));
       });
     });
+    // Tapping an entry anywhere but its own controls opens it (GP-116); posts keep their own controls.
+    rootEl.querySelectorAll('[data-feed-open-entry]').forEach((row) => row.addEventListener('click', (event) => {
+      if (state.selectionMode || state.trashMode) return;
+      if (event.target.closest('button,a,input,select,textarea,[role="button"],[data-fm-summary-type],.pf-note')) return;
+      const id = cleanText(row.dataset.feedOpenEntry);
+      openFeedEntry(feedEntries().find((item) => item.id === id));
+    }));
     rootEl.querySelectorAll('[data-photo-project-open]').forEach((btn) => {
       btn.addEventListener('click', (event) => {
         event.preventDefault();
