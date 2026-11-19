@@ -55,7 +55,7 @@ test("each tab tour registers, validates, and words every step with a gx_ key", 
     assert.equal(steps.at(-1).id, "outro");
     assert.match(steps.at(-1).body.text, /Show me the tutorial again/);
     const middle = steps.slice(1, -1);
-    assert.ok(middle.length >= 3 && middle.length <= 6, `${entry.id} has 3 to 6 steps on real controls, has ${middle.length}`);
+    assert.ok(middle.length >= 2 && middle.length <= 6, `${entry.id} has 2 to 6 steps on real controls, has ${middle.length}`);
     for (const step of middle) assert.ok(step.targets.length > 0, `${entry.id}/${step.id} points at a control`);
     // The replay chip sits beside the tab's existing questions (registered in materials.ts), whichever registers first.
     const faqs = tabFaqs(entry.tab)!;
@@ -69,8 +69,8 @@ test("each tab tour registers, validates, and words every step with a gx_ key", 
   assert.match(docs.find((step) => step.id === "reports").body.text, /measurement report/);
   assert.match(docs.find((step) => step.id === "new").body.text, /proposal/);
   assert.equal(experience("documents.tab_tutorial"), null, "one Docs tour, under the tab's own name");
-  // Photos is basic: upload or take photos, open one, and the cover photo set from the viewer.
-  assert.deepEqual((experience("photos.tab_tutorial")!.steps as any[]).map((step) => step.id), ["intro", "upload", "open", "cover", "outro"]);
+  // Photos is basic: upload or take photos, and open one. The cover photo has no step of its own (GP-42).
+  assert.deepEqual((experience("photos.tab_tutorial")!.steps as any[]).map((step) => step.id), ["intro", "upload", "open", "outro"]);
   assert.equal(experience("reports.tab_tutorial"), null, "no Reports tour for now");
   assert.equal(tabFaqs("project.measurements")!.questions.some((question) => question.action === "play"), false, "and no replay question for it");
 });

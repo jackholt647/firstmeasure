@@ -1,11 +1,11 @@
 {
   "kind": "guided_experience",
   "id": "photos.tab_tutorial",
-  "revision": 2,
-  "sha256": "748077b46c6f3c3f29f9a1fd948e46973a5e3ebb743564cf21c1aa4cfd4914ee",
+  "revision": 3,
+  "sha256": "4d857dd358d3b0c8d59786bd925ca7b12675c0ba99f31e6c16c6843bc66cbd74",
   "title": "Photos tour",
-  "updated_at": "2026-11-04T02:55:45.794Z",
-  "updated_by": "key:ck_7897b5259beb4fa3 agents:jack-pc",
+  "updated_at": "2026-11-19T17:38:41.008Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "id": "photos.tab_tutorial",
     "version": 2,
@@ -85,25 +85,6 @@
           "text": "Click a photo to open it. From there you can mark it up, comment on it or share it to the customer's portal."
         },
         "targets": [
-          "#rPhotoFeedMount [data-photo-feed-dynamic]",
-          "#rPhotoGridOnly"
-        ],
-        "placement": "auto",
-        "advance": "next",
-        "wait_ms": 1500
-      },
-      {
-        "id": "cover",
-        "title": {
-          "key": "gx_pt_cover_title",
-          "text": "The cover photo"
-        },
-        "body": {
-          "key": "gx_pt_cover_body",
-          "text": "In an open photo, choose \"Set as cover photo\" to make it the project's picture. Its tile then shows a Cover pill."
-        },
-        "targets": [
-          "#rPhotoFeedMount [data-project-cover-current]",
           "#rPhotoFeedMount [data-photo-feed-dynamic]",
           "#rPhotoGridOnly"
         ],
