@@ -172,3 +172,40 @@ test("the document kinds refuse a broken edit, cheaply", async () => {
   assert.deepEqual(checkEntry("presentation_deck", "roofing_itemized", deck).errors, []);
   assert.ok(performance.now() - started < 300, `a deck check took ${Math.round(performance.now() - started)} ms`);
 });
+
+test("an untouched theme copy follows the company's colors; a theme the organization edited keeps its own (GP-95)", async () => {
+  const { ctx, copies, store } = await organization();
+  const { readGlobal, saveGlobal } = await import("../platform/storage.js");
+  const primary = async (id: string) => {
+    const theme = await store.readDocumentTheme(ctx.orgId, id);
+    return { theme, colors: (await store.readDocumentThemeVersion(ctx.orgId, id, Number(theme.current_version))).definition.tokens.colors };
+  };
+  const brand = async (colors: Json) => {
+    const data = (await readGlobal(ctx.orgId)).data || {};
+    await saveGlobal(ctx.orgId, { data: { branding: { ...(data.branding || {}), colors: { ...(data.branding?.colors || {}), ...colors } } } });
+  };
+  // The copies were made with the signup's colors; the company then sets its own.
+  await brand({ primary: "#D0B080", accent: "#D0B080", secondary: "#907040" });
+  await copies.ensureThemeCopies(ctx.orgId);
+  for (const id of ["thm_margin", "thm_clean", "thm_triangles"]) {
+    const { theme, colors } = await primary(id);
+    assert.equal(colors.primary, "#D0B080", id);
+    assert.equal(colors.secondary, "#907040", id);
+    assert.equal(theme.metadata.preset, true, `${id} stays untouched`);
+  }
+  // Nothing changed: nothing is republished.
+  const margin = (await primary("thm_margin")).theme.current_version;
+  await copies.ensureThemeCopies(ctx.orgId);
+  assert.equal((await primary("thm_margin")).theme.current_version, margin);
+
+  // A theme the organization edited is its own: a later rebrand leaves it alone.
+  const own = await primary("thm_clean");
+  const ownVersion = await store.readDocumentThemeVersion(ctx.orgId, "thm_clean", Number(own.theme.current_version));
+  const definition = structuredClone(ownVersion.definition);
+  definition.tokens.colors.primary = "#123456";
+  await store.publishDocumentTheme(ctx.orgId, "thm_clean", { definition, expected_version: Number(own.theme.current_version) }, ctx);
+  await brand({ primary: "#0F766E", accent: "#0F766E" });
+  await copies.ensureThemeCopies(ctx.orgId);
+  assert.equal((await primary("thm_clean")).colors.primary, "#123456");
+  assert.equal((await primary("thm_margin")).colors.primary, "#0F766E");
+});
