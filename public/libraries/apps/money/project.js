@@ -249,6 +249,11 @@
       .mn-add-item strong{display:block;font-size:15px;font-weight:700}
       .mn-add-item small{display:block;margin-top:2px;font-size:12px;color:#667085;line-height:1.35}
       .mn-add-item>i:last-child{color:#98a2b3;font-size:12px}
+      /* Not set up yet (GP-17): the Operations tab's Setup badge, on Take a payment. */
+      .mn-btn.mn-has-setup{position:relative}
+      .mn-tools .mn-btn .mn-setup-pill,.mn-setup-pill{display:inline-block;border:1px solid #f2ca72;border-radius:20px;background:#fff0cb;color:#794c00;padding:0 5px;font-size:9px;font-weight:700;line-height:14px;white-space:nowrap;box-shadow:0 1px 2px rgba(16,24,40,.12);cursor:pointer}
+      .mn-btn .mn-setup-pill{position:absolute;top:-9px;right:-8px}
+      .mn-add-item strong .mn-setup-pill{margin-left:6px;vertical-align:2px}
       .mn-btn{height:38px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;padding:0 12px;font:inherit;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;white-space:nowrap;text-decoration:none;flex:none;transition:border-color .15s ease,color .15s ease,background-color .15s ease}
       .mn-btn:hover:not(:disabled){border-color:rgba(var(--primary-rgb,217,48,37),.4);color:var(--primary-readable,var(--primary,#d93025))}
       .mn-btn.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:var(--on-primary,#fff)}
@@ -846,12 +851,13 @@
   function toolbarHtml(){
     const manage = canManageMoney();
     const uploadBusy = moneyMutationBusy() || state.receiptUploadInFlight;
+    const setupPending = manage && paymentsSetupPending();
     return `
       <div class="mn-toolbar">
         <div class="mn-title"><i class="fas fa-dollar-sign" aria-hidden="true"></i><strong>${escapeHtml(term('workspace'))}</strong></div>
         <div class="mn-tools">
           ${manage ? `
-            <button type="button" class="mn-btn primary mn-desk-only" data-money-take-payment ${busyAttr()} aria-label="${escapeHtml(term('take_collected_payment'))}" data-fm-tooltip="${escapeHtml('Charge a card or bank account now')}"><i class="fas fa-credit-card"></i><span>${escapeHtml(term('take_collected_payment'))}</span></button>
+            <button type="button" class="mn-btn primary mn-desk-only${setupPending ? ' mn-has-setup' : ''}" data-money-take-payment ${busyAttr()} aria-label="${escapeHtml(term('take_collected_payment'))}" data-fm-tooltip="${escapeHtml(setupPending ? setUpPaymentsText() : 'Charge a card or bank account now')}"><i class="fas fa-credit-card"></i><span>${escapeHtml(term('take_collected_payment'))}</span>${setupPending ? paymentsSetupPillHtml() : ''}</button>
             <button type="button" class="mn-btn collapse mn-desk-only" data-money-upload-receipt data-money-busy ${uploadBusy ? 'disabled' : ''} aria-label="${escapeHtml(`Upload ${term('receipts').toLowerCase()}`)}" data-fm-tooltip="${escapeHtml('Upload receipts or bills; totals are read for you')}"><i class="fas fa-file-arrow-up"></i><span>${escapeHtml(`Upload ${term('receipts').toLowerCase()}`)}</span></button>
             <input type="file" data-money-receipt-input multiple accept="image/*,.pdf,.doc,.docx,.dot,.odt,.rtf,.pages,.xls,.xlsx,.csv,.tsv,.iif,.ppt,.pptx,.txt,.md,.json,.xml,.html,.htm,.eml,.mht,.tif,.tiff,.avif,.bmp,.heic,.heif" hidden>
             <button type="button" class="mn-btn collapse mn-desk-only" data-money-open-modal="invoice" ${busyAttr()} aria-label="${escapeHtml(term('generate_invoice'))}" data-fm-tooltip="${escapeHtml('Bill scheduled payments or custom items')}"><i class="fas fa-file-invoice-dollar"></i><span>${escapeHtml(term('generate_invoice'))}</span></button>
@@ -1126,8 +1132,9 @@
 
   function bindShell(root){
     const shell = root.querySelector('[data-money-shell]');
-    shell.querySelector('[data-money-take-payment]')?.addEventListener('click', () => {
+    shell.querySelector('[data-money-take-payment]')?.addEventListener('click', (event) => {
       if (!canManageMoney() || moneyMutationBusy()) return;
+      if (event.target.closest?.('[data-money-payments-setup]') && canSetUpPayments()) { startPaymentSetup(); return; }
       openModal({ type:'take_payment' });
     });
     shell.querySelectorAll('[data-money-open-modal]').forEach((button) => {
@@ -1257,9 +1264,10 @@
   function addMenuModalHtml(){
     const manage = canManageMoney();
     const busy = moneyMutationBusy();
-    const item = (action, icon, label, hint, disabled = false) => `<button type="button" class="mn-add-item" data-money-add-action="${action}" ${disabled ? 'disabled' : ''}><i class="fas ${icon}" aria-hidden="true"></i><span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(hint)}</small></span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>`;
+    const item = (action, icon, label, hint, disabled = false, pill = '') => `<button type="button" class="mn-add-item" data-money-add-action="${action}" ${disabled ? 'disabled' : ''}><i class="fas ${icon}" aria-hidden="true"></i><span><strong>${escapeHtml(label)}${pill}</strong><small>${escapeHtml(hint)}</small></span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>`;
+    const setupPending = manage && paymentsSetupPending();
     const body = `<div class="mn-add-list">
-      ${manage ? item('take_payment', 'fa-credit-card', term('take_collected_payment'), 'Charge a card or bank account now', busy) : ''}
+      ${manage ? item('take_payment', 'fa-credit-card', term('take_collected_payment'), setupPending ? setUpPaymentsText() : 'Charge a card or bank account now', busy, setupPending ? paymentsSetupPillHtml() : '') : ''}
       ${manage ? item('upload_receipts', 'fa-file-arrow-up', `Upload ${term('receipts').toLowerCase()}`, 'Receipts and bills; totals are read for you', busy || state.receiptUploadInFlight) : ''}
       ${manage ? item('invoice', 'fa-file-invoice-dollar', term('generate_invoice'), 'Bill scheduled payments or custom items', busy) : ''}
       ${item('reports', 'fa-chart-column', 'Generate report', manage ? 'From a template, or open a past one' : 'Open reports made for this project')}
@@ -1672,7 +1680,10 @@
       if (button.hasAttribute('data-money-autopay-cancel')) state.autopayError = '';
       tray.dismiss();
     }));
-    layer.querySelectorAll('[data-money-add-action]').forEach((button) => button.addEventListener('click', () => runAddAction(cleanText(button.dataset.moneyAddAction))));
+    layer.querySelectorAll('[data-money-add-action]').forEach((button) => button.addEventListener('click', (event) => {
+      if (event.target.closest?.('[data-money-payments-setup]') && canSetUpPayments() && !moneyMutationBusy()) { startPaymentSetup(); return; }
+      runAddAction(cleanText(button.dataset.moneyAddAction));
+    }));
     layer.querySelectorAll('[data-money-item-action]').forEach((button) => button.addEventListener('click', () => {
       if (!state.modal) return;
       state.modal = { ...state.modal, action:cleanText(button.dataset.moneyItemAction) };
@@ -2446,7 +2457,35 @@
       ? host.Portal.appSetup.run('platform.money')
       : host.FirstMatePaymentsSetup?.open?.();
     if (!setup) { openPaymentSettings(); return; }
-    Promise.resolve(setup).catch(() => openPaymentSettings());
+    Promise.resolve(setup).then(recheckPaymentsSetup, () => openPaymentSettings());
+  }
+
+  // Online payments have not been set up (or turned on) yet, by the server's
+  // readiness answer loaded with the tab. Unknown (not asked, or the ask
+  // failed) is not "not set up": the pill only shows on a definite answer.
+  function paymentsSetupPending(){
+    const entry = state.paymentIntakeConfig;
+    const config = entry && entry.key === `${orgId()}:${projectId()}` ? entry.config : null;
+    return !!config && config.ready !== true && ['online_processing_off', 'no_merchant_account'].includes(cleanText(config.not_ready_reason));
+  }
+
+  function setUpPaymentsText(){
+    return (globalThis.PlatformLanguage?.text("money","m_f36100a458bee9","Set up online payments") ?? "Set up online payments");
+  }
+
+  // GP-17: the Operations tab's labor/equipment "Setup" badge. Clicking it opens payment setup for those who can
+  // set payments up; anyone else gets Take a payment's own explanation.
+  function paymentsSetupPillHtml(){
+    return `<span class="mn-setup-pill" data-money-payments-setup>${(globalThis.PlatformLanguage?.htmlText("money","m_b06faf127e1505","Setup") ?? "Setup")}</span>`;
+  }
+
+  // After the setup closes, ask again so the pill goes once payments are ready.
+  function recheckPaymentsSetup(){
+    const before = paymentsSetupPending();
+    state.paymentIntakeConfig = null;
+    void refreshPaymentIntakeConfig().then(() => {
+      if (state.active && paymentsSetupPending() !== before) renderMain();
+    });
   }
 
   // When payments are not ready, Take a Payment is a way into setup: whoever
@@ -2643,9 +2682,11 @@
       return;
     }
     mount.innerHTML = `<div class="mn-state"><i class="fas fa-circle-notch fa-spin"></i></div>`;
+    const setupBefore = rootNode()?.querySelector('[data-money-take-payment] [data-money-payments-setup]') != null;
     // Resolve provider config once per org+project before mounting so the
     // form opens directly in the right mode.
     void refreshPaymentIntakeConfig().then(() => {
+      if (state.active && state.paymentIntakeConfig && paymentsSetupPending() !== setupBefore) renderMain();
       if (!mount.isConnected || !canManageMoney()) return;
       state.paymentIntakeHandle?.close?.();
       state.paymentIntakeHandle = rootWindow.FirstMatePaymentIntake.mount(mount, paymentIntakeOptions());
