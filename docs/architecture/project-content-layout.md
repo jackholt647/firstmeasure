@@ -275,6 +275,20 @@ itself, closes the tray while it shows once Operations is set up (`platform.mate
 organization finished `operations.setup` or that setup is not offered to this person), including right after that setup finishes there, and opens it again on leaving the tab
 only if Operations closed it (FM-611). Opening or closing it by hand on Operations holds for that visit and is what stays;
 that close is announced as not the person's (`user: false`), and nothing of it is remembered in the browser.
+
+Operations is one of the window's **flows**: work that needs the window's width closes the tray while it runs and
+gives it back when it ends (GP-100). A flow starts with `holdDetailsTray(owner)` (in `project-request/app.js`; tab
+apps call their host's `holdDetailsTray`) and ends with the release it returns. The tray steps aside on a desktop
+when the flow starts, unless the form is the work (a new project, an order in progress); when the last running flow
+ends it opens again only if a flow closed it. Opening or closing it by hand while flows run is what stays: that
+cancels the giving back, and each running flow then leaves the tray alone for the rest of its run. Anything else
+opening it (a measurements request) also cancels the giving back. Another project drops every run.
+`holdDetailsTray(owner, { close: false })` only says a flow runs, for one that decides later whether to close the
+tray (Operations, once its setup is read). The flows today: `operations` (each visit of the Operations tab is a run)
+and `documents.new`: a new document from the Docs tab's New, once a kind is picked (its opening screen) until the
+person leaves the document (its back arrow, or Send's Done for a document a host started); leaving the tab ends that
+run and coming back to the document starts another. A document opened from the list is not new. Add another flow by
+calling the host's `holdDetailsTray` at its start and the release at its end; do not close the tray directly.
 A link or a placed order that asks for Reports' measurements in an organization with
 no Reports tab still opens it, because the tray is where they show. The report order's phone pages keep the form in
 Overview. Full Exterior's capture panel closes only an open right-hand tray and restores it, never this one.
