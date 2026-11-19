@@ -86,8 +86,8 @@ test("default checklists are added by pipeline stage once a pipeline is set up",
   assert.deepEqual(keys(await crew.listProjectChecklists(ORG, second)), ["setup:crew_safety"]);
   assert.equal((await stageReached({ event: { organization_id: ORG, type: "work.node.started" }, project: { id: second }, plan: { template_id: "manual" }, node: { terminology_key: "work.task", template_node_id: "service_work_stage" } } as any, {}) as any).reason, "not_a_stage");
 
-  // One of this project's checklists becomes a default: it is that default here (no copy) and is off in Manual until
-  // someone turns it on.
+  // One of this project's checklists becomes a default: it is that default here (no copy) and, like a newly picked
+  // setup default, is on for all stages of Manual, which someone set up (the stages moved to the Automations Hub, GP-72).
   const own = await crew.createProjectChecklist(ORG, second, { title: "Final walkthrough", items: [{ title: "Walk the site" }, { title: "Rate cleanup", item_type: "rating" }] }, "owner");
   const added = await save(second, { add_from_checklist_id: own.id });
   const key = added.added.key as string;
@@ -96,7 +96,7 @@ test("default checklists are added by pipeline stage once a pipeline is set up",
   assert.equal(made.title, "Final walkthrough");
   assert.deepEqual(made.items.map((item: any) => item.item_type), ["todo", "rating"]);
   assert.equal((await crew.listProjectChecklists(ORG, second)).find((entry) => entry.id === own.id)!.source_key, `setup:${key}`);
-  assert.equal(added.pipelines.find((pipeline: any) => pipeline.id === "manual").checklists[key], undefined);
+  assert.equal(added.pipelines.find((pipeline: any) => pipeline.id === "manual").checklists[key], "all");
   await assert.rejects(() => defaults.saveChecklistDefaults(ORG, second, { add_from_checklist_id: own.id }, "owner"), /already a default/);
   await save(second, { pipeline: { id: "manual", checklists: { crew_safety: "all", work_completion: ["service_work_stage"], [key]: ["service_scheduling_stage"] } } });
   const third = await project("defaults_third");
@@ -120,4 +120,47 @@ test("default checklists are added by pipeline stage once a pipeline is set up",
   await assert.rejects(() => defaults.saveChecklistDefaults(ORG, third, { pipeline: { id: "manual", checklists: { nope: "all" } } }, "owner"), /Not a default checklist/);
   const reset = await save(third, { pipeline: { id: "manual", checklists: null } });
   assert.equal(reset.pipelines.find((pipeline: any) => pipeline.id === "manual").configured, false);
+});
+
+test("Checklist settings edit a default checklist and start new ones (GP-72)", async () => {
+  const { invokeAction } = await import("../platform/publication/actions.js");
+  const { userPublicationContext } = await import("../platform/publication/context.js");
+  const crew = await import("../workforce/crew_storage.js");
+  const defaults = await import("../workforce/checklist-defaults.js");
+  let calls = 0;
+  const save = async (input: Record<string, unknown>) => {
+    const result: any = await invokeAction(userPublicationContext(owner, { mode: "command" }), { action: "checklists.defaults.save", target: { scope: "organization", organizationId: ORG } }, input, { idempotencyKey: `gp72-${++calls}` });
+    assert.equal(result.receipt?.status, "succeeded", JSON.stringify(result));
+    return result.value;
+  };
+  await save({ pipeline: { id: "manual", checklists: { crew_safety: ["service_work_stage"] } } });
+
+  // Every field given replaces the stored one; `items` is the whole list. Fields left out stay.
+  const edited = await save({ update: { key: "crew_safety", title: "Site safety", signature_required: true, customer: "view", items: [{ title: "Hard hats on" }, { title: "Ladder footing", item_type: "rating" }] } });
+  const safety = edited.checklists.find((entry: any) => entry.key === "crew_safety");
+  assert.equal(safety.title, "Site safety");
+  assert.equal(safety.signature_required, true);
+  assert.equal(safety.customer, "view");
+  assert.equal(safety.audience, "crew");
+  assert.deepEqual(safety.items, [{ title: "Hard hats on", item_type: "todo" }, { title: "Ladder footing", item_type: "rating" }]);
+  assert.deepEqual(edited.pipelines.find((pipeline: any) => pipeline.id === "manual").checklists.crew_safety, ["service_work_stage"], "editing keeps its stages");
+  await assert.rejects(() => defaults.saveChecklistDefaults(ORG, "", { update: { key: "nope" } } as any, "owner"), /no longer exists/);
+  await assert.rejects(() => save({ update: { key: "crew_safety", title: " " } }));
+
+  // A new default starts empty, on for all stages of every pipeline someone set up, and projects get it as edited.
+  const started = await save({ create: { title: "Roof tear-off" } });
+  const key = started.created.key as string;
+  assert.match(key, /^list_[0-9a-f]{10}$/);
+  assert.deepEqual(started.checklists.find((entry: any) => entry.key === key).items, []);
+  assert.equal(started.pipelines.find((pipeline: any) => pipeline.id === "manual").checklists[key], "all");
+  const filled = await save({ update: { key, items: [{ title: "Tarp the landscaping" }] } });
+  assert.deepEqual(filled.checklists.find((entry: any) => entry.key === key).items, [{ title: "Tarp the landscaping", item_type: "todo" }]);
+  const storage = await import("../platform/storage.js");
+  await storage.upsertDocument(ORG, "projects", { id: "defaults_gp72", data: { branch_id: "default", title: "gp72" }, metadata: { kind: "platform_project", branch_id: "default" } }, { replace: true });
+  const chosen = await defaults.defaultChecklistsForScopeStart(ORG, "manual", ["service_contract_stage"]);
+  assert.deepEqual(chosen!.checklists.map((entry) => defaults.keyOf(entry)), [key], "Manual has safety at Service only, and the new list everywhere");
+  await defaults.addScopeStartDefaults(ORG, "defaults_gp72", chosen!.checklists);
+  const made = (await crew.listProjectChecklists(ORG, "defaults_gp72")).find((entry) => entry.source_key === `setup:${key}`)!;
+  assert.equal(made.title, "Roof tear-off");
+  assert.deepEqual(made.items.map((item: any) => item.title), ["Tarp the landscaping"]);
 });

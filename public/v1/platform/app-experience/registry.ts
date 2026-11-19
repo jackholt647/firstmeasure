@@ -127,6 +127,9 @@ const APP_SOURCE: AppSource[] = [
   tab("portal.training", "Training", "fa-graduation-cap", 58, { terminology_key: "training.portal_tab", description: "Courses assigned to you.", capabilities: ["apps.training"] }),
   tab("portal.training_studio", "Training Studio", "fa-chalkboard-user", 59, { terminology_key: "training.studio_portal_tab", description: "Build and assign training courses.", capabilities: ["training.studio"], devices: DESKTOP_ONLY }),
   tab("portal.pricebook", "Pricebook", "fa-book", 61, { terminology_key: "pricebook.pricebook", description: "The organization price book, full screen. It is also in Settings.", capabilities: ["platform.pricebook"] }),
+  // Every automation by pipeline and stage, one big settings page (GP-72: a placeholder for now). In More apps, not
+  // pinned to the left column (its manifest placement); Checklist settings' "See Advanced Controls" opens it.
+  tab("portal.automations_hub", "Automations Hub", "fa-diagram-project", 62, { description: "Set up what happens automatically at each stage of your pipelines.", capabilities: ["apps.projects"] }),
   tab("portal.partners", "Partners", "fa-handshake", 60, { terminology_key: "partners.partners", description: "Partner companies and shared work.", capabilities: ["platform.collaboration"] }),
   tab("portal.canvassing", "Canvassing", "fa-map-location-dot", 70, { terminology_key: "canvassing.portal_tab", description: "Canvassing maps and door-to-door activity.", capabilities: ["canvassing.app"] }),
   tab("documents.studio", "Doc Studio", "fa-pen-ruler", 72, { terminology_key: "document_engine.studio_tab", description: "Design document templates.", capabilities: ["documents.templates_studio"], devices: DESKTOP_ONLY }),

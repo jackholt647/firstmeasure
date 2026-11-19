@@ -2,14 +2,15 @@
  * An organization's default checklists, and the pipeline stages each is added in (GP-1).
  *
  * The default checklists are the ones the checklists setup picked (`checklists-setup.ts`, FM-448/FM-600) plus any
- * project checklist someone later made a default. They live in the default branch's `starting_checklists` module:
+ * project checklist someone later made a default or started new in Checklist settings, where each is edited like a
+ * project checklist without the ticking (GP-72). They live in the default branch's `starting_checklists` module:
  *
  *   checklists: [definition]                    what each default says, keyed by `key` (the setup's use case for its own)
  *   pipelines:  { <scope template id>: { checklists: { <key>: "all" | [stage id] } } }
  *
  * A pipeline is a scope template and its stages are the template's stage nodes. A pipeline with no entry of its own
  * keeps what every organization had before: each default checklist is added when one of its scopes starts. Once
- * someone sets a pipeline up in Checklist settings (the project Checklists tab), a default is added when a scope of
+ * a pipeline is set up (GP-1 did it in Checklist settings; GP-72 moves it to the Automations Hub), a default is added when a scope of
  * that pipeline starts if it is on for all stages or for the stage it starts in, and when the project reaches a stage
  * it is on for (`checklists.addStageDefaults.v1`, bound by the default organization rules
  * `platform_checklists_stage_defaults` and `platform_checklists_stage_defaults_manual`). A list is added once per
@@ -245,7 +246,11 @@ const saveInput = z.object({
   /** Make one of the target project's checklists a default (it becomes that default on this project). */
   add_from_checklist_id: z.string().trim().min(1).max(160).optional(),
   /** Stop using these defaults. Projects keep the lists they already have. */
-  remove: z.array(z.string().regex(KEY)).max(MAX_DEFAULTS).optional()
+  remove: z.array(z.string().regex(KEY)).max(MAX_DEFAULTS).optional(),
+  /** Change what one default says (GP-72): the fields given replace the stored ones; `items` is the whole list. */
+  update: z.object(definitionFields).partial().extend({ key: z.string().regex(KEY) }).strict().optional(),
+  /** Start a new, empty default checklist (GP-72). */
+  create: z.object({ title: definitionFields.title }).strict().optional()
 }).strict();
 type SaveInput = z.infer<typeof saveInput>;
 
@@ -276,16 +281,36 @@ export async function saveChecklistDefaults(orgId: string, projectId: string, in
     checklists = checklists.filter((entry) => !removed.has(keyOf(entry)));
     for (const pipeline of Object.values(pipelines)) for (const key of removed) delete pipeline.checklists[key];
   }
+  if (input.update) {
+    const { key, ...changes } = input.update;
+    const index = checklists.findIndex((entry) => keyOf(entry) === key);
+    if (index < 0) throw notFound("checklist_default_not_found", "That default checklist no longer exists. Reload and try again.");
+    const given = Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== undefined));
+    checklists[index] = storedDefinition.parse({ ...checklists[index], ...given });
+  }
+  const full = () => { if (checklists.length >= MAX_DEFAULTS) throw badRequest("checklist_defaults_full", `An organization can have up to ${MAX_DEFAULTS} default checklists.`); };
+  // A new default is on for all stages of each pipeline someone has set up, as a newly picked setup default is: the
+  // stages are chosen in the Automations Hub now, not beside the list (GP-72).
+  const everyPipeline = (key: string) => { for (const pipeline of Object.values(pipelines)) pipeline.checklists[key] = "all"; };
   let added: { key: string; checklist_id: string } | null = null;
+  let created: { key: string } | null = null;
+  if (input.create) {
+    full();
+    const key = `list_${randomBytes(5).toString("hex")}`;
+    checklists.push(storedDefinition.parse({ key, title: input.create.title }));
+    everyPipeline(key);
+    created = { key };
+  }
   if (input.add_from_checklist_id) {
     if (!projectId) throw badRequest("checklist_defaults_project_required", "Make a checklist a default from its project.");
     const checklist = (await listProjectChecklists(orgId, projectId)).find((entry) => entry.id === input.add_from_checklist_id);
     if (!checklist) throw notFound("checklist_not_found", "That checklist is not on this project.");
     const existing = checklist.source_key.startsWith("setup:") ? checklist.source_key.slice(6) : "";
     if (existing && checklists.some((entry) => keyOf(entry) === existing)) throw badRequest("checklist_already_default", "That checklist is already a default.");
-    if (checklists.length >= MAX_DEFAULTS) throw badRequest("checklist_defaults_full", `An organization can have up to ${MAX_DEFAULTS} default checklists.`);
+    full();
     const key = `list_${randomBytes(5).toString("hex")}`;
     checklists.push(definitionFromChecklist(checklist, key));
+    everyPipeline(key);
     await adoptProjectChecklist(orgId, projectId, checklist.id, sourceKeyOf(key));
     added = { key, checklist_id: checklist.id };
   }
@@ -303,7 +328,7 @@ export async function saveChecklistDefaults(orgId: string, projectId: string, in
     ...(current.exists ? { expected_revision: current.revision } : {}),
     data: { ...current.data, checklists, pipelines, updated_by: actorUserId }
   }, { replace: true });
-  return { ...(await readChecklistDefaultsView(orgId, projectId)), added };
+  return { ...(await readChecklistDefaultsView(orgId, projectId)), added, created };
 }
 
 const json = (schema: z.ZodTypeAny) => zodToJsonSchema(schema, { $refStrategy: "none" }) as Record<string, unknown>;
@@ -328,7 +353,7 @@ export function registerChecklistDefaultsPublication() {
   } });
   registerAction({
     id: "checklists.defaults.save", version: "1", domain: "work", implementation: backendImplementationDigest(),
-    description: "Change the organization's default checklists: set which stages of one pipeline each default is added in (\"all\" or stage ids; null puts the pipeline back to adding every default when a scope starts), make one of the target project's checklists a default, or stop using defaults. Projects keep the lists they already have.",
+    description: "Change the organization's default checklists: change what one says (`update`: title, items, sign-off, who sees it), start a new empty one (`create`), set which stages of one pipeline each default is added in (\"all\" or stage ids; null puts the pipeline back to adding every default when a scope starts), make one of the target project's checklists a default, or stop using defaults. A new default is on for all stages of every pipeline someone set up. Projects keep the lists they already have.",
     inputSchema: json(saveInput), outputSchema: { type: "object" },
     executionKinds: ["api", "agent", "module"],
     policy: { scopes: ["organization", "project"], permissions: ["manage_projects"], capabilities: ["apps.checklists"], authorize: projectExists },
