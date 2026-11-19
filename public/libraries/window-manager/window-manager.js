@@ -282,7 +282,7 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
   const modes = ['full', 'floating', 'docked', 'minimized', 'modal', 'fullscreen'];
   const placements = ['left','right','top-left','top-right','bottom-left','bottom-right','top','bottom'];
   let order = 0;
-  let menu = null;
+  let menu = null, menuTitle = null;
   function styles(){
     if (document.getElementById('fm-window-styles')) return;
     const style = document.createElement('style'); style.id = 'fm-window-styles';
@@ -307,6 +307,8 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
 .fm-window-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:700;white-space:nowrap}
 .fm-window-title:after{content:'';display:inline-block;width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);margin-left:6px;vertical-align:3px;opacity:.55;flex:0 0 auto}
 .fm-window[data-window=minimized] .fm-window-title:after,.fm-window-title-plain:after{display:none}
+/* A title that opens the window menu looks pressable (GP-90). */
+.fm-window-title[role=button]:not(.fm-window-title-plain){cursor:pointer}.fm-window-title[role=button]:not(.fm-window-title-plain):is(:hover,[aria-expanded=true]):after{opacity:1}.fm-window-title[role=button]:not(.fm-window-title-plain):active{opacity:.7}
 .fm-window-controls{display:flex;flex:0 0 auto;gap:2px;margin-left:auto}.fm-window-controls button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;background:none;border:0;border-radius:6px;color:inherit;cursor:pointer;font-size:12px}
 .fm-window-controls button:hover{background:#66708520}.fm-window-controls button[data-window-action=close]:hover{background:#d92d20;color:#fff}
 .fm-window[data-window=minimized]{border-radius:7px}.fm-window[data-window=minimized] .fm-window-header{height:30px;min-height:30px;padding:0 6px}.fm-window[data-window=minimized] .fm-window-controls button{height:28px!important;min-height:28px!important;width:24px!important}.fm-window[data-window=minimized] .fm-window-controls button:not([data-window-action=minimize]):not([data-window-action=close]):not([data-minimized-visible]){display:none!important}
@@ -334,7 +336,7 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
 `;
     document.head.append(style);
   }
-  function closeMenu(){ menu?.remove(); menu = null; }
+  function closeMenu(){ menu?.remove(); menu = null; menuTitle?.removeAttribute('aria-expanded'); menuTitle = null; }
   const dismissMenuOnPointer = event => { if (menu && !menu.contains(event.target)) closeMenu(); };
   document.addEventListener('pointerdown', dismissMenuOnPointer);
   // Dismiss placement menus before a containing modal's document Escape handler.
@@ -636,6 +638,7 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       for(const [label,action] of items) {const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('role','menuitem');button.onclick=()=>{closeMenu();action();};if(action===requestClose)menu.append(dockOptions);menu.append(button);}
       if(dockOnly)menu.append(dockOptions);
       menu.style.width='max-content';menu.style.pointerEvents='auto';(options.menuHost || document.body).append(menu);
+      if(!dockOnly && title){menuTitle=title;title.setAttribute('aria-expanded','true');}
       const anchor=dockOnly?buttons.place:header,r=anchor.getBoundingClientRect(),view=menu.ownerDocument.defaultView;
       const frameOffset=menu.ownerDocument!==headerDocument?headerDocument.defaultView.frameElement?.getBoundingClientRect():null;
       const pointer=event.type==='contextmenu'&&!dockOnly&&Number.isFinite(event.clientX);
@@ -645,11 +648,14 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
     }
     header.addEventListener('contextmenu',showMenu);
     if (title && options.titleMenu !== false) { title.tabIndex=0; title.setAttribute('role','button'); title.setAttribute('aria-label',((v0) => globalThis.PlatformLanguage?.text("window-manager","m_d2465937dae930",`${v0} window menu`,{v0}) ?? `${v0} window menu`)(name)); title.title=(globalThis.PlatformLanguage?.text("window-manager","m_e271e8dbdf1d3d","Window menu (right-click or Alt+Space)") ?? "Window menu (right-click or Alt+Space)"); }
-    let dragged=false;
+    let dragged=false,titlePress=false,titleMenuWasOpen=false;
+    // The header's drag gesture captures the pointer, so the click lands on the header, not the title (GP-90):
+    // whether the title was pressed is read at pointerdown. A second press on the title closes its open menu.
     const titleClick=event=>{
       if(dragged || event.composedPath().includes(controls) || event.target.closest('button,input,a,select'))return;
+      const onTitle=!!title?.contains(event.target) || (event.target===header && titlePress);
       if(win.mode === 'minimized')restore();
-      else if(options.titleMenu !== false && title?.contains(event.target))showMenu(event);
+      else if(options.titleMenu !== false && onTitle && !titleMenuWasOpen)showMenu(event);
     }; header.addEventListener('click',titleClick);
     function keydown(event){ if (event.altKey && event.code === 'Space') showMenu(event); else if (event.target === title && ['Enter',' '].includes(event.key)) { if(win.mode === 'minimized'){event.preventDefault();restore();}else showMenu(event); } }
     if(headerDocument!==document)headerDocument.addEventListener('keydown',keydown);
@@ -696,7 +702,7 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       const end=next=>{const side=candidate;clearPreview();element.classList.remove('is-gesturing');handle.classList.remove('is-resizing');handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',end);handle.removeEventListener('pointercancel',end);endGesture=null;if(next?.type==='pointerup' && side)dock(side);else layout(win.host);};
       endGesture=end;handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',end);handle.addEventListener('pointercancel',end);
     }
-    const drag=event=>gesture(event,'');header.addEventListener('pointerdown',drag);
+    const drag=event=>{titlePress=!!title?.contains(event.target);titleMenuWasOpen=titlePress && !!menu && menuTitle===title;gesture(event,'');};header.addEventListener('pointerdown',drag);
     // A phone sheet (mobileSheet) slides up from the bottom over the page. Dragging its header down or tapping the
     // dimmed page above it puts it away: minimized when options.sheetMinimize() says so (a call in progress),
     // otherwise closed as Close would.
