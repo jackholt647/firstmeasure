@@ -267,21 +267,14 @@ test('Money owns Payments, Payouts, Disputes, Accounts and Manage as canonical n
   assert.match(company, /manualPageOpen = true/);
   assert.match(company, /fm:money:manual-bank-account-requested/);
   assert.match(company, /\.money-bank-workflow-cover-right\{top:var\(--money-workflow-hole-top\);left:calc\(var\(--money-workflow-hole-left\) \+ var\(--money-workflow-hole-width\)\);right:0;height:var\(--money-workflow-hole-height\)\}/);
-  assert.match(company, /data-money-overlay-mode="click">Click<\/button>/);
-  assert.match(company, /data-money-overlay-mode="layout">Drag \/ Resize<\/button>/);
-  assert.match(company, /min="0" max="100" step="5" value="100" data-money-overlay-opacity><output data-money-overlay-opacity-value>100%<\/output>/);
-  assert.match(company, /overlayOpacity:100/);
-  assert.match(company, /opacityScope:'all-custom-surfaces'/);
-  assert.match(company, /--money-overlay-dev-opacity/);
+  // GP-118: the old overlay positioning tool (Overlay Dev: drag/resize, opacity, click detector) is retired; dev
+  // controls live in the dev console.
+  assert.doesNotMatch(company, /data-money-overlay-dev-toolbar|data-money-overlay-dev-shield|data-money-overlay-mode=|data-money-click-detector|money-overlay-layout-mode/);
+  assert.doesNotMatch(company, /fm_money_overlay_layout_dev|overlayLayoutStore|--money-overlay-dev-opacity|onDevPointerDown|firstmate-money-overlay-layout\.json/);
+  assert.doesNotMatch(moneyOverlayEnforcer, /money-overlay-dev-toolbar|money-overlay-dev-shield|money-overlay-layout-mode/);
   assert.match(company, /not\(\.money-accounts-portal-ready\)[^\n]+visibility:hidden!important/);
   assert.match(company, /frameHost\.classList\.add\('money-accounts-portal-ready'\)/);
   assert.match(company, /\.money-accounts-view-overview>\.money-iframe-blocker\{display:none!important\}/);
-  assert.match(company, /data-money-overlay-mark>Mark state correct<\/button>/);
-  assert.match(company, /overlayLayoutStorageKey = 'fm_money_overlay_layout_dev_v1'/);
-  assert.match(company, /frameHost\.addEventListener\('pointerdown', onDevPointerDown, true\)/);
-  assert.match(company, /data-money-overlay-resize="\$\{corner\}"/);
-  assert.match(company, /overlayLayoutStore\.approvedStates\[stateName\]/);
-  assert.match(company, /anchor\.download = 'firstmate-money-overlay-layout\.json'/);
   assert.match(company, /if \(which === 'money' && canPayments\) renderMoneySettings\(\)/);
   assert.match(company, /#csPaneMoney\.active\{height:100%;min-height:0\}/);
   assert.match(company, /\.money-settings-frame\{position:relative;overflow:hidden;background:#fff\}/);
@@ -360,9 +353,18 @@ test('Money overlay integrity implementation remains available behind its tempor
   assert.match(company, /accountsController\?\.attachIntegrityGuard\?\.\(integrityGuard\)/);
   assert.match(company, /integrityGuard\?\.sync\?\.\(\)/);
   assert.match(company, /integrityGuard\?\.disarm\?\.\(\)/);
-  assert.match(company, /const overlayIntegrityLocked = MONEY_OVERLAY_INTEGRITY_ENABLED && window\.FirstMateMoneyOverlayEnforcer\?\.locked === true/);
-  assert.match(company, /if \(!overlayIntegrityLocked\) applyOverlayLayout\(overlayLayoutStore\.live\)/);
-  assert.match(company, /setDevOpacity\(overlayIntegrityLocked \? 100 : overlayLayoutStore\.overlayOpacity, false\)/);
+});
+
+test('GP-118: a hosted Money view left before its sign-in link arrives draws nothing into the hidden pane', () => {
+  const render = company.slice(company.indexOf('async function renderHostedMoneySettings('), company.indexOf('async function setMoneySettingsView('));
+  assert.ok(render.length > 1000);
+  assert.match(render, /const renderToken = \(targetPane\.__moneyRenderToken \|\| 0\) \+ 1;/);
+  assert.match(render, /paneMoney\.dataset\.moneyActiveView !== view/);
+  assert.match(render, /await paymentsApi\.merchantPortal\.loginUrl\(orgId\);\s*if \(stale\(\)\) return;/);
+  assert.match(render, /\} catch \(error\) \{\s*if \(stale\(\)\) return;/);
+  assert.match(render, /finally \{\s*if \(targetPane\.__moneyRenderToken === renderToken\) targetPane\.dataset\.moneySettingsLoading = '';/);
+  const setView = company.slice(company.indexOf('async function setMoneySettingsView('), company.indexOf('function renderMoneyWidget('));
+  assert.match(setView, /__moneyPortalFrameCleanup\?\.\(\);\s*viewPane\.__moneyRenderToken = \(viewPane\.__moneyRenderToken \|\| 0\) \+ 1;/);
 });
 
 test('GP-117: Payments uses the full width in two columns; unfinished setup is one button; the portal is a dev menu', () => {

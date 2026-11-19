@@ -25,8 +25,7 @@
     'money-bank-mode-instant',
     'money-bank-manual-page-open',
     'money-bank-workflow-complete',
-    'money-bank-plaid-active',
-    'money-overlay-layout-mode'
+    'money-bank-plaid-active'
   ]);
   const DYNAMIC_ATTRIBUTES = new Set([
     'class', 'hidden', 'style', 'tabindex', 'disabled', 'src', 'value',
@@ -57,9 +56,7 @@
       ['.money-plaid-click-deadzone', 1],
       ['[data-money-bank-workflow-controls]', 1],
       ['[data-money-bank-workflow-cover] > div', 4],
-      ['[data-money-bank-manual-page]', 1],
-      ['[data-money-overlay-dev-toolbar]', 1],
-      ['[data-money-overlay-dev-shield]', 1]
+      ['[data-money-bank-manual-page]', 1]
     ]),
     disputes: Object.freeze([
       ['iframe[data-money-portal-frame]', 1],
