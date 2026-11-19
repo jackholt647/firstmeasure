@@ -50,7 +50,9 @@ const css = `
 .gxc-tag{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 6px 0 12px;border-radius:999px;border:1px solid var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.06);font-size:13px;font-weight:650;color:#101828}
 .gxc-tag button{width:22px;height:22px;border:0;border-radius:50%;background:transparent;color:#475467;font-size:16px;line-height:1;cursor:pointer}
 .gxc-tag button:hover{background:rgba(16,24,40,.06)}
-.gxc-all{height:32px;padding:0 12px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;color:#344054;font:inherit;font-size:13px;font-weight:650;cursor:pointer;white-space:nowrap}
+.gxc-lead-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:28px}
+.gxc-lead-row .gxc-lead{flex:1;min-width:0}
+.gxc-all{flex:none;height:28px;padding:0 10px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font:inherit;font-size:12px;font-weight:650;line-height:1;cursor:pointer;white-space:nowrap}
 .gxc-all:hover{background:#f9fafb}
 .gxc-all:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
 .gxc-loading{display:grid;place-items:center;min-height:160px}
@@ -239,25 +241,21 @@ export function mount(el, ctx){
     // Shown as tiles: the suggestions for this kind of company, then anything else picked (found in the search).
     const shown = [...suggested, ...[...picked].filter((id) => !suggested.includes(id))];
     const lead = type ? L('gx_step_company_services_lead', 'Common for a {type}').replace('{type}', label(type).toLowerCase()) : L('gx_step_company_services_lead_other', 'Common kinds of work');
-    el.innerHTML = `<div class="gxc"><p class="gxc-lead">${esc(lead)}</p><div class="gxc-grid" role="group" aria-label="${t('company_services_list', 'Kinds of work')}" data-list></div>
+    el.innerHTML = `<div class="gxc"><div class="gxc-lead-row"><p class="gxc-lead">${esc(lead)}</p><button type="button" class="gxc-all" data-all${suggested.length ? '' : ' hidden'}>${t('company_services_all', 'Select all')}</button></div><div class="gxc-grid" role="group" aria-label="${t('company_services_list', 'Kinds of work')}" data-list></div>
       <div class="gxc-tags" data-tags></div>
       <div class="gxc-combo"><div class="gxc-search">${searchIcon}<input type="search" class="gxc-input" data-search role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="gxc-service-menu" autocomplete="off" spellcheck="false" placeholder="${t('company_services_search_more', 'Search for something else')}" aria-label="${t('company_services_search_label', 'Search all kinds of work')}"></div><ul class="gxc-menu" id="gxc-service-menu" role="listbox" data-menu hidden></ul></div></div>`;
-    const list = el.querySelector('[data-list]'), tags = el.querySelector('[data-tags]'), search = el.querySelector('[data-search]'), menu = el.querySelector('[data-menu]');
+    const list = el.querySelector('[data-list]'), tags = el.querySelector('[data-tags]'), search = el.querySelector('[data-search]'), menu = el.querySelector('[data-menu]'), allButton = el.querySelector('[data-all]');
     let results = [], active = 0;
-    if (ctx.actions) {
-      ctx.actions.innerHTML = `<button type="button" class="gxc-all" data-all>${t('company_services_all', 'Select all')}</button>`;
-    }
     function draw(){
       list.innerHTML = shown.map((id) => byId.get(id)).filter(Boolean).map((entry) => `<button type="button" class="gxc-tile gxc-service" data-service="${esc(entry.id)}" aria-pressed="${picked.has(entry.id)}"><strong>${esc(label(entry))}</strong>${tick}</button>`).join('');
       tags.innerHTML = others.map((words, i) => `<span class="gxc-tag">${esc(words)}<button type="button" data-remove="${i}" aria-label="${t('company_services_remove', 'Remove')} ${esc(words)}">×</button></span>`).join('');
       tags.hidden = !others.length;
       sync();
     }
-    /** The pressed state of the tiles already drawn, and the title row's button. A press never redraws its own tile. */
+    /** The pressed state of the tiles already drawn, and Select all beside the lead. A press never redraws its own tile. */
     function sync(){
       list.querySelectorAll('[data-service]').forEach((tile) => tile.setAttribute('aria-pressed', String(picked.has(tile.dataset.service))));
-      const allButton = ctx.actions?.querySelector('[data-all]');
-      if (allButton) allButton.textContent = suggested.every((id) => picked.has(id)) ? L('gx_step_company_services_none', 'Clear') : L('gx_step_company_services_all', 'Select all');
+      allButton.textContent = suggested.every((id) => picked.has(id)) ? L('gx_step_company_services_none', 'Clear') : L('gx_step_company_services_all', 'Select all');
       report();
     }
     function summary(){ return [...[...picked].map((id) => byId.get(id)).filter(Boolean).map(label), ...others].join(', '); }
@@ -299,7 +297,7 @@ export function mount(el, ctx){
     };
     const onOutside = (event) => { if (!event.target.closest?.('.gxc-combo')) closeMenu(); };
     el.addEventListener('click', onClick); el.addEventListener('input', onInput); el.addEventListener('keydown', onKey, true);
-    ctx.actions?.addEventListener('click', onAll);
+    el.addEventListener('click', onAll);
     document.addEventListener('pointerdown', onOutside, true);
     draw();
     return {
@@ -309,7 +307,7 @@ export function mount(el, ctx){
       answer: () => ({ services: [...picked], services_other: [...others] }),
       // The player hands Escape here first: an open dropdown closes, and the setup stays.
       escape: () => { if (menu.hidden) return false; closeMenu(); search.focus(); return true; },
-      destroy(){ el.removeEventListener('click', onClick); el.removeEventListener('input', onInput); el.removeEventListener('keydown', onKey, true); ctx.actions?.removeEventListener('click', onAll); document.removeEventListener('pointerdown', onOutside, true); if (ctx.actions) ctx.actions.innerHTML = ''; }
+      destroy(){ el.removeEventListener('click', onClick); el.removeEventListener('input', onInput); el.removeEventListener('keydown', onKey, true); el.removeEventListener('click', onAll); document.removeEventListener('pointerdown', onOutside, true); }
     };
   }
 
