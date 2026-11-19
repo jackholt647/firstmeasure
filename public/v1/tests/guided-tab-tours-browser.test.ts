@@ -34,7 +34,7 @@ const TABS = {
       <div class="pf-shown-wrap"><button type="button" class="pf-toolbar-action" data-local-tags>Tags</button></div>
       <button type="button" class="pf-upload" data-photo-feed-upload>Upload</button></div></div>
       <div data-photo-feed-dynamic><div class="pf-grid"><button type="button" class="pf-thumb"><span class="pf-select">✓</span></button><button type="button" class="pf-thumb"><span class="pf-select">✓</span></button></div></div></div></div>`,
-    titles: ["Welcome to Photos", "Upload", "Open a photo", "The cover photo", "You're all set"]
+    titles: ["Welcome to Photos", "Upload", "Open a photo", "You're all set"]
   },
   reports: {
     id: "reports.tab_tutorial", route: "measurements", app: "project.measurements",
