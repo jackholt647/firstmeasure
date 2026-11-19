@@ -2315,9 +2315,11 @@
     const lineCount = (item) => { let n = 0; walkItems(item.children, () => { n += 1; }); return n; };
     const foldHtml = (item) => (arr(item.children).length ? `<button type="button" class="fmdw-lir-fold ${folded.has(item.id) ? 'folded' : ''}" data-fmdw-lir-fold="${esc(item.id)}" title="${folded.has(item.id) ? 'Show' : 'Hide'} the ${lineCount(item)} lines under this" aria-expanded="${!folded.has(item.id)}"><i class="fas fa-chevron-down"></i></button>` : '');
     const foldCountHtml = (item) => (arr(item.children).length ? `<span class="fmdw-lir-fold-count" data-fmdw-fold-count="${esc(item.id)}" ${folded.has(item.id) ? '' : 'hidden'}>${lineCount(item)} lines</span>` : '');
-    /** The name and description as shown, each renamed for this estimate by a double-click. */
-    const nameHtml = (item, fallback) => `<strong data-fmdw-rename="name" title="Double-click to rename for this estimate">${esc(firstText(item.display_name, item.name, fallback))}</strong>`;
-    const descHtml = (item) => (item.description ? `<small class="fmdw-lir-desc" data-fmdw-rename="description" title="Double-click to edit">${esc(item.description)}</small>` : '');
+    /** The name and description as shown, each renamed for this estimate by a
+     *  double-click or by its pen, which shows on hover (always on touch). */
+    const penHtml = (label) => (ctx.readonly ? '' : `<button type="button" class="fmdw-lir-pen" data-fmdw-rename-pen title="${label}" aria-label="${label}"><i class="fas fa-pen"></i></button>`);
+    const nameHtml = (item, fallback) => `<strong data-fmdw-rename="name" title="Double-click to rename for this estimate">${esc(firstText(item.display_name, item.name, fallback))}${penHtml('Rename for this estimate')}</strong>`;
+    const descHtml = (item) => (item.description ? `<small class="fmdw-lir-desc" data-fmdw-rename="description" title="Double-click to edit"><span class="fmdw-lir-desc-text">${esc(item.description)}</span>${penHtml('Edit description for this estimate')}</small>` : '');
     const dimensionsOf = (item) => arr(item.variant_dimensions).map(obj).filter((dimension) => cleanText(dimension.id) && arr(dimension.values).length);
     /** A dimension left off the contract: nothing offered, nothing chosen, no price change. */
     const omittedOf = (item, dimension) => obj(item.variant_omitted)[dimension.id] === true;
@@ -2728,10 +2730,8 @@
         compared.set(button.dataset.fmdwLirViewGroup, button.dataset.fmdwLirView === 'compare');
         render();
       }));
-      // Rename for this estimate: double-click the name or the description.
-      if (!ctx.readonly) el.querySelectorAll('[data-fmdw-rename]').forEach((target) => target.addEventListener('dblclick', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+      // Rename for this estimate: double-click the name or the description, or click its pen.
+      const openRename = (target) => {
         const holder = target.closest('[data-fmdw-lir],[data-fmdw-rename-item]');
         const id = holder ? (holder.dataset.fmdwLir || holder.dataset.fmdwRenameItem) : '';
         const found = findItem(items, id);
@@ -2769,6 +2769,17 @@
           else if (key.key === 'Enter' && (key.target.matches('[data-fmdw-edit-name]') || key.ctrlKey || key.metaKey)) { key.preventDefault(); finish(true); }
         });
         editor.addEventListener('click', (click) => click.stopPropagation());
+      };
+      if (!ctx.readonly) el.querySelectorAll('[data-fmdw-rename]').forEach((target) => target.addEventListener('dblclick', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openRename(target);
+      }));
+      // The pen sits in a compare column's label: keep the click from choosing the column.
+      if (!ctx.readonly) el.querySelectorAll('[data-fmdw-rename-pen]').forEach((pen) => pen.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openRename(pen.closest('[data-fmdw-rename]'));
       }));
       el.querySelectorAll('[data-fmdw-lir]').forEach((row) => {
         const id = row.dataset.fmdwLir;
@@ -4331,6 +4342,13 @@
 .fmdw-lir-fold-count[hidden]{display:none}
 /* renaming: the name block opens into two fields */
 [data-fmdw-rename]{cursor:text}
+/* the pen after a name or description: shown on hover or keyboard focus, always on touch */
+.fmdw-lir-pen{display:inline-grid;place-items:center;vertical-align:middle;width:20px;height:20px;margin:-3px 0 -3px 3px;padding:0;border:0;border-radius:6px;background:transparent;color:#667085;font-size:10px;cursor:pointer;opacity:0;transition:opacity .12s ease,background .12s ease,color .12s ease}
+.fmdw-lir-pen:hover{background:#eef1f6;color:#111827}
+.fmdw-lir-pen:focus-visible{opacity:1;outline:2px solid var(--fmdw-primary);outline-offset:1px}
+.fmdw-lir-row:hover .fmdw-lir-pen,.fmdw-lir-col:hover .fmdw-lir-pen,.fmdw-lir-row:focus-within .fmdw-lir-pen,.fmdw-lir-col:focus-within .fmdw-lir-pen{opacity:1}
+@media (hover:none){.fmdw-lir-pen{opacity:1}}
+.fmdw-lir-desc .fmdw-lir-pen{width:16px;height:16px;margin:-2px 0 -2px 2px;font-size:9px;flex:none}
 .fmdw-lir-name.editing>.fmdw-lir-name-line>strong,.fmdw-lir-name.editing>.fmdw-lir-desc,.fmdw-lir-name.editing>strong{display:none}
 .fmdw-lir-name.editing .fmdw-lir-name-line{transform:none}
 .fmdw-lir-edit{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .2s cubic-bezier(.3,.8,.3,1),opacity .16s ease;min-width:0;width:100%}
@@ -4390,6 +4408,9 @@
    height: nothing below moves. */
 .fmdw-lir-name strong{line-height:15px}
 .fmdw-lir-desc{height:14px;opacity:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:10.5px;font-weight:800;color:var(--fmdw-muted);line-height:14px;transition:opacity .14s ease}
+/* one line in a row: the text ellipsizes and its pen stays in view after it */
+.fmdw-lir-row .fmdw-lir-desc{display:flex;align-items:center;min-width:0}
+.fmdw-lir-row .fmdw-lir-desc-text{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .fmdw-lir-name:has(.fmdw-lir-desc) .fmdw-lir-name-line{transform:translateY(7px);transition:transform .14s ease}
 .fmdw-lir-row:hover .fmdw-lir-desc,.fmdw-lir-row:focus-within .fmdw-lir-desc{opacity:1}
 .fmdw-lir-row:hover .fmdw-lir-name-line,.fmdw-lir-row:focus-within .fmdw-lir-name-line{transform:none}
