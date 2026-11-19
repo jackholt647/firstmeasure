@@ -221,7 +221,9 @@
   }
 
   function panelHtml(){
-    return `<div class="mn-app" data-money-root><div class="mn-shell" data-money-shell><div class="mn-state"><i class="fas fa-circle-notch fa-spin"></i><span>${escapeHtml(loadingText())}</span></div></div><div data-money-modal-layer></div></div>`;
+    // The host paints this before mount: style it now so its loader is the tab's one loading message (GP-9).
+    injectCSS();
+    return `<div class="mn-app" data-money-root><div class="mn-shell" data-money-shell><div class="mn-state" role="status" aria-live="polite"><i class="fas fa-circle-notch fa-spin"></i><span>${escapeHtml(loadingText())}</span></div></div><div data-money-modal-layer></div></div>`;
   }
 
   function css(){

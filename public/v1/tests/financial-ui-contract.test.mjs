@@ -187,3 +187,9 @@ test('on a phone the Finance actions and Reports are one + menu beside Settings;
   assert.match(money, /function runAddAction\(action\)\{\s*closeModal\(\);\s*if \(action === 'upload_receipts'\) \{[^}]*querySelector\('\[data-money-receipt-input\]'\)\?\.click\(\)/);
   assert.match(money, /querySelectorAll\('\[data-money-add-action\]'\)\.forEach\(\(button\) => button\.addEventListener\('click', \(\) => runAddAction/);
 });
+
+test('the Finance tab placeholder is its one loading message: styled before mount and marked as a status (GP-9)', async () => {
+  const money = await readFile(moneyUrl, 'utf8');
+  // The project window paints panelHtml before mount; the runtime keeps a visible role="status" as the tab's only loader.
+  assert.match(money, /function panelHtml\(\)\{[^}]*injectCSS\(\);\s*return `<div class="mn-app" data-money-root><div class="mn-shell" data-money-shell><div class="mn-state" role="status"/);
+});
