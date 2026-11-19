@@ -9,7 +9,7 @@ const pilot={roofSquares:{value:43.5958,unit:'roofing_square'},eavesLf:{value:33
 const roofValues=Object.fromEntries(Object.entries(pilot).filter(([k])=>!/^wall|Corners/.test(k)).map(([k,v])=>[k,v.value]));
 
 function summaryContext(scope,{roofLoadFails=false}={}){
- const names=['formatSummaryNumber','reportSummaryRowsFromRoofMeasurements','reportSummaryIsFullHouse','reportSummaryWallRows','reportSummaryWithWallRows','reportSummaryStandardDetail','reportSummaryMetricCacheKey','loadReportSummaryMetricsFromXml','csvCell','csvNumericCell','summaryMetricLabel','reportSummaryMeasurementsCsv'];
+ const names=['formatSummaryNumber','reportMeasurementValues','reportSummaryRowsFromRoofMeasurements','reportSummaryIsFullHouse','reportSummaryWallRows','reportSummaryWithWallRows','reportSummaryStandardDetail','reportSummaryMetricCacheKey','loadReportSummaryMetricsFromXml','csvCell','csvNumericCell','summaryMetricLabel','reportSummaryMeasurementsCsv'];
  const context={Intl,Map,Set,Promise,measurementSummaryMetricCache:new Map(),measurementSummaryMetricLoads:new Set(),activeBaseProject:{id:'project_1'},activePreviewTab:'measurements',activeMeasurementTab:'summary',renderMeasurementsPanel(){},
   reportOrderManifest:()=>({measurement_scope:scope}),reportSummaryMetricsFromXml:()=>[],fmUrl:path=>'/v1/firstmeasure/'+path,requested:[],
   fetch:async url=>{context.requested.push(url);if(url==='/v1/firstmeasure/projects/exteriors_x/exterior-measurements')return {ok:true,json:async()=>({ok:true,measurements:pilot})};throw new Error('XML is not read when the dataset has roof rows');},
@@ -39,7 +39,7 @@ test('a roof-only summary renders exactly as before, even when its dataset holds
  const {context,rows}=await loadedRows('roof');
  assert.deepEqual(JSON.parse(JSON.stringify(rows)),JSON.parse(JSON.stringify(context.reportSummaryRowsFromRoofMeasurements(roofValues))));
  assert.ok(!rows.some(r=>r.wall));assert.equal(context.requested.length,0,'a roof-only summary makes no exterior request');
- const refused=await loadedRows('roof',{roofLoadFails:true});assert.equal(refused.rows.length,0);assert.deepEqual(refused.context.requested,['model_data.xml'],'a refused roof load falls back to the report XML, never an exterior request (1M8-254)');
+ const refused=await loadedRows('roof',{roofLoadFails:true});assert.equal(refused.rows.length,0);assert.deepEqual(refused.context.requested,['model_data.xml','/v1/firstmeasure/projects/exteriors_x/roof-lines'],'a refused roof load falls back to the report XML and its line totals, never an exterior request (1M8-254)');
  const roofRows=[{label:'Roof squares',value:'43.6',unit:'sq'},{label:'Eaves',value:'336',unit:'ft'}];
  assert.deepEqual(JSON.parse(JSON.stringify(context.reportSummaryWithWallRows(roofRows,rows))),roofRows);
  assert.equal(context.reportSummaryStandardDetail(false,true),'Main roof measurement PDF with gutter measurements');
@@ -71,4 +71,30 @@ test('the customer Summary.pdf of a full-house order carries one Exterior Summar
   assert.ok(!picked.includes('Exterior Summary')&&!picked.includes('Exterior Quantities')&&!picked.some(t=>/Dimensions/.test(t)));
   assert.deepEqual(render((doc,begin)=>X.drawExteriorReportPages(doc,model,{},begin,{},none)),[]);
  }finally{console.warn=warn;}
+});
+
+test('a customer summary takes its line totals from the delivered report, not an XML exported before a correction',async()=>{
+ // King Roofing, 2026-11-19: the XML still had the first submit's line types; the PDF and roof-lines had the corrected ones.
+ const context=summaryContext('roof',{roofLoadFails:true});
+ context.reportSummaryMetricsFromXml=()=>[{label:'Roof squares',value:'37.5',unit:'sq',amount:37.45},{label:'Rakes',value:'66',unit:'ft',amount:65.5},{label:'Hips',value:'86',unit:'ft',amount:86},{label:'Facets',value:'18',unit:''}];
+ context.fetch=async url=>{context.requested.push(url);if(url==='model_data.xml')return {ok:true,text:async()=>'<xml/>'};
+  if(url==='/v1/firstmeasure/projects/exteriors_x/roof-lines')return {ok:true,json:async()=>({edgeTypes:{},measurements:{rakesLf:{value:80.6,unit:'ft'},hipsLf:{value:72.4,unit:'ft'},bogus:{value:9,unit:'ft'},ridgesLf:{value:'x',unit:'ft'}}})};throw new Error('unexpected '+url);};
+ context.loadReportSummaryMetricsFromXml('model_data.xml','exteriors_x');
+ for(let i=0;i<20&&!context.measurementSummaryMetricCache.has('exteriors_x');i++)await new Promise(r=>setImmediate(r));
+ const rows=JSON.parse(JSON.stringify(context.measurementSummaryMetricCache.get('exteriors_x')));
+ const expectLines=JSON.parse(JSON.stringify(context.reportSummaryRowsFromRoofMeasurements({rakesLf:80.6,hipsLf:72.4})));
+ assert.ok(expectLines.length>=2);
+ assert.deepEqual(rows,[{label:'Roof squares',value:'37.5',unit:'sq',amount:37.45},...expectLines,{label:'Facets',value:'18',unit:''}],'area and other rows from the XML, line rows from the report');
+ // Without report line totals, the XML rows are shown as before.
+ const plain=summaryContext('roof',{roofLoadFails:true});const xmlRows=[{label:'Rakes',value:'66',unit:'ft',amount:65.5}];plain.reportSummaryMetricsFromXml=()=>xmlRows;
+ plain.fetch=async url=>{if(url==='model_data.xml')return {ok:true,text:async()=>'<xml/>'};return {ok:false,status:404,json:async()=>({})};};
+ plain.loadReportSummaryMetricsFromXml('model_data.xml','exteriors_x');
+ for(let i=0;i<20&&!plain.measurementSummaryMetricCache.has('exteriors_x');i++)await new Promise(r=>setImmediate(r));
+ assert.deepEqual(JSON.parse(JSON.stringify(plain.measurementSummaryMetricCache.get('exteriors_x'))),xmlRows);
+});
+
+test('every PDF state save of a submitted report rewrites model_data.xml from the same state',()=>{
+ const pdf=read('public/measure/internal/editor_scripts/pdf.js');
+ assert.match(pdf,/window\.lastSavedStandalonePdfSnapshot = snapshot;\s+await syncSubmittedModelXml\(state, snapshot\.folderId\);/);
+ assert.match(pdf,/function syncSubmittedModelXml\(state, folderId\) \{[\s\S]{0,400}generateRoofXML\(state\)[\s\S]{0,300}firstMeasureUploadArtifact\(folderId, new Blob\(\[xmlString\], \{ type: 'text\/xml' \}\), 'model_data\.xml'\)/);
 });

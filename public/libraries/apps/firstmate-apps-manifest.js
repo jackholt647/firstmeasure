@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261118-hole-area'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261118-hole-area')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261118-hole-area'), versionedBundle('measurements/holiday-lights.js', '20261112-lights-toggle'), versionedBundle('measurements/project.js', '20261119-report-line-totals')]
     },
     {
       id: 'project.checklists',
