@@ -6120,16 +6120,6 @@ window.FirstMateSettingsIndex = {
       "tab": "My Settings",
       "view": "",
       "source": "libraries/apps/settings/company.js",
-      "title": "AI assistant",
-      "description": "",
-      "kind": "heading",
-      "selector": ""
-    },
-    {
-      "section": "my_settings",
-      "tab": "My Settings",
-      "view": "",
-      "source": "libraries/apps/settings/company.js",
       "title": "Appearance",
       "description": "",
       "kind": "heading",
