@@ -56,7 +56,7 @@
     versionedBundle('../payments-api/payments-api.js', '20261119-gp69'),
     versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261118-fm608-payments-off'),
     versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261118-fm608-payments-off'),
-    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261119-gp26-payments'),
+    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261119-gp99-payment'),
     versionedBundle('signatures/project.js', '20261019-forward-cert')
   ];
   const crewBundles = [

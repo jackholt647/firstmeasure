@@ -3206,7 +3206,10 @@
   // Payment terms as milestones: each is a percent of the document total or a
   // fixed amount, with when it falls due. Writes the payment_schedule param
   // the document's schedule and pay widgets, and the receivables minted at
-  // signing, all read. The milestone due on signature is the deposit.
+  // signing, all read. On a proposal the milestone due on signature is the
+  // deposit; a workflow whose payments are something else names their kind
+  // as item.payment_kind (a change order's is change_order), and its rows
+  // and copy say payment instead (GP-99).
   const SCHEDULE_DUE_OPTIONS = [
     { value: 'on_receipt', label: 'On receipt' },
     { value: 'on_signature', label: 'On signature' },
@@ -3224,6 +3227,8 @@
   ];
   /** Paid when the customer approves: due on signature, or on receipt. */
   const dueNow = (row) => ['on_signature', 'on_receipt'].includes(cleanText(obj(row).due_rule));
+  /** What a payment due at signing is called: a deposit, unless the workflow says its payments are another kind. */
+  const dueNowWord = (item) => (['', 'deposit'].includes(cleanText(obj(item).payment_kind)) ? 'deposit' : 'payment');
 
   // Taking the payments online (GP-26). The host says whether the customer
   // can pay in their customer portal (services.paymentsStatus: { ready,
@@ -3297,14 +3302,16 @@
         .then(() => payments.paymentsStatus({ fresh: true })).catch(() => null)
         .then((next) => { if (destroyed || !next) return; pay = next; if (!pay.can_set_up) paymentCallout = false; render(); });
     }
+    const word = dueNowWord(ctx.item);
+    const itemKind = cleanText(ctx.item.payment_kind);
     function calloutHtml(){
       if (!pay?.can_set_up || paymentCallout !== true) return '';
+      const tip = `Set up payments once and your customer pays ${word === 'deposit' ? 'the deposit' : 'what is due at signing'} in their customer portal as they sign. You can skip it now and set it up any time.`;
       return `
         <div class="fmdw-pay-callout" data-fmdw-pay-callout>
           <span class="fmdw-pay-callout-icon"><i class="fas fa-credit-card"></i></span>
           <div class="fmdw-pay-callout-copy">
-            <strong>Get paid when they sign</strong>
-            <p>Set up payments to automatically take a payment from your customer when you deliver your proposal. A deposit due on signature is paid in their customer portal as they sign.</p>
+            <strong>Get paid when they sign <button type="button" class="fmdw-step-info" aria-label="About online payments" data-fmdw-tip="${esc(tip)}"><i class="fas fa-circle-info"></i></button></strong>
           </div>
           <div class="fmdw-pay-callout-actions">
             <button type="button" class="fmdw-btn primary" data-fmdw-pay-setup><i class="fas fa-credit-card"></i> Set up payments</button>
@@ -3316,11 +3323,12 @@
     const basisCents = () => Math.round(scopeItemsTotal(arr(getPath(ctx.scope(), cleanText(ctx.item.total_from) || 'params.scope_items'))) * 100);
     const rowCents = (row) => (row.kind === 'fixed' ? row.amount_cents : Math.round(basisCents() * row.percent / 100));
     const commit = () => {
-      // payment_kind tells receivables which milestone is the deposit.
+      // payment_kind tells receivables which milestone is the deposit, or
+      // that every milestone is the workflow's own kind (a change order's).
       const out = rows.map((row, index) => {
         const next = { ...row };
-        if (!cleanText(next.payment_kind) || ['deposit', 'final', 'progress'].includes(cleanText(next.payment_kind))) {
-          next.payment_kind = dueNow(next) ? 'deposit' : (index === rows.length - 1 ? 'final' : 'progress');
+        if (!cleanText(next.payment_kind) || ['deposit', 'final', 'progress', itemKind].includes(cleanText(next.payment_kind))) {
+          next.payment_kind = itemKind || (dueNow(next) ? 'deposit' : (index === rows.length - 1 ? 'final' : 'progress'));
         }
         if (next.kind === 'percent') delete next.amount_cents; else delete next.percent;
         if (next.due_rule !== 'on_date') delete next.due_date;
@@ -3365,7 +3373,7 @@
     }
     const render = () => {
       el.innerHTML = `
-        <div class="fmdw-field">
+        <div class="fmdw-field" data-fmdw-due-word="${word}">
           <span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>
           ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
           ${calloutHtml()}
@@ -3432,7 +3440,7 @@
       });
       el.querySelector('[data-fmdw-sched-add]')?.addEventListener('click', () => {
         const scheduled = rows.filter((row) => row.kind === 'percent').reduce((sum, row) => sum + row.percent, 0);
-        rows.push(normalizeScheduleRow({ label: rows.length ? 'Payment' : 'Deposit', kind: 'percent', percent: Math.max(0, 100 - scheduled), due_rule: rows.length ? 'project_completion' : 'on_signature' }, rows.length));
+        rows.push(normalizeScheduleRow({ label: rows.length || word !== 'deposit' ? 'Payment' : 'Deposit', kind: 'percent', percent: Math.max(0, 100 - scheduled), due_rule: rows.length ? 'project_completion' : 'on_signature' }, rows.length));
         commit();
         render();
       });
@@ -3549,6 +3557,7 @@
     const checks = [];
     let total = null;
     let schedule = [];
+    let dueWord = 'deposit';
     arr(workflow.steps).forEach((step) => {
       arr(obj(step).items).forEach((item) => {
         const kind = cleanText(obj(item).kind);
@@ -3557,6 +3566,7 @@
         if (!writes) return;
         const value = getPath(ctx.scope(), writes);
         if (kind === 'payment_schedule' && stepVisibleFor(obj(step), ctx.audience, workflow)) {
+          dueWord = dueNowWord(item);
           // Percents of the total the schedule prices, as the payment terms step reads it.
           const basis = Math.round(scopeItemsTotal(arr(getPath(ctx.scope(), cleanText(obj(item).total_from) || 'params.scope_items'))) * 100);
           schedule = schedule.concat(arr(value).map(normalizeScheduleRow).map((row) => ({ ...row, cents: row.kind === 'fixed' ? row.amount_cents : Math.round(basis * row.percent / 100) })));
@@ -3619,7 +3629,7 @@
         </div>
         ${ctx.hasPreview ? `<p class="fmdw-hint"><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_eff08b0fc06db7"," The live preview shows the finished document with these answers.") ?? " The live preview shows the finished document with these answers.")}</p>` : ''}
       </div>`;
-    // Whether the proposal carries a pay link (GP-26): a coloured note, and a quiet way into setup when it does not.
+    // Whether the document carries a pay link (GP-26): a coloured note, and a quiet way into setup when it does not.
     const payments = ctx.readonly ? null : paymentsServices(ctx);
     let destroyed = false;
     const depositCents = schedule.filter(dueNow).reduce((sum, row) => sum + row.cents, 0);
@@ -3629,10 +3639,10 @@
       if (!pay || typeof pay.ready !== 'boolean' || !schedule.length) { host.hidden = true; host.innerHTML = ''; return; }
       const reason = cleanText(pay.reason);
       const [state, icon, title, text] = pay.ready
-        ? ['ready', 'fa-circle-check', 'Payments are on', depositCents > 0 ? `The customer can pay the ${moneyFromCents(depositCents)} deposit online in their customer portal when they sign.` : 'The customer can pay online in their customer portal.']
+        ? ['ready', 'fa-circle-check', 'Payments are on', depositCents > 0 ? `The customer can pay the ${moneyFromCents(depositCents)} ${dueWord} online in their customer portal when they sign.` : 'The customer can pay online in their customer portal.']
         : reason === 'not_approved'
-          ? ['off', 'fa-hourglass-half', 'Payments are not on yet', 'Online payments start once your payment account is approved. Until then the payment terms show on the proposal read-only, with no pay link.']
-          : ['off', 'fa-circle-info', 'Payments are not set up', 'The payment terms show on the proposal read-only, with no pay link. The customer pays you another way.'];
+          ? ['off', 'fa-hourglass-half', 'Payments are not on yet', 'Online payments start once your payment account is approved. Until then the payment terms show read-only, with no pay link.']
+          : ['off', 'fa-circle-info', 'Payments are not set up', 'The payment terms show read-only, with no pay link. The customer pays you another way.'];
       host.hidden = false;
       host.innerHTML = `
         <div class="fmdw-pay-note ${state}" data-fmdw-pay-note="${state}">
@@ -4965,8 +4975,8 @@
 .fmdw-pay-callout{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:16px;border-radius:14px;border:1px solid color-mix(in srgb,var(--fmdw-primary) 30%,#fff);background:color-mix(in srgb,var(--fmdw-primary) 6%,#fff)}
 .fmdw-pay-callout-icon{flex:none;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:17px;background:var(--fmdw-primary);color:var(--fmdw-on-primary)}
 .fmdw-pay-callout-copy{flex:1 1 260px;min-width:0}
-.fmdw-pay-callout-copy strong{display:block;font-size:14px;font-weight:1000;color:var(--fmdw-ink)}
-.fmdw-pay-callout-copy p{margin:3px 0 0;font-size:12px;font-weight:700;line-height:1.45;color:#475467}
+.fmdw-pay-callout-copy strong{display:block;font-size:16px;font-weight:1000;color:var(--fmdw-ink)}
+.fmdw-pay-callout-copy .fmdw-step-info{font-size:14px;font-weight:400}
 .fmdw-pay-callout-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 @container (max-width:560px){
   .fmdw-sched-row,.fmdw-sched-row:has([data-fmdw-sched-date]){grid-template-columns:auto minmax(0,1fr) auto auto;padding-bottom:8px;border-bottom:1px solid #f0f2f7}

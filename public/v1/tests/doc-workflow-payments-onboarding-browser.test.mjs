@@ -11,7 +11,7 @@ const launch=()=>chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Pr
 // Set up payments. Both ask once for their tour. Hosts without the payments services (the customer) show none of it.
 const SCHEDULE=[{label:'Deposit',percent:30,due_rule:'on_signature'},{label:'Final payment',percent:70,due_rule:'project_completion'}];
 
-async function mount(page,{status,tourDone=false,audience='internal',services=true}={}){
+async function mount(page,{status,tourDone=false,audience='internal',services=true,schedule=SCHEDULE,item={}}={}){
  await page.route('https://pay.test/**',async route=>{const url=new URL(route.request().url());
   if(url.pathname.startsWith('/libraries/'))return route.fulfill({contentType:'application/javascript; charset=utf-8',body:await readFile(new URL(url.pathname.slice('/libraries/'.length),libraries))});
   return route.fulfill({contentType:'text/html; charset=utf-8',body:'<meta charset="utf-8"><div id="host" style="width:900px;height:800px"></div>'});
@@ -19,20 +19,20 @@ async function mount(page,{status,tourDone=false,audience='internal',services=tr
  await page.goto('https://pay.test/');
  await page.addScriptTag({url:'/libraries/doc-model/firstmate-doc-model.js'});
  await page.addScriptTag({url:'/libraries/doc-workflow/firstmate-doc-workflow.js'});
- await page.evaluate(({SCHEDULE,status,tourDone,audience,services})=>{
-  window.__APP={userOrgId:'org'};window.tours=[];window.asks=[];window.setups=0;window.payStatus=status;
+ await page.evaluate(({SCHEDULE,status,tourDone,audience,services,item})=>{
+  window.__APP={userOrgId:'org'};window.writes=[];window.tours=[];window.asks=[];window.setups=0;window.payStatus=status;
   window.FirstMateGuides={refresh:()=>Promise.resolve(true),
    experience:(id)=>({id,progress:tourDone?{status:'completed'}:null}),
    play:(id,options)=>{tours.push({id,over:!!options?.over,showing:options?.showing?.()});return Promise.resolve({status:'completed'});}};
   const workflow={schema_version:1,steps:[
-   {id:'terms',title:'Payment terms',audience:['internal','customer'],items:[{kind:'payment_schedule',writes:'params.payment_schedule',label:'Payment schedule'}]},
+   {id:'terms',title:'Payment terms',audience:['internal','customer'],items:[{kind:'payment_schedule',writes:'params.payment_schedule',label:'Payment schedule',...item}]},
    {id:'review',title:'Review & send',audience:['internal','customer'],items:[{kind:'review',label:'Before you send'}]}]};
   const host={
    paymentsStatus:(options={})=>{asks.push(options.fresh===true);return Promise.resolve(window.payStatus);},
    setUpPayments:()=>{setups+=1;window.payStatus={ready:true,reason:'',can_set_up:false};return Promise.resolve(true);}
   };
-  FMDocWorkflow.mount(document.getElementById('host'),{workflow,audience,state:{params:{scope_items:[{id:'roof',name:'Roof',quantity:'1',unit_price:10000}],payment_schedule:SCHEDULE}},scope:{project:{id:'p'}},onWrite:()=>{},services:services?host:{}});
- },{SCHEDULE,status,tourDone,audience,services});
+  FMDocWorkflow.mount(document.getElementById('host'),{workflow,audience,state:{params:{scope_items:[{id:'roof',name:'Roof',quantity:'1',unit_price:10000}],payment_schedule:SCHEDULE}},scope:{project:{id:'p'}},onWrite:(path,value)=>{writes.push({path,value});},services:services?host:{}});
+ },{SCHEDULE:schedule,status,tourDone,audience,services,item});
  await page.waitForSelector('.fmdw-sched');
 }
 const NOT_SET_UP={ready:false,reason:'no_merchant_account',can_set_up:true};
@@ -43,7 +43,11 @@ test('first payment terms offer setup; the deposit says where it is paid; review
  try{
   const page=await browser.newPage();await mount(page,{status:NOT_SET_UP});
   await page.locator('[data-fmdw-pay-callout]').waitFor();
-  assert.match(await page.locator('[data-fmdw-pay-callout]').textContent(),/Set up payments to automatically take a payment from your customer when you deliver your proposal/);
+  // GP-99: a title with its explanation in an info tooltip, not a paragraph.
+  assert.equal((await page.locator('[data-fmdw-pay-callout] strong').textContent()).trim(),'Get paid when they sign');
+  assert.equal(await page.locator('[data-fmdw-pay-callout] p').count(),0);
+  assert.match(await page.locator('[data-fmdw-pay-callout] [data-fmdw-tip]').getAttribute('data-fmdw-tip'),/pays the deposit in their customer portal as they sign/);
+  assert.equal(await page.locator('[data-fmdw-due-word="deposit"]').count(),1);
   // Only the payment due on signature is marked, with a Set up pill.
   assert.equal(await page.locator('[data-fmdw-sched-pay]').count(),1);
   assert.equal(await page.locator('[data-fmdw-sched-pay="setup"]').count(),1);
@@ -106,4 +110,34 @@ test('the customer, or a host without the payments services, sees none of it',as
    assert.deepEqual(await page.evaluate(()=>tours),[]);
   }finally{await browser.close();}
  }
+});
+
+// GP-99: a change order's payment is not a deposit. Its workflow names the kind (item.payment_kind), so the rows
+// it writes carry that kind and nothing says deposit; the tour picks its payment wording from data-fmdw-due-word.
+test('a change order says payment, not deposit, and its rows keep the change order kind',async()=>{
+ const browser=await launch();
+ try{
+  const page=await browser.newPage();
+  await mount(page,{status:NOT_SET_UP,item:{payment_kind:'change_order'},schedule:[{label:'Change order',percent:100,due_rule:'on_receipt'}]});
+  await page.locator('[data-fmdw-pay-callout]').waitFor();
+  assert.equal(await page.locator('[data-fmdw-due-word="payment"]').count(),1);
+  const tip=await page.locator('[data-fmdw-pay-callout] [data-fmdw-tip]').getAttribute('data-fmdw-tip');
+  assert.doesNotMatch(tip,/deposit/i);
+  assert.equal(await page.locator('[data-fmdw-sched-pay="setup"]').count(),1);
+  // A preset rewrites the rows: every one keeps the workflow's kind, the one due now included.
+  await page.locator('[data-fmdw-sched-preset="0"]').click();
+  const written=await page.evaluate(()=>writes.filter(w=>w.path==='params.payment_schedule').at(-1).value);
+  assert.ok(written.length>0);
+  assert.deepEqual([...new Set(written.map(row=>row.payment_kind))],['change_order']);
+  await page.locator('[data-fmdw-sched-add]').click();
+  const added=await page.evaluate(()=>writes.filter(w=>w.path==='params.payment_schedule').at(-1).value);
+  assert.equal(added.at(-1).payment_kind,'change_order');
+  await page.locator('[data-fmdw-sched-pay] [data-fmdw-pay-setup]').click();
+  await page.locator('[data-fmdw-sched-pay="ready"]').waitFor();
+  await toReview(page);
+  await page.locator('[data-fmdw-pay-note="ready"]').waitFor();
+  const note=await page.locator('[data-fmdw-pay-note]').textContent();
+  assert.match(note,/payment online in their customer portal/);
+  assert.doesNotMatch(note,/deposit/i);
+ }finally{await browser.close();}
 });
