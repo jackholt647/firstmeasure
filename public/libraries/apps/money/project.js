@@ -372,6 +372,7 @@
       .mn-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
       .mn-form label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:#344054;min-width:0}
       .mn-form .wide{grid-column:1/-1}
+      .mn-form .fm-select-list-menu{font-weight:500}
       .mn-form label.mn-check{flex-direction:row;align-items:flex-start;gap:8px;font-weight:600}
       .mn-form label.mn-check input{margin-top:2px}
       .mn-form-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
@@ -1763,6 +1764,7 @@
         const other = layer.querySelector('[data-money-reimburse-other]');
         if (other) other.hidden = reimburseSelect.value !== '__other__';
       });
+      enhanceReimburseSelect(reimburseSelect);
     }
     bindSettingsModal(layer);
     bindAutopayModal(layer);
@@ -1924,6 +1926,35 @@
     // The viewer is open before the route names it, so the route handler sees it and does not open another.
     if (!options.fromRoute) routeReceipt(receiptId, 'push');
     return true;
+  }
+
+  // GP-107: the person picker is the shared select list with a search box, so a large organization is searchable;
+  // the select stays in the form as the value. "No reimbursement" and "Other person…" stay listed while searching.
+  let selectListLibrary = null;
+  function loadSelectList(){
+    if (rootWindow.FirstMateSelectList) return Promise.resolve(rootWindow.FirstMateSelectList);
+    selectListLibrary ??= new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = '/libraries/select-list/select-list.js?v=20261119-gp107';
+      script.onload = () => rootWindow.FirstMateSelectList ? resolve(rootWindow.FirstMateSelectList) : reject(new Error('select-list did not initialize.'));
+      script.onerror = () => reject(new Error('select-list could not be loaded.'));
+      document.head.append(script);
+    }).catch((error) => { selectListLibrary = null; throw error; });
+    return selectListLibrary;
+  }
+  function enhanceReimburseSelect(select){
+    loadSelectList().then((library) => {
+      if (!select.isConnected || select.hidden) return;
+      library.attach(select, {
+        items:[...select.options].map((option) => ({ value:option.value, label:option.textContent, pinned:option.value === '' || option.value === '__other__' })),
+        label:(globalThis.PlatformLanguage?.text("money","m_8b8d7106c3c872","Reimburse to ") ?? "Reimburse to ").trim(),
+        floating:true,
+        search:{
+          placeholder:(globalThis.PlatformLanguage?.text("money","m_0b00bfad983f3f","Search people") ?? "Search people"),
+          empty:(globalThis.PlatformLanguage?.text("money","m_e6261fd56b82c2","No matches") ?? "No matches")
+        }
+      });
+    }).catch(() => {});
   }
 
   async function loadOrgUsers(){
@@ -2910,6 +2941,8 @@
     const handled = () => { event.preventDefault(); event.stopImmediatePropagation(); };
     if (state.receiptViewer) { handled(); state.receiptViewer.close?.(); return; }
     if (!layer?.firstElementChild) return;
+    // An open select list (GP-107) closes itself on this Escape.
+    if (layer.querySelector('.fm-select-list-trigger[aria-expanded="true"]')) return;
     handled();
     const emailModal = layer.querySelector('[data-money-invoice-email-modal]');
     if (emailModal) { emailModal.remove(); return; }
