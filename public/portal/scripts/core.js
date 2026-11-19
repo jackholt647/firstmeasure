@@ -2437,7 +2437,7 @@
       : (flags?.current?.() && flags.value?.('platform', 'advanced_app_menu', false) === true);
   }
 
-  // The left column says just "Setup" where tabs say "Setup required" (GP-52): the column has no width to spare.
+  // The left column says just "Setup" (GP-52), as the tabs do since GP-67.
   function sidebarSetupPillLabel(){
     return globalThis.PlatformLanguage?.text("platform","m_b06faf127e1505","Setup") ?? "Setup";
   }

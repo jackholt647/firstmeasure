@@ -8,8 +8,8 @@
  *   (`seen_tabs` on /me/preferences); "Coming soon" stays.
  * - An app switched on whose required setup is unfinished shows "New" until the
  *   person launches it (Get Started on its welcome, or opening it), then
- *   "Setup required" (FM-469); the launch is kept in `seen_tabs` too.
- * - Order: tabs in use, then "Setup required", then "New", then "Coming soon" (FM-502); within each, the
+ *   "Setup" (FM-469; "Setup required" until GP-67); the launch is kept in `seen_tabs` too.
+ * - Order: tabs in use, then "Setup", then "New", then "Coming soon" (FM-502); within each, the
  *   organization's listed order.
  * - A tab declares a tutorial with registerTutorial(), or with `tutorial` on its
  *   manifest entry. It plays the first time the person opens the tab, is
@@ -53,7 +53,7 @@
     .pv-tab-badge.pv-tab-badge--new{background:#e8f5ee;color:#0f6b3a;border-color:#9bd3b3}
     .pv-tab-badge.pv-tab-badge--coming_soon,.pv-tab-badge.pv-tab-badge--setup{background:#fff0cb;color:#794c00;border-color:#f2ca72}
     /* Icon-only tabs and phone tab strips have no room for the words (FM-362): the pill becomes a round badge at the
-       icon's corner, a star for New and "!" for Setup required. The words stay in the button's aria-label and title. */
+       icon's corner, a star for New and "!" for Setup. The words stay in the button's aria-label and title. */
     .icon-only .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup),
     .r-overlay.entitlement-tab-icons .r-tab .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup),
     .r-overlay.mobile-info-navigation:not(.mobile-order) .r-tab .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup),
@@ -151,10 +151,10 @@
     const id = lower(appId);
     if (offered(id)) return { kind:'new', label:text('tg_pill_new', 'New') };
     // Switched on, but its required setup (Money's payments onboarding) is not finished: "New" until the person launches
-    // it, then "Setup required".
+    // it, then "Setup" (GP-67: shorter than "Setup required").
     const setup = root.Portal?.appSetup?.pendingFor?.(id);
     if (setup) return launched(id, setup)
-      ? { kind:'setup', label:text('tg_pill_setup_required', 'Setup required') }
+      ? { kind:'setup', label:text('tg_pill_setup', 'Setup') }
       : { kind:'new', label:text('tg_pill_new', 'New') };
     const kind = lower(settings().pills[id]).replace(/[\s-]+/g, '_');
     if (kind === 'new') return hasSeen(SEEN_TABS, id) ? null : { kind:'new', label:text('tg_pill_new', 'New') };
@@ -162,7 +162,7 @@
     return null;
   }
 
-  // Tabs in use first, then tabs waiting on setup ("Setup required"), then tabs not started yet ("New"), then "Coming
+  // Tabs in use first, then tabs waiting on setup ("Setup"), then tabs not started yet ("New"), then "Coming
   // soon" (FM-502, as the left column does since FM-479). Within each, listed tabs first, in the listed order; the rest
   // keep their order after them.
   function useRank(item, id){

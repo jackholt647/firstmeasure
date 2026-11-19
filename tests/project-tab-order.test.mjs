@@ -1,4 +1,4 @@
-// The project window's tabs (desktop and phone) put tabs in use first, then "Setup required", then "New", then
+// The project window's tabs (desktop and phone) put tabs in use first, then "Setup", then "New", then
 // "Coming soon"; the organization's listed order applies within each (FM-502). Runs tab-guides.js order() in a stub
 // window.
 import test from 'node:test';
@@ -57,4 +57,9 @@ test('the project window builds its tab strip and first tab from order()', () =>
   const body = (name) => app.slice(app.indexOf(`function ${name}(`), app.indexOf('\n  }\n', app.indexOf(`function ${name}(`)));
   assert.match(body('projectViewerTabs'), /FirstMateTabGuides\?\.order\?\.\(apps\)/);
   assert.match(body('projectDefaultPreviewTab'), /FirstMateTabGuides\?\.order\?\.\(apps\)/);
+});
+
+test('a launched tab waiting on setup says just "Setup" (GP-67)', () => {
+  const g = guides({ setups: { 'project.money': { key: 'payments' } }, seen: ['setup:payments'] });
+  assert.deepEqual({ ...g.pill('project.money') }, { kind: 'setup', label: 'Setup' });
 });
