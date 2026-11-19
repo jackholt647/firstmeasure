@@ -1875,6 +1875,9 @@
         .cs-sidebar{position:static;top:auto;height:100%;min-height:0;max-height:none;overflow:hidden;overscroll-behavior:contain}
         .cs-main,.cs-wrap.forms-wide .cs-main{height:100%;min-height:0;max-height:none;overflow:hidden}
         .cs-main>.cs-card,.cs-wrap.forms-wide .cs-main>.cs-card{height:100%;min-height:0;max-height:none;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;box-sizing:border-box}
+        /* GP-123: embedded in a window that scrolls (Scheduling settings, Crew settings) the card grows to its content,
+         * so it never scrolls itself, and contain kept the mouse wheel from reaching the window's scroller. */
+        .cs-wrap.embedded-tab-only .cs-main>.cs-card{overscroll-behavior:auto}
       }
       .fm-settings-subtabs,.crm-subtabs,.cti-subtabs,.fb-subtabs,.lc-subtabs,.fmcos-tabs,.cu-subnav,.wf-subtabs,.cs-pb-tabs,.li-subtabs,.cap-views{display:flex;align-items:center;gap:4px;width:max-content;max-width:100%;margin:0 0 18px;padding:4px;border:1px solid #e4e7ec;border-radius:999px;background:#f5f7fa;overflow-x:auto;box-sizing:border-box}
       .fm-settings-subtab,.crm-subtab,.cti-subtab,.fb-subtabs>button,.lc-subtabs>button,.fmcos-tab,.cu-subtab,.wf-subtab,.cs-pb-tab,.li-subtab,.cap-views>button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;margin:0!important;padding:8px 13px!important;border:0!important;border-radius:999px!important;background:transparent!important;color:#667085!important;box-shadow:none!important;font:850 11.5px/1 inherit!important;white-space:nowrap;cursor:pointer}
