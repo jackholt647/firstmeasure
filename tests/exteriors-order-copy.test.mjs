@@ -18,6 +18,10 @@
 // FM-569: on a phone, "View sample" sits under the steps of the walkaround and photo intros (the sample video, or the
 // whole sample gallery); each angle's Example shows just that angle. Once every angle has a photo (Add photos from the
 // review), the guide's forward button says "Review" and goes back to the review instead of on to the next angle.
+// FM-573: the phone "View sample" opens above the tip (never over Start recording / Add photos) with a close X at the
+// top right, and the walkaround intro's button says "Record another video" once a video exists. The X shares a header
+// row with the title, so it never sits on the sample video or photos. The popover never opens below the tip and never
+// scrolls inside: it covers the tip when it must and shrinks the sample to fit above Start recording / Add photos.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -168,11 +172,54 @@ test('phone intros show "View sample" under the steps, and Add photos from the r
   assert.match(fn('photoIntroUI'), /<\/li><\/ol>\$\{introSampleUI\('sample-photos'\)\}<\/div><div class="ext-orbit-actions">/);
   assert.match(source, /const introSampleUI=key=>`<div class="ext-intro-sample"><button type="button" class="ext-example-tip" data-intro-sample="\$\{key\}"[^`]*"ext_view_sample","View sample"/);
   const show = fn('showIntroSample');
-  assert.match(show, /pop\.innerHTML=deskSampleHtml\(key,true\)/, 'the phone popover reuses the desktop sample card');
+  assert.match(show, /pop\.innerHTML=`<div class="ext-intro-sample-head">[^`]*<\/div><div class="ext-intro-sample-body">\$\{deskSampleHtml\(key,true\)\}<\/div>`/, 'the phone popover reuses the desktop sample card');
   // On a phone the gallery enlarges in place: the app opens target=_blank links in place of the order.
   assert.match(fn('deskSampleHtml'), /const item=\(src,name=''\)=>phone\?`<button type="button" data-sample-zoom/);
   assert.match(fn('fillExample'), /img\.src=sampleImage\(view\)/, 'the angle Example shows only that angle');
   assert.match(source, /const everyAngleTaken=\(\)=>!!ctx\?\.count&&Array\.from\(\{length:ctx\.count\*8\}/);
   assert.match(fn('mountGuide'), /\[data-guide-forward\]'\)\.onclick=\(\)=>guideIndex\+1<ctx\.count\*8&&!everyAngleTaken\(\)\?visitGuide\(guideIndex\+1\):finishGuide\(\);/);
   assert.match(fn('updateGuide'), /\[data-guide-forward\]'\)\.textContent=everyAngleTaken\(\)\?\(globalThis\.PlatformLanguage\?\.text\("firstmeasure","ext_aff0766a5290e1","Review"\)/);
+});
+
+test('the phone sample opens above the tip with a close X and never covers the primary button', () => {
+  const show = fn('showIntroSample');
+  assert.match(show, /class="ext-intro-sample-close" data-intro-sample-close aria-label="\$\{[^`]*"ext_close_sample"[^`]*<i class="fas fa-xmark"/);
+  assert.match(show, /if\(e\.target\.closest\('\[data-intro-sample-close\]'\)\)\{showIntroSample\(null\);/, 'the X closes it');
+  // The X sits in a header row with the title (Ben, FM-573: not over the media), outside the body.
+  assert.match(show, /<div class="ext-intro-sample-head"><h4>\$\{sampleTitle\(key\)\}<\/h4><button type="button" class="ext-intro-sample-close"/);
+  assert.match(source, /\.ext-intro-sample-pop\{[^}]*display:flex;flex-direction:column;overflow:hidden/);
+  assert.match(source, /\.ext-intro-sample-head\{flex:none;display:flex/);
+  assert.match(source, /\.ext-intro-sample-body\{flex:1 1 auto;min-height:0;overflow:auto/);
+  assert.doesNotMatch(source, /\.ext-intro-sample-close\{[^}]*(position:sticky|float:|margin:-)/, 'no floating X over the media');
+  // A light shadow that falls away from the tip (Ben, FM-573): opened above, it must not smear down over View sample.
+  const shadows = rule => [...(source.match(new RegExp(`${rule.replace(/\./g, '\\.')}\\{[^}]*box-shadow:([^;}]*)`))?.[1] ?? '').matchAll(/(-?\d+)(?:px)? (-?\d+)(?:px)? (\d+)(?:px)?/g)].map(m => m.slice(1).map(Number));
+  const below = shadows('.ext-intro-sample-pop');
+  assert.ok(below.length, 'the phone popover has a shadow');
+  for (const [, y, blur] of below) assert.ok(y >= 0 && blur <= 16, 'the phone popover shadow stays tight');
+  const above = shadows('.ext-intro-sample-pop.is-above');
+  assert.ok(above.length, 'opened above, the popover has its own shadow');
+  for (const [, y, blur] of above) assert.ok(blur + y <= 10, 'opened above, the shadow reaches at most 10px below the popover');
+  assert.match(fn('deskSampleHtml'), /const head=phone\?'':`<h4>\$\{sampleTitle\(key\)\}<\/h4>`/, 'the phone card leaves its title to the header');
+  // Ben, FM-573 round 4: never below the tip and never a scrollbar inside. The room runs from the top of the page to the
+  // action buttons; it sits above the tip when it fits there, else from the top of the page over the tip, and a sample
+  // too tall even for that shrinks until it fits. A zoomed photo shows on its own, so zooming never needs a scroll.
+  const place = fn('placeIntroSample');
+  assert.match(show, /pop\.hidden=false;placeIntroSample\(pop,button\);/);
+  assert.match(place, /querySelector\('\.ext-orbit-actions'\)\?\.getBoundingClientRect\(\)/);
+  assert.match(place, /top=Math\.max\(0,scroller\?\.top\?\?0\)\+gap,bottom=Math\.min\(window\.innerHeight,scroller\?\.bottom\?\?Infinity,actions\?\.height\?actions\.top:Infinity\)-gap,room=Math\.max\(0,bottom-top\)/);
+  assert.match(place, /pop\.classList\.add\('is-above'\)/, 'never opens below the tip');
+  assert.doesNotMatch(place, /classList\.(remove|toggle)\('is-above'/);
+  assert.match(place, /if\(tall\(\)\)\{let lo=[^}]*card\.style\.width=f\*100\+'%';if\(tall\(\)\)hi=f;else lo=f;\}/, 'too tall: the sample shrinks to fit');
+  assert.match(place, /if\(pop\.offsetHeight>tip\.top-8-top\|\|stay&&wasTop\)\{pop\.style\.top=\(top-tip\.top\)\+'px';pop\.style\.bottom='auto';\}/, 'no room above the tip: from the top of the page, over the tip');
+  assert.match(place, /pop\.style\.maxHeight=room\+'px'/);
+  assert.doesNotMatch(show, /Math\.max\(160,|scrollIntoView/, 'no minimum height over the buttons, no scrolling to a zoomed photo');
+  assert.match(show, /classList\.toggle\('is-zoomed',on\);placeIntroSample\(pop,button,true\)/);
+  assert.match(source, /\[data-sample-zoom\]\[aria-pressed=true\] img\{aspect-ratio:auto 4\/3;/, 'a zoomed photo keeps its shape while it loads');
+  assert.match(source, /\.ext-sample-card\.is-zoomed \[data-sample-zoom\]:not\(\[aria-pressed=true\]\),\.ext-sample-card\.is-zoomed \.ext-sample-more\{display:none\}/);
+});
+
+test('the walkaround intro says "Record another video" once a video exists', () => {
+  const intro = fn('videoIntroUI');
+  assert.match(intro, /\$\{have\?\(globalThis\.PlatformLanguage\?\.htmlText\("firstmeasure","ext_record_another_video","Record another video"\)/);
+  assert.doesNotMatch(source, /Record another segment/);
 });
