@@ -138,6 +138,7 @@ test("the style step previews what the answers make in three styles, saving noth
   assert.ok(text.includes("Designer shingles") && !text.includes("Best warranty"), "each sample option lists its lines, not a tagline");
   assert.ok(!/\{\{\s*params\.(customer|project)/.test(text), "the sample customer's bindings are resolved");
   assert.notDeepEqual(previews.previews[0].theme, previews.previews[2].theme, "the styles differ");
+  assert.equal(previews.theme_id, "thm_clean", "nothing set up yet: the step opens on the first style");
   const invoice = await value(owner, "document-setup", "previews", { document_kind: "invoice" });
   assert.equal(invoice.previews.length, 3);
   assert.deepEqual((await listDocumentTemplates(ORG)).map((template: any) => template.id).sort(), before, "a preview saves nothing");
@@ -180,7 +181,7 @@ test("the finish makes the kind's own default template, its workflow, its pin an
   const status = await value(owner, "document-setup", "status");
   assert.equal(status.answered.proposal, true);
   assert.equal(status.kinds.proposal.theme_id, "thm_triangles");
-  // The first proposal style is the organization's style for new documents (FM-612).
+  // The first style chosen is the organization's style for new documents (FM-612, GP-102).
   const { readDefaultDocumentThemeId } = await import("../documents/settings.js");
   assert.equal(status.default_theme_id, "thm_triangles");
   assert.equal(await readDefaultDocumentThemeId(ORG), "thm_triangles");
@@ -191,13 +192,18 @@ test("the finish makes the kind's own default template, its workflow, its pin an
   assert.equal(Number(again.current_version), 2);
   assert.equal(again.metadata.document_setup.based_on, "tpl_instant_roofing_options");
   assert.equal((await storage.listDocumentTemplates(ORG, { document_type: "proposal" })).filter((entry: any) => entry.id.startsWith("tpl_setup_")).length, 1);
-  assert.equal(await readDefaultDocumentThemeId(ORG), "thm_triangles", "only the first proposal style sets the style for new documents");
+  assert.equal(await readDefaultDocumentThemeId(ORG), "thm_triangles", "only the first style chosen sets the style for new documents");
+  // A kind not set up yet opens on it (GP-102); one set up, on its own.
+  assert.equal((await value(owner, "document-setup", "previews", { document_kind: "invoice" })).theme_id, "thm_triangles");
+  assert.equal((await value(owner, "document-setup", "previews", proposal)).theme_id, "thm_clean");
 
   // Another kind takes only a style.
   const invoice = await invoke(owner, "documents.setup.apply", { document_kind: "invoice", theme_id: "thm_margin" }, "apply-invoice");
   assert.equal(invoice.template_id, "tpl_setup_invoice");
   assert.deepEqual(((await storage.readDocumentTemplateVersion(ORG, "tpl_setup_invoice")) as any).definition.theme_ref, { theme_id: "thm_margin" });
   assert.equal((await value(owner, "document-setup", "status")).default_theme_id, "thm_triangles", "another kind's style leaves it");
+  assert.equal((await value(owner, "document-setup", "previews", { document_kind: "invoice" })).theme_id, "thm_margin", "the invoice's own style");
+  assert.equal((await value(owner, "document-setup", "previews", { document_kind: "change_order" })).theme_id, "thm_triangles");
 
   await assert.rejects(() => invoke(owner, "documents.setup.apply", { document_kind: "proposal", theme_id: "thm_clean" }, "apply-bad"), /how you write proposals/);
   const member = person("member", { role: "member", permissions: { view_projects: true } });
@@ -379,4 +385,25 @@ test("the copy step's title is a top-level heading or one that opens the documen
   const edited: any = applyCopy(doc(node("a", "Roof replacement proposal", "h2"), node("x", "Prepared for", undefined, "customer.name")), { a: "One\n\nTwo", x: "not copy" });
   assert.deepEqual(edited.pages[0].children[0].children[0].props.blocks.map((block: any) => [block.style_ref, block.runs[0].text]), [["h2", "One"], ["h2", "Two"]]);
   assert.equal(edited.pages[0].children[0].children[1].props.blocks[0].runs[0].text, "Prepared for", "a bound node is never rewritten");
+});
+
+test("the first style chosen for any kind is the style for new documents, and the setup opens on it for the others (GP-102)", async () => {
+  await setup();
+  const { documentSetupDefaultThemeId, readDefaultDocumentThemeId, DOCUMENT_SETUP_MODULE } = await import("../documents/settings.js");
+  // Kept before the setting was written for every kind: the first kind set up.
+  assert.equal(documentSetupDefaultThemeId({ kinds: { invoice: { theme_id: "thm_triangles", applied_at: "2026-11-02T00:00:00Z" }, change_order: { theme_id: "thm_clean", applied_at: "2026-11-01T00:00:00Z" } } }), "thm_clean");
+  assert.equal(documentSetupDefaultThemeId({ default_theme_id: "thm_margin", kinds: { invoice: { theme_id: "thm_clean", applied_at: "2026-11-01T00:00:00Z" } } }), "thm_margin");
+  assert.equal(documentSetupDefaultThemeId({}), null);
+  // An organization whose first document set up is a change order (the others' setups start over here).
+  const storage = await import("../platform/storage.js");
+  const record = await storage.readBranchModule(ORG, "default", DOCUMENT_SETUP_MODULE);
+  await storage.saveBranchModule(ORG, "default", DOCUMENT_SETUP_MODULE, { data: {}, expected_revision: Number(record.revision || 0) }, { replace: true });
+  assert.equal((await value(owner, "document-setup", "previews", { document_kind: "change_order" })).theme_id, "thm_clean");
+  await invoke(owner, "documents.setup.apply", { document_kind: "change_order", theme_id: "thm_margin" }, "gp102-change-order");
+  assert.equal((await value(owner, "document-setup", "status")).default_theme_id, "thm_margin");
+  assert.equal(await readDefaultDocumentThemeId(ORG), "thm_margin");
+  assert.equal(await readDefaultDocumentThemeId(ORG, "invoice"), "thm_margin");
+  for (const kind of ["invoice", "completion_certificate"]) assert.equal((await value(owner, "document-setup", "previews", { document_kind: kind })).theme_id, "thm_margin", kind);
+  await invoke(owner, "documents.setup.apply", { document_kind: "invoice", theme_id: "thm_triangles" }, "gp102-invoice");
+  assert.equal((await value(owner, "document-setup", "status")).default_theme_id, "thm_margin", "a later kind's style leaves it");
 });

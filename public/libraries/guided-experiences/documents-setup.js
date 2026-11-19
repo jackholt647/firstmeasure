@@ -406,6 +406,13 @@ function answersOf(selections){
  */
 const passedKinds = new WeakSet();
 
+/**
+ * The setups (their selections) whose style step has shown this run: Back to it keeps the style picked. Otherwise it
+ * opens on the style the previews name (the kind's own, or the company's first style, GP-102), not one a replay of an
+ * earlier setup for another kind carried in.
+ */
+const styled = new WeakSet();
+
 /** The questions with one answer each: the choices, with their copy (gx_docs_setup_* keys). */
 function choicesFor(part, selections){
   const c = (id, icon, key, title, hint, value = id) => ({ id, icon, value, title: [`gx_docs_setup_${key}`, title], hint: [`gx_docs_setup_${key}_hint`, hint] });
@@ -1036,7 +1043,7 @@ export function mount(el, ctx){
     let step = 1;
     const chosen = () => previews[center]?.theme_id || '';
     // The style in the middle is the one chosen.
-    const report = () => { const entry = previews[center]; ctx.change(entry ? { theme_id: entry.theme_id } : {}, entry ? entry.name : ''); };
+    const report = () => { const entry = previews[center]; if (entry) styled.add(selections); ctx.change(entry ? { theme_id: entry.theme_id } : {}, entry ? entry.name : ''); };
     /** Where each card sits: -1 left, 0 middle, 1 right (and further out with more styles), going round. */
     const offsetOf = (at) => { const n = previews.length; let d = ((at - center) % n + n) % n; if (d > n / 2) d -= n; return d; };
     /** A card at a position (fractional while dragged): along the row, shrinking from the middle to a side card's size. */
@@ -1227,7 +1234,8 @@ export function mount(el, ctx){
       if (!alive) return;
       Renderer = loaded;
       previews = array(object(value).previews);
-      center = Math.max(0, previews.findIndex((preview) => preview.theme_id === clean(selections.theme_id)));
+      const start = styled.has(selections) ? clean(selections.theme_id) : clean(object(value).theme_id) || clean(selections.theme_id);
+      center = Math.max(0, previews.findIndex((preview) => preview.theme_id === start));
       el.innerHTML = `<div class="gxd gxd-fill">
         <div class="gxd-stage" tabindex="0" role="listbox" aria-label="${esc(ctx.L(ctx.step.title))}">
           ${previews.map((preview) => `<div class="gxd-card" role="option" data-theme="${esc(preview.theme_id)}" aria-label="${esc(preview.name)}"><div class="gxd-doc"></div><button type="button" class="gxd-expand" data-expand aria-label="${esc(t('style_view', 'See it full screen'))}" title="${esc(t('style_view', 'See it full screen'))}"><i class="fas fa-expand" aria-hidden="true"></i></button></div>`).join('')}
