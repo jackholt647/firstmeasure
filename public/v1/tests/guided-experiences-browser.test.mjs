@@ -938,12 +938,21 @@ test('a column panel tour still to play goes before the tab tour announced just 
 test('a tab tour waiting for a column panel that never opens still plays', async () => {
   const browser = await launch();
   try {
-    const { page, errors } = await panelPage(browser, () => { tours[0].triggers = [{ kind: 'panel_opened', panel: 'project.details', covering: false, once: true }]; });
+    const { page, errors } = await panelPage(browser, () => {
+      tours[0].triggers = [{ kind: 'panel_opened', panel: 'project.details', covering: false, once: true }];
+      tours.push({ ...tours[2], id: 'docs.tab_tutorial', tab: 'project.docs', triggers: [{ kind: 'tab_opened', tab: 'project.docs', once: true }], steps: [{ ...tours[2].steps[0], targets: ['#tabs'], title: { key: 'd', text: 'Docs here' } }] });
+    });
     await page.evaluate(() => FirstMateGuides.preload('p1'));
-    await page.evaluate(() => openTab());
+    await page.evaluate(() => { window.asked = performance.now(); openTab(); });
     await tourStep(page, 'Photos here');
     const starts = await page.evaluate(() => events.filter((entry) => entry.endsWith(':start')));
     assert.deepEqual(starts, ['photos.tab_tutorial:start']);
+    // Waited once for nothing: this frame has no column, so the next tab's tour starts at once.
+    await page.locator('.gx-pop [data-gx=next]').click();
+    await page.waitForFunction(() => events.includes('photos.tab_tutorial:complete'));
+    await page.evaluate(() => { Portal.navigation.read = () => ({ project: 'p1', projectTab: 'docs' }); window.asked = performance.now(); dispatchEvent(new CustomEvent('fm:project-tab:opened', { detail: { appId: 'project.docs', isActive: () => true } })); });
+    await tourStep(page, 'Docs here');
+    assert.ok(await page.evaluate(() => performance.now() - asked) < 800, 'no second wait');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

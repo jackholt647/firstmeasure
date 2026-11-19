@@ -120,7 +120,7 @@
 
   // ── State ──────────────────────────────────────────────────────────────
   // `visit`: the project tab this frame shows now (see onTabOpened); `current`: the experience playing in this frame.
-  const state = { reveals: null, experiences: new Map(), faqs: new Map(), loaded: '', loading: null, playing: null, bypass: new WeakSet(), tabTimers: new Set(), windowTourHold: null,
+  const state = { reveals: null, experiences: new Map(), faqs: new Map(), loaded: '', loading: null, playing: null, bypass: new WeakSet(), tabTimers: new Set(), windowTourHold: null, columnless: false,
     visit: { key: '', tab: '', projectId: '', generation: 0, armed: false, isActive: null }, current: null, skipped: null };
   const kinds = new Map();
 
@@ -557,10 +557,12 @@
    * `covering: false`) still to play goes before the tab's tour (GP-88): the window opens with its first tab, then the
    * column, so the tab's tour waits for the panel's announcement and queues behind the panel's tour. It waits at most
    * WINDOW_TOUR_WAIT_MS, so a window whose column never opens still plays the tab's tour. A panel tour already playing
-   * or queued needs no wait: the tab's tour queues behind it.
+   * or queued needs no wait: the tab's tour queues behind it. A frame whose panel covers the page (a phone) or that
+   * waited once for nothing has no column: it does not wait again (`columnless`).
    */
-  const WINDOW_TOUR_WAIT_MS = 1500;
+  const WINDOW_TOUR_WAIT_MS = 1000;
   function windowTourAhead(snapshot){
+    if (state.columnless) return false;
     let ahead = false;
     for (const experience of snapshot.experiences.values()) {
       if (experience.progress && experience.progress.status !== 'started') continue;
@@ -579,7 +581,7 @@
       state.tabTimers.delete(hold.timer);
       play(id, { bound, instant: true });
     };
-    hold.timer = setTimeout(hold.release, WINDOW_TOUR_WAIT_MS);
+    hold.timer = setTimeout(() => { state.columnless = true; hold.release(); }, WINDOW_TOUR_WAIT_MS);
     state.tabTimers.add(hold.timer);
     state.windowTourHold = hold;
   }
@@ -696,6 +698,7 @@
     const covering = typeof detail.covering === 'function' ? detail.covering : () => !!detail.covers && isOpen();
     const fn = (value) => (typeof value === 'function' ? value : null);
     panels.set(panel, { isOpen, covering, element: detail.element || null, closeControl: fn(detail.closeControl), close: fn(detail.close) });
+    if (detail.covers) state.columnless = true;
     if (covered()) suspendVisit(); else armVisit();
     playPanelTrigger('panel_opened', { ...detail, panel }, () => { try { return !!isOpen(); } catch (_) { return false; } });
   });
