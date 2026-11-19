@@ -1,0 +1,89 @@
+{
+  "guided_experience": [
+    {
+      "id": "operations.workforce.setup",
+      "version": 1,
+      "kind": "modal",
+      "scope": "organization",
+      "salt": "v1",
+      "title": {
+        "key": "gx_ops_workforce_title",
+        "text": "Set up who does the work"
+      },
+      "tab": "project.materials",
+      "eligibility": {
+        "capabilities": [
+          "platform.materials",
+          "apps.crew"
+        ],
+        "permissions": [
+          "manage_company_settings",
+          "manage_projects"
+        ]
+      },
+      "triggers": [
+        {
+          "kind": "manual"
+        }
+      ],
+      "variants": [
+        {
+          "id": "default",
+          "weight": 1,
+          "content": {}
+        }
+      ],
+      "requires": [
+        "company.type",
+        "company.services"
+      ],
+      "steps": [
+        {
+          "id": "workforce",
+          "widget": "workforce-setup",
+          "requires": [],
+          "title": {
+            "key": "gx_ops_workforce_step",
+            "text": "Who does the work?"
+          },
+          "subtitle": {
+            "key": "gx_ops_workforce_body",
+            "text": "Your crews and subcontractors, what each one does and how you pay them. Work orders use their pay."
+          },
+          "say": [],
+          "options": {
+            "pay_defaults": [
+              {
+                "industry_sets": [
+                  "roofing_exteriors"
+                ],
+                "method": "per_measurement",
+                "measurement": "roof.squares"
+              },
+              {
+                "method": "hourly"
+              }
+            ]
+          },
+          "selects": [
+            "workforce",
+            "labor",
+            "include_labor"
+          ],
+          "required": true
+        }
+      ],
+      "completion": {
+        "screen": "none",
+        "say": [],
+        "then": []
+      },
+      "replayable": true,
+      "reveal": [],
+      "description": {
+        "key": "gx_ops_workforce_description",
+        "text": "Who does the work at your company, how many crews and subcontractors you have, what each one does and how you pay them."
+      }
+    }
+  ]
+}

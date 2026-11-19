@@ -528,7 +528,7 @@ async function seedCapabilities(orgId: string, groups: Map<string, string>, comp
     const current = declared.get(`${assignee.type}:${assignee.id}`);
     const schemaIds = union(current?.schema_ids, target.kinds);
     if (current && same(schemaIds, current.schema_ids)) continue;
-    await capabilities.saveCapabilities(orgId, { assignee, schema_ids: schemaIds, item_ids: current?.item_ids || [], excluded_item_ids: current?.excluded_item_ids || [], ...(current ? { expected_revision: current.revision } : {}) }, actor);
+    await capabilities.saveCapabilities(orgId, { assignee, schema_ids: schemaIds, service_ids: current?.service_ids || [], item_ids: current?.item_ids || [], excluded_item_ids: current?.excluded_item_ids || [], ...(current ? { expected_revision: current.revision } : {}) }, actor);
     counts.capabilities = (counts.capabilities || 0) + 1;
   }
 }

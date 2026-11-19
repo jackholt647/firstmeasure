@@ -204,8 +204,11 @@ built.
 `labor/capabilities.ts` records what an assignee is able to do, apart from how
 they are paid. They are granted the way permissions are: a kind of work grants
 every item it requires, a scope the assignee is marked as doing
-(`capability_scope_ids`) grants the kinds of work that scope works in, and
-single items can be added or excluded on top. An assignee nobody has said
+(`capability_scope_ids`) grants the kinds of work that scope works in, a
+company profile service the assignee does (`service_ids`, what the workforce
+setup asks of each crew and subcontractor) grants the kind of work that service
+is measured as, when it has one, and single items can be added or excluded on
+top. An assignee nobody has said
 anything about is `known: false`, which is not the same as unable, and nothing
 is reported against them.
 

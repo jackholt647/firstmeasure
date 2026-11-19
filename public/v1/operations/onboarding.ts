@@ -124,6 +124,7 @@ export function registerOperationsSetupPublication() {
       const labor = (await listResourceTypes(ctx.organizationId, { includeHidden: true })).find(row => row.id === 'labor')!;
       const { revision, ...fields } = labor;
       await saveResourceType(ctx.organizationId, { ...fields, shown: 'always', expected_revision: revision }, ctx.auth!);
-      return result;
+      // What labor.setup.apply wrote (each assignee's reference, GP-28), not the receipt around it.
+      return (result as { value?: unknown })?.value ?? result;
     } });
 }

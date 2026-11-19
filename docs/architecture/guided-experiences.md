@@ -821,7 +821,7 @@ current collection reads are recorded in the [optimization backlog](../optimizat
 The Operations tab treats a kind of resource that is not set up as not a list yet (FM-619): for someone who may run
 the setups, it is a tab in the header, coloured like a minimized column's, with a Setup tag on its corner, and the
 tab opens its setup. Labor is set up once its column shows (`shown: when_configured` above) and opens
-`operations.workforce.setup` (after `operations.workforce.setup.start`, as the card does); equipment is set up once
+`operations.workforce.setup` (after `operations.workforce.setup.start`, as the card does, and below); equipment is set up once
 `operations.setup.status` says the fleet has a unit, and until then has no column and no lists in the work order
 unless this project already has equipment on its lists. It opens `operations.equipment.setup`, the hub's ready step
 with `options.card: equipment`, which opens that one card at once (the equipment setup, below) and finishes when it is
@@ -829,6 +829,34 @@ left. Materials are what the setup itself builds and never get a Setup tag.
 
 This Labor visibility check shares the existing full material-list scan recorded
 in the [optimization backlog](../optimization-backlog.md#the-labor-column-reads-every-material-list-when-nobody-does-labor).
+
+### Who does the work (workforce setup)
+
+`operations.workforce.setup` (GP-28; modal, organization, replayable; library entry with its copy) is the Workforce card
+of the hub, the Labor Setup tag of the Operations tab and the button of Operations settings' Workforce sub-tab. It
+`requires` `company.type` and `company.services`, so what kind of company it is and what work it does are asked first
+while unanswered. Its one step (widget `workforce-setup`, `public/libraries/guided-experiences/workforce-setup.js`) keeps
+its own pages and reads `workforce-setup.status` when it shows (the steps before it may have just answered the profile):
+
+1. **Who does the work at your company?** Just me, our own crews, subcontractors, or both: the company profile's
+   `workforce` answer (the `company.workforce` setup step's), shown chosen and saved with `company-profile.save` when it
+   changes.
+2. **How many do you have?** A count of crews and of subcontractors. The groups and outside companies the organization
+   already has are counted and kept; "just me" skips this and makes one crew of the person.
+3. **Name each one and say what they do.** One card each: its name, which of the company's services it does (all of
+   them at first) and, for a crew, who is on it (optional, from the organization's people).
+4. **How do you pay them?** Piece rate, hourly or per job, defaulted by the step's `pay_defaults` (library data: the first
+   rule whose `industry_sets` the company is in; roofing and exteriors are paid per square, everyone else hourly; a
+   piece rate needs roofing work); "Same pay as" another card copies its pay; **Upload pay sheet** saves the card and
+   hands the file to the agent, which the modal setup calls in beside itself (the player's `ensureAgent`).
+5. **Set up**, after `operations.workforce.setup.apply` wrote it; Done finishes the setup. There is no price book finish
+   (`completion.screen: none`, no completion action).
+
+Cards sit side by side, three at most, and scroll as a carousel past that (one at a time on a phone). The save is
+`labor.setup.apply` with each card's `service_ids` (written as its capabilities, `assignees.capabilities.save`, so a
+service measured as a kind of work grants that kind's items) and `member_user_ids` (added through the group's member
+writer, which gives the group type's roles; never removed here). What a group or company is called comes from the
+terminology system. Operations settings (`apps/materials/settings.js`) shows the result in its Workforce sub-tab.
 
 ## Communications setup
 

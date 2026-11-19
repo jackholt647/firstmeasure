@@ -172,7 +172,8 @@ proposal's questions):
 
 - `company.sales_team`, "Who does the sales in your company?": just me, a small sales team, a sales team with
   managers, or no sales appointments. `company.workforce`, "Who does most of the work?": just me, our own crews,
-  subcontractors, or crews and subcontractors. One choice each (parts `sales_team` and `workforce` of
+  subcontractors, or crews and subcontractors. The workforce setup (GP-28) shows this answer as its first page, chosen,
+  and saves a change with `company-profile.save`. One choice each (parts `sales_team` and `workforce` of
   `company-profile.js`), both requiring `company.type`, saved in the company profile with `company-profile.save`
   (`sales_team`, `workforce`) and read from `company-profile.profile` (`answered.sales_team`, `answered.workforce`,
   and `sales_is_team` / `workforce_is_team`, whether the answer is a group of people). The answers are catalog data

@@ -7772,7 +7772,8 @@
   // ---- Operations settings (materials/settings.js, GP-15): the gear at the top right opens the organization's materials
   // settings (price book, suppliers, report defaults, resource categories). It shows when at least one is allowed.
   function materialsSettingsOptions(){
-    return { orgId, toast:showToast, categories:materialsSettingsCategories() };
+    // The project lets its Workforce sub-tab start the workforce setup (GP-28), whose start action is per project.
+    return { orgId, projectId:projectId(), toast:showToast, categories:materialsSettingsCategories() };
   }
   function materialsSettingsButton(){
     const settings = window.FirstMateMaterialsSettings;
