@@ -608,6 +608,33 @@ test("project invoices generate PDFs, publish due payments to the portal, email 
   const mixedPortalProposal = mixedPortalPayload.resources.proposals.find((proposal: any) => proposal.proposal_id === created.proposal.id);
   const mixedPublished = mixedPortalProposal.workflow.payment.obligations.find((item: any) => item.invoice_id === mixedInvoice.invoice.id);
   assert.equal(mixedPublished.balance_due_cents, 43_825);
+  // The shared invoice workflow (GP-104) taxes only the custom items, as an invoice document does.
+  const chargesTaxed = await client.request("POST", `/v1/payments/organizations/${orgId}/projects/${projectId}/invoices`, {
+    line_items: [
+      { type: "payment", obligation_id: finalObligation.id, description: "Final Payment", amount_cents: 400_000 },
+      { type: "manual", description: "Dump fee", amount_cents: 20_000 }
+    ],
+    tax_enabled: true,
+    tax_percent: 10,
+    tax_base: "charges"
+  });
+  assert.equal(chargesTaxed.invoice.subtotal_cents, 420_000);
+  assert.equal(chargesTaxed.invoice.tax_cents, 2_000);
+  assert.equal(chargesTaxed.invoice.total_cents, 422_000);
+  assert.equal(chargesTaxed.invoice.tax_base, "charges");
+  // Generate invoice's workflow (GP-104): the invoice document's workflow and preview over a draft that is never saved.
+  const draftPath = `/v1/payments/organizations/${orgId}/projects/${projectId}/invoices/draft`;
+  const started = await client.request("POST", draftPath, { start: true });
+  assert.ok(started.workflow.steps.length >= 1);
+  assert.match(started.params.invoice_number, /^INV-\d{6}-/);
+  assert.equal(started.params.tax_enabled, true, "sales tax is on for the organization");
+  assert.equal(started.params.tax_percent, 8.25, "its default rate");
+  assert.ok(started.params.account.bill_options.some((option: any) => option.value === finalObligation.id));
+  assert.ok(started.resolved.resolved_definition, "the preview comes with it");
+  const drafted = await client.request("POST", draftPath, { params: { ...started.params, bill: finalObligation.id, tax_enabled: false, line_items: [{ id: "fee", name: "Dump fee", quantity: 1, unit: "ea", unit_price: 50 }] } });
+  assert.deepEqual(drafted.resolved.scope.params.billing.obligation_ids, [finalObligation.id]);
+  assert.ok(drafted.resolved.scope.params.billing.lines.some((line: any) => line.label === "Dump fee" && line.amount_cents === 5000));
+  assert.ok(!drafted.resolved.scope.params.billing.lines.some((line: any) => /Sales tax/.test(line.label)), "no tax once switched off");
 });
 
 test("the legacy proposal page takes no payment: no Pay button, and the old deposit route is gone", async () => {

@@ -56,7 +56,7 @@
     versionedBundle('../payments-api/payments-api.js', '20261119-gp69'),
     versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261118-fm608-payments-off'),
     versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261119-gp102-focal'),
-    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261119-gp99-payment'),
+    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261119-gp104-single-step'),
     versionedBundle('signatures/project.js', '20261019-forward-cert')
   ];
   const crewBundles = [
@@ -296,7 +296,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261119-gp69'), versionedBundle('photos/feed.js', '20261119-gp116-feed-open'), versionedBundle('receipts/app.js', '20261119-gp109'), versionedBundle('money/project.js', '20261119-gp109')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261119-gp69'), versionedBundle('photos/feed.js', '20261119-gp116-feed-open'), versionedBundle('receipts/app.js', '20261119-gp109'), versionedBundle('money/project.js', '20261119-gp104-invoice-workflow')]
     },
     {
       id: 'project.request',

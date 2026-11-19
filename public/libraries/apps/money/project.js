@@ -52,6 +52,8 @@
     ledgerView: storedLedgerView(),
     ledgerSort: { key:'date', direction:'desc' },
     modal: null,
+    // Generate invoice's workflow over its draft invoice document (GP-104).
+    invoiceFlow: null,
     paymentIntakeHandle: null,
     paymentIntakeConfig: null,
     autopay: null,
@@ -419,54 +421,18 @@
       .mn-switch input:focus-visible+span{box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.14)}
       .mn-switch-field{display:flex!important;flex-direction:row!important;align-items:center;justify-content:space-between;gap:10px;height:38px}
       .mn-sr{position:absolute!important;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
-      /* Generate invoice (GP-4): the items on the left, dates, switches and totals in a panel on the right. */
-      .mn-modal.mn-invoice-modal{width:min(820px,100%)}
-      .mn-invoice-modal .mn-modal-body{padding:0;gap:0}
-      .mn-invoice{flex:1 0 auto;display:grid;grid-template-columns:minmax(0,1fr) 300px}
-      .mn-invoice-main{min-width:0;padding:18px;display:flex;flex-direction:column;gap:16px}
-      .mn-invoice-side{min-width:0;padding:18px;display:flex;flex-direction:column;gap:14px;background:#f9fafb;border-left:1px solid #eaecf0}
-      .mn-invoice-note{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:#344054}
-      .mn-invoice-note textarea.mn-input{min-height:72px}
-      .mn-invoice-items{border:1px solid #eaecf0;border-radius:12px;overflow:hidden;background:#fff}
-      .mn-invoice-items-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid #eaecf0}
-      .mn-invoice-items-head strong{font-size:13px}
-      .mn-invoice-item-picker{padding:10px 12px;background:#fcfcfd}
-      .mn-invoice-picker-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:220px;overflow:auto}
-      .mn-invoice-picker-choice{display:flex;align-items:center;gap:10px;width:100%;min-width:0;border:1px solid #eaecf0;border-radius:10px;background:#fff;padding:8px 10px;text-align:left;cursor:pointer;font:inherit;color:inherit}
-      .mn-invoice-picker-choice:hover{border-color:rgba(var(--primary-rgb,217,48,37),.35);background:rgba(var(--primary-rgb,217,48,37),.03)}
-      .mn-invoice-picker-choice>i:first-child{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;background:#f2f4f7;color:#475467;font-size:12px}
-      .mn-invoice-picker-choice>span{flex:1;min-width:0}
-      .mn-invoice-picker-choice strong{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .mn-invoice-picker-choice span span{display:block;color:#667085;font-size:11px;font-variant-numeric:tabular-nums}
-      .mn-invoice-picker-add{flex:none;color:var(--primary,#d93025);font-size:12px}
-      .mn-invoice-cols,.mn-invoice-line{display:grid;grid-template-columns:minmax(0,1fr) 120px 32px;gap:8px;align-items:center;padding:0 12px}
-      .mn-invoice-cols{padding-top:10px;border-top:1px solid #eaecf0;font-size:11px;font-weight:700;color:#667085}
-      .mn-invoice-item-picker[hidden]+.mn-invoice-cols{border-top:0}
-      .mn-invoice-cols span:nth-child(2){text-align:right}
-      .mn-invoice-cols[hidden]{display:none}
-      .mn-invoice-lines{display:flex;flex-direction:column}
-      .mn-invoice-line{padding-top:5px;padding-bottom:5px}
-      .mn-invoice-line:last-child{padding-bottom:10px}
-      .mn-invoice-line label{display:block;min-width:0}
-      .mn-invoice-line [data-money-invoice-line-amount]{text-align:right;font-variant-numeric:tabular-nums}
-      .mn-invoice-line-remove{width:32px;height:32px;border:0;background:transparent;color:#98a2b3;cursor:pointer;border-radius:8px;display:grid;place-items:center}
-      .mn-invoice-line-remove:hover{background:#fef3f2;color:#b42318}
-      .mn-invoice-empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:22px 14px;text-align:center;color:#98a2b3;font-size:12px;font-weight:600}
-      .mn-invoice-empty i{font-size:20px;color:#d0d5dd}
-      .mn-invoice-empty[hidden],.mn-invoice-item-picker:not([hidden])~.mn-invoice-lines .mn-invoice-empty{display:none}
-      .mn-invoice-settings{display:flex;flex-direction:column;border:1px solid #eaecf0;border-radius:12px;background:#fff;overflow:hidden}
-      .mn-invoice-setting{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:50px;padding:7px 12px;border-bottom:1px solid #f2f4f7;font-size:13px;font-weight:600;color:#344054}
-      .mn-invoice-setting:last-child{border-bottom:0}
-      .mn-invoice-setting[hidden]{display:none}
-      .mn-invoice-setting>span:first-child{display:inline-flex;align-items:center;gap:5px;min-width:0;white-space:nowrap}
-      .mn-invoice-setting .mn-input{flex:0 1 150px;width:150px;min-width:0;height:34px}
-      .mn-invoice-setting .mn-input[type=number]{flex-basis:96px;width:96px;text-align:right}
-      .mn-invoice-total-box{margin-top:auto;display:flex;flex-direction:column;gap:6px;padding:14px;border:1px solid #eaecf0;border-radius:12px;background:#fff}
-      .mn-invoice-total-row{display:flex;justify-content:space-between;gap:15px;font-size:13px;color:#475467;font-variant-numeric:tabular-nums}
-      .mn-invoice-total-row[hidden]{display:none}
-      .mn-invoice-total-row.grand{align-items:baseline;border-top:1px solid #eaecf0;padding-top:10px;margin-top:4px;font-size:20px;font-weight:800;color:#101828}
-      .mn-invoice-total-row.grand span:first-child{font-size:13px}
-      .mn-invoice-foot-total{display:none}
+      /* Generate invoice (GP-104): the invoice document's own workflow, one step with its live preview beside it, as in Docs. */
+      .mn-modal.mn-invoice-modal{width:min(1180px,100%);height:min(860px,100%)}
+      .mn-invoice-modal .mn-modal-body{flex:1 1 auto;padding:0;gap:0;overflow:hidden}
+      .mn-invoice-setup{flex:none;margin:12px 16px 0}
+      .mn-invoice-flow{flex:1 1 auto;min-height:0;display:flex}
+      .mn-invoice-flow>.fmdw{flex:1 1 auto}
+      .mn-invoice-flow .fmdw-step-head{display:none}
+      .mn-invoice-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:40px 16px;text-align:center;color:#667085;font-size:13px;font-weight:600}
+      .mn-invoice-state i{font-size:22px;color:#98a2b3}
+      .mn-invoice-state.error i{color:#b42318}
+      .mn-invoice-foot-total{display:flex;align-items:baseline;gap:10px;margin-right:auto;font-size:13px;font-weight:700;color:#475467}
+      .mn-invoice-foot-total strong{font-size:18px;font-weight:800;color:#101828;font-variant-numeric:tabular-nums}
       .mn-modal.mn-receipt-screen{width:min(1180px,100%);height:min(820px,100%)}
       .mn-receipt-screen .mn-modal-head>div:first-child{flex:1}
       .mn-receipt-nav{display:flex;align-items:center;gap:6px;flex:none}
@@ -550,20 +516,12 @@
         .mn-modal[data-money-tray-drag]>.mn-modal-head{touch-action:none;padding-top:8px}
         .mn-intake-modal[data-money-tray-drag]{padding-top:24px}
         .mn-modal-foot .mn-btn{height:44px;font-size:13px}
-        .mn-invoice{display:flex;flex-direction:column;gap:14px;padding:14px 16px 16px}
-        .mn-invoice-main,.mn-invoice-side{display:contents}
-        .mn-invoice-note{order:1}
-        .mn-invoice-total-box{order:2;margin-top:0;padding:10px 12px;border:0;background:#f9fafb}
-        .mn-invoice-setup{order:3}
-        .mn-invoice-total-row.grand{display:none}
-        .mn-invoice-picker-list{grid-template-columns:1fr}
-        .mn-invoice-cols,.mn-invoice-line{grid-template-columns:minmax(0,1fr) 96px 32px}
-        .mn-invoice-setting .mn-input{height:38px}
+        .mn-modal.mn-invoice-modal{height:calc(100% - 28px)}
         .mn-invoice-modal .mn-modal-foot{padding:10px 16px 14px}
         .mn-invoice-modal .mn-modal-foot .mn-invoice-cancel{display:none}
         .mn-invoice-modal .mn-modal-foot [data-money-invoice-submit]{flex:1 1 150px}
-        .mn-invoice-foot-total{display:flex;align-items:baseline;justify-content:space-between;gap:12px;width:100%;font-size:13px;font-weight:700;color:#475467}
-        .mn-invoice-foot-total strong{font-size:20px;font-weight:800;color:#101828;font-variant-numeric:tabular-nums}
+        .mn-invoice-foot-total{width:100%;justify-content:space-between;margin-right:0}
+        .mn-invoice-foot-total strong{font-size:20px}
       }
       @keyframes mn-tray-up{from{transform:translateY(100%)}to{transform:none}}
       @media (prefers-reduced-motion:reduce){.mn-modal.mn-tray-in{animation:none}}
@@ -1174,6 +1132,7 @@
   function syncBusy(){
     const root = rootNode();
     root?.querySelectorAll('[data-money-busy]').forEach((button) => { button.disabled = moneyMutationBusy(); });
+    syncInvoiceButtons();
   }
 
   function bindShell(root){
@@ -1289,6 +1248,7 @@
       state.paymentIntakeHandle = null;
     }
     layer.dataset.modalKey = key;
+    if (state.invoiceFlow && (state.modal?.type !== 'invoice' || state.receiptBatch || state.receiptReview)) discardInvoiceFlow();
     if (state.receiptBatch) { layer.innerHTML = receiptBatchHtml(); bindModal(layer, opening); return; }
     if (state.receiptReview) { layer.innerHTML = receiptReviewHtml(); bindModal(layer, opening); return; }
     const modal = state.modal;
@@ -1370,37 +1330,16 @@
     return modalFrame({ title:term('add_expense'), icon:'fa-arrow-up', body, foot });
   }
 
+  // Generate invoice (GP-104) is the invoice document's own workflow (wfl_invoice over tpl_invoice_default): the same
+  // single step, questions and live preview as an invoice made in Docs, over a draft the server resolves but never
+  // saves (payments' invoices/draft). Generating makes this tab's invoice from what the draft says.
   function invoiceModalHtml(){
-    const invoiceable = obligations().filter((item) => cleanText(item.source?.type) === 'proposal' && cleanText(item.status).toLowerCase() !== 'void' && cents(item.amount_cents) > 0);
-    const today = todayKey();
-    const taxSettings = state.invoiceSettings || {};
-    const taxEnabled = taxSettings.sales_tax_enabled !== false;
-    const defaultTaxPercent = Math.min(100, Math.max(0, Number(taxSettings.default_sales_tax_percent || 0)));
-    const body = `<form class="mn-invoice" data-money-invoice-form id="mnInvoiceForm">
-      <div class="mn-invoice-main">
-        <div class="mn-invoice-items">
-          <div class="mn-invoice-items-head"><strong>${escapeHtml(term('invoice_items'))}</strong><button type="button" class="mn-btn small" data-money-invoice-picker-toggle><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_4d801afb3ef0c9","Add item") ?? "Add item")}</button></div>
-          <div class="mn-invoice-item-picker" data-money-invoice-picker><div class="mn-invoice-picker-list">
-          <button type="button" class="mn-invoice-picker-choice" data-money-invoice-add-manual><i class="fas fa-pen" aria-hidden="true"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("money","m_2e105a57c9384a","Custom item") ?? "Custom item")}</strong></span><i class="fas fa-plus mn-invoice-picker-add" aria-hidden="true"></i></button>
-          ${invoiceable.map((item) => { const paid = cleanText(item.status).toLowerCase() === 'paid'; const displayCents = paid ? cents(item.amount_cents) : Math.max(0, cents(item.amount_cents) - cents(item.allocated_cents)); return `<button type="button" class="mn-invoice-picker-choice" data-money-invoice-add-payment="${escapeHtml(item.id)}"><i class="fas fa-calendar-check" aria-hidden="true"></i><span><strong>${escapeHtml(item.label || 'Payment')}</strong><span>${escapeHtml(money(displayCents))}${paid ? ' · Paid' : ''}</span></span><i class="fas fa-plus mn-invoice-picker-add" aria-hidden="true"></i></button>`; }).join('')}
-        </div></div>
-          <div class="mn-invoice-cols" data-money-invoice-cols aria-hidden="true" hidden><span>${(globalThis.PlatformLanguage?.htmlText("money","m_feb2fa0bebb7bf","Item Title") ?? "Item Title")}</span><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span></div>
-          <div class="mn-invoice-lines" data-money-invoice-lines><div class="mn-invoice-empty" data-money-invoice-empty><i class="fas fa-file-invoice-dollar" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_106189435c8ab8","No items yet.") ?? "No items yet.")}</div></div>
-        </div>
-        <label class="mn-invoice-note"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_78996580b607e8","Invoice Note") ?? "Invoice Note")}</span><textarea class="mn-input" name="notes" rows="2" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_6db2d80ab62324","Shown to the customer") ?? "Shown to the customer")}"></textarea></label>
-      </div>
-      <div class="mn-invoice-side">
-        <div class="mn-invoice-settings">
-          <label class="mn-invoice-setting"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_9007c34fd0a5f1","Issue Date") ?? "Issue Date")}</span><input class="mn-input" type="date" name="issue_date" value="${today}" required></label>
-          <label class="mn-invoice-setting"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_0c1007c4897c83","Due Date") ?? "Due Date")}</span><input class="mn-input" type="date" name="due_date" value="${today}" required></label>
-          <label class="mn-invoice-setting"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_c296b7859a927d","Paid in full ") ?? "Paid in full ")}<i class="fas fa-circle-info mn-help" tabindex="0" data-fm-tooltip="${escapeHtml('Render the PDF as paid in full.')}"></i></span><span class="mn-switch"><input type="checkbox" name="render_paid_in_full" data-money-invoice-paid-toggle role="switch" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_edfaf579e9ff18","Render PDF as paid in full") ?? "Render PDF as paid in full")}"><span aria-hidden="true"></span></span></label>
-          ${taxEnabled ? `<label class="mn-invoice-setting"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_265aee5b3f6c36","Sales tax") ?? "Sales tax")}</span><span class="mn-switch"><input type="checkbox" name="tax_enabled" data-money-invoice-tax-toggle role="switch" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_3c60eff258a89d","Enable sales tax") ?? "Enable sales tax")}" checked><span aria-hidden="true"></span></span></label><label class="mn-invoice-setting" data-money-invoice-tax-percent-row><span>${(globalThis.PlatformLanguage?.htmlText("money","m_609bec5738d42c","Tax %") ?? "Tax %")}</span><input class="mn-input" type="number" name="tax_percent" data-money-invoice-tax-percent min="0" max="100" step="0.01" inputmode="decimal" value="${escapeHtml(String(defaultTaxPercent))}"></label>` : ''}
-        </div>
-        <div class="mn-invoice-total-box"><div class="mn-invoice-total-row"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2fc5623e2a7511","Subtotal") ?? "Subtotal")}</span><span data-money-invoice-subtotal>${money(0)}</span></div>${taxEnabled ? `<div class="mn-invoice-total-row" data-money-invoice-tax-row-total><span>${(globalThis.PlatformLanguage?.htmlText("money","m_9920e005677da9","Tax") ?? "Tax")}</span><span data-money-invoice-tax-total>${money(0)}</span></div>` : ''}<div class="mn-invoice-total-row grand"><span>${escapeHtml(term('invoice_total'))}</span><span data-money-invoice-total>${money(0)}</span></div></div>
-        ${paymentsSetupPending() && canSetUpPayments() ? `<div class="mn-alert mn-invoice-setup"><i class="fas fa-credit-card" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_67f39fd217c909","Customers can't pay this invoice online until payments are set up.") ?? "Customers can't pay this invoice online until payments are set up.")}</span><button type="button" class="mn-btn small primary" data-money-invoice-setup>${escapeHtml(setUpPaymentsText())}</button></div>` : ''}
-      </div>
-    </form>`;
-    const foot = `<div class="mn-invoice-foot-total" aria-hidden="true"><span>${escapeHtml(term('invoice_total'))}</span><strong data-money-invoice-foot-total>${money(0)}</strong></div><button type="button" class="mn-btn mn-spacer mn-invoice-cancel" data-money-modal-close>${(globalThis.PlatformLanguage?.htmlText("money","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="submit" form="mnInvoiceForm" class="mn-btn" data-money-invoice-submit disabled><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_92e593a70bd06d","Generate & Download") ?? "Generate & Download")}</button><button type="button" class="mn-btn primary" data-money-invoice-submit data-money-invoice-email-review disabled><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_61ede0befce19b","Generate an Email") ?? "Generate an Email")}</button>`;
+    const ready = state.invoiceFlow?.status === 'ready' && !moneyMutationBusy();
+    const setup = paymentsSetupPending() && canSetUpPayments()
+      ? `<div class="mn-alert mn-invoice-setup"><i class="fas fa-credit-card" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_67f39fd217c909","Customers can't pay this invoice online until payments are set up.") ?? "Customers can't pay this invoice online until payments are set up.")}</span><button type="button" class="mn-btn small primary" data-money-invoice-setup>${escapeHtml(setUpPaymentsText())}</button></div>`
+      : '';
+    const body = `${setup}<div class="mn-invoice-flow" data-money-invoice-flow></div>`;
+    const foot = `<div class="mn-invoice-foot-total"><span>${escapeHtml(term('invoice_total'))}</span><strong data-money-invoice-foot-total>${money(state.invoiceFlow?.totalCents || 0)}</strong></div><button type="button" class="mn-btn mn-invoice-cancel" data-money-modal-close>${(globalThis.PlatformLanguage?.htmlText("money","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="mn-btn" data-money-invoice-submit data-money-invoice-download ${ready ? '' : 'disabled'}><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_92e593a70bd06d","Generate & Download") ?? "Generate & Download")}</button><button type="button" class="mn-btn primary" data-money-invoice-submit data-money-invoice-email-review ${ready ? '' : 'disabled'}><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_61ede0befce19b","Generate an Email") ?? "Generate an Email")}</button>`;
     return modalFrame({ title:term('generate_invoice'), icon:'fa-file-invoice-dollar', body, foot, size:'mn-invoice-modal' });
   }
 
@@ -1858,11 +1797,12 @@
     layer.querySelectorAll('[data-money-void-receipt]').forEach((button) => button.addEventListener('click', () => { if (!moneyMutationBusy()) void voidReceipt(button.dataset.moneyVoidReceipt); }));
     layer.querySelectorAll('[data-money-set-actual]').forEach((button) => button.addEventListener('click', () => { if (!moneyMutationBusy()) void editExpenseActual(button); }));
     layer.querySelectorAll('[data-money-invoice-email-existing]').forEach((button) => button.addEventListener('click', () => openInvoiceEmailModal(layer, { invoiceId:button.dataset.moneyInvoiceEmailExisting })));
-    const invoiceForm = layer.querySelector('[data-money-invoice-form]');
-    if (invoiceForm) {
-      invoiceForm.addEventListener('submit', submitInvoice);
-      bindInvoiceComposer(invoiceForm);
-      layer.querySelector('[data-money-invoice-email-review]')?.addEventListener('click', () => openInvoiceEmailModal(layer, { invoiceForm }));
+    if (layer.querySelector('[data-money-invoice-flow]')) {
+      attachInvoiceFlow(layer);
+      layer.querySelector('[data-money-invoice-download]')?.addEventListener('click', () => { void generateInvoice(); });
+      layer.querySelector('[data-money-invoice-email-review]')?.addEventListener('click', () => {
+        if (state.invoiceFlow?.handle?.validate?.()) openInvoiceEmailModal(layer, { invoiceFlow:true });
+      });
     }
     layer.querySelector('[data-money-receipt-apply]')?.addEventListener('submit', submitReceiptApply);
     const reimburseSelect = layer.querySelector('[data-money-reimburse-select]');
@@ -2204,98 +2144,6 @@
     return invoices().find((invoice) => cleanText(invoice.id) === cleanText(id));
   }
 
-  function invoiceComposerLineHtml(item = {}){
-    const type = cleanText(item.type) === 'payment' ? 'payment' : 'manual';
-    const readonly = type === 'payment' ? 'readonly' : '';
-    return `<div class="mn-invoice-line" data-money-invoice-line data-line-type="${String(type)}" data-obligation-id="${String(escapeHtml(item.obligation_id || ''))}" data-paid="${String(item.paid === true ? 'true' : 'false')}">
-      <label><span class="mn-sr">${(globalThis.PlatformLanguage?.htmlText("money","m_feb2fa0bebb7bf","Item Title") ?? "Item Title")}</span><input class="mn-input" data-money-invoice-line-title value="${String(escapeHtml(item.description || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_2e121533e8b8d3","Invoice item") ?? "Invoice item")}" ${String(readonly)}></label>
-      <label><span class="mn-sr">${(globalThis.PlatformLanguage?.htmlText("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><input class="mn-input" data-money-invoice-line-amount type="number" min="0.01" step="0.01" inputmode="decimal" value="${String((cents(item.amount_cents) / 100).toFixed(2))}" ${String(readonly)}></label>
-      <button type="button" class="mn-invoice-line-remove" data-money-invoice-line-remove aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_1dfe8d61e491ea","Remove invoice item") ?? "Remove invoice item")}"><i class="fas fa-trash"></i></button>
-    </div>`;
-  }
-
-  function invoiceSubmitButtons(form){
-    return [...form.querySelectorAll('[data-money-invoice-submit]'), ...(form.closest('[data-money-modal-layer]')?.querySelectorAll('[data-money-invoice-submit]') || [])];
-  }
-
-  function updateInvoiceComposer(form, options = {}){
-    if (!form) return;
-    const lines = Array.from(form.querySelectorAll('[data-money-invoice-line]'));
-    const subtotalCents = lines.reduce((sum, line) => sum + Math.max(0, centsFromDollars(line.querySelector('[data-money-invoice-line-amount]')?.value)), 0);
-    const taxToggle = form.querySelector('[data-money-invoice-tax-toggle]');
-    const taxPercentInput = form.querySelector('[data-money-invoice-tax-percent]');
-    const taxEnabled = !!taxToggle?.checked;
-    const taxPercent = taxEnabled ? Math.min(100, Math.max(0, Number(taxPercentInput?.value || 0))) : 0;
-    const taxCents = Math.round(subtotalCents * taxPercent / 100);
-    const totalCents = subtotalCents + taxCents;
-    if (taxPercentInput) taxPercentInput.disabled = !taxEnabled;
-    const subtotalRoot = form.querySelector('[data-money-invoice-subtotal]');
-    const taxRoot = form.querySelector('[data-money-invoice-tax-total]');
-    const totalRoot = form.querySelector('[data-money-invoice-total]');
-    if (subtotalRoot) subtotalRoot.textContent = money(subtotalCents);
-    if (taxRoot) taxRoot.textContent = money(taxCents);
-    if (totalRoot) totalRoot.textContent = money(totalCents);
-    form.querySelector('[data-money-invoice-tax-row-total]')?.toggleAttribute('hidden', !taxEnabled);
-    form.querySelector('[data-money-invoice-tax-percent-row]')?.toggleAttribute('hidden', !taxEnabled);
-    form.querySelector('[data-money-invoice-empty]')?.toggleAttribute('hidden', lines.length > 0);
-    form.querySelector('[data-money-invoice-cols]')?.toggleAttribute('hidden', !lines.length);
-    form.closest('[data-money-modal-layer]')?.querySelectorAll('[data-money-invoice-foot-total]').forEach((node) => { node.textContent = money(totalCents); });
-    invoiceSubmitButtons(form).forEach((button) => {
-      button.disabled = moneyMutationBusy() || !lines.length || totalCents <= 0;
-    });
-    const paidToggle = form.querySelector('[data-money-invoice-paid-toggle]');
-    if (paidToggle && options.resetPaidDefault !== false && paidToggle.dataset.userChanged !== 'true') {
-      paidToggle.checked = lines.length > 0 && lines.every((line) => line.dataset.lineType === 'payment' && line.dataset.paid === 'true');
-    }
-  }
-
-  function addInvoiceComposerLine(form, item){
-    if (!form) return;
-    if (item.type === 'payment' && form.querySelector(`[data-money-invoice-line][data-obligation-id="${CSS.escape(cleanText(item.obligation_id))}"]`)) {
-      showToast((globalThis.PlatformLanguage?.text("money","m_92746cc2722d5d","That payment is already on the invoice.") ?? "That payment is already on the invoice."), (globalThis.PlatformLanguage?.text("money","m_7e784f9b5540ab","error") ?? "error"));
-      return;
-    }
-    form.querySelector('[data-money-invoice-lines]')?.insertAdjacentHTML('beforeend', invoiceComposerLineHtml(item));
-    const picker = form.querySelector('[data-money-invoice-picker]');
-    if (picker) picker.hidden = true;
-    updateInvoiceComposer(form);
-  }
-
-  function bindInvoiceComposer(form){
-    if (!form) return;
-    const picker = form.querySelector('[data-money-invoice-picker]');
-    form.querySelector('[data-money-invoice-picker-toggle]')?.addEventListener('click', () => {
-      if (picker) picker.hidden = !picker.hidden;
-    });
-    form.querySelector('[data-money-invoice-add-manual]')?.addEventListener('click', () => {
-      addInvoiceComposerLine(form, { type:'manual', description:(globalThis.PlatformLanguage?.text("money","m_2e105a57c9384a","Custom item") ?? "Custom item"), amount_cents:0, paid:false });
-      form.querySelector('[data-money-invoice-line]:last-child [data-money-invoice-line-title]')?.select?.();
-    });
-    form.querySelectorAll('[data-money-invoice-add-payment]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const obligation = obligations().find((item) => cleanText(item.id) === cleanText(button.dataset.moneyInvoiceAddPayment));
-        if (!obligation) return;
-        const paid = cleanText(obligation.status).toLowerCase() === 'paid';
-        const amountCents = paid ? cents(obligation.amount_cents) : Math.max(0, cents(obligation.amount_cents) - cents(obligation.allocated_cents));
-        addInvoiceComposerLine(form, { type:'payment', obligation_id:obligation.id, description:obligation.label || 'Project payment', amount_cents:amountCents, paid });
-      });
-    });
-    form.addEventListener('click', (event) => {
-      const remove = event.target.closest?.('[data-money-invoice-line-remove]');
-      if (!remove) return;
-      remove.closest('[data-money-invoice-line]')?.remove();
-      const paidToggle = form.querySelector('[data-money-invoice-paid-toggle]');
-      if (!form.querySelector('[data-money-invoice-line]') && paidToggle) paidToggle.dataset.userChanged = '';
-      updateInvoiceComposer(form);
-    });
-    form.addEventListener('input', (event) => {
-      if (event.target.matches?.('[data-money-invoice-line-amount],[data-money-invoice-tax-percent]')) updateInvoiceComposer(form, { resetPaidDefault:false });
-    });
-    form.querySelector('[data-money-invoice-tax-toggle]')?.addEventListener('change', () => updateInvoiceComposer(form, { resetPaidDefault:false }));
-    form.querySelector('[data-money-invoice-paid-toggle]')?.addEventListener('change', (event) => { event.currentTarget.dataset.userChanged = 'true'; });
-    updateInvoiceComposer(form);
-  }
-
   function invoiceEmailModal(invoiceId, paidPresentation = false){
     const invoice = findInvoice(invoiceId) || {};
     const recipient = customerEmail() || cleanText(invoice?.customer?.email);
@@ -2315,11 +2163,10 @@
   }
 
   function openInvoiceEmailModal(layer, options = {}){
-    const invoiceForm = options.invoiceForm || null;
     const invoiceId = cleanText(options.invoiceId);
     const paidPresentation = invoiceId
       ? findInvoice(invoiceId)?.render_paid_in_full === true
-      : !!invoiceForm?.querySelector('[data-money-invoice-paid-toggle]')?.checked;
+      : state.invoiceFlow?.handle?.state?.().params?.render_paid_in_full === true;
     layer.querySelector('[data-money-invoice-email-modal]')?.remove();
     layer.insertAdjacentHTML('beforeend', invoiceEmailModal(invoiceId, paidPresentation));
     const shade = layer.querySelector('[data-money-invoice-email-modal]');
@@ -2327,7 +2174,7 @@
     shade?.querySelectorAll('[data-money-invoice-email-close]').forEach((button) => button.addEventListener('click', tray.dismiss));
     shade?.querySelector('[data-money-invoice-email-modal-form]')?.addEventListener('submit', (event) => {
       if (invoiceId) void submitInvoiceEmail(event);
-      else void submitGeneratedInvoiceEmail(event, invoiceForm);
+      else void submitGeneratedInvoiceEmail(event);
     });
     shade?.querySelector('input[name="recipient"]')?.focus();
   }
@@ -2543,60 +2390,178 @@
     }, actualCents == null ? 'Actual override cleared.' : 'Actual expense updated.', { keepModal:true });
   }
 
-  async function submitInvoice(event){
-    event.preventDefault();
-    await generateInvoice(event.currentTarget);
+  let invoiceRuntimePromise = null;
+
+  function invoiceWorkflowRuntime(){
+    const loaded = () => (rootWindow.FMDocWorkflow?.mount ? rootWindow.FMDocWorkflow : null);
+    if (loaded()) return Promise.resolve(loaded());
+    invoiceRuntimePromise = invoiceRuntimePromise || new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = '/libraries/doc-workflow/firstmate-doc-workflow.js';
+      script.async = true;
+      script.onload = () => resolve(loaded());
+      script.onerror = () => { invoiceRuntimePromise = null; resolve(null); };
+      document.head.appendChild(script);
+    });
+    return invoiceRuntimePromise;
   }
 
-  function invoiceDraft(form){
-    const data = new FormData(form);
-    const lineItems = Array.from(form.querySelectorAll('[data-money-invoice-line]')).map((line) => ({
-      type:line.dataset.lineType === 'payment' ? 'payment' : 'manual',
-      obligation_id:cleanText(line.dataset.obligationId),
-      description:cleanText(line.querySelector('[data-money-invoice-line-title]')?.value),
-      amount_cents:Math.max(0, centsFromDollars(line.querySelector('[data-money-invoice-line-amount]')?.value))
-    }));
-    if (!lineItems.length) {
-      showToast((globalThis.PlatformLanguage?.text("money","m_500e624e18fd4b","Add at least one invoice item.") ?? "Add at least one invoice item."), (globalThis.PlatformLanguage?.text("money","m_7e784f9b5540ab","error") ?? "error"));
-      return null;
-    }
-    if (lineItems.some((line) => !line.description || line.amount_cents <= 0)) {
-      showToast((globalThis.PlatformLanguage?.text("money","m_8374459e4ed14e","Every invoice item needs a title and an amount greater than zero.") ?? "Every invoice item needs a title and an amount greater than zero."), (globalThis.PlatformLanguage?.text("money","m_7e784f9b5540ab","error") ?? "error"));
-      return null;
-    }
-    return { data, lineItems };
+  function invoiceFlowKey(){
+    return `${orgId()}:${projectId()}`;
   }
 
-  async function generateInvoice(form, email = null){
-    const draft = invoiceDraft(form);
-    if (!draft) return false;
-    const { data, lineItems } = draft;
+  function syncInvoiceButtons(){
+    const ready = state.invoiceFlow?.status === 'ready' && !moneyMutationBusy();
+    rootNode()?.querySelectorAll('[data-money-invoice-submit]').forEach((button) => { button.disabled = !ready; });
+  }
+
+  /** Puts the dialog's workflow in place: the one already running (a redraw of the dialog keeps it), else a new one. */
+  function attachInvoiceFlow(layer){
+    const slot = layer.querySelector('[data-money-invoice-flow]');
+    if (!slot) return;
+    const current = state.invoiceFlow;
+    const flow = current && current.key === invoiceFlowKey() ? current : startInvoiceFlow();
+    slot.replaceWith(flow.host);
+    syncInvoiceButtons();
+  }
+
+  function startInvoiceFlow(){
+    discardInvoiceFlow();
+    const host = document.createElement('div');
+    host.className = 'mn-invoice-flow';
+    host.setAttribute('data-money-invoice-flow', '');
+    host.innerHTML = `<div class="mn-invoice-state"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_5f33627052a81a","Starting the invoice…") ?? "Starting the invoice…")}</span></div>`;
+    const flow = { key:invoiceFlowKey(), orgId:orgId(), projectId:projectId(), host, status:'loading', params:{}, started:null, handle:null, totalCents:0, closed:false };
+    state.invoiceFlow = flow;
+    void openInvoiceFlow(flow);
+    return flow;
+  }
+
+  /** The invoice draft on the server (payments' invoices/draft): never saved, resolved as the invoice document would be. */
+  function invoiceDraft(flow, body){
+    return rootWindow.PaymentsAPI.request(`/organizations/${encodeURIComponent(flow.orgId)}/projects/${encodeURIComponent(flow.projectId)}/invoices/draft`, { method:'POST', body });
+  }
+
+  async function openInvoiceFlow(flow){
+    try {
+      const runtime = await invoiceWorkflowRuntime();
+      if (!runtime || !rootWindow.PaymentsAPI?.request) throw new Error((globalThis.PlatformLanguage?.text("money","m_23a9ed6b914f78","The invoice workflow is not loaded. Refresh the portal and try again.") ?? "The invoice workflow is not loaded. Refresh the portal and try again."));
+      const started = await invoiceDraft(flow, { start:true });
+      if (flow.closed) return;
+      const workflow = started?.workflow;
+      if (!Array.isArray(workflow?.steps) || !workflow.steps.length) throw new Error((globalThis.PlatformLanguage?.text("money","m_d7e505333f5522","The invoice could not be started.") ?? "The invoice could not be started."));
+      flow.params = JSON.parse(JSON.stringify(started.params || {}));
+      // The first preview is the one the draft started with.
+      flow.started = started.resolved || null;
+      noteInvoiceTotal(flow, flow.started);
+      flow.host.innerHTML = '';
+      flow.handle = runtime.mount(flow.host, {
+        workflow,
+        audience:'internal',
+        contract:workflow.contract || {},
+        state:{ params:JSON.parse(JSON.stringify(flow.params)) },
+        scope:{ project:state.project || {} },
+        document:{ id:'', type:'invoice' },
+        showWorkflowTitle:false,
+        // The dialog's own buttons generate it.
+        footer:false,
+        onWrite:(path, value) => writeInvoiceParam(flow, path, value),
+        preview:{ pinned:true, collapsible:true, resolve:() => resolveInvoiceFlow(flow) }
+      });
+      flow.status = 'ready';
+    } catch (error) {
+      if (flow.closed) return;
+      flow.status = 'error';
+      flow.host.innerHTML = `<div class="mn-invoice-state error"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span>${escapeHtml(error?.message || (globalThis.PlatformLanguage?.text("money","m_d7e505333f5522","The invoice could not be started.") ?? "The invoice could not be started."))}</span></div>`;
+    }
+    syncInvoiceButtons();
+  }
+
+  function writeInvoiceParam(flow, path, value){
+    const target = cleanText(path);
+    if (!target.startsWith('params.')) return;
+    const parts = target.slice('params.'.length).split('.');
+    let cursor = flow.params;
+    parts.slice(0, -1).forEach((part) => { cursor[part] = cursor[part] && typeof cursor[part] === 'object' ? cursor[part] : {}; cursor = cursor[part]; });
+    cursor[parts[parts.length - 1]] = JSON.parse(JSON.stringify(value ?? null));
+  }
+
+  function noteInvoiceTotal(flow, resolved){
+    const billing = resolved?.scope?.params?.billing;
+    if (!billing || flow.closed) return;
+    flow.totalCents = cents(billing.total_cents);
+    rootNode()?.querySelectorAll('[data-money-invoice-foot-total]').forEach((node) => { node.textContent = money(flow.totalCents); });
+  }
+
+  /** The draft as it reads now: the live preview, and the total in the dialog's footer. */
+  async function resolveInvoiceFlow(flow){
+    if (flow.started) { const first = flow.started; flow.started = null; return first; }
+    const result = await invoiceDraft(flow, { params:flow.params });
+    noteInvoiceTotal(flow, result?.resolved);
+    return result?.resolved || {};
+  }
+
+  /** The invoice the draft describes, as this tab makes it: the payments it bills, its other charges taxed as the document taxes them. */
+  async function invoiceFromFlow(flow){
+    const result = await invoiceDraft(flow, { params:flow.params });
+    const params = result?.resolved?.scope?.params || {};
+    const schedule = new Map((Array.isArray(params.account?.schedule) ? params.account.schedule : []).map((row) => [cleanText(row?.id), row]));
+    const obligationIds = (Array.isArray(params.billing?.obligation_ids) ? params.billing.obligation_ids : []).map((id) => cleanText(id)).filter(Boolean);
+    const lineCents = (line) => {
+      const price = Number(line?.unit_price ?? line?.unitPrice);
+      return Number.isFinite(price) ? Math.round((Number(line?.quantity ?? 1) || 0) * price * 100) : cents(line?.amount_cents);
+    };
+    const charges = (Array.isArray(params.line_items) ? params.line_items : [])
+      .map((line) => ({ type:'manual', description:cleanText(line?.display_name, line?.name, line?.description, 'Charge'), amount_cents:lineCents(line) }))
+      .filter((line) => line.amount_cents > 0);
+    const lineItems = [
+      ...obligationIds.map((id) => ({ type:'payment', obligation_id:id, description:cleanText(schedule.get(id)?.label, 'Project payment'), amount_cents:Math.max(1, cents(schedule.get(id)?.amount_cents)) })),
+      ...charges
+    ];
+    if (!lineItems.length) throw new Error((globalThis.PlatformLanguage?.text("money","m_2799b0873b6af7","Choose what to bill, or add a charge.") ?? "Choose what to bill, or add a charge."));
+    return {
+      obligation_ids:obligationIds,
+      line_items:lineItems,
+      tax_enabled:params.sales_tax_available !== false && params.tax_enabled !== false,
+      tax_percent:Math.min(100, Math.max(0, Number(params.tax_percent) || 0)),
+      tax_base:'charges',
+      issue_date:cleanText(params.issue_date),
+      due_date:cleanText(params.due_date),
+      render_paid_in_full:params.render_paid_in_full === true,
+      notes:cleanText(params.notes)
+    };
+  }
+
+  function discardInvoiceFlow(){
+    const flow = state.invoiceFlow;
+    if (!flow) return;
+    state.invoiceFlow = null;
+    flow.closed = true;
+    try { flow.handle?.destroy?.(); } catch (_) { /* already gone */ }
+    flow.host.remove();
+  }
+
+  async function generateInvoice(email = null){
+    const flow = state.invoiceFlow;
+    if (!flow?.handle || flow.status !== 'ready' || flow.key !== invoiceFlowKey()) return false;
     const recipient = cleanText(email?.recipient);
     if (email && !recipient) {
       showToast((globalThis.PlatformLanguage?.text("money","m_16feb9c0f8092f","Enter the customer email before generating.") ?? "Enter the customer email before generating."), (globalThis.PlatformLanguage?.text("money","m_7e784f9b5540ab","error") ?? "error"));
       return false;
     }
+    if (!flow.handle.validate()) return false;
     return withSave(async () => {
-      const generated = await rootWindow.PaymentsAPI.invoices.create(orgId(), projectId(), {
-        obligation_ids:lineItems.map((line) => line.obligation_id).filter(Boolean),
-        line_items:lineItems,
-        tax_enabled:data.get('tax_enabled') === 'on',
-        tax_percent:Math.min(100, Math.max(0, Number(data.get('tax_percent') || 0))),
-        issue_date:cleanText(data.get('issue_date')),
-        due_date:cleanText(data.get('due_date')),
-        render_paid_in_full:data.get('render_paid_in_full') === 'on',
-        notes:cleanText(data.get('notes'))
-      });
+      const generated = await rootWindow.PaymentsAPI.invoices.create(flow.orgId, flow.projectId, await invoiceFromFlow(flow));
       const invoice = generated.invoice || {};
       if (email) {
-        await rootWindow.PaymentsAPI.invoices.email(orgId(), invoice.id, {
+        await rootWindow.PaymentsAPI.invoices.email(flow.orgId, invoice.id, {
           recipient,
           include_portal_link:email.includePortalLink === true,
           message:cleanText(email.message)
         });
       } else {
         const link = document.createElement('a');
-        link.href = rootWindow.PaymentsAPI.invoices.pdfUrl(orgId(), invoice.id);
+        link.href = rootWindow.PaymentsAPI.invoices.pdfUrl(flow.orgId, invoice.id);
         link.download = `${cleanText(invoice.invoice_number || 'invoice').toLowerCase()}.pdf`;
         document.body.appendChild(link);
         link.click();
@@ -2605,10 +2570,10 @@
     }, email ? `Invoice generated and emailed to ${recipient}.` : 'Invoice generated and download started.');
   }
 
-  async function submitGeneratedInvoiceEmail(event, invoiceForm){
+  async function submitGeneratedInvoiceEmail(event){
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    await generateInvoice(invoiceForm, {
+    await generateInvoice({
       recipient:cleanText(data.get('recipient')),
       includePortalLink:data.get('include_portal_link') === 'on',
       message:cleanText(data.get('message'))
@@ -3210,6 +3175,7 @@
     state.ledgerSearch = '';
     state.ledgerSort = { key:'date', direction:'desc' };
     state.modal = null;
+    discardInvoiceFlow();
     state.receiptReview = null;
     state.receiptBatch = null;
     state.loading = false;

@@ -251,10 +251,18 @@ export const createInvoiceSchema = jsonObjectSchema.extend({
   }).passthrough()).min(1).max(50).optional(),
   tax_enabled: z.boolean().optional(),
   tax_percent: z.number().min(0).max(100).optional(),
+  // "charges": tax only the custom items, as an invoice document does (GP-104); "all" (default): the whole subtotal.
+  tax_base: z.enum(["all", "charges"]).optional(),
   issue_date: z.string().trim().max(40).optional(),
   due_date: z.string().trim().max(40).optional(),
   render_paid_in_full: z.boolean().optional(),
   notes: z.string().trim().max(4000).optional()
+}).passthrough();
+
+// Generate invoice's draft (GP-104): the invoice workflow's params, never saved; `start` begins a new one.
+export const invoiceDraftSchema = jsonObjectSchema.extend({
+  params: jsonObjectSchema.optional(),
+  start: z.boolean().optional()
 }).passthrough();
 
 export const markInvoiceDueSchema = jsonObjectSchema.extend({

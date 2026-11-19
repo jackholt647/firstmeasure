@@ -1,11 +1,11 @@
 {
   "summary": {
     "routes": {
-      "total": 1998,
+      "total": 1999,
       "by_kind": {
         "any:login_only": 172,
         "any:login_only+handler_checks": 388,
-        "any:permission": 714,
+        "any:permission": 715,
         "app(contact.media|portal.crew_receipts|portal.photos_feed|portal.receipts|portal.viewer|project.crew_materials|project.photos):login_only+handler_checks": 1,
         "app(contact.media|portal.photos_feed|portal.viewer|project.crew_materials|project.docs|project.documents|project.materials|project.measurements|project.photos):login_only+handler_checks": 2,
         "app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only": 2,
@@ -1692,6 +1692,7 @@
     "POST /v1/payments/organizations/:orgId/payments/:paymentId/unclear": {"file":"payments/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"kind":"any:permission"},
     "POST /v1/payments/organizations/:orgId/projects/:projectId/expenses": {"file":"payments/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"checks":["hasPermission(dynamic)","hasPermission(manage_company_settings)","hasPermission(view_projects|manage_company_settings)","hasPermission(manage_own_notifications)","hasPermission(manage_notification_defaults)"],"kind":"any:permission"},
     "POST /v1/payments/organizations/:orgId/projects/:projectId/invoices": {"file":"payments/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"checks":["hasPermission(dynamic)","hasPermission(manage_company_settings)","hasPermission(view_projects|manage_company_settings)","hasPermission(manage_own_notifications)","hasPermission(manage_notification_defaults)"],"kind":"any:permission"},
+    "POST /v1/payments/organizations/:orgId/projects/:projectId/invoices/draft": {"file":"payments/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"kind":"any:permission"},
     "POST /v1/payments/organizations/:orgId/projects/:projectId/invoices/quick": {"file":"payments/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"checks":["hasPermission(dynamic)","hasPermission(manage_company_settings)","hasPermission(view_projects|manage_company_settings)","hasPermission(manage_own_notifications)","hasPermission(manage_notification_defaults)","hasPermission(manage_company_user_permissions)","hasPermission(manage_projects|manage_company_settings)","hasPermission(send_communications|send_comms|manage_company_settings)","requireCapability(apps.comms)","requireCapability(comms.sms)","hasPermission(manage_communications|manage_company_settings)"],"publication":true,"kind":"any:permission"},
     "POST /v1/payments/organizations/:orgId/projects/:projectId/receipts": {"file":"payments/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"checks":["hasPermission(dynamic)"],"kind":"any:permission"},
     "POST /v1/payments/organizations/:orgId/proposals/:proposalId/sync-schedule": {"file":"payments/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"checks":["hasPermission(dynamic)"],"kind":"any:permission"},

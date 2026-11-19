@@ -25,9 +25,12 @@
  *     phoneSteps: 'bottom'?  on a phone the step numbers sit in one row at the bottom, under the preview
  *     onBackFromFirst()?  the host has a page before the first step (the Operations setup's choice): the first step
  *       shows Previous too, and it calls this
+ *     footer: false?  the host has its own buttons (the Finances invoice dialog, GP-104): no Previous/Next bar; the host
+ *       checks the step with handle.validate() and finishes it itself
+ *   A workflow of one step has no step list (GP-104): the step is the whole page beside its preview.
  *     services:{ pricebook, pieceCatalog, generateScopeItems, media }, scope:{...extra}, theme,
  *     document:{ id, type }?  the document this fills; announced with `fm:doc-workflow:opened` (guided experiences)
- *   }) -> { destroy, goTo(stepId), back(), position(), refresh(state) }
+ *   }) -> { destroy, goTo(stepId), back(), position(), refresh(state), validate() }
  *
  *   FMDocWorkflow.registerKind(kind, renderer(el, ctx) -> { validate?, destroy? })
  *
@@ -413,6 +416,13 @@
     const dollars = cents === null || cents === undefined || cents === '' ? '' : (Number(cents || 0) / 100).toFixed(2);
     const control = fieldShell(el, ctx, `<span class="fmdw-money"><input type="number" step="0.01" min="0" data-fmdw-control ${ctx.readonly ? 'disabled' : ''} value="${esc(dollars)}" placeholder="0.00"></span>`);
     control?.addEventListener('change', () => ctx.write(cleanText(control.value) === '' ? null : Math.round(Number(control.value || 0) * 100)));
+    return { validate: () => requiredError(ctx) };
+  });
+
+  registerKind('percent', (el, ctx) => {
+    const value = ctx.value();
+    const control = fieldShell(el, ctx, `<span class="fmdw-percent"><input type="number" step="0.01" min="0" max="100" inputmode="decimal" data-fmdw-control ${ctx.readonly ? 'disabled' : ''} value="${value === null || value === undefined || value === '' ? '' : esc(value)}" placeholder="0"></span>`);
+    control?.addEventListener('change', () => ctx.write(cleanText(control.value) === '' ? null : Math.min(100, Math.max(0, Number(control.value) || 0))));
     return { validate: () => requiredError(ctx) };
   });
 
@@ -3836,6 +3846,7 @@
     const extraScope = obj(opts.scope);
     const theme = firstText(opts.theme, obj(obj(workflow.audiences)[audience]).theme);
     const showWorkflowTitle = opts.showWorkflowTitle !== false;
+    const ownFooter = opts.footer === false;
 
     const st = {
       params: obj(clone(obj(opts.state).params)),
@@ -3928,13 +3939,36 @@
           schedulePreview(); updateRail(); return true;
         });
       }
+      const shape = stepShape();
       if (target.startsWith('params.')) setPath(st.params, target.slice('params.'.length), clone(value));
       else if (target.startsWith('outputs.')) setPath(st.outputs, target.slice('outputs.'.length), clone(value));
       else setPath(st.params, target, clone(value));
       try { opts.onWrite?.(target, clone(value)); } catch (e) { console.warn('FMDocWorkflow onWrite failed', e); }
       schedulePreview();
-      updateRail();
+      // An answer that shows or hides questions on this step (`when`) redraws it where it stands (GP-104: sales tax
+      // switched off hides its percentage).
+      if (stepShape() !== shape) redrawInPlace();
+      else updateRail();
       return true;
+    }
+
+    /** Redraw the step where it stands; while someone is typing in it, once they leave the field. */
+    function redrawInPlace(){
+      if (st.redrawPending) return;
+      st.redrawPending = true;
+      const run = () => { st.redrawPending = false; if (!st.destroyed) renderStep({ inPlace: true }); };
+      const active = container.ownerDocument?.activeElement;
+      const typing = active && el.items.contains(active) && active.matches?.('textarea,select,input:not([type=checkbox]):not([type=radio]):not([type=button])');
+      if (typing) active.addEventListener('blur', () => setTimeout(run, 0), { once: true });
+      else setTimeout(run, 0);
+    }
+
+    /** Which questions the current step shows: a write that changes it redraws the step. */
+    function stepShape(){
+      const steps = visibleSteps();
+      const step = steps.find((entry) => cleanText(entry.id) === st.currentId);
+      if (!step) return '';
+      return stepSections(step).map((section) => `${cleanText(section.id)}:${arr(section.items).map((item) => firstText(item.id, item.writes, item.kind)).join(',')}`).join('|');
     }
 
     /** The deliverables are ready once the workflow stands on its last step (or has finished every one before it). */
@@ -3958,7 +3992,7 @@
       ? `<button type="button" class="fmdw-btn ghost fmdw-preview-reopen" data-fmdw-preview-reopen title="Show the live preview"><i class="fas fa-eye"></i><span> Preview</span></button>`
       : '';
     container.innerHTML = `
-      <div class="fmdw ${String(theme === 'portal' ? 'fmdw-portal' : '')} ${String(preview ? 'has-preview' : '')} ${String(pinnedPreview ? 'preview-pinned' : '')} ${String(collapsiblePreview ? 'preview-collapsible' : '')} ${String(hostTitle ? 'fmdw-host-title' : '')} ${String(cleanText(opts.phoneSteps) === 'bottom' ? 'fmdw-steps-bottom' : '')}" data-fmdw-root>
+      <div class="fmdw ${String(theme === 'portal' ? 'fmdw-portal' : '')} ${String(preview ? 'has-preview' : '')} ${String(pinnedPreview ? 'preview-pinned' : '')} ${String(collapsiblePreview ? 'preview-collapsible' : '')} ${String(hostTitle ? 'fmdw-host-title' : '')} ${String(cleanText(opts.phoneSteps) === 'bottom' ? 'fmdw-steps-bottom' : '')} ${String(ownFooter ? 'fmdw-host-foot' : '')}" data-fmdw-root>
         <aside class="fmdw-rail">
           <div class="fmdw-rail-head ${String(showWorkflowTitle ? '' : 'titleless')}">
             ${String(showWorkflowTitle ? `<strong>${esc(firstText(workflow.name, 'Workflow'))}</strong>` : '')}
@@ -4018,6 +4052,8 @@
       const index = currentIndex(steps);
       const lockedFrom = firstLockedIndex(steps);
       st.currentId = cleanText(obj(steps[index]).id);
+      // One step needs no list of steps (GP-104).
+      el.root.classList.toggle('single-step', steps.length <= 1);
       el.railSub.textContent = steps.length ? `Step ${index + 1} of ${steps.length}` : 'No steps';
       el.steps.innerHTML = steps.map((step, i) => {
         const id = cleanText(step.id);
@@ -4039,8 +4075,10 @@
       st.itemHandles = [];
     }
 
-    function renderStep(){
+    function renderStep(options = {}){
       if (st.destroyed) return;
+      const inPlace = obj(options).inPlace === true;
+      const scrollTop = inPlace ? el.items.scrollTop : 0;
       const steps = visibleSteps();
       if (!steps.length) {
         el.stepHead.innerHTML = `<h2>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_cdf312ca4a3b4e","Nothing to fill in") ?? "Nothing to fill in")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_44399b69b88f2d","This workflow has no steps for you right now.") ?? "This workflow has no steps for you right now.")}</p>`;
@@ -4064,7 +4102,7 @@
       el.footNote.textContent = '';
       if (hostTitle) { try { opts.onStepTitle({ id: st.currentId, title: firstText(step.title, prettyKey(step.id)), index, count: steps.length }); } catch (e) { /* host bar */ } }
       // The review step opens a collapsible preview, whatever was chosen before it.
-      if (collapsiblePreview && isReviewStep(step, steps)) st.previewOpen = null;
+      if (collapsiblePreview && !inPlace && isReviewStep(step, steps)) st.previewOpen = null;
       const sections = stepSections(step);
       const items = sections.flatMap((section) => arr(section.items));
       if (!items.length) {
@@ -4076,7 +4114,7 @@
         // Lists and grids need the full row; simple fields pair up.
         const wide = ['measurements', 'payment_schedule', 'line_items_review', 'line_item_editor', 'review', 'content_blocks', 'piece_select', 'piece_picker', 'choice_group'].includes(cleanText(item.kind))
           || obj(item.presentation).multiline === true || ['cards', 'tiles'].includes(cleanText(obj(item.presentation).style));
-        holder.className = `fmdw-item ${wide ? 'fmdw-item-wide' : ''} fmdw-enter-${firstText(itemTransition.type, 'fade').replace(/[^a-z-]/gi, '')}`;
+        holder.className = `fmdw-item ${wide ? 'fmdw-item-wide' : ''} fmdw-enter-${inPlace ? 'none' : firstText(itemTransition.type, 'fade').replace(/[^a-z-]/gi, '')}`;
         // The step's only question, a whole-width one: the step title already names it, so a
         // narrow host (the documents app on a phone) can leave out its own label.
         if (wide && items.length === 1 && !sections.some((section) => cleanText(section.title))) holder.classList.add('fmdw-item-sole');
@@ -4127,7 +4165,7 @@
       sections.forEach((section) => {
         const sectionEl = document.createElement('section');
         const transition = obj(section.transition);
-        sectionEl.className = `fmdw-section fmdw-enter-${esc(firstText(transition.type, section.legacy ? 'none' : 'grow'))}`;
+        sectionEl.className = `fmdw-section fmdw-enter-${esc(inPlace ? 'none' : firstText(transition.type, section.legacy ? 'none' : 'grow'))}`;
         sectionEl.style.setProperty('--fmdw-enter-ms', `${Math.max(0, Number(transition.duration_ms || 220))}ms`);
         const background = firstText(obj(section.style).background);
         if (background) sectionEl.style.background = background;
@@ -4162,8 +4200,8 @@
       }
       updateRail();
       if (collapsiblePreview) applyPreviewLayout();
-      // Scroll the pane back to the top on step change.
-      try { el.items.scrollTop = 0; } catch (e) {}
+      // Scroll the pane back to the top on step change; a step redrawn in place stays where it was.
+      try { el.items.scrollTop = scrollTop; } catch (e) {}
     }
 
     /** The step a collapsible preview opens on: one with a `review` item, else the last. */
@@ -4515,6 +4553,12 @@
       goTo,
       next: goNext,
       back: goBack,
+      /** Check the step as Next would (each item commits what is typed first): true when it may be finished. */
+      validate(){
+        if (st.destroyed) return false;
+        st.itemHandles.forEach((entry) => { try { entry.handle?.commit?.(); } catch (e) { /* the item keeps its own value */ } });
+        return validateCurrentStep();
+      },
       /** Where the person is: { index, count } of the steps they see (a host keeps one back entry per step behind). */
       position(){
         const steps = visibleSteps();
@@ -4614,6 +4658,9 @@
 .fmdw-money{position:relative;display:block;max-width:460px}
 .fmdw-money::before{content:'$';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:12.5px;font-weight:900;color:#98a2b3;pointer-events:none}
 .fmdw-money input{padding-left:26px}
+.fmdw-percent{position:relative;display:block;max-width:460px}
+.fmdw-percent::after{content:'%';position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12.5px;font-weight:900;color:#98a2b3;pointer-events:none}
+.fmdw-percent input{padding-right:28px}
 .fmdw-foot-deliver{display:inline-flex;flex-wrap:nowrap;justify-content:flex-end;gap:8px;margin-left:auto}
 .fmdw-foot-deliver:not(:empty)+[data-fmdw-continue]{margin-left:0}
 .fmdw-foot .fmdw-btn{white-space:nowrap}
@@ -5192,6 +5239,8 @@
 .fmdw-overlay-close:hover{border-color:#b42318;color:#b42318}
 .fmdw-overlay-body{flex:1;min-height:0;display:flex}
 .fmdw-overlay-body>*{flex:1;min-width:0}
+/* the host's own buttons (footer:false) */
+.fmdw.fmdw-host-foot .fmdw-foot{display:none}
 /* responsive */
 @media(max-width:760px){
   .fmdw{flex-direction:column}
@@ -5216,7 +5265,11 @@
   .fmdw.fmdw-steps-bottom .fmdw-step-dot{width:28px;height:28px;font-size:11.5px}
   .fmdw.preview-pinned.narrow.fmdw-steps-bottom{grid-template-rows:minmax(0,1fr) minmax(0,1fr) auto}
   .fmdw.preview-pinned.narrow.fmdw-steps-bottom.preview-folded{grid-template-rows:minmax(0,1fr) auto auto}
-}`;
+}
+/* one step (GP-104): no step list; stacked, the questions and the preview share the height */
+.fmdw.single-step .fmdw-rail{display:none}
+.fmdw.single-step.preview-pinned.narrow{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}
+.fmdw.single-step.preview-pinned.narrow.preview-folded{grid-template-rows:minmax(0,1fr) auto}`;
 
   function ensureStyles(){
     if (typeof document === 'undefined' || document.getElementById('fmdw-styles')) return;

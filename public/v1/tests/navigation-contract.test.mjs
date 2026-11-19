@@ -382,16 +382,12 @@ test('project Money is one ledger: Docs-style header, metric tiles, no rail or s
   // Brand colours, never the old hard-coded green.
   assert.doesNotMatch(moneyApp, /#067647|6,118,71|#05603a|#ecfdf3|#f6fef9/i);
   assert.match(moneyApp, /\.mn-btn\.primary\{background:var\(--primary,#d93025\)/);
-  // The invoice composer survives as the Generate Invoice modal.
-  assert.match(moneyApp, /name="render_paid_in_full"/);
-  assert.match(moneyApp, /role="switch"/);
-  assert.match(moneyApp, /data-paid=/);
+  // Generate Invoice is the invoice document's workflow in a modal (GP-104), with its generate buttons.
+  assert.match(moneyApp, /\/invoices\/draft`/);
   assert.match(moneyApp, /Generate & Download/);
   assert.match(moneyApp, /Generate an Email/);
   assert.match(moneyApp, /data-money-invoice-email-modal-form/);
   assert.match(moneyApp, /data-money-invoice-email-existing/);
-  assert.match(moneyApp, /data-money-invoice-add-manual/);
-  assert.match(moneyApp, /data-money-invoice-add-payment/);
   assert.match(moneyApp, /name="tax_enabled"/);
   assert.match(moneyApp, /line_items:lineItems/);
   assert.match(moneyApp, /const recipient = customerEmail\(\) \|\| cleanText\(invoice\?\.customer\?\.email\)/);
