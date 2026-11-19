@@ -318,6 +318,10 @@ surfaces does not create deliveries or reset read state. Message inbox-placement
 preferences do not hide those fallback entries, but in-app delivery opt-outs, badge
 choices, quiet/delivery decisions, membership, media access, audience, thread/channel
 mutes and read state still apply. Explicit mentions in separate project notes and
-photo discussions use the same authorized occurrence path; ordinary hidden-note
-activity is unchanged. Photo entries retain their project/photo route. Per-entry
+photo or document discussions use the same authorized occurrence path; ordinary hidden-note
+activity is unchanged. Photo entries retain their project/photo route. A document
+in a project's Docs tab that is not a media file (an invoice, a delivered report) is
+discussed in a document discussion (`channels/document-comments.ts`, GP-68) with the
+project's notes access; its mentions open the project's Docs tab at that document
+(`open_project_document`). Per-entry
 authorization reads are tracked in the [optimization backlog](../optimization-backlog.md).

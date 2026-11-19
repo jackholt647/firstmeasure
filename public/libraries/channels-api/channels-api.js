@@ -174,6 +174,7 @@
       archive: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}/archive`), { method: 'POST' }),
       unarchive: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}/unarchive`), { method: 'POST' }),
       ensurePhoto: (orgId, mediaId) => request(orgPath(orgId, `/channels/photo/${enc(mediaId)}`), { method: 'POST' }),
+      ensureDocument: (orgId, input) => request(orgPath(orgId, '/channels/document'), { method: 'POST', body: input }),
       ensureProject: (orgId, projectId) => request(orgPath(orgId, `/channels/project/${enc(projectId)}`), { method: 'POST' })
         .catch((error) => projectChannelOnDevice(orgId, projectId, error)),
       addMembers: (orgId, channelId, userIds) => request(orgPath(orgId, `/channels/${enc(channelId)}/members`), { method: 'POST', body: { user_ids: userIds } }),

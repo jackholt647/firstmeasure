@@ -915,7 +915,13 @@
       showToast((globalThis.PlatformLanguage?.text("docs","m_2d5ffa19f00fcf","Viewer unavailable") ?? "Viewer unavailable"), (globalThis.PlatformLanguage?.text("docs","m_028ddfd4209b60","The shared file viewer is not loaded.") ?? "The shared file viewer is not loaded."), false);
       return null;
     }
-    const media = docs.map(documentPhoto);
+    // Every document here is in the project, so every one can be discussed (GP-68): a media file in its
+    // photo discussion, anything else (an invoice, a delivered report) by the project and its document id.
+    const pid = projectId();
+    const media = docs.map((doc) => {
+      const item = documentPhoto(doc);
+      return item.media_id || !pid ? item : { ...item, comment_document:{ project_id:pid, document_id:docId(doc), title:doc.title } };
+    });
     let viewer = null;
     viewer = factory({
       photos: media,

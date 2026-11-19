@@ -31,7 +31,7 @@
   const channelsLibBundles = [
     ...widgetBundles, bookingBundle, priorityFieldsBundle,
     versionedBundle('../platform-realtime/platform-realtime.js', '20261026-live-layer'),
-    versionedBundle('../channels-api/channels-api.js', '20261111-offline-wave3'),
+    versionedBundle('../channels-api/channels-api.js', '20261119-gp68-document-comments'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
     versionedBundle('../window-manager/window-manager.js', '20261119-fm621-phone-landscape'),
@@ -40,9 +40,9 @@
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20261118-fm551-reply'),
     versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'),
-    versionedBundle('../markup/firstmate-markup.js', '20261118-fm617-editdock'),
+    versionedBundle('../markup/firstmate-markup.js', '20261119-gp68-document-comments'),
     versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'),
-    versionedBundle('../project-notes/project-notes.js', '20261111-offline-uploads'),
+    versionedBundle('../project-notes/project-notes.js', '20261119-gp68-document-comments'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-notes-separation-v1'),
     versionedBundle('../project-trays/project-trays.js', '20261111-offline-messages')
   ];
@@ -191,7 +191,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('docs/project.js', '20261119-gp38-document-filter-order')]
+      bundles: [versionedBundle('docs/project.js', '20261119-gp68-document-comments')]
     },
     {
       id: 'project.documents',
@@ -539,16 +539,16 @@
       order: 44,
       bundles: [
         versionedBundle('../platform-realtime/platform-realtime.js', '20261026-live-layer'),
-        versionedBundle('../channels-api/channels-api.js', '20261111-offline-wave3'),
+        versionedBundle('../channels-api/channels-api.js', '20261119-gp68-document-comments'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20261119-fm621-phone-landscape'),
         versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261118-fm551-reply'),
         versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'),
-    versionedBundle('../markup/firstmate-markup.js', '20261118-fm617-editdock'),
+    versionedBundle('../markup/firstmate-markup.js', '20261119-gp68-document-comments'),
     versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'),
-    versionedBundle('../project-notes/project-notes.js', '20261111-offline-uploads'),
+    versionedBundle('../project-notes/project-notes.js', '20261119-gp68-document-comments'),
         versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
         versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('channels/app.js', '20260930-native-sharing-v2')
       ]

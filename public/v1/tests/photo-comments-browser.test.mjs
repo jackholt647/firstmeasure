@@ -71,3 +71,37 @@ test('photo viewer mounts Notes controls, keeps per-photo drafts, scopes posts a
   await page.evaluate(()=>viewer.close());assert.equal(await page.locator('.fm-photo-modal').count(),0);assert.deepEqual(errors,[]);
  }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });
+test('a project document without media (an invoice, a report) opens its own comments, never "saved to the project" (GP-68)',async()=>{
+ const server=createServer(async(req,res)=>{
+  if(req.url.startsWith('/libraries/')){try{res.setHeader('Content-Type','text/javascript; charset=utf-8');res.end(await readFile(publicRoot+new URL(req.url,'http://fixture').pathname));}catch{res.writeHead(404);res.end();}return;}
+  if(req.url.startsWith('/v1/')){res.setHeader('Content-Type','application/json');res.end('{}');return;}
+  res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;font-family:Arial"></body></html>');
+ });
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe'});
+ const page=await browser.newPage({viewport:{width:1200,height:850}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ try{
+  await page.goto(`http://127.0.0.1:${server.address().port}`);
+  await page.evaluate(()=>{
+   window.__APP={userOrgId:'org',userId:'me'};window.ensured=[];window.posted=[];const rows=new Map();
+   window.Portal={util:{injectCSS:(id,css)=>{const style=document.createElement('style');style.id=id;style.textContent=css;document.head.append(style);}}};
+   window.PlatformAPI={media:{getMarkup:async()=>({layer:{data:{items:[]}}})}};
+   window.ChannelsAPI={directory:{list:async()=>({users:[],departments:[],selectable_department_ids:[]})},channels:{ensureProject:()=>{throw Error('Document comments must not open the project channel');},ensurePhoto:()=>{throw Error('An invoice has no media');},ensureDocument:async(o,input)=>{ensured.push(input);return {channel:{id:'doc-'+input.document_id}};}},messages:{list:async(o,c)=>({messages:rows.get(c)||[],channel:{separate_notes:false}}),noteAuthors:async()=>({authors:[]}),post:async(o,c,p)=>{posted.push({channel:c,...p});const row={...p,id:'comment-'+posted.length,seq:posted.length,author:{id:'me',name:'Office'},created_at:new Date().toISOString(),metadata:{project_note:true},can_edit:true,can_delete:true};rows.set(c,[...(rows.get(c)||[]),row]);return {message:row};},thread:async()=>({replies:[]})}};
+  });
+  for(const url of ['/libraries/channels-ui/channels-ui.js','/libraries/platform-ui/platform-ui.js','/libraries/platform-tags/platform-tags.js','/libraries/project-notes/project-notes.js','/libraries/markup/firstmate-markup.js'])await page.addScriptTag({url});
+  const pdf='data:application/pdf;base64,JVBERi0xLjAKJSVFT0YK';
+  await page.evaluate(pdf=>{window.viewer=FirstMateMarkup.openMediaViewer({itemNoun:'document',collectionNoun:'documents',project:{id:'project',title:'Project'},photos:[
+   {id:'invoice:inv-1',src:pdf,url:pdf,media_type:'pdf',label:'INV-1',document_type:'invoice',comment_document:{project_id:'project',document_id:'invoice:inv-1',title:'INV-1'}},
+   {id:'unsaved',src:pdf,url:pdf,media_type:'pdf',label:'Unsaved'}]});},pdf);
+  await page.waitForFunction(()=>viewer.commentWorkspaces?.get('document:project:invoice:inv-1')?.handle);
+  await page.evaluate(()=>viewer.commentWorkspaces.get('document:project:invoice:inv-1').handle.ready);
+  assert.deepEqual(await page.evaluate(()=>ensured),[{project_id:'project',document_id:'invoice:inv-1',title:'INV-1'}]);
+  assert.equal(await page.locator('.fmv-comments-off').count(),0);
+  const editor=page.getByRole('textbox',{name:'New document comment',exact:true});await editor.fill('Checked the total');
+  await page.locator('.pn-composer').getByRole('button',{name:'Add comment',exact:true}).click();
+  await page.waitForFunction(()=>posted.length===1);assert.equal(await page.evaluate(()=>posted[0].channel),'doc-invoice:inv-1');
+  await page.evaluate(()=>viewer.show(1));
+  await page.locator('.fmv-comments-off').waitFor();
+  assert.deepEqual(errors,[]);
+ }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+});

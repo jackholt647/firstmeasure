@@ -2880,7 +2880,7 @@
       this.boundOutsideUp = (event) => this.handleOutsidePointer(event, 'up');
       this.boundCommentsRefreshed = (event) => {
         const id = cleanText(event?.detail?.projectId);
-        if (id && id === `photo:${this.commentMediaId || ''}`) this.updateCommentCount();
+        if (id && id === this.commentThreadId) this.updateCommentCount();
       };
       this.boundMenuOutside = (event) => {
         const menu = this.el?.querySelector?.('[data-photo-actions-menu]');
@@ -3396,8 +3396,8 @@
     updateCommentCount(){
       const el = this.el?.querySelector?.('[data-comment-count]');
       if (!el) return;
-      const id = this.commentMediaId;
-      const notes = id ? (root.Portal?.ProjectNotes?.all?.({ id: `photo:${id}` }) || []) : [];
+      const id = this.commentThreadId;
+      const notes = id ? (root.Portal?.ProjectNotes?.all?.({ id }) || []) : [];
       el.textContent = notes.length ? String(notes.length) : '';
     }
     mountPhotoComments(photo){
@@ -3405,16 +3405,21 @@
       if(!host || this.commentsClosed)return;
       this.commentWorkspaces=this.commentWorkspaces || new Map();
       const mediaId=photo ? cleanText(photo.media_id || photo.mediaId) : '';
-      this.commentMediaId=mediaId;
+      // A project document that is not a media file (an invoice, a delivered report) is discussed by its
+      // project and document id: the opener passes comment_document (GP-68).
+      const target=!mediaId && photo?.comment_document && typeof photo.comment_document==='object' ? photo.comment_document : null;
+      const commentDocument=target && cleanText(target.project_id) && cleanText(target.document_id) ? {project_id:cleanText(target.project_id),document_id:cleanText(target.document_id),title:cleanText(target.title)} : null;
+      const threadId=mediaId ? 'photo:'+mediaId : commentDocument ? `document:${commentDocument.project_id}:${commentDocument.document_id}` : '';
+      this.commentThreadId=threadId;
       for(const workspace of this.commentWorkspaces.values())workspace.handle.setVisible?.(false);
       host.replaceChildren();
       const tools=this.el.querySelector('[data-comment-tools]');
-      if(tools)tools.hidden=!mediaId;
+      if(tools)tools.hidden=!threadId;
       this.updateCommentCount();
       if(!photo)return;
       const noun=this.nounFor(photo);
       const offCard=(icon,title,body)=>{host.innerHTML=`<div class="fmv-comments-off"><i class="${icon}"></i><strong>${escapeHtml(title)}</strong><span>${escapeHtml(body)}</span></div>`;};
-      if(!mediaId){
+      if(!threadId){
         const body={
           photo:(globalThis.PlatformLanguage?.text("markup","m_viewer_comments_after_save_photo","Comments open once this photo is saved to the project.") ?? "Comments open once this photo is saved to the project."),
           video:(globalThis.PlatformLanguage?.text("markup","m_viewer_comments_after_save_video","Comments open once this video is saved to the project.") ?? "Comments open once this video is saved to the project."),
@@ -3425,17 +3430,18 @@
       }
       const notes=root.Portal?.ProjectNotes;
       if(!notes?.mount){offCard('fas fa-triangle-exclamation',(globalThis.PlatformLanguage?.text("markup","m_viewer_comments_failed","Comments couldn't load") ?? "Comments couldn't load"),(globalThis.PlatformLanguage?.text("markup","m_viewer_comments_failed_body","Close and reopen this viewer to try again.") ?? "Close and reopen this viewer to try again."));return;}
-      let workspace=this.commentWorkspaces.get(mediaId);
+      const workspaceKey=mediaId || threadId;
+      let workspace=this.commentWorkspaces.get(workspaceKey);
       if(!workspace){
         const node=document.createElement('div');node.className='fmv-comments-node';
         host.append(node);
-        const handle=notes.mount(node,{project:{id:'photo:'+mediaId,commentMediaId:mediaId},kind:'photo-comments',commentNoun:noun,onPosted:message=>{
+        const handle=notes.mount(node,{project:mediaId ? {id:threadId,commentMediaId:mediaId} : {id:threadId,commentDocument},kind:'photo-comments',commentNoun:noun,onPosted:message=>{
           const project=photo.__project || this.project || {};
-          root.Portal?.PhotoFeed?.trackActivity?.({type:'photo_commented',summary:'Commented on media',actor_name:userName(),actor_email:userEmail(),target:{media_id:mediaId,photo_id:photoId(photo),project_id:this.currentProjectId(project),project_title:project.title || project.address || '',project_address:project.address || ''},metadata:{comment_id:message?.id || '',mention_count:message?.mention_users?.length || 0}},{source:'photo_comments'});
+          if(mediaId)root.Portal?.PhotoFeed?.trackActivity?.({type:'photo_commented',summary:'Commented on media',actor_name:userName(),actor_email:userEmail(),target:{media_id:mediaId,photo_id:photoId(photo),project_id:this.currentProjectId(project),project_title:project.title || project.address || '',project_address:project.address || ''},metadata:{comment_id:message?.id || '',mention_count:message?.mention_users?.length || 0}},{source:'photo_comments'});
           this.onChange?.({photo,comment:message});
         }});
-        workspace={node,handle};this.commentWorkspaces.set(mediaId,workspace);
-        Promise.resolve(handle?.ready).then(()=>{if(this.commentMediaId===mediaId)this.updateCommentCount();}).catch(()=>{});
+        workspace={node,handle};this.commentWorkspaces.set(workspaceKey,workspace);
+        Promise.resolve(handle?.ready).then(()=>{if(this.commentThreadId===threadId)this.updateCommentCount();}).catch(()=>{});
       }else{host.append(workspace.node);workspace.handle.refresh().then(()=>this.updateCommentCount()).catch(()=>{});}
     }
     mentionUserFromChip(chip){

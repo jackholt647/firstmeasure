@@ -172,7 +172,10 @@
     if (!projectId) return null;
     let entry = stores.get(projectId);
     if (!entry) {
-      entry = { projectId, mediaId:clean(projectValue?.commentMediaId), channelId:'', notes:[], loaded:false, loading:null, lastOp:Promise.resolve(), unsubscribe:null, refreshTimer:0 };
+      // A comment thread on one item: a media file (commentMediaId) or a project document that is not one
+      // (commentDocument: { project_id, document_id, title }, GP-68).
+      const commentDocument = projectValue?.commentDocument && typeof projectValue.commentDocument === 'object' ? projectValue.commentDocument : null;
+      entry = { projectId, mediaId:clean(projectValue?.commentMediaId), document:commentDocument && clean(commentDocument.project_id) && clean(commentDocument.document_id) ? { project_id:clean(commentDocument.project_id), document_id:clean(commentDocument.document_id), title:clean(commentDocument.title) } : null, channelId:'', notes:[], loaded:false, loading:null, lastOp:Promise.resolve(), unsubscribe:null, refreshTimer:0 };
       stores.set(projectId, entry);
     }
     return entry;
@@ -214,7 +217,9 @@
     const api = channels();
     const oid = orgId();
     if (!api || !oid) throw new Error('Channels API unavailable');
-    const ensured = await (entry.mediaId ? api.channels.ensurePhoto(oid, entry.mediaId) : api.channels.ensureProject(oid, entry.projectId));
+    const ensured = await (entry.mediaId ? api.channels.ensurePhoto(oid, entry.mediaId)
+      : entry.document ? api.channels.ensureDocument(oid, entry.document)
+      : api.channels.ensureProject(oid, entry.projectId));
     entry.channelId = clean(ensured.channel?.id);
     subscribeRealtime(entry);
     return entry.channelId;
