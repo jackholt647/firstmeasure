@@ -32,7 +32,7 @@
     if (!link) {
       link = document.createElement('link'); link.id='fm-communications-css'; link.rel='stylesheet';
       const source=new URL(document.currentScript?.src || `${location.origin}/libraries/apps/comms/communications-ui.js`);
-      link.href=new URL('communications.css?v=20261119-gp63-tabs',source).href;
+      link.href=new URL('communications.css?v=20261119-gp79-phone-settings',source).href;
       document.head.append(link);
     } else if (link.sheet) return Promise.resolve(cssLoaded=true);
     return new Promise(resolve=>{
