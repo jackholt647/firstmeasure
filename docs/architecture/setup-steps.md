@@ -182,7 +182,11 @@ proposal's questions):
 - `appointments.kinds`, "What kinds of appointments will you schedule?" (`appointment-kinds.js`): the kinds in the
   `appointment-setup.catalog` (sales appointment, inspection, installation, repair, service call, maintenance,
   delivery, final walkthrough, team meeting; data that only grows), the ones suggested for this company already
-  picked, each with pills that say sales, production or other, and the person's own kinds by name. It requires
+  picked (sales, installation, repair and material delivery, and what its industry usually has; never an inspection,
+  which is much the same as a sales appointment, GP-85), in two columns, each with pills that say sales, production or
+  other, and the person's own kinds by name. A company that answered "We don't do sales appointments"
+  (`appointment-setup.status` `no_sales`) is shown no sales kinds and no pills, and its kinds name no department: it
+  makes no distinction between sales and production. Going Back to change who sells starts the list again. It requires
   `company.services` and `company.sales_team` (the suggestions read them). `appointments.kinds.save` makes each kind
   an appointment type (a scheduling catalog preset, written with `saveAppointmentCatalog` in the person's branch): a
   catalog nobody saved (the built-in Sales and Production) becomes exactly the kinds picked; a saved one keeps

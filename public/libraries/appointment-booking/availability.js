@@ -55,6 +55,7 @@
         :is(.fm-availability,#fm-availability-picker) .fmle-slot{border:1px solid rgba(15,23,42,.16);background:#fff;color:#111827;border-radius:8px;padding:12px 10px;font-size:14px;font-weight:900;box-shadow:none;scroll-snap-align:center}
         :is(.fm-availability,#fm-availability-picker) .fmle-slot:hover{border-color:var(--fmle-primary)}
         :is(.fm-availability,#fm-availability-picker) .fmle-slot.active{background:var(--fmle-primary);border-color:var(--fmle-primary);color:#fff}
+        :is(.fm-availability,#fm-availability-picker) .fmle-free{display:block;margin-top:2px;font-size:11px;font-weight:500;opacity:.72}
         :is(.fm-availability,#fm-availability-picker) .fmle-slot[disabled]{opacity:.42;cursor:not-allowed;text-decoration:line-through}
         :is(.fm-availability,#fm-availability-picker) .fmle-schedule-note{min-height:8px;margin-top:12px;font-size:12px;font-weight:800;color:color-mix(in srgb,var(--fmle-text) 62%,#fff);line-height:1.35}
 :is(.fm-availability,#fm-availability-picker) button:focus-visible{outline:3px solid #2563eb;outline-offset:2px}
@@ -152,6 +153,7 @@
         const data = await fetchSlots(requestedDate);
         if (destroyed || request !== generation) return;
         const slots = Array.isArray(data.slots) ? data.slots : [];
+        options.onSlots?.(data);
         let available = slots.filter((slot) => slot.available || slot.hasAvailability);
         if (!available.length && autoAdvance) {
           for (let offset = 1; offset <= 14; offset += 1) {
@@ -170,7 +172,7 @@
           }
         }
         slotsEl.innerHTML = available.length
-          ? available.map((slot) => `<button type="button" class="fmle-slot" aria-pressed="false" data-start="${esc(slot.start)}">${esc(slot.label || slot.time)}</button>`).join('')
+          ? available.map((slot) => `<button type="button" class="fmle-slot" aria-pressed="false" data-start="${esc(slot.start)}">${esc(slot.label || slot.time)}${options.showFree && Number.isFinite(slot.free) && slot.free > 0 ? `<small class="fmle-free">${esc(`${slot.free} available`)}</small>` : ''}</button>`).join('')
           : `<button type="button" disabled>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_e971bf8117127c","No times available") ?? "No times available")}</button>`;
         if (noteEl) noteEl.textContent = available.length
           ? ''
@@ -200,7 +202,7 @@
     const utc=date=>{const [y,m,d]=date.split('-').map(Number);return Date.UTC(y,m-1,d);};
     const length=date=>Math.round((utc(date)-utc(start))/86400000)+1;
     const caption=date=>dateFromInput(date).toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'});
-    async function available(date,count){const key=date+':'+count;if(!cache.has(key)){const pending=Promise.resolve().then(()=>options.loadAvailability(date,count)).then(data=>(data.slots||[]).find(s=>s.available||s.hasAvailability)||null).catch(error=>{cache.delete(key);throw error;});cache.set(key,pending);}return cache.get(key);}
+    async function available(date,count){const key=date+':'+count;if(!cache.has(key)){const pending=Promise.resolve().then(()=>options.loadAvailability(date,count)).then(data=>{options.onSlots?.(data);return (data.slots||[]).find(s=>s.available||s.hasAvailability)||null;}).catch(error=>{cache.delete(key);throw error;});cache.set(key,pending);}return cache.get(key);}
     function header(){ $('[data-range-start]').textContent=picked?caption(start):'Choose date';$('[data-range-end]').textContent=picked?caption(end()):'Choose date';wrap.querySelectorAll('[data-range-field]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.rangeField===field))); }
     async function select(date){
       const ticket=++selectionEpoch;options.onChange?.(null);$('[type=submit]').disabled=true;

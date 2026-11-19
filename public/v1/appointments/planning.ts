@@ -89,24 +89,53 @@ function departmentPool(resources:JsonObject[],department:ReturnType<typeof defa
   if(department.status==='archived')return [];
   return resources.filter(r=>Array.isArray(r.department_ids)?r.department_ids.includes(department.id):department.subject_keys.includes(key(r))||matched.some(m=>key(m)===key(r)));
 }
-export function selectAppointmentResources(config:AppointmentConfiguration,departments:ReturnType<typeof defaults>['departments'],resources:JsonObject[],available:Set<string>){
+type Requirement=AppointmentConfiguration['requirements'][number];
+/** Who could meet a requirement at all: its department's people and groups of the kind it names. */
+function requirementPool(requirement:Requirement,departments:ReturnType<typeof defaults>['departments'],resources:JsonObject[]){
+  const dep=requirement.department_id?departments.find(d=>d.id===requirement.department_id):null;
+  if(requirement.department_id&&!dep)throw badRequest('unknown_department','A selected department no longer exists.');
+  let pool=dep?departmentPool(resources,dep):resources;
+  pool=pool.filter(r=>['organization_user','resource_group'].includes(String(r.subject_type))&&(requirement.subject_type==='any'||r.subject_type===requirement.subject_type));
+  if(requirement.subject_type==='any'){const seen=new Set<string>();pool=pool.filter(r=>{const ids=r.subject_type==='organization_user'?[String(r.id)]:Array.isArray(r.member_user_ids)?r.member_user_ids.map(String):[];if(ids.some(id=>seen.has(id)))return false;ids.forEach(id=>seen.add(id));return true;});}
+  return pool;
+}
+/** Of a requirement's pool, the ones free now (a group with enough of its members free), each person counted once. */
+function freeFor(requirement:Requirement,pool:JsonObject[],available:Set<string>){
+  const candidates=pool.filter(r=>available.has(key(r))&&(requirement.mode!=='specific'||requirement.subject_keys.includes(key(r))));
+  const usable=candidates.filter(r=>{
+    if(r.subject_type!=='resource_group'||!requirement.crew_member_percent)return true;
+    const members=Array.isArray(r.member_user_ids)?r.member_user_ids as string[]:[];
+    return members.length>0&&members.filter(id=>available.has(`organization_user:${id}`)).length>=Math.ceil(members.length*requirement.crew_member_percent/100);
+  });
+  const distinct:JsonObject[]=[];const covered=new Set<string>();
+  for(const resource of usable){const memberIds=resource.subject_type==='organization_user'?[String(resource.id)]:Array.isArray(resource.member_user_ids)?resource.member_user_ids.map(String):[];if(memberIds.some(id=>covered.has(id)))continue;distinct.push(resource);memberIds.forEach(id=>covered.add(id));}
+  return distinct;
+}
+/**
+ * Staffing for the New appointment dialog (GP-85): for each requirement, how many could ever meet it (`pool`) and, with
+ * `available`, how many are free (`free`). A requirement nobody can meet at all (`pool` 0: no groups of that kind yet)
+ * is `unstaffed`.
+ */
+export function appointmentStaffing(config:AppointmentConfiguration,departments:ReturnType<typeof defaults>['departments'],resources:JsonObject[],available?:Set<string>){
+  return config.requirements.map(requirement=>{
+    const pool=requirementPool(requirement,departments,resources);
+    return {subject_type:requirement.subject_type,department_id:requirement.department_id||null,pool:pool.length,unstaffed:!pool.length,...(available?{free:freeFor(requirement,pool,available).length}:{})};
+  });
+}
+/**
+ * The people and groups a booking takes, or null when a requirement cannot be met. With `unstaffed: 'allow'` (a person
+ * booking, GP-85) a requirement nobody can meet at all, because the organization has no one of that kind yet, is left
+ * unassigned instead (unmet staffing warns, docs/architecture/assignee-base.md); one whose people are only busy still
+ * blocks. A customer booking never takes an unassigned time.
+ */
+export function selectAppointmentResources(config:AppointmentConfiguration,departments:ReturnType<typeof defaults>['departments'],resources:JsonObject[],available:Set<string>,options:{unstaffed?:'allow'|'block'}={}){
   const chosen=new Map<string,JsonObject>();
   for(const requirement of config.requirements){
-    const dep=requirement.department_id?departments.find(d=>d.id===requirement.department_id):null;
-    if(requirement.department_id&&!dep)throw badRequest('unknown_department','A selected department no longer exists.');
-    let pool=dep?departmentPool(resources,dep):resources;
-    pool=pool.filter(r=>['organization_user','resource_group'].includes(String(r.subject_type))&&(requirement.subject_type==='any'||r.subject_type===requirement.subject_type));
-    if(requirement.subject_type==='any'){const seen=new Set<string>();pool=pool.filter(r=>{const ids=r.subject_type==='organization_user'?[String(r.id)]:Array.isArray(r.member_user_ids)?r.member_user_ids.map(String):[];if(ids.some(id=>seen.has(id)))return false;ids.forEach(id=>seen.add(id));return true;});}
+    const pool=requirementPool(requirement,departments,resources);
+    if(!pool.length&&options.unstaffed==='allow'&&requirement.mode!=='specific')continue;
     const count=requirement.mode==='all'?pool.length:requirement.mode==='percent'?Math.ceil(pool.length*requirement.percent/100):requirement.mode==='specific'?requirement.subject_keys.length:requirement.count;
     if(!count)return null;
-    const candidates=pool.filter(r=>available.has(key(r))&&(requirement.mode!=='specific'||requirement.subject_keys.includes(key(r))));
-    const usable=candidates.filter(r=>{
-      if(r.subject_type!=='resource_group'||!requirement.crew_member_percent)return true;
-      const members=Array.isArray(r.member_user_ids)?r.member_user_ids as string[]:[];
-      return members.length>0&&members.filter(id=>available.has(`organization_user:${id}`)).length>=Math.ceil(members.length*requirement.crew_member_percent/100);
-    });
-    const distinct:JsonObject[]=[];const covered=new Set<string>();
-    for(const resource of usable){const memberIds=resource.subject_type==='organization_user'?[String(resource.id)]:Array.isArray(resource.member_user_ids)?resource.member_user_ids.map(String):[];if(memberIds.some(id=>covered.has(id)))continue;distinct.push(resource);memberIds.forEach(id=>covered.add(id));}
+    const distinct=freeFor(requirement,pool,available);
     if(distinct.length<count)return null;
     for(const resource of distinct.slice(0,count)){
       chosen.set(key(resource),resource);
@@ -120,7 +149,13 @@ export function selectAppointmentResources(config:AppointmentConfiguration,depar
 }
 function dayKey(date:Date,zone:string){const p=zonedParts(date,zone);return `${p.year}-${String(p.month).padStart(2,'0')}-${String(p.day).padStart(2,'0')}`;}
 async function projectAccess(ctx:PlatformAuthContext,projectId?:string){if(!projectId)return;const doc=await readDocument(ctx.orgId,'projects',projectId);if((String(object(doc.data).branch_id||'default'))!==(ctx.branchId||'default'))throw forbidden('appointment_branch_mismatch','Choose a project in your current branch.');}
-export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<typeof previewSchema>){
+/** A time's free count: of the requirements someone can meet, the fewest free (how many could go then). */
+function freeCount(config:AppointmentConfiguration,departments:ReturnType<typeof defaults>['departments'],resources:JsonObject[],available:Set<string>){
+  const counts=appointmentStaffing(config,departments,resources,available).filter(r=>!r.unstaffed).map(r=>Number(r.free));
+  return counts.length?Math.min(...counts):null;
+}
+/** `unstaffed: 'allow'` is a person booking (selectAppointmentResources); a customer's booking and the forms leave it out. */
+export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<typeof previewSchema>,options:{unstaffed?:'allow'|'block'}={}){
   assertAppointmentDepartmentPermission(ctx,input.configuration,SCHEDULE_VIEW);
   await projectAccess(ctx,input.project_id);
   const bundle=await readAppointmentCatalog(ctx),catalog=bundle.catalog,config=input.configuration;
@@ -129,6 +164,8 @@ export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<t
   if(config.requirements.some(r=>r.department_id&&!config.department_ids.includes(r.department_id)))throw badRequest('department_requirement','Staffing departments must also be selected for this appointment.');
   const zone=await resolveOrganizationTimezone(ctx.orgId,ctx.branchId||'default',input.timezone);
   const location=await bookingLocation(ctx,config,input.project_id);
+  // How many groups and outside companies the organization has: the dialog says when there are none (GP-85).
+  const teams={groups:resources.filter(r=>r.subject_type==='resource_group').length,companies:resources.filter(r=>r.subject_type==='organization_connection').length};
   const cache=new Map<string,Awaited<ReturnType<typeof appointmentAvailability>>>();
   const daily=async(date:string)=>{
     if(!cache.has(date))cache.set(date,await appointmentAvailability(ctx.orgId,ctx.branchId||'default',{project_id:input.project_id,event_type_id:'appointment',start_date:date,end_date:date,duration_minutes:config.duration_minutes,address:location,limit:500},{assignmentPolicy:{allow_unassigned:true,rules:[]},slotMinutes:config.slot_minutes,fullDay:config.timing_mode==='days',timezone:zone}));
@@ -155,15 +192,15 @@ export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<t
       }
       if(!valid)break;
     }
-    const assigned=valid?selectAppointmentResources(config,catalog.departments,resources,available||new Set()):null;
+    const assigned=valid?selectAppointmentResources(config,catalog.departments,resources,available||new Set(),options):null;
     const end=zonedInstant(y!,m!,d!+config.duration_days,0,0,zone);
-    return {ok:true,timezone:zone,slots:[{start_at:anchor.toISOString(),window_end_at:end.toISOString(),available:!!assigned,label:`${config.duration_days} full day${config.duration_days===1?'':'s'} · ${input.date}`,plan:assigned?{start_at:anchor.toISOString(),end_at:end.toISOString(),resources:assigned}:null}]};
+    return {ok:true,timezone:zone,staffing:appointmentStaffing(config,catalog.departments,resources),teams,slots:[{start_at:anchor.toISOString(),window_end_at:end.toISOString(),available:!!assigned,free:valid?freeCount(config,catalog.departments,resources,available||new Set()):0,label:`${config.duration_days} full day${config.duration_days===1?'':'s'} · ${input.date}`,plan:assigned?{start_at:anchor.toISOString(),end_at:end.toISOString(),resources:assigned}:null}]};
   }
   for(const raw of day.slots){
     const anchor=new Date(String(raw.start_at)),windowEnd=new Date(anchor.getTime()+config.window_minutes*60000);
     const occurrences=Array.from({length:rule?.occurrence_count||1},(_,i)=>rule?occurrenceDate(anchor,rule,i,zone):anchor);
     if(occurrences.some(date=>date.getTime()>Date.now()+730*86400000))continue;
-    let plan:JsonObject|null=null;
+    let plan:JsonObject|null=null,free:number|null=null;
     for(let offset=0;offset<=config.window_minutes-config.duration_minutes;offset+=config.slot_minutes){
       let available:Set<string>|null=null,valid=true;
       const starts=occurrences.map(date=>new Date(date.getTime()+offset*60000));
@@ -176,13 +213,15 @@ export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<t
         available=available===null?keys:new Set(Array.from(available as Set<string>).filter((k:string)=>keys.has(k)));
       }
       if(!valid)continue;
-      const assigned=selectAppointmentResources(config,catalog.departments,resources,available||new Set());
+      const assigned=selectAppointmentResources(config,catalog.departments,resources,available||new Set(),options);
+      const here=freeCount(config,catalog.departments,resources,available||new Set());
+      if(here!==null)free=Math.max(free??0,here);
       if(assigned){plan={start_at:starts[0]!.toISOString(),end_at:new Date(starts[0]!.getTime()+config.duration_minutes*60000).toISOString(),resources:assigned};break;}
     }
     const label=new Intl.DateTimeFormat('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
-    slots.push({start_at:anchor.toISOString(),available:!!plan,label:config.window_minutes>config.duration_minutes?`${label.format(anchor)} – ${label.format(windowEnd)} arrival`:`${label.format(anchor)}`,window_end_at:windowEnd.toISOString(),plan});
+    slots.push({start_at:anchor.toISOString(),available:!!plan,free,label:config.window_minutes>config.duration_minutes?`${label.format(anchor)} – ${label.format(windowEnd)} arrival`:`${label.format(anchor)}`,window_end_at:windowEnd.toISOString(),plan});
   }
-  return {ok:true,timezone:zone,slots};
+  return {ok:true,timezone:zone,staffing:appointmentStaffing(config,catalog.departments,resources),teams,slots};
 }
 /** A type that needs a project (FM-557) is never booked without one, whatever the booking's copy of it says; a custom
  *  appointment needs one only when it says so. */
@@ -201,7 +240,7 @@ export async function bookPlannedAppointment(ctx:PlatformAuthContext,input:z.inf
     const prior=await readDocument(ctx.orgId,'appointment_bookings',input.event_id).catch((error)=>{if(error.statusCode===404)return null;throw error;});
     if(prior){if(prior.data.fingerprint!==fingerprint||prior.data.actor!==ctx.userId)throw conflict('appointment_booking_conflict','This booking ID has already been used.');if(prior.data.result)return prior.data.result;throw conflict('appointment_booking_pending','This booking is still being saved. Refresh the calendar before trying again.');}
     const zone=await adoptOrganizationTimezone(ctx.orgId,ctx.branchId||'default',input.timezone);
-    const preview=await previewAppointment(ctx,{project_id:input.project_id,date:dayKey(new Date(input.start_at),zone),configuration:input.configuration,timezone:zone});
+    const preview=await previewAppointment(ctx,{project_id:input.project_id,date:dayKey(new Date(input.start_at),zone),configuration:input.configuration,timezone:zone},{unstaffed:options.customerBooked?'block':'allow'});
     const slot=preview.slots.find(s=>s.start_at===new Date(input.start_at).toISOString()&&s.available);
     if(!slot)throw conflict('appointment_slot_unavailable','The requirements are no longer available at that time. Choose another slot.');
     const plan=object(slot.plan),resources=list(plan.resources),config=input.configuration;

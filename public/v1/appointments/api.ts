@@ -128,7 +128,7 @@ export const registerAppointmentsApi: FastifyPluginAsync = async (app) => {
   });
   app.post('/organizations/:orgId/preview', async request => {
     const ctx=await requirePlatformAuth(request,{orgId:getParam(request.params,'orgId'),permission:'manage_schedule|view_projects',capability:'scheduling.appointment_slots',csrf:true});
-    return previewAppointment(ctx,previewSchema.parse(request.body));
+    return previewAppointment(ctx,previewSchema.parse(request.body),{unstaffed:'allow'});
   });
   app.post('/organizations/:orgId/book', async (request) => {
     const orgId = getParam(request.params, 'orgId');

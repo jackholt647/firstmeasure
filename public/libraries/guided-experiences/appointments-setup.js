@@ -6,6 +6,10 @@
 // then, when a text was asked for and texting is not set up, the offer to set it up (texting-setup.js, the same flow as
 // the Communications setup) or skip, then the finish, which runs the completion action (appointments.setup.apply)
 // with the answers. Everything it shows is read through the publication layer (appointment-setup.status, .catalog).
+// GP-85: who goes is one or more answers (any one of them goes); each kind offers its own first (sales: me or a
+// salesperson; work: crews, subcontractors or me; repairs: a technician too) and + shows the rest. Back on the first
+// kind goes to the step before (ctx.back). The finish also offers the workforce setup (operations.workforce.setup)
+// before scheduling, where it can play. A company with no sales appointments sees no sales/production badges.
 import { commsAction, setUpTexting, textingReady } from './texting-setup.js?v=20261116-fm515';
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -36,6 +40,11 @@ const css = `
 .gxa-toggle[aria-checked=true] .gxa-switch::after{transform:translateX(16px)}
 .gxa-who{display:flex;flex-wrap:wrap;gap:8px}
 .gxa-who button{height:36px;padding:0 14px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;font:inherit;font-size:13px;font-weight:650;color:#344054;cursor:pointer;transition:border-color .15s,background .15s,color .15s}
+.gxa-who button i{display:none;margin-right:6px;font-size:11px;color:var(--primary,#d93025)}
+.gxa-who button[aria-checked=true] i{display:inline}
+.gxa-who button.gxa-more{width:36px;padding:0;color:#667085}
+.gxa-who button.gxa-more i{display:inline;margin:0;font-size:13px;color:inherit}
+.gxa-who-hint{font-size:12px;color:#667085}
 .gxa-who button[aria-checked=true]{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.06);color:#101828;box-shadow:0 0 0 1px var(--primary,#d93025)}
 .gxa-who button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
 .gxa-rows{display:flex;flex-direction:column;gap:8px}
@@ -66,7 +75,13 @@ export function mount(el, ctx){
   const { esc } = ctx;
   const L = (key, fallback, values) => { let text = ctx.L(key, fallback); for (const [name, value] of Object.entries(values || {})) text = text.split(`{${name}}`).join(String(value)); return text; };
   const orgId = String(window.__APP?.userOrgId || window.Portal?.currentUser?.orgId || ctx.orgId || '');
-  let alive = true, busy = false, page = 0, kinds = [], attendees = [], labels = {}, categories = {}, comms = null, textingOffered = false;
+  let alive = true, busy = false, page = 0, kinds = [], every = [], labels = {}, categories = {}, comms = null, textingOffered = false, noSales = false;
+  // Crews and subcontractors are named by the terminology system ("crew" is not a platform word).
+  const word = (path, fallback) => clean(window.PlatformTerminology?.get?.(path, fallback) || window.Portal?.terminology?.get?.(path, fallback)) || fallback;
+  const crewsWord = word('workforce.resource_group_plural', 'Crews'), subsWord = word('workforce.organization_connection_plural', 'Subcontractors');
+  const guides = () => window.FirstMateGuides || (() => { try { return window.top?.FirstMateGuides; } catch (_) { return null; } })();
+  // The workforce setup is offered at the finish only where it can play (it needs Operations and the crew app).
+  const workforceSetup = () => !!guides()?.experience?.('operations.workforce.setup');
 
   const errorLine = '<p class="gxa-error" role="alert" data-gxa-error></p>';
   const fail = (error) => { const node = el.querySelector('[data-gxa-error]'); if (node) node.textContent = clean(error?.message) || L('gx_appt_error', 'That didn’t work. Try again.'); };
@@ -76,9 +91,13 @@ export function mount(el, ctx){
   const wantsTexts = () => kinds.some((kind) => kind.reminder || kind.on_my_way);
   // The pages: one per kind, then texting (only when a text was asked for and texting is not ready), then the finish.
   const pages = () => [...kinds.map((_, at) => `kind:${at}`), ...(wantsTexts() && textingOffered && !textingReady(comms) ? ['texting'] : []), 'done'];
-  function report(){ ctx.change({ appointment_types: kinds.map(({ id, reminder, on_my_way, attendee }) => ({ id, reminder, on_my_way, attendee })) }, kinds.map((kind) => kind.label).join(', ')); }
-  function go(to){ page = Math.max(0, Math.min(to, pages().length - 1)); draw(); el.closest('.gxs-step')?.scrollTo?.({ top: 0 }); }
-  const category = (id) => `<span class="gxa-cat" data-category="${esc(id)}">${esc(categories[id] || id)}</span>`;
+  function report(){ ctx.change({ appointment_types: kinds.map(({ id, reminder, on_my_way, attendees }) => ({ id, reminder, on_my_way, attendees })) }, kinds.map((kind) => kind.label).join(', ')); }
+  function go(to){ page = Math.max(0, Math.min(to, pages().length - 1)); draw(); ctx.syncBack?.(); el.closest('.gxs-step')?.scrollTo?.({ top: 0 }); }
+  // Back on the first page leaves this step for the one before it (the kinds of appointments), as the sheet's Back would.
+  const canLeaveBack = () => ctx.canBack?.() === true;
+  function back(){ if (busy) return true; if (page > 0) { go(page - 1); return true; } return false; }
+  const category = (id) => noSales ? '' : `<span class="gxa-cat" data-category="${esc(id)}">${esc(categories[id] || id)}</span>`;
+  const who = (id) => id === 'crews' ? crewsWord : id === 'subcontractors' ? subsWord : labels[id] || id;
 
   function drawKind(at){
     const kind = kinds[at];
@@ -93,11 +112,12 @@ export function mount(el, ctx){
         ${toggle('on_my_way', L('gx_appt_on_my_way', 'Text them when we’re on the way'), L('gx_appt_on_my_way_hint', 'Sent when whoever goes taps “I’m on my way”.'))}
       </div>
       <div class="gxa-q"><span class="gxa-label" id="gxa-who-label">${esc(L('gx_appt_who', 'Who goes to these?'))}</span>
-        <div class="gxa-who" role="radiogroup" aria-labelledby="gxa-who-label">${attendees.map((id) => `<button type="button" role="radio" data-gxa-who="${esc(id)}" aria-checked="${kind.attendee === id}">${esc(labels[id] || id)}</button>`).join('')}</div>
+        <div class="gxa-who" role="group" aria-labelledby="gxa-who-label" data-gxa-who-list>${whoButtons(kind)}</div>
+        <small class="gxa-who-hint">${esc(L('gx_appt_who_hint', 'Pick everyone who can go. Any one of them goes.'))}</small>
       </div>
       ${errorLine}
       <div class="gxa-actions">
-        ${at > 0 ? `<button type="button" class="gxa-btn" data-gxa-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>` : ''}
+        ${at > 0 || canLeaveBack() ? `<button type="button" class="gxa-btn" data-gxa-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>` : ''}
         <span class="gxa-spacer"></span>
         <button type="button" class="gxa-btn primary" data-gxa-next>${esc(L('gx_ui_continue', 'Continue'))}</button>
       </div>
@@ -106,13 +126,29 @@ export function mount(el, ctx){
     el.querySelectorAll('[data-gxa-toggle]').forEach((button) => button.addEventListener('click', () => {
       const name = button.dataset.gxaToggle; kind[name] = !kind[name]; button.setAttribute('aria-checked', String(kind[name])); report();
     }));
-    el.querySelectorAll('[data-gxa-who]').forEach((button) => button.addEventListener('click', () => {
-      kind.attendee = button.dataset.gxaWho;
-      el.querySelectorAll('[data-gxa-who]').forEach((node) => node.setAttribute('aria-checked', String(node === button)));
+    // Several can be picked; the last one picked stays (someone has to go). + shows everyone else who could go.
+    el.querySelector('[data-gxa-who-list]').addEventListener('click', (event) => {
+      const more = event.target.closest('[data-gxa-more]');
+      if (more) { kind.more = true; const list = el.querySelector('[data-gxa-who-list]'); list.innerHTML = whoButtons(kind); list.querySelector(`[data-gxa-who="${CSS.escape(more.dataset.gxaMore)}"]`)?.focus(); return; }
+      const button = event.target.closest('[data-gxa-who]'); if (!button) return;
+      const id = button.dataset.gxaWho, on = kind.attendees.includes(id);
+      if (on && kind.attendees.length === 1) return;
+      kind.attendees = on ? kind.attendees.filter((entry) => entry !== id) : [...kind.attendees, id];
+      button.setAttribute('aria-checked', String(!on));
       report();
-    }));
-    el.querySelector('[data-gxa-back]')?.addEventListener('click', () => go(page - 1));
+    });
+    el.querySelector('[data-gxa-back]')?.addEventListener('click', () => { if (!back()) ctx.back?.(); });
     el.querySelector('[data-gxa-next]').addEventListener('click', () => go(page + 1));
+  }
+
+  /** The kind's own answers first, then any picked from beyond them, then + (or, once pressed, everyone else). */
+  function whoButtons(kind){
+    const shown = [...kind.offered, ...kind.attendees.filter((id) => !kind.offered.includes(id))];
+    const rest = every.filter((id) => !shown.includes(id));
+    const list = kind.more ? [...shown, ...rest] : shown;
+    const check = '<i class="fas fa-check" aria-hidden="true"></i>';
+    return list.map((id) => `<button type="button" role="checkbox" data-gxa-who="${esc(id)}" aria-checked="${kind.attendees.includes(id)}">${check}${esc(who(id))}</button>`).join('')
+      + (!kind.more && rest.length ? `<button type="button" class="gxa-more" data-gxa-more="${esc(rest[0])}" aria-label="${esc(L('gx_appt_who_more', 'Someone else'))}" title="${esc(L('gx_appt_who_more', 'Someone else'))}"><i class="fas fa-plus" aria-hidden="true"></i></button>` : '');
   }
 
   function drawTexting(){
@@ -145,26 +181,35 @@ export function mount(el, ctx){
 
   function drawDone(){
     title(L('gx_appt_done_title', 'Your appointment types are ready'));
-    const who = (kind) => labels[kind.attendee] || kind.attendee;
+    const goes = (kind) => kind.attendees.map(who).join(L('gx_appt_done_or', ' or '));
+    // Before scheduling, an optional detour: set up who does the work, when any kind sends crews or subcontractors.
+    const offerTeams = workforceSetup() && kinds.some((kind) => kind.attendees.includes('crews') || kind.attendees.includes('subcontractors') || kind.attendees.includes('technician'));
     const texts = (kind) => kind.reminder && kind.on_my_way ? L('gx_appt_done_texts_both', 'Reminder and on-my-way texts') : kind.reminder ? L('gx_appt_done_texts_reminder', 'Reminder text') : kind.on_my_way ? L('gx_appt_done_texts_way', 'On-my-way text') : L('gx_appt_done_texts_none', 'No texts');
     const textingNote = wantsTexts() && textingOffered && !textingReady(comms) ? `<p>${esc(L('gx_appt_done_texting_later', 'Texts start once texting is set up in Settings › Phone.'))}</p>` : '';
     el.innerHTML = `<div class="gxa">
-      <div class="gxa-rows">${kinds.map((kind) => `<div class="gxa-row" data-gxa-type="${esc(kind.id)}">${icon('fa-calendar-check')}<div><strong>${esc(kind.label)} ${category(kind.category)}</strong><small>${esc(who(kind))} · ${esc(texts(kind))}</small></div></div>`).join('')}</div>
+      <div class="gxa-rows">${kinds.map((kind) => `<div class="gxa-row" data-gxa-type="${esc(kind.id)}">${icon('fa-calendar-check')}<div><strong>${esc(kind.label)} ${category(kind.category)}</strong><small>${esc(goes(kind))} · ${esc(texts(kind))}</small></div></div>`).join('')}</div>
       ${textingNote}
       ${errorLine}
       <div class="gxa-actions">
         <button type="button" class="gxa-btn" data-gxa-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>
         <span class="gxa-spacer"></span>
+        ${offerTeams ? `<button type="button" class="gxa-btn" data-gxa-teams><i class="fas fa-users" aria-hidden="true"></i>${esc(L('gx_appt_done_teams', 'Set up {crews} and {subcontractors}', { crews: crewsWord.toLowerCase(), subcontractors: subsWord.toLowerCase() }))}</button>` : ''}
         <button type="button" class="gxa-btn primary" data-gxa-finish>${esc(L('gx_appt_done', 'Book an appointment'))}</button>
       </div>
     </div>`;
     el.querySelector('[data-gxa-back]').addEventListener('click', () => go(page - 1));
     el.querySelector('[data-gxa-finish]').addEventListener('click', (event) => finish(event.currentTarget));
+    el.querySelector('[data-gxa-teams]')?.addEventListener('click', (event) => finish(event.currentTarget, true));
   }
-  async function finish(button){
+  // With `teams`, the workforce setup plays first (the appointment setup waits, hidden), then the setup finishes and
+  // goes on to scheduling as usual, whether or not that one was finished.
+  async function finish(button, teams = false){
     if (busy) return; busy = true; button.disabled = true;
     report();
-    try { await ctx.complete?.(); } catch (error) { fail(error); } finally { busy = false; if (button.isConnected) button.disabled = false; }
+    try {
+      if (teams) await ctx.runGuide?.('operations.workforce.setup', { replay: true });
+      if (alive) await ctx.complete?.();
+    } catch (error) { fail(error); } finally { busy = false; if (button.isConnected) button.disabled = false; }
   }
 
   function draw(){
@@ -184,11 +229,17 @@ export function mount(el, ctx){
     for (const entry of array(catalog.attendees)) labels[entry.id] = ctx.L(object(entry.label).key, clean(object(entry.label).text));
     for (const entry of array(catalog.categories)) categories[entry.id] = ctx.L(object(entry.label).key, clean(object(entry.label).text));
     const names = new Map(array(catalog.kinds).map((entry) => [entry.id, ctx.L(object(entry.label).key, clean(object(entry.label).text))]));
-    attendees = array(status.attendees);
-    kinds = array(status.kinds).map((kind) => ({ id: kind.id, label: kind.custom ? clean(kind.label) : names.get(kind.id) || clean(kind.label), category: kind.category, reminder: !!kind.reminder, on_my_way: !!kind.on_my_way, attendee: attendees.includes(kind.attendee) ? kind.attendee : attendees[attendees.length - 1] || 'anyone' }));
+    every = array(catalog.attendees).map((entry) => entry.id);
+    noSales = status.no_sales === true;
+    const offerOf = new Map(array(catalog.kinds).map((entry) => [entry.id, array(entry.offer)]));
+    kinds = array(status.kinds).map((kind) => {
+      const picked = array(kind.attendees).filter((id) => every.includes(id));
+      const offered = array(kind.offered).length ? array(kind.offered) : offerOf.get(kind.id) || [];
+      return { id: kind.id, label: kind.custom ? clean(kind.label) : names.get(kind.id) || clean(kind.label), category: kind.category, reminder: !!kind.reminder, on_my_way: !!kind.on_my_way, offered: offered.filter((id) => every.includes(id)), attendees: picked.length ? picked : [clean(kind.attendee) || 'anyone'], more: false };
+    });
     if (!kinds.length) { el.innerHTML = `<div class="gxa"><p class="gxa-error" role="alert">${esc(L('gx_appt_no_kinds', 'Choose the kinds of appointments you schedule first. Close the setup and try again.'))}</p></div>`; return; }
     report(); draw();
   }).catch((error) => { if (alive) { el.innerHTML = `<div class="gxa">${errorLine}</div>`; fail(error); } });
-  return { valid: () => true, escape: () => busy, destroy(){ alive = false; } };
+  return { valid: () => true, escape: () => busy, back, backDepth: () => page, destroy(){ alive = false; } };
 }
 export default mount;

@@ -1428,8 +1428,19 @@
     } else if (assignmentRequired && kind !== 'project_work' && !assignedUserId && !assignedUsers.length && !assignedResourceId) {
       warnings.push({ code:'assignment_unassigned', label:(globalThis.PlatformLanguage?.text("platform-scheduling","m_5df5da02403b40","Required person or team is not assigned") ?? "Required person or team is not assigned") });
     }
-    if (kind === 'project_work' && !assignedResourceId && !assignedUserId && !assignedUsers.length) {
-      warnings.push({ code:'crew_unassigned', label:(globalThis.PlatformLanguage?.text("platform-scheduling","m_7c77a4ac5fa59d","Crew is not assigned") ?? "Crew is not assigned") });
+    // An appointment booked before anyone of the kind it needs was set up is left unassigned (GP-85): one whose type
+    // sends crews, or leaves who goes to whoever books it (subcontractors), needs a crew like project work does.
+    const appointment = objectValue(value.appointment_configuration);
+    const appointmentRequirements = arrayValue(appointment.requirements).map(objectValue);
+    const appointmentNeedsTeam = kind === 'appointment' && Object.keys(appointment).length > 0 && (appointmentRequirements.some((requirement) => cleanText(requirement.subject_type) && requirement.subject_type !== 'organization_user')
+      || (!appointmentRequirements.length && appointment.requires_project === true && cleanText(appointment.event_type_id) !== 'sales_appointment' && objectValue(appointment.location).mode !== 'company_office'));
+    if ((kind === 'project_work' || appointmentNeedsTeam) && !assignedResourceId && !assignedUserId && !assignedUsers.length) {
+      // With no crews or subcontractors at all, say so: the caller offers to set them up (`setup`).
+      warnings.push(options.noTeams
+        ? { code:'crew_unassigned', no_teams:true, setup:'operations.workforce.setup', label:cleanText(options.noTeamsLabel) || 'No crews or subcontractors' }
+        : { code:'crew_unassigned', label:(globalThis.PlatformLanguage?.text("platform-scheduling","m_7c77a4ac5fa59d","Crew is not assigned") ?? "Crew is not assigned") });
+    } else if (kind === 'appointment' && appointmentRequirements.length && !assignedUserId && !assignedUsers.length && !assignedResourceId && !warnings.length) {
+      warnings.push({ code:'assignment_unassigned', label:(globalThis.PlatformLanguage?.text("platform-scheduling","m_5df5da02403b40","Required person or team is not assigned") ?? "Required person or team is not assigned") });
     }
     if (options.includeEquipment !== false) {
       const units = arrayValue(options.equipmentUnits).map(objectValue);
