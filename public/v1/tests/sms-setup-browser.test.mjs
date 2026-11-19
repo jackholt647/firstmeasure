@@ -40,7 +40,8 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
       const formatPhoneUS=v=>v.replace(/(\\d{3})(\\d{3})(\\d{4})/,'($1) $2-$3');
       const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       const readSettingsRoute=()=>({}); const writeSettingsRoute=()=>{};
-      const showToast=()=>{}; const renderSmsSettings=()=>{};
+      window.toasts=[]; window.settingsShown=0;
+      const showToast=(title,body,ok)=>window.toasts.push([title,body,ok]); const renderSmsSettings=()=>{window.settingsShown++;};
       window.requests=[]; window.failSubmit=true; window.saved=${JSON.stringify(fixture)};
       const messagingRequest=async(path,options={})=>{
         window.requests.push({path,...options});
@@ -106,16 +107,66 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
     if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-mobile.png'});
     // Still on Review: the error's link opened the Advanced popup instead of leaving it.
     await page.evaluate(()=>window.failSubmit=false);
+    await page.evaluate(()=>window.toasts=[]);
     await page.locator('#smsRetrySubmission').click();
-    await page.getByText(/Your SMS registration is under review/).waitFor();
-    assert.equal(await page.locator('#smsContinueSetup').count(),0);
-    assert.equal(await page.locator('.sms-final-features, .sms-review-actions').count(),0);
-    if(process.env.SMS_SCREENSHOTS){await page.setViewportSize({width:1280,height:960});await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/review-desktop.png'});}
+    // GP-7: submitted is the end of the workflow: one "pending approval" message, and the workflow closes, back to Settings.
+    await page.locator('.fm-wizard-backdrop').waitFor({state:'detached'});
+    assert.equal(await page.evaluate(()=>window.settingsShown),1,'back to Settings › Phone, which shows where registration stands');
+    const toasts=await page.evaluate(()=>window.toasts);
+    assert.equal(toasts.length,1,JSON.stringify(toasts));
+    assert.equal(toasts[0][0],'SMS registration submitted');
+    assert.match(toasts[0][1],/^Pending approval\./);
+    assert.doesNotMatch(toasts[0][1],/submitted automatically/);
     assert.deepEqual(errors,[]);
   } finally { await browser.close(); }
 });
 
 
+
+// GP-7: a business still being verified is not a second submission to wait for. Submitting sends the business, the
+// campaign follows on its own, and the person hears once that it is submitted and pending approval; the workflow closes.
+test('submitting while the business is verified closes the workflow with one pending-approval message', async () => {
+  const browser = await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try {
+    const page = await browser.newPage({viewport:{width:1280,height:960}});
+    const errors=[]; page.on('pageerror', e=>errors.push(e.message));
+    await page.setContent('<body></body>');
+    await page.addScriptTag({content:shell});
+    await page.addStyleTag({content:styles});
+    const draft = {...fixture, brand_status:'draft', provider_refs:{telnyx_number_order_id:'order-fixture'}};
+    await page.addScriptTag({content:`
+      let smsRegistrationLiveMode=true; const state={}; const currentOrgId=()=> 'fixture-org';
+      const normalizeOrganizationBusinessAddress=(v)=>v||{};
+      const organizationBusinessAddressFromState=()=>({});
+      const formatOrganizationBusinessAddress=()=>'';
+      const formatPhoneUS=v=>v;
+      const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      const readSettingsRoute=()=>({}); const writeSettingsRoute=()=>{};
+      window.toasts=[]; window.closes=[];
+      const showToast=(title,body,ok)=>window.toasts.push([title,body,ok]); const renderSmsSettings=()=>{};
+      window.requests=[]; window.saved=${JSON.stringify(draft)};
+      const messagingRequest=async(path,options={})=>{
+        window.requests.push({path,...options});
+        if(options.method==='PATCH') window.saved={...window.saved,...structuredClone(options.body)};
+        if(path.endsWith('/submit-brand')) window.saved={...window.saved,status:'submitted',brand_status:'pending',provider_refs:{...window.saved.provider_refs,telnyx_brand_id:'brand-fixture'}};
+        return {profile:structuredClone(window.saved)};
+      };
+      ${envShim}${helpers}
+      ${wizard}
+      window.start=()=>openSmsWizard(window.saved,{standalone:true,initialStep:'summary',onClose:profile=>window.closes.push(profile)});
+    `});
+    await page.evaluate(()=>window.start());
+    await page.locator('#smsSubmitMock').click();
+    await page.locator('.fm-wizard-backdrop').waitFor({state:'detached'});
+    assert.deepEqual(await page.evaluate(()=>window.requests.filter(r=>r.method==='POST').map(r=>r.path.split('/').pop())),['submit-brand','refresh-status']);
+    assert.equal(await page.evaluate(()=>window.closes.length),1,'open() resolves, so the setup that opened it goes on');
+    const toasts=await page.evaluate(()=>window.toasts);
+    assert.deepEqual(toasts.map(t=>t[0]),['SMS registration submitted']);
+    assert.match(toasts[0][1],/^Pending approval\./);
+    assert.doesNotMatch(toasts[0][1],/automatically|verification/);
+    assert.deepEqual(errors,[]);
+  } finally { await browser.close(); }
+});
 
 test('registration landing page has one primary action, truthful states, and responsive layout', async () => {
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
