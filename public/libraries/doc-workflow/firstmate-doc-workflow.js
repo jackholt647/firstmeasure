@@ -2665,11 +2665,12 @@
           const attrs = `data-fmdw-cmp-line="${esc(line.id)}" data-fmdw-cmp-key="${esc(compareKey(line))}"`;
           if (!editing) return `<li class="${off}" ${attrs}><span>${esc(name)}</span><b>${esc(moneyFromDollars(lineAmount(line)))}</b></li>`;
           const quantity = Number(line.quantity || 0) || 0;
-          const per = quantity !== 1 && line.price_driving !== false ? `${formatNumber(quantity)} ${line.unit || 'ea'} × ${moneyFromDollars(line.unit_price)}` : 'Price';
+          // A measured line says how its price is made up.
+          const per = quantity !== 1 && line.price_driving !== false ? `${formatNumber(quantity)} ${line.unit || 'ea'} × ${moneyFromDollars(line.unit_price)}` : '';
           return `
             <li class="${off} edit" ${attrs}>
-              <input type="text" class="fmdw-cmp-name" data-fmdw-cmp-name value="${esc(name)}" maxlength="160" aria-label="Name on this estimate" title="Name on this estimate">
-              <label class="fmdw-cmp-price" title="${esc(per)}"><i>$</i><input type="text" inputmode="decimal" data-fmdw-cmp-price value="${esc(amountText(lineAmount(line)))}" aria-label="Price of ${esc(name)}" ${line.price_driving === false ? 'disabled' : ''}></label>
+              <input type="text" class="fmdw-cmp-name" data-fmdw-cmp-name value="${esc(name)}" maxlength="160" aria-label="Name on this estimate">
+              <label class="fmdw-cmp-price" ${per ? `title="${esc(per)}"` : ''}><i>$</i><input type="text" inputmode="decimal" data-fmdw-cmp-price value="${esc(amountText(lineAmount(line)))}" aria-label="Price of ${esc(name)}" ${line.price_driving === false ? 'disabled' : ''}></label>
               <button type="button" class="fmdw-cmp-remove" data-fmdw-cmp-remove title="Take this line off" aria-label="Take ${esc(name)} off"><i class="fas fa-xmark"></i></button>
             </li>`;
         };
@@ -2714,6 +2715,8 @@
       const book = root.FirstMatePricebook || root.Portal?.modules?.pricebook || null;
       let made = null;
       try { made = book?.scopeItemFromPricebook?.(entry.id, clone(measurements())); } catch (e) { made = null; }
+      // Nothing measured for it (no gutter length yet): one, at its price, until someone types the price.
+      if (made && !(Number(made.quantity) > 0)) made = { ...made, quantity: '1', manual_quantity: true };
       return normalizeScopeItem(made || {
         name: firstText(entry.name, entry.display_name, 'Line item'),
         display_name: firstText(entry.display_name, entry.name),
@@ -4656,15 +4659,15 @@
 .fmdw-lir-col.on .fmdw-lir-col-lines li.hover{background:color-mix(in srgb,var(--fmdw-primary) 7%,transparent)}
 /* the chosen column is edited in place: name, price, take off, add */
 .fmdw-lir-col-lines li.edit{display:grid;grid-template-columns:minmax(0,1fr) auto 18px;align-items:center;gap:4px;padding-right:0}
-.fmdw-lir-compare input.fmdw-cmp-name,.fmdw-lir-compare .fmdw-cmp-price input{max-width:none;min-width:0;box-shadow:none;box-sizing:border-box;border:1px solid transparent;border-radius:6px;background:transparent;color:inherit;font:inherit;font-size:11px;font-weight:800;padding:2px 5px;margin:-3px 0 -3px -5px;outline:none;transition:border-color .12s ease,background .12s ease}
+.fmdw-lir-compare input.fmdw-cmp-name,.fmdw-lir-compare .fmdw-cmp-price input{max-width:none;min-width:0;box-shadow:none;box-sizing:border-box;border:1px solid transparent;border-radius:6px;background:transparent;color:inherit;font:inherit;font-size:11px;font-weight:800;height:19px;line-height:15px;padding:1px 5px;margin:-2px 0 -2px -5px;outline:none;transition:border-color .12s ease,background .12s ease}
 .fmdw-lir-compare input.fmdw-cmp-name{width:calc(100% + 5px);text-overflow:ellipsis}
 .fmdw-cmp-price{display:inline-flex;align-items:center;justify-content:flex-end;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap;cursor:text}
 .fmdw-cmp-price i{font-style:normal}
-.fmdw-lir-compare .fmdw-cmp-price input{width:10ch;margin:-3px -5px -3px -3px;padding-left:2px;text-align:right;font-weight:900;font-variant-numeric:tabular-nums}
+.fmdw-lir-compare .fmdw-cmp-price input{width:10ch;margin:-2px -5px -2px -3px;padding-left:2px;text-align:right;font-weight:900;font-variant-numeric:tabular-nums}
 .fmdw-lir-compare li.edit:hover input.fmdw-cmp-name,.fmdw-lir-compare li.edit:hover .fmdw-cmp-price input,.fmdw-lir-compare .fmdw-cmp-add input.fmdw-cmp-name,.fmdw-lir-compare .fmdw-cmp-add .fmdw-cmp-price input{border-color:#d4d9e6;background:#fff}
 .fmdw-lir-compare input.fmdw-cmp-name:focus,.fmdw-lir-compare .fmdw-cmp-price input:focus{border-color:var(--fmdw-primary)!important;background:#fff;box-shadow:none}
 .fmdw-lir-col-lines li.off .fmdw-cmp-name,.fmdw-lir-col-lines li.off .fmdw-cmp-price{text-decoration:line-through}
-.fmdw-cmp-remove{width:18px;height:18px;padding:0;border:0;border-radius:5px;background:transparent;color:#98a2b3;font-size:10px;cursor:pointer;display:grid;place-items:center;opacity:0;transition:opacity .12s ease,background .12s ease}
+.fmdw-cmp-remove{width:18px;height:17px;margin:-1px 0;padding:0;border:0;border-radius:5px;background:transparent;color:#98a2b3;font-size:10px;cursor:pointer;display:grid;place-items:center;opacity:0;transition:opacity .12s ease,background .12s ease}
 .fmdw-cmp-remove:hover{background:#fdecea;color:#b42318}
 .fmdw-lir-col-lines li.edit:hover .fmdw-cmp-remove,.fmdw-lir-col-lines li.edit:focus-within .fmdw-cmp-remove,.fmdw-cmp-add .fmdw-cmp-remove,.fmdw-cmp-remove:focus-visible{opacity:1}
 @media (hover:none){.fmdw-cmp-remove{opacity:1}}
@@ -4672,7 +4675,7 @@
 .fmdw-cmp-add-open{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:7px;background:transparent;color:var(--fmdw-primary);font:inherit;font-size:11px;font-weight:900;padding:4px 6px;margin-left:-6px;cursor:pointer}
 .fmdw-cmp-add-open:hover{background:color-mix(in srgb,var(--fmdw-primary) 8%,transparent)}
 .fmdw-cmp-add-row{display:grid;grid-template-columns:minmax(0,1fr) auto 18px;align-items:center;gap:4px;font-size:11px;font-weight:800;color:#344054}
-.fmdw-lir-compare .fmdw-cmp-add input.fmdw-cmp-name,.fmdw-lir-compare .fmdw-cmp-add .fmdw-cmp-price input{margin-top:0;margin-bottom:0;padding-top:4px;padding-bottom:4px}
+.fmdw-lir-compare .fmdw-cmp-add input.fmdw-cmp-name,.fmdw-lir-compare .fmdw-cmp-add .fmdw-cmp-price input{margin-top:0;margin-bottom:0;height:26px;padding-top:4px;padding-bottom:4px}
 .fmdw-lir-compare .fmdw-cmp-add input.fmdw-cmp-name{margin-left:0;width:100%}
 .fmdw-lir-compare .fmdw-cmp-add .fmdw-cmp-price input{margin-right:0;min-width:7ch}
 @supports (field-sizing:content){.fmdw-lir-compare .fmdw-cmp-price input{field-sizing:content;width:auto;min-width:4ch}.fmdw-lir-compare .fmdw-cmp-add .fmdw-cmp-price input{min-width:7ch}}
