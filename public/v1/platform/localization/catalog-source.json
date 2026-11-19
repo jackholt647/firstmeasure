@@ -6043,7 +6043,11 @@
     "m_f28c8b20aa8156": "Require a purchase time",
     "m_98318e06320f96": "A receipt without a purchase time cannot be applied.",
     "m_45d6040e90a537": "Suggest expense lists automatically",
-    "m_a524ed5f8b6e79": "New receipts come with their expense lists picked from the total. Off: you choose every list yourself."
+    "m_a524ed5f8b6e79": "New receipts come with their expense lists picked from the total. Off: you choose every list yourself.",
+    "m_5f33627052a81a": "Starting the invoice…",
+    "m_23a9ed6b914f78": "The invoice workflow is not loaded. Refresh the portal and try again.",
+    "m_d7e505333f5522": "The invoice could not be started.",
+    "m_2799b0873b6af7": "Choose what to bill, or add a charge."
   },
   "onboarding": {
     "m_a0d673c98d109b": "Order Reports",

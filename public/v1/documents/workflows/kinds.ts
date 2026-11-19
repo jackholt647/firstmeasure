@@ -122,6 +122,8 @@ const reviewItemSchema = baseItemSchema.extend({
 registerWorkflowItemKind("text", { schema: baseItemSchema });
 registerWorkflowItemKind("currency", { schema: baseItemSchema });
 registerWorkflowItemKind("number", { schema: baseItemSchema });
+// A percentage, 0 to 100 (the invoice's sales tax, GP-104).
+registerWorkflowItemKind("percent", { schema: baseItemSchema });
 registerWorkflowItemKind("select", { schema: selectItemSchema });
 registerWorkflowItemKind("multi_select", { schema: selectItemSchema });
 registerWorkflowItemKind("boolean", { schema: baseItemSchema });

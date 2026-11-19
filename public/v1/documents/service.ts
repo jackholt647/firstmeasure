@@ -527,7 +527,7 @@ async function attachImageMediaUrls(orgId: string, definition: JsonObject, stati
   return definition;
 }
 
-function typeDefinitionFor(documentTypeId: string): DocumentTypeDefinition {
+export function typeDefinitionFor(documentTypeId: string): DocumentTypeDefinition {
   return documentType(documentTypeId) || {
     id: cleanText(documentTypeId).toLowerCase() || "generic",
     label: cleanText(documentTypeId) || "Document",
@@ -692,7 +692,7 @@ export async function createDocumentInstance(orgId: string, projectId: string, i
   const projectData = projectId ? asObject(asObject(await readDocument(orgId, "projects", projectId).catch(() => null)).data) : {};
   const scaffold: JsonObject = { project_id: projectId };
   const entities = await documentScopeEntities(orgId, scaffold, asObject(input.params));
-  const params = await deriveAccountParams(orgId, { id, project_id: projectId, document_type: typeDef.id, param_defs: paramDefs }, resolveDocumentParams(paramDefs, asObject(input.params), entities));
+  const params = await deriveAccountParams(orgId, { id, project_id: projectId, document_type: typeDef.id, param_defs: paramDefs }, resolveDocumentParams(paramDefs, asObject(input.params), entities), { creating: true });
   const missing = FMDocModel.missingRequiredParams(Object.fromEntries(Object.entries(paramDefs).filter(([, definition]) => asObject(definition).disabled !== true)), params);
   const workflow = await resolveWorkflowForCreate(orgId, input, template, typeDef);
   if (workflow.workflow_ref) {

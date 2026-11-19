@@ -192,7 +192,7 @@ test("change order, invoice and completion certificate run against a signed agre
   assert.equal(invoice.params.account.paid_cents, 657000);
   const options = invoice.params.account.bill_options;
   assert.deepEqual(options.map((option: any) => [option.label, option.price_cents ?? null]), [
-    ["Final payment", 1400000], ["Change order balance", 57000], ["Remaining balance", 1457000], ["Other charges only", null]
+    ["Final payment", 1400000], ["Change order balance", 57000], ["Remaining balance", 1457000], ["Deposit", 600000], ["Change order deposit", 57000], ["Other charges only", null]
   ]);
   const finalPayment = byLabel("Final payment");
   await docs.patch(invoice.id, { bill: finalPayment.id, due_date: "2026-11-15", line_items: [{ id: "permit", name: "Building permit", quantity: 1, unit: "ea", unit_price: 150 }] });
@@ -218,6 +218,23 @@ test("change order, invoice and completion certificate run against a signed agre
   assert.equal(byLabel("Final payment").status, "paid");
   assert.equal(obligations.find((item) => item.id === charges.id)?.status, "paid");
   assert.equal(byLabel("Change order balance").allocated_cents, 0, "an invoice pays only what it bills");
+  // GP-104: a payment already paid can be billed (it owes nothing), sales tax switches off, and paid in full reads so.
+  const receipt = await docs.create("tpl_invoice_default", "invoice");
+  assert.equal(receipt.params.tax_enabled, true, "a new invoice starts with the organization's sales tax");
+  assert.ok(receipt.params.account.bill_options.some((option: any) => option.value === byLabel("Deposit").id && option.description === "Paid"));
+  await docs.patch(receipt.id, { bill: byLabel("Deposit").id, tax_percent: 10, line_items: [{ id: "dump", name: "Dump fee", quantity: 1, unit: "ea", unit_price: 100 }] });
+  resolved = await docs.resolve(receipt.id);
+  assert.deepEqual(resolved.scope.params.billing.lines.map((line: any) => [line.label, line.detail, line.amount_cents]), [["Deposit", "Paid", 600000], ["Dump fee", "", 10000], ["Sales tax (10%)", "", 1000]]);
+  assert.equal(resolved.scope.params.amount_due_cents, 11000, "the paid deposit owes nothing");
+  await docs.patch(receipt.id, { tax_enabled: false, render_paid_in_full: true });
+  resolved = await docs.resolve(receipt.id);
+  assert.equal(resolved.scope.params.billing.lines.length, 2, "no sales tax once it is switched off");
+  assert.equal(resolved.scope.params.amount_due_cents, 0);
+  assert.equal(resolved.scope.params.status, "Paid in full");
+  await docs.patch(receipt.id, { render_paid_in_full: false });
+  resolved = await docs.resolve(receipt.id);
+  assert.equal(resolved.scope.params.amount_due_cents, 10000);
+  assert.equal(resolved.scope.params.status, "");
 
   // ---- Completion certificate ---------------------------------------------
   let certificate = await docs.create("tpl_roofing_completion_certificate", "completion_certificate");

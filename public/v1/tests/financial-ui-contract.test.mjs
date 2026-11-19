@@ -158,18 +158,23 @@ test('Take a Payment leads to payment setup when the organization cannot take pa
   assert.match(money, /modal\.type === 'take_payment' && state\.paymentIntakeConfig\?\.config\?\.ready !== true\) state\.paymentIntakeConfig = null/);
 });
 
-test('Generate invoice is a two-column composer, and money dialogs are bottom trays on a phone (GP-4)', async () => {
+test('Generate invoice is the invoice workflow with its preview, and money dialogs are bottom trays on a phone (GP-4, GP-104)', async () => {
   const money = await readFile(moneyUrl, 'utf8');
-  // Items and the note on the left; dates, switches and totals in a panel beside them.
-  assert.match(money, /<form class="mn-invoice" data-money-invoice-form id="mnInvoiceForm">\s*<div class="mn-invoice-main">/);
-  assert.match(money, /<div class="mn-invoice-side">\s*<div class="mn-invoice-settings">/);
+  // The same workflow as an invoice made in Docs (wfl_invoice over tpl_invoice_default, from payments' invoices/draft,
+  // never saved), in a wide modal, its preview pinned beside the one step; the dialog's own buttons generate it.
+  assert.match(money, /\/invoices\/draft`/);
+  assert.match(money, /invoiceDraft\(flow, \{ start:true \}\)/);
+  assert.match(money, /footer:false,/);
+  assert.match(money, /preview:\{ pinned:true, collapsible:true, resolve:\(\) => resolveInvoiceFlow\(flow\) \}/);
   assert.match(money, /size:'mn-invoice-modal'/);
-  // The total stays in view in the footer on a phone, kept current with the form.
+  assert.match(money, /\.mn-modal\.mn-invoice-modal\{width:min\(1180px,100%\)/);
+  assert.match(money, /if \(state\.invoiceFlow && \(state\.modal\?\.type !== 'invoice'[^\n]*discardInvoiceFlow\(\);/);
+  // Its fields reach the invoice this tab makes: sales tax on the other charges, as the document taxes them.
+  assert.match(money, /tax_base:'charges',/);
+  assert.match(money, /render_paid_in_full:params\.render_paid_in_full === true,/);
+  // The total stays in view in the footer, kept current with the preview.
   assert.match(money, /data-money-invoice-foot-total/);
   assert.match(money, /querySelectorAll\('\[data-money-invoice-foot-total\]'\)\.forEach/);
-  // Classes that set display honour hidden.
-  assert.match(money, /\.mn-invoice-total-row\[hidden\]\{display:none\}/);
-  assert.match(money, /\.mn-invoice-setting\[hidden\]\{display:none\}/);
   // Phone: dialogs rise from the bottom edge to edge, and both the invoice and its email step drag or tap away.
   assert.match(money, /@container money \(max-width:640px\)\{[\s\S]*\.mn-modal-shade\{padding:0;align-items:flex-end;backdrop-filter:none\}[\s\S]*border-radius:18px 18px 0 0/);
   assert.match(money, /function bindTray\(shade, close, options = \{\}\)/);

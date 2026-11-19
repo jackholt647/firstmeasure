@@ -133,10 +133,12 @@ export async function projectAccount(orgId: string, projectId: string, options: 
     paid_cents: paid,
     balance_cents: total - paid,
     schedule: rows,
-    // What an invoice can bill: each open payment, everything that is open, or only its own charges.
+    // What an invoice can bill: each open payment, everything that is open, a payment already paid (an invoice that
+    // reads paid in full, GP-104), or only its own charges.
     bill_options: [
       ...open.map((row) => ({ value: row.id, label: row.label, description: row.due_text, price_cents: row.balance_cents })),
       ...(open.length > 1 ? [{ value: "balance", label: "Remaining balance", description: `All ${open.length} open payments`, price_cents: total - paid }] : []),
+      ...rows.filter((row) => row.balance_cents <= 0 && row.amount_cents > 0).map((row) => ({ value: row.id, label: row.label, description: "Paid", price_cents: row.amount_cents })),
       OWN_CHARGES_OPTION
     ]
   };
@@ -175,24 +177,37 @@ function invoiceFigures(params: JsonObject, account: JsonObject) {
     .map((line) => ({ label: cleanText(line.display_name || line.name || line.description) || "Charge", detail: cleanText(line.name || line.display_name) ? cleanText(line.description) : "", amount_cents: lineAmountCents(line) }))
     .filter((line) => line.amount_cents > 0);
   const chargesCents = charges.reduce((total, line) => total + line.amount_cents, 0);
-  const tax = Math.round(chargesCents * (Number(params.tax_percent) || 0) / 100);
+  // An invoice rendered for the Money app arrives with its amount already settled there.
+  const explicit = !bill && params.amount_due_cents !== undefined && params.amount_due_cents !== null && params.amount_due_cents !== "";
+  // Sales tax (GP-104): on the other charges, unless switched off; one the Money app settled is shown as it was.
+  const settledTax = explicit && params.tax_cents !== undefined && params.tax_cents !== null && params.tax_cents !== "";
+  const tax = settledTax ? cents(params.tax_cents) : (params.tax_enabled === false ? 0 : Math.round(chargesCents * (Number(params.tax_percent) || 0) / 100));
+  // A payment already paid is shown at its amount and owes nothing.
+  const paidRows = billed.filter((row) => cents(row.balance_cents) <= 0);
   const lines = [
-    ...billed.map((row) => ({ label: row.label, detail: cents(row.paid_cents) > 0 ? `Balance of ${cleanText(row.label).toLowerCase()}` : "", amount_cents: cents(row.balance_cents) })),
+    ...billed.map((row) => cents(row.balance_cents) <= 0
+      ? { label: row.label, detail: "Paid", amount_cents: cents(row.amount_cents) }
+      : { label: row.label, detail: cents(row.paid_cents) > 0 ? `Balance of ${cleanText(row.label).toLowerCase()}` : "", amount_cents: cents(row.balance_cents) }),
     ...charges,
     ...(tax > 0 ? [{ label: `Sales tax (${Number(params.tax_percent)}%)`, detail: "", amount_cents: tax }] : [])
   ];
-  const due = lines.reduce((total, line) => total + line.amount_cents, 0);
-  // An invoice rendered for the Money app arrives with its amount already settled there.
-  const explicit = !bill && params.amount_due_cents !== undefined && params.amount_due_cents !== null && params.amount_due_cents !== "";
+  const billedTotal = lines.reduce((total, line) => total + line.amount_cents, 0);
+  const due = billedTotal - paidRows.reduce((total, row) => total + cents(row.amount_cents), 0);
   const explicitObligations = asArray(asObject(params.billing).obligation_ids).map(cleanText).filter(Boolean);
+  // Paid in full (GP-104) only changes how the invoice reads: nothing is owed on it and it says so.
+  const paidInFull = params.render_paid_in_full === true;
+  const status = typeof params.render_paid_in_full === "boolean"
+    ? { status: paidInFull ? "Paid in full" : (cleanText(params.status) === "Paid in full" ? "" : params.status) }
+    : {};
   return {
     billing: {
       lines,
       obligation_ids: explicit && explicitObligations.length ? explicitObligations : billed.map((row) => row.id),
       charges_cents: chargesCents + tax,
-      total_cents: due
+      total_cents: billedTotal
     },
-    amount_due_cents: explicit ? cents(params.amount_due_cents) : due
+    amount_due_cents: paidInFull ? 0 : (explicit ? cents(params.amount_due_cents) : due),
+    ...status
   };
 }
 
@@ -200,7 +215,7 @@ function invoiceFigures(params: JsonObject, account: JsonObject) {
  * Params with the project account and the figures the document type derives
  * from it. Also fills the dates and numbers a new document starts with.
  */
-export async function deriveAccountParams(orgId: string, document: JsonObject, paramsValue: JsonObject): Promise<JsonObject> {
+export async function deriveAccountParams(orgId: string, document: JsonObject, paramsValue: JsonObject, options: { creating?: boolean } = {}): Promise<JsonObject> {
   if (!usesAccount(document) || accountFrozen(document)) return paramsValue;
   const params = { ...paramsValue };
   const documentId = cleanText(document.id);
@@ -215,10 +230,21 @@ export async function deriveAccountParams(orgId: string, document: JsonObject, p
   } else if (type === "invoice") {
     if (!cleanText(params.issue_date)) params.issue_date = today();
     if (!cleanText(params.invoice_number)) params.invoice_number = `INV-${cleanText(params.issue_date).replace(/-/g, "").slice(2, 8)}-${documentId.slice(-5).toUpperCase()}`;
-    if (!cleanText(params.due_date)) {
+    // A new invoice starts from the organization's invoice settings: its due days and its sales tax (GP-104).
+    const startsTax = options.creating === true && typeof params.tax_enabled !== "boolean";
+    if (!cleanText(params.due_date) || startsTax) {
       const { invoicePaymentSettingsForProject } = await import("../payments/invoices.js");
-      const days = Number(asObject(await invoicePaymentSettingsForProject(orgId, projectId).catch(() => ({}))).default_due_days) || 0;
-      params.due_date = new Date(Date.parse(`${cleanText(params.issue_date)}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+      const settings = asObject(await invoicePaymentSettingsForProject(orgId, projectId).catch(() => ({})));
+      if (!cleanText(params.due_date)) {
+        const days = Number(settings.default_due_days) || 0;
+        params.due_date = new Date(Date.parse(`${cleanText(params.issue_date)}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+      }
+      if (startsTax) {
+        // Sales tax turned off for the organization: the invoice has none and does not ask.
+        params.sales_tax_available = settings.sales_tax_enabled !== false;
+        params.tax_enabled = params.sales_tax_available;
+        if (!(Number(params.tax_percent) > 0)) params.tax_percent = Math.min(100, Math.max(0, Number(settings.default_sales_tax_percent) || 0));
+      }
     }
     Object.assign(params, invoiceFigures(params, account));
   } else if (type === "completion_certificate") {

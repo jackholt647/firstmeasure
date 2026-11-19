@@ -132,6 +132,7 @@ import { registerMoneyOnboardingAttentionSource } from "./onboarding_attention.j
 import {
   applyReceiptSchema,
   createInvoiceSchema,
+  invoiceDraftSchema,
   createDisbursementSchema,
   createPayableSchema,
   createPaymentIntentSchema,
@@ -236,6 +237,7 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
       projectObligations: "/organizations/:orgId/projects/:projectId/obligations",
       projectPayments: "/organizations/:orgId/projects/:projectId/payments",
       projectInvoices: "/organizations/:orgId/projects/:projectId/invoices",
+      projectInvoiceDraft: "/organizations/:orgId/projects/:projectId/invoices/draft",
       organizationInvoices: "/organizations/:orgId/invoices",
       uninvoiced: "/organizations/:orgId/uninvoiced",
       payments: "/organizations/:orgId/payments",
@@ -522,6 +524,17 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     const invoice = await createInvoice(orgId, projectId, createInvoiceSchema.parse(request.body ?? {}), ctx);
     reply.code(201);
     return { ok: true, invoice };
+  });
+
+  // Generate invoice's workflow and live preview (GP-104): the invoice document's one step, over a draft never saved.
+  app.post("/organizations/:orgId/projects/:projectId/invoices/draft", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const projectId = getParam(request.params, "projectId");
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    await requireMoneyFeature(orgId, "invoices", "Invoicing");
+    const body = invoiceDraftSchema.parse(request.body ?? {});
+    const { resolveInvoiceDraft } = await import("../documents/invoice-draft.js");
+    return { ok: true, ...(await resolveInvoiceDraft(orgId, projectId, { params: asObject(body.params), start: body.start === true })) };
   });
 
   app.get("/organizations/:orgId/invoices", async (request) => {

@@ -188,6 +188,13 @@ then Reports and Settings as icon buttons. There is no refresh control and no "u
 figures (revenue, collected, remaining, cost forecast, forecast profit, profit to date) are a row of tiles; Cost
 forecast opens the project's expense lists with their projected and actual costs.
 
+Generate invoice is the invoice document's own workflow (`wfl_invoice` over `tpl_invoice_default`, GP-104): the same
+one step (what to bill, other charges, dates, sales tax and its rate, paid in full, a note) and live preview as an
+invoice made in Docs, in a wide modal. Its draft is resolved by `POST /v1/payments/.../projects/:id/invoices/draft`
+(`documents/invoice-draft.ts`) and never saved; Generate makes the Finances invoice from it, with sales tax on the
+other charges only (`tax_base: "charges"`), as the document taxes them. Change the step's questions in the config
+library entry, not in the Money app. A workflow of one step shows no step list (`FMDocWorkflow`, `single-step`).
+
 The rest is one ledger. The payment schedule (and autopay, when the customer has a saved method) runs across its
 top. Below are every payment, refund, expense, invoice and receipt, searchable, filtered by type or expense
 category, sorted by any column, shown as a list (default) or tiles (remembered in this browser). Payments, refunds

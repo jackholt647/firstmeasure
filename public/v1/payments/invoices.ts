@@ -453,9 +453,10 @@ export async function createInvoice(orgId: string, projectId: string, input: Jso
     ? Math.min(100, Math.max(0, Number.isFinite(requestedTaxPercent) ? requestedTaxPercent : Number(paymentSettings.default_sales_tax_percent || 0)))
     : 0;
   const taxEnabled = paymentSettings.sales_tax_enabled && input.tax_enabled === true;
-  const taxCents = taxEnabled ? Math.round(subtotalCents * taxPercent / 100) : 0;
-  const totalCents = subtotalCents + taxCents;
   const manualSubtotalCents = lineItems.filter((line) => line.type === "manual").reduce((sum, line) => sum + line.amount_cents, 0);
+  const taxBase = cleanText(input.tax_base) === "charges" ? "charges" : "all";
+  const taxCents = taxEnabled ? Math.round((taxBase === "charges" ? manualSubtotalCents : subtotalCents) * taxPercent / 100) : 0;
+  const totalCents = subtotalCents + taxCents;
   const supplementalReceivableCents = manualSubtotalCents + taxCents;
   const proposalSource = obligations.length
     ? asObject(obligations[0]?.source)
@@ -480,6 +481,7 @@ export async function createInvoice(orgId: string, projectId: string, input: Jso
     tax_enabled: taxEnabled,
     tax_percent: taxEnabled ? taxPercent : 0,
     tax_cents: taxCents,
+    ...(taxBase === "charges" ? { tax_base: taxBase } : {}),
     total_cents: totalCents,
     supplemental_receivable_cents: supplementalReceivableCents,
     currency: "USD",
@@ -878,6 +880,8 @@ function invoiceArtifactInput(orgId: string, invoice: JsonObject) {
       line_items: lineItems,
       scope_items: lineItems,
       tax_percent: Number(invoice.tax_percent || 0),
+      // Tax on the custom items only (GP-104): the document shows the tax the invoice was made with.
+      ...(cleanText(invoice.tax_base) === "charges" ? { tax_cents: Math.max(0, Math.round(Number(invoice.tax_cents || 0))) } : {}),
       amount_cents: Math.max(0, Math.round(Number(invoice.total_cents || 0))),
       amount_due_cents: balanceDueCents,
       billing: {
