@@ -4,7 +4,8 @@
  * They are an ordinary measurement dataset (role `manual`, producer `manual`) holding dictionary keys, so everything
  * that reads the project's selected measurement dataset (material calculations, measurement defaults, pay sheets,
  * requirements, the schema assessment) reads them exactly as it reads a report. Which keys can be entered comes from
- * the measurement schemas the project's scope templates name; a project whose scopes name none has nothing to enter.
+ * the measurement schemas the project's scope templates name; a project whose scopes name none (a new project, hourly
+ * work) is offered every schema in the dictionary, so measurements can always be entered by hand.
  *
  * Precedence (see `docs/architecture/measurement-schemas.md`): the project reads one selected dataset, never a mix.
  * Entries made by hand are selected only while no report is. A completed report replaces them on arrival
@@ -17,7 +18,7 @@ import type { PublicationContext, TargetRef } from "./contracts.js";
 import { authorizePublication } from "./context.js";
 import { contentHash } from "./validation.js";
 import { listProjectDatasets, readProjectDataset, saveProjectDataset, selectProjectDataset } from "./datasets.js";
-import { listMeasurementDefinitions, listMeasurementPartitions, measurementEquivalents, measurementSchema, measurementSchemaIdsForScope, preferredEquivalent } from "./measurement-schemas.js";
+import { listMeasurementDefinitions, listMeasurementPartitions, listMeasurementSchemas, measurementEquivalents, measurementSchema, measurementSchemaIdsForScope, preferredEquivalent } from "./measurement-schemas.js";
 
 type Obj = Record<string, unknown>;
 const obj = (value: unknown): Obj => (value && typeof value === "object" && !Array.isArray(value) ? value as Obj : {});
@@ -96,6 +97,15 @@ export async function projectMeasurementSchemaIds(organizationId: string, projec
   return found;
 }
 
+/**
+ * The schemas measurements can be entered by hand in: the project's own, or, while its scopes name none, every schema in
+ * the dictionary. The read and the writer both use this, so what the editor offers is what the writer accepts.
+ */
+export async function manualMeasurementSchemaIds(organizationId: string, projectId: string) {
+  const own = await projectMeasurementSchemaIds(organizationId, projectId);
+  return own.length ? own : listMeasurementSchemas().map((schema) => schema.id);
+}
+
 const numbers = (measurements: unknown) => Object.fromEntries(Object.entries(obj(measurements))
   .filter(([, entry]) => typeof obj(entry).value === "number" && Number.isFinite(obj(entry).value as number))
   .map(([key, entry]) => [key, obj(entry).value as number]));
@@ -106,14 +116,14 @@ function linkedReport(project: Obj) {
 }
 
 /**
- * Everything the manual measurements editor shows: the fields the project's schemas ask for, the person's entries, and
- * which dataset the project reads now (`in_use.source`: `manual`, `report`, `other` or `none`) with its values.
+ * Everything the manual measurements editor shows: the fields the project's schemas (or every schema) ask for, the
+ * person's entries, and which dataset the project reads now (`in_use.source`: `manual`, `report`, `other` or `none`) with its values.
  */
 export async function readManualMeasurements(ctx: PublicationContext, projectId: string) {
   const target: TargetRef = { scope: "project", organizationId: ctx.organizationId, projectId };
   const datasets = await listProjectDatasets(ctx, target);
   const project = await readDocument(ctx.organizationId, "projects", projectId);
-  const schemaIds = await projectMeasurementSchemaIds(ctx.organizationId, projectId);
+  const schemaIds = await manualMeasurementSchemaIds(ctx.organizationId, projectId);
   const fields = manualMeasurementFields(schemaIds);
   const manualId = manualMeasurementDatasetId(ctx.organizationId, projectId);
   const manualRow = datasets.find((row) => row.id === manualId);
@@ -140,14 +150,15 @@ export type ManualMeasurementInput = { values: Record<string, number | null>; ex
 
 /**
  * The one writer of measurements entered by hand. A number sets a key, null clears it; only keys the project's schemas
- * ask for are accepted, in the dictionary's unit. The entries are selected as the project's measurements only while no
- * other dataset is selected, and unselected when the last one is cleared, so a report is never displaced by them.
+ * ask for (every schema's, while its scopes name none) are accepted, in the dictionary's unit. The entries are selected
+ * as the project's measurements only while no other dataset is selected, and unselected when the last one is cleared,
+ * so a report is never displaced by them.
  */
 export async function saveManualMeasurements(ctx: PublicationContext, projectId: string, input: ManualMeasurementInput) {
   const target: TargetRef = { scope: "project", organizationId: ctx.organizationId, projectId };
   await authorizePublication(ctx, target, writeAccess, "measurements.manual.save");
   if (ctx.mode !== "command") throw forbidden("manual_measurements_mode", "Saving measurements requires command execution.");
-  const fields = new Map(manualMeasurementFields(await projectMeasurementSchemaIds(ctx.organizationId, projectId)).map((field) => [field.key, field]));
+  const fields = new Map(manualMeasurementFields(await manualMeasurementSchemaIds(ctx.organizationId, projectId)).map((field) => [field.key, field]));
   if (!fields.size) throw badRequest("manual_measurements_unavailable", "This project's scopes name no measurement schema, so there is nothing to enter.");
   // A value given for an equivalent of an entered measurement (roof area for roof squares) is taken as that measurement.
   const aliases = new Map<string, { key: string; factor: number }>();
