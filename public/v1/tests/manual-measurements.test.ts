@@ -181,3 +181,22 @@ test("a measurement declared equivalent in another unit is entered once and stor
   assert.deepEqual((await m.saveManualMeasurements(ctx, "equivalent", { values: { roofArea: 2550 } })).values, { roofArea: 2550, roofSquares: 25.5 });
   assert.deepEqual((await m.saveManualMeasurements(ctx, "equivalent", { values: { roofSquares: null } })).values, {});
 });
+
+test("with Materials off, the project's work plans still name what can be entered by hand (GP-37)", async () => {
+  const s = await import("../platform/storage.js");
+  const { systemPublicationContext } = await import("../platform/publication/context.js");
+  const { ensureDefaultScopeTemplates } = await import("../scopes/storage.js");
+  const { createPlanRecord } = await import("../work/storage.js");
+  const m = await import("../platform/publication/manual-measurements.js");
+  const org = "org_manual_no_materials";
+  await s.createOrganization({ id: org, name: "No Materials" });
+  await s.saveGlobal(org, { data: { app_flags: { platform: { expanded_access: true, materials: false } } } }, { replace: false });
+  await enableExpandedPlatformFixture(org, { "platform.materials": false });
+  await ensureDefaultScopeTemplates(org);
+  await s.upsertDocument(org, "projects", { id: "lead", data: { title: "730 Santana Dr" } });
+  await createPlanRecord({ organization_id: org, branch_id: "default", project_id: "lead", template_id: "roof_replacement", title: "Roofing", status: "active" });
+  const ctx = systemPublicationContext({ kind: "module", organizationId: org, projectId: "lead", operations, mode: "command" });
+  const form = await m.readManualMeasurements(ctx, "lead");
+  assert.equal(form.available, true); assert.deepEqual(form.schemas.map((schema) => schema.id), ["roofing"]);
+  assert.equal((await m.saveManualMeasurements(ctx, "lead", { values: { roofSquares: 28 } })).inUse, "manual");
+});
