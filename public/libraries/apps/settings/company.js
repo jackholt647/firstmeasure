@@ -1384,8 +1384,10 @@
     const canSmsSettings = appFlag('apps','comms') || canCompany && (appFlag('platform', 'sms_settings') || window.FirstMatePlatformBilling?.configured('platform', 'sms_settings'));
     const canDomains = canCompany && appFlag('apps', 'web_editor') && appFlag('web_editor', 'custom_domains');
     const canAssistant = appFlag('apps', 'assistant') && (canCompany || hasPerm('use_assistant') || hasPerm('view_projects') || hasPerm('manage_projects'));
-    const canInterfaceLanguage = appFlag('platform', 'my_settings');
-    const canMySettings = canInterfaceLanguage || canLeftColumnSettings || canMessageTranslation || canAssistant;
+    // GP-121: My Settings is offered only when it has a personal preference to show. The assistant's personal
+    // instructions and memories live in AI Agents, not here. Interface language needs localization on as well.
+    const canInterfaceLanguage = appFlag('platform', 'my_settings') && appFlag('firstmeasure', 'report_localization');
+    const canMySettings = canInterfaceLanguage || canLeftColumnSettings || canMessageTranslation;
     const canAppFlags = canCompany && window.Portal?.appFlags?.current?.()?.test_admin === true;
     const canPlatformBilling = window.FirstMatePlatformBilling?.isEnabled({definitions:appFlagDefinitions(),has:appFlag}) === true && (hasPerm('view_platform_billing') || hasPerm('manage_platform_billing') || canAppFlags);
     // Every signed-in member can manage their own notification preferences.
@@ -10160,7 +10162,6 @@
               ${leftColumnSwitch('resizable-left-column', 'Drag to resize', 'Drag the column edge to adjust its width.', preferences.resizable_left_column !== false)}
               <label class="my-settings-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_4c565950971cc1","Temporary expansion") ?? "Temporary expansion")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_cc91515ec0ede8","Choose how the compact rail expands on hover.") ?? "Choose how the compact rail expands on hover.")}</small></span><select class="cs-in" data-my-left-column-expansion-mode><option value="resize">${(globalThis.PlatformLanguage?.htmlText("settings","m_2bb9b8e0d8a0ae","Resize page") ?? "Resize page")}</option><option value="overlap">${(globalThis.PlatformLanguage?.htmlText("settings","m_a974f0e4a935ab","Overlap page") ?? "Overlap page")}</option></select></label>
             </div>
-            ${canAssistant ? `<div class="my-settings-group"><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_55d8ae7dbe87c6","AI assistant") ?? "AI assistant")}</h4><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_f0ed135b34b3ad","Manage your instructions and saved memories.") ?? "Manage your instructions and saved memories.")}</p><button class="cs-btn" type="button" data-my-assistant-settings>${(globalThis.PlatformLanguage?.htmlText("settings","m_198e9b07255891","Open assistant settings") ?? "Open assistant settings")}</button></div>` : ''}
             <div class="li-actions">
               <button class="cs-btn primary" type="button" data-my-settings-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_c4dc5a216e70af"," Save my settings") ?? " Save my settings")}</button>
               <span class="my-settings-status" data-my-settings-status></span>
@@ -10173,9 +10174,6 @@
         if (canLeftColumnSettings) paneMySettings.querySelector('[data-my-left-column-behavior]').value = preferences.left_column_behavior || 'adaptive';
         if (canLeftColumnSettings) paneMySettings.querySelector('[data-my-left-column-default-mode]').value = preferences.left_column_default_mode || 'apps';
         if (canLeftColumnSettings) paneMySettings.querySelector('[data-my-left-column-expansion-mode]').value = preferences.left_column_expansion_mode || 'resize';
-        paneMySettings.querySelector('[data-my-assistant-settings]')?.addEventListener('click', () => {
-          window.Portal?.navigation?.navigate?.({tab:'company_settings', sub:'assistant'}, {source:'my-settings', ownedKeys:['tab','sub']});
-        });
         const sidebarWidthInput = paneMySettings.querySelector('[data-my-sidebar-width]');
         const sidebarWidthOutput = paneMySettings.querySelector('[data-my-sidebar-width-output]');
         sidebarWidthInput?.addEventListener('input', () => {
