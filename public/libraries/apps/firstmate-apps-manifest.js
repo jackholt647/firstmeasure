@@ -34,7 +34,7 @@
     versionedBundle('../channels-api/channels-api.js', '20261111-offline-wave3'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
-    versionedBundle('../window-manager/window-manager.js', '20261118-fm609b-child-backdrop'),
+    versionedBundle('../window-manager/window-manager.js', '20261119-fm621-phone-landscape'),
     versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'),
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
@@ -305,7 +305,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261118-fm559-camera-first'), versionedBundle('project-request/app.js', '20261119-gp19-order-measurements')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261118-fm559-camera-first'), versionedBundle('project-request/app.js', '20261119-fm621-phone-landscape')]
     },
     {
       id: 'firstmeasure.order',
@@ -541,7 +541,7 @@
         versionedBundle('../platform-realtime/platform-realtime.js', '20261026-live-layer'),
         versionedBundle('../channels-api/channels-api.js', '20261111-offline-wave3'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
-        versionedBundle('../window-manager/window-manager.js', '20261118-fm609b-child-backdrop'),
+        versionedBundle('../window-manager/window-manager.js', '20261119-fm621-phone-landscape'),
         versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261118-fm551-reply'),

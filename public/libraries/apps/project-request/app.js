@@ -338,6 +338,7 @@ window.PlatformCommerce.onReady(async function(){
   let modalInitialProjectIds = new Set();
   let requestModalHandle = null;
   let projectModalWindow = null;
+  let phoneLandscapeOrder = false, phoneLandscapeMaximized = false;
   let projectLayout = null;
   let projectModalFullscreen = false;
   let projectModalFullscreenTimer = null;
@@ -2671,12 +2672,38 @@ window.PlatformCommerce.onReady(async function(){
     return !!window.matchMedia?.('(max-width: 760px)')?.matches;
   }
 
-  function shouldUseMobileOrderPagination(){
-    return isMobileProjectOrder()
-      && requestedWorkflow === 'report'
+  function reportOrderOpen(){
+    return requestedWorkflow === 'report'
       && !hasReportOrdered()
       && !proposalWorkspaceOpen
       && actionAvailable('roof');
+  }
+  function shouldUseMobileOrderPagination(){
+    return isMobileProjectOrder() && reportOrderOpen();
+  }
+  // A phone held sideways is wider than the phone order, so the report order keeps the desktop layout but its window
+  // fills the screen while the order is open (FM-621). A touch screen this short is a phone, never a desktop or tablet.
+  function isPhoneLandscape(){
+    const query = '(pointer: coarse) and (orientation: landscape) and (max-height: 500px)';
+    if (projectWindowBridge) {
+      try { return !!window.top.matchMedia?.(query)?.matches; } catch {}
+    }
+    return !!window.matchMedia?.(query)?.matches;
+  }
+  // Only a change of state moves the window, so a person who shrinks it again keeps their choice.
+  function syncPhoneLandscapeOrder(){
+    if (!projectModalWindow) return;
+    const want = !!$('#rOverlay')?.classList.contains('active') && !isMobileProjectOrder() && isPhoneLandscape() && reportOrderOpen();
+    if (want === phoneLandscapeOrder) return;
+    phoneLandscapeOrder = want;
+    if (want) {
+      if (projectModalWindow.state?.mode === 'fullscreen') return;
+      projectModalWindow.setMode('fullscreen', { silent:true, allowFullscreen:true });
+      phoneLandscapeMaximized = projectModalWindow.state?.mode === 'fullscreen';
+    } else if (phoneLandscapeMaximized) {
+      phoneLandscapeMaximized = false;
+      if (projectModalWindow.state?.mode === 'fullscreen') projectModalWindow.setMode('modal', { silent:true });
+    }
   }
 
   // Leave the ordering UI without submitting, deleting, or replacing the project or its fields.
@@ -2909,6 +2936,7 @@ window.PlatformCommerce.onReady(async function(){
     const overlay = $('#rOverlay');
     if (!overlay) return;
     const mobile = shouldUseMobileOrderPagination();
+    syncPhoneLandscapeOrder();
     if (!mobile) mobileOrderPage = 'location';
     if (mobile && mobileOrderPage !== 'location' && !mobileOrderReadyForDetails()) mobileOrderPage = 'location';
     if (mobile && mobileOrderPage === 'photos' && !window.Portal.ExteriorOrder?.active()) mobileOrderPage = 'details';
@@ -12395,6 +12423,8 @@ window.PlatformCommerce.onReady(async function(){
     setMobileProjectNotesOpen(false, { fromRoute:true });
     const ov = $('#rOverlay');
     if (ov) {
+      ov.classList.remove('active');
+      syncPhoneLandscapeOrder();
       ov.classList.remove('active', 'fullscreen', 'fullscreen-transitioning', 'route-initial-open', 'project-shell-loading', 'proposal-workspace', 'proposal-list-mode', 'proposal-edit-mode', 'proposal-send-mode', 'proposal-builder-mode', 'left-override', 'mobile-left-tray-mode', 'mobile-left-tray-open', 'mobile-default-info-tray-mode', 'mobile-default-info-tray-open', 'mobile-default-info-tray-entering', 'mobile-default-info-tray-leaving', 'mobile-default-info-tray-leaving-active', 'mobile-default-info-tray-resetting', 'mobile-project-notes-open', 'materials-workspace', 'money-workspace', 'schedule-workspace', 'entitlement-left-none', 'entitlement-mobile-fullscreen', 'entitlement-tab-icons', 'entitlement-hide-fullscreen');
       ov.setAttribute('aria-busy', 'false');
       delete ov.dataset.leftOverrideTab;
