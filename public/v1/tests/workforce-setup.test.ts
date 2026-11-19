@@ -5,8 +5,9 @@ import path from "node:path";
 import test, { after } from "node:test";
 import { closePlatformFixtureStores, enableExpandedPlatformFixture } from "./helpers/platform-fixture.js";
 
-// GP-28: the Operations workforce setup. It asks what kind of company this is and what work it does first (setup steps,
-// only while unanswered), then who does the work (the company profile's answer), how many crews and subcontractors,
+// GP-28: the Operations workforce setup. It asks what kind of company this is, what work it does and who does most of
+// it first (setup steps, only while unanswered; GP-65: who does the work is the shared company.workforce step the
+// appointment setup asks too, not a question of its own), then how many crews and subcontractors,
 // what each does (company profile services, saved as its capabilities), who is on a crew and how each is paid. It ends
 // in no price book. The library entry is the one put on dev (tests/fixtures/workforce-setup-library.json).
 const dir = await mkdtemp(path.join(os.tmpdir(), "workforce-setup-"));
@@ -30,9 +31,11 @@ function setup() {
     const { initializePublication } = await import("../platform/publication/bootstrap.js");
     initializePublication();
     // company.type and company.services are setup steps in the library snapshot.
-    // The entry put on dev replaces the snapshot's older one, as a library save does there.
+    // The entry put on dev replaces the snapshot's older one, as a library save does there. company.workforce is on dev,
+    // not yet in the snapshot: saved first, as on dev.
     (await import("../config-library/kinds/index.js")).registerAllLibraryKinds();
     const { saveEntry } = await import("../config-library/writes.js");
+    for (const step of library.setup_step) await saveEntry({ kind: "setup_step", id: step.id, data: step }, { kind: "agent", id: "test" }, "create");
     await saveEntry({ kind: "guided_experience", id: experience.id, data: experience }, { kind: "agent", id: "test" }, "update");
     const service = await import("../guided-experiences/service.js");
     service.ensureGuidedDefinitions();
@@ -60,16 +63,23 @@ test("the library entry parses and its checks pass; it ends in no price book", a
   assert.equal(experience.completion.screen, "none");
   assert.equal(experience.completion.action, undefined);
   assert.deepEqual(experience.steps.map((step: any) => step.widget), ["workforce-setup"]);
-  assert.deepEqual(experience.requires, ["company.type", "company.services"]);
+  assert.deepEqual(experience.requires, ["company.type", "company.services", "company.workforce"]);
+  // The one "Who does the work" (GP-65): the shared step, drawn by the company profile module like the appointment setup's.
+  const step = library.setup_step.find((entry: any) => entry.id === "company.workforce");
+  assert.equal(step.options.part, "workforce");
+  assert.match(step.ui.module, /^\/libraries\/setup-steps\/company-profile\.js/);
   // Pay defaults are library data: roofing and exteriors are paid by the square, everyone else hourly.
   assert.deepEqual(experience.steps[0].options.pay_defaults[0], { industry_sets: ["roofing_exteriors"], method: "per_measurement", measurement: "roof.squares" });
 });
 
-test("what kind of company and what work it does are asked first, only while unanswered", async () => {
+test("what kind of company, what work it does and who does it are asked first, only while unanswered", async () => {
   const service = await setup();
   const ids = async () => (await service.availableExperiences(owner, { tab: "project.materials" })).experiences.find((entry: any) => entry.id === "operations.workforce.setup")?.steps.map((step: any) => step.id);
-  assert.deepEqual(await ids(), ["company.type", "company.services", "workforce"]);
+  assert.deepEqual(await ids(), ["company.type", "company.services", "company.workforce", "workforce"]);
   await invoke(owner, "company-profile.save", { company_type: "roofing_contractor", services: ["roof_replacement", "roof_repair", "gutters"] }, "profile-1");
+  assert.deepEqual(await ids(), ["company.workforce", "workforce"]);
+  // Answered once (here, or by the appointment setup), it is never asked again.
+  await invoke(owner, "company-profile.save", { workforce: "crews" }, "profile-who");
   assert.deepEqual(await ids(), ["workforce"]);
 });
 

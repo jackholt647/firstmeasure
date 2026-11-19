@@ -1,7 +1,8 @@
 // GP-56: a picked choice tile (.gxs-choice, GP-46) shows its check mark in the middle of its round tick. A setup's own
 // rule for the spans in its tiles (`.gxw-choice span{display:flex}`) also caught the tick, which lost its centring and
 // drew the check in the circle's top-left corner. Runs each setup's own stylesheet, with the shared choice layout, in
-// Chromium over the tile's markup, and checks the check mark is centred in the circle.
+// Chromium over the tile's markup, and checks the check mark is centred in the circle. GP-65: "Who does the work" is
+// the shared setup step's (setup-steps/company-profile.js) in every setup, with the workforce setup's tiles.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -9,11 +10,11 @@ import { createRequire } from 'node:module';
 
 const { chromium } = createRequire(new URL('../public/v1/package.json', import.meta.url))('playwright-core');
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const read = (file) => readFileSync(new URL(`../public/libraries/guided-experiences/${file}`, import.meta.url), 'utf8');
+const read = (file) => readFileSync(new URL(`../public/libraries/${file.includes('/') ? file : `guided-experiences/${file}`}`, import.meta.url), 'utf8');
 const SHARED = read('guided-setup.js').match(/\/\* GP-46:[\s\S]*?\*\/([\s\S]*?)`/)[1];
 
 const SETUPS = [
-  { file: 'workforce-setup.js', tile: 'gxw-choice', icon: 'gxw-icon', tick: 'gxw-tick', on: 'aria-pressed' },
+  { file: 'setup-steps/company-profile.js', tile: 'gxc-choice', icon: 'gxc-icon', tick: 'gxc-tick', on: 'aria-checked' },
   { file: 'documents-setup.js', tile: 'gxd-tile', icon: 'gxd-icon', tick: 'gxd-tick', on: 'aria-checked' },
 ];
 

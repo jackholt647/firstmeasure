@@ -1,9 +1,11 @@
 // The workforce setup's own pages (guided experience `operations.workforce.setup`, GP-28,
 // docs/architecture/guided-experiences.md "Who does the work"). Operations' Workforce card and the Operations tab's Labor
-// Setup tag play it, after the setup steps it requires (what kind of company, what work it does), each asked only while
-// unanswered. One step that keeps its own pages:
-//   who     who does the work at the company: just me, its own crews, subcontractors, or both (the company profile's
-//           `workforce` answer, saved with company-profile.save when it changes).
+// Setup tag play it, after the setup steps it requires (what kind of company, what work it does, who does most of it),
+// each asked only while unanswered. One step that keeps its own pages:
+//   who     who does the work at the company: the company profile's `workforce` answer. It is the setup step
+//           `company.workforce` the setup requires, asked once for every setup that needs it (GP-65), so this page is
+//           only shown when it is still unanswered or someone goes back to change it, and it is that step's own part
+//           (setup-steps/company-profile.js, part `workforce`), saved with company-profile.save when it changes.
 //   count   how many crews and how many subcontractors. The ones the organization already has are counted and kept.
 //   work    each one named, which of the company's services it does, and (a crew) who is in it, optionally.
 //   pay     how each is paid: piece rate, hourly or per job, defaulted by industry (the step's `pay_defaults`, library
@@ -21,16 +23,6 @@ const MAX_EACH = 20;
 const css = `
 .gxw{display:flex;flex-direction:column;gap:16px;min-width:0;padding:2px 0 8px;color:#101828}
 .gxw p{margin:0;color:#475467;line-height:1.5}
-.gxw-choice{position:relative;display:flex;align-items:flex-start;gap:12px;min-height:76px;padding:14px 42px 14px 14px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;font:inherit;text-align:left;color:#101828;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .2s,transform .15s}
-.gxw-choice:hover{border-color:#c4c9d2;transform:translateY(-1px)}
-.gxw-choice>span:not(.gxw-icon):not(.gxw-tick){display:flex;flex-direction:column;gap:3px;min-width:0}
-.gxw-choice strong{font-size:14.5px;font-weight:700;line-height:1.25}
-.gxw-choice small{font-size:12.5px;color:#667085;line-height:1.4}
-.gxw-choice[aria-pressed=true]{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.05);box-shadow:0 0 0 1px var(--primary,#d93025)}
-.gxw-tick{position:absolute;top:12px;right:12px;width:22px;height:22px;border-radius:50%;border:1.5px solid #d0d5dd;display:grid;place-items:center;transition:background .15s,border-color .15s}
-.gxw-tick svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:3;opacity:0;transition:opacity .15s}
-[aria-pressed=true]>.gxw-tick{background:var(--primary,#d93025);border-color:var(--primary,#d93025)}
-[aria-pressed=true]>.gxw-tick svg{opacity:1}
 .gxw-icon{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary,#d93025);font-size:17px}
 .gxw-counts{display:flex;flex-direction:column;border:1px solid #eaecf0;border-radius:14px;background:#fff;overflow:hidden}
 .gxw-count{display:flex;align-items:center;gap:12px;padding:14px 16px;border-top:1px solid #f2f4f7}
@@ -94,7 +86,7 @@ const css = `
 .gxw-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;padding:0 18px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;font:inherit;font-size:14px;font-weight:650;color:#344054;cursor:pointer}
 .gxw-btn.primary{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:#fff}
 .gxw-btn:disabled{opacity:.55;cursor:default}
-.gxw-btn:focus-visible,.gxw-choice:focus-visible,.gxw-chip:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+.gxw-btn:focus-visible,.gxw-chip:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
 .gxw-busy{display:flex;align-items:center;gap:10px;min-height:120px;justify-content:center;color:#475467}
 .gxw-error{color:#b42318!important;font-size:13px}
 .gxw-error:empty{display:none}
@@ -102,7 +94,6 @@ const css = `
 @media(max-width:560px){.gxw-track{grid-auto-columns:86%}.gxw-nav{display:none}.gxw-actions .gxw-btn{flex:1 1 auto}}
 @media(prefers-reduced-motion:reduce){.gxw *{transition:none!important}.gxw-track{scroll-behavior:auto}}
 `;
-const choiceTick = '<span class="gxw-tick gxs-choice-tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>';
 function installStyle(){
   if (document.getElementById('gxw-css')) return;
   const style = document.createElement('style'); style.id = 'gxw-css'; style.textContent = css; document.head.append(style);
@@ -167,7 +158,6 @@ export function mount(el, ctx){
   installStyle();
   const { esc } = ctx;
   const L = (key, fallback, values) => { let text = ctx.L(key, fallback); for (const [name, value] of Object.entries(values || {})) text = text.split(`{${name}}`).join(String(value)); return text; };
-  const copy = (value, fallback = '') => value && typeof value === 'object' ? ctx.L(clean(value.key), clean(value.text) || fallback) : clean(value) || fallback;
   const word = (path, fallback) => clean(window.PlatformTerminology?.get?.(path, fallback) || window.Portal?.terminology?.get?.(path, fallback)) || fallback;
   const crew = word('workforce.resource_group_singular', 'Crew'), crews = word('workforce.resource_group_plural', 'Crews');
   const sub = word('workforce.organization_connection_singular', 'Subcontractor'), subs = word('workforce.organization_connection_plural', 'Subcontractors');
@@ -204,22 +194,27 @@ export function mount(el, ctx){
   const nextButton = (label) => `<button type="button" class="gxw-btn primary" data-gxw-next>${esc(label || L('gx_ui_continue', 'Continue'))}</button>`;
 
   // ── Who does the work at your company? ─────────────────────────────────
-  const WHO_ICONS = { just_me: 'fa-user', crews: 'fa-users', subcontractors: 'fa-handshake', crews_and_subs: 'fa-users-gear' };
+  // The shared setup step's own part (GP-65): the same question, tiles and copy as the appointment setup asks.
+  const STEP = new URL('../setup-steps/company-profile.js?v=20261119-gp65', import.meta.url).href;
+  let whoStep = null;
   function drawWho(){
-    title(L('gx_wfs_who_title', 'Who does the work at your company?'));
-    const answers = array(status.workforces);
+    title(L('gx_step_company_workforce_title', 'Who does most of the work?'));
     el.innerHTML = `<div class="gxw" data-gxw-page="who">
-      <p>${esc(L('gx_wfs_who_lead', 'Tell us how your work gets done. Next you’ll name each {crew_lower} and {sub_lower}, say what they do and how you pay them.', { crew_lower: crew.toLowerCase(), sub_lower: sub.toLowerCase() }))}</p>
-      <div class="gxs-choices" style="--gxs-n:${answers.length}" role="radiogroup">${answers.map((entry) => `<button type="button" class="gxw-choice gxs-choice" data-gxw-who="${esc(entry.id)}" role="radio" aria-pressed="${workforce === entry.id}" aria-checked="${workforce === entry.id}">${icon(WHO_ICONS[entry.id] || 'fa-users', 'gxs-choice-icon')}<span class="gxs-choice-text"><strong>${esc(copy(entry.label, entry.id))}</strong><small>${esc(copy(entry.hint))}</small></span>${choiceTick}</button>`).join('')}</div>
+      <div data-gxw-who></div>
       ${errorLine}
       <div class="gxw-actions"><span class="gxw-spacer"></span>${nextButton()}</div>
     </div>`;
-    el.querySelectorAll('[data-gxw-who]').forEach((button) => button.addEventListener('click', () => {
-      workforce = button.dataset.gxwWho;
-      el.querySelectorAll('[data-gxw-who]').forEach((other) => { const on = other === button; other.setAttribute('aria-pressed', String(on)); other.setAttribute('aria-checked', String(on)); });
-      el.querySelector('[data-gxw-error]').textContent = '';
-      fitRows(); report();
-    }));
+    const holder = el.querySelector('[data-gxw-who]');
+    import(STEP).then((module) => {
+      if (!alive || !holder.isConnected) return;
+      whoStep = module.mount(holder, { ...ctx, options: { part: 'workforce' }, answer: workforce ? { workforce } : {},
+        change(patch){
+          const next = clean(patch?.workforce);
+          if (!next || next === workforce) return;
+          workforce = next; el.querySelector('[data-gxw-error]').textContent = ''; fitRows(); report();
+        },
+        advance: () => el.querySelector('[data-gxw-next]')?.click() });
+    }).catch(fail);
     el.querySelector('[data-gxw-next]').addEventListener('click', async (event) => {
       const button = event.currentTarget;
       if (!workforce) { fail({ message: L('gx_wfs_who_required', 'Choose who does the work to continue.') }); return; }
@@ -489,6 +484,7 @@ export function mount(el, ctx){
 
   function draw(){
     if (!alive) return;
+    whoStep?.destroy?.(); whoStep = null;
     const name = pages[page];
     if (name === 'who') drawWho();
     else if (name === 'count') drawCount();
@@ -514,7 +510,10 @@ export function mount(el, ctx){
     });
     for (const kind of [GROUP, COMPANY]) counts[kind] = Math.max(1, existingOf(kind).length);
     if (workforce) fitRows();
-    report(); draw();
+    // Who does the work was answered (the setup step before this one, or another setup): start after it; Back still
+    // reaches it to change the answer.
+    if (workforce) page = pages.indexOf(workforce === 'just_me' ? 'work' : 'count');
+    report(); draw(); ctx.syncBack?.();
   }).catch((error) => { if (alive) { el.innerHTML = `<div class="gxw">${errorLine}</div>`; fail(error); } });
   return {
     valid: () => true,
@@ -522,7 +521,7 @@ export function mount(el, ctx){
     // The phone's back walks these pages first; once everything is written there is nothing to go back to.
     backDepth: () => pages[page] === 'done' ? 0 : pages.slice(0, page).filter((name) => !(name === 'count' && workforce === 'just_me')).length,
     back(){ if (pages[page] === 'done' || page === 0) return false; go(page - 1); return true; },
-    destroy(){ alive = false; }
+    destroy(){ alive = false; whoStep?.destroy?.(); }
   };
 }
 export default mount;
