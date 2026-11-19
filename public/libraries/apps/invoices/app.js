@@ -8,6 +8,23 @@
   const Portal = window.Portal;
   const runtime = window.FirstMateEmbeddableApps;
   if (!Portal || !runtime?.registerApp) return;
+  // The portal page also loads this file by itself, without its manifest bundles: the document viewer (GP-69) is
+  // loaded on first use when it is not already on the page.
+  const SCRIPT_URL = document.currentScript?.src || '';
+  const VIEWER_SRC = '../../doc-viewer/firstmate-doc-viewer.js?v=20261119-gp69';
+  let viewerLoading = null;
+  function ensureViewerLibrary(){
+    if (window.FMDocViewer?.open) return Promise.resolve(true);
+    if (viewerLoading) return viewerLoading;
+    viewerLoading = new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = SCRIPT_URL ? new URL(VIEWER_SRC, SCRIPT_URL).href : '/libraries/doc-viewer/firstmate-doc-viewer.js?v=20261119-gp69';
+      script.onload = () => resolve(!!window.FMDocViewer?.open);
+      script.onerror = () => { viewerLoading = null; resolve(false); };
+      document.head.appendChild(script);
+    });
+    return viewerLoading;
+  }
 
   const util = Portal.util || {};
   const esc = util.escapeHtml || ((value) => String(value ?? '').replace(/[&<>"']/g, (match) => ({
@@ -731,11 +748,20 @@
       open?.close?.();
     }
 
-    function openDetail(invoiceId, { fromRoute = false } = {}){
+    let viewerPending = '';
+    async function openDetail(invoiceId, { fromRoute = false } = {}){
       const invoice = invoiceById(invoiceId);
       if (!invoice) return;
-      if (!window.FMDocViewer?.open) { openDetailDialog(invoice, { fromRoute }); return; }
       if (viewer && viewerInvoiceId === clean(invoice.id)) return;
+      if (!window.FMDocViewer?.open) {
+        if (viewerPending === clean(invoice.id)) return;
+        viewerPending = clean(invoice.id);
+        state.openInvoiceId = clean(invoice.id);
+        const loaded = await ensureViewerLibrary();
+        viewerPending = '';
+        if (state.destroyed || state.openInvoiceId !== clean(invoice.id)) return;
+        if (!loaded) { openDetailDialog(invoice, { fromRoute }); return; }
+      }
       closeViewer();
       if (!fromRoute) routePatch({ invoice:clean(invoice.id) }, 'push');
       state.openInvoiceId = clean(invoice.id);
@@ -900,7 +926,11 @@
         state.view = nextView;
         state.statusFilter = nextFilter;
         if (!nextInvoice && state.openInvoiceId) { state.openInvoiceId = ''; closeModal(); closeViewer(); }
-        if (nextInvoice && nextInvoice !== state.openInvoiceId && state.invoices.length) openDetail(nextInvoice, { fromRoute:true });
+        // Asked for before the list has loaded (a link, a search result): it opens once the list is there.
+        if (nextInvoice && nextInvoice !== state.openInvoiceId) {
+          if (state.invoices.length) openDetail(nextInvoice, { fromRoute:true });
+          else state.openInvoiceId = nextInvoice;
+        }
         if (changed && !state.loading) render();
       }
     });
