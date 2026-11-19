@@ -2649,6 +2649,8 @@
     "workforce.departments.assign@1": {"app":"any","permissions":[],"scopes":["organization"],"kind":"any:membership_only","effect":"write","execution_kinds":["api","module","agent","work"]},
     "workforce.departments.read@1": {"app":"any","permissions":[],"scopes":["organization"],"kind":"any:membership_only","effect":"read","execution_kinds":["api","module","agent","work"]},
     "workforce.departments.save@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
+    "workforce.users.add@1": {"app":"any","permissions":["manage_company_users"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent"]},
+    "workforce.users.invite@1": {"app":"any","permissions":["manage_company_users"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent"]},
     "workforce.users.list@1": {"app":"any","permissions":["manage_company_users"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","module","agent","work"]},
     "workforce.users.restore@1": {"app":"any","permissions":["manage_company_users"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent"]}
   },

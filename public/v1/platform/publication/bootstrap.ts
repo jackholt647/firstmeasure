@@ -25,6 +25,7 @@ import { registerPricebookSetupPublication } from '../../pricebook/setups/index.
 import { registerOperationsDocumentPublication } from '../../operations/documents.js';
 import { registerSupplierPricesPublication } from '../../materials/supplier-prices-publication.js';
 import { registerLaborSetupPublication } from '../../labor/labor-setup.js';
+import { registerWorkforceUserPublication } from '../../workforce/user-publication.js';
 import { registerMaterialsInputs } from '../../materials/calculus-inputs.js';
 import { registerNotificationProvider } from "../notifications/provider.js";
 import { registerBuiltinDataProviders } from "./provider-adapters.js";
@@ -87,6 +88,7 @@ export function initializePublication() {
   registerOperationsDocumentPublication();
   registerSupplierPricesPublication();
   registerLaborSetupPublication();
+  registerWorkforceUserPublication();
   registerOperationsSetupPublication();
   registerChecklistsSetupPublication();
   registerChecklistDefaultsPublication();

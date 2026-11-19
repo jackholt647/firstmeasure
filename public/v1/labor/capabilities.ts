@@ -11,7 +11,9 @@ import { serviceOf } from "../company-profile/catalog.js";
  * it requires; a scope the assignee is marked as doing grants the kinds of work that scope works in; a service the
  * company offers (company-profile/catalog.ts, as the workforce setup asks "what does each one do", GP-28) grants the
  * kind of work it is measured as, when it has one; single items can be added or taken away on top. An assignee nobody has said anything about is unknown, which is not the same as
- * unable: nothing is reported against them.
+ * unable: nothing is reported against them. Within a service it may name the kinds it does (`service_tags`, GP-66: metal
+ * or flat roofs under re-roofs), in the company's own words; they grant nothing more and are read by people choosing who
+ * does a job.
  */
 export const CAPABILITY_COLLECTION = "assignee_capabilities";
 const item = z.string().trim().regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/).max(120);
@@ -21,6 +23,8 @@ export const capabilityInputSchema = z.object({
   schema_ids: z.array(z.string().trim().min(1).max(80)).max(50).default([]),
   /** Services from the company profile catalog the assignee does; each one measured as a kind of work grants it. */
   service_ids: z.array(z.string().trim().min(1).max(80)).max(80).default([]),
+  /** Within a service it does, the kinds of it it does, in the company's own words (metal roofs, flat roofs). */
+  service_tags: z.record(z.string().trim().min(1).max(80), z.array(z.string().trim().min(1).max(60)).max(30)).default({}),
   /** Single items on top of those. */
   item_ids: z.array(item).max(300).default([]),
   /** Items they do not do, even though a kind of work or a scope would grant them. */
@@ -30,11 +34,12 @@ export const capabilityInputSchema = z.object({
   const known = new Set(listMeasurementSchemas().map((schema) => schema.id));
   for (const schema of value.schema_ids) if (!known.has(schema)) context.addIssue({ code: z.ZodIssueCode.custom, message: `There is no kind of work called ${schema}.` });
   for (const service of value.service_ids) if (!serviceOf(service)) context.addIssue({ code: z.ZodIssueCode.custom, message: `${service} is not a service in the company profile catalog.` });
+  for (const service of Object.keys(value.service_tags)) if (!value.service_ids.includes(service)) context.addIssue({ code: z.ZodIssueCode.custom, message: `${service} has kinds named but is not one of the services it does.` });
   for (const id of [...value.item_ids, ...value.excluded_item_ids]) if (!workItem(id)) context.addIssue({ code: z.ZodIssueCode.custom, message: `${id} is not in the work item dictionary.` });
 });
 export type Capabilities = {
   assignee: Assignee;
-  schema_ids: string[]; service_ids: string[]; item_ids: string[]; excluded_item_ids: string[]; revision: number;
+  schema_ids: string[]; service_ids: string[]; service_tags: Record<string, string[]>; item_ids: string[]; excluded_item_ids: string[]; revision: number;
   /** Kinds of work granted by the scopes the assignee is marked as doing. */
   scope_schema_ids: string[];
   /** Every item the assignee can do, once grants and exclusions are applied. */
@@ -45,11 +50,22 @@ export type Capabilities = {
 
 const text = (value: unknown) => String(value ?? "").trim();
 const key = (assignee: Assignee) => `${assignee.type}:${assignee.id}`;
-type Declared = Pick<Capabilities, "assignee" | "schema_ids" | "service_ids" | "item_ids" | "excluded_item_ids" | "revision">;
+type Declared = Pick<Capabilities, "assignee" | "schema_ids" | "service_ids" | "service_tags" | "item_ids" | "excluded_item_ids" | "revision">;
+/** Each service's kinds, one of each however it was typed, for the services it does. */
+export function serviceTags(value: unknown, serviceIds: string[]) {
+  const out: Record<string, string[]> = {};
+  for (const [service, tags] of Object.entries(value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {})) {
+    if (!serviceIds.includes(service) || !Array.isArray(tags)) continue;
+    const seen = new Set<string>(), kept: string[] = [];
+    for (const tag of tags.map((entry) => text(entry).replace(/\s+/g, " ")).filter(Boolean)) if (!seen.has(tag.toLowerCase())) { seen.add(tag.toLowerCase()); kept.push(tag); }
+    if (kept.length) out[service] = kept;
+  }
+  return out;
+}
 export async function listDeclaredCapabilities(orgId: string): Promise<Declared[]> {
   return (await listDocuments(orgId, CAPABILITY_COLLECTION)).map((document) => {
     const data = document.data as unknown as Omit<Declared, "revision">;
-    return { assignee: data.assignee, schema_ids: data.schema_ids || [], service_ids: data.service_ids || [], item_ids: data.item_ids || [], excluded_item_ids: data.excluded_item_ids || [], revision: Number(document.revision || 0) };
+    return { assignee: data.assignee, schema_ids: data.schema_ids || [], service_ids: data.service_ids || [], service_tags: serviceTags(data.service_tags, data.service_ids || []), item_ids: data.item_ids || [], excluded_item_ids: data.excluded_item_ids || [], revision: Number(document.revision || 0) };
   });
 }
 /** The kinds of work a set of scope templates works in. A scope that cannot be read grants nothing. */
@@ -68,7 +84,7 @@ function resolve(assignee: Assignee, declared: Declared | undefined, scopeSchema
   const granted = new Set([...workItemsForSchemas([...(declared?.schema_ids || []), ...serviceSchemas, ...scopeSchemaIds]), ...(declared?.item_ids || [])]);
   for (const excluded of declared?.excluded_item_ids || []) granted.delete(excluded);
   return {
-    assignee, schema_ids: declared?.schema_ids || [], service_ids: declared?.service_ids || [], item_ids: declared?.item_ids || [], excluded_item_ids: declared?.excluded_item_ids || [], revision: declared?.revision || 0,
+    assignee, schema_ids: declared?.schema_ids || [], service_ids: declared?.service_ids || [], service_tags: declared?.service_tags || {}, item_ids: declared?.item_ids || [], excluded_item_ids: declared?.excluded_item_ids || [], revision: declared?.revision || 0,
     scope_schema_ids: scopeSchemaIds, items: [...granted].sort(), known: !!declared || scopeSchemaIds.length > 0
   };
 }
@@ -92,7 +108,8 @@ export async function saveCapabilities(orgId: string, input: unknown, actor: Act
   requireActor(orgId, actor, "manage_company_settings", "capabilities_write_denied", "Changing what an assignee can do requires company settings access.");
   const parsed = capabilityInputSchema.parse(input);
   await requireAssignee(orgId, parsed.assignee);
-  const { expected_revision, ...data } = parsed;
+  const { expected_revision, ...rest } = parsed;
+  const data = { ...rest, service_tags: serviceTags(rest.service_tags, rest.service_ids) };
   await upsertDocument(orgId, CAPABILITY_COLLECTION, { id: key(parsed.assignee), ...(expected_revision !== undefined ? { expected_revision } : {}), data: { ...data, updated_by_user_id: text(actor.userId) } as unknown as JsonObject, metadata: { kind: "assignee_capabilities", subject_type: parsed.assignee.type, subject_id: parsed.assignee.id } }, { replace: true });
   return assigneeCapabilities(orgId, parsed.assignee);
 }

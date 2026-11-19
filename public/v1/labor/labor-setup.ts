@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { forbidden } from "../platform/errors.js";
+import { badRequest, forbidden } from "../platform/errors.js";
+import { hasPermission, type PlatformAuthContext } from "../platform/auth.js";
+import { effectiveCapabilities } from "../platform/capabilities.js";
+import { appDefinition, appDefinitions, canonicalAppId } from "../platform/app-experience/registry.js";
 import { invokeAction, registerAction } from "../platform/publication/actions.js";
 import { registerDataProvider } from "../platform/publication/providers.js";
 import { contentHash } from "../platform/publication/validation.js";
@@ -8,12 +11,12 @@ import type { PublicationContext } from "../platform/publication/contracts.js";
 import { backendImplementationDigest } from "../platform/publication/implementation.js";
 import { listMeasurementDefinitions, listMeasurementSchemas } from "../platform/publication/measurement-schemas.js";
 import { createOrganizationConnection, listOrganizationConnections } from "../connections/storage.js";
-import { createResourceGroup, listResourceGroups, putResourceGroupMember, readResourceGroup, readWorkforceConfiguration } from "../workforce/storage.js";
+import { createResourceGroup, listResourceGroups, patchResourceGroup, putResourceGroupMember, readResourceGroup, readWorkforceConfiguration } from "../workforce/storage.js";
 import { listDocuments } from "../platform/storage.js";
 import { readCompanyProfile } from "../company-profile/profile.js";
 import { WORKFORCES, industrySetsFor } from "../company-profile/catalog.js";
 import { listPaySheets, type PaySheet } from "./pay-sheets.js";
-import { listDeclaredCapabilities } from "./capabilities.js";
+import { listDeclaredCapabilities, serviceTags } from "./capabilities.js";
 import { assigneeTypeIds } from "../assignees/base.js";
 
 /**
@@ -28,6 +31,11 @@ import { assigneeTypeIds } from "../assignees/base.js";
  * capabilities, `assignees.capabilities.save`, so the kinds of work those services are measured as are granted) and,
  * for a group, which of the organization's people are in it (added through the group's own member writer, never
  * removed here).
+ *
+ * GP-66 adds: within each service, the kinds of it each one does in the company's own words (`service_tags`, saved
+ * with its capabilities); a service a crew does that the company profile lacked is added to the profile; which member
+ * of a group is in charge (its lead, through the member writer); and which of the crew apps a group's members see
+ * (`apps`, the group's App experience settings, docs/architecture/app-experience.md).
  */
 const text = (value: unknown) => String(value ?? "").trim();
 const SCHEMA_ID = "roofing";
@@ -56,7 +64,13 @@ export const laborSetupInputSchema = z.object({
     /** The company profile services it does (company-profile/catalog.ts). Given, it replaces the ones saved before. */
     service_ids: z.array(z.string().trim().min(1).max(80)).max(80).optional(),
     /** For a group: people of the organization to add to it. Members already in it stay; none are removed. */
-    member_user_ids: z.array(z.string().trim().min(1).max(200)).max(100).optional()
+    member_user_ids: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+    /** For a group: the member in charge of it (its lead). One of its members, or one added here. */
+    lead_user_id: z.string().trim().min(1).max(200).optional(),
+    /** Within each service it does, the kinds of it it does, in the company's own words. Given, they replace the ones saved before. */
+    service_tags: z.record(z.string().trim().min(1).max(80), z.array(z.string().trim().min(1).max(60)).max(30)).optional(),
+    /** For a group: which apps its members see, and app options (Today's time clock), as the group's App experience settings. */
+    apps: z.record(z.string().trim().min(1).max(120), z.object({ visible: z.boolean().optional(), options: z.record(z.string().trim().min(1).max(60), z.boolean()).optional() }).strict()).optional()
   }).strict()).max(40).default([])
 }).strict();
 export type LaborSetupInput = z.infer<typeof laborSetupInputSchema>;
@@ -101,12 +115,25 @@ export function simplePay(sheet: Pick<PaySheet, "entries" | "inputs" | "schema_i
   return null;
 }
 
-/** The organization's people who can be put in a group: active users, by name. */
+/** The organization's people who can be put in a group, by name, with their email and whether they have joined yet (`invited`). */
 async function organizationPeople(orgId: string) {
   return (await listDocuments(orgId, "users")).map((document) => {
     const data = (document.data || {}) as Record<string, unknown>;
-    return { id: text(document.id), name: text(data.name) || text(data.email) || text(document.id), status: text(data.status) || "active" };
-  }).filter((user) => user.id && user.status !== "disabled" && user.status !== "archived").map(({ id, name }) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+    return { id: text(document.id), name: text(data.name) || text(data.email) || text(document.id), email: text(data.email).toLowerCase(), status: text(data.status) || "active", deleted: data.deleted === true };
+  }).filter((user) => user.id && !user.deleted && user.status !== "disabled" && user.status !== "archived").map(({ id, name, email, status }) => ({ id, name, email, status: status === "invited" || status === "pending" ? "invited" : "active" })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** A group's App experience settings as the setup shows them: shown or hidden on every device it exists on, and its options. */
+function groupApps(group: Record<string, unknown>) {
+  const stored = ((group.attributes as Record<string, unknown> | undefined)?.app_defaults || {}) as Record<string, Record<string, unknown>>;
+  const out: Record<string, { visible?: boolean; options?: Record<string, boolean> }> = {};
+  for (const [appId, setting] of Object.entries(stored && typeof stored === "object" ? stored : {})) {
+    const values = Object.values((setting?.visible && typeof setting.visible === "object" ? setting.visible : {}) as Record<string, unknown>);
+    const options = Object.fromEntries(Object.entries((setting?.options && typeof setting.options === "object" ? setting.options : {}) as Record<string, unknown>).filter(([, value]) => typeof value === "boolean")) as Record<string, boolean>;
+    const visible = values.length && values.every((value) => value === true) ? true : values.length && values.every((value) => value === false) ? false : undefined;
+    if (visible !== undefined || Object.keys(options).length) out[appId] = { ...(visible !== undefined ? { visible } : {}), ...(Object.keys(options).length ? { options } : {}) };
+  }
+  return out;
 }
 
 /**
@@ -115,9 +142,18 @@ async function organizationPeople(orgId: string) {
  * rate can read; and for the workforce setup, the company profile it starts from (kind of company, its services, who
  * does the work) and the people who can be put in a group.
  */
-export async function laborSetupOptions(orgId: string) {
-  const [groups, companies, sheets, configuration, declared, profile, people] = await Promise.all([listResourceGroups(orgId, {}), listOrganizationConnections(orgId, {}), listPaySheets(orgId), readWorkforceConfiguration(orgId), listDeclaredCapabilities(orgId), readCompanyProfile(orgId), organizationPeople(orgId)]);
-  const servicesOf = (type: string, id: string) => declared.find((row) => row.assignee.type === type && row.assignee.id === id)?.service_ids || [];
+export async function laborSetupOptions(orgId: string, auth?: PlatformAuthContext | null) {
+  const [groups, companies, sheets, configuration, declared, profile, people, capabilities] = await Promise.all([listResourceGroups(orgId, {}), listOrganizationConnections(orgId, {}), listPaySheets(orgId), readWorkforceConfiguration(orgId), listDeclaredCapabilities(orgId), readCompanyProfile(orgId), organizationPeople(orgId), effectiveCapabilities(orgId).catch(() => null)]);
+  const declaredOf = (type: string, id: string) => declared.find((row) => row.assignee.type === type && row.assignee.id === id);
+  const servicesOf = (type: string, id: string) => declaredOf(type, id)?.service_ids || [];
+  const tagsOf = (type: string, id: string) => declaredOf(type, id)?.service_tags || {};
+  // The kinds of each service any one of them does, to offer the next one.
+  const used: Record<string, string[]> = {};
+  for (const row of declared) for (const [service, tags] of Object.entries(row.service_tags || {})) used[service] = [...new Set([...(used[service] || []), ...tags])];
+  const leadOf = (group: Record<string, unknown>) => text(group.primary_member_user_id) || text((Array.isArray(group.members) ? group.members as Record<string, unknown>[] : []).find((member) => member.is_lead === true && text(member.status || "active") === "active")?.user_id);
+  // Apps the organization has off: their switches are all off, so nobody is asked about them.
+  const on = capabilities?.effectiveByKey || {};
+  const appsOff = capabilities ? appDefinitions().filter((app) => app.capabilities.length && !app.capabilities.some((key) => on[key] === true)).map((app) => app.id) : [];
   const membersOf = (group: Record<string, unknown>) => (Array.isArray(group.members) ? group.members as Record<string, unknown>[] : []).filter((member) => text(member.status || "active") === "active").map((member) => text(member.user_id)).filter(Boolean);
   const sheetFor = (type: string, id: string) => sheets.find((sheet) => sheet.subject.type === type && sheet.subject.id === id && (sheet.schema_ids.includes(SCHEMA_ID) || !sheet.schema_ids.length));
   const pay = (type: string, id: string) => { const sheet = sheetFor(type, id); return sheet ? { sheet_id: sheet.id, name: sheet.name, lines: sheet.entries.length, simple: simplePay(sheet) } : null; };
@@ -127,8 +163,8 @@ export async function laborSetupOptions(orgId: string) {
   const withTypes = <T extends { ref: { type: string; id: string }; type_ids: string[] }>(rows: T[]) => Promise.all(rows.map(async (row) => ({ ...row, type_ids: await typeIds(row.ref.type as "resource_group", row.ref.id, row.type_ids) })));
   return {
     assignees: await withTypes([
-      ...groups.map((group) => ({ ref: { type: "resource_group", id: text(group.id) }, kind: "resource_group", name: text(group.name), type_id: text(group.kind_id), type_ids: [text(group.kind_id)].filter(Boolean), members: membersOf(group).length, member_user_ids: membersOf(group), service_ids: servicesOf("resource_group", text(group.id)), pay: pay("resource_group", text(group.id)) })),
-      ...companies.map((company) => ({ ref: { type: "organization_connection", id: text(company.id) }, kind: "organization_connection", name: text(company.name), type_id: text((Array.isArray(company.relationship_type_ids) ? company.relationship_type_ids : [])[0]), type_ids: (Array.isArray(company.relationship_type_ids) ? company.relationship_type_ids : []).map(text).filter(Boolean), members: 0, member_user_ids: [] as string[], service_ids: servicesOf("organization_connection", text(company.id)), pay: pay("organization_connection", text(company.id)) }))
+      ...groups.map((group) => ({ ref: { type: "resource_group", id: text(group.id) }, kind: "resource_group", name: text(group.name), type_id: text(group.kind_id), type_ids: [text(group.kind_id)].filter(Boolean), members: membersOf(group).length, member_user_ids: membersOf(group), lead_user_id: leadOf(group), service_ids: servicesOf("resource_group", text(group.id)), service_tags: tagsOf("resource_group", text(group.id)), apps: groupApps(group), pay: pay("resource_group", text(group.id)) })),
+      ...companies.map((company) => ({ ref: { type: "organization_connection", id: text(company.id) }, kind: "organization_connection", name: text(company.name), type_id: text((Array.isArray(company.relationship_type_ids) ? company.relationship_type_ids : [])[0]), type_ids: (Array.isArray(company.relationship_type_ids) ? company.relationship_type_ids : []).map(text).filter(Boolean), members: 0, member_user_ids: [] as string[], lead_user_id: "", service_ids: servicesOf("organization_connection", text(company.id)), service_tags: tagsOf("organization_connection", text(company.id)), apps: {}, pay: pay("organization_connection", text(company.id)) }))
     ]),
     profile: {
       company_type: profile.company_type, industry: profile.industry, industry_sets: industrySetsFor(profile.industry),
@@ -137,6 +173,10 @@ export async function laborSetupOptions(orgId: string) {
     },
     workforces: WORKFORCES.map((entry) => ({ id: entry.id, label: entry.label, hint: entry.hint, team: entry.team })),
     people,
+    service_tags_used: used,
+    apps_off: appsOff,
+    // What the person may do from the setup beyond it: add people to the organization and invite them (People's permission).
+    can: { add_people: !!auth && hasPermission(auth, "manage_company_users|manage_users"), invite: !!auth && hasPermission(auth, "manage_company_users|manage_users") },
     group_types: types(configuration.resource_group_kinds),
     company_types: types(configuration.organization_connection_types),
     measurements: payMeasurements(),
@@ -159,7 +199,22 @@ export async function applyLaborSetup(ctx: PublicationContext, value: unknown) {
   const command = { ...ctx, mode: "command" as const };
   const target = { scope: "organization" as const, organizationId: orgId };
   const declared = await listDeclaredCapabilities(orgId);
-  const results: { ref: { type: string; id: string }; name: string; kind: string; created: boolean; pay: "saved" | "kept" | "none"; service_ids?: string[]; members?: number }[] = [];
+  // Apps and options are checked before anything is written.
+  for (const entry of input.assignees) {
+    if (entry.apps && Object.keys(entry.apps).length && entry.kind !== "resource_group") throw badRequest("labor_setup_apps_group", "Only a group's members are shown apps from here.");
+    for (const [appId, want] of Object.entries(entry.apps || {})) {
+      const definition = appDefinition(canonicalAppId(appId));
+      if (!definition) throw badRequest("labor_setup_app_unknown", `There is no app called ${appId}.`);
+      for (const key of Object.keys(want.options || {})) if (!definition.options.some((option) => option.key === key)) throw badRequest("labor_setup_app_option_unknown", `${definition.title} has no option called ${key}.`);
+    }
+    if (entry.lead_user_id && entry.kind !== "resource_group") throw badRequest("labor_setup_lead_group", "Only a group has someone in charge.");
+  }
+  // A service one of them does that the company profile lacked: the company does it too.
+  const profile = await readCompanyProfile(orgId);
+  const offered = profile.services.map((entry) => entry.id);
+  const added = [...new Set(input.assignees.flatMap((entry) => entry.service_ids || []))].filter((id) => !offered.includes(id));
+  if (added.length) await invokeAction(command, { action: "company-profile.save", target }, { services: [...offered, ...added] }, { idempotencyKey: `labor-setup:profile-services:${[...offered, ...added].join(",")}:${Date.now()}` });
+  const results: { ref: { type: string; id: string }; name: string; kind: string; created: boolean; pay: "saved" | "kept" | "none"; service_ids?: string[]; members?: number; lead_user_id?: string }[] = [];
   for (const entry of input.assignees) {
     let ref = entry.ref;
     let created = false;
@@ -202,15 +257,41 @@ export async function applyLaborSetup(ctx: PublicationContext, value: unknown) {
       }
       members = active(group).length;
     }
+    // Who is in charge: one of its members, made its lead through the same writer (the member writer keeps one lead).
+    let lead: string | undefined;
+    if (ref.type === "resource_group" && entry.lead_user_id) {
+      let group = await readResourceGroup(orgId, ref.id);
+      const member = (Array.isArray(group.members) ? group.members as Record<string, unknown>[] : []).find((row) => text(row.user_id) === entry.lead_user_id && text(row.status || "active") === "active");
+      if (!member) throw badRequest("labor_setup_lead_not_member", `${entry.name}'s lead must be one of its members.`);
+      if (member.is_lead !== true) group = await putResourceGroupMember(orgId, ref.id, entry.lead_user_id, { expected_revision: group.revision, is_lead: true, role: text(member.role) || "member" });
+      lead = entry.lead_user_id;
+    }
+    // Which apps its members see: the group's App experience settings, on every device each app exists on.
+    if (ref.type === "resource_group" && entry.apps && Object.keys(entry.apps).length) {
+      const group = await readResourceGroup(orgId, ref.id);
+      const attributes = { ...((group.attributes || {}) as Record<string, unknown>) };
+      const settings = { ...((attributes.app_defaults && typeof attributes.app_defaults === "object" ? attributes.app_defaults : {}) as Record<string, Record<string, unknown>>) };
+      for (const [appId, want] of Object.entries(entry.apps)) {
+        const definition = appDefinition(canonicalAppId(appId))!;
+        const before = { ...(settings[definition.id] || {}) };
+        settings[definition.id] = { ...before,
+          ...(want.visible !== undefined ? { visible: Object.fromEntries(definition.devices.map((device) => [device, want.visible])) } : {}),
+          ...(want.options ? { options: { ...((before.options && typeof before.options === "object" ? before.options : {}) as Record<string, unknown>), ...want.options } } : {}) };
+      }
+      if (JSON.stringify(settings) !== JSON.stringify(attributes.app_defaults || {})) await patchResourceGroup(orgId, ref.id, { attributes: { ...attributes, app_defaults: settings }, expected_revision: group.revision });
+    }
     // What it does: the services it was given replace the ones saved before; the rest of its capabilities stay.
-    if (entry.service_ids) {
+    // The kinds within a service are kept for the services it does.
+    if (entry.service_ids || entry.service_tags) {
       const current = declared.find((row) => row.assignee.type === ref!.type && row.assignee.id === ref!.id);
-      const service_ids = [...new Set(entry.service_ids)];
-      if (!current || JSON.stringify([...current.service_ids].sort()) !== JSON.stringify([...service_ids].sort())) {
-        await invokeAction(command, { action: "assignees.capabilities.save", target }, { assignee: ref, schema_ids: current?.schema_ids || [], service_ids, item_ids: current?.item_ids || [], excluded_item_ids: current?.excluded_item_ids || [], ...(current ? { expected_revision: current.revision } : {}) }, { idempotencyKey: `labor-setup:services:${ref.type}:${ref.id}:${service_ids.join(",")}:${Date.now()}` });
+      const service_ids = entry.service_ids ? [...new Set(entry.service_ids)] : current?.service_ids || [];
+      const service_tags = serviceTags(entry.service_tags ?? current?.service_tags ?? {}, service_ids);
+      const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+      if (!current || !same([...current.service_ids].sort(), [...service_ids].sort()) || !same(current.service_tags || {}, service_tags)) {
+        await invokeAction(command, { action: "assignees.capabilities.save", target }, { assignee: ref, schema_ids: current?.schema_ids || [], service_ids, service_tags, item_ids: current?.item_ids || [], excluded_item_ids: current?.excluded_item_ids || [], ...(current ? { expected_revision: current.revision } : {}) }, { idempotencyKey: `labor-setup:services:${ref.type}:${ref.id}:${service_ids.join(",")}:${Date.now()}` });
       }
     }
-    results.push({ ref, name: entry.name, kind: ref.type, created, pay, ...(entry.service_ids ? { service_ids: [...new Set(entry.service_ids)] } : {}), ...(members !== undefined ? { members } : {}) });
+    results.push({ ref, name: entry.name, kind: ref.type, created, pay, ...(entry.service_ids ? { service_ids: [...new Set(entry.service_ids)] } : {}), ...(members !== undefined ? { members } : {}), ...(lead ? { lead_user_id: lead } : {}) });
   }
   return { assignees: results };
 }
@@ -218,8 +299,9 @@ export async function applyLaborSetup(ctx: PublicationContext, value: unknown) {
 const strings = { type: "array", items: { type: "string" } };
 const named = { type: "object", required: ["id", "name"], properties: { id: { type: "string" }, name: { type: "string" } } };
 const setupStatusSchema = { type: "object", required: ["assignees", "profile", "people", "group_types", "company_types", "measurements", "methods"], properties: {
-  assignees: { type: "array", items: { type: "object", required: ["ref", "kind", "name", "service_ids", "member_user_ids"], properties: { ref: { type: "object" }, kind: { enum: ["resource_group", "organization_connection"] }, name: { type: "string" }, type_id: { type: "string" }, type_ids: strings, members: { type: "integer" }, member_user_ids: strings, service_ids: strings, pay: { type: ["object", "null"] } } } },
-  profile: { type: "object" }, workforces: { type: "array", items: { type: "object" } }, people: { type: "array", items: named },
+  assignees: { type: "array", items: { type: "object", required: ["ref", "kind", "name", "service_ids", "member_user_ids"], properties: { ref: { type: "object" }, kind: { enum: ["resource_group", "organization_connection"] }, name: { type: "string" }, type_id: { type: "string" }, type_ids: strings, members: { type: "integer" }, member_user_ids: strings, lead_user_id: { type: "string" }, service_ids: strings, service_tags: { type: "object" }, apps: { type: "object" }, pay: { type: ["object", "null"] } } } },
+  profile: { type: "object" }, workforces: { type: "array", items: { type: "object" } }, people: { type: "array", items: { ...named, properties: { ...named.properties, email: { type: "string" }, status: { enum: ["active", "invited"] } } } },
+  service_tags_used: { type: "object" }, apps_off: strings, can: { type: "object" },
   group_types: { type: "array", items: named }, company_types: { type: "array", items: named }, measurements: { type: "array", items: { type: "object" } }, methods: strings
 } };
 
@@ -227,13 +309,13 @@ export function registerLaborSetupPublication() {
   // What the workforce setup and Operations settings show (GP-28): who does the work, what each does, who is in a group
   // and how each is paid. Pay is commercial, so it is read with the permission that sets it.
   registerDataProvider({ id: "workforce-setup", version: "1", apps: ["materials", "crew"], exports: {
-    status: { description: "Who does the organization's work: its groups of users (crews) and outside companies (subcontractors), each with the company profile services it does, a group's members, and how it is paid for roofing (a one-line pay sheet's method and rate, or how many lines a fuller sheet has); with the company profile it starts from (kind of company, industry sets, services, who does most of the work), the people who can be put in a group, the types each kind can have and the measurements a piece rate can read.",
+    status: { description: "Who does the organization's work: its groups of users (crews) and outside companies (subcontractors), each with the company profile services it does and the kinds of each in the company's words (service_tags), a group's members, who is in charge of it (lead_user_id) and which apps its members are shown or not (apps), and how it is paid for roofing (a one-line pay sheet's method and rate, or how many lines a fuller sheet has); with the company profile it starts from (kind of company, industry sets, services, who does most of the work), the people who can be put in a group (with their email, and `invited` while they have not joined), the kinds of each service any of them does (service_tags_used), the apps the organization has off (apps_off), whether the person may add and invite people (can), the types each kind can have and the measurements a piece rate can read.",
       schema: setupStatusSchema, schemaVersion: "1", access: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.materials"], systemKinds: ["agent"] },
-      read: async (ctx) => { const value = await laborSetupOptions(ctx.organizationId); return { value, revision: `sha256:${contentHash(value)}` }; } }
+      read: async (ctx) => { const value = await laborSetupOptions(ctx.organizationId, ctx.auth); return { value, revision: `sha256:${contentHash(value)}` }; } }
   } });
   registerAction({
     id: "labor.setup.apply", version: "1", domain: "materials", implementation: backendImplementationDigest(),
-    description: "Set up who does the labor: add groups of users (employees) and outside companies (subcontractors) by name, change their type, say which of the company's services each does (service_ids, from the company profile catalog), add people of the organization to a group (member_user_ids; none are removed), and save how each is paid for roofing as a one-line pay sheet (piece rate on a roofing measurement, hourly, or per job; rates in dollars). An assignee whose pay sheet has more than one line is left alone. To write a fuller pay sheet from a document, use pay-sheets.try then pay-sheets.sheet.save.",
+    description: "Set up who does the labor: add groups of users (employees) and outside companies (subcontractors) by name, change their type, say which of the company's services each does (service_ids, from the company profile catalog; one the company profile lacks is added to it) and the kinds of each in the company's words (service_tags), add people of the organization to a group (member_user_ids; none are removed) and say which member is in charge (lead_user_id), choose which apps a group's members see (apps: { \"portal.crew_payouts\": { visible: true } }, its App experience settings), and save how each is paid for roofing as a one-line pay sheet (piece rate on a roofing measurement, hourly, or per job; rates in dollars). An assignee whose pay sheet has more than one line is left alone. To write a fuller pay sheet from a document, use pay-sheets.try then pay-sheets.sheet.save.",
     inputSchema: zodToJsonSchema(laborSetupInputSchema, { $refStrategy: "none" }) as Record<string, unknown>, outputSchema: { type: "object" },
     policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.materials", "apps.crew"] },
     effect: "write", executionKinds: ["api", "agent", "module"], idempotency: "required",

@@ -116,7 +116,295 @@
               {
                 "method": "hourly"
               }
-            ]
+            ],
+            "crew_apps": [
+              {
+                "id": "schedule",
+                "icon": "fa-calendar-days",
+                "label": {
+                  "key": "gx_wfs_see_schedule",
+                  "text": "Their schedule"
+                },
+                "hint": {
+                  "key": "gx_wfs_see_schedule_hint",
+                  "text": "The jobs they’re on, coming up and done"
+                },
+                "apps": [
+                  "portal.crew_schedule"
+                ],
+                "default": true
+              },
+              {
+                "id": "earnings",
+                "icon": "fa-wallet",
+                "label": {
+                  "key": "gx_wfs_see_earnings",
+                  "text": "Their earnings"
+                },
+                "hint": {
+                  "key": "gx_wfs_see_earnings_hint",
+                  "text": "What they’ve earned and been paid, by job"
+                },
+                "apps": [
+                  "portal.crew_payouts",
+                  "project.crew_payouts"
+                ],
+                "default": true
+              },
+              {
+                "id": "time_clock",
+                "icon": "fa-clock",
+                "label": {
+                  "key": "gx_wfs_see_time_clock",
+                  "text": "Time clock"
+                },
+                "hint": {
+                  "key": "gx_wfs_see_time_clock_hint",
+                  "text": "Clock in and out from Today, for people paid by the hour"
+                },
+                "option": {
+                  "app": "portal.crew_overview",
+                  "key": "time_clock"
+                },
+                "default": true
+              },
+              {
+                "id": "customer",
+                "icon": "fa-address-card",
+                "label": {
+                  "key": "gx_wfs_see_customer",
+                  "text": "Customer details"
+                },
+                "hint": {
+                  "key": "gx_wfs_see_customer_hint",
+                  "text": "The customer’s name, address and notes on a job"
+                },
+                "apps": [
+                  "project.field_customer"
+                ],
+                "default": true
+              },
+              {
+                "id": "materials",
+                "icon": "fa-boxes-stacked",
+                "label": {
+                  "key": "gx_wfs_see_materials",
+                  "text": "Materials"
+                },
+                "hint": {
+                  "key": "gx_wfs_see_materials_hint",
+                  "text": "Deliveries for a job, and adding what they used"
+                },
+                "apps": [
+                  "project.crew_materials"
+                ],
+                "default": true
+              },
+              {
+                "id": "receipts",
+                "icon": "fa-receipt",
+                "label": {
+                  "key": "gx_wfs_see_receipts",
+                  "text": "Receipts"
+                },
+                "hint": {
+                  "key": "gx_wfs_see_receipts_hint",
+                  "text": "Uploading receipts for what they buy"
+                },
+                "apps": [
+                  "portal.crew_receipts"
+                ],
+                "default": true
+              },
+              {
+                "id": "checklists",
+                "icon": "fa-list-check",
+                "label": {
+                  "key": "gx_wfs_see_checklists",
+                  "text": "Checklists"
+                },
+                "hint": {
+                  "key": "gx_wfs_see_checklists_hint",
+                  "text": "The checklists they complete on a job"
+                },
+                "apps": [
+                  "project.crew_checklists"
+                ],
+                "default": true
+              },
+              {
+                "id": "change_orders",
+                "icon": "fa-file-signature",
+                "label": {
+                  "key": "gx_wfs_see_change_orders",
+                  "text": "Change orders"
+                },
+                "hint": {
+                  "key": "gx_wfs_see_change_orders_hint",
+                  "text": "The change orders on their jobs"
+                },
+                "apps": [
+                  "project.crew_change_orders"
+                ],
+                "default": true
+              },
+              {
+                "id": "payments",
+                "icon": "fa-credit-card",
+                "label": {
+                  "key": "gx_wfs_see_payments",
+                  "text": "Customer payments"
+                },
+                "hint": {
+                  "key": "gx_wfs_see_payments_hint",
+                  "text": "What the customer owes, and taking a payment on site"
+                },
+                "apps": [
+                  "project.crew_payments"
+                ],
+                "default": false
+              }
+            ],
+            "service_tags": {
+              "roof_replacement": [
+                {
+                  "key": "gx_wfs_kind_roof_replacement_asphalt_shingles",
+                  "text": "Asphalt shingles"
+                },
+                {
+                  "key": "gx_wfs_kind_roof_replacement_metal_roofs",
+                  "text": "Metal roofs"
+                },
+                {
+                  "key": "gx_wfs_kind_roof_replacement_flat_roofs",
+                  "text": "Flat roofs"
+                },
+                {
+                  "key": "gx_wfs_kind_roof_replacement_tile_roofs",
+                  "text": "Tile roofs"
+                },
+                {
+                  "key": "gx_wfs_kind_roof_replacement_cedar_shakes",
+                  "text": "Cedar shakes"
+                },
+                {
+                  "key": "gx_wfs_kind_roof_replacement_slate",
+                  "text": "Slate"
+                }
+              ],
+              "roof_repair": [
+                {
+                  "key": "gx_wfs_kind_roof_repair_leaks",
+                  "text": "Leaks"
+                },
+                {
+                  "key": "gx_wfs_kind_roof_repair_flashing",
+                  "text": "Flashing"
+                },
+                {
+                  "key": "gx_wfs_kind_roof_repair_storm_damage",
+                  "text": "Storm damage"
+                },
+                {
+                  "key": "gx_wfs_kind_roof_repair_chimneys",
+                  "text": "Chimneys"
+                }
+              ],
+              "commercial_low_slope": [
+                {
+                  "key": "gx_wfs_kind_commercial_low_slope_tpo",
+                  "text": "TPO"
+                },
+                {
+                  "key": "gx_wfs_kind_commercial_low_slope_epdm",
+                  "text": "EPDM"
+                },
+                {
+                  "key": "gx_wfs_kind_commercial_low_slope_modified_bitumen",
+                  "text": "Modified bitumen"
+                },
+                {
+                  "key": "gx_wfs_kind_commercial_low_slope_coatings",
+                  "text": "Coatings"
+                }
+              ],
+              "storm_insurance": [
+                {
+                  "key": "gx_wfs_kind_storm_insurance_hail",
+                  "text": "Hail"
+                },
+                {
+                  "key": "gx_wfs_kind_storm_insurance_wind",
+                  "text": "Wind"
+                },
+                {
+                  "key": "gx_wfs_kind_storm_insurance_tarping",
+                  "text": "Tarping"
+                }
+              ],
+              "gutters": [
+                {
+                  "key": "gx_wfs_kind_gutters_seamless",
+                  "text": "Seamless"
+                },
+                {
+                  "key": "gx_wfs_kind_gutters_downspouts",
+                  "text": "Downspouts"
+                },
+                {
+                  "key": "gx_wfs_kind_gutters_half_round",
+                  "text": "Half-round"
+                }
+              ],
+              "gutter_guards": [
+                {
+                  "key": "gx_wfs_kind_gutter_guards_mesh",
+                  "text": "Mesh"
+                },
+                {
+                  "key": "gx_wfs_kind_gutter_guards_screens",
+                  "text": "Screens"
+                }
+              ],
+              "siding": [
+                {
+                  "key": "gx_wfs_kind_siding_vinyl",
+                  "text": "Vinyl"
+                },
+                {
+                  "key": "gx_wfs_kind_siding_fiber_cement",
+                  "text": "Fiber cement"
+                },
+                {
+                  "key": "gx_wfs_kind_siding_wood",
+                  "text": "Wood"
+                },
+                {
+                  "key": "gx_wfs_kind_siding_metal",
+                  "text": "Metal"
+                }
+              ],
+              "windows": [
+                {
+                  "key": "gx_wfs_kind_windows_replacement",
+                  "text": "Replacement"
+                },
+                {
+                  "key": "gx_wfs_kind_windows_new_construction",
+                  "text": "New construction"
+                }
+              ],
+              "solar": [
+                {
+                  "key": "gx_wfs_kind_solar_panels",
+                  "text": "Panels"
+                },
+                {
+                  "key": "gx_wfs_kind_solar_roof_mounts",
+                  "text": "Roof mounts"
+                }
+              ]
+            }
           },
           "selects": [
             "workforce",
