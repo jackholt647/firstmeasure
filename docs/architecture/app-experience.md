@@ -296,9 +296,17 @@ tiles in the same order.
 
 While the apps overlay is open, the left column's section headers (Apps, To Do,
 Channels, AI) are replaced by switches listing every section the person could
-have, on or off. These are the personal `left_column_*` preferences My
-Settings also sets, offered only where `platform.left_column_settings` is on;
-the last section on stays on.
+have, on or off (Channels only once Channels is on and the person has it).
+These are the personal `left_column_*` preferences My Settings also sets,
+offered only where `platform.left_column_settings` is on; the last section on
+stays on. On desktop the overlay's top left also switches the column between
+Thin (`left_column_behavior: tooltip`, names as instant tooltips) and Wide
+(`forced_expanded`), personal too; a thin column has no room for the section
+switches, so they show there beside Thin and Wide. More apps keeps its pins and
+these controls in every sidebar behavior. The first time someone opens it, the
+guided experience `platform.more_apps_tour` (config library, overlay, person,
+`manual`) walks through all of this, asked once per page by `offerMoreAppsTour`.
+Run `tests/advanced-app-menu-pins.test.mjs` for changes here.
 
 ## The server
 
