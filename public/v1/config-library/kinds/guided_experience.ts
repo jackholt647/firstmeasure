@@ -2,7 +2,7 @@ import type { LibraryKind } from "../contracts.js";
 import { experienceSchema, type ExperienceDefinition } from "../../guided-experiences/contracts.js";
 import { guidedSource } from "../../guided-experiences/registry.js";
 import { ensureGuidedSources } from "../../guided-experiences/sources.js";
-import { capabilityErrors, entryMissing, experienceMissing, GUIDED_EXPERIENCE_KIND, SETUP_STEP_EXPERIENCE_PREFIX, SETUP_STEP_KIND } from "../../guided-experiences/library-checks.js";
+import { capabilityErrors, catalogConditionErrors, entryMissing, experienceMissing, GUIDED_EXPERIENCE_KIND, SETUP_STEP_EXPERIENCE_PREFIX, SETUP_STEP_KIND } from "../../guided-experiences/library-checks.js";
 
 /**
  * Guided experiences (docs/architecture/guided-experiences.md): in-app setups and tours, each one entry whose data is
@@ -25,6 +25,7 @@ export const guidedExperienceKind: LibraryKind<ExperienceDefinition> = {
     if (ctx.id.startsWith(SETUP_STEP_EXPERIENCE_PREFIX)) errors.push(`${SETUP_STEP_EXPERIENCE_PREFIX}* experiences are played from setup steps; edit the setup_step entry.`);
     errors.push(...capabilityErrors(data.eligibility.capabilities, registries, "eligibility.capabilities"));
     if (data.introduces) errors.push(...capabilityErrors([data.introduces], registries, "introduces"));
+    errors.push(...catalogConditionErrors(data));
     // Save-time checks are in-memory lookups only (sources, capabilities, actions, other entries).
     ensureGuidedSources();
     const own = new Set(data.steps.map((step) => step.id));

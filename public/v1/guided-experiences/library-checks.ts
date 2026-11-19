@@ -1,5 +1,6 @@
 import { libraryEntries } from "../config-library/library.js";
 import type { RegistryChecks } from "../config-library/contracts.js";
+import { COMPANY_TYPES, OTHER_COMPANY_TYPE, industrySet, serviceOf } from "../company-profile/catalog.js";
 
 /**
  * Reference checks shared by the guided-experience kinds of the config library (guided_experience, guided_tab_faqs,
@@ -47,4 +48,36 @@ export function copyObjects(value: unknown, out: { key: string; text: string }[]
   if (typeof entry.key === "string" && typeof entry.text === "string" && Object.keys(entry).length === 2) { out.push({ key: entry.key, text: entry.text }); return out; }
   for (const child of Object.values(entry)) copyObjects(child, out);
   return out;
+}
+
+/**
+ * Company facts named in conditions (GP-16) are catalog ids (company-profile/catalog.ts): an industry set, a company
+ * type or a service that is not in the catalog would never match, so a condition naming one is refused when saved.
+ */
+const CATALOG_FIELDS: Record<string, [label: string, known: (id: string) => boolean]> = {
+  "organization.industry_sets": ["industry set", (id) => !!industrySet(id)],
+  "organization.company_type": ["company type", (id) => id === OTHER_COMPANY_TYPE || COMPANY_TYPES.some((entry) => entry.id === id)],
+  "organization.services": ["service", (id) => !!serviceOf(id)]
+};
+export function catalogConditionErrors(value: unknown, at = ""): string[] {
+  const errors: string[] = [];
+  const check = (field: string, expected: unknown, where: string) => {
+    const rule = CATALOG_FIELDS[field];
+    if (!rule) return;
+    for (const id of (Array.isArray(expected) ? expected : [expected]).map((entry) => String(entry ?? "").trim()).filter(Boolean)) {
+      if (!rule[1](id)) errors.push(`${where}: ${id} is not a ${rule[0]} in the company profile catalog.`);
+    }
+  };
+  const walk = (node: unknown, where: string) => {
+    if (Array.isArray(node)) { node.forEach((item, index) => walk(item, `${where}[${index}]`)); return; }
+    if (!node || typeof node !== "object") return;
+    const entry = node as Record<string, unknown>;
+    if (typeof entry.field === "string") check(entry.field, entry.value, where);
+    for (const [key, child] of Object.entries(entry)) {
+      if (key in CATALOG_FIELDS && (typeof child !== "object" || Array.isArray(child))) check(key, child, where);
+      walk(child, where ? `${where}.${key}` : key);
+    }
+  };
+  walk(value, at);
+  return errors;
 }

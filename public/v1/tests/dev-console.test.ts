@@ -116,6 +116,36 @@ test('the dev console answers the development tools audience with its sections a
   assert.equal(stepOf(await setupState(),'test.fm571_workforce').status,'not_started');
   assert.equal((await app.inject({method:'POST',url:`${steps}/company.type/rollback`,headers:{cookie,'x-platform-csrf':ctx.csrfToken},payload:{}})).statusCode,404,'nothing to roll back');
   assert.equal((await app.inject({method:'POST',url:`${steps}/company.type/test`,headers:{cookie},payload:{}})).statusCode,403,'writes need the CSRF token');
+  // What drives what (GP-16): every setup and question, evaluated for a company type picked in the console.
+  (await import('../guided-experiences/registry.js')).registerExperienceForTests({id:'test.gp16_setup',version:1,kind:'modal',scope:'organization',title:{key:'gx_test_gp16',text:'Trade setup'},
+   eligibility:{when:{field:'organization.industry_sets',operator:'not_contains',value:'nothing_here'}},triggers:[{kind:'tab_opened',tab:'project.materials'}],requires:['company.type'],
+   variants:[{id:'roofing',weight:1,when:{field:'organization.industry_sets',operator:'contains',value:'roofing_exteriors'},steps:['ask']},{id:'other',weight:1,when:{field:'organization.industry_sets',operator:'not_contains',value:'roofing_exteriors'}}],
+   steps:[{id:'ask',widget:'brand-cards',title:{key:'gx_test_gp16_ask',text:'Ask'},requires:['company.services'],next:{branches:[{when:{field:'selections.kind',operator:'equals',value:'x'},to:'more'}],otherwise:'more'}},{id:'more',widget:'brand-cards',title:{key:'gx_test_gp16_more',text:'More'}}],
+   completion:{screen:'none',then:[{play:'docs.tab_tutorial'}]}});
+  const drivers=async(type='')=>{const r=await app.inject({method:'GET',url:`/v1/signup-sandbox/development/console/setup/drivers${type?`?company_type=${type}`:''}`,headers:{cookie}});assert.equal(r.statusCode,200,r.body);return r.json();};
+  const setupIn=(graph:any)=>graph.setups.find((s:any)=>s.id==='test.gp16_setup');
+  let graph=await drivers();
+  assert.deepEqual([graph.company.shown,graph.company.actual.company_type,graph.company.actual.industry,graph.company.actual.industry_sets],['actual','roofing_contractor','roofing',['roofing_exteriors']],'this organization as it is: a roofer');
+  assert.deepEqual(setupIn(graph).variants.filter((v:any)=>v.chosen).map((v:any)=>v.id),['roofing'],'a roofer gets the roofing variant');
+  assert.deepEqual(setupIn(graph).variants.find((v:any)=>v.id==='roofing').steps,['ask']);
+  assert.deepEqual(setupIn(graph).variants.find((v:any)=>v.id==='roofing').when.rules[0],{field:'organization.industry_sets',operator:'contains',expected:'roofing_exteriors',actual:['roofing_exteriors'],matched:true});
+  assert.deepEqual([setupIn(graph).requires,setupIn(graph).pages[0].requires,setupIn(graph).then,setupIn(graph).triggers[0].on],[['company.type'],['company.services'],['docs.tab_tutorial'],'project.materials']);
+  assert.deepEqual(setupIn(graph).pages[0].branches.map((b:any)=>b.to),['more','more']);
+  const typeQuestion=graph.questions.find((q:any)=>q.id==='company.type'),servicesQuestion=graph.questions.find((q:any)=>q.id==='company.services');
+  assert.deepEqual([typeQuestion.depth,servicesQuestion.depth,servicesQuestion.requires],[0,1,['company.type']]);
+  assert.ok(typeQuestion.sets.includes('organization.industry_sets')&&servicesQuestion.sets.includes('organization.services'),'which company facts each question sets');
+  graph=await drivers('plumbing_contractor');
+  assert.deepEqual([graph.company.shown,graph.company.as_shown.industry,graph.company.as_shown.industry_sets,graph.company.actual.company_type],['plumbing_contractor','plumbing',[],'roofing_contractor'],'only the shown company changes');
+  assert.deepEqual(setupIn(graph).variants.filter((v:any)=>v.chosen).map((v:any)=>v.id),['other'],'a plumber gets the other variant');
+  assert.equal((await drivers('space_station')).company.shown,'actual','an unknown type shows this organization');
+  const column=(key:string)=>graph.matrix.columns.findIndex((c:any)=>c.key===key),row=graph.matrix.rows.find((r:any)=>r.id==='test.gp16_setup');
+  assert.deepEqual([row.cells[column('exterior_remodeler')].variants,row.cells[column('hvac_contractor')].variants,row.cells[column('none')].variants,row.cells[column('other')].offered],[['roofing'],['other'],['other'],true],'every company type at once');
+  const catalog=await import('../company-profile/catalog.js');
+  assert.deepEqual([catalog.industrySetsFor('exteriors'),catalog.industrySetsFor('roofing_and_exteriors'),catalog.industrySetsFor('hvac'),catalog.industrySetsFor('')],[['roofing_exteriors'],['roofing_exteriors'],[],[]]);
+  // A condition naming a set, type or service the catalog does not have is refused when saved.
+  const {catalogConditionErrors}=await import('../guided-experiences/library-checks.js');
+  assert.deepEqual(catalogConditionErrors({variants:[{when:{match:'any',rules:[{field:'organization.industry_sets',operator:'contains',value:'roofing_exterior'},{field:'organization.company_type',operator:'in',value:['roofing_contractor','other','roofer']}]}}],eligibility:{when:{'organization.services':['gutters','gutterz']}}}).length,3);
+  assert.deepEqual(catalogConditionErrors({when:{field:'organization.industry_sets',operator:'contains',value:'roofing_exteriors'}}),[]);
   // An ordinary organization's owner is not the audience.
   const storage=await import('../platform/storage.js');
   const devConsole=await import('../development/console.js');
@@ -124,5 +154,6 @@ test('the dev console answers the development tools audience with its sections a
   await assert.rejects(devConsole.devConsoleLive({...ctx,orgId:String(real.id)}),/development tools audience/);
   await assert.rejects(devConsole.devConsoleSetup({...ctx,orgId:String(real.id)}),/development tools audience/);
   await assert.rejects(devConsole.devConsoleSetupTest({...ctx,orgId:String(real.id)},'company.type','start'),/development tools audience/);
+  await assert.rejects(devConsole.devConsoleSetupDrivers({...ctx,orgId:String(real.id)},''),/development tools audience/);
  }finally{await app.close();}
 });

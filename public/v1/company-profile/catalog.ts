@@ -122,6 +122,27 @@ export const COMPANY_TYPES: readonly CompanyType[] = Object.freeze([
 ]);
 
 /**
+ * Industry sets (GP-16): named groups of the chooser's `organization.industry` values, so a setup that differs for a
+ * family of trades names the set once here instead of repeating a list of industries in every condition. Conditions
+ * read them as `organization.industry_sets` (a list: `contains "roofing_exteriors"`); `industrySetsFor` is what the
+ * chooser puts there. A set lists industries, not company types, so an older organization's own `industry` field
+ * (such as `roofing_and_exteriors`, before the company.type step) is placed the same way. Like the rest of the
+ * catalog these only grow: never change a set's id or what it means; widen it by adding an industry it already means.
+ */
+export type IndustrySet = { id: string; label: CatalogCopy; industries: string[] };
+const set = (id: string, text: string, industries: string[]): IndustrySet => ({ id, label: c("industry_set", id, text), industries });
+export const INDUSTRY_SETS: readonly IndustrySet[] = Object.freeze([
+  set("roofing_exteriors", "Roofing and exteriors", ["roofing", "exteriors", "roofing_and_exteriors"])
+]);
+const setById = new Map(INDUSTRY_SETS.map((entry) => [entry.id, entry]));
+export const industrySet = (id: string) => setById.get(id) || null;
+/** The ids of the sets an industry value belongs to (none for an unknown or empty one). */
+export function industrySetsFor(industry: string | null | undefined) {
+  const value = String(industry || "").trim().toLowerCase();
+  return value ? INDUSTRY_SETS.filter((entry) => entry.industries.includes(value)).map((entry) => entry.id) : [];
+}
+
+/**
  * Who sells and who does the work (FM-515): how the organization is staffed, asked once and read by any setup that needs
  * it (the appointment setup decides who goes to each kind of appointment from these). A choice each, from these lists.
  * `team` says the answer is a group of people (a sales team, crews), which the appointment setup gives a group type.
@@ -162,4 +183,7 @@ export const serviceOf = (id: string) => serviceById.get(id) || null;
   for (const entry of COMPANY_TYPES) for (const id of entry.services) if (!serviceById.has(id)) throw new Error(`Company type ${entry.id} names service ${id}, which is not in the catalog.`);
   for (const [name, list] of [["sales team", SALES_TEAMS], ["workforce", WORKFORCES]] as const) if (new Set(list.map((entry) => entry.id)).size !== list.length) throw new Error(`Company profile catalog repeats a ${name} answer.`);
   if (typeById.has(OTHER_COMPANY_TYPE)) throw new Error("\"other\" is reserved for a company type in the person's own words.");
+  if (setById.size !== INDUSTRY_SETS.length) throw new Error("Company profile catalog repeats an industry set.");
+  const industries = new Set(COMPANY_TYPES.map((entry) => entry.industry));
+  for (const entry of INDUSTRY_SETS) if (!entry.industries.some((industry) => industries.has(industry))) throw new Error(`Industry set ${entry.id} names no company type's industry.`);
 })();
