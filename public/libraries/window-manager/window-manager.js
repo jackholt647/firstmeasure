@@ -381,8 +381,6 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
     const scale=desired>budget ? budget/desired : 1;
     let leftReserved=laneSize(leftDocks)*scale,rightReserved=laneSize(rightDocks)*scale;
     let reserved=leftReserved+rightReserved,minimized=0;
-    const minimizedWidth = Math.min(224, Math.max(0, width - 16));
-    const minimizedColumns = Math.max(1, Math.floor((width - 8) / (minimizedWidth + 6)));
     function placeLane(list,right){
       let offset=0;
       const cornerWidth=Math.max(0,...list.filter(w=>w.dockSide.includes('-')).map(w=>dockWidth(w)))*scale;
@@ -410,6 +408,10 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       place(win,leftReserved,y,width-reserved,h);if(!previewOnly)win.dockBox={left:leftReserved,top:y,width:width-reserved,height:h};if(!previewOnly)win.divider=top ? 's' : 'n';
       if(top)topReserved+=h;else bottomReserved+=h;
     }
+    // Minimized windows stay between the open side docks (a docked tray's composer stays usable), except over a phone's full-width dock.
+    const shelfLeft=mobileOverlayDock ? 0 : leftReserved,shelfRight=mobileOverlayDock ? width : width-rightReserved,shelfWidth=Math.max(0,shelfRight-shelfLeft),shelfBottom=height-(mobileOverlayDock ? 0 : bottomReserved);
+    const minimizedWidth = Math.min(224, Math.max(0, shelfWidth - 16));
+    const minimizedColumns = Math.max(1, Math.floor((shelfWidth - 8) / (minimizedWidth + 6)));
     if(previewOnly)return geometry.get(previewOnly);
     for(const win of docks)for(const grip of win.element.querySelectorAll('.fm-window-resize'))grip.classList.toggle('is-dock-divider',grip.dataset.resize===win.divider);
     const record = hosts.get(host);
@@ -432,9 +434,9 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       if (win.mode === 'full') place(win,leftReserved,inset+topReserved,Math.max(0,width-reserved),Math.max(0,height-inset-topReserved-bottomReserved));
       if (win.mode === 'minimized') {
         if(win.compactCall && win.sheet()){const h=Math.max(52,win.minimizedHeight);place(win,8,Math.max(0,innerHeight-8-h-sheetSafeBottom()),Math.max(0,innerWidth-16),h);continue;}
-        if(win.compactCall){const others=active.filter(w=>w!==win&&w.mode==='minimized');const rows=Math.ceil(others.length/minimizedColumns);place(win,Math.max(0,width-8-Math.min(win.minimizedWidth||360,width-16)),Math.max(inset,height-8-win.minimizedHeight-rows*38),Math.min(win.minimizedWidth||360,width-16),win.minimizedHeight);continue;}
+        if(win.compactCall){const others=active.filter(w=>w!==win&&w.mode==='minimized');const rows=Math.ceil(others.length/minimizedColumns);const w=Math.max(0,Math.min(win.minimizedWidth||360,shelfWidth-16));place(win,Math.max(shelfLeft,shelfRight-8-w),Math.max(inset,shelfBottom-8-win.minimizedHeight-rows*38),w,win.minimizedHeight);continue;}
         const column = minimized % minimizedColumns, row = Math.floor(minimized++ / minimizedColumns);
-        place(win,Math.max(0,width-8-minimizedWidth-column*(minimizedWidth+6)),Math.max(inset,height-8-32-row*38),minimizedWidth,32);
+        place(win,Math.max(shelfLeft,shelfRight-8-minimizedWidth-column*(minimizedWidth+6)),Math.max(inset,shelfBottom-8-32-row*38),minimizedWidth,32);
       }
       if (win.mode === 'floating') {
         const r = win.rect;
