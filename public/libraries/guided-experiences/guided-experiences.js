@@ -564,7 +564,9 @@
    * agrees. While a panel covers the page, the tab under it is not what the person sees, so its tour waits: a visit
    * announced meanwhile is not armed, and one already armed is suspended (its timers and queued play cancelled, its
    * tour ended quietly) and armed again when the panel closes. What the close plays (its own `panel_closed`
-   * experience) is asked for first, so the tab's tour follows it in the queue.
+   * experience) is asked for first, so the tab's tour follows it in the queue. The host may also name the panel's
+   * `element`, its `closeControl()` and `close()`: a tour step whose target the panel covers holds on that control
+   * until the person closes it (GP-34, `overlay.run`).
    */
   const panels = new Map();
   function covered(){
@@ -596,7 +598,8 @@
     if (!panel) return;
     const isOpen = typeof detail.isOpen === 'function' ? detail.isOpen : () => true;
     const covering = typeof detail.covering === 'function' ? detail.covering : () => !!detail.covers && isOpen();
-    panels.set(panel, { isOpen, covering });
+    const fn = (value) => (typeof value === 'function' ? value : null);
+    panels.set(panel, { isOpen, covering, element: detail.element || null, closeControl: fn(detail.closeControl), close: fn(detail.close) });
     if (covered()) suspendVisit(); else armVisit();
     playPanelTrigger('panel_opened', { ...detail, panel }, () => { try { return !!isOpen(); } catch (_) { return false; } });
   });
@@ -746,6 +749,23 @@
     return release;
   }
   const visible = (selector) => { try { const el = document.querySelector(selector); if (!el) return null; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && el.offsetParent !== null ? el : null; } catch (_) { return null; } };
+  /**
+   * The panel covering the page over a tour's target, if one does (GP-34): a covering panel whose element does not
+   * hold the target. A host that names no element is asked by hit test: the target's centre shows something else.
+   */
+  function coveringOver(target){
+    if (!target || !panels.size) return null;
+    for (const panel of panels.values()) {
+      let covers = false;
+      try { covers = !!panel.covering?.(); } catch (_) {}
+      if (!covers) continue;
+      if (panel.element) { if (!panel.element.contains(target)) return panel; continue; }
+      const r = target.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const hit = (document.elementsFromPoint?.(x, y) || []).find((el) => !el.closest?.('[data-gx-overlay]'));
+      if (hit && hit !== target && !target.contains(hit)) return panel;
+    }
+    return null;
+  }
   const waitFor = (selectors, timeout) => new Promise((resolve) => {
     const started = Date.now();
     const poll = () => { for (const s of selectors) { const el = visible(s); if (el) return resolve(el); } if (Date.now() - started >= timeout) return resolve(null); setTimeout(poll, 100); };
@@ -841,12 +861,54 @@
          * rather than pointing at whatever took its place.
          */
         let trackFrame = 0, trackedKey = '', lastSearch = 0;
+        /**
+         * A panel covering the page over the step's target (the phone's details tray, reopened from the window tour's
+         * first step, GP-34): the tour does not go on under it. The card points at the panel's close control and asks
+         * for it to be closed; when the person closes it the tour carries on with the next step, and Next closes it
+         * for them first. `held` is that panel while it holds the step.
+         */
+        let held = null;
+        const closeControlOf = (panel) => { try { const el = panel.closeControl?.(); return el?.isConnected && el.getClientRects().length ? el : null; } catch (_) { return null; } };
+        function hold(panel){
+          held = panel;
+          clickTarget?.removeEventListener('click', onTargetClick, true); clickTarget = null;
+          const control = closeControlOf(panel);
+          targets = control ? [control] : []; trackedKey = '';
+          renderHeld();
+          animateTo(holesOf(targets));
+          requestAnimationFrame(place);
+        }
+        function renderHeld(){
+          const total = list.length;
+          pop.innerHTML = `<button type="button" class="gx-x" data-gx="close" aria-label="${esc(L('gx_ui_skip_tutorial', 'Skip tutorial'))}" title="${esc(L('gx_ui_skip_tutorial', 'Skip tutorial'))}">&times;</button>
+            <h3>${H('gx_ui_held_title', 'Close this to carry on')}</h3><p>${H('gx_ui_held_body', 'The tour carries on once it is closed. Tap Next to close it now.')}</p>
+            <footer><span class="gx-dots" aria-label="${esc(L('gx_ui_step_of', 'Step') + ' ' + (index + 1) + ' / ' + total)}">${list.map((_, i) => `<i class="${i === index ? 'on' : ''}"></i>`).join('')}</span>
+              <button type="button" class="gx-b gx-primary" data-gx="next">${H('gx_ui_next', 'Next')}</button></footer>
+            ${targets.length ? '<span class="gx-arrow" aria-hidden="true"></span>' : ''}`;
+          pop.hidden = false;
+          pop.setAttribute('aria-label', L('gx_ui_held_title', 'Close this to carry on')); pop.dataset.gxStep = current?.id || ''; pop.dataset.gxHeld = '';
+          pop.classList.remove('gx-enter'); void pop.offsetWidth; pop.classList.add('gx-enter');
+        }
+        // Closed (by the person, or by Next): the step under it was seen, so the tour goes on from the next one.
+        function carryOn(){
+          if (!held) return;
+          held = null; delete pop.dataset.gxHeld;
+          go(index + 1, 1);
+        }
         const boxKey = () => targets.map((el) => { const r = el.getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`; }).join('|');
         function follow(now){
           if (ended) return;
           trackFrame = requestAnimationFrame(follow);
+          if (held) {
+            let still = false;
+            try { still = !!held.covering?.(); } catch (_) {}
+            if (!still) { carryOn(); return; }
+            // The close control may only be laid out once the panel has slid in.
+            if (!targets.length) { const control = closeControlOf(held); if (control) { targets = [control]; trackedKey = ''; renderHeld(); animateTo(holesOf(targets)); } }
+          }
           if (!current || !targets.length) return;
-          if (targets.some((el) => !el.isConnected || !el.getClientRects().length)) {
+          if (!held) { const panel = coveringOver(targets[0]); if (panel) { hold(panel); return; } }
+          if (!held && targets.some((el) => !el.isConnected || !el.getClientRects().length)) {
             if (now - lastSearch < 150) return;
             lastSearch = now;
             const again = found(current.targets);
@@ -887,6 +949,7 @@
         async function go(to, direction){
           if (ended) return;
           const mine = ++move;
+          held = null; delete pop.dataset.gxHeld;
           clickTarget?.removeEventListener('click', onTargetClick, true); clickTarget = null;
           for (let i = to; i >= 0 && i < list.length; i += direction) {
             let step = list[i];
@@ -924,7 +987,14 @@
         }
         pop.addEventListener('click', (event) => {
           const action = event.target.closest?.('[data-gx]')?.dataset.gx;
-          if (action === 'next') { options.onStep?.({ type: 'step_done', step: current?.id }); go(index + 1, 1); }
+          if (action === 'next' && held) {
+            // Next while a panel covers the page closes it first, so the tour carries on over what it explains.
+            const panel = held, control = closeControlOf(panel);
+            options.onStep?.({ type: 'step_done', step: current?.id });
+            try { if (panel.close) panel.close(); else control?.click(); } catch (_) {}
+            carryOn();
+          }
+          else if (action === 'next') { options.onStep?.({ type: 'step_done', step: current?.id }); go(index + 1, 1); }
           else if (action === 'skip') { options.onStep?.({ type: 'step_skip', step: current?.id }); go(index + 1, 1); }
           else if (action === 'back') { options.onStep?.({ type: 'back', step: current?.id }); go(index - 1, -1); }
           else if (action === 'close') { options.onStep?.({ type: 'dismiss', step: current?.id }); finish('dismissed'); }

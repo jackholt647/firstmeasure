@@ -834,7 +834,8 @@ async function panelPage(browser){
     };
     // As project-request/app.js: the tray announces itself open and closed, covering the page (a phone).
     const panel = document.getElementById('panel'), isOpen = () => !panel.hidden;
-    window.setTray = (open, user) => { panel.hidden = !open; dispatchEvent(new CustomEvent(open ? 'fm:project-panel:opened' : 'fm:project-panel:closed', { detail: { panel: 'project.details', covers: true, user, isOpen, covering: isOpen } })); };
+    const closeControl = () => document.getElementById('close');
+    window.setTray = (open, user) => { panel.hidden = !open; dispatchEvent(new CustomEvent(open ? 'fm:project-panel:opened' : 'fm:project-panel:closed', { detail: { panel: 'project.details', covers: true, user, isOpen, covering: isOpen, element: panel, closeControl, close: () => setTray(false, true) } })); };
     document.getElementById('close').addEventListener('click', () => setTray(false, true));
     window.openTab = () => dispatchEvent(new CustomEvent('fm:project-tab:opened', { detail: { appId: 'project.photos', isActive: () => true } }));
   });
@@ -890,6 +891,58 @@ test('Skip step on a last step that waits for a click finishes the tour (FM-445)
     await page.waitForFunction(() => events.includes('project.details_tutorial:complete'));
     await page.waitForFunction(() => !document.querySelector('.gx-pop'));
     assert.equal(await page.isVisible('#panel'), true, 'skipping leaves the tray as it was');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+// GP-34: the window tour's first step points at the title, which reopens the tray. Reopened, the tray covers what the
+// tour explains: the card moves to the tray's close arrows and holds until it is closed, then the tour goes on; Next
+// closes it first. Before, the spotlight stayed where the title was and Next went on with the tray over the tabs.
+test('a covering panel reopened during a tour holds it on the close control; closing it, or Next, carries on', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await panelPage(browser);
+    await page.evaluate(() => {
+      tours[1].steps.unshift({ id: 'Open again', targets: ['#title'], placement: 'auto', title: { key: 'o', text: 'Open again' }, body: { key: 'ob', text: 'Tap the title' }, advance: 'next', wait_ms: 1000 });
+      document.getElementById('title').addEventListener('click', () => setTray(true, true));
+    });
+    await page.evaluate(() => setTray(true, false));
+    await tourStep(page, 'Your details');
+    await page.locator('.gx-pop [data-gx=next]').click();
+    await tourStep(page, 'Close the tray');
+    await page.click('#close');
+    await tourStep(page, 'Open again');
+    const ringOn = (id) => page.waitForFunction((id) => {
+      const ring = document.querySelector('.gx-ov-ring').getBoundingClientRect(), el = document.getElementById(id).getBoundingClientRect();
+      return Math.abs(ring.left + 6 - el.left) < 2 && Math.abs(ring.top + 6 - el.top) < 2 && Math.abs(ring.width - 12 - el.width) < 2;
+    }, id);
+    await ringOn('title');
+    // The person taps the title through the spotlight: the tray covers it, so the card holds on the tray's close.
+    await page.click('#title');
+    await page.locator('.gx-pop[data-gx-held] h3', { hasText: 'Close this to carry on' }).waitFor();
+    await ringOn('close');
+    await page.waitForTimeout(500);
+    assert.equal(await page.locator('.gx-pop h3', { hasText: 'Switch tabs' }).count(), 0, 'the tour does not go on under the tray');
+    assert.equal(await page.locator('.gx-pop [data-gx=skip]').count(), 0);
+    // Closing it carries on with the next step.
+    await page.click('#close');
+    await tourStep(page, 'Switch tabs');
+    assert.equal(await page.isVisible('#panel'), false);
+    // Back to the title; reopened again, Next closes the tray and carries on.
+    await page.locator('.gx-pop [data-gx=back]').click();
+    await tourStep(page, 'Open again');
+    await page.click('#title');
+    await page.locator('.gx-pop[data-gx-held]').waitFor();
+    await page.locator('.gx-pop [data-gx=next]').click();
+    await tourStep(page, 'Switch tabs');
+    assert.equal(await page.isVisible('#panel'), false, 'Next closed the tray');
+    await ringOn('tabs');
+    await page.locator('.gx-pop [data-gx=next]').click();
+    await tourStep(page, 'Bottom buttons');
+    await page.locator('.gx-pop [data-gx=next]').click();
+    await page.waitForFunction(() => events.includes('project.window_tutorial:complete'));
+    const starts = await page.evaluate(() => events.filter((entry) => entry.endsWith(':start')));
+    assert.deepEqual(starts, ['project.details_tutorial:start', 'project.window_tutorial:start']);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

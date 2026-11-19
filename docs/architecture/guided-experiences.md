@@ -320,6 +320,15 @@ on screen ended quietly, so it plays again); when the panel closes, the visit is
 again. What the close plays (its `panel_closed` experience) is asked for first, so the
 tab's tour follows it in the queue.
 
+**A tour does not go on under a covering panel (GP-34).** The host also names the panel's
+`element`, `closeControl()` and `close()`. When a covering panel opens over the target of
+the step on screen (the window tour's first step points at the title, and tapping it
+reopens the tray), the card points at the panel's close control instead, says to close it
+to carry on (`gx_ui_held_title`, `gx_ui_held_body`) and holds. When the person closes it the
+tour goes on with the next step; Next closes it for them first (`close()`, else a click on
+the control). A step whose target is inside the panel (the tray's own tour) is not held. A
+host that names no element is asked by hit test (the target's centre shows something else).
+
 **Preload and instant tab tours.** As soon as a frame knows its project (the
 first read, `fm:project-modal:hydrated`, or `FirstMateGuides.preload(projectId)`)
 it reads the list once and keeps it in memory, per organization, person and
