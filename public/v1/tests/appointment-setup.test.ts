@@ -102,7 +102,10 @@ test("the setup asks only what is unanswered: company type, work, who sells, who
 test("the kinds become appointment types; the finish sets texts and who goes, and adds the team types", async () => {
   await setup();
   const catalog = await value(owner, "appointment-setup", "catalog");
-  assert.deepEqual(catalog.suggested, ["sales", "installation", "repair", "inspection"], "a roofer with a sales team: sales, the work, repairs and inspections");
+  assert.deepEqual(catalog.suggested, ["sales", "installation", "repair", "delivery"], "a roofer with a sales team: sales, the work, repairs and deliveries; never an inspection as well as a sales appointment (GP-85)");
+  assert.deepEqual(catalog.kinds.find((kind: any) => kind.id === "sales").offer, ["me", "sales_team"], "sales offers me or a salesperson first (GP-85)");
+  assert.deepEqual(catalog.kinds.find((kind: any) => kind.id === "installation").offer, ["crews", "subcontractors", "me"]);
+  assert.deepEqual(catalog.kinds.find((kind: any) => kind.id === "repair").offer, ["technician", "crews", "subcontractors", "me", "sales_team"]);
   assert.deepEqual(catalog.categories.map((entry: any) => entry.id), ["sales", "production", "other"]);
   const { readAppointmentCatalog } = await import("../appointments/planning.js");
   assert.deepEqual((await readAppointmentCatalog(owner)).catalog.presets.map((preset: any) => preset.id), ["sales", "production"], "before: the built-in types");
@@ -111,6 +114,9 @@ test("the kinds become appointment types; the finish sets texts and who goes, an
   const saved = await invoke(owner, "appointments.kinds.save", { kinds: [{ id: "sales" }, { id: "repair", category: "production" }, { label: "Estimate <b>", category: "sales" }] }, "kinds-1");
   assert.equal(saved.answered.kinds, true);
   assert.deepEqual(saved.kinds.map((kind: any) => [kind.id, kind.category, kind.attendee]), [["sales", "sales", "sales_team"], ["repair", "production", "crews"], ["custom_estimate_b", "sales", "sales_team"]]);
+  assert.deepEqual(saved.kinds[1].attendees, ["crews", "subcontractors"], "a company with crews and subcontractors sends either to its work (GP-85)");
+  assert.deepEqual(saved.kinds[2].offered, ["me", "sales_team"], "a kind of the person's own offers its category's answers");
+  assert.equal(saved.no_sales, false);
   assert.equal(saved.kinds[2].label, "Estimate b", "the person's own words, as plain text");
   assert.deepEqual(saved.attendees, ["me", "sales_team", "crews", "subcontractors", "anyone"]);
   let presets = (await readAppointmentCatalog(owner)).catalog.presets;
@@ -152,7 +158,40 @@ test("defaults follow who sells and who works", async () => {
   assert.equal(defaultAttendee("production", { sales_team: null, workforce: "subcontractors" }), "subcontractors");
   assert.equal(defaultAttendee("other", { sales_team: "small_team", workforce: "crews" }), "anyone");
   assert.deepEqual(offeredAttendees({ sales_team: "just_me", workforce: "just_me" }), ["me", "anyone"]);
-  assert.deepEqual(suggestedKinds({ industry: "hvac", crm_pack: "home_services", sales_team: "no_sales" }), ["installation", "repair", "service_call", "maintenance"], "no sales appointments when there are none");
+  assert.deepEqual(suggestedKinds({ industry: "hvac", crm_pack: "home_services", sales_team: "no_sales" }), ["installation", "repair", "delivery", "service_call", "maintenance"], "no sales appointments when there are none");
+  assert.deepEqual(suggestedKinds({ industry: "roofing", crm_pack: null, sales_team: "small_team" } as any), ["sales", "installation", "repair", "delivery"], "an inspection is never picked to start with (GP-85)");
+});
+
+test("several people can go to a kind: any one of them meets its one requirement (GP-85)", async () => {
+  const { requirementsFor, defaultAttendees } = await import("../appointments/setup.js");
+  const shape = (rows: any[]) => rows.map((r) => [r.subject_type, r.department_id || "", r.crew_member_percent || 0]);
+  assert.deepEqual(shape(requirementsFor(["crews"], "u1", "production")), [["resource_group", "production", 100]]);
+  assert.deepEqual(requirementsFor(["crews", "subcontractors"], "u1", "production"), [], "a subcontractor is chosen when it is booked, so the planner requires nothing");
+  assert.deepEqual(shape(requirementsFor(["technician", "crews"], "u1", "production")), [["any", "production", 0]], "a person or a group");
+  assert.deepEqual(shape(requirementsFor(["me", "sales_team"], "u1", "sales")), [["organization_user", "", 0]], "me is not necessarily in the department");
+  assert.deepEqual(shape(requirementsFor(["sales_team"], "u1", "sales")), [["organization_user", "sales", 0]]);
+  assert.deepEqual(requirementsFor(["me"], "u1", "sales").map((r: any) => r.subject_keys), [["organization_user:u1"]]);
+  assert.deepEqual(defaultAttendees("production", { sales_team: null, workforce: "crews_and_subs" }), ["crews", "subcontractors"]);
+  assert.deepEqual(defaultAttendees("sales", { sales_team: "just_me", workforce: null }), ["me"]);
+});
+
+test("a company with no sales appointments gets no sales kinds and no departments on its types (GP-85)", async () => {
+  await setup();
+  const { readAppointmentCatalog } = await import("../appointments/planning.js");
+  await invoke(owner, "company-profile.save", { sales_team: "no_sales" }, "profile-no-sales");
+  const catalog = await value(owner, "appointment-setup", "catalog");
+  assert.ok(!catalog.suggested.includes("sales") && !catalog.suggested.includes("inspection"), "no sales kinds are picked to start with");
+  const saved = await invoke(owner, "appointments.kinds.save", { kinds: [{ id: "repair" }, { label: "Consultation", category: "sales" }] }, "kinds-no-sales");
+  assert.equal(saved.no_sales, true);
+  assert.equal(saved.kinds.find((kind: any) => kind.id === "custom_consultation").category, "production", "there is no sales or production, only the work");
+  await invoke(owner, "appointments.setup.apply", { appointment_types: [{ id: "repair", reminder: true, on_my_way: true, attendees: ["technician", "crews"] }] }, "apply-no-sales");
+  const repair = (await readAppointmentCatalog(owner)).catalog.presets.find((preset: any) => preset.id === "repair")!.configuration;
+  assert.deepEqual(repair.department_ids, [], "departmentless");
+  assert.deepEqual(repair.requirements.map((r: any) => [r.subject_type, r.department_id]), [["any", undefined]]);
+  const status = await value(owner, "appointment-setup", "status");
+  assert.deepEqual(status.kinds.find((kind: any) => kind.id === "repair").attendees, ["technician", "crews"], "both answers are kept");
+  await assert.rejects(() => invoke(owner, "appointments.setup.apply", { appointment_types: [{ id: "repair", reminder: true, on_my_way: true }] }, "apply-nobody"), /who goes/i);
+  await invoke(owner, "company-profile.save", { sales_team: "small_team" }, "profile-sales-again");
 });
 
 test("an appointment type can turn the on-my-way text off", async () => {

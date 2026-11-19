@@ -3,7 +3,9 @@
 // (appointments.kinds.save), which makes each kind an appointment type. The kinds come from the appointment-setup
 // catalog (the ones suggested for this company are picked to start with); each has pills that say whether it is a
 // sales or a production appointment (or other), and the person can add their own. It reads through the publication
-// layer only and writes nothing itself.
+// layer only and writes nothing itself. The list is two columns where there is room (GP-85). A company that does no sales
+// appointments (`appointment-setup.status` `no_sales`) is shown no sales kinds and no sales/production pills: it makes
+// no such distinction.
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
@@ -13,7 +15,8 @@ const CATEGORIES = ['sales', 'production', 'other'];
 const css = `
 .gxk{display:flex;flex-direction:column;gap:12px;min-width:0;padding-bottom:6px}
 .gxk-lead{margin:0;font-size:13px;color:#475467}
-.gxk-list{display:flex;flex-direction:column;gap:8px}
+.gxk-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.gxk-list[data-pills=false] .gxk-pills{display:none}
 .gxk-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid #e4e7ec;border-radius:13px;background:#fff;transition:border-color .15s,background .15s,box-shadow .15s}
 .gxk-row[data-on=true]{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.04);box-shadow:0 0 0 1px var(--primary,#d93025)}
 .gxk-pick{display:flex;align-items:center;gap:10px;flex:1 1 auto;min-width:0;border:0;background:transparent;padding:4px 0;font:inherit;text-align:left;color:#101828;cursor:pointer}
@@ -36,9 +39,14 @@ const css = `
 .gxk-add button:disabled{opacity:.5;cursor:default}
 .gxk-loading{display:grid;place-items:center;min-height:160px}
 .gxk-error{color:#b42318;font-size:13px;margin:0}
-@media(max-width:560px){.gxk-row{flex-wrap:wrap;gap:6px 10px}.gxk-pick{flex-basis:100%}.gxk-pills{margin-left:32px}}
+.gxk-row{flex-wrap:wrap;gap:6px 10px}
+.gxk-list[data-pills=true] .gxk-pick{flex-basis:100%}
+.gxk-list[data-pills=true] .gxk-pills{margin-left:32px}
+@media(max-width:560px){.gxk-list{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.gxk *{transition:none!important}}
 `;
+// The sales answer a starting selection was made for: a person who goes Back and changes it gets a fresh one.
+const builtFor = new WeakMap();
 const box = '<span class="gxk-box" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>';
 function installStyle(){
   if (document.getElementById('gx-appointment-kinds-style')) return;
@@ -49,25 +57,31 @@ export function mount(el, ctx){
   installStyle();
   const L = ctx.L, esc = ctx.esc;
   const answer = object(ctx.answer);
-  let alive = true, rows = [], categories = [];
+  let alive = true, rows = [], categories = [], noSales = false;
   el.innerHTML = '<div class="gxk-loading"><span class="gxs-spin" aria-hidden="true"></span></div>';
 
   // One row per kind: the catalog's (suggested ones picked), then what was answered before, then the person's own.
+  // With no sales appointments, the sales kinds are not offered and nothing is a sales appointment (GP-85).
   function build(catalog, status){
-    const known = array(catalog.kinds);
+    noSales = object(status).no_sales === true;
+    const salesKind = new Set(array(catalog.kinds).filter((entry) => entry.category === 'sales').map((entry) => entry.id));
+    const known = array(catalog.kinds).filter((entry) => !noSales || !salesKind.has(entry.id));
     const before = array(object(status).kinds);
-    const given = array(answer.kinds);
-    const startFrom = given.length ? given : before.length ? before : array(catalog.suggested).map((id) => ({ id }));
+    const given = builtFor.get(answer) === noSales ? array(answer.kinds) : [];
+    const startFrom = (given.length ? given : before.length ? before : array(catalog.suggested).map((id) => ({ id }))).filter((entry) => !noSales || !salesKind.has(clean(entry.id)));
     const picked = new Map(startFrom.map((entry) => [clean(entry.id) || `custom_${fold(entry.label)}`, entry]));
-    rows = known.map((entry) => ({ id: entry.id, label: L(entry.label), category: clean(picked.get(entry.id)?.category) || entry.category, on: picked.has(entry.id), custom: false }));
-    for (const [id, entry] of picked) if (!rows.some((row) => row.id === id) && clean(entry.label)) rows.push({ id, label: clean(entry.label), category: CATEGORIES.includes(entry.category) ? entry.category : 'other', on: true, custom: true });
+    const category = (value, fallback) => noSales && value === 'sales' ? 'production' : CATEGORIES.includes(value) ? value : fallback;
+    rows = known.map((entry) => ({ id: entry.id, label: L(entry.label), category: category(clean(picked.get(entry.id)?.category), entry.category), on: picked.has(entry.id), custom: false }));
+    for (const [id, entry] of picked) if (!rows.some((row) => row.id === id) && clean(entry.label)) rows.push({ id, label: clean(entry.label), category: category(entry.category, 'other'), on: true, custom: true });
     categories = array(catalog.categories);
+    builtFor.set(answer, noSales);
   }
   const pillsHtml = (row) => `<span class="gxk-pills" role="radiogroup" aria-label="${esc(L('gx_appt_kind_category', 'Kind of appointment'))}">${categories.map((entry) => `<button type="button" class="gxk-pill" role="radio" data-category="${esc(entry.id)}" aria-checked="${row.category === entry.id}">${esc(L(entry.label))}</button>`).join('')}</span>`;
   const rowHtml = (row) => `<div class="gxk-row" data-gxk-kind="${esc(row.id)}" data-on="${row.on}"><button type="button" class="gxk-pick" role="checkbox" aria-checked="${row.on}">${box}<strong>${esc(row.label)}</strong></button>${pillsHtml(row)}</div>`;
   function draw(){
-    el.innerHTML = `<div class="gxk"><p class="gxk-lead">${esc(L('gx_appt_kinds_lead', 'Pick everything you schedule, and say whether each is for sales or production.'))}</p>
-      <div class="gxk-list" data-list>${rows.map(rowHtml).join('')}</div>
+    const lead = noSales ? L('gx_appt_kinds_lead_no_sales', 'Pick everything you schedule.') : L('gx_appt_kinds_lead', 'Pick everything you schedule, and say whether each is for sales or production.');
+    el.innerHTML = `<div class="gxk"><p class="gxk-lead">${esc(lead)}</p>
+      <div class="gxk-list" data-list data-pills="${!noSales}">${rows.map(rowHtml).join('')}</div>
       <div class="gxk-add"><input class="gxk-input" data-new maxlength="80" autocomplete="off" placeholder="${esc(L('gx_appt_kinds_add_placeholder', 'Add your own, for example “Estimate”'))}" aria-label="${esc(L('gx_appt_kinds_add_label', 'Another kind of appointment'))}"><button type="button" data-add disabled>${esc(L('gx_appt_kinds_add', 'Add'))}</button></div></div>`;
     report();
   }

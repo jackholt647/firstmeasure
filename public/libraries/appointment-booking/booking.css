@@ -190,3 +190,11 @@ button.fm-booking-chip{cursor:pointer;transition:background .15s}button.fm-booki
 @media(prefers-reduced-motion:reduce){#fm-booking-dialog.fm-booking-steps *,#fm-booking-dialog.fm-booking-steps *:before{animation:none!important;transition:none!important}.fm-booking-check :is(circle,path){stroke-dashoffset:0}}
 /* The staff dialog follows the organization's primary color; the shared calendar's own default stays for public embeds (GP-86). */
 #fm-booking-dialog .fm-availability{--fmle-primary:var(--primary,#d93025)}#fm-booking-dialog .fm-availability :is(.fmle-cal-day.active,.fmle-day-pill.active,.fmle-slot.active,button[type=submit]){color:var(--on-primary,#fff)}
+/* Who can go (GP-85): nobody of the kind a type needs is set up yet, so it is booked unassigned; Setup plays the workforce setup. */
+#fm-booking-dialog .fm-booking-staffing{display:flex;align-items:center;gap:10px;margin:8px 0 10px;padding:9px 10px 9px 12px;border:1px solid #fedf89;border-radius:10px;background:#fffcf5;color:#93370d}
+#fm-booking-dialog .fm-booking-staffing>span{display:grid;gap:2px;flex:1 1 auto;min-width:0}
+#fm-booking-dialog .fm-booking-staffing strong{font-size:12.5px;font-weight:600}
+#fm-booking-dialog .fm-booking-staffing small{font-size:11.5px;color:#b54708}
+#fm-booking-dialog .fm-booking-staffing-setup{flex:none;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:1px solid var(--primary,#d93025);border-radius:999px;background:#fff;color:var(--primary,#d93025);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+#fm-booking-dialog .fm-booking-staffing-setup:hover{background:var(--primary,#d93025);color:var(--on-primary,#fff)}
+#fm-booking-dialog .fm-booking-staffing-setup:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}

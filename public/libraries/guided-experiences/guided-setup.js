@@ -523,6 +523,8 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
           // A step that hides the sheet's footer (handlesNavigation) has its own Back: to the step before this one; and
           // says when its own steps change, so the phone's back walks them first (FM-604).
           back(){ if (currentPane === el && !closed && !busy && (visited.length || index > first)) back(); }, syncBack(){ if (currentPane === el) syncBack(); },
+          // Whether there is a step before this one to go Back to (a step with its own Back shows it only then, GP-85).
+          canBack:()=>currentPane === el && !closed && !!(visited.length || index > first),
           // A step whose page needs room (the workforce setup's cards, GP-66) asks for the large sheet, about the project
           // window's size, and lets it go when it no longer needs it (also when it goes away).
           setWide(on){ if (closed || (on && currentPane !== el)) return; host.classList.toggle('gxs-wide', !!on); },
@@ -915,16 +917,17 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
       return {valid:()=>true,destroy(){disposed=true;handle?.destroy?.();}};
     }
   });
-  // The appointment setup (FM-515): one step with its own pages (each kind of appointment, texting, the finish).
+  // The appointment setup (FM-515): one step with its own pages (each kind of appointment, texting, the finish); Back
+  // and the phone's back walk its pages, and from the first one go to the step before (GP-85).
   registerWidget('appointments-setup', {
     handlesNavigation:true,
     render(el,ctx){
       let disposed=false, handle=null;
       el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      import(new URL('./appointments-setup.js?v=20261116-fm515',scriptUrl).href).then(module=>{
+      import(new URL('./appointments-setup.js?v=20261119-gp85',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mount(el,ctx);
       }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
-      return {valid:()=>true,escape:()=>handle?.escape?.()===true,destroy(){disposed=true;handle?.destroy?.();}};
+      return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
     }
   });
   // The equipment setup (GP-15): one step with its own pages (locations, equipment, how many, the finish); Back and the

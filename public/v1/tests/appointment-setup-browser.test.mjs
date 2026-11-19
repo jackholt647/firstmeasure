@@ -71,6 +71,34 @@ test('the kinds: suggestions picked, pills say sales or production, the person a
   }finally{await browser.close();}
 });
 
+test('the kinds: two columns; a company with no sales gets no sales kinds and no pills (GP-85)',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const {page,errors}=await open(browser,960);
+    await page.evaluate(async L=>{
+      const copy=(key,text)=>({key,text});
+      const kinds=[['sales','Sales appointment','sales'],['inspection','Inspection','sales'],['installation','Installation','production'],['repair','Repair appointment','production'],['delivery','Material delivery','production'],['meeting','Team meeting','other']];
+      window.catalog={kinds:kinds.map(([id,text,category])=>({id,label:copy('gx_appt_kind_'+id,text),category})),
+        categories:[{id:'sales',label:copy('a','Sales')},{id:'production',label:copy('b','Production')},{id:'other',label:copy('c','Other')}],suggested:['sales','installation','repair','delivery']};
+      window.module=await import('/libraries/setup-steps/appointment-kinds.js');
+      window.answer={};
+      window.mountKinds=(status)=>{window.handle?.destroy();document.querySelector('#step').innerHTML='';window.handle=module.mount(document.querySelector('#step'),{options:{},answer,L:eval(L),esc,read:async(provider,name)=>name==='catalog'?catalog:status,change(patch){Object.assign(answer,patch);},advance(){}});};
+      mountKinds({kinds:[],no_sales:false});
+    },L);
+    await page.getByText('Team meeting').waitFor();
+    assert.deepEqual((await page.evaluate(()=>handle.answer())).kinds.map(kind=>kind.id),['sales','installation','repair','delivery'],'an inspection starts off; a delivery starts on');
+    const first=await page.locator('[data-gxk-kind="sales"]').boundingBox(),second=await page.locator('[data-gxk-kind="inspection"]').boundingBox();
+    assert.ok(Math.abs(first.y-second.y)<1&&second.x>first.x+first.width,'two columns side by side');
+    // Back to "who sells" and "no sales appointments": the list starts again, without the sales kinds or the pills.
+    await page.evaluate(()=>mountKinds({kinds:[],no_sales:true}));
+    await page.getByText('Team meeting').waitFor();
+    assert.equal(await page.locator('[data-gxk-kind="sales"],[data-gxk-kind="inspection"]').count(),0);
+    assert.equal(await page.locator('.gxk-pills').first().isVisible(),false,'no sales or production to choose');
+    assert.deepEqual(await page.evaluate(()=>handle.answer()),{kinds:[{id:'installation',category:'production'},{id:'repair',category:'production'},{id:'delivery',category:'production'}]});
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
 test('each kind, texting through the shared flow, then the finish with the answers',async()=>{
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try{
@@ -86,18 +114,33 @@ test('each kind, texting through the shared flow, then the finish with the answe
       const copy=(key,text)=>({key,text});
       const catalog={kinds:[{id:'sales',label:copy('k1','Sales appointment'),category:'sales'},{id:'repair',label:copy('k2','Repair appointment'),category:'production'}],
         categories:[{id:'sales',label:copy('a','Sales')},{id:'production',label:copy('b','Production')},{id:'other',label:copy('c','Other')}],
-        attendees:[{id:'me',label:copy('w1','Me')},{id:'sales_team',label:copy('w2','Our sales team')},{id:'crews',label:copy('w3','A crew')},{id:'anyone',label:copy('w4','Whoever is free')}]};
-      const setup={attendees:['me','sales_team','crews','anyone'],kinds:[{id:'sales',label:'Sales appointment',category:'sales',reminder:true,on_my_way:true,attendee:'sales_team'},{id:'repair',label:'Repair appointment',category:'production',reminder:true,on_my_way:true,attendee:'crews'}]};
+        attendees:[{id:'me',label:copy('w1','Me')},{id:'sales_team',label:copy('w2','A salesperson')},{id:'crews',label:copy('w3','A crew')},{id:'subcontractors',label:copy('w5','A subcontractor')},{id:'anyone',label:copy('w4','Whoever is free')},{id:'technician',label:copy('w6','A repair technician')}]};
+      const setup={attendees:['me','sales_team','crews','anyone'],kinds:[{id:'sales',label:'Sales appointment',category:'sales',reminder:true,on_my_way:true,attendee:'sales_team',attendees:['sales_team'],offered:['me','sales_team']},{id:'repair',label:'Repair appointment',category:'production',reminder:true,on_my_way:true,attendee:'crews',attendees:['crews','subcontractors'],offered:['technician','crews','subcontractors','me','sales_team']}]};
+      window.FirstMateGuides={experience:id=>id==='operations.workforce.setup'?{id}:null};
+      window.backs=0;window.guidesRun=[];
       const module=await import('/libraries/guided-experiences/appointments-setup.js');
-      window.handle=module.mount(document.querySelector('#step'),{options:{},orgId:'org-test',L:eval(L),esc,setTitle:value=>{window.title=value;},read:async(provider,name)=>name==='catalog'?catalog:setup,change:patch=>Object.assign(selections,patch),complete:async()=>{completed++;}});
+      window.handle=module.mount(document.querySelector('#step'),{options:{},orgId:'org-test',L:eval(L),esc,setTitle:value=>{window.title=value;},read:async(provider,name)=>name==='catalog'?catalog:setup,change:patch=>Object.assign(selections,patch),complete:async()=>{completed++;},
+        canBack:()=>true,back:()=>{backs++;},syncBack(){},runGuide:async id=>{guidesRun.push(id);return {status:'completed'};}});
     },L);
     await page.locator('[data-gxa-kind="sales"]').waitFor();
     assert.equal(await page.evaluate(()=>title),'Sales appointment');
-    await page.getByRole('radio',{name:'Me'}).click();
+    // GP-85: Back on the first kind goes to the step before (the kinds of appointments).
+    await page.locator('[data-gxa-back]').click();
+    assert.equal(await page.evaluate(()=>backs),1);
+    assert.equal(await page.evaluate(()=>handle.back()),false,'the first page leaves the step to the player');
+    // Sales offers me or a salesperson; + shows everyone else. Several can go; the last one picked stays.
+    assert.deepEqual(await page.locator('[data-gxa-who]').evaluateAll(nodes=>nodes.map(node=>node.dataset.gxaWho)),['me','sales_team']);
+    await page.getByRole('checkbox',{name:'Me'}).click();
+    await page.getByRole('checkbox',{name:'A salesperson'}).click();
+    await page.getByRole('checkbox',{name:'Me'}).click();
+    assert.equal(await page.getByRole('checkbox',{name:'Me'}).getAttribute('aria-checked'),'true','someone has to go');
+    await page.locator('[data-gxa-more]').click();
+    assert.deepEqual(await page.locator('[data-gxa-who]').evaluateAll(nodes=>nodes.map(node=>node.dataset.gxaWho)),['me','sales_team','crews','subcontractors','anyone','technician']);
     await page.getByRole('switch',{name:/before it starts/}).click();
     await page.getByRole('button',{name:'Continue'}).click();
     assert.equal(await page.evaluate(()=>title),'Repair appointment');
-    assert.equal(await page.getByRole('radio',{name:'A crew'}).getAttribute('aria-checked'),'true','who goes starts from who does the work');
+    assert.equal(await page.evaluate(()=>handle.backDepth()),1,'the phone back walks the kinds first');
+    assert.deepEqual(await page.locator('[data-gxa-who][aria-checked=true]').evaluateAll(nodes=>nodes.map(node=>node.textContent.trim())),['Crews','Subcontractors'],'who goes starts from who does the work, named by the terminology');
     await page.getByRole('button',{name:'Continue'}).click();
     // A text was asked for and texting is not set up: offered, the same flow as the Communications setup.
     await page.getByRole('button',{name:'Set up texting'}).click();
@@ -108,9 +151,11 @@ test('each kind, texting through the shared flow, then the finish with the answe
     assert.deepEqual(await page.evaluate(()=>calls),['comms.setup.status','comms.setup.start','registration.open','comms.setup.start']);
     assert.equal(await page.locator('.gxs').evaluate(sheet=>getComputedStyle(sheet).visibility),'visible');
     assert.equal(await page.locator('[data-gxa-type]').count(),2);
-    await page.locator('[data-gxa-finish]').click();
+    // Before scheduling, the workforce setup is offered; it plays, then the setup finishes as usual.
+    await page.locator('[data-gxa-teams]').click();
     await page.waitForFunction(()=>completed===1);
-    assert.deepEqual(await page.evaluate(()=>selections.appointment_types),[{id:'sales',reminder:false,on_my_way:true,attendee:'me'},{id:'repair',reminder:true,on_my_way:true,attendee:'crews'}]);
+    assert.deepEqual(await page.evaluate(()=>guidesRun),['operations.workforce.setup']);
+    assert.deepEqual(await page.evaluate(()=>selections.appointment_types),[{id:'sales',reminder:false,on_my_way:true,attendees:['me']},{id:'repair',reminder:true,on_my_way:true,attendees:['crews','subcontractors']}]);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

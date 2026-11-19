@@ -991,17 +991,28 @@ made, with no tour over it. Its `intro` tells them why it asks (how they manage 
 `company.sales_team`, `company.workforce` and `appointments.kinds`, each asked only while unanswered, so a company
 that answered them in another setup goes straight to its own step. That one step, widget `appointments-setup`
 (`guided-experiences/appointments-setup.js`, its own pages like the Communications setup), asks for each kind chosen:
-text the customer before it starts, text them when we're on the way, and who goes (me, our sales team, a crew, a
-subcontractor, whoever is free; the teams offered and the default come from who sells and who does the work). When a
+text the customer before it starts, text them when we're on the way, and who goes: one or more, any one of whom goes
+(GP-85). Each kind offers its own answers first (catalog `offer`: sales, me or a salesperson; work, crews,
+subcontractors or me; repairs and service, a repair technician as well) and **+** shows the rest (whoever is free and
+the others); crews and subcontractors are named by the terminology system. The default comes from who sells and who
+does the work (both crews and subcontractors for a company that has both). Back on the first kind goes to the step
+before it (the module's `back()`/`backDepth()`, and `ctx.canBack()` says whether there is one). A company with no sales
+appointments sees no sales/production badges. When a
 text was asked for and texting is not set up (`comms.setup.status`; not offered where Communications is off), it
 offers to set it up or skip: **the same flow as the Communications setup**, `guided-experiences/texting-setup.js`
 (`setUpTexting`: texts and calls on with `comms.setup.start`, then carrier registration over the page). Both setups
 call it; do not copy it. The finish runs `appointments.setup.apply` with `appointment_types`: each type's
-`customer_texts` (`{ reminder, on_my_way }` on the appointment configuration) and staffing requirements (me: that
-person; sales team: one person of the Sales department where there is one; a crew: one group with all its members;
-a subcontractor: none, chosen when booked; whoever is free: one person), and the group and company types the answers
-name (`sales_team`, `crew`, `subcontractor`, through `saveAssigneeType`; groups and their members are added in
-People). A type with `on_my_way: false` drops the text from the visit's "On my way" step (`workforce/crew_api.ts`);
+`customer_texts` (`{ reminder, on_my_way }` on the appointment configuration) and one staffing requirement wide enough
+for every answer (`requirementsFor`: me alone, that person; a crew alone, one group with all its members; a crew with
+people, one person or group; people only, one person; any answer a subcontractor, none, chosen when booked; the
+department narrows it only when every answer is someone of that department), and the group and company types the
+answers name (`sales_team`, `crew`, `subcontractor`, through `saveAssigneeType`; groups and their members are added in
+People). Its finish page offers, besides **Book an appointment**, **Set up crews and subcontractors** where the
+workforce setup (`operations.workforce.setup`, under [Operations setup](#operations-setup)) can play (it needs Operations and the crew app): that setup plays over it, then the
+appointment setup finishes and goes on to scheduling as usual (GP-85). A work appointment booked while the company has
+no crews or subcontractors is booked unassigned: the New appointment dialog says "No crews or subcontractors
+available" with a Setup pill and shows how many are free beside each time, and the calendar item says "No crews or
+subcontractors" with a Setup button (`appointment-booking/README.md`). A type with `on_my_way: false` drops the text from the visit's "On my way" step (`workforce/crew_api.ts`);
 `reminder` is recorded on the type but no reminder is sent yet. Tests: `tests/appointment-setup.test.ts`,
 `tests/appointment-setup-browser.test.mjs`.
 

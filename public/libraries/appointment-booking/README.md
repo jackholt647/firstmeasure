@@ -47,7 +47,11 @@ never inside it, and open their bubble on tap (hover too, with a mouse). Wider s
 to force either layout. Staff
 can choose a project or lead with the shared searchable selector, or book without
 a project and link one later from the calendar event editor. The server
-chooses an available resource and the configured duration. Its authenticated
+chooses an available resource and the configured duration. Each time shows how many could go then (`free`). A
+person booking a type nobody can staff yet (no crews or subcontractors, no one of its department: the preview's
+`staffing[].unstaffed`, and `teams` counts groups and outside companies) still sees every time and books it
+unassigned; a note above the times says so, with a Setup pill that plays the workforce setup where it can play (the
+dialog closes for it and opens again after). A customer's booking (forms) never takes an unassigned time (GP-85). Its authenticated
 `POST /v1/appointments/organizations/:orgId/book` requires CSRF, the appointment
 slots capability, and schedule/project editing permission (schedule management
 is required for appointments without a project). It checks the project

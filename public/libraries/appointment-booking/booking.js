@@ -107,6 +107,46 @@
     return (stepped ? openSteps : openForm)(dialog, {api, orgId, options});
   }
 
+  /*
+   * Who can go (GP-85). The times are the same whether or not anyone is set up: a type nobody can staff yet (no crews or
+   * subcontractors, no one of its department) is booked unassigned, and a note above the times says so, with a Setup
+   * pill that plays the workforce setup where it can play (the dialog closes for it and opens again after). The preview
+   * says which requirements nobody can meet (`staffing[].unstaffed`) and how many crews and outside companies exist.
+   */
+  const guides = () => window.FirstMateGuides || (() => { try { return window.top?.FirstMateGuides; } catch (_) { return null; } })();
+  const term = (path, fallback) => clean(window.PlatformTerminology?.get?.(path, fallback) || window.Portal?.terminology?.get?.(path, fallback)) || fallback;
+  function staffingNote(target, configuration, {dialog, options}){
+    let shown = '';
+    return (data) => {
+      const host = target.querySelector('.fmle-time-panel [data-selected-day]') || target.querySelector('.fm-range-head');
+      if (!host) return;
+      const config = configuration.value, staffing = Array.isArray(data?.staffing) ? data.staffing : [], teams = data?.teams || {};
+      const gaps = staffing.filter((entry) => entry.unstaffed);
+      const noTeams = !Number(teams.groups) && !Number(teams.companies);
+      // A type that sends crews, or one that leaves who goes to whoever books it (a subcontractor), in a company with none.
+      const groups = gaps.some((entry) => entry.subject_type !== 'organization_user') || (noTeams && !config.requirements.length && config.requires_project === true && config.event_type_id !== 'sales_appointment');
+      const people = !groups && gaps.some((entry) => entry.subject_type === 'organization_user');
+      const key = groups ? 'groups' : people ? 'people' : '';
+      if (key === shown && (!key || target.querySelector('[data-staffing-note]'))) return;
+      shown = key;
+      target.querySelector('[data-staffing-note]')?.remove();
+      if (!key) return;
+      const crews = term('workforce.resource_group_plural', 'Crews'), subs = term('workforce.organization_connection_plural', 'Subcontractors');
+      const text = groups ? `No ${crews.toLowerCase()} or ${subs.toLowerCase()} available` : 'No one is set up to go to these yet';
+      const canSetUp = groups && !!guides()?.experience?.('operations.workforce.setup');
+      const note = document.createElement('div');
+      note.className = 'fm-booking-staffing'; note.dataset.staffingNote = key; note.setAttribute('role', 'note');
+      note.innerHTML = `<span><strong>${esc(text)}</strong><small>${esc('It is booked unassigned. Assign someone later from the calendar.')}</small></span>${canSetUp ? `<button type="button" class="fm-booking-staffing-setup" data-staffing-setup><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>${esc('Set up')}</button>` : ''}`;
+      host.after(note);
+      note.querySelector('[data-staffing-setup]')?.addEventListener('click', async () => {
+        dialog.close();
+        const outcome = await guides()?.play?.('operations.workforce.setup', { replay: true, force: true }).catch(() => null);
+        if (outcome?.status !== 'unavailable') window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+        open(options).catch(() => {});
+      });
+    };
+  }
+
   /* One form: wide screens. */
   async function openForm(dialog, {api, orgId, options}){
     dialog.innerHTML = `<div class="fm-booking-head"><h2 id="fm-booking-title">New appointment</h2><button type="button" data-close aria-label="Close appointment booking">×</button></div><form class="fm-booking-form"><div data-configuration></div><div class="fm-availability"></div><div role="status" data-status></div></form>`;
@@ -137,7 +177,7 @@
       const submit = target.querySelector('[type=submit]'); submit.disabled = true;
       picker = window.FirstMateAvailability[dayMode?'mountRange':'mount'](target, {
         days:configuration.value.duration_days,
-        unavailableMessage:configuration.availabilityHint,
+        showFree:true, onSlots:staffingNote(target, configuration, {dialog, options}),
         onDurationChange:days=>{configuration.setDuration(days,false);eventId=`appointment_${crypto.randomUUID()}`;},
         date,
         loadAvailability: (date,days) => api.appointments.preview(orgId, zoned({...(select.value ? {project_id:select.value} : {}), date, configuration:{...configuration.value,...(dayMode?{duration_days:days}:{})}})),
@@ -378,7 +418,7 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
       target.innerHTML = dayMode ? window.FirstMateAvailability.rangeMarkup({submitLabel:''}) : window.FirstMateAvailability.markup({submitLabel:''});
       picker = window.FirstMateAvailability[dayMode ? 'mountRange' : 'mount'](target, {
         days:configuration.value.duration_days,
-        unavailableMessage:configuration.availabilityHint,
+        showFree:true, onSlots:staffingNote(target, configuration, {dialog, options}),
         onDurationChange:days => { configuration.setDuration(days, false); newEvent(); },
         date,
         loadAvailability:(date, days) => api.appointments.preview(orgId, zoned({...(projectId() ? {project_id:projectId()} : {}), date, configuration:{...configuration.value, ...(dayMode ? {duration_days:days} : {})}})),

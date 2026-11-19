@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {appointmentConfigurationSchema,selectAppointmentResources,appointmentCatalogSchema} from '../appointments/planning.js';
+import {appointmentConfigurationSchema,selectAppointmentResources,appointmentCatalogSchema,appointmentStaffing} from '../appointments/planning.js';
 
 const people=[1,2,3,4].map(id=>({id:String(id),subject_type:'organization_user',name:`Person ${id}`,role_ids:['sales']}));
 const crew={id:'crew',subject_type:'resource_group',name:'Crew',member_user_ids:['1','2'],group_kind_id:'crew'};
@@ -52,4 +52,16 @@ test('a type that never said whether it needs a project: sales and production wo
   assert.equal(requiresProject(parse({department_ids:['consulting']})),false);
   assert.equal(requiresProject(parse({department_ids:['sales'],requires_project:false})),false,'a type that says is taken at its word');
   assert.equal(requiresProject(parse({requires_project:true})),true);
+});
+
+test("a person booking an appointment nobody can staff yet gets an unassigned time; a customer does not (GP-85)", () => {
+  const departments=appointmentCatalogSchema.parse({departments:[{id:'production',label:'Production',group_kind_ids:['crew']}],presets:[]}).departments;
+  const people=[{id:'1',subject_type:'organization_user',name:'One',department_ids:['production']}];
+  const crewWork=appointmentConfigurationSchema.parse({department_ids:['production'],requirements:[{department_id:'production',subject_type:'resource_group',crew_member_percent:100}]});
+  assert.equal(selectAppointmentResources(crewWork,departments,people,new Set(['organization_user:1'])),null,'a customer, or the old behaviour');
+  assert.deepEqual(selectAppointmentResources(crewWork,departments,people,new Set(['organization_user:1']),{unstaffed:'allow'}),[],'booked unassigned: there are no crews at all');
+  const crews=[...people,{id:'c1',subject_type:'resource_group',name:'Crew',department_ids:['production'],member_user_ids:['1']}];
+  assert.equal(selectAppointmentResources(crewWork,departments,crews,new Set(),{unstaffed:'allow'}),null,'a crew that is only busy still blocks');
+  assert.deepEqual(appointmentStaffing(crewWork,departments,people).map(r=>[r.subject_type,r.pool,r.unstaffed]),[['resource_group',0,true]]);
+  assert.deepEqual(appointmentStaffing(crewWork,departments,crews,new Set(['resource_group:c1','organization_user:1'])).map(r=>[r.pool,r.free]),[[1,1]]);
 });
