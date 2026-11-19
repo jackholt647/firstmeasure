@@ -935,6 +935,7 @@
     // Listed before its bundle loads; the bundle loads when the tab first opens.
     'portal.crm': { visible:true, fullBleed:true },
     'portal.pricebook': { visible:true, fullBleed:true },
+    'portal.automations_hub': { visible:true, fullBleed:true },
     'portal.assistant': {
       visible:true,
       mount(context){
