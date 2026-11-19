@@ -2750,7 +2750,18 @@
         const first = editor.querySelector(target.dataset.fmdwRename === 'description' ? '[data-fmdw-edit-description]' : '[data-fmdw-edit-name]');
         first.focus();
         first.select();
+        // Escape cancels only the rename. Catch it in window capture, ahead of the
+        // portal's modal stack (document capture), which would close the project window.
+        const onEscape = (key) => {
+          if (!editor.isConnected) { window.removeEventListener('keydown', onEscape, true); return; }
+          if (key.key !== 'Escape' || !editor.contains(document.activeElement)) return;
+          key.preventDefault();
+          key.stopImmediatePropagation();
+          finish(false);
+        };
+        window.addEventListener('keydown', onEscape, true);
         const finish = (save) => {
+          window.removeEventListener('keydown', onEscape, true);
           if (save) {
             const title = cleanText(editor.querySelector('[data-fmdw-edit-name]').value);
             const description = cleanText(editor.querySelector('[data-fmdw-edit-description]').value);
@@ -2765,8 +2776,7 @@
         editor.querySelector('[data-fmdw-edit-done]').addEventListener('click', () => finish(true));
         editor.querySelector('[data-fmdw-edit-cancel]').addEventListener('click', () => finish(false));
         editor.addEventListener('keydown', (key) => {
-          if (key.key === 'Escape') { key.preventDefault(); finish(false); }
-          else if (key.key === 'Enter' && (key.target.matches('[data-fmdw-edit-name]') || key.ctrlKey || key.metaKey)) { key.preventDefault(); finish(true); }
+          if (key.key === 'Enter' && (key.target.matches('[data-fmdw-edit-name]') || key.ctrlKey || key.metaKey)) { key.preventDefault(); finish(true); }
         });
         editor.addEventListener('click', (click) => click.stopPropagation());
       };

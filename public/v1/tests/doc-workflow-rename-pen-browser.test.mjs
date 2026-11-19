@@ -23,6 +23,8 @@ async function mount(page,{compare=false,readonly=false}={}){
  await page.addScriptTag({url:'/libraries/doc-workflow/firstmate-doc-workflow.js'});
  await page.evaluate(({ITEMS,compare,readonly})=>{
   window.__APP={userOrgId:'org'};window.writes=[];
+  // The portal's modal stack closes the project window on Escape from document capture, unless already handled.
+  window.windowClosed=0;document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!e.defaultPrevented)window.windowClosed+=1;},true);
   const workflow={schema_version:1,steps:[{id:'lines',title:'Lines',items:[{kind:'line_items_review',writes:'params.scope_items',generate:false,compare}]}]};
   FMDocWorkflow.mount(document.getElementById('host'),{workflow,audience:'internal',readonly,state:{params:{scope_items:ITEMS}},scope:{project:{id:'p'}},onWrite:(path,value)=>writes.push({path,value}),services:{}});
  },{ITEMS,compare,readonly});
@@ -59,6 +61,9 @@ test('every name and description has a pen that shows on hover and opens the edi
   await page.locator('[data-fmdw-rename-item="scope"] .fmdw-lir-edit').waitFor();
   assert.equal(await page.evaluate(()=>document.activeElement?.matches('[data-fmdw-edit-name]')),true);
   await page.keyboard.press('Escape');
+  // Escape cancels only the rename, never the project window around it.
+  assert.equal(await page.locator('[data-fmdw-rename-item="scope"] .fmdw-lir-edit').count(),0);
+  assert.equal(await page.evaluate(()=>windowClosed),0,'Escape reached the window');
   // Until its row is hovered, a name sits over its hidden description: hover first, as a person does.
   await page.locator('[data-fmdw-lir="vent"] .fmdw-lir-amount').hover();
   await shown(pen(page,'vent','name'));
