@@ -160,6 +160,13 @@ test('More apps switches the left column between thin and wide and plays its tou
   assert.match(core, /@media\(max-width:820px\)\{\.fm-advanced-apps-column\{display:none\}\}/, 'desktop only');
   assert.match(core, /if \(behavior !== 'adaptive' && !document\.body\.classList\.contains\('fm-advanced-app-menu-open'\)\) sidebar\.classList\.remove\('sidebar-advanced-apps-open'\);/,
     'a thin or wide column keeps its More apps controls');
+  // Collapsing the column with its own control kept More apps open but dropped its pins, and the overlay kept the
+  // wide column's edge (GP-52, Jack's screenshot).
+  assert.match(slice('  function setSidebarCompactExpanded(expanded){', '\n  }\n'), /if \(!document\.body\.classList\.contains\('fm-advanced-app-menu-open'\)\) sidebar\?\.classList\.remove\('sidebar-advanced-apps-open'\);/);
+  assert.match(render, /if \(sidebar\) resizeObserver\.observe\(sidebar\);/, 'the overlay edge follows the column');
+  assert.match(render, /sidebar\?\.addEventListener\('transitionend', setSidebarEdge, \{ signal \}\);/);
+  assert.match(render, /const thinColumn = sidebarShownThin\(\);/, 'Thin and Wide show what the column looks like now');
+  assert.match(slice('  function sidebarShownThin(){', '\n  }\n'), /!sidebar\.classList\.contains\('sidebar-compact-expanded'\)/);
   const tour = slice('  function offerMoreAppsTour(){', '\n  }\n');
   assert.match(tour, /if \(moreAppsTourAsked \|\| typeof window\.FirstMateGuides\?\.play !== 'function'\) return;/);
   assert.match(tour, /window\.FirstMateGuides\.play\('platform\.more_apps_tour'\)/);

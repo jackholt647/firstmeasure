@@ -209,7 +209,9 @@
     if (sidebarBehavior().startsWith('forced_')) return sidebarBehavior() === 'forced_expanded';
     if (!expanded) {
       const sidebar = document.getElementById('mainSidebar');
-      sidebar?.classList.remove('sidebar-hover-expanded', 'sidebar-compact-edge-held', 'sidebar-advanced-apps-open');
+      sidebar?.classList.remove('sidebar-hover-expanded', 'sidebar-compact-edge-held');
+      // More apps keeps its pins and order controls while it is open (GP-52).
+      if (!document.body.classList.contains('fm-advanced-app-menu-open')) sidebar?.classList.remove('sidebar-advanced-apps-open');
     }
     if (sidebarBehavior() === 'locked') {
       const preferences = window.Portal.currentUser.identity.preferences;
@@ -2957,6 +2959,15 @@
   function setLeftColumnWidthMode(mode){
     const behavior = mode === 'thin' ? 'tooltip' : 'forced_expanded';
     if (sidebarBehavior() !== behavior) saveSidebarPreference('left_column_behavior', behavior);
+    else if (mode === 'thin' && !sidebarShownThin()) setSidebarCompactExpanded(false);
+  }
+  // Whether the left column is narrow right now, as More apps shows it: an
+  // adaptive column widens in More apps, a thin one stays narrow unless its
+  // expand control widened it.
+  function sidebarShownThin(){
+    const sidebar = document.getElementById('mainSidebar');
+    return !!sidebar?.classList.contains('sidebar-compact') && sidebar.classList.contains('sidebar-manual')
+      && !sidebar.classList.contains('sidebar-compact-expanded');
   }
 
   function initializeSidebarModes(){
@@ -3588,7 +3599,8 @@
     };
     setSidebarEdge();
     window.setTimeout(setSidebarEdge, 210);
-    const thinColumn = !!sidebar?.classList.contains('sidebar-compact');
+    const thinColumn = sidebarShownThin();
+    overlay.dataset.thinColumn = String(thinColumn);
     const sectionsMarkup = thinColumn ? sidebarSectionsMarkup() : '';
     overlay.innerHTML = `
       <section class="fm-advanced-apps-panel" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_a151b65da51bfd","All apps") ?? "All apps")}">
@@ -3782,9 +3794,18 @@
       fitAppGrid();
     });
     window.addEventListener('resize', syncAdvancedAppLayout, { signal });
+    // The overlay starts where the left column ends, however its width changes
+    // (Thin and Wide, the column's own expand control, a resize).
+    sidebar?.addEventListener('transitionend', setSidebarEdge, { signal });
+    window.addEventListener('fm:sidebar-mode:changed', () => window.requestAnimationFrame(() => {
+      if (!advancedAppMenuOpen || advancedAppMenuOverlay !== overlay) return;
+      setSidebarEdge();
+      if (overlay.dataset.thinColumn !== String(sidebarShownThin())) renderAdvancedAppMenu();
+    }), { signal });
     if (window.ResizeObserver) {
       const resizeObserver = new ResizeObserver(syncAdvancedAppLayout);
       resizeObserver.observe(overlay.querySelector('.fm-advanced-apps-scroll'));
+      if (sidebar) resizeObserver.observe(sidebar);
       signal.addEventListener('abort', () => resizeObserver.disconnect(), { once:true });
     }
     syncAdvancedAppLayout();
@@ -4462,8 +4483,8 @@
       @media(max-width:820px){.fm-advanced-apps-column{display:none}}
       .fm-advanced-app-home{margin-right:5px;color:var(--primary-readable,var(--primary,#d93025));font-size:.9em}
       .fm-sidebar-sections{display:none}
-      .sidebar.sidebar-advanced-apps-open:not(.sidebar-manual) .fm-sidebar-sections,.sidebar.sidebar-advanced-apps-open.sidebar-manual:not(.sidebar-compact) .fm-sidebar-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:0 -14px;border:1px solid rgba(0,0,0,.07);border-bottom:0;background:#f7f8fa}
-      .sidebar.sidebar-advanced-apps-open:not(.sidebar-manual) .sidebar-mode-tabs,.sidebar.sidebar-advanced-apps-open.sidebar-manual:not(.sidebar-compact) .sidebar-mode-tabs{display:none!important}
+      .sidebar.sidebar-advanced-apps-open:not(.sidebar-manual) .fm-sidebar-sections,.sidebar.sidebar-advanced-apps-open.sidebar-manual:not(.sidebar-compact) .fm-sidebar-sections,.sidebar.sidebar-advanced-apps-open.sidebar-manual.sidebar-compact-expanded .fm-sidebar-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:0 -14px;border:1px solid rgba(0,0,0,.07);border-bottom:0;background:#f7f8fa}
+      .sidebar.sidebar-advanced-apps-open:not(.sidebar-manual) .sidebar-mode-tabs,.sidebar.sidebar-advanced-apps-open.sidebar-manual:not(.sidebar-compact) .sidebar-mode-tabs,.sidebar.sidebar-advanced-apps-open.sidebar-manual.sidebar-compact-expanded .sidebar-mode-tabs{display:none!important}
       .fm-sidebar-section{display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:30px;padding:0 6px;border:0;background:transparent;color:#98a2b3;font:inherit;font-size:12px;font-weight:950;line-height:1;cursor:pointer;transition:background .16s ease,color .16s ease}
       .fm-sidebar-section>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .fm-sidebar-section:hover,.fm-sidebar-section:focus-visible{background:#fff;color:#475467;outline:none}
