@@ -2952,7 +2952,8 @@
       "message": "{structures, plural, other {#棟}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "屋根、外壁、窓、ドア、雨どいを含みます。"
+    "report_kind_full_exterior_includes": "屋根、外壁、窓、ドア、雨どいを含みます。",
+    "m_bcbdcdfb3c0dff": "ロス分を含む面積"
   },
   "money": {
     "m_487adb3f2ba511": "金額データを読み込み中...",

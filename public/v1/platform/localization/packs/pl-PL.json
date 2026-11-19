@@ -2876,7 +2876,8 @@
       "message": "{structures, plural, one {# budynek} few {# budynki} many {# budynków} other {# budynku}}",
       "format": "icu"
     },
-    "report_kind_full_exterior_includes": "Obejmuje dach, ściany, okna, drzwi i rynny."
+    "report_kind_full_exterior_includes": "Obejmuje dach, ściany, okna, drzwi i rynny.",
+    "m_bcbdcdfb3c0dff": "Powierzchnia z zapasem materiału"
   },
   "money": {
     "m_487adb3f2ba511": "Wczytywanie finansów...",

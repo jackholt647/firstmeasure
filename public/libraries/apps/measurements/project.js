@@ -1902,9 +1902,12 @@ window.PlatformCommerce.onReady(function(){
       .sort((a, b) => a - b);
     if (!dims.length) return '';
     if (dims.length === 1) dims.push(dims[0]);
+    // A metric report gives the size in metres (FM-574), the feet labels converted as the PDF converts its own.
+    const metric = reportSummaryIsMetric();
     const first = reportDimensionLabel(dims[0]);
     const second = reportDimensionLabel(dims[1]);
-    return first && second ? `${first} x ${second}` : '';
+    if (!first || !second) return '';
+    return metric ? `${formatSummaryNumber(Number(first) * 0.3048, 2)} x ${formatSummaryNumber(Number(second) * 0.3048, 2)} m` : `${first} x ${second}`;
   }
 
   function collectReportObstacleRows(){
@@ -2072,12 +2075,12 @@ window.PlatformCommerce.onReady(function(){
       : null;
     const rows = [];
     if (totalArea > 0) {
-      rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_35205e970a2cdd","Roof squares") ?? "Roof squares"), value: formatSummaryNumber(totalArea / 100, 1), unit: 'sq' });
-      rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_b4a198f9d6044c","Roof area") ?? "Roof area"), value: formatSummaryNumber(totalArea), unit: 'sq ft' });
+      rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_35205e970a2cdd","Roof squares") ?? "Roof squares"), value: formatSummaryNumber(totalArea / 100, 1), unit: 'sq', amount: totalArea / 100, squares: 'total' });
+      rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_b4a198f9d6044c","Roof area") ?? "Roof area"), value: formatSummaryNumber(totalArea), unit: 'sq ft', amount: totalArea });
     }
     Object.entries(lineTotals).forEach(([type, total]) => {
       const label = reportLineMetricLabel(type);
-      if (label && total > 0) rows.push({ label, value: formatSummaryNumber(total), unit: 'ft' });
+      if (label && total > 0) rows.push({ label, value: formatSummaryNumber(total), unit: 'ft', amount: total });
     });
     if (faces.length) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_23c27ba7741b73","Facets") ?? "Facets"), value: formatSummaryNumber(faces.length), unit: '' });
     if (dominantPitch != null) rows.push(summaryPitchRow(dominantPitch));
@@ -2109,7 +2112,7 @@ window.PlatformCommerce.onReady(function(){
   function reportSummaryRowsFromRoofMeasurements(measurements = {}){
     const rows = [];
     const add = (label, value, unit, decimals = 0) => {
-      if (Number(value || 0) > 0) rows.push({ label, value: formatSummaryNumber(value, decimals), unit });
+      if (Number(value || 0) > 0) rows.push({ label, value: formatSummaryNumber(value, decimals), unit, amount: Number(value), ...(label === "Roof squares" ? { squares: 'total' } : {}) });
     };
     add("Roof squares", measurements.roofSquares, 'sq', 1);
     add("Roof area", Number(measurements.roofSquares || 0) * 100, 'sq ft');
@@ -2135,7 +2138,7 @@ window.PlatformCommerce.onReady(function(){
       const entry = measurements && measurements[key];
       const value = Number(entry?.value);
       if (!entry || entry.value == null || entry.unit !== expected || !Number.isFinite(value) || value < 0) return;
-      rows.push({ label, value: formatSummaryNumber(value, 1), unit, wall: true });
+      rows.push({ label, value: formatSummaryNumber(value, 1), unit, amount: value, wall: true });
     };
     add("Net wall area", 'wallNetArea', 'sq ft', 'ft2');
     add("Gross wall area", 'wallGrossArea', 'sq ft', 'ft2');
@@ -2367,11 +2370,11 @@ window.PlatformCommerce.onReady(function(){
     ]);
     const lineTotals = collectReportLineTotals();
     const rows = [];
-    if (squares != null) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_35205e970a2cdd","Roof squares") ?? "Roof squares"), value: formatSummaryNumber(squares, 1), unit: 'sq' });
-    if (roofAreaSqFt != null) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_b4a198f9d6044c","Roof area") ?? "Roof area"), value: formatSummaryNumber(roofAreaSqFt), unit: 'sq ft' });
+    if (squares != null) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_35205e970a2cdd","Roof squares") ?? "Roof squares"), value: formatSummaryNumber(squares, 1), unit: 'sq', amount: squares, squares: 'total' });
+    if (roofAreaSqFt != null) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_b4a198f9d6044c","Roof area") ?? "Roof area"), value: formatSummaryNumber(roofAreaSqFt), unit: 'sq ft', amount: roofAreaSqFt });
     Object.entries(lineTotals).forEach(([type, total]) => {
       const label = reportLineMetricLabel(type);
-      if (label && total > 0) rows.push({ label, value: formatSummaryNumber(total), unit: 'ft' });
+      if (label && total > 0) rows.push({ label, value: formatSummaryNumber(total), unit: 'ft', amount: total });
     });
     if (facets != null) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_23c27ba7741b73","Facets") ?? "Facets"), value: formatSummaryNumber(facets), unit: '' });
     if (pitch != null) rows.push(summaryPitchRow(pitch));
@@ -2396,11 +2399,35 @@ window.PlatformCommerce.onReady(function(){
         rows.push({
           label: (globalThis.PlatformLanguage?.text("measurements","m_f6ea64a8f11eca","Squares with waste") ?? "Squares with waste"),
           value: formatSummaryNumber(Math.ceil(resolvedSquares * (1 + (wastePct / 100)))),
-          unit: 'sq'
+          unit: 'sq',
+          amount: resolvedSquares * (1 + (wastePct / 100)),
+          squares: 'waste'
         });
       }
     }
-    return reportSummaryWithWallRows(rows, xmlRows);
+    return reportSummaryDisplayRows(reportSummaryWithWallRows(rows, xmlRows));
+  }
+
+  /* Lengths and areas in the measurement system the report was ordered in (FM-574), as its PDF prints them
+     (report-units.js: 1 ft = 0.3048 m, up to two decimals). Every row is worked out in feet, square feet and squares,
+     and a metric report converts them here, last, from the unrounded amount. Roofing squares are not a metric unit:
+     the PDF prints the area instead, so Roof squares (the same figure as Roof area) goes and Squares with waste
+     becomes Area with waste. */
+  function reportSummaryIsMetric(){
+    return reportOrderManifest().measurement_system === 'metric';
+  }
+  function reportSummaryDisplayRows(rows = [], metric = reportSummaryIsMetric()){
+    if (!metric) return rows;
+    const metres = { ft: [0.3048, 'm'], 'sq ft': [0.09290304, 'm²'], sq: [9.290304, 'm²'] };
+    return rows.flatMap((row) => {
+      const conversion = metres[row?.unit];
+      if (!conversion) return [row];
+      if (row.squares === 'total') return [];
+      const amount = Number.isFinite(row.amount) ? row.amount : numericValue(row.value);
+      if (amount == null) return [row];
+      const label = row.squares === 'waste' ? (globalThis.PlatformLanguage?.text("measurements","m_bcbdcdfb3c0dff","Area with waste") ?? "Area with waste") : row.label;
+      return [{ ...row, label, value: formatSummaryNumber(amount * conversion[0], 2), unit: conversion[1], amount: amount * conversion[0] }];
+    });
   }
 
   function reportSummaryStatusLabel(row){
@@ -3697,7 +3724,7 @@ window.PlatformCommerce.onReady(function(){
   function reportModelData(projectId,assets){
     const fullHouseModel=reportSummaryIsFullHouse()&&projectId,platformProjectId=activeBaseProject?.id||'',orgId=projectOrgId();
     // The report's own line types and line totals (FM-455): the XML alone has only the export's coarser types.
-    return {xmlUrl:assets?.xmlUrl,linesUrl:projectId&&assets?.xmlUrl?fmUrl(`projects/${encodeURIComponent(projectId)}/roof-lines`):'',pitchNotation:summaryPitchNotation(),exteriorUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',designUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-design`):'',materialsUrl:fullHouseModel&&orgId&&platformProjectId&&isPlatformProjectId(platformProjectId)?`/v1/materials/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(platformProjectId)}/material-lists`:'',media:assets?.media||[],holidayLights:holidayLightsEnabled()};
+    return {xmlUrl:assets?.xmlUrl,linesUrl:projectId&&assets?.xmlUrl?fmUrl(`projects/${encodeURIComponent(projectId)}/roof-lines`):'',reportStateUrl:projectId&&assets?.xmlUrl?fmUrl(`projects/${encodeURIComponent(projectId)}?view=portal-card`):'',pitchNotation:summaryPitchNotation(),measurementSystem:reportSummaryIsMetric()?'metric':'imperial',exteriorUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',designUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-design`):'',materialsUrl:fullHouseModel&&orgId&&platformProjectId&&isPlatformProjectId(platformProjectId)?`/v1/materials/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(platformProjectId)}/material-lists`:'',media:assets?.media||[],holidayLights:holidayLightsEnabled()};
   }
 
   // The finished report's model, from the order alone, for a surface that cannot read published measurements.
