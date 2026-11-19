@@ -125,6 +125,25 @@ test("every shipped message parses, English baselines are exact, frozen server c
   await assert.rejects(serverLanguage(resolveContext(),["../secrets"]));
 });
 
+// GP-3: text() fills values only into ICU entries ({message, format:"icu"}); a plain string is shown as written, so a
+// named message with a {placeholder} stored plain read "Loading {workspace}..." on dev. Hashed m_ keys are literal copy.
+test("a named message with a {placeholder} is ICU in every shipped catalog, so its values fill in", async () => {
+  const root=new URL("../../libraries/platform-language/catalogs/",import.meta.url);
+  const manifest=JSON.parse(await readFile(new URL("manifest.json",root),"utf8"));
+  const plain:string[]=[];
+  for(const [namespace,file] of Object.entries(manifest.namespaces)){
+    const bundle=JSON.parse(await readFile(new URL(String(file),root),"utf8"));
+    for(const [locale,catalog] of Object.entries(bundle.namespaces[namespace]))
+      for(const [key,message] of Object.entries(catalog as any))
+        if(!key.startsWith("m_")&&typeof message==="string"&&/\{[A-Za-z_]\w*\}/.test(message))plain.push(`${locale}:${namespace}.${key}`);
+  }
+  assert.deepEqual(plain,[],"Store these as {message, format:\"icu\"} in catalog-source.json and every pack");
+  const engine=createLanguage();
+  engine.register({version:"gp-3",namespaces:{t:{"en-US":{plain:"Loading {workspace}...",icu:{message:"Loading {workspace}...",format:"icu"}}}}});
+  assert.equal(engine.text("t","icu","",{workspace:"Finance"}),"Loading Finance...");
+  assert.equal(engine.text("t","plain","",{workspace:"Finance"}),"Loading {workspace}...","the failure this test guards against");
+});
+
 test("document harness embeds frozen language before widgets and preserves US and authored content", async () => {
   const { buildRenderHarnessHtml } = await import("../documents/render.js");
   const input = { resolved_definition:{pages:[]}, theme:{}, themeContext:{}, widgetData:{}, scope:{ customer:"Color Center <script>alert(1)</script>" }, title:"Fixture" };
