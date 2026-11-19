@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Det gick inte att läsa in faktureringsuppgifterna. Försök igen.",
-    "full_exterior": "Hela exteriören"
+    "full_exterior": "Hela exteriören",
+    "stripe_receipt_credits_currency": {
+      "message": "{amount} i kredit har lagts till på ditt FirstMate-saldo. Takrapporter dras från detta saldo; du debiteras inte igen förrän du fyller på.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "{amount} krediter har lagts till på ditt FirstMate-saldo. Takrapporter dras från detta saldo; du debiteras inte igen förrän du fyller på.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Krediter för takmätning",
+    "stripe_line_credits_bonus": "Krediter för takmätning med tidsbegränsad bonus",
+    "stripe_line_added": {
+      "message": "{amount} har lagts till på ditt FirstMate-konto",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "{paid} köpt + {bonus} tidsbegränsad bonus ({percent} % bonus) = {total} har lagts till på ditt konto",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. Inkl. moms.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "Alla",

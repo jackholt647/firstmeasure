@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Kunne ikke indlæse faktureringsoplysninger. Prøv igen.",
-    "full_exterior": "Hele ydersiden"
+    "full_exterior": "Hele ydersiden",
+    "stripe_receipt_credits_currency": {
+      "message": "{amount} i kredit tilføjet til din FirstMate-saldo. Tagrapporter trækkes fra denne saldo; du bliver ikke opkrævet igen, før du fylder op.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "{amount} kreditter tilføjet til din FirstMate-saldo. Tagrapporter trækkes fra denne saldo; du bliver ikke opkrævet igen, før du fylder op.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Kreditter til tagopmåling",
+    "stripe_line_credits_bonus": "Kreditter til tagopmåling med tidsbegrænset bonus",
+    "stripe_line_added": {
+      "message": "{amount} tilføjet til din FirstMate-konto",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "{paid} købt + {bonus} tidsbegrænset bonus ({percent} % bonus) = {total} tilføjet til din konto",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. Inkl. moms.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "Alle",

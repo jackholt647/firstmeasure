@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Δεν ήταν δυνατή η φόρτωση των στοιχείων χρέωσης. Δοκιμάστε ξανά.",
-    "full_exterior": "Πλήρες εξωτερικό"
+    "full_exterior": "Πλήρες εξωτερικό",
+    "stripe_receipt_credits_currency": {
+      "message": "Προστέθηκε υπόλοιπο {amount} στον λογαριασμό σας FirstMate. Οι αναφορές στέγης χρεώνονται από αυτό το υπόλοιπο· δεν θα χρεωθείτε ξανά μέχρι να κάνετε νέα φόρτιση.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "Προστέθηκαν {amount} μονάδες στο υπόλοιπο FirstMate σας. Οι αναφορές στέγης χρεώνονται από αυτό το υπόλοιπο· δεν θα χρεωθείτε ξανά μέχρι να κάνετε νέα φόρτιση.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Μονάδες για μετρήσεις στέγης",
+    "stripe_line_credits_bonus": "Μονάδες για μετρήσεις στέγης με μπόνους περιορισμένου χρόνου",
+    "stripe_line_added": {
+      "message": "Προστέθηκαν {amount} στον λογαριασμό σας FirstMate",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "Αγορά {paid} + μπόνους περιορισμένου χρόνου {bonus} (μπόνους {percent}%) = προστέθηκαν {total} στον λογαριασμό σας",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. Περιλαμβάνεται ΦΠΑ.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "Όλα",

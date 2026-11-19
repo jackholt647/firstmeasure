@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Die Abrechnungsdaten konnten nicht geladen werden. Bitte versuche es erneut.",
-    "full_exterior": "Gebäudehülle"
+    "full_exterior": "Gebäudehülle",
+    "stripe_receipt_credits_currency": {
+      "message": "{amount} Guthaben wurde Ihrem FirstMate-Konto gutgeschrieben. Dachreports werden von diesem Guthaben abgebucht; Sie werden erst wieder belastet, wenn Sie Guthaben aufladen.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "{amount} Credits wurden Ihrem FirstMate-Guthaben gutgeschrieben. Dachreports werden von diesem Guthaben abgebucht; Sie werden erst wieder belastet, wenn Sie Guthaben aufladen.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Guthaben für Dachaufmaße",
+    "stripe_line_credits_bonus": "Guthaben für Dachaufmaße mit zeitlich begrenztem Bonus",
+    "stripe_line_added": {
+      "message": "{amount} Ihrem FirstMate-Konto gutgeschrieben",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "{paid} gekauft + {bonus} zeitlich begrenzter Bonus ({percent} % Bonus) = {total} Ihrem Konto gutgeschrieben",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. Inkl. MwSt.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "Alle",

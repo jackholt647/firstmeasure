@@ -41,7 +41,7 @@ import {
   firstMeasureReportAmount as sharedFirstMeasureReportAmount,
   firstMeasureReportCharge as sharedFirstMeasureReportCharge
 } from "../firstmeasure/pricing.js";
-import { stripeCreditReceiptDescription } from "../payments/stripe_receipt.js";
+import { stripeCreditLineItem, stripeCreditReceiptDescription, stripeCustomerLocaleFields, stripeLocale, stripeReceiptLocale } from "../payments/stripe_receipt.js";
 import { checkStripeCheckoutAmount, type StripeCheckoutAmountCheck } from "../payments/stripe_checkout_amount.js";
 import { saveInternalDocument } from "../internal/storage.js";
 import { creditLedgerEntryKind, creditStatementTotals, customerLedgerEntries } from "./credit_statement.js";
@@ -11196,26 +11196,39 @@ async function stripeApiRequest(method: "GET" | "POST", apiPath: string, fields:
   return { success: true, http: response.status, data: data as JsonObject };
 }
 
-async function stripeCreateCustomer(orgId: string) {
+async function stripeCreateCustomer(orgId: string, locale: string) {
   const org = await portalOrgView(orgId);
+  const preferredLocale = stripeLocale(locale);
   const result = await stripeApiRequest("POST", "/v1/customers", {
     name: cleanText(org.name) || "Organization",
+    "preferred_locales[0]": preferredLocale,
     "metadata[org_id]": orgId
   });
   if (!result.success) return result;
   const customerId = cleanText(asObject(result.data).id);
   if (!customerId) return { success: false, error: "Stripe customer response was missing an id.", stripe: result.data };
-  await stripePatchBilling(orgId, { stripe: { customer_id: customerId } }, "stripe_customer_created", { customer_id: customerId, source: "node" });
+  await stripePatchBilling(orgId, { stripe: { customer_id: customerId, preferred_locale: preferredLocale } }, "stripe_customer_created", { customer_id: customerId, source: "node" });
   return { success: true, customer_id: customerId, customer: result.data };
 }
 
-async function stripeCustomerIdForOrg(orgId: string) {
+/** FM-622: Stripe sends its receipt emails in the customer's preferred language; keep it the organization's. */
+async function stripeSyncCustomerLocale(orgId: string, customerId: string, stripe: JsonObject, locale: string) {
+  const fields = stripeCustomerLocaleFields(stripe, locale);
+  if (!fields || !customerId) return;
+  const updated = await stripeApiRequest("POST", `/v1/customers/${encodeURIComponent(customerId)}`, fields).catch(() => null);
+  if (updated?.success) await stripePatchBilling(orgId, { stripe: { preferred_locale: fields["preferred_locales[0]"] } }, "", {});
+}
+
+async function stripeCustomerIdForOrg(orgId: string, locale: string) {
   const global = await readGlobal(orgId);
   const billing = asObject(asObject(global.data).billing);
   const stripe = asObject(billing.stripe);
   let customerId = cleanText(stripe.customer_id);
-  if (customerId) return customerId;
-  const created = await stripeCreateCustomer(orgId);
+  if (customerId) {
+    await stripeSyncCustomerLocale(orgId, customerId, stripe, locale);
+    return customerId;
+  }
+  const created = await stripeCreateCustomer(orgId, locale);
   if (!created.success) throw badRequest("stripe_customer_create_failed", cleanText(created.error) || "Could not create Stripe customer.");
   customerId = cleanText(asObject(created).customer_id);
   if (!customerId) throw badRequest("stripe_customer_create_failed", "Could not create Stripe customer.");
@@ -11285,7 +11298,8 @@ async function portalStripeCreateCheckout(orgId: string, email: string, body: Js
     matchPercent = Number(asObject(quote).match_percent ?? 0);
     useBonus = true;
   }
-  const customerId = await stripeCustomerIdForOrg(orgId);
+  const locale = await stripeReceiptLocale(orgId);
+  const customerId = await stripeCustomerIdForOrg(orgId, locale);
   const baseUrl = stripeReturnBaseUrl(body);
   const successUrl = `${baseUrl}/index.php?paid=1&session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = `${baseUrl}/index.php?paid=0`;
@@ -11295,8 +11309,9 @@ async function portalStripeCreateCheckout(orgId: string, email: string, body: Js
     cancel_url: cancelUrl,
     customer: customerId,
     client_reference_id: email,
+    locale: stripeLocale(locale),
     "payment_intent_data[setup_future_usage]": "off_session",
-    "payment_intent_data[description]": stripeCreditReceiptDescription(totalCredit),
+    "payment_intent_data[description]": await stripeCreditReceiptDescription(totalCredit, currentProfile(), locale),
     "metadata[user_email]": email,
     "metadata[org_id]": orgId,
     "metadata[credit_dollars]": totalCredit,
@@ -11327,14 +11342,11 @@ async function portalStripeCreateCheckout(orgId: string, email: string, body: Js
     fields["line_items[0][quantity]"] = qty;
   } else {
     const matchPercent = qty > 0 && bonus > 0 ? Math.round((bonus / qty) * 10_000) / 100 : 0;
+    const lineItem = await stripeCreditLineItem({ paid: qty, bonus, total: totalCredit, matchPercent, bonusOffer: useBonus, vatIncluded: reportPricesIncludeVat() }, currentProfile(), locale);
     fields["line_items[0][price_data][currency]"] = currentProfile().currency.toLowerCase();
     fields["line_items[0][price_data][unit_amount]"] = String(creditMinorAmount(1));
-    fields["line_items[0][price_data][product_data][name]"] = useBonus ? "Roof Measurement Credits With Limited-Time Bonus" : "Roof Measurement Credits";
-    fields["line_items[0][price_data][product_data][description]"] = useBonus
-      ? `${creditLabel(qty)} purchased + ${creditLabel(bonus)} limited-time bonus (${matchPercent}% bonus) = ${creditLabel(totalCredit)} added to your account`
-      : `${creditLabel(totalCredit)} added to your FirstMate account`;
-    // Outside the US and Canada the charged amount includes VAT (commercial policy international_prices.vat_included).
-    if (reportPricesIncludeVat()) fields["line_items[0][price_data][product_data][description]"] += ". VAT included.";
+    fields["line_items[0][price_data][product_data][name]"] = lineItem.name;
+    fields["line_items[0][price_data][product_data][description]"] = lineItem.description;
     fields["line_items[0][quantity]"] = qty;
   }
   const created = await stripeApiRequest("POST", "/v1/checkout/sessions", fields);
@@ -11383,7 +11395,8 @@ async function portalStripePendingOrder(orgId: string, email: string, sessionId:
 }
 
 async function portalStripeStartSetup(orgId: string, body: JsonObject) {
-  const customerId = await stripeCustomerIdForOrg(orgId);
+  const locale = await stripeReceiptLocale(orgId);
+  const customerId = await stripeCustomerIdForOrg(orgId, locale);
   const global = await readGlobal(orgId);
   const billing = safeBillingView(asObject(global.data).billing);
   const threshold = Math.max(35, Math.round(numericValue(billing.auto_topup.threshold_dollars, 50)));
@@ -11396,6 +11409,7 @@ async function portalStripeStartSetup(orgId: string, body: JsonObject) {
   const created = await stripeApiRequest("POST", "/v1/checkout/sessions", {
     mode: "setup",
     customer: customerId,
+    locale: stripeLocale(locale),
     currency: currentProfile().currency.toLowerCase(),
     success_url: `${baseUrl}/index.php?tab=company_settings&sub=billing&setup=1&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/index.php?tab=company_settings&sub=billing&setup=0`,
@@ -11797,6 +11811,8 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
     reason: triggerEntry.reason,
     meta: triggerEntry.meta
   })).slice(0, 24);
+  const locale = await stripeReceiptLocale(orgId);
+  await stripeSyncCustomerLocale(orgId, customerId, stripe, locale);
   const result = await stripeApiRequest("POST", "/v1/payment_intents", {
     amount: creditMinorAmount(topup, profile),
     currency: profile.currency.toLowerCase(),
@@ -11804,7 +11820,7 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
     payment_method: paymentMethodId,
     off_session: "true",
     confirm: "true",
-    description: stripeCreditReceiptDescription(topup, profile),
+    description: await stripeCreditReceiptDescription(topup, profile, locale),
     "metadata[type]": "org_auto_topup",
     "metadata[org_id]": orgId,
     "metadata[topup_dollars]": topup,
