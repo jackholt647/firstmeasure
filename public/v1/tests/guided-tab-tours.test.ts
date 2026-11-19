@@ -6,7 +6,8 @@ import path from "node:path";
 import test, { after } from "node:test";
 import { closePlatformFixtureStores, enableExpandedPlatformFixture } from "./helpers/platform-fixture.js";
 
-// The project tab tours beside Materials (docs/architecture/guided-experiences.md): Photos, Docs and Customer Portal.
+// The project tab tours beside Materials (docs/architecture/guided-experiences.md): Photos, Docs, Customer Portal and
+// Finance.
 // Each is valid data, plays the first time its tab opens where the tab is available, and can be replayed from the
 // agent's "Show me the tutorial again" question on that tab. The Reports tour is off for now (removed from the library
 // on Nov 2; library revision 1 of reports.tab_tutorial brings it back).
@@ -18,8 +19,11 @@ after(async () => { await closePlatformFixtureStores(); await rm(dir, { recursiv
 const TOURS = [
   { id: "photos.tab_tutorial", tab: "project.photos", capability: "platform.project_photos", sources: ["libraries/apps/photos/project.js", "libraries/apps/photos/feed.js"] },
   { id: "customer_portal.tab_tutorial", tab: "project.customer_portal", capability: "platform.customer_portal", sources: ["libraries/apps/customer-portal/project.js"] },
-  { id: "docs.tab_tutorial", tab: "project.docs", capability: "platform.documents", sources: ["libraries/apps/docs/project.js", "libraries/apps/photos/feed.js"] }
+  { id: "docs.tab_tutorial", tab: "project.docs", capability: "platform.documents", sources: ["libraries/apps/docs/project.js", "libraries/apps/photos/feed.js"] },
+  { id: "money.tab_tutorial", tab: "project.money", capability: "platform.money", sources: ["libraries/apps/money/project.js"] }
 ];
+/** A step's selectors: its targets, or its cases' targets. */
+const selectorsOf = (step: any): string[] => [...(step.targets ?? []), ...(step.cases ?? []).flatMap((entry: any) => entry.targets)];
 // Every tab tour ends on the project window's Agent button (GP-43): the tray rail's on a computer, the footer's on a
 // phone. project-trays.js draws both.
 const AGENT_BUTTON = ".fm-project-tray-tabs [data-tray=agent]";
@@ -60,7 +64,7 @@ test("each tab tour registers, validates, and words every step with a gx_ key", 
     assert.deepEqual([steps.at(-1).targets, steps.at(-1).placement], [[AGENT_BUTTON], "auto"], `${entry.id} ends on the agent button it tells you to ask`);
     const middle = steps.slice(1, -1);
     assert.ok(middle.length >= 2 && middle.length <= 6, `${entry.id} has 2 to 6 steps on real controls, has ${middle.length}`);
-    for (const step of middle) assert.ok(step.targets.length > 0, `${entry.id}/${step.id} points at a control`);
+    for (const step of middle) assert.ok(selectorsOf(step).length > 0, `${entry.id}/${step.id} points at a control`);
     // The replay chip sits beside the tab's existing questions (registered in materials.ts), whichever registers first.
     const faqs = tabFaqs(entry.tab)!;
     assert.ok(faqs.questions.some((question) => question.action === "play" && question.experience === entry.id), `${entry.tab} offers the replay`);
@@ -75,6 +79,14 @@ test("each tab tour registers, validates, and words every step with a gx_ key", 
   assert.equal(experience("documents.tab_tutorial"), null, "one Docs tour, under the tab's own name");
   // Photos is basic: upload or take photos, and open one. The cover photo has no step of its own (GP-42).
   assert.deepEqual((experience("photos.tab_tutorial")!.steps as any[]).map((step) => step.id), ["intro", "upload", "open", "outro"]);
+  // Finance (GP-40): the totals, the ledger and its actions, then payment setup: a step only for someone who may set
+  // payments up, pointing only at what the tab draws while they are not set up, whose button starts the Money setup.
+  const money = experience("money.tab_tutorial")!.steps as any[];
+  assert.deepEqual(money.map((step) => step.id), ["intro", "totals", "ledger", "actions", "payments", "outro"]);
+  const payments = money.find((step) => step.id === "payments");
+  assert.deepEqual(payments.action, { setup: "platform.money", label: { key: "gx_fnt_payments_action", text: "Set up payments" } });
+  assert.deepEqual(payments.eligibility.permissions, ["manage_company_settings"], "only for those who may set payments up");
+  assert.deepEqual(selectorsOf(payments), [".mn-add-menu.mn-has-setup", "[data-money-take-payment].mn-has-setup"], "the + button's warning on a phone, Take a payment's Setup on a computer");
   assert.deepEqual((experience("materials.tab_tutorial")!.steps as any[]).at(-1).targets, [AGENT_BUTTON], "the Operations tour ends on the agent button too");
   assert.equal(experience("reports.tab_tutorial"), null, "no Reports tour for now");
   assert.equal(tabFaqs("project.measurements")!.questions.some((question) => question.action === "play"), false, "and no replay question for it");
@@ -87,7 +99,7 @@ test("every tour target names hooks the tab's own source draws", async () => {
   const trays = ["libraries/project-trays/project-trays.js"];
   for (const entry of TOURS) {
     const source = await read(entry.sources), traySource = await read(trays);
-    for (const step of experience(entry.id)!.steps as any[]) for (const selector of step.targets as string[]) {
+    for (const step of experience(entry.id)!.steps as any[]) for (const selector of selectorsOf(step)) {
       // The agent button is the project window's, not the tab's.
       const [drawn, files] = selector === AGENT_BUTTON ? [traySource, trays] : [source, entry.sources];
       const hooks = [...selector.matchAll(/#([\w-]+)|\[([\w-]+)(?:="?([^"\]]+)"?)?\]|\.([\w-]+)/g)].map(([, id, attr, value, cls]) => id ? [`id="${id}"`] : attr ? [attr, ...(value && (attr === "data-tab" || attr === "data-tray") ? [new RegExp(`id:\\s*'${value}'`)] : [])] : [cls]).flat();
@@ -100,7 +112,7 @@ test("each tab's questions are one library entry, checked for the limit, unique 
   const { registerAllLibraryKinds } = await import("../config-library/kinds/index.js"), { checkEntry } = await import("../config-library/writes.js"), { libraryEntries } = await import("../config-library/library.js");
   registerAllLibraryKinds();
   const t = (key: string, text: string) => ({ key, text });
-  assert.deepEqual(libraryEntries("guided_tab_faqs").map((entry) => entry.id), ["portal.equipment", "project.checklists", "project.customer_portal", "project.docs", "project.map", "project.materials", "project.measurements", "project.photos"]);
+  assert.deepEqual(libraryEntries("guided_tab_faqs").map((entry) => entry.id), ["portal.equipment", "project.checklists", "project.customer_portal", "project.docs", "project.map", "project.materials", "project.measurements", "project.money", "project.photos"]);
   const ask = (i: number) => ({ id: `q.n${i}`, text: t(`gx_test_q_${i}`, "More") });
   assert.deepEqual(checkEntry("guided_tab_faqs", "test.tab", { tab: "test.tab", questions: [ask(1)] }, null).errors, []);
   assert.match(checkEntry("guided_tab_faqs", "test.tab", { tab: "test.tab", questions: [ask(1), ask(1)] }, null).errors.join(" "), /same id/);
