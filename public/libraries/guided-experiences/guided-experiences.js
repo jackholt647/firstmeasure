@@ -748,7 +748,9 @@
     .gx-dots{display:flex;gap:5px;margin-right:auto}
     .gx-dots i{width:6px;height:6px;border-radius:3px;background:#d0d5dd;transition:width .3s,background .3s}
     .gx-dots i.on{width:18px;background:var(--primary,#d93025)}
-    .gx-pop button.gx-b{height:32px;padding:0 12px;border-radius:9px;border:1px solid #d0d5dd;background:#fff;color:#344054;font:inherit;font-size:13px;font-weight:650;cursor:pointer}
+    .gx-pop button.gx-b{height:32px;padding:0 12px;border-radius:9px;border:1px solid #d0d5dd;background:#fff;color:#344054;font:inherit;font-size:13px;font-weight:650;cursor:pointer;white-space:nowrap}
+    /* A step with an action button (Set up payments) needs the room for Back, Skip step and its label on one line. */
+    .gx-pop.gx-acts{width:min(400px,calc(100vw - 24px))}
     .gx-pop button.gx-b.gx-primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff}
     .gx-pop button.gx-b.gx-link{border-color:transparent;color:#667085;padding:0 6px}
     .gx-pop button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
@@ -958,7 +960,7 @@
             <footer><span class="gx-dots" aria-label="${esc(L('gx_ui_step_of', 'Step') + ' ' + (index + 1) + ' / ' + total)}">${list.map((_, i) => `<i class="${i === index ? 'on' : ''}"></i>`).join('')}</span>
               <button type="button" class="gx-b gx-primary" data-gx="next">${H('gx_ui_next', 'Next')}</button></footer>
             ${targets.length ? '<span class="gx-arrow" aria-hidden="true"></span>' : ''}`;
-          pop.hidden = false;
+          pop.hidden = false; pop.classList.remove('gx-acts');
           pop.setAttribute('aria-label', L('gx_ui_held_title', 'Close this to carry on')); pop.dataset.gxStep = current?.id || ''; pop.dataset.gxHeld = '';
           pop.classList.remove('gx-enter'); void pop.offsetWidth; pop.classList.add('gx-enter');
         }
@@ -1009,7 +1011,7 @@
               ${!last || waitsForClick || acts ? `<button type="button" class="gx-b gx-link" data-gx="skip">${H('gx_ui_skip_step', 'Skip step')}</button>` : ''}
               ${waitsForClick ? '' : acts ? `<button type="button" class="gx-b gx-primary" data-gx="action">${H(step.action.label)}</button>` : `<button type="button" class="gx-b gx-primary" data-gx="next">${last ? H('gx_ui_done', 'Done') : H('gx_ui_next', 'Next')}</button>`}</footer>
             ${targets.length && step.placement !== 'center' ? '<span class="gx-arrow" aria-hidden="true"></span>' : ''}`;
-          pop.hidden = false;
+          pop.hidden = false; pop.classList.toggle('gx-acts', acts);
           pop.setAttribute('aria-label', L(step.title)); pop.dataset.gxStep = step.id;
           pop.classList.remove('gx-enter'); void pop.offsetWidth; pop.classList.add('gx-enter');
           setTimeout(() => pop.querySelector('[data-gx=next],[data-gx=action]')?.focus?.({ preventScroll: true }), 30);
