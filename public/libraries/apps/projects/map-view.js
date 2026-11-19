@@ -1,7 +1,9 @@
 /* public/libraries/apps/projects/map-view.js
  * My Projects > Map. Draws the projects the viewer has already filtered (board,
  * search, sharing, drafts) on the portal's Google map, coloured by stage (or by
- * board when every board is shown), with a collapsible tray listing all of them.
+ * board when every board is shown), with a collapsible tray listing all of them
+ * under a header per stage (or board), in stage order. A collapsed header hides
+ * its projects from the list and the map, and stays collapsed between sessions.
  *
  * The viewer owns filtering and opening a project; this file only draws what it
  * is given. The map fills the viewer's whole content area: the viewer's header
@@ -16,6 +18,8 @@
   const GEOCODE_STORAGE_KEY = 'fm_projects_map_geocode_v1';
   const TRAY_STORAGE_KEY = 'fm_projects_map_tray_v1';
   const MAP_TYPE_STORAGE_KEY = 'fm_projects_map_type_v1';
+  const COLLAPSED_STORAGE_KEY = 'fm_projects_map_collapsed_v1';
+  const COLLAPSED_SCOPE_LIMIT = 50;
   const GEOCODE_CACHE_LIMIT = 2000;
   const GEOCODE_FAILURE_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
   const GEOCODE_SESSION_LIMIT = 250;
@@ -110,18 +114,18 @@
     .pm-tray-sub i{font-size:10px}
     .pm-tray-toggle{flex:0 0 auto;width:32px;height:32px;border:1px solid #e4e7ec;border-radius:9px;background:#fff;color:#667085;cursor:pointer;transition:background .16s ease,color .16s ease,transform .3s ease}
     .pm-tray-toggle:hover{background:#f8fafc;color:#344054}
-    .pm-legend{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;border-bottom:1px solid rgba(15,23,42,.07);max-height:96px;overflow-y:auto}
-    .pm-legend[hidden]{display:none}
-    .pm-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:5px 9px 5px 7px;border:1px solid color-mix(in srgb,var(--chip-color,${FALLBACK_COLOR}) 30%,#e3e7ec);border-radius:999px;background:color-mix(in srgb,var(--chip-color,${FALLBACK_COLOR}) 9%,#fff);color:color-mix(in srgb,var(--chip-color,${FALLBACK_COLOR}) 75%,#17212b);font:900 11px/1.1 inherit;cursor:pointer;transition:background .18s ease,opacity .18s ease,border-color .18s ease,transform .16s ease}
-    .pm-chip:hover{transform:translateY(-1px)}
-    .pm-chip-dot{width:9px;height:9px;flex:0 0 auto;border-radius:50%;background:var(--chip-color,${FALLBACK_COLOR});box-shadow:0 0 0 2px color-mix(in srgb,var(--chip-color,${FALLBACK_COLOR}) 18%,transparent);transition:transform .18s ease,background .18s ease}
-    .pm-chip-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .pm-chip-count{padding:1px 6px;border-radius:999px;background:rgba(255,255,255,.85);font-size:10px}
-    .pm-chip[aria-pressed="false"]{background:#fff;border-color:#e4e7ec;color:#98a2b3}
-    .pm-chip[aria-pressed="false"] .pm-chip-dot{background:#d0d5dd;box-shadow:none;transform:scale(.8)}
-    .pm-chip-reset{border-style:dashed;--chip-color:#667085}
     .pm-list{flex:1 1 auto;min-height:0;overflow-y:auto;padding:6px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
-    .pm-section{position:sticky;top:-6px;z-index:1;margin:6px 2px 4px;padding:6px 8px;border-radius:8px;background:rgba(228,231,236,.96);color:#667085;font-size:10px;font-weight:1000;letter-spacing:.04em;text-transform:uppercase}
+    .pm-group+.pm-group{margin-top:4px}
+    .pm-group-head{position:sticky;top:-6px;z-index:1;width:100%;display:flex;align-items:center;gap:8px;margin:0 0 2px;padding:7px 10px;box-sizing:border-box;border:0;border-radius:9px;background:color-mix(in srgb,var(--pin-color,${FALLBACK_COLOR}) 7%,#eceff3);color:#344054;font-family:inherit;font-size:11px;font-weight:1000;line-height:1.2;text-align:left;cursor:pointer;transition:background .16s ease,color .16s ease}
+    .pm-group-head:hover{background:color-mix(in srgb,var(--pin-color,${FALLBACK_COLOR}) 12%,#e4e7ec)}
+    .pm-group-head:focus-visible{outline:2px solid rgba(var(--primary-rgb,217,48,37),.45);outline-offset:-2px}
+    .pm-group-dot{width:9px;height:9px;flex:0 0 auto;border-radius:50%;background:var(--pin-color,${FALLBACK_COLOR});box-shadow:0 0 0 2px color-mix(in srgb,var(--pin-color,${FALLBACK_COLOR}) 18%,transparent);transition:transform .18s ease,background .18s ease}
+    .pm-group-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pm-group-count{flex:0 0 auto;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.85);color:#667085;font-size:10px}
+    .pm-group-caret{flex:0 0 auto;width:12px;color:#98a2b3;font-size:10px;text-align:center;transition:transform .2s ease}
+    .pm-group-head[aria-expanded="false"]{background:rgba(234,236,240,.92);color:#98a2b3}
+    .pm-group-head[aria-expanded="false"] .pm-group-dot{background:#d0d5dd;box-shadow:none;transform:scale(.8)}
+    .pm-group-head[aria-expanded="false"] .pm-group-caret{transform:rotate(-90deg)}
     .pm-row{position:relative;width:100%;display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 10px;border:0;border-radius:9px;background:transparent;text-align:left;font-family:inherit;cursor:pointer;transition:background .18s ease,box-shadow .18s ease}
     .pm-row+.pm-row{margin-top:2px}
     .pm-row::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--pin-color,${FALLBACK_COLOR});opacity:0;transform:scaleY(.3);transition:opacity .2s ease,transform .2s ease}
@@ -164,7 +168,7 @@
       .pm-empty.is-view{padding:16px 18px 18px}
       .pm-empty.is-view > i{margin-bottom:8px}
       .pm-root:not(.is-tray-open) .pm-tray{transform:translateY(calc(100% - 62px));opacity:1;pointer-events:auto}
-      .pm-root:not(.is-tray-open) .pm-legend,.pm-root:not(.is-tray-open) .pm-list{visibility:hidden;transition:visibility 0s linear .34s}
+      .pm-root:not(.is-tray-open) .pm-list{visibility:hidden;transition:visibility 0s linear .34s}
       .pm-tray-head{position:relative;padding-top:16px;cursor:pointer;touch-action:none}
       .pm-tray-grip{display:block;position:absolute;left:50%;top:6px;width:36px;height:4px;margin-left:-18px;border-radius:4px;background:#d0d5dd}
       .pm-tray-toggle{transform:rotate(-90deg)}
@@ -203,7 +207,9 @@
     model: null,
     items: new Map(),
     order: [],
-    hiddenGroups: new Set(),
+    // Stages (or boards) whose header is collapsed: their projects leave the list and the map.
+    collapsedGroups: new Set(),
+    collapsedKey: '',
     scopeKey: null,
     selectedId: '',
     hotId: '',
@@ -411,14 +417,42 @@
 
   /* ---------- Model ---------- */
   function visibleItems(){
-    return state.order.map((id) => state.items.get(id)).filter((item) => item && !state.hiddenGroups.has(item.groupId));
+    return state.order.map((id) => state.items.get(id)).filter((item) => item && !state.collapsedGroups.has(item.groupId));
   }
   function locatedItems(){ return visibleItems().filter((item) => item.point); }
+
+  // Remembered per person and organization, for each board (or the stage view) separately.
+  function storedCollapsed(){
+    const stored = readStorage(state.collapsedKey, {});
+    return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  }
+  function rememberCollapsed(){
+    const stored = storedCollapsed();
+    delete stored[state.scopeKey];
+    if (state.collapsedGroups.size) stored[state.scopeKey] = [...state.collapsedGroups];
+    const keys = Object.keys(stored);
+    for (let i = 0; i < keys.length - COLLAPSED_SCOPE_LIMIT; i++) delete stored[keys[i]];
+    writeStorage(state.collapsedKey, stored);
+  }
+  function toggleGroup(id){
+    if (state.collapsedGroups.has(id)) state.collapsedGroups.delete(id);
+    else state.collapsedGroups.add(id);
+    rememberCollapsed();
+    const selected = state.items.get(state.selectedId);
+    if (selected && state.collapsedGroups.has(selected.groupId)) select('', { pan:false });
+    state.userMovedSinceFit = false;
+    renderTray();
+    syncMarkers();
+    maybeFit();
+    // The list was redrawn: keep the keyboard on the header that was pressed.
+    state.root?.querySelector(`.pm-group-head[data-group="${CSS.escape(id)}"]`)?.focus({ preventScroll:true });
+  }
 
   function update(container, model){
     if (!container) return;
     // A collapse in another organization must not hide a new organization's first-project action.
-    const trayPreferenceKey = `${TRAY_STORAGE_KEY}:${window.__APP?.userOrgId || 'default'}:${window.__APP?.userId || 'default'}`;
+    const person = `${window.__APP?.userOrgId || 'default'}:${window.__APP?.userId || 'default'}`;
+    const trayPreferenceKey = `${TRAY_STORAGE_KEY}:${person}`;
     if (state.trayPreferenceKey !== trayPreferenceKey) {
       state.trayPreferenceKey = trayPreferenceKey;
       const stored = readStorage(trayPreferenceKey, null);
@@ -438,7 +472,13 @@
     if (state.trayOpen == null) setTrayOpen(model?.empty === 'none' || !isSheet(), { remember:false });
     state.model = model || {};
     const scopeKey = String(model?.scopeKey || '');
-    if (scopeKey !== state.scopeKey) { state.scopeKey = scopeKey; state.hiddenGroups.clear(); }
+    const collapsedKey = `${COLLAPSED_STORAGE_KEY}:${person}`;
+    if (scopeKey !== state.scopeKey || collapsedKey !== state.collapsedKey) {
+      state.scopeKey = scopeKey;
+      state.collapsedKey = collapsedKey;
+      const stored = storedCollapsed()[scopeKey];
+      state.collapsedGroups = new Set(Array.isArray(stored) ? stored.map(String) : []);
+    }
     const previous = state.items;
     state.items = new Map();
     state.order = [];
@@ -451,8 +491,6 @@
       state.items.set(id, { ...raw, id, color: safeColor(raw.color), point, geocoded: !known && !!point });
       state.order.push(id);
     }
-    const groupIds = new Set((model?.groups || []).map((group) => String(group.id)));
-    for (const id of [...state.hiddenGroups]) if (!groupIds.has(id)) state.hiddenGroups.delete(id);
     if (state.selectedId && !state.items.has(state.selectedId)) state.selectedId = '';
     if (state.hotId && !state.items.has(state.hotId)) state.hotId = '';
     renderTray();
@@ -468,7 +506,7 @@
   }
 
   function maybeFit(){
-    const signature = [state.scopeKey, [...state.hiddenGroups].sort().join(','), visibleItems().map((item) => item.id).sort().join(',')].join('|');
+    const signature = [state.scopeKey, [...state.collapsedGroups].sort().join(','), visibleItems().map((item) => item.id).sort().join(',')].join('|');
     if (signature === state.fitSignature) return;
     const first = !state.fitSignature;
     state.fitSignature = signature;
@@ -495,7 +533,6 @@
           <div class="pm-tray-title"><strong></strong><div class="pm-tray-sub"></div></div>
           <button type="button" class="pm-tray-toggle" aria-expanded="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_fd21d140e2f496","Hide project list") ?? "Hide project list")}"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
         </div>
-        <div class="pm-legend" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_2805c66abd68dd","Filter the map by stage") ?? "Filter the map by stage")}"></div>
         <div class="pm-list"></div>
       </section>`;
     state.root = root;
@@ -513,29 +550,11 @@
       state.map?.setMapTypeId(state.mapType);
       syncMapTypeButton();
     });
-    root.querySelector('.pm-legend').addEventListener('click', (event) => {
-      const chip = event.target.closest('.pm-chip');
-      if (!chip) return;
-      if (chip.dataset.reset != null) state.hiddenGroups.clear();
-      else {
-        const id = chip.dataset.group;
-        const groups = (state.model?.groups || []).map((group) => String(group.id));
-        // First click isolates a stage; later clicks add or remove stages.
-        if (!state.hiddenGroups.size) groups.forEach((groupId) => { if (groupId !== id) state.hiddenGroups.add(groupId); });
-        else if (state.hiddenGroups.has(id)) state.hiddenGroups.delete(id);
-        else state.hiddenGroups.add(id);
-        if (state.hiddenGroups.size >= groups.length) state.hiddenGroups.clear();
-      }
-      const selected = state.items.get(state.selectedId);
-      if (selected && state.hiddenGroups.has(selected.groupId)) state.selectedId = '';
-      state.userMovedSinceFit = false;
-      renderTray();
-      syncMarkers();
-      maybeFit();
-    });
     const list = root.querySelector('.pm-list');
     list.addEventListener('click', (event) => {
       if (event.target.closest('[data-pm-new-project]')) { state.model?.create?.(); return; }
+      const head = event.target.closest('.pm-group-head');
+      if (head) { toggleGroup(head.dataset.group); return; }
       const row = event.target.closest('.pm-row');
       if (!row) return;
       const item = state.items.get(row.dataset.id);
@@ -601,7 +620,8 @@
 
   function renderTrayHead(){
     if (!state.root) return;
-    const visible = visibleItems();
+    // Every project in the list, collapsed stages included: their headers still count them.
+    const visible = state.order.map((id) => state.items.get(id)).filter(Boolean);
     const located = visible.filter((item) => item.point).length;
     const missing = visible.length - located;
     const title = state.root.querySelector('.pm-tray-title strong');
@@ -621,25 +641,6 @@
     else if (missing) subText.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("projects","m_bb6033be5beecd",`${v0} on the map · ${v1} without a location`,{v0,v1}) ?? `${v0} on the map · ${v1} without a location`)(located,missing);
     else subText.textContent = (globalThis.PlatformLanguage?.text("projects","m_fd6f1fb0ffdb94","All on the map") ?? "All on the map");
     state.root.querySelector('.pm-reopen-count').textContent = String(visible.length);
-  }
-
-  function renderLegend(){
-    const legend = state.root.querySelector('.pm-legend');
-    const groups = Array.isArray(state.model?.groups) ? state.model.groups : [];
-    const counts = new Map();
-    for (const id of state.order) { const item = state.items.get(id); counts.set(item.groupId, (counts.get(item.groupId) || 0) + 1); }
-    const shown = groups.filter((group) => counts.get(String(group.id)));
-    legend.hidden = shown.length < 2;
-    if (legend.hidden) return;
-    if (state.model?.groupLabel === 'board') legend.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("projects","m_38e7f48aabdeae","Filter the map by board") ?? "Filter the map by board"));
-    else legend.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("projects","m_2805c66abd68dd","Filter the map by stage") ?? "Filter the map by stage"));
-    const chips = shown.map((group) => {
-      const id = String(group.id);
-      const on = !state.hiddenGroups.has(id);
-      return `<button type="button" class="pm-chip" data-group="${escapeHtml(id)}" aria-pressed="${on}" style="--chip-color:${safeColor(group.color)}"><span class="pm-chip-dot" aria-hidden="true"></span><span class="pm-chip-label">${escapeHtml(group.title || '')}</span><span class="pm-chip-count">${counts.get(id) || 0}</span></button>`;
-    }).join('');
-    const reset = state.hiddenGroups.size ? `<button type="button" class="pm-chip pm-chip-reset" data-reset aria-pressed="true"><i class="fas fa-rotate-left" aria-hidden="true"></i><span class="pm-chip-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_8cc2f1209a70dc","Show all") ?? "Show all")}</span></button>` : '';
-    legend.innerHTML = chips + reset;
   }
 
   // A project still named by its address shows the address once: line 1 as the title, line 2 beneath.
@@ -672,7 +673,6 @@
 
   function renderList(){
     const list = state.root.querySelector('.pm-list');
-    const visible = visibleItems();
     if (!state.order.length && state.model?.empty) {
       // The viewer has nothing to draw: the map stays a map and this says why.
       const filtered = state.model.empty === 'filtered';
@@ -692,28 +692,40 @@
       state.seenRowIds = new Set();
       return;
     }
-    if (!visible.length) {
+    if (!state.order.length) {
       list.__emptyHtml = '';
       list.innerHTML = `<div class="pm-empty"><i class="fas fa-map-location-dot" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_eebd895a6b0138","No projects match this view.") ?? "No projects match this view.")}</div>`;
       return;
     }
     list.__emptyHtml = '';
     const scroll = list.scrollTop;
-    const located = visible.filter((item) => item.point);
-    const unlocated = visible.filter((item) => !item.point);
+    // One header per stage (or board), in the viewer's stage order; a project with no location comes last in its stage.
+    const groups = new Map();
+    for (const group of Array.isArray(state.model?.groups) ? state.model.groups : []) groups.set(String(group.id), { id:String(group.id), title:group.title || '', color:safeColor(group.color), items:[] });
+    for (const id of state.order) {
+      const item = state.items.get(id);
+      if (!groups.has(item.groupId)) groups.set(item.groupId, { id:item.groupId, title:item.groupTitle || '', color:item.color, items:[] });
+      groups.get(item.groupId).items.push(item);
+    }
     const seen = state.seenRowIds;
     const firstRender = !seen.size;
-    let html = located.map((item) => rowHtml(item, !firstRender && !seen.has(item.id))).join('');
-    if (unlocated.length) html += `<div class="pm-section">${((v0) => globalThis.PlatformLanguage?.htmlText("projects","m_74da0dce613dc4",`No location · ${v0}`,{v0}) ?? `No location · ${v0}`)(unlocated.length)}</div>` + unlocated.map((item) => rowHtml(item, !firstRender && !seen.has(item.id))).join('');
+    const shown = [];
+    let html = '';
+    for (const group of groups.values()) {
+      if (!group.items.length) continue;
+      const open = !state.collapsedGroups.has(group.id);
+      const rows = open ? [...group.items.filter((item) => item.point), ...group.items.filter((item) => !item.point)] : [];
+      shown.push(...rows);
+      html += `<div class="pm-group" role="group" aria-label="${escapeHtml(group.title)}"><button type="button" class="pm-group-head" data-group="${escapeHtml(group.id)}" aria-expanded="${open}" style="--pin-color:${group.color}"><span class="pm-group-dot" aria-hidden="true"></span><span class="pm-group-title">${escapeHtml(group.title)}</span><span class="pm-group-count">${group.items.length}</span><i class="fas fa-chevron-down pm-group-caret" aria-hidden="true"></i></button>${rows.map((item) => rowHtml(item, !firstRender && !seen.has(item.id))).join('')}</div>`;
+    }
     list.innerHTML = html;
     list.scrollTop = scroll;
-    state.seenRowIds = new Set(visible.map((item) => item.id));
+    state.seenRowIds = new Set(shown.map((item) => item.id));
   }
 
   function renderTray(){
     if (!state.root) return;
     renderTrayHead();
-    renderLegend();
     renderList();
     renderStatus();
     setTrayOpen(state.trayOpen, { remember:false });
