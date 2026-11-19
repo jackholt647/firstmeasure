@@ -136,6 +136,19 @@ async function libraryGivenName(asset: Asset, orgId: string, copy: JsonObject) {
   return text(obj(first?.state).name);
 }
 
+/**
+ * An untouched copy takes a renamed entry's name, and a reset takes it back; a copy the organization renamed keeps
+ * its own (GP-124). `given` is the name the library gave the copy, read before a republish records the new one.
+ */
+async function followLibraryName(asset: Asset, orgId: string, entry: AnyEntry, copy: JsonObject, ctx: PlatformAuthContext | null, options: { reset?: boolean; given?: string } = {}) {
+  const name = text(entry.data.name);
+  if (!name || text(copy.name) === name) return copy;
+  const rename = options.reset || text(copy.name) === (options.given ?? await libraryGivenName(asset, orgId, copy));
+  if (!rename && text(obj(copy.metadata).library_name) === name) return copy;
+  const patch = STORE[asset].patch as (org: string, id: string, patch: JsonObject, ctx: PlatformAuthContext | null) => Promise<JsonObject>;
+  return await patch(orgId, entry.id, { ...(rename ? { name } : {}), metadata: { library_name: name } }, ctx);
+}
+
 async function writeCopy(asset: Asset, orgId: string, entry: AnyEntry, existing: JsonObject | null, ctx: PlatformAuthContext | null, options: { reset?: boolean } = {}) {
   const data = entry.data as DocumentTemplateEntry & DocumentWorkflowEntry & DocumentThemeEntry;
   const definition = await copyDefinition(asset, orgId, entry);
@@ -152,12 +165,9 @@ async function writeCopy(asset: Asset, orgId: string, entry: AnyEntry, existing:
       definition, metadata: { ...obj(clone(data.initial_metadata || {})), ...metadata }
     }, ctx, { systemPreset: true });
   }
-  // An untouched copy follows a renamed entry; a reset takes the library's name back.
-  const rename = data.name && text(existing.name) !== data.name && (options.reset || text(existing.name) === await libraryGivenName(asset, orgId, existing));
+  const given = text(existing.name) !== text(data.name) && !options.reset ? await libraryGivenName(asset, orgId, existing) : "";
   const published = await store.publish(orgId, entry.id, { definition, expected_version: Number(existing.current_version || 0), metadata }, ctx, { systemPreset: true });
-  if (!rename) return published;
-  const patch = STORE[asset].patch as (org: string, id: string, patch: JsonObject, ctx: PlatformAuthContext | null) => Promise<JsonObject>;
-  return await patch(orgId, entry.id, { name: data.name }, ctx);
+  return await followLibraryName(asset, orgId, entry, published, ctx, { reset: options.reset, given });
 }
 
 /**
@@ -176,10 +186,15 @@ async function ensureCopy(asset: Asset, orgId: string, entry: AnyEntry, ctx: Pla
   const state = copyState(entry, existing);
   if (state === "missing") return await writeCopy(asset, orgId, entry, null, ctx);
   if (state === "behind") return await writeCopy(asset, orgId, entry, existing, ctx).catch(() => null);
-  if (state === "library" && asset === "theme" && !(await themeFollowsBrand(orgId, entry, existing!))) {
-    return await writeCopy(asset, orgId, entry, existing, ctx).catch(() => null);
+  // Current, but named before the entry was renamed (a copy upgraded before its name followed, GP-124).
+  let copy = existing!;
+  if (state === "library" && text(copy.name) !== text(entry.data.name) && text(obj(copy.metadata).library_name) !== text(entry.data.name)) {
+    copy = await followLibraryName(asset, orgId, entry, copy, ctx).catch(() => copy);
   }
-  return existing;
+  if (state === "library" && asset === "theme" && !(await themeFollowsBrand(orgId, entry, copy))) {
+    return await writeCopy(asset, orgId, entry, copy, ctx).catch(() => null);
+  }
+  return copy;
 }
 
 /** A theme's tokens the company's brand fills (theme-defaults.ts), in a form two definitions compare by. */

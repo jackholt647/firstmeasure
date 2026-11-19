@@ -120,6 +120,16 @@ test("an untouched copy takes a renamed entry's name; a copy the organization re
   assert.equal((await state(template, ctx.orgId, "tpl_roofing_paper_upload")).state, "library", "the definition still follows");
   await template.orgCopies.reset(ctx, "tpl_roofing_paper_upload");
   assert.equal((await store.readDocumentTemplate(ctx.orgId, "tpl_roofing_paper_upload")).name, "Paper contract upload", "a reset takes the library's name back");
+
+  // Upgraded before its name followed (code that only republished the definition): current, under the old name.
+  const entry = revise(library, "document_template", "tpl_roofing_paper_upload", (data) => { data.name = "Paper upload"; });
+  const current = await store.readDocumentTemplate(ctx.orgId, "tpl_roofing_paper_upload");
+  await store.publishDocumentTemplate(ctx.orgId, current.id, { definition: (await store.readDocumentTemplateVersion(ctx.orgId, current.id, Number(current.current_version))).definition, expected_version: Number(current.current_version), metadata: { library: { kind: "document_template", id: entry.id, revision: entry.revision, sha256: entry.sha256 } } }, ctx, { systemPreset: true });
+  assert.equal((await state(template, ctx.orgId, "tpl_roofing_paper_upload")).state, "library");
+  await copies.ensureDefaultDocumentAssets(ctx.orgId, ctx, { refresh: true });
+  const caughtUp = await store.readDocumentTemplate(ctx.orgId, "tpl_roofing_paper_upload");
+  assert.equal(caughtUp.name, "Paper upload");
+  assert.equal(Number(caughtUp.current_version), Number(current.current_version) + 1, "renamed without another publish");
 });
 
 test("a copy from before the library is stamped, not republished; an older one is upgraded", async () => {
