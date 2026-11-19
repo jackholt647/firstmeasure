@@ -2212,6 +2212,17 @@ window.PlatformCommerce.onReady(function(){
     return rows;
   }
 
+  // Dictionary entries ({ value, unit }) to the shared roof shape; only feet and roofing squares are summary rows.
+  function reportMeasurementValues(measurements = {}){
+    const values = {};
+    Object.entries(measurements && typeof measurements === 'object' ? measurements : {}).forEach(([key, entry]) => {
+      const value = Number(entry?.value);
+      if (!Number.isFinite(value)) return;
+      if ((/Lf$/.test(key) && entry.unit === 'ft') || (/Squares$/.test(key) && entry.unit === 'roofing_square')) values[key] = value;
+    });
+    return values;
+  }
+
   function reportSummaryIsFullHouse(){
     return reportOrderManifest().measurement_scope === 'full_house';
   }
@@ -2261,15 +2272,29 @@ window.PlatformCommerce.onReady(function(){
         return response.text();
       })
       .then((text) => reportSummaryMetricsFromXml(text));
-    // A customer cannot read the project measurement dataset (403), so the shared load fails for them: the report's own
-    // XML is then the source, as it was before October 20 (1M8-254).
+    // A customer cannot read the project measurement dataset (403), so the shared load fails for them. Their line rows
+    // then come from the report's own line totals (roof-lines: what the PDF and the model key print); the XML keeps the
+    // area, facet and pitch rows. The XML's line types are the export's and can predate a correction, so they are used
+    // for lines only when the report has none.
+    const roofLinesLoad = () => (projectId
+      ? fetch(fmUrl(`projects/${encodeURIComponent(projectId)}/roof-lines`), { credentials: 'include' })
+        .then((response) => (response.ok ? response.json() : {}))
+        .then((data) => reportSummaryRowsFromRoofMeasurements(reportMeasurementValues(data?.measurements)))
+        .catch(() => [])
+      : Promise.resolve([]));
+    const reportLoad = () => Promise.all([xmlLoad().catch(() => []), roofLinesLoad()]).then(([xmlRows, lineRows]) => {
+      if (!lineRows.length) return xmlRows;
+      const areaRows = xmlRows.filter((row) => row.unit === 'sq' || row.unit === 'sq ft');
+      const otherRows = xmlRows.filter((row) => !['ft', 'sq', 'sq ft'].includes(row.unit));
+      return areaRows.concat(lineRows, otherRows);
+    });
     const sourceLoad = sharedMeasurements?.load
       ? sharedMeasurements.load(activeBaseProject || {}, { reportOrderState: window.reportOrderState || {} })
         .then((result) => {
           const rows = reportSummaryRowsFromRoofMeasurements(result?.measurements || {});
-          return rows.length ? rows : xmlLoad();
-        }, () => xmlLoad())
-      : xmlLoad();
+          return rows.length ? rows : reportLoad();
+        }, () => reportLoad())
+      : reportLoad();
     // Wall rows load on their own: a customer cannot read the measurement dataset, so the roof load may fail.
     const wallLoad = reportSummaryIsFullHouse() && projectId
       ? fetch(fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-measurements`), { credentials: 'include' })
