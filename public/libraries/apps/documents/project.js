@@ -3526,8 +3526,8 @@
         if (state.destroyed || state.view !== 'editor') return;
         const canvas = root.querySelector('.fmde-canvas');
         if (!canvas) return;
-        canvas.scrollLeft = numberValue(saved.left) || 0;
-        canvas.scrollTop = numberValue(saved.top) || 0;
+        canvas.scrollLeft = Number(saved.left) || 0;
+        canvas.scrollTop = Number(saved.top) || 0;
       };
       requestAnimationFrame(() => {
         apply();
