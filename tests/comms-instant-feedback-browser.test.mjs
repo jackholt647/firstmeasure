@@ -166,8 +166,13 @@ test('an email thread opens on the click, and a reply joins it as a sending card
   await page.click('[data-co-email-reply-send]');
   assert.equal(await count(page, '.fmco-mail-card.pending .fmco-send-state.sending'), 1, 'the reply card is in the thread at once');
   assert.match(await page.locator('.fmco-mail-card.pending .fmco-mail-body').textContent(), /Thanks, booked\./);
-  await release(page, 'email.send', { message: { id: 'em_sent', conversation_id: 'e1' } });
+  // The sent card replaces the sending one from the send's answer, without waiting for the thread to load again.
+  await hold(page, 'email.thread');
+  await release(page, 'email.send', { message: { id: 'em_sent', conversation_id: 'e1', text_body: 'Thanks, booked.', direction: 'outbound' } });
   await page.waitForSelector('.fmco-mail-card.pending', { state: 'detached' });
+  assert.equal(await page.evaluate(() => !!window.__taken['email.thread'] || !!window.__holds['email.thread']), true, 'the refresh is still out');
+  assert.match(await page.locator('[data-co-mail-msg="em_sent"] .fmco-mail-body').textContent(), /Thanks, booked\./);
+  assert.doesNotMatch(await page.locator('[data-co-mail-msg="em_sent"]').getAttribute('class'), /fmco-new|pending/);
 }));
 
 test('a Calls button shows it is working while what it starts is slow', () => withPage(undefined, async (page) => {

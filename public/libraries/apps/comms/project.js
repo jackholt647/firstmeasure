@@ -1028,9 +1028,13 @@
     }
     state.sending = false;
     if (item.project !== projectId()) return;
-    item.files.forEach((file) => { if (file.url?.startsWith('blob:')) URL.revokeObjectURL(file.url); if (file.preview) URL.revokeObjectURL(file.preview); });
     const message = object(sent?.message);
-    await reconcile(item, clean(message.conversation_id) || (isPending(item.thread) ? '' : item.thread), clean(message.id));
+    adopt(item, clean(message.conversation_id) || (isPending(item.thread) ? '' : item.thread), message);
+    // Then the usual incremental pull brings the thread and list up to date (same ids, so nothing enters again).
+    if (item.channel === 'sms') state.sync.sms = '';
+    else if (item.channel === 'email') { state.sync.emailList = ''; state.sync.emailMsgs = ''; }
+    else state.sync.chatList = state.sync.chatMsgs = '';
+    syncView().catch(() => null).finally(() => item.files.forEach((file) => { if (file.url?.startsWith('blob:')) URL.revokeObjectURL(file.url); if (file.preview) URL.revokeObjectURL(file.preview); }));
   }
 
   function redrawPending(item){
@@ -1040,54 +1044,67 @@
     paintThread({ toEnd:true });
   }
 
-  async function reconcile(item, conversationId, messageId){
-    const drop = () => { state.pending = state.pending.filter((entry) => entry !== item); };
-    try {
-      if (item.channel === 'sms') {
-        const result = await api2().sms.conversation(orgId(), projectId(), conversationId).catch(() => null);
-        if (item.project !== projectId()) return;
-        drop();
-        markShown(conversationId, messageId);
-        markShown('list:sms', conversationId);
-        if (result) { state.sms = result; state.sync.sms = ''; }
-        if (state.activeSmsId === item.key) {
-          state.activeSmsId = conversationId;
-          if (state.smsReply.threadId === item.key) state.smsReply.threadId = conversationId;
-          state.drawn.thread.sms = conversationId;
-          // The conversation it became is already on screen: none of its messages enter again.
-          (activeSmsConversation()?.messages || []).forEach((entry) => markShown(conversationId, entry.id));
-          if (state.view === 'sms') render();
-          return;
-        }
-        if (!result) { await loadView(); return; }
-      } else if (item.channel === 'email') {
-        const [list, detail] = await Promise.all([
-          api2().email.threads(orgId(), projectId()).catch(() => null),
-          conversationId ? api2().email.thread(orgId(), projectId(), conversationId).catch(() => null) : null
-        ]);
-        if (item.project !== projectId()) return;
-        drop();
-        markShown(conversationId, messageId);
-        markShown('list:email', conversationId);
-        if (list) { state.emailThreads = Array.isArray(list.threads) ? list.threads : state.emailThreads; state.sync.emailList = ''; }
-        if (detail?.thread) state.emailCache.set(conversationId, detail.thread);
-        if (clean(state.emailThread?.id) === item.key) {
-          state.emailThread = detail?.thread || null;
-          if (state.emailReply.threadId === item.key) state.emailReply.threadId = conversationId;
-          state.drawn.thread.email = conversationId;
-          (detail?.thread?.messages || []).forEach((entry) => markShown(conversationId, entry.id));
-          if (state.view === 'email') render();
-          return;
-        }
-        if (detail?.thread && clean(state.emailThread?.id) === conversationId) { state.emailThread = detail.thread; state.sync.emailMsgs = ''; }
-      } else if (item.channel === 'chat') {
-        const result = await api2().chat.conversations(orgId(), projectId()).catch(() => null);
-        if (item.project !== projectId()) return;
-        drop();
-        markShown(conversationId, messageId);
-        if (result) { state.chatConversations = Array.isArray(result.conversations) ? result.conversations : state.chatConversations; state.sync.chatList = ''; state.sync.chatMsgs = ''; }
+  /** The send answered with the stored message (a raw record): as the view the thread draws. */
+  function sentView(item, conversationId, message){
+    const parse = (value) => { if (typeof value !== 'string') return object(value); try { return object(JSON.parse(value)); } catch (_) { return {}; } };
+    let metadata = parse(message.metadata ?? message.metadata_json);
+    if (item.channel === 'email') metadata = { email_format:'markdown', email_attachments:item.files.map((file) => ({ file_name:file.name, media_id:file.media_id })), ...metadata };
+    const recipients = message.recipients ?? message.recipients_json;
+    return {
+      id:clean(message.id) || item.key, conversation_id:conversationId, channel:item.channel === 'chat' ? 'webchat' : item.channel, direction:'outbound',
+      subject:clean(message.subject) || item.subject || '', text:clean(message.text ?? message.text_body) || item.text,
+      sender:parse(message.sender ?? message.sender_json), recipients:Array.isArray(recipients) ? recipients : item.recipients || [],
+      metadata, created_at:clean(message.created_at) || new Date().toISOString()
+    };
+  }
+
+  /** The message is sent: it takes the sending one's place at once (a new conversation becomes the real one). */
+  function adopt(item, conversationId, message){
+    if (!conversationId && isPending(item.thread)) {
+      // No conversation came back to open: show the channel as the server has it.
+      state.pending = state.pending.filter((entry) => entry !== item);
+      if (state.activeSmsId === item.key) state.activeSmsId = '';
+      if (clean(state.emailThread?.id) === item.key) state.emailThread = null;
+      loadView().catch(() => null);
+      return;
+    }
+    const view = sentView(item, conversationId, message);
+    const add = (holder) => {
+      const messages = Array.isArray(holder.messages) ? holder.messages : [];
+      if (!messages.some((entry) => clean(entry.id) === view.id)) Object.assign(holder, { messages:[...messages, view], message_count:Number(holder.message_count || messages.length) + 1, last_message_at:view.created_at, last_message:view });
+    };
+    state.pending = state.pending.filter((entry) => entry !== item);
+    markShown(conversationId, view.id);
+    markShown(`list:${item.channel}`, conversationId);
+    if (item.channel === 'sms' && conversationId) {
+      const result = object(state.sms);
+      const list = Array.isArray(result.conversations) ? result.conversations : [];
+      let conversation = list.find((entry) => clean(entry.id) === conversationId);
+      if (!conversation) state.sms = { ...result, conversations:[conversation = { id:conversationId, participants:item.participants, messages:[], message_count:0 }, ...list] };
+      add(conversation);
+      if (state.activeSmsId === item.key) {
+        state.activeSmsId = conversationId;
+        if (state.smsReply.threadId === item.key) state.smsReply.threadId = conversationId;
+        state.drawn.thread.sms = conversationId;
+        // The conversation it became is already on screen: none of its messages enter again.
+        conversation.messages.forEach((entry) => markShown(conversationId, entry.id));
+        if (state.view === 'sms') { render(); return; }
       }
-    } catch (_) { drop(); }
+    } else if (item.channel === 'email' && conversationId) {
+      const listed = state.emailThreads.find((entry) => clean(entry.id) === conversationId);
+      if (listed) Object.assign(listed, { message_count:Number(listed.message_count || 0) + 1, last_message_at:view.created_at, snippet:emailLine(view.text).slice(0, 200), last_message:view });
+      else state.emailThreads = [{ id:conversationId, subject:item.subject, participants:item.recipients, message_count:1, last_message_at:view.created_at, snippet:emailLine(view.text).slice(0, 200), last_message:view }, ...state.emailThreads];
+      if (clean(state.emailThread?.id) === item.key) {
+        state.emailThread = { id:conversationId, subject:item.subject, participants:item.recipients, messages:[view] };
+        if (state.emailReply.threadId === item.key) state.emailReply.threadId = conversationId;
+        state.drawn.thread.email = conversationId;
+        if (state.view === 'email') { render(); return; }
+      } else if (clean(state.emailThread?.id) === conversationId) add(state.emailThread);
+      state.emailCache.delete(conversationId);
+    } else if (item.channel === 'chat') {
+      const conversation = state.chatConversations.find((entry) => clean(entry.id) === conversationId);
+      if (conversation) add(conversation);
+    }
     if (state.view === item.channel && !state.search.open) { paintList(); paintThread({ toEnd:true }); }
     if (state.active) renderLeft();
   }
