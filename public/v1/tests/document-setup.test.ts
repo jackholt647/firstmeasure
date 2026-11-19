@@ -407,3 +407,63 @@ test("the first style chosen for any kind is the style for new documents, and th
   await invoke(owner, "documents.setup.apply", { document_kind: "invoice", theme_id: "thm_triangles" }, "gp102-invoice");
   assert.equal((await value(owner, "document-setup", "status")).default_theme_id, "thm_margin", "a later kind's style leaves it");
 });
+
+test("parts of the wording: a heading and what is under it, removed and added the same in the step's preview and the template (GP-97)", async () => {
+  const { copyIndex, applyCopy } = await import("../documents/setup.js");
+  // The step's own applyCopy (documents-setup.js), which lays the same changes over its preview as the person makes them.
+  const source = await readFile(new URL("../../libraries/guided-experiences/documents-setup.js", import.meta.url), "utf8");
+  const client = await import(`data:text/javascript;base64,${Buffer.from(`${source}\nexport { applyCopy as stepApplyCopy };`).toString("base64")}`);
+  const text = (id: string, words: string, style?: string, extra: any = {}) => ({ id, type: "text", props: { blocks: [{ id: `${id}_b`, type: "paragraph", ...(style ? { style_ref: style } : {}), runs: [{ text: words, ...(extra.bind ? { bind: extra.bind } : {}) }] }] }, ...(extra.node || {}) });
+  const long = (words: string) => `${words}, written out at length so that it reads as the document's own copy.`;
+  const doc = () => ({ pages: [{ id: "pg", children: [{ id: "body", type: "frame", children: [
+    { id: "head", type: "frame", children: [text("t", "Contingency agreement", "h2"), text("o", long("You are filing a claim"))] },
+    text("h1", "What we do", "h3"), text("p1", long("We inspect the damage")),
+    text("h2", "Claim approved", "h3"), text("p2", long("We do the approved work")), text("b2", "Claim: ", undefined, { bind: "claim.number" }),
+    { id: "sp", type: "frame", name: "Spacer", children: [] },
+    text("h3", "Payment terms", "h3"), { id: "w", type: "widget", props: { widget: "doc.payment_terms@1" } },
+    text("lbl", "Terms"), text("p4", long("This proposal is valid for 30 days"))
+  ] }] }] });
+  const { fields, sections } = copyIndex(doc() as any);
+  assert.deepEqual(sections.map((part) => [part.id, part.heading, part.texts, part.nodes, !!part.title, part.removable]), [
+    ["t", "t", ["o"], ["t", "o"], true, false],
+    ["h1", "h1", ["p1"], ["h1", "p1"], false, true],
+    ["h2", "h2", ["p2"], ["h2", "p2", "b2"], false, true],
+    ["h3", "h3", [], ["h3", "w"], false, false],
+    ["lbl", "lbl", ["p4"], ["lbl", "p4"], false, true]
+  ], "the title is not removed, nor a heading over something other than text; a part runs to a spacer");
+  assert.equal(fields.find((field) => field.node_id === "lbl")?.role, "heading", "a short label over a paragraph of copy heads it");
+
+  const changes = { removed: ["h1", "t", "h3"], added: [{ id: "nd_gxa", after: "h2" }, { id: "nd_gxb", after: "nd_gxa" }, { id: "nd_gxc", after: "h2" }, { id: "nd_gxe", after: "h1" }] };
+  const copy = { nd_gxa_h: "Warranty", nd_gxa_t: "Ten years on our work.\n\nLifetime on shingles.", nd_gxb_t: "Text alone", nd_gxc_h: "  ", t: "Storm claim agreement", p1: "gone with its part" };
+  const server: any = applyCopy(doc() as any, copy, changes);
+  const step: any = client.stepApplyCopy(doc(), copy, changes, sections);
+  assert.deepEqual(step, server, "the preview and the saved template are the same");
+  const flat = (definition: any) => { const out: string[] = []; const walk = (list: any[]) => { for (const node of list || []) { out.push(`${node.id}${node.type === "text" ? `:${node.props.blocks.map((block: any) => `${block.style_ref || ""}|${block.runs[0].text}`).join("/")}` : ""}`); walk(node.children); } }; walk(definition.pages[0].children); return out; };
+  const after = flat(server);
+  assert.deepEqual(after.slice(0, 4), ["body", "head", "t:h2|Storm claim agreement", `o:|${long("You are filing a claim")}`], "the title stays, changed");
+  assert.ok(!after.some((entry) => /^(h1|p1):/.test(entry)), "a part removed goes with everything in it");
+  assert.ok(after.includes("h3:h3|Payment terms") && after.includes("w"), "a part that is not all text stays");
+  assert.ok(!after.some((entry) => entry.startsWith("nd_gxe")), "a part added with no words is not added");
+  assert.deepEqual(after.slice(after.indexOf("b2:|Claim: ") + 1, after.indexOf("sp")), ["nd_gxa_h:h3|Warranty", "nd_gxa_t:|Ten years on our work./|Lifetime on shingles.", "nd_gxb_t:|Text alone"],
+    "parts added go in after the part named, at its end, before the spacer; a part with no heading words is just its text; one with no words at all is left out");
+  assert.equal(server.pages[0].children[0].children.find((node: any) => node.id === "nd_gxa_h").bind, null, "nothing bound comes with a part made like another");
+});
+
+test("the copy step lists the agreement's parts and the finish removes and adds them (GP-97)", async () => {
+  await setup();
+  const storage = await import("../documents/storage.js");
+  const insuranceOnly = { document_kind: "proposal", proposal_kinds: "insurance" };
+  const copy = await value(owner, "document-setup", "copy", { ...insuranceOnly, theme_id: "thm_clean" });
+  const named = (words: string) => copy.sections.find((part: any) => copy.fields.find((field: any) => field.node_id === part.heading)?.text === words);
+  const denied = named("Claim denied"), cancel = named("Right to cancel");
+  assert.ok(denied?.removable && cancel?.removable, "each part of the agreement under its heading can be removed");
+  assert.equal(copy.sections[0].title, true);
+  assert.equal(copy.sections[0].removable, false, "the title cannot");
+  await invoke(owner, "documents.setup.apply", { ...insuranceOnly, theme_id: "thm_clean",
+    copy: { nd_gxw_h: "Warranty", nd_gxw_t: "Our workmanship is warranted for ten years from the day the work is finished." },
+    copy_sections: { removed: [denied.id], added: [{ id: "nd_gxw", after: cancel.id }] } }, "sections-insurance-only");
+  const saved = JSON.stringify((await storage.readDocumentTemplateVersion(ORG, "tpl_setup_insurance_agreement") as any).definition);
+  for (const id of denied.nodes) assert.ok(!saved.includes(`"${id}"`), `${id} is removed with its part`);
+  assert.ok(saved.indexOf("Right to cancel") < saved.indexOf("\"Warranty\"") && saved.includes("ten years from the day"), "the part added follows the one it was added after");
+  await assert.rejects(() => invoke(owner, "documents.setup.apply", { ...insuranceOnly, theme_id: "thm_clean", copy_sections: { added: [{ id: "bad id", after: cancel.id }] } }, "sections-bad"), /./, "ids are checked");
+});

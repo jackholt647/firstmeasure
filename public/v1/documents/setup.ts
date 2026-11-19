@@ -35,13 +35,14 @@ import { MEASUREMENT_FIELDS, PRICEBOOK_FORMULA_TOKEN_TYPES, PRICEBOOK_OPERATORS,
  *
  * After the style, the person reads the template's own wording and may change it (FM-614): its copy is every text node of
  * fixed words on its pages (the title, the opening, the headings and the terms; `copyFields`), and what they change goes
- * in as `copy` ({ node id: text }) over the template the answers make. "Advanced" publishes the template and opens it in
+ * in as `copy` ({ node id: text }) over the template the answers make. The copy falls into parts (`copyIndex` sections: a
+ * heading and what is under it), and parts can be removed or added (GP-97, `copy_sections`). "Advanced" publishes the template and opens it in
  * the template editor; what they publish there is kept (`keep_edits`): the finish then starts from it, not the library's.
  *
  * A company that does insurance work (the company.services answer `storm_insurance`) is also asked which kinds of
  * proposals it makes (GP-55, `proposal_kinds`): retail proposals, insurance contingency agreements, or both. An
  * insurance agreement is the library's `tpl_insurance_contingency_agreement` (a contract) made the organization's own
- * (`tpl_setup_insurance_agreement`) in the style chosen, with its own wording (`insurance_copy`, or `copy` when it is
+ * (`tpl_setup_insurance_agreement`) in the style chosen, with its own wording (`insurance_copy` and `insurance_copy_sections`, or `copy` when it is
  * the only kind); insurance only asks none of the retail questions and makes no retail proposal.
  */
 export { DOCUMENT_SETUP_MODULE };
@@ -191,58 +192,145 @@ const runsOf = (node: JsonObject) => list(object(node.props).blocks).flatMap((bl
 const plainText = (node: JsonObject) => list(object(node.props).blocks).map((block) => list(object(block).runs).map((run) => String(object(run).text ?? "")).join("")).join("\n\n");
 const HEADINGS = new Set(["h1", "h2", "h3", "title", "heading"]);
 const isHeading = (node: JsonObject) => list(object(node.props).blocks).some((block) => HEADINGS.has(text(object(block).style_ref)));
-function isCopy(node: JsonObject) {
+const isFixed = (node: JsonObject) => {
   if (text(node.type) !== "text") return false;
   const runs = runsOf(node);
-  if (!runs.length || runs.some((run) => run.bind !== undefined && run.bind !== null && run.bind !== "" || typeof run.text !== "string")) return false;
+  return !!runs.length && !runs.some((run) => run.bind !== undefined && run.bind !== null && run.bind !== "" || typeof run.text !== "string");
+};
+function isCopy(node: JsonObject) {
+  if (!isFixed(node)) return false;
   const words = plainText(node).trim();
   // A heading, or a sentence or more: short fixed labels ("TOTAL", "Prepared for") are part of the layout, not the copy.
   return !!words && (isHeading(node) || words.length >= 40);
 }
-function eachPageNode(definition: JsonObject, visit: (node: JsonObject) => void) {
-  const walk = (value: unknown) => { for (const node of list(value).map(object)) { visit(node); walk(node.children); } };
-  for (const page of list(definition.pages).map(object)) walk(page.children);
-}
+/** A short fixed label straight above a paragraph of copy ("Terms" over the terms, GP-97) heads it as a heading does. */
+const isLabel = (node: JsonObject, next: JsonObject | undefined) => isFixed(node) && !isCopy(node) && !!plainText(node).trim() && !plainText(node).includes("\n")
+  && !!next && isCopy(next) && !isHeading(next);
+/** What ends a section: a spacer, an empty frame or a page break. Anything else under a heading belongs to it. */
+const isBreak = (node: JsonObject) => text(node.type) === "page_break" || text(node.type) === "frame" && (!list(node.children).length || /spacer/i.test(text(node.name)));
 export type CopyField = { node_id: string; role: "title" | "heading" | "text"; text: string };
+/**
+ * A part of the wording (GP-97): a heading and the nodes under it, up to the next heading, a spacer or a page break, in
+ * the same container; or copy with no heading over it. `nodes` is every node in it (bound text and other content too),
+ * `texts` the copy among them. It can be removed when it is all text with some copy under the heading and not the title.
+ */
+export type CopySection = { id: string; heading: string | null; texts: string[]; nodes: string[]; title?: boolean; removable: boolean };
 const isTitle = (node: JsonObject) => list(object(node.props).blocks).some((block) => ["h1", "title"].includes(text(object(block).style_ref)));
 /**
- * The template's copy, top to bottom: headings and the text under them. The title is its first heading when that is a
- * top-level one (h1) or opens the document with text under it (the one-page proposal's h2); a heading that only labels a
- * section (an invoice's "Your account") is a heading.
+ * The template's copy, top to bottom: headings and the text under them, and the parts they make. The title is its first
+ * heading when that is a top-level one (h1) or opens the document with text under it (the one-page proposal's h2); a
+ * heading that only labels a section (an invoice's "Your account") is a heading.
  */
-export function copyFields(definition: JsonObject): CopyField[] {
-  const fields: CopyField[] = [];
-  eachPageNode(definition, (node) => {
-    if (!isCopy(node) || !text(node.id)) return;
-    fields.push({ node_id: text(node.id), role: isTitle(node) ? "title" : isHeading(node) ? "heading" : "text", text: plainText(node) });
-  });
+export function copyIndex(definition: JsonObject) {
+  const fields: CopyField[] = [], sections: CopySection[] = [];
+  const walk = (children: unknown) => {
+    const nodes = list(children).map(object);
+    let open: CopySection | null = null;
+    nodes.forEach((node, at) => {
+      const id = text(node.id);
+      if (id && (isCopy(node) && isHeading(node) || isLabel(node, nodes[at + 1]))) {
+        fields.push({ node_id: id, role: isCopy(node) && isTitle(node) ? "title" : "heading", text: plainText(node) });
+        sections.push(open = { id, heading: id, texts: [], nodes: [id], removable: true });
+      } else if (id && isCopy(node)) {
+        fields.push({ node_id: id, role: "text", text: plainText(node) });
+        if (open) { open.nodes.push(id); open.texts.push(id); } else sections.push(open = { id, heading: null, texts: [id], nodes: [id], removable: true });
+      } else if (open && id && !isBreak(node) && (open.heading || text(node.type) === "text")) {
+        open.nodes.push(id);
+        if (text(node.type) !== "text") open.removable = false;
+      } else open = null;
+      walk(node.children);
+    });
+  };
+  for (const page of list(definition.pages).map(object)) walk(page.children);
   const titled = fields.findIndex((field) => field.role === "title");
   fields.forEach((field, at) => { if (field.role === "title" && at !== titled) field.role = "heading"; });
   if (titled < 0 && fields[0]?.role === "heading" && fields[1]?.role === "text") fields[0].role = "title";
-  return fields;
+  const title = fields.find((field) => field.role === "title")?.node_id;
+  for (const section of sections) {
+    if (section.heading && section.heading === title) section.title = true;
+    if (section.title || section.heading && !section.texts.length) section.removable = false;
+  }
+  return { fields, sections };
 }
+export const copyFields = (definition: JsonObject): CopyField[] => copyIndex(definition).fields;
+
+/** Parts of the wording taken out (section ids) and added (`id`, after the section `after`; its heading and text are copy `<id>_h`, `<id>_t`). */
+export type CopySections = { removed?: string[]; added?: { id: string; after: string }[] };
 /**
- * The person's wording over a definition's copy: each node named gets the text given, a paragraph per blank-line
- * separated part, each in its first block's style and its first run's font. Only copy nodes change. The setup's step
- * applies the same to its preview as the person types (documents-setup.js applyCopy).
+ * The person's wording over a definition's copy. Parts added go in after the part named, each a heading and a paragraph
+ * made like the headings and text already there, and parts removed are taken out with everything in them (GP-97). Then
+ * each node named gets the text given, a paragraph per blank-line separated part, each in its first block's style and
+ * its first run's font. Only copy nodes change. `structure` is the definition's parts as `copyIndex` read them. The
+ * setup's step applies the same to its preview as the person types (documents-setup.js applyCopy, which mirrors this).
  */
-export function applyCopy(definition: JsonObject, copy: Record<string, string>) {
-  if (!Object.keys(copy).length) return definition;
-  eachPageNode(definition, (node) => {
-    const value = copy[text(node.id)];
-    if (typeof value !== "string" || !isCopy(node) || value === plainText(node)) return;
+export function applyCopy(definition: JsonObject, copy: Record<string, string>, changes: CopySections = {}, structure?: CopySection[]) {
+  const removed = list(changes.removed).map(text), added = list(changes.added).map(object);
+  if (!Object.keys(copy).length && !removed.length && !added.length) return definition;
+  const parts = structure || copyIndex(definition).sections;
+  const where = new Map<string, { node: JsonObject; siblings: unknown[] }>();
+  const index = (children: unknown) => { for (const node of list(children)) { const entry = object(node); if (text(entry.id)) where.set(text(entry.id), { node: entry, siblings: children as unknown[] }); index(entry.children); } };
+  for (const page of list(definition.pages).map(object)) index(page.children);
+  const allowed = new Set(parts.flatMap((part) => [...(part.heading ? [part.heading] : []), ...part.texts]));
+  const words = (id: string) => String(copy[id] ?? "").trim();
+  // A part added is made like the nearest whole part (a heading with text, never the title) from the one it follows
+  // back up the document, then down it; else like any part.
+  const like = (anchor: CopySection | undefined, pick: (part: CopySection) => string | null | undefined) => {
+    const at = anchor ? parts.indexOf(anchor) : parts.length;
+    const near = [...parts.slice(0, at + 1).reverse(), ...parts.slice(at + 1)];
+    const id = [...near.filter((part) => !part.title && part.heading && part.texts.length), ...near.filter((part) => !part.title), ...near].map(pick).find(Boolean);
+    return id ? where.get(id)?.node : undefined;
+  };
+  // A copy of a heading or text node with no words, no data and no children; `style` "h3" makes text a heading, "" plain.
+  const make = (from: JsonObject, id: string, style?: string) => {
+    const { children: _children, bind: _bind, ...rest } = clone(from);
+    const { style_ref: styleRef, ...block } = object(list(object(rest.props).blocks)[0]);
+    const { text: _text, bind: _runBind, ...run } = object(list(block.runs)[0]);
+    const ref = style === undefined ? text(styleRef) : style;
+    return { ...rest, id, bind: null, visible: true, props: { ...object(rest.props), blocks: [{ ...block, id: `${id}_b`, ...(ref ? { style_ref: ref } : {}), runs: [{ ...run, text: "" }] }] } } as JsonObject;
+  };
+  // Where each part ends, and the part a part added is made like (the one it follows, or that one's).
+  const last = new Map<string, string>(parts.map((part) => [part.id, part.nodes[part.nodes.length - 1]!]));
+  const base = new Map<string, CopySection>(parts.map((part) => [part.id, part]));
+  for (const add of added) {
+    const id = text(add.id), anchor = base.get(text(add.after)), after = last.get(text(add.after));
+    if (!id || !after || last.has(id) || where.has(`${id}_h`) || where.has(`${id}_t`)) continue;
+    last.set(id, after);
+    if (anchor) base.set(id, anchor);
+    const spot = where.get(after);
+    if (!spot) continue;
+    const headingFrom = like(anchor, (part) => part.heading), textFrom = like(anchor, (part) => part.texts[0]) || headingFrom;
+    const made: JsonObject[] = [];
+    if (words(`${id}_h`) && (headingFrom || textFrom)) made.push(headingFrom ? make(headingFrom, `${id}_h`) : make(textFrom!, `${id}_h`, "h3"));
+    if (words(`${id}_t`) && textFrom) made.push(make(textFrom, `${id}_t`, textFrom === headingFrom ? "" : undefined));
+    if (!made.length) continue;
+    spot.siblings.splice(spot.siblings.indexOf(spot.node) + 1, 0, ...made);
+    for (const node of made) { where.set(text(node.id), { node, siblings: spot.siblings }); allowed.add(text(node.id)); }
+    last.set(id, text(made[made.length - 1]!.id));
+  }
+  for (const part of parts) {
+    if (!part.removable || !removed.includes(part.id)) continue;
+    for (const id of part.nodes) { const spot = where.get(id); const at = spot ? spot.siblings.indexOf(spot.node) : -1; if (at >= 0) spot!.siblings.splice(at, 1); allowed.delete(id); }
+  }
+  for (const [id, value] of Object.entries(copy)) {
+    const node = where.get(id)?.node;
+    if (typeof value !== "string" || !node || !allowed.has(id) || text(node.type) !== "text" || value === plainText(node)) continue;
     const props = object(node.props), blocks = list(props.blocks).map(object);
-    const parts = value.replace(/\r\n?/g, "\n").split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
-    props.blocks = (parts.length ? parts : [""]).map((part, at) => {
+    const paragraphs = value.replace(/\r\n?/g, "\n").split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
+    props.blocks = (paragraphs.length ? paragraphs : [""]).map((part, at) => {
       const like = blocks[Math.min(at, blocks.length - 1)] || {};
       const { text: _text, ...run } = object(list(like.runs)[0]);
       return { ...like, id: text(blocks[at]?.id) || `${text(blocks[0]?.id) || "blk"}_${at}`, runs: [{ ...run, text: part }] };
     });
     node.props = props;
-  });
+  }
   return definition;
 }
 const copySchema = z.record(z.string().regex(/^[A-Za-z0-9_.:-]{1,120}$/), z.string().max(6000)).refine((value) => Object.keys(value).length <= 80, "Too many copy changes.");
+const sectionId = z.string().regex(/^[A-Za-z0-9_.:-]{1,100}$/);
+const sectionsSchema = z.object({
+  removed: z.array(sectionId).max(80).default([]),
+  added: z.array(z.object({ id: sectionId, after: sectionId }).strict()).max(40).default([])
+}).strict();
 
 /** The organization's published copy of a template or workflow, else the library's entry adapted to it. */
 async function source(asset: "template" | "workflow", orgId: string, id: string): Promise<{ data: JsonObject; definition: JsonObject } | null> {
@@ -285,7 +373,7 @@ async function editedDefinition(orgId: string, plan: DocumentPlan) {
  * The template the answers make, not saved: its definition with the theme and the person's wording, and its workflow's.
  * With `keepEdits`, a template they edited in the template editor (Advanced) is the start, not the library's.
  */
-async function buildDocument(orgId: string, answers: Answers, themeId: string, options: { copy?: Record<string, string>; keepEdits?: boolean; insurance?: boolean } = {}) {
+async function buildDocument(orgId: string, answers: Answers, themeId: string, options: { copy?: Record<string, string>; sections?: CopySections; keepEdits?: boolean; insurance?: boolean } = {}) {
   const plan = planDocument(answers, { insurance: options.insurance });
   if (plan.kind !== "proposal") {
     // Their own setup's template keeps its base; otherwise their current default, else the library's.
@@ -304,7 +392,7 @@ async function buildDocument(orgId: string, answers: Answers, themeId: string, o
   const theme = await themeDefinition(orgId, themeId);
   const ops = theme ? FMDocModel.pageSetupOverrides(definition, theme) : [];
   if (ops.length) definition = FMDocModel.applyOverrides(definition, ops).document as JsonObject;
-  applyCopy(definition, options.copy || {});
+  applyCopy(definition, options.copy || {}, options.sections || {});
   const metadata = object(template.data.metadata);
   const workflowId = text(metadata.default_workflow_id || object(template.data.initial_metadata).default_workflow_id);
   const workflow = workflowId ? await source("workflow", orgId, workflowId) : null;
@@ -585,7 +673,7 @@ export async function documentSetupCopy(orgId: string, args: unknown) {
   const { definition, plan, edited } = await buildDocument(orgId, answers, parsed.theme_id, { keepEdits: parsed.keep_edits === true, insurance });
   const document = await sampleDocument(orgId, answers, plan, definition);
   const theme = (await readDocumentSetup(orgId)).themes.find((entry) => entry.id === parsed.theme_id)!;
-  return { kind: plan.kind, name: plan.name, base: plan.base, edited, template_id: plan.template_id, fields: copyFields(definition), preview: await preview(orgId, document, definition, theme) };
+  return { kind: plan.kind, name: plan.name, base: plan.base, edited, template_id: plan.template_id, ...copyIndex(definition), preview: await preview(orgId, document, definition, theme) };
 }
 
 // ── The finish ──────────────────────────────────────────────────────────
@@ -598,10 +686,13 @@ const applySchema = answersSchema.extend({
   lines: linesSchema.optional(),
   /** The person's wording, { text node id: text } over the template's copy (the copy step, FM-614). */
   copy: copySchema.default({}),
+  /** Parts of the wording removed and added on the copy step (GP-97): { removed: [section id], added: [{ id, after }] }. */
+  copy_sections: sectionsSchema.default({}),
   /** Start from the template they published in the template editor (Advanced), not the library's. */
   keep_edits: z.boolean().default(false),
   /** With both kinds of proposals (GP-55): the insurance agreement's wording and its template editor edits. */
   insurance_copy: copySchema.default({}),
+  insurance_copy_sections: sectionsSchema.default({}),
   insurance_keep_edits: z.boolean().default(false)
 });
 
@@ -696,7 +787,8 @@ export async function applyDocumentSetup(ctx: PublicationContext, auth: Platform
     const second = which === "insurance" && retail;
     const built = await buildDocument(orgId, answers, parsed.theme_id, {
       insurance: which === "insurance",
-      copy: second ? parsed.insurance_copy : parsed.copy, keepEdits: second ? parsed.insurance_keep_edits : parsed.keep_edits
+      copy: second ? parsed.insurance_copy : parsed.copy, sections: second ? parsed.insurance_copy_sections : parsed.copy_sections,
+      keepEdits: second ? parsed.insurance_keep_edits : parsed.keep_edits
     });
     const setup = { ...answers, theme_id: parsed.theme_id, based_on: built.plan.base, ...(built.edited ? { edited: true } : {}), applied_at: appliedAt, applied_by: auth.userId };
     made.push({ plan: built.plan, setup, ...(await saveSetupTemplate(orgId, built, setup, auth)) });
@@ -755,12 +847,12 @@ export function registerDocumentSetupPublication() {
     previews: { description: "The document the setup's answers (args: document_kind and, for a proposal, presentation, customer_changes, detail, scope_write_up, and proposal_kinds: retail | insurance | both, where insurance alone previews the insurance contingency agreement) would make, resolved with a sample customer and roof in each of the three styles, and the style to start on (theme_id: the kind's own when it was set up, else the style for new documents). Nothing is saved.",
       schema: { type: "object" } as JsonSchema, argsSchema: json(answersSchema.strict()), schemaVersion: "1", access: setupAccess,
       read: async (ctx, ref) => ({ value: await documentSetupPreviews(ctx.organizationId, ref.args || {}) }) },
-    copy: { description: "The copy step: the wording of the template the setup's answers make in the style chosen (args: the previews' answers, theme_id, keep_edits to start from the template published in the template editor, and agreement: insurance for the insurance agreement's wording when proposal_kinds is both), as fields top to bottom ({ node_id, role: title | heading | text, text }), and that document resolved with a sample customer (preview). The finish (documents.setup.apply) takes changes as copy { node_id: text }. Nothing is saved.",
+    copy: { description: "The copy step: the wording of the template the setup's answers make in the style chosen (args: the previews' answers, theme_id, keep_edits to start from the template published in the template editor, and agreement: insurance for the insurance agreement's wording when proposal_kinds is both), as fields top to bottom ({ node_id, role: title | heading | text, text }), the parts they make (sections: { id, heading, texts, nodes, title, removable }), and that document resolved with a sample customer (preview). The finish (documents.setup.apply) takes changes as copy { node_id: text } and copy_sections { removed: [section id], added: [{ id, after: section id }] }, an added part's heading and text being copy <id>_h and <id>_t. Nothing is saved.",
       schema: { type: "object" } as JsonSchema, argsSchema: json(copyArgsSchema.strict()), schemaVersion: "1", access: setupAccess,
       read: async (ctx, ref) => ({ value: await documentSetupCopy(ctx.organizationId, ref.args || {}) }) }
   } });
   registerAction({ id: "documents.setup.apply", version: "1", domain: "documents", implementation: backendImplementationDigest(),
-    description: "Finish the document setup for one kind of document (document_kind: proposal, invoice, change_order or completion_certificate) in a style (theme_id: thm_clean, thm_margin or thm_triangles). For a proposal also: proposal_kinds (retail | insurance | both, GP-55; retail when absent: a company that does insurance work may make insurance contingency agreements, tpl_setup_insurance_agreement, instead of or as well as retail proposals); for retail: presentation (options | single), customer_changes (mix | pick | ask), detail (itemized | rough), scope_write_up (boolean), and optionally prices ([{ item_id, unit_price }] sell prices written to the price book) and lines ({ on: the item ids the proposal's roof_replacement has, in order, with the keys of new_items; new_items: [{ key: new_<x>, name, unit: sq|lf|ea, unit_price, formula: price book formula tokens over measurements, include_waste }] for lines the price book lacks }). Optionally copy ({ text node id: text }, the template's wording changed, from document-setup.copy; with insurance only, the agreement's) and keep_edits (start from the template published in the template editor), and with both kinds insurance_copy and insurance_keep_edits for the agreement. Makes or republishes the organization's own template for that kind (tpl_setup_<kind>, and the insurance agreement) and its workflow, makes it its type's default and pins it in New document.",
+    description: "Finish the document setup for one kind of document (document_kind: proposal, invoice, change_order or completion_certificate) in a style (theme_id: thm_clean, thm_margin or thm_triangles). For a proposal also: proposal_kinds (retail | insurance | both, GP-55; retail when absent: a company that does insurance work may make insurance contingency agreements, tpl_setup_insurance_agreement, instead of or as well as retail proposals); for retail: presentation (options | single), customer_changes (mix | pick | ask), detail (itemized | rough), scope_write_up (boolean), and optionally prices ([{ item_id, unit_price }] sell prices written to the price book) and lines ({ on: the item ids the proposal's roof_replacement has, in order, with the keys of new_items; new_items: [{ key: new_<x>, name, unit: sq|lf|ea, unit_price, formula: price book formula tokens over measurements, include_waste }] for lines the price book lacks }). Optionally copy ({ text node id: text }, the template's wording changed, from document-setup.copy; with insurance only, the agreement's), copy_sections ({ removed: [section id], added: [{ id, after: section id }] }: parts of the wording taken out or added, an added part's heading and text being copy <id>_h and <id>_t) and keep_edits (start from the template published in the template editor), and with both kinds insurance_copy, insurance_copy_sections and insurance_keep_edits for the agreement. Makes or republishes the organization's own template for that kind (tpl_setup_<kind>, and the insurance agreement) and its workflow, makes it its type's default and pins it in New document.",
     inputSchema: json(applySchema) as Record<string, unknown>, outputSchema: { type: "object" },
     effect: "write", idempotency: "required", executionKinds: ["api", "agent", "module"],
     policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.documents"] },

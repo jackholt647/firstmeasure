@@ -1114,7 +1114,14 @@ step is the module `guided-experiences/documents-setup.js` with its own `part`:
   (`document-setup.copy`): every text node of fixed words on its pages, a heading or a sentence or more (`copyFields`
   in `documents/setup.ts`); its first heading is the title. Typing changes the document at once (the step lays the same
   rewrite the finish saves, `applyCopy`, over its preview) and the field with focus marks its text there. Changes are
-  the selection `copy` (`{ node id: text }`, a blank line starts a paragraph in the same style). **Advanced** (beside
+  the selection `copy` (`{ node id: text }`, a blank line starts a paragraph in the same style). The words fall into
+  parts (GP-97, `copyIndex` `sections`): a heading (or a short label straight over a paragraph, the one-page
+  proposal's "Terms") and the nodes under it, in the same container, up to the next heading, a spacer or a page break.
+  A thin list of them runs down the left (a line of chips on a phone): go to one, add a part after any one or at the
+  end, delete one (the last deletion can be undone). The title and a heading over something other than text (a
+  payment widget) cannot be deleted. These are the selection `copy_sections` (`{ removed: [part id], added: [{ id,
+  after }] }`; an added part's heading and text are copy `<id>_h` and `<id>_t`, made like the nearest whole part), and
+  `insurance_copy_sections` on the agreement's page; `applyCopy` takes them on both sides. **Advanced** (beside
   the title) saves the template now and opens it in Doc Studio's template editor over the sheet (`documents.studio`
   with `params.embed = { templateId, onClose }`); its "Back to setup" publishes what was changed and comes back, the
   wording is read again from that template and `keep_edits` is set, so the finish starts from it, not the library's.
