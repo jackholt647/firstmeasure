@@ -231,7 +231,7 @@
 .fmcm button:active:not(:disabled){transform:scale(.96)}
 .fmcm button[aria-busy="true"]{position:relative;color:transparent!important;cursor:progress}
 .fmcm button[aria-busy="true"]::after{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;box-sizing:border-box;border-radius:50%;border:2px solid var(--cm-muted,#647182);border-right-color:transparent;animation:fmcm-busy-spin .7s linear infinite}
-.fmcm .fmcm-primary[aria-busy="true"]::after{border-color:var(--cm-on-accent,#fff);border-right-color:transparent}
+.fmcm .fmcm-primary[aria-busy="true"]::after,.fmcm .fmco-btn.primary[aria-busy="true"]::after{border-color:var(--cm-on-accent,#fff);border-right-color:transparent}
 .fmcm-view.fmcm-arrive>*{animation:fmcm-arrive .26s cubic-bezier(.2,.8,.2,1) both}
 .fmcm-view>.fmcm-empty[role=status]{animation:fmcm-fade .3s ease .12s both}
 @keyframes fmcm-busy-spin{to{transform:rotate(360deg)}}
