@@ -3224,6 +3224,55 @@
   ];
   /** Paid when the customer approves: due on signature, or on receipt. */
   const dueNow = (row) => ['on_signature', 'on_receipt'].includes(cleanText(obj(row).due_rule));
+
+  // Taking the payments online (GP-26). The host says whether the customer
+  // can pay in their customer portal (services.paymentsStatus: { ready,
+  // reason, can_set_up }, the server's payments readiness) and opens payment
+  // setup (services.setUpPayments, resolving once it closes). Payment terms
+  // marks the deposit with it and, the first time, offers setup in a callout;
+  // Review & send says whether the proposal will carry a pay link. Hosts
+  // without these services (the customer's own views) show none of it.
+  // Each page's first payment terms and review ask once for their short
+  // tours (config library, manual triggers); the guided experiences runtime
+  // keeps who has seen them.
+  const PAYMENT_TERMS_TOUR = 'documents.payment_terms_tutorial';
+  const REVIEW_TOUR = 'documents.review_send_tutorial';
+  const toursAsked = new Set();
+  /** A tour of this step, over a setup when one is playing; asked once per page, after the step has laid out. */
+  function offerStepTour(id, showing){
+    const guides = root.FirstMateGuides;
+    if (toursAsked.has(id) || typeof guides?.play !== 'function') return;
+    toursAsked.add(id);
+    setTimeout(() => { if (showing()) Promise.resolve(guides.play(id, { over: true, showing })).catch(() => {}); }, 700);
+  }
+  /** True while this person has not finished (or skipped) a tour; false when unknown. */
+  function tourPending(id){
+    const guides = root.FirstMateGuides;
+    if (typeof guides?.experience !== 'function') return Promise.resolve(false);
+    return Promise.resolve(guides.refresh?.()).catch(() => null).then(() => {
+      const experience = guides.experience(id);
+      return !!experience && (!experience.progress || experience.progress.status === 'started');
+    }, () => false);
+  }
+  function paymentsServices(ctx){
+    const services = obj(ctx.services);
+    return ctx.audience !== 'customer' && typeof services.paymentsStatus === 'function' ? services : null;
+  }
+  /** The setup callout's answer for this page: undefined until decided, then shown (true) or not (false). */
+  let paymentCallout;
+  /** One line under a payment due at signing: where it is paid, and setup when online payments are not on. */
+  function depositPayHtml(pay){
+    if (!pay) return '';
+    const reason = cleanText(pay.reason);
+    const [state, icon, text] = pay.ready
+      ? ['ready', 'fa-circle-check', 'Paid online in the customer portal when the customer signs.']
+      : pay.can_set_up || ['online_processing_off', 'no_merchant_account'].includes(reason)
+        ? ['setup', 'fa-credit-card', pay.can_set_up ? 'The customer can pay this in their customer portal once you set up payments.' : 'The customer can pay this in their customer portal once an administrator sets up payments.']
+        : reason === 'not_approved'
+          ? ['setup', 'fa-hourglass-half', 'The customer can pay this in their customer portal once your payment account is approved.']
+          : ['off', 'fa-circle-info', 'Online payments are off, so the customer pays this outside the portal.'];
+    return `<div class="fmdw-sched-pay ${state}" data-fmdw-sched-pay="${state}"><i class="fas ${icon}"></i><span>${esc(text)}</span>${pay.can_set_up ? `<button type="button" class="fmdw-setup-pill" data-fmdw-pay-setup title="Set up payments">Set up</button>` : ''}</div>`;
+  }
   function normalizeScheduleRow(row, index){
     const source = obj(row);
     const kind = cleanText(source.kind) === 'fixed' || Number(source.amount_cents) > 0 ? 'fixed' : 'percent';
@@ -3240,6 +3289,29 @@
   }
   registerKind('payment_schedule', (el, ctx) => {
     let rows = arr(ctx.value()).map(normalizeScheduleRow);
+    const payments = ctx.readonly ? null : paymentsServices(ctx);
+    let pay = null;
+    let destroyed = false;
+    function setUpPayments(){
+      Promise.resolve(payments.setUpPayments?.()).catch(() => null)
+        .then(() => payments.paymentsStatus({ fresh: true })).catch(() => null)
+        .then((next) => { if (destroyed || !next) return; pay = next; if (!pay.can_set_up) paymentCallout = false; render(); });
+    }
+    function calloutHtml(){
+      if (!pay?.can_set_up || paymentCallout !== true) return '';
+      return `
+        <div class="fmdw-pay-callout" data-fmdw-pay-callout>
+          <span class="fmdw-pay-callout-icon"><i class="fas fa-credit-card"></i></span>
+          <div class="fmdw-pay-callout-copy">
+            <strong>Get paid when they sign</strong>
+            <p>Set up payments to automatically take a payment from your customer when you deliver your proposal. A deposit due on signature is paid in their customer portal as they sign.</p>
+          </div>
+          <div class="fmdw-pay-callout-actions">
+            <button type="button" class="fmdw-btn primary" data-fmdw-pay-setup><i class="fas fa-credit-card"></i> Set up payments</button>
+            <button type="button" class="fmdw-btn ghost" data-fmdw-pay-skip>Skip for now</button>
+          </div>
+        </div>`;
+    }
     // Percent rows resolve against the scope total the workflow is pricing.
     const basisCents = () => Math.round(scopeItemsTotal(arr(getPath(ctx.scope(), cleanText(ctx.item.total_from) || 'params.scope_items'))) * 100);
     const rowCents = (row) => (row.kind === 'fixed' ? row.amount_cents : Math.round(basisCents() * row.percent / 100));
@@ -3296,6 +3368,7 @@
         <div class="fmdw-field">
           <span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>
           ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
+          ${calloutHtml()}
           <div class="fmdw-card fmdw-sched">
             ${rows.length ? rows.map((row, index) => `
               <div class="fmdw-sched-row" data-fmdw-sched="${index}">
@@ -3314,7 +3387,7 @@
                 ${row.due_rule === 'on_date' ? `<input type="date" data-fmdw-sched-date value="${esc(row.due_date)}" ${ctx.readonly ? 'disabled' : ''}>` : ''}
                 <b class="fmdw-sched-cents" data-fmdw-sched-cents>${esc(moneyFromCents(rowCents(row)))}</b>
                 ${ctx.readonly ? '' : `<button type="button" class="fmdw-icon-btn danger" data-fmdw-sched-remove title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>`}
-              </div>`).join('') : `<p class="fmdw-hint" style="margin:0">No payment terms yet. Pick a starting point or add milestones.</p>`}
+              </div>${dueNow(row) && (row.kind === 'fixed' ? row.amount_cents > 0 : row.percent > 0) ? depositPayHtml(pay) : ''}`).join('') : `<p class="fmdw-hint" style="margin:0">No payment terms yet. Pick a starting point or add milestones.</p>`}
             <div data-fmdw-sched-summary>${rows.length ? summaryHtml() : ''}</div>
             ${ctx.readonly ? '' : `
               <div class="fmdw-row-actions">
@@ -3364,6 +3437,8 @@
         render();
       });
       el.querySelectorAll('[data-fmdw-sched-preset]').forEach((button) => button.addEventListener('click', () => preset(obj(presets[Number(button.dataset.fmdwSchedPreset)]).parts)));
+      el.querySelectorAll('[data-fmdw-pay-setup]').forEach((button) => button.addEventListener('click', setUpPayments));
+      el.querySelector('[data-fmdw-pay-skip]')?.addEventListener('click', () => { paymentCallout = false; el.querySelector('[data-fmdw-pay-callout]')?.remove(); });
       // The summary is redrawn on every amount edit, so its button is found from the card.
       // Pressing it must not lose to the field being edited: leaving that
       // field redraws the summary, and a click would land on nothing.
@@ -3426,7 +3501,21 @@
       });
     };
     render();
+    if (payments) {
+      // The callout is for this person's first payment terms (their tour not finished yet) while setup is to do.
+      Promise.all([
+        Promise.resolve().then(() => payments.paymentsStatus()).catch(() => null),
+        paymentCallout === undefined ? tourPending(PAYMENT_TERMS_TOUR) : Promise.resolve(paymentCallout)
+      ]).then(([status, first]) => {
+        if (destroyed) return;
+        pay = status && typeof status.ready === 'boolean' ? status : null;
+        if (paymentCallout === undefined && pay) paymentCallout = !!(pay.can_set_up && first);
+        render();
+        offerStepTour(PAYMENT_TERMS_TOUR, () => !destroyed && el.isConnected && el.getClientRects().length > 0);
+      });
+    }
     return {
+      destroy: () => { destroyed = true; },
       validate: () => {
         if (ctx.item.required && !rows.length) return 'Add the payment terms to continue.';
         const basis = basisCents();
@@ -3459,6 +3548,7 @@
     const rows = [];
     const checks = [];
     let total = null;
+    let schedule = [];
     arr(workflow.steps).forEach((step) => {
       arr(obj(step).items).forEach((item) => {
         const kind = cleanText(obj(item).kind);
@@ -3466,6 +3556,11 @@
         const writes = cleanText(obj(item).writes);
         if (!writes) return;
         const value = getPath(ctx.scope(), writes);
+        if (kind === 'payment_schedule' && stepVisibleFor(obj(step), ctx.audience, workflow)) {
+          // Percents of the total the schedule prices, as the payment terms step reads it.
+          const basis = Math.round(scopeItemsTotal(arr(getPath(ctx.scope(), cleanText(obj(item).total_from) || 'params.scope_items'))) * 100);
+          schedule = schedule.concat(arr(value).map(normalizeScheduleRow).map((row) => ({ ...row, cents: row.kind === 'fixed' ? row.amount_cents : Math.round(basis * row.percent / 100) })));
+        }
         const hiddenHere = !stepVisibleFor(obj(step), ctx.audience, workflow) || !itemVisibleFor(obj(item), ctx.audience);
         if (kind === 'line_items_review' || kind === 'line_item_editor') {
           total = (total || 0) + scopeItemsTotal(value);
@@ -3514,6 +3609,7 @@
         ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
         ${total === null ? '' : `<div class="fmdw-card fmdw-review-total"><span>${esc(firstText(ctx.item.total_label, 'Scope total'))}</span><b>${esc(moneyFromDollars(total))}</b></div>`}
         ${checks.length ? `<div class="fmdw-card fmdw-review-checks">${checks.map((text) => `<p><i class="fas fa-triangle-exclamation"></i> ${esc(text)}</p>`).join('')}</div>` : ''}
+        <div data-fmdw-review-pay hidden></div>
         <div class="fmdw-card fmdw-review">
           ${rows.length ? rows.map((row) => `
             <div class="fmdw-review-row ${row.hidden ? 'muted' : ''}">
@@ -3523,7 +3619,40 @@
         </div>
         ${ctx.hasPreview ? `<p class="fmdw-hint"><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_eff08b0fc06db7"," The live preview shows the finished document with these answers.") ?? " The live preview shows the finished document with these answers.")}</p>` : ''}
       </div>`;
-    return {};
+    // Whether the proposal carries a pay link (GP-26): a coloured note, and a quiet way into setup when it does not.
+    const payments = ctx.readonly ? null : paymentsServices(ctx);
+    let destroyed = false;
+    const depositCents = schedule.filter(dueNow).reduce((sum, row) => sum + row.cents, 0);
+    const drawPay = (pay) => {
+      const host = el.querySelector('[data-fmdw-review-pay]');
+      if (!host || destroyed) return;
+      if (!pay || typeof pay.ready !== 'boolean' || !schedule.length) { host.hidden = true; host.innerHTML = ''; return; }
+      const reason = cleanText(pay.reason);
+      const [state, icon, title, text] = pay.ready
+        ? ['ready', 'fa-circle-check', 'Payments are on', depositCents > 0 ? `The customer can pay the ${moneyFromCents(depositCents)} deposit online in their customer portal when they sign.` : 'The customer can pay online in their customer portal.']
+        : reason === 'not_approved'
+          ? ['off', 'fa-hourglass-half', 'Payments are not on yet', 'Online payments start once your payment account is approved. Until then the payment terms show on the proposal read-only, with no pay link.']
+          : ['off', 'fa-circle-info', 'Payments are not set up', 'The payment terms show on the proposal read-only, with no pay link. The customer pays you another way.'];
+      host.hidden = false;
+      host.innerHTML = `
+        <div class="fmdw-pay-note ${state}" data-fmdw-pay-note="${state}">
+          <i class="fas ${icon}"></i>
+          <div class="fmdw-piece-copy"><strong>${esc(title)}</strong><small>${esc(text)}</small></div>
+          ${pay.can_set_up ? `<button type="button" class="fmdw-btn ghost" data-fmdw-pay-setup><i class="fas fa-credit-card"></i> Set up payments</button>` : ''}
+        </div>`;
+      host.querySelector('[data-fmdw-pay-setup]')?.addEventListener('click', () => {
+        Promise.resolve(payments.setUpPayments?.()).catch(() => null)
+          .then(() => payments.paymentsStatus({ fresh: true })).catch(() => null)
+          .then((next) => { if (next) drawPay(next); });
+      });
+    };
+    if (payments) {
+      Promise.resolve().then(() => payments.paymentsStatus()).catch(() => null).then((pay) => {
+        drawPay(pay);
+        if (!destroyed) offerStepTour(REVIEW_TOUR, () => !destroyed && el.isConnected && el.getClientRects().length > 0);
+      });
+    }
+    return { destroy: () => { destroyed = true; } };
   });
 
   // ------------------------------------------------------ signature / payment
@@ -4014,7 +4143,7 @@
           Promise.resolve().then(() => services.deliverables()).then((actions) => {
             if (st.destroyed || st.currentId !== forStep) return;
             const list = arr(actions).map(obj).filter((action) => cleanText(action.label));
-            deliver.innerHTML = list.map((action, at) => `<button type="button" class="fmdw-btn ${action.quiet ? 'ghost' : ''}" data-fmdw-deliver-run="${at}" ${action.disabled ? 'disabled' : ''} title="${esc(firstText(action.title, action.label))}" aria-label="${esc(action.label)}"><i class="fas ${esc(firstText(action.icon, 'fa-arrow-right'))}"></i><span class="fmdw-btn-label"> ${esc(action.label)}</span></button>`).join('');
+            deliver.innerHTML = list.map((action, at) => `<button type="button" class="fmdw-btn ${action.quiet ? 'ghost' : ''}" data-fmdw-deliver-run="${at}" data-fmdw-deliver="${esc(cleanText(action.id))}" ${action.disabled ? 'disabled' : ''} title="${esc(firstText(action.title, action.label))}" aria-label="${esc(action.label)}"><i class="fas ${esc(firstText(action.icon, 'fa-arrow-right'))}"></i><span class="fmdw-btn-label"> ${esc(action.label)}</span></button>`).join('');
             deliver.querySelectorAll('[data-fmdw-deliver-run]').forEach((button) => button.addEventListener('click', () => {
               try { list[Number(button.dataset.fmdwDeliverRun)].run?.(); } catch (e) { /* host action */ }
             }));
@@ -4827,6 +4956,18 @@
 .fmdw-sched-cents{min-width:88px;text-align:right;font-size:12.5px;font-weight:1000;font-variant-numeric:tabular-nums}
 .fmdw-sched-summary{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11.5px;font-weight:850;color:var(--fmdw-muted)}
 .fmdw-sched-summary b{color:var(--fmdw-ink);font-weight:1000;font-variant-numeric:tabular-nums}
+.fmdw-sched-pay{display:flex;align-items:center;gap:8px;margin:-4px 0 2px 26px;padding:6px 6px 6px 10px;border-radius:10px;font-size:11.5px;font-weight:800;line-height:1.35;background:#f2f4f7;color:#475467}
+.fmdw-sched-pay span{flex:1;min-width:0}
+.fmdw-sched-pay.ready{background:#ecfdf3;color:#067647}
+.fmdw-sched-pay.setup{background:#fff8e6;color:#7a5b00}
+.fmdw-setup-pill{flex:none;border:1px solid currentColor;background:#fff;color:inherit;border-radius:999px;height:24px;padding:0 10px;font:inherit;font-size:11px;font-weight:900;cursor:pointer}
+.fmdw-setup-pill:hover,.fmdw-setup-pill:focus-visible{background:var(--fmdw-primary);border-color:var(--fmdw-primary);color:var(--fmdw-on-primary);outline:none}
+.fmdw-pay-callout{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:16px;border-radius:14px;border:1px solid color-mix(in srgb,var(--fmdw-primary) 30%,#fff);background:color-mix(in srgb,var(--fmdw-primary) 6%,#fff)}
+.fmdw-pay-callout-icon{flex:none;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:17px;background:var(--fmdw-primary);color:var(--fmdw-on-primary)}
+.fmdw-pay-callout-copy{flex:1 1 260px;min-width:0}
+.fmdw-pay-callout-copy strong{display:block;font-size:14px;font-weight:1000;color:var(--fmdw-ink)}
+.fmdw-pay-callout-copy p{margin:3px 0 0;font-size:12px;font-weight:700;line-height:1.45;color:#475467}
+.fmdw-pay-callout-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 @container (max-width:560px){
   .fmdw-sched-row,.fmdw-sched-row:has([data-fmdw-sched-date]){grid-template-columns:auto minmax(0,1fr) auto auto;padding-bottom:8px;border-bottom:1px solid #f0f2f7}
   .fmdw-sched-label{grid-column:2 / -2}
@@ -4838,6 +4979,14 @@
 .fmdw-review-total b{font-size:22px;font-weight:1000;font-variant-numeric:tabular-nums}
 .fmdw-review-checks{gap:8px;border-color:#f0d58a;background:#fffbea}
 .fmdw-review-checks p{margin:0;font-size:11.5px;font-weight:850;line-height:1.45;color:#7a5b00}
+.fmdw-pay-note{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border-radius:14px;border:1px solid}
+.fmdw-pay-note>i{flex:none;font-size:16px}
+.fmdw-pay-note .fmdw-piece-copy{flex:1 1 240px}
+.fmdw-pay-note small{font-size:11.5px;font-weight:750;line-height:1.45}
+.fmdw-pay-note.ready{border-color:#abefc6;background:#ecfdf3;color:#067647}
+.fmdw-pay-note.off{border-color:#f0d58a;background:#fffbea;color:#7a5b00}
+.fmdw-pay-note .fmdw-btn.ghost{color:inherit;min-height:30px;padding:0 10px;font-size:11px}
+.fmdw-pay-note .fmdw-btn.ghost:hover{color:var(--fmdw-primary);background:#fff}
 .fmdw-stat-grid{display:flex;flex-wrap:wrap;gap:7px}
 .fmdw-stat{display:inline-flex;flex-direction:column;gap:1px;border:1px solid var(--fmdw-line);border-radius:9px;padding:6px 9px;background:#fafbfe}
 .fmdw-stat i{font-style:normal;font-size:9px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:var(--fmdw-muted)}

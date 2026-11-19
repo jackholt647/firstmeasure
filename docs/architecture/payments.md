@@ -46,6 +46,16 @@ portal that holds the project window; applied but not on (`not_approved`,
 payment from there. Run `tests/payment-intake-not-ready-browser.test.mjs`
 (with `CHROME_PATH`) for changes to the not-ready form.
 
+A proposal's workflow says it too (GP-26). The Docs app gives the document
+workflow `paymentsStatus` (`GET /payments-readiness`, with `can_set_up` for
+the same reasons and permission) and `setUpPayments` (the same Money app
+setup, resolving when it closes). Payment terms marks a payment due on
+signature as paid in the customer portal, with a Set up pill while payments
+are not set up, and the first time a callout to set them up (skippable).
+Review & send shows green when the proposal carries a pay link and amber when
+the payment terms print read-only, with a quiet Set up payments. Run
+`tests/doc-workflow-payments-onboarding-browser.test.mjs` for changes here.
+
 The in-process simulator (`providers/mock.ts`) stands in for Forward only
 outside production data (`mockProviderAllowed()`); on production data it is
 never selectable, never a default, and its controls refuse.

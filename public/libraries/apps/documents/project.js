@@ -2368,6 +2368,53 @@
       });
     }
 
+    // ------------------------------------------------ payments (GP-26)
+    // Whether this organization can take a proposal's payments online: the
+    // server's readiness answer (payments/readiness.ts), which the customer
+    // portal's Pay follows too. Payment terms and Review & send say where the
+    // deposit is paid and lead to setup, as Money's Take a payment does.
+    // Unknown (the read failed) is null: nothing is shown for it.
+    function paymentsHostWindow(){
+      let target = window;
+      try { while (target.parent !== target && target.parent.Portal?.appSetup) target = target.parent; } catch (_) { /* foreign parent */ }
+      return target;
+    }
+    async function paymentsStatus({ fresh = false } = {}){
+      const id = orgId();
+      if (!fresh && state.paymentsStatus?.orgId === id) return state.paymentsStatus.value;
+      const api = window.PaymentsAPI || paymentsHostWindow().PaymentsAPI;
+      if (!id || typeof api?.intake?.readiness !== 'function') return null;
+      try {
+        const readiness = objectValue(objectValue(await api.intake.readiness(id)).readiness);
+        if (typeof readiness.ready !== 'boolean') return null;
+        const host = paymentsHostWindow();
+        const reason = firstText(readiness.reason);
+        const value = {
+          ready: readiness.ready,
+          reason,
+          // Not started: setup is the next step. Applied: it is waiting on review (or paused).
+          can_set_up: !readiness.ready && ['online_processing_off', 'no_merchant_account'].includes(reason)
+            && ((host.Portal?.util?.hasPerm || window.Portal?.util?.hasPerm)?.('manage_company_settings') === true || hasPermission('manage_company_settings'))
+            && !!(host.Portal?.appSetup?.has?.('platform.money') || host.FirstMatePaymentsSetup?.open)
+        };
+        state.paymentsStatus = { orgId: id, value };
+        return value;
+      } catch (_) {
+        return null;
+      }
+    }
+    /** Opens payment setup in the portal around the project window; resolves once it closes (or could not open). */
+    function setUpPayments(){
+      const host = paymentsHostWindow();
+      return new Promise((resolve) => {
+        let done = false;
+        const finish = () => { if (done) return; done = true; host.removeEventListener('fm:payments-setup-updated', finish); state.paymentsStatus = null; resolve(true); };
+        host.addEventListener('fm:payments-setup-updated', finish);
+        const setup = host.Portal?.appSetup?.has?.('platform.money') ? host.Portal.appSetup.run('platform.money') : host.FirstMatePaymentsSetup?.open?.();
+        Promise.resolve(setup).then((opened) => { if (opened === false) finish(); }, finish);
+      });
+    }
+
     function workflowServices(){
       const pricebook = pricebookModule();
       return {
@@ -2377,6 +2424,9 @@
         // Ordering them when the project has none (GP-19, above).
         canOrderMeasurements: ({ keys } = {}) => canOrderProjectMeasurements(keys),
         orderMeasurements: () => orderProjectMeasurements(),
+        // Payment terms and Review & send: can the customer pay online, and the way to set it up (GP-26, above).
+        paymentsStatus: (options) => paymentsStatus(options),
+        setUpPayments: () => setUpPayments(),
         measurementsOrdered: () => projectMeasurementsOrdered(),
         // The project's selected measurement dataset (FirstMeasure report or
         // an import), flattened to { key: number } for the measurements item.

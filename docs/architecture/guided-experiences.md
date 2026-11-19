@@ -818,6 +818,16 @@ first time a compare view with a chosen option shows. `over` plays it over the s
 same frame (the document setup's first proposal) as that setup's sub-guide, instead of after it;
 `showing` drops it if the compare view is gone by the time it would start.
 
+**The payment terms and review tours** (GP-26: `documents.payment_terms_tutorial` and
+`documents.review_send_tutorial`, overlays like the line items tour, asked the same way once per page
+by the workflow's `payment_schedule` and `review` items). Payment terms: taking the deposit online
+(a case each for the setup callout, and the deposit's setup, paid-online or payments-off line), the
+milestones and the preset splits. Review & send: whether the proposal carries a pay link (the
+coloured payments note), the preview, Present (`[data-fmdw-deliver="present"]`, skipped where the
+template has no presentation) and Send. The setup callout on payment terms shows while the person
+has not finished the payment terms tour and payments can be set up; what it and the notes say comes
+from the host's `paymentsStatus` (see [payments](payments.md)).
+
 The hub offers optional supplier, equipment, workforce and proposal setup with
 estimates of 5, 3, 5 and 10 minutes. Each writer is a published action run as the
 person. Labor defaults to `shown: when_configured`, which waits for assignees,
