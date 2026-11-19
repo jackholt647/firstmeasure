@@ -179,7 +179,8 @@ export function mount(el, ctx){
   const measurements = () => array(status.measurements);
   const roofing = () => array(profile.work_kinds).includes('roofing');
   const wanted = () => kindsFor(workforce);
-  const shown = () => rows.filter((row) => (row.kind === GROUP ? wanted().groups : wanted().companies));
+  // Crews first, then subcontractors, each in the order they were added.
+  const shown = () => [...rows.filter((row) => row.kind === GROUP && wanted().groups), ...rows.filter((row) => row.kind === COMPANY && wanted().companies)];
   const existingOf = (kind) => rows.filter((row) => row.kind === kind && row.existing);
   function report(){ ctx.change?.({ workforce, ...applyInput(shown()) }, shown().map((row) => clean(row.name)).join(', ')); }
   function go(to){
@@ -372,7 +373,7 @@ export function mount(el, ctx){
     else if (same) body = `<p class="gxw-same">${esc(L('gx_wfs_same_as', 'Paid the same as {name}', { name: clean(same.name) }))}${payText(payOf(list, row)) ? ` · ${esc(payText(payOf(list, row)))}` : ''}</p>`;
     else body = `<div class="gxw-seg" role="radiogroup" aria-label="${esc(L('gx_lab_how_paid', 'How they are paid'))}">${roofing() || pay?.method === 'per_measurement' ? method('per_measurement', L('gx_lab_piece', 'Piece rate')) : ''}${method('hourly', L('gx_lab_hourly', 'Hourly'))}${method('per_job', L('gx_lab_job', 'Per job'))}</div>
       <div class="gxw-rate"><label class="gxw-money">$<input type="number" min="0" step="0.01" inputmode="decimal" data-gxw-rate value="${Number(pay?.rate) > 0 ? esc(pay.rate) : ''}" placeholder="0.00" aria-label="${esc(L('gx_lab_rate', 'Rate'))}"></label>
-      ${pay?.method === 'per_measurement' ? `<select class="gxw-select" data-gxw-measurement aria-label="${esc(L('gx_lab_paid_on', 'Paid on'))}">${measurements().map((entry) => `<option value="${esc(entry.id)}" ${entry.id === (pay.measurement || 'roof.squares') ? 'selected' : ''}>${esc(L('gx_wfs_per', 'per {unit}', { unit: entry.label }))}</option>`).join('')}</select>` : `<span class="gxw-unit">${esc(unitOf(pay))}</span>`}</div>`;
+      ${pay?.method === 'per_measurement' ? `<span class="gxw-unit">${esc(L('gx_wfs_per', 'per'))}</span><select class="gxw-select" data-gxw-measurement aria-label="${esc(L('gx_lab_paid_on', 'Paid on'))}">${measurements().map((entry) => `<option value="${esc(entry.id)}" ${entry.id === (pay.measurement || 'roof.squares') ? 'selected' : ''}>${esc(entry.label)}</option>`).join('')}</select>` : `<span class="gxw-unit">${esc(unitOf(pay))}</span>`}</div>`;
     return `<article class="gxw-card" data-gxw-card="${esc(row.key)}">${head(row)}
       ${body}
       ${!row.locked && !row.sheet && (others.length || same) ? `<label class="gxw-field"><b>${esc(L('gx_wfs_same', 'Same pay as'))}</b><select class="gxw-select" data-gxw-same><option value="">${esc(L('gx_wfs_same_none', 'Nobody: their own rates'))}</option>${list.filter((other) => other !== row && !other.locked && !other.sheet && other.same !== row.key).map((other) => `<option value="${esc(other.key)}" ${other.key === row.same ? 'selected' : ''}>${esc(other.name)}</option>`).join('')}</select></label>` : ''}
