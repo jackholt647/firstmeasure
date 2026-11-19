@@ -113,7 +113,9 @@ greys, white and black stay exactly as they are, Forward's colour becomes the
 organization's `--primary-readable`, and each tint or shade of it the same tint or
 shade of the brand colour. By default only colours leaning towards Forward's hue
 are recoloured (its greens and blues lean that way and change too; reds,
-ambers and its faintly blue zinc greys keep theirs). The dev console's **Brand colour** section previews any
+ambers and its faintly blue zinc greys keep theirs). The lean is averaged over
+2 px first: the frame is drawn with subpixel (LCD) text, and judged pixel by pixel
+only the cyan fringe of grey text would turn, leaving it brown. The dev console's **Brand colour** section previews any
 colour on a sample and on the open portal. Run
 `tests/brand-colorize-browser.test.mjs` (with `CHROME_PATH`) for changes here.
 
