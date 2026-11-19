@@ -139,13 +139,15 @@ engine. Opening it neither records `seen_tabs` nor launches a guide, and New
 remains visible regardless of personal seen history.
 
 Advertisements (the app welcome and the project tab promos in
-`apps/tab-promos/project.js`) are white and drawn in the organization's colours:
-its primary (`--primary-readable`) for accents, the Get Started button and the
-FirstMate mark (`logo_square.png` as a CSS mask, never the red image), its
-secondary, darkened until it reads on white, in the illustration and the promo
-footer. An app's `theme` picks the illustration; its colour is only the fallback
-on a page with no theme. Status pills (Free Forever, Setup required, Coming soon)
-keep their own colours.
+`apps/tab-promos/project.js`) are white and drawn in the organization's colours.
+The primary leads (`--primary-readable`): the FirstMate mark, Get Started, the
+illustration's tint and icons, the headline accent, pills and the promo's closing
+band. The secondary is the accent, darkened until it reads on white: eyebrows,
+check marks, feature rules, the illustration's ring and figures. The mark is
+`logo_square.png` as an inline CSS mask (`--fm-mark`), so it paints with the page
+and never waits for an image. An app's `theme` picks the illustration; its colour
+is only the fallback on a page with no theme. Status pills (Free Forever, Setup
+required, Coming soon) keep their own colours.
 
 `POST /v1/platform/organizations/:orgId/app-offers/:appId/start` requires a
 verified organization session, CSRF, and an app the caller can see. Anyone with

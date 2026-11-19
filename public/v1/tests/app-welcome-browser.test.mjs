@@ -203,8 +203,9 @@ test('on a phone the advertisement fills the portal tab and no app is left under
   }finally{await browser.close();}
 });
 
-// GP-39: the advertisement is white and drawn in the organization's colours: primary for accents, the button and the
-// FirstMate mark, secondary (darkened until it reads on white) in the illustration. "Free Forever" stays green.
+// GP-39: the advertisement is white and drawn in the organization's colours: the primary leads (Get Started, the FirstMate
+// mark, drawn from an inline mask so it never waits for an image), the secondary, darkened until it reads on white, is the
+// accent (eyebrow, checks). "Free Forever" stays green.
 test('the advertisement is white and in the organization\'s primary and secondary colours',async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try{
@@ -216,22 +217,24 @@ test('the advertisement is white and in the organization\'s primary and secondar
       const article=document.querySelector('.fm-app-welcome'),style=element=>getComputedStyle(article.querySelector(element));
       const second=getComputedStyle(article).getPropertyValue('--offer-second').match(/\d+/g).map(Number);
       const lum=second.map(v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4;}).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);
-      return {background:getComputedStyle(article).backgroundColor,eyebrow:style('.faw-eyebrow').color,button:style('.faw-start').backgroundColor,
+      return {background:getComputedStyle(article).backgroundColor,eyebrow:style('.faw-eyebrow').color,check:style('.faw-benefits svg').stroke,secondary:`rgb(${second.join(', ')})`,button:style('.faw-start').backgroundColor,
         logo:style('.faw-logo').backgroundColor,mask:style('.faw-logo').maskImage,images:article.querySelectorAll('.faw-brand img').length,
         free:style('.faw-free').backgroundColor,contrast:1.05/(lum+.05),art:style('.faw-art').backgroundImage};
     });
     const before=await colours();
     assert.equal(before.background,'rgb(255, 255, 255)','white, never cream');
-    assert.equal(before.eyebrow,'rgb(47, 79, 181)');
+    assert.equal(before.eyebrow,before.secondary,'the secondary is the accent');
+    assert.equal(before.check,before.secondary);
     assert.equal(before.button,'rgb(47, 79, 181)');
     assert.equal(before.logo,'rgb(47, 79, 181)','the FirstMate mark takes the organization\'s colour');
-    assert.match(before.mask,/logo_square\.png/);
+    assert.match(before.mask,/^url\("data:image\/png;base64,/);
     assert.equal(before.images,0);
     assert.equal(before.free,'rgb(230, 242, 233)','Free Forever stays green');
     assert.ok(before.contrast>=4.5,`a light secondary is darkened until it reads on white (${before.contrast})`);
     await page.evaluate(()=>{document.documentElement.style.setProperty('--secondary','#7a1fa2');window.dispatchEvent(new CustomEvent('fm:theme:updated'));});
     const after=await colours();
-    assert.notEqual(after.art,before.art,'a theme change repaints the secondary');
+    assert.notEqual(after.eyebrow,before.eyebrow,'a theme change repaints the secondary');
+    await page.screenshot({path:new URL('org-colours-433.png',output).pathname});
     assert.match(await page.evaluate(()=>getComputedStyle(document.querySelector('.fm-app-welcome')).getPropertyValue('--offer-second')),/rgb\(122,\s*31,\s*162\)/);
   }finally{await browser.close();}
 });
