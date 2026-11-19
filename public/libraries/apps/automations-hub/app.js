@@ -452,8 +452,12 @@
       return { lanes, boards, links, leads, place, routing };
     }
 
+    let drawLater = false;
     function draw(){
       if (!state || destroyed) return;
+      // A save that finishes while something is being dragged redraws once the drag ends, not under the pointer.
+      if (gesture?.moved) { drawLater = true; return; }
+      drawLater = false;
       closePop();
       const v = view();
       const columns = Math.max(1, ...Object.values(v.place).map((column) => column + 1));
@@ -876,6 +880,7 @@
     function onUp(event){
       const g = gesture; gesture = null;
       if (!g) return;
+      if (drawLater) draw();
       dropEdge?.remove(); dropEdge = null;
       scroll.querySelectorAll('.fmah-lane.drop').forEach((el) => el.classList.remove('drop'));
       scroll.querySelectorAll('.fmah-board.target').forEach((el) => el.classList.remove('target'));
