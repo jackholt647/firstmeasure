@@ -205,7 +205,7 @@ export function mount(el, ctx){
   const nextButton = (label) => `<button type="button" class="gxw-btn primary" data-gxw-next>${esc(label || L('gx_ui_continue', 'Continue'))}</button>`;
 
   // ── Who does the work at your company? ─────────────────────────────────
-  const WHO_ICONS = { just_me: 'fa-user', crews: 'fa-people-group', subcontractors: 'fa-handshake', crews_and_subs: 'fa-users-gear' };
+  const WHO_ICONS = { just_me: 'fa-user', crews: 'fa-users', subcontractors: 'fa-handshake', crews_and_subs: 'fa-users-gear' };
   function drawWho(){
     title(L('gx_wfs_who_title', 'Who does the work at your company?'));
     const answers = array(status.workforces);
@@ -251,7 +251,7 @@ export function mount(el, ctx){
   function newRow(kind){
     const at = rows.filter((row) => row.kind === kind).length;
     const own = workforce === 'just_me' && kind === GROUP && !rows.some((row) => row.kind === GROUP);
-    return { key: `new:${kind}:${crypto.randomUUID().slice(0, 8)}`, kind, existing: false, name: own && me.name ? me.name : defaultName(kind, at),
+    return { key: `new:${kind}:${crypto.randomUUID().slice(0, 8)}`, kind, existing: false, name: own && me.name ? me.name : defaultName(kind, 0),
       service_ids: services().map((entry) => entry.id), member_user_ids: own && me.id ? [me.id] : [], saved_members: [], pay: defaultPay(options, profile, kind), same: '' };
   }
   /** Adds or takes away new cards so each kind has as many as was said; the ones already set up are always kept. */
@@ -270,7 +270,7 @@ export function mount(el, ctx){
     const line = (kind, label, hint) => {
       const min = Math.max(1, existingOf(kind).length), value = rows.filter((row) => row.kind === kind).length;
       const have = existingOf(kind).length;
-      return `<div class="gxw-count" data-gxw-count="${kind}">${icon(kind === GROUP ? 'fa-people-group' : 'fa-handshake')}<span><strong>${esc(label)}</strong><small>${esc(have ? L('gx_wfs_count_have', '{n} already set up, kept as they are', { n: have }) : hint)}</small></span>
+      return `<div class="gxw-count" data-gxw-count="${kind}">${icon(kind === GROUP ? 'fa-users' : 'fa-handshake')}<span><strong>${esc(label)}</strong><small>${esc(have ? L('gx_wfs_count_have', '{n} already set up, kept as they are', { n: have }) : hint)}</small></span>
         <span class="gxw-step"><button type="button" data-gxw-minus aria-label="${esc(L('gx_wfs_fewer', 'One fewer'))}" ${value <= min ? 'disabled' : ''}>−</button><input type="number" inputmode="numeric" min="${min}" max="${MAX_EACH}" value="${value}" aria-label="${esc(label)}"><button type="button" data-gxw-plus aria-label="${esc(L('gx_wfs_more', 'One more'))}" ${value >= MAX_EACH ? 'disabled' : ''}>+</button></span></div>`;
     };
     el.innerHTML = `<div class="gxw" data-gxw-page="count">
@@ -475,7 +475,7 @@ export function mount(el, ctx){
         const parts = [row.service_ids.map(serviceLabel).join(', '),
           row.kind === GROUP && row.member_user_ids.length ? L('gx_wfs_done_people', '{n} on it', { n: row.member_user_ids.length }) : '',
           row.locked ? L('gx_lab_locked', 'Paid by its own pay sheet') : row.sheet ? L('gx_wfs_done_sheet', 'Pay from their sheet') : same ? L('gx_wfs_same_as', 'Paid the same as {name}', { name: clean(same.name) }) : payText(pay) || L('gx_wfs_done_no_pay', 'Pay not set yet')].filter(Boolean);
-        return `<div class="gxw-row" data-gxw-done="${esc(row.key)}">${icon(row.kind === GROUP ? 'fa-people-group' : 'fa-handshake')}<div><strong>${esc(row.name)}</strong><small>${esc(parts.join(' · '))}</small></div></div>`;
+        return `<div class="gxw-row" data-gxw-done="${esc(row.key)}">${icon(row.kind === GROUP ? 'fa-users' : 'fa-handshake')}<div><strong>${esc(row.name)}</strong><small>${esc(parts.join(' · '))}</small></div></div>`;
       }).join('')}</div>
       ${errorLine}
       <div class="gxw-actions"><span class="gxw-spacer"></span><button type="button" class="gxw-btn primary" data-gxw-finish>${esc(L('gx_ui_done', 'Done'))}</button></div>

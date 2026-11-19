@@ -105,6 +105,8 @@ test("the finish adds each crew and subcontractor with what it does, who is on i
   assert.deepEqual(by("Gutter Pros").service_ids, ["gutters"]);
   assert.deepEqual(by("Crew B").pay.simple, { method: "per_measurement", rate: 70, measurement: "roof.squares" });
   assert.deepEqual(by("Gutter Pros").pay.simple, { method: "per_job", rate: 450 });
+  // The measurements a piece rate is paid on are named, not shown by id.
+  assert.equal(value.measurements.find((entry: any) => entry.id === "roof.squares")?.label, "Roof squares");
   // What each does is its capabilities: a service measured as a kind of work grants that kind's items (roofing here;
   // the dictionary has no gutter items yet), and saying anything makes it known.
   const { capabilitiesFor } = await import("../labor/capabilities.js");
