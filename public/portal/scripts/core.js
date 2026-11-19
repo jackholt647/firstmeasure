@@ -76,8 +76,11 @@
     String(APP.userOrgId || APP.orgId || 'organization'),
     String(APP.userId || APP.user_id || 'user')
   ].join(':');
+  // GP-115: the thin column has no expand control for now. It is thin or wide,
+  // switched only with More apps > Thin / Wide, and nothing pins it open.
+  const SIDEBAR_EXPAND_CONTROL = false;
   const sidebarCompactOwners = new Set();
-  let sidebarCompactExpanded = loadSidebarCompactExpandedPreference();
+  let sidebarCompactExpanded = SIDEBAR_EXPAND_CONTROL && loadSidebarCompactExpandedPreference();
   let sidebarGlobalCompactEnabled = false;
 
   function loadSidebarCompactExpandedPreference(){
@@ -170,6 +173,8 @@
     sidebar.classList.toggle('sidebar-compact', compact);
     sidebar.classList.toggle('sidebar-compact-expanded', compact && expanded);
     sidebar.classList.toggle('sidebar-compact-overlap', compact && sidebarTemporaryExpansionMode() === 'overlap');
+    const resizeEdge = document.getElementById('sidebarResizeEdge');
+    if (resizeEdge && !SIDEBAR_EXPAND_CONTROL) resizeEdge.style.display = compact && !expanded && behavior !== 'adaptive' ? 'none' : '';
     if (toggle) {
       toggle.setAttribute('aria-pressed', expanded ? 'true' : 'false');
       toggle.setAttribute('aria-label', expanded ? 'Collapse sidebar' : 'Keep sidebar expanded');
@@ -207,6 +212,7 @@
   let sidebarPositionSave = Promise.resolve();
   function setSidebarCompactExpanded(expanded){
     if (sidebarBehavior().startsWith('forced_')) return sidebarBehavior() === 'forced_expanded';
+    if (!SIDEBAR_EXPAND_CONTROL) expanded = false;
     if (!expanded) {
       const sidebar = document.getElementById('mainSidebar');
       sidebar?.classList.remove('sidebar-hover-expanded', 'sidebar-compact-edge-held');
@@ -257,6 +263,7 @@
     },
     expansionMode: sidebarTemporaryExpansionMode
   };
+  if (!SIDEBAR_EXPAND_CONTROL) document.getElementById('sidebarCompactToggle')?.remove();
   const sidebarCompactToggle = document.getElementById('sidebarCompactToggle');
   const sidebarResizeEdge = document.getElementById('sidebarResizeEdge');
   let sidebarResizeGesture = null;
@@ -275,6 +282,8 @@
     if (sidebarBehavior().startsWith('forced_') || sidebarPreference('resizable_left_column', true) !== true ||
         (event.pointerType === 'mouse' && event.button !== 0) ||
         window.matchMedia('(max-width:820px)').matches) return;
+    // Without the expand control a narrow column is not widened by dragging either (GP-115).
+    if (!SIDEBAR_EXPAND_CONTROL && !window.Portal.sidebarMode.expanded()) return;
     sidebarResizeGesture = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -293,7 +302,7 @@
     if (!gesture.dragging) {
       gesture.dragging = true;
       document.getElementById('mainSidebar')?.classList.add('sidebar-resizing');
-      if (!sidebarCompactExpanded) setSidebarCompactExpanded(true);
+      if (SIDEBAR_EXPAND_CONTROL && !sidebarCompactExpanded) setSidebarCompactExpanded(true);
     }
     applySidebarWidth(gesture.startWidth + event.clientX - gesture.startX);
     event.preventDefault();
@@ -2966,8 +2975,7 @@
     else if (mode === 'thin' && !sidebarShownThin()) setSidebarCompactExpanded(false);
   }
   // Whether the left column is narrow right now, as More apps shows it: an
-  // adaptive column widens in More apps, a thin one stays narrow unless its
-  // expand control widened it.
+  // adaptive column widens in More apps, a thin one stays narrow.
   function sidebarShownThin(){
     const sidebar = document.getElementById('mainSidebar');
     return !!sidebar?.classList.contains('sidebar-compact') && sidebar.classList.contains('sidebar-manual')
@@ -3807,7 +3815,7 @@
     });
     window.addEventListener('resize', syncAdvancedAppLayout, { signal });
     // The overlay starts where the left column ends, however its width changes
-    // (Thin and Wide, the column's own expand control, a resize).
+    // (Thin and Wide, a resize).
     sidebar?.addEventListener('transitionend', setSidebarEdge, { signal });
     window.addEventListener('fm:sidebar-mode:changed', () => window.requestAnimationFrame(() => {
       if (!advancedAppMenuOpen || advancedAppMenuOverlay !== overlay) return;
