@@ -50,7 +50,7 @@
     });
   }
 
-  const normalizeFinancialView = (value) => ['cashflow', 'reconcile', 'payouts'].includes(String(value ?? '').trim()) ? String(value).trim() : 'projects';
+  const normalizeFinancialView = (value) => ['cashflow', 'reconcile', 'payouts', 'disputes'].includes(String(value ?? '').trim()) ? String(value).trim() : 'projects';
 
   function money(value, compact = false){
     return new Intl.NumberFormat((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), {
@@ -126,8 +126,6 @@
       .fn-chip{border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#475467;padding:6px 11px;font-weight:900;font-size:10px;line-height:1;cursor:pointer;white-space:nowrap}
       .fn-chip:hover{border-color:#98a2b3}.fn-chip.active{border-color:#101828;background:#101828;color:#fff}
       .fn-chip small{font-weight:800;opacity:.7;margin-left:4px}
-      .fn-table tbody tr[data-fn-payout]{cursor:pointer}.fn-table tbody tr[data-fn-payout]:hover{background:#f9fafb}
-      .fn-payout-id{display:flex;flex-direction:column;gap:2px;min-width:170px}.fn-payout-id strong{font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.fn-payout-id span{font-size:9px;color:#667085;font-weight:750}
       .fn-shade{position:fixed;inset:0;z-index:2147483200;background:rgba(16,24,40,.5);display:grid;place-items:center;padding:18px}
       .fn-modal{width:min(860px,96vw);max-height:92vh;overflow:auto;border-radius:15px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.4)}
       .fn-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid #eaecf0}
@@ -488,8 +486,7 @@
       anchor:/^\d{4}-\d{2}-\d{2}$/.test(clean(route.financialDate)) ? dayStart(route.financialDate) : dayStart(new Date()),
       clearingHours:48,
       openingBalance:0,
-      payoutFilter:'all',
-      payoutDetail:null,
+      widget:null,
       data:null,
       loading:true,
       error:null,
@@ -514,10 +511,13 @@
       return false;
     }
     function merchantProcessingEnabled(){ return capabilityEnabled('money.merchant_processing'); }
+    // Payouts and Disputes are the shared payments widgets (GP-76), the same
+    // ones Settings › Money shows.
+    const WIDGET_VIEWS = ['payouts', 'disputes'];
     function normalizeView(value){
       if(value==='')return '';
       const view = normalizeFinancialView(value);
-      return view === 'payouts' && !merchantProcessingEnabled() ? 'projects' : view;
+      return WIDGET_VIEWS.includes(view) && !merchantProcessingEnabled() ? 'projects' : view;
     }
 
     function range(){ return rangeFor(state.grain, state.anchor); }
@@ -541,11 +541,11 @@
 
     function headerHtml(){
       const selectedRange = range();
-      return `${window.AppChrome.header({title:context.params?.standalone ? ({projects:'Profitability',cashflow:'Cash flow',reconcile:'Reconcile',payouts:'Payouts'})[state.view] : 'Financials',icon:'fa-chart-line',
+      return `${window.AppChrome.header({title:context.params?.standalone ? ({projects:'Profitability',cashflow:'Cash flow',reconcile:'Reconcile',payouts:'Payouts',disputes:'Disputes'})[state.view] : 'Financials',icon:'fa-chart-line',
         tabs:context.params?.standalone?'':window.AppChrome.tabs('financials',state.view,'data-fn-view',context),
         actions:'<button type="button" class="fn-btn" data-app-layout-open="financials" aria-label="Financials app layout"><i class="fas fa-gear"></i></button>'})}<div class="fn-content${state.view === 'cashflow' ? ' fn-content-cash' : ''}">
         <div class="fn-tabs-toolbar">
-          ${String(state.view === 'reconcile' || state.view === 'payouts' ? '' : `<div class="fn-range-tools"><button class="fn-btn" data-fn-action="today">${(globalThis.PlatformLanguage?.htmlText("financials","m_23929ba4ba84dd","Today") ?? "Today")}</button><div class="fn-date-nav"><button type="button" data-fn-action="previous" aria-label="${((v0) => globalThis.PlatformLanguage?.htmlText("financials","m_b0ae4f18f932d9",`Previous ${v0}`,{v0}) ?? `Previous ${v0}`)(esc(state.grain))}"><i class="fas fa-chevron-left"></i></button><span class="fn-date-label">${esc(rangeTitle(state.grain, selectedRange))}</span><button type="button" data-fn-action="next" aria-label="${((v2) => globalThis.PlatformLanguage?.htmlText("financials","m_b68752fb081712",`Next ${v2}`,{v2}) ?? `Next ${v2}`)(esc(state.grain))}"><i class="fas fa-chevron-right"></i></button></div><div class="fn-segment" aria-label="${(globalThis.PlatformLanguage?.htmlText("financials","m_179cb3b2ebc4a4","Financial period") ?? "Financial period")}">${['month','week','day'].map((grain) => `<button type="button" data-fn-grain="${grain}" class="${state.grain === grain ? 'active' : ''}">${grain[0].toUpperCase()}${grain.slice(1)}</button>`).join('')}</div></div>`)}
+          ${String(state.view === 'reconcile' || WIDGET_VIEWS.includes(state.view) ? '' : `<div class="fn-range-tools"><button class="fn-btn" data-fn-action="today">${(globalThis.PlatformLanguage?.htmlText("financials","m_23929ba4ba84dd","Today") ?? "Today")}</button><div class="fn-date-nav"><button type="button" data-fn-action="previous" aria-label="${((v0) => globalThis.PlatformLanguage?.htmlText("financials","m_b0ae4f18f932d9",`Previous ${v0}`,{v0}) ?? `Previous ${v0}`)(esc(state.grain))}"><i class="fas fa-chevron-left"></i></button><span class="fn-date-label">${esc(rangeTitle(state.grain, selectedRange))}</span><button type="button" data-fn-action="next" aria-label="${((v2) => globalThis.PlatformLanguage?.htmlText("financials","m_b68752fb081712",`Next ${v2}`,{v2}) ?? `Next ${v2}`)(esc(state.grain))}"><i class="fas fa-chevron-right"></i></button></div><div class="fn-segment" aria-label="${(globalThis.PlatformLanguage?.htmlText("financials","m_179cb3b2ebc4a4","Financial period") ?? "Financial period")}">${['month','week','day'].map((grain) => `<button type="button" data-fn-grain="${grain}" class="${state.grain === grain ? 'active' : ''}">${grain[0].toUpperCase()}${grain.slice(1)}</button>`).join('')}</div></div>`)}
         </div>`;
     }
 
@@ -618,118 +618,34 @@
         </section>`;
     }
 
-    // --- Payouts view (merchant processing read models) ---------------------
+    // --- Payouts and Disputes: the shared payments widgets (GP-76) -----------
 
-    const PAYOUT_FILTERS = ['all', 'created', 'pended', 'held', 'completed', 'failed', 'returned'];
+    // One widget element per view, kept across renders so its state survives.
+    function widgetHtml(){ return `<div class="fn-widget-host" data-fn-widget="${esc(state.view)}"></div>`; }
 
-    function payoutBadge(status){
-      const value = clean(status).toLowerCase() || 'created';
-      const cls = value === 'completed' ? 'good'
-        : ['failed', 'returned', 'cancelled'].includes(value) ? 'bad'
-          : value === 'held' ? 'warn'
-            : 'info';
-      return `<span class="fn-badge ${cls}">${esc(value.replace(/_/g, ' '))}</span>`;
+    function mountWidget(){
+      const host = root.querySelector('[data-fn-widget]');
+      if (!host) return;
+      const widgets = window.FirstMatePaymentsWidgets;
+      if (!widgets) { host.innerHTML = `<div class="fn-empty"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("financials","m_0243634a51f011","Payments are unavailable right now.") ?? "Payments are unavailable right now.")}</strong></div>`; return; }
+      if (!state.widget || state.widget.view !== state.view || state.widget.orgId !== state.orgId) {
+        state.widget?.instance?.destroy?.();
+        const element = document.createElement('div');
+        const instance = state.view === 'disputes'
+          ? widgets.mountDisputes(element, { orgId:state.orgId, onOpenProject:openProject })
+          : widgets.mountPayouts(element, { orgId:state.orgId, onOpenProject:openProject, onOpenInvoice:openInvoice, onOpenDisputes:() => switchView('disputes') });
+        state.widget = { view:state.view, orgId:state.orgId, element, instance };
+      }
+      host.replaceWith(state.widget.element);
     }
 
-    function disputeBadge(status){
-      const value = clean(status).toLowerCase() || 'created';
-      const cls = ['won', 'closed'].includes(value) ? 'good'
-        : ['accepted', 'lost'].includes(value) ? 'bad'
-          : ['contested', 'pre_arbitration', 'under_review'].includes(value) ? 'info'
-            : 'warn';
-      return `<span class="fn-badge ${cls}">${esc(value.replace(/_/g, ' '))}</span>`;
-    }
-
-    function payoutRowHtml(payout){
-      const transactionCount = array(payout.transaction_ids).length || array(payout.provider_payment_ids).length;
-      const arrived = clean(payout.arrived_at);
-      return `<tr data-fn-payout="${esc(payout.id)}" tabindex="0">
-        <td><div class="fn-payout-id"><strong>${esc(clean(payout.provider_payout_id) || clean(payout.id))}</strong><span>${esc(dateLabel(payout.created_at))}</span></div></td>
-        <td>${payoutBadge(payout.status)}</td>
-        <td class="fn-right"><strong>${moneyFine(payout.amount_cents)}</strong></td>
-        <td class="fn-right">${moneyFine(payout.fee_cents)}</td>
-        <td>${clean(payout.expected_arrival_at) ? esc(dateLabel(payout.expected_arrival_at)) : '<span class="fn-muted">—</span>'}</td>
-        <td>${arrived ? esc(dateLabel(arrived)) : `<span class="fn-muted">${(globalThis.PlatformLanguage?.htmlText("financials","m_8e048627901567","Not arrived") ?? "Not arrived")}</span>`}</td>
-        <td class="fn-right">${transactionCount}</td>
-      </tr>`;
-    }
-
-    function payoutDetailModalHtml(){
-      const detail = state.payoutDetail;
-      if (!detail) return '';
-      const payout = object(detail.payout);
-      const transactions = array(detail.transactions);
-      const body = detail.loading
-        ? `<div class="fn-empty compact"><i class="fas fa-circle-notch fn-spin"></i><strong>${(globalThis.PlatformLanguage?.htmlText("financials","m_abe6a9e399dd32","Loading payout") ?? "Loading payout")}</strong></div>`
-        : detail.error
-          ? `<div class="fn-empty compact"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("financials","m_ec28130f32485c","Payout could not load") ?? "Payout could not load")}</strong><span>${String(esc(detail.error?.message || clean(detail.error) || 'Unknown error'))}</span></div>`
-          : `<div class="fn-modal-stats">
-              <div class="fn-modal-stat"><span>${(globalThis.PlatformLanguage?.htmlText("financials","m_c87aa4a42612df","Amount to bank") ?? "Amount to bank")}</span><strong>${String(moneyFine(payout.amount_cents))}</strong></div>
-              <div class="fn-modal-stat"><span>${(globalThis.PlatformLanguage?.htmlText("financials","m_fcc3723f722f18","Processing fees") ?? "Processing fees")}</span><strong>${String(moneyFine(payout.fee_cents))}</strong></div>
-              <div class="fn-modal-stat"><span>${(globalThis.PlatformLanguage?.htmlText("financials","m_c6aef2a3790870","Expected arrival") ?? "Expected arrival")}</span><strong>${String(clean(payout.expected_arrival_at) ? esc(dateLabel(payout.expected_arrival_at)) : '—')}</strong></div>
-              <div class="fn-modal-stat"><span>${(globalThis.PlatformLanguage?.htmlText("financials","m_b7ee7c97c74f9b","Arrived") ?? "Arrived")}</span><strong>${String(clean(payout.arrived_at) ? esc(dateLabel(payout.arrived_at)) : 'Not yet')}</strong></div>
-            </div>
-            ${String(transactions.length ? `<div class="fn-table-wrap"><table class="fn-table"><thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("financials","m_2a0b11100c22a4","Date") ?? "Date")}</th><th>${(globalThis.PlatformLanguage?.htmlText("financials","m_aaebd7ccba0b30","Project") ?? "Project")}</th><th>${(globalThis.PlatformLanguage?.htmlText("financials","m_1d5ea39cc421fc","Invoice") ?? "Invoice")}</th><th class="fn-right">${(globalThis.PlatformLanguage?.htmlText("financials","m_bd8c29e4635878","Gross") ?? "Gross")}</th><th class="fn-right">${(globalThis.PlatformLanguage?.htmlText("financials","m_6f891fbf3f7955","Fee") ?? "Fee")}</th><th class="fn-right">${(globalThis.PlatformLanguage?.htmlText("financials","m_8870b67246b7d9","Net") ?? "Net")}</th></tr></thead><tbody>${transactions.map((transaction) => {
-              const gross = number(transaction.amount_cents);
-              const fee = number(transaction.fee_cents);
-              const net = Number.isFinite(Number(transaction.merchant_amount_cents)) && clean(transaction.merchant_amount_cents) !== '' ? number(transaction.merchant_amount_cents) : gross - fee;
-              const projectId = clean(transaction.project_id);
-              const invoiceId = clean(transaction.invoice_id);
-              return `<tr>
-                <td>${esc(dateLabel(transaction.received_at || transaction.created_at, { year:false }))}</td>
-                <td>${projectId ? `<button type="button" class="fn-link" data-fn-open-project="${esc(projectId)}">${esc(clean(transaction.project_title) || projectId)}</button>` : `<span class="fn-muted">${(globalThis.PlatformLanguage?.htmlText("financials","m_500872d3c049f6","Company") ?? "Company")}</span>`}</td>
-                <td>${invoiceId ? `<button type="button" class="fn-link" data-fn-open-invoice="${esc(invoiceId)}">${esc(invoiceId)}</button>` : '<span class="fn-muted">—</span>'}</td>
-                <td class="fn-right">${moneyFine(gross)}</td>
-                <td class="fn-right">${moneyFine(fee)}</td>
-                <td class="fn-right"><strong>${moneyFine(net)}</strong></td>
-              </tr>`;
-            }).join('')}</tbody></table></div>` : `<div class="fn-empty compact"><i class="fas fa-receipt"></i><strong>${(globalThis.PlatformLanguage?.htmlText("financials","m_45a12095bc0b48","No member transactions") ?? "No member transactions")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("financials","m_5dab4fe427ad02","This payout has no linked payment records.") ?? "This payout has no linked payment records.")}</span></div>`)}`;
-      return `<div class="fn-shade" data-fn-payout-shade><div class="fn-modal" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("financials","m_335102d80b2040","Payout detail") ?? "Payout detail")}">
-        <div class="fn-modal-head"><div><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("financials","m_c32410e74d6868",`Payout ${v0}`,{v0}) ?? `Payout ${v0}`)(esc(clean(payout.provider_payout_id) || clean(detail.payoutId)))}</strong><span class="fn-modal-sub">${String(detail.loading ? 'Loading…' : `${array(detail.transactions).length} transaction${array(detail.transactions).length === 1 ? '' : 's'} · ${esc(clean(payout.currency) || 'USD')}`)}</span></div>
-        <div style="display:flex;align-items:center;gap:10px">${String(detail.loading ? '' : payoutBadge(payout.status))}<button type="button" data-fn-close-payout aria-label="${(globalThis.PlatformLanguage?.htmlText("financials","m_43963f1b979b52","Close payout detail") ?? "Close payout detail")}"><i class="fas fa-xmark"></i></button></div></div>
-        <div class="fn-modal-body">${String(body)}</div>
-      </div></div>`;
-    }
-
-    function payoutsHtml(){
-      const summary = object(state.data?.summary);
-      const payouts = array(state.data?.payouts);
-      const disputes = array(state.data?.disputes);
-      const nextPayout = object(summary.next_expected_payout);
-      const openDisputes = number(summary.disputes_open_count);
-      const effectiveRate = number(summary.effective_rate_bps) / 100;
-      const filtered = state.payoutFilter === 'all'
-        ? payouts
-        : payouts.filter((payout) => clean(payout.status).toLowerCase() === state.payoutFilter);
-      const countFor = (key) => key === 'all' ? payouts.length : payouts.filter((payout) => clean(payout.status).toLowerCase() === key).length;
-      return `<section class="fn-metrics payouts">
-          <div class="fn-metric" data-fn-tile="balance_pending"><span class="fn-metric-label">${(globalThis.PlatformLanguage?.htmlText("financials","m_4044a709c2c433","Pending sweep ") ?? "Pending sweep ")}<i class="fas fa-wallet"></i></span><strong>${String(moneyFine(summary.balance_pending_cents))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("financials","m_3f21d8055c5d00","Captured payments awaiting the next batch") ?? "Captured payments awaiting the next batch")}</small></div>
-          <div class="fn-metric" data-fn-tile="in_transit"><span class="fn-metric-label">${(globalThis.PlatformLanguage?.htmlText("financials","m_9ff03ce19be18f","In transit ") ?? "In transit ")}<i class="fas fa-building-columns"></i></span><strong class="fn-available">${String(moneyFine(summary.in_transit_cents))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("financials","m_bbe4da53a62b2d","Batched and on the way to your bank") ?? "Batched and on the way to your bank")}</small></div>
-          <div class="fn-metric" data-fn-tile="paid_out_30d"><span class="fn-metric-label">${(globalThis.PlatformLanguage?.htmlText("financials","m_a22666a4be492d","Paid out (30d) ") ?? "Paid out (30d) ")}<i class="fas fa-circle-check"></i></span><strong class="fn-positive">${String(moneyFine(summary.paid_out_30d_cents))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("financials","m_799e9b77e1dc9a","Arrived at the bank in the last 30 days") ?? "Arrived at the bank in the last 30 days")}</small></div>
-          <div class="fn-metric" data-fn-tile="fees_30d"><span class="fn-metric-label">${(globalThis.PlatformLanguage?.htmlText("financials","m_ceabd802db7bfd","Fees (30d) ") ?? "Fees (30d) ")}<i class="fas fa-percent"></i></span><strong class="${String(number(summary.fees_30d_cents) ? 'fn-negative' : '')}">${String(moneyFine(summary.fees_30d_cents))}</strong><small>${String(number(summary.gross_30d_cents) ? `Effective rate ${effectiveRate.toFixed(2)}% on ${moneyFine(summary.gross_30d_cents)}` : 'No processed volume yet')}</small></div>
-          <div class="fn-metric" data-fn-tile="next_payout"><span class="fn-metric-label">${(globalThis.PlatformLanguage?.htmlText("financials","m_e3ec213ac69265","Next payout ") ?? "Next payout ")}<i class="fas fa-calendar-day"></i></span><strong class="fn-expected">${String(clean(nextPayout.payout_id) ? moneyFine(nextPayout.amount_cents) : '—')}</strong><small>${String(clean(nextPayout.payout_id) ? (clean(nextPayout.expected_arrival_at) ? `Expected ${esc(dateLabel(nextPayout.expected_arrival_at))}` : 'Arrival date pending') : 'No payout scheduled')}</small></div>
-          <div class="fn-metric" data-fn-tile="open_disputes"><span class="fn-metric-label">${(globalThis.PlatformLanguage?.htmlText("financials","m_b7febf91468fd6","Open disputes ") ?? "Open disputes ")}<i class="fas fa-scale-balanced"></i></span><strong class="${String(openDisputes ? 'fn-negative' : '')}">${String(openDisputes)}</strong><small>${String(openDisputes ? 'Respond before the deadline to contest' : 'No open chargebacks')}</small></div>
-        </section>
-        <section class="fn-card"><div class="fn-card-head"><div><h2>${(globalThis.PlatformLanguage?.htmlText("financials","m_e06874e8b912d9","Payouts") ?? "Payouts")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("financials","m_2e930010f0998a","Batches swept from your processing balance to the bank, newest first.") ?? "Batches swept from your processing balance to the bank, newest first.")}</p></div><div class="fn-chips" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("financials","m_5bcdc053c26110","Payout status filter") ?? "Payout status filter")}">${String(PAYOUT_FILTERS.map((key) => `<button type="button" class="fn-chip ${state.payoutFilter === key ? 'active' : ''}" data-fn-payout-filter="${esc(key)}">${key === 'all' ? 'All' : esc(key)}<small>${countFor(key)}</small></button>`).join(''))}</div></div>
-          ${String(filtered.length ? `<div class="fn-table-wrap"><table class="fn-table"><thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("financials","m_47196f1d949c20","Payout") ?? "Payout")}</th><th>${(globalThis.PlatformLanguage?.htmlText("financials","m_1352cafa75b8da","Status") ?? "Status")}</th><th class="fn-right">${(globalThis.PlatformLanguage?.htmlText("financials","m_2b8c3448fa87a1","Amount") ?? "Amount")}</th><th class="fn-right">${(globalThis.PlatformLanguage?.htmlText("financials","m_6c208c0cd6af0f","Fees") ?? "Fees")}</th><th>${(globalThis.PlatformLanguage?.htmlText("financials","m_c6aef2a3790870","Expected arrival") ?? "Expected arrival")}</th><th>${(globalThis.PlatformLanguage?.htmlText("financials","m_b7ee7c97c74f9b","Arrived") ?? "Arrived")}</th><th class="fn-right">${(globalThis.PlatformLanguage?.htmlText("financials","m_ad68f8741d9002","Transactions") ?? "Transactions")}</th></tr></thead><tbody>${filtered.map(payoutRowHtml).join('')}</tbody></table></div>`
-          : payouts.length ? `<div class="fn-empty"><i class="fas fa-filter"></i><strong>${(globalThis.PlatformLanguage?.htmlText("financials","m_f380e9e06ef4c2","No payouts match this filter") ?? "No payouts match this filter")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("financials","m_b759a25796c125","Try another status.") ?? "Try another status.")}</span></div>`
-          : `<div class="fn-empty"><i class="fas fa-money-bill-transfer"></i><strong>${(globalThis.PlatformLanguage?.htmlText("financials","m_7d3d62ef16a1b9","No payouts yet") ?? "No payouts yet")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("financials","m_ecc1491e849fb1","Payouts will appear once payment processing is live.") ?? "Payouts will appear once payment processing is live.")}</span></div>`)}
-        </section>
-        <section class="fn-card"><div class="fn-card-head"><div><h2>${(globalThis.PlatformLanguage?.htmlText("financials","m_9b7a2edd995dfe","Disputes") ?? "Disputes")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("financials","m_96113a4810ac77","Chargebacks and payment disputes reported by the processor.") ?? "Chargebacks and payment disputes reported by the processor.")}</p></div><span class="fn-count">${String(disputes.length)}</span></div>
-          ${String(disputes.length ? `<div class="fn-table-wrap"><table class="fn-table"><thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("financials","m_1352cafa75b8da","Status") ?? "Status")}</th><th class="fn-right">${(globalThis.PlatformLanguage?.htmlText("financials","m_2b8c3448fa87a1","Amount") ?? "Amount")}</th><th>${(globalThis.PlatformLanguage?.htmlText("financials","m_6480ed19528b5a","Reason") ?? "Reason")}</th><th>${(globalThis.PlatformLanguage?.htmlText("financials","m_9212d954ad54f9","Opened") ?? "Opened")}</th><th>${(globalThis.PlatformLanguage?.htmlText("financials","m_d0f1699dbcd6a5","Payment") ?? "Payment")}</th><th>${(globalThis.PlatformLanguage?.htmlText("financials","m_aaebd7ccba0b30","Project") ?? "Project")}</th><th></th></tr></thead><tbody>${disputes.map((dispute) => {
-            const projectId = clean(dispute.project_id);
-            const closed = ['won', 'lost', 'closed', 'accepted'].includes(clean(dispute.status).toLowerCase());
-            return `<tr data-fn-dispute="${esc(dispute.id)}">
-              <td>${disputeBadge(dispute.status)}</td>
-              <td class="fn-right"><strong>${moneyFine(dispute.amount_cents)}</strong></td>
-              <td>${esc(clean(dispute.reason).replace(/_/g, ' ') || '—')}</td>
-              <td>${esc(dateLabel(dispute.opened_at || dispute.created_at))}</td>
-              <td>${clean(dispute.transaction_id) ? `<span class="fn-muted">${esc(clean(dispute.transaction_id))}</span>` : '<span class="fn-muted">—</span>'}</td>
-              <td>${projectId ? `<button type="button" class="fn-link" data-fn-open-project="${esc(projectId)}">${esc(projectId)}</button>` : '<span class="fn-muted">—</span>'}</td>
-              <td class="fn-right">${closed ? '<span class="fn-muted">—</span>' : `<button type="button" class="fn-chip" data-fn-dispute-respond="${esc(dispute.id)}" title="${(globalThis.PlatformLanguage?.htmlText("financials","m_c6cab8e36e851b","Dispute evidence is submitted on the processor's secure merchant portal") ?? "Dispute evidence is submitted on the processor's secure merchant portal")}"><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("financials","m_63c93dd0696f86"," Respond at Forward") ?? " Respond at Forward")}</button>`}</td>
-            </tr>`;
-          }).join('')}</tbody></table></div>` : `<div class="fn-empty compact"><i class="fas fa-scale-balanced"></i><strong>${(globalThis.PlatformLanguage?.htmlText("financials","m_215c03ede9f243","No disputes") ?? "No disputes")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("financials","m_74fdbdbe1b1c64","Chargebacks reported by the processor will appear here.") ?? "Chargebacks reported by the processor will appear here.")}</span></div>`)}
-        </section>${String(payoutDetailModalHtml())}`;
+    function switchView(view){
+      const next = normalizeView(view);
+      if (next === state.view) return;
+      state.view = next;
+      routePatch({ financialView:next }, 'push');
+      state.data = null;
+      load();
     }
 
     function transactionDate(item){ return item.clearedAt || item.expectedClearAt || item.initiatedAt || item.accruedAt || item.knownAt; }
@@ -797,8 +713,9 @@
       if (state.destroyed) return;
       if (!state.data && (state.loading || state.error)) { renderState(); bind(); return; }
       const transactions = modelTransactions();
-      root.innerHTML = `<div class="fn-shell">${headerHtml()}${state.view === 'cashflow' ? cashflowHtml(transactions) : state.view === 'reconcile' ? reconcileHtml() : state.view === 'payouts' ? payoutsHtml() : profitabilityHtml()}</div></div>`;
+      root.innerHTML = `<div class="fn-shell">${headerHtml()}${state.view === 'cashflow' ? cashflowHtml(transactions) : state.view === 'reconcile' ? reconcileHtml() : WIDGET_VIEWS.includes(state.view) ? widgetHtml() : profitabilityHtml()}</div></div>`;
       bind();
+      mountWidget();
     }
 
     function clearCashHighlights(){
@@ -878,52 +795,9 @@
       window.Portal?.navigation?.push?.({ tab:'invoices', invoice:invoiceId }, { source:'financials-payout-invoice', ownedKeys:['invoice'] });
     }
 
-    function openPayoutDetail(payoutId){
-      if (!payoutId) return;
-      state.payoutDetail = { payoutId, loading:true, payout:null, transactions:[], error:null };
-      render();
-      Promise.resolve(window.PaymentsAPI?.payouts?.get?.(state.orgId, payoutId))
-        .then((result) => {
-          if (state.destroyed || state.payoutDetail?.payoutId !== payoutId) return;
-          state.payoutDetail = { payoutId, loading:false, payout:object(result?.payout), transactions:array(result?.transactions), error:null };
-          render();
-        })
-        .catch((error) => {
-          if (state.destroyed || state.payoutDetail?.payoutId !== payoutId) return;
-          state.payoutDetail = { payoutId, loading:false, payout:null, transactions:[], error };
-          render();
-        });
-    }
-
-    function closePayoutDetail(){
-      if (!state.payoutDetail) return;
-      state.payoutDetail = null;
-      render();
-    }
-
     function bind(){
       root.querySelector('[data-fn-action="refresh"]')?.addEventListener('click', () => load());
-      root.querySelectorAll('[data-fn-view]').forEach((button) => button.addEventListener('click', () => {
-        const view = normalizeView(button.dataset.fnView);
-        if (view === state.view) return;
-        state.view = view;
-        state.payoutDetail = null;
-        routePatch({ financialView:view }, 'push');
-        state.data = null;
-        load();
-      }));
-      root.querySelectorAll('[data-fn-payout-filter]').forEach((button) => button.addEventListener('click', () => {
-        const filter = clean(button.dataset.fnPayoutFilter);
-        if (!PAYOUT_FILTERS.includes(filter) || filter === state.payoutFilter) return;
-        state.payoutFilter = filter;
-        render();
-      }));
-      root.querySelectorAll('tr[data-fn-payout]').forEach((row) => {
-        row.addEventListener('click', () => openPayoutDetail(row.dataset.fnPayout));
-        row.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openPayoutDetail(row.dataset.fnPayout); } });
-      });
-      root.querySelector('[data-fn-close-payout]')?.addEventListener('click', closePayoutDetail);
-      root.querySelector('[data-fn-payout-shade]')?.addEventListener('click', (event) => { if (event.target === event.currentTarget) closePayoutDetail(); });
+      root.querySelectorAll('[data-fn-view]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.fnView)));
       root.querySelectorAll('[data-fn-open-invoice]').forEach((button) => {
         button.addEventListener('click', (event) => { event.stopPropagation(); openInvoice(button.dataset.fnOpenInvoice); });
       });
@@ -955,27 +829,6 @@
       });
       root.querySelectorAll('[data-fn-open-project]').forEach((button) => {
         button.addEventListener('click', (event) => { event.stopPropagation(); openProject(button.dataset.fnOpenProject); });
-      });
-      // Dispute responses are portal-only on the processor's side: mint a
-      // single-use magic-link into Forward's merchant portal and open it in a
-      // new tab (the evidence workflow lives there; webhooks update our rows).
-      root.querySelectorAll('[data-fn-dispute-respond]').forEach((button) => {
-        button.addEventListener('click', async (event) => {
-          event.stopPropagation();
-          button.disabled = true;
-          const original = button.innerHTML;
-          button.innerHTML = '<i class="fas fa-circle-notch fn-spin"></i> Opening...';
-          try {
-            const result = await window.PaymentsAPI.merchantPortal.loginUrl(state.orgId);
-            const url = clean(result?.login_url);
-            if (!url) throw new Error('No portal login link was returned.');
-            window.open(url, '_blank', 'noopener');
-          } catch (error) {
-            console.warn('[financials] merchant portal login failed', error?.message || error);
-          }
-          button.innerHTML = original;
-          button.disabled = false;
-        });
       });
       const reconcileAction = (paymentId, action) => {
         if (!paymentId || state.loading) return;
@@ -1040,20 +893,10 @@
           state.loadedAt = Date.now();
           return;
         }
-        if (state.view === 'payouts') {
-          if (!window.PaymentsAPI?.finance?.summary) throw new Error('The Payments API is unavailable.');
-          const [summaryResult, payoutsResult, disputesResult] = await Promise.all([
-            window.PaymentsAPI.finance.summary(state.orgId),
-            window.PaymentsAPI.payouts.list(state.orgId),
-            window.PaymentsAPI.disputes.list(state.orgId)
-          ]);
-          if (state.destroyed || token !== state.loadToken) return;
-          state.data = {
-            kind:'payouts',
-            summary:object(summaryResult.summary),
-            payouts:array(payoutsResult.payouts),
-            disputes:array(disputesResult.disputes)
-          };
+        if (WIDGET_VIEWS.includes(state.view)) {
+          // The widget loads its own data; a refresh reaches it.
+          if (state.data?.kind === state.view) state.widget?.instance?.refresh?.();
+          state.data = { kind:state.view };
           state.loadedAt = Date.now();
           return;
         }
@@ -1123,7 +966,7 @@
     load();
 
     return {
-      destroy(){ window.removeEventListener('fm:app-placements:updated',onLayout); clearInterval(refreshTimer); state.destroyed = true; state.loadToken++; unregisterRoute?.(); refreshEvents.forEach((name) => window.removeEventListener(name, scheduleRefresh)); window.removeEventListener('fm:capabilities:updated', onCapabilitiesUpdated); root.innerHTML = ''; },
+      destroy(){ state.widget?.instance?.destroy?.(); state.widget = null; window.removeEventListener('fm:app-placements:updated',onLayout); clearInterval(refreshTimer); state.destroyed = true; state.loadToken++; unregisterRoute?.(); refreshEvents.forEach((name) => window.removeEventListener(name, scheduleRefresh)); window.removeEventListener('fm:capabilities:updated', onCapabilitiesUpdated); root.innerHTML = ''; },
       setActive(active){ state.active = !!active; if (active && Date.now() - state.loadedAt > 60_000 && !state.loading) load({ silent:!!state.data }); },
       update(nextContext = {}){ const nextOrg = clean(nextContext.orgId || nextContext.currentUser?.organization_id); if (nextOrg && nextOrg !== state.orgId) { state.orgId = nextOrg; state.data = null; load(); } },
       refresh(){ return load(); }
@@ -1146,6 +989,7 @@
   });
   window.AppChrome.registerGroup({id:'financials',parent:'portal.financials',title:'Financials',icon:'fa-chart-line',default:'projects',
     members:[{id:'projects',title:'Profitability'},{id:'cashflow',title:'Cash flow'},{id:'reconcile',title:'Reconcile'},
-      {id:'payouts',title:'Payouts',available:context=>(context.capabilities?.current?.() || window.Portal?.capabilities?.current?.())?.effective_by_key?.['money.merchant_processing'] === true}],
+      {id:'payouts',title:'Payouts',available:context=>(context.capabilities?.current?.() || window.Portal?.capabilities?.current?.())?.effective_by_key?.['money.merchant_processing'] === true},
+      {id:'disputes',title:'Disputes',available:context=>(context.capabilities?.current?.() || window.Portal?.capabilities?.current?.())?.effective_by_key?.['money.merchant_processing'] === true}],
     mount:(view,context)=>createApp({...context,params:{...context.params,standalone:view}})});
 })();

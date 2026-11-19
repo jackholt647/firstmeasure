@@ -11,6 +11,7 @@ import type {
   CreateRefundInput,
   JsonObject,
   ListOptions,
+  DisputeListOptions,
   MerchantBoardingAdapter,
   PaymentProviderAdapter,
   PortalUserInput,
@@ -253,6 +254,10 @@ function payoutStatus(value: unknown): ProviderPayoutStatus {
 
 function disputeStatus(value: unknown): ProviderDisputeStatus {
   const status = cleanText(value).toLowerCase();
+  // Forward disputes: new | accepted | contested | in_review |
+  // in_pre_arbitration | lost | won (docs.getfwd.com, DisputeDTO).
+  if (["contested", "in_review", "in_pre_arbitration"].includes(status)) return "under_review";
+  if (status === "accepted") return "lost";
   const known: ProviderDisputeStatus[] = ["open", "under_review", "won", "lost", "closed"];
   return (known as string[]).includes(status) ? status as ProviderDisputeStatus : "open";
 }
@@ -382,8 +387,8 @@ function mapDispute(raw: JsonObject): ProviderDispute {
     payment_id: cleanText(raw.payment_id || raw.payment),
     status: disputeStatus(raw.status),
     amount_cents: cents(raw.amount ?? raw.amount_disputed),
-    reason: cleanText(raw.reason),
-    respond_by: cleanText(raw.respond_by || raw.evidence_due_by),
+    reason: cleanText(raw.reason_disputed || raw.reason),
+    respond_by: cleanText(raw.response_due_date || raw.respond_by || raw.evidence_due_by),
     raw
   };
 }
@@ -577,8 +582,15 @@ export function createForwardAdapter(options: ForwardClientOptions = {}): Paymen
         raw
       } satisfies ProviderBalance));
     },
-    async listDisputes(listOptions: ListOptions = {}) {
-      const payload = await call("GET", "/disputes", { query: listQuery(listOptions) });
+    async listDisputes(listOptions: DisputeListOptions = {}) {
+      // Disputes page with `limit` (max 50) and `starting_after`, unlike the
+      // `size` other lists take; `status` is the only filter (GP-76).
+      const query = {
+        ...(listOptions.limit !== undefined ? { limit: Math.min(50, Math.max(1, Math.round(listOptions.limit))) } : {}),
+        ...(cleanText(listOptions.starting_after) ? { starting_after: cleanText(listOptions.starting_after) } : {}),
+        ...(cleanText(listOptions.status) ? { status: cleanText(listOptions.status) } : {})
+      };
+      const payload = await call("GET", "/disputes", { query });
       return unwrapList(payload, "disputes").map(mapDispute);
     },
     async getDispute(disputeId) {

@@ -2322,6 +2322,7 @@ session_write_close();
   <script src="../libraries/proposals-api/proposals-api.js?v=<?= portalAssetVersion('../libraries/proposals-api/proposals-api.js') ?>"></script>
   <script src="../libraries/materials-api/materials-api.js?v=<?= portalAssetVersion('../libraries/materials-api/materials-api.js') ?>"></script>
   <script src="../libraries/payments-api/payments-api.js?v=<?= portalAssetVersion('../libraries/payments-api/payments-api.js') ?>"></script>
+  <script src="../libraries/payments-widgets/payments-widgets.js?v=<?= portalAssetVersion('../libraries/payments-widgets/payments-widgets.js') ?>"></script>
   <?php if ($platformAssistantAssets): ?>
   <script src="../libraries/assistant-api/assistant-api.js?v=<?= portalAssetVersion('../libraries/assistant-api/assistant-api.js') ?>"></script>
   <?php endif; ?>

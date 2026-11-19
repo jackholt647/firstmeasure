@@ -77,9 +77,24 @@ import { getMerchantConfig, maybeNotifyMerchantApproved, upsertMerchantConfig } 
 import {
   financeSummary,
   getPayoutDetail,
-  listDisputes,
   listPayouts
 } from "./payouts.js";
+import {
+  disputeResponseSchema,
+  disputeEvidenceUploadSchema,
+  disputeStaffActionSchema,
+  DISPUTE_EVIDENCE_MAX_BYTES,
+  getDisputeDetail,
+  isPlatformAdministrator,
+  listDisputeFilingQueue,
+  listDisputes,
+  readDisputeEvidenceFile,
+  requirePlatformAdministrator,
+  uploadDisputeEvidence,
+  saveDisputeResponse,
+  staffActOnDisputeResponse,
+  syncDisputesFromProvider
+} from "./disputes.js";
 import { advanceMockMerchant, MOCK_PROVIDER } from "./providers/mock.js";
 import { forwardConfigured } from "./providers/forward.js";
 import { ForwardApiError, getBoardingProvider, getPaymentProvider } from "./providers/index.js";
@@ -236,6 +251,11 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
       payoutDetail: "/organizations/:orgId/payouts/:payoutId",
       financeSummary: "/organizations/:orgId/finance-summary",
       disputes: "/organizations/:orgId/disputes",
+      disputesSync: "/organizations/:orgId/disputes/sync",
+      dispute: "/organizations/:orgId/disputes/:disputeId",
+      disputeResponse: "/organizations/:orgId/disputes/:disputeId/response",
+      disputeEvidence: "/organizations/:orgId/disputes/:disputeId/evidence/:mediaId",
+      disputeFilingQueue: "/staff/dispute-responses",
       paymentIntakeConfig: "/organizations/:orgId/payment-intake-config",
       paymentMethodIntents: "/organizations/:orgId/payment-method-intents",
       surchargeQuote: "/organizations/:orgId/surcharge-quote",
@@ -1435,9 +1455,81 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/disputes", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "view_projects" });
     const disputes = await listDisputes(orgId, asObject(request.query));
+    return { ok: true, disputes, count: disputes.length, can_respond: canRespondToDisputes(ctx), staff: await isPlatformAdministrator(ctx) };
+  });
+
+  // GP-76: pull every dispute the processor has (its API is the record;
+  // webhooks can be missed). Throttled per organization.
+  app.post("/organizations/:orgId/disputes/sync", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    const sync = await syncDisputesFromProvider(orgId, { force: asObject(request.body).force === true });
+    const disputes = await listDisputes(orgId, {});
+    return { ok: true, sync, disputes, count: disputes.length };
+  });
+
+  app.get("/organizations/:orgId/disputes/:disputeId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    const detail = await getDisputeDetail(orgId, getParam(request.params, "disputeId"));
+    return { ok: true, ...detail, can_respond: canRespondToDisputes(ctx) };
+  });
+
+  // The organization's response, which FirstMate staff file in the
+  // processor's portal (Forward has no API to respond).
+  app.put("/organizations/:orgId/disputes/:disputeId/response", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    const body = disputeResponseSchema.parse(request.body ?? {});
+    return { ok: true, ...(await saveDisputeResponse(orgId, getParam(request.params, "disputeId"), body, ctx)) };
+  });
+
+  app.post("/organizations/:orgId/disputes/:disputeId/evidence", { bodyLimit: Math.ceil(DISPUTE_EVIDENCE_MAX_BYTES * 4 / 3) + 64 * 1024 }, async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    const body = disputeEvidenceUploadSchema.parse(request.body ?? {});
+    const file = await uploadDisputeEvidence(orgId, getParam(request.params, "disputeId"), body, ctx);
+    reply.code(201);
+    return { ok: true, file };
+  });
+
+  app.get("/organizations/:orgId/disputes/:disputeId/evidence/:mediaId", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    const file = await readDisputeEvidenceFile(orgId, getParam(request.params, "disputeId"), getParam(request.params, "mediaId"));
+    return sendDisputeEvidence(reply, file);
+  });
+
+  // FirstMate staff (platform administrators, from any organization's
+  // session): every company's submitted responses, to file in Forward.
+  app.get("/staff/dispute-responses", async (request) => {
+    const ctx = await requirePlatformAuth(request, {});
+    await requirePlatformAdministrator(ctx);
+    const disputes = await listDisputeFilingQueue({ status: cleanText(asObject(request.query).status) });
     return { ok: true, disputes, count: disputes.length };
+  });
+
+  app.get("/staff/organizations/:orgId/disputes/:disputeId", async (request) => {
+    const ctx = await requirePlatformAuth(request, {});
+    await requirePlatformAdministrator(ctx);
+    const orgId = getParam(request.params, "orgId");
+    return { ok: true, ...(await getDisputeDetail(orgId, getParam(request.params, "disputeId"), { skipFlag: true })), organization_id: orgId };
+  });
+
+  app.get("/staff/organizations/:orgId/disputes/:disputeId/evidence/:mediaId", async (request, reply) => {
+    const ctx = await requirePlatformAuth(request, {});
+    await requirePlatformAdministrator(ctx);
+    const file = await readDisputeEvidenceFile(getParam(request.params, "orgId"), getParam(request.params, "disputeId"), getParam(request.params, "mediaId"));
+    return sendDisputeEvidence(reply, file);
+  });
+
+  app.post("/staff/organizations/:orgId/disputes/:disputeId/response", async (request) => {
+    const ctx = await requirePlatformAuth(request, { csrf: true });
+    await requirePlatformAdministrator(ctx);
+    const body = disputeStaffActionSchema.parse(request.body ?? {});
+    return { ok: true, ...(await staffActOnDisputeResponse(getParam(request.params, "orgId"), getParam(request.params, "disputeId"), body, ctx)) };
   });
 
   // Test-only underwriting/settlement simulation for the mock provider —
@@ -1691,6 +1783,20 @@ async function parseReceiptUploadRequest(requestValue: unknown): Promise<Receipt
     associations: Array.isArray(body.associations) ? body.associations : [],
     metadata: asObject(body.metadata)
   };
+}
+
+function canRespondToDisputes(ctx: PlatformAuthContext) {
+  const permissions = asObject(ctx.permissions);
+  return permissions["*"] === true || permissions.manage_company_settings === true;
+}
+
+/** Evidence is a person's upload: always a download, never rendered by the browser. */
+function sendDisputeEvidence(reply: FastifyReply, file: { contentType: string; fileName: string; bytes: Buffer }) {
+  reply.header("Content-Type", file.contentType || "application/octet-stream");
+  reply.header("Content-Disposition", `attachment; filename="${safeDownloadName(file.fileName)}"`);
+  reply.header("X-Content-Type-Options", "nosniff");
+  reply.header("Cache-Control", "private, no-store");
+  return reply.send(file.bytes);
 }
 
 function safeDownloadName(value: unknown) {

@@ -5782,9 +5782,19 @@ window.FirstMateSettingsIndex = {
       "view": "disputes",
       "source": "libraries/apps/settings/company.js",
       "title": "Disputes",
-      "description": "",
+      "description": "Chargebacks and your responses",
       "kind": "view",
       "selector": "[data-money-view=\"disputes\"]"
+    },
+    {
+      "section": "money",
+      "tab": "Money",
+      "view": "payouts",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Payouts",
+      "description": "Batches paid to your bank",
+      "kind": "view",
+      "selector": "[data-money-view=\"payouts\"]"
     },
     {
       "section": "money",
@@ -5881,10 +5891,10 @@ window.FirstMateSettingsIndex = {
       "tab": "Money",
       "view": "",
       "source": "libraries/apps/settings/company.js",
-      "title": "Invoice payment terms (days until due)",
-      "description": "",
-      "kind": "heading",
-      "selector": ""
+      "title": "Payment terms",
+      "description": "Days until an invoice is due",
+      "kind": "control",
+      "selector": "#paymentDefaultDueDays"
     },
     {
       "section": "money",
@@ -5990,10 +6000,10 @@ window.FirstMateSettingsIndex = {
       "tab": "Money",
       "view": "",
       "source": "libraries/apps/settings/company.js",
-      "title": "Payment Settings",
-      "description": "",
+      "title": "Invoices",
+      "description": "Sales tax and payment terms",
       "kind": "heading",
-      "selector": ""
+      "selector": "[data-mpay-section=\"invoices\"]"
     },
     {
       "section": "money",
@@ -6080,8 +6090,8 @@ window.FirstMateSettingsIndex = {
       "tab": "Money",
       "view": "",
       "source": "libraries/apps/settings/company.js",
-      "title": "Use sales tax on invoices When disabled, sales tax controls are completely hidden from the invoice generator.",
-      "description": "",
+      "title": "Sales tax",
+      "description": "Use sales tax on invoices",
       "kind": "control",
       "selector": "[data-payment-tax-enabled=\"\"]"
     },

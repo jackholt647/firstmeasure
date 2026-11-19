@@ -161,58 +161,6 @@ export async function upsertPayoutFromEvent(orgId: string, eventType: string, ev
   return documentView(doc);
 }
 
-/** Projects a v2.dispute.* event into the payment_disputes collection. */
-export async function upsertDisputeFromEvent(orgId: string, eventType: string, event: JsonObject) {
-  const data = asObject(event.data);
-  const providerDisputeId = cleanText(data.id);
-  if (!providerDisputeId) return null;
-  const disputeId = `payment_dispute_${stableDocId(providerDisputeId)}`;
-  const existing = documentView(await readDocument(orgId, PAYMENT_DISPUTE_COLLECTION, disputeId).catch(() => null));
-  const now = nowIso();
-  const suffixStatus = cleanText(eventType.split(".").pop());
-  const status = cleanText(data.status) || (suffixStatus === "updated" ? cleanText(existing.status) || "created" : suffixStatus) || "created";
-
-  const providerPaymentId = cleanText(data.payment_id || data.payment || existing.provider_payment_id);
-  let transactionId = cleanText(existing.transaction_id);
-  if (!transactionId) {
-    const userFields = asObject(data.user_fields);
-    transactionId = cleanText(userFields.payment_id || data.reference_id);
-    if (!transactionId && providerPaymentId) {
-      const matched = await resolveTransactionsByProviderPaymentIds(orgId, [providerPaymentId]);
-      transactionId = cleanText(matched[0]?.id);
-    }
-  }
-  const transaction = transactionId
-    ? documentView(await readDocument(orgId, PAYMENT_TRANSACTION_COLLECTION, transactionId).catch(() => null))
-    : {};
-
-  const disputeData: JsonObject = {
-    id: disputeId,
-    organization_id: orgId,
-    provider: cleanText(data.provider || existing.provider || "forward"),
-    provider_dispute_id: providerDisputeId,
-    provider_payment_id: providerPaymentId,
-    transaction_id: cleanText(transaction.id) || transactionId,
-    project_id: cleanText(transaction.project_id || existing.project_id),
-    status,
-    amount_cents: cents(data.amount ?? data.amount_disputed ?? data.amount_cents ?? existing.amount_cents),
-    currency: cleanText(data.currency || existing.currency || "USD").toUpperCase(),
-    reason: cleanText(data.reason || existing.reason),
-    respond_by: cleanText(data.respond_by || data.evidence_due_by || existing.respond_by),
-    opened_at: cleanText(existing.opened_at) || cleanText(data.opened_at || data.created_at) || now,
-    last_event_type: eventType,
-    last_event: event,
-    created_at: cleanText(existing.created_at) || now,
-    updated_at: now
-  };
-  const doc = await upsertDocument(orgId, PAYMENT_DISPUTE_COLLECTION, {
-    id: disputeId,
-    data: disputeData,
-    metadata: { kind: "payment_dispute", provider: cleanText(disputeData.provider), status, provider_dispute_id: providerDisputeId, transaction_id: cleanText(disputeData.transaction_id) }
-  }, { replace: true });
-  return documentView(doc);
-}
-
 // --- Read models -------------------------------------------------------------
 
 export function payoutIsOpen(payout: JsonObject) {
@@ -258,14 +206,6 @@ export async function getPayoutDetail(orgId: string, payoutId: string) {
     });
   }
   return { payout, transactions };
-}
-
-export async function listDisputes(orgId: string, input: JsonObject = {}) {
-  await requireMoneyFlag(orgId);
-  const status = cleanText(input.status).toLowerCase();
-  return (await listDocuments(orgId, PAYMENT_DISPUTE_COLLECTION)).map(documentView)
-    .filter((dispute) => !status || cleanText(dispute.status).toLowerCase() === status)
-    .sort((a, b) => cleanText(b.opened_at || b.created_at).localeCompare(cleanText(a.opened_at || a.created_at)));
 }
 
 /**

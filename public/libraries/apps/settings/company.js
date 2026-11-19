@@ -1397,7 +1397,7 @@
       { id:'my_settings', allowed:canMySettings, icon:'fas fa-user-gear', title:(globalThis.PlatformLanguage?.text("settings","m_6e5a74a20b5ea1","My Settings") ?? "My Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_005931f3534c4a","Personal preferences for your account.") ?? "Personal preferences for your account."), tabId:'csTabMySettings', paneId:'csPaneMySettings' },
       { id:'notifications', allowed:appFlag('apps', 'notifications'), icon:'fas fa-bell', title:(globalThis.PlatformLanguage?.text("settings","m_5a9115e4033cb3","Notifications") ?? "Notifications"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c5f15c570faa05","Choose which updates appear here and on your phone.") ?? "Choose which updates appear here and on your phone."), tabId:'csTabNotifications', paneId:'csPaneNotifications' },
       { id:'company', allowed:canCompany, icon:'fas fa-building', term:'settings.company_tab', title:(globalThis.PlatformLanguage?.text("settings","m_500872d3c049f6","Company") ?? "Company"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_b21fe34fffb4ad","Company identity, contact details, branding, and defaults.") ?? "Company identity, contact details, branding, and defaults."), tabId:'csTabCompany', paneId:'csPaneCompany' },
-      { id:'money', allowed:canPayments, icon:'fas fa-wallet', title:(globalThis.PlatformLanguage?.text("settings","m_05cb9dd7e5a780","Money") ?? "Money"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_764ee227ff8bd4","Accounts, payment defaults, and disputes.") ?? "Accounts, payment defaults, and disputes."), tabId:'csTabMoney', paneId:'csPaneMoney' },
+      { id:'money', allowed:canPayments, icon:'fas fa-wallet', title:(globalThis.PlatformLanguage?.text("settings","m_05cb9dd7e5a780","Money") ?? "Money"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_790fe8426d5dcc","Payment defaults, payouts, disputes, and accounts.") ?? "Payment defaults, payouts, disputes, and accounts."), tabId:'csTabMoney', paneId:'csPaneMoney' },
       { id:'calls', allowed:canCallWorkflows, icon:'fas fa-phone', title:(globalThis.PlatformLanguage?.text("settings","phone_call_lists","Call Lists") ?? "Call Lists"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_cb8b711a9efc4a","Configure call lists, assignments, follow-ups, and outcomes.") ?? "Configure call lists, assignments, follow-ups, and outcomes."), tabId:'csTabCalls', paneId:'csPaneCalls' },
       { id:'contacts', allowed:canContacts, icon:'fas fa-address-book', term:'contacts.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_6fe082da60f3b0","Contacts") ?? "Contacts"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3b1e71af416b42","Import contacts and review prior imports.") ?? "Import contacts and review prior imports."), tabId:'csTabContacts', paneId:'csPaneContacts' },
       { id:'connections', allowed:canCompany && appFlag('platform', 'connections'), icon:'fas fa-plug', title:'Connections', subtitle:'Connect external tools, publish data, and automate workflows.', tabId:'csTabConnections', paneId:'csPaneConnections' },
@@ -4449,7 +4449,6 @@
     };
     const HOSTED_MONEY_SETTINGS_VIEWS = Object.freeze({
       accounts:{ label:(globalThis.PlatformLanguage?.text("settings","m_3a204df60cc9c8","Accounts") ?? "Accounts"), path:'/settings' },
-      disputes:{ label:(globalThis.PlatformLanguage?.text("settings","m_9b7a2edd995dfe","Disputes") ?? "Disputes"), path:'/disputes' },
       // GP-77: the whole merchant portal, interactive, in the organization's brand colour. The person uses it as it
       // is, so it keeps its own header, scrolling and idle prompt (no renewal timer, no blockers).
       manage:{ label:(globalThis.PlatformLanguage?.text("settings","m_0e74f1bca1ead4","Manage") ?? "Manage"), path:'/', full:true }
@@ -4471,7 +4470,11 @@
     // a shared-cookie logout from a concurrent hidden iframe can be exposed.
     const MONEY_PORTAL_IDLE_PROMPT_MS = 5 * 60 * 1000;
     const MONEY_PORTAL_SESSION_RENEW_MS = 4 * 60 * 1000;
-    const MONEY_SETTINGS_VIEWS = ['payments', ...Object.keys(HOSTED_MONEY_SETTINGS_VIEWS)];
+    // GP-76: Payouts and Disputes are the shared payments widgets (libraries/payments-widgets), the same as Financials'.
+    const MONEY_WIDGET_VIEWS = ['payouts', 'disputes'];
+    const MONEY_SETTINGS_VIEWS = ['payments', ...MONEY_WIDGET_VIEWS, ...Object.keys(HOSTED_MONEY_SETTINGS_VIEWS)];
+    const moneyWidgetsAvailable = () => appFlag('money', 'merchant_processing') && !!window.FirstMatePaymentsWidgets;
+    const moneyViewAvailable = (view) => MONEY_SETTINGS_VIEWS.includes(view) && (!MONEY_WIDGET_VIEWS.includes(view) || moneyWidgetsAvailable());
     // Forward's embedded portal does not reliably support starting two bank
     // links back-to-back in one page session. A full browser refresh resets
     // this guard and creates a fresh authenticated portal session.
@@ -4479,7 +4482,7 @@
     const moneySettingsView = () => {
       const route = readSettingsRoute();
       if (route.sub === 'payments') return 'payments';
-      return MONEY_SETTINGS_VIEWS.includes(route.settingsView) ? route.settingsView : 'payments';
+      return moneyViewAvailable(route.settingsView) ? route.settingsView : 'payments';
     };
     const mountMoneyAccountControls = (frame) => {
       const frameHost = frame?.closest?.('[data-money-portal="accounts"]');
@@ -5622,9 +5625,10 @@
       }
     }
     async function setMoneySettingsView(view, options = {}){
-      const selectedView = MONEY_SETTINGS_VIEWS.includes(view) ? view : 'payments';
+      const selectedView = moneyViewAvailable(view) ? view : 'payments';
       paneMoney.dataset.moneyActiveView = selectedView;
       settingsContentCard?.classList.toggle('money-payments-view', selectedView === 'payments');
+      settingsContentCard?.classList.toggle('money-widget-view', MONEY_WIDGET_VIEWS.includes(selectedView));
       settingsContentCard?.classList.toggle('money-full-portal-view', !!HOSTED_MONEY_SETTINGS_VIEWS[selectedView]?.full);
       if (options.updateRoute !== false && !window.Portal?.navigation?.applying) {
         writeSettingsRoute({ sub:'money', settingsView:selectedView, settingsEntity:'', workflow:'', workflow_step:'' }, { history:options.history || 'push', source:'money-settings-view', ownedKeys:['settingsView', 'settingsEntity', 'workflow', 'workflow_step'] });
@@ -5645,13 +5649,26 @@
         }
       });
       if (selectedView === 'payments') await renderPaymentSettings();
+      else if (MONEY_WIDGET_VIEWS.includes(selectedView)) renderMoneyWidget(selectedView);
       else await renderHostedMoneySettings(selectedView);
       scheduleSettingsSubtabsSync();
+    }
+    function renderMoneyWidget(view){
+      const pane = paneMoney.querySelector(`[data-money-view-pane="${view}"]`);
+      if (!pane) return;
+      if (pane.__moneyWidget) { pane.__moneyWidget.refresh?.(); return; }
+      const widgets = window.FirstMatePaymentsWidgets;
+      // Settings is the host app here: a project opens over it.
+      const openProject = (projectId) => { if (projectId) window.Portal?.navigation?.push?.({ project:projectId, projectTab:'money' }, { source:'money-settings-widget', ownedKeys:['project', 'projectTab'] }); };
+      pane.__moneyWidget = view === 'disputes'
+        ? widgets.mountDisputes(pane, { orgId:currentOrgId(), onOpenProject:openProject })
+        : widgets.mountPayouts(pane, { orgId:currentOrgId(), onOpenProject:openProject, onOpenDisputes:() => setMoneySettingsView('disputes') });
     }
     async function renderMoneySettings(options = {}){
       if (!paneMoney) return;
       if (options.force === true) {
         paneMoney.querySelectorAll('[data-money-portal-frame]').forEach((frame) => frame.__moneyPortalFrameCleanup?.());
+        paneMoney.querySelectorAll('[data-money-view-pane]').forEach((viewPane) => viewPane.__moneyWidget?.destroy?.());
         paneMoney.dataset.moneySettingsMounted = '';
         paneMoney.innerHTML = '';
         panePayments = null;
@@ -5664,11 +5681,10 @@
         .money-settings-shell,.money-settings-view,.money-settings-frame{width:100%;height:100%;min-height:0}
         .money-settings-shell{position:relative}
         .money-settings-view{overflow:auto}
-        .money-settings-view[data-money-view-pane="accounts"],.money-settings-view[data-money-view-pane="disputes"],.money-settings-view[data-money-view-pane="manage"]{overflow:hidden;overscroll-behavior:none}
+        .money-settings-view[data-money-view-pane="accounts"],.money-settings-view[data-money-view-pane="manage"]{overflow:hidden;overscroll-behavior:none}
         .money-settings-frame{position:relative;overflow:hidden;background:#fff}
         .money-settings-frame iframe{display:block;width:100%;margin-left:0;margin-top:-60px;height:700px;min-height:700px;max-height:700px;overflow:hidden;border:0;background:#fff;filter:contrast(1.03) hue-rotate(179deg) saturate(1.8)}
         .money-iframe-blocker{position:absolute;z-index:1;pointer-events:auto;background:#fff;border:0}
-        .money-iframe-blocker-disputes{top:130px;left:380px;width:120px;height:40px}
         .money-settings-frame[data-money-portal="manage"] iframe{margin-top:0;height:100%;min-height:640px;max-height:none}
         /* The two pre-workflow screens expose exactly one provider target.
            Their visual buttons and iframe offsets are calibrated separately. */
@@ -5763,6 +5779,9 @@
         .cs-main>.cs-card:not(.money-payments-view):has(#csPaneMoney.active){border-radius:16px;isolation:isolate}
         .cs-main>.cs-card.money-payments-view:has(#csPaneMoney.active){width:100%;min-width:0;max-width:660px;padding:18px;overflow-x:hidden;overflow-y:auto}
         .cs-main>.cs-card.money-full-portal-view:has(#csPaneMoney.active){width:100%;min-width:0;max-width:none}
+        .cs-main>.cs-card.money-widget-view:has(#csPaneMoney.active){width:100%;min-width:0;max-width:1120px;padding:18px;overflow-x:hidden;overflow-y:auto}
+        #csPaneMoney[data-money-active-view="payouts"],#csPaneMoney[data-money-active-view="disputes"],#csPaneMoney[data-money-active-view="payouts"] .money-settings-shell,#csPaneMoney[data-money-active-view="disputes"] .money-settings-shell,#csPaneMoney .money-settings-view[data-money-view-pane="payouts"],#csPaneMoney .money-settings-view[data-money-view-pane="disputes"]{height:auto;min-height:0;overflow:visible}
+        #csPaneMoney .money-settings-view[data-money-view-pane="payouts"],#csPaneMoney .money-settings-view[data-money-view-pane="disputes"]{padding-top:12px}
         #csPaneMoney[data-money-active-view="payments"],#csPaneMoney[data-money-active-view="payments"] .money-settings-shell,#csPaneMoney[data-money-active-view="payments"] .money-settings-view[data-money-view-pane="payments"]{height:auto;min-height:0;overflow:visible}
         #csPaneMoney .money-settings-frame{border:0;border-radius:15px;contain:paint;clip-path:inset(0 round 15px)}
         #csPaneMoney .money-settings-frame>.fm-tab-loading.is-overlay{border-radius:15px}
@@ -5778,22 +5797,27 @@
         ariaLabel:(globalThis.PlatformLanguage?.text("settings","m_092fc5f2fd5665","Money settings") ?? "Money settings"),
         items:[
           { id:'payments', label:(globalThis.PlatformLanguage?.text("settings","m_5842802f6c8cbb","Payments") ?? "Payments") },
+          ...(moneyWidgetsAvailable() ? [
+            { id:'payouts', label:(globalThis.PlatformLanguage?.text("settings","m_e06874e8b912d9","Payouts") ?? "Payouts") },
+            { id:'disputes', label:(globalThis.PlatformLanguage?.text("settings","m_9b7a2edd995dfe","Disputes") ?? "Disputes") }
+          ] : []),
           { id:'accounts', label:(globalThis.PlatformLanguage?.text("settings","m_3a204df60cc9c8","Accounts") ?? "Accounts") },
-          { id:'disputes', label:(globalThis.PlatformLanguage?.text("settings","m_9b7a2edd995dfe","Disputes") ?? "Disputes") },
           { id:'manage', label:(globalThis.PlatformLanguage?.text("settings","m_0e74f1bca1ead4","Manage") ?? "Manage") }
         ]
       }) || `<div class="fm-settings-subtabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_092fc5f2fd5665","Money settings") ?? "Money settings")}">
         <button class="fm-settings-subtab" type="button" role="tab" data-money-view="payments">${(globalThis.PlatformLanguage?.htmlText("settings","m_5842802f6c8cbb","Payments") ?? "Payments")}</button>
+        ${moneyWidgetsAvailable() ? `<button class="fm-settings-subtab" type="button" role="tab" data-money-view="payouts">${(globalThis.PlatformLanguage?.htmlText("settings","m_e06874e8b912d9","Payouts") ?? "Payouts")}</button>
+        <button class="fm-settings-subtab" type="button" role="tab" data-money-view="disputes">${(globalThis.PlatformLanguage?.htmlText("settings","m_9b7a2edd995dfe","Disputes") ?? "Disputes")}</button>` : ''}
         <button class="fm-settings-subtab" type="button" role="tab" data-money-view="accounts">${(globalThis.PlatformLanguage?.htmlText("settings","m_3a204df60cc9c8","Accounts") ?? "Accounts")}</button>
-        <button class="fm-settings-subtab" type="button" role="tab" data-money-view="disputes">${(globalThis.PlatformLanguage?.htmlText("settings","m_9b7a2edd995dfe","Disputes") ?? "Disputes")}</button>
         <button class="fm-settings-subtab" type="button" role="tab" data-money-view="manage">${(globalThis.PlatformLanguage?.htmlText("settings","m_0e74f1bca1ead4","Manage") ?? "Manage")}</button>
       </div>`;
       paneMoney.innerHTML = `
         <div class="money-settings-shell">
           ${moneySubtabs}
           <section class="money-settings-view" data-money-view-pane="payments"></section>
+          <section class="money-settings-view" data-money-view-pane="payouts" data-settings-autosave="off" hidden></section>
+          <section class="money-settings-view" data-money-view-pane="disputes" data-settings-autosave="off" hidden></section>
           <section class="money-settings-view" data-money-view-pane="accounts" hidden></section>
-          <section class="money-settings-view" data-money-view-pane="disputes" hidden></section>
           <section class="money-settings-view" data-money-view-pane="manage" hidden></section>
       </div>`;
       panePayments = paneMoney.querySelector('[data-money-view-pane="payments"]');
@@ -5829,6 +5853,38 @@
           refund_policy: String(input?.refund_policy || '').slice(0, 2000)
         };
       };
+      injectCSS('company_payment_settings_layout', `
+        .mpay{display:grid;gap:12px}
+        .mpay-card{border:1px solid #eaecf0;border-radius:12px;background:#fff;padding:4px 14px}
+        .mpay-title{display:flex;align-items:center;gap:8px;margin:0;padding:11px 0 9px;font-size:13px;color:#101828;border-bottom:1px solid #f0f2f5}
+        .mpay-title>i{color:#667085;font-size:12px;width:14px;text-align:center}
+        .mpay-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:46px;padding:7px 0;border-bottom:1px solid #f0f2f5}
+        .mpay-row:last-child{border-bottom:0}
+        .mpay-row-stack{display:grid;justify-content:stretch;gap:7px;padding:10px 0 12px}
+        .mpay-label{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:850;color:#344054;margin:0}
+        .mpay-control{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto}
+        .mpay-num{width:76px;height:32px;padding:0 8px;border:1px solid #d0d5dd;border-radius:8px;font:inherit;font-size:12.5px;font-weight:800;text-align:right;color:#101828;background:#fff}
+        .mpay-num[hidden],.mpay-unit[hidden]{display:none}
+        .mpay-unit{font-size:12px;font-weight:800;color:#667085;min-width:12px}
+        .mpay-control .li-switch{margin-left:6px}
+        .mpay-text{width:100%;min-height:58px;resize:vertical;font-size:12.5px}
+        .mpay-tip{display:inline-grid;place-items:center;width:15px;height:15px;padding:0;border:1px solid #98a2b3;border-radius:50%;background:none;color:#667085;font:italic 10px Georgia,serif;cursor:help;flex:0 0 auto}
+        .mpay-save{display:flex;align-items:center;justify-content:flex-end;gap:10px}
+        .mpay-status{color:#667085;font-size:11.5px;font-weight:750}
+        .mpay-processing{margin-top:12px}
+        .mpay-processing .mpay-card{padding-bottom:10px}
+        .mpay-processing .mp-card{border:0;border-radius:0;padding:4px 0 0;gap:0}
+        .mpay-processing .mp-card>.mp-sandbox{margin-top:10px}
+        .mpay-subtitle{display:flex;align-items:center;gap:6px;margin:12px 0 0;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:#667085}
+        .mpay-head-badges{display:inline-flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+        .mpay-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 14px;margin:0;padding:10px 0;border-bottom:1px solid #f0f2f5}
+        .mpay-kv div{min-width:0}.mpay-kv dt{color:#667085;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.04em}.mpay-kv dd{margin:3px 0 0;font-size:12px;font-weight:850;color:#101828;overflow-wrap:anywhere}
+        .mpay-rails{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px}
+        .mpay-rails .mpay-row{border-bottom:1px solid #f0f2f5}
+        .mpay-rail-label{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:#344054}
+        .mpay-rail-label i{color:#667085;width:14px;text-align:center}
+        @media(max-width:560px){.mpay-rails{grid-template-columns:1fr}}
+      `);
       panePayments.innerHTML = `<div data-payment-defaults></div><div data-merchant-processing></div>`;
       const defaultsPane = panePayments.querySelector('[data-payment-defaults]');
       const processingPane = panePayments.querySelector('[data-merchant-processing]');
@@ -5846,40 +5902,62 @@
         defaultsPane.innerHTML = `<div class="cs-note">${escapeHtml(error?.message || 'Could not load payment settings.')}</div>`;
         return;
       }
-      const render = (saving = false, status = '') => {
+      // GP-76: grouped rows, short labels, the explanations in (i) tips, inputs only as wide as their values.
+      const L = (key, text) => globalThis.PlatformLanguage?.text("settings", key, text) ?? text;
+      const H = (key, text) => escapeHtml(L(key, text));
+      const tip = (text) => `<button type="button" class="mpay-tip" aria-label="${escapeHtml(text)}" title="${escapeHtml(text)}" data-fm-tooltip="${escapeHtml(text)}">i</button>`;
+      const render = () => {
         defaultsPane.innerHTML = `
-          <div class="cs-section">
-            <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_fa3d0e73cdc3d0","Payment Settings") ?? "Payment Settings")}</h3>
-            <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_6194878c75401f","Configure invoice and payment defaults for this branch.") ?? "Configure invoice and payment defaults for this branch.")}</p>
-            <label class="li-switch-row">
-              <div><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_446fb225600bb5","Use sales tax on invoices") ?? "Use sales tax on invoices")}</div><div class="cs-note" style="margin:2px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_5d02823eed60c0","When disabled, sales tax controls are completely hidden from the invoice generator.") ?? "When disabled, sales tax controls are completely hidden from the invoice generator.")}</div></div>
-              <span class="li-switch"><input type="checkbox" data-payment-tax-enabled ${String(settings.sales_tax_enabled ? 'checked' : '')}><span class="li-slider"></span></span>
-            </label>
-            ${String(settings.sales_tax_enabled ? `<div class="cs-row"><label class="cs-lbl" for="paymentDefaultTaxPercent">${(globalThis.PlatformLanguage?.htmlText("settings","m_0b2aa0314e8f6d","Default sales tax percentage") ?? "Default sales tax percentage")}</label><input class="cs-in" id="paymentDefaultTaxPercent" type="number" min="0" max="100" step="0.01" value="${escapeHtml(String(settings.default_sales_tax_percent))}"></div>` : '')}
-            <div class="cs-row"><label class="cs-lbl" for="paymentDefaultDueDays">${(globalThis.PlatformLanguage?.htmlText("settings","m_ba77a691139cae","Invoice payment terms (days until due)") ?? "Invoice payment terms (days until due)")}</label><input class="cs-in" id="paymentDefaultDueDays" type="number" min="0" max="365" step="1" value="${String(escapeHtml(String(settings.default_due_days)))}"><div class="cs-note" style="margin:4px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_681824b42fad0b","0 means due on receipt. Applied when an invoice is created without an explicit due date — for example Net 30.") ?? "0 means due on receipt. Applied when an invoice is created without an explicit due date — for example Net 30.")}</div></div>
-            <div class="cs-row"><label class="cs-lbl" for="paymentRefundPolicy">Refund policy</label><textarea class="cs-in" id="paymentRefundPolicy" rows="3" maxlength="2000" placeholder="Refunds follow the terms of your agreement with us. To ask for a refund, contact us.">${String(escapeHtml(settings.refund_policy || ''))}</textarea><div class="cs-note" style="margin:4px 0 0">Shown next to the Pay button on every online payment. Leave blank to tell customers refunds follow their agreement and how to reach you.</div></div>
-            <div class="li-actions"><button class="cs-btn primary" type="button" data-payment-settings-save ${String(saving ? 'disabled' : '')}>${String(saving ? '<i class="fas fa-spinner fa-spin"></i> Saving...' : '<i class="fas fa-save"></i> Save Payment Settings')}</button></div>
-            <div class="cs-note">${String(escapeHtml(status))}</div>
+          <div class="mpay">
+            <section class="mpay-card" data-mpay-section="invoices">
+              <h3 class="mpay-title"><i class="fas fa-file-invoice-dollar" aria-hidden="true"></i>${H("m_74b68c454b06a0", "Invoices")}${tip(L("m_d7eae667a6d43e", "Defaults for invoices made in this branch."))}</h3>
+              <div class="mpay-row">
+                <label class="mpay-label" for="paymentTaxEnabled">${H("m_265aee5b3f6c36", "Sales tax")}${tip(L("m_cbb20cf074e28e", "Adds sales tax to new invoices at this rate. Turn it off to hide every sales tax control in the invoice generator."))}</label>
+                <div class="mpay-control">
+                  <input class="mpay-num" id="paymentDefaultTaxPercent" type="number" min="0" max="100" step="0.01" inputmode="decimal" aria-label="${H("m_0b2aa0314e8f6d", "Default sales tax percentage")}" value="${escapeHtml(String(settings.default_sales_tax_percent))}" ${settings.sales_tax_enabled ? '' : 'hidden'}><span class="mpay-unit" data-mpay-tax-unit ${settings.sales_tax_enabled ? '' : 'hidden'}>%</span>
+                  <span class="li-switch"><input type="checkbox" id="paymentTaxEnabled" data-payment-tax-enabled ${settings.sales_tax_enabled ? 'checked' : ''}><span class="li-slider"></span></span>
+                </div>
+              </div>
+              <div class="mpay-row">
+                <label class="mpay-label" for="paymentDefaultDueDays">${H("m_462e38dd9a2f59", "Payment terms")}${tip(L("m_7169c83cebf961", "Days until an invoice is due. 0 means due on receipt. Used when an invoice is made without its own due date."))}</label>
+                <div class="mpay-control"><input class="mpay-num" id="paymentDefaultDueDays" type="number" min="0" max="365" step="1" inputmode="numeric" value="${escapeHtml(String(settings.default_due_days))}"><span class="mpay-unit">${H("m_d1521758bf5fc0", "days")}</span></div>
+              </div>
+            </section>
+            <section class="mpay-card" data-mpay-section="online">
+              <h3 class="mpay-title"><i class="fas fa-credit-card" aria-hidden="true"></i>${H("m_add6e8bebd334e", "Online payments")}</h3>
+              <div class="mpay-row mpay-row-stack">
+                <label class="mpay-label" for="paymentRefundPolicy">${H("m_a97cf7217333f7", "Refund policy")}${tip(L("m_ee876b83f1c7d3", "Shown next to the Pay button on every online payment. Leave it blank to tell customers refunds follow their agreement and how to reach you."))}</label>
+                <textarea class="cs-in mpay-text" id="paymentRefundPolicy" rows="2" maxlength="2000" placeholder="${H("m_3437b5871e1c8a", "Refunds follow the terms of your agreement with us. To ask for a refund, contact us.")}">${escapeHtml(settings.refund_policy || '')}</textarea>
+              </div>
+            </section>
+            <div class="mpay-save"><span class="mpay-status" data-payment-settings-status role="status"></span><button class="cs-btn primary" type="button" data-payment-settings-save><i class="fas fa-save"></i> ${H("m_1d4ec3a8fac57d", "Save payment settings")}</button></div>
           </div>`;
-        panePayments.querySelector('[data-payment-tax-enabled]')?.addEventListener('change', (event) => {
+        const taxToggle = panePayments.querySelector('[data-payment-tax-enabled]');
+        taxToggle?.addEventListener('change', (event) => {
           settings.sales_tax_enabled = !!event.currentTarget.checked;
-          render(false, status);
+          panePayments.querySelector('#paymentDefaultTaxPercent').hidden = !settings.sales_tax_enabled;
+          panePayments.querySelector('[data-mpay-tax-unit]').hidden = !settings.sales_tax_enabled;
         });
-        panePayments.querySelector('[data-payment-settings-save]')?.addEventListener('click', async () => {
+        const saveButton = panePayments.querySelector('[data-payment-settings-save]');
+        const statusLine = panePayments.querySelector('[data-payment-settings-status]');
+        saveButton?.addEventListener('click', async () => {
           const percent = Number(panePayments.querySelector('#paymentDefaultTaxPercent')?.value ?? settings.default_sales_tax_percent);
           const dueDays = Number(panePayments.querySelector('#paymentDefaultDueDays')?.value ?? settings.default_due_days);
           const refundPolicy = String(panePayments.querySelector('#paymentRefundPolicy')?.value ?? settings.refund_policy ?? '').trim();
-          settings = normalize({ ...settings, default_sales_tax_percent: percent, default_due_days: dueDays, refund_policy: refundPolicy });
-          render(true);
+          settings = normalize({ ...settings, sales_tax_enabled: !!taxToggle?.checked, default_sales_tax_percent: percent, default_due_days: dueDays, refund_policy: refundPolicy });
+          // Saving never redraws the form, so typing carries on while autosave runs.
+          saveButton.disabled = true;
+          statusLine.textContent = (globalThis.PlatformLanguage?.text("settings","m_b82c4e12389843","Saving...") ?? "Saving...");
           try {
             const result = await window.PlatformAPI.branchModules.save(orgId, branchId, 'payment_settings', settings, { kind:'branch_payment_settings', source:'company_settings_payments' });
             settings = normalize(result?.data || result?.module?.data || settings);
-            render(false, 'Saved.');
+            statusLine.textContent = (globalThis.PlatformLanguage?.text("settings","m_4bb4688766e904","Saved") ?? "Saved");
             showToast((globalThis.PlatformLanguage?.text("settings","m_4bb4688766e904","Saved") ?? "Saved"), (globalThis.PlatformLanguage?.text("settings","m_c39c47dd765ac2","Payment settings updated.") ?? "Payment settings updated."), true);
           } catch (error) {
-            render(false, error?.message || 'Could not save payment settings.');
+            statusLine.textContent = error?.message || 'Could not save payment settings.';
             showToast((globalThis.PlatformLanguage?.text("settings","m_c8b7bd7ca69f49","Save failed") ?? "Save failed"), error?.message || 'Could not save payment settings.', false);
           }
+          saveButton.disabled = false;
         });
       };
       render();
@@ -6247,40 +6325,43 @@
           const rails = forward.enabled_rails_set === true
             ? storedRails
             : { ...storedRails, card: true, bank: true };
-          const railRow = (key, label, icon) => `
-            <label class="li-switch-row">
-              <div><div class="cs-lbl"><i class="fas ${icon}" style="margin-right:7px;color:#667085"></i>${label}</div></div>
+          const mpTip = (text) => `<button type="button" class="mpay-tip" aria-label="${escapeHtml(text)}" title="${escapeHtml(text)}" data-fm-tooltip="${escapeHtml(text)}">i</button>`;
+          const ML = (key, text) => globalThis.PlatformLanguage?.text("settings", key, text) ?? text;
+          const railRow = (key, label, icon, help) => `
+            <label class="mpay-row">
+              <span class="mpay-rail-label"><i class="fas ${icon}" aria-hidden="true"></i>${escapeHtml(label)}${mpTip(help)}</span>
               <span class="li-switch"><input type="checkbox" data-mp-rail="${key}" ${rails[key] === true ? 'checked' : ''}><span class="li-slider"></span></span>
             </label>`;
           return `
             <div class="mp-card" data-mp-approved>
-              <div class="mp-card-head">
-                <strong><i class="fas fa-circle-check" style="color:#16a34a;margin-right:7px"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_5313b48c3889a0","Payment processing is active") ?? "Payment processing is active")}</strong>
-                <div style="display:flex;gap:7px;flex-wrap:wrap">
+              <div class="mpay-row">
+                <span class="mpay-label"><i class="fas fa-circle-check" style="color:#16a34a" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_5313b48c3889a0","Payment processing is active") ?? "Payment processing is active")}</span>
+                <span class="mpay-head-badges">
                   <span class="mp-badge ${String(forward.processing_enabled ? 'ok' : 'warn')}" data-mp-processing-badge><i class="fas fa-bolt"></i>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_f41e95e100281f",` Processing ${v1}`,{v1}) ?? ` Processing ${v1}`)(forward.processing_enabled ? 'enabled' : 'paused')}</span>
                   <span class="mp-badge ${String(forward.payouts_enabled ? 'ok' : 'warn')}" data-mp-payouts-badge><i class="fas fa-building-columns"></i>${((v3) => globalThis.PlatformLanguage?.htmlText("settings","m_64c2879dfad056",` Payouts ${v3}`,{v3}) ?? ` Payouts ${v3}`)(forward.payouts_enabled ? 'enabled' : 'paused')}</span>
                   ${String(mcText(mp.config?.provider) === 'mock' ? `<span class="mp-badge mock"><i class="fas fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_21540e72978cf2"," Sandbox") ?? " Sandbox")}</span>` : '')}
-                </div>
+                </span>
               </div>
-              <dl class="mp-kv">
-                <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_33f29b94cb696f","Merchant account") ?? "Merchant account")}</dt><dd data-mp-account-id>${String(escapeHtml(mcText(forward.account_id) || '—'))}</dd>
-                <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_cec7c804d01cf9","Processing plan") ?? "Processing plan")}</dt><dd data-mp-plan-name>${String(escapeHtml(planName(forward.processing_plan_id) || '—'))}</dd>
-                <dt>Gateway</dt><dd data-mp-gateway>${String(escapeHtml(forward.gateway_updated_at ? `Boarded${forward.gateway_mid ? ` (MID ${forward.gateway_mid})` : ''}` : (mcText(forward.account_status) ? mcText(forward.account_status).toLowerCase().replace(/^./, (c) => c.toUpperCase()) : 'Waiting for Forward')))}</dd>
+              <dl class="mpay-kv">
+                <div><dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_33f29b94cb696f","Merchant account") ?? "Merchant account")}</dt><dd data-mp-account-id>${String(escapeHtml(mcText(forward.account_id) || '—'))}</dd></div>
+                <div><dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_cec7c804d01cf9","Processing plan") ?? "Processing plan")}</dt><dd data-mp-plan-name>${String(escapeHtml(planName(forward.processing_plan_id) || '—'))}</dd></div>
+                <div><dt>Gateway</dt><dd data-mp-gateway>${String(escapeHtml(forward.gateway_updated_at ? `Boarded${forward.gateway_mid ? ` (MID ${forward.gateway_mid})` : ''}` : (mcText(forward.account_status) ? mcText(forward.account_status).toLowerCase().replace(/^./, (c) => c.toUpperCase()) : 'Waiting for Forward')))}</dd></div>
               </dl>
-              <div data-mp-bank-section>
-                <div class="cs-lbl" style="margin-bottom:6px">${(globalThis.PlatformLanguage?.htmlText("settings","m_40b6f06484042c","Bank account") ?? "Bank account")}</div>
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+              <div class="mpay-row" data-mp-bank-section>
+                <span class="mpay-label">${(globalThis.PlatformLanguage?.htmlText("settings","m_40b6f06484042c","Bank account") ?? "Bank account")}${mpTip(ML("m_76f7bb1e4a5f67", "Payouts go to this account. It is changed on Forward's secure portal: the button signs you in with a one-time link."))}</span>
+                <span class="mpay-control">
                   <span class="mp-badge" data-mp-bank-status><i class="fas fa-building-columns"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_b0f32b15b02e72"," Loading...") ?? " Loading...")}</span>
-                  <button type="button" class="cs-btn" data-mp-manage-bank><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_3d11b9ff89ba9b"," Manage at Forward") ?? " Manage at Forward")}</button>
-                </div>
-                <div class="cs-note" style="margin:6px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_1bb2d830ad9a77","Payout bank account changes happen on Forward's secure merchant portal — the button signs you in with a one-time link.") ?? "Payout bank account changes happen on Forward's secure merchant portal — the button signs you in with a one-time link.")}</div>
+                  <button type="button" class="cs-btn" data-mp-manage-bank title="${escapeHtml(ML("m_8d5623df1a4cb5", "Opens Forward's merchant portal in a new tab"))}"><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_3d11b9ff89ba9b"," Manage at Forward") ?? " Manage at Forward")}</button>
+                </span>
               </div>
               <div>
-                <div class="cs-lbl" style="margin-bottom:6px">${(globalThis.PlatformLanguage?.htmlText("settings","m_014c08b350e1f1","Enabled payment rails") ?? "Enabled payment rails")}</div>
-                ${String(railRow('card', 'Card payments', 'fa-credit-card'))}
-                ${String(railRow('bank', 'Bank payments (ACH)', 'fa-building-columns'))}
-                ${String(railRow('wallets', 'Digital wallets', 'fa-wallet'))}
-                ${String(railRow('terminals', 'In-person terminals', 'fa-cash-register'))}
+                <h4 class="mpay-subtitle">${(globalThis.PlatformLanguage?.htmlText("settings","m_014c08b350e1f1","Enabled payment rails") ?? "Enabled payment rails")}${mpTip(ML("m_b3d0ef66fc35ec", "How customers can pay you online. A switched-off way to pay is never offered."))}</h4>
+                <div class="mpay-rails">
+                  ${String(railRow('card', 'Card payments', 'fa-credit-card', ML("m_49de61ae80850e", "Credit and debit cards.")))}
+                  ${String(railRow('bank', 'Bank payments (ACH)', 'fa-building-columns', ML("m_d4dae1bc39690c", "Payments straight from a bank account. They take a few business days to clear.")))}
+                  ${String(railRow('wallets', 'Digital wallets', 'fa-wallet', ML("m_f5b893378534a3", "Apple Pay and Google Pay, where the processor offers them.")))}
+                  ${String(railRow('terminals', 'In-person terminals', 'fa-cash-register', ML("m_f94ffde9f44499", "Card readers for taking payments in person.")))}
+                </div>
               </div>
               ${String(sandboxHtml())}
             </div>`;
@@ -6975,10 +7056,9 @@
         }, 12000);
       };
       const renderSection = () => {
-        const heading = `
-          <h3 style="margin:18px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}</h3>
-          <p class="cs-note" style="margin:4px 0 10px">${(globalThis.PlatformLanguage?.htmlText("settings","m_93adc8cef4c5f7","Board this company with a payment processor to accept customer payments.") ?? "Board this company with a payment processor to accept customer payments.")}</p>`;
-        container.innerHTML = `<div class="cs-section" data-mp-root>${heading}${statusViewHtml()}</div>`;
+        const headingTip = globalThis.PlatformLanguage?.text("settings","m_93adc8cef4c5f7","Board this company with a payment processor to accept customer payments.") ?? "Board this company with a payment processor to accept customer payments.";
+        const heading = `<h3 class="mpay-title"><i class="fas fa-bolt" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}<button type="button" class="mpay-tip" aria-label="${escapeHtml(headingTip)}" title="${escapeHtml(headingTip)}" data-fm-tooltip="${escapeHtml(headingTip)}">i</button></h3>`;
+        container.innerHTML = `<div class="mpay mpay-processing" data-mp-root><section class="mpay-card">${heading}${statusViewHtml()}</section></div>`;
         bindStatus();
         bindSandbox();
         bindExpress();

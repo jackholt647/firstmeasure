@@ -133,7 +133,7 @@ async function register(client: ReturnType<typeof createSessionClient>) {
       }
     }
   }, { replace: false });
-  return { orgId, userId: String(data.user.id) };
+  return { orgId, userId: String(data.user.id), email: `mock-owner-${suffix}@example.test` };
 }
 
 /** Signed-proposal fixture (mirrors payments-api.test.ts): $2,500 deposit + $10,000 final. */
@@ -382,12 +382,114 @@ test("mock payments: fee capture, decline simulation, payout settlement auto-cle
   assert.equal(disputes.length, 1);
   assert.equal(disputes[0].status, "created");
   assert.equal(disputes[0].amount_cents, 100_000);
-  assert.equal(disputes[0].reason, "product_not_received");
+  // Forward's own field names (DisputeDTO): reason text and network code, due date, card.
+  assert.equal(disputes[0].reason, "Merchandise/Services Not Received");
+  assert.equal(disputes[0].reason_code, "13.1");
+  assert.match(disputes[0].respond_by, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(disputes[0].card_last4, "4242");
+  assert.equal(disputes[0].open, true);
   assert.equal(disputes[0].transaction_id, paymentId);
   assert.equal(disputes[0].project_id, projectId);
   assert.equal(disputes[0].provider_dispute_id, disputed.dispute.id);
   summary = (await client.request("GET", `/v1/payments/organizations/${orgId}/finance-summary`)).summary;
   assert.equal(summary.disputes_open_count, 1);
+});
+
+test("disputes: pulled from the processor, answered in FirstMate, filed by FirstMate staff (GP-76)", async () => {
+  const client = createSessionClient();
+  const { orgId, email } = await register(client);
+  await boardMockMerchant(client, orgId);
+  const projectId = "project_mock_dispute_response";
+  await signedProposalProject(client, orgId, projectId);
+  const deposit = await client.request("POST", `/v1/payments/organizations/${orgId}/payments`, {
+    project_id: projectId,
+    amount_cents: 250_000,
+    method: { type: "card", label: "Card" }
+  });
+  const paymentId = deposit.payment.id as string;
+  const { getPaymentProvider } = await import("../payments/providers/index.js");
+  const provider = (await getPaymentProvider(orgId))!;
+  const intent = await provider.createPaymentIntent({ amount_cents: 250_000, reference_id: paymentId, user_fields: { payment_id: paymentId, project_id: projectId } });
+  await provider.createPayment(intent.id, { payment_method_id: "pm_mock_visa" });
+  const base = `/v1/payments/organizations/${orgId}/disputes`;
+  await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "dispute", payment_id: paymentId, reason: "fraudulent" });
+
+  // A dispute the webhook never delivered still arrives by pulling every page from the processor.
+  const { PAYMENT_DISPUTE_COLLECTION } = await import("../payments/payouts.js");
+  const { listDocuments, deleteDocument } = await import("../platform/storage.js") as any;
+  for (const doc of await listDocuments(orgId, PAYMENT_DISPUTE_COLLECTION)) await deleteDocument(orgId, PAYMENT_DISPUTE_COLLECTION, doc.id);
+  assert.equal((await client.request("GET", base)).count, 0);
+  const synced = await client.request("POST", `${base}/sync`, { force: true });
+  assert.equal(synced.sync.ok, true);
+  assert.equal(synced.sync.synced, 1);
+  assert.equal(synced.count, 1);
+  const dispute = synced.disputes[0];
+  assert.equal(dispute.reason, "Other Fraud - Card Absent Environment");
+  assert.equal(dispute.transaction_id, paymentId);
+  assert.equal((await client.request("POST", `${base}/sync`, {})).sync.skipped, true, "a second pull within 30 s is skipped");
+
+  const detail = await client.request("GET", `${base}/${dispute.id}`);
+  assert.equal(detail.payment.id, paymentId);
+  assert.equal(detail.project.id, projectId);
+  assert.equal(detail.can_respond, true);
+
+  // Evidence: documents and images only, served back as a download.
+  const refused = await client.raw("POST", `${base}/${dispute.id}/evidence`, { file_name: "page.html", content_type: "text/html", data_base64: Buffer.from("<b>x</b>").toString("base64") });
+  assert.equal(refused.statusCode, 400);
+  const uploaded = (await client.request("POST", `${base}/${dispute.id}/evidence`, {
+    file_name: "signed-contract.pdf",
+    content_type: "application/pdf",
+    data_base64: Buffer.from("%PDF-1.4 signed contract").toString("base64")
+  })).file;
+  assert.equal(uploaded.file_name, "signed-contract.pdf");
+
+  // A draft, then a submission; contesting needs an explanation.
+  const draft = await client.request("PUT", `${base}/${dispute.id}/response`, {
+    action: "save",
+    decision: "contest",
+    category: "fraud",
+    evidence: { customer_communication: "Customer emailed to confirm the start date." },
+    attachments: [{ media_id: uploaded.media_id, label: "Signed contract" }]
+  });
+  assert.equal(draft.dispute.response.status, "draft");
+  assert.equal(draft.dispute.response.attachments[0].file_name, "signed-contract.pdf");
+  const tooShort = await client.raw("PUT", `${base}/${dispute.id}/response`, { action: "submit" });
+  assert.equal(tooShort.statusCode, 400);
+  assert.equal(JSON.parse(tooShort.body).error, "dispute_summary_required");
+  const submitted = await client.request("PUT", `${base}/${dispute.id}/response`, {
+    action: "submit",
+    summary: "The cardholder signed the contract in person and the roof was installed on November 1."
+  });
+  assert.equal(submitted.dispute.response.status, "submitted");
+  assert.equal(submitted.dispute.response.evidence.customer_communication, "Customer emailed to confirm the start date.");
+  assert.equal((await client.raw("PUT", `${base}/${dispute.id}/response`, { action: "save", summary: "changed" })).statusCode, 409);
+
+  const file = await client.raw("GET", `${base}/${dispute.id}/evidence/${uploaded.media_id}`);
+  assert.equal(file.statusCode, 200);
+  assert.match(String(file.headers["content-disposition"]), /^attachment;/);
+  assert.equal(file.headers["x-content-type-options"], "nosniff");
+  assert.equal(file.body, "%PDF-1.4 signed contract");
+  assert.equal((await client.raw("GET", `${base}/${dispute.id}/evidence/media_not_attached`)).statusCode, 404);
+
+  // The processor's next answer keeps the response.
+  await client.request("POST", `${base}/sync`, { force: true });
+  assert.equal((await client.request("GET", `${base}/${dispute.id}`)).dispute.response.status, "submitted");
+
+  // Only FirstMate staff see the filing queue and mark it filed.
+  assert.equal((await client.raw("GET", "/v1/payments/staff/dispute-responses")).statusCode, 403);
+  const { saveInternalUser } = await import("../internal/storage.js");
+  await saveInternalUser({ email, name: "Staff Filer", status: "active", role: "admin" } as any);
+  const queue = await client.request("GET", "/v1/payments/staff/dispute-responses");
+  const queued = queue.disputes.find((row: any) => row.id === dispute.id);
+  assert.ok(queued, "the submitted response is in the staff queue");
+  assert.equal(queued.organization_id, orgId);
+  const staffFile = await client.raw("GET", `/v1/payments/staff/organizations/${orgId}/disputes/${dispute.id}/evidence/${uploaded.media_id}`);
+  assert.equal(staffFile.statusCode, 200);
+  const filed = await client.request("POST", `/v1/payments/staff/organizations/${orgId}/disputes/${dispute.id}/response`, { action: "filed", note: "Filed in Forward" });
+  assert.equal(filed.dispute.response.status, "filed");
+  assert.equal(filed.dispute.response.staff_note, "Filed in Forward");
+  assert.equal((await client.raw("PUT", `${base}/${dispute.id}/response`, { action: "reopen" })).statusCode, 409);
+  assert.ok(!(await client.request("GET", "/v1/payments/staff/dispute-responses")).disputes.some((row: any) => row.id === dispute.id));
 });
 
 test("refund events dedupe against API-originated refunds and mirror provider-originated ones", async () => {

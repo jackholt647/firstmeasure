@@ -1329,7 +1329,19 @@
     "m_270ef93292386e": "Show trimmed content",
     "m_01589413ee03d7": "Sending…",
     "m_9fcfa20f91b853": "Not sent",
-    "m_f643f568915438": "Remove"
+    "m_f643f568915438": "Remove",
+    "m_f5f2949c043c2d": "Select a call to see its details, recording and transcript.",
+    "m_3da609e3c9f263": "Open in the phone",
+    "m_420e96c25a733b": {
+      "message": "Could not open this call. {v0}",
+      "format": "icu"
+    },
+    "m_6a21a9fe659d4e": "Loading call…",
+    "m_38f3d2e18f6229": {
+      "message": "{v0} This call needs an outcome.",
+      "format": "icu"
+    },
+    "m_5f980c8e0a1ee8": "Add outcome"
   },
   "contacts": {
     "m_bdd2018a2c9640": {
@@ -3065,7 +3077,15 @@
     "m_9ba5134ee5d0df": "Preparing the agreement…",
     "m_a612df7f675c3f": "Preview what they see (nothing can be signed or paid)",
     "m_18d3d018740a11": "Scan paper",
-    "m_0d2436e05946ee": "A PDF or photo of a paper document; add fields during review"
+    "m_0d2436e05946ee": "A PDF or photo of a paper document; add fields during review",
+    "m_71d8fcc5461ced": {
+      "message": "&lt;{v1}&gt;",
+      "format": "icu"
+    },
+    "m_447f3da030f825": {
+      "message": "&lt;{v0}&gt;",
+      "format": "icu"
+    }
   },
   "equipment": {
     "m_f326bdcd77881a": "Available",
@@ -3481,7 +3501,212 @@
     "m_830502e22b2140": "No accessible apps in this group.",
     "m_b25e412b4ffbc5": "Profitability",
     "m_805ee16e5f3952": "Cash flow",
-    "m_18e63a72b829eb": "Reconcile"
+    "m_18e63a72b829eb": "Reconcile",
+    "m_0243634a51f011": "Payments are unavailable right now.",
+    "m_becdcc8cbaa176": "Pending sweep",
+    "m_ca8ccb0cd0c3a8": "In transit",
+    "m_d2dc5ad9c103dd": "Paid out (30d)",
+    "m_0e253de628063a": "Fees (30d)",
+    "m_18a9cfec7e01b1": {
+      "message": "Effective rate {rate}% on {gross}",
+      "format": "icu"
+    },
+    "m_23169756b7879f": "No processed volume yet",
+    "m_7ed3e155de203d": "Next payout",
+    "m_24933113d39b41": {
+      "message": "Expected {date}",
+      "format": "icu"
+    },
+    "m_f0e56ce95c4d46": "Arrival date pending",
+    "m_6f1517d0879dec": "No payout scheduled",
+    "m_a96c7e54509a11": "Open disputes",
+    "m_c531bb64c7da54": "Respond before the deadline to fight them",
+    "m_19fcb2d5ada4c1": "No open chargebacks",
+    "m_61df468d92e238": "All",
+    "m_97fa06087b4ebb": "Not yet",
+    "m_b7daeba1ccae6d": {
+      "message": "Payout {v0}",
+      "format": "icu"
+    },
+    "m_70c006e9fd1698": "Loading payouts",
+    "m_36bf20afe15b5c": "Payouts could not load",
+    "m_678a6f4f28a8be": "Needs response",
+    "m_53e7312cae4760": "Contested",
+    "m_a5adb64bece6bf": "In review",
+    "m_06f09fbdd8cb1d": "Pre-arbitration",
+    "m_8ef0771ff96741": "Won",
+    "m_235d86f4916a45": "Lost",
+    "m_a72e62a169cf77": "Accepted",
+    "m_7e569700dccbbb": "Closed",
+    "m_9ce407c87de615": "Draft",
+    "m_463f1b8347d88d": "With FirstMate",
+    "m_ec130175824f7d": "Sent back",
+    "m_1c2a2c4880bbd4": "Filed",
+    "m_bb38f09c44016c": "passed",
+    "m_142008e9368105": "today",
+    "m_a8e3a01198daa5": {
+      "message": "{n} days left",
+      "format": "icu"
+    },
+    "m_575d93c825e45f": "What you provided",
+    "m_7c5c8197fe1bcf": "The work or product, where and when, as the customer agreed to it.",
+    "m_c514811aa5b1e2": "Date the work was finished",
+    "m_ebced8479dc6e1": "Leave blank if the work is not finished yet.",
+    "m_e49d3788da794d": "Contact with the customer",
+    "m_8d136c752e2414": "Emails, texts or calls that show the customer knew about and accepted the charge. Attach copies below.",
+    "m_7b310b7b3d4860": "Fraud or not recognized",
+    "m_669970f4a85a80": "How you know the cardholder made this purchase",
+    "m_34991dd4aadced": "A signed contract or proposal, meeting them in person, work done at the cardholder's billing address, earlier payments they did not dispute.",
+    "m_ff2196ccbfddb1": "Work not done or not received",
+    "m_623466829347ce": "Proof the work was done",
+    "m_e653591fc9e5c1": "Completion date, sign-off or inspection, before and after photos.",
+    "m_b138f1bd9b33ba": "Not as described or defective",
+    "m_90178a801ab7f9": "Why the work matched what was agreed",
+    "m_046b644a7378ee": "Point to the contract scope, warranties, and any offer to fix an issue that the customer turned down.",
+    "m_da70f3de56c157": "Duplicate or paid another way",
+    "m_c31a4d2cbc3569": "Why these are separate charges",
+    "m_3ceaf41f583200": "Name the other charge (date and amount) and what each one paid for, for example a deposit and the final payment.",
+    "m_9f90950e5d95c7": "Refund not processed",
+    "m_8ff5b7093e2c03": "Why no refund is owed",
+    "m_faf4e18795cb63": "Quote your refund policy and when the customer accepted it, or show the refund was already made.",
+    "m_9863f11d60b2fa": "Cancelled",
+    "m_37bb0f600a07e2": "Why the cancellation doesn't apply",
+    "m_c53f49554e5149": "Your cancellation terms, when the customer accepted them, and whether work had already started.",
+    "m_c96a8092e88e9a": "Wrong amount",
+    "m_308a3d5b547dd5": "Why the amount is right",
+    "m_10a4cd453d62e6": "Show the signed amount, any change orders, and the invoice that matches the charge.",
+    "m_44f003d0d61c95": "Something else",
+    "m_0513a3bdf25864": "Signed contract",
+    "m_3b3686892868de": "Photos of the work",
+    "m_e25508b43befdf": "Emails or texts",
+    "m_b35ddf74715df9": "Completion sign-off",
+    "m_ce136d616af520": "Warranty",
+    "m_1efb698e62ef77": "Receipts for both charges",
+    "m_a97cf7217333f7": "Refund policy",
+    "m_9b66c8f287b44d": "Change orders",
+    "m_28c7503e189537": "Could not load the filing queue",
+    "m_c059a842fdc832": "Checking Forward…",
+    "m_6f75be5ff33bd6": "Forward could not be reached",
+    "m_ea81199f747f4c": "Up to date with Forward",
+    "m_a6f3f2a6513bca": {
+      "message": "Code {code}",
+      "format": "icu"
+    },
+    "m_c25cc66b28cc9d": "Open",
+    "m_1210548bf1668b": "FirstMate filing",
+    "m_97faebbc0ec5b0": "Every company’s submitted responses, to file in Forward (FirstMate staff only)",
+    "m_7502deb3a808c4": "Disputed",
+    "m_f3cd041a0e8054": "Respond by",
+    "m_053144b11a8523": "Your response",
+    "m_2c576c3f0f45aa": "Loading the filing queue",
+    "m_0ee1595c28f3b8": "Nothing to file",
+    "m_842579346ae2aa": "Responses companies submit appear here.",
+    "m_8d244eb3362749": "No disputes match this filter",
+    "m_c40115afc71a89": "Try another one.",
+    "m_0ba2f9eb690a41": "When a customer disputes a card payment with their bank, it appears here.",
+    "m_f943e0f8f2cbc8": "A dispute (chargeback) is a customer asking their bank to take back a card payment. Fight it with a response before the deadline, or accept it. FirstMate files your response with Forward for you.",
+    "m_ae8ecada9f6cd7": "Dispute filter",
+    "m_671a69b402c120": "Pull the latest disputes from Forward",
+    "m_171c970287658e": "Leave without saving your response?",
+    "m_2c8c60d7088d63": "The reason the cardholder's bank gave, with the card network's reason code.",
+    "m_b0ac2095c38e18": {
+      "message": "Was {date}",
+      "format": "icu"
+    },
+    "m_b86a2c83d15c64": "After this date the bank decides without your response. FirstMate needs a day or two to file it.",
+    "m_023c7d7ca8a301": "Received",
+    "m_dd2dde7989cd96": "Card",
+    "m_7e7ee3cbe09235": "Original charge",
+    "m_10df4f5589c049": "Authorization code",
+    "m_42b04cbf0280ea": "Shown when the payment was taken through FirstMate.",
+    "m_9e8dc60a408036": "Forward dispute",
+    "m_ccb6804cffbd05": "On file at Forward",
+    "m_8f9e6b8fb785ac": {
+      "message": "{n} files are attached at Forward. Forward does not share them with FirstMate.",
+      "format": "icu"
+    },
+    "m_52584a933140c4": "What is this?",
+    "m_d466314640d7b0": "Remove file",
+    "m_28c80635ad0efa": "Evidence files",
+    "m_469944a369a4ac": "PDFs, photos, Word documents or text files, up to 10 MB each and 20 in all. Name each one so FirstMate files it under the right heading.",
+    "m_1653e9aa78fa45": "No files attached.",
+    "m_50479360308f51": "Uploading…",
+    "m_032133d04a761e": "Attach files",
+    "m_e4fc8e25c284b9": "Helps here:",
+    "m_eb2ab6c6bc8825": {
+      "message": "Submitted by {name} on {date}. File it in Forward, then mark it filed.",
+      "format": "icu"
+    },
+    "m_a92c264a93ebaa": {
+      "message": "We file your response with Forward before {date}. You can still change it until we do.",
+      "format": "icu"
+    },
+    "m_d6d902263f2634": "the deadline",
+    "m_5610de8b802272": "FirstMate sent this back",
+    "m_71ed0bfc7f1357": "Change your response and submit it again.",
+    "m_fa61f7b2de9309": "Filed with Forward",
+    "m_c045eb1def57b6": {
+      "message": "FirstMate filed this on {date}. The bank decides next; this page updates when Forward does.",
+      "format": "icu"
+    },
+    "m_b34be81399d69f": "This dispute is closed. There is nothing to respond to.",
+    "m_923d54f04ea3d3": "Your decision",
+    "m_602034bcfbe88d": "Fight it",
+    "m_2b256129afa50d": "Show the charge was right. If the bank agrees, you keep the money.",
+    "m_6dd38259c4a8f6": "Accept it",
+    "m_32c2c27289f9a5": "The customer keeps the refund. Nothing else to send.",
+    "m_74c247874d32ca": "What the customer says",
+    "m_c41da33ab1cc67": "Picked from the bank's reason. It decides which evidence helps most.",
+    "m_16dd381f7606e8": "A short letter to the bank: what the customer bought, that they got it, and why the charge is right. Refer to your files.",
+    "m_40d622ff5a52e6": "The customer signed our proposal on … and we finished the work on …",
+    "m_0c02725cc5c100": "Note for FirstMate (optional)",
+    "m_b3ebdfc21e717e": "Unsaved changes",
+    "m_67308ce7dbbce4": {
+      "message": "Saved {date}",
+      "format": "icu"
+    },
+    "m_bb186c33ef3094": "Save draft",
+    "m_d3ad1f45352bd0": "Send to FirstMate",
+    "m_e773db72b24d00": "Submit response",
+    "m_2e5e3fdd4da5f7": "Change response",
+    "m_e303e20d35ba15": "Someone who manages company settings can respond to this dispute.",
+    "m_e2b803de55a93e": "Submitted",
+    "m_c476638e89f336": "Reopened",
+    "m_257c898501d9ee": "FirstMate staff",
+    "m_5da056f68daa2b": "File this in Forward's portal under the company's merchant account: choose the same decision, paste the response and attach each file.",
+    "m_b421c5f99c63dd": "Copy response",
+    "m_e944f21288b995": "Mark filed",
+    "m_449c9cb1efb6d4": "Send back",
+    "m_7a913539ee5960": "Loading dispute",
+    "m_8ec7d8249a46fe": "This dispute could not load",
+    "m_209292b0163db9": "All disputes",
+    "m_d5f4ff255a22de": "Due soon",
+    "m_af7ad032b413f6": "Submit your response today so FirstMate can file it in time.",
+    "m_117e4bdc126d0f": "Loading disputes",
+    "m_c79661134ecd55": "Disputes could not load",
+    "m_03db266f12e69e": "Write a few sentences in Your response first.",
+    "m_30358fb5441911": "Send FirstMate your decision to accept this dispute? The customer keeps the money.",
+    "m_4d1adaea4274d9": "Submit this response? FirstMate files it with Forward for you.",
+    "m_35f0835e302ea2": "Submitting…",
+    "m_ea600c018fb36c": "Saving…",
+    "m_4bb4688766e904": "Saved",
+    "m_5b8cfa7a60a8d9": "Response submitted",
+    "m_7b876e4efd22a4": "FirstMate will file it with Forward.",
+    "m_58d11f2689a63e": "Could not save.",
+    "m_c8b7bd7ca69f49": "Save failed",
+    "m_b712ce7d22d3e3": "Note for the company (optional), e.g. where it was filed:",
+    "m_f5703af2a93f40": "What should the company change?",
+    "m_04a3f4a86f90c7": "Could not update",
+    "m_627eee4e46ca16": "Too many files",
+    "m_886a8c8e45d257": "Attach up to 20 files.",
+    "m_5f6c6402c46164": {
+      "message": "{name} is over 10 MB.",
+      "format": "icu"
+    },
+    "m_eba695c553b0b3": "Upload failed",
+    "m_16841202d17c7c": "Copied",
+    "m_49509eede4376c": "Paste it into the response at Forward.",
+    "m_b68d29b7be4612": "Copy the response:"
   },
   "firstmate-apps-manifest": {
     "m_1a8d3340c06415": "My Projects",
@@ -4837,7 +5062,12 @@
     "materials_settings_setup_equipment": "Set up your equipment",
     "materials_settings_setup_equipment_body": "Add the equipment you use and where it is kept. Once it is set up, this is where you manage it.",
     "materials_settings_workforce_start": "Set up who does the work",
-    "materials_settings_setup_workforce_body": "Add your crews and subcontractors, what each one does and how you pay them. Once they are set up, this is where you see and change them."
+    "materials_settings_setup_workforce_body": "Add your crews and subcontractors, what each one does and how you pay them. Once they are set up, this is where you see and change them.",
+    "m_9ce7e2003c7727": {
+      "message": "Units: {v6}. Switch.",
+      "format": "icu"
+    },
+    "m_7e784f9b5540ab": "error"
   },
   "measurements": {
     "m_aaf397f737f7b1": "Residential",
@@ -8641,7 +8871,11 @@
       "format": "icu"
     },
     "m_b06faf127e1505": "Setup",
-    "m_a5481224995f93": "Set up your appointments"
+    "m_a5481224995f93": "Set up your appointments",
+    "m_a559f162249839": {
+      "message": " Appointment{v1}",
+      "format": "icu"
+    }
   },
   "settings": {
     "m_a54bc20fe42cea": " Loading your board…",
@@ -13867,7 +14101,32 @@
     "m_c6c266475a1775": "Privacy policy &amp; texting terms",
     "m_b96151d06a07de": "Hosted by FirstMate",
     "material_calculations_section": "Material calculations",
-    "material_calculations_section_subtitle": "How materials and labor are worked out from a measurement report, and the columns on the Materials tab."
+    "material_calculations_section_subtitle": "How materials and labor are worked out from a measurement report, and the columns on the Materials tab.",
+    "m_d7eae667a6d43e": "Defaults for invoices made in this branch.",
+    "m_265aee5b3f6c36": "Sales tax",
+    "m_cbb20cf074e28e": "Adds sales tax to new invoices at this rate. Turn it off to hide every sales tax control in the invoice generator.",
+    "m_7169c83cebf961": "Days until an invoice is due. 0 means due on receipt. Used when an invoice is made without its own due date.",
+    "m_d1521758bf5fc0": "days",
+    "m_add6e8bebd334e": "Online payments",
+    "m_ee876b83f1c7d3": "Shown next to the Pay button on every online payment. Leave it blank to tell customers refunds follow their agreement and how to reach you.",
+    "m_1d4ec3a8fac57d": "Save payment settings",
+    "m_76f7bb1e4a5f67": "Payouts go to this account. It is changed on Forward's secure portal: the button signs you in with a one-time link.",
+    "m_8d5623df1a4cb5": "Opens Forward's merchant portal in a new tab",
+    "m_b3d0ef66fc35ec": "How customers can pay you online. A switched-off way to pay is never offered.",
+    "m_49de61ae80850e": "Credit and debit cards.",
+    "m_d4dae1bc39690c": "Payments straight from a bank account. They take a few business days to clear.",
+    "m_f5b893378534a3": "Apple Pay and Google Pay, where the processor offers them.",
+    "m_f94ffde9f44499": "Card readers for taking payments in person.",
+    "m_790fe8426d5dcc": "Payment defaults, payouts, disputes, and accounts.",
+    "m_79f9fed59c8275": "Material calculations",
+    "m_1eb8f094791440": "How materials and labor are worked out from a measurement report, and the columns on the Materials tab.",
+    "m_64d68bb6aa5428": "Operations settings",
+    "m_fb66e4b20568dc": "Chargebacks and your responses",
+    "m_e06874e8b912d9": "Payouts",
+    "m_a73a3e75f01295": "Batches paid to your bank",
+    "m_49491c13e96e6f": "Days until an invoice is due",
+    "m_e8d22f7e7dbd19": "Sales tax and payment terms",
+    "m_a564308356e3e5": "Pending approval. Carriers usually review a business in a few days, and texting starts once it’s approved."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Add Work",
@@ -17065,7 +17324,27 @@
     "m_1ed494293f1cc3": "Payment in full",
     "m_8e318bf7d3e722": " Balance",
     "m_e1bbf40bfd14ef": "About this step",
-    "m_b4ff33c54a8197": "Full screen"
+    "m_b4ff33c54a8197": "Full screen",
+    "m_d2856ed8d49a5f": {
+      "message": "Price of {v5}",
+      "format": "icu"
+    },
+    "m_5a0aa6afef694c": "Take this line off",
+    "m_323c49ee7f8943": {
+      "message": "Take {v7} off",
+      "format": "icu"
+    },
+    "m_2e2d7712155342": "Enter adds it. Pick a price book item to use its price.",
+    "m_1ba6f040387c7e": "Name, or search your price book",
+    "m_f60c167490ab9d": "New line name",
+    "m_016a381208ebf4": "New line price",
+    "m_5c4bc906c56dd3": "Set up",
+    "m_95c81d9a92d972": "Set up payments",
+    "m_63c32111d16a2d": "Get paid when they sign",
+    "m_b21db5a19b5e92": "Set up payments to automatically take a payment from your customer when you deliver your proposal. A deposit due on signature is paid in their customer portal as they sign.",
+    "m_e28bfad0d5a8b3": " Set up payments",
+    "m_80ad5d823ed757": "Skip for now",
+    "m_27821870188424": "Show the live preview"
   },
   "insights": {
     "m_89b8c4efe6661d": "Insight",
@@ -20234,7 +20513,7 @@
     "polish_references_changed": "The polish could not preserve your draft. Your original text is unchanged.",
     "polish_unavailable": "AI assistance is not enabled for Channels.",
     "note_audience_mixed": "Choose departments or an advanced audience.",
-    "photo_discussion_owned": "Photo discussions are managed with their media.",
+    "photo_discussion_owned": "Photo and document discussions are managed with their item.",
     "project_only": "Note filters are available in projects.",
     "note_audience_refresh": "Refresh Notes before changing an advanced audience.",
     "project_notes_separate": "Project notes stay in Notes and cannot be shared to the project channel.",
@@ -20596,7 +20875,25 @@
     "checklist_defaults_changed": "Someone else changed the checklist settings. Reload and try again.",
     "checklist_defaults_project_required": "Make a checklist a default from its project.",
     "checklist_already_default": "That checklist is already a default.",
-    "invalid_draft_items": "The checklist's items could not be read."
+    "invalid_draft_items": "The checklist's items could not be read.",
+    "document_comments_denied": "This document discussion is not available to you.",
+    "document_setup_agreement": "Choose insurance agreements as a kind of proposal first.",
+    "equipment_setup_facility_twice": "Each location needs its own row.",
+    "equipment_setup_person": "The equipment setup is answered by a person.",
+    "labor_setup_apps_group": "Only a group's members are shown apps from here.",
+    "labor_setup_lead_group": "Only a group has someone in charge.",
+    "dispute_not_found": "This dispute was not found.",
+    "dispute_evidence_invalid": "Attach files uploaded for this dispute.",
+    "dispute_response_filed": "This response was already filed with the processor.",
+    "dispute_response_submitted": "This response is with FirstMate. Edit it to change it.",
+    "dispute_closed": "This dispute is closed and no longer takes a response.",
+    "dispute_decision_required": "Choose whether to fight or accept this dispute.",
+    "dispute_summary_required": "Explain why the charge is valid (at least a sentence).",
+    "dispute_evidence_type": "Attach a PDF, an image, a Word document or a text file.",
+    "dispute_evidence_empty": "This file is empty.",
+    "dispute_evidence_too_large": "Each file can be up to 10 MB.",
+    "dispute_evidence_not_found": "This file is not attached to the dispute.",
+    "dispute_response_not_submitted": "Only a submitted response can be filed or sent back."
   },
   "notifications": {
     "document_greeting": {
@@ -21882,7 +22179,20 @@
       "message": "{v0} of {v1} declarations",
       "format": "icu"
     },
-    "m_bc19f4b76353ef": "Loading declarations…"
+    "m_bc19f4b76353ef": "Loading declarations…",
+    "m_5c4fb8df281140": "FirstMate",
+    "m_f7ae232b803bc2": "Merchant Portal",
+    "m_87824318a3d2c6": "Dashboard",
+    "m_aa12922efdf3f7": "Applications",
+    "m_5842802f6c8cbb": "Payments",
+    "m_e06874e8b912d9": "Payouts",
+    "m_3685bf747e3dc0": "Export",
+    "m_ff0a2b79e7827c": "Filter",
+    "m_8329d47aa1284f": "View all",
+    "m_246b9433a8d7c1": "Succeeded",
+    "m_7244c568a68bff": "Processing",
+    "m_daf33a38858624": "Failed",
+    "m_2175240180a38e": "Pending"
   },
   "platform-offline": {
     "connect_once_title": "No connection",

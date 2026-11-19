@@ -14,6 +14,7 @@ import type {
   CreateRefundInput,
   CancelPaymentIntentInput,
   ListOptions,
+  DisputeListOptions,
   MerchantBoardingAdapter,
   PaymentProviderAdapter,
   ProviderAccount,
@@ -700,11 +701,16 @@ export function createMockAdapter(orgId: string): PaymentProviderAdapter {
         .reduce((sum, payment) => sum + Math.max(0, cents(payment.merchant_amount) - cents(payment.amount_refunded)), 0);
       return [{ currency: "USD", available_cents: 0, pending_cents: pending, raw: { pending } }];
     },
-    async listDisputes(_options: ListOptions = {}) {
+    async listDisputes(options: DisputeListOptions = {}) {
       const state = await readMockState(orgId);
-      return Object.values(state.disputes)
+      // Pages like Forward: newest first, `starting_after` a dispute id.
+      const all = Object.values(state.disputes)
         .sort((a, b) => cleanText(b.created_at).localeCompare(cleanText(a.created_at)))
-        .map(mapMockDispute);
+        .filter((entry) => !cleanText(options.status) || cleanText(entry.status) === cleanText(options.status));
+      const after = cleanText(options.starting_after);
+      const start = after ? all.findIndex((entry) => cleanText(entry.id) === after) + 1 : 0;
+      const limit = options.limit !== undefined ? Math.max(1, Math.round(options.limit)) : all.length;
+      return all.slice(start, start + limit).map(mapMockDispute);
     },
     async getDispute(disputeId) {
       const state = await readMockState(orgId);
@@ -1330,6 +1336,18 @@ async function createOrphanMockPayment(orgId: string, input: JsonObject) {
   return { payment: mapMockPayment(payment) };
 }
 
+// Card-network reason codes the simulator gives each reason (Visa's where
+// one exists), so the dev disputes page shows what Forward would send.
+const MOCK_DISPUTE_REASONS: Record<string, { code: number; text: string }> = {
+  fraudulent: { code: 10.4, text: "Other Fraud - Card Absent Environment" },
+  product_not_received: { code: 13.1, text: "Merchandise/Services Not Received" },
+  not_as_described: { code: 13.3, text: "Not as Described or Defective Merchandise/Services" },
+  duplicate: { code: 12.6, text: "Duplicate Processing or Paid by Other Means" },
+  credit_not_processed: { code: 13.6, text: "Credit Not Processed" },
+  cancelled: { code: 13.7, text: "Cancelled Merchandise/Services" },
+  incorrect_amount: { code: 12.5, text: "Incorrect Amount" }
+};
+
 async function openMockDispute(orgId: string, input: JsonObject) {
   const dispute = await withMockState(orgId, (state) => {
     const requested = cleanText(input.payment_id);
@@ -1338,15 +1356,36 @@ async function openMockDispute(orgId: string, input: JsonObject) {
         || cleanText(entry.reference_id) === requested);
     if (!payment) throw notFound("mock_payment_not_found", "Mock payment was not found for the dispute.");
     const id = mockId("dp");
+    const reason = cleanText(input.reason) || "fraudulent";
+    const today = nowIso().slice(0, 10);
+    const respondBy = addBusinessDays(new Date(), 10).toISOString();
+    const card = asObject(asObject(payment.payment_method).card);
+    // Shaped like Forward's DisputeDTO (GP-76), plus the older field names
+    // the projection also reads.
     const record: JsonObject = {
       id,
+      entity: "dispute",
       payment_id: cleanText(payment.id),
       payment_intent_id: cleanText(payment.payment_intent_id),
       status: "created",
       amount: input.amount_cents !== undefined ? Math.max(0, cents(input.amount_cents)) : cents(payment.amount),
       currency: cleanText(payment.currency),
-      reason: cleanText(input.reason) || "fraudulent",
-      respond_by: addBusinessDays(new Date(), 10).toISOString(),
+      reason,
+      reason_disputed: MOCK_DISPUTE_REASONS[reason]?.text || reason.replace(/_/g, " "),
+      reason_disputed_code: MOCK_DISPUTE_REASONS[reason]?.code ?? 0,
+      respond_by: respondBy,
+      response_due_date: respondBy.slice(0, 10),
+      original_response_due_date: respondBy.slice(0, 10),
+      dispute_date: today,
+      dispute_received_date: today,
+      reference_meta: {
+        card_last_four: cleanText(card.last_four_digits || card.last4) || "4242",
+        authorization_code: cleanText(payment.authorization_code) || "MOCK01",
+        transaction_date: cleanText(payment.created_at).slice(0, 10),
+        transaction_amount: cents(payment.amount)
+      },
+      notes: [],
+      attachments: [],
       reference_id: cleanText(payment.reference_id),
       user_fields: asObject(payment.user_fields),
       created_at: nowIso()
@@ -1354,16 +1393,6 @@ async function openMockDispute(orgId: string, input: JsonObject) {
     state.disputes[id] = record;
     return record;
   });
-  await emitMockEvent(orgId, "v2.dispute.created", {
-    id: cleanText(dispute.id),
-    payment_id: cleanText(dispute.payment_id),
-    status: "created",
-    amount: cents(dispute.amount),
-    currency: cleanText(dispute.currency),
-    reason: cleanText(dispute.reason),
-    respond_by: cleanText(dispute.respond_by),
-    reference_id: cleanText(dispute.reference_id),
-    user_fields: asObject(dispute.user_fields)
-  });
+  await emitMockEvent(orgId, "v2.dispute.created", { ...dispute });
   return { dispute: mapMockDispute(dispute) };
 }
