@@ -39,7 +39,7 @@ async function mountDocsTab(page) {
     const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     window.__APP = { userOrgId: 'org', userId: 'sam' };
     const flags = { current: () => ({ raw: { platform: { documents: true } }, effective: { platform: { documents: true } } }), value: () => true };
-    window.Portal = { cfg: window.__APP, appFlags: flags, modules: {}, util: { escapeHtml, injectCSS(id, text) { let el = document.getElementById('css_' + id); if (!el) { el = document.createElement('style'); el.id = 'css_' + id; document.head.append(el); } el.textContent = text; } }, ui: { showToast() {} } };
+    window.Portal = { cfg: window.__APP, appFlags: flags, modules: {}, util: { escapeHtml, injectCSS(id, text) { let el = document.getElementById('css_' + id); if (!el) { el = document.createElement('style'); el.id = 'css_' + id; document.head.append(el); } el.textContent = text; } }, ui: { showToast(...args) { (window.toasts ||= []).push(args); } } };
     window.PlatformAPI = { media: { fileUrl: () => '', thumbnailUrl: () => '' }, projectDocuments: { list: async () => ({ documents: [], uploaded_documents: [] }) } };
     window.created = [];
     const engineApi = { openCreateModal: (prefill, opts) => window.created.push({ prefill, opts }), openDocument() {}, openPreview() {}, getDocs: () => [], refresh() {} };
@@ -855,6 +855,76 @@ test('on a phone Preview\'s loading state sits on the dark backdrop, not in a fu
     const box = await page.evaluate(() => { const s = document.querySelector('.fmdx-preview-overlay > .fmdx-state'); const r = s.getBoundingClientRect(); return { top: r.top, height: r.height, width: r.width, background: getComputedStyle(s).backgroundColor }; });
     assert.equal(box.background, 'rgba(0, 0, 0, 0)');
     assert.ok(box.top > 200 && box.height < 300 && box.width <= 390 - 32, `a centred spinner: ${JSON.stringify(box)}`);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+// GP-21: documents are ticked like photos, with the box in each tile's bottom-right corner (hidden until the tile is
+// hovered or anything is ticked), and the dock's one action is Move to trash: a document made here is voided like the
+// editor's Move to trash, an uploaded file leaves the project, and invoices stay.
+for (const device of [DESKTOP, PHONE]) test(`ticked documents move to trash together on ${device === PHONE ? 'a phone' : 'a desktop'}`, async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await pageFor(browser, device);
+    await mountDocsTab(page);
+    await page.evaluate(() => {
+      window.calls = [];
+      window.PlatformUI = { confirm: async (message, options) => { window.calls.push(['confirm', message, options.okLabel]); return true; } };
+      window.DocumentsAPI = { documents: { archive: async (org, id) => { window.calls.push(['archive', id]); return { ok: true }; } } };
+      const file = { id: 'file_1', media_id: 'media_1', title: 'Site plan.pdf', document_type: 'document', url: '/site-plan.pdf', content_type: 'application/pdf' };
+      window.PlatformAPI.projectDocuments.list = async () => ({ documents: [file], uploaded_documents: [file] });
+      window.PlatformAPI.projectDocuments.remove = async (org, project, id) => { window.calls.push(['remove', id]); return { documents: [], uploaded_documents: [] }; };
+      window.PaymentsAPI = { invoices: { list: async () => ({ invoices: [{ id: 'inv_1', invoice_number: 'INV-1001', total_cents: 50000 }] }), pdfUrl: () => '/inv.pdf' } };
+      window.Portal.ProjectDocsTab.mount({ panelRoot: document.querySelector('#tab'), active: true, host: { getProject: () => ({ id: 'p1' }), projectOrgId: () => 'org' } });
+    });
+    const tile = (name) => page.locator('.fm-document-tile').filter({ hasText: name });
+    await page.addStyleTag({ content: '.pf-select{transition:none!important}' });
+    await tile('Site plan.pdf').waitFor();
+    await page.evaluate(() => docsEmbed.onDocsChanged([{ id: 'draft_1', title: 'Roof proposal', document_type: 'proposal', status: 'draft' }, { id: 'sent_1', title: 'Gutter contract', document_type: 'contract', status: 'sent' }]));
+    await tile('Gutter contract').waitFor();
+    assert.equal(await page.locator('.fm-document-tile').count(), 4);
+    const boxes = () => page.locator('.fm-document-tile .pf-select').evaluateAll((nodes) => nodes.map((node) => {
+      const tile = node.closest('.pf-thumb').getBoundingClientRect(), box = node.getBoundingClientRect();
+      return { opacity: Number(getComputedStyle(node).opacity), right: Math.round(tile.right - box.right), bottom: Math.round(tile.bottom - box.bottom), width: Math.round(box.width) };
+    }));
+    await page.mouse.move(0, 0);
+    const before = await boxes();
+    assert.ok(before.every((box) => box.opacity === 0), `no boxes until a tile is hovered or ticked: ${JSON.stringify(before)}`);
+    assert.ok(before.every((box) => box.width === 24 && box.right > 0 && box.right < 16 && box.bottom > 0 && box.bottom < 24), `bottom-right corner: ${JSON.stringify(before)}`);
+    assert.equal(await page.locator('[data-selection-dock]').count(), 0, 'no actions until something is ticked');
+    if (device === PHONE) {
+      // A long press ticks on a phone.
+      const box = await tile('Roof proposal').boundingBox();
+      const cdp = await page.context().newCDPSession(page);
+      const point = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 3) };
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+      await page.waitForTimeout(700);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } else {
+      await tile('Roof proposal').hover();
+      assert.equal(await tile('Roof proposal').locator('.pf-select').evaluate((node) => getComputedStyle(node).opacity), '1', 'hovering shows its box');
+      await tile('Roof proposal').locator('.pf-select').click();
+    }
+    await page.locator('[data-selection-dock].open').waitFor();
+    await page.mouse.move(0, 0);
+    assert.ok((await boxes()).every((box) => box.opacity === 1), 'every box shows once one is ticked');
+    const dock = page.locator('[data-selection-dock]');
+    assert.equal(await dock.locator('[data-selection-download]').count(), 0, 'documents have no Download');
+    assert.equal(await dock.locator('[data-selection-delete]').count(), 0, 'no photo Delete');
+    const trash = dock.locator('[data-selection-extra="trash"]');
+    assert.equal(await trash.count(), 1);
+    assert.equal(await trash.getAttribute('aria-label') || await trash.getAttribute('data-fm-tooltip'), 'Move to trash');
+    if (process.env.DOC_TRASH_SHOT) { await page.addStyleTag({ url: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css' }); await page.evaluate(() => document.fonts.ready); if (device === DESKTOP) await tile('Gutter contract').hover(); await page.screenshot({ path: process.env.DOC_TRASH_SHOT.replace('.png', device === PHONE ? '-phone.png' : '-desktop.png') }); }
+    await dock.locator('[data-selection-all]').click();
+    assert.equal(await page.locator('.fm-document-tile.selected').count(), 4);
+    await trash.click();
+    await page.waitForFunction(() => document.querySelectorAll('.fm-document-tile').length === 1);
+    const calls = await page.evaluate(() => window.calls);
+    assert.deepEqual(calls[0], ['confirm', 'Move 3 documents to trash? Customers will no longer be able to open the ones you sent. Invoices, reports and receipts stay.', 'Move to trash']);
+    assert.deepEqual(calls.slice(1).map((call) => call.join(':')).sort(), ['archive:draft_1', 'archive:sent_1', 'remove:file_1']);
+    assert.ok(await tile('INV-1001').isVisible(), 'the invoice stays');
+    assert.equal(await page.locator('[data-selection-dock].open').count(), 0, 'the selection is cleared');
+    assert.deepEqual(await page.evaluate(() => window.toasts.at(-1).slice(0, 2)), ['Moved to trash', '3 documents moved to trash.']);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

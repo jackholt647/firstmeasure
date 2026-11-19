@@ -809,6 +809,13 @@
       html[data-fm-doc-phone] .fm-docs-gallery :is(.fm-doc-type-badge,.fm-doc-status-badge){font-size:9px;padding:4px 6px}
       html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-detail-pills{bottom:60px;max-height:22px}
       html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-detail-pills>span{font-size:9px;padding:3px 6px}
+      /* Selecting (GP-21): the tick box floats in the tile's bottom-right corner, over the end of the title, shown on
+         hover and on every tile once anything is ticked. */
+      .fm-docs-gallery .pf-thumb.fm-document-tile .pf-select{top:auto;left:auto;right:9px;bottom:15px;box-sizing:border-box;width:24px;height:24px;border-radius:7px;border:1.5px solid #98a2b3;background:#fff;color:#fff;backdrop-filter:none;box-shadow:-10px 0 8px 2px #fff;transition:opacity .12s ease}
+      .fm-docs-gallery .pf-thumb.fm-document-tile .pf-select:hover{border-color:var(--primary,#d93025)}
+      .fm-docs-gallery .pf-thumb.fm-document-tile:focus-visible .pf-select{opacity:1}
+      .fm-docs-gallery .pf-thumb.fm-document-tile.selected .pf-select{background:var(--primary,#d93025);border-color:var(--primary,#d93025)}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .pf-thumb.fm-document-tile .pf-select{right:10px;bottom:10px}
 
     `);
   }
@@ -1042,6 +1049,71 @@
       showToast((globalThis.PlatformLanguage?.text("docs","m_16f422ba4271fa","Remove failed") ?? "Remove failed"), error?.message || 'Could not remove this document.', false);
       return { count:0 };
     }
+  }
+  // Move to trash (GP-21): the documents ticked in the gallery. A document made here is voided, as the editor's own
+  // Move to trash does, so its customer links stop working; an uploaded file leaves the project. Invoices, delivered
+  // reports and receipts belong to other apps and stay.
+  function docsText(key, fallback, vars = {}){
+    const text = globalThis.PlatformLanguage?.text?.('docs', key, fallback, vars) ?? fallback;
+    return String(text).replace(/\{(\w+)\}/g, (match, name) => (Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : match));
+  }
+  function trashableDoc(doc = {}){
+    if (isReceiptDoc(doc)) return false;
+    if (doc.engine_document === true) return !!firstText(doc.__engineDoc?.id);
+    return !doc.special && !!doc.media_id;
+  }
+  async function trashSelectedDocs(items = [], selection = {}){
+    const docs = items.map(documentFromItem).filter((doc) => docId(doc));
+    const trashable = docs.filter(trashableDoc);
+    const title = docsText('docs_trash_action', 'Move to trash');
+    if (!trashable.length) {
+      showToast(title, docsText('docs_trash_none', 'Invoices, reports and receipts can’t be moved to trash here.'), false);
+      return;
+    }
+    const sent = trashable.some((doc) => doc.engine_document === true && cleanText(doc.__engineDoc?.status).toLowerCase() !== 'draft');
+    const message = [
+      trashable.length === 1
+        ? docsText('docs_trash_confirm_one', 'Move “{title}” to trash?', { title: firstText(trashable[0].title, 'this document') })
+        : docsText('docs_trash_confirm_many', 'Move {count} documents to trash?', { count: trashable.length }),
+      sent ? docsText('docs_trash_confirm_sent', 'Customers will no longer be able to open the ones you sent.') : '',
+      trashable.length < docs.length ? docsText('docs_trash_confirm_kept', 'Invoices, reports and receipts stay.') : ''
+    ].filter(Boolean).join(' ');
+    const ok = await (window.PlatformUI?.confirm
+      ? window.PlatformUI.confirm(message, { title, okLabel: title, cancelLabel: docsText('docs_trash_cancel', 'Cancel'), danger: true })
+      : Promise.resolve(window.confirm(message)));
+    if (!ok) return;
+    const moved = new Set();
+    let files = null;
+    for (const doc of trashable) {
+      try {
+        if (doc.engine_document === true) {
+          if (!window.DocumentsAPI?.documents?.archive) throw new Error('Documents are not available.');
+          await window.DocumentsAPI.documents.archive(orgId(), doc.__engineDoc.id);
+        } else {
+          files = await window.PlatformAPI.projectDocuments.remove(orgId(), projectId(), docId(doc));
+        }
+        moved.add(docId(doc));
+      } catch (error) {
+        console.warn('Document could not be moved to trash', error);
+      }
+    }
+    if (files) {
+      state.uploadedDocs = normalizeList(files.uploaded_documents || []);
+      state.docs = normalizeList([...mergeInvoiceDocuments(files.documents || [], state.invoices), ...requiredPlaceholders()]);
+      setProjectUploadedDocs(state.uploadedDocs);
+      callHost('persistProject');
+    }
+    state.engineEntries = state.engineEntries.filter((entry) => !moved.has(docId(entry)));
+    selection.clearSelection?.();
+    render();
+    if (trashable.some((doc) => doc.engine_document === true && moved.has(docId(doc)))) Promise.resolve(state.engineApi?.refresh?.()).catch(() => {});
+    const failed = trashable.length - moved.size;
+    if (moved.size) {
+      showToast(docsText('docs_trash_done_title', 'Moved to trash'), moved.size === 1
+        ? docsText('docs_trash_done_one', 'Document moved to trash.')
+        : docsText('docs_trash_done_many', '{count} documents moved to trash.', { count: moved.size }), true);
+    }
+    if (failed) showToast(title, docsText('docs_trash_failed', 'Could not move {count} of them to trash. Try again.', { count: failed }), false);
   }
   function formatBytes(bytes){
     const n = Number(bytes || 0);
@@ -1362,7 +1434,10 @@
       enableProjectLinks:false,
       projectLinkEnabled:false,
       includeReceipts:state.visibleDocumentCategories.has('receipt'),
-      selectionEnabled:false,
+      // Tick documents (on hover, or a long press on a phone) to act on several at once (GP-21).
+      downloadEnabled:false,
+      deleteEnabled:false,
+      selectionActions:[{ id:'trash', label:docsText('docs_trash_action', 'Move to trash'), icon:'fa-trash', className:'danger', showLabel:true, onClick:(items, selection) => trashSelectedDocs(items, selection) }],
       tileClass:'fm-document-tile loaded',
       renderThumbnail:documentThumbnailHtml,
       renderTileMeta:documentTileMeta,
