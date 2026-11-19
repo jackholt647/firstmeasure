@@ -262,7 +262,7 @@
     const crew = term('workforce.resource_group_singular', 'Crew'), sub = term('workforce.organization_connection_singular', 'Subcontractor');
     const money = (rate) => `$${Number(rate).toLocaleString(undefined, { maximumFractionDigits:2 })}`;
     const unit = (pay) => pay.method === 'hourly' ? t('materials_settings_workforce_per_hour', 'per hour') : pay.method === 'per_job' ? t('materials_settings_workforce_per_job', 'per job') : String(pay.measurement || '').startsWith('roof.squares') || pay.measurement === 'roof.flat_squares' ? t('materials_settings_workforce_per_square', 'per square') : t('materials_settings_workforce_per_foot', 'per foot');
-    const payText = (entry) => !entry.pay ? t('materials_settings_workforce_no_pay', 'Pay not set') : entry.pay.simple && Number(entry.pay.simple.rate) > 0 ? `${money(entry.pay.simple.rate)} ${unit(entry.pay.simple)}` : entry.pay.simple ? t('materials_settings_workforce_no_pay', 'Pay not set') : `${t('materials_settings_workforce_sheet', 'Pay sheet')} · ${entry.pay.lines}`;
+    const payText = (entry) => !entry.pay ? t('materials_settings_workforce_no_pay', 'Pay not set') : entry.pay.simple && Number(entry.pay.simple.rate) > 0 ? `${money(entry.pay.simple.rate)} ${unit(entry.pay.simple)}` : entry.pay.simple ? t('materials_settings_workforce_no_pay', 'Pay not set') : `${t('materials_settings_workforce_sheet', 'Own pay sheet')} (${entry.pay.lines} ${entry.pay.lines === 1 ? t('materials_settings_workforce_line', 'line') : t('materials_settings_workforce_lines', 'lines')})`;
     async function load(){
       host.innerHTML = `<div class="mts-pane-fill">${stateMarkup('fa-circle-notch', t('materials_settings_loading_workforce', 'Loading who does the work…'), true)}</div>`;
       try {
@@ -279,7 +279,7 @@
       host.innerHTML = `<div class="mts-cats mts-wf" data-mts-workforce>
         ${rows.length ? rows.map((entry) => `<div class="mts-wf-row" data-mts-wf="${esc(entry.kind)}:${esc(entry.ref?.id)}">
           <span class="mts-wf-icon" aria-hidden="true"><i class="fas ${entry.kind === 'resource_group' ? 'fa-users' : 'fa-handshake'}"></i></span>
-          <div class="mts-wf-text"><strong>${esc(entry.name)}</strong><small>${esc([entry.kind === 'resource_group' ? crew : sub, (entry.service_ids || []).map((id) => services.get(id) || id).join(', '), entry.kind === 'resource_group' && entry.members ? `${entry.members} ${t('materials_settings_workforce_people', 'people')}` : ''].filter(Boolean).join(' · '))}</small></div>
+          <div class="mts-wf-text"><strong>${esc(entry.name)}</strong><small>${esc([entry.kind === 'resource_group' ? crew : sub, (entry.service_ids || []).map((id) => services.get(id) || id).join(', '), entry.kind === 'resource_group' && entry.members ? `${entry.members} ${entry.members === 1 ? t('materials_settings_workforce_person', 'person') : t('materials_settings_workforce_people', 'people')}` : ''].filter(Boolean).join(' · '))}</small></div>
           <span class="mts-wf-pay">${esc(payText(entry))}</span>
         </div>`).join('') : `<p class="mts-wf-empty">${esc(t('materials_settings_workforce_empty', 'Nobody is set up to do the work yet.'))}</p>`}
         <div class="mts-wf-actions"><button type="button" class="mts-btn" data-mts-wf-setup><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>${esc(rows.length ? t('materials_settings_workforce_change', 'Change in the setup') : t('materials_settings_workforce_start', 'Set up who does the work'))}</button></div>

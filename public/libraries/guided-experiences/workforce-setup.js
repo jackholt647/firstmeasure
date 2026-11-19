@@ -313,7 +313,8 @@ export function mount(el, ctx){
       prev.hidden = !more || track.scrollLeft < 4; next.hidden = !more || track.scrollLeft > track.scrollWidth - track.clientWidth - 4;
       const cards = [...track.children], width = cards[0]?.getBoundingClientRect().width || 1;
       const first = Math.round(track.scrollLeft / (width + 12)), visible = Math.max(1, Math.round((track.clientWidth + 12) / (width + 12)));
-      where.textContent = more ? L('gx_wfs_where', '{from}–{to} of {n}', { from: first + 1, to: Math.min(cards.length, first + visible), n: cards.length }) : '';
+      const last = Math.min(cards.length, first + visible);
+      where.textContent = !more ? '' : last === first + 1 ? L('gx_wfs_where_one', '{at} of {n}', { at: first + 1, n: cards.length }) : L('gx_wfs_where', '{from}–{to} of {n}', { from: first + 1, to: last, n: cards.length });
     };
     const step = (direction) => { const width = track.firstElementChild?.getBoundingClientRect().width || track.clientWidth; track.scrollBy({ left: direction * (width + 12), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
     prev.addEventListener('click', () => step(-1)); next.addEventListener('click', () => step(1));
