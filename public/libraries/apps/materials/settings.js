@@ -280,10 +280,10 @@
 
   /**
    * Who does the work, as the workforce setup saved it: one row per crew and subcontractor with what it does, who is on
-   * it and how it is paid. Changing it plays the setup again, over this window (hidden while it plays).
+   * it and how it is paid. Changing it plays the setup again, in this pane (playSetup).
    */
   function mountWorkforce(host, ctx){
-    let destroyed = false;
+    let destroyed = false, playing = null;
     const orgId = () => ctx.orgIdText();
     const target = () => ({ scope:'organization', organizationId:orgId() });
     const crew = term('workforce.resource_group_singular', 'Crew'), sub = term('workforce.organization_connection_singular', 'Subcontractor');
@@ -317,17 +317,16 @@
       const guides = guidesLibrary();
       if (!guides?.play) { ctx.toast(t('materials_settings_workforce_unavailable', 'The setup is not available here.'), 'error'); return; }
       button.disabled = true;
-      const overlay = host.closest('.mts-overlay');
+      playing = new AbortController();
       try {
         await startWorkforce(ctx);
-        if (overlay) overlay.style.visibility = 'hidden';
-        const outcome = await guides.play('operations.workforce.setup', { replay:true, force:true });
+        const outcome = await playSetup(guides, 'operations.workforce.setup', host, playing.signal);
         if (outcome?.status === 'unavailable') ctx.toast(t('materials_settings_workforce_unavailable', 'The setup is not available here.'), 'error');
       } catch (error) { ctx.toast(error?.message || t('materials_settings_workforce_unavailable', 'The setup is not available here.'), 'error'); }
-      finally { if (overlay) overlay.style.visibility = ''; ctx.setupStatus = null; if (!destroyed) load(); }
+      finally { playing = null; ctx.setupStatus = null; if (!destroyed) load(); }
     }
     load();
-    return { reload:load, destroy(){ destroyed = true; } };
+    return { reload(){ if (!playing) load(); }, destroy(){ destroyed = true; playing?.abort(); } };
   }
 
   // In a project, the workforce setup's start turns the workforce app on first (as Operations' Workforce card does), with
@@ -338,6 +337,20 @@
     await root.PlatformAPI.publication.invoke(orgId, 'operations.workforce.setup.start', { scope:'project', organizationId:orgId, projectId:ctx.projectId }, {}, { idempotencyKey:`operations.workforce.start:${orgId}:${crypto.randomUUID()}` });
     await Promise.all([root.PlatformAPI.capabilities?.load?.(orgId, { refresh:true }), root.PlatformAPI.appFlags?.load?.(orgId, { refresh:true })]).catch(() => null);
     await root.Portal?.auth?.syncPlatformSession?.()?.catch?.(() => null);
+  }
+
+  /**
+   * Plays a setup started from a sub-tab. With this frame's own player it plays inside the sub-tab's pane (GP-78): the
+   * settings stay where they are and the setup is their content until it ends; `signal` (the settings closing) ends it.
+   * Only the portal's player around this frame is left (it cannot draw into this frame): it plays over the window, which
+   * is hidden while it does.
+   */
+  async function playSetup(guides, id, pane, signal){
+    if (guides === root.FirstMateGuides) return guides.play(id, { replay:true, force:true, container:pane, signal });
+    const overlay = pane.closest('.mts-overlay');
+    if (overlay) overlay.style.visibility = 'hidden';
+    try { return await guides.play(id, { replay:true, force:true }); }
+    finally { if (overlay) overlay.style.visibility = ''; }
   }
 
   // The guide player of this frame, else of the portal around it (the project window is a frame).
@@ -360,12 +373,13 @@
   const isSetUp = (value) => value === true || value?.complete === true || value?.completed === true;
 
   /**
-   * A sub-tab with a setup, in the modal: until it is done, opening it plays the setup over this window (hidden while it
-   * plays) and the pane offers it again; once it is done (or finished here) the pane is the sub-tab's settings page.
+   * A sub-tab with a setup, in the modal: until it is done, opening it plays the setup in its pane (playSetup) and the
+   * pane offers it again; once it is done (or finished here) the pane is the sub-tab's settings page.
    */
   function mountSetupGate(section, host, ctx){
     const setup = section.setup;
     let inner = null, destroyed = false, playing = false, played = false;
+    const stop = new AbortController();
     const settingsPage = () => {
       if (destroyed || inner) return;
       host.innerHTML = '';
@@ -396,14 +410,13 @@
       if (!guides?.play) { settingsPage(); return; }
       playing = true; played = true;
       host.querySelector('[data-mts-setup-start]')?.setAttribute('disabled', '');
-      const overlay = host.closest('.mts-overlay');
       let outcome = null;
       try {
         await setup.before?.(ctx);
-        if (overlay) overlay.style.visibility = 'hidden';
-        outcome = await guides.play(setup.guide, { replay:true, force:true });
+        if (destroyed) return;
+        outcome = await playSetup(guides, setup.guide, host, stop.signal);
       } catch (error) { outcome = { status:'failed', error }; }
-      finally { if (overlay) overlay.style.visibility = ''; playing = false; }
+      finally { playing = false; }
       if (destroyed) return;
       ctx.setupStatus = null;
       // A setup this person cannot play here leaves the settings page.
@@ -416,7 +429,7 @@
     check(false);
     return {
       reload(){ if (inner) return inner.reload?.(); },
-      destroy(){ destroyed = true; try { inner?.destroy?.(); } catch (error) {} }
+      destroy(){ destroyed = true; stop.abort(); try { inner?.destroy?.(); } catch (error) {} }
     };
   }
 

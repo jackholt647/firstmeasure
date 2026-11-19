@@ -428,7 +428,8 @@ test('Operations settings shows the Equipment tab as a sub-tab while the Equipme
 });
 
 // GP-73: in a project's Operations settings, Suppliers, Equipment and Crews and Subcontractors play their setup until the
-// organization has done it (operations.setup.status), over the modal, and are their settings page once it is done.
+// organization has done it (operations.setup.status), and are their settings page once it is done. The setup plays in the
+// sub-tab's pane, not over the modal (GP-78), and closing the modal ends it.
 test('Operations settings plays a sub-tab\'s setup until it is done, then shows its settings', async () => {
   const server = await serve();
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -442,7 +443,8 @@ test('Operations settings plays a sub-tab\'s setup until it is done, then shows 
       // completed with nothing saved (as Operations' equipment setup does when its inner setup is closed, FM-619).
       let workforcePlays = 0, supplierPlays = 0;
       window.FirstMateGuides = { play: async (id, options) => {
-        window.played.push({ id, replay: options?.replay, force: options?.force, hidden: document.querySelector('.mts-overlay')?.style.visibility === 'hidden' });
+        window.played.push({ id, replay: options?.replay, force: options?.force, pane: options?.container?.dataset?.mtsPane || '', signal: !!options?.signal, hidden: document.querySelector('.mts-overlay')?.style.visibility === 'hidden' });
+        if (window.holdNext) { window.holdNext = false; return new Promise((resolve) => options.signal.addEventListener('abort', () => { window.aborted = id; resolve({ status: 'ended' }); })); }
         if (id === 'operations.workforce.setup' && !workforcePlays++) return { status: 'dismissed' };
         if (id === 'operations.suppliers.setup' && !supplierPlays++) return { status: 'completed' };
         if (id === 'operations.suppliers.setup') window.STATUS.suppliers = { complete: true };
@@ -467,13 +469,13 @@ test('Operations settings plays a sub-tab\'s setup until it is done, then shows 
     await page.locator('[data-stub-pricebook]').waitFor();
     assert.deepEqual(await page.evaluate(() => window.played), [], 'the price book has no setup');
 
-    // Suppliers: not set up, so opening it plays the supplier setup over the hidden modal. It ended with nothing saved, so
+    // Suppliers: not set up, so opening it plays the supplier setup in its pane, the modal still showing (GP-78). It ended with nothing saved, so
     // the pane offers it again; finished, it is the editor.
     await page.locator('[data-mts-tab="suppliers"]').click();
     const supplierStart = page.locator('[data-mts-pane="suppliers"] [data-mts-setup="suppliers"] [data-mts-setup-start]');
     await supplierStart.waitFor();
     await page.waitForFunction(() => !document.querySelector('[data-mts-setup-start]:disabled'));
-    assert.deepEqual(await page.evaluate(() => window.played), [{ id: 'operations.suppliers.setup', replay: true, force: true, hidden: true }]);
+    assert.deepEqual(await page.evaluate(() => window.played), [{ id: 'operations.suppliers.setup', replay: true, force: true, pane: 'suppliers', signal: true, hidden: false }]);
     assert.equal(await page.locator('[data-mts-pane="suppliers"] .sup-wrap').count(), 0, 'no settings before the setup is done');
     await supplierStart.click();
     await page.locator('[data-mts-pane="suppliers"] .sup-wrap').waitFor();
@@ -501,10 +503,16 @@ test('Operations settings plays a sub-tab\'s setup until it is done, then shows 
     await shot(page, 'modal-setup-workforce');
     await start.click();
     await page.locator('[data-mts-pane="workforce"] [data-mts-wf="resource_group:g1"]').waitFor();
-    assert.deepEqual((await page.evaluate(() => window.played)).map((row) => row.id), ['operations.suppliers.setup', 'operations.suppliers.setup', 'operations.workforce.setup', 'operations.workforce.setup']);
+    assert.deepEqual((await page.evaluate(() => window.played)).map((row) => [row.id, row.pane, row.hidden]), [['operations.suppliers.setup', 'suppliers', false], ['operations.suppliers.setup', 'suppliers', false], ['operations.workforce.setup', 'workforce', false], ['operations.workforce.setup', 'workforce', false]]);
     assert.equal(await page.locator('[data-mts-pane="workforce"] [data-mts-setup]').count(), 0);
+    // Change in the setup: it plays in the pane too; closing the modal while it plays ends it.
+    await page.evaluate(() => { window.holdNext = true; });
+    await page.locator('[data-mts-wf-setup]').click();
+    await page.waitForFunction(() => window.played.length === 5);
+    assert.deepEqual(await page.evaluate(() => [window.played[4].pane, window.played[4].hidden]), ['workforce', false]);
     await page.locator('[data-mts-close]').click();
     await page.locator('.mts-overlay').waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => window.aborted), 'operations.workforce.setup');
 
     // Settings has no project and none of these sub-tabs: it never reads the setup checklist.
     const before = await page.evaluate(() => window.calls.length);

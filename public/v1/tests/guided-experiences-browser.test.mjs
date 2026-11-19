@@ -526,6 +526,33 @@ test('the X asks in a dialog over the setup: Keep going returns to the same step
   } finally { await browser.close(); }
 });
 
+// GP-78: a setup played with a container (a settings pane it was started from) is that container's content, with no
+// scrim, as large as the container at any width; the caller's signal ends it there, and without one it is the modal.
+test('a setup played into a container fills it with no scrim, and its signal ends it',async()=>{
+  const browser=await launch();
+  try{
+    for(const width of [1280,420]){
+      const {page,errors}=await load(browser,{width,height:800});
+      await page.evaluate(()=>{const pane=document.createElement('div');pane.id='pane';pane.style.cssText='position:fixed;left:10px;top:60px;width:min(900px,calc(100vw - 20px));height:600px';document.body.append(pane);
+        window.stop=new AbortController();window.outcome=null;
+        FirstMateGuides.play('materials.pricebook_setup.roofing',{replay:true,force:true,container:pane,signal:window.stop.signal}).then(o=>{window.outcome=o;});});
+      await page.waitForSelector('#pane > .gxs.gxs-embedded .gxs-type');
+      const placed=await page.evaluate(()=>{const p=document.getElementById('pane').getBoundingClientRect(),s=document.querySelector('.gxs-sheet').getBoundingClientRect();
+        return {fills:Math.abs(p.left-s.left)<=1&&Math.abs(p.top-s.top)<=1&&Math.abs(p.width-s.width)<=1&&Math.abs(p.height-s.height)<=1,scrim:!!document.querySelector('.gxs-scrim'),role:document.querySelector('.gxs-sheet').getAttribute('role'),modal:document.querySelector('.gxs-sheet').hasAttribute('aria-modal'),outside:document.querySelectorAll('body > .gxs').length};});
+      assert.deepEqual(placed,{fills:true,scrim:false,role:'region',modal:false,outside:0},`width ${width}`);
+      await page.evaluate(()=>window.stop.abort());
+      await page.waitForFunction(()=>window.outcome);
+      assert.equal(await page.evaluate(()=>window.outcome.status),'ended');
+      assert.equal(await page.locator('.gxs').count(),0);
+      // Played as before (no container): the modal over the page.
+      await page.evaluate(()=>{FirstMateGuides.play('materials.pricebook_setup.roofing',{replay:true,force:true});});
+      await page.waitForSelector('body > .gxs:not(.gxs-embedded) > .gxs-scrim');
+      assert.deepEqual(errors,[]);
+      await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
 test('the defaults and the labor step can be skipped: the defaults then come from the brands, and labor stays off',async()=>{
   const browser=await launch();
   try{
