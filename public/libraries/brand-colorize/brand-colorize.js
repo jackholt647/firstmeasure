@@ -11,8 +11,11 @@
  * In "family" mode (the default) only colours leaning towards the base's hue are recoloured, blended in by how far
  * they lean, so colours on the other side of the wheel (a red error, an amber warning when the base is teal) keep
  * theirs, and so do near-greys: Forward's text greys are Tailwind zinc (rgb(113,113,122)), whose faint blue leans a
- * little towards teal and would otherwise come out brownish. "all" mode recolours every colour (hue turned and scaled
- * like the base), near-greys included.
+ * little towards teal. How far a pixel leans is averaged over its neighbours (a 2 px blur of the signed lean) before
+ * it decides: Forward's frame is drawn in another process with subpixel (LCD) text, so dark text has a cyan fringe on
+ * one side and a red one on the other; judged pixel by pixel only the cyan side would turn and grey text would come out
+ * brown. Averaged, the two fringes cancel and the text stays exactly as it was, while teal text, lines and areas are
+ * still recoloured whole. "all" mode recolours every colour (hue turned and scaled like the base), near-greys included.
  *
  * window.FirstMateBrandColorize:
  *   FORWARD_BASE                      Forward's portal colour (#007a76, measured from the portal).
@@ -29,11 +32,13 @@
 
   const FORWARD_BASE = '#007a76';
   const MODES = ['family', 'all'];
-  // Family mode, measured as how far a colour leans towards the base's hue (its chroma along the base's, 0..1 sRGB):
-  // up to GREY_LEAN it is a grey and stays (zinc greys lean about 0.014); from FULL_LEAN it is fully recoloured
-  // (Forward's lightest tint, --brand-50, leans about 0.029).
+  // Family mode, measured as how far a colour leans towards the base's hue (its chroma along the base's, 0..1 sRGB),
+  // averaged over LEAN_BLUR px: up to GREY_LEAN it is a grey and stays (zinc greys lean about 0.014); from FULL_LEAN
+  // it is fully recoloured (Forward's lightest tint, --brand-50, leans about 0.029). A blur under 2 px left grey LCD
+  // text visibly brown (tests/brand-colorize-browser.test.mjs measures it).
   const GREY_LEAN = 0.016;
   const FULL_LEAN = 0.026;
+  const LEAN_BLUR = 2;
 
   function parseColor(value) {
     const text = String(value ?? '').trim().toLowerCase();
@@ -99,18 +104,21 @@
     if (mode === 'all') {
       return `<filter id="${safeId}" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%"><feColorMatrix type="matrix" values="${values}"/></filter>`;
     }
-    // Family: alpha = (lean - GREY_LEAN) / (FULL_LEAN - GREY_LEAN), clamped to 0..1 by the filter, where lean is
-    // the pixel's chroma along the base's; the recoloured pixel is laid over the original by that alpha.
+    // Family: the pixel's lean (its chroma along the base's) is kept signed as alpha 0.5 + lean, blurred, then
+    // alpha = (blurred lean - GREY_LEAN) / (FULL_LEAN - GREY_LEAN), clamped to 0..1 by the filter; the recoloured
+    // pixel is laid over the original by that alpha.
     const b = parseColor(base) || [0, 0, 0];
     const mb = mean(b);
     const cb = b.map((v) => v - mb);
     const len = Math.sqrt(dot(cb, cb)) || 1;
     const gain = 1 / (FULL_LEAN - GREY_LEAN);
-    const lean = `${cb.map((v) => fmt((v / len) * gain)).join(' ')} 0 ${fmt(-GREY_LEAN * gain)}`;
+    const lean = `${cb.map((v) => fmt(v / len)).join(' ')} 0 0.5`;
     return `<filter id="${safeId}" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%">`
       + `<feColorMatrix in="SourceGraphic" type="matrix" values="${values}" result="recolored"/>`
       + `<feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ${lean}" result="lean"/>`
-      + `<feComposite in="recolored" in2="lean" operator="in" result="family"/>`
+      + `<feGaussianBlur in="lean" stdDeviation="${LEAN_BLUR}" edgeMode="duplicate" result="near"/>`
+      + `<feComponentTransfer in="near" result="mask"><feFuncA type="linear" slope="${fmt(gain)}" intercept="${fmt(-(0.5 + GREY_LEAN) * gain)}"/></feComponentTransfer>`
+      + `<feComposite in="recolored" in2="mask" operator="in" result="family"/>`
       + `<feComposite in="family" in2="SourceGraphic" operator="over"/>`
       + `</filter>`;
   }
@@ -196,7 +204,7 @@
   }
 
   const api = {
-    version: '20261119-gp77b',
+    version: '20261119-gp77c',
     FORWARD_BASE, MODES,
     parseColor, toHex, matrix, apply, filterMarkup, filterFor,
     readableOnWhite, brandColor, attach, preview,
