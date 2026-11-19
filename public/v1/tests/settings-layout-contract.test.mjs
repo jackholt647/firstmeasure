@@ -298,7 +298,7 @@ test('Money owns Payments, Payouts, Disputes, Accounts and Manage as canonical n
   assert.match(company, /resetSession:true,/);
   assert.match(company, /\.cs-main>\.cs-card:has\(#csPaneMoney\.active\)\{width:550px;min-width:550px;max-width:550px;padding:0;overflow:hidden\}/);
   assert.match(company, /settingsContentCard\?\.classList\.toggle\('money-payments-view', selectedView === 'payments'\)/);
-  assert.match(company, /\.cs-main>\.cs-card\.money-payments-view:has\(#csPaneMoney\.active\)\{width:100%;min-width:0;max-width:660px;padding:18px;overflow-x:hidden;overflow-y:auto\}/);
+  assert.match(company, /\.cs-main>\.cs-card\.money-payments-view:has\(#csPaneMoney\.active\)\{width:100%;min-width:0;max-width:none;padding:18px;overflow-x:hidden;overflow-y:auto\}/);
   assert.match(company, /#csPaneMoney\[data-money-active-view="payments"\][^\n]+height:auto;min-height:0;overflow:visible/);
   assert.match(company, /\.cs-main>\.cs-card:not\(\.money-payments-view\):has\(#csPaneMoney\.active\)\{border-radius:16px;isolation:isolate\}/);
   assert.match(company, /#csPaneMoney \.money-settings-frame\{border:0;border-radius:15px;contain:paint;clip-path:inset\(0 round 15px\)\}/);
@@ -363,4 +363,27 @@ test('Money overlay integrity implementation remains available behind its tempor
   assert.match(company, /const overlayIntegrityLocked = MONEY_OVERLAY_INTEGRITY_ENABLED && window\.FirstMateMoneyOverlayEnforcer\?\.locked === true/);
   assert.match(company, /if \(!overlayIntegrityLocked\) applyOverlayLayout\(overlayLayoutStore\.live\)/);
   assert.match(company, /setDevOpacity\(overlayIntegrityLocked \? 100 : overlayLayoutStore\.overlayOpacity, false\)/);
+});
+
+test('GP-117: Payments uses the full width in two columns; unfinished setup is one button; the portal is a dev menu', () => {
+  assert.match(company, /<div class="mpay-columns"><div data-payment-defaults><\/div><div data-merchant-processing data-settings-autosave="off"><\/div><\/div>/);
+  assert.match(company, /\.mpay-columns\{display:grid;grid-template-columns:repeat\(auto-fit,minmax\(min\(100%,380px\),1fr\)\)/);
+  assert.doesNotMatch(company, /money-payments-view:has\(#csPaneMoney\.active\)\{[^}]*max-width:\d+px/);
+  const processing = company.slice(company.indexOf('async function renderMerchantProcessing('), company.indexOf('async function renderDocumentSettings('));
+  assert.ok(processing.length > 1000);
+  // While setup is unfinished: one button, the rest in a tip that never names the processor.
+  const unfinished = processing.slice(processing.indexOf('const setupTip ='), processing.indexOf('// Wizard steps live on'));
+  assert.match(unfinished, /data-mp-setup-row/);
+  assert.match(unfinished, /"Finish setting up payments"/);
+  assert.equal((unfinished.match(/<button /g) || []).length, 1);
+  assert.doesNotMatch(unfinished, /Forward|14 days/);
+  assert.doesNotMatch(processing, /valid for 14 days|Finish your application on Forward|Manage at Forward|data-mp-express>/);
+  // The merchant portal is reached only from the section's development menu.
+  const menu = processing.slice(processing.indexOf('const moreMenuHtml ='), processing.indexOf('const openHostedApplication ='));
+  assert.match(menu, /if \(!devToolsShown\(\)\) return '';/);
+  assert.match(menu, /data-mp-portal-track/);
+  assert.match(menu, /data-mp-portal-external/);
+  assert.equal((processing.match(/data-mp-portal-track>/g) || []).length, 1);
+  assert.match(processing, /const devToolsShown = \(\) => \{[\s\S]{0,200}FirstMateDevConsole\?\.access\?\.\(\)/);
+  assert.match(processing, /headingHtml\(moreMenuHtml\(\)\)/);
 });
