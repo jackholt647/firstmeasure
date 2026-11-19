@@ -68,6 +68,11 @@
   function call(orgId, path, options = {}){ return api().request(orgPath(orgId, path), options); }
   function fileUrl(path){ return api().url(path); }
 
+  // The portal replaces confirm and prompt with versions that return a promise; plain pages return the answer.
+  async function ask(kind, message, value = ''){
+    return await Promise.resolve(kind === 'prompt' ? window.prompt(message, value) : window.confirm(message));
+  }
+
   function toast(title, message, ok = true){
     const show = window.Portal?.ui?.showToast || window.showToast;
     if (typeof show === 'function') show(title, message, ok);
@@ -626,8 +631,8 @@
       render();
     }
 
-    function closeDispute(){
-      if (state.open?.form?.dirty && !window.confirm(t('m_171c970287658e', 'Leave without saving your response?'))) return;
+    async function closeDispute(){
+      if (state.open?.form?.dirty && !(await ask('confirm', t('m_171c970287658e', 'Leave without saving your response?')))) return;
       state.open = null;
       render();
     }
@@ -818,9 +823,9 @@
         root.querySelector('[data-pmw-summary]')?.focus();
         return;
       }
-      if (action === 'submit' && !window.confirm(form.decision === 'accept'
+      if (action === 'submit' && !(await ask('confirm', form.decision === 'accept'
         ? t('m_30358fb5441911', 'Send FirstMate your decision to accept this dispute? The customer keeps the money.')
-        : t('m_4d1adaea4274d9', 'Submit this response? FirstMate files it with Forward for you.'))) return;
+        : t('m_4d1adaea4274d9', 'Submit this response? FirstMate files it with Forward for you.')))) return;
       open.saving = true;
       open.status = action === 'submit' ? t('m_35f0835e302ea2', 'Submitting…') : t('m_ea600c018fb36c', 'Saving…');
       render();
@@ -853,7 +858,7 @@
     async function staffAct(action){
       const open = state.open;
       if (!open || open.saving) return;
-      const note = window.prompt(action === 'filed'
+      const note = await ask('prompt', action === 'filed'
         ? t('m_b712ce7d22d3e3', 'Note for the company (optional), e.g. where it was filed:')
         : t('m_f5703af2a93f40', 'What should the company change?'), '');
       if (note === null) return;
@@ -972,7 +977,7 @@
           await navigator.clipboard.writeText(copyText(open));
           toast(t('m_16841202d17c7c', 'Copied'), t('m_49509eede4376c', 'Paste it into the response at Forward.'), true);
         } catch (_) {
-          window.prompt(t('m_b68d29b7be4612', 'Copy the response:'), copyText(open));
+          ask('prompt', t('m_b68d29b7be4612', 'Copy the response:'), copyText(open));
         }
       }
     });
