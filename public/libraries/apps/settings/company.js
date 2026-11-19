@@ -5777,7 +5777,7 @@
         .money-settings-error{min-height:220px;display:grid;place-content:center;justify-items:center;gap:12px;color:#667085;text-align:center;font-size:13px;font-weight:850}
         .cs-main>.cs-card:has(#csPaneMoney.active){width:550px;min-width:550px;max-width:550px;padding:0;overflow:hidden}
         .cs-main>.cs-card:not(.money-payments-view):has(#csPaneMoney.active){border-radius:16px;isolation:isolate}
-        .cs-main>.cs-card.money-payments-view:has(#csPaneMoney.active){width:100%;min-width:0;max-width:660px;padding:18px;overflow-x:hidden;overflow-y:auto}
+        .cs-main>.cs-card.money-payments-view:has(#csPaneMoney.active){width:100%;min-width:0;max-width:none;padding:18px;overflow-x:hidden;overflow-y:auto}
         .cs-main>.cs-card.money-full-portal-view:has(#csPaneMoney.active){width:100%;min-width:0;max-width:none}
         .cs-main>.cs-card.money-widget-view:has(#csPaneMoney.active){width:100%;min-width:0;max-width:1120px;padding:18px;overflow-x:hidden;overflow-y:auto}
         #csPaneMoney[data-money-active-view="payouts"],#csPaneMoney[data-money-active-view="disputes"],#csPaneMoney[data-money-active-view="payouts"] .money-settings-shell,#csPaneMoney[data-money-active-view="disputes"] .money-settings-shell,#csPaneMoney .money-settings-view[data-money-view-pane="payouts"],#csPaneMoney .money-settings-view[data-money-view-pane="disputes"]{height:auto;min-height:0;overflow:visible}
@@ -5855,6 +5855,7 @@
       };
       injectCSS('company_payment_settings_layout', `
         .mpay{display:grid;gap:12px}
+        .mpay-columns{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:16px;align-items:start}
         .mpay-card{border:1px solid #eaecf0;border-radius:12px;background:#fff;padding:4px 14px}
         .mpay-title{display:flex;align-items:center;gap:8px;margin:0;padding:11px 0 9px;font-size:13px;color:#101828;border-bottom:1px solid #f0f2f5}
         .mpay-title>i{color:#667085;font-size:12px;width:14px;text-align:center}
@@ -5871,10 +5872,11 @@
         .mpay-tip{display:inline-grid;place-items:center;width:15px;height:15px;padding:0;border:1px solid #98a2b3;border-radius:50%;background:none;color:#667085;font:italic 10px Georgia,serif;cursor:help;flex:0 0 auto}
         .mpay-save{display:flex;align-items:center;justify-content:flex-end;gap:10px}
         .mpay-status{color:#667085;font-size:11.5px;font-weight:750}
-        .mpay-processing{margin-top:12px}
         .mpay-processing .mpay-card{padding-bottom:10px}
         .mpay-processing .mp-card{border:0;border-radius:0;padding:4px 0 0;gap:0}
         .mpay-processing .mp-card>.mp-sandbox{margin-top:10px}
+        .mpay-processing .mp-card[data-mp-tracker-card]{gap:12px;padding-top:12px}
+        .mpay-processing .mp-card-head strong{display:inline-flex;align-items:center;gap:6px}
         .mpay-subtitle{display:flex;align-items:center;gap:6px;margin:12px 0 0;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:#667085}
         .mpay-head-badges{display:inline-flex;gap:6px;flex-wrap:wrap;margin-left:auto}
         .mpay-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 14px;margin:0;padding:10px 0;border-bottom:1px solid #f0f2f5}
@@ -5885,7 +5887,9 @@
         .mpay-rail-label i{color:#667085;width:14px;text-align:center}
         @media(max-width:560px){.mpay-rails{grid-template-columns:1fr}}
       `);
-      panePayments.innerHTML = `<div data-payment-defaults></div><div data-merchant-processing></div>`;
+      // GP-117: the pane uses the card's whole width: defaults on the left, payment processing on the right (one column
+      // when narrow). Payment processing saves its own changes, so its clicks never run the defaults' autosave.
+      panePayments.innerHTML = `<div class="mpay-columns"><div data-payment-defaults></div><div data-merchant-processing data-settings-autosave="off"></div></div>`;
       const defaultsPane = panePayments.querySelector('[data-payment-defaults]');
       const processingPane = panePayments.querySelector('[data-merchant-processing]');
       renderMerchantProcessing(processingPane).catch(() => null);
@@ -6018,6 +6022,16 @@
         .mp-doc i{margin-top:2px}
         .mp-error{border:1px solid #fecdca;border-radius:10px;background:#fef3f2;padding:9px 11px;color:#b42318;font-size:12px;font-weight:850}
         .mp-status-note{color:#667085;font-size:12px;font-weight:850;line-height:1.5}
+        .mp-setup-row{display:flex;align-items:center;gap:8px;padding:12px 0 4px}
+        .mp-more{position:relative;margin-left:auto}
+        .mp-more-btn{display:grid;place-items:center;width:28px;height:28px;padding:0;border:1px solid transparent;border-radius:8px;background:none;color:#667085;cursor:pointer}
+        .mp-more-btn:hover,.mp-more-btn[aria-expanded="true"]{border-color:#e4e7ec;background:#f9fafb;color:#344054}
+        .mp-more-list{position:absolute;right:0;top:calc(100% + 4px);z-index:30;min-width:230px;display:grid;gap:2px;padding:5px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;box-shadow:0 12px 30px rgba(15,23,42,.14)}
+        .mp-more-list[hidden]{display:none}
+        .mp-more-list button{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;border:0;border-radius:7px;background:none;color:#344054;font:inherit;font-size:12px;font-weight:850;text-align:left;cursor:pointer}
+        .mp-more-list button:hover{background:#f2f4f7}
+        .mp-more-list button i{width:14px;color:#667085;text-align:center}
+        .mp-more-tag{margin-left:auto;padding:2px 6px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.04em}
       `);
       const mp = {
         config: null,
@@ -6030,6 +6044,17 @@
         pollTimer: null
       };
       const mcText = (value) => String(value ?? '').trim();
+      // GP-117: people setting up payments see one button and (i) tips that never name the processor. Opening the
+      // processor's merchant portal is a development tool: it sits in the section's ⋯ menu, shown only to the dev
+      // console's audience (development data, platform administrators, sandbox test organizations).
+      const ML = (key, text) => globalThis.PlatformLanguage?.text("settings", key, text) ?? text;
+      const mpTip = (text) => `<button type="button" class="mpay-tip" aria-label="${escapeHtml(text)}" title="${escapeHtml(text)}" data-fm-tooltip="${escapeHtml(text)}">i</button>`;
+      const devToolsShown = () => {
+        for (const host of [window, window.top]) {
+          try { if (host?.FirstMateDevConsole?.access?.()) return true; } catch (error) { /* another origin */ }
+        }
+        return false;
+      };
       const money = (value) => {
         const amount = Number(value || 0);
         return Number.isFinite(amount) ? `$${amount.toLocaleString((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), { maximumFractionDigits: 2 })}` : '$0';
@@ -6141,22 +6166,23 @@
       };
       // Hosted-first signup harness: available on the mock provider or the
       // Forward SANDBOX (server-enforced too). Skips the wizard steps and
-      // hands the merchant straight to Forward's hosted application; the
-      // portal button opens Forward's merchant portal so portal-only features
-      // (disputes, bank accounts) can be explored for wrapping experiments.
+      // hands the merchant straight to Forward's hosted application.
       const expressAvailable = () => mp.forwardEnv === 'sandbox' || mcText(mp.config?.provider) === 'mock';
-      const expressHtml = () => {
-        if (!expressAvailable()) return '';
+      // The section's development menu (top right, dev console audience only): the processor's merchant portal, so
+      // portal-only features (disputes, bank accounts) can be explored, and the hosted signup harness.
+      const moreMenuHtml = () => {
+        if (!devToolsShown()) return '';
         const hasApplication = !!mcText(mp.config?.forward?.application_id);
+        const testTag = `<span class="mp-more-tag">${escapeHtml(ML("m_7068831b41c117", "Test"))}</span>`;
         return `
-          <div class="mp-sandbox" data-mp-express>
-            <div class="mp-sandbox-head"><i class="fas fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_439c892cc53e55"," Forward test mode") ?? " Forward test mode")}</div>
-            <div class="cs-note" style="margin:0">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_77de2547c1032f",`Skip FirstMate's application steps and sign up directly on the processor's hosted application (${v0}). Fill everything out on their form — the status flows back here. The portal button signs you into the merchant portal to explore disputes and bank-account tools.`,{v0}) ?? `Skip FirstMate's application steps and sign up directly on the processor's hosted application (${v0}). Fill everything out on their form — the status flows back here. The portal button signs you into the merchant portal to explore disputes and bank-account tools.`)(escapeHtml(mcText(mp.config?.provider) === 'mock' ? 'mock simulator' : `Forward ${mp.forwardEnv}`))}</div>
-            <div class="mp-sandbox-actions">
-              <button type="button" class="cs-btn primary" data-mp-express-signup><i class="fas fa-arrow-up-right-from-square"></i> ${String(hasApplication ? 'Reopen Forward application' : 'Sign up on Forward')}</button>
-              <button type="button" class="cs-btn" data-mp-express-portal><i class="fas fa-building-columns"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_cc5802017d7488"," Open Forward merchant portal") ?? " Open Forward merchant portal")}</button>
-            </div>
-          </div>`;
+          <span class="mp-more" data-mp-more-wrap>
+            <button type="button" class="mp-more-btn" data-mp-more aria-haspopup="menu" aria-expanded="false" aria-label="${escapeHtml(ML("m_acc3efa67ea1c6", "Development options"))}"><i class="fas fa-ellipsis-vertical" aria-hidden="true"></i></button>
+            <span class="mp-more-list" role="menu" data-mp-more-list hidden>
+              <button type="button" role="menuitem" data-mp-portal-track><i class="fas fa-building-columns" aria-hidden="true"></i>${escapeHtml(ML("m_8cc4359a257ed2", "Open Forward merchant portal"))}</button>
+              <button type="button" role="menuitem" data-mp-portal-external><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>${escapeHtml(ML("m_790dd8d7eb1a35", "Open the portal in a new tab"))}</button>
+              ${expressAvailable() ? `<button type="button" role="menuitem" data-mp-express-signup><i class="fas fa-flask" aria-hidden="true"></i>${escapeHtml(hasApplication ? ML("m_f473a8552ae3fd", "Reopen Forward application") : ML("m_66b582658ca72b", "Sign up on Forward"))}${testTag}</button>` : ''}
+            </span>
+          </span>`;
       };
       const openHostedApplication = (linkUrl) => {
         if (mcText(mp.config?.provider) === 'mock') return window.open(linkUrl, '_blank', 'noopener');
@@ -6190,23 +6216,31 @@
         container.querySelector('[data-mp-express-signup]')?.addEventListener('click', async (event) => {
           const button = event.currentTarget;
           button.disabled = true;
-          button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Contacting Forward...';
           try {
             await runHostedSignup();
+            button.disabled = false;
           } catch (error) {
             renderSection();
             showToast((globalThis.PlatformLanguage?.text("settings","m_9e4fd308b9bf61","Hosted signup failed") ?? "Hosted signup failed"), error?.message || 'Could not start the Forward hosted application.', false);
           }
         });
-        container.querySelector('[data-mp-express-portal]')?.addEventListener('click', async (event) => {
-          const button = event.currentTarget;
-          button.disabled = true;
-          try {
-            await openForwardPortal();
-          } catch (error) {
-            showToast((globalThis.PlatformLanguage?.text("settings","m_823d4e4f9adbce","Could not open Forward") ?? "Could not open Forward"), error?.message || 'The merchant portal link could not be generated.', false);
-          }
-          button.disabled = false;
+        const moreButton = container.querySelector('[data-mp-more]');
+        const moreList = container.querySelector('[data-mp-more-list]');
+        if (!moreButton || !moreList) return;
+        const setMenu = (open) => {
+          moreList.hidden = !open;
+          moreButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+          if (open) document.addEventListener('pointerdown', onOutside, true); else document.removeEventListener('pointerdown', onOutside, true);
+        };
+        const onOutside = (event) => { if (!moreButton.parentElement?.contains(event.target)) setMenu(false); };
+        moreButton.addEventListener('click', () => setMenu(moreList.hidden));
+        moreList.addEventListener('click', (event) => { if (event.target.closest('button')) setMenu(false); });
+        moreList.parentElement.addEventListener('keydown', (event) => {
+          if (event.key !== 'Escape' || moreList.hidden) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setMenu(false);
+          moreButton.focus();
         });
       };
       const bindSandbox = () => {
@@ -6325,8 +6359,6 @@
           const rails = forward.enabled_rails_set === true
             ? storedRails
             : { ...storedRails, card: true, bank: true };
-          const mpTip = (text) => `<button type="button" class="mpay-tip" aria-label="${escapeHtml(text)}" title="${escapeHtml(text)}" data-fm-tooltip="${escapeHtml(text)}">i</button>`;
-          const ML = (key, text) => globalThis.PlatformLanguage?.text("settings", key, text) ?? text;
           const railRow = (key, label, icon, help) => `
             <label class="mpay-row">
               <span class="mpay-rail-label"><i class="fas ${icon}" aria-hidden="true"></i>${escapeHtml(label)}${mpTip(help)}</span>
@@ -6345,13 +6377,12 @@
               <dl class="mpay-kv">
                 <div><dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_33f29b94cb696f","Merchant account") ?? "Merchant account")}</dt><dd data-mp-account-id>${String(escapeHtml(mcText(forward.account_id) || '—'))}</dd></div>
                 <div><dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_cec7c804d01cf9","Processing plan") ?? "Processing plan")}</dt><dd data-mp-plan-name>${String(escapeHtml(planName(forward.processing_plan_id) || '—'))}</dd></div>
-                <div><dt>Gateway</dt><dd data-mp-gateway>${String(escapeHtml(forward.gateway_updated_at ? `Boarded${forward.gateway_mid ? ` (MID ${forward.gateway_mid})` : ''}` : (mcText(forward.account_status) ? mcText(forward.account_status).toLowerCase().replace(/^./, (c) => c.toUpperCase()) : 'Waiting for Forward')))}</dd></div>
+                <div><dt>Gateway</dt><dd data-mp-gateway>${String(escapeHtml(forward.gateway_updated_at ? `Boarded${forward.gateway_mid ? ` (MID ${forward.gateway_mid})` : ''}` : (mcText(forward.account_status) ? mcText(forward.account_status).toLowerCase().replace(/^./, (c) => c.toUpperCase()) : 'Pending')))}</dd></div>
               </dl>
               <div class="mpay-row" data-mp-bank-section>
-                <span class="mpay-label">${(globalThis.PlatformLanguage?.htmlText("settings","m_40b6f06484042c","Bank account") ?? "Bank account")}${mpTip(ML("m_76f7bb1e4a5f67", "Payouts go to this account. It is changed on Forward's secure portal: the button signs you in with a one-time link."))}</span>
+                <span class="mpay-label">${(globalThis.PlatformLanguage?.htmlText("settings","m_40b6f06484042c","Bank account") ?? "Bank account")}${mpTip(ML("m_a6563da5c45d2a", "Payouts go to this account. Change it under Accounts."))}</span>
                 <span class="mpay-control">
                   <span class="mp-badge" data-mp-bank-status><i class="fas fa-building-columns"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_b0f32b15b02e72"," Loading...") ?? " Loading...")}</span>
-                  <button type="button" class="cs-btn" data-mp-manage-bank title="${escapeHtml(ML("m_8d5623df1a4cb5", "Opens Forward's merchant portal in a new tab"))}"><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_3d11b9ff89ba9b"," Manage at Forward") ?? " Manage at Forward")}</button>
                 </span>
               </div>
               <div>
@@ -6373,62 +6404,36 @@
           return `
             <div class="mp-card" data-mp-tracker-card>
               <div class="mp-card-head">
-                <strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_5553da6186c35e","Application status") ?? "Application status")}</strong>
+                <strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_5553da6186c35e","Application status") ?? "Application status")}${declined ? '' : mpTip(needInfo
+                  ? ML("m_a8000920066b55", "The underwriter needs more information. Add your response, then upload the requested documents in your application. It reopens with everything you entered.")
+                  : ML("m_df596b6e4dde0e", "Your application was submitted and is being reviewed. Most applications get a decision within 1-2 business days. This page updates by itself."))}</strong>
                 <span class="mp-badge ${String(needInfo ? 'warn' : declined ? 'err' : '')}" data-mp-status-badge>${String(escapeHtml(status.replace(/_/g, ' ')))}</span>
               </div>
               ${String(trackerHtml())}
               ${String(needInfo ? `
-                <div class="mp-status-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_451c3ad8119d0c","The underwriter needs more information before this application can be approved. Review the requested items, add your response, then upload the documents on Forward's secure application page — it reopens pre-filled with everything you entered.") ?? "The underwriter needs more information before this application can be approved. Review the requested items, add your response, then upload the documents on Forward's secure application page — it reopens pre-filled with everything you entered.")}</div>
                 <div class="mp-docs" data-mp-docs>
                   ${documents.map((doc) => `<div class="mp-doc"><i class="fas fa-file-circle-exclamation"></i><span><strong>${escapeHtml(mcText(doc.type).replace(/_/g, ' ') || 'Document')}</strong>${mcText(doc.description) ? ` — ${escapeHtml(mcText(doc.description))}` : ''}</span></div>`).join('') || `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_77a68aeefc18fe","No specific documents were listed.") ?? "No specific documents were listed.")}</div>`}
                 </div>
                 <div class="cs-row"><label class="cs-lbl" for="mpInfoResponse">${(globalThis.PlatformLanguage?.htmlText("settings","m_053144b11a8523","Your response") ?? "Your response")}</label><textarea class="cs-in" id="mpInfoResponse" rows="3" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_2c0d713a078db4","Describe the documents you are providing or add context for the underwriter...") ?? "Describe the documents you are providing or add context for the underwriter...")}"></textarea></div>
-                <div class="li-actions"><button type="button" class="cs-btn primary" data-mp-resubmit><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_ad1d53b291b9be"," Send response and continue at Forward") ?? " Send response and continue at Forward")}</button></div>
+                <div class="li-actions"><button type="button" class="cs-btn primary" data-mp-resubmit><i class="fas fa-arrow-up-right-from-square"></i> ${escapeHtml(ML("m_23a2d14b2aac4e", "Send response and continue"))}</button></div>
               ` : '')}
               ${String(declined ? `<div class="mp-error"><i class="fas fa-circle-xmark"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_d283641511165a",` This application was ${v0}. Contact support if you believe this is in error.`,{v0}) ?? ` This application was ${v0}. Contact support if you believe this is in error.`)(escapeHtml(status.toLowerCase()))}</div>` : ``)}
-              ${String(!needInfo && !declined ? `<div class="mp-status-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_381a82e98db727","Your application was submitted and is being reviewed by the underwriting team. Most applications receive a decision within 1-2 business days.") ?? "Your application was submitted and is being reviewed by the underwriting team. Most applications receive a decision within 1-2 business days.")}</div>` : '')}
-              ${String(!declined ? `
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-                  <span class="cs-note" style="margin:0">${(globalThis.PlatformLanguage?.htmlText("settings","m_4e9c360ef0798e","Payments activity, settlements, and disputes live on the processor's merchant portal — the button signs you in with a one-time link, no password needed.") ?? "Payments activity, settlements, and disputes live on the processor's merchant portal — the button signs you in with a one-time link, no password needed.")}</span>
-                  <button type="button" class="cs-btn" data-mp-portal-track><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_28fbfb1af12f7c"," Open merchant portal") ?? " Open merchant portal")}</button>
-                </div>` : '')}
-              ${String(sandboxHtml())}${String(expressHtml())}
+              ${String(sandboxHtml())}
             </div>`;
         }
-        // DRAFT with a hosted link already generated: the merchant's next step
-        // lives on Forward's secure application (signatures + bank
-        // verification) — our pane waits, offers the link, and the
-        // v2.application.submitted webhook (surfaced by the status poll)
-        // flips this card to the review tracker.
-        if (mcText(forward.application_link_url)) {
-          const expiresAt = Date.parse(mcText(forward.application_link_expires_at) || '');
-          const expired = Number.isFinite(expiresAt) && expiresAt <= Date.now();
-          return `
-            <div class="mp-card" data-mp-hosted-card>
-              <div class="mp-card-head">
-                <strong><i class="fas fa-file-signature" style="color:var(--primary-readable,var(--primary,#d93025));margin-right:7px"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_576f7c263e565e","Finish your application on Forward's secure page") ?? "Finish your application on Forward's secure page")}</strong>
-                <span class="mp-badge warn" data-mp-hosted-badge><i class="fas fa-hourglass-half"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a8e1159ee59e05"," Waiting on you") ?? " Waiting on you")}</span>
-              </div>
-              <div class="mp-status-note" data-mp-hosted-copy>${(globalThis.PlatformLanguage?.htmlText("settings","m_571da4694bc9fa","Everything you entered here is pre-filled on Forward's secure application. Signatures and bank verification happen on their page — when you finish, your application is submitted for review and this page updates automatically.") ?? "Everything you entered here is pre-filled on Forward's secure application. Signatures and bank verification happen on their page — when you finish, your application is submitted for review and this page updates automatically.")}</div>
-              <div class="li-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin:0">
-                <button type="button" class="cs-btn primary" data-mp-open-forward><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_6413a0c0b8d019"," Reopen application") ?? " Reopen application")}</button>
-                <button type="button" class="cs-btn" data-mp-setup><i class="fas fa-pen"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e311a77b932e27"," Edit details") ?? " Edit details")}</button>
-              </div>
-              <div class="cs-note" style="margin:0" data-mp-hosted-note>${String(expired ? 'Your secure link expired — reopening generates a fresh one.' : 'Opens Forward\'s secure application here. The link stays valid for 14 days and can always be reopened.')}</div>
-              ${String(sandboxHtml())}${String(expressHtml())}
-            </div>`;
-        }
+        // Not finished: one button that goes straight back into the application, the rest in its tip. A DRAFT with a
+        // hosted link reopens that application (signatures and bank verification happen there); the
+        // v2.application.submitted webhook, surfaced by the status poll, then flips this card to the review tracker.
+        const started = !!mcText(forward.application_id);
+        const hosted = !!mcText(forward.application_link_url);
+        const setupTip = hosted || started
+          ? ML("m_ecb48983696405", "Your details are saved. Finish the application to start taking card and bank payments. This page updates by itself when it is submitted.")
+          : ML("m_3bebec8b817f68", "Apply to take card and bank payments on invoices, with payouts to your bank account.");
         return `
-          <div class="mp-intro" data-mp-intro>
-            <div class="mp-intro-copy">
-              <span class="mp-intro-icon"><i class="fas fa-credit-card"></i></span>
-              <div>
-                <strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_497fbf95d404ae","Accept card and bank payments") ?? "Accept card and bank payments")}</strong>
-                <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_bd693540dfe7cc","Apply for a merchant account to take customer payments on invoices, with automatic payouts to your bank account.") ?? "Apply for a merchant account to take customer payments on invoices, with automatic payouts to your bank account.")}</span>
-              </div>
-            </div>
-            <button type="button" class="cs-btn primary" data-mp-setup><i class="fas ${String(mcText(forward.application_id) ? 'fa-arrow-rotate-right' : 'fa-rocket')}"></i> ${String(mcText(forward.application_id) ? 'Resume application' : 'Set up payments')}</button>
-          </div>${String(expressHtml())}`;
+          <div class="mp-setup-row" data-mp-setup-row>
+            <button type="button" class="cs-btn primary" ${hosted ? 'data-mp-open-forward' : 'data-mp-setup'}><i class="fas ${hosted || started ? 'fa-arrow-right' : 'fa-rocket'}"></i> ${escapeHtml(hosted || started ? ML("m_4fde8f4386cc98", "Finish setting up payments") : ML("m_95c81d9a92d972", "Set up payments"))}</button>
+            ${mpTip(setupTip)}
+          </div>${String(hosted ? sandboxHtml() : '')}`;
       };
       // Wizard steps live on the shared FirstMateSetupWizard shell
       // (workflowKey "money_onboarding"); only the step bodies are built here.
@@ -6901,7 +6906,7 @@
         })().finally(() => { mp.portalLoginPromise = null; });
         return mp.portalLoginPromise;
       };
-      // Payments' "Manage at Forward" control intentionally opens the
+      // The development menu's "Open the portal in a new tab" opens the
       // provider portal itself. Keep this separate from the routed iframe
       // modal used by the other merchant-portal entry points.
       const openForwardPortalExternal = async () => {
@@ -6956,7 +6961,7 @@
             renderSection();
           } catch (error) {
             button.disabled = false;
-            showToast((globalThis.PlatformLanguage?.text("settings","m_823d4e4f9adbce","Could not open Forward") ?? "Could not open Forward"), error?.message || 'The secure application link could not be generated.', false);
+            showToast(ML("m_30cf36ec910265", "Could not open payment setup"), ML("m_6f3c5088aa67e9", "Try again in a moment."), false);
           }
         });
         container.querySelector('[data-mp-portal-track]')?.addEventListener('click', async (event) => {
@@ -6969,7 +6974,7 @@
           }
           button.disabled = false;
         });
-        container.querySelector('[data-mp-manage-bank]')?.addEventListener('click', async (event) => {
+        container.querySelector('[data-mp-portal-external]')?.addEventListener('click', async (event) => {
           const button = event.currentTarget;
           button.disabled = true;
           try {
@@ -6986,7 +6991,7 @@
           const response = mcText(container.querySelector('#mpInfoResponse')?.value);
           if (!response) { showToast((globalThis.PlatformLanguage?.text("settings","m_906927ab87dd98","Response required") ?? "Response required"), (globalThis.PlatformLanguage?.text("settings","m_412a28c15b8687","Describe the information you are providing before continuing.") ?? "Describe the information you are providing before continuing."), false); return; }
           button.disabled = true;
-          button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Opening Forward...';
+          button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${escapeHtml(ML("m_8fcb38ab3c0148", "Opening..."))}`;
           try {
             const applicationId = mcText(mp.config?.forward?.application_id);
             await paymentsApi.merchantBoarding.updateApplication(orgId, applicationId, {
@@ -6997,10 +7002,10 @@
             await openForwardApplication();
             await loadApplication();
             renderSection();
-            showToast((globalThis.PlatformLanguage?.text("settings","m_84852f47418b64","Continue at Forward") ?? "Continue at Forward"), (globalThis.PlatformLanguage?.text("settings","m_2e34e51cfefbab","Your response was saved. Upload the requested documents on Forward's secure page to resubmit.") ?? "Your response was saved. Upload the requested documents on Forward's secure page to resubmit."), true);
+            showToast(ML("m_fa17078ebbd4a8", "Response saved"), ML("m_1c61ab24998ad2", "Upload the requested documents in your application to resubmit it."), true);
           } catch (error) {
             renderSection();
-            showToast((globalThis.PlatformLanguage?.text("settings","m_558da3c7c6859a","Could not continue") ?? "Could not continue"), error?.message || 'Could not open Forward\'s secure application.', false);
+            showToast((globalThis.PlatformLanguage?.text("settings","m_558da3c7c6859a","Could not continue") ?? "Could not continue"), ML("m_6f3c5088aa67e9", "Try again in a moment."), false);
           }
         });
         container.querySelectorAll('[data-mp-rail]').forEach((el) => el.addEventListener('change', async () => {
@@ -7055,10 +7060,9 @@
           }
         }, 12000);
       };
+      const headingHtml = (menu = '') => `<h3 class="mpay-title"><i class="fas fa-bolt" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}${mpTip(ML("m_62e9e699c43e64", "Take card and bank payments from customers, paid out to your bank account."))}${menu}</h3>`;
       const renderSection = () => {
-        const headingTip = globalThis.PlatformLanguage?.text("settings","m_93adc8cef4c5f7","Board this company with a payment processor to accept customer payments.") ?? "Board this company with a payment processor to accept customer payments.";
-        const heading = `<h3 class="mpay-title"><i class="fas fa-bolt" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}<button type="button" class="mpay-tip" aria-label="${escapeHtml(headingTip)}" title="${escapeHtml(headingTip)}" data-fm-tooltip="${escapeHtml(headingTip)}">i</button></h3>`;
-        container.innerHTML = `<div class="mpay mpay-processing" data-mp-root><section class="mpay-card">${heading}${statusViewHtml()}</section></div>`;
+        container.innerHTML = `<div class="mpay mpay-processing" data-mp-root><section class="mpay-card">${headingHtml(moreMenuHtml())}${statusViewHtml()}</section></div>`;
         bindStatus();
         bindSandbox();
         bindExpress();
@@ -7090,7 +7094,12 @@
         if (document.contains(container)) renderSection();
       };
       window.addEventListener('fm:payments-setup-updated', window.__fmPaymentsSetupUpdated);
-      container.innerHTML = `<div class="cs-section"><h3 style="margin:18px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}</h3><p class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_f1ec6b17835429"," Loading merchant status...") ?? " Loading merchant status...")}</p></div>`;
+      // The dev console decides its audience after the page loads: show the development menu once it has.
+      const onDevConsoleReady = () => { if (document.contains(container) && container.querySelector('[data-mp-root]') && !container.querySelector('[data-mp-more]') && devToolsShown()) renderSection(); };
+      for (const host of new Set([window, window.top])) {
+        try { host.addEventListener('fm:dev-console:ready', onDevConsoleReady); } catch (error) { /* another origin */ }
+      }
+      container.innerHTML = `<div class="mpay mpay-processing"><section class="mpay-card">${headingHtml()}<p class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_f1ec6b17835429"," Loading merchant status...") ?? " Loading merchant status...")}</p></section></div>`;
       try {
         await loadConfig();
         if (mcText(mp.config?.forward?.application_id)) {
@@ -7100,7 +7109,7 @@
         renderSection();
         openMoneyWorkflowFromRoute();
       } catch (error) {
-        container.innerHTML = `<div class="cs-section"><h3 style="margin:18px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}</h3><p class="cs-note">${String(escapeHtml(error?.message || 'Could not load merchant processing status.'))}</p></div>`;
+        container.innerHTML = `<div class="mpay mpay-processing"><section class="mpay-card">${headingHtml()}<p class="cs-note">${String(escapeHtml(error?.message || 'Could not load merchant processing status.'))}</p></section></div>`;
       }
     }
     async function renderDocumentSettings(){

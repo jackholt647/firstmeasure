@@ -337,11 +337,11 @@ test('payment partner settings use a routed authenticated iframe modal', () => {
   assert.match(companySettingsSource, /backOrClose\?\.\(\['workflow', 'workflow_step'\][\s\S]*?source: 'money-portal-close'/);
 });
 
-test('Payments Manage at Forward opens the provider portal directly', () => {
+test('the Payments development menu opens the provider portal directly or in the routed modal', () => {
   assert.match(companySettingsSource, /const openForwardPortalExternal = async \(\) =>/);
   assert.match(companySettingsSource, /window\.open\('about:blank', '_blank'\)/);
   assert.match(companySettingsSource, /portalWindow\.location\.replace\(loginUrl\)/);
-  assert.match(companySettingsSource, /\[data-mp-manage-bank\][\s\S]{0,260}await openForwardPortalExternal\(\)/);
+  assert.match(companySettingsSource, /\[data-mp-portal-external\][\s\S]{0,260}await openForwardPortalExternal\(\)/);
   assert.match(companySettingsSource, /\[data-mp-portal-track\][\s\S]{0,260}await openForwardPortal\(\)/);
 });
 
