@@ -4956,7 +4956,10 @@ window.PlatformCommerce.onReady(async function(){
     const open=isOpen(),covers=covering(),was=detailsTrayAnnounced;
     if(open===was.open && covers===was.covers)return;
     detailsTrayAnnounced={open,covers};
-    window.dispatchEvent(new CustomEvent(open?'fm:project-panel:opened':'fm:project-panel:closed',{detail:{panel:'project.details',covers:open?covers:was.covers,user:!!options.user,isOpen,covering}}));
+    // A tour step whose target the sheet covers points at its close arrows and waits; its Next closes it (GP-34).
+    const tray=document.getElementById('rDetailsTray');
+    const closeControl=()=>tray?.querySelector('[data-details-tray-close]'),close=()=>setDetailsTrayOpen(false,{user:true});
+    window.dispatchEvent(new CustomEvent(open?'fm:project-panel:opened':'fm:project-panel:closed',{detail:{panel:'project.details',covers:open?covers:was.covers,user:!!options.user,isOpen,covering,element:tray,closeControl,close}}));
   }
   // Runs with the Overview workflow render: applies the default for a project the window has just shown.
   function syncDetailsTray(){
