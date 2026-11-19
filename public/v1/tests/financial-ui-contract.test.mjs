@@ -168,3 +168,22 @@ test('Generate invoice is a two-column composer, and money dialogs are bottom tr
   // Dialogs that must not close from outside (receipt review, a payment in progress) stay put.
   assert.match(money, /dismissible:\(\) => !state\.receiptBatch && !state\.receiptReview && !\(state\.modal\?\.type === 'take_payment' && moneyMutationBusy\(\)\)/);
 });
+
+test('on a phone the Finance actions and Reports are one + menu beside Settings; a desktop keeps its buttons (GP-2)', async () => {
+  const money = await readFile(moneyUrl, 'utf8');
+  // Desktop: the buttons stay, each marked desktop-only; the + sits between Reports and Settings and is hidden.
+  for (const button of ['data-money-take-payment', 'data-money-upload-receipt', 'data-money-open-modal="invoice"', 'data-money-open-modal="reports"']) {
+    assert.match(money, new RegExp(`class="mn-btn [^"]*mn-desk-only"[^>]*${button.replace(/[\[\]"]/g, '\\$&')}`), button);
+  }
+  assert.match(money, /data-money-open-modal="reports"[^\n]*\n\s*<button type="button" class="mn-btn primary icon mn-add-menu" data-money-open-modal="add_menu"[^\n]*\n\s*\$\{manage \? `<button type="button" class="mn-btn icon" data-money-open-modal="settings"/);
+  assert.match(money, /\.mn-tools \.mn-add-menu\{display:none\}/);
+  // Phone (the tab no wider than 640 px): the desktop-only buttons go and the + shows.
+  assert.match(money, /@container money \(max-width:640px\)\{[\s\S]*\.mn-tools \.mn-desk-only\{display:none\}\s*\.mn-tools \.mn-add-menu\{display:inline-flex\}/);
+  // The menu is a money tray open to everyone; Reports for all, the rest only for those who manage money.
+  assert.match(money, /add_menu:addMenuModalHtml/);
+  assert.doesNotMatch(money, /const manageOnly = \[[^\]]*'add_menu'/);
+  assert.match(money, /\$\{manage \? item\('take_payment'[\s\S]*\$\{manage \? item\('upload_receipts'[\s\S]*\$\{manage \? item\('invoice'[\s\S]*\$\{item\('reports'/);
+  // A choice closes the menu first, so its dialog rises as a fresh tray; receipts open the file picker in the same tap.
+  assert.match(money, /function runAddAction\(action\)\{\s*closeModal\(\);\s*if \(action === 'upload_receipts'\) \{[^}]*querySelector\('\[data-money-receipt-input\]'\)\?\.click\(\)/);
+  assert.match(money, /querySelectorAll\('\[data-money-add-action\]'\)\.forEach\(\(button\) => button\.addEventListener\('click', \(\) => runAddAction/);
+});
