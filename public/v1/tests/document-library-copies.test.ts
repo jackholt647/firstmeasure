@@ -209,3 +209,29 @@ test("an untouched theme copy follows the company's colors; a theme the organiza
   assert.equal((await primary("thm_clean")).colors.primary, "#123456");
   assert.equal((await primary("thm_margin")).colors.primary, "#0F766E");
 });
+
+test("the themes a theme list shows follow the company's colors, saved a moment ago too; an edited theme keeps its own (GP-105)", async () => {
+  const { ctx, copies, store } = await organization();
+  const { readGlobal, saveGlobal } = await import("../platform/storage.js");
+  // What documents/api.ts lists (the editor's catalog and the themes list): each theme with its current definition.
+  const listed = async () => await copies.themesFollowingBrand(ctx.orgId, await Promise.all((await store.listDocumentThemes(ctx.orgId)).map(async (theme: Json) => ({
+    ...theme, definition: (await store.readDocumentThemeVersion(ctx.orgId, theme.id, Number(theme.current_version))).definition
+  }))));
+  const data: Json = (await readGlobal(ctx.orgId)).data || {};
+  await saveGlobal(ctx.orgId, { data: { branding: { ...(data.branding || {}), colors: { ...(data.branding?.colors || {}), primary: "#7C3AED", accent: "#7C3AED", secondary: "#4C1D95" } } } });
+  const themes: Json[] = await listed();
+  const byId = (id: string) => themes.find((theme) => theme.id === id)!;
+  for (const id of ["thm_margin", "thm_triangles"]) {
+    assert.equal(byId(id).definition.tokens.colors.primary, "#7C3AED", `${id} sample shows the brand`);
+    assert.equal(byId(id).definition.tokens.colors.accent, "#4C1D95", id);
+    const stored = await store.readDocumentTheme(ctx.orgId, id);
+    assert.equal(stored.current_version, byId(id).current_version, `${id} copy was republished with the brand`);
+    assert.equal(stored.metadata.preset, true, `${id} stays untouched`);
+  }
+  // The organization's own Clean (GP-95's test edited it) keeps its color.
+  assert.equal(byId("thm_clean").definition.tokens.colors.primary, "#123456");
+  // A list that already matches publishes nothing.
+  const margin = byId("thm_margin").current_version;
+  assert.equal((await listed()).find((theme: Json) => theme.id === "thm_margin").current_version, margin);
+  assert.equal((await store.readDocumentTheme(ctx.orgId, "thm_margin")).current_version, margin);
+});
