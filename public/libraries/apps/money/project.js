@@ -255,7 +255,8 @@
       .mn-btn .mn-setup-pill{position:absolute;top:-9px;right:-8px}
       .mn-add-item strong .mn-setup-pill{margin-left:6px;vertical-align:2px}
       /* Phone: the + button's small warning while payments are not set up (GP-40); its menu shows the Setup pill. */
-      .mn-setup-alert{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(16,24,40,.28);display:grid;place-items:center;color:#f79009;font-size:11px;line-height:1;pointer-events:none}
+      /* Over the phone rule that hides every label inside a toolbar button (.mn-tools .mn-btn span). */
+      .mn-tools .mn-btn .mn-setup-alert{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(16,24,40,.28);display:grid;place-items:center;color:#f79009;font-size:11px;line-height:1;pointer-events:none}
       .mn-btn{height:38px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;padding:0 12px;font:inherit;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;white-space:nowrap;text-decoration:none;flex:none;transition:border-color .15s ease,color .15s ease,background-color .15s ease}
       .mn-btn:hover:not(:disabled){border-color:rgba(var(--primary-rgb,217,48,37),.4);color:var(--primary-readable,var(--primary,#d93025))}
       .mn-btn.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:var(--on-primary,#fff)}
