@@ -138,3 +138,58 @@ test('a downward finger still scrolls the hours, and the month swipes by whole m
     await browser.close();
   }
 });
+
+/* GP-41: the page a swipe turned to is already drawn in the preview. The
+ * render the host makes for it (into the same mount) goes in underneath, and
+ * the preview stays on top until that render has painted, then fades out;
+ * replacing everything at once flashed white on phones. */
+test('a turned page keeps its painted preview over the new render until that render has painted', async () => {
+  const browser = await launch();
+  try {
+    const { page, cdp } = await open(browser);
+    await page.evaluate(() => {
+      const cal = document.querySelector('#cal');
+      window.handoff = [];
+      new MutationObserver(() => {
+        const peek = cal.querySelector(':scope > .prs-swipe-peek');
+        if (!window.navigations.length || window.handoff.length) return;
+        window.handoff.push({
+          same: peek?.dataset.marked === '1',
+          last: cal.lastElementChild === peek,
+          heads: [...cal.querySelectorAll(':scope > .prs-wrap .prs-day-head-mobile strong')].map((node) => node.textContent.trim()),
+          wraps: cal.querySelectorAll(':scope > .prs-wrap').length
+        });
+      }).observe(cal, { childList: true });
+    });
+    await move(cdp, 380, 400, -220, 0);
+    await page.$eval('.prs-swipe-peek:not([style*="visibility: hidden"])', (node) => { node.dataset.marked = '1'; });
+    await pause(150);
+    await touch(cdp, 'touchEnd');
+    await page.waitForFunction(() => window.navigations.length === 1);
+    assert.deepEqual(await page.evaluate(() => window.handoff), [{ same: true, last: true, heads: ['19', '20', '21'], wraps: 1 }], 'the new days render under the same, already painted preview');
+    assert.equal(await page.locator('#cal > .prs-swipe-peek[data-marked="1"]').count(), 1, 'which is still on screen right after the render');
+    await page.waitForFunction(() => Number(getComputedStyle(document.querySelector('#cal > .prs-swipe-peek') || document.body).opacity) < 1, null, { timeout: 1000 });
+    await settled(page);
+    assert.equal(await page.$eval('#cal', (node) => node.style.position), '', 'the mount is left as it was');
+    assert.deepEqual(await dayHeads(page), ['19', '20', '21']);
+
+    // A touch while the preview is still up takes it away at once.
+    await move(cdp, 380, 400, -220, 0);
+    await pause(150);
+    await touch(cdp, 'touchEnd');
+    await page.waitForFunction(() => window.navigations.length === 2);
+    assert.equal(await page.locator('#cal > .prs-swipe-peek').count(), 1);
+    await touch(cdp, 'touchStart', 200, 300);
+    assert.equal(await page.locator('#cal > .prs-swipe-peek').count(), 0);
+    await touch(cdp, 'touchEnd');
+    assert.deepEqual(await dayHeads(page), ['22', '23', '24']);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('the project Schedule tab keeps the calendar mount when a swipe turns the page', async () => {
+  const panel = await lib('apps/project-schedule/panel.js');
+  assert.match(panel, /onNavigate\(nextDate, delta, meta\)\{\s*scheduleAnchorDate = nextDate;\s*scheduleKeepCalendarMount = meta\?\.source === 'swipe';/, 'the home calendar marks a swipe');
+  assert.match(panel, /replaceSchedulePanelHtml\(panel, `[\s\S]*?<div class="r-schedule-calendar work-calendar"><\/div>\s*`, scheduleKeepCalendarMount\);/, 'and redraws the panel around the kept mount');
+});

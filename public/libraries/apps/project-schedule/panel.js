@@ -19,6 +19,9 @@
   let scheduleModeActive = false;
   let scheduleCalendarGen = 0;
   let scheduleAnchorDate = new Date();
+  // Set while a swipe turns the page (GP-41): the redraw keeps the calendar's
+  // mount, so the schedule view can hand its painted preview to the new page.
+  let scheduleKeepCalendarMount = false;
   // With no view chosen, a phone opens the schedule on three days and anything wider on Month (see scheduleDefaultView).
   const schedulePhoneLayout = () => window.matchMedia?.('(max-width:720px)').matches === true;
   let scheduleViewMode = schedulePhoneLayout() ? '4day' : 'month';
@@ -5843,9 +5846,10 @@
           __schedule_natural_range: true
         };
       },
-      onNavigate(nextDate){
+      onNavigate(nextDate, delta, meta){
         scheduleAnchorDate = nextDate;
-        renderSchedulePanel();
+        scheduleKeepCalendarMount = meta?.source === 'swipe';
+        try { renderSchedulePanel(); } finally { scheduleKeepCalendarMount = false; }
       },
       onModeChange(nextMode){
         if (scheduleIsSchedulingView()) scheduleViewMode = nextMode === 'day' ? 'scheduling-day' : 'scheduling-week';
@@ -6062,6 +6066,27 @@
       </section>`;
   }
 
+  // Redraws the panel; with keepCalendar the calendar's mount stays in place
+  // (never detached) and everything around it is replaced.
+  function replaceSchedulePanelHtml(panel, html, keepCalendar){
+    const kept = keepCalendar ? panel.querySelector(':scope > .work-calendar') : null;
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    const fresh = kept ? Array.from(template.content.children).find((node) => node.classList.contains('work-calendar')) : null;
+    if (!kept || !fresh) {
+      panel.innerHTML = html;
+      return;
+    }
+    Array.from(panel.childNodes).forEach((node) => { if (node !== kept) node.remove(); });
+    kept.className = fresh.className;
+    let before = true;
+    Array.from(template.content.childNodes).forEach((node) => {
+      if (node === fresh) before = false;
+      else if (before) panel.insertBefore(node, kept);
+      else panel.appendChild(node);
+    });
+  }
+
   function renderProjectScheduleHome(){
     const panel = $('#rSchedulePanel');
     if (!panel) return;
@@ -6076,7 +6101,7 @@
     panel.classList.toggle('r-schedule-view-only', !canEditSchedule());
     const widget = scheduleIsWidget();
     panel.classList.toggle('widget', widget);
-    panel.innerHTML = `
+    replaceSchedulePanelHtml(panel, `
       <div class="r-schedule-head">
         <div>
           ${widget ? `<span class="r-schedule-range-label" title="${escapeHtml(scheduleRangeLabel({ long:true }))}">${escapeHtml(scheduleRangeLabel())}</span>` : `<h2 class="r-schedule-title">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}${String(scheduleRangeLabel() ? `<span class="r-schedule-range-label" title="${escapeHtml(scheduleRangeLabel({ long:true }))}">${escapeHtml(scheduleRangeLabel())}</span>` : '')}</h2>`}
@@ -6087,7 +6112,7 @@
       ${String(scheduleWaitingStripHtml())}
       ${String(schedulePlacementBannerHtml())}
       <div class="r-schedule-calendar work-calendar"></div>
-    `;
+    `, scheduleKeepCalendarMount);
     bindScheduleViewSwitch(panel);
     bindSchedulePlacementBanner(panel);
     bindScheduleWaitingStrip(panel);
