@@ -40,7 +40,7 @@ test('readableOnWhite matches the portal rule behind --primary-readable', () => 
 
 const CELLS = [
   ['base', B.FORWARD_BASE], ['tint', '#d9ebea'], ['white', '#ffffff'], ['black', '#000000'], ['grey', '#808080'],
-  ['light', '#f4f4f5'], ['error', '#d92d20'], ['amber', '#f79009']
+  ['light', '#f4f4f5'], ['zinc', '#71717a'], ['zinc7', '#3f3f46'], ['brand50', '#f0fafa'], ['error', '#d92d20'], ['amber', '#f79009']
 ];
 const FRAME_DOC = `<!doctype html><html><body style="margin:0;display:flex;flex-wrap:wrap">${CELLS.map(([name, color]) => `<div id="${name}" style="width:40px;height:40px;background:${color}"></div>`).join('')}</body></html>`;
 
@@ -81,9 +81,12 @@ test('an attached iframe is drawn in the brand colour, greys untouched; family m
     assert.match(await page.evaluate(() => document.querySelector('iframe').style.filter), /^url\("?#fm-brand-colorize-007a76-2563eb-family"?\)$/);
     let px = await framePixels(page);
     assert.ok(near(px.base, '#2563eb'), `base ${px.base}`);
-    for (const name of ['white', 'black', 'grey', 'light']) assert.ok(near(px[name], before[name], 1), `${name} ${px[name]} was ${before[name]}`);
+    // Forward's text greys are Tailwind zinc, faintly blue: still greys, so they stay.
+    for (const name of ['white', 'black', 'grey', 'light', 'zinc', 'zinc7']) assert.ok(near(px[name], before[name], 1), `${name} ${px[name]} was ${before[name]}`);
     const expectedTint = B.toHex(B.apply(B.matrix(B.FORWARD_BASE, '#2563eb'), B.parseColor('#d9ebea')));
     assert.ok(near(px.tint, expectedTint), `tint ${px.tint} expected ${expectedTint}`);
+    const expected50 = B.toHex(B.apply(B.matrix(B.FORWARD_BASE, '#2563eb'), B.parseColor('#f0fafa')));
+    assert.ok(near(px.brand50, expected50), `Forward's lightest tint ${px.brand50} expected ${expected50}`);
     assert.ok(near(px.error, '#d92d20'), `error red kept: ${px.error}`);
     assert.ok(near(px.amber, '#f79009'), `amber kept: ${px.amber}`);
 

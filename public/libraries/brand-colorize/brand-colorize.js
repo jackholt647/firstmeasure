@@ -10,7 +10,9 @@
  *     black or a grey) onto the same mix of the target: a 12% teal hover background becomes a 12% brand tint.
  * In "family" mode (the default) only colours leaning towards the base's hue are recoloured, blended in by how far
  * they lean, so colours on the other side of the wheel (a red error, an amber warning when the base is teal) keep
- * theirs. "all" mode recolours every colour (hue turned and scaled like the base).
+ * theirs, and so do near-greys: Forward's text greys are Tailwind zinc (rgb(113,113,122)), whose faint blue leans a
+ * little towards teal and would otherwise come out brownish. "all" mode recolours every colour (hue turned and scaled
+ * like the base), near-greys included.
  *
  * window.FirstMateBrandColorize:
  *   FORWARD_BASE                      Forward's portal colour (#007a76, measured from the portal).
@@ -27,8 +29,11 @@
 
   const FORWARD_BASE = '#007a76';
   const MODES = ['family', 'all'];
-  // A tint at least this strong (share of the base mixed into white) is fully recoloured in family mode.
-  const FAMILY_FULL_TINT = 0.06;
+  // Family mode, measured as how far a colour leans towards the base's hue (its chroma along the base's, 0..1 sRGB):
+  // up to GREY_LEAN it is a grey and stays (zinc greys lean about 0.014); from FULL_LEAN it is fully recoloured
+  // (Forward's lightest tint, --brand-50, leans about 0.029).
+  const GREY_LEAN = 0.016;
+  const FULL_LEAN = 0.026;
 
   function parseColor(value) {
     const text = String(value ?? '').trim().toLowerCase();
@@ -94,17 +99,17 @@
     if (mode === 'all') {
       return `<filter id="${safeId}" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%"><feColorMatrix type="matrix" values="${values}"/></filter>`;
     }
-    // Family: alpha = gain·(how far the pixel leans towards the base's hue), clamped to 0..1 by the filter; the
-    // recoloured pixel is laid over the original by that alpha.
+    // Family: alpha = (lean - GREY_LEAN) / (FULL_LEAN - GREY_LEAN), clamped to 0..1 by the filter, where lean is
+    // the pixel's chroma along the base's; the recoloured pixel is laid over the original by that alpha.
     const b = parseColor(base) || [0, 0, 0];
     const mb = mean(b);
     const cb = b.map((v) => v - mb);
     const len = Math.sqrt(dot(cb, cb)) || 1;
-    const gain = 1 / (FAMILY_FULL_TINT * len);
-    const lean = cb.map((v) => fmt((v / len) * gain)).join(' ');
+    const gain = 1 / (FULL_LEAN - GREY_LEAN);
+    const lean = `${cb.map((v) => fmt((v / len) * gain)).join(' ')} 0 ${fmt(-GREY_LEAN * gain)}`;
     return `<filter id="${safeId}" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%">`
       + `<feColorMatrix in="SourceGraphic" type="matrix" values="${values}" result="recolored"/>`
-      + `<feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ${lean} 0 0" result="lean"/>`
+      + `<feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ${lean}" result="lean"/>`
       + `<feComposite in="recolored" in2="lean" operator="in" result="family"/>`
       + `<feComposite in="family" in2="SourceGraphic" operator="over"/>`
       + `</filter>`;
@@ -191,7 +196,7 @@
   }
 
   const api = {
-    version: '20261119-gp77',
+    version: '20261119-gp77b',
     FORWARD_BASE, MODES,
     parseColor, toHex, matrix, apply, filterMarkup, filterFor,
     readableOnWhite, brandColor, attach, preview,
