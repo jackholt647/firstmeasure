@@ -280,7 +280,8 @@
   /**
    * env: escapeHtml, showToast, appFlag(group, flag), currentOrgId(), canPlatformBilling, readSettingsRoute(),
    * writeSettingsRoute(patch, options), organizationBusinessAddressFromState(), and getters paneSms(), activeTab(),
-   * state() (the company settings record).
+   * state() (the company settings record). embedded: Phone Settings is in another app's own pane (GP-79), so the
+   * workflow does not write or follow the Settings route.
    */
   function create(env){
     installStyle();
@@ -1578,15 +1579,17 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       return stop;
     }
     let smsHomeStatusStop = null;
-    let phoneSettingsHandle = null;
+    let phoneSettingsHandle = null, disposed = false;
     async function renderSmsSettings(){
       const paneSms = env.paneSms();
-      if(!paneSms)return;
+      if(!paneSms||disposed)return;
       phoneSettingsHandle?.destroy?.();
       if(!appFlag('apps','comms'))return renderSmsRegistration(paneSms);
       if(!window.FirstMatePhoneSettings?.mount){paneSms.textContent='Phone Settings could not load. Refresh the page.';return;}
       phoneSettingsHandle=await window.FirstMatePhoneSettings.mount(paneSms,{orgId:currentOrgId(),initialTab:readSettingsRoute().workflow==='10dlc'?'registration':'personal',registration:renderSmsRegistration});
+      if(disposed)phoneSettingsHandle?.destroy?.();
     }
+    function destroy(){disposed=true;phoneSettingsHandle?.destroy?.();phoneSettingsHandle=null;smsHomeStatusStop?.();smsHomeStatusStop=null;}
     async function renderSmsRegistration(host = env.paneSms()){
       if (!host) return;
       smsHomeStatusStop?.();
@@ -2363,7 +2366,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       };
       wizard = window.FirstMateSetupWizard.open({
         id: 'sms-workflow',
-        workflowKey: options.standalone ? '' : '10dlc',
+        workflowKey: options.standalone || env.embedded ? '' : '10dlc',
         title: 'Set up business texting',
         subtitle: 'SMS registration',
         icon: 'fa-message',
@@ -2386,8 +2389,8 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
             status: (stepCtx) => stepRailStatus(item, index, stepCtx)
           }));
         },
-        writeRoute: (patch, routeOptions) => { if (!options.standalone) writeSettingsRoute({ sub: 'sms', ...patch }, routeOptions); },
-        ...(options.standalone ? { closeRoute: () => {} } : { routeMatch: (route) => String(route?.tab || '') === 'company_settings' && String(route?.sub || '') === 'sms' }),
+        writeRoute: (patch, routeOptions) => { if (!options.standalone && !env.embedded) writeSettingsRoute({ sub: 'sms', ...patch }, routeOptions); },
+        ...(options.standalone || env.embedded ? { closeRoute: () => {} } : { routeMatch: (route) => String(route?.tab || '') === 'company_settings' && String(route?.sub || '') === 'sms' }),
         onClose: () => {
           closeAdvanced();
           stopStatusUpdates?.();
@@ -2425,13 +2428,13 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       const profile = eligibleProfiles[0] || smsPrefillProfile({}, setup);
       return new Promise((resolve) => openSmsWizard(profile, { standalone: true, initialStep: smsHasProviderBrand(profile) || smsHasProviderCampaign(profile) ? 'summary' : smsResumeStep(profile), onClose: resolve }));
     }
-    return { formatPhoneUS, renderSmsSettings, renderSmsRegistration, openRegistration };
+    return { formatPhoneUS, renderSmsSettings, renderSmsRegistration, openRegistration, destroy };
   }
 
-  /** Opens the registration workflow outside Settings. Resolves with the registration (profile) when it closes. */
-  function open(options = {}){
+  /** What create() needs outside company Settings. */
+  function outsideSettings(options, overrides = {}){
     const orgId = String(options.orgId || window.__APP?.userOrgId || '').trim();
-    return create({
+    return {
       escapeHtml: window.Portal?.util?.escapeHtml || esc,
       showToast: window.Portal?.ui?.showToast || (() => {}),
       appFlag: (group, flag) => window.PlatformAPI?.appFlags?.has?.(group, flag) === true,
@@ -2440,9 +2443,25 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       readSettingsRoute: () => ({}),
       writeSettingsRoute: () => {},
       organizationBusinessAddressFromState: () => normalizeOrganizationBusinessAddress({}),
-      paneSms: () => null, activeTab: () => '', state: () => null
-    }).openRegistration();
+      paneSms: () => null, activeTab: () => '', state: () => null,
+      ...overrides
+    };
   }
 
-  window.FirstMateSmsRegistration = { create, open };
+  /** Opens the registration workflow outside Settings. Resolves with the registration (profile) when it closes. */
+  function open(options = {}){
+    return create(outsideSettings(options)).openRegistration();
+  }
+
+  /**
+   * Phone Settings in another app's own pane (GP-79: the Call Center's Settings tab), the same page as Settings ›
+   * Phone Settings, without leaving the app. Returns { destroy }.
+   */
+  function mountPhoneSettings(host, options = {}){
+    const kit = create(outsideSettings(options, { embedded: true, paneSms: () => host.isConnected ? host : null }));
+    void kit.renderSmsSettings();
+    return { destroy: kit.destroy };
+  }
+
+  window.FirstMateSmsRegistration = { create, open, mountPhoneSettings };
 })();
