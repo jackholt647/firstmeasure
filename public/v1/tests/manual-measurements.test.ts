@@ -51,10 +51,16 @@ test("entries made by hand are the project's measurements until a completed repo
   await lists.createMaterialList(ORG, "roof", { title: "Roof materials", resource_type: "material", scope_template_id: "roof_replacement", items: [] }, owner);
   const ctx = (projectId: string) => systemPublicationContext({ kind: "module", organizationId: ORG, projectId, operations, mode: "command" });
 
-  // A project whose scopes name no schema keeps today's empty state: nothing to enter, and the writer refuses.
+  // A project whose scopes name no schema (a new project, hourly work) can still be measured by hand: it is offered every
+  // schema in the dictionary, and the writer accepts what the editor offers (GP-93).
   const hourly = await m.readManualMeasurements(ctx("hourly"), "hourly");
-  assert.equal(hourly.available, false); assert.deepEqual(hourly.fields, []); assert.equal(hourly.in_use.source, "none");
-  await assert.rejects(m.saveManualMeasurements(ctx("hourly"), "hourly", { values: { roofSquares: 20 } }), /no measurement schema/);
+  assert.equal(hourly.available, true); assert.equal(hourly.in_use.source, "none");
+  assert.deepEqual(hourly.schemas.map((schema) => schema.id).sort(), ["gutters", "roofing", "siding"]);
+  assert.deepEqual(hourly.fields, m.manualMeasurementFields(hourly.schemas.map((schema) => schema.id)));
+  assert.ok(["roofSquares", "eavesLf", "wallNetArea"].every((key) => hourly.fields.some((field) => field.key === key)));
+  const measuredByHand = await m.saveManualMeasurements(ctx("hourly"), "hourly", { values: { roofSquares: 20, wallNetArea: 400 } });
+  assert.equal(measuredByHand.inUse, "manual"); assert.deepEqual(measuredByHand.changed, ["roofArea", "roofSquares", "wallNetArea"]);
+  assert.deepEqual((await m.readManualMeasurements(ctx("hourly"), "hourly")).manual?.values, { roofArea: 2000, roofSquares: 20, wallNetArea: 400 });
 
   const empty = await m.readManualMeasurements(ctx("roof"), "roof");
   assert.equal(empty.available, true); assert.deepEqual(empty.schemas.map((schema) => schema.id), ["roofing"]);

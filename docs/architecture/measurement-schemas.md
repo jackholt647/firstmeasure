@@ -130,8 +130,11 @@ templates name a schema (from its running work plans and its lists): it lists
 the project-level dictionary measurements those schemas select that have a key
 of their own (`manualMeasurementFields`; a `keyPattern` family such as squares
 at each exact pitch is entered through its bands), required ones first, with
-their labels and units. Projects whose scopes name no schema keep the empty
-state.
+their labels and units. A project whose scopes name no schema (a new project,
+hourly work) is offered every schema in the dictionary
+(`manualMeasurementSchemaIds`), so "Add measurements manually" is always there;
+once its scopes name schemas, only theirs are offered and entries already made
+stay stored.
 
 Two definitions can be the same quantity in different units: roof area in
 square feet and roof squares of 100 square feet. The dictionary says so with an
