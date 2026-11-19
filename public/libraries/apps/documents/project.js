@@ -5898,68 +5898,173 @@
     }
 
     // ================================================================ send
+    /**
+     * Send (GP-27): who gets it and what it says on the left, the email as they will get it on the right (on a phone,
+     * Email and Preview tabs). The contact for paper copies an agreement's signers are given is the company's own
+     * (signing/service.ts companyConsentContact), so the dialog does not ask for it.
+     */
     async function openSendModal(docRecord){
-      let deliveryDefaults;
-      try {
-        const branchId = firstText(docRecord.branch_id, project().branch_id, window.Portal?.branchModules?.currentBranchId?.(), 'default');
-        deliveryDefaults = objectValue(objectValue(await Promise.race([
-          api().documents.settings(orgId(), branchId),
-          new Promise((resolve) => setTimeout(() => resolve({}), 2500))
-        ])).settings);
-        if (state.destroyed) return;
-      } catch (error) { deliveryDefaults = {}; }
       const doc = objectValue(docRecord);
       if (!doc.id) return;
-      const branding = objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding);
-      const consentDefault = firstText(objectValue(doc.metadata).consent_contact, deliveryDefaults.consent_contact, branding.email, branding.support_email, branding.phone, window.Portal?.cfg?.userEmail);
+      const branchId = firstText(doc.branch_id, project().branch_id, window.Portal?.branchModules?.currentBranchId?.(), 'default');
+      const [settings, firstPreview] = await Promise.all([
+        Promise.race([api().documents.settings(orgId(), branchId), new Promise((resolve) => setTimeout(() => resolve({}), 2500))]).catch(() => ({})),
+        readSendPreview(doc.id)
+      ]);
+      if (state.destroyed) return;
+      const deliveryDefaults = objectValue(objectValue(settings).settings);
+      let preview = firstPreview;
+      // The first send with no company email set up: its setup first (skippable), then the dialog.
+      if (objectValue(preview.email).on === false && objectValue(preview.email).can_set_up === true) {
+        const outcome = await playSendEmailSetup();
+        if (state.destroyed) return;
+        if (outcome && outcome.status !== 'done') preview = { ...preview, ...(await readSendPreview(doc.id)) };
+      }
       const emailValid = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanText(value));
       const contacts = projectContacts();
-      const signerRoles = [...new Set(Object.values(objectValue(doc.output_defs)).filter(d => d?.type === 'signature').map(d => cleanText(d.signer_id) || (['internal','company'].includes(d.party || d.signer) ? 'company' : 'customer')))];
-      const signerRows = signerRoles.map((role, index) => {
-        const required = Object.values(objectValue(doc.output_defs)).some(d => d?.type === 'signature' && (cleanText(d.signer_id) || (['internal','company'].includes(d.party || d.signer) ? 'company' : 'customer')) === role && (d.required === true || ['signed','completed'].includes(d.required_for)));
+      const roleOf = (d) => cleanText(d.signer_id) || (['internal','company'].includes(d.party || d.signer) ? 'company' : 'customer');
+      const signerRoles = [...new Set(Object.values(objectValue(doc.output_defs)).filter(d => d?.type === 'signature').map(roleOf))];
+      const roleName = (role) => role === 'customer' ? 'Customer' : role === 'company' ? 'Your company' : role.replace(/[_-]+/g, ' ').replace(/^./, (c) => c.toUpperCase());
+      const signerContacts = {};
+      const signerRows = signerRoles.map((role) => {
+        const required = Object.values(objectValue(doc.output_defs)).some(d => d?.type === 'signature' && roleOf(d) === role && (d.required === true || ['signed','completed'].includes(d.required_for)));
         const prior = arrayValue(doc.delivery?.recipients).find(r => (r.signer_id || r.role || 'customer') === role);
-        const contact = prior || (role === 'customer' && contacts.length === 1 ? contacts[0] : {});
-        return `<fieldset class="fmdx-field wide" data-signer-role="${esc(role)}" data-signer-required="${required}"><legend>${((v2,v3) => globalThis.PlatformLanguage?.htmlText("documents","m_76f28d31e96fe0",`Signer: ${v2}${v3}`,{v2,v3}) ?? `Signer: ${v2}${v3}`)(esc(role),required ? '' : ' (optional)')}</legend>
-          <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_8cf345002184e5","Name") ?? "Name")}<input data-signer-name value="${esc(contact.name || '')}"></label>
-          <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_5d2b9327181e33","Email") ?? "Email")}<input type="email" data-signer-email value="${esc(contact.email || '')}"></label>
-          <details class="fmdx-send-more"><summary>Signing order, capacity, company signer</summary>
+        // The customer who signs is the project's primary contact (else its first) with an email, or its only contact.
+        const withEmail = contacts.filter((entry) => emailValid(entry.email));
+        const contact = signerContacts[role] = objectValue(prior || (role === 'customer' ? withEmail.find((entry) => entry.primary) || withEmail[0] || (contacts.length === 1 ? contacts[0] : {}) : {}));
+        return `<div class="fmdx-send-signer" role="group" aria-label="${esc(`${roleName(role)} signs`)}" data-signer-role="${esc(role)}" data-signer-required="${required}">
+          <span class="fmdx-send-signer-role"><i class="fas fa-signature" aria-hidden="true"></i>${esc(roleName(role))}${required ? '' : ` <small>${esc('optional')}</small>`}</span>
+          <div class="fmdx-send-signer-fields">
+            <input data-signer-name value="${esc(contact.name || '')}" placeholder="${esc('Name')}" aria-label="${esc('Name')}" autocomplete="off">
+            <input type="email" data-signer-email value="${esc(contact.email || '')}" placeholder="${esc('Email')}" aria-label="${esc('Email')}" autocomplete="off">
+          </div>
+          <details class="fmdx-send-more"><summary>${esc('Signing order and capacity')}</summary>
           <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_2673fb88cdc226","Organization user ID (for a signed-in company signer)") ?? "Organization user ID (for a signed-in company signer)")}<input data-signer-user value="${esc(contact.user_id || '')}"></label>
           <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_f8bc5a366f36e4","Signing order (same number signs in parallel)") ?? "Signing order (same number signs in parallel)")}<input type="number" min="0" max="1000" data-signer-order value="${Number(contact.order || 0)}"></label>
-          <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_32d13195480127","Capacity, such as homeowner or authorized representative") ?? "Capacity, such as homeowner or authorized representative")}<input data-signer-capacity value="${esc(contact.capacity || '')}"></label></details></fieldset>`;
+          <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_32d13195480127","Capacity, such as homeowner or authorized representative") ?? "Capacity, such as homeowner or authorized representative")}<input data-signer-capacity value="${esc(contact.capacity || '')}"></label></details>
+        </div>`;
       }).join('');
-      const contactRows = contacts.length
-        ? contacts.map((contact, index) => `
+      // Someone already signing gets their own email: a copy to them too starts unticked.
+      const signing = (email) => Object.values(signerContacts).some((contact) => cleanText(contact.email).toLowerCase() === cleanText(email).toLowerCase());
+      const contactRows = contacts.map((contact, index) => `
             <label class="fmdx-check fmdx-recipient-row">
-              <input type="checkbox" data-send-contact="${index}" ${emailValid(contact.email) ? 'checked' : 'disabled'}>
-              <span class="who"><strong>${esc(contact.name)}</strong><small>${esc(contact.email || 'No email on file — add one below')}</small></span>
+              <input type="checkbox" data-send-contact="${index}" ${emailValid(contact.email) ? (signing(contact.email) ? '' : 'checked') : 'disabled'}>
+              <span class="who"><strong>${esc(contact.name)}</strong><small>${esc(contact.email || 'No email on file')}</small></span>
               ${contact.primary ? `<span class="fmdx-chip plain">${(globalThis.PlatformLanguage?.htmlText("documents","m_2436076ece8629","Primary") ?? "Primary")}</span>` : ''}
-            </label>`).join('')
-        : `<p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_176b9c549a6bd9","No project contacts with an email yet — add an address below.") ?? "No project contacts with an email yet — add an address below.")}</p>`;
+            </label>`).join('');
+      const toggle = (attr, on, title, note, disabled = false) => `<label class="fmdx-send-toggle"><input type="checkbox" ${attr} ${on ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span><strong>${esc(title)}</strong><small>${esc(note)}</small></span></label>`;
       const modal = openModal(`
         <h2><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_bb59e0b2a090e3"," Send document") ?? " Send document")}</h2>
-        <p class="fmdx-modal-sub">${((v0) => globalThis.PlatformLanguage?.htmlText("documents","m_5ae7520a0cb450",`${v0} — a snapshot is frozen and delivered to your customer.`,{v0}) ?? `${v0} — a snapshot is frozen and delivered to your customer.`)(esc(firstText(doc.title, 'Document')))}</p>
-        <div class="fmdx-form-grid">
-          ${signerRows}
-          ${signerRoles.length ? `<details class="fmdx-send-more fmdx-field wide"><summary>Contact for paper copies: ${esc(consentDefault || 'your own email')}</summary><label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_0d57df484a893a","Your contact for paper copies and electronic-consent withdrawal") ?? "Your contact for paper copies and electronic-consent withdrawal")}</span><input data-consent-contact value="${esc(consentDefault)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_a434d7e39d7caf","Your company's support email or phone") ?? "Your company's support email or phone")}"></label></details>` : ''}
-          <div class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_c1791596944182","Recipients") ?? "Recipients")}</span>
-            <div class="fmdx-recipient-list">${String(contactRows)}</div>
+        <p class="fmdx-modal-sub">${esc(firstText(doc.title, 'Document'))}</p>
+        <div class="fmdx-send" data-tab="compose">
+          <div class="fmdx-send-tabs" role="tablist">
+            <button type="button" role="tab" data-send-tab="compose" aria-selected="true"><i class="fas fa-pen" aria-hidden="true"></i>${esc('Email')}</button>
+            <button type="button" role="tab" data-send-tab="preview" aria-selected="false"><i class="fas fa-eye" aria-hidden="true"></i>${esc('Preview')}</button>
           </div>
-          <label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_2346d86fbb7dfd","Add another email (optional)") ?? "Add another email (optional)")}</span><input type="email" data-send-extra placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_ee9cc9ca2a8b83","name@email.com") ?? "name@email.com")}"></label>
-          <label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_1cc093ae43d736","Message (optional)") ?? "Message (optional)")}</span><textarea data-send-message placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_c6b7216b3e2a6c","A short note included with the email…") ?? "A short note included with the email…")}"></textarea></label>
-          <label class="fmdx-check"><input type="checkbox" data-send-portal ${deliveryDefaults.send_include_portal !== false ? 'checked' : ''}>${(globalThis.PlatformLanguage?.htmlText("documents","m_948ada5da279bb"," Include portal link (view, sign & pay online)") ?? " Include portal link (view, sign & pay online)")}</label>
-          <label class="fmdx-check"><input type="checkbox" data-send-pdf ${deliveryDefaults.send_include_pdf !== false ? 'checked' : ''}>${(globalThis.PlatformLanguage?.htmlText("documents","m_c96d1087aa82e3"," Attach PDF") ?? " Attach PDF")}</label>
+          <section class="fmdx-send-form" data-send-pane="compose">
+            ${signerRoles.length ? `<div class="fmdx-send-group"><span class="fmdx-send-label">${esc('Who signs')}</span>${signerRows}</div>` : ''}
+            <div class="fmdx-send-group"><span class="fmdx-send-label">${esc(signerRoles.length ? 'Send a copy to' : 'Send to')}</span>
+              ${contacts.length ? `<div class="fmdx-recipient-list">${contactRows}</div>` : ''}
+              <label class="fmdx-send-add"><i class="fas fa-plus" aria-hidden="true"></i><input type="email" data-send-extra placeholder="${esc(contacts.length ? 'Add another email' : 'Add an email address')}" aria-label="${esc('Add an email address')}" autocomplete="off"></label>
+            </div>
+            <label class="fmdx-send-group"><span class="fmdx-send-label">${esc('Message')}</span><textarea data-send-message rows="4" placeholder="${esc(firstText(preview.default_message, 'A short note for the email (optional)'))}"></textarea></label>
+            <div class="fmdx-send-group"><span class="fmdx-send-label">${esc('Include')}</span>
+              ${toggle('data-send-portal', signerRoles.length || deliveryDefaults.send_include_portal !== false, signerRoles.length ? 'Link to read, sign and pay' : 'Link to view and pay online', signerRoles.length ? 'Needed to sign online.' : 'Each person gets their own link.', signerRoles.length > 0)}
+              ${toggle('data-send-pdf', deliveryDefaults.send_include_pdf !== false, 'PDF attachment', 'A copy they can save or print.')}
+            </div>
+          </section>
+          <section class="fmdx-send-preview" data-send-pane="preview" aria-label="${esc('Email preview')}" data-send-preview></section>
         </div>
         <div class="fmdx-modal-foot">
           <span class="fmdx-send-error" data-send-error role="alert" hidden></span>
+          <button type="button" class="fmdx-btn fmdx-desk-only" data-send-cancel>${esc('Cancel')}</button>
           <button type="button" class="fmdx-btn primary" data-send-go><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c66c415b0e5570"," Send") ?? " Send")}</button>
-        </div>`, { className: 'narrow' });
-      modal.el.querySelector('[data-send-go]')?.addEventListener('click', async (event) => {
+        </div>`, { className: 'fmdx-send-modal' });
+      const $ = (selector) => modal.el.querySelector(selector);
+      const tabs = $('.fmdx-send');
+      const showTab = (tab) => {
+        if (tabs) tabs.dataset.tab = tab;
+        modal.el.querySelectorAll('[data-send-tab]').forEach((button) => button.setAttribute('aria-selected', String(button.dataset.sendTab === tab)));
+      };
+      modal.el.querySelectorAll('[data-send-tab]').forEach((button) => button.addEventListener('click', () => showTab(button.dataset.sendTab)));
+      $('[data-send-cancel]')?.addEventListener('click', () => modal.close());
+
+      // Who the email goes to as the dialog stands, signers first: for the preview only (Send checks them).
+      const previewPeople = () => {
+        const people = [];
+        const add = (name, email, signs) => {
+          if (!emailValid(email) || people.some((person) => person.email.toLowerCase() === cleanText(email).toLowerCase())) return;
+          people.push({ name: cleanText(name) || cleanText(email), email: cleanText(email), signs });
+        };
+        modal.el.querySelectorAll('[data-signer-role]').forEach((row) => add(row.querySelector('[data-signer-name]')?.value, row.querySelector('[data-signer-email]')?.value, true));
+        modal.el.querySelectorAll('[data-send-contact]').forEach((input) => { if (input.checked) { const contact = contacts[Number(input.dataset.sendContact || 0)]; if (contact) add(contact.name, contact.email, false); } });
+        const extra = cleanText($('[data-send-extra]')?.value);
+        if (extra) add(extra, extra, false);
+        return people;
+      };
+      function drawPreview(){
+        const host = $('[data-send-preview]');
+        if (!host) return;
+        const from = objectValue(preview.from), email = objectValue(preview.email);
+        const people = previewPeople();
+        const first = people[0];
+        const message = cleanText($('[data-send-message]')?.value);
+        const withLink = $('[data-send-portal]')?.checked !== false;
+        const withPdf = $('[data-send-pdf]')?.checked !== false;
+        const template = cleanText(preview.text) ? String(preview.text) : 'Hi {name},\n\n{message}\n\nReview and respond here: {link}';
+        // The server's own words, with the recipient's name, the note and their link put in; without the link, no link line.
+        const body = template.split('\n').filter((line) => withLink || !line.includes('{link}')).join('\n').replace(/\n{3,}/g, '\n\n').trim()
+          .split(/(\{name\}|\{message\}|\{link\})/).map((part) => part === '{name}' ? esc(first ? first.name : 'there')
+            : part === '{message}' ? (message ? esc(message) : `<span class="fmdx-send-default">${esc(firstText(preview.default_message, 'Your document is ready to review.'))}</span>`)
+              : part === '{link}' ? `<span class="fmdx-send-link">${esc(signerRoles.length ? 'their own link to read, sign and pay' : 'their own link to view it online')}</span>`
+                : esc(part)).join('');
+        const sender = `<span>${from.address ? `${esc(from.name || from.address)} <span class="fmdx-send-addr">&lt;${esc(from.address)}&gt;</span>` : `${esc(firstText(from.name, 'Your company'))} <span class="fmdx-send-addr">${esc('· FirstMate Mail')}</span>`}</span>`;
+        const to = people.length
+          ? people.map((person) => `<span class="fmdx-send-to">${esc(person.name)}${person.name !== person.email ? ` <span class="fmdx-send-addr">&lt;${esc(person.email)}&gt;</span>` : ''}${person.signs ? ` <em>${esc('signs')}</em>` : ''}</span>`).join('')
+          : `<span class="fmdx-send-addr">${esc('Nobody yet')}</span>`;
+        const domain = from.kind === 'domain';
+        const note = !Object.keys(preview).length ? ''
+          : domain ? { icon: 'fa-circle-check', text: 'Sent from your company’s domain. Replies land in Communications.', action: '' }
+            : email.on ? { icon: 'fa-envelope', text: 'Sent from your FirstMate Mail address. Replies land in Communications.', action: email.can_set_up ? 'Use your own domain' : '' }
+              : { icon: 'fa-envelope', text: 'Sent from FirstMate Mail. Set up your company email to read replies in Communications.', action: email.can_set_up ? 'Set up email' : '' };
+        host.innerHTML = `
+          <span class="fmdx-send-label">${esc('Email preview')}</span>
+          ${!withLink && !withPdf ? `<p class="fmdx-send-warn"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i>${esc('With no link and no PDF, no email goes out. You can copy their link after sending.')}</p>` : ''}
+          <article class="fmdx-send-mail${!withLink && !withPdf ? ' off' : ''}">
+            <dl class="fmdx-send-mail-head">
+              <dt>${esc('From')}</dt><dd>${sender}</dd>
+              <dt>${esc('To')}</dt><dd>${to}</dd>
+            </dl>
+            <h3 class="fmdx-send-subject">${esc(firstText(preview.subject, doc.title, 'Document'))}</h3>
+            <div class="fmdx-send-mail-body">${body}</div>
+            ${withPdf ? `<span class="fmdx-send-attach"><i class="fas fa-file-pdf" aria-hidden="true"></i>${esc(firstText(preview.attachment, `${firstText(doc.title, 'Document')}.pdf`))}</span>` : ''}
+          </article>
+          ${people.length > 1 ? `<p class="fmdx-send-hint">${esc(`Each of the ${people.length} people gets their own email${withLink ? ' and link' : ''}.`)}</p>` : ''}
+          ${note ? `<p class="fmdx-send-from-note"><i class="fas ${note.icon}" aria-hidden="true"></i><span>${esc(note.text)}</span>${note.action ? `<button type="button" class="fmdx-btn" data-send-email-setup>${esc(note.action)}</button>` : ''}</p>` : ''}`;
+        host.querySelector('[data-send-email-setup]')?.addEventListener('click', setUpEmail);
+      }
+      // The Communications email setup over the dialog, then the dialog back with where its email now comes from.
+      async function setUpEmail(event){
+        const button = event?.currentTarget;
+        if (button) button.disabled = true;
+        modal.el.style.visibility = 'hidden';
+        try { await playSendEmailSetup(true); }
+        finally { modal.el.style.visibility = ''; }
+        if (!modal.el.isConnected) return;
+        preview = { ...preview, ...(await readSendPreview(doc.id)) };
+        drawPreview();
+      }
+      modal.el.addEventListener('input', drawPreview);
+      modal.el.addEventListener('change', drawPreview);
+      drawPreview();
+
+      $('[data-send-go]')?.addEventListener('click', async (event) => {
         const button = event.currentTarget;
-        const errorEl = modal.el.querySelector('[data-send-error]');
+        const errorEl = $('[data-send-error]');
         // Say what is wrong in the dialog and put the cursor on it.
         const problem = (message, field) => {
           if (errorEl) { errorEl.textContent = message; errorEl.hidden = !message; }
-          if (field) { const more = field.closest('details'); if (more) more.open = true; try { field.focus(); field.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} }
+          if (field) { showTab('compose'); const more = field.closest('details'); if (more) more.open = true; try { field.focus(); field.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} }
         };
         problem('');
         let recipients = [...modal.el.querySelectorAll('[data-send-contact]')]
@@ -5967,9 +6072,9 @@
           .map((input) => contacts[Number(input.dataset.sendContact || 0)])
           .filter((contact) => contact && emailValid(contact.email))
           .map((contact) => ({ name: contact.name, email: cleanText(contact.email), ...(contact.role ? { role: contact.role } : {}) }));
-        const extra = cleanText(modal.el.querySelector('[data-send-extra]')?.value);
+        const extra = cleanText($('[data-send-extra]')?.value);
         if (extra) {
-          if (!emailValid(extra)) { problem('The extra email address is not valid.', modal.el.querySelector('[data-send-extra]')); return; }
+          if (!emailValid(extra)) { problem('That email address is not valid.', $('[data-send-extra]')); return; }
           if (!recipients.some((r) => r.email.toLowerCase() === extra.toLowerCase())) recipients.push({ name: extra, email: extra, role: 'customer' });
         }
         if (signerRoles.length) {
@@ -5984,7 +6089,7 @@
           recipients = recipients.filter(r => r.role !== 'copy' || !recipients.some(s => s.signer_id && s.email && s.email.toLowerCase() === r.email.toLowerCase()));
         }
         if (!recipients.length) {
-          problem('Choose at least one recipient with an email address.', modal.el.querySelector('[data-send-extra]'));
+          problem('Choose at least one person with an email address.', $('[data-send-extra]'));
           return;
         }
         button.disabled = true;
@@ -5992,26 +6097,54 @@
         try {
           const res = await deliverDocument(doc, {
             recipients,
-            consent_contact: cleanText(modal.el.querySelector('[data-consent-contact]')?.value),
-            include_portal: modal.el.querySelector('[data-send-portal]')?.checked !== false,
-            include_pdf: modal.el.querySelector('[data-send-pdf]')?.checked !== false,
-            message: cleanText(modal.el.querySelector('[data-send-message]')?.value)
+            include_portal: $('[data-send-portal]')?.checked !== false,
+            include_pdf: $('[data-send-pdf]')?.checked !== false,
+            message: cleanText($('[data-send-message]')?.value)
           });
           if (state.doc?.id === doc.id) {
             const updated = objectValue(res.document);
             if (updated.id) state.doc = { ...state.doc, ...updated };
           }
           loadDocs({ silent: true });
+          // What was sent is a short list, not the composer: the dialog narrows to it.
+          (modal.body || modal.el.querySelector('.fmdx-modal'))?.classList.add('fmdx-send-done');
           renderSendSuccess(modal, res);
           // The draft is now a sent document: reopen it so the screen says so.
           if (state.view === 'editor' && state.doc?.id === doc.id) openDocScreen(state.doc);
         } catch (error) {
           button.disabled = false;
           button.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
-          const failure = sendFailure(error);
-          problem(failure.code === 'signature_contact_required' ? 'Add your company contact for paper copies under the signer\u2019s extra options.' : failure.message, failure.code === 'signature_contact_required' ? modal.el.querySelector('[data-consent-contact]') : null);
+          problem(sendFailure(error).message);
         }
       });
+    }
+
+    /**
+     * The setup a manager is offered the first time they send while the company's email is not set up (GP-27): the
+     * Communications email setup (comms.setup's widget, email only), a config library guided_experience the runtime
+     * plays once per person and that can be skipped.
+     */
+    const SEND_EMAIL_SETUP = 'documents.send_email_setup';
+    function guidesRuntime(){
+      if (typeof window.FirstMateGuides?.play === 'function') return window.FirstMateGuides;
+      try { return typeof window.top?.FirstMateGuides?.play === 'function' ? window.top.FirstMateGuides : null; } catch (e) { return null; }
+    }
+    /** What Send previews (documents/service.ts documentSendPreview): from, subject, text, whether email is set up. {} when unread. */
+    async function readSendPreview(documentId){
+      try {
+        return objectValue(await Promise.race([
+          api().request(`/organizations/${encodeURIComponent(orgId())}/documents/${encodeURIComponent(documentId)}/send/preview`),
+          new Promise((resolve) => setTimeout(() => resolve({}), 4000))
+        ]));
+      } catch (error) { return {}; }
+    }
+    /** Plays the email setup; `replay` from the dialog's own button, otherwise only if this person has not seen it. */
+    async function playSendEmailSetup(replay = false){
+      const guides = guidesRuntime();
+      if (!guides) return null;
+      const known = guides.experience?.(SEND_EMAIL_SETUP);
+      if (!replay && known?.progress && known.progress.status !== 'started') return null;
+      try { return objectValue(await guides.play(SEND_EMAIL_SETUP, replay ? { replay: true } : {})); } catch (error) { return null; }
     }
 
     /**
@@ -6052,7 +6185,7 @@
       const code = cleanText(error?.data?.code || error?.data?.error || error?.code);
       const known = {
         signature_recipient_required: 'This agreement needs every signer named. Send it from the Docs screen to add the other signers.',
-        signature_contact_required: 'Your company needs a contact for paper copies before agreements can be sent. Add one in Documents settings.',
+        signature_contact_required: 'Add your company’s email in Settings › Company first: signers are told to contact it for a paper copy.',
         presentation_frozen: 'This presentation was already sent. Open the sent document from the Docs screen.',
         presentation_contract_not_draft: 'This document was already sent. Void it on the Docs screen to send a new one.',
         presentation_incomplete: 'A choice is still missing. Go back and finish the presentation first.',

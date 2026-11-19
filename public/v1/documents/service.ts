@@ -2085,6 +2085,111 @@ async function createSnapshotLocked(orgId: string, documentId: string, input: Js
   return snapshot;
 }
 
+type ServerLanguage = Awaited<ReturnType<typeof serverLanguage>>;
+
+/**
+ * GP-27: what a sent document's email says, the one text the send writes and its dialog previews: the subject, and
+ * the body for a recipient (greeting, the sender's note or the default line, and their link).
+ */
+function documentEmailCopy(language: ServerLanguage, typeDef: DocumentTypeDefinition, document: JsonObject) {
+  const type = typeDef.label;
+  return {
+    subject: `${type}: ${cleanText(document.title) || type}`,
+    greeting: (name: string) => language.text("notifications", "document_greeting", `Hi ${name || "there"},`, { name: name || "there" }),
+    ready: language.text("notifications", "document_ready", `Your ${type.toLowerCase()} is ready to review.`, { type: type.toLowerCase() }),
+    link: (url: string) => language.text("notifications", "document_link", `Review and respond here: ${url}`, { url }),
+    /** Without a link (the send's include_portal off) there is no link line. */
+    text(name: string, message: string, url: string) { return [this.greeting(name), "", message || this.ready, ...(url ? ["", this.link(url)] : [])].join("\n"); }
+  };
+}
+
+/**
+ * GP-27: a document's email goes out from the company's address (its domain once that sends, else its FirstMate Mail
+ * inbox) and, for a project's document, onto the project's Communications email, a thread per recipient, where their
+ * reply lands too. A document with no project is sent as the company's transactional mail.
+ */
+async function sendDocumentEmail(orgId: string, document: JsonObject, mail: { to: string; subject: string; text: string; userId: string; metadata: JsonObject; idempotencyKey: string; attachments?: Array<{ name: string; contentType: string; content: Uint8Array | string }> }) {
+  const branchId = cleanText(document.branch_id || "default") || "default";
+  const projectId = cleanText(document.project_id);
+  const source = { type: "user", id: "document_delivery", user_id: mail.userId };
+  if (projectId) {
+    const { sendProjectEmail } = await import("../comms/service.js");
+    const sent = await sendProjectEmail(orgId, branchId, projectId, {
+      to: mail.to,
+      subject: mail.subject,
+      text: mail.text,
+      purpose: "transactional",
+      tags: ["document-send"],
+      source,
+      metadata: mail.metadata,
+      idempotency_key: mail.idempotencyKey,
+      ...(mail.attachments?.length ? { attachments: mail.attachments.map((file) => ({ name: file.name, content_type: file.contentType, content: file.content })) } : {})
+    }).then((result) => asObject(result)).catch(() => null);
+    // A project the communications store cannot thread (one with no record there) still gets its email, once: the
+    // idempotency key is the same, so a message the thread already recorded is not sent twice.
+    if (sent) {
+      const message = asObject(sent.message);
+      const ok = cleanText(message.status) !== "failed";
+      return { ok, success: ok, message, result: sent };
+    }
+  }
+  return sendOrganizationTransactionalEmail({
+    organizationId: orgId,
+    branchId,
+    to: mail.to,
+    subject: mail.subject,
+    textBody: mail.text,
+    purpose: "transactional",
+    projectId,
+    tags: ["document-send"],
+    source,
+    metadata: mail.metadata,
+    idempotencyKey: mail.idempotencyKey,
+    attachments: mail.attachments
+  });
+}
+
+/**
+ * GP-27: what the send dialog shows before anything is sent: who the email comes from, its subject and its text with
+ * `{name}`, `{message}` and `{link}` left for the dialog to fill as the person types, and whether the company's email is
+ * set up. Reads only: the FirstMate Mail inbox a first send creates is not created here.
+ */
+export async function documentSendPreview(orgId: string, documentId: string, ctx: PlatformAuthContext) {
+  const document = await readDocumentInstance(orgId, documentId);
+  requireDocumentDepartmentAccess(ctx, document);
+  const branchId = cleanText(document.branch_id || "default") || "default";
+  const typeDef = typeDefinitionFor(cleanText(document.document_type));
+  const language = await serverLanguage(resolveContext(), ["notifications"]);
+  const copy = documentEmailCopy(language, typeDef, document);
+  const [{ listSenderIdentities }, engine, capabilities, organization, defaults] = await Promise.all([
+    import("../messaging/communications_storage.js"),
+    import("../email/engine.js"),
+    import("../platform/capabilities.js"),
+    readOrganization(orgId).then(asObject).catch(() => ({} as JsonObject)),
+    readDocumentDeliveryDefaults(orgId, branchId)
+  ]);
+  const identities = (await listSenderIdentities(orgId, branchId, "email").catch(() => [] as JsonObject[])).map(asObject)
+    .filter((identity) => cleanText(identity.status) !== "disabled" && cleanText(identity.address));
+  const sends = (identity: JsonObject) => engine.domainIdentitySends(identity as never);
+  const sender = identities.find((identity) => sends(identity) && identity.is_default === true) || identities.find(sends)
+    || identities.find((identity) => cleanText(identity.id) === engine.FIRSTMATE_MAIL_IDENTITY_ID) || null;
+  const emailOn = await capabilities.isCapabilityEnabled(orgId, "comms.email").catch(() => false);
+  return {
+    from: {
+      name: cleanText(sender?.display_name) || cleanText(organization.name || organization.display_name),
+      address: cleanText(sender?.address),
+      kind: !sender ? "" : sends(sender) ? "domain" : "firstmate_mail"
+    },
+    subject: copy.subject,
+    text: copy.text("{name}", "{message}", "{link}"),
+    default_message: copy.ready,
+    attachment: `${cleanText(document.title) || typeDef.label}.pdf`,
+    include_pdf: defaults.send_include_pdf !== false,
+    include_portal: defaults.send_include_portal !== false,
+    email: { on: emailOn === true, can_set_up: hasPermission(ctx, "manage_company_settings") }
+  };
+}
+
 export async function sendDocument(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   return withDocumentChange({ cut: "send", documentId, userId: ctx.userId }, () => withSigningLock(orgId, documentId, () => sendDocumentLocked(orgId, documentId, input, ctx)));
 }
@@ -2175,25 +2280,15 @@ async function sendDocumentLocked(orgId: string, documentId: string, input: Json
   if ((input.include_portal !== false && portalUrl) || attachment) {
     const typeDef = typeDefinitionFor(cleanText(updated.document_type));
     const language = await serverLanguage(resolveContext(), ["notifications"], snapshot.language_snapshot as LanguageSnapshot | undefined);
+    const copy = documentEmailCopy(language, typeDef, updated);
     for (const recipient of recipients) {
       const email = cleanText(recipient.email);
       if (!email) continue;
-      const result = await sendOrganizationTransactionalEmail({
-        organizationId: orgId,
-        branchId: cleanText(updated.branch_id || "default") || "default",
+      const result = await sendDocumentEmail(orgId, updated, {
         to: email,
-        subject: `${typeDef.label}: ${cleanText(updated.title) || typeDef.label}`,
-        textBody: [
-          language.text("notifications", "document_greeting", `Hi ${cleanText(recipient.name) || "there"},`, {name:cleanText(recipient.name) || "there"}),
-          "",
-          cleanText(input.message) || language.text("notifications", "document_ready", `Your ${typeDef.label.toLowerCase()} is ready to review.`, {type:typeDef.label.toLowerCase()}),
-          "",
-          language.text("notifications", "document_link", `Review and respond here: ${recipientUrl(recipient)}`, {url:recipientUrl(recipient)})
-        ].join("\n"),
-        purpose: "transactional",
-        projectId: cleanText(updated.project_id),
-        tags: ["document-send"],
-        source: { type: "user", id: "document_delivery", user_id: ctx.userId },
+        subject: copy.subject,
+        text: copy.text(cleanText(recipient.name), cleanText(input.message), input.include_portal !== false ? recipientUrl(recipient) : ""),
+        userId: ctx.userId,
         metadata: { document_id: cleanText(updated.id), snapshot_id: cleanText(snapshot.id) },
         idempotencyKey: `document_email:${cleanText(snapshot.id)}:${email}:${cleanText(recipient.signer_id || recipient.role || "copy")}`,
         attachments: attachment ? [{ name: attachment.fileName, contentType: attachment.contentType, content: attachment.bytes }] : undefined

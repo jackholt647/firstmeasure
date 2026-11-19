@@ -43,33 +43,79 @@ test("signature modal requires PDF access and consent, and retains the form when
   assert.equal(await page.evaluate(()=>(window as any).outputs.sig_customer.__signing),undefined);
 });
 
-test("send dialog assigns separate roles, skips unassigned optional roles and sends the consent contact", async t => {
+/** The send dialog's code from project.js, run on a blank page with the few things it uses stubbed (GP-27 preview included). */
+async function mountSendDialog(t: any, preview: Record<string, unknown>, documentRecord: Record<string, unknown>, guides = "") {
   const browser = await chromium.launch({ executablePath:await resolveBrowserExecutablePath(),headless:true }); t.after(()=>browser.close());
   const page = await browser.newPage(); await page.setContent('<!doctype html><body></body>');
   const source = await readFile(new URL('../../libraries/apps/documents/project.js',import.meta.url),'utf8');
   const start = source.indexOf('    async function openSendModal(docRecord){'), end = source.indexOf('    function renderSendSuccess(',start);
   assert.ok(start>0 && end>start);
   await page.addScriptTag({ content:`
+    ${guides}
     const objectValue=v=>v&&typeof v==='object'?v:{}; const arrayValue=v=>Array.isArray(v)?v:[];
     const cleanText=v=>String(v??'').trim(); const firstText=(...v)=>v.map(cleanText).find(Boolean)||'';
     const esc=v=>String(v??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     const projectContacts=()=>[{name:'Customer',email:'customer@example.test',role:'customer'}];
     const orgId=()=> 'org'; const state={}; const loadDocs=()=>{}; const errorMessage=e=>e.message;
     const showToast=(title,message)=>{window.lastError=message;}; const renderSendSuccess=()=>{window.sent=true;};
-    const project=()=>({}); const api=()=>({documents:{settings:async()=>({settings:{}}),send:async(org,id,value)=>{window.sentValue=value;return{document:{id},emailed:[]};}}});
-    const openModal=html=>{const el=document.createElement('div');el.innerHTML=html;document.body.appendChild(el);return{el};};
+    window.previewReads=0;
+    const project=()=>({}); const api=()=>({request:async(path)=>{window.previewPath=path;window.previewReads++;return ${JSON.stringify(preview)};},documents:{settings:async()=>({settings:{}}),send:async(org,id,value)=>{window.sentValue=value;return{document:{id},emailed:[]};}}});
+    const openModal=html=>{const el=document.createElement('div');el.innerHTML=html;document.body.appendChild(el);return{el,close(){el.remove();}};};
     ${source.slice(start,end)}
-    openSendModal({id:'contract',output_defs:{sig_customer:{type:'signature',required:true},sig_second:{type:'signature',signer_id:'second',required:true},sig_company:{type:'signature',signer:'internal',required:false}}});
+    openSendModal(${JSON.stringify(documentRecord)});
   ` });
+  return page;
+}
+
+const PREVIEW = { from:{ name:"Acme Roofing", address:"acme@firstmatemail.com", kind:"firstmate_mail" }, subject:"Proposal: Smith roof", text:"Hi {name},\n\n{message}\n\nReview and respond here: {link}", default_message:"Your proposal is ready to review.", attachment:"Smith roof.pdf", email:{ on:true, can_set_up:true } };
+
+test("send dialog assigns separate roles, skips unassigned optional roles and leaves the paper-copy contact to the server", async t => {
+  const page = await mountSendDialog(t, PREVIEW, {id:'contract',title:'Smith roof',output_defs:{sig_customer:{type:'signature',required:true},sig_second:{type:'signature',signer_id:'second',required:true},sig_company:{type:'signature',signer:'internal',required:false}}});
   await page.waitForSelector('[data-send-go]');
+  // GP-27: the e-sign "contact for paper copies" is the company's (signing/service.ts companyConsentContact): not asked here.
+  assert.equal(await page.locator('[data-consent-contact]').count(),0);
+  assert.equal(await page.evaluate(()=>(window as any).previewPath),'/organizations/org/documents/contract/send/preview');
+  // The only contact signs as the customer, so their copy starts unticked; signing needs the link.
+  assert.equal(await page.locator('[data-send-contact="0"]').isChecked(),false);
+  assert.equal(await page.locator('[data-send-portal]').isDisabled(),true);
   await page.locator('[data-signer-role="second"] [data-signer-email]').fill('second@example.test');
-  // Order, capacity and the paper-copy contact are tucked away until wanted.
+  // Order and capacity are tucked away until wanted.
   await page.evaluate(() => document.querySelectorAll('details.fmdx-send-more').forEach(d => { (d as HTMLDetailsElement).open = true; }));
   await page.locator('[data-signer-role="second"] [data-signer-order]').fill('1');
-  await page.locator('[data-consent-contact]').fill('support@example.test');
   await page.locator('[data-send-go]').click();
   await page.waitForFunction('window.sent === true');
   const value = await page.evaluate(()=>(window as any).sentValue);
   assert.deepEqual(value.recipients.map((r:any)=>[r.signer_id,r.order]),[['customer',0],['second',1]]);
-  assert.equal(value.consent_contact,'support@example.test');
+  assert.equal('consent_contact' in value, false);
+});
+
+test("send dialog previews the email as it will be sent: from the company's address, the note, the link and the PDF", async t => {
+  const page = await mountSendDialog(t, PREVIEW, {id:'estimate',title:'Smith roof',output_defs:{}});
+  await page.waitForSelector('[data-send-preview] .fmdx-send-mail');
+  const mail = page.locator('[data-send-preview]');
+  assert.match(await mail.locator('.fmdx-send-mail-head').innerText(), /acme@firstmatemail\.com/);
+  assert.match(await mail.locator('.fmdx-send-mail-head').innerText(), /customer@example\.test/);
+  assert.equal(await mail.locator('.fmdx-send-subject').innerText(),'Proposal: Smith roof');
+  assert.match(await mail.locator('.fmdx-send-mail-body').innerText(), /^Hi Customer,\s+Your proposal is ready to review\.\s+Review and respond here: their own link/);
+  await page.locator('[data-send-message]').fill('Thanks for meeting with us today.');
+  assert.match(await mail.locator('.fmdx-send-mail-body').innerText(), /Thanks for meeting with us today\./);
+  assert.equal(await mail.locator('.fmdx-send-attach').innerText(),'Smith roof.pdf');
+  // Without the link the email has no link line; without the PDF, no attachment.
+  await page.locator('[data-send-portal]').uncheck();
+  await page.locator('[data-send-pdf]').uncheck();
+  assert.doesNotMatch(await mail.locator('.fmdx-send-mail-body').innerText(), /Review and respond/);
+  assert.equal(await mail.locator('.fmdx-send-attach').count(),0);
+  assert.equal(await mail.locator('.fmdx-send-warn').count(),1);
+});
+
+test("send dialog offers the company email setup once, before the dialog, where email is not set up", async t => {
+  const guides = "window.played=[];window.FirstMateGuides={play:async(id,options)=>{window.played.push([id,options]);return{status:'dismissed'};},experience:()=>null};";
+  const page = await mountSendDialog(t, { ...PREVIEW, from:{ name:"Acme Roofing", address:"", kind:"" }, email:{ on:false, can_set_up:true } }, {id:'estimate',title:'Smith roof',output_defs:{}}, guides);
+  await page.waitForSelector('[data-send-preview] .fmdx-send-mail');
+  assert.deepEqual(await page.evaluate(()=>(window as any).played),[['documents.send_email_setup',{}]]);
+  // Skipped: the dialog reads where its email comes from again, and still offers the setup from the preview.
+  assert.equal(await page.evaluate(()=>(window as any).previewReads),2);
+  await page.locator('[data-send-email-setup]').click();
+  await page.waitForFunction('window.played.length === 2');
+  assert.deepEqual(await page.evaluate(()=>(window as any).played[1]),['documents.send_email_setup',{replay:true}]);
 });

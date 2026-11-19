@@ -1724,3 +1724,56 @@ test("document delivery settings migrate per branch, apply to sends, and freeze 
   const denied = await app.inject({ method: "GET", url });
   assert.equal(denied.statusCode, 401);
 });
+
+test("GP-27: a sent project document's email is on the project's Communications email thread, from the company inbox, as the send dialog previews it", async () => {
+  const client = createSessionClient();
+  const { orgId } = await registerOrg(client);
+  const projectId = "project_send_email_thread";
+  await createProject(client, orgId, projectId);
+  const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, { document_type: "generic", title: "Thread Doc" });
+  const documentId = created.document.id;
+
+  const preview = await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${documentId}/send/preview`);
+  assert.match(preview.subject, /Thread Doc$/);
+  assert.ok(preview.text.includes("{name}") && preview.text.includes("{message}") && preview.text.includes("{link}"), "the dialog fills the recipient's name, the note and their link");
+  assert.equal(typeof preview.email.on, "boolean");
+  assert.ok(preview.from.name, "the company's name is who it is from");
+
+  const sent = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/send`, {
+    recipients: [{ name: "Jane Homeowner", email: "jane@example.test", role: "customer" }],
+    message: "Here is the plan we talked about.",
+    include_pdf: false
+  });
+  assert.equal(sent.emailed.length, 1);
+  assert.notEqual(sent.emailed[0].ok, false, JSON.stringify(sent.emailed[0]));
+
+  const { listMessageRecords } = await import("../messaging/communications_storage.js");
+  const { projectEmailThreads } = await import("../comms/service.js");
+  const { orgPublicEmailAddress } = await import("../email/engine.js");
+  const messages = (await listMessageRecords(orgId, { project_id: projectId, channel: "email" })).filter((message: any) => (message.tags || []).includes("document-send"));
+  assert.equal(messages.length, 1);
+  const message = messages[0] as any;
+  assert.ok(message.conversation_id, "on a project thread, not a loose message");
+  assert.equal(message.purpose, "transactional");
+  assert.equal(message.subject, preview.subject);
+  assert.match(message.text_body, /^Hi Jane Homeowner,\n\nHere is the plan we talked about\.\n\nReview and respond here: http/);
+  assert.equal(message.sender.address, await orgPublicEmailAddress(orgId), "sent from the company's own address");
+  const threads = await projectEmailThreads(orgId, projectId);
+  assert.ok(threads.some((thread: any) => thread.id === message.conversation_id && thread.subject === preview.subject), "the project's Email shows it");
+
+  // Sent again: one more email, on its own thread; the first is not sent twice.
+  await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/send`, { recipients: [{ name: "Jane Homeowner", email: "jane@example.test", role: "customer" }] });
+  assert.equal((await listMessageRecords(orgId, { project_id: projectId, channel: "email" })).filter((entry: any) => (entry.tags || []).includes("document-send")).length, 2);
+});
+
+test("GP-27: the paper-copy contact a signer is given is the company's email, never a login that cannot receive mail", async () => {
+  const client = createSessionClient();
+  const { orgId } = await registerOrg(client);
+  const { companyConsentContact } = await import("../documents/signing/service.js");
+  const { upsertDocument } = await import("../platform/storage.js");
+  // The owner signed up as owner-…@example.test: a reserved name mail never reaches, so it is not the contact.
+  assert.doesNotMatch(await companyConsentContact(orgId), /@example\.test$/);
+  // Settings › Company saves the company's email on the branch: that is who signers contact.
+  await upsertDocument(orgId, "branch", { id: "default", data: { contact: { email: "office@acmeroofing.com", phone: "555-010-0000" } } });
+  assert.equal(await companyConsentContact(orgId), "office@acmeroofing.com");
+});
