@@ -373,6 +373,33 @@
       .fmco-mail-quoted>summary{display:inline-block;list-style:none;padding:0 7px;border-radius:6px;background:#eef1f4;color:#475467;font-size:12px;line-height:16px;letter-spacing:1px;cursor:pointer}
       .fmco-mail-quoted>summary::-webkit-details-marker{display:none}
       .fmco-mail-quoted>div{margin-top:6px;padding-left:10px;border-left:2px solid #d0d5dd;color:#667085}
+      /* GP-11: a project's Calls (comms/workspace.js projectCalls) in the same split as Email and Texts: the calls on
+         the left, the selected call's details, outcome, recording and transcript on the right. */
+      .fmco-content>.fmcm>.fmcm-view:has(>.fmco-split){overflow:hidden}
+      /* communications.css styles every .fmcm button and select; inside the split they look like Email's and Texts'. */
+      .fmcm .fmco-split .fmco-btn{min-height:0;gap:6px;padding:6px 12px;border-color:#d8dee8;font-size:12px;font-weight:800;color:#344054}
+      .fmcm .fmco-split .fmco-btn:hover{background:#f8fafc;border-color:#d8dee8}
+      .fmcm .fmco-split .fmco-btn.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:var(--on-primary,#fff)}
+      .fmcm .fmco-split .fmco-btn.primary:hover{filter:brightness(.94)}
+      .fmcm .fmco-split .fmco-call-row{display:grid;justify-content:stretch;align-items:start;gap:3px;min-height:0;padding:10px 12px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;font-weight:inherit;white-space:normal}
+      .fmcm .fmco-split .fmco-call-row:hover{background:#fff;border-color:#c7ced9}
+      .fmcm .fmco-split .fmco-call-row.active{border-color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217 48 37),.04)}
+      .fmco-call-filters{display:flex;gap:6px}
+      .fmcm .fmco-call-filters select{flex:1 1 0;min-width:0;height:32px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;font:inherit;font-size:12px;font-weight:700;color:#344054;padding:0 8px;text-overflow:ellipsis}
+      .fmco-call-ico{flex:none;color:#667085;font-size:11.5px}.fmco-call-ico.missed{color:#b42318}
+      .fmco-call-flag{justify-self:start;font-size:10.5px;font-weight:800;color:#b54708;background:#fffaeb;border:1px solid #fedf89;border-radius:999px;padding:1px 8px}
+      .fmco-call-actions{display:flex;gap:6px;flex:none}
+      .fmco-call-body{flex:1;min-height:0;overflow-y:auto;padding:16px;display:grid;gap:18px;align-content:start}
+      .fmco-call-body section{display:grid;gap:8px;min-width:0}.fmco-call-body .fmco-section-title{margin:0}
+      .fmco-call-facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:0}
+      .fmco-call-facts>div{min-width:0;background:#f8fafc;border:1px solid #eef1f4;border-radius:10px;padding:8px 12px}
+      .fmco-call-facts dt{font-size:10.5px;font-weight:800;color:#98a2b3;text-transform:uppercase;letter-spacing:.04em}
+      .fmco-call-facts dd{margin:2px 0 0;font-size:13px;font-weight:700;color:#101828;overflow-wrap:anywhere}
+      .fmco-call-needs{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:#fffaeb;border:1px solid #fedf89;color:#93370d;border-radius:10px;padding:8px 12px;font-size:12.5px;font-weight:700}
+      .fmco-call-text{margin:0;font-size:13px;line-height:1.5;color:#344054;white-space:pre-wrap;overflow-wrap:anywhere}
+      .fmco-call-note{margin:0;font-size:12.5px;color:#667085}
+      .fmco-call-media{display:grid;gap:4px}.fmco-call-media audio{width:100%}.fmco-call-media small{font-size:11px;font-weight:700;color:#98a2b3}
+      .fmco-call-transcript{max-height:420px;overflow-y:auto;background:#f8fafc;border:1px solid #eef1f4;border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.6;color:#344054;white-space:pre-wrap;overflow-wrap:anywhere}
       @media(max-width:1180px){.fmco-agent-col{position:absolute;right:0;top:0;bottom:0;z-index:30;box-shadow:-14px 0 30px rgba(16,24,40,.12)}}
       @media(max-width:900px){.fmco-split{grid-template-columns:1fr}.fmco-split .fmco-thread-view{display:none}.fmco-split.thread-mode .fmco-thread-view{display:flex}.fmco-split.thread-mode .fmco-list-col{display:none}}
       /* Phone (the platform's 760px window breakpoint), like Photos and Docs:
@@ -434,6 +461,13 @@
         .fmco-agent-col{position:absolute;inset:0;width:auto;z-index:30;border-left:0;box-shadow:none}
         .fmco-agent-head{padding:10px 12px}
         .fmco-agent-head .fmco-btn{width:36px;height:36px;padding:0;justify-content:center;border-radius:10px}
+        .fmco-content>.fmcm>.fmcm-view:has(>.fmco-split.thread-mode){padding:0}
+        .fmcm .fmco-call-filters select{height:38px;border-radius:10px;font-size:16px}
+        .fmcm .fmco-split .fmco-list-col>.fmco-btn.primary{min-height:40px;border-radius:10px;font-size:13px}
+        .fmcm .fmco-split .fmco-call-row{padding:12px;border-radius:12px}
+        .fmcm .fmco-split .fmco-thread-head .fmco-btn{width:36px;height:36px;padding:0;border-radius:10px}
+        .fmco-call-actions .fmco-btn>span{display:none}
+        .fmco-call-body{padding:12px}
       }
     `;
     util.injectCSS ? util.injectCSS('project_comms', text) : document.head.appendChild(Object.assign(document.createElement('style'), { textContent:text }));
