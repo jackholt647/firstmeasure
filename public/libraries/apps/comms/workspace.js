@@ -307,7 +307,8 @@
       callPane();
     }
     const callLength=call=>{const start=Date.parse(call.connected_at||''),end=Date.parse(call.ended_at||'');if(!Number.isFinite(start)||!Number.isFinite(end)||end<start)return '';const seconds=Math.round((end-start)/1000);return `${Math.floor(seconds/60)}m ${String(seconds%60).padStart(2,'0')}s`;};
-    const callMissed=call=>!call.connected_at&&['ended','no_answer','busy','rejected','canceled','failed'].includes(call.state);
+    // A call logged from another phone has no connection times; its outcome says whether anyone answered.
+    const callMissed=call=>call.result?.disposition?['no_answer','busy'].includes(call.result.disposition):call.mode==='browser'&&!call.connected_at&&['ended','no_answer','busy','rejected','canceled','failed'].includes(call.state);
     function callResult(call){if(call.result?.disposition)return label(call.result.disposition);if(callMissed(call))return call.direction==='inbound'?'Missed call':'No answer';return label(call.state||'Call');}
     // The right-hand pane draws only when what it shows changed, so a list refresh never stops a recording that is playing.
     function callPane(){
@@ -322,16 +323,16 @@
       if(!view.detail){pane.innerHTML=head+`<div class="fmco-empty" style="margin:auto" role="status"><i class="fa-solid fa-circle-notch fa-spin"></i><p>Loading call…</p></div>`;return;}
       const length=callLength(call),needs=call.wrap_up_state==='needs_wrap_up';
       const fact=(title,value)=>value?`<div><dt>${title}</dt><dd>${esc(value)}</dd></div>`:'';
-      const facts=`<dl class="fmco-call-facts">${fact((globalThis.PlatformLanguage?.htmlText("comms","m_fc3186dc27cdbe","Outcome") ?? "Outcome"),callResult(call))}${fact('Duration',length||'Not connected')}${fact((globalThis.PlatformLanguage?.htmlText("comms","m_90a0d0ca71d266","Next step") ?? "Next step"),call.wrap_up_state==='saved'?label(call.result?.next_action||'none'):'')}${fact('Phone',call.mode==='browser'?'FirstMate phone':'External phone')}${fact('From',call.direction==='inbound'?call.customer_number:call.business_number)}${fact('To',call.direction==='inbound'?call.business_number:call.customer_number)}</dl>`;
+      const facts=`<dl class="fmco-call-facts">${fact((globalThis.PlatformLanguage?.htmlText("comms","m_fc3186dc27cdbe","Outcome") ?? "Outcome"),callResult(call))}${fact('Duration',length||(call.mode==='browser'?'Not connected':''))}${fact((globalThis.PlatformLanguage?.htmlText("comms","m_90a0d0ca71d266","Next step") ?? "Next step"),call.wrap_up_state==='saved'?label(call.result?.next_action||'none'):'')}${fact('Phone',call.mode==='browser'?'FirstMate phone':'External phone')}${fact('From',call.direction==='inbound'?call.customer_number:call.business_number)}${fact('To',call.direction==='inbound'?call.business_number:call.customer_number)}</dl>`;
       const wrap=needs?`<div class="fmco-call-needs"><span>${icon('circle-exclamation')} This call needs an outcome.</span><button type="button" class="fmco-btn" data-action="open-call" data-id="${esc(call.id)}">Add outcome</button></div>`:'';
       const notes=call.notes||call.result?.notes;
       const artifacts=view.artifacts,recordings=(artifacts||[]).filter(a=>['recording','voicemail'].includes(a.kind)),transcripts=(artifacts||[]).filter(a=>a.kind==='transcript');
       const policy=call.metadata?.policy||{},media=id=>window.CommsAPI.customerUrl(ui.org(),`calls/${encodeURIComponent(call.id)}/artifacts/${encodeURIComponent(id)}/media`);
       const recording=artifacts===null?`<p class="fmco-call-note">${esc(view.artifactError||'You do not have access to recordings and transcripts.')}</p>`
         :recordings.length?recordings.map(a=>a.state==='ready'?`<div class="fmco-call-media"><audio controls preload="none" src="${esc(media(a.id))}"></audio><small>${esc(label(a.kind))}${a.expires_at?` · Available until ${esc(date(a.expires_at))}`:''}</small></div>`:`<p class="fmco-call-note">${esc(label(a.kind))}: ${esc(label(a.state))}</p>`).join('')
-        :`<p class="fmco-call-note">${policy.recording_enabled===false?'Recording was off for this call.':call.mode==='browser'&&call.metadata?.consent?.state!=='granted'?'This call was not recorded. Recording needs the caller’s consent.':'No recording is kept for this call.'}</p>`;
+        :`<p class="fmco-call-note">${call.mode!=='browser'?'Calls made on another phone are not recorded.':policy.recording_enabled===false?'Recording was off for this call.':call.mode==='browser'&&call.metadata?.consent?.state!=='granted'?'This call was not recorded. Recording needs the caller’s consent.':'No recording is kept for this call.'}</p>`;
       const transcript=artifacts===null?'':transcripts.length?transcripts.map(a=>`<div class="fmco-call-transcript">${esc(a.data?.text||(a.state==='ready'?'':'Transcription in progress…'))}</div>`).join('')
-        :`<p class="fmco-call-note">${policy.transcription_enabled===false?'Transcription was off for this call.':recordings.length?'No transcript yet. It appears here once the recording has been processed.':'Transcripts come from recorded calls.'}</p>`;
+        :`<p class="fmco-call-note">${call.mode!=='browser'?'Transcripts come from recorded calls.':policy.transcription_enabled===false?'Transcription was off for this call.':recordings.length?'No transcript yet. It appears here once the recording has been processed.':'Transcripts come from recorded calls.'}</p>`;
       pane.innerHTML=head+`<div class="fmco-call-body">${wrap}${facts}<section><h4 class="fmco-section-title">Notes</h4><p class="fmco-call-text">${esc(notes||'No notes saved.')}</p></section><section><h4 class="fmco-section-title">Recording</h4>${recording}</section>${artifacts===null?'':`<section><h4 class="fmco-section-title">Transcript</h4>${transcript}</section>`}</div>`;
     }
     function showCall(view){state.callView={...view,version:++state.callViews};callPane();}
