@@ -593,7 +593,7 @@
       params: { feedbackView: { default:'responses', values:['responses','delivery','workflow'], history:'push' } },
       placement: 'more',
       order: 56,
-      bundles: [versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/feedback.js', '20261118-fm548-phone-layout'), versionedBundle('feedback/app.js', '20261116-fm481-phone-inset')]
+      bundles: [versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/feedback.js', '20261118-fm548-phone-layout'), versionedBundle('feedback/app.js', '20261119-gp71-full-bleed')]
     },
     {
       // The price book full screen. Its home is Settings > Pricebook; the apps
