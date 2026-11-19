@@ -22,6 +22,9 @@
 // top right, and the walkaround intro's button says "Record another video" once a video exists. The X shares a header
 // row with the title, so it never sits on the sample video or photos. The popover never opens below the tip and never
 // scrolls inside: it covers the tip when it must and shrinks the sample to fit above Start recording / Add photos.
+// FM-621: a phone held sideways (touch, landscape, at most 500px tall) keeps the desktop order, but the project window
+// fills the screen while the report order is open, and filming the walkaround fills the whole screen until it ends.
+// No other landscape view changes.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -30,6 +33,7 @@ import path from 'node:path';
 const root = path.resolve(import.meta.dirname, '..');
 const source = fs.readFileSync(path.join(root, 'public/libraries/apps/firstmeasure/order/exteriors.js'), 'utf8');
 const request = fs.readFileSync(path.join(root, 'public/libraries/apps/project-request/app.js'), 'utf8');
+const windows = fs.readFileSync(path.join(root, 'public/libraries/window-manager/window-manager.js'), 'utf8');
 const slice = (text, start, end = '\n  }\n') => {
   const at = text.indexOf(start);
   assert.ok(at >= 0, `missing ${start}`);
@@ -222,4 +226,38 @@ test('the walkaround intro says "Record another video" once a video exists', () 
   const intro = fn('videoIntroUI');
   assert.match(intro, /\$\{have\?\(globalThis\.PlatformLanguage\?\.htmlText\("firstmeasure","ext_record_another_video","Record another video"\)/);
   assert.doesNotMatch(source, /Record another segment/);
+});
+
+test('a phone held sideways fills the screen with the report order and with the walkaround camera', () => {
+  const phone = /'\(pointer: coarse\) and \(orientation: landscape\) and \(max-height: 500px\)'/;
+  // The project window: maximized only for the open report order, and given back when the order ends.
+  const order = slice(request, 'function syncPhoneLandscapeOrder(');
+  assert.match(slice(request, 'function isPhoneLandscape('), phone);
+  assert.match(order, /!isMobileProjectOrder\(\) && isPhoneLandscape\(\) && reportOrderOpen\(\)/);
+  assert.match(order, /if \(want === phoneLandscapeOrder\) return;/, 'a person who shrinks the window keeps their choice');
+  assert.match(order, /setMode\('fullscreen', \{ silent:true, allowFullscreen:true \}\)/);
+  assert.match(order, /setMode\('modal', \{ silent:true \}\)/);
+  assert.match(slice(request, 'function syncMobileOrderPagination('), /syncPhoneLandscapeOrder\(\);/);
+  assert.match(slice(request, 'function shouldUseMobileOrderPagination('), /isMobileProjectOrder\(\) && reportOrderOpen\(\)/);
+  // The project window offers no Fullscreen control, so the window manager takes the app's word for this one.
+  assert.match(windows, /function setMode\(mode,\{silent=false,allowFullscreen=false\}=\{\}\)/);
+  assert.match(windows, /mode==='fullscreen' && options\.allowFullscreen===false && !allowFullscreen && !mobileFullscreen\(\)/);
+  // The walkaround: its own fixed layer (a fixed child of the size-contained order panel would stay inside it).
+  assert.match(source, phone);
+  const mount = fn('filmMount');
+  assert.match(mount, /if\(!deskRecording\(\)\|\|workspaceSuspended\|\|!phoneLandscape\(\)\)\{closePhoneFilm\(\);return null;\}/);
+  assert.match(mount, /document\.body\.append\(filmLayer\)/);
+  assert.match(mount, /!page\.dataset\.nativeApp&&!doc\.fullscreenElement&&page\.requestFullscreen/);
+  assert.match(fn('mountRecorder'), /\(filmMount\(\)\|\|\(deskRecording\(\)\?deskNode:root\)\.querySelector\('\[data-guide-mount\]'\)\)\?\.append\(recNode\)/);
+  assert.match(source, /\.ext-desk\{[^}]*container:ext-desk\/size/, 'if the order panel is no longer a size container, the layer could live inside it');
+  assert.match(source, /\.ext-phone-film\{position:fixed;inset:0;z-index:2147483200;/);
+  // Filming ends: Done or Back, the order closing or set aside, the guide reset. The layer and full screen go with it.
+  assert.match(fn('updateDesk'), /if\(recordingNow\)mountRecorder\(\);else\{[^}]*filmLayer\?\.contains\(recNode\)[^}]*\}closePhoneFilm\(\);\}/);
+  assert.match(fn('closeDesk'), /closePhoneFilm\(\);/);
+  assert.match(fn('resetGuide'), /closePhoneFilm\(\);/);
+  assert.match(source, /if\(workspaceSuspended\)\{stopCamera\(\);closePhoneFilm\(\);/);
+  assert.match(fn('closePhoneFilm'), /leaveFilmFullscreen\(\);/);
+  assert.match(fn('renderPhotoWorkspace'), /contains\('mobile-order'\)\)\{[^}]*\n[^}]*if\(deskShown\|\|deskNode\?\.isConnected\)closeDesk\(false\);/);
+  // Turning the phone upright mid-order: the page request is the phone order, never a desktop render asking again.
+  assert.match(source, /setMobilePage\(step\)\{if\(!active\(\)\)return;const wasDesk=!ctx\.mobileOrder;ctx\.mobileOrder=true;[^}]*if\(wasDesk\|\|/);
 });

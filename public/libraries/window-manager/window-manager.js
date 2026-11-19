@@ -565,9 +565,10 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       buttons.minimize.innerHTML=`<i class="fas fa-${win.mode === 'minimized' ? 'window-restore' : 'minus'}" aria-hidden="true"></i>`;
     }
     function notify(reason){ options.onChange?.({mode:win.mode,dockSide:win.dockSide,pinned:win.pinned,reason}); }
-    function setMode(mode,{silent=false}={}){
+    // allowFullscreen lets the app fill the screen with a window that offers no Fullscreen control (a phone held sideways, FM-621).
+    function setMode(mode,{silent=false,allowFullscreen=false}={}){
       if (mobileFullscreen() && modes.includes(mode) && !(mode === 'minimized' && win.sheet())) mode = 'fullscreen';
-      if (!modes.includes(mode) || (options.compactCall && !mobileFullscreen() && !['floating','docked','minimized'].includes(mode)) || (mode==='fullscreen' && options.allowFullscreen===false && !mobileFullscreen())) return;
+      if (!modes.includes(mode) || (options.compactCall && !mobileFullscreen() && !['floating','docked','minimized'].includes(mode)) || (mode==='fullscreen' && options.allowFullscreen===false && !allowFullscreen && !mobileFullscreen())) return;
       if (mode !== win.mode) {
         options.onBeforeModeChange?.({mode,previous:win.mode});
         if (mode === 'minimized') win.previous = win.mode;

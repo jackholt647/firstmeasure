@@ -32,7 +32,7 @@
   P.util.injectCSS('exterior-camera-controls-motion',`@keyframes extCameraControlsIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@media(prefers-reduced-motion:reduce){.ext-camera-controls{animation:none}}`);
   let guideNode=null, guideIndex=0, photoSummary=false, cameraStream=null, nativeCameraCleanup=null, cameraEpoch=0, cameraStarting=false, cameraFallback=false, cameraNeedsUpdate=false, cameraMessage='', capturing=false;
   // Orbital video is the default capture; the eight guided photos are the fallback.
-  let captureMode='video', videoStage='intro', photoIntroSeen=false, photosFromVideo=false, recNode=null;
+  let captureMode='video', videoStage='intro', photoIntroSeen=false, photosFromVideo=false, recNode=null, filmLayer=null, filmFullscreen=null;
   let recorder=null, recTake=null, recElapsed=0, recResumedAt=0, recTimer=null, wakeLock=null, videoPreview=null, photoViewer=null;
   const VIDEO_MAX_BYTES=120*1024*1024, SEGMENT_MAX_MS=150000, VIDEO_BITRATE=5000000;
   const VIDEO_TYPES='video/mp4,video/quicktime,video/webm', IMAGE_TYPES='image/jpeg,image/png,image/webp';
@@ -126,7 +126,7 @@
     if(cameraFallback&&cameraNode()?.isConnected&&page===1&&!workspaceSuspended){cameraFacing=previous;cameraFallback=false;await startCamera();}
   }
   function stopCamera(){stopRecording();nativeCameraCleanup?.();cameraEpoch++;cameraStarting=false;cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;cameraZoom=null;zoomPending=null;for(const node of [guideNode,recNode])if(node?.querySelector('video'))node.querySelector('video').srcObject=null;}
-  function resetGuide(){photoToast?.remove();if(photoToastTimer)clearTimeout(photoToastTimer);closeVideoPreview();stopCamera();guideNode?.remove();guideNode=null;recNode?.remove();recNode=null;guideIndex=0;photoSummary=false;cameraMessage='';cameraFallback=false;cameraNeedsUpdate=false;captureMode='video';videoStage='intro';photoIntroSeen=false;}
+  function resetGuide(){photoToast?.remove();if(photoToastTimer)clearTimeout(photoToastTimer);closeVideoPreview();stopCamera();guideNode?.remove();guideNode=null;recNode?.remove();recNode=null;closePhoneFilm();guideIndex=0;photoSummary=false;cameraMessage='';cameraFallback=false;cameraNeedsUpdate=false;captureMode='video';videoStage='intro';photoIntroSeen=false;}
   function houseModel(){return `<div class="ext-model-scene" role="img" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_e4b02dd6cf2314","House angle guide") ?? "House angle guide")}"><div class="ext-model"><div class="ext-ground"></div><div class="ext-wall front"><i></i><b></b><i></i></div><div class="ext-wall back"><i></i><i></i></div><div class="ext-wall left"><i></i><i></i></div><div class="ext-wall right"><i></i><i></i></div><div class="ext-gable front"></div><div class="ext-gable back"></div><div class="ext-roof left"></div><div class="ext-roof right"></div><div class="ext-path">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_76f61845dd2aea","STREET") ?? "STREET")}</div></div></div>`;}
   function nativeBounds(surface){
     let box=surface.getBoundingClientRect(),x=box.x,y=box.y,owner=window;
@@ -487,7 +487,7 @@
       recNode.querySelector('[data-rec-photos]').onclick=toPhotos;
     }
     structure=Math.max(0,Math.min(structure,ctx.count-1));
-    (deskRecording()?deskNode:root).querySelector('[data-guide-mount]')?.append(recNode);updateRecorder();void startCamera();
+    (filmMount()||(deskRecording()?deskNode:root).querySelector('[data-guide-mount]'))?.append(recNode);updateRecorder();void startCamera();
   }
   function updateRecorderClock(){const time=recNode?.querySelector('[data-rec-time]');if(time)time.textContent=clock(recordedMs());}
   function updateRecorder(){
@@ -540,7 +540,7 @@
     return `<section class="ext-summary-guide ext-video-summary">${lead}${groups}${videoExtrasGroup()}<p class="ext-video-hint">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_other_angles_hint","Add other angles of anything the video does not show well, like dormers, additions or tight side yards.") ?? "Add other angles of anything the video does not show well, like dormers, additions or tight side yards.")}</p>${record}</section>`;
   }
   let photoWorkspace=null, referenceViewer=null, workspaceFilter='all', workspaceStep=false, closingViewer=false, workspaceSuspended=false;
-  window.addEventListener?.('fm:modal:open',event=>{if(event.detail?.id==='request'){workspaceSuspended=event.detail.open===false;if(workspaceSuspended){stopCamera();removePhotoWorkspace();if(deskNode){deskLeaving?.cancel();deskLeaving=null;deskNode.remove();deskShown=false;}}else if(deskEligible())render();}});
+  window.addEventListener?.('fm:modal:open',event=>{if(event.detail?.id==='request'){workspaceSuspended=event.detail.open===false;if(workspaceSuspended){stopCamera();closePhoneFilm();removePhotoWorkspace();if(deskNode){deskLeaving?.cancel();deskLeaving=null;deskNode.remove();deskShown=false;}}else if(deskEligible())render();}});
   const photoKey=photo=>[...files].find(([,f])=>f.media_id===photo.media_id)?.[0];
   function closeReferenceViewer(){const viewer=referenceViewer;referenceViewer=null;closingViewer=true;try{viewer?.close();}finally{closingViewer=false;}}
   function removePhotoWorkspace(){closeReferenceViewer();photoWorkspace?.remove();photoWorkspace=null;document.getElementById('rOverlay')?.classList.remove('exteriors-photos');workspaceStep=false;}
@@ -570,6 +570,8 @@
   function renderPhotoWorkspace(){
     if(document.getElementById('rOverlay')?.classList.contains('mobile-order')){
       if(photoWorkspace||workspaceStep)removePhotoWorkspace();
+      // A phone turned upright mid-order: the phone order replaces the desktop panel (and its camera) (FM-621).
+      if(deskShown||deskNode?.isConnected)closeDesk(false);
       return;
     }
     // Desktop: once the pins are confirmed the map becomes one capture-and-order panel.
@@ -989,6 +991,23 @@
   const deskAllPhotos=()=>!!ctx?.count&&Array.from({length:ctx.count},(_,i)=>views.every(v=>files.get(i+':'+v)?.media_id)).every(Boolean);
   const deskOrderShown=()=>{if(captureMode!=='photos')return false;if(deskAllPhotos())deskPhotosDone=true;return deskPhotosDone;};
   const deskCanRecord=()=>typeof MediaRecorder==='function'&&!!navigator.mediaDevices?.getUserMedia;
+  // A phone held sideways gets this desktop order, in a project window that fills the screen (FM-621). Filming the walkaround
+  // there fills the whole screen until it ends: the recorder moves to its own layer (the order panel is a size container,
+  // which would hold a fixed layer inside it), and the browser goes full screen where it can.
+  const phoneLandscape=()=>{const query='(pointer: coarse) and (orientation: landscape) and (max-height: 500px)';try{return !!window.top.matchMedia(query).matches;}catch(e){return !!window.matchMedia?.(query).matches;}};
+  function filmMount(){
+    if(!deskRecording()||workspaceSuspended||!phoneLandscape()){closePhoneFilm();return null;}
+    if(!filmLayer){
+      filmLayer=document.createElement('div');filmLayer.className='ext-order ext-phone-film';filmLayer.setAttribute('role','dialog');filmLayer.setAttribute('aria-modal','true');
+      filmLayer.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("firstmeasure","ext_record_a_video_walkaround","Record a video walkaround") ?? "Record a video walkaround"));document.body.append(filmLayer);
+      let doc=document;try{doc=window.top.document;}catch(e){}
+      const page=doc.documentElement;
+      if(!page.dataset.nativeApp&&!doc.fullscreenElement&&page.requestFullscreen)page.requestFullscreen({navigationUI:'hide'}).then(()=>{filmFullscreen=doc;if(!filmLayer)leaveFilmFullscreen();}).catch(()=>{});
+    }
+    return filmLayer;
+  }
+  function leaveFilmFullscreen(){const doc=filmFullscreen;filmFullscreen=null;if(doc&&doc.fullscreenElement===doc.documentElement)doc.exitFullscreen?.().catch(()=>{});}
+  function closePhoneFilm(){if(!filmLayer)return;filmLayer.remove();filmLayer=null;leaveFilmFullscreen();}
   const deskHTML=(el,html)=>{if(el&&el.__deskHTML!==html){el.__deskHTML=html;el.innerHTML=html;}};
   const deskSize=bytes=>!bytes?'':bytes>=1048576?(bytes/1048576).toFixed(bytes>=104857600?0:1)+' MB':Math.max(1,Math.round(bytes/1024))+' KB';
   const deskFileDrag=e=>Array.from(e.dataTransfer?.types||[]).includes('Files');
@@ -1266,7 +1285,7 @@
     deskHTML(deskNode.querySelector('[data-desk-back]'),deskBackUI());
     deskHTML(deskNode.querySelector('[data-desk-drop]'),deskDropUI());
     deskHTML(deskNode.querySelector('[data-desk-chips]'),deskChipsUI());
-    if(recordingNow)mountRecorder();else if(recNode&&deskNode.contains(recNode)){stopCamera();recNode.remove();}
+    if(recordingNow)mountRecorder();else{if(recNode&&(deskNode.contains(recNode)||filmLayer?.contains(recNode))){stopCamera();recNode.remove();}closePhoneFilm();}
     const strip=deskNode.querySelector('[data-desk-list]'),keep=new Set();
     let reveal=null;
     list.forEach(([key,f],index)=>{let row=deskRows.get(f);const added=!row;if(!row){row=deskRow();deskRows.set(f,row);}keep.add(f);const wasFailed=row.classList.contains('is-failed');deskFillRow(row,key,f);if(strip.children[index]!==row)strip.insertBefore(row,strip.children[index]||null);if(added||(!wasFailed&&row.classList.contains('is-failed')))reveal=row;});
@@ -1424,7 +1443,7 @@
   }
   function closeDesk(animate){
     const node=deskNode;deskShown=false;closePhotoViewer(false);document.getElementById('rOverlay')?.classList.remove('exteriors-capture');
-    if(recNode&&node?.contains(recNode)){stopCamera();recNode.remove();videoStage='intro';}
+    if(recNode&&(node?.contains(recNode)||filmLayer?.contains(recNode))){stopCamera();recNode.remove();videoStage='intro';}closePhoneFilm();
     if(deskLeaving)return;
     if(!node?.isConnected){restoreDeskTray();return;}
     const finish=()=>{const leaving=deskLeaving;deskLeaving=null;if(deskShown)return;node.remove();leaving?.cancel();restoreDeskTray();};
@@ -1647,6 +1666,18 @@
     @container ext-desk (max-width:900px){.ext-desk-mid{padding:20px 20px 16px;gap:14px}.ext-desk-side{padding:20px 18px 16px}.ext-desk-guide{gap:16px}.ext-desk .ext-desk-steps .ext-orbit-steps li{font-size:12.5px}.ext-desk-drop-label{font-size:13px}}
     @container ext-desk (max-width:640px){.ext-desk{grid-template-columns:minmax(0,1fr);overflow:auto}.ext-desk-side{border-left:0;border-top:1px solid #eaecf0}.ext-desk-guide{grid-template-columns:minmax(0,1fr)}}
     /* A short order panel (not a short screen: the panel sits in the project window) packs tighter. */
+    /* Filming on a phone held sideways (FM-621): the camera fills the screen, the controls stand in a column at the right.
+       The layer sits above the project window and below a segment's preview; a toast shows on it. */
+    .ext-phone-film{position:fixed;inset:0;z-index:2147483200;margin:0!important;display:flex;background:#0b0f17;color:#fff}.ext-phone-film~.ext-photo-toast{z-index:2147483300}
+    .ext-phone-film .ext-rec{flex:1;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) 112px;grid-template-rows:auto minmax(0,1fr);gap:0;margin:0}
+    .ext-phone-film .ext-rec .ext-capture-heading{grid-column:1;grid-row:1;display:block;min-height:0;padding:8px 14px}
+    .ext-phone-film .ext-rec .ext-capture-heading h3{margin:0;font-size:16px;line-height:1.25;color:#fff}
+    .ext-phone-film .ext-rec .ext-capture-heading [data-rec-step]{margin-top:2px;color:#d0d5dd}
+    .ext-phone-film .ext-rec .ext-camera{grid-column:1;grid-row:2;height:auto;min-height:0;border-radius:0}
+    .ext-phone-film .ext-rec .ext-guide-footer{grid-column:2;grid-row:1 / 3;display:flex;position:static;background:transparent;padding:10px 10px 10px 8px!important}
+    .ext-phone-film .ext-rec .ext-guide-buttons{flex:1;display:flex;flex-direction:column;justify-content:space-between;align-items:stretch;gap:10px;padding:0}
+    .ext-phone-film .ext-rec .ext-guide-buttons .ext-tool{flex:none;width:100%}
+    .ext-phone-film .ext-rec .ext-shutter-control{align-self:center}
     @container ext-desk (max-height:599px){.ext-desk-mid{padding-top:18px;gap:12px}.ext-desk-side{padding-top:18px;gap:12px}.ext-desk .ext-desk-film .ext-orbit{height:150px}}
     @media(prefers-reduced-motion:reduce){.ext-desk *{transition:none!important}.ext-desk-bar.is-indeterminate i{animation:none}.ext-desk-alert{animation:none}}
   `);
@@ -1681,7 +1712,9 @@
       if(guideIndex){visitGuide(guideIndex-1);return true;}
       photoIntroSeen=false;stopCamera();render();return true;
     },
-    setMobilePage(step){if(!active())return;const next=step==='photos'?1:step==='final'?2:0,details=step==='details';if(page!==next||mobileDetails!==details){if(next!==1)stopCamera();page=next;mobileDetails=details;render();}},
+    // Only the phone order has pages. Turning the phone upright mid-order asks for one before the next sync() says so: the
+    // desktop layout goes, rather than taking back the page and being asked again, endlessly (FM-621).
+    setMobilePage(step){if(!active())return;const wasDesk=!ctx.mobileOrder;ctx.mobileOrder=true;const next=step==='photos'?1:step==='final'?2:0,details=step==='details';if(wasDesk||page!==next||mobileDetails!==details){if(next!==1)stopCamera();page=next;mobileDetails=details;render();}},
     previewTabChanged(tab){if(tab!=='map')closeReferenceViewer();},
     failed(data){error=data?.message||data?.error||(globalThis.PlatformLanguage?.text("firstmeasure","ext_26a03939c7a9dc","Could not submit this order.") ?? "Could not submit this order.");page=0;if(data?.error==='pricing_changed'||data?.error==='exteriors_closed')scheduleQuote();render();},
     restore(fields){if(!ctx||!allowed(ctx.type)||fields.measurement_scope!=='full_house')return;scope='full_house';delivery=fields.report_expedite_option;notes=fields.tech_notes||'';ctx.setNotes?.(notes);page=0;let refs=[];try{refs=JSON.parse(fields.exterior_references||'[]');}catch{}for(const r of refs){const orbit=r.view==='orbital_video';files.set(r.structure+':'+(orbit?'video-'+r.media_id:r.view+(r.view==='additional'?'-'+r.media_id:'')),{media_id:r.media_id,name:orbit?'Video walkaround':label(r.view)+' reference',...(orbit||r.kind==='video'?{kind:'video'}:{}),...(r.angle?{angleKey:r.structure+':'+r.angle}:{})});}
