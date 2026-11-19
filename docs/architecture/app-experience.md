@@ -304,7 +304,7 @@ hover or keyboard focus, never on the focus More apps gives its first tile. The
 left column's setup pill says "Setup" (tabs keep "Setup required"). On desktop the overlay's top left also switches the column between
 Thin (`left_column_behavior: tooltip`, names as instant tooltips) and Wide
 (`forced_expanded`), personal too; a thin column has no room for the section
-switches, so they show there beside Thin and Wide. More apps keeps its pins and
+switches, so it shows none (an off section is a struck-through header button). More apps keeps its pins and
 these controls in every sidebar behavior. The first time someone opens it, the
 guided experience `platform.more_apps_tour` (config library, overlay, person,
 `manual`) walks through all of this, asked once per page by `offerMoreAppsTour`.

@@ -140,7 +140,10 @@ test('More apps orders pinned tiles like the left column and lists the left colu
   const sections = slice('  function sidebarSectionsMarkup(){', '  // Once the left column has an order');
   assert.match(sections, /const offered = \(mode\) => mode\.tab && sidebarSectionAvailable\(mode\.key\)/, 'a section that is off is still listed');
   assert.match(sections, /mode\.key !== 'channels' \|\| \(window\.Portal\?\.can\?\.\('apps\.channels'\) === true && launcherAppInExperience\(\{ appId:'portal\.channels' \}\)\)/, 'Channels is offered only once this person has Channels');
-  assert.match(sections, /role="switch" aria-checked=/);
+  assert.match(sections, /aria-pressed="\$\{mode\.enabled \? 'true' : 'false'\}"/, 'each section is a button that is on or off');
+  assert.doesNotMatch(sections, /fm-sidebar-section-switch/, 'no switch control: an off section is struck through');
+  assert.match(core, /\.fm-sidebar-section:not\(\.is-on\)>span\{text-decoration-color:currentColor\}/);
+  assert.match(core, /\.fm-sidebar-sections\{display:grid;grid-auto-flow:column;grid-auto-columns:minmax\(0,1fr\)/, 'one row');
   assert.doesNotMatch(sections, /left_column_settings/, 'More apps offers the switches wherever it is on (the MVP platform has personal left column settings off)');
   assert.match(slice('  function renderTabs(){', '  function ensurePortalTabLoadingStyles(){'), /portalAppPill\(t\.appId\)\.kind === 'setup' \? sidebarSetupPillLabel\(\)/, 'the left column says Setup, not Setup required');
   const pins = await readFile(path.join(publicRoot, 'libraries/left-column-pins/left-column-pins.js'), 'utf8');
@@ -158,7 +161,7 @@ test('More apps switches the left column between thin and wide and plays its tou
   const render = slice('  function renderAdvancedAppMenu(', '  function openAdvancedAppMenu(');
   assert.match(render, /data-advanced-sidebar-width="thin"[\s\S]{0,600}data-advanced-sidebar-width="wide"/);
   assert.match(render, /setLeftColumnWidthMode\(button\.dataset\.advancedSidebarWidth\)/);
-  assert.match(render, /\$\{thinColumn && sectionsMarkup \? `<div class="fm-advanced-apps-sections"/, 'a thin column has its section switches beside Thin and Wide');
+  assert.doesNotMatch(core, /fm-advanced-apps-sections/, 'a thin column shows no section switches');
   const width = slice('  function setLeftColumnWidthMode(mode){', '\n  }\n');
   assert.match(width, /mode === 'thin' \? 'tooltip' : 'forced_expanded'/, 'thin is instant tooltips, wide is always expanded');
   assert.match(width, /saveSidebarPreference\('left_column_behavior', behavior\)/, 'the width is the personal sidebar behavior');

@@ -14673,14 +14673,14 @@
     },
     "m_8dda6677ff0f34": "Move down",
     "m_425aa108496d81": "One section stays on",
-    "m_aa4cf82d48e36a": "Shown in your left column",
-    "m_4ea56ca20d437a": "Hidden from your left column",
     "m_17c93bdd5a0f99": "Thin",
     "m_9246870f32f935": "Wide",
     "m_7af6be7c241afb": "Left column width",
     "m_dedf030c4eae88": "Narrow left column with instant tooltips",
     "m_606db014592e3c": "Full-width left column all the time",
-    "m_b06faf127e1505": "Setup"
+    "m_b06faf127e1505": "Setup",
+    "m_0baabd1bb6cfd1": "Hide from your left column",
+    "m_1194a6e6b708e7": "Show in your left column"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Office",
