@@ -4509,14 +4509,7 @@
       const manualForm = manualPage?.querySelector?.('[data-money-bank-manual-form]');
       const transitionLoading = frameHost?.querySelector?.('[data-money-bank-transition-loading]');
       const plaidLoading = frameHost?.querySelector?.('[data-money-plaid-loading]');
-      const devToolbar = frameHost?.querySelector?.('[data-money-overlay-dev-toolbar]');
-      const devShield = frameHost?.querySelector?.('[data-money-overlay-dev-shield]');
-      const devStatus = devToolbar?.querySelector?.('[data-money-overlay-status]');
-      const devOpacity = devToolbar?.querySelector?.('[data-money-overlay-opacity]');
-      const devOpacityValue = devToolbar?.querySelector?.('[data-money-overlay-opacity-value]');
-      const devClickDetector = devToolbar?.querySelector?.('[data-money-click-detector]');
-      const devFocusSentinel = devToolbar?.querySelector?.('[data-money-focus-sentinel]');
-      if (!frameHost || !controls || !clickCover || !accountsOverview || !accountsBankView || !accountsBankList || !accountsBankStatus || !accountsBankReload || !accountsOverviewTab || !accountsBankTab || !workflowControls || !workflowClose || !workflowCancel || !instantSelector || !manualSelector || !continueButton || !instantContinueSensor || !workflowCover || !manualPage || !manualPageClose || !manualPageBack || !manualForm || !transitionLoading || !plaidLoading || !devToolbar || !devShield || !devStatus || !devOpacity || !devOpacityValue || !devClickDetector || !devFocusSentinel) return;
+      if (!frameHost || !controls || !clickCover || !accountsOverview || !accountsBankView || !accountsBankList || !accountsBankStatus || !accountsBankReload || !accountsOverviewTab || !accountsBankTab || !workflowControls || !workflowClose || !workflowCancel || !instantSelector || !manualSelector || !continueButton || !instantContinueSensor || !workflowCover || !manualPage || !manualPageClose || !manualPageBack || !manualForm || !transitionLoading || !plaidLoading) return;
       let accountsView = 'overview';
       let hostedBankAccountsOpened = false;
       let portalReady = false;
@@ -4534,7 +4527,6 @@
       let plaidSubmissionCurtainShown = false;
       let lastParentPointerDownAt = Number.NEGATIVE_INFINITY;
       let lastParentVisibilityChangeAt = Number.NEGATIVE_INFINITY;
-      let lastDetectorFocusReclaimAt = Number.NEGATIVE_INFINITY;
       let plaidFocusEvaluationTimer = null;
       let lastQualifiedPlaidFocusAt = Number.NEGATIVE_INFINITY;
       let lastPostPlaidFrameLoadAt = Number.NEGATIVE_INFINITY;
@@ -4898,12 +4890,10 @@
               if (!frame.isConnected || !workflowComplete || workflowMode !== 'instant' || document.hidden) return;
               const pointerAgeMs = performance.now() - lastParentPointerDownAt;
               const visibilityAgeMs = performance.now() - lastParentVisibilityChangeAt;
-              const detectorReclaimAgeMs = performance.now() - lastDetectorFocusReclaimAt;
-              if (pointerAgeMs < 1000 || visibilityAgeMs < 1000 || detectorReclaimAgeMs < 1000) {
+              if (pointerAgeMs < 1000 || visibilityAgeMs < 1000) {
                 console.info('[Money iframe:settings-tab:accounts] ignored Plaid focus signal caused by parent interaction', {
                   pointerAgeMs:Math.round(pointerAgeMs),
-                  visibilityAgeMs:Math.round(visibilityAgeMs),
-                  detectorReclaimAgeMs:Math.round(detectorReclaimAgeMs)
+                  visibilityAgeMs:Math.round(visibilityAgeMs)
                 });
                 return;
               }
@@ -4991,303 +4981,6 @@
         if (event.key !== 'Escape') return;
         if (manualPageOpen) closeManualPage(event);
       };
-      const overlayLayoutStorageKey = 'fm_money_overlay_layout_dev_v1';
-      const overlayLayoutSpecs = {
-        'overview-tab':{ label:(globalThis.PlatformLanguage?.text("settings","m_ee32a3a3e584b9","Overview tab") ?? "Overview tab"), vars:{ top:'--money-account-overview-tab-top', left:'--money-account-overview-tab-left', width:'--money-account-overview-tab-width', height:'--money-account-overview-tab-height' } },
-        'bank-accounts-tab':{ label:(globalThis.PlatformLanguage?.text("settings","m_84efd55810291e","Bank Accounts tab") ?? "Bank Accounts tab"), vars:{ top:'--money-account-bank-tab-top', left:'--money-account-bank-tab-left', width:'--money-account-bank-tab-width', height:'--money-account-bank-tab-height' } },
-        'add-bank-button':{ label:(globalThis.PlatformLanguage?.text("settings","m_2ac873bdfd8b36","Add Bank Account visual + passthrough") ?? "Add Bank Account visual + passthrough"), vars:{ top:'--money-bank-top', left:'--money-bank-left', width:'--money-bank-width', height:'--money-bank-height' } },
-        'bank-target':{ label:(globalThis.PlatformLanguage?.text("settings","m_fcea2a497fd9b7","Add Bank Account passthrough") ?? "Add Bank Account passthrough"), vars:{ top:'--money-bank-top', left:'--money-bank-left', width:'--money-bank-width', height:'--money-bank-height' } },
-        'overview-iframe':{ label:(globalThis.PlatformLanguage?.text("settings","m_676e4ffad4f648","Overview iframe offset") ?? "Overview iframe offset"), resizable:false, vars:{ top:'--money-overview-iframe-top', left:'--money-overview-iframe-left' } },
-        'bank-iframe':{ label:(globalThis.PlatformLanguage?.text("settings","m_3cf31354fd2316","Bank iframe offset") ?? "Bank iframe offset"), resizable:false, vars:{ top:'--money-bank-iframe-top', left:'--money-bank-iframe-left' } },
-        'workflow-close':{ label:(globalThis.PlatformLanguage?.text("settings","m_2176cde8fa5ee9","Bank close") ?? "Bank close"), vars:{ top:'--money-bank-close-top', left:'--money-bank-close-left', width:'--money-bank-close-width', height:'--money-bank-close-height' } },
-        'workflow-cancel':{ label:(globalThis.PlatformLanguage?.text("settings","m_b4a9c2797154de","Bank cancel") ?? "Bank cancel"), vars:{ top:'--money-bank-cancel-top', left:'--money-bank-cancel-left', width:'--money-bank-cancel-width', height:'--money-bank-cancel-height' } },
-        'instant-selector':{ label:(globalThis.PlatformLanguage?.text("settings","m_187641a78ca76d","Instant selector") ?? "Instant selector"), vars:{ top:'--money-bank-instant-top', left:'--money-bank-instant-left', width:'--money-bank-instant-width', height:'--money-bank-instant-height' } },
-        'manual-selector':{ label:(globalThis.PlatformLanguage?.text("settings","m_d04d043bc74b1b","Manual selector") ?? "Manual selector"), vars:{ top:'--money-bank-manual-top', left:'--money-bank-manual-left', width:'--money-bank-manual-width', height:'--money-bank-manual-height' } },
-        'continue-target':{ label:(globalThis.PlatformLanguage?.text("settings","m_8f13abbcf5e5a0","Continue target") ?? "Continue target"), vars:{ top:'--money-bank-continue-top', left:'--money-bank-continue-left', width:'--money-bank-continue-width', height:'--money-bank-continue-height' } },
-        'plaid-visual-mask':{ label:(globalThis.PlatformLanguage?.text("settings","m_47abfa498c7b79","Plaid visual mask") ?? "Plaid visual mask"), vars:{ top:'--money-plaid-visual-top', left:'--money-plaid-visual-left', width:'--money-plaid-visual-width', height:'--money-plaid-visual-height' } },
-        'plaid-click-deadzone':{ label:(globalThis.PlatformLanguage?.text("settings","m_50109c6f31b507","Plaid click deadzone") ?? "Plaid click deadzone"), vars:{ top:'--money-plaid-deadzone-top', left:'--money-plaid-deadzone-left', width:'--money-plaid-deadzone-width', height:'--money-plaid-deadzone-height' } }
-      };
-      let devMode = 'click';
-      let activeEdit = null;
-      let clickDetectorEnabled = false;
-      let clickDetectorFrame = null;
-      let clickDetectorReclaimTimer = null;
-      let clickDetectorCount = 0;
-      let clickDetectorLastAt = 0;
-      let overlayLayoutStore = { version:4, live:{}, approvedStates:{}, overlayOpacity:100, opacityScope:'all-custom-surfaces' };
-      try {
-        const stored = JSON.parse(window.localStorage?.getItem?.(overlayLayoutStorageKey) || 'null');
-        if (stored && typeof stored === 'object') {
-          const storedVersion = Number(stored.version || 1);
-          const hasGlobalOpacity = stored.opacityScope === 'all-custom-surfaces';
-          overlayLayoutStore = { version:4, live:{}, approvedStates:{}, ...stored, version:4, overlayOpacity:hasGlobalOpacity ? stored.overlayOpacity : 100, opacityScope:'all-custom-surfaces' };
-          if (storedVersion < 3) {
-            ['overview-tab','bank-accounts-tab','add-bank-button','bank-target','overview-iframe','bank-iframe'].forEach((id) => {
-              const item = overlayLayoutStore.live?.[id];
-              if (item && Number.isFinite(Number(item.top))) item.top = Number(item.top) - 96;
-            });
-            window.localStorage?.setItem?.(overlayLayoutStorageKey, JSON.stringify(overlayLayoutStore));
-          }
-          if (storedVersion < 4) {
-            if (overlayLayoutStore.live?.['overview-tab']) {
-              overlayLayoutStore.live['overview-tab'].top = 24;
-              overlayLayoutStore.live['overview-tab'].left = 38;
-            }
-            if (overlayLayoutStore.live?.['bank-accounts-tab']) {
-              overlayLayoutStore.live['bank-accounts-tab'].top = 24;
-              overlayLayoutStore.live['bank-accounts-tab'].left = 124;
-            }
-            window.localStorage?.setItem?.(overlayLayoutStorageKey, JSON.stringify(overlayLayoutStore));
-          }
-          const savedMenu = overlayLayoutStore.live?.['bank-menu'];
-          if (savedMenu && ((savedMenu.top === 160 && savedMenu.left === 340 && savedMenu.width === 170 && savedMenu.height === 84) || (savedMenu.top === 140 && savedMenu.left === 340 && savedMenu.width === 170 && savedMenu.height === 70))) {
-            overlayLayoutStore.live['bank-menu'] = { top:135, left:346, width:170, height:70 };
-          }
-        }
-      } catch (error) { /* malformed development state falls back to defaults */ }
-      if (overlayLayoutStore.live && typeof overlayLayoutStore.live === 'object') delete overlayLayoutStore.live['plaid-window'];
-      Object.values(overlayLayoutStore.approvedStates || {}).forEach((state) => {
-        if (state?.layout && typeof state.layout === 'object') delete state.layout['plaid-window'];
-      });
-      const layoutNumber = (value) => Math.round(Number.parseFloat(String(value || '0')) || 0);
-      const readOverlayLayout = () => {
-        const styles = window.getComputedStyle(frameHost);
-        return Object.fromEntries(Object.entries(overlayLayoutSpecs).map(([id, spec]) => [id, Object.fromEntries(Object.entries(spec.vars).map(([key, variable]) => [key, layoutNumber(styles.getPropertyValue(variable))]))]));
-      };
-      const applyOverlayLayout = (layout = {}) => {
-        Object.entries(overlayLayoutSpecs).forEach(([id, spec]) => {
-          const values = layout?.[id];
-          if (!values || typeof values !== 'object') return;
-          Object.entries(spec.vars).forEach(([key, variable]) => {
-            if (Number.isFinite(Number(values[key]))) frameHost.style.setProperty(variable, `${Math.round(Number(values[key]))}px`);
-          });
-        });
-      };
-      const workflowStateName = () => {
-        if (workflowComplete) return 'instant-complete';
-        if (workflowReady && workflowMode === 'instant') return 'bank-instant';
-        if (manualPageOpen) return 'bank-manual-form';
-        if (workflowReady && workflowMode === 'manual') return 'bank-manual';
-        if (workflowReady) return 'bank-choice';
-        return accountsView === 'bank-accounts' ? 'bank-accounts' : 'accounts-overview';
-      };
-      const reclaimClickDetectorFocus = () => {
-        lastDetectorFocusReclaimAt = performance.now();
-        window.Portal?.auth?.suppressFocusSessionCheck?.(1000);
-        devFocusSentinel.focus({ preventScroll:true });
-      };
-      const runClickDetectorFrame = () => {
-        clickDetectorFrame = null;
-        if (!clickDetectorEnabled || !frame.isConnected) return;
-        if (!workflowComplete || workflowMode !== 'instant' || !plaidRevealedAt) {
-          console.info('[Money iframe click detector:settings-tab:accounts] stopped because Plaid is no longer active');
-          setClickDetectorEnabled(false);
-          return;
-        }
-        if (!document.hidden && document.hasFocus()) {
-          if (document.activeElement === frame && !clickDetectorReclaimTimer) {
-            const detectedAt = performance.now();
-            clickDetectorCount += 1;
-            console.info('[Money iframe click detector:settings-tab:accounts] iframe focus detected', {
-              count:clickDetectorCount,
-              timestamp:new Date().toISOString(),
-              intervalMs:clickDetectorLastAt ? Math.round(detectedAt - clickDetectorLastAt) : null,
-              workflowState:workflowStateName(),
-              plaidActive:workflowComplete && workflowMode === 'instant',
-              connected:frame.isConnected
-            });
-            clickDetectorLastAt = detectedAt;
-            // Focus arrives on pointer-down. Reclaiming it immediately can
-            // prevent the matching pointer-up/click from reaching Plaid and
-            // can disrupt its hosted session. Leave the iframe focused long
-            // enough for the complete click sequence to settle.
-            clickDetectorReclaimTimer = window.setTimeout(() => {
-              clickDetectorReclaimTimer = null;
-              if (!clickDetectorEnabled || !frame.isConnected || document.hidden || !document.hasFocus()) return;
-              reclaimClickDetectorFocus();
-            }, 300);
-          }
-        }
-        clickDetectorFrame = window.requestAnimationFrame(runClickDetectorFrame);
-      };
-      const setClickDetectorEnabled = (enabled) => {
-        const requested = enabled === true;
-        if (requested && typeof window.Portal?.auth?.suppressFocusSessionCheck !== 'function') {
-          setDevStatus('Reload required for safe detector');
-          console.warn('[Money iframe click detector:settings-tab:accounts] not enabled; focus-session suppression is unavailable');
-          return;
-        }
-        if (requested && (!portalReady || !workflowComplete || workflowMode !== 'instant' || !plaidRevealedAt)) {
-          setDevStatus('Click detector requires active Plaid');
-          console.info('[Money iframe click detector:settings-tab:accounts] not enabled; Plaid is not active');
-          return;
-        }
-        clickDetectorEnabled = requested;
-        devClickDetector.classList.toggle('active', clickDetectorEnabled);
-        devClickDetector.setAttribute('aria-pressed', String(clickDetectorEnabled));
-        devClickDetector.textContent = ((v0) => globalThis.PlatformLanguage?.text("settings","m_9733a4ab762ce3",`Click detector: ${v0}`,{v0}) ?? `Click detector: ${v0}`)(clickDetectorEnabled ? 'On' : 'Off');
-        if (clickDetectorFrame) window.cancelAnimationFrame(clickDetectorFrame);
-        clickDetectorFrame = null;
-        if (clickDetectorReclaimTimer) window.clearTimeout(clickDetectorReclaimTimer);
-        clickDetectorReclaimTimer = null;
-        if (clickDetectorEnabled) {
-          clickDetectorCount = 0;
-          clickDetectorLastAt = 0;
-          reclaimClickDetectorFocus();
-          console.info('[Money iframe click detector:settings-tab:accounts] enabled', {
-            timestamp:new Date().toISOString(),
-            cadence:'requestAnimationFrame'
-          });
-          clickDetectorFrame = window.requestAnimationFrame(runClickDetectorFrame);
-        } else {
-          console.info('[Money iframe click detector:settings-tab:accounts] disabled', {
-            timestamp:new Date().toISOString(),
-            detectedClicks:clickDetectorCount
-          });
-        }
-      };
-      const persistOverlayLayout = () => {
-        overlayLayoutStore.live = readOverlayLayout();
-        overlayLayoutStore.updatedAt = new Date().toISOString();
-        try { window.localStorage?.setItem?.(overlayLayoutStorageKey, JSON.stringify(overlayLayoutStore)); } catch (error) { /* local persistence is best-effort */ }
-      };
-      const setDevStatus = (message) => { devStatus.textContent = String(message || ''); };
-      const setDevOpacity = (value, persist = true) => {
-        const parsedOpacity = Number(value);
-        const opacity = Math.max(0, Math.min(100, Math.round(Number.isFinite(parsedOpacity) ? parsedOpacity : 100)));
-        overlayLayoutStore.overlayOpacity = opacity;
-        devOpacity.value = String(opacity);
-        devOpacityValue.textContent = `${opacity}%`;
-        frameHost.style.setProperty('--money-overlay-dev-opacity', String(opacity / 100));
-        if (persist) persistOverlayLayout();
-      };
-      const setDevMode = (mode) => {
-        devMode = mode === 'layout' ? 'layout' : 'click';
-        frameHost.classList.toggle('money-overlay-layout-mode', devMode === 'layout');
-        devShield.hidden = devMode !== 'layout';
-        devToolbar.querySelectorAll('[data-money-overlay-mode]').forEach((button) => button.classList.toggle('active', button.dataset.moneyOverlayMode === devMode));
-        setDevStatus(devMode === 'layout' ? `${workflowStateName()} · drag enabled` : `${workflowStateName()} · click enabled`);
-      };
-      const applyOverlayBox = (id, box) => {
-        const spec = overlayLayoutSpecs[id];
-        if (!spec) return;
-        Object.entries(spec.vars).forEach(([key, variable]) => frameHost.style.setProperty(variable, `${Math.round(box[key])}px`));
-      };
-      const stopActiveEdit = () => {
-        if (!activeEdit) return;
-        activeEdit = null;
-        window.removeEventListener('pointermove', onDevPointerMove, true);
-        window.removeEventListener('pointerup', onDevPointerUp, true);
-        persistOverlayLayout();
-        setDevStatus(`${workflowStateName()} · saved locally`);
-      };
-      const onDevPointerMove = (event) => {
-        if (!activeEdit) return;
-        event.preventDefault();
-        const dx = event.clientX - activeEdit.startX;
-        const dy = event.clientY - activeEdit.startY;
-        const next = { ...activeEdit.startBox };
-        if (!activeEdit.corner) {
-          next.left = activeEdit.startBox.left + dx;
-          next.top = activeEdit.startBox.top + dy;
-        } else {
-          if (activeEdit.corner.includes('e')) next.width = Math.max(18, activeEdit.startBox.width + dx);
-          if (activeEdit.corner.includes('s')) next.height = Math.max(18, activeEdit.startBox.height + dy);
-          if (activeEdit.corner.includes('w')) {
-            next.left = activeEdit.startBox.left + dx;
-            next.width = Math.max(18, activeEdit.startBox.width - dx);
-            if (next.width === 18) next.left = activeEdit.startBox.left + activeEdit.startBox.width - 18;
-          }
-          if (activeEdit.corner.includes('n')) {
-            next.top = activeEdit.startBox.top + dy;
-            next.height = Math.max(18, activeEdit.startBox.height - dy);
-            if (next.height === 18) next.top = activeEdit.startBox.top + activeEdit.startBox.height - 18;
-          }
-        }
-        applyOverlayBox(activeEdit.id, next);
-        const size = Number.isFinite(next.width) && Number.isFinite(next.height) ? ` · ${Math.round(next.width)}×${Math.round(next.height)}` : '';
-        setDevStatus(`${activeEdit.id} · ${Math.round(next.left)},${Math.round(next.top)}${size}`);
-      };
-      const onDevPointerUp = (event) => {
-        event.preventDefault();
-        stopActiveEdit();
-      };
-      const onDevPointerDown = (event) => {
-        if (devMode !== 'layout' || event.target.closest('[data-money-overlay-dev-toolbar]')) return;
-        const item = event.target.closest('[data-money-overlay-item]');
-        if (!item || !frameHost.contains(item)) return;
-        const id = String(item.dataset.moneyOverlayItem || '');
-        const current = readOverlayLayout()[id];
-        if (!current) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        const handle = event.target.closest('[data-money-overlay-resize]');
-        activeEdit = { id, startX:event.clientX, startY:event.clientY, startBox:{ ...current }, corner:String(handle?.dataset?.moneyOverlayResize || '') };
-        window.addEventListener('pointermove', onDevPointerMove, true);
-        window.addEventListener('pointerup', onDevPointerUp, true);
-      };
-      const onDevClickCapture = (event) => {
-        if (devMode !== 'layout' || !event.target.closest('[data-money-overlay-item]')) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      };
-      const downloadOverlayLayout = () => {
-        const payload = JSON.stringify(overlayLayoutStore, null, 2);
-        const url = URL.createObjectURL(new Blob([payload], { type:'application/json' }));
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = 'firstmate-money-overlay-layout.json';
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      };
-      const markOverlayStateCorrect = () => {
-        persistOverlayLayout();
-        const stateName = workflowStateName();
-        overlayLayoutStore.approvedStates[stateName] = { markedAt:new Date().toISOString(), layout:readOverlayLayout() };
-        persistOverlayLayout();
-        downloadOverlayLayout();
-        setDevStatus(`${stateName} · marked + downloaded`);
-      };
-      const overlayIntegrityLocked = MONEY_OVERLAY_INTEGRITY_ENABLED && window.FirstMateMoneyOverlayEnforcer?.locked === true;
-      if (!overlayIntegrityLocked) applyOverlayLayout(overlayLayoutStore.live);
-      setDevOpacity(overlayIntegrityLocked ? 100 : overlayLayoutStore.overlayOpacity, false);
-      frameHost.querySelectorAll('[data-money-overlay-item]').forEach((item) => {
-        const spec = overlayLayoutSpecs[item.dataset.moneyOverlayItem];
-        if (!spec) return;
-        item.dataset.moneyOverlayLabel = spec.label;
-        if (spec.resizable !== false) ['nw','ne','sw','se'].forEach((corner) => item.insertAdjacentHTML('beforeend', `<span class="money-overlay-resize-handle" data-money-overlay-resize="${corner}" aria-hidden="true"></span>`));
-      });
-      const positionDevToolbar = () => {
-        if (!frameHost.isConnected || !devToolbar.isConnected) return;
-        const rect = frameHost.getBoundingClientRect();
-        const railWidth = 190;
-        const gap = 14;
-        const viewportPadding = 12;
-        const preferredRight = rect.right + gap;
-        const left = preferredRight + railWidth <= window.innerWidth - viewportPadding
-          ? preferredRight
-          : Math.max(viewportPadding, rect.left - railWidth - gap);
-        const top = Math.max(viewportPadding, Math.min(rect.top, window.innerHeight - 120));
-        devToolbar.style.left = `${Math.round(left)}px`;
-        devToolbar.style.top = `${Math.round(top)}px`;
-        devToolbar.style.maxHeight = `${Math.max(120, Math.round(window.innerHeight - top - viewportPadding))}px`;
-      };
-      document.body.appendChild(devToolbar);
-      frame.__moneyOverlayDevToolbar = devToolbar;
-      frame.__moneyOverlayPositionDevToolbar = positionDevToolbar;
-      const devToolbarResizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(positionDevToolbar) : null;
-      devToolbarResizeObserver?.observe(frameHost);
-      window.addEventListener('resize', positionDevToolbar, true);
-      window.addEventListener('scroll', positionDevToolbar, true);
-      positionDevToolbar();
-      devToolbar.querySelectorAll('[data-money-overlay-mode]').forEach((button) => button.addEventListener('click', () => setDevMode(button.dataset.moneyOverlayMode)));
-      devToolbar.querySelector('[data-money-overlay-mark]')?.addEventListener('click', markOverlayStateCorrect);
-      devClickDetector.addEventListener('click', () => setClickDetectorEnabled(!clickDetectorEnabled));
-      devOpacity.addEventListener('input', () => setDevOpacity(devOpacity.value));
-      frameHost.addEventListener('pointerdown', onDevPointerDown, true);
-      frameHost.addEventListener('click', onDevClickCapture, true);
       accountsOverviewTab.addEventListener('click', onOverviewTabClick);
       accountsBankTab.addEventListener('click', onBankTabClick);
       accountsBankReload.addEventListener('click', () => loadBankAccounts(true));
@@ -5309,12 +5002,6 @@
       const portalCleanup = frame.__moneyPortalFrameCleanup;
       frame.__moneyPortalFrameCleanup = () => {
         portalCleanup?.();
-        if (clickDetectorEnabled) setClickDetectorEnabled(false);
-        if (clickDetectorFrame) window.cancelAnimationFrame(clickDetectorFrame);
-        clickDetectorFrame = null;
-        devToolbarResizeObserver?.disconnect();
-        window.removeEventListener('resize', positionDevToolbar, true);
-        window.removeEventListener('scroll', positionDevToolbar, true);
         if (transitionTimer) window.clearTimeout(transitionTimer);
         if (plaidLoadingTimer) window.clearTimeout(plaidLoadingTimer);
         if (iframeActivationTimer) window.clearTimeout(iframeActivationTimer);
@@ -5322,9 +5009,6 @@
         if (focusReclaimTimer) window.clearTimeout(focusReclaimTimer);
         if (plaidFocusEvaluationTimer) window.clearTimeout(plaidFocusEvaluationTimer);
         stopBankConnectionPolling();
-        stopActiveEdit();
-        frameHost.removeEventListener('pointerdown', onDevPointerDown, true);
-        frameHost.removeEventListener('click', onDevClickCapture, true);
         accountsOverviewTab.removeEventListener('click', onOverviewTabClick);
         accountsBankTab.removeEventListener('click', onBankTabClick);
         instantContinueSensor.querySelectorAll('[data-money-continue-focus-rail]').forEach((rail) => rail.removeEventListener('pointerenter', primeInstantContinue));
@@ -5342,9 +5026,6 @@
         window.removeEventListener('focus', checkBankConnectionOnResume, true);
         document.removeEventListener('visibilitychange', checkBankConnectionOnResume, true);
         document.removeEventListener('keydown', onKeydown, true);
-        devToolbar.remove();
-        delete frame.__moneyOverlayDevToolbar;
-        delete frame.__moneyOverlayPositionDevToolbar;
         delete frame.__moneyAccountPortalReady;
       };
       frame.__moneyAccountPortalReady = () => {
@@ -5451,6 +5132,13 @@
       }
       if (targetPane.dataset.moneySettingsMounted === '1' || targetPane.dataset.moneySettingsLoading === '1') return;
       targetPane.dataset.moneySettingsLoading = '1';
+      // GP-118: leaving the view (setMoneySettingsView) or a newer render bumps the pane's token. A sign-in link that
+      // arrives after that must not draw a second portal frame into the hidden pane: it would sign Forward out of the
+      // frame that is showing (they share its session) and leave its overlays behind.
+      const renderToken = (targetPane.__moneyRenderToken || 0) + 1;
+      targetPane.__moneyRenderToken = renderToken;
+      const stale = () => targetPane.__moneyRenderToken !== renderToken || !targetPane.isConnected
+        || (options.background !== true && paneMoney.dataset.moneyActiveView !== view);
       const viewLabel = viewConfig.label;
       targetPane.innerHTML = window.Portal?.ui?.tabLoading?.markup?.({ title:((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_be9d536e280edc",`Loading ${v0}…`,{v0}) ?? `Loading ${v0}…`)(viewLabel), detail:'Opening your secure settings.' }) || `<div class="money-settings-status"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_14f1f41cbc6a72",` Loading ${v0}…`,{v0}) ?? ` Loading ${v0}…`)(viewLabel)}</div>`;
       try {
@@ -5458,6 +5146,7 @@
         const paymentsApi = window.PaymentsAPI;
         if (!orgId || !paymentsApi?.merchantPortal?.loginUrl) throw new Error('Money is unavailable.');
         const result = await paymentsApi.merchantPortal.loginUrl(orgId);
+        if (stale()) return;
         const loginUrl = String(result?.login_url || '').trim();
         if (!loginUrl) throw new Error('Money could not create a secure sign-in session.');
         const label = `Money ${viewLabel}`;
@@ -5490,8 +5179,6 @@
                 <div class="money-iframe-click-cover-right"></div>
                 <div class="money-iframe-click-cover-bottom"></div>
               </div>
-              <div class="money-iframe-offset-proxy money-iframe-offset-proxy-overview" data-money-overlay-item="overview-iframe" aria-hidden="true">${(globalThis.PlatformLanguage?.htmlText("settings","m_7e956260183071","Overview iframe") ?? "Overview iframe")}</div>
-              <div class="money-iframe-offset-proxy money-iframe-offset-proxy-bank" data-money-overlay-item="bank-iframe" aria-hidden="true">${(globalThis.PlatformLanguage?.htmlText("settings","m_606742f45a21f8","Bank iframe") ?? "Bank iframe")}</div>
             </div>
             <div class="fm-tab-loading is-overlay money-bank-transition-loading" data-money-bank-transition-loading hidden role="status" aria-live="polite">
               <i class="fas fa-circle-notch fa-spin fm-tab-loading-spinner" aria-hidden="true"></i>
@@ -5544,18 +5231,7 @@
                   <div class="money-bank-manual-actions"><button type="button" data-money-bank-manual-back>${(globalThis.PlatformLanguage?.htmlText("settings","m_121372231b5699","Back") ?? "Back")}</button><button type="submit">${(globalThis.PlatformLanguage?.htmlText("settings","m_55ff00ed9ff361","Continue") ?? "Continue")}</button></div>
                 </form>
               </div>
-            </section>
-            <div class="money-overlay-dev-shield" data-money-overlay-dev-shield hidden aria-hidden="true"></div>
-            <div class="money-overlay-dev-toolbar" data-money-overlay-dev-toolbar hidden>
-              <strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_8fb7f66586aa32","Overlay Dev") ?? "Overlay Dev")}</strong>
-              <button class="active" type="button" data-money-overlay-mode="click">${(globalThis.PlatformLanguage?.htmlText("settings","m_9d012dfb6425bf","Click") ?? "Click")}</button>
-              <button type="button" data-money-overlay-mode="layout">${(globalThis.PlatformLanguage?.htmlText("settings","m_98c23347c6eed1","Drag / Resize") ?? "Drag / Resize")}</button>
-              <button type="button" data-money-click-detector aria-pressed="false">${(globalThis.PlatformLanguage?.htmlText("settings","m_56dd33a08a43b4","Click detector: Off") ?? "Click detector: Off")}</button>
-              <label class="money-overlay-opacity">${(globalThis.PlatformLanguage?.htmlText("settings","m_d64426743504dd","Opacity ") ?? "Opacity ")}<input type="range" min="0" max="100" step="5" value="100" data-money-overlay-opacity><output data-money-overlay-opacity-value>100%</output></label>
-              <button type="button" data-money-overlay-mark>${(globalThis.PlatformLanguage?.htmlText("settings","m_94c3c58e6633df","Mark state correct") ?? "Mark state correct")}</button>
-              <span data-money-overlay-status>${(globalThis.PlatformLanguage?.htmlText("settings","m_37e48c2ffd0b78","Click mode") ?? "Click mode")}</span>
-              <button class="money-focus-sentinel" type="button" tabindex="-1" aria-hidden="true" data-money-focus-sentinel></button>
-            </div>`
+            </section>`
           : `<div class="money-iframe-blocker money-iframe-blocker-${view}" data-money-iframe-blocker="${view}" aria-hidden="true"></div>`;
         targetPane.innerHTML = `
           <div class="money-settings-frame" data-money-portal="${view}">
@@ -5574,11 +5250,6 @@
           resetSession:true,
           onReady:({ sessionStartedAt }) => {
             if (view === 'accounts') {
-              const toolbar = frame.__moneyOverlayDevToolbar || targetPane.querySelector('[data-money-overlay-dev-toolbar]');
-              if (toolbar && !(MONEY_OVERLAY_INTEGRITY_ENABLED && window.FirstMateMoneyOverlayEnforcer?.locked === true)) {
-                toolbar.hidden = false;
-                frame.__moneyOverlayPositionDevToolbar?.();
-              }
               frame.__moneyAccountPortalReady?.();
             }
             integrityGuard?.sync?.();
@@ -5612,6 +5283,7 @@
         };
         targetPane.dataset.moneySettingsMounted = '1';
       } catch (error) {
+        if (stale()) return;
         if (options.background === true) {
           targetPane.querySelector('[data-money-portal-frame]')?.__moneyPortalFrameCleanup?.();
           targetPane.remove();
@@ -5621,7 +5293,7 @@
         targetPane.innerHTML = `<div class="money-settings-error"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ead9a1ea29b82d","Money is unavailable right now.") ?? "Money is unavailable right now.")}</span><button class="cs-btn" type="button" data-money-retry><i class="fas fa-rotate-right" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button></div>`;
         targetPane.querySelector('[data-money-retry]')?.addEventListener('click', () => renderHostedMoneySettings(view, { force:true }));
       } finally {
-        targetPane.dataset.moneySettingsLoading = '';
+        if (targetPane.__moneyRenderToken === renderToken) targetPane.dataset.moneySettingsLoading = '';
       }
     }
     async function setMoneySettingsView(view, options = {}){
@@ -5643,6 +5315,7 @@
         viewPane.hidden = !selected;
         if (!selected && HOSTED_MONEY_SETTINGS_VIEWS[viewPane.dataset.moneyViewPane]) {
           viewPane.querySelector('[data-money-portal-frame]')?.__moneyPortalFrameCleanup?.();
+          viewPane.__moneyRenderToken = (viewPane.__moneyRenderToken || 0) + 1;
           viewPane.dataset.moneySettingsMounted = '';
           viewPane.dataset.moneySettingsLoading = '';
           viewPane.innerHTML = '';
@@ -5693,7 +5366,6 @@
            without changing the state-machine or blocker geometry rules. */
         .money-settings-frame[data-money-portal="accounts"]{--money-bank-close-top:38px;--money-bank-close-left:487px;--money-bank-close-width:34px;--money-bank-close-height:34px;--money-bank-cancel-top:493px;--money-bank-cancel-left:322px;--money-bank-cancel-width:78px;--money-bank-cancel-height:32px;--money-bank-instant-top:230px;--money-bank-instant-left:53px;--money-bank-instant-width:446px;--money-bank-instant-height:102px;--money-bank-manual-top:341px;--money-bank-manual-left:53px;--money-bank-manual-width:445px;--money-bank-manual-height:127px;--money-bank-continue-top:493px;--money-bank-continue-left:413px;--money-bank-continue-width:91px;--money-bank-continue-height:32px;--money-plaid-visual-top:56px;--money-plaid-visual-left:391px;--money-plaid-visual-width:60px;--money-plaid-visual-height:48px;--money-plaid-deadzone-top:20px;--money-plaid-deadzone-left:346px;--money-plaid-deadzone-width:151px;--money-plaid-deadzone-height:133px}
         .money-settings-frame[data-money-portal="accounts"]:not(.money-accounts-portal-ready)>.money-accounts-overview-tab,.money-settings-frame[data-money-portal="accounts"]:not(.money-accounts-portal-ready)>.money-accounts-bank-tab,.money-settings-frame[data-money-portal="accounts"]:not(.money-accounts-portal-ready)>.money-accounts-overview,.money-settings-frame[data-money-portal="accounts"]:not(.money-accounts-portal-ready)>.money-iframe-blocker,.money-settings-frame[data-money-portal="accounts"]:not(.money-accounts-portal-ready)>.money-accounts-controls{visibility:hidden!important}
-        .money-settings-frame[data-money-portal="accounts"]>.money-accounts-overview-tab,.money-settings-frame[data-money-portal="accounts"]>.money-accounts-bank-tab,.money-settings-frame[data-money-portal="accounts"]>.money-accounts-overview,.money-settings-frame[data-money-portal="accounts"]>.money-iframe-blocker,.money-settings-frame[data-money-portal="accounts"]>.money-accounts-controls,.money-settings-frame[data-money-portal="accounts"]>.money-bank-workflow-controls,.money-settings-frame[data-money-portal="accounts"]>.money-bank-manual-page,.money-settings-frame[data-money-portal="accounts"]>.money-bank-transition-loading,.money-settings-frame[data-money-portal="accounts"]>.money-plaid-loading,.money-settings-frame[data-money-portal="accounts"]>.money-plaid-visual-mask,.money-settings-frame[data-money-portal="accounts"]>.money-plaid-click-deadzone{opacity:var(--money-overlay-dev-opacity,1)}
         .money-bank-plaid-active iframe{height:100800px;min-height:100800px;max-height:100800px;margin-top:-50000px}
         .money-accounts-view-overview:not(.money-bank-workflow-active) iframe{margin-top:var(--money-overview-iframe-top);margin-left:var(--money-overview-iframe-left)}
         .money-accounts-view-bank:not(.money-bank-workflow-active) iframe{margin-top:var(--money-bank-iframe-top);margin-left:var(--money-bank-iframe-left)}
@@ -5725,8 +5397,6 @@
         .money-bank-add-complete .money-add-bank-button{display:none!important}.money-bank-add-complete .money-bank-target-editor{display:none!important}.money-bank-add-complete .money-iframe-click-cover::after{content:"";position:absolute;inset:0;display:block;background:transparent;pointer-events:auto}
         .money-bank-target-editor{position:absolute;top:var(--money-bank-top);left:var(--money-bank-left);width:var(--money-bank-width);height:var(--money-bank-height);box-sizing:border-box}
         .money-bank-target-editor{display:none;z-index:8;place-items:center;background:rgba(37,99,235,.14);color:#1d4ed8;font:850 9px/1 monospace;pointer-events:auto}
-        .money-overlay-layout-mode.money-accounts-view-bank .money-bank-target-editor{display:grid}
-        .money-iframe-offset-proxy{display:none;position:absolute;z-index:8;width:92px;height:24px;place-items:center;border-radius:6px;background:rgba(124,58,237,.82);color:#fff;font:800 8px/1 monospace;pointer-events:auto}.money-overlay-layout-mode.money-accounts-view-overview .money-iframe-offset-proxy-overview{display:grid;top:calc(var(--money-overview-iframe-top) + 64px);left:var(--money-overview-iframe-left)}.money-overlay-layout-mode.money-accounts-view-bank .money-iframe-offset-proxy-bank{display:grid;top:calc(var(--money-bank-iframe-top) + 64px);left:var(--money-bank-iframe-left)}
         .money-iframe-click-cover{position:absolute;inset:0;z-index:3;pointer-events:none}
         .money-iframe-click-cover>div{position:absolute;display:block;background:transparent;pointer-events:auto}
         .money-iframe-click-cover-top{top:0;left:0;right:0;height:var(--money-bank-top)}
@@ -5761,18 +5431,6 @@
         .money-bank-workflow-cover-right{top:var(--money-workflow-hole-top);left:calc(var(--money-workflow-hole-left) + var(--money-workflow-hole-width));right:0;height:var(--money-workflow-hole-height)}
         .money-bank-manual-page{position:absolute;inset:0;z-index:6;box-sizing:border-box;background:#fff;color:#344054;pointer-events:auto}
         .money-bank-manual-page-close{position:absolute;top:30px;right:30px;width:38px;height:38px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#344054;font-size:24px;line-height:1;cursor:pointer}.money-bank-manual-page-inner{width:100%;max-width:450px;margin:0 auto;padding:64px 38px;box-sizing:border-box}.money-bank-manual-kicker{color:var(--primary-readable,var(--primary,#d93025));font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.money-bank-manual-page h3{margin:10px 0 8px;color:#101828;font-size:25px}.money-bank-manual-page p{margin:0 0 24px;color:#667085;font-size:13px;line-height:1.5}.money-bank-manual-page form{display:grid;grid-template-columns:1fr 1fr;gap:15px}.money-bank-manual-page label{display:grid;gap:6px;color:#475467;font-size:11px;font-weight:850}.money-bank-manual-page label:first-child,.money-bank-manual-page label:nth-child(4),.money-bank-manual-actions{grid-column:1/-1}.money-bank-manual-page input,.money-bank-manual-page select{width:100%;height:40px;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:0 11px;color:#101828;font:700 13px/1 inherit}.money-bank-manual-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:9px}.money-bank-manual-actions button{height:38px;padding:0 16px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;color:#344054;font-weight:850;cursor:pointer}.money-bank-manual-actions button[type="submit"]{border-color:var(--primary-readable,var(--primary,#d93025));background:var(--primary-readable,var(--primary,#d93025));color:#fff}
-        .money-overlay-dev-toolbar{position:fixed;z-index:10020;display:grid;align-content:start;gap:7px;width:190px;box-sizing:border-box;overflow:auto;padding:10px;border:1px solid #98a2b3;border-radius:12px;background:rgba(255,255,255,.97);box-shadow:0 12px 32px rgba(15,23,42,.20);font:800 10px/1.2 inherit;color:#344054;pointer-events:auto}
-        .money-overlay-dev-toolbar[hidden],.money-overlay-dev-shield[hidden]{display:none!important}
-        .money-overlay-dev-toolbar>strong{padding:2px 2px 8px;border-bottom:1px solid #eaecf0;font-size:11px;white-space:nowrap}.money-overlay-dev-toolbar button{width:100%;height:30px;padding:0 9px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#344054;font:850 10px/1 inherit;cursor:pointer;white-space:nowrap}.money-overlay-dev-toolbar button.active{border-color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.10);color:var(--primary-readable,var(--primary,#d93025))}.money-overlay-dev-toolbar span{min-width:0;padding:4px 2px;color:#667085;white-space:normal;overflow-wrap:anywhere}
-        .money-overlay-opacity{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:5px;white-space:nowrap}.money-overlay-opacity input{width:100%;min-width:0;accent-color:var(--primary-readable,var(--primary,#d93025));cursor:pointer}.money-overlay-opacity output{width:30px;color:#667085;font-variant-numeric:tabular-nums}.money-focus-sentinel{position:absolute!important;width:1px!important;height:1px!important;min-width:0!important;padding:0!important;border:0!important;opacity:0!important;pointer-events:none!important}
-        .money-overlay-dev-shield{position:absolute;inset:0;z-index:7;background:transparent;pointer-events:auto}
-        .money-overlay-layout-mode .money-accounts-controls,.money-overlay-layout-mode .money-bank-workflow-controls{z-index:8}
-        .money-overlay-layout-mode>.money-iframe-blocker,.money-overlay-layout-mode>.money-accounts-overview-tab,.money-overlay-layout-mode>.money-accounts-bank-tab,.money-overlay-layout-mode>.money-plaid-visual-mask,.money-overlay-layout-mode>.money-plaid-click-deadzone{z-index:8!important}
-        .money-overlay-layout-mode [data-money-overlay-item]{outline:2px dashed #2563eb!important;outline-offset:-2px;cursor:move!important;pointer-events:auto!important;user-select:none;touch-action:none}
-        .money-overlay-layout-mode [data-money-overlay-item]::before{content:attr(data-money-overlay-label);position:absolute;left:2px;top:2px;z-index:12;max-width:calc(100% - 4px);padding:2px 4px;border-radius:4px;background:rgba(37,99,235,.88);color:#fff;font:800 8px/1.2 monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-        .money-overlay-resize-handle{display:none!important;position:absolute!important;z-index:13!important;width:10px!important;height:10px!important;padding:0!important;border:1px solid #fff!important;border-radius:2px!important;background:#2563eb!important;pointer-events:auto!important}
-        .money-overlay-layout-mode .money-overlay-resize-handle{display:block!important}
-        .money-overlay-resize-handle[data-money-overlay-resize="nw"]{left:-5px!important;top:-5px!important;cursor:nwse-resize!important}.money-overlay-resize-handle[data-money-overlay-resize="ne"]{right:-5px!important;top:-5px!important;cursor:nesw-resize!important}.money-overlay-resize-handle[data-money-overlay-resize="sw"]{left:-5px!important;bottom:-5px!important;cursor:nesw-resize!important}.money-overlay-resize-handle[data-money-overlay-resize="se"]{right:-5px!important;bottom:-5px!important;cursor:nwse-resize!important}
         .money-settings-status{min-height:220px;display:grid;place-content:center;grid-auto-flow:column;gap:9px;align-items:center;color:#667085;font-size:13px;font-weight:850}
         .money-settings-error{min-height:220px;display:grid;place-content:center;justify-items:center;gap:12px;color:#667085;text-align:center;font-size:13px;font-weight:850}
         .cs-main>.cs-card:has(#csPaneMoney.active){width:550px;min-width:550px;max-width:550px;padding:0;overflow:hidden}
