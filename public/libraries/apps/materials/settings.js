@@ -78,7 +78,7 @@
       // The Equipment tab's own checks: the app on (apps.equipment) and a permission its fleet routes accept.
       allowed:() => flag('apps', 'equipment') && ['equipment.view', 'equipment.manage', 'equipment.service', 'manage_company_settings'].some(perm) && typeof root.FirstMateEmbeddableApps?.mount === 'function',
       mount:mountEquipment },
-    { id:'workforce', icon:'fa-people-group',
+    { id:'workforce', icon:'fa-users',
       label:() => term('workforce.resource_group_plural', t('materials_settings_tab_workforce', 'Workforce')),
       tip:() => t('materials_settings_tip_workforce', 'Who does the work: your crews and subcontractors, what each does and how you pay them'),
       // The setup's own checks: company settings and the Materials app; the workforce app is turned on by the setup's
@@ -278,7 +278,7 @@
       const rows = (value.assignees || []).filter((entry) => (entry.service_ids || []).length || entry.pay);
       host.innerHTML = `<div class="mts-cats mts-wf" data-mts-workforce>
         ${rows.length ? rows.map((entry) => `<div class="mts-wf-row" data-mts-wf="${esc(entry.kind)}:${esc(entry.ref?.id)}">
-          <span class="mts-wf-icon" aria-hidden="true"><i class="fas ${entry.kind === 'resource_group' ? 'fa-people-group' : 'fa-handshake'}"></i></span>
+          <span class="mts-wf-icon" aria-hidden="true"><i class="fas ${entry.kind === 'resource_group' ? 'fa-users' : 'fa-handshake'}"></i></span>
           <div class="mts-wf-text"><strong>${esc(entry.name)}</strong><small>${esc([entry.kind === 'resource_group' ? crew : sub, (entry.service_ids || []).map((id) => services.get(id) || id).join(', '), entry.kind === 'resource_group' && entry.members ? `${entry.members} ${t('materials_settings_workforce_people', 'people')}` : ''].filter(Boolean).join(' · '))}</small></div>
           <span class="mts-wf-pay">${esc(payText(entry))}</span>
         </div>`).join('') : `<p class="mts-wf-empty">${esc(t('materials_settings_workforce_empty', 'Nobody is set up to do the work yet.'))}</p>`}

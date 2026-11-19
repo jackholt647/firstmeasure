@@ -6,7 +6,7 @@ import { registerDataProvider } from "../platform/publication/providers.js";
 import { contentHash } from "../platform/publication/validation.js";
 import type { PublicationContext } from "../platform/publication/contracts.js";
 import { backendImplementationDigest } from "../platform/publication/implementation.js";
-import { definitionForKey, listMeasurementSchemas } from "../platform/publication/measurement-schemas.js";
+import { listMeasurementDefinitions, listMeasurementSchemas } from "../platform/publication/measurement-schemas.js";
 import { createOrganizationConnection, listOrganizationConnections } from "../connections/storage.js";
 import { createResourceGroup, listResourceGroups, putResourceGroupMember, readResourceGroup, readWorkforceConfiguration } from "../workforce/storage.js";
 import { listDocuments } from "../platform/storage.js";
@@ -66,7 +66,9 @@ export function payMeasurements() {
   const schema = listMeasurementSchemas().find((entry) => entry.id === SCHEMA_ID);
   const ids = (schema?.measurements || []).map((entry) => entry.definition);
   const wanted = ["roof.squares", "roof.flat_squares", "roof.squares_9_to_12", "roof.squares_13_plus", "roof.eave_length", "roof.rake_length", "roof.ridge_length", "roof.hip_length", "roof.valley_length"];
-  return wanted.filter((id) => ids.includes(id)).map((id) => { const definition = definitionForKey(id); return { id, label: text(definition?.label) || id, unit: text(definition?.unit) }; });
+  // By the definition's id (definitionForKey looks up a producer's key, so every label read as its id).
+  const definitions = new Map(listMeasurementDefinitions().map((definition) => [text((definition as { id?: unknown }).id), definition as { label?: unknown; unit?: unknown }]));
+  return wanted.filter((id) => ids.includes(id)).map((id) => { const definition = definitions.get(id); return { id, label: text(definition?.label) || id, unit: text(definition?.unit) }; });
 }
 
 /** A one-line pay sheet as this setup writes it, for one assignee. */
