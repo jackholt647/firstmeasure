@@ -242,3 +242,5 @@
 @keyframes fmcm-arrive{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes fmcm-fade{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.fmcm button:active:not(:disabled){transform:none}.fmcm button[aria-busy="true"]::after{animation:fmcm-busy-spin 1.4s linear infinite!important}}
+/* GP-79: Settings › Phone Settings (settings/phone.js) mounted in the Settings tab keeps its own buttons, not .fmcm's. */
+.fmcm-phone-settings .ph button{font-weight:400;padding:9px 13px;white-space:normal}.fmcm-phone-settings .ph .ph-nav button{justify-content:flex-start;text-align:left}.fmcm-phone-settings .ph .ph-nav button[aria-current=page]{font-weight:700}
