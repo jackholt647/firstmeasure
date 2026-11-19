@@ -3461,13 +3461,17 @@
     const all = [...batches.entries()];
     const shown = state.unassignedAll ? all : all.slice(0, UNASSIGNED_BATCHES_SHOWN);
     let index = 0;
+    // Each batch is its own card, marked by a small Unassigned flag that is also its Add to project (GP-62).
+    const flagLabel = escapeHtml(feedText('feed_unassigned_title','Unassigned'));
     return `<section class="pf-unassigned" data-feed-unassigned aria-labelledby="pfUnassignedTitle">
-      <div class="pf-unassigned-head"><span class="pf-unassigned-icon" aria-hidden="true"><i class="fas fa-inbox"></i></span><div><h2 id="pfUnassignedTitle">${escapeHtml(feedText('feed_unassigned_title','Unassigned'))}</h2><span>${escapeHtml(feedText('feed_unassigned_count','{photos} not in a project yet',{photos:photoCountText(items.length)}))}</span></div></div>
+      <h2 class="pf-unassigned-title" id="pfUnassignedTitle">${flagLabel}: ${escapeHtml(feedText('feed_unassigned_count','{photos} not in a project yet',{photos:photoCountText(items.length)}))}</h2>
       ${shown.map(([key, list]) => {
         const first = list[0];
         const author = postAuthor({ kind:'media', media:first.photo, source:{ author:firstText(first.photo?.metadata?.uploaded_by_user_id, first.photo?.uploaded_by_user_id, uploader(first.photo).id) } });
-        return `<article class="pf-unassigned-batch" data-feed-unassigned-batch="${escapeHtml(key)}">
-          <div class="pf-unassigned-batch-head">${actorAvatarHtml(author,'fa-camera')}<div class="pf-unassigned-batch-copy"><strong>${escapeHtml(feedText('feed_unassigned_batch','{name} took {photos}',{name:author.name, photos:photoCountText(list.length)}))}</strong><time datetime="${escapeHtml(first.uploadedAt)}">${escapeHtml(feedListTime(first.uploadedAt))}</time></div>${state.canAssignMedia ? `<button type="button" class="pf-action primary pf-unassigned-assign" data-feed-unassigned-assign="${escapeHtml(key)}"><i class="fas fa-folder-plus" aria-hidden="true"></i><span>${escapeHtml(feedText('feed_unassigned_add','Add to project'))}</span></button>` : ''}</div>
+        return `<article class="pf-unassigned-batch" data-feed-unassigned-batch="${escapeHtml(key)}" data-count="${list.length > 2 ? 'many' : list.length}">
+          <div class="pf-unassigned-batch-head">${actorAvatarHtml(author,'fa-camera')}<div class="pf-unassigned-batch-copy"><strong>${escapeHtml(feedText('feed_unassigned_batch','{name} took {photos}',{name:author.name, photos:photoCountText(list.length)}))}</strong><time datetime="${escapeHtml(first.uploadedAt)}">${escapeHtml(feedListTime(first.uploadedAt))}</time></div>${state.canAssignMedia
+            ? `<button type="button" class="pf-unassigned-flag" data-feed-unassigned-assign="${escapeHtml(key)}" aria-label="${flagLabel}. ${escapeHtml(feedText('feed_unassigned_add','Add to project'))}" title="${escapeHtml(feedText('feed_unassigned_add','Add to project'))}"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span>${flagLabel}</span><i class="fas fa-folder-plus pf-unassigned-flag-add" aria-hidden="true"></i></button>`
+            : `<span class="pf-unassigned-flag"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span>${flagLabel}</span></span>`}</div>
           <div class="pf-unassigned-strip">${list.map((item) => unassignedTileHtml(item, index++)).join('')}</div>
         </article>`;
       }).join('')}
@@ -3900,34 +3904,40 @@
   }
   function injectUnassignedStyles(){
     injectCSS('photos_feed_unassigned', `
-      .pf-unassigned{margin:0 0 22px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.04);overflow:hidden}
+      .pf-unassigned{display:grid;gap:12px;margin:0 0 22px}
       .pf-wrap[data-density="posts"] .pf-unassigned{max-width:700px;margin:0 auto 18px}
-      .pf-unassigned-head{display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid #f2f4f7;background:#fcfcfd}
-      .pf-unassigned-icon{width:34px;height:34px;flex:0 0 34px;border-radius:10px;display:grid;place-items:center;background:#fef0c7;color:#b54708;font-size:15px}
-      .pf-unassigned-head h2{margin:0;font-size:15px;line-height:1.25;color:#101828;font-weight:750}
-      .pf-unassigned-head>div>span{display:block;margin-top:1px;font-size:12px;color:#667085}
-      .pf-unassigned-batch{padding:12px 14px 14px}
-      .pf-unassigned-batch+.pf-unassigned-batch{border-top:1px solid #f2f4f7}
-      .pf-unassigned-batch-head{display:flex;align-items:center;gap:10px;min-width:0;margin-bottom:10px}
+      .pf-unassigned-title{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+      .pf-unassigned-batch{border:1px solid #e4e7ec;border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.04);overflow:hidden}
+      .pf-unassigned-batch-head{display:flex;align-items:center;gap:10px;min-width:0;padding:10px 12px}
       .pf-unassigned-batch-head .pf-actor-avatar{width:36px;height:36px;flex:0 0 36px;font-size:14px}
       .pf-unassigned-batch-copy{flex:1;min-width:0;display:flex;flex-direction:column}
       .pf-unassigned-batch-copy strong{font-size:13px;font-weight:700;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pf-unassigned-batch-copy time{font-size:12px;color:#667085}
-      .pf-action.pf-unassigned-assign{flex:none;display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 13px}
-      .pf-unassigned-strip{display:flex;flex-wrap:wrap;gap:8px}
-      .pf-unassigned-strip .pf-thumb{width:112px;height:112px;flex:0 0 112px;aspect-ratio:auto}
-      .pf-unassigned-all{display:block;width:100%;min-height:40px;border:0;border-top:1px solid #f2f4f7;background:#fcfcfd;color:var(--primary,#d93025);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+      .pf-unassigned-flag{flex:none;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid #fedf89;border-radius:999px;background:#fffaeb;color:#b54708;font:inherit;font-size:12px;font-weight:700;line-height:1;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+      .pf-unassigned-flag>i{font-size:12px}
+      button.pf-unassigned-flag{cursor:pointer;position:relative}
+      button.pf-unassigned-flag::before{content:'';position:absolute;inset:-7px -4px}
+      button.pf-unassigned-flag:hover{background:#fef0c7}
+      button.pf-unassigned-flag:active{transform:scale(.96)}
+      .pf-unassigned-flag-add{padding-left:7px;border-left:1px solid #fedf89}
+      .pf-unassigned-strip{display:flex;gap:3px}
+      .pf-unassigned-strip .pf-thumb{border:0;border-radius:0}
+      .pf-unassigned-strip .pf-thumb.selected{outline:3px solid var(--primary,#d93025);outline-offset:-3px}
+      .pf-unassigned-batch[data-count="1"] .pf-thumb{flex:1 1 auto;width:100%;aspect-ratio:4/3;max-height:440px}
+      .pf-unassigned-batch[data-count="2"] .pf-thumb{flex:1 1 0;min-width:0;aspect-ratio:1;max-height:340px}
+      .pf-unassigned-batch[data-count="many"] .pf-unassigned-strip{gap:6px;overflow-x:auto;padding:0 12px 12px;scroll-snap-type:x proximity;scroll-padding:0 12px;scrollbar-width:none;overscroll-behavior-x:contain}
+      .pf-unassigned-batch[data-count="many"] .pf-unassigned-strip::-webkit-scrollbar{display:none}
+      .pf-unassigned-batch[data-count="many"] .pf-thumb{width:160px;height:160px;flex:0 0 160px;aspect-ratio:auto;border-radius:10px;scroll-snap-align:start}
+      @media(min-width:761px){.pf-unassigned-batch:is([data-count="1"],[data-count="2"]) .pf-unassigned-strip{gap:6px;padding:0 12px 12px}.pf-unassigned-batch:is([data-count="1"],[data-count="2"]) .pf-thumb{flex:0 1 auto;width:auto;height:300px;max-height:none;border-radius:10px}}
+      .pf-unassigned-all{display:block;width:100%;min-height:40px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;color:var(--primary,#d93025);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+      .pf-unassigned .pf-select{border-radius:999px;border:2px solid #fff;background:rgba(16,24,40,.28);box-shadow:0 1px 3px rgba(0,0,0,.3)}
       @media(hover:none){.pf-unassigned .pf-select{opacity:1}}
       .pf-wrap[data-pf-page="feed"]>[data-photo-feed-dynamic]>.pf-selectionbar{top:0;flex:none}
       @media(max-width:760px){
-        .pf-unassigned{margin:0 0 16px;border-radius:12px}
-        .pf-unassigned-head{padding:10px 12px}
-        .pf-unassigned-batch{padding:10px 12px 12px}
+        .pf-unassigned{gap:10px;margin:0 0 16px}
+        .pf-unassigned-batch{border-radius:12px}
         .pf-unassigned-batch-copy strong{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.3}
-        .pf-unassigned-strip{flex-wrap:nowrap;overflow-x:auto;margin:0 -12px;padding:0 12px 2px;scroll-snap-type:x proximity;scroll-padding:0 12px;scrollbar-width:none;overscroll-behavior-x:contain}
-        .pf-unassigned-strip::-webkit-scrollbar{display:none}
-        .pf-unassigned-strip .pf-thumb{width:84px;height:84px;flex:0 0 84px;scroll-snap-align:start}
-        .pf-action.pf-unassigned-assign{height:38px}
+        .pf-unassigned-batch[data-count="many"] .pf-thumb{width:128px;height:128px;flex:0 0 128px}
         .pf-wrap[data-pf-page="feed"]>[data-photo-feed-dynamic]>.pf-selectionbar{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:9px 10px}
         .pf-wrap[data-pf-page="feed"] .pf-selection-actions{gap:6px;min-width:0}
         .pf-wrap[data-pf-page="feed"] .pf-selection-actions .pf-action{height:40px;padding:0 12px;white-space:nowrap}
