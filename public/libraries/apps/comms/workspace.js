@@ -11,7 +11,7 @@
   Portal.navigation?.registerSchema?.('communicationsFilter',{history:'replace',scopes:[{tab:'chat'}]});
   Portal.navigation?.registerSchema?.('communicationsEntry',{history:'push',scopes:[{tab:'chat'}]});
   function mount(root,options={}){
-    const state={root,options,view:options.projectId?'history':options.standalone || (['setup','layout'].includes(route().communicationsView)?route().communicationsView:window.AppChrome.resolve('communications',route().communicationsView)),columns:[],calls:[],personalCalls:[],tasks:[],agents:[],scripts:[],status:null,query:'',filter:route().communicationsFilter||'all',error:'',sequence:0,disposed:false,skipped:new Set(),cursor:'',nextCursor:'',lastEntry:'',inboxHandle:null,
+    const state={root,options,view:options.projectId?'history':options.standalone || (['setup','layout'].includes(route().communicationsView)?route().communicationsView:window.AppChrome.resolve('communications',route().communicationsView)),columns:[],calls:[],personalCalls:[],tasks:[],agents:[],scripts:[],status:null,query:'',filter:route().communicationsFilter||'all',error:'',sequence:0,disposed:false,skipped:new Set(),cursor:'',nextCursor:'',lastEntry:'',inboxHandle:null,callId:'',callView:null,callTicket:0,callViews:0,
       centerMode:'call',centerQuery:'',centerDirection:'all',centerPeriod:'30',centerWrap:'all',centerList:'all',centerDialMode:'manual',centerSeen:new Set(),centerExpandedList:'',centerCursor:'',centerNextCursor:'',centerTotal:0,centerToday:0};
     try{state.centerMode=sessionStorage.getItem(`firstmate:call-center-mode:${ui.org()}:${ui.user()}`)||'call';}catch{}
     const listScroll=new Map();
@@ -75,6 +75,9 @@
           finally{windows.forEach(win=>{win.__fmCommsSetupStart='';});if(target.isConnected)target.disabled=false;}
           void load();}
         else if(action==='open-call')await phone.open({call_id:target.dataset.id});
+        else if(action==='select-call'){state.callId=target.dataset.id;render();await openCall(state.callId);}
+        else if(action==='close-call'){state.callId='';state.callView=null;state.callTicket++;render();}
+        else if(action==='call-back'){const call=state.callView?.detail?.call||state.calls.find(c=>c.id===state.callId);if(call)await phone.open({project_id:options.projectId||call.project_id||'',customer_number:call.customer_number||'',contact_id:call.contact_id||''});}
         else if(action==='auto-list'){const column=state.columns.find(c=>c.id===target.dataset.id);if(column)await phone.startDialer({...column,departmentId:state.departmentId});}
         else if(action==='start-list'){const column=state.columns.find(c=>c.id===target.dataset.id);const entry=column?.tasks.find(t=>t.ready&&!state.skipped.has(t.id));if(entry)await openEntry(entry);}
         else if(action==='open-entry'){const entry=state.columns.flatMap(c=>c.tasks).find(t=>t.id===target.dataset.id);if(entry)await openEntry(entry);}
@@ -188,7 +191,7 @@
 
       if(phone.status?.permissions)root.querySelectorAll('[data-action="new-list"],[data-action="list-settings"],[data-action="new-script"],[data-action="edit-script"]').forEach(b=>b.hidden=!(phone.status.permissions.manage||state.canManageDepartments));
       const call=phone.currentCall,signature=call?`${call.id}:${call.revision}`:'';
-      if(signature&&state.lastCallChange!==signature){state.lastCallChange=signature;if(['history','followups','lists','center'].includes(state.view)&&(!options.projectId||call.project_id===options.projectId)){clearTimeout(state.changeTimer);state.changeTimer=setTimeout(()=>{if(!state.disposed)void load(false,true);},250);}}
+      if(signature&&state.lastCallChange!==signature){state.lastCallChange=signature;if(['history','followups','lists','center'].includes(state.view)&&(!options.projectId||call.project_id===options.projectId)){clearTimeout(state.changeTimer);state.changeTimer=setTimeout(()=>{if(state.disposed)return;void load(false,true);if(options.projectId&&state.callId===call.id)void openCall(call.id,true);},250);}}
     }
     function showError(){let host=root.querySelector('[data-workspace-error]');if(!host){host=document.createElement('p');host.className='fmcm-error';host.dataset.workspaceError='';host.setAttribute('role','alert');state.host.prepend(host);}host.textContent=state.error;}
     function settingsTabs(){return chrome.settingsTabs('communications',state.view,'data-view',options.standalone || chrome.resolve('communications'));}
@@ -277,6 +280,7 @@
       }else if(state.view==='history'){
         state.callsSetup=callsState();const setup=callsSetupHtml(state.calls);
         const alone=setup&&!state.calls.length&&state.filter==='all'&&!state.departmentId;
+        if(options.projectId&&!alone){projectCalls(setup);}else
         state.host.innerHTML=(alone?'':toolbar(options.projectId?'':'Call history','',true))+setup+(setup&&!state.calls.length?'':historyTable(state.calls))+(state.nextCursor?`<div style="text-align:center;margin-top:20px"><button data-action="more">${(globalThis.PlatformLanguage?.htmlText("comms","m_167eca98b30dd7","Load more calls") ?? "Load more calls")}</button></div>`:'');
       }else if(state.view==='scripts'){
         state.host.innerHTML=toolbar('Call scripts','<button class="fmcm-primary" data-action="new-script">'+icon('plus')+' New script</button>')+
@@ -286,6 +290,62 @@
       root.querySelectorAll('[data-list-scroll]').forEach(el=>{el.scrollTop=listScroll.get(el.dataset.listScroll)||0;});
       if(searchActive){const input=root.querySelector('[data-search]');input?.focus();try{input?.setSelectionRange(cursor,cursor);}catch{}}
       if(state.error)showError();
+    }
+    // GP-11: a project's Calls look like its Email and Texts (comms/project.js .fmco-split): the calls on the left, the
+    // selected call's details, outcome, recording and transcript on the right. Below 900px the list and the call take
+    // turns (thread-mode), as a text thread does. The Communications app's own call history stays a table.
+    function projectCalls(setup){
+      const ready=callsState()==='ready',selected=state.callId;
+      const filters=`<div class="fmco-call-filters">${state.departmentContext?.show_selector?`<select data-department aria-label="${esc(state.departmentContext.department_label||'Department')}"><option value="">All available ${esc((state.departmentContext.departments_label||'Departments').toLowerCase())}</option>${state.departmentContext.departments.map(d=>`<option value="${esc(d.id)}" ${state.departmentId===d.id?'selected':''}>${esc(d.label)}</option>`).join('')}</select>`:''}<select data-filter aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_86e8933389c299","Filter communications") ?? "Filter communications")}"><option value="all" ${state.filter==='all'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</option><option value="mine" ${state.filter==='mine'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_b67cf521d59f4e","Assigned to me") ?? "Assigned to me")}</option><option value="wrap_up" ${state.filter==='wrap_up'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_54e60445f18e2e","Needs wrap-up") ?? "Needs wrap-up")}</option></select></div>`;
+      const rows=state.calls.map(c=>{const missed=callMissed(c),length=callLength(c),needs=c.wrap_up_state==='needs_wrap_up';
+        return `<button type="button" class="fmco-thread-row fmco-call-row${c.id===selected?' active':''}" data-action="select-call" data-id="${esc(c.id)}"><span class="fmco-thread-subject"><i class="fa-solid fa-${missed?'phone-slash':c.direction==='inbound'?'phone-volume':'phone'} fmco-call-ico${missed?' missed':''}" aria-hidden="true"></i><span>${esc(c.customer_name||c.customer_number||'Unknown caller')}</span></span><span class="fmco-thread-meta"><span>${esc(callResult(c))}${length?` · ${esc(length)}`:''}</span><span>${esc(date(c.created_at))}</span></span>${needs?`<span class="fmco-call-flag">Needs outcome</span>`:''}</button>`;}).join('');
+      const list=`${ready?`<button type="button" class="fmco-btn primary" data-action="new-call" style="justify-content:center">${icon('phone')} New call</button>`:setup}${filters}${rows||`<div class="fmco-empty"><i class="fa-solid fa-phone"></i><p>${state.query||state.filter!=='all'||state.departmentId?'No calls match.':'No calls yet.'}</p></div>`}${state.nextCursor?`<button type="button" class="fmco-btn" data-action="more" style="justify-content:center">${(globalThis.PlatformLanguage?.htmlText("comms","m_167eca98b30dd7","Load more calls") ?? "Load more calls")}</button>`:''}`;
+      let split=state.host.querySelector(':scope>.fmco-split[data-project-calls]');
+      if(!split){state.host.innerHTML=`<div class="fmco-split" data-project-calls style="height:100%"><div class="fmco-list-col" data-call-list data-list-scroll="${esc(`${ui.org()}:${ui.user()}:project-calls:${options.projectId}`)}"></div><div class="fmco-thread-view" data-call-detail></div></div>`;split=state.host.firstElementChild;}
+      const column=split.querySelector('[data-call-list]'),top=column.scrollTop;column.innerHTML=list;column.scrollTop=top;
+      split.classList.toggle('thread-mode',!!selected);
+      callPane();
+    }
+    const callLength=call=>{const start=Date.parse(call.connected_at||''),end=Date.parse(call.ended_at||'');if(!Number.isFinite(start)||!Number.isFinite(end)||end<start)return '';const seconds=Math.round((end-start)/1000);return `${Math.floor(seconds/60)}m ${String(seconds%60).padStart(2,'0')}s`;};
+    const callMissed=call=>!call.connected_at&&['ended','no_answer','busy','rejected','canceled','failed'].includes(call.state);
+    function callResult(call){if(call.result?.disposition)return label(call.result.disposition);if(callMissed(call))return call.direction==='inbound'?'Missed call':'No answer';return label(call.state||'Call');}
+    // The right-hand pane draws only when what it shows changed, so a list refresh never stops a recording that is playing.
+    function callPane(){
+      const pane=state.host.querySelector('[data-call-detail]');if(!pane)return;
+      const view=state.callView||{},key=state.callId?`${state.callId}:${view.version||0}`:'';
+      if(pane.dataset.shown===key)return;pane.dataset.shown=key;
+      if(!state.callId){pane.innerHTML=`<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-phone"></i><p>Select a call to see its details, recording and transcript.</p></div>`;return;}
+      const listed=state.calls.find(c=>c.id===state.callId)||{},call=view.detail?.call||listed;
+      const name=call.customer_name||call.customer_number||'Unknown caller',close=`<button type="button" class="fmco-btn" data-action="close-call" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_3742924668fb10","Close") ?? "Close")}" title="${(globalThis.PlatformLanguage?.htmlText("comms","m_3742924668fb10","Close") ?? "Close")}">${icon('xmark')}</button>`;
+      const head=`<div class="fmco-thread-head"><div style="min-width:0"><div class="fmco-thread-title"><i class="fa-solid fa-${call.direction==='inbound'?'phone-volume':'phone'}" style="margin-right:7px;color:#667085"></i>${esc(name)}</div><div class="fmco-recipient-summary">${esc([call.customer_number,call.created_at&&date(call.created_at),call.direction&&label(call.direction)].filter(Boolean).join(' · '))}</div></div><div class="fmco-call-actions">${call.customer_number&&callsState()==='ready'?`<button type="button" class="fmco-btn primary" data-action="call-back" aria-label="Call back" title="Call back">${icon('phone')}<span>Call back</span></button>`:''}${call.id?`<button type="button" class="fmco-btn" data-action="open-call" data-id="${esc(call.id)}" aria-label="Open in the phone" title="Open in the phone">${icon('arrow-up-right-from-square')}</button>`:''}${close}</div></div>`;
+      if(view.error){pane.innerHTML=head+`<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-triangle-exclamation"></i><p>Could not open this call. ${esc(view.error)}</p></div>`;return;}
+      if(!view.detail){pane.innerHTML=head+`<div class="fmco-empty" style="margin:auto" role="status"><i class="fa-solid fa-circle-notch fa-spin"></i><p>Loading call…</p></div>`;return;}
+      const length=callLength(call),needs=call.wrap_up_state==='needs_wrap_up';
+      const fact=(title,value)=>value?`<div><dt>${title}</dt><dd>${esc(value)}</dd></div>`:'';
+      const facts=`<dl class="fmco-call-facts">${fact((globalThis.PlatformLanguage?.htmlText("comms","m_fc3186dc27cdbe","Outcome") ?? "Outcome"),callResult(call))}${fact('Duration',length||'Not connected')}${fact((globalThis.PlatformLanguage?.htmlText("comms","m_90a0d0ca71d266","Next step") ?? "Next step"),call.wrap_up_state==='saved'?label(call.result?.next_action||'none'):'')}${fact('Phone',call.mode==='browser'?'FirstMate phone':'External phone')}${fact('From',call.direction==='inbound'?call.customer_number:call.business_number)}${fact('To',call.direction==='inbound'?call.business_number:call.customer_number)}</dl>`;
+      const wrap=needs?`<div class="fmco-call-needs"><span>${icon('circle-exclamation')} This call needs an outcome.</span><button type="button" class="fmco-btn" data-action="open-call" data-id="${esc(call.id)}">Add outcome</button></div>`:'';
+      const notes=call.notes||call.result?.notes;
+      const artifacts=view.artifacts,recordings=(artifacts||[]).filter(a=>['recording','voicemail'].includes(a.kind)),transcripts=(artifacts||[]).filter(a=>a.kind==='transcript');
+      const policy=call.metadata?.policy||{},media=id=>window.CommsAPI.customerUrl(ui.org(),`calls/${encodeURIComponent(call.id)}/artifacts/${encodeURIComponent(id)}/media`);
+      const recording=artifacts===null?`<p class="fmco-call-note">${esc(view.artifactError||'You do not have access to recordings and transcripts.')}</p>`
+        :recordings.length?recordings.map(a=>a.state==='ready'?`<div class="fmco-call-media"><audio controls preload="none" src="${esc(media(a.id))}"></audio><small>${esc(label(a.kind))}${a.expires_at?` · Available until ${esc(date(a.expires_at))}`:''}</small></div>`:`<p class="fmco-call-note">${esc(label(a.kind))}: ${esc(label(a.state))}</p>`).join('')
+        :`<p class="fmco-call-note">${policy.recording_enabled===false?'Recording was off for this call.':call.mode==='browser'&&call.metadata?.consent?.state!=='granted'?'This call was not recorded. Recording needs the caller’s consent.':'No recording is kept for this call.'}</p>`;
+      const transcript=artifacts===null?'':transcripts.length?transcripts.map(a=>`<div class="fmco-call-transcript">${esc(a.data?.text||(a.state==='ready'?'':'Transcription in progress…'))}</div>`).join('')
+        :`<p class="fmco-call-note">${policy.transcription_enabled===false?'Transcription was off for this call.':recordings.length?'No transcript yet. It appears here once the recording has been processed.':'Transcripts come from recorded calls.'}</p>`;
+      pane.innerHTML=head+`<div class="fmco-call-body">${wrap}${facts}<section><h4 class="fmco-section-title">Notes</h4><p class="fmco-call-text">${esc(notes||'No notes saved.')}</p></section><section><h4 class="fmco-section-title">Recording</h4>${recording}</section>${artifacts===null?'':`<section><h4 class="fmco-section-title">Transcript</h4>${transcript}</section>`}</div>`;
+    }
+    function showCall(view){state.callView={...view,version:++state.callViews};callPane();}
+    async function openCall(id,silent=false){
+      const ticket=++state.callTicket;
+      if(!silent||state.callView?.id!==id)showCall({id});
+      const [detail,artifacts]=await Promise.allSettled([request(`calls/${encodeURIComponent(id)}`),request(`calls/${encodeURIComponent(id)}/artifacts`)]);
+      if(ticket!==state.callTicket||state.disposed||state.callId!==id)return;
+      if(detail.status==='rejected'){if(!silent)showCall({id,error:detail.reason?.message||''});return;}
+      const view={id,detail:detail.value,artifacts:artifacts.status==='fulfilled'?artifacts.value.artifacts||[]:null,artifactError:artifacts.status==='rejected'?artifacts.reason?.message||'':''};
+      const signature=JSON.stringify([view.detail.call,view.artifacts,view.artifactError]);
+      if(silent&&state.callView?.signature===signature)return;
+      showCall({...view,signature});
+      if(!silent&&view.detail.call?.direction==='inbound')void request('conversation-workflow',{kind:'call',source_id:id,revision:0,action:'read'}).catch(()=>{});
     }
     function historyTable(calls){return calls.length?`<div class="fmcm-table-wrap"><table><thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("comms","m_46c8aea84388c3","Contact") ?? "Contact")}</th><th>${(globalThis.PlatformLanguage?.htmlText("comms","m_493159f7771ebc","When") ?? "When")}</th><th>${(globalThis.PlatformLanguage?.htmlText("comms","m_fc3186dc27cdbe","Outcome") ?? "Outcome")}</th><th>${(globalThis.PlatformLanguage?.htmlText("comms","m_90a0d0ca71d266","Next step") ?? "Next step")}</th><th><span class="sr-only">${(globalThis.PlatformLanguage?.htmlText("comms","m_c25cc66b28cc9d","Open") ?? "Open")}</span></th></tr></thead><tbody>${String(calls.map(c=>`<tr><td><strong>${esc(c.customer_name||c.customer_number)}</strong><small>${esc(c.customer_number)} · ${c.mode==='browser'?'FirstMate phone':'External phone'}</small></td><td>${esc(date(c.created_at))}<small>${esc(label(c.direction))}</small></td><td><span class="fmcm-pill ${c.wrap_up_state==='needs_wrap_up'?'warn':''}">${esc(label(c.result?.disposition||c.state))}</span></td><td>${esc(c.wrap_up_state==='saved'?label(c.result?.next_action||'none'):label(c.wrap_up_state))}</td><td><button data-action="open-call" data-id="${esc(c.id)}" aria-label="${((v9) => globalThis.PlatformLanguage?.htmlText("comms","m_311782bd3f826d",`Open call with ${v9}`,{v9}) ?? `Open call with ${v9}`)(esc(c.customer_name))}">${icon('arrow-right')}</button></td></tr>`).join(''))}</tbody></table></div>`:empty('A shared record of every call','Logged calls, browser calls, recordings, and follow-ups appear here.');}
     function departmentFields(ids=[]){return state.departmentContext?.show_selector?`<fieldset><legend>${esc(state.departmentContext.departments_label||'Departments')}</legend><p class="fmcm-help">Leave unselected to share with everyone who has access.</p>${state.departmentContext.departments.map(d=>`<label class="fmcm-check"><input type="checkbox" data-owning-department="${esc(d.id)}" ${ids.includes(d.id)?'checked':''}>${esc(d.label)}</label>`).join('')}</fieldset>`:'';}
