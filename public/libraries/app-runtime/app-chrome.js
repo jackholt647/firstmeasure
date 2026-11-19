@@ -43,16 +43,38 @@
     app-tab-strip.app-tabstrip[data-stacked]>button>i{font-size:15px}
     app-tab-strip.app-tabstrip[data-stacked]>button:last-child{border-right:0}
     app-tab-strip.app-tabstrip[data-stacked] .app-tab-label{max-width:100%}
-    app-tab-strip.app-tabstrip[data-measure]{width:max-content!important;max-width:none!important;overflow:visible!important}
+    app-tab-strip.app-tabstrip[data-measure]{flex:none!important;width:max-content!important;max-width:none!important;overflow:visible!important}
+    /* GP-63: in a header the strip takes the room beside the title. On a desktop every strip is a segmented
+       control like My Projects' and My Contacts' views (right-aligned in a header); on a phone it stays the
+       full-width row under the title. */
+    [data-app-header="shared"]>.app-header-strip{display:flex;flex:1 1 0;min-width:0}
+    [data-app-header="shared"]>.app-header-strip:not(:has(app-tab-strip)){display:none}
+    [data-app-header="shared"]>.app-header-strip>*{flex:1 1 auto;min-width:0}
+    [data-app-header="shared"]>.app-header-strip+.app-header-tools:empty{display:none}
+    @media(min-width:801px){
+      app-tab-strip.app-tabstrip{align-items:center;background:transparent;border:0}
+      app-tab-strip.app-tabstrip>button{min-height:38px;padding:0 12px;gap:8px;border:1px solid #d0d5dd;border-width:1px 0 1px 1px;border-left-color:#eaecf0;background:#fff;color:#667085;font-size:12px;font-weight:900}
+      app-tab-strip.app-tabstrip>button:first-child{border-left-color:#d0d5dd;border-radius:10px 0 0 10px}
+      app-tab-strip.app-tabstrip>button:last-child{border-right-width:1px;border-radius:0 10px 10px 0}
+      app-tab-strip.app-tabstrip>button:only-child{border-radius:10px}
+      app-tab-strip.app-tabstrip>button:hover{background:#f8fafc;color:#344054;border-color:#d0d5dd #d0d5dd #d0d5dd #eaecf0}
+      app-tab-strip.app-tabstrip>button:first-child:hover{border-left-color:#d0d5dd}
+      app-tab-strip.app-tabstrip>button[aria-current=page]{background:#fff linear-gradient(rgba(var(--primary-rgb,217,48,37),.1),rgba(var(--primary-rgb,217,48,37),.1));color:var(--primary-readable,var(--primary,#d93025));box-shadow:none}
+      app-tab-strip.app-tabstrip[data-fit=icons]>button:has(>i){min-width:40px;padding:0 12px}
+      app-tab-strip.app-tabstrip[data-fit=icons]>button>i{font-size:14px}
+      .app-header-strip app-tab-strip.app-tabstrip>button:first-child{margin-left:auto}
+    }
+    @media(max-width:800px){[data-app-header="shared"]>.app-header-strip{order:1;flex:0 0 calc(100% + 28px);margin:2px -14px -14px}}
     [data-app-tab-row]{padding:10px 22px;border-bottom:1px solid #e7eaf0;background:white;flex:none}
     .app-layout{padding:24px;max-width:800px;background:var(--panel,#fff);border:1px solid var(--border,#dadce0);border-radius:12px;margin:16px auto}.app-layout h2{font-size:20px;font-weight:600;margin:0 0 8px}.app-layout>p{font-size:13px;line-height:1.6;color:var(--muted,#5f6368)}.app-layout label{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:12px 0;border-bottom:1px solid #eaecf0}.app-layout select{font:inherit;font-size:12px;padding:9px 12px;max-width:60%;border:1px solid var(--border,#dadce0);border-radius:8px;background:var(--panel,#fff)}.app-layout button{margin-top:16px;padding:9px 14px;border:0;border-radius:8px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:inherit;font-size:12px;cursor:pointer}
     .app-layout-dialog{border:1px solid #e4e7ec;border-radius:14px;width:min(680px,calc(100vw - 40px));max-height:85vh;overflow:auto;padding:16px;font-family:inherit;font-size:14px;line-height:1.5;color:var(--text,#202124)}.app-layout-dialog::backdrop{background:rgba(16,24,40,.4)}.app-layout-dialog>[data-layout-close]{float:right;border:0;background:#f2f4f7;border-radius:8px;padding:8px 12px;cursor:pointer}
     @media(max-width:800px){[data-app-header="shared"]{padding:14px!important;gap:12px!important}.app-header-tools{width:100%;margin:0;flex-wrap:nowrap}.app-header-tools .app-tabs{flex:1;min-width:0}.app-header-tools:not(:has(.app-tabs)){width:auto;margin-left:auto}[data-app-header="shared"] :is(h1,h2,strong){font-size:20px!important}}
   `;
   document.head.appendChild(style);
-  // strip: a tabStrip() (or tabs(...,{strip:true})) shown full width under the header.
+  // strip: a tabStrip() (or tabs(...,{strip:true})), or a host an app fills with one: beside the title on a desktop,
+  // full width under it on a phone (GP-63).
   function header({title, icon='fa-layer-group', subtitle='', tabs='', actions='', row='', strip=''}) {
-    return `<header data-app-header="shared"><div class="app-heading"><i class="fas ${esc(icon)}" aria-hidden="true"></i><div><h1>${esc(title)}</h1>${subtitle?`<p class="app-subtitle">${esc(subtitle)}</p>`:''}</div></div><div class="app-header-tools">${tabs}${actions}</div></header>${strip}${row?`<div data-app-tab-row>${row}</div>`:''}`;
+    return `<header data-app-header="shared"><div class="app-heading"><i class="fas ${esc(icon)}" aria-hidden="true"></i><div><h1>${esc(title)}</h1>${subtitle?`<p class="app-subtitle">${esc(subtitle)}</p>`:''}</div></div>${strip?`<div class="app-header-strip">${strip}</div>`:''}<div class="app-header-tools">${tabs}${actions}</div></header>${row?`<div data-app-tab-row>${row}</div>`:''}`;
   }
   const faIcon=name=>{name=String(name||'');return !name || name.startsWith('fa-') ? name : `fa-${name}`;};
   // One tab strip for every app (FM-550). items: {id, title, short?, icon?, attribute?}; a tab's attribute (default
@@ -63,15 +85,16 @@
       return `<button type="button" ${item.attribute || attribute}="${esc(item.id)}" aria-current="${item.id===selected?'page':'false'}" aria-label="${esc(title)}">${icon?`<i class="fas ${esc(icon)}" aria-hidden="true"></i>`:''}<span class="app-tab-label"><span class="app-tab-long">${esc(title)}</span>${short?`<span class="app-tab-short" aria-hidden="true">${esc(short)}</span>`:''}</span></button>`;
     }).join('')}</app-tab-strip>`;
   }
-  // Full labels, then short labels, then icons only (as the project view, FM-371). Under 600 px every tab gets an
-  // equal column with its label under the icon, and short labels once any full one is cut off.
-  const STACK_BELOW=600;
+  // Full labels, then short labels, then icons only (as the project view, FM-371). On a phone, a strip under 600 px
+  // gives every tab an equal column with its label under the icon, and short labels once any full one is cut off;
+  // a desktop strip is a segmented control and never stacks (GP-63).
+  const STACK_BELOW=600, phone=window.matchMedia?.('(max-width:800px)');
   function fitStrip(strip){
     const room=strip.clientWidth;
     if(!strip.isConnected || !room)return;
     const buttons=[...strip.children].filter(el=>el.matches('button'));
     let fit='full';
-    if(room<STACK_BELOW){
+    if(room<STACK_BELOW && (!phone || phone.matches)){
       strip.dataset.stacked='';strip.dataset.fit='full';
       const range=document.createRange();
       const cut=[...strip.querySelectorAll('.app-tab-label')].some(label=>{range.selectNodeContents(label);return range.getBoundingClientRect().width>label.getBoundingClientRect().width+0.01;});
@@ -93,6 +116,7 @@
     disconnectedCallback(){stripResize?.unobserve(this);}
   });
   document.fonts?.ready?.then(()=>document.querySelectorAll('app-tab-strip').forEach(scheduleFit));
+  phone?.addEventListener?.('change',()=>document.querySelectorAll('app-tab-strip').forEach(scheduleFit));
   function placement(group, id){ return layouts[group]?.members?.[id] || groups.get(group)?.members.find(member=>member.id===id)?.defaultPlacement || 'group'; }
   function members(group, context={}) {
     const definition=groups.get(group);
