@@ -3571,6 +3571,12 @@
     }
 
     // -------------------------------------------------------------- layout
+    // A host with its own full-screen preview (Docs, the document setup) has no footer Preview toggle, so once the
+    // person closes the docked preview with its X, this button at the top right of every step brings it back (GP-24).
+    // It shows only while the preview is closed (`preview-closed`).
+    const reopenPreviewHtml = preview && !pinnedPreview && typeof services.openFullPreview === 'function'
+      ? `<button type="button" class="fmdw-btn ghost fmdw-preview-reopen" data-fmdw-preview-reopen title="Show the live preview"><i class="fas fa-eye"></i><span> Preview</span></button>`
+      : '';
     container.innerHTML = `
       <div class="fmdw ${String(theme === 'portal' ? 'fmdw-portal' : '')} ${String(preview ? 'has-preview' : '')} ${String(pinnedPreview ? 'preview-pinned' : '')} ${String(collapsiblePreview ? 'preview-collapsible' : '')} ${String(hostTitle ? 'fmdw-host-title' : '')} ${String(cleanText(opts.phoneSteps) === 'bottom' ? 'fmdw-steps-bottom' : '')}" data-fmdw-root>
         <aside class="fmdw-rail">
@@ -3672,7 +3678,8 @@
         <div class="fmdw-step-heading">
           <h2>${esc(firstText(step.title, prettyKey(step.id)))}${stepTip ? ` <button type="button" class="fmdw-step-info" aria-label="About this step" data-fmdw-tip="${esc(stepTip)}"><i class="fas fa-circle-info"></i></button>` : ''}</h2>
         </div>
-        <div class="fmdw-step-actions" data-fmdw-step-actions></div>`;
+        <div class="fmdw-step-actions" data-fmdw-step-actions></div>
+        ${reopenPreviewHtml}`;
       el.items.innerHTML = '';
       el.footNote.textContent = '';
       if (hostTitle) { try { opts.onStepTitle({ id: st.currentId, title: firstText(step.title, prettyKey(step.id)), index, count: steps.length }); } catch (e) { /* host bar */ } }
@@ -4026,6 +4033,7 @@
       if (fold) fold.setAttribute('aria-expanded', String(!folded));
       const visible = previewVisible() && !folded;
       el.root.classList.toggle('preview-hidden', !previewVisible());
+      el.root.classList.toggle('preview-closed', !!preview && !pinnedPreview && previewPref.hidden === true && !el.root.classList.contains('narrow'));
       // A pinned preview splits the space after the step list equally until the person drags it (`preview-sized`).
       el.root.classList.toggle('preview-sized', Number(previewPref.width) > 0);
       if (Number(previewPref.width) > 0) {
@@ -4057,6 +4065,13 @@
     el.root.querySelector('[data-fmdw-preview-full]')?.addEventListener('click', () => { try { services.openFullPreview(); } catch (e) { /* host preview */ } });
     el.root.querySelector('[data-fmdw-preview-hide]')?.addEventListener('click', () => {
       previewPref.hidden = true;
+      savePreviewPref();
+      applyPreviewLayout();
+    });
+    // The step head is redrawn on every step, so its reopen button is caught here.
+    el.stepHead.addEventListener('click', (event) => {
+      if (!event.target.closest('[data-fmdw-preview-reopen]')) return;
+      previewPref.hidden = false;
       savePreviewPref();
       applyPreviewLayout();
     });
@@ -4688,6 +4703,9 @@
 .fmdw.resizing .fmdw-preview-stage{pointer-events:none}
 .fmdw.preview-hidden .fmdw-preview,.fmdw.preview-hidden .fmdw-resizer{display:none}
 .fmdw-preview-toggle.active{border-color:var(--fmdw-primary);color:var(--fmdw-primary)}
+.fmdw-preview-reopen{display:none}
+.fmdw-step-head .fmdw-preview-reopen{flex:none;min-height:34px;padding:0 12px}
+.fmdw.preview-closed .fmdw-preview-reopen{display:inline-flex}
 /* pinned preview: half the width beside the steps; stacked below them when narrow, never hidden */
 .fmdw.preview-pinned .fmdw-preview{flex:1 1 0}
 .fmdw.preview-pinned.preview-sized .fmdw-preview{flex:0 0 var(--fmdw-preview-w,50%)}
