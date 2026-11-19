@@ -352,6 +352,11 @@ html[data-fm-doc-phone] .fmdx-order-pane{border-radius:0;padding-bottom:env(safe
 .fmdx-scope-total span{color:#667085;font-weight:900}
 
 /* --------------------------------------------------------- pricebook picker */
+/* Add from pricebook (GP-101): the controls, list and footer sit inside [data-pb-body], not directly in the modal,
+   so the modal's own gap never reached them; space them here and keep the footer close to the modal's bottom. */
+.fmdx-modal:has(>[data-pb-body]){padding-bottom:16px}
+.fmdx-modal>[data-pb-body]{display:flex;flex-direction:column;gap:14px;min-height:0}
+.fmdx-modal>[data-pb-body]>.fmdx-modal-foot{padding-top:0}
 .fmdx-pb-controls{display:flex;gap:8px;flex-wrap:wrap}
 .fmdx-pb-controls input,.fmdx-pb-controls select{border:1px solid #d4d9e6;border-radius:10px;padding:8px 11px;font:inherit;font-size:12px;font-weight:850;background:#fff;min-width:0}
 .fmdx-pb-controls input{flex:1;min-width:160px}
