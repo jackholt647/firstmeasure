@@ -5387,6 +5387,80 @@
     setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.event.id)), 0);
     return true;
   }
+  /* A project made with an item's "Create a new project" button is that
+   * item's project (GP-111). The project window reports it with
+   * fm:project-created once the project is saved (again when its title or
+   * address changed, and with discarded:true when it was dropped empty).
+   * The item takes it as if it had been picked in the search: an editor open
+   * on it shows it to save, otherwise only the project fields are written on
+   * top of the stored copy (a new draft is saved as a scheduled item). An
+   * item given another project in the meantime is left alone. */
+  async function linkCreatedProject(detail = {}){
+    const eventId = clean(detail.scheduleEventId);
+    const projectId = clean(detail.projectId);
+    if (!eventId || !projectId) return;
+    const sameItem = (item) => String(item?.id || '') === eventId;
+    const known = floatingEvents.find(sameItem);
+    if (!known) return;
+    const patchFor = (base = {}) => {
+      const linked = clean(base.project_id);
+      if (detail.discarded === true) return linked === projectId ? { project_id:'', project_title:'', project_address:'' } : null;
+      if (linked && linked !== projectId) return null;
+      const next = {
+        project_id:projectId,
+        project_title:clean(detail.title) || (linked ? clean(base.project_title) : ''),
+        project_address:clean(detail.address) || (linked ? clean(base.project_address) : '')
+      };
+      return linked && next.project_title === clean(base.project_title) && next.project_address === clean(base.project_address) ? null : next;
+    };
+    const editorOpen = !!document.querySelector('.dash-event-popover') && String(eventDraftPopoverId || '') === eventId;
+    const disposable = floatingEventIsDisposableDraft(known);
+    if (editorOpen || (disposable && detail.discarded === true)) {
+      const ctx = baseEventEditorContext();
+      const base = editorOpen ? (eventEditorContext()?.event || known) : known;
+      const patch = patchFor(base);
+      if (!patch) return;
+      stageEditorEdit(ctx && sameItem(ctx.event) ? ctx : { kind:'floating', event:known }, patch);
+      render();
+      if (editorOpen) setTimeout(() => renderEventDraftPopover(editorAnchorFor(eventId)), 0);
+      return;
+    }
+    // Unsaved edits left on the editor's copy must not put the old project back.
+    if (eventEditorDraft && String(eventEditorDraft.id || '') === eventId) {
+      const pending = patchFor({ ...known, ...eventEditorDraft.patch });
+      if (pending) eventEditorDraft = { id:eventId, patch:{ ...eventEditorDraft.patch, ...pending } };
+    }
+    if (!canEditSchedule()) return;
+    let base = known;
+    if (!disposable) {
+      const check = await checkStoredScheduleEvent(known, ['project_id']);
+      if (check.gone) return;
+      if (check.fresh) base = decorateFloatingEvent({ ...known, ...check.fresh });
+    }
+    const patch = patchFor(base);
+    if (!patch) return;
+    const typeFields = eventTypeId(base) ? {} : { type_id:'custom', event_type_id:'custom', event_type_default_id:'custom' };
+    const next = updateFloatingEvent({
+      ...base,
+      ...patch,
+      ...(disposable ? { ...typeFields, title:clean(base.title) || clean(patch.project_title) || eventTypeMeta(eventTypeId(base)).title, __draft:false, __activeDraft:false, status:'scheduled' } : {}),
+      updated_at:new Date().toISOString()
+    });
+    if (disposable && String(eventDraftPopoverId || '') === eventId) eventDraftPopoverId = '';
+    render();
+    try {
+      const saved = await persistFloatingEvent(next);
+      updateFloatingEvent({ ...next, ...(saved || {}) });
+      render();
+      if (patch.project_id) showToast('Project linked', `${clean(next.title) || 'The event'} is now on ${clean(patch.project_title) || 'the new project'}.`, true);
+    } catch (error) {
+      if (!sameItem(floatingEvents.find(sameItem))) return;
+      floatingEvents = [known, ...floatingEvents.filter((item) => !sameItem(item))];
+      render();
+      if (isStaleSaveError(error)) { await reloadAfterStaleChange(error); return; }
+      showToast('Project not linked', scheduleSaveErrorMessage(error, 'The new project could not be added to this event. Pick it in the event\'s project search.'), false);
+    }
+  }
   function floatingEventIsDisposableDraft(event = {}){
     return event?.__draft === true || clean(event?.status).toLowerCase() === 'draft';
   }
@@ -7604,9 +7678,12 @@
       if (!editorUsesDraftCopy(editCtx || ctx)) render();
       setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.id)), 0);
     });
+    // The project made here becomes this item's project once it is saved
+    // (linkCreatedProject, GP-111).
     pop.querySelector('[data-event-project-create]')?.addEventListener('click', () => {
+      const current = eventEditorContext()?.event || draft;
       closeEventDraftPopover();
-      window.dispatchEvent(new CustomEvent('fm:new-project-workflow', { detail:{ workflow:'project', source:'scheduling-event' } }));
+      window.dispatchEvent(new CustomEvent('fm:new-project-workflow', { detail:{ workflow:'project', source:'scheduling-event', scheduleEventId:String(current?.id || '') } }));
     });
     // View Project opens the project window on this item's week and closes
     // the editor (it would otherwise stay open underneath and catch Escape).
@@ -12196,6 +12273,7 @@
   window.addEventListener('fm:calendar:refresh', () => scheduleLoad());
   window.addEventListener('fm:dashboard:refresh', () => scheduleLoad());
   window.addEventListener('fm:projects:refresh', () => scheduleLoad());
+  window.addEventListener('fm:project-created', (event) => { linkCreatedProject(event?.detail || {}).catch((error) => console.warn('The new project could not be linked to its event', error)); });
   window.addEventListener('fm:project-config:updated', (event) => {
     branchProjectConfig = normalizeProjectConfig(event?.detail || {});
     render();
