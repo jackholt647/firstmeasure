@@ -237,6 +237,16 @@
       .mn-title strong{font-size:18px;line-height:1.15;white-space:nowrap}
       .mn-tools{display:flex;align-items:center;gap:8px;min-width:0}
       .mn-tool-sep{width:1px;height:24px;background:#e4e7ec;margin:0 2px;flex:none}
+      .mn-tools .mn-add-menu{display:none}
+      .mn-add-list{display:flex;flex-direction:column;gap:2px}
+      .mn-add-item{display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:12px;min-height:62px;padding:8px 10px;border:0;border-radius:12px;background:none;font:inherit;color:#101828;text-align:left;cursor:pointer}
+      .mn-add-item:hover:not(:disabled),.mn-add-item:focus-visible{background:#f9fafb}
+      .mn-add-item:disabled{opacity:.5;cursor:not-allowed}
+      .mn-add-item>i:first-child{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025));font-size:17px}
+      .mn-add-item>span{min-width:0}
+      .mn-add-item strong{display:block;font-size:15px;font-weight:700}
+      .mn-add-item small{display:block;margin-top:2px;font-size:12px;color:#667085;line-height:1.35}
+      .mn-add-item>i:last-child{color:#98a2b3;font-size:12px}
       .mn-btn{height:38px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;padding:0 12px;font:inherit;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;white-space:nowrap;text-decoration:none;flex:none;transition:border-color .15s ease,color .15s ease,background-color .15s ease}
       .mn-btn:hover:not(:disabled){border-color:rgba(var(--primary-rgb,217,48,37),.4);color:var(--primary-readable,var(--primary,#d93025))}
       .mn-btn.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:var(--on-primary,#fff)}
@@ -486,6 +496,11 @@
         .mn-title strong{font-size:16px}
         .mn-tools .mn-btn span{display:none}
         .mn-tools .mn-btn{width:38px;padding:0}
+        /* Phone: the actions and Reports live in one + menu beside Settings (GP-2). */
+        .mn-tools .mn-desk-only{display:none}
+        .mn-tools .mn-add-menu{display:inline-flex}
+        .mn-tools .mn-btn.icon{width:44px;height:44px;border-radius:12px;font-size:17px}
+        .mn-modal.mn-add-modal .mn-modal-body{padding:6px 8px 14px}
         .mn-metrics{display:flex;overflow-x:auto;scrollbar-width:none;margin:0 -10px;padding:0 10px}
         .mn-metrics::-webkit-scrollbar{display:none}
         .mn-metric{flex:0 0 136px}
@@ -834,12 +849,13 @@
         <div class="mn-title"><i class="fas fa-dollar-sign" aria-hidden="true"></i><strong>${escapeHtml(term('workspace'))}</strong></div>
         <div class="mn-tools">
           ${manage ? `
-            <button type="button" class="mn-btn primary" data-money-take-payment ${busyAttr()} aria-label="${escapeHtml(term('take_collected_payment'))}" data-fm-tooltip="${escapeHtml('Charge a card or bank account now')}"><i class="fas fa-credit-card"></i><span>${escapeHtml(term('take_collected_payment'))}</span></button>
-            <button type="button" class="mn-btn collapse" data-money-upload-receipt data-money-busy ${uploadBusy ? 'disabled' : ''} aria-label="${escapeHtml(`Upload ${term('receipts').toLowerCase()}`)}" data-fm-tooltip="${escapeHtml('Upload receipts or bills; totals are read for you')}"><i class="fas fa-file-arrow-up"></i><span>${escapeHtml(`Upload ${term('receipts').toLowerCase()}`)}</span></button>
+            <button type="button" class="mn-btn primary mn-desk-only" data-money-take-payment ${busyAttr()} aria-label="${escapeHtml(term('take_collected_payment'))}" data-fm-tooltip="${escapeHtml('Charge a card or bank account now')}"><i class="fas fa-credit-card"></i><span>${escapeHtml(term('take_collected_payment'))}</span></button>
+            <button type="button" class="mn-btn collapse mn-desk-only" data-money-upload-receipt data-money-busy ${uploadBusy ? 'disabled' : ''} aria-label="${escapeHtml(`Upload ${term('receipts').toLowerCase()}`)}" data-fm-tooltip="${escapeHtml('Upload receipts or bills; totals are read for you')}"><i class="fas fa-file-arrow-up"></i><span>${escapeHtml(`Upload ${term('receipts').toLowerCase()}`)}</span></button>
             <input type="file" data-money-receipt-input multiple accept="image/*,.pdf,.doc,.docx,.dot,.odt,.rtf,.pages,.xls,.xlsx,.csv,.tsv,.iif,.ppt,.pptx,.txt,.md,.json,.xml,.html,.htm,.eml,.mht,.tif,.tiff,.avif,.bmp,.heic,.heif" hidden>
-            <button type="button" class="mn-btn collapse" data-money-open-modal="invoice" ${busyAttr()} aria-label="${escapeHtml(term('generate_invoice'))}" data-fm-tooltip="${escapeHtml('Bill scheduled payments or custom items')}"><i class="fas fa-file-invoice-dollar"></i><span>${escapeHtml(term('generate_invoice'))}</span></button>
-            <span class="mn-tool-sep" aria-hidden="true"></span>` : ''}
-          <button type="button" class="mn-btn icon" data-money-open-modal="reports" aria-label="${escapeHtml(term('reports'))}" data-fm-tooltip="${escapeHtml(term('reports'))}"><i class="fas fa-chart-column"></i></button>
+            <button type="button" class="mn-btn collapse mn-desk-only" data-money-open-modal="invoice" ${busyAttr()} aria-label="${escapeHtml(term('generate_invoice'))}" data-fm-tooltip="${escapeHtml('Bill scheduled payments or custom items')}"><i class="fas fa-file-invoice-dollar"></i><span>${escapeHtml(term('generate_invoice'))}</span></button>
+            <span class="mn-tool-sep mn-desk-only" aria-hidden="true"></span>` : ''}
+          <button type="button" class="mn-btn icon mn-desk-only" data-money-open-modal="reports" aria-label="${escapeHtml(term('reports'))}" data-fm-tooltip="${escapeHtml(term('reports'))}"><i class="fas fa-chart-column"></i></button>
+          <button type="button" class="mn-btn primary icon mn-add-menu" data-money-open-modal="add_menu" aria-haspopup="dialog" aria-label="${escapeHtml('New')}"><i class="fas fa-plus"></i></button>
           ${manage ? `<button type="button" class="mn-btn icon" data-money-open-modal="settings" aria-label="${escapeHtml('Settings')}" data-fm-tooltip="${escapeHtml('Settings')}"><i class="fas fa-gear"></i></button>` : ''}
         </div>
       </div>
@@ -1217,6 +1233,7 @@
       add_expense:addExpenseModalHtml,
       invoice:invoiceModalHtml,
       reports:reportsModalHtml,
+      add_menu:addMenuModalHtml,
       settings:settingsModalHtml,
       autopay:autopayModalHtml,
       expense_lists:expenseListsModalHtml,
@@ -1231,6 +1248,30 @@
 
   function takePaymentModalHtml(){
     return `<div data-fm-window-backdrop="off" class="mn-modal-shade" data-money-modal-shade><div class="mn-modal mn-intake-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(term('take_collected_payment'))}"><button type="button" class="mn-btn small icon" data-money-modal-close aria-label="${escapeHtml('Close')}"><i class="fas fa-xmark"></i></button><div data-money-payment-intake></div></div></div>`;
+  }
+
+  // The phone's + menu (GP-2): what the toolbar offers on a desktop, as a tray of plain choices that say what
+  // each one does. Reports are there for everyone; the rest only for those who manage money.
+  function addMenuModalHtml(){
+    const manage = canManageMoney();
+    const busy = moneyMutationBusy();
+    const item = (action, icon, label, hint, disabled = false) => `<button type="button" class="mn-add-item" data-money-add-action="${action}" ${disabled ? 'disabled' : ''}><i class="fas ${icon}" aria-hidden="true"></i><span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(hint)}</small></span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>`;
+    const body = `<div class="mn-add-list">
+      ${manage ? item('take_payment', 'fa-credit-card', term('take_collected_payment'), 'Charge a card or bank account now', busy) : ''}
+      ${manage ? item('upload_receipts', 'fa-file-arrow-up', `Upload ${term('receipts').toLowerCase()}`, 'Photos or files of receipts and bills; totals are read for you', busy || state.receiptUploadInFlight) : ''}
+      ${manage ? item('invoice', 'fa-file-invoice-dollar', term('generate_invoice'), 'Bill scheduled payments or custom items', busy) : ''}
+      ${item('reports', 'fa-chart-column', 'Generate report', manage ? 'Make a report from a template, or open one made before' : 'Open reports made for this project')}
+    </div>`;
+    return modalFrame({ title:term('workspace'), icon:'fa-plus', body, size:'mn-add-modal' });
+  }
+
+  function runAddAction(action){
+    closeModal();
+    if (action === 'upload_receipts') {
+      if (canManageMoney() && !moneyMutationBusy() && !state.receiptUploadInFlight) rootNode()?.querySelector('[data-money-receipt-input]')?.click();
+      return;
+    }
+    if (action === 'reports' || !moneyMutationBusy()) openModal({ type:action });
   }
 
   function addPaymentModalHtml(){
@@ -1629,6 +1670,7 @@
       if (button.hasAttribute('data-money-autopay-cancel')) state.autopayError = '';
       tray.dismiss();
     }));
+    layer.querySelectorAll('[data-money-add-action]').forEach((button) => button.addEventListener('click', () => runAddAction(cleanText(button.dataset.moneyAddAction))));
     layer.querySelectorAll('[data-money-item-action]').forEach((button) => button.addEventListener('click', () => {
       if (!state.modal) return;
       state.modal = { ...state.modal, action:cleanText(button.dataset.moneyItemAction) };
