@@ -1,4 +1,4 @@
-// The portal's left column puts apps people use first, then apps still waiting on setup ("Setup required"), then apps
+// The portal's left column puts apps people use first, then apps still waiting on setup ("Setup"), then apps
 // not started yet ("New"), each by the tab's order (FM-479). The sort is read from public/portal/scripts/core.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
