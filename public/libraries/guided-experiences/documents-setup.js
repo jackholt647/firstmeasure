@@ -410,8 +410,8 @@ function choicesFor(part, selections){
     c('ask', 'fa-comments', 'changes_ask', 'They talk to us', 'Any change means a new estimate from you.')
   ] };
   if (part === 'detail') return { key: 'detail', choices: [
-    c('itemized', 'fa-list-check', 'detail_itemized', 'Every line item', 'Each part of the job, with its own price.'),
-    c('rough', 'fa-ruler-combined', 'detail_rough', 'A broad estimate', 'From a few things: squares, the shingle and underlayment, ice and water, add-ons.')
+    c('itemized', 'fa-list-check', 'detail_itemized', 'Every line item', 'Built from the job’s exact scope of work, down to each material and the labor.'),
+    c('rough', 'fa-ruler-combined', 'detail_rough', 'A broad estimate', 'Based on the broad materials selected and the overall measurements of the job.')
   ] };
   if (part === 'scope') return { key: 'scope_write_up', choices: [
     c('yes', 'fa-images', 'scope_yes', 'Yes, a description and photos', 'What you found and what you’ll do, then the price.', true),

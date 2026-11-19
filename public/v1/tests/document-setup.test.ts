@@ -73,6 +73,12 @@ test("the library entry parses, and its checks pass against the running code", a
   const scope = experience.steps.find((step: any) => step.id === "scope");
   assert.match(scope.title.text, /description or photos/, "GP-50: the scope step asks about a description or photos, not a \"scope of work\"");
   assert.doesNotMatch(`${scope.title.text} ${scope.subtitle.text}`, /scope of work/i);
+  const detail = experience.steps.find((step: any) => step.id === "detail");
+  const choices = await readFile(new URL("../../libraries/guided-experiences/documents-setup.js", import.meta.url), "utf8");
+  const detailCopy = `${detail.subtitle.text} ${choices.match(/part === 'detail'[\s\S]*?\] \};/)![0]}`;
+  assert.match(detailCopy, /exact scope of work, down to each material and the labor/, "GP-49: every line item is built from the job's scope of work");
+  assert.match(detailCopy, /broad materials selected and the overall measurements/, "GP-49: a broad estimate comes from the main materials and measurements");
+  assert.doesNotMatch(detailCopy, /squares|shingle|underlayment|ice and water/i, "GP-49: the detail step is not roofing-only");
 });
 
 test("a proposal asks the unanswered company steps first; another kind goes straight to its style", async () => {
