@@ -1,5 +1,5 @@
 // The Call Center (FM-497) on a phone: the portal's top bar carries the title, so the app's
-// own heading and the "Call Center" intro are hidden, and the desk, filters and cards use a
+// own heading is hidden, and the desk, filters and cards use a
 // compact phone layout. Its views are the shared tab strip (FM-550): Personal / Call center /
 // Manager view / Settings, and Communications' views and Settings are the same strip. GP-63: the
 // strip is in the header: beside the title on a desktop (like My Projects), the full-width row
@@ -39,7 +39,7 @@ test('the views and Settings are one shared tab strip', () => {
   assert.match(workspace, /strip:centerAlone\?subtabs:options\.standalone\?'':chrome\.tabs\('communications',state\.view,'data-view',\{\},\{strip:true,extra:\[settingsTab\]\}\)/);
   assert.match(workspace, /actions:options\.standalone && options\.standalone!=='center'\?/);
   assert.ok(!/fmcc-switch|fmcc-modebar|fmcc-settings/.test(workspace + css), 'the old Call Center switch is gone');
-  assert.match(workspace, /<div class="fmcc-top"><div class="fmcc-title"><h2>Call Center<\/h2>/);
+  assert.match(workspace, /return picker\?`<div class="fmcc-top">\$\{picker\}<\/div>`:'';/, 'only a department picker sits above a view');
   assert.match(workspace, /<label class="fmcc-department"><span>\$\{esc\(context\.department_label/);
   const chat = fs.readFileSync(path.join(root, 'public/libraries/apps/chat/app.js'), 'utf8');
   assert.match(chat, /\['lists','Call lists','fa-list-check','Lists'\]/, 'group members carry an icon and a short name');
@@ -50,10 +50,19 @@ test('a phone shows no second or third title', () => {
   for (const piece of [
     '.fmcm>[data-app-header] .app-heading{display:none}',
     '.fmcm>[data-app-header]:not(:has(.app-header-tools>*,app-tab-strip)){display:none!important}',
-    '.fmcc .fmcc-title{display:none}',
-    '.fmcc .fmcc-section-head h3,.fmcc .fmcc-section-head>div:not(.fmcc-meta){display:none}',
   ]) assert.ok(phone.includes(piece), `phone block lacks ${piece}`);
-  assert.match(workspace, /<div class="fmcc-section-head"><div class="fmcc-meta"><h3>Your call history<\/h3><p>\$\{state\.centerTotal\} calls match/);
+});
+
+test('each view opens at its content, with no title of its own', () => {
+  // GP-80: the header and the view strip already say where you are. No "Call Center" intro and no
+  // "Your call history" / "Calling desk" / "Manager view" heading on any device; their buttons moved into the content.
+  for (const gone of ['fmcc-title', 'fmcc-section-head', 'fmcc-meta', '<h2>Call Center</h2>', 'Your call history', 'calls match these filters', '<h3>Calling desk</h3>', '<h3>Manager view</h3>'])
+    assert.ok(!workspace.includes(gone) && !css.includes(gone), `${gone} is back`);
+  assert.match(workspace, /<section class="fmcc-section">\$\{filters\}<div class="fmcc-history">/, 'Personal starts at its search');
+  assert.match(workspace, /<button class="fmcc-new-call" data-action="new-call">\$\{icon\('phone'\)\} New call<\/button><\/div>`;/, 'New call is in the desk controls');
+  assert.match(workspace, /<section class="fmcc-section"><div class="fmcc-stats">/, 'Manager view starts at its figures');
+  assert.match(workspace, /<header><h4>Callers<\/h4><div class="fmcc-head-tools"><span>\$\{state\.agents\.length\} on roster<\/span><button data-action="reload">/, 'Refresh is in the Callers card');
+  assert.ok(css.includes('.fmcc-dial-controls .fmcc-new-call{margin-left:auto}'));
 });
 
 test('desk controls, filters and cards are compact on a phone', () => {
@@ -61,7 +70,8 @@ test('desk controls, filters and cards are compact on a phone', () => {
   for (const piece of [
     '.fmcc .fmcc-filters,.fmcc .fmcc-dial-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))',
     '.fmcc .fmcc-filters{grid-template-columns:repeat(3,minmax(0,1fr))}',
-    '.fmcc .fmcc-filters .fmcc-search,.fmcc .fmcc-dial-controls>button{grid-column:1/-1}',
+    '.fmcc .fmcc-filters .fmcc-search{grid-column:1/-1}',
+    '.fmcc .fmcc-dial-controls>button{width:100%;min-height:44px;margin:0}',
     '.fmcc .fmcm-empty{min-height:0',
     '.fmcc .fmcc-stat{padding:10px 12px}',
   ]) assert.ok(phone.includes(piece), `phone block lacks ${piece}`);
