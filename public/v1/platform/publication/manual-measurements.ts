@@ -70,15 +70,17 @@ export function manualMeasurementFields(schemaIds: string[]): ManualMeasurementF
 
 /** The schemas this project's work is in: the scope templates its running work plans and its lists came from. */
 export async function projectMeasurementSchemaIds(organizationId: string, projectId: string) {
-  const [{ listPlanRecords }, { readScopeTemplateVersion }, { listProjectMaterialLists }] = await Promise.all([
-    import("../../work/storage.js"), import("../../scopes/storage.js"), import("../../materials/storage.js")
+  const [{ listPlanRecords }, { readScopeTemplateVersion }, { listProjectMaterialLists }, { isAppFlagEnabled }] = await Promise.all([
+    import("../../work/storage.js"), import("../../scopes/storage.js"), import("../../materials/storage.js"), import("../app_flags.js")
   ]);
   const refs: [string, string, number | undefined][] = [];
   for (const plan of await listPlanRecords(organizationId, { project_id: projectId })) {
     if (text(plan.status) === "canceled" || !text(plan.template_id)) continue;
     refs.push([text(plan.branch_id) || "default", text(plan.template_id), Number(plan.template_version) || undefined]);
   }
-  for (const list of await listProjectMaterialLists(organizationId, projectId)) {
+  // With Materials off a project has no lists to read (listing them is refused), and its work plans still name schemas.
+  const lists = await isAppFlagEnabled(organizationId, "platform", "materials") ? await listProjectMaterialLists(organizationId, projectId) : [];
+  for (const list of lists) {
     if (text(list.status) === "archived" || !text(list.scope_template_id) || text(list.scope_template_id) === "manual") continue;
     refs.push([text(list.branch_id) || "default", text(list.scope_template_id), undefined]);
   }
