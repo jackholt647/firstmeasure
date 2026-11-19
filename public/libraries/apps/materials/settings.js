@@ -406,13 +406,11 @@
       finally { if (overlay) overlay.style.visibility = ''; playing = false; }
       if (destroyed) return;
       ctx.setupStatus = null;
-      // Finished, or nothing left to ask: the settings page. A setup this person cannot play here leaves the settings too.
-      if (['completed', 'satisfied', 'unavailable'].includes(outcome?.status)) {
-        if (outcome.status === 'unavailable') ctx.toast(t('materials_settings_setup_unavailable', 'The setup is not available here.'), 'error');
-        settingsPage();
-        return;
-      }
+      // A setup this person cannot play here leaves the settings page.
+      if (outcome?.status === 'unavailable') { ctx.toast(t('materials_settings_setup_unavailable', 'The setup is not available here.'), 'error'); settingsPage(); return; }
       if (outcome?.status === 'failed') ctx.toast(outcome.error?.message || t('materials_settings_setup_unavailable', 'The setup is not available here.'), 'error');
+      // Whether it is set up now is read again, not taken from how the setup ended: Operations' equipment setup finishes
+      // when its inner setup is closed early (FM-619), with nothing saved.
       check(true);
     }
     check(false);
