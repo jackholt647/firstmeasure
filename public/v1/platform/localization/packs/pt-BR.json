@@ -3207,7 +3207,9 @@
     "back_to_workspace": {
       "message": "Voltar para {workspace}",
       "format": "icu"
-    }
+    },
+    "m_0b00bfad983f3f": "Pesquisar pessoas",
+    "m_e6261fd56b82c2": "Nenhum resultado"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Pedir relatórios",

@@ -3199,7 +3199,9 @@
     "back_to_workspace": {
       "message": "Tilbage til {workspace}",
       "format": "icu"
-    }
+    },
+    "m_0b00bfad983f3f": "Søg efter personer",
+    "m_e6261fd56b82c2": "Ingen resultater"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Bestil rapporter",

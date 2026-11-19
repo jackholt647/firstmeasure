@@ -3207,7 +3207,9 @@
     "back_to_workspace": {
       "message": "Επιστροφή: {workspace}",
       "format": "icu"
-    }
+    },
+    "m_0b00bfad983f3f": "Αναζήτηση ατόμων",
+    "m_e6261fd56b82c2": "Δεν βρέθηκαν αποτελέσματα"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Παραγγελία αναφορών",

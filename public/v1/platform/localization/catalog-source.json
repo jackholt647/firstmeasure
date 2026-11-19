@@ -6007,7 +6007,9 @@
       "message": "Back to {workspace}",
       "format": "icu"
     },
-    "m_67f39fd217c909": "Customers can't pay this invoice online until payments are set up."
+    "m_67f39fd217c909": "Customers can't pay this invoice online until payments are set up.",
+    "m_0b00bfad983f3f": "Search people",
+    "m_e6261fd56b82c2": "No matches"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Order Reports",

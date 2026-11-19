@@ -3207,7 +3207,9 @@
     "back_to_workspace": {
       "message": "「{workspace}」に戻る",
       "format": "icu"
-    }
+    },
+    "m_0b00bfad983f3f": "人員を検索",
+    "m_e6261fd56b82c2": "一致する項目がありません"
   },
   "onboarding": {
     "m_a0d673c98d109b": "レポートを注文",

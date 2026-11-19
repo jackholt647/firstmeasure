@@ -3119,7 +3119,9 @@
     "back_to_workspace": {
       "message": "Wróć: {workspace}",
       "format": "icu"
-    }
+    },
+    "m_0b00bfad983f3f": "Szukaj osób",
+    "m_e6261fd56b82c2": "Brak wyników"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Zamawianie raportów",
