@@ -1382,10 +1382,14 @@
   function guidesLibrary(){
     return window.FirstMateGuides || (() => { try { return window.top?.FirstMateGuides; } catch (_) { return null; } })();
   }
-  /** Plays the workforce setup from a work item's "No crews or subcontractors" (GP-85), then reloads the schedule. */
+  /**
+   * Sets up crews and subcontractors from a work item's "No crews or subcontractors" or the New appointment dialog
+   * (GP-85): the workforce setup where it can play (it needs Operations and the crew app), otherwise Crew settings.
+   * Then the schedule reloads. The dialog finds it as `window.FirstMateTeamsSetup`.
+   */
   async function playTeamsSetup(button){
     const guides = guidesLibrary();
-    if (!guides?.play) return;
+    if (!guides?.experience?.('operations.workforce.setup') || !guides?.play) { openScheduleWorkResourceSettings({}); return; }
     if (button) button.disabled = true;
     try {
       const outcome = await guides.play('operations.workforce.setup', { replay:true, force:true });
@@ -4819,7 +4823,7 @@
   function requirementAlertHtml(event = {}){
     const warnings = requirementWarningsForEvent(event);
     if (!warnings.length) return '';
-    const canSetUp = (warning) => warning?.setup && !!guidesLibrary()?.experience?.(warning.setup);
+    const canSetUp = (warning) => !!warning?.setup;
     return `<div class="dash-event-requirement-alert" role="alert"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><ul>${warnings.map((warning) => `<li>${escapeHtml(warning.label || warning)}${canSetUp(warning) ? ` <button type="button" class="dash-event-teams-setup" data-event-teams-setup>${escapeHtml('Set up')}</button>` : ''}</li>`).join('')}</ul></div>`;
   }
   function eventEquipRefs(event = {}){
@@ -12074,6 +12078,7 @@
     render();
   });
   window.addEventListener('fm:workforce:updated', () => scheduleLoad());
+  window.FirstMateTeamsSetup = () => playTeamsSetup(null);
   document.addEventListener('click', (event) => {
     const button = event.target?.closest?.('[data-event-teams-setup]');
     if (!button) return;

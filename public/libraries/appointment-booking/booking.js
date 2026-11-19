@@ -133,16 +133,18 @@
       if (!key) return;
       const crews = term('workforce.resource_group_plural', 'Crews'), subs = term('workforce.organization_connection_plural', 'Subcontractors');
       const text = groups ? `No ${crews.toLowerCase()} or ${subs.toLowerCase()} available` : 'No one is set up to go to these yet';
-      const canSetUp = groups && !!guides()?.experience?.('operations.workforce.setup');
+      // Scheduling sets them up its own way (the workforce setup, else its Crew settings); elsewhere, the setup where it plays.
+      const teamsSetup = typeof window.FirstMateTeamsSetup === 'function' ? window.FirstMateTeamsSetup : guides()?.experience?.('operations.workforce.setup') ? () => guides().play('operations.workforce.setup', { replay: true, force: true }) : null;
+      const canSetUp = groups && !!teamsSetup;
       const note = document.createElement('div');
       note.className = 'fm-booking-staffing'; note.dataset.staffingNote = key; note.setAttribute('role', 'note');
       note.innerHTML = `<span><strong>${esc(text)}</strong><small>${esc('It is booked unassigned. Assign someone later from the calendar.')}</small></span>${canSetUp ? `<button type="button" class="fm-booking-staffing-setup" data-staffing-setup><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>${esc('Set up')}</button>` : ''}`;
       host.after(note);
       note.querySelector('[data-staffing-setup]')?.addEventListener('click', async () => {
         dialog.close();
-        const outcome = await guides()?.play?.('operations.workforce.setup', { replay: true, force: true }).catch(() => null);
-        if (outcome?.status !== 'unavailable') window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
-        open(options).catch(() => {});
+        await Promise.resolve(teamsSetup()).catch(() => null);
+        // The workforce setup is over: book again with whoever it added. Crew settings stay open over Scheduling.
+        if (window.FirstMateTeamsSetup !== teamsSetup || guides()?.experience?.('operations.workforce.setup')) open(options).catch(() => {});
       });
     };
   }
