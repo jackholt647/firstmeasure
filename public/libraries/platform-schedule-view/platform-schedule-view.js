@@ -34,6 +34,9 @@
   const SWIPE_COMMIT_SHARE = 0.3;
   const SWIPE_FLICK_VELOCITY = 0.35;
   const SWIPE_FLICK_MIN_PX = 24;
+  // A turned page's preview stays over the new render until that render has
+  // painted, then fades out over this long (GP-41).
+  const SWIPE_HANDOFF_FADE_MS = 120;
   const DRAG_AUTO_SCROLL_EDGE_PX = 44;
   const DRAG_AUTO_SCROLL_MAX_STEP_PX = 22;
   // Timed items lasting a day or more read as spans (all-day band / month
@@ -2585,6 +2588,11 @@
 
   function renderProjectRangeScheduler(container, options = {}){
     if (!container) return;
+    // A page turned by a swipe hands its preview to this render (GP-41); an
+    // earlier one still on screen goes now.
+    const swipeHandoff = container.__prsSwipeHandoff || null;
+    container.__prsSwipeHandoff = null;
+    container.__prsSwipeHeld?.();
     const listenerSignal = resetContainerListeners(container);
     setContainerKeyHandler(container, null);
     if (container.__prsNowTimer) {
@@ -3080,7 +3088,39 @@
     const placementHintHtml = placementHintText && mode !== 'list'
       ? `<div class="prs-placement-hint" role="status"><i class="fas fa-hand-pointer" aria-hidden="true"></i><span>${esc(placementHintText)}</span><kbd>Esc</kbd><span>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_place_hint_cancel","cancels") ?? "cancels")}</span></div>`
       : '';
-    container.innerHTML = `<div class="prs-wrap ${readOnly ? 'readonly' : ''} ${allowCreate ? '' : 'no-create'} ${allowEventDrag ? '' : 'events-click-only'} ${clickPlacement ? 'placement-active' : ''} ${showToolbar ? '' : 'no-toolbar'} ${options.mobileLayout === true ? 'mobile-layout' : ''} ${mode === 'list' ? 'list-mode' : ''} ${touchControls ? 'prs-touch-controls' : ''}"${touchZoom ? ` style="--prs-touch-slot-h:${slotHeight}px"` : ''}>${showToolbar ? toolbar : ''}${mode === 'list' ? renderList() : mode === 'month' ? renderMonth() : renderTimed()}${placementHintHtml}</div>`;
+    const wrapHtml = `<div class="prs-wrap ${readOnly ? 'readonly' : ''} ${allowCreate ? '' : 'no-create'} ${allowEventDrag ? '' : 'events-click-only'} ${clickPlacement ? 'placement-active' : ''} ${showToolbar ? '' : 'no-toolbar'} ${options.mobileLayout === true ? 'mobile-layout' : ''} ${mode === 'list' ? 'list-mode' : ''} ${touchControls ? 'prs-touch-controls' : ''}"${touchZoom ? ` style="--prs-touch-slot-h:${slotHeight}px"` : ''}>${showToolbar ? toolbar : ''}${mode === 'list' ? renderList() : mode === 'month' ? renderMonth() : renderTimed()}${placementHintHtml}</div>`;
+    /* Swiped to this page (GP-41): its preview, already painted, stays on top
+     * while this render goes in underneath, and fades out once the render
+     * has painted. Replacing it at once left the phone a blank frame while
+     * the new page was drawn. A touch takes it away at once. */
+    const adoptSwipePeek = !!swipeHandoff && swipeHandoff.host.parentNode === container && swipeHandoff.mode === mode && swipeHandoff.date === dateKey(anchor);
+    if (adoptSwipePeek) {
+      Array.from(container.childNodes).forEach((node) => { if (node !== swipeHandoff.host) node.remove(); });
+      swipeHandoff.host.insertAdjacentHTML('beforebegin', wrapHtml);
+      let frame = 0;
+      let timer = 0;
+      const release = () => {
+        window.cancelAnimationFrame(frame);
+        clearTimeout(timer);
+        container.removeEventListener('pointerdown', release, true);
+        container.removeEventListener('wheel', release, true);
+        if (container.__prsSwipeHeld === release) container.__prsSwipeHeld = null;
+        swipeHandoff.dispose();
+      };
+      container.__prsSwipeHeld = release;
+      container.addEventListener('pointerdown', release, true);
+      container.addEventListener('wheel', release, { capture:true, passive:true });
+      frame = window.requestAnimationFrame(() => {
+        frame = window.requestAnimationFrame(() => {
+          swipeHandoff.host.style.transition = `opacity ${SWIPE_HANDOFF_FADE_MS}ms linear`;
+          swipeHandoff.host.style.opacity = '0';
+          timer = setTimeout(release, SWIPE_HANDOFF_FADE_MS + 30);
+        });
+      });
+    } else {
+      container.innerHTML = wrapHtml;
+      swipeHandoff?.dispose();
+    }
     const surfaceNode = container.querySelector('.prs-surface');
     if (surfaceNode) surfaceNode.dataset.prsViewport = viewportSignature;
     // Use the row height the host's CSS actually produced (phones: 48px), so
@@ -3725,6 +3765,30 @@
       track.peeks.clear();
       if (track.containerPosition !== null) container.style.position = track.containerPosition;
     };
+    // The page a settled swipe turned to, offered to the host's next render
+    // into this mount (GP-41); the frame after navigating, a preview nobody
+    // took is dropped.
+    const offerSwipePeek = (track, delta) => {
+      const peek = track.peeks.get(delta);
+      if (!peek?.wrap || peek.host.parentNode !== container) return null;
+      track.peeks.delete(delta);
+      const position = track.containerPosition;
+      track.containerPosition = null;
+      let disposed = false;
+      const handoff = {
+        host:peek.host,
+        mode,
+        date:dateKey(swipeTargetDate(delta)),
+        dispose(){
+          if (disposed) return;
+          disposed = true;
+          disposeSwipePeek(peek);
+          if (position !== null && !container.querySelector(':scope > .prs-swipe-peek')) container.style.position = position;
+        }
+      };
+      container.__prsSwipeHandoff = handoff;
+      return handoff;
+    };
     // Ease out from the finger's speed to the resting place, then turn the
     // page (delta) or just tidy up (0).
     const settleSwipeTrack = (track, delta, velocity) => {
@@ -3741,9 +3805,16 @@
           endSwipeTrack(track);
           return;
         }
+        const handoff = offerSwipePeek(track, delta);
         options.onNavigate?.(swipeTargetDate(delta), delta, { source:'swipe', tracked:true });
         // Hosts re-render on navigate; one that did not keeps this page.
-        window.requestAnimationFrame(() => endSwipeTrack(track));
+        window.requestAnimationFrame(() => {
+          endSwipeTrack(track);
+          if (handoff && container.__prsSwipeHandoff === handoff) {
+            container.__prsSwipeHandoff = null;
+            handoff.dispose();
+          }
+        });
       };
       const step = (now) => {
         if (swipeSettle !== settle) return;
