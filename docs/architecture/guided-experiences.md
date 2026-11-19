@@ -1023,9 +1023,18 @@ step is the module `guided-experiences/documents-setup.js` with its own `part`:
   large, recommended choice and is already picked (Jack: most people start there); the others sit in a smaller row
   below. A proposal goes on to its questions; another kind goes straight to `style` (a branch on
   `selections.document_kind`).
-- `presentation` requires the [setup steps](setup-steps.md) `company.type`, `company.services` and
+- `proposal_kinds` (GP-55) requires the [setup steps](setup-steps.md) `company.type`, `company.services` and
   `company.sales_team` (who sells, the question the appointment setup asks too), each asked only while unanswered.
-  Then: several options to choose from (good, better, best) or one main option (`presentation`); whether the customer
+  Only a company whose kinds of work include insurance work (`storm_insurance`, read from `company-profile.profile`)
+  sees it: retail proposals, insurance agreements, or both, as many as apply (`proposal_kinds`: `retail`, `insurance`,
+  `both`). Any other company goes on past it without seeing it (`retail`), and Back from the next step passes it the
+  other way (the module remembers which setups it passed). Insurance only branches straight to `style`: one default
+  agreement, the library's `tpl_insurance_contingency_agreement` (a `contract`, with its workflow
+  `wfl_insurance_contingency_agreement`: the claim, then review and send), made the organization's own
+  `tpl_setup_insurance_agreement`. Both goes through the retail questions, uses the style for both, and after `copy`
+  branches to `copy_insurance`, the agreement's wording (`insurance_copy`, `insurance_keep_edits`; `document-setup.copy`
+  with `agreement: insurance`); `first` then asks which to make first (`first_kind`).
+- `presentation` (the same setup steps, already asked): several options to choose from (good, better, best) or one main option (`presentation`); whether the customer
   can mix and match line items, or must pick one of the options given, or (one option) talks to us for a new estimate
   (`customer_changes`); every line item or a broad estimate (`detail`); a written scope of work with photos or just the
   proposal (`scope_write_up`).
