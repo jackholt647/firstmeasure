@@ -185,6 +185,10 @@ Every source builds one `LeadSubmission` (`leads/receive.ts`) and calls
   notification? }
 ```
 
+`receiveLead` also stamps when the lead arrived on the organization's clock, `lead_source.received_local`
+(`hour` 0-23, `weekday` sun..sat, `time_zone`), so intake routing can split leads by arrival time
+([Automations Hub](automations-hub.md)).
+
 Sources: website forms and staff entry forms (the portal's New menu, recorded
 as `manual_lead` entered by that person; [forms](forms.md#staff-entry)), inbound email, Connections webhooks and polling and
 `leads.import` (through the `lead_deliveries` ledger in `leads/intake.ts`),

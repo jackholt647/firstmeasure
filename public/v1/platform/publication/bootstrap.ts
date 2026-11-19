@@ -3,6 +3,7 @@ import { registerChecklistsSetupPublication } from '../../workforce/checklists-s
 import { registerChecklistDefaultsPublication } from '../../workforce/checklist-defaults.js';
 import { registerCommsSetupPublication } from '../../comms/setup.js';
 import { registerCompanyProfilePublication } from '../../company-profile/publication.js';
+import { registerAutomationsSetupPublication } from '../../scopes/flow-setup.js';
 import { registerAppointmentSetupPublication } from '../../appointments/setup.js';
 import { registerEquipmentSetupPublication } from '../../equipment/setup.js';
 import { registerDocumentSetupPublication } from '../../documents/setup.js';
@@ -94,6 +95,7 @@ export function initializePublication() {
   registerChecklistDefaultsPublication();
   registerCommsSetupPublication();
   registerCompanyProfilePublication();
+  registerAutomationsSetupPublication();
   registerAppointmentSetupPublication();
   registerEquipmentSetupPublication();
   registerDocumentSetupPublication();
