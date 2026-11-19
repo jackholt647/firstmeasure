@@ -2,7 +2,7 @@
 // "Document setup"). It plays the first time someone who manages company settings presses New document: which kind
 // of document they want to make, then for a proposal (after the company type, the kinds of work and who sells, each
 // asked only while unanswered) how they present it, whether the customer may change it, how much detail it carries,
-// whether a written scope of work goes with it, their prices (optional), and for every kind one of three styles,
+// whether a description and photos of the work go with it (GP-50), their prices (optional), and for every kind one of three styles,
 // previewed with what their answers make. Then the template's wording, to read and change beside it (`copy`, FM-614;
 // Advanced opens the template itself in the template editor), and for a proposal started in a project the first
 // proposal made from it, through the Docs app's own workflow (`first`). Each step is this module with its own `part`;
@@ -412,8 +412,8 @@ function choicesFor(part, selections){
     c('rough', 'fa-ruler-combined', 'detail_rough', 'A broad estimate', 'From a few things: squares, the shingle and underlayment, ice and water, add-ons.')
   ] };
   if (part === 'scope') return { key: 'scope_write_up', choices: [
-    c('yes', 'fa-images', 'scope_yes', 'A written scope of work', 'Photos and descriptions from the estimate, then the proposal.', true),
-    c('no', 'fa-file-contract', 'scope_no', 'Just the proposal', 'The price and what’s included.', false)
+    c('yes', 'fa-images', 'scope_yes', 'Yes, a description and photos', 'What you found and what you’ll do, then the price.', true),
+    c('no', 'fa-file-contract', 'scope_no', 'No, just the proposal', 'The price and what’s included.', false)
   ] };
   return null;
 }
