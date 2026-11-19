@@ -123,8 +123,8 @@
   function branchId(){
     return firstText(state.context?.branchId, window.Portal?.branchModules?.currentBranchId?.(), window.__APP?.userBranchId, project()?.branch_id, 'default') || 'default';
   }
-  function densityPreferenceKey(){
-    return `firstmate.documents.density.${orgId()}.${firstText(Portal.cfg?.userId,window.__APP?.userId)}`;
+  function densityPreferenceKey(organization = orgId()){
+    return `firstmate.documents.density.${organization}.${firstText(Portal.cfg?.userId,window.__APP?.userId)}`;
   }
   function projectDocsEnabled(context = state.context || {}){
     if (context.projectDocsEnabled === false) return false;
@@ -228,7 +228,8 @@
   //   { status, amountCents, facts: [] }
   // Each kind declares how to read that shape from its own record. To give a
   // new kind of document a status or a value on its tile, add an entry here;
-  // the tile itself never special-cases a type.
+  // the tile itself never special-cases a type. ctx is what the gallery knows
+  // beside the documents: this tab's state, or another surface's (mountDocumentGallery).
   const TILE_STATUS_LABELS = { in_progress:'In progress', needs_review:'Needs review', partially_paid:'Partly paid', pending_review:'To review' };
   const TILE_STATUS_TONES = {
     draft:'muted', issued:'info', sent:'info', open:'info', viewed:'warn', in_progress:'warn', partially_paid:'warn', needs_review:'warn', pending_review:'warn',
@@ -277,8 +278,8 @@
       // published measurements (FirstMeasure report or an import).
       kind: 'report',
       matches: (doc) => /report/.test(docType(doc)) && docType(doc) !== 'weather_report',
-      read: (doc) => {
-        const measured = state.measurements || {};
+      read: (doc, ctx) => {
+        const measured = ctx.measurements || {};
         const squares = Number(measured.roofSquares);
         const area = Number(measured.roofArea);
         const date = tileDate(doc);
@@ -294,8 +295,8 @@
       // Expense receipts: the amount and date read from the receipt.
       kind: 'receipt',
       matches: (doc) => isReceiptDoc(doc),
-      read: (doc) => {
-        const receipt = state.receiptsById.get(firstText(doc.receipt_id, doc.metadata?.receipt_id));
+      read: (doc, ctx) => {
+        const receipt = ctx.receiptsById?.get?.(firstText(doc.receipt_id, doc.metadata?.receipt_id));
         if (!receipt) return null;
         const total = Number(receipt.total_cents ?? receipt.effective?.total_cents);
         const date = firstText(receipt.purchase_date, receipt.effective?.purchase_date);
@@ -307,11 +308,11 @@
       }
     }
   ];
-  function tileSummary(doc = {}){
+  function tileSummary(doc = {}, ctx = state){
     const spec = TILE_SUMMARIES.find((entry) => entry.matches(doc));
     if (!spec) return null;
     let read = null;
-    try { read = spec.read(doc); } catch (error) { read = null; }
+    try { read = spec.read(doc, ctx); } catch (error) { read = null; }
     if (!read) return null;
     const status = cleanText(read.status).toLowerCase();
     const cents = Number(read.amountCents);
@@ -1172,17 +1173,22 @@
     const icon = meta.reportFamily ? meta.icon : (doc.icon || meta.icon);
     return `<span class="${escapeHtml(className)}" style="color:${escapeHtml(doc.color || meta.color)}" aria-hidden="true"><span class="fm-doc-symbol"><i class="fas ${escapeHtml(icon)}"></i>${meta.badgeIcon ? `<i class="fas ${escapeHtml(meta.badgeIcon)} fm-doc-symbol-badge"></i>` : ''}</span></span>`;
   }
-  function documentThumbnailHtml(item = {}){
+  // ctx.showProject: the gallery holds documents of many projects (the company Documents app), so a tile says whose.
+  function documentProjectLabel(doc = {}){
+    const where = doc.project && typeof doc.project === 'object' ? doc.project : {};
+    return firstText(where.title, where.address);
+  }
+  function documentThumbnailHtml(item = {}, ctx = state){
     const doc = documentFromItem(item);
     const meta = typeMeta(doc.document_type);
     const url = fileUrl(doc);
     const thumb = doc.media_id && window.PlatformAPI?.media?.thumbnailUrl
       ? window.PlatformAPI.media.thumbnailUrl(orgId(), doc.media_id, 320)
       : url;
-    const summary = tileSummary(doc);
+    const summary = tileSummary(doc, ctx);
     const color = escapeHtml(doc.color || meta.color);
     const dated = tileDate(doc);
-    const facts = summary?.facts?.length ? summary.facts : (dated ? [dated] : []);
+    const facts = [...(summary?.facts?.length ? summary.facts : (dated ? [dated] : [])), ctx.showProject ? documentProjectLabel(doc) : ''];
     const badges = `<span class="fm-doc-badges"><span class="fm-doc-type-badge" style="--doc-color:${color}">${escapeHtml(doc.type_label || meta.label)}</span>${summary?.statusLabel ? `<span class="fm-doc-status-badge tone-${summary.tone}">${escapeHtml(summary.statusLabel)}</span>` : ''}</span>`;
     return `<span class="fm-doc-card" style="--doc-color:${color}">
         <span class="fm-doc-preview" data-doc-preview-id="${escapeHtml(docId(doc))}">
@@ -1219,7 +1225,7 @@
     const gallery=options.gallery || root.querySelector('[data-doc-gallery]');
     if (!gallery) return () => {};
     const lookup=typeof options.lookup==='function' ? options.lookup : (id)=>galleryEntries().find(entry=>docId(entry)===id);
-    const organization=orgId(), seen=new WeakSet(), queue=[], cleanups=new Map();
+    const organization=options.orgId || orgId(), seen=new WeakSet(), queue=[], cleanups=new Map();
     let disposed=false, running=0;
     const release=(node)=>{try{cleanups.get(node)?.();}catch{}cleanups.delete(node);};
     const renderCover=async(node)=>{
@@ -1276,11 +1282,12 @@
     if (own) previewCleanup=dispose;
     return dispose;
   }
-  function documentTileMeta(item = {}){
+  function documentTileMeta(item = {}, ctx = state){
     const doc = documentFromItem(item);
     const date = firstText(doc.uploaded_at, doc.created_at, doc.updated_at);
-    const summary = tileSummary(doc);
+    const summary = tileSummary(doc, ctx);
     const detail = [
+      ctx.showProject ? documentProjectLabel(doc) : '',
       summary?.statusLabel || '',
       summary?.amount || '',
       ...(summary?.facts || []),
@@ -1363,6 +1370,165 @@
     panel.__fmDocPreviews = destroy;
     return { destroy };
   }
+  // Documents from anywhere in the gallery this tab uses (the company Documents app, GP-112): the same cards and
+  // covers, densities, Tags and the Shown menu of document categories, each tile naming its project. options:
+  //   orgId; documents: document engine records, opened by onOpenDocument(record); files: other entries with a url
+  //   (expense receipts), opened in the shared file viewer; receiptsById: receipts by id, for receipt tiles' amount and
+  //   date; title, icon, menuDescription (HTML), searchPlaceholder, emptyMessage; visibleCategories (ids) and
+  //   onCategoriesChange(ids), to keep what the person chose to show.
+  // update(options) draws again only when what it shows changed, so scroll and search stay. Returns { update, destroy }.
+  function mountDocumentGallery(panel, options = {}){
+    if (!panel) return null;
+    injectStyles();
+    let current = { ...options };
+    const categoryIds = DOCUMENT_CATEGORIES.map((category) => category.id);
+    const local = {
+      visible: new Set(Array.isArray(options.visibleCategories) ? options.visibleCategories.filter((id) => categoryIds.includes(id)) : categoryIds),
+      menuOpen: false,
+      density: 'loose',
+      entries: [],
+      key: '',
+      viewer: null,
+      disposePreviews: () => {}
+    };
+    const organization = () => firstText(current.orgId, orgId());
+    try { const saved = localStorage.getItem(densityPreferenceKey(organization())); if (['loose','comfortable','compact','list'].includes(saved)) local.density = saved; } catch {}
+    panel.classList.add('fm-docs-wrap', 'shared-media');
+    const buildEntries = () => normalizeList([
+      ...(Array.isArray(current.documents) ? current.documents : [])
+        .filter((record) => record && typeof record === 'object' && cleanText(record.status).toLowerCase() !== 'void')
+        .map((record, index) => ({ ...engineDocEntry(record, index), project: record.project })),
+      ...(Array.isArray(current.files) ? current.files : [])
+    ]);
+    const contentKey = (entries) => {
+      try { return JSON.stringify([entries, [...(current.receiptsById instanceof Map ? current.receiptsById : new Map())]], (key, value) => key.startsWith('__') ? undefined : value); }
+      catch { return String(Math.random()); }
+    };
+    const openFile = (doc, shown) => {
+      const factory = window.FirstMateMarkup?.openMediaViewer || window.FirstMateMarkup?.openPhotoViewer;
+      const files = shown.filter((entry) => !entry.engine_document && entry.url);
+      const index = files.findIndex((entry) => docId(entry) === docId(doc));
+      if (!factory || index < 0) return null;
+      local.viewer?.close?.();
+      local.viewer = factory({
+        photos: files.map(documentPhoto),
+        index,
+        project: {},
+        boundsTarget: current.boundsTarget || panel,
+        projectLinkEnabled: false,
+        itemNoun: 'document',
+        collectionNoun: 'documents',
+        actions: [{
+          id:'open_original',
+          label:(globalThis.PlatformLanguage?.text("docs","m_237716bb3d8498","Open Original") ?? "Open Original"),
+          icon:'up-right-from-square',
+          visible:({ photo }) => !!fileUrl(photo.__document || photo),
+          onClick:({ photo }) => window.open(fileUrl(photo.__document || photo), '_blank', 'noopener')
+        }],
+        canDelete: () => false,
+        onClose: () => { local.viewer = null; }
+      });
+      return local.viewer;
+    };
+    const render = () => {
+      local.disposePreviews();
+      const all = local.entries;
+      const tileContext = { measurements: null, receiptsById: current.receiptsById instanceof Map ? current.receiptsById : new Map(), showProject: true };
+      const counts = Object.fromEntries(categoryIds.map((id) => [id, all.filter((doc) => documentCategory(doc) === id).length]));
+      const shown = all.filter((doc) => local.visible.has(documentCategory(doc)));
+      // A document's project is searchable with it.
+      const photos = shown.map((doc) => {
+        const photo = documentPhoto(doc);
+        return { ...photo, alt: [photo.alt, documentProjectLabel(doc), doc.project?.address].map(cleanText).filter(Boolean).join(' · ') };
+      });
+      panel.innerHTML = `<div class="fm-docs-gallery" data-doc-gallery></div>${local.menuOpen ? categoryMenuHtml(local.visible, counts, current.menuDescription || '') : ''}`;
+      const gallery = panel.querySelector('[data-doc-gallery]');
+      if (!Portal.PhotoFeed?.mountProjectGallery) {
+        gallery.innerHTML = `<div class="fm-doc-empty"><i class="fas fa-folder-open"></i><strong>${(globalThis.PlatformLanguage?.htmlText("docs","m_78c1804ef2f854","Document browser unavailable") ?? "Document browser unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("docs","m_353ae41f38fb1a","The shared media gallery is not loaded.") ?? "The shared media gallery is not loaded.")}</span></div>`;
+        return;
+      }
+      Portal.PhotoFeed.mountProjectGallery(gallery, {
+        project:{ id:'documents', title:firstText(current.title, 'Documents'), photos },
+        photos,
+        title:firstText(current.title),
+        icon:firstText(current.icon, 'fa-folder-open'),
+        itemNoun:'document',
+        uploadLabel:'',
+        initialDensity:local.density,
+        extraDensityModes:[{ id:'list', label:(globalThis.PlatformLanguage?.text("docs","m_db473980ea71b2","List") ?? "List"), icon:'list' }],
+        groupByDay:(mode) => mode === 'list',
+        searchPlaceholder:firstText(current.searchPlaceholder, 'Search documents, types, or dates'),
+        emptyIcon:'fa-file-medical',
+        emptyTitle:all.length ? 'No matching documents' : 'No documents yet',
+        emptyMessage:all.length ? 'Choose another document category from the Shown menu.' : firstText(current.emptyMessage),
+        enableProjectLinks:false,
+        projectLinkEnabled:false,
+        // Receipts are a category of the Shown menu here, already left out when it is off.
+        includeReceipts:true,
+        selectionEnabled:false,
+        tileClass:'fm-document-tile loaded',
+        renderThumbnail:(item) => documentThumbnailHtml(item, tileContext),
+        renderTileMeta:(item) => documentTileMeta(item, tileContext),
+        renderGroupUploaders:(group) => `<i class="fas fa-folder-open"></i> ${group.items.length} document${group.items.length === 1 ? '' : 's'}`,
+        itemIdentity:(item) => docId(documentFromItem(item)),
+        onOpenItem:({ item }) => {
+          const doc = documentFromItem(item);
+          if (doc.engine_document) return current.onOpenDocument?.(doc.__engineDoc, doc) ?? null;
+          return openFile(doc, shown);
+        },
+        toolbarActions:[{
+          id:'shown',
+          label:(globalThis.PlatformLanguage?.text("docs","m_092ad4c2ce9c6b","Shown") ?? "Shown"),
+          icon:'fa-sliders',
+          tooltip:(globalThis.PlatformLanguage?.text("docs","m_13e4411a7a8b4f","Choose documents shown") ?? "Choose documents shown"),
+          showLabel:true,
+          active:local.menuOpen || local.visible.size < categoryIds.length,
+          onClick:() => { local.menuOpen = !local.menuOpen; render(); }
+        }],
+        onDensityChange:(mode) => {
+          local.density = mode;
+          try { localStorage.setItem(densityPreferenceKey(organization()), mode); } catch {}
+        }
+      });
+      const chosen = () => {
+        current.onCategoriesChange?.([...local.visible]);
+        render();
+      };
+      panel.querySelectorAll('[data-doc-category-toggle]').forEach((button) => button.addEventListener('click', () => {
+        const id = button.dataset.docCategoryToggle || '';
+        if (!categoryIds.includes(id)) return;
+        if (local.visible.has(id)) local.visible.delete(id);
+        else local.visible.add(id);
+        chosen();
+      }));
+      panel.querySelector('[data-doc-category-all]')?.addEventListener('click', (event) => {
+        local.visible = event.currentTarget.dataset.docCategoryAction === 'none' ? new Set() : new Set(categoryIds);
+        chosen();
+      });
+      panel.querySelector('[data-doc-category-close]')?.addEventListener('click', () => { local.menuOpen = false; render(); });
+      local.disposePreviews = mountDocumentPreviews(panel, { gallery, orgId:organization(), lookup:(id) => local.entries.find((entry) => docId(entry) === id) });
+    };
+    const update = (next = {}) => {
+      current = { ...current, ...next };
+      const entries = buildEntries();
+      const key = contentKey(entries);
+      if (key === local.key && panel.querySelector('[data-doc-gallery]')) return;
+      local.entries = entries;
+      local.key = key;
+      render();
+    };
+    update();
+    return {
+      update,
+      destroy(){
+        local.disposePreviews();
+        local.viewer?.close?.();
+        local.viewer = null;
+        panel.classList.remove('fm-docs-wrap', 'shared-media');
+        panel.innerHTML = '';
+      }
+    };
+  }
   function setDocumentView(view, options = {}){
     const nextView = view === 'list' ? 'list' : 'tiles';
     const changed = state.viewMode !== nextView;
@@ -1397,6 +1563,12 @@
         ${!doc.special && doc.media_id ? `<button type="button" class="fm-doc-row-action danger" data-doc-remove="${escapeHtml(docId(doc))}"><i class="fas fa-trash"></i></button>` : ''}
       </div>`;
   }
+  // The Shown menu: which document categories the gallery shows. description (HTML) says of what: this project, or
+  // the company (mountDocumentGallery).
+  function categoryMenuHtml(visible, counts, description){
+    const allShown = DOCUMENT_CATEGORIES.every((category) => visible.has(category.id));
+    return `<div class="fm-doc-filter-menu" data-doc-filter-menu><div class="fm-doc-filter-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("docs","m_80fdf3a3a8501b","Items shown") ?? "Items shown")}</strong><span>${description}</span></div><button type="button" data-doc-category-close aria-label="${(globalThis.PlatformLanguage?.htmlText("docs","m_05f07e7d7b5c38","Close filters") ?? "Close filters")}"><i class="fas fa-xmark"></i></button></div><section class="fm-doc-filter-section"><div class="fm-doc-filter-section-head"><span><i class="fas fa-folder-open"></i><strong>${(globalThis.PlatformLanguage?.htmlText("docs","m_5d7c7ad6033624","Documents") ?? "Documents")}</strong><em>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("docs","m_1e1c07222eea9e",`${v0} of ${v1}`,{v0,v1}) ?? `${v0} of ${v1}`)(visible.size,DOCUMENT_CATEGORIES.length)}</em></span><button type="button" data-doc-category-all data-doc-category-action="${String(allShown ? 'none' : 'all')}">${String(allShown ? 'Hide all' : 'Show all')}</button></div><div class="fm-doc-filter-options">${String(DOCUMENT_CATEGORIES.map((category) => `<button type="button" class="fm-doc-filter-option${visible.has(category.id) ? ' active' : ''}" data-doc-category-toggle="${category.id}" aria-pressed="${visible.has(category.id) ? 'true' : 'false'}"><span class="fm-doc-filter-check"><i class="fas fa-check"></i></span><i class="fas ${category.icon}"></i><span>${escapeHtml(category.label)}</span><small class="fm-doc-filter-count">${counts[category.id] || 0}</small></button>`).join(''))}</div></section></div>`;
+  }
   function renderGrid(root){
     const required = state.docs.filter((doc) => doc.required && doc.interactive === false);
     const availableDocs = galleryEntries();
@@ -1417,8 +1589,7 @@
       return;
     }
     root.classList.add('shared-media');
-    const allCategoriesShown = DOCUMENT_CATEGORIES.every((category) => state.visibleDocumentCategories.has(category.id));
-    root.innerHTML = `${required.length ? `<div class="fm-doc-requirements"><i class="fas fa-circle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("docs","m_aaf584b78a6e0d","Required documents") ?? "Required documents")}</strong>${String(required.map((doc) => `<span class="fm-doc-requirement">${escapeHtml(doc.title)}</span>`).join(''))}</div>` : ''}<div class="fm-docs-gallery" data-doc-gallery></div><input type="file" data-doc-upload-input multiple accept="${escapeHtml(ACCEPT)}" hidden>${state.categoryMenuOpen ? `<div class="fm-doc-filter-menu" data-doc-filter-menu><div class="fm-doc-filter-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("docs","m_80fdf3a3a8501b","Items shown") ?? "Items shown")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("docs","m_db1efbf4b2ef87","Choose the document categories in this project.") ?? "Choose the document categories in this project.")}</span></div><button type="button" data-doc-category-close aria-label="${(globalThis.PlatformLanguage?.htmlText("docs","m_05f07e7d7b5c38","Close filters") ?? "Close filters")}"><i class="fas fa-xmark"></i></button></div><section class="fm-doc-filter-section"><div class="fm-doc-filter-section-head"><span><i class="fas fa-folder-open"></i><strong>${(globalThis.PlatformLanguage?.htmlText("docs","m_5d7c7ad6033624","Documents") ?? "Documents")}</strong><em>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("docs","m_1e1c07222eea9e",`${v0} of ${v1}`,{v0,v1}) ?? `${v0} of ${v1}`)(state.visibleDocumentCategories.size,DOCUMENT_CATEGORIES.length)}</em></span><button type="button" data-doc-category-all data-doc-category-action="${String(allCategoriesShown ? 'none' : 'all')}">${String(allCategoriesShown ? 'Hide all' : 'Show all')}</button></div><div class="fm-doc-filter-options">${String(DOCUMENT_CATEGORIES.map((category) => `<button type="button" class="fm-doc-filter-option${state.visibleDocumentCategories.has(category.id) ? ' active' : ''}" data-doc-category-toggle="${category.id}" aria-pressed="${state.visibleDocumentCategories.has(category.id) ? 'true' : 'false'}"><span class="fm-doc-filter-check"><i class="fas fa-check"></i></span><i class="fas ${category.icon}"></i><span>${escapeHtml(category.label)}</span><small class="fm-doc-filter-count">${categoryCounts[category.id] || 0}</small></button>`).join(''))}</div></section></div>` : ''}`;
+    root.innerHTML = `${required.length ? `<div class="fm-doc-requirements"><i class="fas fa-circle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("docs","m_aaf584b78a6e0d","Required documents") ?? "Required documents")}</strong>${String(required.map((doc) => `<span class="fm-doc-requirement">${escapeHtml(doc.title)}</span>`).join(''))}</div>` : ''}<div class="fm-docs-gallery" data-doc-gallery></div><input type="file" data-doc-upload-input multiple accept="${escapeHtml(ACCEPT)}" hidden>${state.categoryMenuOpen ? categoryMenuHtml(state.visibleDocumentCategories, categoryCounts, `${(globalThis.PlatformLanguage?.htmlText("docs","m_db1efbf4b2ef87","Choose the document categories in this project.") ?? "Choose the document categories in this project.")}`) : ''}`;
     reattachHosts();
     const gallery = root.querySelector('[data-doc-gallery]');
     const input = root.querySelector('[data-doc-upload-input]');
@@ -1715,7 +1886,8 @@
     sendEngineDocument,
     adoptProject,
     panelHtml,
-    mountFileGallery
+    mountFileGallery,
+    mountDocumentGallery
   };
 
   Portal.modules = Portal.modules || {};
