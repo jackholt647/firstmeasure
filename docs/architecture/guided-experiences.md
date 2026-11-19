@@ -912,21 +912,38 @@ and reads `workforce-setup.status` when it shows (the steps before it may have j
    step's own part (`setup-steps/company-profile.js`, part `workforce`, the same tiles as everywhere), shown chosen and
    saved with `company-profile.save` when it changes. Answered, the setup starts at the next page. The setup never
    draws a question of its own for it.
-2. **How many do you have?** A count of crews and of subcontractors. The groups and outside companies the organization
-   already has are counted and kept; "just me" skips this and makes one crew of the person.
+2. **How many do you have?** A count of crews and of subcontractors, each from 0 (a company that uses subcontractors
+   but has none yet), never both 0. The groups and outside companies the organization already has are counted and
+   kept; "just me" skips this and makes one crew of the person.
 3. **Name each one and say what they do.** One card each: its name, which of the company's services it does (all of
-   them at first) and, for a crew, who is on it (optional, from the organization's people).
+   them at first; **Other** searches `company-profile.catalog` for one the profile left out, which the save adds to
+   the profile), its **specialties** within each service in the company's own words (offered from the step's
+   `service_tags`, library data, and the ones its other crews and subcontractors already have, or typed in), and, for
+   a crew, who is on it (optional): a dropdown of the organization's people with **New crew member** at its bottom
+   (name and email; added with `workforce.users.add` when the setup is saved, only for someone with People's
+   permission) and, with two or more on it, a flag for the one in charge (the group's lead).
 4. **How do you pay them?** Piece rate, hourly or per job, defaulted by the step's `pay_defaults` (library data: the first
    rule whose `industry_sets` the company is in; roofing and exteriors are paid per square, everyone else hourly; a
    piece rate needs roofing work); "Same pay as" another card copies its pay; **Upload pay sheet** saves the card and
    hands the file to the agent, which the modal setup calls in beside itself (the player's `ensureAgent`).
-5. **Set up**, after `operations.workforce.setup.apply` wrote it; Done finishes the setup. There is no price book finish
+5. **Invite your crews to the app?** (GP-66) Only when a crew has someone who has not joined yet and the person may
+   invite (People's permission). **Not now** saves the setup; **Yes** goes on to
+6. **What should your crews see?** One switch per part of the crew app (the step's `crew_apps`, library data: the
+   apps each choice shows or hides, or the app option it sets, such as Today's time clock, and its default; an app the
+   organization has off is not asked about). They are saved as each crew's App experience settings
+   ([app experience](app-experience.md): a group's setting decides over its members' roles); what members may do is
+   still their roles'. **Save and send invites** saves the setup and then sends the invites with
+   `workforce.users.invite` (People's invitation email); one that fails is said on the last page.
+7. **Set up**, after `operations.workforce.setup.apply` wrote it; Done finishes the setup. There is no price book finish
    (`completion.screen: none`, no completion action).
 
-Cards sit side by side, three at most, and scroll as a carousel past that (one at a time on a phone). The save is
-`labor.setup.apply` with each card's `service_ids` (written as its capabilities, `assignees.capabilities.save`, so a
-service measured as a kind of work grants that kind's items) and `member_user_ids` (added through the group's member
-writer, which gives the group type's roles; never removed here). What a group or company is called comes from the
+Cards sit side by side, three at most; more scroll as a carousel that shows three and part of the card before and
+after (three and a half card widths), and on a phone one card with its neighbours peeking in. The save is
+`labor.setup.apply` with each card's `service_ids` and `service_tags` (written as its capabilities,
+`assignees.capabilities.save`, so a service measured as a kind of work grants that kind's items; the specialties grant
+nothing), `member_user_ids` (added through the group's member writer, which gives the group type's roles; never
+removed here), `lead_user_id` (made lead through the same writer) and, from page 6, `apps` (the group's
+`attributes.app_defaults`, on every device each app exists on). What a group or company is called comes from the
 terminology system. Operations settings (`apps/materials/settings.js`) shows the result in its Workforce sub-tab.
 
 ## Communications setup

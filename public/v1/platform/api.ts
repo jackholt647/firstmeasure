@@ -5501,7 +5501,7 @@ function withoutRemovedUserTypeFields(value: unknown) {
   return result;
 }
 
-async function createPlatformOrgUser(orgId: string, body: Record<string, unknown>) {
+export async function createPlatformOrgUser(orgId: string, body: Record<string, unknown>) {
   const dataInput = withoutRemovedUserTypeFields(body.data && typeof body.data === "object" ? body.data : body);
   if ('scoped_access_assignments' in dataInput) throw badRequest('scoped_access_profile_required', 'Assign scoped roles through the workforce user profile endpoint.');
   const email = cleanEmail(dataInput.email);
@@ -9785,7 +9785,7 @@ async function inviteeHasAccount(email: string) {
   return Boolean(cleanText(identity.last_login_at)) || (Boolean(cleanText(identity.password_hash)) && passwordAlgo !== "pending");
 }
 
-async function sendPlatformOrgUserInvite(orgId: string, userDoc: JsonObject, request: { headers: Record<string, unknown> }, actorEmail = "") {
+export async function sendPlatformOrgUserInvite(orgId: string, userDoc: JsonObject, request: { headers: Record<string, unknown> }, actorEmail = "") {
   const data = asObject(userDoc.data);
   const email = cleanEmail(data.email);
   const name = cleanText(data.name) || email;

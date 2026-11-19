@@ -170,3 +170,88 @@ test("the setup's browser module defaults pay by industry, copies pay and sends 
   // "Same as" never goes round in a circle.
   assert.equal(module.payOf([{ key: "x", same: "y" }, { key: "y", same: "x" }], { key: "x", same: "y" }), null);
 });
+
+// GP-66: the kinds of each service in the company's words, who is in charge of a crew, what its members see in the
+// app, a service the profile left out (Other), and someone new added and invited from the setup.
+test("specialties, the lead, the crew's apps and a service found under Other are saved through the setup", async () => {
+  await setup();
+  const before = await status();
+  const crewA = before.assignees.find((entry: any) => entry.name === "Crew A");
+  assert.ok(!before.profile.services.some((entry: any) => entry.id === "siding"));
+  await invoke(owner, "operations.workforce.setup.apply", { include_labor: true, labor: { assignees: [
+    { ref: crewA.ref, kind: "resource_group", name: "Crew A", service_ids: ["roof_replacement", "siding"], lead_user_id: "ana",
+      service_tags: { roof_replacement: ["Metal roofs", " metal  roofs", "Flat roofs"], siding: ["Vinyl"], gutters: ["Ignored: not a service it does"] },
+      apps: { "portal.crew_payouts": { visible: false }, "portal.crew_overview": { options: { time_clock: false } } } }
+  ] } }, "apply-gp66");
+  const value = await status();
+  const again = value.assignees.find((entry: any) => entry.name === "Crew A");
+  assert.equal(again.lead_user_id, "ana");
+  assert.deepEqual(again.service_tags, { roof_replacement: ["Metal roofs", "Flat roofs"], siding: ["Vinyl"] });
+  assert.deepEqual(again.apps["portal.crew_payouts"], { visible: false });
+  assert.deepEqual(again.apps["portal.crew_overview"], { options: { time_clock: false } });
+  assert.deepEqual(value.service_tags_used.roof_replacement, ["Metal roofs", "Flat roofs"]);
+  // Siding was found under Other: the company does it too now.
+  assert.ok(value.profile.services.some((entry: any) => entry.id === "siding"), "the company profile gained the service");
+  assert.deepEqual(value.can, { add_people: true, invite: true });
+  // The group's App experience settings, on every device each app exists on.
+  const group = await (await import("../workforce/storage.js")).readResourceGroup(ORG, crewA.ref.id);
+  assert.ok(Object.values((group.attributes as any).app_defaults["portal.crew_payouts"].visible).every((shown) => shown === false));
+  // Moving the lead keeps one lead.
+  await invoke(owner, "operations.workforce.setup.apply", { labor: { assignees: [{ ref: crewA.ref, kind: "resource_group", name: "Crew A", lead_user_id: "ben" }] } }, "apply-gp66-lead");
+  const led = await (await import("../workforce/storage.js")).readResourceGroup(ORG, crewA.ref.id);
+  assert.deepEqual((led.members as any[]).filter((row) => row.is_lead).map((row) => row.user_id), ["ben"]);
+  assert.deepEqual((await status()).assignees.find((entry: any) => entry.name === "Crew A").service_tags.siding, ["Vinyl"], "kinds left out of a change are kept");
+  // Refused: a lead who is not on it, apps for a subcontractor, an app that does not exist.
+  await assert.rejects(() => invoke(owner, "operations.workforce.setup.apply", { labor: { assignees: [{ ref: crewA.ref, kind: "resource_group", name: "Crew A", lead_user_id: "nobody" }] } }, "apply-gp66-bad-lead"));
+  const gutters = value.assignees.find((entry: any) => entry.name === "Gutter Pros");
+  await assert.rejects(() => invoke(owner, "operations.workforce.setup.apply", { labor: { assignees: [{ ref: gutters.ref, kind: "organization_connection", name: "Gutter Pros", apps: { "portal.crew_payouts": { visible: true } } }] } }, "apply-gp66-bad-apps"));
+  await assert.rejects(() => invoke(owner, "operations.workforce.setup.apply", { labor: { assignees: [{ ref: crewA.ref, kind: "resource_group", name: "Crew A", apps: { "portal.moon": { visible: true } } }] } }, "apply-gp66-bad-app"));
+});
+
+test("someone new is added to the organization from the setup, joins a crew and is invited", async () => {
+  await setup();
+  const added = await invoke(owner, "workforce.users.add", { name: "Cara New", email: "Cara@Example.com" }, "add-cara");
+  assert.equal(added.user.email, "cara@example.com");
+  assert.equal(added.user.status, "invited");
+  const listed = (await status()).people.find((entry: any) => entry.id === added.user.id);
+  assert.deepEqual(listed, { id: added.user.id, name: "Cara New", email: "cara@example.com", status: "invited" });
+  // Added once: the same email again is refused.
+  await assert.rejects(() => invoke(owner, "workforce.users.add", { name: "Cara Again", email: "cara@example.com" }, "add-cara-2"));
+  const crewB = (await status()).assignees.find((entry: any) => entry.name === "Crew B");
+  await invoke(owner, "operations.workforce.setup.apply", { labor: { assignees: [{ ref: crewB.ref, kind: "resource_group", name: "Crew B", member_user_ids: [added.user.id], lead_user_id: added.user.id }] } }, "apply-cara");
+  assert.equal((await status()).assignees.find((entry: any) => entry.name === "Crew B").lead_user_id, added.user.id);
+  // Invited with People's invite (no mail server in tests, so it is reported, not thrown); nobody else is touched.
+  const invited = await invoke(owner, "workforce.users.invite", { user_ids: [added.user.id] }, "invite-cara");
+  assert.deepEqual(invited.invites.map((row: any) => row.user_id), [added.user.id]);
+  await assert.rejects(() => invoke(owner, "workforce.users.invite", { user_ids: ["nobody"] }, "invite-nobody"));
+  // People's permission: someone who only sets up the company can't add or invite people.
+  const settingsOnly = person("settings", { role: "member", permissions: { manage_company_settings: true, manage_projects: true }, applicationAccess: { management: { enabled: true, permissions: { manage_company_settings: true, manage_projects: true } } } });
+  await assert.rejects(() => invoke(settingsOnly, "workforce.users.add", { name: "Dan", email: "dan@example.com" }, "add-dan"));
+  assert.deepEqual((await status(settingsOnly)).can, { add_people: false, invite: false });
+});
+
+test("the browser module sends the kinds, the lead and the apps, and leaves out someone not added yet", async () => {
+  const browserModule: string = "../../libraries/guided-experiences/workforce-setup.js";
+  const module = await import(browserModule);
+  const options = experience.steps[0].options;
+  const row = { key: "a", kind: "resource_group", name: "Crew A", service_ids: ["roof_replacement"], service_tags: { roof_replacement: ["Metal roofs", "metal roofs"], gutters: ["Seamless"] }, member_user_ids: ["ana", "new-person:x"], saved_members: [], lead_user_id: "new-person:x", saved_lead: "", pay: { method: "hourly", rate: 0 }, same: "" };
+  const apps = module.appsFor(options.crew_apps, { earnings: false, time_clock: true, schedule: true });
+  assert.deepEqual(apps["portal.crew_payouts"], { visible: false });
+  assert.deepEqual(apps["project.crew_payouts"], { visible: false });
+  assert.deepEqual(apps["portal.crew_overview"], { options: { time_clock: true } });
+  assert.deepEqual(apps["project.crew_payments"], { visible: false }, "a choice not made is the library's off");
+  const sent = module.applyInput([row], { apps }).labor.assignees[0];
+  assert.deepEqual(sent.member_user_ids, ["ana"], "someone new is added before they are put on it");
+  assert.equal(sent.lead_user_id, undefined);
+  assert.deepEqual(sent.service_tags, { roof_replacement: ["Metal roofs"] });
+  assert.deepEqual(sent.apps, apps);
+  assert.equal(module.applyInput([{ ...row, lead_user_id: "ana" }]).labor.assignees[0].lead_user_id, "ana");
+  assert.equal(module.applyInput([{ ...row, kind: "organization_connection" }], { apps }).labor.assignees[0].apps, undefined, "apps are a crew's");
+  // Every choice of what a crew sees names apps the registry has; the library's kinds are for services the catalog has.
+  const { appDefinition } = await import("../platform/app-experience/registry.js");
+  for (const choice of options.crew_apps) for (const id of [...(choice.apps || []), choice.option?.app].filter(Boolean)) assert.ok(appDefinition(id), `${choice.id}: ${id}`);
+  const { serviceOf } = await import("../company-profile/catalog.js");
+  for (const service of Object.keys(options.service_tags)) assert.ok(serviceOf(service), service);
+  assert.ok(module.matchService({ terms: ["gutter", "downspouts"] }, "Gutters", "downsp") > 0);
+  assert.equal(module.matchService({ terms: [] }, "Gutters", "solar"), 0);
+});
