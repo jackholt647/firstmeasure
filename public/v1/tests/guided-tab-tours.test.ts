@@ -20,6 +20,9 @@ const TOURS = [
   { id: "customer_portal.tab_tutorial", tab: "project.customer_portal", capability: "platform.customer_portal", sources: ["libraries/apps/customer-portal/project.js"] },
   { id: "docs.tab_tutorial", tab: "project.docs", capability: "platform.documents", sources: ["libraries/apps/docs/project.js", "libraries/apps/photos/feed.js"] }
 ];
+// Every tab tour ends on the project window's Agent button (GP-43): the tray rail's on a computer, the footer's on a
+// phone. project-trays.js draws both.
+const AGENT_BUTTON = ".fm-project-tray-tabs [data-tray=agent]";
 const ORG = "org_tab_tours";
 const ALL_ON = Object.fromEntries(TOURS.map((tour) => [tour.capability, true]));
 const person = (userId: string, capabilities: Record<string, boolean> | null, extra: Record<string, unknown> = {}) => ({ orgId: ORG, userId, role: "member", permissions: { view_projects: true }, branchId: "default", organization: { data: {} }, ...(capabilities ? { capabilities: { effectiveByKey: capabilities } } : {}), ...extra }) as any;
@@ -54,6 +57,7 @@ test("each tab tour registers, validates, and words every step with a gx_ key", 
     assert.deepEqual(steps[0].targets, []);
     assert.equal(steps.at(-1).id, "outro");
     assert.match(steps.at(-1).body.text, /Show me the tutorial again/);
+    assert.deepEqual([steps.at(-1).targets, steps.at(-1).placement], [[AGENT_BUTTON], "auto"], `${entry.id} ends on the agent button it tells you to ask`);
     const middle = steps.slice(1, -1);
     assert.ok(middle.length >= 2 && middle.length <= 6, `${entry.id} has 2 to 6 steps on real controls, has ${middle.length}`);
     for (const step of middle) assert.ok(step.targets.length > 0, `${entry.id}/${step.id} points at a control`);
@@ -71,6 +75,7 @@ test("each tab tour registers, validates, and words every step with a gx_ key", 
   assert.equal(experience("documents.tab_tutorial"), null, "one Docs tour, under the tab's own name");
   // Photos is basic: upload or take photos, and open one. The cover photo has no step of its own (GP-42).
   assert.deepEqual((experience("photos.tab_tutorial")!.steps as any[]).map((step) => step.id), ["intro", "upload", "open", "outro"]);
+  assert.deepEqual((experience("materials.tab_tutorial")!.steps as any[]).at(-1).targets, [AGENT_BUTTON], "the Operations tour ends on the agent button too");
   assert.equal(experience("reports.tab_tutorial"), null, "no Reports tour for now");
   assert.equal(tabFaqs("project.measurements")!.questions.some((question) => question.action === "play"), false, "and no replay question for it");
 });
@@ -78,11 +83,15 @@ test("each tab tour registers, validates, and words every step with a gx_ key", 
 test("every tour target names hooks the tab's own source draws", async () => {
   const service = await import("../guided-experiences/service.js"), { experience } = await import("../guided-experiences/registry.js");
   service.ensureGuidedDefinitions();
+  const read = async (files: string[]) => (await Promise.all(files.map((file) => readFile(new URL(`../../${file}`, import.meta.url), "utf8")))).join("\n");
+  const trays = ["libraries/project-trays/project-trays.js"];
   for (const entry of TOURS) {
-    const source = (await Promise.all(entry.sources.map((file) => readFile(new URL(`../../${file}`, import.meta.url), "utf8")))).join("\n");
+    const source = await read(entry.sources), traySource = await read(trays);
     for (const step of experience(entry.id)!.steps as any[]) for (const selector of step.targets as string[]) {
-      const hooks = [...selector.matchAll(/#([\w-]+)|\[([\w-]+)(?:="([^"]+)")?\]|\.([\w-]+)/g)].map(([, id, attr, value, cls]) => id ? [`id="${id}"`] : attr ? [attr, ...(value && attr === "data-tab" ? [new RegExp(`id:\\s*'${value}'`)] : [])] : [cls]).flat();
-      for (const hook of hooks) assert.ok(typeof hook === "string" ? source.includes(hook) : hook!.test(source), `${entry.id}/${step.id}: ${hook} (from ${selector}) is drawn by ${entry.sources.join(", ")}`);
+      // The agent button is the project window's, not the tab's.
+      const [drawn, files] = selector === AGENT_BUTTON ? [traySource, trays] : [source, entry.sources];
+      const hooks = [...selector.matchAll(/#([\w-]+)|\[([\w-]+)(?:="?([^"\]]+)"?)?\]|\.([\w-]+)/g)].map(([, id, attr, value, cls]) => id ? [`id="${id}"`] : attr ? [attr, ...(value && (attr === "data-tab" || attr === "data-tray") ? [new RegExp(`id:\\s*'${value}'`)] : [])] : [cls]).flat();
+      for (const hook of hooks) assert.ok(typeof hook === "string" ? drawn.includes(hook) : hook!.test(drawn), `${entry.id}/${step.id}: ${hook} (from ${selector}) is drawn by ${files.join(", ")}`);
     }
   }
 });

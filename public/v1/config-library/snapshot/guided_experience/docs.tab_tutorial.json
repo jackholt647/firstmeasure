@@ -1,11 +1,11 @@
 {
   "kind": "guided_experience",
   "id": "docs.tab_tutorial",
-  "revision": 1,
-  "sha256": "4f348e91def10c78921c238d0d2e61bfabcd62d61fb0f18056b93833447f0c45",
+  "revision": 2,
+  "sha256": "a53e560acc38a3f5ec2f509c018a122a6867ae0d07b745c4833a947aab703960",
   "title": "Docs tour",
-  "updated_at": "2026-11-04T02:55:26.981Z",
-  "updated_by": "snapshot",
+  "updated_at": "2026-11-19T18:04:22.288Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "id": "docs.tab_tutorial",
     "version": 1,
@@ -133,8 +133,10 @@
           "key": "gx_dt_outro_body",
           "text": "Want this tour again? Ask the agent \"Show me the tutorial again\"."
         },
-        "targets": [],
-        "placement": "center",
+        "targets": [
+          ".fm-project-tray-tabs [data-tray=agent]"
+        ],
+        "placement": "auto",
         "advance": "next",
         "wait_ms": 1500
       }

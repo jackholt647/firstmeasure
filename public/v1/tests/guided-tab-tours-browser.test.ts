@@ -87,7 +87,7 @@ async function open(tab: { route: string; html: string }, userId: string, html =
   await page.setContent(`<style>body{margin:0;font:14px Arial}button,label,a,section,aside{display:inline-block;margin:6px;padding:8px;border:1px solid #ccc}#tab{padding:20px}
     .pf-thumb{position:relative;width:120px;height:90px}.pf-select{position:absolute;top:7px;left:7px;width:24px;height:24px;margin:0;padding:0}[data-photo-feed-dynamic]{min-height:120px}
     .cpo-body{display:flex;gap:12px}[data-cpo-history]{width:240px;height:200px}</style>
-    <div id="tab">${html}</div><div class="fma-drawer" id="faqHost"><div data-fma="composer"><div class="fma-compose-shell"><textarea></textarea></div></div></div>`);
+    <div id="tab">${html}</div><nav class="fm-project-tray-tabs"><button type="button" role="tab" data-tray="agent" aria-label="Agent">Agent</button></nav><div class="fma-drawer" id="faqHost"><div data-fma="composer"><div class="fma-compose-shell"><textarea></textarea></div></div></div>`);
   await page.evaluate(({ route }) => {
     (window as any).__APP = { userOrgId: "org_tab_tours_browser", platformApiBase: "https://fm.test/v1/platform" };
     (window as any).route = { project: "p1", projectTab: route };
