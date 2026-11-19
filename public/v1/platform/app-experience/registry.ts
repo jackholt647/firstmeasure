@@ -118,6 +118,9 @@ const APP_SOURCE: AppSource[] = [
   tab("portal.assistant", "FirstMate Assistant", "fa-wand-magic-sparkles", 45, { terminology_key: "assistant.portal_tab", description: "The FirstMate assistant.", capabilities: ["apps.assistant"], launcher: false }),
   tab("portal.chat", "Communications", "fa-inbox", 46, { terminology_key: "chat.portal_tab", description: "Calls, texts and live chat in one inbox.", capabilities: ["apps.comms"] }),
   tab("portal.scheduling", "Scheduling", "fa-calendar-days", 50, { terminology_key: "scheduling.portal_tab", description: "Organization scheduling and resource planning.", capabilities: ["platform.scheduling"] }),
+  // Every company document in one list, each opened in the document viewer (GP-69). In More apps, not pinned to the
+  // left column (its manifest placement); global search opens documents here.
+  tab("portal.documents", "Documents", "fa-file-signature", 41, { description: "Every document across the company: proposals, contracts, invoices and more, each opened in the document viewer.", capabilities: ["platform.documents"] }),
   tab("portal.invoices", "Invoices", "fa-file-invoice-dollar", 51, { terminology_key: "invoices.portal_tab", description: "Outstanding invoices, aging, projects that still need billing, and invoice sending.", capabilities: ["money.invoices"], default_visible: false, default_params: { invoicesView: "outstanding" } }),
   tab("portal.financials", "Financials", "fa-chart-line", 52, { terminology_key: "financials.portal_tab", description: "Project profitability, revenue history, obligations, and cash flow forecasts.", capabilities: ["money.profitability"], default_visible: false, default_params: { financialView: "projects", financialGrain: "month" } }),
   tab("portal.stats", "Stats", "fa-chart-column", 53, { terminology_key: "stats.portal_tab", description: "Sales and production statistics.", capabilities: ["apps.stats"] }),

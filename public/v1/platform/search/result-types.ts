@@ -53,6 +53,8 @@ export const SEARCH_SOURCES: readonly SearchSource[] = Object.freeze([
   { id: "invoice", type: "document", capabilities: ["money.invoices"], app: "portal.invoices" },
   { id: "receipt", type: "document", capabilities: ["crew.receipts"], app: "portal.receipts" },
   { id: "document", type: "document", capabilities: ["documents.templates_studio"], app: "documents.studio" },
+  // Every company document, opened in the company Documents app (GP-69).
+  { id: "company_document", type: "document", capabilities: ["platform.documents"], app: "portal.documents" },
   { id: "scope", type: "scope", capabilities: ["platform.expanded_access", "apps.projects"], available: scopeTemplatesChosen },
   { id: "channel", type: "channel", capabilities: ["apps.channels"], app: "portal.channels" },
   { id: "setting", type: "setting" },

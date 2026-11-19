@@ -94,7 +94,8 @@
     "dev-console",
     "platform-offline",
     "camera-capture",
-    "document-scanner"
+    "document-scanner",
+    "doc-viewer"
   ],
   "namespaces": {
     "billing": "billing.160f88fa588ba4a7.json",
@@ -107,14 +108,14 @@
     "crew": "crew.6191aa50b5e885c9.json",
     "customer-portal": "customer-portal.af0bdf7f3055f165.json",
     "docs": "docs.c3fb852fc7c2caf8.json",
-    "documents": "documents.07f570488b95e85f.json",
+    "documents": "documents.703f5ef930f9eec4.json",
     "equipment": "equipment.0445d0b0c16372fc.json",
     "feedback": "feedback.752afbb5525fcd92.json",
     "financials": "financials.58d963674a6d1475.json",
     "firstmate-apps-manifest": "firstmate-apps-manifest.cda1ec81993ad59c.json",
     "firstmeasure": "firstmeasure.88074127c11b59f6.json",
     "help": "help.4e2ac450338e5e8c.json",
-    "invoices": "invoices.062dd776b754cc9a.json",
+    "invoices": "invoices.b450f78a9d3d513f.json",
     "materials": "materials.e2e4d91b1187673b.json",
     "measurements": "measurements.6f9adaec78e7c0ed.json",
     "money": "money.7f28e4627f945508.json",
@@ -217,6 +218,7 @@
     "platform-offline": "platform-offline.1777e1b3d6dcd63b.json",
     "camera-capture": "camera-capture.f9b8fa50a31d8c47.json",
     "document-scanner": "document-scanner.645a174f8d5d9578.json",
-    "automations-hub": "automations-hub.c4e3454365cb72af.json"
+    "automations-hub": "automations-hub.c4e3454365cb72af.json",
+    "doc-viewer": "doc-viewer.f5f2a1bb90aa56de.json"
   }
 }

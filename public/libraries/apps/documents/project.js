@@ -5581,6 +5581,39 @@
     }
 
     /**
+     * The document as it reads, in a host's own frame, with the viewer's controls (zoom, print, download): the
+     * company document viewer (GP-69, libraries/doc-viewer) shows documents with it. A locked document shows as it
+     * was sent, anything else as it resolves now, as Preview does.
+     */
+    function mountEmbeddedViewer(host, docRecord, options = {}){
+      const doc = objectValue(docRecord);
+      let viewer = null;
+      let gone = false;
+      host.innerHTML = `<div class="fmdx-state" style="margin:20px"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_b86508131600f7","Opening document") ?? "Opening document")}</strong></div>`;
+      (async () => {
+        if (!doc.id) throw new Error('This document has nothing to show yet.');
+        let renderOptions = isReadOnlyStatus(doc.status) ? await frozenRenderOptions(doc) : null;
+        let resolved = null;
+        if (!renderOptions) {
+          resolved = objectValue(await api().documents.resolve(orgId(), doc.id));
+          renderOptions = {
+            document: resolved.resolved_definition,
+            theme: resolved.theme,
+            themeContext: { branding: objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding), overrides: objectValue(resolved.theme_vars) },
+            widgetData: resolved.widget_data,
+            widgetContext: { outputs: objectValue(doc.outputs) }
+          };
+        }
+        if (gone || !host.isConnected) return;
+        viewer = mountDocViewer(host, { doc, initialZoom: options.initialZoom || 'width', resolved, renderOptions });
+      })().catch((error) => {
+        if (gone || !host.isConnected) return;
+        host.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-eye-slash"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
+      });
+      return { destroy(){ gone = true; try { viewer?.destroy?.(); } catch (e) {} viewer = null; host.innerHTML = ''; } };
+    }
+
+    /**
      * "Edit manually": the document exactly as it will be sent (FMDocSentEditor,
      * docs/architecture/document-as-sent-editing.md). Values from the data
      * write the data and other text is saved as a text override, both through
@@ -6330,6 +6363,8 @@
         },
         startFromTemplate: (templateId, opts = {}) => startFromTemplate(cleanText(templateId), objectValue(opts)),
         openPreview: (doc, options = {}) => openPreview(objectValue(doc), options),
+        // The document as it reads, inside the host's own element (the company document viewer, GP-69). Returns { destroy }.
+        mountViewer: (host, doc, options = {}) => mountEmbeddedViewer(host, objectValue(doc), objectValue(options)),
         openSendModal: (doc) => openSendModal(objectValue(doc)),
         openPresentation: () => openPresentation(),
         downloadPdf: (doc, button) => downloadPdf(objectValue(doc), button || null),

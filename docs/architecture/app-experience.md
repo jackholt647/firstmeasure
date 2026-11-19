@@ -201,6 +201,18 @@ renderer full screen. Its manifest entry says `placement: 'more'` and
 `placementWithoutAppsMenu: 'settings'`, so without the apps overlay it is only
 in Settings.
 
+The company Documents app (`portal.documents`, GP-69) is placed the same way: in
+More apps, never pinned by default. It lists every document of the company and
+opens each one in the document viewer (`public/libraries/doc-viewer`): a modal
+that mounts the project Documents engine (`project.documents`) for the
+document's project and shows the page with its viewer, and what can be done
+with the document in a column on the right ("Edit document" opens the engine's
+own document screen over it). The Invoices app opens each invoice in the same
+viewer (the invoice's document, `POST /invoices/:id/document`) with the
+invoice's actions in that column, and global search opens documents in the
+Documents app and invoices in Invoices. The project window's Documents tab does
+not use the modal and is unchanged.
+
 ## The mobile top bar
 
 On a phone (the portal at 820px or narrower) the bar above search shows the
