@@ -171,6 +171,23 @@ export const WORKFORCES: readonly TeamAnswer[] = Object.freeze([
   answer("workforce", "subcontractors", "Subcontractors", "Outside companies do the work for us.", false),
   answer("workforce", "crews_and_subs", "Crews and subcontractors", "Some work is ours, some goes to outside companies.", true)
 ]);
+/**
+ * How new leads become jobs (GP-119): four questions about how the company runs, in its own words, which the
+ * Automations Hub setup turns into its flow (scopes/flow-setup.ts). Ids only grow; the questions' copy is the setup's.
+ *   job_known   when a lead comes in, do they already know what the job is: yes (almost always), mostly, no
+ *   first_call  do they call every new lead before anything else
+ *   visit       do they meet the customer (an appointment or inspection) before giving a price
+ *   handoff     once sold, the same person runs the job, or it is handed to someone else (production)
+ */
+export const LEAD_FLOW_ANSWERS = Object.freeze({
+  job_known: ["yes", "mostly", "no"],
+  first_call: ["yes", "no"],
+  visit: ["yes", "no"],
+  handoff: ["same", "separate"]
+} as const);
+export type LeadFlow = { [K in keyof typeof LEAD_FLOW_ANSWERS]: (typeof LEAD_FLOW_ANSWERS)[K][number] };
+/** What every organization starts with: the one pipeline, from new lead to finished job (the MVP platform's). */
+export const DEFAULT_LEAD_FLOW: LeadFlow = Object.freeze({ job_known: "yes", first_call: "no", visit: "no", handoff: "same" });
 export const salesTeamOf = (id: string) => SALES_TEAMS.find((entry) => entry.id === id) || null;
 export const workforceOf = (id: string) => WORKFORCES.find((entry) => entry.id === id) || null;
 

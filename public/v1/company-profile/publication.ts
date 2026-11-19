@@ -21,6 +21,7 @@ const profileSchema = z.object({
   sales_team: z.string().nullable(), sales_team_label: z.string().nullable(), sales_is_team: z.boolean(),
   workforce: z.string().nullable(), workforce_label: z.string().nullable(), workforce_is_team: z.boolean(),
   locations: z.number().int().nullable(),
+  lead_flow: z.object({ job_known: z.string().nullable(), first_call: z.string().nullable(), visit: z.string().nullable(), handoff: z.string().nullable(), answered: z.boolean() }).strict(),
   answered: z.object({ type: z.boolean(), services: z.boolean(), sales_team: z.boolean(), workforce: z.boolean(), locations: z.boolean() }).strict(),
   updated_at: z.string().nullable(), revision: z.number().int()
 }).strict();
@@ -41,7 +42,7 @@ export function registerCompanyProfilePublication() {
   if (registered) return;
   registered = true;
   registerDataProvider({ id: "company-profile", version: "1", apps: ["onboarding"], exports: {
-    profile: { description: "What kind of company the organization is (its company type, industry and CRM pack), the kinds of work it does, with the measurement schema of each, who sells and who does most of the work, and how many locations it works out of. `answered` says which parts have been answered.",
+    profile: { description: "What kind of company the organization is (its company type, industry and CRM pack), the kinds of work it does, with the measurement schema of each, who sells and who does most of the work, how many locations it works out of, and how new leads become jobs (lead_flow: job_known yes|mostly|no, first_call yes|no, visit yes|no, handoff same|separate; GP-119). `answered` says which parts have been answered.",
       schema: json(profileSchema), schemaVersion: "1", access: readAccess,
       read: async (ctx) => { const value = await readCompanyProfile(ctx.organizationId); return { value, revision: String(value.revision) }; } },
     catalog: { description: "The kinds of company and kinds of work a company profile can name, with their copy keys, search terms and each type's suggested services, and the answers to who sells and who does the work. Data that only grows.",
@@ -50,7 +51,7 @@ export function registerCompanyProfilePublication() {
   } });
   const input = companyProfilePatchSchema;
   registerAction({ id: "company-profile.save", version: "1", domain: "organization", implementation: backendImplementationDigest(),
-    description: "Save part of the company profile: the kind of company (an id from the catalog, or other with the person's words), the kinds of work it does, who does its sales (sales_team), who does most of its work (workforce) and how many locations it works out of (locations, 1 to 20). Parts not given are kept.",
+    description: "Save part of the company profile: the kind of company (an id from the catalog, or other with the person's words), the kinds of work it does, who does its sales (sales_team), who does most of its work (workforce), how many locations it works out of (locations, 1 to 20) and how new leads become jobs (lead_flow: any of job_known yes|mostly|no, first_call yes|no, visit yes|no, handoff same|separate; the Automations Hub setup saves it and builds the flow from it with automations.setup.apply). Parts not given are kept.",
     inputSchema: json(input) as Record<string, unknown>, outputSchema: json(profileSchema) as Record<string, unknown>,
     effect: "write", idempotency: "required", executionKinds: ["api", "agent", "module"],
     policy: { scopes: ["organization"], permissions: ["manage_company_settings"] },
