@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Laskutustietoja ei voitu ladata. Yritä uudelleen.",
-    "full_exterior": "Koko ulkopuoli"
+    "full_exterior": "Koko ulkopuoli",
+    "stripe_receipt_credits_currency": {
+      "message": "{amount} saldoa lisätty FirstMate-saldoosi. Kattoraportit veloitetaan tästä saldosta; sinua ei veloiteta uudelleen ennen kuin lataat saldoa.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "{amount} krediittiä lisätty FirstMate-saldoosi. Kattoraportit veloitetaan tästä saldosta; sinua ei veloiteta uudelleen ennen kuin lataat saldoa.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Kattomittauskrediitit",
+    "stripe_line_credits_bonus": "Kattomittauskrediitit ja määräaikainen bonus",
+    "stripe_line_added": {
+      "message": "{amount} lisätty FirstMate-tilillesi",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "{paid} ostettu + {bonus} määräaikainen bonus ({percent} %:n bonus) = {total} lisätty tilillesi",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. Sisältää ALV:n.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "Kaikki",

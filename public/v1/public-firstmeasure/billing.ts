@@ -3,7 +3,7 @@ import { readGlobal, saveGlobal, mutateGlobal } from "../platform/storage.js";
 import { badRequest, forbidden } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
 import { firstMeasureReportAmount } from "../firstmeasure/pricing.js";
-import { stripeCreditReceiptDescription } from "../payments/stripe_receipt.js";
+import { stripeCreditReceiptDescription, stripeCustomerLocaleFields, stripeReceiptLocale } from "../payments/stripe_receipt.js";
 import { asObject, cleanText, moneyAmount, numericValue, stableHash } from "./util.js";
 import { withPublicFirstMeasureLock } from "./locks.js";
 
@@ -289,6 +289,12 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
     auto_topup: { status: "processing", last_attempt_utc: now, last_error: null }
   }, "api_autotopup_attempted", { balance_after_spend: balanceAfterSpend, threshold_dollars: threshold, topup_dollars: topup });
 
+  // FM-622: Stripe's receipt (its email and our description on it) is in the organization's language.
+  const locale = await stripeReceiptLocale(orgId);
+  const localeFields = stripeCustomerLocaleFields(stripe, locale);
+  if (localeFields && (await stripeApiRequest("POST", `/v1/customers/${encodeURIComponent(customerId)}`, localeFields).catch(() => null))?.success) {
+    await stripePatchBilling(orgId, { stripe: { preferred_locale: localeFields["preferred_locales[0]"] } });
+  }
   const result = await stripeApiRequest("POST", "/v1/payment_intents", {
     amount: creditMinorAmount(topup, profile),
     currency: profile.currency.toLowerCase(),
@@ -296,7 +302,7 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
     payment_method: paymentMethodId,
     off_session: "true",
     confirm: "true",
-    description: stripeCreditReceiptDescription(topup, profile),
+    description: await stripeCreditReceiptDescription(topup, profile, locale),
     "metadata[org_id]": orgId,
     "metadata[source]": "public_firstmeasure_api",
     "metadata[trigger_reason]": cleanText(triggerEntry.reason),

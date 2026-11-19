@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Impossibile caricare i dati di fatturazione. Riprova.",
-    "full_exterior": "Esterno completo"
+    "full_exterior": "Esterno completo",
+    "stripe_receipt_credits_currency": {
+      "message": "{amount} di credito aggiunti al tuo saldo FirstMate. I report del tetto vengono scalati da questo saldo; non ti verrà addebitato nulla finché non ricarichi.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "{amount} crediti aggiunti al tuo saldo FirstMate. I report del tetto vengono scalati da questo saldo; non ti verrà addebitato nulla finché non ricarichi.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Crediti per misurazioni del tetto",
+    "stripe_line_credits_bonus": "Crediti per misurazioni del tetto con bonus a tempo limitato",
+    "stripe_line_added": {
+      "message": "{amount} aggiunti al tuo account FirstMate",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "{paid} acquistati + {bonus} di bonus a tempo limitato (bonus del {percent}%) = {total} aggiunti al tuo account",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. IVA inclusa.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "Tutti",
