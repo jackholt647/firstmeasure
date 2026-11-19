@@ -139,6 +139,13 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     return {ok:true,channel:await (await import('./photo-comments.js')).ensurePhotoDiscussion(ctx,getParam(request.params,"mediaId"))};
   });
 
+  // A project document that is not a media file (an invoice, a delivered report) has its own discussion (GP-68).
+  app.post("/organizations/:orgId/channels/document", async request => {
+    const ctx=await noteAuth(request,getParam(request.params,"orgId"),{csrf:true});
+    const body=request.body&&typeof request.body==="object"?request.body as Record<string,unknown>:{};
+    return {ok:true,channel:await (await import('./document-comments.js')).ensureDocumentDiscussion(ctx,body)};
+  });
+
   app.post("/organizations/:orgId/channels/project/:projectId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await noteAuth(request, orgId, { csrf: true });

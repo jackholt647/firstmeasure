@@ -1019,6 +1019,10 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
         ? { project:projectId, projectTab:'photos', projectNote:null, photo:photoId, photoScope:'project' }
         : { project:projectId, projectTab:'photos', projectNote:null, photo:null, photoScope:null };
     }
+    if (source === 'open_project_document') {
+      const documentId = firstText(action.document_id, action.documentId);
+      return { project:projectId, projectTab:'docs', projectNote:null, photo:null, photoScope:null, document:documentId || null };
+    }
     if (source === 'open_project_note' || source === 'project_note' || source === 'open_project_message' || source === 'project_message') {
       const noteId = firstText(action.message_id, action.messageId, action.note_id, action.noteId, context.message_id, context.note_id, context.noteId, comment.id);
       return {
@@ -1115,7 +1119,7 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
     if (!route || !window.Portal?.navigation?.navigate) return false;
     window.Portal.navigation.navigate(route, {
       source:'notification-mention',
-      ownedKeys:['project', 'projectTab', 'projectNote', 'photo', 'photoScope']
+      ownedKeys:['project', 'projectTab', 'projectNote', 'photo', 'photoScope', 'document']
     });
     return true;
   }

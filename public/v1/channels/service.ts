@@ -292,6 +292,13 @@ function canAccessProjectChannels(ctx: PlatformAuthContext) {
   return hasPermission(ctx, "view_projects|manage_company_settings|crew.projects.view");
 }
 
+/** A channel holding the comments on one item (a photo, or a project document that is not a media file, GP-68)
+ * rather than a project's notes. Its settings name the item and only the item's own adapter writes them. */
+function itemDiscussion(channel: ChannelRow) {
+  return !!(cleanText(channel.settings.photo_media_id) || cleanText(channel.settings.document_project_id));
+}
+const ITEM_DISCUSSION_SETTINGS = ["photo_media_id", "photo_comments_imported", "document_project_id", "document_id"];
+
 export function canManageChannels(ctx: PlatformAuthContext) {
   return hasPermission(ctx, "manage_channels");
 }
@@ -310,13 +317,15 @@ export function limitedToProjectNotes(ctx: PlatformAuthContext) {
 export async function requireChannelAccess(ctx: PlatformAuthContext, channelId: string, options: { write?: boolean; post?: boolean } = {}) {
   const channel = (await readChannelRecord(ctx.orgId, channelId));
   if (!channel) throw notFound("channel_not_found", "This channel does not exist.");
-  if (projectNotesOnly.has(ctx) && channel.type !== "project" && !channel.settings.photo_media_id) throw notFound("channel_not_found", "This channel does not exist.");
+  if (projectNotesOnly.has(ctx) && channel.type !== "project" && !itemDiscussion(channel)) throw notFound("channel_not_found", "This channel does not exist.");
   const membership = (await readChannelMember(channel.id, ctx.userId));
   const departmentMembers=await departmentChannelMembers(channel);
   if(departmentMembers&&!departmentMembers.includes(ctx.userId))throw forbidden('channel_forbidden','You are not a member of this department channel.');
   if (channel.type === "feed" && !hasFeedGrant(ctx)) throw notFound("channel_not_found", "This channel does not exist.");
   if (channel.settings.photo_media_id) {
     await (await import("./photo-comments.js")).authorizePhotoDiscussion(ctx,cleanText(channel.settings.photo_media_id),!!(options.write || options.post));
+  } else if (channel.settings.document_project_id) {
+    await (await import("./document-comments.js")).authorizeDocumentDiscussion(ctx,cleanText(channel.settings.document_project_id));
   } else if (requiresChannelMembership(channel)) {
     // Ordinary channels are member-only, including for organization admins.
     if (!membership && !departmentMembers?.includes(ctx.userId)) throw forbidden("channel_forbidden", "You are not a member of this channel.");
@@ -371,7 +380,7 @@ export async function messageNotificationVisible(ctx: PlatformAuthContext, note:
   if (message) {
     const groups = viewerAudienceGroups(ctx);
     if (message.channel_id !== channelId || message.deleted_at || !messageVisibleTo(message, ctx, groups)) return false;
-    if (await separateProjectNotes(ctx) && message.metadata.project_note === true && !access.channel.settings.photo_media_id && note.kind !== 'mention') return false;
+    if (await separateProjectNotes(ctx) && message.metadata.project_note === true && !itemDiscussion(access.channel) && note.kind !== 'mention') return false;
     if (message.parent_id) {
       const root = await readMessageRecord(ctx.orgId, message.parent_id);
       if (!root || root.channel_id !== channelId || root.deleted_at || !messageVisibleTo(root, ctx, groups)) return false;
@@ -558,7 +567,7 @@ export async function personalInbox(ctx: PlatformAuthContext, options: { limit?:
     if (channelId && !channelById.has(channelId)) {
       try {
         const { channel } = await requireChannelAccess(ctx, channelId);
-        if (channel.archived_at || channel.settings.photo_media_id || channel.type === 'project' && note.kind === 'mention') channelById.set(channelId, await channelView(ctx, channel));
+        if (channel.archived_at || itemDiscussion(channel) || channel.type === 'project' && note.kind === 'mention') channelById.set(channelId, await channelView(ctx, channel));
       } catch { /* Removed members cannot see an old private-channel alert. */ }
     }
     const messageId = cleanText(action.message_id || context.message_id || payload.message_id || event.message_id);
@@ -648,7 +657,7 @@ async function publishMessageEvent(topic: string, channel: ChannelRow, message: 
   if (channel.type === "feed") return; // Feed clients poll only the authorized post; no organization-wide body broadcast.
   // Audience-restricted messages are announced as stubs so the body never
   // reaches a connection the read API would have filtered; clients refetch.
-  const payload: JsonObject = channel.settings.photo_media_id || messageIsAudienceRestricted(message) || message.deleted_at || !hydrated
+  const payload: JsonObject = itemDiscussion(channel) || messageIsAudienceRestricted(message) || message.deleted_at || !hydrated
     ? { channel_id: channel.id, channel_type: channel.type, project_id: channel.project_id, message_id: message.id, seq: message.seq, parent_id: message.parent_id, stub: true }
     : { channel_id: channel.id, channel_type: channel.type, project_id: channel.project_id, message: hydrated, seq: message.seq, parent_id: message.parent_id };
   (await publishRealtimeEvent({ organization_id: channel.organization_id, topic, user_ids: (await realtimeTargets(channel)), payload }));
@@ -832,7 +841,7 @@ async function channelView(ctx: PlatformAuthContext, channel: ChannelRow, extras
     display_name: displayName || channel.name,
     topic: channel.topic,
     project_id: channel.project_id,
-    separate_notes: channel.type === "project" && !channel.settings.photo_media_id && await separateProjectNotes(ctx),
+    separate_notes: channel.type === "project" && !itemDiscussion(channel) && await separateProjectNotes(ctx),
     archived_at: channel.archived_at,
     message_seq: channel.message_seq,
     last_message_at: channel.last_message_at,
@@ -861,7 +870,7 @@ export async function listChannelsForUser(ctx: PlatformAuthContext, options: { i
   for(const channel of all){const members=await departmentChannelMembers(channel);if(members){if(members.includes(ctx.userId))membershipIds.add(channel.id);else membershipIds.delete(channel.id);}}
   const canSeeProjects = canAccessProjectChannels(ctx);
   const visible = all.filter((channel) => {
-    if (channel.settings.photo_media_id) return false;
+    if (itemDiscussion(channel)) return false;
     if (requiresChannelMembership(channel)) return membershipIds.has(channel.id);
     if (channel.type === "project") return membershipIds.has(channel.id) && canSeeProjects && channel.last_message_at;
     return true;
@@ -1092,7 +1101,7 @@ export async function getChannel(ctx: PlatformAuthContext, channelId: string) {
 
 export async function updateChannel(ctx: PlatformAuthContext, channelId: string, patch: { name?: string; topic?: string; settings?: JsonObject }) {
   const { channel } = await requireChannelAccess(ctx, channelId);
-  if (channel.settings.photo_media_id || patch.settings && (Object.hasOwn(patch.settings,"photo_media_id") || Object.hasOwn(patch.settings,"photo_comments_imported"))) throw badRequest("photo_discussion_owned", "Photo discussions are managed with their media.");
+  if (itemDiscussion(channel) || patch.settings && ITEM_DISCUSSION_SETTINGS.some(key => Object.hasOwn(patch.settings!, key))) throw badRequest("photo_discussion_owned", "Photo and document discussions are managed with their item.");
   if (!(await channelAdminAllowed(ctx, channel))) throw forbidden("permission_denied", "Only channel admins can update this channel.");
   if (channel.type === "dm" || channel.type === "group_dm") throw badRequest("dm_not_editable", "Direct messages cannot be renamed.");
   if(patch.settings&&Object.hasOwn(patch.settings,'department_id')&&patch.settings.department_id!==channel.settings.department_id)throw badRequest('department_channel_owned','Department channels are managed in department settings.');
@@ -1203,7 +1212,7 @@ export async function removeMember(ctx: PlatformAuthContext, channelId: string, 
 export async function listMessages(ctx: PlatformAuthContext, channelId: string, options: { before?: number; after?: number; limit?: number; author_ids?:string[]; view?: "messages" | "notes" | "all" }) {
   const { channel } = await requireChannelAccess(ctx, channelId);
   const groups = viewerAudienceGroups(ctx);
-  const records=await listMessageRecords(ctx.orgId, channelId, { ...options, parentId: null, projectNotes: options.view === "notes" ? true : channel.type !== "project" || channel.settings.photo_media_id ? undefined : false });
+  const records=await listMessageRecords(ctx.orgId, channelId, { ...options, parentId: null, projectNotes: options.view === "notes" ? true : channel.type !== "project" || itemDiscussion(channel) ? undefined : false });
   const raw=records.filter(message=>messageVisibleTo(message,ctx,groups));
   const messages = await hydrateMessages(ctx, channel, raw);
   const limit=Math.min(Math.max(Number(options.limit)||50,1),200);
@@ -1755,7 +1764,7 @@ export async function shareProjectNote(ctx: PlatformAuthContext, messageId: stri
   const {channel} = await requireChannelAccess(ctx, initial.channel_id, {post:true});
   if (channel.type !== "project" || initial.parent_id || initial.metadata.project_note !== true || initial.deleted_at || !messageVisibleTo(initial, ctx, viewerAudienceGroups(ctx)))
     throw notFound("message_not_found", "This note is not available.");
-  if (!channel.settings.photo_media_id) throw badRequest("project_notes_separate", "Project notes stay in Notes and cannot be shared to the project channel.");
+  if (!itemDiscussion(channel)) throw badRequest("project_notes_separate", "Project notes stay in Notes and cannot be shared to the project channel.");
   return getChannelsDatabase().transaction(async db => {
     // Serialize two simultaneous shares on the source row before checking its marker.
     await db.prepare("UPDATE messages SET metadata_json=metadata_json WHERE organization_id=? AND id=?").run(ctx.orgId, messageId);
@@ -1769,7 +1778,7 @@ export async function shareProjectNote(ctx: PlatformAuthContext, messageId: stri
     }
     const actor = cleanText(ctx.identity.name) || "A teammate";
     const posted = await postMessage(ctx, channel.id, {
-      text:`${actor} shared ${channel.settings.photo_media_id ? 'a comment' : 'a note'}`, ...(channel.settings.photo_media_id ? {project_note:true} : {}), client_msg_id:`note-share:${messageId}`, audience:note.audience,
+      text:`${actor} shared ${itemDiscussion(channel) ? 'a comment' : 'a note'}`, ...(itemDiscussion(channel) ? {project_note:true} : {}), client_msg_id:`note-share:${messageId}`, audience:note.audience,
       forwarded_message_id:messageId, forward_include_attachments:true
     });
     const shared = {message_id:posted.message!.id, user_id:ctx.userId, at:nowIso()};
@@ -1786,7 +1795,7 @@ export async function pinnedMessages(ctx: PlatformAuthContext, channelId: string
   const { channel } = await requireChannelAccess(ctx, channelId);
   const groups = viewerAudienceGroups(ctx);
   const pinned = (await listPinnedMessages(ctx.orgId, channelId)).filter((message) => messageVisibleTo(message, ctx, groups));
-  const separate = channel.type === "project" && !channel.settings.photo_media_id;
+  const separate = channel.type === "project" && !itemDiscussion(channel);
   return hydrateMessages(ctx, channel, pinned.filter(message => separate ? (message.metadata.project_note === true) === (view === "notes") : view !== "notes" || message.metadata.project_note === true));
 }
 
@@ -2806,6 +2815,8 @@ async function notifyMentions(ctx: PlatformAuthContext, channel: ChannelRow, mes
     const photo = channel.settings.photo_media_id ? await (await import("../platform/storage.js")).readMediaMetadata(ctx.orgId, cleanText(channel.settings.photo_media_id)) : null;
     const frontendAction = channel.settings.photo_media_id
       ? { kind: "open_project_photo", project_id: asObject(photo?.owner).id, photo_id: channel.settings.photo_media_id, channel_id: channel.id, message_id: message.id, parent_id: message.parent_id }
+      : channel.settings.document_project_id
+      ? { kind: "open_project_document", project_id: channel.settings.document_project_id, document_id: channel.settings.document_id, channel_id: channel.id, message_id: message.id, parent_id: message.parent_id }
       : channel.type === "project"
       ? { kind: "open_project_message", project_id: channel.project_id, channel_id: channel.id, message_id: message.id, parent_id: message.parent_id }
       : { kind: "open_channel_message", channel_id: channel.id, message_id: message.id, parent_id: message.parent_id };

@@ -59,3 +59,23 @@ test('media permissions are rechecked for existing discussions and cannot be swa
  await assert.rejects(()=>domain.updateChannel({...ctx('owner'),permissions:{...ctx('owner').permissions,manage_channels:true}},channel.id,{settings:{photo_media_id:'photo-a'}}));
  await media('receipt',{source:'expense_receipt_upload',uploaded_by_user_id:'sales'});const receipt=await photos.ensurePhotoDiscussion(ctx('sales'),'receipt');await assert.rejects(()=>domain.postMessage(ctx('office'),String(receipt.id),{text:'Cannot edit another person receipt',project_note:true}));
 });
+test('a project document that is not a media file has its own discussion, with the project\'s access (GP-68)',async()=>{
+ const platform=await import('../platform/storage.js');await platform.upsertDocument(org,'projects',{id:'project',data:{title:'Project'}});
+ const documents=await import('../channels/document-comments.js');
+ const [a,repeated]=await Promise.all([documents.ensureDocumentDiscussion(ctx('owner'),{project_id:'project',document_id:'invoice:inv-1',title:'INV-1'}),documents.ensureDocumentDiscussion(ctx('crew'),{project_id:'project',document_id:'invoice:inv-1'})]);
+ assert.equal(a.id,repeated.id);assert.notEqual(a.id,channel.id);
+ const b=await documents.ensureDocumentDiscussion(ctx('owner'),{project_id:'project',document_id:'roof_report_pdf'});assert.notEqual(a.id,b.id);
+ const posted=await domain.postMessage(ctx('crew'),String(a.id),{text:'Looks right',project_note:true});
+ assert.deepEqual((await domain.listMessages(ctx('office'),String(a.id),{view:'notes'})).messages.map(row=>row.id),[posted.message!.id]);
+ assert.equal((await domain.listMessages(ctx('owner'),String(b.id),{view:'all'})).messages.length,0);assert.equal((await domain.listMessages(ctx('owner'),channel.id,{view:'notes'})).messages.some(row=>row.id===posted.message!.id),false);
+ assert.ok(!(await domain.listChannelsForUser(ctx('owner'),{initialize:false})).some(row=>row.id===a.id));
+ const realtime=await import('../platform/realtime.js');const event=(await realtime.pollRealtimeEvents(org,'office',0)).events.find((row:any)=>row.topic==='channels.message.created'&&row.payload.message_id===posted.message!.id);assert.equal(event?.payload.stub,true);
+ const outsider={...ctx('office'),permissions:{send_channel_messages:true}} as PlatformAuthContext;
+ await assert.rejects(()=>documents.ensureDocumentDiscussion(outsider,{project_id:'project',document_id:'invoice:inv-1'}));
+ await assert.rejects(()=>domain.listMessages(outsider,String(a.id),{view:'all'}));await assert.rejects(()=>domain.postMessage(outsider,String(a.id),{text:'Denied',project_note:true}));
+ await assert.rejects(()=>documents.ensureDocumentDiscussion(ctx('owner'),{project_id:'missing',document_id:'invoice:inv-1'}));
+ await assert.rejects(()=>documents.ensureDocumentDiscussion(ctx('owner'),{project_id:'project',document_id:''}));
+ const manager={...ctx('owner'),permissions:{...ctx('owner').permissions,manage_channels:true}} as PlatformAuthContext;
+ await assert.rejects(()=>domain.updateChannel(manager,String(a.id),{name:'Renamed'}));
+ await assert.rejects(()=>domain.updateChannel(manager,channel.id,{settings:{document_project_id:'project',document_id:'x'}}));
+});
