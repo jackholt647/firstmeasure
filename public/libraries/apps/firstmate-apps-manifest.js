@@ -39,7 +39,7 @@
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20261118-fm551-reply'),
-    versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'),
+    versionedBundle('photos/feed.js', '20261119-gp116-feed-open'),
     versionedBundle('../markup/firstmate-markup.js', '20261118-fm617-editdock'),
     versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'),
     versionedBundle('../project-notes/project-notes.js', '20261111-offline-uploads'),
@@ -132,7 +132,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'), versionedBundle('photos/feed.js', '20261119-gp116-feed-open')]
     },
     {
       id: 'portal.receipts',
@@ -143,7 +143,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'receipts',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'), versionedBundle('receipts/app.js', '20261119-gp109')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('photos/feed.js', '20261119-gp116-feed-open'), versionedBundle('receipts/app.js', '20261119-gp109')]
     },
     {
       // DEPRECATED (2026-08): legacy proposals surface — hidden by its bundle
@@ -215,7 +215,7 @@
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261119-gp102-focal'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261119-gp96-styles-2'),
         versionedBundle('../doc-sent-editor/firstmate-doc-sent-editor.js', '20261026-mobile-documents-2'),
-        versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'),
+        versionedBundle('photos/feed.js', '20261119-gp116-feed-open'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -243,7 +243,7 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261118-fm608-payments-off'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261119-gp102-focal'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261119-gp96-styles-2'),
-        versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'),
+        versionedBundle('photos/feed.js', '20261119-gp116-feed-open'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -296,7 +296,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261119-gp69'), versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'), versionedBundle('receipts/app.js', '20261119-gp109'), versionedBundle('money/project.js', '20261119-gp109')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261119-gp69'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261119-gp69'), versionedBundle('photos/feed.js', '20261119-gp116-feed-open'), versionedBundle('receipts/app.js', '20261119-gp109'), versionedBundle('money/project.js', '20261119-gp109')]
     },
     {
       id: 'project.request',
@@ -568,7 +568,7 @@
         versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261118-fm551-reply'),
-        versionedBundle('photos/feed.js', '20261119-gp62-unassigned-cards'),
+        versionedBundle('photos/feed.js', '20261119-gp116-feed-open'),
     versionedBundle('../markup/firstmate-markup.js', '20261118-fm617-editdock'),
     versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'),
     versionedBundle('../project-notes/project-notes.js', '20261111-offline-uploads'),
