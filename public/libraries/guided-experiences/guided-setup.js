@@ -198,7 +198,9 @@
       if (!steps.length) return resolve({ status: 'satisfied' });
       const orgId = clean(root.__APP?.userOrgId);
       // The agent is the platform assistant itself, in the person's own project conversation (the one the tray shows).
-      let agentic = kind === 'agentic' && !!here.projectId && !!orgId && !!root.AssistantAPI && typeof root.PlatformAssistant?.mountProject === 'function';
+      // A modal setup can call it in when a step needs it (a pay sheet to read, GP-28): `canAgent` says it can be.
+      const canAgent = !!here.projectId && !!orgId && !!root.AssistantAPI && typeof root.PlatformAssistant?.mountProject === 'function';
+      let agentic = kind === 'agentic' && canAgent;
       // A setup opened from another one for a known answer (Operations' Proposals card opens the document setup for a
       // proposal, FM-607) starts with that answer and at the step after the question it answers; Back stops there.
       const selections = { ...object(experience.progress?.data), ...object(ctx.options?.selections) };
@@ -299,7 +301,7 @@
       const previousFocus = document.activeElement;
 
       // The agent: a platform assistant instance running this setup as a preprogrammed workflow.
-      if (agentic) {
+      function mountAgent(){
         try {
           assistant = root.PlatformAssistant.mountProject($('.gxs-assistant'), {
             orgId, projectId: here.projectId,
@@ -327,6 +329,15 @@
           console.warn('The setup could not open the assistant; it continues without it.', error);
           agentic = false; host.dataset.kind = 'modal'; assistant = null;
         }
+      }
+      if (agentic) mountAgent();
+      /** Calls the agent in beside a modal setup, the way an agentic one starts (the sheet makes room for it). */
+      function ensureAgent(){
+        if (assistant || closed || !canAgent) return assistant;
+        agentic = true; host.dataset.kind = 'agentic';
+        mountAgent();
+        refit();
+        return assistant;
       }
       /** The agent's scripted lines, shown in the assistant as it would type them. */
       /** `at` is the step (or 'done') whose lines these are: their keys match the ones the server stores. */
@@ -378,19 +389,22 @@
        * send it naming that assignee's key, so the agent writes their pay sheet (pay-sheets.try, pay-sheets.sheet.save).
        */
       function laborPaySheet(entry){
-        if (!assistant) return null;
+        if (!assistant && !canAgent) return null;
         return new Promise((resolve) => {
           const picker = document.createElement('input'); picker.type = 'file'; picker.accept = '.csv,.xlsx,.xls,.pdf,.txt,.png,.jpg,.jpeg';
           picker.addEventListener('change', async () => {
             const files = [...(picker.files || [])];
             if (!files.length) return resolve(null);
+            // A modal setup (the workforce setup) calls the agent in now, beside it.
+            if (!ensureAgent()) return resolve(null);
             chat.dataset.open = 'true';
             track('question', { step_id: steps[index]?.id, properties: { upload: true, assignee: clean(entry?.name) } });
             const saved = array(object((await saveDraft())?.labor).assignees).find((row) => clean(row.name).toLowerCase() === clean(entry?.name).toLowerCase() && row.kind === entry.kind);
             const ref = saved?.ref || entry.ref;
             const key = ref?.type && ref?.id ? `${ref.type}:${ref.id}` : '';
             const message = `${L('gx_lab_sheet_message', 'Here is the pay sheet for')} ${clean(entry?.name)}${key ? ` (assignee ${key})` : ''}. ${L('gx_lab_sheet_ask', 'Please set up how they are paid for roofing from it.')}`;
-            resolve(await assistant?.sendWithFiles?.(message, files));
+            await assistant?.sendWithFiles?.(message, files);
+            resolve(true);
           }, { once: true });
           picker.click();
         });
@@ -467,7 +481,7 @@
         // goes into the selections the completion reads.
         const global = step.setup_step || null;
         if (global && !answers[step.id]) answers[step.id] = {};
-        mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, answer: global ? answers[step.id] : null, L, H, esc, money, where:here, orgId, read: readData, actions: el.querySelector('.gxs-title-actions'), priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant ? laborPaySheet : null,
+        mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, answer: global ? answers[step.id] : null, L, H, esc, money, where:here, orgId, read: readData, actions: el.querySelector('.gxs-title-actions'), priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant || canAgent ? laborPaySheet : null,
           advance:()=>next(false), complete:completeDirectly, nested:!!ctx.options?.nested,
           // A step that hides the sheet's footer (handlesNavigation) has its own Back: to the step before this one; and
           // says when its own steps change, so the phone's back walks them first (FM-604).
@@ -876,6 +890,19 @@
       let disposed=false, handle=null;
       el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
       import(new URL('./equipment-setup.js?v=20261119-gp15c',scriptUrl).href).then(module=>{
+        if(!disposed)handle=module.mount(el,ctx);
+      }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
+      return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
+    }
+  });
+  // The workforce setup (GP-28): one step with its own pages (who does the work, how many, what each does, how each is
+  // paid, the finish); Back and the phone's back walk its pages. A pay sheet it uploads calls the agent in beside it.
+  registerWidget('workforce-setup', {
+    handlesNavigation:true,
+    render(el,ctx){
+      let disposed=false, handle=null;
+      el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
+      import(new URL('./workforce-setup.js?v=20261119-gp28',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mount(el,ctx);
       }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
       return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};

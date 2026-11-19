@@ -3,12 +3,14 @@ import { listDocuments, upsertDocument, type JsonObject } from "../platform/stor
 import { listMeasurementSchemas, measurementSchemaIdsForScope } from "../platform/publication/measurement-schemas.js";
 import { workItem, workItemsForSchemas } from "../platform/publication/work-items.js";
 import { assigneeSchema, readAssignee, requireActor, requireAssignee, type Actor, type Assignee } from "./assignees.js";
+import { serviceOf } from "../company-profile/catalog.js";
 
 /**
  * What an assignee is able to do, as work items, kept apart from how they are paid: a salaried employee has
  * capabilities and no pay sheet. Capabilities are granted the way permissions are. A kind of work grants every item
- * it requires; a scope the assignee is marked as doing grants the kinds of work that scope works in; single items can
- * be added or taken away on top. An assignee nobody has said anything about is unknown, which is not the same as
+ * it requires; a scope the assignee is marked as doing grants the kinds of work that scope works in; a service the
+ * company offers (company-profile/catalog.ts, as the workforce setup asks "what does each one do", GP-28) grants the
+ * kind of work it is measured as, when it has one; single items can be added or taken away on top. An assignee nobody has said anything about is unknown, which is not the same as
  * unable: nothing is reported against them.
  */
 export const CAPABILITY_COLLECTION = "assignee_capabilities";
@@ -17,6 +19,8 @@ export const capabilityInputSchema = z.object({
   assignee: assigneeSchema,
   /** Kinds of work the assignee does in full. */
   schema_ids: z.array(z.string().trim().min(1).max(80)).max(50).default([]),
+  /** Services from the company profile catalog the assignee does; each one measured as a kind of work grants it. */
+  service_ids: z.array(z.string().trim().min(1).max(80)).max(80).default([]),
   /** Single items on top of those. */
   item_ids: z.array(item).max(300).default([]),
   /** Items they do not do, even though a kind of work or a scope would grant them. */
@@ -25,11 +29,12 @@ export const capabilityInputSchema = z.object({
 }).strict().superRefine((value, context) => {
   const known = new Set(listMeasurementSchemas().map((schema) => schema.id));
   for (const schema of value.schema_ids) if (!known.has(schema)) context.addIssue({ code: z.ZodIssueCode.custom, message: `There is no kind of work called ${schema}.` });
+  for (const service of value.service_ids) if (!serviceOf(service)) context.addIssue({ code: z.ZodIssueCode.custom, message: `${service} is not a service in the company profile catalog.` });
   for (const id of [...value.item_ids, ...value.excluded_item_ids]) if (!workItem(id)) context.addIssue({ code: z.ZodIssueCode.custom, message: `${id} is not in the work item dictionary.` });
 });
 export type Capabilities = {
   assignee: Assignee;
-  schema_ids: string[]; item_ids: string[]; excluded_item_ids: string[]; revision: number;
+  schema_ids: string[]; service_ids: string[]; item_ids: string[]; excluded_item_ids: string[]; revision: number;
   /** Kinds of work granted by the scopes the assignee is marked as doing. */
   scope_schema_ids: string[];
   /** Every item the assignee can do, once grants and exclusions are applied. */
@@ -40,11 +45,11 @@ export type Capabilities = {
 
 const text = (value: unknown) => String(value ?? "").trim();
 const key = (assignee: Assignee) => `${assignee.type}:${assignee.id}`;
-type Declared = Pick<Capabilities, "assignee" | "schema_ids" | "item_ids" | "excluded_item_ids" | "revision">;
+type Declared = Pick<Capabilities, "assignee" | "schema_ids" | "service_ids" | "item_ids" | "excluded_item_ids" | "revision">;
 export async function listDeclaredCapabilities(orgId: string): Promise<Declared[]> {
   return (await listDocuments(orgId, CAPABILITY_COLLECTION)).map((document) => {
     const data = document.data as unknown as Omit<Declared, "revision">;
-    return { assignee: data.assignee, schema_ids: data.schema_ids || [], item_ids: data.item_ids || [], excluded_item_ids: data.excluded_item_ids || [], revision: Number(document.revision || 0) };
+    return { assignee: data.assignee, schema_ids: data.schema_ids || [], service_ids: data.service_ids || [], item_ids: data.item_ids || [], excluded_item_ids: data.excluded_item_ids || [], revision: Number(document.revision || 0) };
   });
 }
 /** The kinds of work a set of scope templates works in. A scope that cannot be read grants nothing. */
@@ -59,10 +64,11 @@ async function scopeSchemas(orgId: string, branchId: string, scopeIds: string[],
   return [...new Set(found)];
 }
 function resolve(assignee: Assignee, declared: Declared | undefined, scopeSchemaIds: string[]): Capabilities {
-  const granted = new Set([...workItemsForSchemas([...(declared?.schema_ids || []), ...scopeSchemaIds]), ...(declared?.item_ids || [])]);
+  const serviceSchemas = (declared?.service_ids || []).map((id) => serviceOf(id)?.work_kind || "").filter(Boolean);
+  const granted = new Set([...workItemsForSchemas([...(declared?.schema_ids || []), ...serviceSchemas, ...scopeSchemaIds]), ...(declared?.item_ids || [])]);
   for (const excluded of declared?.excluded_item_ids || []) granted.delete(excluded);
   return {
-    assignee, schema_ids: declared?.schema_ids || [], item_ids: declared?.item_ids || [], excluded_item_ids: declared?.excluded_item_ids || [], revision: declared?.revision || 0,
+    assignee, schema_ids: declared?.schema_ids || [], service_ids: declared?.service_ids || [], item_ids: declared?.item_ids || [], excluded_item_ids: declared?.excluded_item_ids || [], revision: declared?.revision || 0,
     scope_schema_ids: scopeSchemaIds, items: [...granted].sort(), known: !!declared || scopeSchemaIds.length > 0
   };
 }

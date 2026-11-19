@@ -12,6 +12,9 @@
  *                        resource type writers (MaterialsAPI.resourceTypes) for the organization
  *   Equipment            the Equipment tab itself (portal.equipment through FirstMateEmbeddableApps, its route kept
  *                        to itself), while the organization has the Equipment app on and the person may see the fleet
+ *   Workforce            who does the work (GP-28): the crews and subcontractors, what each does, who is on a crew and
+ *                        how each is paid, as the workforce setup (operations.workforce.setup) saved them
+ *                        (workforce-setup.status); its button plays that setup again over this window
  * These are the Materials app's settings: with the app off (platform.materials) there are none, so Settings has no
  * Materials section (FM-394: Calculations alone showed it to FirstMeasure organizations without the app; they keep it
  * in Settings › Reports). With the app on, a sub-tab shows only when the organization has its feature on and the person
@@ -74,7 +77,14 @@
       tip:() => t('materials_settings_tip_equipment', 'Your fleet, its types and the facilities it is kept at'),
       // The Equipment tab's own checks: the app on (apps.equipment) and a permission its fleet routes accept.
       allowed:() => flag('apps', 'equipment') && ['equipment.view', 'equipment.manage', 'equipment.service', 'manage_company_settings'].some(perm) && typeof root.FirstMateEmbeddableApps?.mount === 'function',
-      mount:mountEquipment }
+      mount:mountEquipment },
+    { id:'workforce', icon:'fa-people-group',
+      label:() => term('workforce.resource_group_plural', t('materials_settings_tab_workforce', 'Workforce')),
+      tip:() => t('materials_settings_tip_workforce', 'Who does the work: your crews and subcontractors, what each does and how you pay them'),
+      // The setup's own checks: company settings and the Materials app; the workforce app is turned on by the setup's
+      // start action, which needs a project, so without one it shows only where the app is already on.
+      allowed:(options) => perm('manage_company_settings') && flag('platform', 'materials') && (flag('apps', 'crew') || !!options?.projectId) && !!root.PlatformAPI?.publication?.read,
+      mount:mountWorkforce }
   ];
 
   function sections(options = {}){
@@ -152,6 +162,11 @@
       .mts-pane[data-mts-pane="equipment"]{overflow:hidden;background:#fff}.mts-equipment{position:relative;overflow:auto}
       .mts-state{margin:auto;display:flex;flex-direction:column;align-items:center;gap:10px;padding:40px;color:#667085;font-size:13px;font-weight:600}.mts-state i{font-size:20px;color:#98a2b3}
       .mts-spin{animation:mts-spin 1s linear infinite}@keyframes mts-spin{to{transform:rotate(360deg)}}
+      .mts-wf-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid #eaecf0;border-radius:12px;background:#fff}
+      .mts-wf-icon{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary,#d93025)}
+      .mts-wf-text{flex:1 1 auto;min-width:0}.mts-wf-text strong{display:block;font-size:14px;color:#101828}.mts-wf-text small{display:block;margin-top:2px;font-size:12px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .mts-wf-pay{flex:none;font-size:12.5px;font-weight:650;color:#344054}.mts-wf-empty{margin:8px 0;color:#667085;font-size:13px}.mts-wf-actions{display:flex;justify-content:flex-end;padding-top:6px}
+      @media(max-width:560px){.mts-wf-row{flex-wrap:wrap}.mts-wf-pay{width:100%;padding-left:48px}}
       .mts-cats{width:min(760px,100%);margin:0 auto;padding:18px 16px 28px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px}
       .mts-cat{display:grid;grid-template-columns:38px minmax(0,1fr) auto 34px;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.04);animation:mts-pane-in .26s cubic-bezier(.2,.8,.25,1) both;transition:border-color .15s ease,box-shadow .15s ease}
       .mts-cat:hover{border-color:#d0d5dd;box-shadow:0 4px 14px rgba(16,24,40,.06)}
@@ -234,6 +249,62 @@
       child = handle;
     }).catch(() => { if (!destroyed) fill.innerHTML = stateMarkup('fa-triangle-exclamation', t('materials_settings_equipment_failed', 'Equipment could not load.')); });
     return { destroy(){ destroyed = true; try { child?.destroy?.(); } catch (error) {} } };
+  }
+
+  /**
+   * Who does the work, as the workforce setup saved it: one row per crew and subcontractor with what it does, who is on
+   * it and how it is paid. Changing it plays the setup again, over this window (hidden while it plays).
+   */
+  function mountWorkforce(host, ctx){
+    let destroyed = false;
+    const orgId = () => ctx.orgIdText();
+    const target = () => ({ scope:'organization', organizationId:orgId() });
+    const crew = term('workforce.resource_group_singular', 'Crew'), sub = term('workforce.organization_connection_singular', 'Subcontractor');
+    const money = (rate) => `$${Number(rate).toLocaleString(undefined, { maximumFractionDigits:2 })}`;
+    const unit = (pay) => pay.method === 'hourly' ? t('materials_settings_workforce_per_hour', 'per hour') : pay.method === 'per_job' ? t('materials_settings_workforce_per_job', 'per job') : String(pay.measurement || '').startsWith('roof.squares') || pay.measurement === 'roof.flat_squares' ? t('materials_settings_workforce_per_square', 'per square') : t('materials_settings_workforce_per_foot', 'per foot');
+    const payText = (entry) => !entry.pay ? t('materials_settings_workforce_no_pay', 'Pay not set') : entry.pay.simple && Number(entry.pay.simple.rate) > 0 ? `${money(entry.pay.simple.rate)} ${unit(entry.pay.simple)}` : entry.pay.simple ? t('materials_settings_workforce_no_pay', 'Pay not set') : `${t('materials_settings_workforce_sheet', 'Pay sheet')} · ${entry.pay.lines}`;
+    async function load(){
+      host.innerHTML = `<div class="mts-pane-fill">${stateMarkup('fa-circle-notch', t('materials_settings_loading_workforce', 'Loading who does the work…'), true)}</div>`;
+      try {
+        const result = await root.PlatformAPI.publication.read(orgId(), { provider:'workforce-setup', export:'status', target:target() });
+        if (destroyed) return;
+        const value = result?.result?.value ?? result?.value ?? {};
+        draw(value);
+      } catch (error) { if (!destroyed) host.innerHTML = `<div class="mts-pane-fill">${stateMarkup('fa-triangle-exclamation', t('materials_settings_workforce_failed', 'Who does the work could not load.'))}</div>`; }
+    }
+    function draw(value){
+      const services = new Map((value.profile?.services || []).map((entry) => [entry.id, entry.label]));
+      const rows = value.assignees || [];
+      host.innerHTML = `<div class="mts-cats mts-wf" data-mts-workforce>
+        ${rows.length ? rows.map((entry) => `<div class="mts-wf-row" data-mts-wf="${esc(entry.kind)}:${esc(entry.ref?.id)}">
+          <span class="mts-wf-icon" aria-hidden="true"><i class="fas ${entry.kind === 'resource_group' ? 'fa-people-group' : 'fa-handshake'}"></i></span>
+          <div class="mts-wf-text"><strong>${esc(entry.name)}</strong><small>${esc([entry.kind === 'resource_group' ? crew : sub, (entry.service_ids || []).map((id) => services.get(id) || id).join(', '), entry.kind === 'resource_group' && entry.members ? `${entry.members} ${t('materials_settings_workforce_people', 'people')}` : ''].filter(Boolean).join(' · '))}</small></div>
+          <span class="mts-wf-pay">${esc(payText(entry))}</span>
+        </div>`).join('') : `<p class="mts-wf-empty">${esc(t('materials_settings_workforce_empty', 'Nobody is set up to do the work yet.'))}</p>`}
+        <div class="mts-wf-actions"><button type="button" class="mts-btn" data-mts-wf-setup><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>${esc(rows.length ? t('materials_settings_workforce_change', 'Change in the setup') : t('materials_settings_workforce_start', 'Set up who does the work'))}</button></div>
+      </div>`;
+      host.querySelector('[data-mts-wf-setup]').addEventListener('click', (event) => play(event.currentTarget));
+    }
+    async function play(button){
+      const guides = root.FirstMateGuides;
+      if (!guides?.play) { ctx.toast(t('materials_settings_workforce_unavailable', 'The setup is not available here.'), 'error'); return; }
+      button.disabled = true;
+      const overlay = host.closest('.mts-overlay');
+      try {
+        // In a project, the setup's start turns the workforce app on (as Operations' Workforce card does).
+        if (ctx.projectId) {
+          await root.PlatformAPI.publication.invoke(orgId(), 'operations.workforce.setup.start', { scope:'project', organizationId:orgId(), projectId:ctx.projectId }, {}, { idempotencyKey:`operations.workforce.start:${orgId()}:${crypto.randomUUID()}` });
+          await Promise.all([root.PlatformAPI.capabilities?.load?.(orgId(), { refresh:true }), root.PlatformAPI.appFlags?.load?.(orgId(), { refresh:true })]).catch(() => null);
+          await root.Portal?.auth?.syncPlatformSession?.()?.catch?.(() => null);
+        }
+        if (overlay) overlay.style.visibility = 'hidden';
+        const outcome = await guides.play('operations.workforce.setup', { replay:true, force:true });
+        if (outcome?.status === 'unavailable') ctx.toast(t('materials_settings_workforce_unavailable', 'The setup is not available here.'), 'error');
+      } catch (error) { ctx.toast(error?.message || t('materials_settings_workforce_unavailable', 'The setup is not available here.'), 'error'); }
+      finally { if (overlay) overlay.style.visibility = ''; if (!destroyed) load(); }
+    }
+    load();
+    return { reload:load, destroy(){ destroyed = true; } };
   }
 
   // In Settings there is no project: the organization's resource types, written through the same routes project.js uses.
@@ -352,7 +423,8 @@
     suppliers:() => [t('materials_settings_ask_suppliers_1', 'Set my supplier costs from a price sheet.'), t('materials_settings_ask_suppliers_2', 'Which items does no supplier carry?')],
     calculations:() => [t('materials_settings_ask_calculations_1', 'How is the shingle quantity worked out?'), t('materials_settings_ask_calculations_2', 'Use 12% waste on every roof.')],
     categories:() => [t('materials_settings_ask_categories_1', 'Add a category for dumpsters.')],
-    equipment:() => [t('materials_settings_ask_equipment_1', 'Which equipment can haul debris?')]
+    equipment:() => [t('materials_settings_ask_equipment_1', 'Which equipment can haul debris?')],
+    workforce:() => [t('materials_settings_ask_workforce_1', 'Which crews do gutters?')]
   };
   function mountAgent(host, shell, ctx){
     let wasPending = false;
