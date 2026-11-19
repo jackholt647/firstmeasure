@@ -471,7 +471,7 @@
       bundles: [
         versionedBundle('../financials-api/financials-api.js', '20260715-financial-read-model'),
         versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
-        versionedBundle('financials/app.js', '20260930-app-groups-v1')
+        versionedBundle('financials/app.js', '20261119-gp53-portal-font')
       ]
     },
     {
