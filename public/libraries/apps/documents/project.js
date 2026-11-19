@@ -459,7 +459,8 @@
     const entry = { back, dismiss: null };
     const forget = () => { const at = openModals.indexOf(entry); if (at >= 0) openModals.splice(at, 1); };
     const close = () => { forget(); back.remove(); options.onClose?.(); modalsChanged(); };
-    const tray = options.tray && isPhone() ? phoneTray(back, back.querySelector('.fmdx-modal'), close) : null;
+    const sheet = back.querySelector('.fmdx-modal');
+    const tray = options.tray && isPhone() ? phoneTray(back, sheet, close) : null;
     const dismiss = tray ? tray.dismiss : close;
     // Back: a wizard's own Back while it shows one, otherwise the dialog closes (and leaves the list at once).
     entry.dismiss = () => {
@@ -472,9 +473,23 @@
     document.body.appendChild(back);
     openModals.push(entry);
     modalsChanged();
-    // shape(tray, change): a tray dialog runs change() as a tray (true) or full screen (false); elsewhere it just runs it.
+    // shape(tray, change): a tray dialog runs change() as a tray (true) or full screen (false); elsewhere it just runs
+    // it. Either way the dialog's height moves from where it was to where change() leaves it (GP-124).
     // away(): a tray steps out of the way of what opens behind it; it returns a call that brings it back.
-    return { el: back, body: back.querySelector('.fmdx-modal'), close, shape: tray ? tray.shape : (on, change) => change?.(), away: tray?.away };
+    let resizing = null;
+    const shape = tray ? tray.shape : (on, change) => { resizing = morphHeight(sheet, change, resizing); };
+    return { el: back, body: sheet, close, shape, away: tray?.away };
+  }
+  const stillMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  /** Runs change() and animates the dialog's height from what it was to what change() makes it; returns the animation. */
+  function morphHeight(sheet, change, running){
+    const from = sheet.getBoundingClientRect().height;
+    running?.cancel();
+    change?.();
+    if (!sheet.isConnected || stillMotion() || typeof sheet.animate !== 'function') return null;
+    const to = sheet.getBoundingClientRect().height;
+    if (!from || Math.abs(from - to) < 2) return null;
+    return sheet.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' });
   }
   // The dialogs open on this page, newest last, so the phone's back control closes the one on top (FM-579). Each
   // Documents tab watches them to keep its back history (backHistory) one entry per dialog.
@@ -490,22 +505,14 @@
    * its top down or tapping the page above it puts it away.
    */
   function phoneTray(back, sheet, close){
-    const still = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const still = stillMotion;
     back.classList.add('fmdx-tray-back');
     // A tray dims the page like the bottom bar's sheets, never blurs it: the window manager's backdrop pass leaves it be (FM-572).
     back.dataset.fmWindowBackdrop = 'off';
     sheet.classList.add('fmdx-tray');
     let resizing = null;
     function shape(tray, change){
-      const from = sheet.getBoundingClientRect().height;
-      resizing?.cancel();
-      sheet.classList.toggle('fmdx-tray-full', !tray);
-      change?.();
-      if (!sheet.isConnected || still() || typeof sheet.animate !== 'function') return;
-      const to = sheet.getBoundingClientRect().height;
-      if (!from || Math.abs(from - to) < 2) return;
-      resizing = sheet.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' });
-      resizing.onfinish = resizing.oncancel = () => { resizing = null; };
+      resizing = morphHeight(sheet, () => { sheet.classList.toggle('fmdx-tray-full', !tray); change?.(); }, resizing);
     }
     let leaving = false;
     function dismiss(){
@@ -3057,9 +3064,11 @@
         // always shows its results; with nothing pinned there is nothing to fold behind.
         const foldable = !query && pinned.length > 0;
         const folded = foldable && !picker.libraryOpen;
-        // A tray stays at its full height while it searches or shows the library, so the search box does not move as it types.
-        modal.body.classList.toggle('fmdx-tray-tall', !!query || !folded);
+        // While it searches the dialog stays at its full height, so the search box does not move as it types; otherwise
+        // it is as tall as what it shows, the opened library too (GP-124).
+        modal.body.classList.toggle('fmdx-tray-tall', !!query);
         modal.body.classList.toggle('fmdx-create-folded', folded);
+        modal.body.classList.toggle('fmdx-create-fit', !query);
         const deptChips = departments().length > 1 ? `
           <div class="fmdx-fchips" role="group" aria-label="${esc(state.departmentContext.departments_label || 'Departments')}">
             ${departments().map((dept) => `<button type="button" class="fmdx-fchip ${selectedDepartments().has(dept.id) ? 'on' : ''}" data-pick-department="${esc(dept.id)}" aria-pressed="${selectedDepartments().has(dept.id)}">${esc(dept.label)}</button>`).join('')}
@@ -3199,7 +3208,7 @@
             }
           });
         };
-        modal.shape?.(false, () => { modal.body.classList.remove('fmdx-create-folded'); draw(); });
+        modal.shape?.(false, () => { modal.body.classList.remove('fmdx-create-folded', 'fmdx-create-fit'); draw(); });
       }
 
       /** Start the chosen document: paper intake, its workflow, or the inputs form. */
@@ -3300,7 +3309,7 @@
       }
 
       async function renderStepTwo(){
-        modal.shape?.(false, () => { body.innerHTML = '<div class="fmdx-state" style="min-height:140px"><div class="fmdx-spinner"></div></div>'; });
+        modal.shape?.(false, () => { modal.body.classList.remove('fmdx-create-fit'); body.innerHTML = '<div class="fmdx-state" style="min-height:140px"><div class="fmdx-spinner"></div></div>'; });
         const meta = typeMeta(wizard.type, catalog.types);
         const catalogType = arrayValue(catalog.types).find((t) => firstText(t.id, t.type) === wizard.type) || {};
         const templateDef = wizard.template ? await templateDefinition(wizard.template) : null;

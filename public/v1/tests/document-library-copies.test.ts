@@ -96,6 +96,32 @@ test("an untouched copy follows a newer library revision; an edited one is left 
   assert.equal((await state(template, ctx.orgId, own.id)).state, "library");
 });
 
+test("an untouched copy takes a renamed entry's name; a copy the organization renamed keeps its own until it is reset (GP-124)", async () => {
+  const { ctx, copies, library, kinds, store } = await organization();
+  const template = kinds.libraryKind("document_template");
+  const given = (await store.readDocumentTemplate(ctx.orgId, "tpl_roofing_paper_upload")).name;
+  // A copy made before its library name was recorded: named by its first revision.
+  await store.patchDocumentTemplate(ctx.orgId, "tpl_roofing_paper_upload", { metadata: { library_name: "" } }, ctx);
+  revise(library, "document_template", "tpl_roofing_paper_upload", (data) => { data.name = "Paper upload"; });
+  await copies.ensureDefaultDocumentAssets(ctx.orgId, ctx, { refresh: true });
+  const renamed = await store.readDocumentTemplate(ctx.orgId, "tpl_roofing_paper_upload");
+  assert.notEqual(given, "Paper upload");
+  assert.equal(renamed.name, "Paper upload");
+  assert.equal(renamed.metadata.library_name, "Paper upload");
+  assert.equal(renamed.metadata.preset, true);
+  assert.equal((await state(template, ctx.orgId, "tpl_roofing_paper_upload")).state, "library");
+
+  // The organization's own name (Studio renames with a patch) outlasts the library's next name.
+  await store.patchDocumentTemplate(ctx.orgId, "tpl_roofing_paper_upload", { name: "Signed paper contract" }, ctx);
+  revise(library, "document_template", "tpl_roofing_paper_upload", (data) => { data.name = "Paper contract upload"; });
+  await copies.ensureDefaultDocumentAssets(ctx.orgId, ctx, { refresh: true });
+  const own = await store.readDocumentTemplate(ctx.orgId, "tpl_roofing_paper_upload");
+  assert.equal(own.name, "Signed paper contract");
+  assert.equal((await state(template, ctx.orgId, "tpl_roofing_paper_upload")).state, "library", "the definition still follows");
+  await template.orgCopies.reset(ctx, "tpl_roofing_paper_upload");
+  assert.equal((await store.readDocumentTemplate(ctx.orgId, "tpl_roofing_paper_upload")).name, "Paper contract upload", "a reset takes the library's name back");
+});
+
 test("a copy from before the library is stamped, not republished; an older one is upgraded", async () => {
   const { ctx, copies, kinds, store } = await organization();
   const workflow = kinds.libraryKind("document_workflow");

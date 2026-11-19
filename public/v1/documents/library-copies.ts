@@ -124,10 +124,22 @@ async function copyDefinition(asset: Asset, orgId: string, entry: AnyEntry) {
  * Makes or republishes an organization's copy of one entry, as a system preset (it stays untouched). Used for a new
  * copy, an upgrade of an untouched one, and a reset (which overwrites an edited copy too).
  */
-async function writeCopy(asset: Asset, orgId: string, entry: AnyEntry, existing: JsonObject | null, ctx: PlatformAuthContext | null) {
+/**
+ * The name the library gave a copy (GP-124): recorded in `metadata.library_name` since; a copy made before was named
+ * by its first revision. A copy the organization renamed keeps its own name when the library's changes.
+ */
+async function libraryGivenName(asset: Asset, orgId: string, copy: JsonObject) {
+  const recorded = text(obj(copy.metadata).library_name);
+  if (recorded) return recorded;
+  const { reconstructRevision } = await import("./versions/history.js");
+  const first = await reconstructRevision(orgId, KIND[asset], text(copy.id), 1).catch(() => null);
+  return text(obj(first?.state).name);
+}
+
+async function writeCopy(asset: Asset, orgId: string, entry: AnyEntry, existing: JsonObject | null, ctx: PlatformAuthContext | null, options: { reset?: boolean } = {}) {
   const data = entry.data as DocumentTemplateEntry & DocumentWorkflowEntry & DocumentThemeEntry;
   const definition = await copyDefinition(asset, orgId, entry);
-  const metadata: JsonObject = { ...obj(clone(data.metadata || {})), preset: true, preset_id: entry.id, library: libraryStamp(entry as LibraryEntry) as unknown as JsonObject };
+  const metadata: JsonObject = { ...obj(clone(data.metadata || {})), preset: true, preset_id: entry.id, library: libraryStamp(entry as LibraryEntry) as unknown as JsonObject, library_name: data.name };
   const store = STORE[asset] as unknown as {
     create(org: string, input: JsonObject, ctx: PlatformAuthContext | null, options: { systemPreset?: boolean }): Promise<JsonObject>;
     publish(org: string, id: string, input: JsonObject, ctx: PlatformAuthContext | null, options: { systemPreset?: boolean }): Promise<JsonObject>;
@@ -140,7 +152,12 @@ async function writeCopy(asset: Asset, orgId: string, entry: AnyEntry, existing:
       definition, metadata: { ...obj(clone(data.initial_metadata || {})), ...metadata }
     }, ctx, { systemPreset: true });
   }
-  return await store.publish(orgId, entry.id, { definition, expected_version: Number(existing.current_version || 0), metadata }, ctx, { systemPreset: true });
+  // An untouched copy follows a renamed entry; a reset takes the library's name back.
+  const rename = data.name && text(existing.name) !== data.name && (options.reset || text(existing.name) === await libraryGivenName(asset, orgId, existing));
+  const published = await store.publish(orgId, entry.id, { definition, expected_version: Number(existing.current_version || 0), metadata }, ctx, { systemPreset: true });
+  if (!rename) return published;
+  const patch = STORE[asset].patch as (org: string, id: string, patch: JsonObject, ctx: PlatformAuthContext | null) => Promise<JsonObject>;
+  return await patch(orgId, entry.id, { name: data.name }, ctx);
 }
 
 /**
@@ -359,7 +376,7 @@ export async function resetDocumentCopy(asset: Asset, ctx: PlatformAuthContext, 
   const entry = libraryEntry(KIND[asset], id) as AnyEntry | null;
   if (!entry) return null;
   if (asset === "template") await ensureTemplateWorkflow(ctx.orgId, entry as LibraryEntry<DocumentTemplateEntry>, ctx);
-  const copy = await writeCopy(asset, ctx.orgId, entry, await readCopy(asset, ctx.orgId, id), ctx);
+  const copy = await writeCopy(asset, ctx.orgId, entry, await readCopy(asset, ctx.orgId, id), ctx, { reset: true });
   return { id, version: Number(obj(copy).current_version || 0) };
 }
 
