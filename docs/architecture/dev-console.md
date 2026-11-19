@@ -185,7 +185,10 @@ with its variants (the one chosen solid) and its pages (one the chosen variant s
 off, faded); and **then**, the tours and setups each plays or starts next. A line is a reason: blue, a question asked
 before the setup or page; purple, a condition that holds for the company shown; grey dashed, one that does not; dotted,
 what plays next. Hovering a node (tapping on a phone) lights up what it touches and says why in a tooltip: the rules
-with ✓ and ✗, the pages a variant plays, where a page branches.
+with ✓ and ✗, the pages a variant plays, where a page branches. A guided setup's pages are folded under its title until
+opened (GP-30): the chevron beside the title, with the number of pages, opens or folds one setup, and **Open all** in
+the bar opens or folds every one; what is open stays open while the page is. A folded page's lines end at its setup's
+title, one line per question however many pages ask it.
 
 **Show for** plays it as another kind of company: This organization, any company type in the catalog, Other, or Not
 answered yet. Only the company facts change (`simulatedContext`); whether apps are on and the caller's permissions
@@ -226,4 +229,5 @@ remembering, the phone tab and More entry, resizing across the project frame) an
 `tests/development-layers-browser.test.mjs` (Setup, its test overlay with the real player in its frame, the
 phone width, roll back, software layers and synthetic data at desktop and phone widths), `tests/dev-console-dock-browser.test.mjs` (docking: fixed
 layers, vw, media queries, matchMedia, innerWidth, a modal, a frame, folded, open,
-expanded, and a phone not docked).
+expanded, and a phone not docked), `public/v1/tests/setup-drivers-browser.test.mjs` (What drives setup: setups
+folded by default with their lines to the title, opening one or all, desktop and phone).

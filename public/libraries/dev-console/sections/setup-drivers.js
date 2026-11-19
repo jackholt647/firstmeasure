@@ -4,7 +4,8 @@
  * industry sets, services) and the other facts conditions read, the guided setups with their variants and pages, and
  * what each plays next. A line is why: a question asked before a setup or one of its pages, a fact a setup's or a
  * variant's condition reads (solid when it holds for the company shown, dashed when not), a follow-up. Hover or tap
- * anything for the detail. "Show for" plays it as another kind of company (only the company facts change; apps and
+ * anything for the detail. A setup's pages are folded under its title until opened (GP-30); a folded page's lines are
+ * drawn to the title. "Show for" plays it as another kind of company (only the company facts change; apps and
  * permissions stay this organization's); "By company type" is every kind at once: which setups and variants each gets.
  * GET /v1/signup-sandbox/development/console/setup/drivers?company_type=… (development/setup-drivers.ts). Reads only.
  */
@@ -28,6 +29,8 @@ const TRIGGERS = { tab_opened: ['dc_setup_map_t_tab', 'Opens with the tab', 'fa-
   after_experience: ['dc_setup_map_t_after', 'After', 'fa-forward-step'], app_loaded: ['dc_setup_map_t_app', 'When the app loads', 'fa-bolt'], workflow_opened: ['dc_setup_map_t_workflow', 'When a document workflow opens', 'fa-file-lines'],
   panel_opened: ['dc_setup_map_t_panel', 'When a panel opens', 'fa-table-cells'], panel_closed: ['dc_setup_map_t_panel_closed', 'When a panel closes', 'fa-table-cells'], manual: ['dc_setup_map_t_manual', 'Started by a button', 'fa-play'] };
 let shown = 'actual', view = 'diagram';
+/** Setups whose pages are open; every other one is folded (GP-30). Kept while the page is open. */
+const unfolded = new Set();
 
 export function openDrivers({ api, T, esc, phone }) {
   document.querySelector('.fm-dc-map')?.dispatchEvent(new Event('fm-dc-map-close'));
@@ -39,6 +42,7 @@ export function openDrivers({ api, T, esc, phone }) {
   shell.innerHTML = `<header class="fm-dc-map-bar">
       <span class="fm-dc-map-title"><strong>${esc(T('dc_setup_map_title', 'What drives setup'))}</strong><small data-map-state>${esc(T('dc_setup_map_loading', 'Reading…'))}</small></span>
       <label class="fm-dc-map-pick"><span>${esc(T('dc_setup_map_show_for', 'Show for'))}</span><select data-map-company></select></label>
+      <button type="button" class="fm-dc-btn fm-dc-map-fold-all" data-map-fold-all aria-pressed="false"><i class="fas fa-angles-down" aria-hidden="true"></i><span>${esc(T('dc_setup_map_expand_all', 'Open all'))}</span></button>
       <span class="fm-dc-map-views" role="group">${[['diagram', 'fa-diagram-project', T('dc_setup_map_view_diagram', 'Diagram')], ['matrix', 'fa-table-cells', T('dc_setup_map_view_matrix', 'By company type')]].map(([key, icon, label]) => `<button type="button" data-map-view="${key}" aria-pressed="${key === view}" title="${esc(label)}"><i class="fas ${icon}" aria-hidden="true"></i><span>${esc(label)}</span></button>`).join('')}</span>
       <button type="button" class="fm-dc-btn" data-map-close aria-label="${esc(T('dc_setup_test_close', 'Close'))}" title="${esc(T('dc_setup_test_close', 'Close'))}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
     </header>
@@ -124,14 +128,17 @@ export function openDrivers({ api, T, esc, phone }) {
       : field === 'organization.services' ? `${value.length}` : valueText(field, value);
     return `<button type="button" class="fm-dc-map-node fm-dc-map-f" data-map-node="f:${esc(field)}"><i class="fas ${fieldIcon(field)}" aria-hidden="true"></i><span>${esc(fieldLabel(field))}${shownValue ? `<b>${esc(shownValue)}</b>` : ''}</span></button>`;
   }
+  const foldable = (setup) => setup.group === 'setup' && setup.pages.length > 0;
   function setupHtml(setup) {
-    const state = setupState(setup), plays = played(setup);
+    const state = setupState(setup), plays = played(setup), fold = foldable(setup), open = unfolded.has(setup.id);
     const icon = state === 'off' ? 'fa-lock' : state === 'not' ? 'fa-ban' : setup.group === 'setup' ? 'fa-wand-magic' : 'fa-route';
-    return `<div class="fm-dc-map-card" data-state="${state}">
-      <button type="button" class="fm-dc-map-node fm-dc-map-s" data-map-node="s:${esc(setup.id)}"><i class="fas ${icon}" aria-hidden="true"></i><span>${esc(setup.title)}</span>
+    const foldLabel = `${open ? T('dc_setup_map_fold', 'Hide its pages') : T('dc_setup_map_unfold', 'Show its pages')} (${setup.pages.length})`;
+    return `<div class="fm-dc-map-card" data-state="${state}"${fold ? ` data-open="${open}"` : ''}>
+      <div class="fm-dc-map-head"><button type="button" class="fm-dc-map-node fm-dc-map-s" data-map-node="s:${esc(setup.id)}"><i class="fas ${icon}" aria-hidden="true"></i><span>${esc(setup.title)}</span>
         <span class="fm-dc-map-trig">${setup.triggers.map((trigger) => `<i class="fas ${(TRIGGERS[trigger.kind] || TRIGGERS.manual)[2]}" aria-hidden="true"></i>`).join('')}</span></button>
+        ${fold ? `<button type="button" class="fm-dc-map-fold" data-map-fold="${esc(setup.id)}" aria-expanded="${open}" aria-label="${esc(foldLabel)}" title="${esc(foldLabel)}"><small>${setup.pages.length}</small><i class="fas fa-chevron-down" aria-hidden="true"></i></button>` : ''}</div>
       ${setup.variants.length > 1 ? `<span class="fm-dc-map-variants">${setup.variants.map((variant) => `<button type="button" class="fm-dc-map-node fm-dc-map-v" data-map-node="v:${esc(setup.id)}:${esc(variant.id)}" data-chosen="${variant.chosen}">${esc(variant.id)}${variant.chosen && variant.share < 1 ? ` <small>${Math.round(variant.share * 100)}%</small>` : ''}</button>`).join('')}</span>` : ''}
-      ${setup.group === 'setup' && setup.pages.length ? `<ol class="fm-dc-map-pages">${setup.pages.map((page) => `<li><button type="button" class="fm-dc-map-node fm-dc-map-p" data-map-node="p:${esc(setup.id)}:${esc(page.id)}" data-played="${plays.has(page.id) && page.apps_on}">${page.branches.length ? '<i class="fas fa-code-branch" aria-hidden="true"></i>' : ''}${page.apps_on ? '' : '<i class="fas fa-lock" aria-hidden="true"></i>'}<span>${esc(page.title)}</span></button></li>`).join('')}</ol>` : ''}
+      ${fold ? `<ol class="fm-dc-map-pages"${open ? '' : ' hidden'}>${setup.pages.map((page) => `<li><button type="button" class="fm-dc-map-node fm-dc-map-p" data-map-node="p:${esc(setup.id)}:${esc(page.id)}" data-played="${plays.has(page.id) && page.apps_on}">${page.branches.length ? '<i class="fas fa-code-branch" aria-hidden="true"></i>' : ''}${page.apps_on ? '' : '<i class="fas fa-lock" aria-hidden="true"></i>'}<span>${esc(page.title)}</span></button></li>`).join('')}</ol>` : ''}
     </div>`;
   }
 
@@ -156,21 +163,26 @@ export function openDrivers({ api, T, esc, phone }) {
     observer = new ResizeObserver(() => drawEdges());
     observer.observe(stage.querySelector('[data-map-canvas]'));
   }
+  /** Where a line ends: the node itself, or for a page folded away its setup's title. */
   const anchorOf = (key) => {
     const el = stage.querySelector(`[data-map-node="${CSS.escape(key)}"]`);
-    if (!el) return null;
-    // A page or variant inside a card is drawn to; a folded one points at its card.
-    return el.getClientRects().length ? el : null;
+    if (el?.getClientRects().length) return el;
+    const parent = stage._graph.nodes.get(key)?.parent;
+    return parent ? anchorOf(parent) : null;
   };
   function drawEdges() {
     const canvas = stage.querySelector('[data-map-canvas]'), svg = canvas?.querySelector('svg');
     if (!svg || !stage._graph) return;
     const box = canvas.getBoundingClientRect();
     svg.setAttribute('width', canvas.scrollWidth); svg.setAttribute('height', canvas.scrollHeight);
-    const paths = [];
+    const paths = [], drawn = new Set();
     for (const [index, edge] of stage._graph.edges.entries()) {
       const a = anchorOf(edge.from), b = anchorOf(edge.to);
       if (!a || !b) continue;
+      // Several pages of a folded setup asked after one question are one line to its title.
+      const same = `${a.dataset.mapNode}>${b.dataset.mapNode}:${edge.kind}:${edge.on ?? ''}`;
+      if (drawn.has(same)) continue;
+      drawn.add(same);
       const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
       const x1 = ra.right - box.left, y1 = ra.top + ra.height / 2 - box.top, x2 = rb.left - box.left, y2 = rb.top + rb.height / 2 - box.top;
       const bend = Math.max(30, Math.abs(x2 - x1) / 2);
@@ -309,6 +321,29 @@ export function openDrivers({ api, T, esc, phone }) {
     </div>`;
   }
 
+  function syncFoldAll() {
+    const all = data && view === 'diagram' && data.setups.filter(foldable).every((setup) => unfolded.has(setup.id));
+    const button = shell.querySelector('[data-map-fold-all]'), label = all ? T('dc_setup_map_collapse_all', 'Fold all') : T('dc_setup_map_expand_all', 'Open all');
+    button.setAttribute('aria-pressed', String(!!all)); button.title = label;
+    button.querySelector('span').textContent = label;
+    button.querySelector('i').className = `fas ${all ? 'fa-angles-up' : 'fa-angles-down'}`;
+  }
+  /** Open or fold setups' pages in place; the lines follow. */
+  function setFold(ids, open) {
+    for (const id of ids) {
+      open ? unfolded.add(id) : unfolded.delete(id);
+      const card = stage.querySelector(`[data-map-fold="${CSS.escape(id)}"]`)?.closest('.fm-dc-map-card');
+      if (!card) continue;
+      const setup = data.setups.find((entry) => entry.id === id), label = `${open ? T('dc_setup_map_fold', 'Hide its pages') : T('dc_setup_map_unfold', 'Show its pages')} (${setup.pages.length})`;
+      const button = card.querySelector('[data-map-fold]');
+      card.dataset.open = String(open); button.setAttribute('aria-expanded', String(open)); button.title = label; button.setAttribute('aria-label', label);
+      card.querySelector('.fm-dc-map-pages').hidden = !open;
+    }
+    // A pinned page that folded away lets go; the rest stays lit.
+    if (pinned && !stage.querySelector(`[data-map-node="${CSS.escape(pinned)}"]`)?.getClientRects().length) { pinned = ''; blur(); }
+    hideTip(); drawEdges(); syncFoldAll();
+  }
+
   function render() {
     if (!data) return;
     hideTip(); pinned = '';
@@ -326,6 +361,7 @@ export function openDrivers({ api, T, esc, phone }) {
     shell.querySelectorAll('[data-map-view]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.mapView === view)));
     shell.dataset.view = view;
     view === 'matrix' ? renderMatrix() : renderDiagram();
+    syncFoldAll();
   }
   async function load() {
     const mine = ++token;
@@ -348,6 +384,9 @@ export function openDrivers({ api, T, esc, phone }) {
     if (event.target.closest('[data-map-close]')) { close(); return; }
     const pick = event.target.closest('[data-map-view]');
     if (pick) { view = pick.dataset.mapView; render(); return; }
+    const fold = event.target.closest('[data-map-fold]');
+    if (fold) { setFold([fold.dataset.mapFold], !unfolded.has(fold.dataset.mapFold)); return; }
+    if (event.target.closest('[data-map-fold-all]')) { if (!data) return; const ids = data.setups.filter(foldable).map((setup) => setup.id); setFold(ids, !ids.every((id) => unfolded.has(id))); return; }
     const show = event.target.closest('[data-map-show]');
     if (show) { shown = show.dataset.mapShow; view = 'diagram'; load(); return; }
     const node = event.target.closest('[data-map-node]');

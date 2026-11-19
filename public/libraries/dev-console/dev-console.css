@@ -159,6 +159,15 @@
 .fm-dc-map-s>i:first-child{color:var(--map-accent)}
 .fm-dc-map-card[data-state=not] .fm-dc-map-s>i:first-child{color:#d92d20}
 .fm-dc-map-trig{flex:none!important;display:inline-flex;gap:4px;color:#98a2b3;font-size:10px}
+.fm-dc-map-head{display:flex;align-items:stretch;gap:2px}
+.fm-dc-map-head>.fm-dc-map-s{flex:1;min-width:0}
+.fm-dc-map-fold{flex:none;display:inline-flex;align-items:center;gap:5px;margin:0;padding:0 8px;border:0;border-radius:7px;background:none;font:inherit;color:var(--map-muted);cursor:pointer}
+.fm-dc-map-fold small{min-width:18px;padding:0 5px;border-radius:999px;background:#f2f4f7;font-size:10.5px;font-weight:600;text-align:center;color:#475467}
+.fm-dc-map-fold i{font-size:10px;transition:transform .12s}
+.fm-dc-map-fold:hover,.fm-dc-map-fold:focus-visible{background:#f4f3ff;color:var(--map-accent);outline:none}
+.fm-dc-map-card[data-open=true] .fm-dc-map-fold i{transform:rotate(180deg)}
+.fm-dc-map-pages[hidden]{display:none}
+.fm-dc-map[data-view=matrix] .fm-dc-map-fold-all{display:none}
 .fm-dc-map-variants{display:flex;flex-wrap:wrap;gap:4px;padding:0 6px 4px}
 .fm-dc-map-v{width:auto;padding:2px 9px;border-radius:999px;font-size:11px;border-style:dashed;color:var(--map-muted)}
 .fm-dc-map-v[data-chosen=true]{border-style:solid;border-color:var(--map-accent);background:#f4f3ff;color:var(--map-accent);font-weight:600}
@@ -204,9 +213,9 @@
 .fm-dc-map-pill[data-tone="3"]{background:#d1fadf;color:#067647}
 .fm-dc-map-pill[data-tone="4"]{background:#fce7f6;color:#c11574}
 .fm-dc-map-pill[data-tone="5"]{background:#f2f4f7;color:#344054}
-@media (max-width:900px){.fm-dc-map-views button span{display:none}}
-@media (max-width:640px){.fm-dc-map-title{flex:1 1 0}.fm-dc-map-bar [data-map-close]{order:1}.fm-dc-map-pick{order:2;flex:1 1 auto}.fm-dc-map-pick select{flex:1;max-width:none}.fm-dc-map-views{order:3}}
-@media (prefers-reduced-motion:reduce){.fm-dc-map-node,.fm-dc-map-edges path{transition:none}}
+@media (max-width:900px){.fm-dc-map-views button span,.fm-dc-map-fold-all span{display:none}}
+@media (max-width:640px){.fm-dc-map-title{flex:1 1 calc(100% - 60px)}.fm-dc-map-bar [data-map-close]{order:1}.fm-dc-map-pick{order:2;flex:1 1 auto;min-width:0}.fm-dc-map-pick select{flex:1;min-width:0;max-width:none}.fm-dc-map-fold-all,.fm-dc-map-views{order:3}}
+@media (prefers-reduced-motion:reduce){.fm-dc-map-node,.fm-dc-map-edges path,.fm-dc-map-fold i{transition:none}}
 
 @media (max-width:640px){
   /* A phone's top bar and search reach the right edge: the strip is a tab in the middle of it. */
