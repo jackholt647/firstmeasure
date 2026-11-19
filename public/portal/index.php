@@ -2541,6 +2541,7 @@ session_write_close();
 <script src="../libraries/phone-features/app-download.js?v=<?= portalAssetVersion('../libraries/phone-features/app-download.js') ?>"></script>
   <script src="../libraries/apps/settings/platform-billing.js?v=<?= portalAssetVersion('../libraries/apps/settings/platform-billing.js') ?>"></script>
   <script src="../libraries/brand-kit/brand-kit.js?v=<?= portalAssetVersion('../libraries/brand-kit/brand-kit.js') ?>"></script>
+  <script src="../libraries/brand-colorize/brand-colorize.js?v=<?= portalAssetVersion('../libraries/brand-colorize/brand-colorize.js') ?>"></script>
   <script src="../libraries/apps/settings/feed.js?v=<?= portalAssetVersion('../libraries/apps/settings/feed.js') ?>"></script>
   <script src="../libraries/apps/settings/phone.js?v=<?= portalAssetVersion('../libraries/apps/settings/phone.js') ?>"></script>
   <script src="../libraries/apps/people/people-kit.js?v=<?= portalAssetVersion('../libraries/apps/people/people-kit.js') ?>"></script>

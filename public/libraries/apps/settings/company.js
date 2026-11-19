@@ -4449,7 +4449,10 @@
     };
     const HOSTED_MONEY_SETTINGS_VIEWS = Object.freeze({
       accounts:{ label:(globalThis.PlatformLanguage?.text("settings","m_3a204df60cc9c8","Accounts") ?? "Accounts"), path:'/settings' },
-      disputes:{ label:(globalThis.PlatformLanguage?.text("settings","m_9b7a2edd995dfe","Disputes") ?? "Disputes"), path:'/disputes' }
+      disputes:{ label:(globalThis.PlatformLanguage?.text("settings","m_9b7a2edd995dfe","Disputes") ?? "Disputes"), path:'/disputes' },
+      // GP-77: the whole merchant portal, interactive, in the organization's brand colour. The person uses it as it
+      // is, so it keeps its own header, scrolling and idle prompt (no renewal timer, no blockers).
+      manage:{ label:(globalThis.PlatformLanguage?.text("settings","m_0e74f1bca1ead4","Manage") ?? "Manage"), path:'/', full:true }
     });
     // Temporary kill switch: the integrity implementation remains bundled and
     // tested, but does not arm until its legitimate state transitions have
@@ -5553,11 +5556,13 @@
           : `<div class="money-iframe-blocker money-iframe-blocker-${view}" data-money-iframe-blocker="${view}" aria-hidden="true"></div>`;
         targetPane.innerHTML = `
           <div class="money-settings-frame" data-money-portal="${view}">
-            <iframe data-money-portal-frame aria-label="${label}" allow="clipboard-write; storage-access" scrolling="no" tabindex="-1" style="visibility:hidden"></iframe>
-            ${iframeBlockers}
+            <iframe data-money-portal-frame aria-label="${label}" allow="clipboard-write; storage-access" ${viewConfig.full ? '' : 'scrolling="no" tabindex="-1" '}style="visibility:hidden"></iframe>
+            ${viewConfig.full ? '' : iframeBlockers}
             ${hostedMoneyLoadingMarkup(viewLabel)}
           </div>`;
         const frame = targetPane.querySelector('[data-money-portal-frame]');
+        // Forward draws its portal in one colour; recolour it to the organization's (GP-77, brand-colorize.js).
+        const detachBrandColor = window.FirstMateBrandColorize?.attach?.(frame) || null;
         let integrityGuard = null;
         mountHostedMoneyFrame(frame, loginUrl, {
           surface:`settings-tab:${view}`,
@@ -5574,7 +5579,7 @@
               frame.__moneyAccountPortalReady?.();
             }
             integrityGuard?.sync?.();
-            if (options.background !== true) scheduleHostedMoneySessionRenewal(view, targetPane, frame, sessionStartedAt);
+            if (options.background !== true && !viewConfig.full) scheduleHostedMoneySessionRenewal(view, targetPane, frame, sessionStartedAt);
             options.onReady?.({ frame, targetPane });
           }
         });
@@ -5599,6 +5604,7 @@
         frame.__moneyPortalFrameCleanup = () => {
           integrityGuard?.disarm?.();
           integrityGuard = null;
+          detachBrandColor?.();
           guardedPortalCleanup?.();
         };
         targetPane.dataset.moneySettingsMounted = '1';
@@ -5619,6 +5625,7 @@
       const selectedView = MONEY_SETTINGS_VIEWS.includes(view) ? view : 'payments';
       paneMoney.dataset.moneyActiveView = selectedView;
       settingsContentCard?.classList.toggle('money-payments-view', selectedView === 'payments');
+      settingsContentCard?.classList.toggle('money-full-portal-view', !!HOSTED_MONEY_SETTINGS_VIEWS[selectedView]?.full);
       if (options.updateRoute !== false && !window.Portal?.navigation?.applying) {
         writeSettingsRoute({ sub:'money', settingsView:selectedView, settingsEntity:'', workflow:'', workflow_step:'' }, { history:options.history || 'push', source:'money-settings-view', ownedKeys:['settingsView', 'settingsEntity', 'workflow', 'workflow_step'] });
       }
@@ -5657,11 +5664,12 @@
         .money-settings-shell,.money-settings-view,.money-settings-frame{width:100%;height:100%;min-height:0}
         .money-settings-shell{position:relative}
         .money-settings-view{overflow:auto}
-        .money-settings-view[data-money-view-pane="accounts"],.money-settings-view[data-money-view-pane="disputes"]{overflow:hidden;overscroll-behavior:none}
+        .money-settings-view[data-money-view-pane="accounts"],.money-settings-view[data-money-view-pane="disputes"],.money-settings-view[data-money-view-pane="manage"]{overflow:hidden;overscroll-behavior:none}
         .money-settings-frame{position:relative;overflow:hidden;background:#fff}
         .money-settings-frame iframe{display:block;width:100%;margin-left:0;margin-top:-60px;height:700px;min-height:700px;max-height:700px;overflow:hidden;border:0;background:#fff;filter:contrast(1.03) hue-rotate(179deg) saturate(1.8)}
         .money-iframe-blocker{position:absolute;z-index:1;pointer-events:auto;background:#fff;border:0}
         .money-iframe-blocker-disputes{top:130px;left:380px;width:120px;height:40px}
+        .money-settings-frame[data-money-portal="manage"] iframe{margin-top:0;height:100%;min-height:640px;max-height:none}
         /* The two pre-workflow screens expose exactly one provider target.
            Their visual buttons and iframe offsets are calibrated separately. */
         .money-settings-frame[data-money-portal="accounts"]{--money-account-content-inline:38px;--money-account-content-top:74px;--money-account-overview-tab-top:24px;--money-account-overview-tab-left:38px;--money-account-overview-tab-width:80px;--money-account-overview-tab-height:25px;--money-account-bank-tab-top:24px;--money-account-bank-tab-left:124px;--money-account-bank-tab-width:122px;--money-account-bank-tab-height:28px;--money-account-overview-body-top:74px;--money-bank-top:39px;--money-bank-left:365px;--money-bank-width:144px;--money-bank-height:18px;--money-overview-iframe-top:-156px;--money-overview-iframe-left:0px;--money-bank-iframe-top:-212px;--money-bank-iframe-left:10px}
@@ -5754,6 +5762,7 @@
         .cs-main>.cs-card:has(#csPaneMoney.active){width:550px;min-width:550px;max-width:550px;padding:0;overflow:hidden}
         .cs-main>.cs-card:not(.money-payments-view):has(#csPaneMoney.active){border-radius:16px;isolation:isolate}
         .cs-main>.cs-card.money-payments-view:has(#csPaneMoney.active){width:100%;min-width:0;max-width:660px;padding:18px;overflow-x:hidden;overflow-y:auto}
+        .cs-main>.cs-card.money-full-portal-view:has(#csPaneMoney.active){width:100%;min-width:0;max-width:none}
         #csPaneMoney[data-money-active-view="payments"],#csPaneMoney[data-money-active-view="payments"] .money-settings-shell,#csPaneMoney[data-money-active-view="payments"] .money-settings-view[data-money-view-pane="payments"]{height:auto;min-height:0;overflow:visible}
         #csPaneMoney .money-settings-frame{border:0;border-radius:15px;contain:paint;clip-path:inset(0 round 15px)}
         #csPaneMoney .money-settings-frame>.fm-tab-loading.is-overlay{border-radius:15px}
@@ -5770,12 +5779,14 @@
         items:[
           { id:'payments', label:(globalThis.PlatformLanguage?.text("settings","m_5842802f6c8cbb","Payments") ?? "Payments") },
           { id:'accounts', label:(globalThis.PlatformLanguage?.text("settings","m_3a204df60cc9c8","Accounts") ?? "Accounts") },
-          { id:'disputes', label:(globalThis.PlatformLanguage?.text("settings","m_9b7a2edd995dfe","Disputes") ?? "Disputes") }
+          { id:'disputes', label:(globalThis.PlatformLanguage?.text("settings","m_9b7a2edd995dfe","Disputes") ?? "Disputes") },
+          { id:'manage', label:(globalThis.PlatformLanguage?.text("settings","m_0e74f1bca1ead4","Manage") ?? "Manage") }
         ]
       }) || `<div class="fm-settings-subtabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_092fc5f2fd5665","Money settings") ?? "Money settings")}">
         <button class="fm-settings-subtab" type="button" role="tab" data-money-view="payments">${(globalThis.PlatformLanguage?.htmlText("settings","m_5842802f6c8cbb","Payments") ?? "Payments")}</button>
         <button class="fm-settings-subtab" type="button" role="tab" data-money-view="accounts">${(globalThis.PlatformLanguage?.htmlText("settings","m_3a204df60cc9c8","Accounts") ?? "Accounts")}</button>
         <button class="fm-settings-subtab" type="button" role="tab" data-money-view="disputes">${(globalThis.PlatformLanguage?.htmlText("settings","m_9b7a2edd995dfe","Disputes") ?? "Disputes")}</button>
+        <button class="fm-settings-subtab" type="button" role="tab" data-money-view="manage">${(globalThis.PlatformLanguage?.htmlText("settings","m_0e74f1bca1ead4","Manage") ?? "Manage")}</button>
       </div>`;
       paneMoney.innerHTML = `
         <div class="money-settings-shell">
@@ -5783,6 +5794,7 @@
           <section class="money-settings-view" data-money-view-pane="payments"></section>
           <section class="money-settings-view" data-money-view-pane="accounts" hidden></section>
           <section class="money-settings-view" data-money-view-pane="disputes" hidden></section>
+          <section class="money-settings-view" data-money-view-pane="manage" hidden></section>
       </div>`;
       panePayments = paneMoney.querySelector('[data-money-view-pane="payments"]');
       if (window.FirstMateSettingsPages?.bindSubTabs) {
@@ -6755,6 +6767,7 @@
             ${String(hostedMoneyLoadingMarkup('Money'))}
           </div>`;
         const frame = overlay.querySelector('[data-mp-portal-frame]');
+        const detachBrandColor = window.FirstMateBrandColorize?.attach?.(frame) || null;
         document.body.appendChild(overlay);
         let closed = false;
         let modalHandle = null;
@@ -6764,6 +6777,7 @@
           closed = true;
           try { modalHandle?.unregister?.(); } catch (error) { /* already gone */ }
           if (fallbackKeydown) document.removeEventListener('keydown', fallbackKeydown, true);
+          detachBrandColor?.();
           overlay.remove();
           mp.portalModal = null;
           if (options.fromRoute !== true && !window.Portal?.navigation?.applying) {
