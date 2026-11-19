@@ -207,6 +207,10 @@ test('Take a Payment wears the Operations Setup pill while online payments are n
   // Setup is started from inside the project window (z-index 2147483200): it has to open above it, below guides.
   const z = Number(setup.match(/\.fmp-modal\{position:fixed;inset:0;z-index:(\d+);/)?.[1]);
   assert.ok(z > 2147483200 && z < 2147483300, `payments setup z-index ${z}`);
+  // Its header looks like the guided setups': a coloured tag with an icon and a round × close, not a grey pill and a "Close" button (GP-75).
+  assert.match(setup, /<span class="fmp-modal-title" aria-hidden="true"><i class="fas fa-[a-z-]+" aria-hidden="true"><\/i><span>Set up payments<\/span><\/span>/);
+  assert.match(setup, /<button type="button" class="fmp-modal-close" data-close aria-label="Close payment setup"[^>]*><span class="fmp-x" aria-hidden="true">&times;<\/span><\/button>/);
+  assert.match(setup, /\.fmp-modal-title\{[^}]*color:var\(--primary,#d93025\)/);
 });
 
 test('the Finance tab placeholder is its one loading message: styled before mount and marked as a status (GP-9)', async () => {
