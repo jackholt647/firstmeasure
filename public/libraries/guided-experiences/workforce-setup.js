@@ -109,6 +109,18 @@ function installStyle(){
   const style = document.createElement('style'); style.id = 'gxw-css'; style.textContent = css; document.head.append(style);
 }
 
+/**
+ * Whether an assignee the organization has is part of its workforce: a group of a type that does the work (the step's
+ * `work_group_types`, library data; a group with no type counts), an outside company with no type the step names as
+ * another kind of partner (`other_company_types`: haul-off, supplier delivery). The rest (a sales team, a dumpster
+ * company) are not shown, counted or saved here.
+ */
+export function inWorkforce(options, entry){
+  const types = array(entry?.type_ids).length ? array(entry.type_ids) : [clean(entry?.type_id)].filter(Boolean);
+  if (entry?.kind === 'resource_group') { const work = array(object(options).work_group_types); return !work.length || !types.length || types.some((id) => work.includes(id)); }
+  const other = array(object(options).other_company_types);
+  return !types.some((id) => other.includes(id));
+}
 /** Which kinds the answer to "who does the work" asks for. */
 export function kindsFor(workforce){
   const id = clean(workforce);
@@ -492,7 +504,7 @@ export function mount(el, ctx){
     status = object(value); profile = object(status.profile);
     workforce = savedWorkforce = clean(profile.workforce);
     const known = new Set(services().map((entry) => entry.id));
-    rows = array(status.assignees).map((entry) => {
+    rows = array(status.assignees).filter((entry) => inWorkforce(options, entry)).map((entry) => {
       const simple = entry.pay?.simple || null;
       const saved = array(entry.service_ids).filter((id) => known.has(id));
       return { key: `${entry.kind}:${clean(entry.ref?.id)}`, ref: entry.ref, kind: entry.kind, existing: true, name: clean(entry.name),

@@ -274,7 +274,8 @@
     }
     function draw(value){
       const services = new Map((value.profile?.services || []).map((entry) => [entry.id, entry.label]));
-      const rows = value.assignees || [];
+      // Who does the work: the ones given work or pay (a sales team the organization also has is not listed).
+      const rows = (value.assignees || []).filter((entry) => (entry.service_ids || []).length || entry.pay);
       host.innerHTML = `<div class="mts-cats mts-wf" data-mts-workforce>
         ${rows.length ? rows.map((entry) => `<div class="mts-wf-row" data-mts-wf="${esc(entry.kind)}:${esc(entry.ref?.id)}">
           <span class="mts-wf-icon" aria-hidden="true"><i class="fas ${entry.kind === 'resource_group' ? 'fa-people-group' : 'fa-handshake'}"></i></span>

@@ -121,8 +121,8 @@ export async function laborSetupOptions(orgId: string) {
   const types = (rows: unknown) => (Array.isArray(rows) ? rows : []).filter((row) => text((row as { status?: unknown }).status || "active") !== "archived").map((row) => ({ id: text((row as { id?: unknown }).id), name: text((row as { name?: unknown }).name) || text((row as { id?: unknown }).id) }));
   return {
     assignees: [
-      ...groups.map((group) => ({ ref: { type: "resource_group", id: text(group.id) }, kind: "resource_group", name: text(group.name), type_id: text(group.kind_id), members: membersOf(group).length, member_user_ids: membersOf(group), service_ids: servicesOf("resource_group", text(group.id)), pay: pay("resource_group", text(group.id)) })),
-      ...companies.map((company) => ({ ref: { type: "organization_connection", id: text(company.id) }, kind: "organization_connection", name: text(company.name), type_id: text((Array.isArray(company.relationship_type_ids) ? company.relationship_type_ids : [])[0]), members: 0, member_user_ids: [] as string[], service_ids: servicesOf("organization_connection", text(company.id)), pay: pay("organization_connection", text(company.id)) }))
+      ...groups.map((group) => ({ ref: { type: "resource_group", id: text(group.id) }, kind: "resource_group", name: text(group.name), type_id: text(group.kind_id), type_ids: [text(group.kind_id)].filter(Boolean), members: membersOf(group).length, member_user_ids: membersOf(group), service_ids: servicesOf("resource_group", text(group.id)), pay: pay("resource_group", text(group.id)) })),
+      ...companies.map((company) => ({ ref: { type: "organization_connection", id: text(company.id) }, kind: "organization_connection", name: text(company.name), type_id: text((Array.isArray(company.relationship_type_ids) ? company.relationship_type_ids : [])[0]), type_ids: (Array.isArray(company.relationship_type_ids) ? company.relationship_type_ids : []).map(text).filter(Boolean), members: 0, member_user_ids: [] as string[], service_ids: servicesOf("organization_connection", text(company.id)), pay: pay("organization_connection", text(company.id)) }))
     ],
     profile: {
       company_type: profile.company_type, industry: profile.industry, industry_sets: industrySetsFor(profile.industry),
@@ -212,7 +212,7 @@ export async function applyLaborSetup(ctx: PublicationContext, value: unknown) {
 const strings = { type: "array", items: { type: "string" } };
 const named = { type: "object", required: ["id", "name"], properties: { id: { type: "string" }, name: { type: "string" } } };
 const setupStatusSchema = { type: "object", required: ["assignees", "profile", "people", "group_types", "company_types", "measurements", "methods"], properties: {
-  assignees: { type: "array", items: { type: "object", required: ["ref", "kind", "name", "service_ids", "member_user_ids"], properties: { ref: { type: "object" }, kind: { enum: ["resource_group", "organization_connection"] }, name: { type: "string" }, type_id: { type: "string" }, members: { type: "integer" }, member_user_ids: strings, service_ids: strings, pay: { type: ["object", "null"] } } } },
+  assignees: { type: "array", items: { type: "object", required: ["ref", "kind", "name", "service_ids", "member_user_ids"], properties: { ref: { type: "object" }, kind: { enum: ["resource_group", "organization_connection"] }, name: { type: "string" }, type_id: { type: "string" }, type_ids: strings, members: { type: "integer" }, member_user_ids: strings, service_ids: strings, pay: { type: ["object", "null"] } } } },
   profile: { type: "object" }, workforces: { type: "array", items: { type: "object" } }, people: { type: "array", items: named },
   group_types: { type: "array", items: named }, company_types: { type: "array", items: named }, measurements: { type: "array", items: { type: "object" } }, methods: strings
 } };
