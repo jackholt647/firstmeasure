@@ -206,7 +206,33 @@ const css = `
 /* The wording beside the document (FM-614): the fields on the left, the document on the right, its pages scrolling. */
 /* The step holds still and each column scrolls on its own: a field taking focus never scrolls the step's title away. */
 .gxd.gxd-fill.gxd-copy-step,.gxd.gxd-fill.gxd-first{min-height:0}
-.gxd-copy{display:grid;grid-template-columns:minmax(300px,1fr) clamp(320px,38%,520px);grid-template-rows:minmax(0,1fr);gap:22px;flex:1 1 auto;min-height:0}
+.gxd-copy{display:grid;grid-template-columns:minmax(128px,176px) minmax(280px,1fr) clamp(320px,38%,520px);grid-template-rows:minmax(0,1fr);gap:22px;flex:1 1 auto;min-height:0}
+/* The parts of the wording down the left (GP-97): a thin contents list; each part's add-below and delete show on hover
+   or when it is the part being read, and the last deletion can be undone. */
+.gxd-copy-nav{display:flex;flex-direction:column;align-items:stretch;min-height:0;min-width:0;overflow-y:auto;padding:2px 12px 12px 0;margin-right:-10px;border-right:1px solid #eaecf0;animation:gxdSlideIn .45s cubic-bezier(.22,1,.36,1) both}
+.gxd-copy-nav:empty{border-right-color:transparent}
+.gxd-copy-nav ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+.gxd-copy-nav-item{position:relative;display:flex;align-items:center;min-width:0;border-radius:7px;transition:background .15s}
+.gxd-copy-nav-item:hover{background:#f9fafb}
+.gxd-copy-nav-item.gxd-on{background:#f2f4f7}
+.gxd-copy-nav-item.gxd-on::before{content:'';position:absolute;left:0;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--primary,#d93025)}
+.gxd-copy-nav-go{flex:1 1 auto;min-width:0;border:0;background:none;padding:6px 4px 6px 10px;font:inherit;font-size:12.5px;line-height:1.35;color:#475467;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gxd-copy-nav-item.gxd-on .gxd-copy-nav-go{color:#101828;font-weight:600}
+.gxd-copy-nav-tools{flex:none;display:flex;gap:1px;padding-right:3px;visibility:hidden;opacity:0;transition:opacity .15s}
+.gxd-copy-nav-item:hover .gxd-copy-nav-tools,.gxd-copy-nav-item:focus-within .gxd-copy-nav-tools,.gxd-copy-nav-item.gxd-on .gxd-copy-nav-tools{visibility:visible;opacity:1}
+.gxd-copy-nav-tools button{width:22px;height:22px;display:grid;place-items:center;padding:0;border:0;border-radius:6px;background:none;color:#98a2b3;font-size:10.5px;cursor:pointer}
+.gxd-copy-nav-tools button:hover{background:#e4e7ec;color:#101828}
+.gxd-copy-nav-tools [data-sec-delete]:hover{background:#fef3f2;color:#b42318}
+.gxd-copy-add,.gxd-copy-undo{align-self:flex-start;display:inline-flex;align-items:center;gap:7px;margin-top:6px;padding:6px 10px;border:0;border-radius:7px;background:none;font:inherit;font-size:12.5px;font-weight:600;color:#667085;cursor:pointer;white-space:nowrap}
+.gxd-copy-add i,.gxd-copy-undo i{font-size:10.5px}
+.gxd-copy-add:hover{background:rgba(var(--primary-rgb,217,48,37),.06);color:var(--primary,#d93025)}
+.gxd-copy-undo{margin-top:0;font-weight:500;color:#475467}
+.gxd-copy-undo:hover{background:#f2f4f7;color:#101828}
+.gxd-copy-nav button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:-2px}
+.gxd-copy-sec{display:flex;flex-direction:column;gap:12px}
+.gxd-copy-sec>*{flex-shrink:0}
+.gxd-copy-new{animation:gxdSecIn .3s ease both}
+@keyframes gxdSecIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 .gxd-copy-fields{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0}
 .gxd-copy-edit{flex:1 1 auto;display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;padding:2px 6px 18px 2px;animation:gxdSlideIn .45s cubic-bezier(.22,1,.36,1) both}
 /* Each field keeps its own height when they are more than the column holds (GP-55: a textarea, overflow hidden, shrank to a sliver). */
@@ -261,7 +287,17 @@ const css = `
   /* A phone: the fields over the document, each scrolling on its own. The fields take what the document leaves (it keeps
      at least 300px, or 45% on a short screen or with the keyboard up); unbounded, they ran on under the document and
      could not be scrolled to (GP-29). */
-  .gxd-copy{grid-template-columns:1fr;grid-template-rows:minmax(0,auto) minmax(min(300px,45%),1fr);gap:14px}
+  .gxd-copy{grid-template-columns:1fr;grid-template-rows:auto minmax(0,auto) minmax(min(300px,45%),1fr);gap:14px}
+  /* The parts: one line of chips over the fields, scrolling sideways; delete shows on the part being read. */
+  .gxd-copy-nav{flex-direction:row;align-items:center;gap:6px;overflow-x:auto;overflow-y:hidden;padding:1px 0 3px;margin:0;border-right:0;scrollbar-width:none}
+  .gxd-copy-nav::-webkit-scrollbar{display:none}
+  .gxd-copy-nav ol{flex-direction:row;gap:6px}
+  .gxd-copy-nav-item{flex:none;max-width:200px;border:1px solid #e4e7ec;border-radius:999px;background:#fff}
+  .gxd-copy-nav-item.gxd-on{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.06)}
+  .gxd-copy-nav-item.gxd-on::before,.gxd-copy-nav-tools [data-sec-add-after]{display:none}
+  .gxd-copy-nav-item:not(.gxd-on) .gxd-copy-nav-tools{display:none}
+  .gxd-copy-nav-go{padding:5px 6px 5px 11px}
+  .gxd-copy-add,.gxd-copy-undo{flex:none;margin:0;padding:5px 10px}
 }
 .gxd-busy{display:grid;place-items:center;min-height:180px}
 .gxd-error{color:#b42318!important}
@@ -299,22 +335,67 @@ async function renderer(){
 
 /**
  * The person's wording over a definition's copy, as the finish saves it (documents/setup.ts applyCopy, which this
- * mirrors): each text node named gets the text given, a paragraph per blank-line separated part, in its first block's
- * style and its first run's font. The copy step lays it over its preview as they type.
+ * mirrors): parts added (`sections.added`, GP-97) go in after the part named, a heading and a paragraph made like those
+ * already there, and parts removed are taken out; then each text node named gets the text given, a paragraph per
+ * blank-line separated part, in its first block's style and its first run's font. `structure` is the parts as the server
+ * read them (document-setup.copy `sections`). The copy step lays it over its preview as they type.
  */
-function applyCopy(definition, copy){
-  const rewrite = (node, value) => {
+function applyCopy(definition, copy, changes = {}, structure = []){
+  const removed = array(changes.removed).map(clean), added = array(changes.added).map(object), parts = array(structure);
+  if (!Object.keys(copy).length && !removed.length && !added.length) return definition;
+  const where = new Map();
+  const index = (children) => { for (const node of array(children)) { if (clean(node?.id)) where.set(clean(node.id), { node, siblings: children }); index(node?.children); } };
+  for (const page of array(definition?.pages)) index(page?.children);
+  const allowed = new Set(parts.flatMap((part) => [...(part.heading ? [part.heading] : []), ...array(part.texts)]));
+  const words = (id) => String(copy[id] ?? '').trim();
+  const like = (anchor, pick) => {
+    const at = anchor ? parts.indexOf(anchor) : parts.length;
+    const near = [...parts.slice(0, at + 1).reverse(), ...parts.slice(at + 1)];
+    const id = [...near.filter((part) => !part.title && part.heading && array(part.texts).length), ...near.filter((part) => !part.title), ...near].map(pick).find(Boolean);
+    return id ? where.get(id)?.node : undefined;
+  };
+  const make = (from, id, style) => {
+    const { children: _children, bind: _bind, ...rest } = JSON.parse(JSON.stringify(from));
+    const { style_ref: styleRef, ...block } = object(array(object(rest.props).blocks)[0]);
+    const { text: _text, bind: _runBind, ...run } = object(array(block.runs)[0]);
+    const ref = style === undefined ? clean(styleRef) : style;
+    return { ...rest, id, bind: null, visible: true, props: { ...object(rest.props), blocks: [{ ...block, id: `${id}_b`, ...(ref ? { style_ref: ref } : {}), runs: [{ ...run, text: '' }] }] } };
+  };
+  const last = new Map(parts.map((part) => [part.id, array(part.nodes)[array(part.nodes).length - 1]]));
+  const base = new Map(parts.map((part) => [part.id, part]));
+  for (const add of added) {
+    const id = clean(add.id), anchor = base.get(clean(add.after)), after = last.get(clean(add.after));
+    if (!id || !after || last.has(id) || where.has(`${id}_h`) || where.has(`${id}_t`)) continue;
+    last.set(id, after);
+    if (anchor) base.set(id, anchor);
+    const spot = where.get(after);
+    if (!spot) continue;
+    const headingFrom = like(anchor, (part) => part.heading), textFrom = like(anchor, (part) => array(part.texts)[0]) || headingFrom;
+    const made = [];
+    if (words(`${id}_h`) && (headingFrom || textFrom)) made.push(headingFrom ? make(headingFrom, `${id}_h`) : make(textFrom, `${id}_h`, 'h3'));
+    if (words(`${id}_t`) && textFrom) made.push(make(textFrom, `${id}_t`, textFrom === headingFrom ? '' : undefined));
+    if (!made.length) continue;
+    spot.siblings.splice(spot.siblings.indexOf(spot.node) + 1, 0, ...made);
+    for (const node of made) { where.set(node.id, { node, siblings: spot.siblings }); allowed.add(node.id); }
+    last.set(id, made[made.length - 1].id);
+  }
+  for (const part of parts) {
+    if (!part.removable || !removed.includes(part.id)) continue;
+    for (const id of array(part.nodes)) { const spot = where.get(id); const at = spot ? spot.siblings.indexOf(spot.node) : -1; if (at >= 0) spot.siblings.splice(at, 1); allowed.delete(id); }
+  }
+  const plain = (node) => array(object(node.props).blocks).map((block) => array(object(block).runs).map((run) => String(object(run).text ?? '')).join('')).join('\n\n');
+  for (const [id, value] of Object.entries(copy)) {
+    const node = where.get(id)?.node;
+    if (typeof value !== 'string' || !node || !allowed.has(id) || node.type !== 'text' || value === plain(node)) continue;
     const props = object(node.props), blocks = array(props.blocks).map(object);
-    const parts = value.replace(/\r\n?/g, '\n').split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
-    props.blocks = (parts.length ? parts : ['']).map((part, at) => {
+    const paragraphs = value.replace(/\r\n?/g, '\n').split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
+    props.blocks = (paragraphs.length ? paragraphs : ['']).map((part, at) => {
       const like = blocks[Math.min(at, blocks.length - 1)] || {};
       const { text: _text, ...run } = object(array(like.runs)[0]);
       return { ...like, id: clean(blocks[at]?.id) || `${clean(blocks[0]?.id) || 'blk'}_${at}`, runs: [{ ...run, text: part }] };
     });
     node.props = props;
-  };
-  const walk = (list) => { for (const node of array(list)) { const value = copy[clean(node?.id)]; if (typeof value === 'string' && node.type === 'text') rewrite(node, value); walk(node?.children); } };
-  for (const page of array(definition?.pages)) walk(page?.children);
+  }
   return definition;
 }
 
@@ -378,15 +459,31 @@ function drop(lifted){
  */
 async function saveTemplate(ctx, selections, extra = {}){
   const input = { ...answersOf(selections), theme_id: clean(selections.theme_id), prices: array(selections.prices),
-    copy: object(selections.copy), keep_edits: selections.keep_edits === true, ...extra };
+    copy: object(selections.copy), copy_sections: sectionChanges(selections.copy_sections), keep_edits: selections.keep_edits === true, ...extra };
   // Both kinds of proposals: the insurance agreement's wording page is its own (GP-55).
-  if (proposalKinds(selections) === 'both') Object.assign(input, { insurance_copy: object(selections.insurance_copy), insurance_keep_edits: selections.insurance_keep_edits === true }, extra);
+  if (proposalKinds(selections) === 'both') Object.assign(input, { insurance_copy: object(selections.insurance_copy), insurance_copy_sections: sectionChanges(selections.insurance_copy_sections), insurance_keep_edits: selections.insurance_keep_edits === true }, extra);
   // The price step's lines (FM-610): the first proposal is priced from them.
   if (selections.lines && typeof selections.lines === 'object') input.lines = selections.lines;
   const result = await window.PlatformAPI.publication.invoke(ctx.orgId, 'documents.setup.apply', { scope: 'organization', organizationId: ctx.orgId }, input, { idempotencyKey: `documents.setup.save:${ctx.orgId}:${Date.now()}:${Math.random().toString(36).slice(2)}` });
   return object(result?.value ?? result?.result ?? result);
 }
 
+/** Parts of the wording removed and added on the copy step (GP-97), as the finish takes them. */
+function sectionChanges(value){
+  return { removed: array(object(value).removed).map(clean).filter(Boolean), added: array(object(value).added).map(object).filter((add) => clean(add.id) && clean(add.after)).map((add) => ({ id: clean(add.id), after: clean(add.after) })) };
+}
+/** The parts of the wording from its fields alone, for a server that sends none: each heading and the text under it; none removable. */
+function partsOf(fields){
+  const parts = [];
+  let open = null;
+  for (const field of array(fields).map(object)) {
+    const id = clean(field.node_id);
+    if (field.role === 'title' || field.role === 'heading') parts.push(open = { id, heading: id, texts: [], nodes: [id], title: field.role === 'title', removable: false });
+    else if (open) { open.texts.push(id); open.nodes.push(id); }
+    else parts.push(open = { id, heading: null, texts: [id], nodes: [id], removable: false });
+  }
+  return parts;
+}
 /** Retail, insurance or both (GP-55): retail for any other kind of document, and for a company never asked. */
 function proposalKinds(selections){
   return clean(selections.document_kind) === 'proposal' && ['insurance', 'both'].includes(clean(selections.proposal_kinds)) ? clean(selections.proposal_kinds) : 'retail';
@@ -1292,17 +1389,22 @@ export function mount(el, ctx){
     // apart. With insurance agreements only, the one wording page is the agreement's and its wording is `copy`.
     const insurance = clean(ctx.options.target) === 'insurance';
     const copyKey = insurance ? 'insurance_copy' : 'copy', keepKey = insurance ? 'insurance_keep_edits' : 'keep_edits';
+    const sectionsKey = insurance ? 'insurance_copy_sections' : 'copy_sections';
     const edits = { ...object(selections[copyKey]) };
+    // Parts of the wording taken out and added (GP-97); the last deletion can be undone until the next change.
+    const sections = sectionChanges(selections[sectionsKey]);
+    let active = '', undo = null;
     let keepEdits = selections[keepKey] === true;
     const sheet = el.closest('.gxs'), wasWide = !!sheet?.classList.contains('gxs-wide');
     sheet?.classList.add('gxs-wide');
     const pane = el.closest('.gxs-step');
     pane?.setAttribute('data-fill', '');
     el.innerHTML = `<div class="gxd gxd-fill gxd-copy-step"><div class="gxd-copy">
+      <nav class="gxd-copy-nav" aria-label="${esc(t('copy_sections', 'Sections'))}"></nav>
       <div class="gxd-copy-fields"><div class="gxd-copy-edit"><div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div></div><button type="button" class="gxd-copy-more" data-copy-more hidden></button></div>
       <div class="gxd-copy-view"><div class="gxd-doc"></div></div>
     </div><p class="gxd-error" role="alert"></p></div>`;
-    const fieldsHost = el.querySelector('.gxd-copy-edit'), more = el.querySelector('[data-copy-more]'), view = el.querySelector('.gxd-copy-view'), docHost = view.querySelector('.gxd-doc'), error = el.querySelector('.gxd-error');
+    const nav = el.querySelector('.gxd-copy-nav'), fieldsHost = el.querySelector('.gxd-copy-edit'), more = el.querySelector('[data-copy-more]'), view = el.querySelector('.gxd-copy-view'), docHost = view.querySelector('.gxd-doc'), error = el.querySelector('.gxd-error');
     // The style chosen slides over to the right; it stays there until its document has been drawn in this step. The
     // insurance agreement's page shows another document: nothing is carried to it.
     const lifted = insurance ? (handoff = null) : liftDocument(sheet || document.body);
@@ -1317,15 +1419,20 @@ export function mount(el, ctx){
       ctx.actions?.append(advanced);
     }
     const answers = () => ({ ...answersOf(selections), theme_id: clean(selections.theme_id), ...(insurance ? { agreement: 'insurance' } : {}) });
+    /** Each part added and each removed is a change, and so is each wording changed (an added part's own wording is part of it). */
+    const changeCount = () => {
+      const own = new Set(sections.added.flatMap((add) => [`${add.id}_h`, `${add.id}_t`]));
+      return Object.keys(edits).filter((id) => !own.has(id)).length + sections.removed.length + sections.added.length;
+    };
+    const summary = () => { const count = changeCount(); return count ? t('copy_summary', '{count} changes').replace('{count}', String(count)) : ''; };
     const report = () => {
-      const count = Object.keys(edits).length;
-      ctx.change({ [copyKey]: { ...edits }, [keepKey]: keepEdits }, count ? t('copy_summary', '{count} changes').replace('{count}', String(count)) : (keepEdits ? t('copy_summary_edited', 'Edited in the template editor') : ''));
+      ctx.change({ [copyKey]: { ...edits }, [sectionsKey]: sectionChanges(sections), [keepKey]: keepEdits }, summary() || (keepEdits ? t('copy_summary_edited', 'Edited in the template editor') : ''));
     };
     function draw(){
       if (!data || !Renderer) return;
       const width = Math.max(200, Math.min(docHost.clientWidth - 28, 760));
       const preview = data.preview;
-      const definition = applyCopy(JSON.parse(JSON.stringify(preview.resolved_definition)), edits);
+      const definition = applyCopy(JSON.parse(JSON.stringify(preview.resolved_definition)), edits, sections, array(data.sections));
       const keep = docHost.scrollTop;
       try { handle?.destroy?.(); } catch (_) {}
       docHost.innerHTML = '<div></div>';
@@ -1345,38 +1452,167 @@ export function mount(el, ctx){
       docHost.scrollTo({ top: Math.max(0, top - 60), behavior: reducedMotion() ? 'auto' : 'smooth' });
     }
     const grow = (area) => { area.style.height = 'auto'; area.style.height = `${area.scrollHeight + 2}px`; };
+    /** Each copy node's words in the template, before any change. */
+    let known = null;
+    const originals = () => known || (known = new Map(array(data?.fields).map((field) => [field.node_id, field.text])));
+    const valueOf = (id) => edits[id] ?? originals().get(id) ?? '';
+    /**
+     * The parts of the wording as they are now (GP-97): the template's (document-setup.copy `sections`), less those
+     * removed, with those added each straight after the part it was added after, as applyCopy puts them in the document.
+     */
+    function ordered(){
+      const list = array(data?.sections).map((part) => ({ ...part }));
+      for (const add of sections.added) {
+        const at = list.findIndex((part) => part.id === add.after);
+        if (at >= 0) list.splice(at + 1, 0, { id: add.id, heading: `${add.id}_h`, texts: [`${add.id}_t`], nodes: [], removable: true, added: true });
+      }
+      return list.filter((part) => !sections.removed.includes(part.id));
+    }
+    /** What a part is called in the list: its heading's words, else what it is or how its text starts. */
+    function partName(part, opening){
+      const heading = clean(part.heading ? valueOf(part.heading) : '').replace(/\s+/g, ' ');
+      if (heading) return heading;
+      if (part.title) return t('copy_title', 'Title');
+      if (part.added) return t('copy_new_section', 'New section');
+      if (opening) return t('copy_opening', 'Opening');
+      return clean(valueOf(array(part.texts)[0])).replace(/\s+/g, ' ') || t('copy_text', 'Text');
+    }
+    /** Which parts are the opening: copy before the first heading that is not the title (GP-18's "Opening"). */
+    function openings(list){
+      const found = new Set();
+      for (const part of list) { if (part.heading && !part.title) break; if (!part.heading || part.title) { found.add(part.id); if (array(part.texts).length) break; } }
+      return found;
+    }
     function fields(){
-      const list = array(data?.fields);
+      const list = ordered();
       if (!list.length) return `<p>${esc(advanced ? t('copy_none', 'This document has no wording of its own to change here. Advanced opens it in the template editor.') : t('copy_none_plain', 'This document has no wording of its own to change here.'))}</p>`;
-      const value = (field) => esc(edits[field.node_id] ?? field.text);
-      const input = (field, cls = '', label = '') => `<input type="text" data-copy="${esc(field.node_id)}" class="${cls}" value="${value(field)}"${label ? ` aria-label="${esc(label)}"` : ''}>`;
-      const area = (field, label = '') => `<textarea data-copy="${esc(field.node_id)}" rows="2"${label ? ` aria-label="${esc(label)}"` : ''}>${value(field)}</textarea>`;
-      // One list, top to bottom, each field named for what it is (GP-18): "Title", "Opening", then each heading by its
-      // own words ("Approval heading") with the text under it.
+      const value = (id) => esc(valueOf(id));
+      const input = (id, cls = '', label = '', placeholder = '') => `<input type="text" data-copy="${esc(id)}" class="${cls}" value="${value(id)}"${label ? ` aria-label="${esc(label)}"` : ''}${placeholder ? ` placeholder="${esc(placeholder)}"` : ''}>`;
+      const area = (id, label = '', placeholder = '') => `<textarea data-copy="${esc(id)}" rows="2"${label ? ` aria-label="${esc(label)}"` : ''}${placeholder ? ` placeholder="${esc(placeholder)}"` : ''}>${value(id)}</textarea>`;
+      // Part by part, top to bottom, each field named for what it is (GP-18): "Title", "Opening", then each heading by its
+      // own words ("Approval heading") with the text under it. A part added has a heading and a paragraph.
       let html = '', opened = false;
-      for (const field of list) {
-        if (field.role === 'title') html += `<label>${esc(t('copy_title', 'Title'))}${input(field, 'gxd-copy-title')}</label>`;
-        else if (field.role === 'heading') {
-          const name = t('copy_heading_named', '{name} heading').replace('{name}', headingName(field.text));
-          html += `<label class="gxd-copy-heading">${esc(name)}${input(field)}</label>`; opened = true;
+      for (const part of list) {
+        html += `<section class="gxd-copy-sec${part.added ? ' gxd-copy-new' : ''}" data-sec="${esc(part.id)}">`;
+        if (part.added) {
+          html += `<label class="gxd-copy-heading">${esc(t('copy_heading', 'Heading'))}${input(part.heading, '', '', t('copy_new_heading', 'Heading'))}</label>`;
+          html += area(part.texts[0], t('copy_text', 'Text'), t('copy_new_text', 'What this section says'));
+        } else {
+          if (part.title) html += `<label>${esc(t('copy_title', 'Title'))}${input(part.heading, 'gxd-copy-title')}</label>`;
+          else if (part.heading) {
+            const name = t('copy_heading_named', '{name} heading').replace('{name}', headingName(originals().get(part.heading)));
+            html += `<label class="gxd-copy-heading">${esc(name)}${input(part.heading)}</label>`; opened = true;
+          }
+          for (const id of array(part.texts)) {
+            if (!opened) { html += `<label>${esc(t('copy_opening', 'Opening'))}${area(id)}</label>`; opened = true; }
+            else html += area(id, t('copy_text', 'Text'));
+          }
         }
-        else if (!opened) { html += `<label>${esc(t('copy_opening', 'Opening'))}${area(field)}</label>`; opened = true; }
-        else html += area(field, t('copy_text', 'Text'));
+        html += '</section>';
       }
       return html;
     }
+    /** The list of parts down the left (GP-97): go to one, add one after it, delete it; add one at the end. */
+    function showNav(){
+      if (!data) { nav.innerHTML = ''; return; }
+      const list = ordered(), opening = openings(list);
+      if (!list.length) { nav.innerHTML = ''; return; }
+      if (!list.some((part) => part.id === active)) active = '';
+      nav.innerHTML = `<ol>${list.map((part) => {
+        const name = partName(part, opening.has(part.id));
+        return `<li class="gxd-copy-nav-item${part.id === active ? ' gxd-on' : ''}" data-sec="${esc(part.id)}">
+          <button type="button" class="gxd-copy-nav-go" data-sec-go title="${esc(name)}">${esc(name)}</button>
+          <span class="gxd-copy-nav-tools">
+            <button type="button" data-sec-add-after aria-label="${esc(t('copy_section_add_after', 'Add a section below'))}" title="${esc(t('copy_section_add_after', 'Add a section below'))}"><i class="fas fa-plus" aria-hidden="true"></i></button>
+            ${part.removable ? `<button type="button" data-sec-delete aria-label="${esc(t('copy_section_delete', 'Delete this section'))}" title="${esc(t('copy_section_delete', 'Delete this section'))}"><i class="fas fa-trash-can" aria-hidden="true"></i></button>` : ''}
+          </span></li>`;
+      }).join('')}</ol>
+      <button type="button" class="gxd-copy-add" data-sec-add><i class="fas fa-plus" aria-hidden="true"></i>${esc(t('copy_section_add', 'Add section'))}</button>
+      ${undo ? `<button type="button" class="gxd-copy-undo" data-sec-undo><i class="fas fa-rotate-left" aria-hidden="true"></i>${esc(t('copy_section_undo', 'Undo delete'))}</button>` : ''}`;
+    }
+    function setActive(id){
+      if (id === active) return;
+      active = id;
+      nav.querySelectorAll('.gxd-copy-nav-item').forEach((item) => item.classList.toggle('gxd-on', item.dataset.sec === id));
+    }
+    /** The part being read: the one with focus, else the first one showing at the top of the column. */
+    function spy(){
+      if (!alive || fieldsHost.contains(document.activeElement)) return;
+      const top = fieldsHost.getBoundingClientRect().top + 12;
+      const part = [...fieldsHost.querySelectorAll('.gxd-copy-sec')].find((node) => node.getBoundingClientRect().bottom > top);
+      if (part) setActive(part.dataset.sec);
+    }
     function showFields(){
+      known = null;
+      const keep = fieldsHost.scrollTop;
       fieldsHost.innerHTML = `${keepEdits ? `<p class="gxd-copy-edited"><i class="fas fa-circle-check" aria-hidden="true"></i> ${esc(t('copy_edited', 'Your changes from the template editor are kept.'))}</p>` : ''}
         ${fields()}`;
       fieldsHost.querySelectorAll('textarea').forEach(grow);
+      fieldsHost.scrollTop = keep;
+      showNav();
       below();
     }
+    /** A part's first field, scrolled to the top of the column and given focus (its words selected when it was just added). */
+    function goTo(id, select = false){
+      const part = fieldsHost.querySelector(`.gxd-copy-sec[data-sec="${CSS.escape(id)}"]`);
+      if (!part) return;
+      const top = part.getBoundingClientRect().top - fieldsHost.getBoundingClientRect().top + fieldsHost.scrollTop;
+      fieldsHost.scrollTo({ top: Math.max(0, top - 8), behavior: reducedMotion() ? 'auto' : 'smooth' });
+      const field = part.querySelector('[data-copy]');
+      field?.focus({ preventScroll: true });
+      if (select) field?.select?.();
+      setActive(id);
+    }
+    function changed(){ showFields(); report(); draw(); }
+    function addAfter(after){
+      const id = `nd_gx${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      sections.added.push({ id, after });
+      edits[`${id}_h`] = t('copy_new_section', 'New section');
+      undo = null;
+      changed();
+      goTo(id, true);
+    }
+    function remove(id){
+      const add = sections.added.find((entry) => entry.id === id), part = array(data?.sections).find((entry) => entry.id === id);
+      if (!add && !part?.removable) return;
+      undo = { edits: { ...edits }, removed: [...sections.removed], added: sections.added.map((entry) => ({ ...entry })), at: id };
+      if (add) {
+        // A part added after this one now follows the part this one followed.
+        sections.added = sections.added.filter((entry) => entry !== add);
+        for (const entry of sections.added) if (entry.after === id) entry.after = add.after;
+        delete edits[`${id}_h`]; delete edits[`${id}_t`];
+      } else {
+        sections.removed.push(id);
+        for (const node of [part.heading, ...array(part.texts)]) if (node) delete edits[node];
+      }
+      if (active === id) active = '';
+      changed();
+    }
+    function restore(){
+      if (!undo) return;
+      const { at } = undo;
+      for (const id of Object.keys(edits)) delete edits[id];
+      Object.assign(edits, undo.edits);
+      sections.removed = undo.removed; sections.added = undo.added; undo = null;
+      changed();
+      goTo(at);
+    }
+    const onNav = (event) => {
+      const button = event.target.closest?.('button'); if (!button || !data) return;
+      const id = button.closest('[data-sec]')?.dataset.sec || '';
+      if (button.matches('[data-sec-go]')) goTo(id);
+      else if (button.matches('[data-sec-add-after]')) addAfter(id);
+      else if (button.matches('[data-sec-delete]')) remove(id);
+      else if (button.matches('[data-sec-add]')) { const list = ordered(); if (list.length) addAfter(list[list.length - 1].id); }
+      else if (button.matches('[data-sec-undo]')) restore();
+    };
     /** The fields not yet seen in full, below the column's edge: counted on the pill, which scrolls to the next one. */
     const hidden = () => {
       const edge = fieldsHost.getBoundingClientRect().bottom - 2;
-      return [...fieldsHost.children].filter((node) => node.matches('label,textarea') && node.getBoundingClientRect().bottom > edge);
+      return [...fieldsHost.querySelectorAll('.gxd-copy-sec')].filter((node) => node.getBoundingClientRect().bottom > edge);
     };
     function below(){
+      spy();
       const left = alive && fieldsHost.scrollHeight - fieldsHost.clientHeight - fieldsHost.scrollTop > 2 ? hidden() : [];
       more.hidden = !left.length;
       more.parentElement.classList.toggle('gxd-more', !!left.length);
@@ -1402,9 +1638,13 @@ export function mount(el, ctx){
       const [value, loaded] = await Promise.all([ctx.read('document-setup', 'copy', { args: { ...answers(), ...(keepEdits ? { keep_edits: true } : {}) } }), renderer()]);
       if (!alive) return;
       data = object(value); Renderer = loaded;
-      // A change that no longer names a field of this template (another style or answer since) is dropped.
-      const known = new Set(array(data.fields).map((field) => field.node_id));
-      for (const id of Object.keys(edits)) if (!known.has(id) || edits[id] === array(data.fields).find((field) => field.node_id === id)?.text) delete edits[id];
+      if (!Array.isArray(data.sections)) data.sections = partsOf(data.fields);
+      // A change that no longer names a field or part of this template (another style or answer since) is dropped.
+      const parts = array(data.sections), anchors = new Set(parts.map((part) => part.id));
+      sections.removed = sections.removed.filter((id) => parts.some((part) => part.id === id && part.removable));
+      sections.added = sections.added.filter((add) => { const ok = anchors.has(add.after) && !anchors.has(add.id); if (ok) anchors.add(add.id); return ok; });
+      const own = new Set(sections.added.flatMap((add) => [`${add.id}_h`, `${add.id}_t`]));
+      for (const id of Object.keys(edits)) if (!own.has(id) && (!originals().has(id) || edits[id] === originals().get(id))) delete edits[id];
       showFields();
       draw();
       report();
@@ -1412,17 +1652,24 @@ export function mount(el, ctx){
     }
     const onInput = (event) => {
       const field = event.target.closest?.('[data-copy]'); if (!field) return;
-      const id = field.dataset.copy, original = array(data?.fields).find((entry) => entry.node_id === id)?.text;
+      const id = field.dataset.copy, original = originals().get(id) ?? '';
       if (field.value === original) delete edits[id]; else edits[id] = field.value;
       if (field.tagName === 'TEXTAREA') grow(field);
+      if (undo) { undo = null; showNav(); }
+      else if (field.closest('.gxd-copy-sec')?.querySelector('[data-copy]') === field) showNav();
       report(); redraw(); below();
     };
-    const onFocus = (event) => { const field = event.target.closest?.('[data-copy]'); if (field) mark(field.dataset.copy); };
+    const onFocus = (event) => {
+      const field = event.target.closest?.('[data-copy]'); if (!field) return;
+      mark(field.dataset.copy);
+      setActive(field.closest('.gxd-copy-sec')?.dataset.sec || '');
+    };
     const onBlur = () => mark('');
     fieldsHost.addEventListener('input', onInput);
     fieldsHost.addEventListener('focusin', onFocus);
     fieldsHost.addEventListener('focusout', onBlur);
     fieldsHost.addEventListener('scroll', below, { passive: true });
+    nav.addEventListener('click', onNav);
     more.addEventListener('click', onMore);
     more.addEventListener('pointerdown', onPullDown);
     more.addEventListener('pointermove', onPullMove);
@@ -1444,7 +1691,7 @@ export function mount(el, ctx){
       studio = { layer, handle: null };
       try {
         // The editor opens the organization's own template: saved now with the answers and the wording so far.
-        const saved = await saveTemplate(ctx, selections, { [copyKey]: { ...edits }, [keepKey]: keepEdits });
+        const saved = await saveTemplate(ctx, selections, { [copyKey]: { ...edits }, [sectionsKey]: sectionChanges(sections), [keepKey]: keepEdits });
         if (!alive || studio?.layer !== layer) return;
         const app = layer.querySelector('.gxd-studio-app');
         app.innerHTML = '';
@@ -1469,17 +1716,19 @@ export function mount(el, ctx){
       if (!reload || !alive) return;
       keepEdits = true;
       for (const id of Object.keys(edits)) delete edits[id];
+      sections.removed = []; sections.added = []; undo = null;
       report();
+      nav.innerHTML = '';
       fieldsHost.innerHTML = '<div class="gxd-busy"><span class="gxs-spin" aria-hidden="true"></span></div>';
       await load().catch(fail);
     }
     const onAdvanced = () => { void openStudio(); };
     advanced?.addEventListener('click', onAdvanced);
-    const fail = (failure) => { if (!alive) return; drop(lifted); fieldsHost.innerHTML = ''; error.textContent = clean(failure?.message) || t('copy_failed', 'Your wording didn’t load. Go back and try again.'); };
+    const fail = (failure) => { if (!alive) return; drop(lifted); fieldsHost.innerHTML = ''; nav.innerHTML = ''; error.textContent = clean(failure?.message) || t('copy_failed', 'Your wording didn’t load. Go back and try again.'); };
     load().catch(fail);
     return {
       valid: () => !!data,
-      summary: () => { const count = Object.keys(edits).length; return count ? t('copy_summary', '{count} changes').replace('{count}', String(count)) : ''; },
+      summary,
       // Escape (and a phone's back) while the template editor is open goes back to the wording, as its back arrow does.
       escape: () => { if (!studio) return false; studio.layer.querySelector('[data-tpl-back]')?.click(); return true; },
       destroy(){
@@ -1489,7 +1738,7 @@ export function mount(el, ctx){
         void closeStudio(false);
         advanced?.removeEventListener('click', onAdvanced); advanced?.remove();
         fieldsHost.removeEventListener('input', onInput); fieldsHost.removeEventListener('focusin', onFocus); fieldsHost.removeEventListener('focusout', onBlur);
-        fieldsHost.removeEventListener('scroll', below); more.removeEventListener('click', onMore);
+        fieldsHost.removeEventListener('scroll', below); more.removeEventListener('click', onMore); nav.removeEventListener('click', onNav);
         more.removeEventListener('pointerdown', onPullDown); more.removeEventListener('pointermove', onPullMove); more.removeEventListener('pointerup', onPullUp); more.removeEventListener('pointercancel', onPullUp);
         try { handle?.destroy?.(); } catch (_) {}
         if (!wasWide) sheet?.classList.remove('gxs-wide');

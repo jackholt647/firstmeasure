@@ -112,7 +112,7 @@ test('the wording step edits the template copy beside its document', async () =>
     assert.equal(await page.locator('.gxd-copy-edit > p').count(), 0, 'no lead paragraph: the fields come first');
     // GP-18: one list, no parts; each field says what it is, a heading by its own words.
     assert.equal(await page.locator('.gxd-copy-section, .gxd-copy-name').count(), 0, 'no parts over the fields');
-    assert.deepEqual(await page.locator('.gxd-copy-edit > label').evaluateAll((labels) => labels.map((label) => label.firstChild.textContent)), ['Title', 'Opening', 'Option heading', 'Terms heading']);
+    assert.deepEqual(await page.locator('.gxd-copy-edit label').evaluateAll((labels) => labels.map((label) => label.firstChild.textContent)), ['Title', 'Opening', 'Option heading', 'Terms heading']);
     await page.locator('[data-copy="nd_terms_h"]').fill('Payment terms');
     assert.equal(await page.locator('.gxd-copy-heading').last().evaluate((label) => label.firstChild.textContent), 'Terms heading', 'the label stays put while the heading is typed');
     await page.locator('[data-copy="nd_terms_h"]').fill('Terms');
@@ -148,6 +148,87 @@ test('the wording step edits the template copy beside its document', async () =>
     assert.equal(await page.locator('.gxs-title-actions [data-advanced]').count(), 0, 'no Advanced without the template editor');
     await page.evaluate(() => window.handle.destroy());
     assert.equal(await page.locator('.gxs-title-actions [data-advanced]').count(), 0, 'Advanced leaves with the step');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+// GP-97: the parts of the wording down the left. Each is listed by its heading; one can be gone to, deleted (the title
+// and a heading over something other than text cannot) and the deletion undone, and parts added after any one or at the
+// end. The document beside it changes at once, and the setup's `copy_sections` carries what was removed and added.
+test('the wording step lists its parts, which can be added and deleted', async () => {
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 } }), errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.setContent('<div class="gxs"><div class="gxs-step" style="height:760px;display:flex;flex-direction:column;padding:24px"><div class="gxs-title-actions"></div><div class="gxs-body" style="flex:1 1 auto;min-height:0;display:flex;flex-direction:column"></div></div></div>');
+    for (const name of ['doc-model/firstmate-doc-model.js', 'doc-widgets/firstmate-doc-widgets.js', 'doc-renderer/firstmate-doc-renderer.js']) await page.addScriptTag({ content: await lib(name) });
+    await page.addScriptTag({ type: 'module', content: (await lib('guided-experiences/documents-setup.js')) + '\nwindow.__mount = mount;' });
+    await page.waitForFunction(() => typeof window.__mount === 'function');
+    await page.evaluate(() => {
+      const definition = FMDocModel.createDocument({ kind: 'document' });
+      const text = (id, words, style) => ({ ...FMDocModel.createNode('text'), id, props: { blocks: [{ id: `${id}_b`, type: 'paragraph', align: 'left', ...(style ? { style_ref: style } : {}), runs: [{ text: words }] }] } });
+      const words = { t: 'Contingency agreement', o: 'You are filing a claim with your insurance company for damage to the property.', h1: 'What we do', p1: 'We inspect and document the damage and meet your adjuster at the property.', h2: 'Claim denied', p2: 'If your insurance company denies your claim, this agreement ends and you owe us nothing.', h3: 'Payment terms' };
+      definition.pages[0].children = Object.entries(words).map(([id, value]) => text(id, value, /^h|^t$/.test(id) ? 'h3' : undefined));
+      const fields = Object.entries(words).map(([id, value]) => ({ node_id: id, role: id === 't' ? 'title' : /^h/.test(id) ? 'heading' : 'text', text: value }));
+      const sections = [
+        { id: 't', heading: 't', texts: ['o'], nodes: ['t', 'o'], title: true, removable: false },
+        { id: 'h1', heading: 'h1', texts: ['p1'], nodes: ['h1', 'p1'], removable: true },
+        { id: 'h2', heading: 'h2', texts: ['p2'], nodes: ['h2', 'p2'], removable: true },
+        { id: 'h3', heading: 'h3', texts: [], nodes: ['h3'], removable: false }
+      ];
+      window.changes = [];
+      window.mountCopy = (selections = {}) => window.__mount(document.querySelector('.gxs-body'), {
+        options: { part: 'copy' }, selections: { document_kind: 'proposal', theme_id: 'thm_clean', ...selections }, step: { title: 'Check your wording' },
+        actions: document.querySelector('.gxs-title-actions'),
+        L: (key, text) => text, esc: (value) => String(value).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
+        change: (patch) => window.changes.push(patch),
+        read: async () => structuredClone({ fields, sections, preview: { theme_id: 'thm_clean', resolved_definition: definition, widget_data: {}, theme: null, theme_vars: {} } })
+      });
+      window.handle = window.mountCopy();
+    });
+    await page.waitForSelector('.gxd-copy-nav-item');
+    const listed = () => page.locator('.gxd-copy-nav-item').evaluateAll((items) => items.map((item) => item.querySelector('.gxd-copy-nav-go').textContent + (item.querySelector('[data-sec-delete]') ? ' ×' : '')));
+    const shown = () => page.evaluate(() => [...document.querySelectorAll('.gxd-copy-view [data-node-id]')].map((node) => node.dataset.nodeId).filter((id) => !/^nd_/.test(id) || /^nd_gx/.test(id)));
+    assert.deepEqual(await listed(), ['Contingency agreement', 'What we do ×', 'Claim denied ×', 'Payment terms'], 'each part by its heading; the title and a heading alone cannot be deleted');
+    const nav = await page.locator('.gxd-copy-nav').boundingBox(), fields = await page.locator('.gxd-copy-fields').boundingBox();
+    assert.ok(nav.x + nav.width <= fields.x && nav.width < 200, `a thin list left of the fields (${Math.round(nav.width)}px)`);
+    // Going to a part focuses its first field.
+    await page.locator('.gxd-copy-nav-item[data-sec=h2] [data-sec-go]').click();
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.copy), 'h2');
+    assert.equal(await page.locator('.gxd-copy-nav-item.gxd-on').getAttribute('data-sec'), 'h2');
+    // Deleting a part takes its heading and text out of the fields and the document, and can be undone.
+    await page.locator('.gxd-copy-nav-item[data-sec=h1] [data-sec-delete]').click({ force: true });
+    assert.deepEqual(await listed(), ['Contingency agreement', 'Claim denied ×', 'Payment terms']);
+    assert.equal(await page.locator('[data-copy=p1]').count(), 0);
+    await page.waitForFunction(() => !document.querySelector('.gxd-copy-view [data-node-id="h1"]'));
+    assert.deepEqual((await page.evaluate(() => window.changes)).at(-1).copy_sections, { removed: ['h1'], added: [] });
+    await page.locator('[data-sec-undo]').click();
+    assert.deepEqual(await listed(), ['Contingency agreement', 'What we do ×', 'Claim denied ×', 'Payment terms'], 'undone');
+    await page.locator('.gxd-copy-nav-item[data-sec=h1] [data-sec-delete]').click({ force: true });
+    // A part added after another: its heading is selected to type over; its text goes in under it, in the document too.
+    await page.locator('.gxd-copy-nav-item[data-sec=h2] [data-sec-add-after]').click({ force: true });
+    await page.keyboard.type('Warranty');
+    await page.locator('.gxd-copy-new textarea').fill('Our workmanship is warranted for ten years from the day the work is finished.');
+    assert.deepEqual(await listed(), ['Contingency agreement', 'Claim denied ×', 'Warranty ×', 'Payment terms']);
+    await page.waitForFunction(() => document.querySelector('.gxd-copy-view')?.textContent.includes('warranted for ten years'));
+    const ids = await shown(), added = ids.filter((id) => /^nd_gx/.test(id));
+    assert.equal(added.length, 2, 'a heading and its text');
+    assert.ok(ids.indexOf(added[0]) === ids.indexOf('p2') + 1 && ids.indexOf(added[1]) < ids.indexOf('h3'), `after the part it was added after (${ids})`);
+    // Add section, at the end.
+    await page.locator('[data-sec-add]').click();
+    assert.equal((await listed()).at(-1), 'New section ×');
+    const last = (await page.evaluate(() => window.changes)).at(-1);
+    const [warranty, end] = last.copy_sections.added;
+    assert.deepEqual(last.copy_sections, { removed: ['h1'], added: [{ id: warranty.id, after: 'h2' }, { id: end.id, after: 'h3' }] });
+    assert.equal(last.copy[`${warranty.id}_h`], 'Warranty');
+    assert.equal(await page.evaluate(() => window.handle.summary()), '3 changes', 'one removed and two added');
+    // Deleting a part added drops it and its words.
+    await page.locator(`.gxd-copy-nav-item[data-sec="${end.id}"] [data-sec-delete]`).click({ force: true });
+    assert.deepEqual(Object.keys((await page.evaluate(() => window.changes)).at(-1).copy).sort(), [`${warranty.id}_h`, `${warranty.id}_t`]);
+    // The parts are the setup's selections: back on the step, they are as they were left.
+    await page.evaluate(() => { const last = window.changes.at(-1); window.handle.destroy(); window.handle = window.mountCopy(last); });
+    await page.waitForSelector('.gxd-copy-nav-item');
+    assert.deepEqual(await listed(), ['Contingency agreement', 'Claim denied ×', 'Warranty ×', 'Payment terms']);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
