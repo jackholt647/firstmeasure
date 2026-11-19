@@ -140,6 +140,7 @@ test('the dev console answers the development tools audience with its sections a
   assert.equal((await drivers('space_station')).company.shown,'actual','an unknown type shows this organization');
   const column=(key:string)=>graph.matrix.columns.findIndex((c:any)=>c.key===key),row=graph.matrix.rows.find((r:any)=>r.id==='test.gp16_setup');
   assert.deepEqual([row.cells[column('exterior_remodeler')].variants,row.cells[column('hvac_contractor')].variants,row.cells[column('none')].variants,row.cells[column('other')].offered],[['roofing'],['other'],['other'],true],'every company type at once');
+  assert.equal(row.cells[column('hvac_contractor')].fits,true,'what the kind of company decides, apart from whether its app is on here');
   const catalog=await import('../company-profile/catalog.js');
   assert.deepEqual([catalog.industrySetsFor('exteriors'),catalog.industrySetsFor('roofing_and_exteriors'),catalog.industrySetsFor('hvac'),catalog.industrySetsFor('')],[['roofing_exteriors'],['roofing_exteriors'],[],[]]);
   // A condition naming a set, type or service the catalog does not have is refused when saved.

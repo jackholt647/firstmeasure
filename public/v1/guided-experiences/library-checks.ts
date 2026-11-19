@@ -65,7 +65,7 @@ export function catalogConditionErrors(value: unknown, at = ""): string[] {
     const rule = CATALOG_FIELDS[field];
     if (!rule) return;
     for (const id of (Array.isArray(expected) ? expected : [expected]).map((entry) => String(entry ?? "").trim()).filter(Boolean)) {
-      if (!rule[1](id)) errors.push(`${where}: ${id} is not a ${rule[0]} in the company profile catalog.`);
+      if (!rule[1](id)) errors.push(`${where}: ${id} is not one of the company profile catalog's ${rule[0]}s.`);
     }
   };
   const walk = (node: unknown, where: string) => {
