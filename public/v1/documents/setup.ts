@@ -127,6 +127,8 @@ export type DocumentPlan = {
   /** The library template it starts from; for a kind other than a proposal, the organization's default when it has one. */
   base: string;
   name: string;
+  /** What its pinned tile in New document says when its type's name would not say what it is (GP-98). */
+  short_name?: string;
   description: string;
   /** Parameter defaults set on the template. */
   params: Record<string, unknown>;
@@ -177,7 +179,7 @@ export function planDocument(answers: Answers, options: { insurance?: boolean } 
 export function planInsuranceAgreement(): DocumentPlan {
   return {
     kind: "proposal", document_type: "contract", template_id: INSURANCE_TEMPLATE_ID, workflow_id: INSURANCE_WORKFLOW_ID, base: INSURANCE_AGREEMENT_BASE,
-    name: "Insurance · Contingency agreement",
+    name: "Insurance · Contingency agreement", short_name: "Contingency Agreement",
     description: "The homeowner agrees that you do the work their insurance company approves, for the approved amount, while you help them through the claim.",
     params: {}, drop_steps: []
   };
@@ -733,11 +735,14 @@ async function saveAsset(kind: "template" | "workflow", orgId: string, id: strin
   return publish(orgId, id, { definition: input.definition, metadata: input.metadata, expected_version: Number(existing.current_version || 0) }, ctx);
 }
 
-/** The organization's pins in New document, with this kind's first pinned template replaced by its own. */
-async function pinTemplate(orgId: string, kind: string, templateId: string) {
+/**
+ * The organization's pins in New document, with this kind's first pinned template replaced by its own. `unpin`: types
+ * the answers said they do not make, whose pins go (insurance agreements only: no proposal, GP-98).
+ */
+async function pinTemplate(orgId: string, kind: string, templateId: string, unpin: string[] = []) {
   const templates = await listDocumentTemplates(orgId);
   const typeOf = new Map(templates.filter((template) => text(template.status) === "active").map((template) => [text(template.id), text(template.document_type)]));
-  const pins = ((await readPinnedTemplateIds(orgId)) ?? DEFAULT_PINNED_TEMPLATE_IDS).filter((id) => typeOf.has(id) && id !== templateId);
+  const pins = ((await readPinnedTemplateIds(orgId)) ?? DEFAULT_PINNED_TEMPLATE_IDS).filter((id) => typeOf.has(id) && id !== templateId && !unpin.includes(typeOf.get(id)!));
   const at = pins.findIndex((id) => typeOf.get(id) === kind);
   if (at >= 0) pins[at] = templateId; else pins.unshift(templateId);
   return savePinnedTemplateIds(orgId, pins);
@@ -747,7 +752,7 @@ async function pinTemplate(orgId: string, kind: string, templateId: string) {
  * Saves a template the answers built as the organization's own, with its workflow: its type's default, pinned in New
  * document.
  */
-async function saveSetupTemplate(orgId: string, built: Awaited<ReturnType<typeof buildDocument>>, setup: JsonObject, auth: PlatformAuthContext) {
+async function saveSetupTemplate(orgId: string, built: Awaited<ReturnType<typeof buildDocument>>, setup: JsonObject, auth: PlatformAuthContext, unpin: string[] = []) {
   const { plan } = built;
   let workflowId = "";
   if (built.workflow) {
@@ -763,13 +768,13 @@ async function saveSetupTemplate(orgId: string, built: Awaited<ReturnType<typeof
   await saveAsset("template", orgId, plan.template_id, {
     name: plan.name, description: plan.description || text(built.template.data.description), document_type: plan.document_type, tags: built.template.data.tags,
     definition: built.definition,
-    metadata: { ...baseMetadata, ...(workflowId ? { default_workflow_id: workflowId } : {}), default_for_type: true, document_setup: setup }
+    metadata: { ...baseMetadata, ...(workflowId ? { default_workflow_id: workflowId } : {}), ...(plan.short_name ? { short_name: plan.short_name } : {}), default_for_type: true, document_setup: setup }
   }, auth);
   // The new template is its type's default: no other keeps the mark.
   for (const template of await listDocumentTemplates(orgId, { document_type: plan.document_type })) {
     if (text(template.id) !== plan.template_id && object(template.metadata).default_for_type === true) await patchDocumentTemplate(orgId, text(template.id), { metadata: { default_for_type: false } }, auth);
   }
-  const pins = await pinTemplate(orgId, plan.document_type, plan.template_id);
+  const pins = await pinTemplate(orgId, plan.document_type, plan.template_id, unpin);
   return { workflowId, pins };
 }
 
@@ -793,6 +798,8 @@ export async function applyDocumentSetup(ctx: PublicationContext, auth: Platform
   const appliedAt = new Date().toISOString();
   // The retail proposal (or the kind's document), then the insurance agreement. Insurance only: its wording is `copy`.
   const made: { plan: DocumentPlan; setup: JsonObject; workflowId: string; pins: string[] }[] = [];
+  // Insurance agreements and no retail proposals: no proposal stays pinned in New document (GP-98).
+  const unpin = answers.document_kind === "proposal" && !retail ? ["proposal"] : [];
   for (const which of [...(retail ? ["main"] : []), ...(insurance ? ["insurance"] : [])] as const) {
     const second = which === "insurance" && retail;
     const built = await buildDocument(orgId, answers, parsed.theme_id, {
@@ -801,7 +808,7 @@ export async function applyDocumentSetup(ctx: PublicationContext, auth: Platform
       keepEdits: second ? parsed.insurance_keep_edits : parsed.keep_edits
     });
     const setup = { ...answers, theme_id: parsed.theme_id, based_on: built.plan.base, ...(built.edited ? { edited: true } : {}), applied_at: appliedAt, applied_by: auth.userId };
-    made.push({ plan: built.plan, setup, ...(await saveSetupTemplate(orgId, built, setup, auth)) });
+    made.push({ plan: built.plan, setup, ...(await saveSetupTemplate(orgId, built, setup, auth, unpin)) });
   }
   const [first, agreement] = [made[0]!, made.find((entry) => entry.plan.base === INSURANCE_AGREEMENT_BASE) || null];
   const { plan } = first;
@@ -862,7 +869,7 @@ export function registerDocumentSetupPublication() {
       read: async (ctx, ref) => ({ value: await documentSetupCopy(ctx.organizationId, ref.args || {}) }) }
   } });
   registerAction({ id: "documents.setup.apply", version: "1", domain: "documents", implementation: backendImplementationDigest(),
-    description: "Finish the document setup for one kind of document (document_kind: proposal, invoice, change_order or completion_certificate) in a style (theme_id: one of the document-setup status's themes). For a proposal also: proposal_kinds (retail | insurance | both, GP-55; retail when absent: a company that does insurance work may make insurance contingency agreements, tpl_setup_insurance_agreement, instead of or as well as retail proposals); for retail: presentation (options | single), customer_changes (mix | pick | ask), detail (itemized | rough), scope_write_up (boolean), and optionally prices ([{ item_id, unit_price }] sell prices written to the price book) and lines ({ on: the item ids the proposal's roof_replacement has, in order, with the keys of new_items; new_items: [{ key: new_<x>, name, unit: sq|lf|ea, unit_price, formula: price book formula tokens over measurements, include_waste }] for lines the price book lacks }). Optionally copy ({ text node id: text }, the template's wording changed, from document-setup.copy; with insurance only, the agreement's), copy_sections ({ removed: [section id], added: [{ id, after: section id }] }: parts of the wording taken out or added, an added part's heading and text being copy <id>_h and <id>_t) and keep_edits (start from the template published in the template editor), and with both kinds insurance_copy, insurance_copy_sections and insurance_keep_edits for the agreement. Makes or republishes the organization's own template for that kind (tpl_setup_<kind>, and the insurance agreement) and its workflow, makes it its type's default and pins it in New document.",
+    description: "Finish the document setup for one kind of document (document_kind: proposal, invoice, change_order or completion_certificate) in a style (theme_id: one of the document-setup status's themes). For a proposal also: proposal_kinds (retail | insurance | both, GP-55; retail when absent: a company that does insurance work may make insurance contingency agreements, tpl_setup_insurance_agreement, instead of or as well as retail proposals); for retail: presentation (options | single), customer_changes (mix | pick | ask), detail (itemized | rough), scope_write_up (boolean), and optionally prices ([{ item_id, unit_price }] sell prices written to the price book) and lines ({ on: the item ids the proposal's roof_replacement has, in order, with the keys of new_items; new_items: [{ key: new_<x>, name, unit: sq|lf|ea, unit_price, formula: price book formula tokens over measurements, include_waste }] for lines the price book lacks }). Optionally copy ({ text node id: text }, the template's wording changed, from document-setup.copy; with insurance only, the agreement's), copy_sections ({ removed: [section id], added: [{ id, after: section id }] }: parts of the wording taken out or added, an added part's heading and text being copy <id>_h and <id>_t) and keep_edits (start from the template published in the template editor), and with both kinds insurance_copy, insurance_copy_sections and insurance_keep_edits for the agreement. Makes or republishes the organization's own template for that kind (tpl_setup_<kind>, and the insurance agreement) and its workflow, makes it its type's default and pins it in New document (insurance agreements alone also unpin proposals).",
     inputSchema: json(applySchema) as Record<string, unknown>, outputSchema: { type: "object" },
     effect: "write", idempotency: "required", executionKinds: ["api", "agent", "module"],
     policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.documents"] },

@@ -371,6 +371,13 @@ test("insurance agreements: previewed alone, a second wording page with both, ma
   assert.ok(text(await storage.readDocumentTemplateVersion(ORG, "tpl_setup_insurance_agreement"), title.node_id).includes("Insurance claim agreement"));
   assert.equal(Number((await storage.readDocumentTemplate(ORG, "tpl_setup_proposal") as any).current_version), retailBefore, "no retail proposal is made");
   assert.equal((await value(owner, "document-setup", "status")).kinds.proposal.proposal_kinds, "insurance");
+  // They said they make no retail proposals: the agreement is pinned, by its own short name, and no proposal is (GP-98).
+  const pinnedNow = (await readPinnedTemplateIds(ORG))!;
+  const types = new Map((await storage.listDocumentTemplates(ORG)).map((template: any) => [template.id, template.document_type]));
+  assert.equal(pinnedNow[0], "tpl_setup_insurance_agreement", `pinned: ${pinnedNow}`);
+  assert.deepEqual(pinnedNow.filter((id) => types.get(id) === "proposal"), [], `no proposal pinned: ${pinnedNow}`);
+  assert.equal(only.pinned_template_ids.includes("tpl_setup_proposal"), false);
+  assert.equal(((await storage.readDocumentTemplate(ORG, "tpl_setup_insurance_agreement")) as any).metadata.short_name, "Contingency Agreement");
 });
 
 test("the copy step's title is a top-level heading or one that opens the document; a section heading stays one (FM-614)", async () => {

@@ -1157,6 +1157,11 @@ the same template; with nothing changed since (the first proposal saved it a mom
 writes no prices again. `copy` is laid over the template's wording, and `keep_edits` starts from the template as it was
 published in the template editor (when made from the same library template), with the style chosen applied over it.
 The answers are kept in the default branch's `document_setup` module (`document-setup.status`).
+Insurance agreements and no retail proposals (GP-98) also take every proposal out of the pins, and the agreement's pin
+reads by its `metadata.short_name` ("Contingency Agreement"), not its type's name. In New document the library is
+folded behind More under the pins, one flat set of tiles in their type's colors; the library's proposals (library
+copies) are no tiles of their own: until the organization has a proposal of its own they are one Proposal, and
+starting it (or a pinned library proposal) plays this setup at `proposal_kinds` for someone who may run it.
 Tests: `tests/document-setup.test.ts` (library entry in `tests/fixtures/document-setup-library.json`).
 
 ## Limits (prototype)

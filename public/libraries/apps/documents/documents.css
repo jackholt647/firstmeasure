@@ -174,19 +174,17 @@ html[data-fm-doc-phone] .fmdx-order-pane{border-radius:0;padding-bottom:env(safe
 .fmdx-modal-foot .spacer{margin-right:auto}
 
 /* ------------------------------------------------------- type/template picker */
-/* new document: search, pinned row, filtered library */
+/* new document: search, pinned row, the library folded behind More (GP-98) */
 .fmdx-modal.fmdx-create-modal{width:min(1080px,100%)}
 .fmdx-modal.fmdx-create-modal{overflow:hidden;height:min(88dvh,860px)}
+/* Folded, the dialog is as tall as what it shows. */
+.fmdx-modal.fmdx-create-modal.fmdx-create-folded:not(.fmdx-tray){height:auto;max-height:min(88dvh,860px)}
 .fmdx-btn.fmdx-btn[hidden]{display:none}
 .fmdx-create-modal [data-create-body]{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;overflow-x:hidden;overflow-y:auto}
 /* Everything keeps its height except the library, which takes what is left. */
 .fmdx-create-modal [data-create-body] > *{flex-shrink:0}
 /* Search, pinned and filters stay put; only the library scrolls. */
 .fmdx-create-modal [data-create-body] > .fmdx-tpl-scroll{flex:1 1 0;min-height:140px;overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding:2px 6px 6px 2px;scrollbar-width:thin}
-.fmdx-tpl-group{display:flex;flex-direction:column;gap:8px}
-.fmdx-tpl-group h3{margin:0;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:950;color:#111827;position:sticky;top:0;z-index:1;background:#fff;padding:4px 0}
-.fmdx-tpl-group h3 i{width:18px;text-align:center;color:var(--fmdx-type,#667085)}
-.fmdx-tpl-group h3 small{font-size:10.5px;font-weight:900;color:#98a2b3}
 .fmdx-create-modal .fmdx-section-label{margin:4px 0 0}
 .fmdx-create-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .fmdx-create-search{flex:1 1 260px;display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:11px;background:#fff;color:#98a2b3}
@@ -224,18 +222,37 @@ html[data-fm-doc-phone] .fmdx-order-pane{border-radius:0;padding-bottom:env(safe
 .fmdx-tpl.pinned .fmdx-tpl-text{width:100%;align-items:center}
 .fmdx-tpl.pinned .fmdx-tpl-text strong{font-size:14px;font-weight:900;line-height:1.25;color:color-mix(in srgb,var(--fmdx-type,#667085) 70%,#111827);overflow-wrap:anywhere}
 .fmdx-fchip.quiet{border-style:dashed;color:#667085;margin-left:auto}
-.fmdx-types{display:flex;flex-direction:column;gap:6px}
-.fmdx-type-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 8px;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:11px;background:#fff}
-.fmdx-type-row.archived{opacity:.55}
-.fmdx-type-row .fmdx-input{height:34px;width:auto;min-width:0}
-.fmdx-type-row [data-type-label]{flex:1 1 180px}
-.fmdx-type-row input[type=color]{width:30px;height:30px;padding:0;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:8px;background:#fff;cursor:pointer}
-.fmdx-type-move{display:inline-flex;flex-direction:column}
-.fmdx-type-move button{border:0;background:transparent;color:#98a2b3;font-size:9px;height:15px;width:22px;cursor:pointer;padding:0}
-.fmdx-type-move button:hover:not(:disabled){color:#111827}
+.fmdx-types-top{position:sticky;top:0;z-index:2;background:#fff;padding-bottom:2px}
+.fmdx-types-title{flex:1;min-width:0;font-size:15px;font-weight:950;color:#111827}
+/* Document types: one card each, several across (GP-98). */
+.fmdx-types-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.fmdx-type-card{min-width:0;display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid color-mix(in srgb,var(--fmdx-type,#98a2b3) 26%,#e4e7ec);border-radius:14px;background:color-mix(in srgb,var(--fmdx-type,#98a2b3) 5%,#fff);transition:border-color .12s ease,box-shadow .12s ease}
+.fmdx-type-card:focus-within{border-color:color-mix(in srgb,var(--fmdx-type,#98a2b3) 55%,#e4e7ec);box-shadow:0 6px 18px rgba(16,24,40,.07)}
+.fmdx-type-card.archived{opacity:.55;background:#f9fafb;border-style:dashed}
+.fmdx-type-card-head{display:flex;align-items:center;gap:8px;min-width:0}
+.fmdx-type-swatch{position:relative;flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--fmdx-type,#667085);color:#fff;font-size:15px;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(16,24,40,.08)}
+.fmdx-type-swatch input[type=color]{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;padding:0;cursor:pointer}
+.fmdx-type-swatch:focus-within{outline:2px solid color-mix(in srgb,var(--fmdx-type,#667085) 45%,#fff);outline-offset:2px}
+.fmdx-type-name{flex:1 1 auto;min-width:0;height:36px;padding:0 10px;border:1px solid transparent;border-radius:9px;background:transparent;font:inherit;font-size:14px;font-weight:900;color:color-mix(in srgb,var(--fmdx-type,#667085) 65%,#111827);outline:0}
+.fmdx-type-name:hover{border-color:var(--fmdx-line,#e4e7ec);background:#fff}
+.fmdx-type-name:focus{border-color:color-mix(in srgb,var(--fmdx-type,#667085) 50%,#e4e7ec);background:#fff}
+.fmdx-type-field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.fmdx-type-field>span:first-child{font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.06em;color:#667085}
+.fmdx-type-field .fmdx-fchips{gap:5px}
+.fmdx-type-field .fmdx-fchip{height:26px;padding:0 10px;font-size:11px}
+.fmdx-type-select{width:100%;min-width:0;height:34px;padding:0 30px 0 10px;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:9px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23667085' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 11px center;appearance:none;-webkit-appearance:none;font:inherit;font-size:12.5px;font-weight:800;color:#344054;cursor:pointer;outline:0}
+.fmdx-type-select:focus{border-color:var(--fmdx-primary,#d93025)}
+.fmdx-type-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto}
+.fmdx-type-card-foot small{font-size:11px;font-weight:850;color:#98a2b3}
+.fmdx-type-move{display:inline-flex;gap:2px}
+.fmdx-type-move button{width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:#98a2b3;font-size:11px;cursor:pointer;padding:0;display:grid;place-items:center}
+.fmdx-type-move button:hover:not(:disabled){background:#fff;color:#111827}
 .fmdx-type-move button:disabled{opacity:.3;cursor:default}
-.fmdx-type-row.template{justify-content:space-between;font-size:12.5px;font-weight:800}
-.fmdx-type-row.template span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Where each template is filed: two or three columns of name and type. */
+.fmdx-types-templates{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:6px 12px;padding-bottom:6px}
+.fmdx-type-tpl{display:flex;align-items:center;gap:9px;min-width:0;padding:6px 6px 6px 12px;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:11px;background:#fff;font-size:12.5px;font-weight:800;color:#111827}
+.fmdx-type-tpl>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fmdx-type-tpl .fmdx-type-select{flex:0 0 46%;width:auto}
 .fmdx-menu-label{margin:0;padding:6px 10px 4px;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.05em;color:#98a2b3}
 .fmdx-pick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .fmdx-pick-card{border:1.5px solid var(--fmdx-primary,#d93025);border-color:#e4e7ec;border-radius:14px;background:#fff;padding:14px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:9px;cursor:pointer;font:inherit;text-align:left;color:#111827;transition:border-color .12s ease,box-shadow .12s ease;min-width:0}
@@ -784,18 +801,21 @@ html[data-fm-doc-phone] .fmdx-fchip.quiet{margin-left:0}
 html[data-fm-doc-phone] .fmdx-tpl-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:2px 0 4px}
 html[data-fm-doc-phone] .fmdx-tpl-row .fmdx-tpl-open{min-height:104px}
 html[data-fm-doc-phone] .fmdx-tpl-row .fmdx-tpl-open:active{background:color-mix(in srgb,var(--fmdx-type,#98a2b3) 12%,#fff)}
-/* The library folds behind one button; search and the pinned tiles come first. */
-.fmdx-library-toggle{display:flex;align-items:center;gap:8px;width:100%;min-height:46px;padding:0 14px;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:12px;background:#fff;color:#111827;font:inherit;font-size:13px;font-weight:850;text-align:left;cursor:pointer}
+/* The library folds behind More; search and the pinned tiles come first (GP-98). */
+.fmdx-library-toggle{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:44px;padding:0 14px;border:1px dashed #d0d5dd;border-radius:12px;background:#fcfcfd;color:#344054;font:inherit;font-size:13px;font-weight:900;cursor:pointer;transition:background .12s ease,border-color .12s ease}
+.fmdx-library-toggle:hover{background:#f8fafc;border-color:#98a2b3;color:#111827}
 .fmdx-library-toggle small{font-size:11px;font-weight:900;color:#98a2b3}
-.fmdx-library-toggle i{margin-left:auto;font-size:12px;color:#667085;transition:transform .15s ease}
-.fmdx-library-toggle[aria-expanded="true"] i{transform:rotate(180deg)}
-.fmdx-library-toggle:active{background:#f8fafc}
+.fmdx-library-toggle i{font-size:12px;color:#667085;transition:transform .15s ease}
+.fmdx-library-toggle[aria-expanded="true"] i:last-child{transform:rotate(180deg)}
+.fmdx-library-toggle:active{background:#f2f4f7}
 html[data-fm-doc-phone] .fmdx-tpl-grid{grid-template-columns:minmax(0,1fr)}
 html[data-fm-doc-phone] .fmdx-create-modal [data-create-body]>.fmdx-tpl-scroll{flex:none;overflow:visible;min-height:0;padding:2px 0 6px}
 html[data-fm-doc-phone] .fmdx-tpl-open{min-height:62px}
 html[data-fm-doc-phone] .fmdx-tpl-open:active{background:#f8fafc}
 html[data-fm-doc-phone] .fmdx-tpl-pin{opacity:.6;width:30px;height:30px;top:4px;right:4px}
-html[data-fm-doc-phone] .fmdx-type-row{gap:6px}
+html[data-fm-doc-phone] .fmdx-types-grid,html[data-fm-doc-phone] .fmdx-types-templates{grid-template-columns:minmax(0,1fr)}
+html[data-fm-doc-phone] .fmdx-types-top{flex-wrap:wrap}
+html[data-fm-doc-phone] .fmdx-type-tpl .fmdx-type-select{flex-basis:50%}
 
 /* Menus are sheets from the bottom over a scrim. */
 .fmdx-menu-scrim{position:fixed;inset:0;z-index:2147483544;background:rgba(16,22,42,.36);animation:fmdx-fade .18s ease;transition:opacity .24s ease}
