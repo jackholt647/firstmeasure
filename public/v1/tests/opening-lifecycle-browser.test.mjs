@@ -6,7 +6,9 @@ const windows=await readFile(new URL('../../libraries/window-manager/window-mana
 const runtime=await readFile(new URL('../../libraries/app-runtime/firstmate-embeddable-apps.js',import.meta.url),'utf8');
 const core=await readFile(new URL('../../portal/scripts/core.js',import.meta.url),'utf8');
 const modalManager=core.slice(core.indexOf('  function createModalManager(){'),core.indexOf('  function projectRouteId('));
-const launch=()=>chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+// The runtime resolves its own URL from the page, so pages that load it need a real address, not about:blank.
+const openAt=async(page,html)=>{await page.route('https://fm.test/',route=>route.fulfill({contentType:'text/html',body:html}));await page.goto('https://fm.test/');};
+const launch=()=>chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
 
 test('modal shell opens synchronously, paints before load, and discards a closed request',async()=>{
  const browser=await launch();try{
@@ -58,7 +60,7 @@ test('new requests win races; errors offer retry and removed targets abort',asyn
 
 test('embedded app mounts default to a loading shell and unmount cancels pending work',async()=>{
  const browser=await launch();try{
-  const page=await browser.newPage();await page.setContent('<div id="panel"></div>');await page.addScriptTag({content:windows});await page.addScriptTag({content:runtime});
+  const page=await browser.newPage();await openAt(page,'<div id="panel"></div>');await page.addScriptTag({content:windows});await page.addScriptTag({content:runtime});
   await page.evaluate(()=>{
    window.panel=document.querySelector('#panel');window.calls=0;
    window.PlatformLanguage={ensure:()=>new Promise(resolve=>window.releaseLanguage=resolve)};
@@ -73,5 +75,30 @@ test('embedded app mounts default to a loading shell and unmount cancels pending
   await page.evaluate(async()=>await ready);assert.equal(await page.locator('#panel').textContent(),'Ready');assert.equal(await page.evaluate(()=>context.isCurrent()),true);
   await page.evaluate(()=>FirstMateEmbeddableApps.unmount(panel));assert.equal(await page.evaluate(()=>context.signal.aborted),true);
   assert.equal(await page.evaluate(async()=>{const detached=document.createElement('div');FirstMateEmbeddableApps.registerApp({id:'detached',mount:()=>({})});return !!(await FirstMateEmbeddableApps.mount(detached,'detached'));}),true);
+ }finally{await browser.close();}
+});
+
+test('a tab that already says it is loading shows that one message, and failures still offer retry (GP-9)',async()=>{
+ const browser=await launch();try{
+  const page=await browser.newPage();await openAt(page,'<meta charset="utf-8"><div id="panel"><div class="own" role="status">Loading Finance…</div></div>');await page.addScriptTag({content:windows});await page.addScriptTag({content:runtime});
+  const visibleStatuses=()=>page.evaluate(()=>[...document.querySelectorAll('[role="status"],[role="alert"]')].filter(node=>node.checkVisibility()).map(node=>node.textContent.trim()));
+  await page.evaluate(()=>{
+   window.panel=document.querySelector('#panel');
+   window.PlatformLanguage={ensure:()=>new Promise(resolve=>window.releaseLanguage=resolve)};
+   FirstMateEmbeddableApps.registerApp({id:'finance',mount(){panel.textContent='Ready';return {};}});
+   window.result=FirstMateEmbeddableApps.mount(panel,'finance');
+  });
+  await page.waitForFunction(()=>typeof releaseLanguage==='function');
+  assert.deepEqual(await visibleStatuses(),['Loading Finance…']);assert.equal(await page.locator('#panel').getAttribute('aria-busy'),'true');
+  await page.evaluate(()=>releaseLanguage());await page.evaluate(async()=>await result);
+  assert.equal(await page.locator('#panel').textContent(),'Ready');assert.equal(await page.locator('.fm-opening-status').count(),0);
+  // A hidden status (an overlay waiting for later) is not the tab's loading message: the opening shows its own.
+  await page.evaluate(()=>{panel.innerHTML='<div role="status" hidden>Connecting…</div>';PlatformLanguage.ensure=()=>new Promise(resolve=>window.releaseLanguage=resolve);window.result=FirstMateEmbeddableApps.mount(panel,'finance');});
+  await page.waitForFunction(()=>typeof releaseLanguage==='function');
+  assert.deepEqual(await visibleStatuses(),['Loading…']);
+  await page.evaluate(()=>releaseLanguage());await page.evaluate(async()=>await result);
+  await page.evaluate(()=>{panel.innerHTML='<div role="status">Loading Finance…</div>';FirstMateEmbeddableApps.registerApp({id:'broken',mount(){throw Error('boom');}});window.PlatformLanguage.ensure=async()=>{};window.failed=FirstMateEmbeddableApps.mount(panel,'broken').catch(()=>'failed');});
+  assert.equal(await page.evaluate(async()=>await failed),'failed');
+  assert.equal(await page.getByRole('button',{name:'Retry'}).isVisible(),true);
  }finally{await browser.close();}
 });
