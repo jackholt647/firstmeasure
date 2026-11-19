@@ -2199,7 +2199,30 @@
     "m_4e93753901b18e": "New document",
     "m_87d1844aa0e8e0": "Project Docs",
     "m_e1f126038d5b27": "Docs",
-    "m_150d3abea54c2f": "Workflows"
+    "m_150d3abea54c2f": "Workflows",
+    "docs_trash_action": "Move to trash",
+    "docs_trash_none": "Invoices, reports and receipts can’t be moved to trash here.",
+    "docs_trash_confirm_one": {
+      "message": "Move “{title}” to trash?",
+      "format": "icu"
+    },
+    "docs_trash_confirm_many": {
+      "message": "Move {count} documents to trash?",
+      "format": "icu"
+    },
+    "docs_trash_confirm_sent": "Customers will no longer be able to open the ones you sent.",
+    "docs_trash_confirm_kept": "Invoices, reports and receipts stay.",
+    "docs_trash_cancel": "Cancel",
+    "docs_trash_done_title": "Moved to trash",
+    "docs_trash_done_one": "Document moved to trash.",
+    "docs_trash_done_many": {
+      "message": "{count} documents moved to trash.",
+      "format": "icu"
+    },
+    "docs_trash_failed": {
+      "message": "Could not move {count} of them to trash. Try again.",
+      "format": "icu"
+    }
   },
   "documents": {
     "m_939ec72e8123ba": "Dictate into document",
