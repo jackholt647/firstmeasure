@@ -562,8 +562,8 @@
     .dash-event-assign-menu button{width:100%;border:0;border-radius:8px;background:transparent;color:#344054;text-align:left;padding:7px 9px;font-size:12px;font-weight:950;cursor:pointer}
     .dash-event-assign-menu button:hover{background:#f8fafc}
     .dash-event-assign-menu small{color:#98a2b3;font-weight:800}.dash-event-type-pill{height:30px;border-radius:999px;background:#f2f4f7;color:#344054;padding:0 10px;display:inline-flex;align-items:center;width:max-content;max-width:100%;font-size:11px;font-weight:1000}.dash-event-status-pill{height:30px;border:1px dotted #b54708;border-radius:999px;background:#fffaeb;color:#93370d;padding:0 10px;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:1000}
-    .dash-event-type-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-    .dash-event-type-btn{height:32px;min-width:0;padding:0 6px;border:1px solid rgba(15,23,42,.10);border-radius:10px;background:#f8fafc;color:#344054;font-size:11px;font-weight:950;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .dash-event-type-row{display:flex;flex-wrap:wrap;gap:6px}
+    .dash-event-type-btn{flex:1 1 auto;height:32px;min-width:64px;max-width:100%;padding:0 10px;border:1px solid rgba(15,23,42,.10);border-radius:10px;background:#f8fafc;color:#344054;font-size:11px;font-weight:950;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .dash-event-type-btn:hover{border-color:rgba(15,23,42,.22);background:#fff}
     .dash-event-type-btn.active{border-color:var(--primary,#d93025);box-shadow:inset 0 0 0 1px var(--primary,#d93025);background:rgba(var(--primary-rgb),.07);color:#101828}
     .dash-event-project-picker{position:relative;z-index:3}.dash-event-project-picker:has(.dash-event-project-list:not([hidden])){z-index:7}.dash-event-project-picker-row{display:grid;grid-template-columns:minmax(0,1fr) 38px;gap:7px}.dash-event-project-create{width:38px;height:38px;border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#fff;color:#475467;display:grid;place-items:center;cursor:pointer}.dash-event-project-create:hover,.dash-event-project-create:focus-visible{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb),.06);color:var(--primary,#d93025);outline:none}.dash-event-search{width:100%;height:38px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:10px;padding:0 10px;font-size:12px;font-weight:850;color:#101828;outline:none}
@@ -10857,9 +10857,9 @@
               ...(ganttViewEnabled() ? [['gantt', window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Timeline') || 'Timeline', 'fa-chart-gantt']] : [])
             ]
           ].filter((group) => group.length).map((group) => `<span class="dash-segmented" role="group">${group.map(([mode, label, icon]) => `<button type="button" class="${viewMode === mode ? 'active' : ''} ${icon ? 'has-icon' : ''}" data-dash-view="${mode}" aria-pressed="${viewMode === mode ? 'true' : 'false'}"${icon ? ` aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"` : ''}>${icon ? `<i class="fas ${icon}" aria-hidden="true"></i>` : ''}<span class="dash-view-label">${escapeHtml(label)}</span></button>`).join('')}</span>`).join('')}
+          ${settingsButton}
           ${String(modeButtons)}
           ${String(viewMode !== 'appointment_schedule' ? displayButtons : '')}
-          ${settingsButton}
         </div>
       </div>
     `;
