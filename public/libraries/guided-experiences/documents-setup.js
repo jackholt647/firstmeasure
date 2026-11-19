@@ -399,8 +399,8 @@ function choicesFor(part, selections){
     c('completion_certificate', 'fa-award', 'kind_certificate', 'Completion certificate', 'Your customer signs off that the work is done.')
   ] };
   if (part === 'presentation') return { key: 'presentation', choices: [
-    c('options', 'fa-layer-group', 'presentation_options', 'Several options to choose from', 'For example good, better and best.'),
-    c('single', 'fa-file-lines', 'presentation_single', 'One main option', 'The work you recommend, at one price.')
+    c('options', 'fa-layer-group', 'presentation_options', 'Several options to choose from', 'Different choices of work, each with its own price.'),
+    c('single', 'fa-file-lines', 'presentation_single', 'One estimate', 'The work you recommend, at one price.')
   ] };
   if (part === 'changes') return { key: 'customer_changes', choices: clean(selections.presentation) === 'options' ? [
     c('mix', 'fa-shuffle', 'changes_mix', 'They can mix and match', 'Your customer swaps line items between the options before signing.'),
