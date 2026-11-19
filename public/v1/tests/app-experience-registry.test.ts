@@ -17,9 +17,9 @@ import { DEVICE_TYPES } from "../platform/app-experience/devices.js";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const libraries = path.resolve(here, "../../libraries");
 
-function manifestApps() {
+function manifestApps(definitions: any[] = []) {
   const registered: any[] = [];
-  const window: any = { FirstMateEmbeddableApps: { registerManifest: (entry: any) => registered.push(entry), registerApp() {}, getApp() {} } };
+  const window: any = { FirstMateEmbeddableApps: { registerManifest: (entry: any) => registered.push(entry), registerApp: (entry: any) => definitions.push(entry), getApp() {} } };
   const context = vm.createContext({ window, document: { currentScript: { src: "https://example.test/libraries/apps/firstmate-apps-manifest.js" } }, URL, console });
   vm.runInContext(readFileSync(path.join(libraries, "apps/firstmate-apps-manifest.js"), "utf8"), context);
   return registered;
@@ -40,6 +40,16 @@ test("every app a person can open is in the registry, and every registry app can
     const surface = registry.get(entry.id)!.surface;
     assert.equal(surface, entry.kind === "portal_tab" ? "portal_tab" : "project_modal", `${entry.id} is on the same surface`);
   }
+});
+
+test("an app in More apps is listed before its bundle loads", () => {
+  // Its bundle loads when it first opens, so the runtime must list it from the manifest alone, or More apps and a
+  // link to it (Checklist settings' "See Advanced Controls" for the Automations Hub, GP-72) land on the home tab.
+  const definitions: any[] = [];
+  const more = manifestApps(definitions).filter((entry) => entry.kind === "portal_tab" && entry.placement === "more").map((entry) => entry.id);
+  assert.ok(more.includes("portal.automations_hub"));
+  const hidden = more.filter((id) => definitions.find((entry) => entry.id === id)?.visible !== true);
+  assert.deepEqual(hidden, [], "Add these to initialAppDefinitions in firstmate-apps-manifest.js with visible:true");
 });
 
 test("manifest entries do not decide visibility themselves", () => {
