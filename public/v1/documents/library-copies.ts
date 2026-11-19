@@ -6,7 +6,7 @@ import { DOCUMENT_TEMPLATE_KIND, DOCUMENT_THEME_KIND, DOCUMENT_WORKFLOW_KIND, PR
 import type { DocumentThemeEntry } from "../config-library/kinds/document-theme.js";
 import type { DocumentTemplateEntry } from "../config-library/kinds/document-template.js";
 import { workflowDeckId, type DocumentWorkflowEntry } from "../config-library/kinds/document-workflow.js";
-import { repairIncorrectCompanyAccent, themeDefinitionWithOrganizationDefaults } from "./theme-defaults.js";
+import { applyOrganizationThemeDefaults, organizationBranding, repairIncorrectCompanyAccent, themeDefinitionWithOrganizationDefaults } from "./theme-defaults.js";
 import {
   archiveDocumentTemplate, archiveDocumentWorkflow,
   createDocumentTemplate, createDocumentTheme, createDocumentWorkflow,
@@ -183,6 +183,27 @@ async function themeFollowsBrand(orgId: string, entry: AnyEntry, copy: JsonObjec
   const version = await readDocumentThemeVersion(orgId, entry.id, Number(copy.current_version || 0) || undefined).catch(() => null);
   if (!version) return true;
   return brandTokens(obj(version.definition)) === brandTokens(await copyDefinition("theme", orgId, entry));
+}
+
+/**
+ * The organization's themes, each with its current `definition`, as a theme list shows them (GP-105): an untouched
+ * copy that no longer carries the company's colors and fonts is brought to them first, so the samples in the
+ * editor's theme menu, Doc Studio and document workflows show the brand, saved a moment ago too. The brand is read
+ * once and the definitions are the ones the list already read, so a list that matches costs one brand read.
+ */
+export async function themesFollowingBrand(orgId: string, themes: JsonObject[], ctx: PlatformAuthContext | null = null) {
+  const branding = await organizationBranding(orgId).catch(() => null);
+  if (!branding) return themes;
+  return await Promise.all(themes.map(async (theme) => {
+    const entry = libraryEntry<DocumentThemeEntry>(DOCUMENT_THEME_KIND, text(theme.id));
+    if (!entry || !theme.definition || copyState(entry, theme) !== "library") return theme;
+    const branded = applyOrganizationThemeDefaults(clone(entry.data.definition) as unknown as JsonObject, branding);
+    if (brandTokens(obj(theme.definition)) === brandTokens(branded)) return theme;
+    if (!(await writeCopy("theme", orgId, entry, theme, ctx).catch(() => null))) return theme;
+    const copy = await readCopy("theme", orgId, entry.id).catch(() => null);
+    const version = copy ? await readDocumentThemeVersion(orgId, entry.id, Number(copy.current_version || 0) || undefined).catch(() => null) : null;
+    return copy && version ? { ...copy, definition: obj(version.definition) } : theme;
+  }));
 }
 
 /**

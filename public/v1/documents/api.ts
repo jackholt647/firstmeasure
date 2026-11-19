@@ -130,7 +130,7 @@ import { listDocumentTypes } from "./types/registry.js";
 import { refusePreviewDocumentToken } from "./preview-links.js";
 import { listDocumentWidgetResolvers } from "./widgets/registry.js";
 import { registerBuiltinDocumentWidgetResolvers } from "./widgets/builtins.js";
-import { ensureDefaultDocumentAssets } from "./library-copies.js";
+import { ensureDefaultDocumentAssets, themesFollowingBrand } from "./library-copies.js";
 import { ingestDocumentUpload } from "./ingestion.js";
 import { registerCollabRoutes } from "./collab/routes.js";
 import { registerVersionRoutes } from "./versions/routes.js";
@@ -175,13 +175,15 @@ export const DOCUMENT_WIDGET_CATALOG: Array<Record<string, unknown>> = [
 ];
 
 async function themesWithCurrentDefinitions(orgId: string, themes: JsonObject[]) {
-  return await Promise.all(themes.map(async (theme) => {
+  const rows = await Promise.all(themes.map(async (theme) => {
     const current = Number(theme.current_version || 0);
     const version = current
       ? await readDocumentThemeVersion(orgId, cleanText(theme.id), current).catch(() => null)
       : null;
     return { ...theme, definition: version ? asObject(version).definition : null };
   }));
+  // Every theme sample shows the company's colors: untouched copies follow the brand (GP-105).
+  return await themesFollowingBrand(orgId, rows);
 }
 
 export const registerDocumentsApi: FastifyPluginAsync = async (app) => {

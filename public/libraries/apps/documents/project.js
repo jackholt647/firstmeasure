@@ -4112,10 +4112,16 @@
       const themes = arrayValue(state.catalog?.themes);
       const currentId = firstText(objectValue(doc.theme_ref).theme_id);
       const branding = objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding);
+      // With no theme chosen the server draws the document type's default
+      // theme (documents/service.ts resolveInstanceTheme): sample that one, in
+      // the company's colors, not the card's fallback blue (GP-105).
+      const docType = cleanText(doc.document_type);
+      const typeThemeId = firstText(objectValue(arrayValue(state.catalog?.types).find((type) => cleanText(type.id) === docType)).default_theme_id, 'thm_margin');
+      const templateTheme = themes.find((theme) => firstText(theme.id, theme.theme_id) === typeThemeId);
       const menu = openMenu(anchor, `
         <div class="fmdx-menu-note">${(globalThis.PlatformLanguage?.htmlText("documents","m_d056fb485eea2e","Org themes restyle the whole document") ?? "Org themes restyle the whole document")}</div>
         ${String(themeCardHtml({
-          definition: null,
+          definition: templateTheme ? objectValue(templateTheme.definition) : null,
           branding,
           value: '',
           name: 'Template default',
