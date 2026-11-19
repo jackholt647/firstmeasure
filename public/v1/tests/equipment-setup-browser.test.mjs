@@ -89,7 +89,7 @@ test('a roofer with two locations names them, checks its equipment, counts it pe
     await page.locator('[data-gxe-apply]').click();
     await page.waitForFunction(()=>calls.length===1);
     assert.match(await page.locator('[data-gxe-error]').innerText(),/could not be saved/,'a failed save stays on the page with the reason');
-    await page.evaluate(()=>{window.failApply=false;});
+    await page.evaluate(()=>{window.failApply=false;window.changed=[];addEventListener('fm:equipment:changed',event=>changed.push(event.detail.source));});
     await page.locator('[data-gxe-apply]').click();
     await page.waitForSelector('[data-gxe-page=done]');
     const sent=await page.evaluate(()=>calls.at(-1));
@@ -108,7 +108,8 @@ test('a roofer with two locations names them, checks its equipment, counts it pe
 
     // The finish says so, and Done finishes the setup.
     assert.equal(await heading(page),'We’ve set up your equipment');
-    assert.match(await page.locator('.gxe-done').innerText(),/You can adjust your equipment at any time in the Equipment tab\./);
+    assert.equal(await page.locator('.gxe-done').innerText(),'You can adjust your equipment at any time in the Equipment tab.','the title says it is set up; the banner says what next');
+    assert.deepEqual(await page.evaluate(()=>changed),['equipment.setup'],'the Equipment tab under the sheet reads its fleet again');
     assert.match(await page.locator('[data-gxe-done=dump_truck]').innerText(),/3 in your fleet · Main shop 2 · North yard 1/);
     assert.equal(await page.evaluate(()=>[handle.backDepth(),handle.back()].join()),'0,false','nothing to go back to once it is written');
     await page.locator('[data-gxe-finish]').click();

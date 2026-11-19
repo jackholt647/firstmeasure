@@ -542,6 +542,14 @@
       if ([...autosavers].some((saver) => saver.dirty)) { event.preventDefault(); event.returnValue = ''; }
     };
     window.addEventListener('beforeunload', beforeUnload);
+    // Equipment written elsewhere on the page (the equipment setup, GP-15) is read again: the fleet, its types and
+    // facilities. The fleet view shows it at once; another view reads it when it next opens the fleet.
+    const onEquipmentChanged = () => {
+      if (destroyed) return;
+      state.types = null; state.categories = null; state.yards = null;
+      if (state.view === 'fleet') void loadFleet({ force:true });
+    };
+    window.addEventListener('fm:equipment:changed', onEquipmentChanged);
 
     const writeRoute = (history, patch, options = {}) => {
       if (!routed || Portal.navigation?.applying) return;
@@ -2145,6 +2153,7 @@
         root.removeEventListener('compositionend', onAutosaveInput, true);
         root.removeEventListener('click', retryAutosave);
         window.removeEventListener('beforeunload', beforeUnload);
+        window.removeEventListener('fm:equipment:changed', onEquipmentChanged);
         destroyed = true;
         state.settingsHandle?.destroy?.();
         if (activeEquipmentHandle === handle) activeEquipmentHandle = null;

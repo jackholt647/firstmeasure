@@ -62,8 +62,7 @@ const css = `
 .gxe-rented{grid-column:2 / -1;font-size:12.5px;color:#667085}
 .gxe-done{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;background:#ecfdf3;color:#05603a}
 .gxe-done i{font-size:22px}
-.gxe-done strong{display:block;font-size:15px;color:#054f31}
-.gxe-done p{color:#05603a}
+.gxe-done p{color:#05603a;font-size:14px;font-weight:600}
 .gxe-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid #e4e7ec;border-radius:13px;background:#fff}
 .gxe-row div{flex:1 1 auto;min-width:0}
 .gxe-row strong{display:block;font-size:14px}
@@ -242,6 +241,9 @@ export function mount(el, ctx){
       // What was just written is no longer new: a Back and a second Set up only add what is still short.
       const ids = new Map(array(result.facilities).map((row) => [clean(row.name), clean(row.id)]));
       locations = locations.map((row) => ({ ...row, id: row.id || ids.get(clean(row.name)) || '' }));
+      // The Equipment tab under the sheet (here, or in the top page under a project window) reads its fleet again.
+      const windows = new Set([window]); try { if (window.top.location.origin === location.origin) windows.add(window.top); } catch (_) {}
+      windows.forEach((win) => win.dispatchEvent(new win.CustomEvent('fm:equipment:changed', { detail: { source: 'equipment.setup' } })));
       go(pages.indexOf('done'));
     } catch (error) { fail(error); }
     finally { busy = false; if (button.isConnected) button.disabled = false; }
@@ -255,7 +257,7 @@ export function mount(el, ctx){
     const total = (kind) => Object.values(fleet(kind)).reduce((sum, value) => sum + (Number(value) || 0), 0);
     const where = (kind) => locations.length > 1 ? locations.filter((row) => Number(fleet(kind)[row.id]) > 0).map((row) => `${clean(row.name)} ${Number(fleet(kind)[row.id])}`).join(' · ') : '';
     el.innerHTML = `<div class="gxe" data-gxe-page="done">
-      <div class="gxe-done" role="status"><i class="fas fa-circle-check" aria-hidden="true"></i><div><strong>${esc(L('gx_eqs_done_title', 'We’ve set up your equipment'))}</strong><p>${esc(L('gx_eqs_done_body', 'You can adjust your equipment at any time in the Equipment tab.'))}</p></div></div>
+      <div class="gxe-done" role="status"><i class="fas fa-circle-check" aria-hidden="true"></i><p>${esc(L('gx_eqs_done_body', 'You can adjust your equipment at any time in the Equipment tab.'))}</p></div>
       <div class="gxe-rows">
         <div class="gxe-row">${icon('fa-warehouse')}<div><strong>${esc(locations.length === 1 ? clean(locations[0].name) : L('gx_eqs_done_locations', '{n} locations', { n: locations.length }))}</strong>${locations.length > 1 ? `<small>${esc(locations.map((row) => clean(row.name)).join(', '))}</small>` : ''}</div></div>
         ${chosen().map((kind) => `<div class="gxe-row" data-gxe-done="${esc(kind.id)}">${icon(kind.icon)}<div><strong>${esc(kind.label)}</strong><small>${esc(counted(kind) ? `${L('gx_eqs_done_units', '{n} in your fleet', { n: total(kind) })}${where(kind) ? ` · ${where(kind)}` : ''}` : copy(kind.note, L('gx_eqs_units_rented', 'Rented when you need one: nothing to count.')))}</small></div></div>`).join('')}
