@@ -41,6 +41,15 @@
 .fm-shell-header[data-header-rows="2"]>.fm-shell-tabs{grid-row:2;grid-column:1;min-width:0;min-height:0;height:32px;box-sizing:border-box;border-bottom:0!important;overflow:hidden}
 .fm-shell-header[data-header-rows="2"]>.fm-project-tray-tabs{grid-row:2;grid-column:4;display:flex;align-items:center;gap:2px;padding:0 4px}
 .fm-shell-header[data-header-rows="2"]>.fm-project-tray-tabs button{position:static;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:30px;padding:0;border:0;border-radius:5px;background:none;color:#667085;font-family:inherit;font-size:13.3333px;font-weight:400;line-height:normal}
+/* Minimized, an entity window is one bar: its icon and name, then restore and close (GP-125). The open header's
+   second row (tabs, tray buttons) and the identity's room for the floating controls would leave the name no width. */
+.fm-entity-window[data-window=minimized]>.fm-shell-header{display:flex!important;align-items:center;gap:4px;padding:0 2px 0 8px!important;overflow:hidden}
+.fm-entity-window[data-window=minimized]>.fm-shell-header>:not(.fm-shell-identity,.r-window-bar-actions){display:none!important}
+.fm-entity-window[data-window=minimized]>.fm-shell-header>.fm-shell-identity{flex:1;gap:7px;padding:0!important;font-size:12px!important;font-weight:700!important}
+.fm-entity-window[data-window=minimized]>.fm-shell-header>.fm-shell-identity>i{display:grid;place-items:center;flex:none;width:20px;height:20px;font-size:15px}
+.fm-entity-window[data-window=minimized]>.fm-shell-header>.r-window-bar-actions{position:static!important;flex:none;height:28px}
+.fm-entity-window[data-window=minimized]>.fm-shell-header .fm-window-controls{height:28px!important}
+.fm-entity-window[data-window=minimized]>.fm-shell-header .fm-window-controls button{width:26px!important;height:28px!important;min-height:28px!important;border:0!important}
 .fm-shell-tabs.fm-tabs-revealing>button{position:relative}
 .fm-shell-tabs.fm-tabs-revealing>button:first-child{z-index:1;background:#fff!important}
 .fm-entity-window .fm-shell-header[data-window-mobile=true]{display:grid!important;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:60px auto;height:auto!important;min-height:60px!important;padding-top:var(--fm-window-safe-top,env(safe-area-inset-top,0px))!important}
