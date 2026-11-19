@@ -82,6 +82,20 @@ const triggerLabel = (trigger: ExperienceDefinition["triggers"][number]) =>
   trigger.kind === "tab_opened" ? trigger.tab : trigger.kind === "before_action" ? trigger.action : trigger.kind === "after_experience" ? trigger.experience
     : trigger.kind === "workflow_opened" ? trigger.document_type : trigger.kind === "panel_opened" || trigger.kind === "panel_closed" ? trigger.panel : "";
 
+/**
+ * The setups a page opens: the Operations setup's cards name theirs (`options.setups[].experience`). With
+ * `options.card` the page opens that one card at once and nothing else, so a setup made only of such pages is a
+ * launcher, not a setup of its own: the Setup tag on a project's Operations tab turns the Equipment app on and plays
+ * the equipment setup (operations.equipment.setup, FM-619). The diagram shows it on the setup it opens (GP-59).
+ */
+export function opensOf(step: unknown) {
+  const options = ((step as { options?: Record<string, unknown> }).options || {}) as { setups?: unknown; card?: unknown };
+  const named = (Array.isArray(options.setups) ? options.setups : []) as { id?: unknown; experience?: unknown }[];
+  const card = typeof options.card === "string" ? options.card : "";
+  const opens = named.filter((entry) => typeof entry?.experience === "string" && (!card || entry.id === card)).map((entry) => entry.experience as string);
+  return { opens, only: !!card && opens.length === 1 };
+}
+
 /** The questions (setup steps) with how deep each sits in what requires what, so the diagram draws them left to right. */
 function questionDepths(steps: SetupStepDefinition[]) {
   const byId = new Map(steps.map((step) => [step.id, step]));
@@ -139,6 +153,8 @@ export async function setupDrivers(ctx: PlatformAuthContext, shownInput = "") {
       requires: [...definition.requires],
       triggers: definition.triggers.map((trigger) => ({ kind: trigger.kind, on: triggerLabel(trigger), when: traceOf((trigger as { when?: unknown }).when, context) })),
       then: definition.completion.then.flatMap((entry) => "play" in entry ? [entry.play] : []),
+      opens: [...new Set(definition.steps.flatMap((step) => opensOf(step).opens))],
+      launcher: definition.steps.length > 0 && definition.steps.every((step) => opensOf(step).only),
       pages,
       ...evaluate(definition, context, appsOn.get(definition.id) || false)
     });

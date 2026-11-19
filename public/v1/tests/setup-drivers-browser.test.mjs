@@ -16,8 +16,12 @@ const DATA={ok:true,
   variants:[{id:'default',weight:1,when:null,chosen:true,share:1,steps:['kind','presentation','prices'],content:[]}],
   pages:[page('kind','What do you want to make?'),page('presentation','How do you present a proposal?',['company.services']),page('prices','What do you charge?',['company.services'])]},
   {id:'equipment.setup',title:'Set up equipment',kind:'modal',scope:'organization',group:'setup',apps:{capabilities:[],permissions:[]},requires:[],triggers:[{kind:'manual',on:'',when:null}],then:[],offered:true,apps_on:true,fits:true,when:null,
-  variants:[{id:'default',weight:1,when:null,chosen:true,share:1,steps:['add'],content:[]}],pages:[page('add','Add your equipment')]}],
- matrix:{columns:[],rows:[]}};
+  variants:[{id:'default',weight:1,when:null,chosen:true,share:1,steps:['add'],content:[]}],pages:[page('add','Add your equipment')]},
+  // A launcher (GP-59): the Operations tab's Setup tag, which only opens the equipment setup.
+  {id:'operations.equipment.setup',title:'Set up your equipment from Operations',kind:'modal',scope:'organization',group:'setup',apps:{capabilities:[],permissions:[]},requires:[],triggers:[{kind:'manual',on:'',when:null}],then:[],opens:['equipment.setup'],launcher:true,offered:true,apps_on:true,fits:true,when:null,
+  variants:[{id:'default',weight:1,when:null,chosen:true,share:1,steps:['equipment'],content:[]}],pages:[page('equipment','Equipment')]}],
+ matrix:{columns:[{key:'roofing_contractor',label:'Roofing contractor',industry:'roofing',industry_sets:[]}],
+  rows:['documents.setup','equipment.setup','operations.equipment.setup'].map(id=>({id,cells:[{offered:true,fits:true,variants:['default']}]}))}};
 
 async function open(browser,{width,phone}){
  const tab=await browser.newPage({viewport:{width,height:800}}),errors=[];tab.on('pageerror',e=>errors.push(e.message));
@@ -76,5 +80,18 @@ test('what drives setup: setups are folded by default, lines go to the title, an
    assert.deepEqual(errors,[]);
    await tab.close();
   }
+ }finally{await browser.close();}
+});
+
+test('what drives setup: a launcher is told on the setup it opens, not shown as a second setup (GP-59)',async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const {tab,errors}=await open(browser,{width:1400,phone:false});
+  assert.deepEqual(await tab.evaluate(()=>[...document.querySelectorAll('.fm-dc-map-s')].map(el=>el.dataset.mapNode)),['s:documents.setup','s:equipment.setup']);
+  await tab.click('[data-map-node="s:equipment.setup"]');
+  assert.match(await tab.locator('.fm-dc-map-tip').innerText(),/Also started from: Set up your equipment from Operations \(operations\.equipment\.setup\)/);
+  await tab.click('[data-map-view="matrix"]');
+  assert.deepEqual(await tab.evaluate(()=>[...document.querySelectorAll('.fm-dc-map-matrix tbody th[scope=row]')].map(el=>el.title)).then(ids=>ids.sort()),['documents.setup','equipment.setup']);
+  assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });

@@ -57,6 +57,8 @@ export function openDrivers({ api, T, esc, phone }) {
   const typeLabel = (id) => data?.company.types.find((type) => type.id === id)?.label || (id === 'other' ? T('dc_setup_map_other', 'Other') : id);
   const setLabel = (id) => data?.company.sets.find((set) => set.id === id)?.label || id;
   const setupTitle = (id) => data?.setups.find((setup) => setup.id === id)?.title || id;
+  /** The launchers that start this setup from somewhere else (GP-59). Played inside them, its `then` does not follow. */
+  const launchers = (id) => (data?.setups || []).filter((setup) => setup.launcher && setup.opens?.includes(id));
   const questionTitle = (id) => data?.questions.find((question) => question.id === id)?.title || id;
   /** A value as people read it: a set, company type or service by its label. */
   function valueText(field, value) {
@@ -80,7 +82,9 @@ export function openDrivers({ api, T, esc, phone }) {
       for (const field of readBy(setup.when)) facts.add(field);
       for (const variant of setup.variants) for (const field of readBy(variant.when)) facts.add(field);
     }
-    const setups = data.setups.filter((setup) => setup.group === 'setup');
+    // A launcher (its pages only open another setup: the Equipment Setup tag on a project's Operations tab) is not a
+    // setup of its own; it is told on the setup it opens (GP-59).
+    const setups = data.setups.filter((setup) => setup.group === 'setup' && !setup.launcher);
     const ids = new Set(setups.map((setup) => setup.id));
     // Follow-ups: what a setup plays when it finishes, and what starts after one.
     const after = new Map();
@@ -89,7 +93,7 @@ export function openDrivers({ api, T, esc, phone }) {
       for (const trigger of setup.triggers) if (trigger.kind === 'after_experience' && ids.has(trigger.on)) after.set(setup.id, [...(after.get(setup.id) || []), trigger.on]);
     }
     // A tour whose own condition reads a fact is part of the picture too.
-    const nexts = data.setups.filter((setup) => !ids.has(setup.id) && (after.has(setup.id) || setup.when || setup.variants.some((variant) => variant.when && readBy(variant.when).length)));
+    const nexts = data.setups.filter((setup) => !ids.has(setup.id) && !setup.launcher && (after.has(setup.id) || setup.when || setup.variants.some((variant) => variant.when && readBy(variant.when).length)));
     for (const question of data.questions) {
       nodes.set(`q:${question.id}`, { column: `q${question.depth}`, kind: 'question', item: question });
       for (const before of question.requires) edges.push({ from: `q:${before}`, to: `q:${question.id}`, kind: 'requires' });
@@ -262,6 +266,8 @@ export function openDrivers({ api, T, esc, phone }) {
         ...(s.requires.length ? [`${T('dc_setup_map_asks_first', 'Asks first')}: ${s.requires.map(questionTitle).join(', ')}`] : []),
         ...(s.variants.length > 1 ? [`${T('dc_setup_map_variants', 'Variants')}: ${s.variants.map((variant) => `${variant.chosen ? '●' : '○'} ${variant.id}`).join('  ')}`] : []),
         ...(s.then.length ? [`${T('dc_setup_map_then', 'Then plays')}: ${s.then.map(setupTitle).join(', ')}`] : []),
+        ...(s.opens?.length ? [`${T('dc_setup_map_opens', 'Opens')}: ${s.opens.map(setupTitle).join(', ')}`] : []),
+        ...launchers(s.id).map((launcher) => `${T('dc_setup_map_launched', 'Also started from')}: ${launcher.title} (${launcher.id})${s.then.length ? `, ${T('dc_setup_map_launched_then', 'without what it then plays')}` : ''}`),
         s.id] };
     }
     if (node.kind === 'variant') {
@@ -300,7 +306,7 @@ export function openDrivers({ api, T, esc, phone }) {
     // What the kind of company decides (`fits`); an app that is off here is the row's lock, the same in every column.
     const key = (cell) => cell.fits ? cell.variants.join('+') || '·' : '—';
     const varies = (row) => new Set(row.cells.map(key)).size > 1;
-    const list = rows.filter((row) => byId.has(row.id));
+    const list = rows.filter((row) => byId.has(row.id) && !byId.get(row.id).launcher);
     const changing = list.filter(varies), same = list.filter((row) => !varies(row));
     const palette = new Map();
     const tone = (setupId, variant) => { const k = `${setupId}:${variant}`; if (!palette.has(k)) palette.set(k, byId.get(setupId).variants.findIndex((entry) => entry.id === variant) % 6); return palette.get(k); };
