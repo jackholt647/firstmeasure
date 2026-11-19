@@ -126,6 +126,14 @@ test("the finish adds each crew and subcontractor with what it does, who is on i
   assert.ok(crewA.items.includes("roofing.install"));
   assert.equal(gutters.known, true);
   assert.ok(!gutters.items.includes("roofing.install"), "the gutter company was not given roofing");
+  // GP-122: they are People's own records: the crews in People › Groups (a crew), the subcontractor in People ›
+  // Subcontractors, each in the person's branch.
+  const { listResourceGroups } = await import("../workforce/storage.js");
+  const { listOrganizationConnections } = await import("../connections/storage.js");
+  const groups = await listResourceGroups(ORG, {});
+  assert.deepEqual(["Crew A", "Crew B"].map((name) => { const group = groups.find((row: any) => row.name === name)!; return [group.kind_id, group.branch_id, group.status]; }), [["crew", "default", "active"], ["crew", "default", "active"]]);
+  const company = (await listOrganizationConnections(ORG, {})).find((row: any) => row.name === "Gutter Pros")!;
+  assert.deepEqual([company.id, company.branch_ids], [by("Gutter Pros").ref.id, ["default"]]);
   // The labor column shows now that someone does the work.
   const labor = (await (await import("../materials/resource-types.js")).listResourceTypes(ORG, { includeHidden: true })).find((row) => row.id === "labor");
   assert.equal(labor?.shown, "always");
