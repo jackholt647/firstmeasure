@@ -12,7 +12,7 @@ import { isOfferableApp } from "../../platform/app-experience/offers.js";
 export const APP_WELCOME = "app_welcome";
 
 const schema = z.object({
-  /** The illustration and colours (app-welcome.js `icons`). */
+  /** The illustration (app-welcome.js `icons`); its colours are the organization's, the theme's only a fallback. */
   theme: z.enum(["photos", "documents", "portal", "equipment", "materials", "money", "checklists", "scheduling", "generic"]),
   /** `page`: one full-width page (the copy, then the illustration below it) instead of the default two sides. */
   layout: z.enum(["page"]).optional(),

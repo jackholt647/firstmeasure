@@ -202,3 +202,36 @@ test('on a phone the advertisement fills the portal tab and no app is left under
     }
   }finally{await browser.close();}
 });
+
+// GP-39: the advertisement is white and drawn in the organization's colours: primary for accents, the button and the
+// FirstMate mark, secondary (darkened until it reads on white) in the illustration. "Free Forever" stays green.
+test('the advertisement is white and in the organization\'s primary and secondary colours',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:433,height:870}});
+    await page.setContent('<html style="--primary:#2f4fb5;--primary-readable:#2f4fb5;--on-primary:#ffffff;--secondary:#f2a900"><body style="margin:0"><main id="root" style="height:100vh"></main></body></html>');
+    await page.addScriptTag({content:source+'\nwindow.mountWelcome=mountWelcome;'});
+    await page.evaluate(welcome=>{window.handle=window.mountWelcome({appId:'project.materials',orgId:'org_test',roots:{main:document.getElementById('root')},entitlement:{offered:true,welcome}});},APP_WELCOMES['project.materials']);
+    const colours=()=>page.evaluate(()=>{
+      const article=document.querySelector('.fm-app-welcome'),style=element=>getComputedStyle(article.querySelector(element));
+      const second=getComputedStyle(article).getPropertyValue('--offer-second').match(/\d+/g).map(Number);
+      const lum=second.map(v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4;}).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);
+      return {background:getComputedStyle(article).backgroundColor,eyebrow:style('.faw-eyebrow').color,button:style('.faw-start').backgroundColor,
+        logo:style('.faw-logo').backgroundColor,mask:style('.faw-logo').maskImage,images:article.querySelectorAll('.faw-brand img').length,
+        free:style('.faw-free').backgroundColor,contrast:1.05/(lum+.05),art:style('.faw-art').backgroundImage};
+    });
+    const before=await colours();
+    assert.equal(before.background,'rgb(255, 255, 255)','white, never cream');
+    assert.equal(before.eyebrow,'rgb(47, 79, 181)');
+    assert.equal(before.button,'rgb(47, 79, 181)');
+    assert.equal(before.logo,'rgb(47, 79, 181)','the FirstMate mark takes the organization\'s colour');
+    assert.match(before.mask,/logo_square\.png/);
+    assert.equal(before.images,0);
+    assert.equal(before.free,'rgb(230, 242, 233)','Free Forever stays green');
+    assert.ok(before.contrast>=4.5,`a light secondary is darkened until it reads on white (${before.contrast})`);
+    await page.evaluate(()=>{document.documentElement.style.setProperty('--secondary','#7a1fa2');window.dispatchEvent(new CustomEvent('fm:theme:updated'));});
+    const after=await colours();
+    assert.notEqual(after.art,before.art,'a theme change repaints the secondary');
+    assert.match(await page.evaluate(()=>getComputedStyle(document.querySelector('.fm-app-welcome')).getPropertyValue('--offer-second')),/rgb\(122,\s*31,\s*162\)/);
+  }finally{await browser.close();}
+});
