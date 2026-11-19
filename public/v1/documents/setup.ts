@@ -461,14 +461,16 @@ async function sampleScope(orgId: string, plan: DocumentPlan, answers: Answers) 
     line(`${prefix}ridge_vent`, "Ridge vent", 40, "ft", price("ridge_vent", 9))
   ];
   if (plan.base === "tpl_instant_roofing_options") {
-    const tier = (id: string, name: string, shingle: string, shingleId: string, shinglePrice: number, selected: boolean, highlights: string[]): JsonObject => ({
-      id, name, quantity: 1, unit: "job", highlights, selection: { mode: "choice", group_id: "package", group_title: "Your roof", selected },
-      children: roof(shingle, shingleId, shinglePrice, `${id}_`)
-    });
+    // An option is its name, its price and its lines: no subtitle (GP-20).
+    const tier = (id: string, name: string, shingle: string, shingleId: string, shinglePrice: number, selected: boolean): JsonObject => {
+      const children = roof(shingle, shingleId, shinglePrice, `${id}_`);
+      return { id, name, quantity: 1, unit: "job", highlights: children.map((child) => String(child.name)),
+        selection: { mode: "choice", group_id: "package", group_title: "Your roof", selected }, children };
+    };
     return [
-      tier("good", "Good", "Three-tab shingles", "three_tab_shingles", 120, false, ["25-year shingles", "Standard warranty"]),
-      tier("better", "Better", "Architectural shingles", "gaf_hd", 145, true, ["Lifetime shingles", "Enhanced warranty"]),
-      tier("best", "Best", "Designer shingles", "gaf_uhdz", 190, false, ["Thicker designer shingles", "Best warranty"])
+      tier("good", "Good", "Three-tab shingles", "three_tab_shingles", 120, false),
+      tier("better", "Better", "Architectural shingles", "gaf_hd", 145, true),
+      tier("best", "Best", "Designer shingles", "gaf_uhdz", 190, false)
     ];
   }
   const lines = roof("Architectural shingles", "gaf_hd", 145);
