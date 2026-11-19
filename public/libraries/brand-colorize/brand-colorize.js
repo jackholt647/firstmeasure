@@ -25,7 +25,9 @@
  *   brandColor()                      the organization's colour as the portal draws text on white (--primary-readable).
  *   readableOnWhite(hex)              the portal's own readable-on-white rule (portal/index.php applyTheme).
  *   attach(frame, options)            keeps frame.style.filter on the brand colour (or the dev preview); returns detach.
- *   preview(hex | null, { mode })     development: every attached frame shows this colour instead (the dev console).
+ *                                     Attaching and detaching send 'fm:brand-colorize-frames' (the dev console's count).
+ *   preview(hex | null, { mode })     development: every attached frame shows this colour instead (the dev console);
+ *                                     mode 'off' shows Forward's own colours, to compare before and after (GP-118).
  */
 (function (root) {
   'use strict';
@@ -182,29 +184,38 @@
   let previewState = null;
   function paint(entry) {
     if (!entry.frame.isConnected) { frames.delete(entry); return; }
+    if (previewState?.mode === 'off') {
+      // 'none', not '': the page's own stylesheet may filter the frame too.
+      entry.frame.style.filter = 'none';
+      entry.frame.dataset.fmBrandColorize = '';
+      return;
+    }
     const target = previewState?.color || brandColor();
     const filter = target ? filterFor(target, { base: entry.base, mode: previewState?.mode || entry.mode }) : '';
     entry.frame.style.filter = filter || '';
     entry.frame.dataset.fmBrandColorize = target ? toHex(parseColor(target)) : '';
   }
   function repaint() { frames.forEach(paint); }
+  const announceFrames = () => root.dispatchEvent?.(new root.CustomEvent('fm:brand-colorize-frames'));
   function attach(frame, options = {}) {
     if (!frame) return () => {};
     const entry = { frame, base: options.base || FORWARD_BASE, mode: options.mode };
     frames.add(entry);
     paint(entry);
-    return () => { frames.delete(entry); };
+    announceFrames();
+    return () => { if (frames.delete(entry)) announceFrames(); };
   }
   function preview(color, options = {}) {
     const rgb = color ? parseColor(color) : null;
-    previewState = rgb ? { color: toHex(rgb), mode: MODES.includes(options.mode) ? options.mode : 'family' } : null;
+    previewState = options.mode === 'off' ? { color: '', mode: 'off' }
+      : rgb ? { color: toHex(rgb), mode: MODES.includes(options.mode) ? options.mode : 'family' } : null;
     repaint();
     root.dispatchEvent?.(new root.CustomEvent('fm:brand-colorize-preview', { detail: previewState }));
     return previewState;
   }
 
   const api = {
-    version: '20261119-gp77c',
+    version: '20261119-gp118',
     FORWARD_BASE, MODES,
     parseColor, toHex, matrix, apply, filterMarkup, filterFor,
     readableOnWhite, brandColor, attach, preview,

@@ -96,7 +96,10 @@ test('an attached iframe is drawn in the brand colour, greys untouched; family m
     const before = await framePixels(page);
     assert.ok(near(before.base, B.FORWARD_BASE), JSON.stringify(before));
 
-    await page.evaluate(() => window.FirstMateBrandColorize.attach(document.querySelector('iframe')));
+    await page.evaluate(() => { window.__frameEvents = 0; window.addEventListener('fm:brand-colorize-frames', () => { window.__frameEvents += 1; }); });
+    await page.evaluate(() => { window.__detach = window.FirstMateBrandColorize.attach(document.querySelector('iframe')); });
+    // The dev console's frame count follows attach and detach (GP-118).
+    assert.equal(await page.evaluate(() => window.__frameEvents), 1);
     assert.match(await page.evaluate(() => document.querySelector('iframe').style.filter), /^url\("?#fm-brand-colorize-007a76-2563eb-family"?\)$/);
     let px = await framePixels(page);
     assert.ok(near(px.base, '#2563eb'), `base ${px.base}`);
@@ -120,6 +123,20 @@ test('an attached iframe is drawn in the brand colour, greys untouched; family m
     await page.evaluate(() => window.FirstMateBrandColorize.preview(null));
     px = await framePixels(page);
     assert.ok(near(px.base, '#2563eb'), `back to the brand colour ${px.base}`);
+
+    // GP-118: 'off' shows Forward's own colours to compare before and after: 'none', so a stylesheet filter on the
+    // frame (Settings › Money has one) cannot recolour it either.
+    await page.addStyleTag({ content: 'iframe{filter:hue-rotate(90deg)}' });
+    await page.evaluate(() => window.FirstMateBrandColorize.preview(null, { mode: 'off' }));
+    assert.equal(await page.evaluate(() => document.querySelector('iframe').style.filter), 'none');
+    assert.deepEqual(await page.evaluate(() => window.FirstMateBrandColorize.previewing()), { color: '', mode: 'off' });
+    px = await framePixels(page);
+    assert.ok(near(px.base, B.FORWARD_BASE), `Forward's own colour ${px.base}`);
+    await page.evaluate(() => window.FirstMateBrandColorize.preview(null));
+    px = await framePixels(page);
+    assert.ok(near(px.base, '#2563eb'), `brand colour again ${px.base}`);
+    await page.evaluate(() => window.__detach());
+    assert.equal(await page.evaluate(() => window.__frameEvents), 2);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

@@ -5701,16 +5701,6 @@ window.FirstMateSettingsIndex = {
       "tab": "Money",
       "view": "",
       "source": "libraries/apps/settings/company.js",
-      "title": "Click detector: Off",
-      "description": "",
-      "kind": "control",
-      "selector": "[data-money-click-detector=\"\"]"
-    },
-    {
-      "section": "money",
-      "tab": "Money",
-      "view": "",
-      "source": "libraries/apps/settings/company.js",
       "title": "Confirm account number",
       "description": "",
       "kind": "control",
@@ -5944,16 +5934,6 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "kind": "section",
       "selector": ""
-    },
-    {
-      "section": "money",
-      "tab": "Money",
-      "view": "",
-      "source": "libraries/apps/settings/company.js",
-      "title": "Opacity 100%",
-      "description": "",
-      "kind": "control",
-      "selector": "[data-money-overlay-opacity=\"\"]"
     },
     {
       "section": "money",
