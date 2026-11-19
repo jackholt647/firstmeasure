@@ -87,6 +87,14 @@
     pendingVoice:{ chat:null },
     inboxAddress:'',
     sending:false,
+    // GP-12: what was sent shows at once. `pending` holds outbound messages the server has not answered for yet
+    // (status sending, or failed with Try again); `shown` remembers which messages each open thread has drawn, so only
+    // new ones animate in; `drawn` is what the content and thread panes last showed, so only a real change animates.
+    pending:[],
+    shown:new Map(),
+    drawn:{ content:'', thread:{} },
+    emailCache:new Map(),
+    emailOpenSeq:0,
     simulateBusy:false,
     pollTimer:0
   };
@@ -400,8 +408,60 @@
       .fmco-call-note{margin:0;font-size:12.5px;color:#667085}
       .fmco-call-media{display:grid;gap:4px}.fmco-call-media audio{width:100%}.fmco-call-media small{font-size:11px;font-weight:700;color:#98a2b3}
       .fmco-call-transcript{max-height:420px;overflow-y:auto;background:#f8fafc;border:1px solid #eef1f4;border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.6;color:#344054;white-space:pre-wrap;overflow-wrap:anywhere}
+      /* GP-12: every click answers at once. Pressed controls give, a sent message joins its thread straight away
+         (sending, then sent or "Not sent" with Try again), and threads, lists and views move in instead of snapping. */
+      @keyframes fmco-msg-in{from{opacity:0;transform:translateY(12px) scale(.94)}to{opacity:1;transform:none}}
+      @keyframes fmco-fade-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+      @keyframes fmco-fade{from{opacity:0}to{opacity:1}}
+      @keyframes fmco-slide-in{from{opacity:.4;transform:translateX(36px)}to{opacity:1;transform:none}}
+      @keyframes fmco-slide-back{from{opacity:.4;transform:translateX(-36px)}to{opacity:1;transform:none}}
+      @keyframes fmco-row-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+      @keyframes fmco-sending{0%,100%{opacity:.45}50%{opacity:1}}
+      @keyframes fmco-shake{0%,100%{transform:none}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+      @keyframes fmco-fly{0%{transform:none;opacity:1}45%{transform:translate(14px,-12px) rotate(8deg);opacity:0}46%{transform:translate(-10px,8px);opacity:0}100%{transform:none;opacity:1}}
+      @keyframes fmco-shimmer{from{background-position:120% 0}to{background-position:-20% 0}}
+      .fmco-tab,.fmco-btn,.fmco-ai-btn,.fmco-icon-btn,.fmco-contact-chip,.fmco-card-open{transition:background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .12s ease,filter .16s ease,opacity .16s ease}
+      .fmco-thread-row,.fmco-feed-row{transition:background-color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .12s ease}
+      .fmco-tab:active,.fmco-btn:active:not(:disabled),.fmco-ai-btn:active,.fmco-icon-btn:active:not(:disabled),.fmco-contact-chip:active:not(:disabled){transform:scale(.95)}
+      .fmco-thread-row:active,.fmco-feed-row:active{transform:scale(.985)}
+      .fmco-thread-row:hover{box-shadow:0 2px 8px rgba(16,24,40,.06)}
+      .fmco-thread-row.active{box-shadow:0 0 0 3px rgba(var(--primary-rgb,217 48 37),.10)}
+      .fmco-thread-row.pending{border-style:dashed}
+      .fmco-thread-row.fmco-new{animation:fmco-row-in .28s cubic-bezier(.2,.8,.2,1) both}
+      .fmco-row-state{display:inline-flex;align-items:center;gap:5px;color:var(--primary-readable,var(--primary,#d93025));font-weight:800}
+      .fmco-row-state.failed{color:#b42318}
+      .fmco-content.fmco-view-in>*{animation:fmco-fade-up .26s cubic-bezier(.2,.8,.2,1) both}
+      .fmco-content>.fmco-empty{animation:fmco-fade .3s ease .12s both}
+      .fmco-thread-view.fmco-enter>*{animation:fmco-fade-up .28s cubic-bezier(.2,.8,.2,1) both}
+      .fmco-thread-view.fmco-enter>.fmco-composer{animation-delay:.05s}
+      .fmco-msgs.fmco-fill>*{animation:fmco-fade .3s ease both}
+      .fmco-msg.fmco-new,.fmco-msg-meta.fmco-new{animation:fmco-msg-in .34s cubic-bezier(.2,.8,.2,1) both}
+      .fmco-msg.outbound.fmco-new{transform-origin:100% 100%}.fmco-msg.inbound.fmco-new{transform-origin:0 100%}
+      .fmco-msg{transition:opacity .25s ease,background-color .25s ease,color .25s ease,box-shadow .25s ease}
+      .fmco-msg.pending{opacity:.78}
+      .fmco-msg.failed{background:#fef3f2;color:#b42318;border:1px solid #fecdca;animation:fmco-shake .4s ease both}
+      .fmco-send-state{display:inline-flex;align-items:center;gap:5px;font-weight:800;color:var(--primary-readable,var(--primary,#d93025))}
+      .fmco-send-state.sending{animation:fmco-sending 1.2s ease-in-out infinite}
+      .fmco-send-state.failed{color:#b42318;animation:none}
+      .fmco-send-state button{border:0;background:none;padding:0 2px;font:inherit;font-weight:900;color:inherit;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+      .fmco-send-state button.quiet{color:#667085;text-decoration:none;font-weight:700}
+      .fmco-send-state button:hover{filter:brightness(.85)}
+      .fmco-mail-card.fmco-new{animation:fmco-msg-in .34s cubic-bezier(.2,.8,.2,1) both;transform-origin:50% 100%}
+      .fmco-mail-card.pending{border-style:dashed}
+      .fmco-mail-card.failed{border-color:#fecdca;background:#fffbfa;animation:fmco-shake .4s ease both}
+      .fmco-mail-card.pending .fmco-mail-avatar{animation:fmco-sending 1.2s ease-in-out infinite}
+      .fmco-skeleton{border:1px solid #eef1f4;border-radius:12px;padding:14px;display:grid;grid-template-columns:36px minmax(0,1fr);gap:8px 10px}
+      .fmco-skeleton i,.fmco-skeleton b{display:block;border-radius:6px;background:linear-gradient(90deg,#f2f4f7 30%,#e4e7ec 50%,#f2f4f7 70%) 0 0/300% 100%;animation:fmco-shimmer 1.3s linear infinite}
+      .fmco-skeleton i{width:36px;height:36px;border-radius:50%;grid-row:span 3}.fmco-skeleton b{height:10px}.fmco-skeleton b:nth-of-type(1){width:42%}.fmco-skeleton b:nth-of-type(2){width:88%}.fmco-skeleton b:nth-of-type(3){width:64%}
+      .fmco-rich-send.is-sending i{animation:fmco-fly .55s cubic-bezier(.4,0,.2,1)}
+      @media (prefers-reduced-motion:reduce){
+        .fmco-shell *:not(.fa-spin),.fmco-shell *::before,.fmco-shell *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:.01ms!important}
+        .fmco-tab:active,.fmco-btn:active:not(:disabled),.fmco-ai-btn:active,.fmco-icon-btn:active:not(:disabled),.fmco-contact-chip:active:not(:disabled),.fmco-thread-row:active,.fmco-feed-row:active{transform:none}
+      }
       @media(max-width:1180px){.fmco-agent-col{position:absolute;right:0;top:0;bottom:0;z-index:30;box-shadow:-14px 0 30px rgba(16,24,40,.12)}}
-      @media(max-width:900px){.fmco-split{grid-template-columns:1fr}.fmco-split .fmco-thread-view{display:none}.fmco-split.thread-mode .fmco-thread-view{display:flex}.fmco-split.thread-mode .fmco-list-col{display:none}}
+      @media(max-width:900px){.fmco-split{grid-template-columns:1fr}.fmco-split .fmco-thread-view{display:none}.fmco-split.thread-mode .fmco-thread-view{display:flex}.fmco-split.thread-mode .fmco-list-col{display:none}
+        .fmco-split.thread-mode .fmco-thread-view.fmco-enter{animation:fmco-slide-in .3s cubic-bezier(.2,.8,.2,1) both}.fmco-split.thread-mode .fmco-thread-view.fmco-enter>*{animation:none}
+        .fmco-list-col.fmco-back{animation:fmco-slide-back .28s cubic-bezier(.2,.8,.2,1) both}}
       /* Phone (the platform's 760px window breakpoint), like Photos and Docs:
          one header row (the tab icon, a flexible search, Ask AI and settings
          as icons), the channels as a strip that scrolls sideways, and an open
@@ -551,14 +611,15 @@
         ]);
         setOverview(overviewResult);
         state.emailThreads = Array.isArray(result.threads) ? result.threads : [];
-        if (state.emailThread) {
+        // A new email still sending keeps its conversation open (GP-12).
+        if (state.emailThread && !state.emailThread.provisional) {
           const stillThere = state.emailThreads.some((thread) => thread.id === state.emailThread.id);
           if (stillThere) await openEmailThread(state.emailThread.id, { silent:true });
           else state.emailThread = null;
         }
       } else if (state.view === 'sms') {
         const [result, overviewResult] = await Promise.all([
-          api2().sms.conversation(orgId(), projectId(), state.activeSmsId),
+          api2().sms.conversation(orgId(), projectId(), smsRequestId()),
           state.overview ? Promise.resolve(null) : api2().overview(orgId(), projectId()),
           loadPhoneStatus()
         ]);
@@ -652,7 +713,7 @@
           }
         }
       } else if (state.view === 'sms') {
-        const result = await api2().sms.conversation(orgId(), projectId(), state.activeSmsId);
+        const result = await api2().sms.conversation(orgId(), projectId(), smsRequestId());
         const conversations = Array.isArray(object(result).conversations) ? object(result).conversations : [];
         const signature = signatureOf(conversations.map((conversation) => [
           conversation.id,
@@ -693,13 +754,36 @@
   }
 
   async function openEmailThread(conversationId, options = {}){
+    const id = clean(conversationId);
+    const ticket = ++state.emailOpenSeq;
+    // GP-12: the thread opens on the click, from what was last read of it or else its header over a placeholder,
+    // and fills in when it has loaded (a thread can take seconds).
+    if (!options.silent && clean(state.emailThread?.id) !== id) {
+      const item = state.emailThreads.find((thread) => clean(thread.id) === id);
+      const cached = state.emailCache.get(id);
+      if (cached || item) {
+        state.emailOpenMessages = new Set();
+        state.emailThread = cached || { id, subject:item.subject, participants:item.participants, messages:[], loading:true };
+        state.emailComposeOpen = false;
+        markEmailRead(id);
+        render();
+      }
+    }
+    const wasLoading = !!state.emailThread?.loading;
     try {
-      const result = await api2().email.thread(orgId(), projectId(), conversationId);
-      if (clean(state.emailThread?.id) !== clean(conversationId)) state.emailOpenMessages = new Set();
+      const result = await api2().email.thread(orgId(), projectId(), id);
+      if (ticket !== state.emailOpenSeq) return;
+      if (clean(state.emailThread?.id) !== id) state.emailOpenMessages = new Set();
+      const shown = clean(state.emailThread?.id) === id && !!contentRoot()?.querySelector('.fmco-mail-msgs');
       state.emailThread = result.thread;
+      state.emailCache.set(id, result.thread);
       state.emailComposeOpen = false;
-      markEmailRead(conversationId);
+      markEmailRead(id);
+      // Already on screen: fill the messages in place, so the reply box keeps what is being typed.
+      if (!options.silent && shown && state.view === 'email' && !state.search.open) { paintEmailHead(); paintThread({ fill:wasLoading, toEnd:true }); return; }
     } catch (error) {
+      if (ticket !== state.emailOpenSeq) return;
+      if (state.emailThread?.loading) state.emailThread = null;
       state.error = error?.message || 'Could not load this thread.';
     }
     if (!options.silent) render();
@@ -752,12 +836,313 @@
       if (!state.cssWait) state.cssWait = ui.cssReady.then(() => { state.cssWait = null; render(); });
       return;
     }
-    if (state.search.open) { renderSearch(root); return; }
-    if (state.view === 'overview') renderOverview(root);
+    // A redraw rebuilds the composer: whoever was typing keeps typing.
+    const typing = root.contains(document.activeElement) ? clean(document.activeElement?.dataset?.coComposerInput) : '';
+    if (state.search.open) renderSearch(root);
+    else if (state.view === 'overview') renderOverview(root);
     else if (state.view === 'email') renderEmail(root);
     else if (state.view === 'sms') renderSms(root);
     else if (state.view === 'chat') renderChat(root);
     else if (state.view === 'calls' && !state.callsHandle) state.callsHandle=Portal.CommunicationsWorkspace.mount(root,{projectId:projectId()});
+    if (typing) focusEnd(root.querySelector(`[data-co-composer-input="${CSS.escape(typing)}"]`));
+    // GP-12: a new view, or a view whose data has just replaced its loading state, moves in rather than snapping.
+    const drawn = state.search.open ? 'search' : `${state.view}:${root.querySelector(':scope > .fmco-empty .fa-spin') ? 'loading' : 'ready'}`;
+    if (drawn !== state.drawn.content) {
+      state.drawn.content = drawn;
+      if (!drawn.endsWith(':loading')) {
+        root.querySelectorAll('.fmco-enter,.fmco-back').forEach((node) => node.classList.remove('fmco-enter', 'fmco-back'));
+        replay(root, 'fmco-view-in');
+      }
+    }
+  }
+
+  // ── Instant feedback (GP-12) ───────────────────────────────────────────────
+  // Nothing waits for the server to answer a click. A sent message is drawn into its thread at once as "Sending…"
+  // (a new text or email opens its conversation straight away), then becomes the server's message in place, or says
+  // "Not sent" with Try again. Threads are patched in place, so only what is new animates and composers keep focus.
+
+  const tempKey = () => `pending:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+  const isPending = (id) => clean(id).startsWith('pending:');
+  const reducedMotion = () => !!rootWindow.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const words = {
+    sending:() => (globalThis.PlatformLanguage?.text("comms","m_01589413ee03d7","Sending…") ?? "Sending…"),
+    notSent:() => (globalThis.PlatformLanguage?.text("comms","m_9fcfa20f91b853","Not sent") ?? "Not sent"),
+    tryAgain:() => (globalThis.PlatformLanguage?.text("comms","m_ef39ad5e614a24","Try again") ?? "Try again"),
+    remove:() => (globalThis.PlatformLanguage?.text("comms","m_f643f568915438","Remove") ?? "Remove"),
+    opening:() => (globalThis.PlatformLanguage?.text("comms","m_1afd0f9e7ff728","Opening conversation…") ?? "Opening conversation…")
+  };
+
+  /** Restart a one-shot CSS animation class on an element that stays in the page. */
+  function replay(node, className){
+    if (!node) return;
+    node.classList.remove(className);
+    void node.offsetWidth;
+    node.classList.add(className);
+    clearTimeout(node.__fmcoReplay);
+    node.__fmcoReplay = setTimeout(() => node.classList.remove(className), 600);
+  }
+
+  function focusEnd(editor){
+    if (!editor) return;
+    editor.focus({ preventScroll:true });
+    try {
+      if (editor.isContentEditable) {
+        const range = editor.ownerDocument.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+        const selection = editor.ownerDocument.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      } else if (typeof editor.setSelectionRange === 'function') editor.setSelectionRange(editor.value.length, editor.value.length);
+    } catch (_) {}
+  }
+
+  /** The ids among `ids` a thread (or list) has not drawn before. Its first draw enters as a whole, so none are new. */
+  function markNew(scope, ids){
+    const key = clean(scope);
+    const seen = state.shown.get(key);
+    if (!seen) { state.shown.set(key, new Set(ids)); return new Set(); }
+    const fresh = new Set(ids.filter((id) => id && !seen.has(id)));
+    fresh.forEach((id) => seen.add(id));
+    return fresh;
+  }
+  function markShown(scope, id){
+    if (!clean(id)) return;
+    const key = clean(scope);
+    if (!state.shown.has(key)) state.shown.set(key, new Set());
+    state.shown.get(key).add(clean(id));
+  }
+
+  /** The open thread pane changed (another thread, a new message, back to the list): move it in. */
+  function threadEnter(root, view, key){
+    const before = state.drawn.thread[view];
+    state.drawn.thread[view] = key;
+    if (before === undefined || before === key) return;
+    const split = root.querySelector('.fmco-split');
+    if (key) split?.querySelector('.fmco-thread-view')?.classList.add('fmco-enter');
+    else split?.querySelector('.fmco-list-col')?.classList.add('fmco-back');
+  }
+
+  function pendingIn(channel, thread){
+    return state.pending.filter((item) => item.channel === channel && item.thread === clean(thread));
+  }
+
+  /** The name the team's messages go out under in this thread, so a sending message already reads as it will. */
+  function outboundName(messages){
+    const last = [...(Array.isArray(messages) ? messages : [])].reverse().find((message) => message.direction !== 'inbound' && !['ai', 'automation'].includes(message.source_kind));
+    return last ? messageWho(last) : 'Team';
+  }
+
+  function sendStateHtml(item){
+    if (item.status === 'failed') {
+      return `<span class="fmco-send-state failed" role="alert" title="${esc(item.error)}"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>${esc(words.notSent())}<button type="button" data-co-retry="${esc(item.key)}">${esc(words.tryAgain())}</button><button type="button" class="quiet" data-co-discard="${esc(item.key)}">${esc(words.remove())}</button></span>`;
+    }
+    return `<span class="fmco-send-state sending" role="status"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>${esc(words.sending())}</span>`;
+  }
+
+  /** A text or portal chat message that is on its way, as the bubble it will be. */
+  function pendingBubbleHtml(item, fresh){
+    const enter = fresh ? ' fmco-new' : '';
+    const failed = item.status === 'failed';
+    return `
+      <div class="fmco-msg-meta outbound${enter}">${esc(item.who)} · ${sendStateHtml(item)}</div>
+      <div class="fmco-msg outbound pending${failed ? ' failed' : ''}${enter}" data-co-pending="${esc(item.key)}"${failed ? ` title="${esc(item.error)}"` : ''}>${esc(item.text)}${item.preview ? `<span class="fmco-msg-image"><img src="${esc(item.preview)}" alt=""></span>` : ''}${item.audio ? `${item.text ? '<br>' : ''}<i class="fa-solid fa-microphone" aria-hidden="true"></i> ${esc(globalThis.PlatformLanguage?.text("comms","m_52eac0531af849","Audio note") ?? "Audio note")}` : ''}</div>`;
+  }
+
+  /** An email that is on its way, as the card it will be. */
+  function pendingEmailCardHtml(item, fresh){
+    const message = {
+      id:item.key, direction:'outbound', sender:{ name:item.who }, recipients:item.recipients, subject:item.subject, text:item.text,
+      metadata:{ email_format:'markdown', email_attachments:item.files.map((file) => ({ file_name:file.name })) }, created_at:item.created_at
+    };
+    return emailCardHtml(message, { open:true, extraClass:` pending${item.status === 'failed' ? ' failed' : ''}${fresh ? ' fmco-new' : ''}`, stateHtml:sendStateHtml(item) });
+  }
+
+  /** A list row for a conversation that exists only once its first message is sent. */
+  function pendingRowHtml(item, active, fresh, mail){
+    const names = mail ? emailPeople(item.recipients) : recipientNames(item.participants);
+    const state_ = `<span class="fmco-row-state${item.status === 'failed' ? ' failed' : ''}">${item.status === 'failed' ? `<i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>${esc(words.notSent())}` : `<i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>${esc(words.sending())}`}</span>`;
+    const classes = `fmco-thread-row${mail ? ' fmco-mail-row' : ''} pending${active ? ' active' : ''}${fresh ? ' fmco-new' : ''}`;
+    if (mail) return `<button type="button" class="${classes}" data-co-thread="${esc(item.key)}"><span class="fmco-mail-top"><span class="fmco-mail-who"><span>${esc(names)}</span></span></span><span class="fmco-mail-snippet">${esc(clean(item.subject))}${item.text ? ` — ${esc(emailLine(item.text).slice(0, 160))}` : ''}</span><span class="fmco-mail-foot">${state_}<time>${esc(timeLabel(item.created_at))}</time></span></button>`;
+    return `<button type="button" class="${classes}" data-co-sms-thread="${esc(item.key)}"><span class="fmco-thread-subject"><span>${esc(names)}</span></span><span class="fmco-thread-meta">${state_}<span>${esc(timeLabel(item.created_at))}</span></span></button>`;
+  }
+
+  /** Redraw the open thread's messages in place (composers untouched), keeping the newest in view. */
+  function paintThread(options = {}){
+    const root = contentRoot();
+    const scroll = root?.querySelector('[data-co-scroll]');
+    if (!scroll || state.search.open) return false;
+    const html = state.view === 'sms' ? smsMsgsHtml(activeSmsConversation())
+      : state.view === 'email' ? (state.emailThread ? emailMsgsHtml(state.emailThread) : null)
+        : state.view === 'chat' ? chatMsgsHtml(chatActiveConversation()) : null;
+    if (html == null) return false;
+    const nearBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 120;
+    scroll.innerHTML = html;
+    if (options.fill) replay(scroll, 'fmco-fill');
+    rootWindow.FirstMateAudioNotes?.hydrate?.(scroll);
+    if (state.view === 'email') { if (options.toEnd || nearBottom) scrollToNewestEmail(root); }
+    else if (options.toEnd || nearBottom) {
+      if (options.smooth && !reducedMotion() && typeof scroll.scrollTo === 'function') scroll.scrollTo({ top:scroll.scrollHeight, behavior:'smooth' });
+      else scrollBottom(root);
+    }
+    Object.keys(COMPOSERS).forEach(syncComposerSend);
+    return true;
+  }
+
+  /** Redraw the conversation list in place, keeping where it was scrolled. */
+  function paintList(){
+    const list = contentRoot()?.querySelector('[data-co-list]');
+    const html = state.search.open ? null : state.view === 'sms' ? smsListHtml() : state.view === 'email' ? emailListHtml() : state.view === 'chat' ? chatListHtml() : null;
+    if (!list || html == null) return;
+    const top = list.scrollTop;
+    list.innerHTML = html;
+    (state.view === 'sms' ? bindSmsList : state.view === 'email' ? bindEmailList : bindChatList)(list);
+    list.scrollTop = top;
+  }
+
+  function paintEmailHead(){
+    const head = contentRoot()?.querySelector('.fmco-mail-head');
+    if (!head || !state.emailThread) return;
+    head.outerHTML = emailHeadHtml(state.emailThread);
+    bindThreadClose(contentRoot());
+  }
+
+  /** Send (or send again) a message drawn as pending; reconcile it with the server's, or mark it "Not sent". */
+  async function deliver(item){
+    if (state.sending) return;
+    item.status = 'sending';
+    item.error = '';
+    state.sending = true;
+    Object.keys(COMPOSERS).forEach(syncComposerSend);
+    let sent;
+    try {
+      sent = await item.request();
+    } catch (error) {
+      state.sending = false;
+      if (item.project !== projectId()) return;
+      item.status = 'failed';
+      item.error = error?.message || (item.channel === 'sms' ? 'Could not send the text.' : item.channel === 'chat' ? 'Could not send the chat reply.' : 'Could not send the email.');
+      redrawPending(item);
+      return;
+    }
+    state.sending = false;
+    if (item.project !== projectId()) return;
+    item.files.forEach((file) => { if (file.url?.startsWith('blob:')) URL.revokeObjectURL(file.url); if (file.preview) URL.revokeObjectURL(file.preview); });
+    const message = object(sent?.message);
+    await reconcile(item, clean(message.conversation_id) || (isPending(item.thread) ? '' : item.thread), clean(message.id));
+  }
+
+  function redrawPending(item){
+    Object.keys(COMPOSERS).forEach(syncComposerSend);
+    if (state.view !== item.channel || state.search.open) return;
+    if (isPending(item.thread)) paintList();
+    paintThread({ toEnd:true });
+  }
+
+  async function reconcile(item, conversationId, messageId){
+    const drop = () => { state.pending = state.pending.filter((entry) => entry !== item); };
+    try {
+      if (item.channel === 'sms') {
+        const result = await api2().sms.conversation(orgId(), projectId(), conversationId).catch(() => null);
+        if (item.project !== projectId()) return;
+        drop();
+        markShown(conversationId, messageId);
+        markShown('list:sms', conversationId);
+        if (result) { state.sms = result; state.sync.sms = ''; }
+        if (state.activeSmsId === item.key) {
+          state.activeSmsId = conversationId;
+          if (state.smsReply.threadId === item.key) state.smsReply.threadId = conversationId;
+          state.drawn.thread.sms = conversationId;
+          // The conversation it became is already on screen: none of its messages enter again.
+          (activeSmsConversation()?.messages || []).forEach((entry) => markShown(conversationId, entry.id));
+          if (state.view === 'sms') render();
+          return;
+        }
+        if (!result) { await loadView(); return; }
+      } else if (item.channel === 'email') {
+        const [list, detail] = await Promise.all([
+          api2().email.threads(orgId(), projectId()).catch(() => null),
+          conversationId ? api2().email.thread(orgId(), projectId(), conversationId).catch(() => null) : null
+        ]);
+        if (item.project !== projectId()) return;
+        drop();
+        markShown(conversationId, messageId);
+        markShown('list:email', conversationId);
+        if (list) { state.emailThreads = Array.isArray(list.threads) ? list.threads : state.emailThreads; state.sync.emailList = ''; }
+        if (detail?.thread) state.emailCache.set(conversationId, detail.thread);
+        if (clean(state.emailThread?.id) === item.key) {
+          state.emailThread = detail?.thread || null;
+          if (state.emailReply.threadId === item.key) state.emailReply.threadId = conversationId;
+          state.drawn.thread.email = conversationId;
+          (detail?.thread?.messages || []).forEach((entry) => markShown(conversationId, entry.id));
+          if (state.view === 'email') render();
+          return;
+        }
+        if (detail?.thread && clean(state.emailThread?.id) === conversationId) { state.emailThread = detail.thread; state.sync.emailMsgs = ''; }
+      } else if (item.channel === 'chat') {
+        const result = await api2().chat.conversations(orgId(), projectId()).catch(() => null);
+        if (item.project !== projectId()) return;
+        drop();
+        markShown(conversationId, messageId);
+        if (result) { state.chatConversations = Array.isArray(result.conversations) ? result.conversations : state.chatConversations; state.sync.chatList = ''; state.sync.chatMsgs = ''; }
+      }
+    } catch (_) { drop(); }
+    if (state.view === item.channel && !state.search.open) { paintList(); paintThread({ toEnd:true }); }
+    if (state.active) renderLeft();
+  }
+
+  function retryPending(key){
+    const item = state.pending.find((entry) => entry.key === key);
+    if (!item || item.status !== 'failed' || state.sending) return;
+    redrawPending(Object.assign(item, { status:'sending', error:'' }));
+    void deliver(item);
+  }
+
+  /** Remove a message that was not sent. Its words go back where they were typed, so nothing is lost. */
+  function discardPending(key){
+    const item = state.pending.find((entry) => entry.key === key);
+    if (!item || item.status !== 'failed') return;
+    state.pending = state.pending.filter((entry) => entry !== item);
+    if (item.kind === 'sms-compose' || item.kind === 'compose') {
+      if (item.kind === 'sms-compose') { state.smsDraft = item.draft; state.smsComposeOpen = true; if (state.activeSmsId === item.key) state.activeSmsId = ''; }
+      else { state.emailDraft = item.draft; state.emailComposeOpen = true; if (clean(state.emailThread?.id) === item.key) state.emailThread = null; }
+      render();
+      return;
+    }
+    if (item.kind === 'chat') {
+      const input = contentRoot()?.querySelector('[data-co-chat-input]');
+      if (input && !clean(input.value)) input.value = item.text;
+    } else {
+      const draft = draftFor(item.kind);
+      if (!clean(draft.body) && !draft.files.length) {
+        Object.assign(draft, { body:item.draft.body, files:item.draft.files });
+        const editor = composerBox(item.kind)?.querySelector('[data-co-composer-input]');
+        if (editor) editor.value = draft.body;
+        paintComposerFiles(item.kind);
+      }
+    }
+    redrawPending(item);
+  }
+
+  function bindPendingActions(root){
+    if (!root || root.dataset.coPendingBound) return;
+    root.dataset.coPendingBound = '1';
+    root.addEventListener('click', (event) => {
+      const retry = event.target.closest?.('[data-co-retry]');
+      if (retry) { event.preventDefault(); retryPending(retry.dataset.coRetry); return; }
+      const discard = event.target.closest?.('[data-co-discard]');
+      if (discard) { event.preventDefault(); discardPending(discard.dataset.coDiscard); }
+    });
+  }
+
+  /** A button that starts something slow says so at once. */
+  function busy(button){
+    if (!button) return;
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    const icon = button.querySelector('i.fa-solid');
+    if (icon) icon.className = 'fa-solid fa-circle-notch fa-spin';
+    else button.insertAdjacentHTML('afterbegin', '<i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>');
   }
 
   function loadingHtml(){
@@ -891,7 +1276,8 @@
     });
     root.querySelectorAll('[data-co-draft-send]').forEach((button) => {
       button.addEventListener('click', async () => {
-        button.disabled = true;
+        busy(button);
+        button.closest('.fmco-draft-card')?.querySelectorAll('button').forEach((other) => { other.disabled = true; });
         try {
           await api2().autoReplies.send(orgId(), projectId(), button.dataset.coDraftSend);
           await loadView();
@@ -900,7 +1286,8 @@
     });
     root.querySelectorAll('[data-co-draft-dismiss]').forEach((button) => {
       button.addEventListener('click', async () => {
-        button.disabled = true;
+        busy(button);
+        button.closest('.fmco-draft-card')?.querySelectorAll('button').forEach((other) => { other.disabled = true; });
         try {
           await api2().autoReplies.dismiss(orgId(), projectId(), button.dataset.coDraftDismiss);
           await loadView();
@@ -913,15 +1300,18 @@
 
   function emailListHtml(){
     const thread = state.emailThread;
+    const starting = state.pending.filter((item) => item.channel === 'email' && isPending(item.thread));
+    const fresh = markNew('list:email', [...starting.map((item) => item.key), ...state.emailThreads.map((item) => clean(item.id))]);
     return `
       <button type="button" class="fmco-btn primary" data-co-compose style="justify-content:center"><i class="fa-solid fa-pen"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_71e31660564d5a","New email") ?? "New email")}</button>
-      ${String(state.emailThreads.length ? state.emailThreads.map((item) => {
+      ${String(starting.map((item) => pendingRowHtml(item, clean(thread?.id) === item.key, fresh.has(item.key), true)).join(''))}
+      ${String(state.emailThreads.length || starting.length ? state.emailThreads.map((item) => {
         const count = Number(item.message_count || 0);
         const unread = Number(item.unread_count || 0) > 0;
         const people = emailPeopleList(item.participants);
         const addresses = people.map((person) => person.address).join(', ');
         return `
-        <button type="button" class="fmco-thread-row fmco-mail-row${unread ? ' unread' : ''}${thread && thread.id === item.id ? ' active' : ''}" data-co-thread="${esc(clean(item.id))}">
+        <button type="button" class="fmco-thread-row fmco-mail-row${unread ? ' unread' : ''}${thread && thread.id === item.id ? ' active' : ''}${fresh.has(clean(item.id)) ? ' fmco-new' : ''}" data-co-thread="${esc(clean(item.id))}">
           <span class="fmco-mail-top">
             <span class="fmco-mail-who"><span>${esc(emailPeople(item.participants))}</span>${count > 1 ? `<span class="fmco-mail-count">${count}</span>` : ''}</span>
             ${people.some((person) => person.name) ? `<span class="fmco-mail-addr" title="${esc(addresses)}">${esc(addresses)}</span>` : ''}
@@ -984,7 +1374,13 @@
   function bindEmailList(scope){
     scope.querySelector('[data-co-compose]')?.addEventListener('click', () => { beginEmailDraft(); render(); });
     scope.querySelectorAll('[data-co-thread]').forEach((button) => {
-      button.addEventListener('click', () => { hideEmailPeek(); openEmailThread(button.dataset.coThread); });
+      button.addEventListener('click', () => {
+        hideEmailPeek();
+        if (isPending(button.dataset.coThread)) { openPendingEmail(button.dataset.coThread); return; }
+        scope.querySelectorAll('.fmco-thread-row.active').forEach((row) => row.classList.remove('active'));
+        button.classList.add('active');
+        openEmailThread(button.dataset.coThread);
+      });
       button.addEventListener('mouseenter', () => scheduleEmailPeek(button));
       button.addEventListener('mouseleave', hideEmailPeek);
     });
@@ -1209,7 +1605,7 @@
     const sms = COMPOSERS[kind].channel === 'sms';
     const media = draft.files.some((file) => file.status !== 'failed');
     const send = box.querySelector('.fmco-rich-send');
-    if (send) send.disabled = state.sending || !!draft.recording || draft.files.some((file) => file.status !== 'ready');
+    if (send) send.disabled = state.sending || !!draft.recording || draft.files.some((file) => file.status !== 'ready') || composerWaiting(kind);
     const attach = box.querySelector('[data-co-composer-attach]');
     if (attach) attach.disabled = state.sending || (sms && media);
     for (const [mode, selector] of [['dictation', '[data-co-composer-dictate]'], ['record', '[data-co-composer-audio]']]) {
@@ -1220,6 +1616,13 @@
       button.setAttribute('aria-pressed', String(active));
       button.disabled = state.sending || (!!draft.recording && !active) || (mode === 'record' && !draft.recording && (sms ? media : draft.files.some((file) => file.audio)));
     }
+  }
+
+  /** A reply waits while its thread is still opening, or is a new conversation whose first message is still sending. */
+  function composerWaiting(kind){
+    if (kind === 'reply') return !!(state.emailThread?.loading || state.emailThread?.provisional);
+    if (kind === 'sms-reply') return isPending(state.activeSmsId);
+    return false;
   }
 
   function paintComposerFiles(kind){
@@ -1333,14 +1736,17 @@
     syncComposerSend(kind);
   }
 
+  // GP-12: Send answers at once. The message is drawn into its thread as "Sending…" (a new text or email opens its
+  // conversation straight away), the composer empties for the next one, and deliver() reconciles it with the server.
   async function sendComposer(kind, conversation){
     const draft = draftFor(kind);
     const box = composerBox(kind);
-    if (!box || state.sending || draft.recording || draft.files.some((file) => file.status !== 'ready')) return;
+    if (!box || state.sending || draft.recording || draft.files.some((file) => file.status !== 'ready') || composerWaiting(kind)) return;
     const editor = box.querySelector('[data-co-composer-input]');
     if (editor) draft.body = editor.value;
     const sms = COMPOSERS[kind].channel === 'sms';
-    let request;
+    const key = tempKey();
+    let request, item;
     if (sms) {
       const text = smsText(draft.body);
       const image = draft.files.find((file) => file.image);
@@ -1350,52 +1756,62 @@
       if (!text && !image && !audio) { editor?.focus(); return; }
       if (text.length > SMS_TEXT_LIMIT) { state.error = (globalThis.PlatformLanguage?.text("comms","m_0af52926f42dbe","Texts can be up to 1600 characters.") ?? "Texts can be up to 1600 characters."); render(); return; }
       const media = { ...(image ? { image:{ media_id:image.media_id } } : {}), ...(audio ? { audio_note:audio.note || { media_id:audio.media_id } } : {}) };
-      request = () => api2().sms.send(orgId(), projectId(), kind === 'sms-compose' ? { to, text, ...media } : { conversation_id:clean(conversation?.id), text, ...media });
+      const body = kind === 'sms-compose' ? { to, text, ...media } : { conversation_id:clean(conversation?.id), text, ...media };
+      request = () => api2().sms.send(orgId(), projectId(), body);
+      item = { channel:'sms', text, preview:image?.preview || '', audio:!!audio, who:outboundName(conversation?.messages),
+        participants:kind === 'sms-compose' ? to.map((address) => ({ address, name:contactNameForPhone(address) })) : conversation?.participants || [] };
     } else {
       const { text, html } = emailBodies(draft.body);
       const attachments = draft.files.map((file) => ({ media_id:file.media_id }));
       const body = text || (attachments.length ? draft.files.map((file) => file.name).join('\n') : '');
-      let payload;
+      let payload, recipients;
       if (kind === 'reply') {
         if (!body || !conversation) { editor?.focus(); return; }
         payload = { subject:`Re: ${clean(conversation.subject) || 'your message'}`.replace(/^Re: Re:/i, 'Re:'), conversation_id:clean(conversation.id) };
+        recipients = emailPeopleList(conversation.participants).map((person) => ({ ...person, type:'to' }));
       } else {
         const to = splitRecipients(state.emailDraft.to);
         const subject = clean(state.emailDraft.subject);
         const missing = !to.length ? '[data-co-email-to]' : !subject ? '[data-co-email-subject]' : '';
         if (missing || !body) { (missing ? contentRoot()?.querySelector(missing) : editor)?.focus(); return; }
         payload = { to, cc:splitRecipients(state.emailDraft.cc), bcc:splitRecipients(state.emailDraft.bcc), subject };
+        recipients = [...payload.to.map((address) => ({ address, type:'to' })), ...payload.cc.map((address) => ({ address, type:'cc' })), ...payload.bcc.map((address) => ({ address, type:'bcc' }))];
       }
-      request = () => api2().email.send(orgId(), projectId(), { ...payload, text:body, format:'markdown', ...(html ? { html } : {}), ...(attachments.length ? { attachments } : {}) });
+      const sendBody = { ...payload, text:body, format:'markdown', ...(html ? { html } : {}), ...(attachments.length ? { attachments } : {}) };
+      request = () => api2().email.send(orgId(), projectId(), sendBody);
+      item = { channel:'email', text:body, subject:payload.subject, recipients, who:outboundName(conversation?.messages) };
     }
-    state.sending = true;
-    syncComposerSend(kind);
-    try {
-      const sent = await request();
-      draft.files.forEach((file) => { if (file.url?.startsWith('blob:')) URL.revokeObjectURL(file.url); if (file.preview) URL.revokeObjectURL(file.preview); });
-      state.sending = false;
-      const conversationId = clean(object(sent.message).conversation_id);
-      if (kind === 'reply') {
-        state.emailReply = { threadId:clean(conversation.id), body:'', files:[] };
-        await openEmailThread(clean(conversation.id));
-      } else if (kind === 'compose') {
-        state.emailDraft = { to:'', cc:'', bcc:'', subject:'', body:'', files:[] };
-        state.emailComposeOpen = false;
-        await loadView();
-        if (conversationId) await openEmailThread(conversationId);
-      } else {
-        state.activeSmsId = conversationId || clean(conversation?.id);
-        if (kind === 'sms-compose') { state.smsDraft = { to:'', body:'', files:[] }; state.smsComposeOpen = false; }
-        state.smsReply = { threadId:state.activeSmsId, body:'', files:[] };
-        await loadView();
-      }
-    } catch (error) {
-      state.sending = false;
-      state.error = error?.message || (sms ? 'Could not send the text.' : kind === 'reply' ? 'Could not send the reply.' : 'Could not send the email.');
+    Object.assign(item, { key, kind, project:projectId(), status:'sending', error:'', request, files:draft.files, created_at:new Date().toISOString(),
+      thread:kind === 'reply' || kind === 'sms-reply' ? clean(conversation?.id) : key,
+      draft:kind === 'sms-compose' ? { ...state.smsDraft } : kind === 'compose' ? { ...state.emailDraft } : { body:draft.body, files:draft.files } });
+    state.pending.push(item);
+    state.error = '';
+    const button = box.querySelector('.fmco-rich-send');
+    if (button && !reducedMotion()) { button.classList.add('is-sending'); setTimeout(() => button.classList.remove('is-sending'), 600); }
+    if (kind === 'sms-compose') {
+      state.smsDraft = { to:'', body:'', files:[] };
+      state.smsComposeOpen = false;
+      state.activeSmsId = key;
+      state.smsReply = { threadId:key, body:'', files:[] };
       render();
+    } else if (kind === 'compose') {
+      state.emailDraft = { to:'', cc:'', bcc:'', subject:'', body:'', files:[] };
+      state.emailComposeOpen = false;
+      state.emailOpenSeq += 1;
+      state.emailThread = { id:key, provisional:true, subject:item.subject, participants:item.recipients, messages:[] };
+      state.emailReply = { threadId:key, body:'', files:[] };
+      render();
+    } else {
+      // A reply: the composer empties in place (it keeps focus) and the message joins the thread.
+      Object.assign(draft, { body:'', files:[] });
+      if (editor) editor.value = '';
+      box.querySelector('[data-co-composer-voice]')?.replaceChildren();
+      paintComposerFiles(kind);
+      contentRoot()?.querySelector(':scope > .fmco-error')?.remove();
+      paintThread({ toEnd:true, smooth:true });
     }
+    await deliver(item);
   }
-
   function smsImageHtml(message){
     const id = clean(object(object(message?.metadata).sms_image).media_id);
     const url = id && rootWindow.PlatformAPI?.media?.fileUrl ? rootWindow.PlatformAPI.media.fileUrl(orgId(), id, 'original') : '';
@@ -1458,7 +1874,7 @@
     const threadSubject = clean(options.threadSubject ?? state.emailThread?.subject).replace(/^(re|fwd?):\s*/i, '');
     const subject = clean(message.subject).replace(/^(re|fwd?):\s*/i, '');
     const body = clean(object(message.metadata).email_format) === 'markdown' ? emailMessageBody(message) : emailPlainBody(message.text);
-    return `<article class="fmco-mail-card${options.open ? '' : ' collapsed'}${outbound ? ' outbound' : ''}" data-co-mail-msg="${esc(clean(message.id))}">
+    return `<article class="fmco-mail-card${options.open ? '' : ' collapsed'}${outbound ? ' outbound' : ''}${options.extraClass || ''}" data-co-mail-msg="${esc(clean(message.id))}">
       <div class="fmco-mail-card-head"${options.toggle ? ` data-co-mail-toggle role="button" tabindex="0" aria-expanded="${options.open ? 'true' : 'false'}"` : ''}>
         <span class="fmco-mail-avatar" style="--fmco-avatar:${outbound ? 'var(--primary,#d93025)' : avatarColor(address || who)}" aria-hidden="true">${esc((who.match(/[\p{L}\p{N}]/u) || ['?'])[0].toUpperCase())}</span>
         <span class="fmco-mail-from">
@@ -1466,7 +1882,7 @@
           <span class="fmco-mail-to">${esc(emailToLine(message))}</span>
           <span class="fmco-mail-card-snippet">${esc(emailLine(message.text).slice(0, 160))}</span>
         </span>
-        <time datetime="${esc(clean(message.created_at))}">${esc(timeLabel(message.created_at))}</time>
+        ${options.stateHtml || `<time datetime="${esc(clean(message.created_at))}">${esc(timeLabel(message.created_at))}</time>`}
       </div>
       <div class="fmco-mail-body">${subject && threadSubject && subject.toLowerCase() !== threadSubject.toLowerCase() ? `<div class="fmco-mail-msg-subject">${esc(clean(message.subject))}</div>` : ''}${body}${audioHtml(message)}${emailAttachmentsHtml(message)}</div>
     </article>`;
@@ -1474,11 +1890,36 @@
 
   /** The thread as stacked email cards: the newest open, earlier ones folded to a line until clicked. */
   function emailMsgsHtml(thread){
+    if (thread?.loading) return `<span class="fmco-sr-only" role="status">${esc(words.opening())}</span>${'<div class="fmco-skeleton" aria-hidden="true"><i></i><b></b><b></b><b></b></div>'.repeat(2)}`;
     const messages = Array.isArray(thread?.messages) ? thread.messages : [];
+    const pending = pendingIn('email', thread?.id);
+    const fresh = markNew(thread?.id, [...messages.map((message) => clean(message.id)), ...pending.map((item) => item.key)]);
     return messages.map((message, index) => emailCardHtml(message, {
       toggle:true,
-      open:index === messages.length - 1 || state.emailOpenMessages.has(clean(message.id))
-    })).join('');
+      open:(index === messages.length - 1 && !pending.length) || state.emailOpenMessages.has(clean(message.id)),
+      extraClass:fresh.has(clean(message.id)) ? ' fmco-new' : ''
+    })).join('') + pending.map((item) => pendingEmailCardHtml(item, fresh.has(item.key))).join('');
+  }
+
+  function emailHeadHtml(thread){
+    return `<div class="fmco-thread-head fmco-mail-head">
+              <div style="min-width:0"><div class="fmco-thread-title">${String(esc(clean(thread.subject) || '(no subject)'))}</div><div class="fmco-recipient-summary" title="${String(esc(emailPeopleList(thread.participants).map((person) => person.name ? person.name + ' <' + person.address + '>' : person.address).join(', ')))}">${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_4a4203a7cc18a9",`With ${v2}`,{v2}) ?? `With ${v2}`)(esc(emailPeople(thread.participants)))}</div></div>
+              <button type="button" class="fmco-btn" data-co-thread-close><i class="fa-solid fa-xmark"></i></button>
+            </div>`;
+  }
+
+  function bindThreadClose(root){
+    root?.querySelector('[data-co-thread-close]')?.addEventListener('click', () => { state.emailOpenSeq += 1; state.emailThread = null; state.emailComposeOpen = false; render(); });
+  }
+
+  /** A new email that is still sending opens as its own conversation. */
+  function openPendingEmail(key){
+    const item = state.pending.find((entry) => entry.key === key);
+    if (!item) return;
+    state.emailOpenSeq += 1;
+    state.emailThread = { id:item.key, provisional:true, subject:item.subject, participants:item.recipients, messages:[] };
+    state.emailComposeOpen = false;
+    render();
   }
 
   function bindEmailCards(scroll){
@@ -1519,10 +1960,7 @@
         <div class="fmco-mail-peek" data-co-mail-peek hidden aria-hidden="true"></div>
         <div class="fmco-thread-view">
           ${thread ? `
-            <div class="fmco-thread-head fmco-mail-head">
-              <div style="min-width:0"><div class="fmco-thread-title">${String(esc(clean(thread.subject) || '(no subject)'))}</div><div class="fmco-recipient-summary" title="${String(esc(emailPeopleList(thread.participants).map((person) => person.name ? person.name + ' <' + person.address + '>' : person.address).join(', ')))}">${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_4a4203a7cc18a9",`With ${v2}`,{v2}) ?? `With ${v2}`)(esc(emailPeople(thread.participants)))}</div></div>
-              <button type="button" class="fmco-btn" data-co-thread-close><i class="fa-solid fa-xmark"></i></button>
-            </div>
+            ${String(emailHeadHtml(thread))}
             <div class="fmco-msgs fmco-mail-msgs" data-co-scroll>${String(emailMsgsHtml(thread))}</div>
             <div class="fmco-composer">${String(composerHtml('reply'))}</div>
           ` : state.emailComposeOpen ? `
@@ -1539,7 +1977,8 @@
       </div>
     `;
     bindEmailList(root.querySelector('[data-co-list]') || root);
-    root.querySelector('[data-co-thread-close]')?.addEventListener('click', () => { state.emailThread = null; state.emailComposeOpen = false; render(); });
+    bindThreadClose(root);
+    threadEnter(root, 'email', thread ? clean(thread.id) : state.emailComposeOpen ? 'compose' : '');
     [['to','[data-co-email-to]'], ['cc','[data-co-email-cc]'], ['bcc','[data-co-email-bcc]']].forEach(([key, selector]) => {
       root.querySelector(selector)?.addEventListener('input', (event) => { state.emailDraft[key] = event.target.value; });
     });
@@ -1569,7 +2008,21 @@
   }
 
   function activeSmsConversation(){
+    if (isPending(state.activeSmsId)) {
+      // A new text that is still sending: its conversation shows at once, with the message in it.
+      const item = state.pending.find((entry) => entry.key === state.activeSmsId);
+      return item ? { id:item.key, provisional:true, participants:item.participants, messages:[] } : null;
+    }
     return smsConversations().find((conversation) => clean(conversation.id) === state.activeSmsId) || null;
+  }
+
+  /** The conversation to ask the server for (a new text still sending has none yet). */
+  function smsRequestId(){ return isPending(state.activeSmsId) ? '' : state.activeSmsId; }
+
+  /** A project contact's name for a phone number, compared by its digits. */
+  function contactNameForPhone(address){
+    const digits = clean(address).replace(/\D/g, '').slice(-10);
+    return digits ? clean(overviewContacts().find((contact) => clean(contact.phone).replace(/\D/g, '').slice(-10) === digits)?.name) : '';
   }
 
   // FM-588: Texts offer New text only once texting works (voice/status `channels`, comms/setup.ts phoneChannels).
@@ -1600,10 +2053,13 @@
   function smsListHtml(){
     const active = activeSmsConversation();
     const ready = phoneChannel('texts') === 'ready';
+    const starting = state.pending.filter((item) => item.channel === 'sms' && isPending(item.thread));
+    const fresh = markNew('list:sms', [...starting.map((item) => item.key), ...smsConversations().map((conversation) => clean(conversation.id))]);
     return `
       ${String(ready ? `<button type="button" class="fmco-btn primary" data-co-sms-compose style="justify-content:center"><i class="fa-solid fa-pen"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_3c10edbba72365","New text") ?? "New text")}</button>` : phoneSetupHtml('texts'))}
-      ${String(smsConversations().length ? smsConversations().map((conversation) => `
-        <button type="button" class="fmco-thread-row${active && clean(active.id) === clean(conversation.id) ? ' active' : ''}" data-co-sms-thread="${esc(clean(conversation.id))}">
+      ${String(starting.map((item) => pendingRowHtml(item, state.activeSmsId === item.key, fresh.has(item.key), false)).join(''))}
+      ${String(smsConversations().length || starting.length ? smsConversations().map((conversation) => `
+        <button type="button" class="fmco-thread-row${active && clean(active.id) === clean(conversation.id) ? ' active' : ''}${fresh.has(clean(conversation.id)) ? ' fmco-new' : ''}" data-co-sms-thread="${esc(clean(conversation.id))}">
           <span class="fmco-thread-subject"><span>${esc(recipientNames(conversation.participants))}</span></span>
           <span class="fmco-thread-meta"><span>${((v4,v5) => globalThis.PlatformLanguage?.htmlText("comms","m_2de5206655064d",`${v4} message${v5}`,{v4,v5}) ?? `${v4} message${v5}`)(Number(conversation.message_count || 0),Number(conversation.message_count || 0) === 1 ? '' : 's')}</span><span>${esc(timeLabel(conversation.last_message_at))}</span></span>
         </button>
@@ -1618,6 +2074,7 @@
     });
     scope.querySelectorAll('[data-co-sms-thread]').forEach((button) => {
       button.addEventListener('click', () => {
+        if (state.activeSmsId === clean(button.dataset.coSmsThread) && !state.smsComposeOpen) return;
         state.activeSmsId = clean(button.dataset.coSmsThread);
         state.smsComposeOpen = false;
         render();
@@ -1627,10 +2084,13 @@
 
   function smsMsgsHtml(conversation){
     const messages = Array.isArray(conversation?.messages) ? conversation.messages : [];
-    return messages.length ? messages.map((message) => `
-      <div class="fmco-msg-meta ${message.direction}">${esc(messageWho(message))} · ${esc(timeLabel(message.created_at))} ${badges(message)}</div>
-      <div class="fmco-msg ${message.direction}${message.source_kind === 'ai' ? ' ai' : ''}">${esc(clean(message.text))}${smsImageHtml(message)}${audioHtml(message)}</div>
-    `).join('') : `<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-comment-sms"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_06fc4f53d27077","No text messages yet.") ?? "No text messages yet.")}</p></div>`;
+    const pending = pendingIn('sms', conversation?.id);
+    const fresh = markNew(conversation?.id, [...messages.map((message) => clean(message.id)), ...pending.map((item) => item.key)]);
+    const enter = (message) => fresh.has(clean(message.id)) ? ' fmco-new' : '';
+    return messages.length || pending.length ? messages.map((message) => `
+      <div class="fmco-msg-meta ${message.direction}${enter(message)}">${esc(messageWho(message))} · ${esc(timeLabel(message.created_at))} ${badges(message)}</div>
+      <div class="fmco-msg ${message.direction}${message.source_kind === 'ai' ? ' ai' : ''}${enter(message)}">${esc(clean(message.text))}${smsImageHtml(message)}${audioHtml(message)}</div>
+    `).join('') + pending.map((item) => pendingBubbleHtml(item, fresh.has(item.key))).join('') : `<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-comment-sms"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_06fc4f53d27077","No text messages yet.") ?? "No text messages yet.")}</p></div>`;
   }
 
   function renderSms(root){
@@ -1671,6 +2131,7 @@
       </div>
     `;
     bindSmsList(root.querySelector('[data-co-list]') || root);
+    threadEnter(root, 'sms', state.smsComposeOpen ? 'compose' : clean(active?.id));
     root.querySelector('[data-co-sms-close]')?.addEventListener('click', () => {
       state.smsComposeOpen = false;
       state.activeSmsId = '';
@@ -1718,11 +2179,15 @@
   }
 
   function chatMsgsHtml(active){
-    return (Array.isArray(active?.messages) ? active.messages : []).map((message) => `
-      <div class="fmco-msg-meta ${message.direction}">${esc(messageWho(message))} · ${esc(timeLabel(message.created_at))} ${badges(message)}</div>
-      <div class="fmco-msg ${message.direction}${message.source_kind === 'ai' ? ' ai' : ''}">${esc(clean(message.text))}${audioHtml(message)}</div>
+    const messages = Array.isArray(active?.messages) ? active.messages : [];
+    const pending = pendingIn('chat', active?.id);
+    const fresh = markNew(active?.id, [...messages.map((message) => clean(message.id)), ...pending.map((item) => item.key)]);
+    const enter = (message) => fresh.has(clean(message.id)) ? ' fmco-new' : '';
+    return messages.map((message) => `
+      <div class="fmco-msg-meta ${message.direction}${enter(message)}">${esc(messageWho(message))} · ${esc(timeLabel(message.created_at))} ${badges(message)}</div>
+      <div class="fmco-msg ${message.direction}${message.source_kind === 'ai' ? ' ai' : ''}${enter(message)}">${esc(clean(message.text))}${audioHtml(message)}</div>
       ${pageContextHtml(message)}
-    `).join('');
+    `).join('') + pending.map((item) => pendingBubbleHtml(item, fresh.has(item.key))).join('');
   }
 
   function renderChat(root){
@@ -1753,27 +2218,29 @@
       </div>
     `;
     bindChatList(root.querySelector('[data-co-list]') || root);
+    threadEnter(root, 'chat', clean(active?.id));
     // Phone: an open chat fills the tab, so this goes back to the list (and
     // keeps the poll from opening the first chat again).
     root.querySelector('[data-co-chat-close]')?.addEventListener('click', () => { state.activeChatId = ''; state.chatPicking = true; render(); });
     root.querySelector('[data-co-chat-voice]')?.addEventListener('click', () => recordComposerVoice(root, 'chat', root.querySelector('[data-co-chat-input]')));
     restoreComposerVoice(root, 'chat');
-    root.querySelector('[data-co-chat-send]')?.addEventListener('click', async (event) => {
+    // GP-12: the reply shows in the chat at once as "Sending…", then as sent (or "Not sent" with Try again).
+    root.querySelector('[data-co-chat-send]')?.addEventListener('click', () => {
       const input = root.querySelector('[data-co-chat-input]');
       const text = clean(input?.value);
       if (!text || !active || state.sending) return;
-      state.sending = true; event.target.disabled = true;
-      try {
-        const voice = state.pendingVoice.chat;
-        await api2().chat.send(orgId(), projectId(), clean(active.id), {
-          message:text,
-          ...(voice?.attachment ? { audio_note:{ ...voice.metadata, ...voice.attachment } } : {})
-        });
-        if (input) input.value = '';
-        state.pendingVoice.chat = null;
-        await loadView();
-      } catch (error) { state.error = error?.message || 'Could not send the chat reply.'; render(); }
-      state.sending = false;
+      const voice = state.pendingVoice.chat;
+      const conversationId = clean(active.id);
+      const body = { message:text, ...(voice?.attachment ? { audio_note:{ ...voice.metadata, ...voice.attachment } } : {}) };
+      const item = { key:tempKey(), kind:'chat', channel:'chat', thread:conversationId, project:projectId(), status:'sending', error:'', text, audio:!!voice?.attachment,
+        who:outboundName(active.messages), files:[], created_at:new Date().toISOString(), draft:{ body:text },
+        request:() => api2().chat.send(orgId(), projectId(), conversationId, body) };
+      if (input) input.value = '';
+      state.pendingVoice.chat = null;
+      root.querySelector('[data-co-chat-voice-mount]')?.replaceChildren();
+      state.pending.push(item);
+      paintThread({ toEnd:true, smooth:true });
+      void deliver(item);
     });
     scrollBottom(root);
     rootWindow.FirstMateAudioNotes?.hydrate?.(root);
@@ -2169,6 +2636,7 @@
       state.panelRoot.innerHTML = panelHtml();
     }
     state.panelRoot?.querySelector('[data-comms-root]')?.removeAttribute('data-co-pending');
+    bindPendingActions(contentRoot());
     // The host may pre-render panelHtml() into the panel before mount runs,
     // so header bindings happen here — idempotently via a marker attribute.
     bindSearch();
@@ -2240,6 +2708,12 @@
     state.sync = { overview:'', emailList:'', emailMsgs:'', sms:'', chatList:'', chatMsgs:'' };
     state.inboxAddress = '';
     state.error = '';
+    state.pending = [];
+    state.sending = false;
+    state.shown = new Map();
+    state.drawn = { content:'', thread:{} };
+    state.emailCache = new Map();
+    state.emailOpenSeq += 1;
   }
 
   function destroy(){

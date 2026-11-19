@@ -54,7 +54,8 @@
       if(target.dataset.centerMode){state.centerMode=target.dataset.centerMode;state.centerCursor='';try{sessionStorage.setItem(`firstmate:call-center-mode:${ui.org()}:${ui.user()}`,state.centerMode);}catch{}void load();return;}
       if(target.dataset.view){nav(target.dataset.view);return;}
       const action=target.dataset.action;if(!action)return;
-      target.disabled=true;
+      // GP-12: the button gives at once, and shows a spinner if what it starts takes more than a moment.
+      target.disabled=true;const slow=setTimeout(()=>target.setAttribute('aria-busy','true'),120);
       try{
         if(action==='new-call')await phone.open({project_id:options.projectId||''});
         else if(action==='center-record')await phone.open({call_id:target.dataset.id},{artifacts:true});
@@ -107,7 +108,7 @@
         else if(action==='available'){await phone.availability(!phone.takingCalls);await load();}
         else if(action==='agent-up'||action==='agent-down'){const row=target.closest('[data-agent-row]'),sibling=action==='agent-up'?row.previousElementSibling:row.nextElementSibling;if(sibling){if(action==='agent-up')sibling.before(row);else sibling.after(row);}}
       }catch(error){state.error=error.message;showError();}
-      finally{if(target.isConnected)target.disabled=false;}
+      finally{clearTimeout(slow);target.removeAttribute('aria-busy');if(target.isConnected)target.disabled=false;}
     }
     async function openEntry(entry,fromRoute=false){
       if(await phone.open({entry,project_id:entry.project_id,entry_id:entry.id},{fromRoute})===false)return;
@@ -135,7 +136,7 @@
       const reuseLists=state.view==='lists'&&state.listScope===state.sessionScope;
       if(reuseLists)render();
       state.host.setAttribute('aria-busy','true');
-      if(!append&&!silent&&!reuseLists)state.host.innerHTML=`<div class="fmcm-empty" role="status">${(globalThis.PlatformLanguage?.htmlText("comms","m_55449dc99935d5","Loading communications…") ?? "Loading communications…")}</div>`;
+      if(!append&&!silent&&!reuseLists){state.arrive=true;state.host.innerHTML=`<div class="fmcm-empty" role="status">${(globalThis.PlatformLanguage?.htmlText("comms","m_55449dc99935d5","Loading communications…") ?? "Loading communications…")}</div>`;}
       try{
         const view=state.view;let result;
         if(view==='lists'){result=await request('call-lists/queue'+(state.departmentId?'?department_id='+encodeURIComponent(state.departmentId):''));}
@@ -177,7 +178,9 @@
         }
         else if(view==='scripts')state.scripts=result.scripts||[];
         else if(view==='setup')state.status=result;
-        state.host.setAttribute('aria-busy','false');render();void phone.refreshStatus().then(updatePhone).catch(()=>{});
+        state.host.setAttribute('aria-busy','false');render();
+        if(state.arrive){state.arrive=false;const host=state.host;host.classList.remove('fmcm-arrive');void host.offsetWidth;host.classList.add('fmcm-arrive');setTimeout(()=>host.classList.remove('fmcm-arrive'),500);}// GP-12: rows move in over "Loading…"
+        void phone.refreshStatus().then(updatePhone).catch(()=>{});
         if(view==='lists'&&!route().customerCall){const current=route();let entry=state.columns.flatMap(c=>c.tasks).find(t=>t.id===current.communicationsEntry);
           if(!entry&&current.callQueue){const column=state.columns.find(c=>c.id===current.callQueue||c.key===current.callQueue);entry=column?.tasks[Math.max(0,Math.min(Number(current.callIndex)||0,(column?.tasks.length||1)-1))];
             if(entry&&!Portal.navigation?.applying)Portal.navigation?.replace?.({communicationsEntry:entry.id,callQueue:null,callIndex:null,callStep:null});}
