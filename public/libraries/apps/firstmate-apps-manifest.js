@@ -472,7 +472,7 @@
       bundles: [
         versionedBundle('../payments-api/payments-api.js', '20261119-gp69'),
         versionedBundle('../doc-viewer/firstmate-doc-viewer.js', '20261119-gp69'),
-        versionedBundle('invoices/app.js', '20261119-gp69-viewer')
+        versionedBundle('invoices/app.js', '20261119-gp69-viewer-2')
       ]
     },
     {
