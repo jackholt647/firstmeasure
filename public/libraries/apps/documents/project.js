@@ -2891,7 +2891,7 @@
       // whole library filtered by type (and department). Picking a template
       // starts the document; Upload is its own button.
       const savedPins = () => objectValue(objectValue(pinSettings).settings).pinned_template_ids;
-      const picker = { query: '', type: '', departments: null, pins: Array.isArray(savedPins()) ? savedPins().map(cleanText) : null, pinsTouched: false, typesTouched: false };
+      const picker = { query: '', departments: null, pins: Array.isArray(savedPins()) ? savedPins().map(cleanText) : null, pinsTouched: false, typesTouched: false };
       const PIN_LIMIT = 12;
       // System templates (payment receipts, payroll reports) are produced by
       // other apps and are never started by hand.
@@ -2906,15 +2906,18 @@
       readTypes();
       const liveTypes = () => org.types.filter((type) => type.archived !== true);
       const TYPE_COLORS = ['#2563eb', '#0d9488', '#7c3aed', '#ea580c', '#db2777', '#0891b2', '#65a30d', '#b45309', '#4f46e5', '#be123c', '#059669', '#9333ea'];
-      /** The type's own color, else one of a spread of distinct hues by its place in the list (never two alike until they run out). */
-      function typeColor(type){
+      /**
+       * The type's own color, else one of a spread of distinct hues by its place in the list (never two alike until they
+       * run out). `list` is the list it is in: the type editor's draft holds copies (GP-98).
+       */
+      function typeColor(type, list = org.types){
         if (cleanText(type.color)) return type.color;
-        const taken = new Set(org.types.map((entry) => cleanText(entry.color).toLowerCase()).filter(Boolean));
+        const taken = new Set(list.map((entry) => cleanText(entry.color).toLowerCase()).filter(Boolean));
         const free = TYPE_COLORS.filter((color) => !taken.has(color));
-        const unset = org.types.filter((entry) => !cleanText(entry.color));
+        const unset = list.filter((entry) => !cleanText(entry.color));
         return (free.length ? free : TYPE_COLORS)[Math.max(0, unset.indexOf(type)) % (free.length || TYPE_COLORS.length)];
       }
-      const typeView = (type) => { const base = typeMeta(type.kind, catalog.types); return { id: type.id, label: firstText(type.label, base.label), color: typeColor(type), icon: firstText(type.icon, base.icon), kind: firstText(type.kind, 'generic') }; };
+      const typeView = (type, list) => { const base = typeMeta(type.kind, catalog.types); return { id: type.id, label: firstText(type.label, base.label), color: typeColor(type, list), icon: firstText(type.icon, base.icon), kind: firstText(type.kind, 'generic') }; };
       /** The type a template is filed under: where it was moved, else the first type of its kind. */
       function typeOf(tpl){
         const moved = liveTypes().find((type) => type.id === cleanText(org.assignments[cleanText(tpl.id)]));
@@ -2962,33 +2965,69 @@
         catch (error) { showToast('Documents', errorMessage(error, 'The pinned templates could not be saved.'), false); }
       }
       /**
-       * A pinned tile is one word in its type's color: the type's name when it
-       * is the only pinned template of that type, else the template's own name.
-       * Pins are kept and removed from the library's tiles.
+       * Proposals the organization has not set up (GP-98): the library's proposals are one Proposal, and starting one
+       * opens the documents setup on how they write proposals. Their own proposal (the setup's, or one they made or
+       * edited) is set up; library copies (`metadata.preset`) are not.
+       */
+      const isLibraryCopy = (tpl) => objectValue(tpl.metadata).preset === true || !!objectValue(tpl.metadata).library;
+      const isLibraryProposal = (tpl) => cleanText(tpl.document_type) === 'proposal' && isLibraryCopy(tpl) && !isUploadTemplate(tpl);
+      const proposalsUnused = () => !activeTemplates().some((tpl) => cleanText(tpl.document_type) === 'proposal' && !isLibraryCopy(tpl) && !isUploadTemplate(tpl));
+      /** The library proposal started when the setup cannot be played (the person may not run it). */
+      function libraryProposal(){
+        const list = activeTemplates().filter(isLibraryProposal);
+        return list.find((tpl) => objectValue(tpl.metadata).default === true) || list.find((tpl) => cleanText(tpl.id) === 'tpl_instant_roofing_detailed') || list[0] || null;
+      }
+      function setupGuides(){
+        const guides = typeof guidesRuntime === 'function' ? guidesRuntime() : null;
+        return guides && guides.experience?.('documents.setup') ? guides : null;
+      }
+      /** Opens the documents setup at its proposal questions; false when it cannot be played here. */
+      function startProposalSetup(){
+        const guides = setupGuides();
+        if (!guides) return false;
+        modal.close();
+        // A proposal, asked afresh: an earlier run's kinds of proposal (insurance only) are not carried in.
+        guides.play('documents.setup', { replay: true, start: 'proposal_kinds', selections: { document_kind: 'proposal', proposal_kinds: undefined } }).catch(() => null);
+        return true;
+      }
+      /** The library's one Proposal, standing for its proposals until the organization sets up its own. */
+      const PROPOSAL_ENTRY = '__proposal__';
+      function proposalEntry(){
+        const base = libraryProposal();
+        if (!base) return null;
+        const type = liveTypes().find((entry) => cleanText(entry.kind) === 'proposal');
+        return { ...base, id: PROPOSAL_ENTRY, name: type ? firstText(type.label, 'Proposal') : 'Proposal', description: 'How you write proposals: set them up once, then every proposal starts from your own.', standsFor: base };
+      }
+
+      /**
+       * A pinned tile is one word in its type's color: the template's short name (the setup's contingency agreement),
+       * else the type's name when it is the only pinned template of that type, else the template's own name.
        */
       function tileHtml(tpl, pinned, pinnedList = []){
-        const meta = viewOf(tpl);
+        const meta = viewOf(tpl.standsFor || tpl);
         const upload = isUploadTemplate(tpl);
         const id = cleanText(tpl.id);
         const name = firstText(tpl.name, 'Template');
         if (pinned) {
           const alone = meta.id !== OTHER.id && pinnedList.filter((entry) => viewOf(entry).id === meta.id).length === 1;
+          const label = firstText(objectValue(tpl.metadata).short_name, alone ? meta.label : name);
           return `
           <div class="fmdx-tpl pinned" style="--fmdx-type:${esc(meta.color)}" title="${esc(name)}">
-            <button type="button" class="fmdx-tpl-open" data-pick-template="${esc(id)}" aria-label="${esc(name)}">
+            <button type="button" class="fmdx-tpl-open" data-pick-template="${esc(id)}" aria-label="${esc(label)}">
               <span class="fmdx-tpl-icon"><i class="fas ${esc(upload ? 'fa-file-arrow-up' : meta.icon)}"></i></span>
-              <span class="fmdx-tpl-text"><strong>${esc(alone ? meta.label : name)}</strong></span>
+              <span class="fmdx-tpl-text"><strong>${esc(label)}</strong></span>
             </button>
           </div>`;
         }
+        const entry = id === PROPOSAL_ENTRY;
         const isPinned = pins().includes(id);
         return `
           <div class="fmdx-tpl" style="--fmdx-type:${esc(meta.color)}" title="${esc(firstText(tpl.description, tpl.name))}">
             <button type="button" class="fmdx-tpl-open" data-pick-template="${esc(id)}">
               <span class="fmdx-tpl-icon"><i class="fas ${esc(upload ? 'fa-file-arrow-up' : meta.icon)}"></i></span>
-              <span class="fmdx-tpl-text"><strong>${esc(name)}</strong><small>${esc(meta.label)}</small></span>
+              <span class="fmdx-tpl-text"><strong>${esc(name)}</strong><small>${esc(entry && setupGuides() ? 'Not set up yet' : meta.label)}</small></span>
             </button>
-            <button type="button" class="fmdx-tpl-pin ${isPinned ? 'on' : ''}" data-pin-template="${esc(id)}" title="${isPinned ? 'Unpin for everyone' : 'Pin for everyone'}" aria-pressed="${isPinned}"><i class="fas fa-thumbtack"></i></button>
+            ${entry ? '' : `<button type="button" class="fmdx-tpl-pin ${isPinned ? 'on' : ''}" data-pin-template="${esc(id)}" title="${isPinned ? 'Unpin for everyone' : 'Pin for everyone'}" aria-pressed="${isPinned}"><i class="fas fa-thumbtack"></i></button>`}
           </div>`;
       }
 
@@ -2996,29 +3035,26 @@
         modal.shape?.(true, drawStepOne);
       }
       function drawStepOne(){
-        const types = [...liveTypes().map(typeView), OTHER];
         const query = picker.query.trim().toLowerCase();
-        const matches = (tpl) => !query || [tpl.name, tpl.description, viewOf(tpl).label].some((value) => cleanText(value).toLowerCase().includes(query));
-        const visible = activeTemplates().filter(inDepartments).filter(matches);
-        const counts = new Map();
-        visible.forEach((tpl) => counts.set(viewOf(tpl).id, (counts.get(viewOf(tpl).id) || 0) + 1));
-        // A type is a filter only when it groups something.
-        const typeChips = types.filter((type) => counts.get(type.id));
-        if (picker.type && !counts.get(picker.type)) picker.type = '';
-        const place = new Map(types.map((type, index) => [type.id, index]));
-        const library = visible.filter((tpl) => !picker.type || viewOf(tpl).id === picker.type)
-          .sort((a, b) => (place.get(viewOf(a).id) - place.get(viewOf(b).id)) || cleanText(a.name).localeCompare(cleanText(b.name)));
+        const matches = (tpl) => !query || [tpl.name, tpl.description, viewOf(tpl.standsFor || tpl).label].some((value) => cleanText(value).toLowerCase().includes(query));
         const pinned = query ? [] : pins().map((id) => activeTemplates().find((tpl) => cleanText(tpl.id) === id)).filter(Boolean).filter(inDepartments);
-        // On a phone the pinned tiles and search are the way in: the whole
-        // library folds behind one button until it is asked for. A search
-        // always shows its results.
-        const foldable = isPhone() && !query && pinned.length > 0;
+        // One flat set of color-coded tiles, A to Z (GP-98): no rows per type. The library's proposals are not tiles of
+        // their own: until the organization has a proposal of its own they are one Proposal, after it they are theirs.
+        // Pinned templates are above, not here again.
+        const entry = proposalsUnused() && !pinned.some(isLibraryProposal) ? proposalEntry() : null;
+        const shown = activeTemplates().filter((tpl) => !isLibraryProposal(tpl) || pinned.includes(tpl));
+        const all = [...shown, ...(entry ? [entry] : [])].filter((tpl) => inDepartments(tpl.standsFor || tpl)).filter(matches);
+        const library = all.filter((tpl) => query || !pinned.includes(tpl)).sort((a, b) => cleanText(a.name).localeCompare(cleanText(b.name)));
+        // The pinned tiles are the way in: the rest of the library folds behind More until it is asked for. A search
+        // always shows its results; with nothing pinned there is nothing to fold behind.
+        const foldable = !query && pinned.length > 0;
         const folded = foldable && !picker.libraryOpen;
         // A tray stays at its full height while it searches or shows the library, so the search box does not move as it types.
         modal.body.classList.toggle('fmdx-tray-tall', !!query || !folded);
+        modal.body.classList.toggle('fmdx-create-folded', folded);
         const deptChips = departments().length > 1 ? `
           <div class="fmdx-fchips" role="group" aria-label="${esc(state.departmentContext.departments_label || 'Departments')}">
-            ${departments().map((entry) => `<button type="button" class="fmdx-fchip ${selectedDepartments().has(entry.id) ? 'on' : ''}" data-pick-department="${esc(entry.id)}" aria-pressed="${selectedDepartments().has(entry.id)}">${esc(entry.label)}</button>`).join('')}
+            ${departments().map((dept) => `<button type="button" class="fmdx-fchip ${selectedDepartments().has(dept.id) ? 'on' : ''}" data-pick-department="${esc(dept.id)}" aria-pressed="${selectedDepartments().has(dept.id)}">${esc(dept.label)}</button>`).join('')}
           </div>` : '';
         const focused = document.activeElement === body.querySelector('[data-tpl-search]');
         // A host's own file upload (the Docs tab on a phone, where New is its
@@ -3034,25 +3070,15 @@
           ${pinned.length ? `
             <p class="fmdx-section-label">Pinned</p>
             <div class="fmdx-tpl-row">${pinned.map((tpl) => tileHtml(tpl, true, pinned)).join('')}</div>` : ''}
-          <div class="fmdx-create-library-head">
-            ${foldable
-              ? `<button type="button" class="fmdx-library-toggle" data-library-toggle aria-expanded="${!folded}">${folded ? 'Show all templates' : 'Hide all templates'} <small>${visible.length}</small><i class="fas fa-chevron-down"></i></button>`
-              : `<p class="fmdx-section-label">${query ? 'Results' : 'Library'}</p>`}
-            ${folded ? '' : deptChips}
-          </div>
-          ${folded ? '' : typeChips.length > 1 ? `
-            <div class="fmdx-fchips">
-              <button type="button" class="fmdx-fchip ${picker.type ? '' : 'on'}" data-pick-type="">All <small>${visible.length}</small></button>
-              ${typeChips.map((meta) => `<button type="button" class="fmdx-fchip ${picker.type === meta.id ? 'on' : ''}" data-pick-type="${esc(meta.id)}" style="--fmdx-type:${esc(meta.color)}"><i class="fmdx-fchip-dot"></i>${esc(meta.label)} <small>${counts.get(meta.id)}</small></button>`).join('')}
+          ${foldable ? `<button type="button" class="fmdx-library-toggle" data-library-toggle aria-expanded="${!folded}"><i class="fas fa-grip fmdx-library-toggle-icon"></i>${folded ? 'More' : 'Less'} <small>${library.length}</small><i class="fas fa-chevron-down"></i></button>` : ''}
+          ${folded ? '' : `
+            <div class="fmdx-create-library-head">
+              ${foldable ? deptChips || '<span></span>' : `<p class="fmdx-section-label">${query ? 'Results' : 'Library'}</p>${deptChips}`}
               <button type="button" class="fmdx-fchip quiet" data-manage-types title="Rename, color, add or retire document types, and choose their departments"><i class="fas fa-sliders"></i> Edit types</button>
-            </div>` : `<div class="fmdx-fchips"><button type="button" class="fmdx-fchip quiet" data-manage-types><i class="fas fa-sliders"></i> Edit types</button></div>`}
-          ${folded ? '' : library.length
-            ? `<div class="fmdx-tpl-scroll">${types.filter((type) => library.some((tpl) => viewOf(tpl).id === type.id)).map((type) => { const group = library.filter((tpl) => viewOf(tpl).id === type.id); return `
-                <section class="fmdx-tpl-group" style="--fmdx-type:${esc(type.color)}">
-                  <h3><i class="fas ${esc(type.icon)}"></i>${esc(type.label)}<small>${group.length}</small></h3>
-                  <div class="fmdx-tpl-grid">${group.map((tpl) => tileHtml(tpl, false)).join('')}</div>
-                </section>`; }).join('')}</div>`
-            : `<p class="fmdx-data-hint">${query ? 'No template matches that search.' : 'No templates here yet. Upload a paper document to start one.'}</p>`}`;
+            </div>
+            ${library.length
+              ? `<div class="fmdx-tpl-scroll"><div class="fmdx-tpl-grid">${library.map((tpl) => tileHtml(tpl, false)).join('')}</div></div>`
+              : `<p class="fmdx-data-hint">${query ? 'No template matches that search.' : 'No templates here yet. Upload a paper document to start one.'}</p>`}`}`;
         const search = body.querySelector('[data-tpl-search]');
         if (focused) { search.focus(); search.setSelectionRange(picker.query.length, picker.query.length); }
         search.addEventListener('input', (event) => { picker.query = event.target.value; renderStepOne(); });
@@ -3062,22 +3088,22 @@
           if (chosen.has(id) && chosen.size > 1) chosen.delete(id); else chosen.add(id);
           renderStepOne();
         }));
-        body.querySelectorAll('[data-pick-type]').forEach((btn) => btn.addEventListener('click', () => { picker.type = btn.dataset.pickType; renderStepOne(); }));
         body.querySelector('[data-library-toggle]')?.addEventListener('click', () => { picker.libraryOpen = !picker.libraryOpen; renderStepOne(); });
         body.querySelector('[data-manage-types]')?.addEventListener('click', () => renderTypeEditor());
         body.querySelectorAll('[data-pin-template]').forEach((btn) => btn.addEventListener('click', () => togglePin(btn.dataset.pinTemplate)));
         body.querySelectorAll('[data-pick-template]').forEach((btn) => btn.addEventListener('click', () => {
-          const tpl = activeTemplates().find((entry) => cleanText(entry.id) === btn.dataset.pickTemplate);
+          const picked = btn.dataset.pickTemplate;
+          let tpl = picked === PROPOSAL_ENTRY ? libraryProposal() : activeTemplates().find((item) => cleanText(item.id) === picked);
           if (!tpl) return;
+          // A library proposal while the organization has none of its own: how they write proposals comes first.
+          if (isLibraryProposal(tpl) && proposalsUnused() && startProposalSetup()) return;
           wizard.type = cleanText(tpl.document_type);
           wizard.template = tpl;
           proceed(btn);
         }));
-        /** Upload needs to know what kind of document: the filter in use, else ask. */
+        /** Upload needs to know what kind of document: ask. */
         const withType = (anchor, run) => {
-          const current = types.find((type) => type.id === picker.type);
-          if (current) { run(current.kind); return; }
-          const menu = openMenu(anchor, `<p class="fmdx-menu-label">What kind of document?</p>${liveTypes().map(typeView).map((meta) => `<button type="button" class="fmdx-menu-item" data-menu-type="${esc(meta.kind)}"><i class="fas ${esc(meta.icon)}" style="color:${esc(meta.color)}"></i><span>${esc(meta.label)}</span></button>`).join('')}`);
+          const menu = openMenu(anchor, `<p class="fmdx-menu-label">What kind of document?</p>${liveTypes().map((type) => typeView(type)).map((meta) => `<button type="button" class="fmdx-menu-item" data-menu-type="${esc(meta.kind)}"><i class="fas ${esc(meta.icon)}" style="color:${esc(meta.color)}"></i><span>${esc(meta.label)}</span></button>`).join('')}`);
           (menu?.el || document.querySelector('.fmdx-menu'))?.querySelectorAll('[data-menu-type]').forEach((item) => item.addEventListener('click', () => { document.querySelector('.fmdx-menu')?.remove(); run(item.dataset.menuType); }));
         };
         body.querySelector('[data-create-upload]').addEventListener('click', (event) => withType(event.currentTarget, (type) => { wizard.type = type; wizard.template = '__upload__'; proceed(body.querySelector('[data-create-upload]')); }));
@@ -3093,31 +3119,36 @@
           const live = draft.types.filter((type) => type.archived !== true);
           const filedUnder = (tpl) => { const moved = live.find((type) => type.id === cleanText(draft.assignments[cleanText(tpl.id)])); return (moved || live.find((type) => cleanText(type.kind) === cleanText(tpl.document_type)) || {}).id || ''; };
           body.innerHTML = `
-            <div class="fmdx-create-top">
+            <div class="fmdx-create-top fmdx-types-top">
               <button type="button" class="fmdx-btn" data-types-back><i class="fas fa-arrow-left"></i> Back</button>
-              <strong style="flex:1;font-size:14px">Document types</strong>
+              <strong class="fmdx-types-title">Document types</strong>
               <button type="button" class="fmdx-btn" data-types-add><i class="fas fa-plus"></i> Add type</button>
               <button type="button" class="fmdx-btn primary" data-types-save>Save</button>
             </div>
             <p class="fmdx-data-hint" style="margin:0">Types are how your templates are grouped. Rename them, give them a color and the ${esc((state.departmentContext.departments_label || 'departments').toLowerCase())} that use them, or add your own.</p>
-            <div class="fmdx-types">
-              ${draft.types.map((type, index) => { const view = typeView(type); return `
-                <div class="fmdx-type-row ${type.archived ? 'archived' : ''}" data-type-row="${index}">
-                  <span class="fmdx-type-move"><button type="button" data-type-up title="Move up" ${index === 0 ? 'disabled' : ''}><i class="fas fa-chevron-up"></i></button><button type="button" data-type-down title="Move down" ${index === draft.types.length - 1 ? 'disabled' : ''}><i class="fas fa-chevron-down"></i></button></span>
-                  <input type="color" data-type-color value="${esc(view.color)}" list="fmdx-type-colors" title="Color">
-                  <input type="text" class="fmdx-input" data-type-label value="${esc(type.label)}" maxlength="60" placeholder="Type name">
-                  <select class="fmdx-input" data-type-kind title="What a blank document of this type is">${org.kinds.map((kind) => `<option value="${esc(kind.id)}" ${cleanText(type.kind) === kind.id ? 'selected' : ''}>${esc(kind.label)}</option>`).join('')}</select>
-                  ${departments().length > 1 ? `<span class="fmdx-fchips">${departments().map((entry) => `<button type="button" class="fmdx-fchip ${arrayValue(type.department_ids).includes(entry.id) ? 'on' : ''}" data-type-department="${esc(entry.id)}" title="${arrayValue(type.department_ids).length ? '' : 'No department chosen: every department sees this type'}">${esc(entry.label)}</button>`).join('')}</span>` : ''}
-                  <button type="button" class="fmdx-icon-btn" data-type-archive title="${type.archived ? 'Bring back' : 'Retire this type'}"><i class="fas ${type.archived ? 'fa-rotate-left' : 'fa-box-archive'}"></i></button>
+            <div class="fmdx-types-grid">
+              ${draft.types.map((type, index) => { const view = typeView(type, draft.types); const filed = activeTemplates().filter((tpl) => filedUnder(tpl) === type.id && type.id).length; return `
+                <div class="fmdx-type-card ${type.archived ? 'archived' : ''}" data-type-row="${index}" style="--fmdx-type:${esc(view.color)}">
+                  <div class="fmdx-type-card-head">
+                    <label class="fmdx-type-swatch" title="Color"><i class="fas ${esc(view.icon)}"></i><input type="color" data-type-color value="${esc(view.color)}" list="fmdx-type-colors" aria-label="Color"></label>
+                    <input type="text" class="fmdx-type-name" data-type-label value="${esc(type.label)}" maxlength="60" placeholder="Type name" aria-label="Type name">
+                    <button type="button" class="fmdx-icon-btn" data-type-archive title="${type.archived ? 'Bring back' : 'Retire this type'}"><i class="fas ${type.archived ? 'fa-rotate-left' : 'fa-box-archive'}"></i></button>
+                  </div>
+                  <label class="fmdx-type-field"><span>Starts as</span><select class="fmdx-type-select" data-type-kind title="What a blank document of this type is">${org.kinds.map((kind) => `<option value="${esc(kind.id)}" ${cleanText(type.kind) === kind.id ? 'selected' : ''}>${esc(kind.label)}</option>`).join('')}</select></label>
+                  ${departments().length > 1 ? `<div class="fmdx-type-field"><span>${esc(state.departmentContext.departments_label || 'Departments')}</span><span class="fmdx-fchips">${departments().map((entry) => `<button type="button" class="fmdx-fchip ${arrayValue(type.department_ids).includes(entry.id) ? 'on' : ''}" data-type-department="${esc(entry.id)}" title="${arrayValue(type.department_ids).length ? '' : 'No department chosen: every department sees this type'}">${esc(entry.label)}</button>`).join('')}</span></div>` : ''}
+                  <div class="fmdx-type-card-foot">
+                    <small>${type.archived ? 'Retired' : `${filed} template${filed === 1 ? '' : 's'}`}</small>
+                    <span class="fmdx-type-move"><button type="button" data-type-up title="Move earlier" aria-label="Move earlier" ${index === 0 ? 'disabled' : ''}><i class="fas fa-arrow-left"></i></button><button type="button" data-type-down title="Move later" aria-label="Move later" ${index === draft.types.length - 1 ? 'disabled' : ''}><i class="fas fa-arrow-right"></i></button></span>
+                  </div>
                 </div>`; }).join('')}
               <datalist id="fmdx-type-colors">${palette.map((color) => `<option value="${color}"></option>`).join('')}</datalist>
             </div>
             <p class="fmdx-section-label">Templates</p>
-            <div class="fmdx-types">
-              ${activeTemplates().map((tpl) => `
-                <label class="fmdx-type-row template"><span>${esc(firstText(tpl.name, 'Template'))}</span>
-                  <select class="fmdx-input" data-template-type="${esc(tpl.id)}">${live.filter((type) => type.id).map((type) => `<option value="${esc(type.id)}" ${filedUnder(tpl) === type.id ? 'selected' : ''}>${esc(type.label)}</option>`).join('')}${filedUnder(tpl) ? '' : '<option value="" selected>Other</option>'}</select>
-                </label>`).join('')}
+            <div class="fmdx-types-templates">
+              ${activeTemplates().map((tpl) => { const under = live.find((type) => type.id === filedUnder(tpl)); return `
+                <label class="fmdx-type-tpl" style="--fmdx-type:${esc(under ? typeView(under, draft.types).color : OTHER.color)}"><i class="fmdx-fchip-dot"></i><span>${esc(firstText(tpl.name, 'Template'))}</span>
+                  <select class="fmdx-type-select" data-template-type="${esc(tpl.id)}">${live.filter((type) => type.id).map((type) => `<option value="${esc(type.id)}" ${filedUnder(tpl) === type.id ? 'selected' : ''}>${esc(type.label)}</option>`).join('')}${filedUnder(tpl) ? '' : '<option value="" selected>Other</option>'}</select>
+                </label>`; }).join('')}
             </div>`;
           body.querySelector('[data-types-back]').addEventListener('click', () => renderStepOne());
           body.querySelector('[data-types-add]').addEventListener('click', () => { draft.types.push({ id: '', label: 'New type', color: palette[draft.types.length % palette.length], icon: '', kind: 'generic', department_ids: [], archived: false }); draw(); body.querySelector(`[data-type-row="${draft.types.length - 1}"] [data-type-label]`)?.select(); });
@@ -3128,7 +3159,7 @@
             row.querySelector('[data-type-up]')?.addEventListener('click', () => swap(index - 1));
             row.querySelector('[data-type-down]')?.addEventListener('click', () => swap(index + 1));
             row.querySelector('[data-type-label]').addEventListener('change', (event) => { type.label = cleanText(event.target.value) || type.label; draw(); });
-            row.querySelector('[data-type-color]').addEventListener('change', (event) => { type.color = event.target.value; });
+            row.querySelector('[data-type-color]').addEventListener('input', (event) => { type.color = event.target.value; row.style.setProperty('--fmdx-type', type.color); });
             row.querySelector('[data-type-kind]').addEventListener('change', (event) => { type.kind = event.target.value; });
             row.querySelectorAll('[data-type-department]').forEach((chip) => chip.addEventListener('click', () => {
               const ids = new Set(arrayValue(type.department_ids));
@@ -3142,6 +3173,7 @@
             // New types get their id when saved; until then they are told apart by position.
             const target = live.find((type) => type.id === select.value);
             if (target && target.id) draft.assignments[select.dataset.templateType] = target.id; else delete draft.assignments[select.dataset.templateType];
+            select.closest('.fmdx-type-tpl')?.style.setProperty('--fmdx-type', target ? typeView(target, draft.types).color : OTHER.color);
           }));
           body.querySelector('[data-types-save]').addEventListener('click', async (event) => {
             event.currentTarget.disabled = true;
@@ -3152,7 +3184,6 @@
               picker.typesTouched = true;
               state.pickerWrites += 1;
               if (state.pickerData) state.pickerData = { ...state.pickerData, typeSettings: { ...objectValue(state.pickerData.typeSettings), types: org.types, assignments: org.assignments } };
-              picker.type = '';
               renderStepOne();
             } catch (error) {
               showToast('Documents', errorMessage(error, 'The document types could not be saved.'), false);
@@ -3160,7 +3191,7 @@
             }
           });
         };
-        modal.shape?.(false, draw);
+        modal.shape?.(false, () => { modal.body.classList.remove('fmdx-create-folded'); draw(); });
       }
 
       /** Start the chosen document: paper intake, its workflow, or the inputs form. */

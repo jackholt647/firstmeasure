@@ -28,7 +28,7 @@ const TEMPLATES = [
   template('tpl_old', 'contract', 'Retired contract', { status: 'archived' })
 ];
 
-async function open(browser, { pinned = null, viewport = { width: 1280, height: 860 }, windows = false } = {}) {
+async function open(browser, { pinned = null, viewport = { width: 1280, height: 860 }, windows = false, templates = TEMPLATES, guides = false } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -37,7 +37,7 @@ async function open(browser, { pinned = null, viewport = { width: 1280, height: 
   if (windows) await page.evaluate((code) => { new Function(code)(); window.FirstMateWindows.backdrops.setEffect('blur'); }, windowManager);
   // project.js sets this on a phone (syncPhoneFlag); the harness loads only the picker.
   if (viewport.width <= 760) await page.evaluate(() => document.documentElement.setAttribute('data-fm-doc-phone', ''));
-  await page.evaluate(({ typeCode, modalCode, createCode, pickerDataCode, TEMPLATES, pinned }) => {
+  await page.evaluate(({ typeCode, modalCode, createCode, pickerDataCode, TEMPLATES, pinned, guides }) => {
     window.calls = [];
     const helpers = `
       function cleanText(value){ return String(value ?? '').trim(); }
@@ -66,15 +66,17 @@ async function open(browser, { pinned = null, viewport = { width: 1280, height: 
       const templateDefinition = async () => ({ params: {} });
       const paramFieldHtml = () => '';
       const capabilityEnabled = () => false;
+      // The guided experiences runtime, with the documents setup this person may run (or none).
+      const guidesRuntime = () => window.__guides ? { experience: (id) => (id === 'documents.setup' ? { id } : null), play: async (id, opts) => { window.calls.push(['play', id, opts]); return { status: 'completed' }; } } : null;
     `;
-    window.__templates = TEMPLATES; window.__pinned = pinned;
+    window.__templates = TEMPLATES; window.__pinned = pinned; window.__guides = guides;
     const kinds = [['proposal','Proposal'],['contract','Contract'],['change_order','Change Order'],['invoice','Invoice'],['completion_certificate','Completion Certificate'],['generic','Plain document']];
     window.__types = { types: kinds.map(([id, label]) => ({ id, label: id === 'generic' ? 'Other' : label, kind: id, color: '', icon: '', department_ids: [], archived: false })), assignments: {}, kinds: kinds.map(([id, label]) => ({ id, label })) };
     // Step two is not under test: record that the picker handed over.
     const create = createCode.replace('      async function renderStepTwo(){', '      async function renderStepTwo(){ window.calls.push([\'create\', wizard.type, wizard.template && wizard.template.id]); return;');
     // eslint-disable-next-line no-new-func
     window.openCreate = new Function(`${helpers}\n${typeCode}\n${modalCode}\n${pickerDataCode}\n${create}\nreturn openCreateModal;`)();
-  }, { typeCode, modalCode, createCode, pickerDataCode, TEMPLATES, pinned });
+  }, { typeCode, modalCode, createCode, pickerDataCode, TEMPLATES: templates, pinned, guides });
   await page.evaluate(() => window.openCreate());
   await page.waitForSelector('[data-tpl-search]');
   return { page, errors };
@@ -95,37 +97,33 @@ test('New document shows the everyday templates pinned, the user\'s departments,
     assert.equal(new Set(tints).size, 4, `color-coded: ${tints}`);
     // No Blank and no Scan paper: Upload is the one button beside search.
     assert.deepEqual(await page.locator('.fmdx-create-top > .fmdx-btn').evaluateAll((list) => list.filter((b) => b.getClientRects().length).map((b) => b.innerText.trim())), ['Upload']);
-    // The library starts on the user's own department; archived templates never show.
-    const library = await names(page, '.fmdx-tpl-grid');
-    assert.ok(library.includes('Quick roof quote') && !library.includes('Gutter proposal') && !library.includes('Retired contract') && !library.includes('Payment receipt'));
+    // The rest of the library folds behind More (GP-98): the dialog is only as tall as the pinned tiles.
+    assert.equal(await page.locator('.fmdx-tpl-grid').count(), 0, 'library folded');
+    const toggle = page.locator('[data-library-toggle]');
+    assert.match(await toggle.innerText(), /More\s*3/);
+    assert.ok(await page.locator('.fmdx-create-modal').evaluate((el) => el.getBoundingClientRect().height) < 420, 'a short dialog while folded');
+    await toggle.click();
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
+    // One flat set of tiles, A to Z: no rows per type, no type filters, and nothing pinned again. It starts on the
+    // user's own department; archived and system templates never show.
+    assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Paper contract intake', 'Quick roof quote', 'Roofing contract']);
+    assert.equal(await page.locator('.fmdx-tpl-group, [data-pick-type], .fmdx-tpl-scroll h3').count(), 0, 'flat, no type rows or chips');
     await page.locator('[data-pick-department="dep_gutter"]').click();
-    assert.ok((await names(page, '.fmdx-tpl-grid')).includes('Gutter proposal'));
-    // Types are filters with counts; a type with nothing to group is not one.
-    assert.equal(await page.locator('.fmdx-fchips [data-pick-type="generic"]').count(), 0);
-    await page.locator('.fmdx-fchips [data-pick-type="contract"]').click();
-    assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Paper contract intake', 'Roofing contract']);
-    await page.locator('.fmdx-fchips [data-pick-type=""]').click();
-    // Search narrows across names and types, and keeps typing focus.
+    assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Gutter proposal', 'Paper contract intake', 'Quick roof quote', 'Roofing contract']);
+    // Still color-coded: one color per type.
+    const coded = await page.locator('.fmdx-tpl-grid .fmdx-tpl').evaluateAll((list) => list.map((el) => [el.querySelector('small').textContent, el.style.getPropertyValue('--fmdx-type')]));
+    assert.equal(new Set(coded.map(([, color]) => color)).size, new Set(coded.map(([type]) => type)).size, `a color per type: ${coded}`);
+    // Search narrows across names and types, pinned ones too, and keeps typing focus.
     await page.locator('[data-tpl-search]').pressSequentially('inv');
     assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Invoice']);
-    assert.equal(await page.locator('.fmdx-tpl-row').count(), 0, 'pinned steps aside while searching');
+    assert.equal(await page.locator('.fmdx-tpl-row, [data-library-toggle]').count(), 0, 'pinned and More step aside while searching');
     await page.locator('[data-tpl-search]').fill('');
     // Six compact tiles fit a row at this width.
     const columns = await page.locator('.fmdx-tpl-grid').first().evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
     assert.ok(columns >= 4, `columns: ${columns}`);
-    // Every type has its own color, and the library reads grouped by type.
-    const colors = await page.locator('.fmdx-fchips [data-pick-type]:not([data-pick-type=""])').evaluateAll((list) => list.map((el) => el.style.getPropertyValue('--fmdx-type')));
-    assert.equal(new Set(colors).size, colors.length, `distinct colors: ${colors}`);
-    const order = await page.locator('.fmdx-tpl-grid .fmdx-tpl small').allInnerTexts();
-    assert.deepEqual(order, [...order].sort((a, b) => order.indexOf(a) - order.indexOf(b)), 'types are contiguous');
-    assert.equal(order.filter((label, index) => index > 0 && label !== order[index - 1] && order.indexOf(label) !== index).length, 0, `grouped by type: ${order}`);
-    // The dialog uses the height the window gives it.
+    // Open, the dialog uses the height the window gives it.
     assert.ok(await page.locator('.fmdx-create-modal').evaluate((el) => el.getBoundingClientRect().height) >= 700, 'tall dialog in a tall window');
-    // Each type is a headed group, and only the library scrolls.
-    assert.deepEqual(await page.locator('.fmdx-tpl-group h3').evaluateAll((list) => list.map((el) => el.childNodes[1].textContent.trim())), ['Proposal', 'Contract', 'Change Order', 'Invoice', 'Completion Certificate']);
     await page.setViewportSize({ width: 1280, height: 420 });
-    const scroll = await page.evaluate(() => { const lib = document.querySelector('.fmdx-tpl-scroll'); const body = document.querySelector('[data-create-body]'); const search = document.querySelector('[data-tpl-search]').getBoundingClientRect().top; lib.scrollTop = 400; return { library: lib.scrollTop > 0, body: body.scrollTop, searchStill: Math.round(document.querySelector('[data-tpl-search]').getBoundingClientRect().top) === Math.round(search) }; });
-    assert.deepEqual(scroll, { library: true, body: 0, searchStill: true });
     // In a short window the pinned row keeps its full height and nothing scrolls sideways.
     const fit = await page.evaluate(() => { const row = document.querySelector('.fmdx-tpl-row'); const tile = row.querySelector('.fmdx-tpl'); const body = document.querySelector('[data-create-body]'); return { rowHoldsTile: row.clientHeight >= tile.offsetHeight, noSideScroll: body.scrollWidth <= body.clientWidth && document.querySelector('.fmdx-tpl-scroll').scrollWidth <= document.querySelector('.fmdx-tpl-scroll').clientWidth }; });
     assert.deepEqual(fit, { rowHoldsTile: true, noSideScroll: true });
@@ -138,6 +136,14 @@ test('New document shows the everyday templates pinned, the user\'s departments,
     await page.waitForFunction(() => window.calls.some((call) => call[0] === 'create'));
     assert.deepEqual(await page.evaluate(() => window.calls.find((call) => call[0] === 'create')), ['create', 'proposal', 'tpl_quick']);
     assert.deepEqual(errors, []);
+    await page.close();
+    // A long library scrolls by itself: search and the pinned tiles stay put.
+    const many = [...TEMPLATES, ...Array.from({ length: 24 }, (_, at) => template(`tpl_form_${at}`, 'contract', `Form ${String(at).padStart(2, '0')}`))];
+    const long = await open(browser, { templates: many, viewport: { width: 1280, height: 600 } });
+    await long.page.locator('[data-library-toggle]').click();
+    const scroll = await long.page.evaluate(() => { const lib = document.querySelector('.fmdx-tpl-scroll'); const body = document.querySelector('[data-create-body]'); const search = document.querySelector('[data-tpl-search]').getBoundingClientRect().top; lib.scrollTop = 400; return { library: lib.scrollTop > 0, body: body.scrollTop, searchStill: Math.round(document.querySelector('[data-tpl-search]').getBoundingClientRect().top) === Math.round(search) }; });
+    assert.deepEqual(scroll, { library: true, body: 0, searchStill: true });
+    assert.deepEqual(long.errors, []);
   } finally { await browser.close(); }
 });
 
@@ -158,13 +164,14 @@ test('on a phone the pinned templates are a grid of tiles and the library folds 
     assert.deepEqual(top, { buttons: ['Upload'], oneLine: true }, 'Upload sits beside search');
     // The library is one button with its count until it is opened.
     assert.equal(await page.locator('.fmdx-tpl-grid').count(), 0, 'library folded');
-    assert.equal(await page.locator('[data-pick-type]').count(), 0, 'type filters fold with it');
+    assert.equal(await page.locator('[data-manage-types]').count(), 0, 'Edit types folds with it');
     const toggle = page.locator('[data-library-toggle]');
-    assert.match(await toggle.innerText(), /Show all templates\s*7/);
+    assert.match(await toggle.innerText(), /More\s*3/);
     assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
     if (process.env.PHONE_SHOT) await page.screenshot({ path: process.env.PHONE_SHOT });
     await toggle.click();
     assert.ok((await names(page, '.fmdx-tpl-grid')).includes('Quick roof quote'), 'library open');
+    assert.match(await page.locator('[data-library-toggle]').innerText(), /Less/);
     assert.equal(await page.locator('[data-library-toggle]').getAttribute('aria-expanded'), 'true');
     await page.locator('[data-library-toggle]').click();
     assert.equal(await page.locator('.fmdx-tpl-grid').count(), 0, 'folds again');
@@ -190,6 +197,7 @@ test('picking a template with a workflow answers at once and cannot be clicked t
   try {
     const { page, errors } = await open(browser);
     await page.evaluate(() => { window.__templates.find((tpl) => tpl.id === 'tpl_quick').metadata = { default_workflow_id: 'wf_quick' }; });
+    await page.locator('[data-library-toggle]').click();
     const tile = page.locator('.fmdx-tpl-grid [data-pick-template="tpl_quick"]');
     await page.evaluate(() => { window.__clicked = performance.now(); });
     // Two clicks in quick succession, as an impatient hand does.
@@ -212,28 +220,31 @@ test('pins are the organization\'s, kept from the library, and Upload goes to pa
   try {
     const { page, errors } = await open(browser, { pinned: ['tpl_inv'] });
     assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Invoice']);
+    await page.locator('[data-library-toggle]').click();
     await page.locator('.fmdx-tpl-grid .fmdx-tpl', { hasText: 'Quick roof quote' }).hover();
     await page.locator('.fmdx-tpl-grid [data-pin-template="tpl_quick"]').click();
     await page.locator('.fmdx-tpl-grid .fmdx-tpl', { hasText: 'Roof replacement' }).hover();
     await page.locator('.fmdx-tpl-grid [data-pin-template="tpl_roof"]').click();
     // Two pinned of one type read by their own names; one alone reads as its type.
     assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Invoice', 'Quick roof quote', 'Roof replacement · Itemized proposal']);
+    // A pinned template is not in the library again; it is unpinned from its tile there once a search shows it.
+    assert.equal(await page.locator('.fmdx-tpl-grid [data-pick-template="tpl_quick"]').count(), 0);
+    await page.locator('[data-tpl-search]').pressSequentially('invoice');
     await page.locator('.fmdx-tpl-grid [data-pin-template="tpl_inv"]').click();
+    await page.locator('[data-tpl-search]').fill('');
     assert.deepEqual(await page.evaluate(() => window.calls.filter((call) => call[0] === 'pin').map((call) => call[1])), [['tpl_inv', 'tpl_quick'], ['tpl_inv', 'tpl_quick', 'tpl_roof'], ['tpl_quick', 'tpl_roof']]);
     assert.equal(await page.locator('[data-create-blank], [data-create-scan]').count(), 0, 'no Blank, no Scan paper');
-    // Upload: no type filter in use, so it asks; the generic type reads as a plain document.
+    // Upload asks what kind of document; the generic type reads as a plain document.
     await page.locator('[data-create-upload]').click();
     assert.match(await page.locator('.fmdx-menu').innerText(), /Completion Certificate[\s\S]*Other/);
     await page.locator('.fmdx-menu [data-menu-type="change_order"]').click();
     assert.deepEqual(await page.evaluate(() => window.calls.find((call) => call[0] === 'upload')), ['upload', '', 'change_order']);
     assert.deepEqual(errors, []);
     await page.close();
-    // Upload with a type filter in use needs no question.
+    // An organization may pin nothing: then the library is open, with nothing to fold behind.
     const second = await open(browser, { pinned: [] });
-    await second.page.locator('.fmdx-fchips [data-pick-type="contract"]').click();
-    await second.page.locator('[data-create-upload]').click();
-    assert.deepEqual(await second.page.evaluate(() => window.calls.find((call) => call[0] === 'upload')), ['upload', '', 'contract']);
-    assert.equal(await second.page.locator('.fmdx-tpl-row').count(), 0, 'an organization may pin nothing');
+    assert.equal(await second.page.locator('.fmdx-tpl-row, [data-library-toggle]').count(), 0, 'an organization may pin nothing');
+    assert.ok((await names(second.page, '.fmdx-tpl-grid')).length > 0);
   } finally { await browser.close(); }
 });
 
@@ -241,7 +252,17 @@ test('document types belong to the organization: renamed, added, given departmen
   const browser = await launch();
   try {
     const { page, errors } = await open(browser);
+    await page.locator('[data-library-toggle]').click();
     await page.locator('[data-manage-types]').click();
+    // A card per type, several across, with styled fields (GP-98).
+    const cards = await page.evaluate(() => { const grid = document.querySelector('.fmdx-types-grid'); const card = grid.querySelector('.fmdx-type-card'); const select = card.querySelector('[data-type-kind]'); return { columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length, cards: grid.querySelectorAll('.fmdx-type-card').length, colorShown: getComputedStyle(card.querySelector('.fmdx-type-swatch')).backgroundColor, selectRadius: getComputedStyle(select).borderRadius, colorInputHidden: getComputedStyle(card.querySelector('[data-type-color]')).opacity }; });
+    assert.ok(cards.columns >= 3, `columns: ${cards.columns}`);
+    assert.equal(cards.cards, 6);
+    assert.notEqual(cards.colorShown, 'rgba(0, 0, 0, 0)');
+    // Each type its own color, as in the picker (the draft's copies once all read as the first color).
+    const swatches = await page.locator('.fmdx-type-swatch').evaluateAll((list) => list.map((el) => getComputedStyle(el).backgroundColor));
+    assert.equal(new Set(swatches).size, swatches.length, `distinct: ${swatches}`);
+    assert.deepEqual([cards.selectRadius, cards.colorInputHidden], ['9px', '0']);
     // Rename Proposal, give Contract to Gutters only, add a type of our own.
     await page.locator('[data-type-row="0"] [data-type-label]').fill('Estimates');
     await page.locator('[data-type-row="0"] [data-type-label]').dispatchEvent('change');
@@ -256,15 +277,16 @@ test('document types belong to the organization: renamed, added, given departmen
     assert.deepEqual(saved[1][1].department_ids, ['dep_gutter']);
     assert.equal(saved[1][6].label, 'Warranties');
     // The picker uses the new names, and a type given to another department is out of this user's view.
-    assert.match(await page.locator('.fmdx-fchips [data-pick-type="proposal"]').innerText(), /Estimates/);
+    assert.equal(await page.locator('.fmdx-tpl-grid [data-pick-template="tpl_quick"] small').innerText(), 'Estimates');
+    assert.equal(await page.locator('.fmdx-tpl-row [data-pick-template="tpl_roof"]').innerText(), 'Estimates');
     assert.ok(!(await names(page, '.fmdx-tpl-grid')).includes('Roofing contract'), 'Contract now belongs to Gutters');
     // File a template under the new type.
     await page.locator('[data-manage-types]').click();
     await page.locator('[data-template-type="tpl_cert"]').selectOption({ label: 'Warranties' });
     await page.locator('[data-types-save]').click();
     await page.waitForSelector('[data-tpl-search]');
-    await page.locator('.fmdx-fchips [data-pick-type="new_6"]').click();
-    assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Completion certificate']);
+    // The pinned certificate is the only one of its new type: its tile reads as the type.
+    assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Estimates', 'Invoice', 'Change Order', 'Warranties']);
     if (process.env.TYPES_SHOT) { await page.locator('[data-manage-types]').click(); await page.screenshot({ path: process.env.TYPES_SHOT }); }
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
@@ -412,5 +434,68 @@ test('New document paints at once from what was loaded before and redraws when t
     await page.waitForSelector('[data-tpl-search]', { timeout: 300 });
     assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Invoice', 'Change Order', 'Deposit invoice'], 'and on the next');
     assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+const preset = (id, type, name, extra = {}) => template(id, type, name, { metadata: { preset: true, preset_id: id, ...extra } });
+const LIBRARY = [
+  preset('tpl_instant_roofing_detailed', 'proposal', 'Roof replacement · Itemized proposal', { default: true }),
+  preset('tpl_instant_roofing_options', 'proposal', 'Roof replacement · Good / Better / Best'),
+  preset('tpl_gutters', 'proposal', 'Gutters · Estimate'),
+  preset('tpl_invoice_default', 'invoice', 'Invoice'),
+  preset('tpl_change_order_default', 'change_order', 'Change order'),
+  preset('tpl_roofing_completion_certificate', 'completion_certificate', 'Completion certificate'),
+  // What the documents setup made for a company that writes insurance contingency agreements and no proposals.
+  template('tpl_setup_insurance_agreement', 'contract', 'Insurance · Contingency agreement', { metadata: { short_name: 'Contingency Agreement', default_for_type: true, document_setup: { document_kind: 'proposal', proposal_kinds: 'insurance' } } })
+];
+
+test('the library\'s proposals are one Proposal until the organization has its own, and it opens the proposal setup (GP-98)', async () => {
+  const browser = await launch();
+  try {
+    const pinned = ['tpl_setup_insurance_agreement', 'tpl_invoice_default', 'tpl_change_order_default', 'tpl_roofing_completion_certificate'];
+    const { page, errors } = await open(browser, { templates: LIBRARY, pinned, guides: true });
+    // The setup's agreement is pinned by its own name, not as a contract.
+    assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Contingency Agreement', 'Invoice', 'Change Order', 'Completion Certificate']);
+    await page.locator('[data-library-toggle]').click();
+    // Three library proposals are one tile, not set up yet.
+    assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Proposal']);
+    assert.equal(await page.locator('.fmdx-tpl-grid [data-pick-template="__proposal__"] small').innerText(), 'Not set up yet');
+    assert.equal(await page.locator('.fmdx-tpl-grid [data-pin-template]').count(), 0, 'it is not pinned by itself');
+    await page.locator('[data-tpl-search]').pressSequentially('good');
+    assert.deepEqual(await names(page, '.fmdx-tpl-grid'), [], 'nor found by a library proposal\'s name');
+    await page.locator('[data-tpl-search]').fill('propos');
+    assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Proposal']);
+    // Starting it opens the documents setup at how they write proposals, asked afresh, and nothing is made.
+    await page.locator('.fmdx-tpl-grid [data-pick-template="__proposal__"]').click();
+    const play = await page.evaluate(() => window.calls.find((call) => call[0] === 'play'));
+    assert.equal(play[1], 'documents.setup');
+    assert.equal(play[2].start, 'proposal_kinds');
+    assert.equal(play[2].selections.document_kind, 'proposal');
+    assert.ok('proposal_kinds' in play[2].selections && play[2].selections.proposal_kinds === undefined, 'the last run\'s kinds are not carried in');
+    assert.equal(await page.locator('.fmdx-modal-back').count(), 0, 'the picker made way for it');
+    assert.equal(await page.evaluate(() => window.calls.some((call) => call[0] === 'create')), false);
+    assert.deepEqual(errors, []);
+    await page.close();
+    // Someone who may not run the setup starts the library's default proposal.
+    const plain = await open(browser, { templates: LIBRARY, pinned });
+    await plain.page.locator('[data-library-toggle]').click();
+    assert.equal(await plain.page.locator('.fmdx-tpl-grid [data-pick-template="__proposal__"] small').innerText(), 'Proposal');
+    await plain.page.locator('.fmdx-tpl-grid [data-pick-template="__proposal__"]').click();
+    await plain.page.waitForFunction(() => window.calls.some((call) => call[0] === 'create'));
+    assert.deepEqual(await plain.page.evaluate(() => window.calls.find((call) => call[0] === 'create')), ['create', 'proposal', 'tpl_instant_roofing_detailed']);
+    await plain.page.close();
+    // A pinned library proposal opens the setup the same way while there is no proposal of their own.
+    const pinnedLibrary = await open(browser, { templates: LIBRARY, pinned: ['tpl_instant_roofing_detailed'], guides: true });
+    await pinnedLibrary.page.locator('.fmdx-tpl-row [data-pick-template="tpl_instant_roofing_detailed"]').click();
+    assert.equal(await pinnedLibrary.page.evaluate(() => window.calls.find((call) => call[0] === 'play')?.[1]), 'documents.setup');
+    await pinnedLibrary.page.close();
+    // With a proposal of their own, theirs is the library's proposal and it opens as any template does.
+    const own = await open(browser, { templates: [...LIBRARY, template('tpl_setup_proposal', 'proposal', 'Proposal · Itemized', { metadata: { default_for_type: true, document_setup: { document_kind: 'proposal' } } })], pinned, guides: true });
+    await own.page.locator('[data-library-toggle]').click();
+    assert.deepEqual(await names(own.page, '.fmdx-tpl-grid'), ['Proposal · Itemized']);
+    await own.page.locator('.fmdx-tpl-grid [data-pick-template="tpl_setup_proposal"]').click();
+    await own.page.waitForFunction(() => window.calls.some((call) => call[0] === 'create'));
+    assert.equal(await own.page.evaluate(() => window.calls.some((call) => call[0] === 'play')), false);
+    assert.deepEqual(own.errors, []);
   } finally { await browser.close(); }
 });
