@@ -329,9 +329,9 @@
       /* FM-591: email reads like email (Gmail), not like the SMS rows and bubbles Texts keep. */
       .fmco-split.fmco-mail{position:relative}
       .fmco-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-      .fmco-mail-row{position:relative;gap:4px;padding:11px 14px 10px 24px;border-radius:10px}
-      .fmco-mail-row:before{content:'';position:absolute;left:10px;top:17px;width:7px;height:7px;border-radius:50%;background:transparent}
-      .fmco-mail-row.unread:before{background:var(--primary,#d93025)}
+      /* GP-10: no gutter kept for the unread dot; it sits before the name, so read rows line up with the New email button. */
+      .fmco-mail-row{position:relative;gap:4px;padding:11px 14px 10px;border-radius:10px}
+      .fmco-mail-row.unread .fmco-mail-who:before{content:'';flex:none;align-self:center;width:7px;height:7px;border-radius:50%;background:var(--primary,#d93025)}
       .fmco-mail-top{display:flex;align-items:baseline;gap:10px;min-width:0}
       .fmco-mail-who{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;gap:6px;font-size:13px;font-weight:600;color:#344054}
       .fmco-mail-who>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -412,7 +412,7 @@
         .fmco-list-col{gap:8px}
         .fmco-list-col>.fmco-btn.primary{min-height:40px;border-radius:10px;font-size:13px}
         .fmco-thread-row{padding:12px;border-radius:12px}
-        .fmco-mail-row{padding:12px 12px 11px 24px}
+        .fmco-mail-row{padding:12px 12px 11px}
         .fmco-mail-msgs{padding:10px}
         .fmco-mail-card-head{padding:11px 12px}
         .fmco-mail-body{padding:0 14px 14px;font-size:14px}

@@ -146,3 +146,12 @@ test('Texts and Calls share one not-set-up panel and Calls has no extra wrapper'
   assert.match(rule('.fmco-content:has(>.fmcm){padding:0}.fmco-content>.fmcm'), /background:transparent/);
   assert.match(css, /\.fmco-content>\.fmcm>\.fmcm-view\{padding:16px\}/);
 });
+
+// GP-10: an email row keeps no empty gutter on its left for the unread dot; the dot sits before
+// the name, so a read row lines up with the New email button like a text thread row.
+test('email rows have no left gutter for the unread dot', () => {
+  assert.match(rule('.fmco-mail-row'), /padding:11px 14px 10px;/);
+  assert.match(rule('.fmco-mail-row.unread .fmco-mail-who:before'), /content:'';flex:none;align-self:center;width:7px;height:7px;[^}]*background:var\(--primary,/);
+  assert.doesNotMatch(css, /\.fmco-mail-row\{[^}]*padding:[^;}]* 24px[;}]/, 'a 24px left gutter is back');
+  assert.doesNotMatch(css, /\.fmco-mail-row(\.unread)?:before/, 'the dot is back in the row gutter');
+});
