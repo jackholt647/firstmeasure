@@ -5994,14 +5994,15 @@
         const people = [];
         const add = (name, email, signs) => {
           if (!emailValid(email) || people.some((person) => person.email.toLowerCase() === cleanText(email).toLowerCase())) return;
-          people.push({ name: cleanText(name) || cleanText(email), email: cleanText(email), signs });
+          people.push({ name: cleanText(name), email: cleanText(email), signs });
         };
         modal.el.querySelectorAll('[data-signer-role]').forEach((row) => add(row.querySelector('[data-signer-name]')?.value, row.querySelector('[data-signer-email]')?.value, true));
         modal.el.querySelectorAll('[data-send-contact]').forEach((input) => { if (input.checked) { const contact = contacts[Number(input.dataset.sendContact || 0)]; if (contact) add(contact.name, contact.email, false); } });
         const extra = cleanText($('[data-send-extra]')?.value);
-        if (extra) add(extra, extra, false);
+        if (extra) add('', extra, false);
         return people;
       };
+      let drawnPreview = '';
       function drawPreview(){
         const host = $('[data-send-preview]');
         if (!host) return;
@@ -6016,20 +6017,20 @@
         const raw = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         // The server's own words, with the recipient's name, the note and their link put in; without the link, no link line.
         const body = template.split('\n').filter((line) => withLink || !line.includes('{link}')).join('\n').replace(/\n{3,}/g, '\n\n').trim()
-          .split(/(\{name\}|\{message\}|\{link\})/).map((part) => part === '{name}' ? esc(first ? first.name : 'there')
+          .split(/(\{name\}|\{message\}|\{link\})/).map((part) => part === '{name}' ? esc(first?.name || 'there')
             : part === '{message}' ? (message ? raw(message) : `<span class="fmdx-send-default">${esc(firstText(preview.default_message, 'Your document is ready to review.'))}</span>`)
               : part === '{link}' ? `<span class="fmdx-send-link">${esc(signerRoles.length ? 'their own link to read, sign and pay' : 'their own link to view it online')}</span>`
                 : raw(part)).join('');
         const sender = `<span>${from.address ? `${esc(from.name || from.address)} <span class="fmdx-send-addr">&lt;${esc(from.address)}&gt;</span>` : `${esc(firstText(from.name, 'Your company'))} <span class="fmdx-send-addr">${esc('· FirstMate Mail')}</span>`}</span>`;
         const to = people.length
-          ? people.map((person) => `<span class="fmdx-send-to">${esc(person.name)}${person.name !== person.email ? ` <span class="fmdx-send-addr">&lt;${esc(person.email)}&gt;</span>` : ''}${person.signs ? ` <em>${esc('signs')}</em>` : ''}</span>`).join('')
+          ? people.map((person) => `<span class="fmdx-send-to">${esc(person.name || person.email)}${person.name && person.name !== person.email ? ` <span class="fmdx-send-addr">&lt;${esc(person.email)}&gt;</span>` : ''}${person.signs ? ` <em>${esc('signs')}</em>` : ''}</span>`).join('')
           : `<span class="fmdx-send-addr">${esc('Nobody yet')}</span>`;
         const domain = from.kind === 'domain';
         const note = !Object.keys(preview).length ? ''
           : domain ? { icon: 'fa-circle-check', text: 'Sent from your company’s domain. Replies land in Communications.', action: '' }
             : email.on ? { icon: 'fa-envelope', text: 'Sent from your FirstMate Mail address. Replies land in Communications.', action: email.can_set_up ? 'Use your own domain' : '' }
               : { icon: 'fa-envelope', text: 'Sent from FirstMate Mail. Set up your company email to read replies in Communications.', action: email.can_set_up ? 'Set up email' : '' };
-        host.innerHTML = `
+        const html = `
           <span class="fmdx-send-label">${esc('Email preview')}</span>
           ${!withLink && !withPdf ? `<p class="fmdx-send-warn"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i>${esc('With no link and no PDF, no email goes out. You can copy their link after sending.')}</p>` : ''}
           <article class="fmdx-send-mail${!withLink && !withPdf ? ' off' : ''}">
@@ -6043,6 +6044,11 @@
           </article>
           ${people.length > 1 ? `<p class="fmdx-send-hint">${esc(`Each of the ${people.length} people gets their own email${withLink ? ' and link' : ''}.`)}</p>` : ''}
           ${note ? `<p class="fmdx-send-from-note"><i class="fas ${note.icon}" aria-hidden="true"></i><span>${esc(note.text)}</span>${note.action ? `<button type="button" class="fmdx-btn" data-send-email-setup>${esc(note.action)}</button>` : ''}</p>` : ''}`;
+        // Only what changed is redrawn: a field's change event (on blur, as a button is pressed) must not replace the
+        // button under the pointer, or the press is lost.
+        if (html === drawnPreview) return;
+        drawnPreview = html;
+        host.innerHTML = html;
         host.querySelector('[data-send-email-setup]')?.addEventListener('click', setUpEmail);
       }
       // The Communications email setup over the dialog, then the dialog back with where its email now comes from.
@@ -6077,7 +6083,7 @@
         const extra = cleanText($('[data-send-extra]')?.value);
         if (extra) {
           if (!emailValid(extra)) { problem('That email address is not valid.', $('[data-send-extra]')); return; }
-          if (!recipients.some((r) => r.email.toLowerCase() === extra.toLowerCase())) recipients.push({ name: extra, email: extra, role: 'customer' });
+          if (!recipients.some((r) => r.email.toLowerCase() === extra.toLowerCase())) recipients.push({ name: '', email: extra, role: 'customer' });
         }
         if (signerRoles.length) {
           recipients = recipients.map(r => ({ ...r, role: 'copy' }));
