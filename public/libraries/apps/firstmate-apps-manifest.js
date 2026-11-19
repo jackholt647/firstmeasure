@@ -56,7 +56,7 @@
     versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
     versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261118-fm608-payments-off'),
     versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261118-fm608-payments-off'),
-    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261119-gp25-compare-edit'),
+    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261119-gp26-payments'),
     versionedBundle('signatures/project.js', '20261019-forward-cert')
   ];
   const crewBundles = [
@@ -219,7 +219,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261119-gp27-send-d')
+        versionedBundle('documents/project.js', '20261119-gp26-payments')
       ]
     },
     {
