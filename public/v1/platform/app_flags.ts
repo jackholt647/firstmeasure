@@ -268,6 +268,23 @@ export function normalizeAppPlacementInput(input: unknown) {
   return normalized;
 }
 
+export async function rawAppOrder(orgId: string) {
+  const globalDoc = await readGlobal(orgId);
+  return normalizeAppOrderInput(asObject(globalDoc.data).app_order);
+}
+
+/**
+ * The order of the apps pinned to the left column (GP-52): manifest app ids,
+ * first is the home app the portal opens on. Pinned apps it does not list
+ * follow them in their default order. Data only, beside `app_placements`.
+ */
+export function normalizeAppOrderInput(input: unknown) {
+  const ids = (Array.isArray(input) ? input : []).map((id) => cleanText(id).toLowerCase())
+    .filter((id) => /^[a-z0-9][a-z0-9._-]{1,119}$/.test(id));
+  return [...new Set(ids)].slice(0, APP_ORDER_LIMIT);
+}
+const APP_ORDER_LIMIT = 120;
+
 export type ProjectTabPill = "new" | "coming_soon";
 export type ProjectTabSettings = { order: string[]; pills: Record<string, ProjectTabPill> };
 const PROJECT_TAB_PILLS = new Set<ProjectTabPill>(["new", "coming_soon"]);
@@ -353,10 +370,11 @@ export async function effectiveAppFlags(orgId: string, userId?: string) {
 }
 
 export async function appFlagState(orgId: string, userId?: string) {
-  const [raw, rawVariants, appPlacements, projectTabs] = await Promise.all([
+  const [raw, rawVariants, appPlacements, appOrder, projectTabs] = await Promise.all([
     rawAppFlags(orgId),
     rawAppVariants(orgId),
     rawAppPlacements(orgId),
+    rawAppOrder(orgId),
     rawProjectTabs(orgId)
   ]);
   const resolvedState = resolveAppFlags(groupCapabilityValues(await capabilityValuesForUser(orgId, userId, flattenGroupedValues(raw))));
@@ -371,6 +389,7 @@ export async function appFlagState(orgId: string, userId?: string) {
     effective: resolvedState.resolved,
     effective_variants: variantState.resolved,
     app_placements: appPlacements,
+    app_order: appOrder,
     project_tabs: projectTabs,
     enabled: enabledOnlyAppFlags(resolvedState.resolved),
     disabled_reasons: resolvedState.disabledReasons,
@@ -410,6 +429,8 @@ export function containsAppFlagMutation(input: JsonObject = {}) {
     || Object.prototype.hasOwnProperty.call(input, "app_variants")
     || Object.prototype.hasOwnProperty.call(input, "feature_variants")
     || Object.prototype.hasOwnProperty.call(input, "app_placements")
+    || Object.prototype.hasOwnProperty.call(data, "app_order")
+    || Object.prototype.hasOwnProperty.call(input, "app_order")
     || Object.prototype.hasOwnProperty.call(data, "project_tabs")
     || Object.prototype.hasOwnProperty.call(input, "project_tabs");
 }

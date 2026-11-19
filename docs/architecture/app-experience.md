@@ -282,6 +282,24 @@ open, a collapsed column that stays collapsed widens slightly so each pin sits
 beside its icon. Never special-case an app in the launcher: declare subviews
 on the manifest entry.
 
+### Order, home app and sections (GP-52)
+
+The pinned apps' order is the organization's `app_order` beside
+`app_placements` (app ids; pinned apps it does not list follow in their default
+order, `sortPortalTabs`), written by the same placement save. While the apps
+overlay is open, each app in the left column shows up and down arrows on hover
+and can be dragged up or down (mouse or pen; on touch the arrows). The top app
+is the home app: it shows a house there and on its overlay tile, and the portal
+opens on it when no tab is asked for (`defaultPortalTab`). Once the column has
+an order, a newly pinned app joins it at the bottom. The overlay lists pinned
+tiles in the same order.
+
+While the apps overlay is open, the left column's section headers (Apps, To Do,
+Channels, AI) are replaced by switches listing every section the person could
+have, on or off. These are the personal `left_column_*` preferences My
+Settings also sets, offered only where `platform.left_column_settings` is on;
+the last section on stays on.
+
 ## The server
 
 `requirePlatformAuth({ app: [...] })` refuses with `app_access_denied` unless

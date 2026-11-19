@@ -23,14 +23,16 @@ function placementSaver({ server }){
     + slice('  const placementSaves = ', '  window.Portal.appFlags = {');
   const events = [];
   const sent = [];
-  let cache = { app_placements: { ...server.placements } };
+  const orders = [];
+  let cache = { app_placements: { ...server.placements }, app_order: [...(server.order || [])] };
   const api = {
     current: () => cache,
-    applyPlacements: (placements) => { cache = { ...cache, app_placements: { ...placements } }; return cache; },
-    updatePlacements: async (orgId, placements) => {
+    applyPlacements: (placements, order) => { cache = { ...cache, app_placements: { ...placements }, ...(Array.isArray(order) ? { app_order: [...order] } : {}) }; return cache; },
+    updatePlacements: async (orgId, placements, order) => {
       sent.push({ ...placements });
+      orders.push(order);
       await server.answer(placements);
-      cache = { app_placements: { ...placements } };
+      cache = { app_placements: { ...placements }, app_order: [...(order || [])] };
       return cache;
     }
   };
@@ -40,7 +42,7 @@ function placementSaver({ server }){
   };
   class CustomEvent { constructor(type, init){ this.type = type; this.detail = init?.detail; } }
   const run = new Function('window', 'APP', 'CustomEvent', `let lastAppFlagsKey = '';\n${source}\nreturn savePlacementsOptimistically;`);
-  return { save: run(window, { userOrgId:'org_test' }, CustomEvent), events, sent, shown: () => cache.app_placements };
+  return { save: run(window, { userOrgId:'org_test' }, CustomEvent), events, sent, orders, shown: () => cache.app_placements, order: () => cache.app_order };
 }
 
 test('a pin shows before the server answers and rapid pins save one at a time with the newest placements', async () => {
@@ -75,9 +77,92 @@ test('a failed save puts back what the server last confirmed and every caller he
   assert.deepEqual(saver.events.at(-1), { 'portal.crm':'sidebar' }, 'the rollback re-renders');
 });
 
-test('the platform API can show placements before saving them', () => {
-  assert.match(platformApi, /applyPlacements\(placements = \{\}\)\{\s+if \(!cache\) return null;\s+cache = \{ \.\.\.cache, app_placements: normalizePlacements\(placements\) \};/);
-  assert.match(core, /if \(window\.PlatformAPI\.appFlags\.applyPlacements\) return savePlacementsOptimistically\(placements\);/);
+test('a new app order shows at once, is saved with the placements, and a pin keeps it (GP-52)', async () => {
+  const server = { placements: { 'portal.crm':'sidebar', 'portal.feed':'sidebar' }, order: ['portal.crm', 'portal.feed'], answer: async () => {} };
+  const saver = placementSaver({ server });
+  const reorder = saver.save({ 'portal.crm':'sidebar', 'portal.feed':'sidebar' }, ['portal.feed', 'portal.crm']);
+  assert.deepEqual(saver.order(), ['portal.feed', 'portal.crm'], 'the left column moves before the save');
+  await reorder;
+  assert.deepEqual(saver.orders.at(-1), ['portal.feed', 'portal.crm']);
+  await saver.save({ 'portal.crm':'more', 'portal.feed':'sidebar' });
+  assert.deepEqual(saver.orders.at(-1), ['portal.feed', 'portal.crm'], 'a save without an order sends the current one');
+});
+
+test('a failed reorder puts back the order the server last confirmed (GP-52)', async () => {
+  const server = { placements: { 'portal.crm':'sidebar', 'portal.feed':'sidebar' }, order: ['portal.crm', 'portal.feed'], answer: () => Promise.reject(new Error('Saving failed')) };
+  const saver = placementSaver({ server });
+  const reorder = saver.save({ 'portal.crm':'sidebar', 'portal.feed':'sidebar' }, ['portal.feed', 'portal.crm']);
+  assert.deepEqual(saver.order(), ['portal.feed', 'portal.crm']);
+  await assert.rejects(reorder, /Saving failed/);
+  assert.deepEqual(saver.order(), ['portal.crm', 'portal.feed']);
+});
+
+test('the platform API can show placements and the app order before saving them', () => {
+  assert.match(platformApi, /applyPlacements\(placements = \{\}, order\)\{\s+if \(!cache\) return null;\s+cache = \{ \.\.\.cache, app_placements: normalizePlacements\(placements\), \.\.\.\(Array\.isArray\(order\) \? \{ app_order: normalizeAppOrder\(order\) \} : \{\}\) \};/);
+  assert.match(platformApi, /app_order: normalizeAppOrder\(result\?\.app_order\)/);
+  assert.match(platformApi, /\.\.\.\(Array\.isArray\(order\) \? \{ app_order: normalizeAppOrder\(order\) \} : \{\}\) \}\s+\}\);/, 'updatePlacements sends the order');
+  assert.match(core, /if \(window\.PlatformAPI\.appFlags\.applyPlacements\) return savePlacementsOptimistically\(placements, order\);/);
+});
+
+// Runs core.js's real left-column sort against tabs and an organization order.
+function sorter(order){
+  const source = slice('  function portalTabUseRank(tab){', '  // The apps in the left column, top first');
+  const window = { PlatformAPI: { appFlags: { current: () => ({ app_order: order }) } } };
+  const cleanText = (...values) => values.map((value) => String(value ?? '').trim()).find(Boolean) || '';
+  return new Function('window', 'cleanText', 'portalAppPill', `${source}\nreturn sortPortalTabs;`)(window, cleanText, (appId) => appId === 'portal.new' ? { kind:'new' } : null);
+}
+
+test('the left column follows the organization order, its first app is the home app (GP-52)', () => {
+  const tabs = [
+    { id:'projects', appId:'portal.projects', placement:'sidebar', order:1 },
+    { id:'crm', appId:'portal.crm', placement:'sidebar', order:2 },
+    { id:'new', appId:'portal.new', placement:'sidebar', order:3 },
+    { id:'feed', appId:'portal.feed', placement:'more', order:0 },
+    { id:'settings', appId:'portal.settings', placement:'settings', order:0 }
+  ];
+  const ids = (order) => sorter(order)(tabs).map((tab) => tab.id);
+  assert.deepEqual(ids([]), ['projects', 'crm', 'new', 'feed', 'settings'], 'no order keeps the default');
+  assert.deepEqual(ids(['portal.new', 'portal.crm']), ['new', 'crm', 'projects', 'feed', 'settings'], 'listed apps lead, even a new one; unlisted follow');
+  assert.deepEqual(ids(['portal.feed', 'portal.crm']), ['crm', 'projects', 'new', 'feed', 'settings'], 'an unpinned app in the order stays out of the left column');
+  const render = slice('  function renderTabs(){', '  function ensurePortalTabLoadingStyles(){');
+  assert.match(core, /function defaultPortalTab\(list = \[\]\)\{[\s\S]{0,400}return list\[0\]\?\.id \|\| null;/, 'the portal opens the top app');
+  assert.match(render, /orderIndex === 0 \? `<span class="fm-sidebar-app-home"/, 'the top app shows the house');
+  assert.match(render, /data-sidebar-app-move="-1"[\s\S]{0,400}data-sidebar-app-move="1"/, 'up and down arrows');
+  assert.match(render, /moveSidebarApp\(appId, Number\(button\.dataset\.sidebarAppMove\)\)/);
+});
+
+test('More apps orders pinned tiles like the left column and lists the left column sections (GP-52)', () => {
+  const render = slice('  function renderAdvancedAppMenu(', '  function openAdvancedAppMenu(');
+  assert.match(render, /\(a\.pinned && b\.pinned \? pinnedRank\(a\) - pinnedRank\(b\) : 0\)/);
+  assert.match(render, /entry\.pinned && entry\.appId === homeAppId \? `<i class="fas fa-house fm-advanced-app-home"/);
+  const open = slice('  function openAdvancedAppMenu(', '  function initSidebarAppScrolling(');
+  assert.match(open, /setSidebarPanel\('apps'\);[\s\S]{0,80}renderSidebarSections\(\);/, 'opening More apps shows the apps and the section switches');
+  const sections = slice('  function renderSidebarSections(){', '  // Once the left column has an order');
+  assert.match(sections, /const offered = \(mode\) => mode\.tab && sidebarSectionAvailable\(mode\.key\)/, 'a section that is off is still listed');
+  assert.match(sections, /mode\.key !== 'channels' \|\| \(window\.Portal\?\.can\?\.\('apps\.channels'\) === true && launcherAppInExperience\(\{ appId:'portal\.channels' \}\)\)/, 'Channels is offered only once this person has Channels');
+  assert.match(sections, /role="switch" aria-checked=/);
+  assert.match(sections, /const lastOn = mode\.enabled && onCount < 2;/, 'the last section on stays on');
+  assert.match(sections, /window\.PlatformAPI\.preferences\.patch\(\{ \[preference\]: value \}\)/, 'a switch is the personal preference');
+  assert.match(core, /\.sidebar\.sidebar-advanced-apps-open:not\(\.sidebar-manual\) \.fm-sidebar-sections/);
+  const drag = slice('  function startSidebarAppDrag(event){', '  function moveSidebarApp(appId, offset){');
+  assert.match(drag, /event\.pointerType === 'touch'/, 'touch scrolls; the arrows move apps there');
+  assert.match(drag, /link\.closest\('\.sidebar-advanced-apps-open'\)/, 'dragging only reorders in More apps');
+});
+
+test('More apps switches the left column between thin and wide and plays its tour once (GP-52)', () => {
+  const render = slice('  function renderAdvancedAppMenu(', '  function openAdvancedAppMenu(');
+  assert.match(render, /data-advanced-sidebar-width="thin"[\s\S]{0,600}data-advanced-sidebar-width="wide"/);
+  assert.match(render, /setLeftColumnWidthMode\(button\.dataset\.advancedSidebarWidth\)/);
+  const width = slice('  function setLeftColumnWidthMode(mode){', '\n  }\n');
+  assert.match(width, /mode === 'thin' \? 'tooltip' : 'forced_expanded'/, 'thin is instant tooltips, wide is always expanded');
+  assert.match(width, /saveSidebarPreference\('left_column_behavior', behavior\)/, 'the width is the personal sidebar behavior');
+  assert.match(core, /@media\(max-width:820px\)\{\.fm-advanced-apps-width\{display:none\}\}/, 'desktop only');
+  assert.match(core, /if \(behavior !== 'adaptive' && !document\.body\.classList\.contains\('fm-advanced-app-menu-open'\)\) sidebar\.classList\.remove\('sidebar-advanced-apps-open'\);/,
+    'a thin or wide column keeps its More apps controls');
+  const tour = slice('  function offerMoreAppsTour(){', '\n  }\n');
+  assert.match(tour, /if \(moreAppsTourAsked \|\| typeof window\.FirstMateGuides\?\.play !== 'function'\) return;/);
+  assert.match(tour, /window\.FirstMateGuides\.play\('platform\.more_apps_tour'\)/);
+  assert.match(slice('  function openAdvancedAppMenu(', '  function offerMoreAppsTour(){'), /renderAdvancedAppMenu\(launcher\);\s+offerMoreAppsTour\(\);/);
 });
 
 test('the overlay pins without waiting: edit mode, tap to pin, long press, stable order', () => {
