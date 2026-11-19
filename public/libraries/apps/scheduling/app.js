@@ -4565,7 +4565,10 @@
   function openScheduleWorkResourceSettings(resource = {}){
     const resourceId = clean(resource?.id);
     const resourceKind = clean(resource?.resource_kind || resource?.kind || resource?.resource_type).toLowerCase();
-    const settingsView = resourceKind.includes('connection') || resourceKind.includes('organization') ? 'connections' : 'groups';
+    // People › Groups or People › outside companies, opened on this one when there is one (GP-120: the retired `crews` tab opened My settings).
+    const company = resourceKind.includes('connection') || resourceKind.includes('organization');
+    const settingsView = company ? 'subcontractors' : 'groups';
+    const settingsEntity = resourceId ? `${company ? 'company' : 'group'}:${resourceId}` : '';
     const resourceName = clean(resource?.name || resource?.display_name || resource?.label || 'crew');
     openEmbeddedSettingsModal({
       modalId:'schedule-crew-settings',
@@ -4575,7 +4578,7 @@
       loadingHtml:(globalThis.PlatformLanguage?.htmlText("scheduling","m_7a62a2885f694e"," Loading crew settings...") ?? " Loading crew settings..."),
       unavailableHtml:(globalThis.PlatformLanguage?.htmlText("scheduling","m_76aa8eafe399cb","Crew settings are unavailable.") ?? "Crew settings are unavailable."),
       failText:'Could not load crew settings.',
-      params:{ embedded:true, settingsTab:'crews', settingsView, settingsEntity:resourceId }
+      params:{ embedded:true, settingsTab:'people', settingsView, settingsEntity }
     });
   }
   /* GP-91: the gear beside the view switch opens Settings › Scheduling (appointment types first) here, in the same
