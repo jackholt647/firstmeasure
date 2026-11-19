@@ -233,6 +233,45 @@ test("applying a receipt with a reimbursement payee creates the payable owed to 
   assert.equal((paid.payables as any[]).find((payable: any) => payable.kind === "reimbursement").status, "paid");
 });
 
+test("receipt settings decide whether purchase date and time are required and whether expense lists are suggested (GP-109)", async () => {
+  const client = createSessionClient();
+  const { orgId } = await registerOrg(client);
+  const projectId = "project_receipt_settings";
+  await createProject(client, orgId, projectId);
+  await client.request("POST", `/v1/payments/organizations/${orgId}/projects/${projectId}/expenses`, { title: "Lumber", resource_type: "material", projected_amount: 120 });
+  const upload = async (text: string) => {
+    const uploaded = await client.request("POST", `/v1/payments/organizations/${orgId}/projects/${projectId}/receipts`, {
+      file_name: "receipt.txt",
+      content_type: "text/plain",
+      file_base64: Buffer.from(text).toString("base64")
+    });
+    return uploaded.receipt;
+  };
+  const summary = await client.request("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/expense-summary`);
+  const targetKey = (summary.expense_summary.targets as any[]).find((target: any) => target.receipt_attribution_enabled !== false)?.target_key;
+  assert.ok(targetKey, "expense target exists");
+
+  // By default neither is required: a receipt with only a total applies, and lists are suggested.
+  const plain = await upload("Lumber Yard\nTotal $120.00\n");
+  assert.deepEqual(plain.suggested_target_keys, [targetKey], "expense lists are suggested by default");
+  const applied = await client.request("POST", `/v1/payments/organizations/${orgId}/receipts/${plain.id}/apply`, { total_cents: 12000, purchase_date: "", purchase_time: "", target_keys: [targetKey] });
+  assert.equal(applied.receipt.status, "applied");
+
+  await client.request("PUT", `/v1/platform/organizations/${orgId}/branch/default/modules/money_settings`, {
+    data: { expense_categories: [], receipts: { require_date: true, require_time: true, auto_categorize: false } }
+  });
+  const strict = await upload("Lumber Yard\nTotal $120.00\n");
+  assert.deepEqual(strict.suggested_target_keys, [], "no suggestions while automatic categorizing is off");
+  const noDate = await client.raw("POST", `/v1/payments/organizations/${orgId}/receipts/${strict.id}/apply`, { total_cents: 12000, target_keys: [targetKey] });
+  assert.equal(noDate.statusCode, 400);
+  assert.match(noDate.body, /receipt_purchase_date_required/);
+  const noTime = await client.raw("POST", `/v1/payments/organizations/${orgId}/receipts/${strict.id}/apply`, { total_cents: 12000, purchase_date: "2026-11-18", target_keys: [targetKey] });
+  assert.equal(noTime.statusCode, 400);
+  assert.match(noTime.body, /receipt_purchase_time_required/);
+  const complete = await client.request("POST", `/v1/payments/organizations/${orgId}/receipts/${strict.id}/apply`, { total_cents: 12000, purchase_date: "2026-11-18", purchase_time: "14:05", target_keys: [targetKey] });
+  assert.equal(complete.receipt.status, "applied");
+});
+
 test("receipt-backed reimbursement requests move from Crew submission through office approval and off-cycle payment", async () => {
   const client = createSessionClient();
   const { orgId, userId } = await registerOrg(client);

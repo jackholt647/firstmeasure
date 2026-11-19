@@ -231,3 +231,35 @@ test('the Finance tab placeholder is its one loading message: styled before moun
   // The project window paints panelHtml before mount; the runtime keeps a visible role="status" as the tab's only loader.
   assert.match(money, /function panelHtml\(\)\{[^}]*injectCSS\(\);\s*return `<div class="mn-app" data-money-root><div class="mn-shell" data-money-shell><div class="mn-state" role="status"/);
 });
+
+test('a receipt is one screen: file beside its review form, applied at a glance, arrow keys between receipts (GP-109)', async () => {
+  const [money, receipts, picker] = await Promise.all([
+    readFile(moneyUrl, 'utf8'),
+    readFile(receiptsUrl, 'utf8'),
+    readFile(new URL('../../libraries/date-time-picker/date-time-picker.js', import.meta.url), 'utf8')
+  ]);
+  // No separate Review & apply step: the ledger, an expense's receipts and an upload batch all open the same screen.
+  assert.doesNotMatch(money, /data-money-review-receipt|Review & apply/);
+  assert.match(money, /class="mn-modal mn-receipt-screen" data-money-receipt-apply/);
+  assert.match(money, /<div class="mn-receipt-preview" data-money-receipt-preview>\$\{receiptPreviewHtml\(receipt\)\}<\/div><div class="mn-receipt-panel">/);
+  assert.match(money, /data-money-receipt-state="applied"/);
+  assert.match(money, /data-money-receipt-state="open"/);
+  // Previous / Next buttons and the arrow keys, which leave fields, select lists and the date picker alone.
+  assert.match(money, /data-money-receipt-move="-1"/);
+  assert.match(money, /data-money-receipt-move="1"/);
+  assert.match(money, /if \(receiptArrowKey\(event\)\) \{\s*event\.preventDefault\(\);\s*moveReceipt\(event\.key === 'ArrowLeft' \? -1 : 1\);/);
+  assert.match(money, /input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\),textarea,select/);
+  assert.match(money, /keepReceiptDraft\(\);/);
+  // Purchase date and time are optional unless the organization's receipt settings require them.
+  assert.match(money, /name="purchase_date" type="date" data-picker-near value="[^"]*" \$\{settings\.require_date \? 'required' : ''\}/);
+  assert.match(money, /name="purchase_time" type="time" step="60" data-picker-near value="[^"]*" \$\{settings\.require_time \? 'required' : ''\}/);
+  assert.match(money, /require_date:value\.require_date === true, require_time:value\.require_time === true, auto_categorize:value\.auto_categorize !== false/);
+  assert.match(money, /data-money-receipt-setting="\$\{key\}"/);
+  assert.match(money, /receipts:receiptSettings\(\{ receipts:receiptDraft \}\)/);
+  // The shared picker opens on the field itself when asked, not beside the dialog.
+  assert.match(picker, /const near=input\.hasAttribute\('data-picker-near'\);/);
+  assert.match(picker, /const surface=near\?null:input\.closest/);
+  // The shared receipt viewer steps with the arrow keys too.
+  assert.match(receipts, /document\.addEventListener\('keydown', onKey, true\)/);
+  assert.match(receipts, /document\.removeEventListener\('keydown', onKey, true\)/);
+});

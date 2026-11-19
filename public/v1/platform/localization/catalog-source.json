@@ -3133,7 +3133,8 @@
     "m_2b8c3448fa87a1": "Amount",
     "m_475a1617189b85": "Loading documents…",
     "m_ef39ad5e614a24": "Try again",
-    "m_dc002b01a36e6f": "Created"
+    "m_dc002b01a36e6f": "Created",
+    "m_f162cb9b555415": "How you write proposals: set them up once, then every proposal starts from your own."
   },
   "equipment": {
     "m_f326bdcd77881a": "Available",
@@ -6009,7 +6010,40 @@
     },
     "m_67f39fd217c909": "Customers can't pay this invoice online until payments are set up.",
     "m_0b00bfad983f3f": "Search people",
-    "m_e6261fd56b82c2": "No matches"
+    "m_e6261fd56b82c2": "No matches",
+    "m_8ff232d529b55f": "Applied",
+    "m_e56705d557914c": "Not applied",
+    "m_1d41c6e4a787b2": "Loading PDF…",
+    "m_86f098a8f511a9": "No preview for this file type.",
+    "m_8387f77c976f30": "Receipt PDF",
+    "m_fd2d77217bda32": "PDF preview could not be loaded.",
+    "m_4ba7f2cffb9394": "Open file",
+    "m_77c08e212dd0d0": "Previous receipt",
+    "m_277dbeb30b6e26": "Previous (←)",
+    "m_b4f6c3430f3ec3": "Next receipt",
+    "m_f9183b5949f35f": "Next (→)",
+    "m_1d368860f0287e": "Save changes",
+    "m_c2c8ded82609ff": {
+      "message": "{v0} still to apply",
+      "format": "icu"
+    },
+    "m_052261419f39c5": "All applied",
+    "m_515c966dfe8109": {
+      "message": "Applied to {v0}",
+      "format": "icu"
+    },
+    "m_3c338fa271d5a5": "Change anything below and save.",
+    "m_2fc0291fcdab0c": "Suggested from the total. Select every list this document covers.",
+    "m_ea60a46b85d56e": "Select every list this document covers.",
+    "m_5c773ab6d5c406": "Enter the purchase date.",
+    "m_ffe7faa9cf2581": "Enter the purchase time.",
+    "m_45d786a380f16d": "Receipt updated.",
+    "m_fc748c1dcbd91e": "Require a purchase date",
+    "m_33199629259384": "A receipt without a purchase date cannot be applied.",
+    "m_f28c8b20aa8156": "Require a purchase time",
+    "m_98318e06320f96": "A receipt without a purchase time cannot be applied.",
+    "m_45d6040e90a537": "Suggest expense lists automatically",
+    "m_a524ed5f8b6e79": "New receipts come with their expense lists picked from the total. Off: you choose every list yourself."
   },
   "onboarding": {
     "m_a0d673c98d109b": "Order Reports",
@@ -8931,7 +8965,13 @@
     "m_a559f162249839": {
       "message": " Appointment{v1}",
       "format": "icu"
-    }
+    },
+    "m_7142a3b1d07f95": "Project linked",
+    "m_55919a4199d793": {
+      "message": "{v0} is now on {v1}.",
+      "format": "icu"
+    },
+    "m_14ae42747fae7c": "Project not linked"
   },
   "settings": {
     "m_a54bc20fe42cea": " Loading your board…",
@@ -17400,7 +17440,9 @@
     "m_b21db5a19b5e92": "Set up payments to automatically take a payment from your customer when you deliver your proposal. A deposit due on signature is paid in their customer portal as they sign.",
     "m_e28bfad0d5a8b3": " Set up payments",
     "m_80ad5d823ed757": "Skip for now",
-    "m_27821870188424": "Show the live preview"
+    "m_27821870188424": "Show the live preview",
+    "m_b1a2b7079dc54f": "Get paid when they sign ",
+    "m_08151075f68fbb": "About online payments"
   },
   "insights": {
     "m_89b8c4efe6661d": "Insight",
@@ -20952,7 +20994,10 @@
     "dispute_response_not_submitted": "Only a submitted response can be filed or sent back.",
     "checklist_default_not_found": "That default checklist no longer exists. Reload and try again.",
     "automations_setup_board_unavailable": "Choose a board that is turned on.",
-    "automations_setup_person": "The automations setup is saved by a person."
+    "automations_setup_person": "The automations setup is saved by a person.",
+    "receipt_purchase_date_required": "Enter the purchase date before applying this receipt.",
+    "receipt_purchase_time_required": "Enter the purchase time before applying this receipt.",
+    "document_setup_styles": "There are no document styles to choose from."
   },
   "notifications": {
     "document_greeting": {
@@ -22208,7 +22253,9 @@
     "m_dd0c616953d455": "&times;",
     "m_6dc5ad59ad2b81": "GX",
     "m_c9a7bdf120eceb": "&nbsp;$",
-    "m_7e784f9b5540ab": "error"
+    "m_7e784f9b5540ab": "error",
+    "m_2680c31facb03d": "Sales",
+    "m_c2e6380e130020": "Production"
   },
   "dev-console": {
     "m_2a44a4270ca068": "DEV",
@@ -22801,5 +22848,8 @@
     "m_420a128ff60dbe": "That did not work. Try again.",
     "m_5d7c7ad6033624": "Documents",
     "m_3742924668fb10": "Close"
+  },
+  "select-list": {
+    "m_55524759bb89e3": "Search"
   }
 }

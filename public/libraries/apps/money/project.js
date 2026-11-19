@@ -4,7 +4,8 @@
  * project's six figures as a row of tiles, and one ledger. The ledger starts with the payment schedule and lists
  * every payment, refund, expense, invoice and receipt, searchable, filtered by type or category, sorted by any
  * column, as a list or as tiles. Anything else (recording a payment or expense, an entry's details, refunds,
- * invoices, reports, the expense categories) opens as a modal over the tab. Explanations live in tooltips, not on
+ * invoices, reports, a receipt beside its review form, the expense categories and receipt settings) opens as a
+ * modal over the tab. Explanations live in tooltips, not on
  * the page.
  */
 (function(){
@@ -57,6 +58,7 @@
     autopayBusy: false,
     autopayError: '',
     receiptViewer: null,
+    receiptDrafts: {},
     receiptReview: null,
     receiptBatch: null,
     loadSequence: 0,
@@ -387,8 +389,6 @@
       .mn-note{margin:0;padding:10px 12px;border-radius:10px;background:#f9fafb;color:#475467;font-size:13px}
       .mn-amount-hero{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
       .mn-amount-hero strong{font-size:26px;font-variant-numeric:tabular-nums}
-      .mn-preview{border:1px solid #eaecf0;border-radius:12px;overflow:hidden;background:#f2f4f7;display:grid;place-items:center;min-height:120px;max-height:260px;cursor:zoom-in;padding:0;font:inherit;color:#98a2b3;font-size:30px}
-      .mn-preview img{width:100%;max-height:260px;object-fit:contain;display:block}
       .mn-receipt-strip{display:flex;gap:8px;flex-wrap:wrap}
       .mn-receipt-strip .mn-thumb{width:52px;height:52px;border-radius:10px}
       .mn-lines{display:flex;flex-direction:column;border:1px solid #eaecf0;border-radius:10px;overflow:hidden}
@@ -467,9 +467,29 @@
       .mn-invoice-total-row.grand{align-items:baseline;border-top:1px solid #eaecf0;padding-top:10px;margin-top:4px;font-size:20px;font-weight:800;color:#101828}
       .mn-invoice-total-row.grand span:first-child{font-size:13px}
       .mn-invoice-foot-total{display:none}
-      .mn-receipt-modal-body{display:grid;grid-template-columns:minmax(0,.9fr) minmax(300px,1.1fr);min-height:0;overflow:auto}
-      .mn-receipt-review{min-width:0;padding:16px;border-right:1px solid #eaecf0;display:flex;flex-direction:column;gap:12px}
-      .mn-receipt-targets{min-width:0;padding:16px;display:flex;flex-direction:column;gap:8px}
+      .mn-modal.mn-receipt-screen{width:min(1180px,100%);height:min(820px,100%)}
+      .mn-receipt-screen .mn-modal-head>div:first-child{flex:1}
+      .mn-receipt-nav{display:flex;align-items:center;gap:6px;flex:none}
+      .mn-receipt-nav>span{min-width:46px;text-align:center;font-size:12px;font-weight:700;color:#667085;font-variant-numeric:tabular-nums}
+      .mn-receipt-badge{display:inline-flex;align-items:center;gap:5px;flex:none;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800;white-space:nowrap}
+      .mn-receipt-badge.done{background:#ecfdf3;color:#067647}
+      .mn-receipt-badge.todo{background:#fffaeb;color:#b54708}
+      .mn-receipt-screen-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(340px,.85fr)}
+      .mn-receipt-preview{position:relative;min-width:0;min-height:0;background:#101828;display:flex;align-items:center;justify-content:center;overflow:hidden}
+      .mn-receipt-preview>img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+      .mn-receipt-preview>iframe{width:100%;height:100%;border:0;background:#fff}
+      .mn-receipt-file{display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px;text-align:center;color:#d0d5dd;font-size:12px;font-weight:600}
+      .mn-receipt-file>i{font-size:48px}
+      .mn-receipt-file strong{color:#fff;font-size:13px;overflow-wrap:anywhere}
+      .mn-receipt-file a{margin-top:6px;border:1px solid #667085;border-radius:9px;padding:8px 12px;color:#fff;text-decoration:none;font-weight:800}
+      .mn-receipt-panel{min-width:0;min-height:0;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px;border-left:1px solid #eaecf0}
+      .mn-receipt-done{display:flex;align-items:flex-start;gap:10px;border-radius:10px;padding:10px 12px;background:#ecfdf3;color:#067647;font-size:12px;font-weight:700}
+      .mn-receipt-done i{font-size:16px;margin-top:1px}
+      .mn-receipt-done small{display:block;margin-top:2px;font-weight:600;color:#027a48}
+      .mn-receipt-targets{display:flex;flex-direction:column;gap:8px}
+      .mn-optional{font-weight:500;color:#98a2b3}
+      .mn-setting-row strong{white-space:normal!important}
+      .mn-setting-row small{display:block;margin-top:2px;font-size:11px;color:#667085}
       .mn-receipt-target-choice{min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:9px;border:1px solid #eaecf0;border-radius:10px;padding:9px 10px;cursor:pointer}
       .mn-receipt-target-choice:has(input:checked){border-color:rgba(var(--primary-rgb,217,48,37),.4);background:rgba(var(--primary-rgb,217,48,37),.05)}
       .mn-receipt-target-choice input{accent-color:var(--primary,#d93025)}
@@ -481,10 +501,6 @@
       .mn-receipt-loading i{font-size:26px;color:var(--primary,#d93025)}
       .mn-receipt-lines summary{font-size:12px;font-weight:700;cursor:pointer;color:#475467}
       .mn-receipt-lines div{display:flex;justify-content:space-between;gap:8px;padding-top:5px;font-size:12px;color:#667085}
-      .mn-file-summary{display:flex;align-items:center;gap:10px;min-width:0}
-      .mn-file-summary>i{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;background:#f2f4f7;color:#475467;flex:none}
-      .mn-file-summary strong,.mn-file-summary span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .mn-file-summary span{font-size:11px;color:#667085}
       .mn-batch-summary{display:flex;align-items:center;gap:8px;color:#475467;font-size:12px;font-weight:700}
       .mn-batch-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:11px;border:1px solid #eaecf0;border-radius:10px;padding:10px}
       .mn-batch-icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:#f2f4f7;color:#667085}
@@ -500,7 +516,7 @@
       @keyframes mn-spin{to{transform:rotate(360deg)}}
       @container money (max-width:1100px){.mn-metric{padding:9px 10px}.mn-metric strong{font-size:clamp(14px,1.65cqi,18px)}.mn-tools .mn-btn.collapse span{display:none}.mn-tools .mn-btn.collapse{width:38px;padding:0}}
       @container money (max-width:760px){.mn-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.mn-metric strong{font-size:17px}}
-      @container money (max-width:820px){.mn-table .mn-col-balance{display:none}.mn-table .mn-col-status{width:96px}.mn-table .mn-col-cat{width:120px}.mn-receipt-modal-body{grid-template-columns:1fr}.mn-receipt-review{border-right:0;border-bottom:1px solid #eaecf0}}
+      @container money (max-width:820px){.mn-table .mn-col-balance{display:none}.mn-table .mn-col-status{width:96px}.mn-table .mn-col-cat{width:120px}.mn-receipt-screen-body{grid-template-columns:1fr;grid-template-rows:minmax(220px,40%) auto;overflow:auto}.mn-receipt-panel{border-left:0;border-top:1px solid #eaecf0;overflow:visible}.mn-receipt-badge span{display:none}}
       @container money (max-width:640px){
         .mn-shell{padding:10px;gap:10px;overflow:auto}
         .mn-ledger{flex:none;min-height:60%;overflow:visible}
@@ -1127,7 +1143,8 @@
       });
     });
     body.querySelectorAll('[data-money-entry]').forEach((node) => {
-      const open = () => openModal({ type:'item', key:node.dataset.moneyEntry });
+      const key = cleanText(node.dataset.moneyEntry);
+      const open = () => key.startsWith('receipt:') ? openReceiptViewer(key.slice(8)) : openModal({ type:'item', key });
       node.addEventListener('click', open);
       if (node.tagName === 'TR') node.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
     });
@@ -1215,7 +1232,10 @@
     if (modal.type === 'take_payment' && state.paymentIntakeConfig?.config?.ready !== true) state.paymentIntakeConfig = null;
     state.modal = modal;
     if (modal.type === 'reports' && state.reports === null) void loadReports();
-    if (modal.type === 'settings') state.modal.draft = moneyCategories().map((category) => ({ ...category }));
+    if (modal.type === 'settings') {
+      state.modal.draft = moneyCategories().map((category) => ({ ...category }));
+      state.modal.receipts = receiptSettings();
+    }
     renderModal({ force:true });
   }
 
@@ -1256,6 +1276,11 @@
     const key = modalKey();
     const opening = !layer.dataset.modalKey;
     if (!options.force && key && layer.dataset.modalKey === key && FORM_MODALS.has(state.modal?.type) && !state.receiptBatch && !state.receiptReview) {
+      syncBusy();
+      return;
+    }
+    // A refresh behind the receipt screen leaves what is being typed alone.
+    if (!options.force && key && layer.dataset.modalKey === key && state.receiptReview?.phase === 'ready' && !state.receiptBatch) {
       syncBusy();
       return;
     }
@@ -1411,9 +1436,22 @@
       ${category.builtIn ? '<span class="mn-btn small icon" aria-hidden="true" style="visibility:hidden"></span>' : `<button type="button" class="mn-btn small icon danger" data-money-category-remove="${index}" aria-label="${escapeHtml(`Remove ${category.label}`)}" data-fm-tooltip="Remove"><i class="fas fa-trash"></i></button>`}
     </div>`).join('');
     const body = `<div class="mn-section-label"><span>${((v0) => globalThis.PlatformLanguage?.htmlText("money","m_2c563831005360",`${v0} categories `,{v0}) ?? `${v0} categories `)(escapeHtml(term('expense')))}<i class="fas fa-circle-info mn-help" tabindex="0" data-fm-tooltip="${escapeHtml('Categories sort and filter the ledger. Rename any, hide the ones you do not use, or add your own. Entries keep their category.')}"></i></span><button type="button" class="mn-btn small" data-money-category-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_c807a71e1c06f5","Add") ?? "Add")}</button></div>
-      <div class="mn-list" data-money-category-list>${rows}</div>`;
+      <div class="mn-list" data-money-category-list>${rows}</div>
+      <div class="mn-section-label"><span>${escapeHtml(term('receipts'))}</span></div>
+      <div class="mn-list" data-money-receipt-settings>${receiptSettingRows(modal.receipts || receiptSettings())}</div>`;
     const foot = `<button type="button" class="mn-btn" data-money-modal-close>${(globalThis.PlatformLanguage?.htmlText("money","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="mn-btn primary" data-money-settings-save ${busyAttr()}><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_5bab3e72de1ebf","Save") ?? "Save")}</button>`;
     return modalFrame({ title:(globalThis.PlatformLanguage?.text("money","m_7d461dc7d355cc","Settings") ?? "Settings"), icon:'fa-gear', body, foot });
+  }
+
+  // GP-109: what a receipt needs before it can be applied, and whether expense lists are suggested for it. The
+  // server enforces the same settings (payments/receipts.ts).
+  function receiptSettingRows(settings){
+    const row = (key, title, detail) => `<div class="mn-list-row mn-setting-row"><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></div><label class="mn-switch"><input type="checkbox" data-money-receipt-setting="${key}" ${settings[key] ? 'checked' : ''} aria-label="${escapeHtml(title)}"><span aria-hidden="true"></span></label></div>`;
+    return [
+      row('require_date', (globalThis.PlatformLanguage?.text("money","m_fc748c1dcbd91e","Require a purchase date") ?? "Require a purchase date"), (globalThis.PlatformLanguage?.text("money","m_33199629259384","A receipt without a purchase date cannot be applied.") ?? "A receipt without a purchase date cannot be applied.")),
+      row('require_time', (globalThis.PlatformLanguage?.text("money","m_f28c8b20aa8156","Require a purchase time") ?? "Require a purchase time"), (globalThis.PlatformLanguage?.text("money","m_98318e06320f96","A receipt without a purchase time cannot be applied.") ?? "A receipt without a purchase time cannot be applied.")),
+      row('auto_categorize', (globalThis.PlatformLanguage?.text("money","m_45d6040e90a537","Suggest expense lists automatically") ?? "Suggest expense lists automatically"), (globalThis.PlatformLanguage?.text("money","m_a524ed5f8b6e79","New receipts come with their expense lists picked from the total. Off: you choose every list yourself.") ?? "New receipts come with their expense lists picked from the total. Off: you choose every list yourself."))
+    ].join('');
   }
 
   function autopayModalHtml(){
@@ -1527,18 +1565,10 @@
       foot = `<a class="mn-btn mn-spacer" href="${escapeHtml(rootWindow.PaymentsAPI?.invoices?.pdfUrl?.(orgId(), row.id) || '#')}"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_2440c46d7ac5f3","PDF") ?? "PDF")}</a>
         ${manage ? `<button type="button" class="mn-btn" data-money-invoice-email-existing="${escapeHtml(row.id)}" ${busyAttr()}><i class="fas fa-envelope"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_5d2b9327181e33","Email") ?? "Email")}</button>` : ''}
         ${manage && !['paid', 'due', 'overdue'].includes(status) ? `<button type="button" class="mn-btn primary" data-money-invoice-due="${escapeHtml(row.id)}" ${busyAttr()} data-fm-tooltip="Publish to the customer portal for payment"><i class="fas fa-calendar-check"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_4ab97a813f8f30","Mark Due") ?? "Mark Due")}</button>` : ''}`;
-    } else if (row.kind === 'receipt') {
-      const image = receiptImageUrl(source);
-      const attributed = (source.attributed_target_keys || []).map(expenseTargetTitle).filter(Boolean);
-      extra = `<button type="button" class="mn-preview" data-money-open-receipt="${escapeHtml(row.id)}" aria-label="${escapeHtml(`Open ${row.title}`)}">${image ? `<img src="${escapeHtml(image)}" alt="">` : '<i class="fas fa-file-lines"></i>'}</button>`;
-      facts = [fact('Purchased', shortDate(cleanText(source.purchase_date, source.effective?.purchase_date))), fact('Status', titleText(row.status)), fact(term('expense_lists'), attributed.join(', ')), fact('Uploaded', dateTime(cleanText(source.uploaded_at, source.created_at))), source.reimbursement?.payee_ref?.name ? fact('Reimburse', source.reimbursement.payee_ref.name) : ''];
-      foot = `${manage ? `<button type="button" class="mn-btn danger mn-spacer" data-money-void-receipt="${escapeHtml(row.id)}" ${busyAttr()}><i class="fas fa-ban"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_ce16922c5208b8","Void") ?? "Void")}</button>` : ''}
-        <a class="mn-btn${manage ? '' : ' mn-spacer'}" href="${escapeHtml(rootWindow.PaymentsAPI?.receipts?.fileUrl?.(orgId(), row.id) || '#')}" target="_blank" rel="noopener"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_7211fc5d40302a","Original") ?? "Original")}</a>
-        ${manage ? `<button type="button" class="mn-btn primary" data-money-review-receipt="${escapeHtml(row.id)}" ${busyAttr()}><i class="fas fa-list-check"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_4420b0058ee405","Review & apply") ?? "Review & apply")}</button>` : ''}`;
     }
     const notes = cleanText(source.notes) ? `<p class="mn-note">${escapeHtml(source.notes)}</p>` : '';
-    const body = `${hero}${row.kind === 'receipt' ? extra : ''}<div class="mn-facts">${facts.filter(Boolean).join('')}</div>${notes}${row.kind === 'receipt' ? '' : extra}`;
-    return modalFrame({ title:row.title, icon:row.icon, body, foot, size:row.kind === 'invoice' || row.kind === 'receipt' ? 'wide' : '' });
+    const body = `${hero}<div class="mn-facts">${facts.filter(Boolean).join('')}</div>${notes}${extra}`;
+    return modalFrame({ title:row.title, icon:row.icon, body, foot, size:row.kind === 'invoice' ? 'wide' : '' });
   }
 
   function refundFormHtml(row, available){
@@ -1589,41 +1619,92 @@
     if (review.phase === 'uploading') return modalFrame({ title:(globalThis.PlatformLanguage?.text("money","m_c1767dcd832c57","Reading purchase document") ?? "Reading purchase document"), icon:'fa-receipt', body:`<div class="mn-receipt-loading"><i class="fas fa-circle-notch fa-spin"></i><div>Pulling totals and purchase details…</div><span class="mn-muted">${escapeHtml(review.fileName || term('receipt'))}</span></div>`, attrs:'data-money-receipt-modal' });
     if (review.phase === 'error') return modalFrame({ title:(globalThis.PlatformLanguage?.text("money","m_c9b0194ff9817b","Receipt upload needs attention") ?? "Receipt upload needs attention"), icon:'fa-triangle-exclamation', body:`<div class="mn-receipt-loading"><div>${escapeHtml(review.error || 'Could not process this file.')}</div></div>`, foot:'<button type="button" class="mn-btn" data-money-receipt-close>Close</button>', attrs:'data-money-receipt-modal' });
     const receipt = review.receipt || {};
-    const selected = new Set((Array.isArray(receipt.attributed_target_keys) && receipt.attributed_target_keys.length ? receipt.attributed_target_keys : receipt.suggested_target_keys) || []);
+    const draft = state.receiptDrafts[cleanText(receipt.id)] || null;
+    const settings = receiptSettings();
+    const done = receiptApplied(receipt);
+    const attributed = Array.isArray(receipt.attributed_target_keys) ? receipt.attributed_target_keys : [];
+    const selected = new Set(draft ? draft.target_keys : attributed.length ? attributed : settings.auto_categorize ? (receipt.suggested_target_keys || []) : []);
     const targets = [
       ...(expenseData().targets || []).filter((target) => target?.receipt_attribution_enabled !== false),
       ...categoryTargets().filter((target) => !target?.hidden || selected.has(target.target_key))
     ];
     const lines = Array.isArray(receipt.extraction?.line_items) ? receipt.extraction.line_items : [];
-    const warnings = Array.isArray(receipt.extraction?.warnings) ? receipt.extraction.warnings : [];
-    const readOnly = !canManageMoney();
-    const reviewDisabled = readOnly || moneyMutationBusy() ? 'disabled' : '';
-    return `<div data-fm-window-backdrop="off" class="mn-modal-shade" data-money-modal-shade><form class="mn-modal xwide" data-money-receipt-apply data-receipt-id="${escapeHtml(receipt.id)}" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_2df085d0598fd3","Review Receipt") ?? "Review Receipt")}">
-      <div class="mn-modal-head"><div><span class="mn-thumb" aria-hidden="true"><i class="fas fa-receipt"></i></span><strong>${(globalThis.PlatformLanguage?.htmlText("money","m_2df085d0598fd3","Review Receipt") ?? "Review Receipt")}</strong></div><button type="button" class="mn-btn small icon" data-money-receipt-close aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_3742924668fb10","Close") ?? "Close")}" ${state.saving ? 'disabled' : ''}><i class="fas fa-xmark"></i></button></div>
-      <div class="mn-receipt-modal-body"><div class="mn-receipt-review">
-        <div class="mn-file-summary"><i class="fas fa-file-invoice-dollar"></i><div><strong>${escapeHtml(receipt.file?.file_name || receipt.title || term('receipt'))}</strong><span>${escapeHtml(receipt.file?.content_type || '')}${receipt.file?.size_bytes ? ` · ${Math.max(1, Math.round(receipt.file.size_bytes / 1024)).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} KB` : ''}</span></div></div>
-        ${receipt.duplicate_of_receipt_id ? `<label class="mn-alert"><input type="checkbox" name="confirm_duplicate" value="yes" ${reviewDisabled}>${(globalThis.PlatformLanguage?.htmlText("money","m_4ff2334846d39b","This file matches an existing receipt. Confirm it is a separate expense before applying.") ?? "This file matches an existing receipt. Confirm it is a separate expense before applying.")}</label>` : ''}
+    const warnings = done ? [] : (Array.isArray(receipt.extraction?.warnings) ? receipt.extraction.warnings : []);
+    const manage = canManageMoney();
+    const reviewDisabled = !manage || moneyMutationBusy() ? 'disabled' : '';
+    const value = (key, fallback) => escapeHtml(draft ? cleanText(draft[key]) : cleanText(fallback));
+    const reimburseId = draft ? cleanText(draft.reimburse_user) : cleanText(receipt.reimbursement?.payee_ref?.id);
+    const order = Array.isArray(review.order) ? review.order : [];
+    const position = order.indexOf(cleanText(receipt.id));
+    const left = receipts().filter((item) => order.includes(cleanText(item.id)) && !receiptApplied(item)).length;
+    const appliedTo = attributed.map(expenseTargetTitle).filter(Boolean);
+    const optional = (required) => required ? '' : ` <span class="mn-optional">${(globalThis.PlatformLanguage?.htmlText("money","m_82710819dd8da8","(optional)") ?? "(optional)")}</span>`;
+    const originalUrl = rootWindow.PaymentsAPI?.receipts?.fileUrl?.(orgId(), receipt.id) || receipt.file_url || '';
+    const nav = order.length > 1 ? `<button type="button" class="mn-btn small icon" data-money-receipt-move="-1" aria-label="${escapeHtml((globalThis.PlatformLanguage?.text("money","m_77c08e212dd0d0","Previous receipt") ?? "Previous receipt"))}" data-fm-tooltip="${escapeHtml((globalThis.PlatformLanguage?.text("money","m_277dbeb30b6e26","Previous (←)") ?? "Previous (←)"))}"><i class="fas fa-chevron-left"></i></button><span data-fm-tooltip="${escapeHtml(left ? ((v0) => globalThis.PlatformLanguage?.text("money","m_c2c8ded82609ff",`${v0} still to apply`,{v0}) ?? `${v0} still to apply`)(left) : (globalThis.PlatformLanguage?.text("money","m_052261419f39c5","All applied") ?? "All applied"))}">${position + 1} / ${order.length}</span><button type="button" class="mn-btn small icon" data-money-receipt-move="1" aria-label="${escapeHtml((globalThis.PlatformLanguage?.text("money","m_b4f6c3430f3ec3","Next receipt") ?? "Next receipt"))}" data-fm-tooltip="${escapeHtml((globalThis.PlatformLanguage?.text("money","m_f9183b5949f35f","Next (→)") ?? "Next (→)"))}"><i class="fas fa-chevron-right"></i></button>` : '';
+    const badge = done
+      ? `<span class="mn-receipt-badge done" data-money-receipt-state="applied"><i class="fas fa-circle-check"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_8ff232d529b55f","Applied") ?? "Applied")}</span></span>`
+      : `<span class="mn-receipt-badge todo" data-money-receipt-state="open"><i class="fas fa-circle-exclamation"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_e56705d557914c","Not applied") ?? "Not applied")}</span></span>`;
+    return `<div data-fm-window-backdrop="off" class="mn-modal-shade" data-money-modal-shade><form class="mn-modal mn-receipt-screen" data-money-receipt-apply data-receipt-id="${escapeHtml(receipt.id)}" role="dialog" aria-modal="true" aria-label="${escapeHtml(receiptTitle(receipt))}" novalidate>
+      <div class="mn-modal-head"><div><span class="mn-thumb" aria-hidden="true"><i class="fas fa-receipt"></i></span><strong>${escapeHtml(receiptTitle(receipt))}</strong>${badge}</div><div class="mn-receipt-nav">${nav}<button type="button" class="mn-btn small icon" data-money-receipt-close aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_3742924668fb10","Close") ?? "Close")}" ${state.saving ? 'disabled' : ''}><i class="fas fa-xmark"></i></button></div></div>
+      <div class="mn-receipt-screen-body"><div class="mn-receipt-preview" data-money-receipt-preview>${receiptPreviewHtml(receipt)}</div><div class="mn-receipt-panel">
+        ${done ? `<div class="mn-receipt-done"><i class="fas fa-circle-check"></i><div>${escapeHtml(appliedTo.length ? ((v0) => globalThis.PlatformLanguage?.text("money","m_515c966dfe8109",`Applied to ${v0}`,{v0}) ?? `Applied to ${v0}`)(appliedTo.join(', ')) : (globalThis.PlatformLanguage?.text("money","m_8ff232d529b55f","Applied") ?? "Applied"))}<small>${escapeHtml(receipt.applied_at ? `${dateTime(receipt.applied_at)} · ` : '')}${escapeHtml((globalThis.PlatformLanguage?.text("money","m_3c338fa271d5a5","Change anything below and save.") ?? "Change anything below and save."))}</small></div></div>` : ''}
+        ${receipt.duplicate_of_receipt_id && !done ? `<label class="mn-alert"><input type="checkbox" name="confirm_duplicate" value="yes" ${draft?.confirm_duplicate ? 'checked' : ''} ${reviewDisabled}>${(globalThis.PlatformLanguage?.htmlText("money","m_4ff2334846d39b","This file matches an existing receipt. Confirm it is a separate expense before applying.") ?? "This file matches an existing receipt. Confirm it is a separate expense before applying.")}</label>` : ''}
         ${warnings.length ? `<div class="mn-alert">${escapeHtml(warnings.join(' '))}</div>` : ''}
         <div class="mn-form">
-          <label class="wide"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_9403c7637d4905","Total") ?? "Total")}</span><input class="mn-input" name="total" type="number" min="0" step="0.01" value="${escapeHtml(receipt.total_cents ? (receipt.total_cents / 100).toFixed(2) : '')}" required ${reviewDisabled}></label>
-          <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_f3cb225c1c3e0a","Purchase Date") ?? "Purchase Date")}</span><input class="mn-input" name="purchase_date" type="date" value="${escapeHtml(receipt.purchase_date || '')}" ${reviewDisabled}></label>
-          <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2d11bf79588d5e","Purchase Time") ?? "Purchase Time")}</span><input class="mn-input" name="purchase_time" type="time" step="1" value="${escapeHtml(receipt.purchase_time || '')}" ${reviewDisabled}></label>
-        </div>
-        ${lines.length ? `<details class="mn-receipt-lines"><summary>${((v0,v1) => globalThis.PlatformLanguage?.text("money","m_c2957dd4e77e96",`${v0} extracted line item${v1}`,{v0,v1}) ?? `${v0} extracted line item${v1}`)(lines.length,lines.length === 1 ? '' : 's')}</summary>${lines.slice(0, 30).map((line) => `<div><span>${escapeHtml(line.description || 'Line item')}</span><strong>${money(line.total_cents || 0)}</strong></div>`).join('')}</details>` : ''}
-        <div class="mn-form">
+          <label class="wide"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_9403c7637d4905","Total") ?? "Total")}</span><input class="mn-input" name="total" type="number" min="0" step="0.01" inputmode="decimal" value="${draft ? value('total') : escapeHtml(receipt.total_cents ? (receipt.total_cents / 100).toFixed(2) : '')}" required ${reviewDisabled}></label>
+          <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_f3cb225c1c3e0a","Purchase Date") ?? "Purchase Date")}${optional(settings.require_date)}</span><input class="mn-input" name="purchase_date" type="date" data-picker-near value="${value('purchase_date', receipt.purchase_date)}" ${settings.require_date ? 'required' : ''} ${reviewDisabled}></label>
+          <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2d11bf79588d5e","Purchase Time") ?? "Purchase Time")}${optional(settings.require_time)}</span><input class="mn-input" name="purchase_time" type="time" step="60" data-picker-near value="${value('purchase_time', cleanText(receipt.purchase_time).slice(0, 5))}" ${settings.require_time ? 'required' : ''} ${reviewDisabled}></label>
           <label class="wide"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_8b8d7106c3c872","Reimburse to ") ?? "Reimburse to ")}<i class="fas fa-circle-info mn-help" tabindex="0" data-fm-tooltip="Optional: someone who paid out of pocket. A reimbursement is added to the ledger."></i></span>
             <select class="mn-select" name="reimburse_user" data-money-reimburse-select ${reviewDisabled}>
               <option value="">${(globalThis.PlatformLanguage?.htmlText("money","m_79d4145b0d2889","No reimbursement") ?? "No reimbursement")}</option>
-              ${(state.orgUsers || []).map((user) => `<option value="${escapeHtml(user.id)}" ${cleanText(receipt.reimbursement?.payee_ref?.id) === user.id ? 'selected' : ''}>${escapeHtml(user.name)}</option>`).join('')}
-              <option value="__other__">${(globalThis.PlatformLanguage?.htmlText("money","m_b0d2b8a6eddf50","Other person…") ?? "Other person…")}</option>
+              ${(state.orgUsers || []).map((user) => `<option value="${escapeHtml(user.id)}" ${reimburseId === user.id ? 'selected' : ''}>${escapeHtml(user.name)}</option>`).join('')}
+              <option value="__other__" ${reimburseId === '__other__' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("money","m_b0d2b8a6eddf50","Other person…") ?? "Other person…")}</option>
             </select></label>
-          <label class="wide" data-money-reimburse-other hidden><span>${(globalThis.PlatformLanguage?.htmlText("money","m_5875991c412359","Person to pay back") ?? "Person to pay back")}</span><input class="mn-input" name="reimburse_other_name" type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_8cf345002184e5","Name") ?? "Name")}" ${reviewDisabled}></label>
+          <label class="wide" data-money-reimburse-other ${reimburseId === '__other__' ? '' : 'hidden'}><span>${(globalThis.PlatformLanguage?.htmlText("money","m_5875991c412359","Person to pay back") ?? "Person to pay back")}</span><input class="mn-input" name="reimburse_other_name" type="text" value="${value('reimburse_other_name', '')}" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_8cf345002184e5","Name") ?? "Name")}" ${reviewDisabled}></label>
         </div>
-      </div><div class="mn-receipt-targets"><div class="mn-section-label"><span>${((v17) => globalThis.PlatformLanguage?.htmlText("money","m_3c334ae999e449",`Apply to ${v17} `,{v17}) ?? `Apply to ${v17} `)(escapeHtml(term('expense_lists').toLowerCase()))}<i class="fas fa-circle-info mn-help" tabindex="0" data-fm-tooltip="Suggested from the total. Select every list this document covers."></i></span></div>
-        ${targets.map((target) => { const category = target.source_type === 'expense_category'; return `<label class="mn-receipt-target-choice"${category ? ' data-money-receipt-category' : ''}><input type="checkbox" name="target_key" value="${escapeHtml(target.target_key)}" ${selected.has(target.target_key) ? 'checked' : ''} ${reviewDisabled}><span><strong>${escapeHtml(targetTitle(target))}</strong><span>${category ? (globalThis.PlatformLanguage?.htmlText("money","m_c478c1907a4d4f","Category") ?? "Category") : escapeHtml(titleText(target.resource_type || 'other'))}</span></span>${category ? '' : `<strong>${money(target.projected_cents || 0)}</strong>`}</label>`; }).join('') || `<div class="mn-empty">${((v0) => globalThis.PlatformLanguage?.text("money","m_2076b6166d76ad",`No ${v0} yet.`,{v0}) ?? `No ${v0} yet.`)(escapeHtml(term('expense_lists').toLowerCase()))}</div>`}
+        ${lines.length ? `<details class="mn-receipt-lines"><summary>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("money","m_c2957dd4e77e96",`${v0} extracted line item${v1}`,{v0,v1}) ?? `${v0} extracted line item${v1}`)(lines.length,lines.length === 1 ? '' : 's')}</summary>${lines.slice(0, 30).map((line) => `<div><span>${escapeHtml(line.description || 'Line item')}</span><strong>${money(line.total_cents || 0)}</strong></div>`).join('')}</details>` : ''}
+        <div class="mn-receipt-targets"><div class="mn-section-label"><span>${((v17) => globalThis.PlatformLanguage?.htmlText("money","m_3c334ae999e449",`Apply to ${v17} `,{v17}) ?? `Apply to ${v17} `)(escapeHtml(term('expense_lists').toLowerCase()))}<i class="fas fa-circle-info mn-help" tabindex="0" data-fm-tooltip="${escapeHtml(settings.auto_categorize ? (globalThis.PlatformLanguage?.text("money","m_2fc0291fcdab0c","Suggested from the total. Select every list this document covers.") ?? "Suggested from the total. Select every list this document covers.") : (globalThis.PlatformLanguage?.text("money","m_ea60a46b85d56e","Select every list this document covers.") ?? "Select every list this document covers."))}"></i></span></div>
+        ${targets.map((target) => { const category = target.source_type === 'expense_category'; return `<label class="mn-receipt-target-choice"${category ? ' data-money-receipt-category' : ''}><input type="checkbox" name="target_key" value="${escapeHtml(target.target_key)}" ${selected.has(target.target_key) ? 'checked' : ''} ${reviewDisabled}><span><strong>${escapeHtml(targetTitle(target))}</strong><span>${category ? (globalThis.PlatformLanguage?.htmlText("money","m_c478c1907a4d4f","Category") ?? "Category") : escapeHtml(titleText(target.resource_type || 'other'))}</span></span>${category ? '' : `<strong>${money(target.projected_cents || 0)}</strong>`}</label>`; }).join('') || `<div class="mn-empty">${((v0) => globalThis.PlatformLanguage?.htmlText("money","m_2076b6166d76ad",`No ${v0} yet.`,{v0}) ?? `No ${v0} yet.`)(escapeHtml(term('expense_lists').toLowerCase()))}</div>`}
+        </div>
       </div></div>
-      <div class="mn-modal-foot"><a class="mn-btn mn-spacer" href="${escapeHtml(rootWindow.PaymentsAPI?.receipts?.fileUrl?.(orgId(), receipt.id) || receipt.file_url || '#')}" target="_blank" rel="noopener"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_7211fc5d40302a","Original") ?? "Original")}</a><button type="button" class="mn-btn" data-money-receipt-close ${state.saving ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("money","m_3742924668fb10","Close") ?? "Close")}</button>${canManageMoney() ? `<button type="submit" class="mn-btn primary" ${moneyMutationBusy() || !targets.length ? 'disabled' : ''}><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_f1a988cdd500c6","Apply Receipt") ?? "Apply Receipt")}</button>` : ''}</div>
+      <div class="mn-modal-foot">${manage ? `<button type="button" class="mn-btn danger" data-money-void-receipt="${escapeHtml(receipt.id)}" ${busyAttr()}><i class="fas fa-ban"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_ce16922c5208b8","Void") ?? "Void")}</button>` : ''}<a class="mn-btn mn-spacer" href="${escapeHtml(originalUrl || '#')}" target="_blank" rel="noopener"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_7211fc5d40302a","Original") ?? "Original")}</a>${manage ? `<button type="submit" class="mn-btn primary" data-money-receipt-submit ${moneyMutationBusy() || !targets.length ? 'disabled' : ''}><i class="fas fa-check"></i>${done ? escapeHtml((globalThis.PlatformLanguage?.text("money","m_1d368860f0287e","Save changes") ?? "Save changes")) : (globalThis.PlatformLanguage?.htmlText("money","m_f1a988cdd500c6","Apply Receipt") ?? "Apply Receipt")}</button>` : ''}</div>
     </form></div>`;
+  }
+
+  // The file beside the form: an image as is, a PDF in a frame once fetched (the receipt file route answers with
+  // a download), anything else as an icon with the original to open.
+  function receiptPreviewHtml(receipt){
+    const type = receiptContentType(receipt);
+    const name = cleanText(receipt?.file?.file_name);
+    const inline = cleanText(rootWindow.PaymentsAPI?.receipts?.fileUrl?.(orgId(), receipt.id, { inline:true }));
+    if (type.startsWith('image/') && inline) return `<img src="${escapeHtml(inline)}" alt="${escapeHtml(receiptTitle(receipt))}">`;
+    if ((type.includes('pdf') || name.toLowerCase().endsWith('.pdf')) && inline) return `<div class="mn-receipt-file" data-money-receipt-pdf="${escapeHtml(inline)}"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_1d41c6e4a787b2","Loading PDF…") ?? "Loading PDF…")}</span></div>`;
+    return `<div class="mn-receipt-file"><i class="fas fa-file-lines"></i><strong>${escapeHtml(name || receiptTitle(receipt))}</strong><span>${(globalThis.PlatformLanguage?.htmlText("money","m_86f098a8f511a9","No preview for this file type.") ?? "No preview for this file type.")}</span>${inline ? `<a href="${escapeHtml(inline)}" target="_blank" rel="noopener">Open file</a>` : ''}</div>`;
+  }
+
+  let receiptPdfUrl = '';
+  function releaseReceiptPdf(){
+    if (receiptPdfUrl) URL.revokeObjectURL(receiptPdfUrl);
+    receiptPdfUrl = '';
+  }
+  async function loadReceiptPdf(layer){
+    releaseReceiptPdf();
+    const holder = layer.querySelector('[data-money-receipt-pdf]');
+    if (!holder) return;
+    const url = cleanText(holder.dataset.moneyReceiptPdf);
+    try {
+      const response = await fetch(url, { credentials:'include' });
+      if (!response.ok) throw new Error(String(response.status));
+      const blob = await response.blob();
+      if (!holder.isConnected) return;
+      receiptPdfUrl = URL.createObjectURL(blob.type === 'application/pdf' ? blob : new Blob([blob], { type:'application/pdf' }));
+      const frame = document.createElement('iframe');
+      frame.src = receiptPdfUrl;
+      frame.title = (globalThis.PlatformLanguage?.text("money","m_8387f77c976f30","Receipt PDF") ?? "Receipt PDF");
+      holder.replaceWith(frame);
+    } catch (_) {
+      if (holder.isConnected) holder.innerHTML = `<i class="fas fa-file-pdf"></i><strong>${(globalThis.PlatformLanguage?.htmlText("money","m_fd2d77217bda32","PDF preview could not be loaded.") ?? "PDF preview could not be loaded.")}</strong><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.htmlText("money","m_4ba7f2cffb9394","Open file") ?? "Open file")}</a>`;
+    }
   }
 
   function receiptBatchHtml(){
@@ -1727,11 +1808,6 @@
       renderModal({ force:true });
     }));
     layer.querySelectorAll('[data-money-open-receipt]').forEach((button) => button.addEventListener('click', () => openReceiptViewer(button.dataset.moneyOpenReceipt)));
-    layer.querySelectorAll('[data-money-review-receipt]').forEach((button) => button.addEventListener('click', () => {
-      const receipt = receipts().find((item) => cleanText(item.id) === cleanText(button.dataset.moneyReviewReceipt));
-      if (!receipt) return;
-      openReceiptReview(receipt);
-    }));
     layer.querySelectorAll('[data-money-print-receipt]').forEach((button) => button.addEventListener('click', () => printReceipt({ id:button.dataset.moneyPrintReceipt })));
     layer.querySelector('[data-money-batch-close]')?.addEventListener('click', () => {
       state.receiptBatch = null;
@@ -1743,12 +1819,18 @@
       state.receiptBatch = null;
       openReceiptReview(receipt);
     }));
-    layer.querySelectorAll('[data-money-receipt-close]').forEach((button) => button.addEventListener('click', () => {
-      if (state.saving) return;
-      state.receiptOperationSequence += 1;
-      state.receiptReview = null;
-      renderModal({ force:true });
+    layer.querySelectorAll('[data-money-receipt-close]').forEach((button) => button.addEventListener('click', () => closeReceiptReview()));
+    layer.querySelectorAll('[data-money-receipt-move]').forEach((button) => button.addEventListener('click', () => {
+      moveReceipt(Number(button.dataset.moneyReceiptMove), `[data-money-receipt-move="${button.dataset.moneyReceiptMove}"]`);
     }));
+    const receiptForm = layer.querySelector('[data-money-receipt-apply]');
+    if (receiptForm) {
+      const markDirty = () => { receiptForm.dataset.dirty = '1'; };
+      receiptForm.addEventListener('input', markDirty);
+      receiptForm.addEventListener('change', markDirty);
+      if (state.receiptDrafts[cleanText(receiptForm.dataset.receiptId)]) markDirty();
+      void loadReceiptPdf(layer);
+    }
     layer.querySelector('[data-money-report-form]')?.addEventListener('submit', (event) => {
       event.preventDefault();
       if (!manage || moneyMutationBusy()) return;
@@ -1800,6 +1882,9 @@
   function bindSettingsModal(layer){
     const list = layer.querySelector('[data-money-category-list]');
     if (!list || state.modal?.type !== 'settings') return;
+    layer.querySelectorAll('[data-money-receipt-setting]').forEach((input) => input.addEventListener('change', () => {
+      state.modal.receipts = { ...(state.modal.receipts || receiptSettings()), [input.dataset.moneyReceiptSetting]:input.checked };
+    }));
     const readDraft = () => {
       list.querySelectorAll('[data-money-category-row]').forEach((rowNode) => {
         const entry = state.modal.draft[Number(rowNode.dataset.moneyCategoryRow)];
@@ -1822,7 +1907,7 @@
     }));
     layer.querySelector('[data-money-settings-save]')?.addEventListener('click', () => {
       readDraft();
-      void saveMoneySettings(state.modal.draft);
+      void saveMoneySettings(state.modal.draft, state.modal.receipts);
     });
   }
 
@@ -1834,7 +1919,7 @@
     return id;
   }
 
-  async function saveMoneySettings(draft){
+  async function saveMoneySettings(draft, receiptDraft = receiptSettings()){
     if (!canManageMoney() || moneyMutationBusy()) return;
     if (!rootWindow.PlatformAPI?.branchModules?.save) return showToast((globalThis.PlatformLanguage?.text("money","m_405553670d574e","Settings could not be saved.") ?? "Settings could not be saved."), (globalThis.PlatformLanguage?.text("money","m_7e784f9b5540ab","error") ?? "error"));
     const taken = new Set(draft.map((entry) => cleanText(entry.id)).filter(Boolean));
@@ -1845,7 +1930,7 @@
     state.saving = true;
     syncBusy();
     try {
-      const next = { ...(state.moneySettings || {}), expense_categories:categories };
+      const next = { ...(state.moneySettings || {}), expense_categories:categories, receipts:receiptSettings({ receipts:receiptDraft }) };
       const result = await rootWindow.PlatformAPI.branchModules.save(requestedOrgId, branchId(), 'money_settings', next, { kind:'branch_money_settings', source:'project_money_settings' });
       if (requestedOrgId !== orgId()) return;
       state.moneySettings = result?.data || result?.module?.data || next;
@@ -1915,42 +2000,104 @@
   }
 
   function openReceiptReview(receipt){
-    state.receiptOperationSequence += 1;
-    state.receiptViewer?.close?.({ fromRoute:true });
-    state.receiptViewer = null;
-    if (cleanText(rootWindow.Portal?.navigation?.read?.()?.receipt)) {
-      rootWindow.Portal.navigation.replace?.({ receipt:null }, { source:'money-receipt-review', ownedKeys:['receipt'] });
-    }
-    state.receiptReview = { phase:'ready', receipt };
-    renderModal({ force:true });
+    if (receipt?.id) openReceiptViewer(receipt.id, { receipt });
   }
 
-  // Receipts open in the shared receipt viewer (image or PDF preview, details, download); its Review & apply
-  // opens this tab's review over the ledger. The open receipt is the route's `receipt`.
+  // GP-109: a receipt opens as one screen, the file beside its review form, from the ledger, an expense's receipts
+  // or an upload batch; whether it is applied shows at a glance. ← / → (or the head's arrows) step through the
+  // ledger's receipts as listed, keeping unsaved edits per receipt. The open receipt is the route's `receipt`.
+  function receiptSettings(settings = state.moneySettings){
+    const value = settings?.receipts && typeof settings.receipts === 'object' ? settings.receipts : {};
+    return { require_date:value.require_date === true, require_time:value.require_time === true, auto_categorize:value.auto_categorize !== false };
+  }
+
+  function receiptApplied(receipt){
+    return cleanText(receipt?.status).toLowerCase() === 'applied';
+  }
+
+  function receiptSequence(receiptId){
+    const listed = visibleLedgerRows().filter((row) => row.kind === 'receipt').map((row) => cleanText(row.id));
+    const order = listed.includes(receiptId) ? listed : ledgerEntries().filter((row) => row.kind === 'receipt').sort((left, right) => (Date.parse(right.at) || 0) - (Date.parse(left.at) || 0)).map((row) => cleanText(row.id));
+    return order.includes(receiptId) ? order : [receiptId, ...order];
+  }
+
+  function routeReceipt(id, history){
+    rootWindow.Portal?.navigation?.[history]?.({ receipt:id || null }, { source:`money-receipt-${history}`, ownedKeys:['receipt'] });
+  }
+
   function openReceiptViewer(receiptId, options = {}){
-    const all = receipts().slice().sort((left, right) => cleanText(right.purchase_date, right.created_at).localeCompare(cleanText(left.purchase_date, left.created_at)));
-    const index = all.findIndex((receipt) => cleanText(receipt.id) === cleanText(receiptId));
-    if (index < 0) return false;
-    if (!rootWindow.Portal?.ReceiptsBrowser?.openViewer) {
-      openModal({ type:'item', key:`receipt:${cleanText(receiptId)}` });
-      return true;
+    const id = cleanText(receiptId);
+    const receipt = options.receipt || receipts().find((item) => cleanText(item.id) === id);
+    if (!receipt) return false;
+    state.receiptOperationSequence += 1;
+    state.receiptBatch = null;
+    state.receiptReview = { phase:'ready', receipt, order:receiptSequence(id) };
+    state.receiptViewer = { receiptId:() => cleanText(state.receiptReview?.receipt?.id), close:closeReceiptReview };
+    renderModal({ force:true });
+    // The screen is open before the route names it, so the route handler sees it and does not open another.
+    if (!options.fromRoute) routeReceipt(id, 'push');
+    return true;
+  }
+
+  function closeReceiptReview({ fromRoute = false, force = false } = {}){
+    if (state.saving && !fromRoute && !force) return;
+    state.receiptOperationSequence += 1;
+    state.receiptReview = null;
+    state.receiptViewer = null;
+    state.receiptDrafts = {};
+    releaseReceiptPdf();
+    renderModal({ force:true });
+    if (!fromRoute && cleanText(rootWindow.Portal?.navigation?.read?.()?.receipt)) {
+      rootWindow.Portal.navigation.backOrClose?.(['receipt'], { receipt:null }, { source:'money-receipt-close' });
     }
-    state.receiptViewer?.close?.({ fromRoute:true });
-    const project = state.project || {};
-    const routeReceipt = (id, history) => rootWindow.Portal?.navigation?.[history]?.({ receipt:id || null }, { source:`money-receipt-viewer-${history}`, ownedKeys:['receipt'] });
-    state.receiptViewer = rootWindow.Portal.ReceiptsBrowser.openViewer({
-      items:all.map((receipt) => ({ photo:{ receipt }, project })),
-      index,
-      orgId:orgId(),
-      onReview:canManageMoney() ? (receipt) => openReceiptReview(receipt) : undefined,
-      onChange:(receipt) => routeReceipt(receipt.id, 'replace'),
-      onClose:() => {
-        state.receiptViewer = null;
-        rootWindow.Portal?.navigation?.backOrClose?.(['receipt'], { receipt:null }, { source:'money-receipt-viewer-close' });
-      }
-    });
-    // The viewer is open before the route names it, so the route handler sees it and does not open another.
-    if (!options.fromRoute) routeReceipt(receiptId, 'push');
+  }
+
+  function keepReceiptDraft(){
+    const form = rootNode()?.querySelector('[data-money-receipt-apply]');
+    const id = cleanText(form?.dataset.receiptId);
+    if (!form || !id || !form.dataset.dirty) return;
+    const data = new FormData(form);
+    state.receiptDrafts[id] = {
+      total:cleanText(data.get('total')),
+      purchase_date:cleanText(data.get('purchase_date')),
+      purchase_time:cleanText(data.get('purchase_time')),
+      reimburse_user:cleanText(data.get('reimburse_user')),
+      reimburse_other_name:cleanText(data.get('reimburse_other_name')),
+      confirm_duplicate:data.get('confirm_duplicate') === 'yes',
+      target_keys:data.getAll('target_key').map(cleanText).filter(Boolean)
+    };
+  }
+
+  function moveReceipt(delta, focusSelector = ''){
+    const review = state.receiptReview;
+    if (review?.phase !== 'ready' || state.saving) return;
+    const order = review.order || [];
+    const from = order.indexOf(cleanText(review.receipt?.id));
+    if (order.length < 2 || from < 0) return;
+    keepReceiptDraft();
+    for (let step = 1; step < order.length; step += 1) {
+      const id = order[(((from + delta * step) % order.length) + order.length) % order.length];
+      const receipt = receipts().find((item) => cleanText(item.id) === id);
+      if (!receipt) continue;
+      state.receiptOperationSequence += 1;
+      state.receiptReview = { ...review, receipt };
+      renderModal({ force:true });
+      routeReceipt(id, 'replace');
+      const layer = rootNode()?.querySelector('[data-money-modal-layer]');
+      (focusSelector && layer?.querySelector(focusSelector) || layer?.querySelector('[data-money-receipt-apply]'))?.focus?.({ preventScroll:true });
+      return;
+    }
+  }
+
+  // Arrow keys move between receipts unless they belong to what has focus: a text, number, date or time field, a
+  // select, an open select list or date picker.
+  function receiptArrowKey(event){
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
+    if (state.receiptReview?.phase !== 'ready' || state.receiptBatch) return false;
+    const target = event.composedPath?.()[0] || event.target;
+    if (target?.closest?.('input:not([type="checkbox"]):not([type="radio"]),textarea,select,[contenteditable="true"],[contenteditable=""],fm-date-time-picker,.fm-select-list-menu')) return false;
+    if (target?.isContentEditable || document.querySelector('fm-date-time-picker')) return false;
+    if (rootNode()?.querySelector('.fm-select-list-trigger[aria-expanded="true"]')) return false;
     return true;
   }
 
@@ -2230,6 +2377,7 @@
       items:files.map((file, index) => ({ id:`pending-${uploadToken}-${index}`, index, file_name:file.name || `Receipt ${index + 1}`, size_bytes:file.size || 0, content_type:file.type || '', status:'queued', receipt:null, error:'' }))
     };
     state.receiptReview = null;
+    state.receiptViewer = null;
     state.receiptBatch = batchState;
     syncBusy();
     renderModal({ force:true });
@@ -2276,8 +2424,17 @@
     if (!confirmed || !canManageMoney() || moneyMutationBusy() || requestedOrgId !== orgId() || requestedProjectId !== projectId()) return;
     await withSave(async () => {
       await rootWindow.PaymentsAPI.receipts.remove(requestedOrgId, receiptId);
-      if (state.receiptReview?.receipt?.id === receiptId) state.receiptReview = null;
-    }, 'Receipt voided.');
+      // The receipt screen moves on to the next receipt, or closes after the last one.
+      const review = state.receiptReview;
+      if (cleanText(review?.receipt?.id) !== cleanText(receiptId)) return;
+      delete state.receiptDrafts[cleanText(receiptId)];
+      const order = (review.order || []).filter((id) => id !== cleanText(receiptId));
+      const at = Math.max(0, (review.order || []).indexOf(cleanText(receiptId)));
+      const next = [...order.slice(at), ...order.slice(0, at)].map((id) => receipts().find((item) => cleanText(item.id) === id)).find(Boolean);
+      if (!next) { closeReceiptReview({ force:true }); return; }
+      state.receiptReview = { ...review, receipt:next, order };
+      routeReceipt(next.id, 'replace');
+    }, 'Receipt voided.', { keepModal:true });
   }
 
   async function submitReceiptApply(event){
@@ -2297,11 +2454,18 @@
     const data = new FormData(form);
     const targetKeys = data.getAll('target_key').map(cleanText).filter(Boolean);
     const total = centsFromDollars(data.get('total'));
-    if (!targetKeys.length) return showToast((globalThis.PlatformLanguage?.text("money","m_226c50da93a695","Select at least one expense list.") ?? "Select at least one expense list."), (globalThis.PlatformLanguage?.text("money","m_7e784f9b5540ab","error") ?? "error"));
-    if (total <= 0) return showToast((globalThis.PlatformLanguage?.text("money","m_4a53195eb31ba7","Enter the receipt total.") ?? "Enter the receipt total."), (globalThis.PlatformLanguage?.text("money","m_7e784f9b5540ab","error") ?? "error"));
-    if (receipt.duplicate_of_receipt_id && data.get('confirm_duplicate') !== 'yes') return showToast((globalThis.PlatformLanguage?.text("money","m_adaa9e9e5c1e78","Confirm that this duplicate file is a separate project expense before applying it.") ?? "Confirm that this duplicate file is a separate project expense before applying it."), (globalThis.PlatformLanguage?.text("money","m_7e784f9b5540ab","error") ?? "error"));
+    const purchaseDate = cleanText(data.get('purchase_date'));
+    const purchaseTime = cleanText(data.get('purchase_time'));
+    const settings = receiptSettings();
+    const fail = (message) => showToast(message, (globalThis.PlatformLanguage?.text("money","m_7e784f9b5540ab","error") ?? "error"));
+    if (total <= 0) return fail((globalThis.PlatformLanguage?.text("money","m_4a53195eb31ba7","Enter the receipt total.") ?? "Enter the receipt total."));
+    if (settings.require_date && !purchaseDate) return fail((globalThis.PlatformLanguage?.text("money","m_5c773ab6d5c406","Enter the purchase date.") ?? "Enter the purchase date."));
+    if (settings.require_time && !purchaseTime) return fail((globalThis.PlatformLanguage?.text("money","m_ffe7faa9cf2581","Enter the purchase time.") ?? "Enter the purchase time."));
+    if (!targetKeys.length) return fail((globalThis.PlatformLanguage?.text("money","m_226c50da93a695","Select at least one expense list.") ?? "Select at least one expense list."));
+    if (receipt.duplicate_of_receipt_id && !receiptApplied(receipt) && data.get('confirm_duplicate') !== 'yes') return fail((globalThis.PlatformLanguage?.text("money","m_adaa9e9e5c1e78","Confirm that this duplicate file is a separate project expense before applying it.") ?? "Confirm that this duplicate file is a separate project expense before applying it."));
     const suggestions = new Set(receipt.suggested_target_keys || []);
-    const acceptedSuggestion = suggestions.size === targetKeys.length && targetKeys.every((key) => suggestions.has(key));
+    const acceptedSuggestion = settings.auto_categorize && suggestions.size === targetKeys.length && targetKeys.every((key) => suggestions.has(key));
+    const wasApplied = receiptApplied(receipt);
     state.saving = true;
     syncBusy();
     try {
@@ -2321,21 +2485,32 @@
       const result = await rootWindow.PaymentsAPI.receipts.apply(requestedOrgId, receiptId, {
         ...(Number(receipt.revision || 0) > 0 ? { expected_revision:Number(receipt.revision) } : {}),
         total_cents:total,
-        purchase_date:cleanText(data.get('purchase_date')),
-        purchase_time:cleanText(data.get('purchase_time')),
+        purchase_date:purchaseDate,
+        purchase_time:purchaseTime,
         target_keys:targetKeys,
         accepted_suggestion:acceptedSuggestion,
         ...(reimbursementPayee ? { reimbursement:{ payee_ref:reimbursementPayee } } : {})
       });
       if (!operationIsCurrent()) return;
       if (result.expense_summary && state.summary) state.summary = { ...state.summary, expense_summary:result.expense_summary };
-      state.receiptReview = null;
+      delete state.receiptDrafts[receiptId];
+      // The screen stays on this receipt, now marked applied; the arrows go on to the next one.
+      const applied = { ...receipt, ...(result?.receipt || {}), status:'applied', attributed_target_keys:targetKeys };
+      if (cleanText(state.receiptReview?.receipt?.id) === receiptId) state.receiptReview = { ...state.receiptReview, receipt:applied };
       showToast(result.reimbursement_payable
         ? `Receipt applied. Reimbursement owed to ${result.reimbursement_payable.payee_ref?.name || 'the payee'} was added.`
-        : 'Receipt applied to project expenses.', (globalThis.PlatformLanguage?.text("money","m_b4e54589824dc5","success") ?? "success"));
+        : wasApplied ? (globalThis.PlatformLanguage?.text("money","m_45d786a380f16d","Receipt updated.") ?? "Receipt updated.") : 'Receipt applied to project expenses.', (globalThis.PlatformLanguage?.text("money","m_b4e54589824dc5","success") ?? "success"));
       state.saving = false;
       renderModal({ force:true });
+      rootNode()?.querySelector('[data-money-receipt-move="1"],[data-money-receipt-close]')?.focus?.({ preventScroll:true });
       await loadData();
+      const fresh = receipts().find((item) => cleanText(item.id) === receiptId);
+      const open = rootNode()?.querySelector('[data-money-receipt-apply]');
+      if (fresh && cleanText(state.receiptReview?.receipt?.id) === receiptId && !open?.dataset.dirty) {
+        state.receiptReview = { ...state.receiptReview, receipt:fresh };
+        renderModal({ force:true });
+        rootNode()?.querySelector('[data-money-receipt-move="1"],[data-money-receipt-close]')?.focus?.({ preventScroll:true });
+      }
     } catch (error) {
       if (!operationIsCurrent()) return;
       showToast(error?.message || 'Could not apply this receipt.', (globalThis.PlatformLanguage?.text("money","m_7e784f9b5540ab","error") ?? "error"));
@@ -2962,10 +3137,15 @@
   // Escape closes the topmost Money layer only. It runs from window capture, ahead of the project window's own
   // Escape (which would close the whole window), and stops there when it closed something.
   function onKeydown(event){
-    if (event.key !== 'Escape' || event.defaultPrevented || !state.active) return;
+    if (event.defaultPrevented || !state.active) return;
+    if (receiptArrowKey(event)) {
+      event.preventDefault();
+      moveReceipt(event.key === 'ArrowLeft' ? -1 : 1);
+      return;
+    }
+    if (event.key !== 'Escape') return;
     const layer = rootNode()?.querySelector('[data-money-modal-layer]');
     const handled = () => { event.preventDefault(); event.stopImmediatePropagation(); };
-    if (state.receiptViewer) { handled(); state.receiptViewer.close?.(); return; }
     if (!layer?.firstElementChild) return;
     // An open select list (GP-107) closes itself on this Escape.
     if (layer.querySelector('.fm-select-list-trigger[aria-expanded="true"]')) return;
@@ -2973,7 +3153,7 @@
     const emailModal = layer.querySelector('[data-money-invoice-email-modal]');
     if (emailModal) { emailModal.remove(); return; }
     if (state.saving || state.receiptBatch) return;
-    if (state.receiptReview) { state.receiptReview = null; renderModal({ force:true }); return; }
+    if (state.receiptReview) { closeReceiptReview(); return; }
     if (state.modal?.action) { state.modal = { ...state.modal, action:'' }; renderModal({ force:true }); return; }
     closeModal();
   }
