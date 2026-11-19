@@ -16,6 +16,19 @@
   const searchResultCache = new Map();
   const enabledSearchTypes = new Set((window.FirstMateArtifactSearch?.TYPES || []).map((type) => type.id));
   let notificationTimer = null;
+  // Every portal tab polls, and over HTTP/1.1 all of a browser's tabs share six connections to the site:
+  // one read at a time, and a tab nobody is looking at asks once a minute (its chime still plays) and
+  // catches up when it is shown, so a reload elsewhere is not left waiting for a connection (GP-14).
+  const POLL_MS = 10000, HIDDEN_POLL_MS = 60000;
+  let pollInFlight = null, lastPollAt = 0;
+  function pollTopbar(){
+    if (pollInFlight || (document.hidden && Date.now() - lastPollAt < HIDDEN_POLL_MS)) return;
+    lastPollAt = Date.now();
+    pollInFlight = Promise.allSettled([
+      window.PlatformNotifications?.load(orgId(), notificationLoadOptions()),
+      loadMessagesInbox()
+    ]).finally(() => { pollInFlight = null; });
+  }
 
   function $(sel){ return document.querySelector(sel); }
   function cleanText(value){ return String(value ?? '').trim(); }
@@ -1833,11 +1846,10 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
     window.PlatformNotifications?.load(orgId(), notificationLoadOptions()).catch(() => null);
     syncMoreMenu();
     if (!notificationTimer) {
-      notificationTimer = setInterval(() => {
-        window.PlatformNotifications?.load(orgId(), notificationLoadOptions()).catch(() => null);
-        loadMessagesInbox().catch(() => null);
-        syncMoreMenu();
-      }, 10000);
+      notificationTimer = setInterval(() => { pollTopbar(); syncMoreMenu(); }, POLL_MS);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && Date.now() - lastPollAt >= POLL_MS) pollTopbar();
+      });
     }
   }
 

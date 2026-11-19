@@ -151,6 +151,19 @@ test('new notifications do not broadcast accidentally; client presentation claim
  const claimed=await Promise.all([acknowledgeDelivery(orgId,userId,id),acknowledgeDelivery(orgId,userId,id)]);assert.equal(claimed.filter(Boolean).length,1);
 });
 
+test('a recipient\'s access is checked once per notification, not once per delivery method (GP-14)',async()=>{
+ const client=createSessionClient(),{orgId,userId}=await register(client);const {createPlatformNotification}=await import('../platform/api.js');
+ for(const id of ['poll-a','poll-b','poll-c'])await createPlatformNotification(orgId,{id,title:id,target_user_ids:[userId],delivery_methods:['toast','audio']});
+ const {notificationStore}=await import('../platform/notifications/store.js');
+ const rows=await notificationStore().prepare('SELECT d.id FROM notification_recipients r JOIN notification_deliveries d ON d.recipient_id=r.id WHERE r.organization_id=? AND r.user_id=?').all(orgId,userId);
+ assert.ok(rows.length>3,'each notification has several delivery methods');
+ const {recipientDeliveries}=await import('../platform/notifications/delivery.js');const {backgroundAuthContext}=await import('../platform/auth.js');const {effectiveRules}=await import('../platform/notifications/configuration.js');
+ const calls={auth:0,rules:0};
+ const counted=await recipientDeliveries(orgId,userId,{auth:()=>{calls.auth++;return backgroundAuthContext(orgId,userId);},rules:()=>{calls.rules++;return effectiveRules(orgId,userId);}});
+ assert.equal(counted.size,3);assert.equal(calls.auth,3,'one access check per notification');
+ assert.deepEqual(await recipientDeliveries(orgId,userId),counted,'sharing the reads returns the same deliveries');
+});
+
 test('canonical signing events retain legacy subscription compatibility without double dispatch',async()=>{
  const {matchesWorkEvent}=await import('../work/engine.js');
  const {listWorkEventDefinitions}=await import('../work/events.js');
