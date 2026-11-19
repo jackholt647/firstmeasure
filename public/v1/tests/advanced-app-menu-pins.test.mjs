@@ -144,6 +144,7 @@ test('More apps orders pinned tiles like the left column and lists the left colu
   assert.doesNotMatch(sections, /fm-sidebar-section-switch/, 'no switch control: an off section is struck through');
   assert.match(core, /\.fm-sidebar-section:not\(\.is-on\)>span\{text-decoration-color:currentColor\}/);
   assert.match(core, /\.fm-sidebar-sections\{display:grid;grid-auto-flow:column;grid-auto-columns:minmax\(0,1fr\)/, 'one row');
+  assert.match(core, /\.sidebar\.sidebar-instant-tooltips\.sidebar-compact:not\(\.sidebar-compact-expanded\) \.sidebar-mode-tabs\{display:none!important\}/, 'a thin tooltip column keeps no room for section tabs it never shows');
   assert.doesNotMatch(sections, /left_column_settings/, 'More apps offers the switches wherever it is on (the MVP platform has personal left column settings off)');
   assert.match(slice('  function renderTabs(){', '  function ensurePortalTabLoadingStyles(){'), /portalAppPill\(t\.appId\)\.kind === 'setup' \? sidebarSetupPillLabel\(\)/, 'the left column says Setup, not Setup required');
   const pins = await readFile(path.join(publicRoot, 'libraries/left-column-pins/left-column-pins.js'), 'utf8');

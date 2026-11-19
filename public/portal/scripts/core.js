@@ -4480,6 +4480,7 @@
       @media(max-width:820px){.fm-advanced-apps-column{display:none}}
       .fm-advanced-app-home{margin-right:5px;color:var(--primary-readable,var(--primary,#d93025));font-size:.9em}
       .fm-sidebar-sections{display:none}
+      .sidebar.sidebar-instant-tooltips.sidebar-compact:not(.sidebar-compact-expanded) .sidebar-mode-tabs{display:none!important}
       .fm-sidebar-section{position:relative;display:flex;align-items:center;justify-content:center;min-width:0;min-height:28px;padding:0 8px;border:0;background:transparent;color:#202124;font:inherit;font-size:12px;font-weight:950;line-height:1;cursor:pointer;transition:background .16s ease,color .16s ease}
       .fm-sidebar-section>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:line-through transparent;text-decoration-thickness:1.5px;transition:text-decoration-color .16s ease}
       .fm-sidebar-section:not(.is-on){color:#a0a6b1}
