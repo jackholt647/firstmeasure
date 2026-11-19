@@ -298,8 +298,10 @@ While the apps overlay is open, the left column's section headers (Apps, To Do,
 Channels, AI) are replaced by switches listing every section the person could
 have, on or off (Channels only once Channels is on and the person has it).
 These are the personal `left_column_*` preferences My Settings also sets,
-offered only where `platform.left_column_settings` is on; the last section on
-stays on. On desktop the overlay's top left also switches the column between
+offered wherever More apps is (`platform.left_column_settings` only gates My
+Settings); the last section on stays on. An app's views roll out of its tile on
+hover or keyboard focus, never on the focus More apps gives its first tile. The
+left column's setup pill says "Setup" (tabs keep "Setup required"). On desktop the overlay's top left also switches the column between
 Thin (`left_column_behavior: tooltip`, names as instant tooltips) and Wide
 (`forced_expanded`), personal too; a thin column has no room for the section
 switches, so they show there beside Thin and Wide. More apps keeps its pins and

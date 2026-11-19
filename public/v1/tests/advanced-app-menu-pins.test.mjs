@@ -131,7 +131,7 @@ test('the left column follows the organization order, its first app is the home 
   assert.match(render, /moveSidebarApp\(appId, Number\(button\.dataset\.sidebarAppMove\)\)/);
 });
 
-test('More apps orders pinned tiles like the left column and lists the left column sections (GP-52)', () => {
+test('More apps orders pinned tiles like the left column and lists the left column sections (GP-52)', async () => {
   const render = slice('  function renderAdvancedAppMenu(', '  function openAdvancedAppMenu(');
   assert.match(render, /\(a\.pinned && b\.pinned \? pinnedRank\(a\) - pinnedRank\(b\) : 0\)/);
   assert.match(render, /entry\.pinned && entry\.appId === homeAppId \? `<i class="fas fa-house fm-advanced-app-home"/);
@@ -141,6 +141,11 @@ test('More apps orders pinned tiles like the left column and lists the left colu
   assert.match(sections, /const offered = \(mode\) => mode\.tab && sidebarSectionAvailable\(mode\.key\)/, 'a section that is off is still listed');
   assert.match(sections, /mode\.key !== 'channels' \|\| \(window\.Portal\?\.can\?\.\('apps\.channels'\) === true && launcherAppInExperience\(\{ appId:'portal\.channels' \}\)\)/, 'Channels is offered only once this person has Channels');
   assert.match(sections, /role="switch" aria-checked=/);
+  assert.doesNotMatch(sections, /left_column_settings/, 'More apps offers the switches wherever it is on (the MVP platform has personal left column settings off)');
+  assert.match(slice('  function renderTabs(){', '  function ensurePortalTabLoadingStyles(){'), /portalAppPill\(t\.appId\)\.kind === 'setup' \? sidebarSetupPillLabel\(\)/, 'the left column says Setup, not Setup required');
+  const pins = await readFile(path.join(publicRoot, 'libraries/left-column-pins/left-column-pins.js'), 'utf8');
+  assert.match(pins, /\.fm-advanced-app-tile\.has-subviews:has\(:focus-visible\) \.fm-advanced-app-subviews\{visibility:visible/, 'the first tile\'s focus on open does not roll out its views');
+  assert.doesNotMatch(pins, /has-subviews:focus-within \.fm-advanced-app-subviews\{/);
   assert.match(sections, /const lastOn = mode\.enabled && onCount < 2;/, 'the last section on stays on');
   assert.match(sections, /window\.PlatformAPI\.preferences\.patch\(\{ \[preference\]: value \}\)/, 'a switch is the personal preference');
   assert.match(core, /\.sidebar\.sidebar-advanced-apps-open:not\(\.sidebar-manual\) \.fm-sidebar-sections/);

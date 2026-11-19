@@ -677,7 +677,7 @@
       .fm-advanced-subview-open:focus-visible{box-shadow:inset 0 0 0 2px rgba(53,56,205,.42)}
       .fm-advanced-app-tile.is-expanded .fm-advanced-app-subviews-toggle{transform:rotate(180deg);color:#344054}
       .fm-advanced-app-tile.is-expanded .fm-advanced-app-subviews,
-      .fm-advanced-app-tile.has-subviews:focus-within .fm-advanced-app-subviews{visibility:visible;opacity:1;pointer-events:auto;transform:translate(-50%,0) scale(1);transition-delay:0s}
+      .fm-advanced-app-tile.has-subviews:has(:focus-visible) .fm-advanced-app-subviews{visibility:visible;opacity:1;pointer-events:auto;transform:translate(-50%,0) scale(1);transition-delay:0s}
       .fm-advanced-app-tile.is-expanded .fm-advanced-subview,
       .fm-advanced-app-tile.has-subviews:focus-within .fm-advanced-subview{opacity:1;transform:none;transition-delay:calc(var(--i,0) * 35ms + 40ms)}
       @media(hover:hover) and (pointer:fine){

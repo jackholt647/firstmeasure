@@ -2437,6 +2437,11 @@
       : (flags?.current?.() && flags.value?.('platform', 'advanced_app_menu', false) === true);
   }
 
+  // The left column says just "Setup" where tabs say "Setup required" (GP-52): the column has no width to spare.
+  function sidebarSetupPillLabel(){
+    return globalThis.PlatformLanguage?.text("platform","m_b06faf127e1505","Setup") ?? "Setup";
+  }
+
   function portalAppPill(appId){
     const pill = window.FirstMateTabGuides?.pill?.(appId);
     if (pill) return pill;
@@ -2886,11 +2891,10 @@
       { key:'channels', tab:document.getElementById('sidebarChannelsTab'), enabled:sidebar.classList.contains('channels-tab-enabled') },
       { key:'agents', tab:document.getElementById('sidebarAgentsTab'), enabled:sidebar.classList.contains('agents-tab-enabled') }
     ];
-    const allowed = window.Portal?.appFlags?.has?.('platform', 'left_column_settings', false) === true;
     // Channels is offered once Channels is on and this person has it.
     const offered = (mode) => mode.tab && sidebarSectionAvailable(mode.key)
       && (mode.key !== 'channels' || (window.Portal?.can?.('apps.channels') === true && launcherAppInExperience({ appId:'portal.channels' })));
-    const sections = allowed && advancedAppMenuEnabled() ? modes.filter(offered) : [];
+    const sections = advancedAppMenuEnabled() ? modes.filter(offered) : [];
     if (sections.length < 2) return '';
     const onCount = sections.filter((mode) => mode.enabled).length;
     return sections.map((mode) => {
@@ -4614,7 +4618,7 @@
       item.innerHTML = `
         ${advancedAppMenuEnabled() && t.placement === 'sidebar' ? `<button type="button" class="fm-sidebar-app-pin is-pinned" data-sidebar-app-pin="${String(escapeHtml(t.appId))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform","m_db4217ef113961",`Unpin ${v1} from the sidebar`,{v1}) ?? `Unpin ${v1} from the sidebar`)(escapeHtml(title))}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_faf31575fe991d","Unpin from sidebar") ?? "Unpin from sidebar")}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>` : ''}
         <div class="ic"><i class="fas ${escapeHtml(t.icon)}"></i></div>
-        <div class="tx">${escapeHtml(title)}${portalAppPill(t.appId) ? `<span class="fm-global-app-new fm-global-app-pill--${escapeHtml(portalAppPill(t.appId).kind || 'new')}">${escapeHtml(portalAppPill(t.appId).label)}</span>` : ''}</div>
+        <div class="tx">${escapeHtml(title)}${portalAppPill(t.appId) ? `<span class="fm-global-app-new fm-global-app-pill--${escapeHtml(portalAppPill(t.appId).kind || 'new')}">${escapeHtml(portalAppPill(t.appId).kind === 'setup' ? sidebarSetupPillLabel() : portalAppPill(t.appId).label)}</span>` : ''}</div>
         ${moveControls}
       `;
       item.querySelectorAll('[data-sidebar-app-move]').forEach((button) => button.addEventListener('click', (event) => {
