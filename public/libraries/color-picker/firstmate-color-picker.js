@@ -22,7 +22,7 @@
     const rgb = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
     return rgb.map(n => Math.round((n + m) * 255));
   }
-  let active = null, panel = null, hsv = null, initial = '', recent = [], observer = null, anchor = null, identity = null;
+  let active = null, panel = null, hsv = null, initial = '', recent = [], observer = null, anchor = null, identity = null, openedBy = '';
   // Recently used colors persist per browser and fill the palette (people rarely want stock primaries).
   const RECENT_KEY = 'firstmate:recent-colors', RECENT_LIMIT = 16;
   function loadRecent() { try { const saved = JSON.parse(root.localStorage?.getItem(RECENT_KEY) || '[]'); return Array.isArray(saved) ? saved.map(normalize).filter(Boolean) : []; } catch (_) { return []; } }
@@ -67,8 +67,11 @@
   }
   function position() {
     if (!active || !panel) return;
+    // Place within what is visible: a phone keyboard shrinks the visual viewport, not the layout viewport fixed panels sit in.
+    const view = root.visualViewport, viewLeft = view ? view.offsetLeft : 0, viewTop = view ? view.offsetTop : 0, viewWidth = view ? view.width : innerWidth, viewHeight = view ? view.height : innerHeight;
+    if (view) panel.style.maxHeight = Math.max(0, viewHeight - 20) + 'px';
     const rect = active.getBoundingClientRect(), height = panel.offsetHeight;
-    const left = Math.max(10, Math.min(rect.left, innerWidth - panel.offsetWidth - 10)), top = Math.max(10, Math.min(rect.bottom + 6, innerHeight - height - 10));
+    const left = Math.max(viewLeft + 10, Math.min(rect.left, viewLeft + viewWidth - panel.offsetWidth - 10)), top = Math.max(viewTop + 10, Math.min(rect.bottom + 6, viewTop + viewHeight - height - 10));
     panel.style.left = left + 'px'; panel.style.top = top + 'px';
     // Inside a transformed dialog, fixed is relative to the dialog: correct by where the panel actually landed.
     const placed = panel.getBoundingClientRect();
@@ -156,7 +159,10 @@
     plane.addEventListener('keydown', event => { const step = event.shiftKey ? .1 : .01; if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) return; event.preventDefault(); hsv.s = clamp(hsv.s + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0)); hsv.v = clamp(hsv.v + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0)); choose(rgbToHex(hsvToRgb(hsv)), true); });
     // A modal dialog sits in the top layer and makes the rest of the page inert, so the panel opens inside the dialog that holds the field.
     let modal = null; try { modal = input.closest('dialog:modal'); } catch (_) {}
-    (modal || document.body).appendChild(panel); sync(); position(); panel.querySelector('[data-hex]').focus({ preventScroll: true });
+    (modal || document.body).appendChild(panel); sync(); position();
+    // Opened by a finger: focusing the hex field would raise the phone keyboard over the panel, so focus the plane.
+    const touch = openedBy ? openedBy !== 'mouse' : !!root.matchMedia?.('(pointer: coarse)').matches;
+    panel.querySelector(touch ? '.fm-color-plane' : '[data-hex]').focus({ preventScroll: true });
   }
   function colorTarget(target) {
     if (target?.matches?.('input[type="color"]')) return target;
@@ -167,11 +173,11 @@
     refresh();
     // Dismiss where a gesture starts, not where its synthesized click ends.
     // Dragging and consumer rerenders can retarget the final click outside the panel.
-    document.addEventListener('pointerdown', event => { if (panel && !panel.contains(event.target) && event.target !== active) close(false); }, true);
+    document.addEventListener('pointerdown', event => { openedBy = event.pointerType || ''; if (panel && !panel.contains(event.target) && event.target !== active) close(false); }, true);
     document.addEventListener('click', event => { if (panel?.contains(event.target)) return; const input = colorTarget(event.target); if (input) { event.preventDefault(); event.stopPropagation(); open(input); } }, true);
     document.addEventListener('keydown', event => {
       const input = colorTarget(event.target);
-      if (input && ['Enter', ' '].includes(event.key)) { event.preventDefault(); event.stopPropagation(); open(input); }
+      if (input && ['Enter', ' '].includes(event.key)) { openedBy = ''; event.preventDefault(); event.stopPropagation(); open(input); }
       if (!panel) return;
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
       else if (event.key === 'Tab' && panel.contains(document.activeElement)) {
@@ -182,6 +188,8 @@
     }, true);
     root.addEventListener('resize', position);
     root.addEventListener('scroll', position, true);
+    root.visualViewport?.addEventListener('resize', position);
+    root.visualViewport?.addEventListener('scroll', position);
     observer = new MutationObserver(records => { for (const record of records) for (const node of record.addedNodes) refresh(node); });
     observer.observe(document.documentElement, { childList: true, subtree: true });
   }

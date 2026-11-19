@@ -154,3 +154,38 @@ test('dragging across the color plane commits once on release, so in-between sha
     assert.equal(recent.length, 1, 'only the final shade becomes a recent color');
   } finally { await browser.close(); }
 });
+
+test('on a phone the picker opens without raising the keyboard and stays inside the visible area when the keyboard opens', async () => {
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+  try {
+    const context = await browser.newContext({ viewport: { width: 412, height: 860 }, hasTouch: true });
+    const page = await context.newPage();
+    await page.setContent('<main><input id="text" value="site"><div style="height:560px"></div><input id="color" type="color" value="#123456"></main>');
+    // Headless Chrome has no phone keyboard: stand in a visual viewport the test can shrink and pan like one.
+    await page.evaluate(() => {
+      const view = Object.assign(new EventTarget(), { offsetLeft: 0, offsetTop: 0, width: 412, height: 860, scale: 1 });
+      Object.defineProperty(window, 'visualViewport', { configurable: true, get: () => view });
+    });
+    await page.addScriptTag({ content: await readFile(new URL('../../libraries/color-picker/firstmate-color-picker.js', import.meta.url), 'utf8') });
+    await page.locator('#color').tap();
+    assert.equal(await page.getByRole('dialog', { name: 'Choose color' }).count(), 1);
+    assert.deepEqual(await page.evaluate(() => [document.activeElement.tagName, document.activeElement.className]), ['DIV', 'fm-color-plane'], 'a tap must not focus a text field (the phone keyboard would cover the panel)');
+    const inside = async (top, bottom) => {
+      const box = await page.getByRole('dialog').boundingBox();
+      assert.ok(box.y >= top + 10 - .5 && box.y + box.height <= bottom - 10 + .5, `panel ${box.y}..${box.y + box.height} inside ${top}..${bottom}`);
+    };
+    await inside(0, 860);
+    // Keyboard up: the visible area shrinks to 380px, then the browser pans it down to reveal a field.
+    for (const [offsetTop, height] of [[0, 380], [240, 380]]) {
+      await page.evaluate(([offsetTop, height]) => { Object.assign(window.visualViewport, { offsetTop, height }); window.visualViewport.dispatchEvent(new Event('resize')); }, [offsetTop, height]);
+      await inside(offsetTop, offsetTop + height);
+    }
+    // Typing a hex value still works once the person taps the field.
+    await page.locator('[data-hex]').tap(); await page.locator('[data-hex]').fill('#aabbcc');
+    assert.equal(await page.locator('#color').inputValue(), '#aabbcc');
+    // A mouse or keyboard open still focuses the hex field for typing.
+    await page.keyboard.press('Escape');
+    await page.locator('#color').click();
+    assert.equal(await page.evaluate(() => document.activeElement.matches('[data-hex]')), true);
+  } finally { await browser.close(); }
+});
