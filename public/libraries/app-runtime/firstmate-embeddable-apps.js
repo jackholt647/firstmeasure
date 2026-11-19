@@ -884,6 +884,11 @@
     return preparingApps.get(appId);
   }
 
+  /** Whether a root already shows a loading message of its own: a status the host or the app's panelHtml drew. */
+  function ownLoadingState(rootEl){
+    return [...rootEl.querySelectorAll('[role="status"]')].some(node=>!node.matches('.fm-opening-status') && !node.closest('[hidden]') && !!node.textContent.trim());
+  }
+
   async function mount(target, appId, options = {}){
     const id = cleanText(appId);
     const roots = normalizeRoots(target);
@@ -897,6 +902,10 @@
     const opening=root.FirstMateWindows?.opening;
     const connectedAtStart=!!rootEl.isConnected;
     const loading=connectedAtStart?opening?.begin(rootEl):null;
+    // A tab whose placeholder already says it is loading (Finance's "Loading Finance…", a portal tab's loader) keeps
+    // that one message: the opening's own "Loading…" stays hidden unless the mount fails (GP-9).
+    const openingStatus=loading&&ownLoadingState(rootEl)?rootEl.querySelector(':scope > .fm-opening-status:last-child'):null;
+    if(openingStatus)openingStatus.style.display='none';
     const abort=new AbortController();
     const request={cancel(){abort.abort();loading?.cancel();}};
     mounting.set(rootEl,request);
@@ -1001,6 +1010,7 @@
     return wrapped;
     }catch(error){
       if(!isCurrent())return null;
+      openingStatus?.style.removeProperty('display');
       loading?.fail({retry:()=>{void mount(target,appId,options).catch(noop);}});
       throw error;
     }finally{
