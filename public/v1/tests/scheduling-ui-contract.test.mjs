@@ -518,9 +518,10 @@ test('production delivery children are collapsed behind a count by default in ev
 test('Production Routing opens the selected crew settings inside a route-neutral modal', () => {
   const crewSettingsOpener = schedulingSource.match(/function openScheduleWorkResourceSettings\(resource = \{\}\)\{([\s\S]*?)\n  \}\n  function assignmentResourcesForEvent/);
   assert.ok(crewSettingsOpener, 'crew settings modal opener should be present');
-  assert.match(crewSettingsOpener[1], /runtime\.mount\(host, 'portal\.company_settings'/);
+  // The crew window and the Scheduling settings window (GP-91) share one embedded Settings opener.
+  assert.match(crewSettingsOpener[1], /function openEmbeddedSettingsModal\([\s\S]*?runtime\.mount\(host, 'portal\.company_settings'/);
   assert.match(crewSettingsOpener[1], /params:\{ embedded:true, settingsTab:'crews', settingsView, settingsEntity:resourceId \}/);
-  assert.match(crewSettingsOpener[1], /id:'schedule-crew-settings'/);
+  assert.match(crewSettingsOpener[1], /modalId:'schedule-crew-settings'/);
   assert.doesNotMatch(crewSettingsOpener[1], /fm:open-crew-settings|navigation\.(?:push|navigate|write)|activateTab/);
   assert.match(companySettingsSource, /const embeddedSettings = context\?\.params\?\.embedded === true/);
   assert.match(companySettingsSource, /if \(embeddedSettings\) return \{ \.\.\.embeddedRoute \};/);
@@ -1396,4 +1397,41 @@ test('department chips show only real departments, and No department only when i
   // With no chips nothing is filtered out (nothing could turn it back on), and the phone has no empty Show menu.
   assert.match(schedulingSource, /function departmentVisible\(id\)\{if\(!departmentFiltersOffered\(\)\)return true;/);
   assert.match(schedulingSource, /\$\{departmentChips \? `<span class="dash-mobile-menu-wrap">/);
+});
+
+test('the event editor offers the organization\'s appointment types, and the gear opens Scheduling settings in the app (GP-91)', () => {
+  const fn = (name) => {
+    const match = schedulingSource.match(new RegExp(`function ${name}\\([^)]*\\)\\{[\\s\\S]*?\\n  \\}`));
+    assert.ok(match, `${name} should be present`);
+    return match[0];
+  };
+  const context = { clean:(value) => String(value ?? '').trim() };
+  vm.runInNewContext(`${fn('appointmentTypeEventTypeId')}\n${fn('appointmentTypeButtonLabel')}\nthis.kind = appointmentTypeEventTypeId; this.label = appointmentTypeButtonLabel;`, context);
+  // Each type keeps a built-in kind, so the editor offers the right people and the calendar files it under the right chip.
+  assert.equal(context.kind({ configuration:{ event_type_id:'sales_appointment', department_ids:['production'] } }), 'sales_appointment');
+  assert.equal(context.kind({ configuration:{ delivery:true, department_ids:['production'] } }), 'delivery');
+  assert.equal(context.kind({ configuration:{ department_ids:['sales'] } }), 'sales_appointment');
+  assert.equal(context.kind({ configuration:{ department_ids:['production'] } }), 'project_work');
+  assert.equal(context.kind({ configuration:{ department_ids:[], requirements:[{ subject_type:'resource_group' }] } }), 'project_work');
+  assert.equal(context.kind({ configuration:{ department_ids:[] } }), 'appointment');
+  assert.equal(context.label({ label:'Sales appointment' }), 'Sales');
+  assert.equal(context.label({ label:'Repair appointments' }), 'Repair');
+  assert.equal(context.label({ label:'Material delivery' }), 'Material delivery');
+  // The types are the catalog's presets (what the appointment setup and Settings write), not a fixed list.
+  assert.match(fn('loadAppointmentTypes'), /PlatformAPI\.appointments\.catalog\(org\)/);
+  const editor = fn('renderEventDraftPopover');
+  assert.match(editor, /const typesOffered = appointmentTypes\(\);/);
+  assert.match(editor, /data-event-appointment-type="\$\{escapeHtml\(preset\.id\)\}"/);
+  assert.match(editor, /appointment_preset_id: preset\.id,/);
+  // The built-in Sales / Work / Delivery buttons are only the fallback when the types cannot be read.
+  assert.match(editor, /typesOffered\.length\s*\?[\s\S]*?:\s*`\$\{typeButton\('sales_appointment', 'Sales'\)\}/);
+  // The gear sits in the toolbar and opens Settings › Scheduling embedded; closing it reloads the types.
+  const toolbar = schedulingSource.match(/function toolbarHtml\(\)\{([\s\S]*?)function openDayModal/);
+  assert.ok(toolbar, 'toolbarHtml should be present');
+  assert.match(toolbar[1], /data-schedule-settings/);
+  assert.match(toolbar[1], /\$\{settingsButton\}\s*<\/div>\s*<\/div>/);
+  const open = fn('openSchedulingSettings');
+  assert.match(open, /params:\{ embedded:true, settingsTab:'scheduling' \}/);
+  assert.match(open, /onClose:\(\) => \{ void loadAppointmentTypes\(true\); \}/);
+  assert.match(companySettingsSource, /FirstMateAppointmentSettings\.mount\(presetHost, orgId\)/);
 });
