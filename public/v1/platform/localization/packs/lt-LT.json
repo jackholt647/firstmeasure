@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Nepavyko įkelti atsiskaitymo duomenų. Bandykite dar kartą.",
-    "full_exterior": "Visa išorė"
+    "full_exterior": "Visa išorė",
+    "stripe_receipt_credits_currency": {
+      "message": "Į jūsų FirstMate likutį įskaityta: {amount}. Stogo ataskaitos apmokamos iš šio likučio; daugiau mokesčio nebus nuskaityta, kol nepapildysite likučio.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "Į jūsų FirstMate likutį įskaityta kreditų: {amount}. Stogo ataskaitos apmokamos iš šio likučio; daugiau mokesčio nebus nuskaityta, kol nepapildysite likučio.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Stogo matavimų kreditai",
+    "stripe_line_credits_bonus": "Stogo matavimų kreditai su ribotos trukmės premija",
+    "stripe_line_added": {
+      "message": "Į jūsų FirstMate paskyrą įskaityta: {amount}",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "Nupirkta {paid} + ribotos trukmės premija {bonus} ({percent} % premija) = į jūsų paskyrą įskaityta {total}",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. Su PVM.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "Visi",

@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Impossible de charger les informations de facturation. Veuillez réessayer.",
-    "full_exterior": "Extérieur complet"
+    "full_exterior": "Extérieur complet",
+    "stripe_receipt_credits_currency": {
+      "message": "{amount} de crédit ajoutés à votre solde FirstMate. Les rapports de toiture sont déduits de ce solde ; vous ne serez pas débité à nouveau avant votre prochaine recharge.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "{amount} crédits ajoutés à votre solde FirstMate. Les rapports de toiture sont déduits de ce solde ; vous ne serez pas débité à nouveau avant votre prochaine recharge.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Crédits de métré de toiture",
+    "stripe_line_credits_bonus": "Crédits de métré de toiture avec bonus à durée limitée",
+    "stripe_line_added": {
+      "message": "{amount} ajoutés à votre compte FirstMate",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "{paid} achetés + {bonus} de bonus à durée limitée (bonus de {percent} %) = {total} ajoutés à votre compte",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. TVA incluse.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "Tout",

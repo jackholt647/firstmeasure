@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Nepodařilo se načíst fakturaci. Zkuste to prosím znovu.",
-    "full_exterior": "Celý exteriér"
+    "full_exterior": "Celý exteriér",
+    "stripe_receipt_credits_currency": {
+      "message": "Na váš zůstatek FirstMate byl připsán kredit: {amount}. Střešní reporty se hradí z tohoto zůstatku; další platba vám bude stržena až při dobití.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "Na váš zůstatek FirstMate byly připsány kredity: {amount}. Střešní reporty se hradí z tohoto zůstatku; další platba vám bude stržena až při dobití.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Kredit na zaměření střech",
+    "stripe_line_credits_bonus": "Kredit na zaměření střech s časově omezeným bonusem",
+    "stripe_line_added": {
+      "message": "Připsáno na váš účet FirstMate: {amount}",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "Zakoupeno {paid} + časově omezený bonus {bonus} (bonus {percent} %) = na váš účet připsáno {total}",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. Včetně DPH.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "Vše",

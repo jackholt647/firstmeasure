@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Factuurgegevens laden is mislukt. Probeer het opnieuw.",
-    "full_exterior": "Volledige buitenkant"
+    "full_exterior": "Volledige buitenkant",
+    "stripe_receipt_credits_currency": {
+      "message": "{amount} aan tegoed toegevoegd aan uw FirstMate-saldo. Dakrapporten worden van dit saldo afgeschreven; u betaalt pas weer als u opwaardeert.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "{amount} credits toegevoegd aan uw FirstMate-saldo. Dakrapporten worden van dit saldo afgeschreven; u betaalt pas weer als u opwaardeert.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Tegoed voor dakmetingen",
+    "stripe_line_credits_bonus": "Tegoed voor dakmetingen met tijdelijke bonus",
+    "stripe_line_added": {
+      "message": "{amount} toegevoegd aan uw FirstMate-account",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "{paid} gekocht + {bonus} tijdelijke bonus ({percent}% bonus) = {total} toegevoegd aan uw account",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. Inclusief btw.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "Alles",
