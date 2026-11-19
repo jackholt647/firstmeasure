@@ -54,7 +54,8 @@ async function mountSendDialog(t: any, preview: Record<string, unknown>, documen
     ${guides}
     const objectValue=v=>v&&typeof v==='object'?v:{}; const arrayValue=v=>Array.isArray(v)?v:[];
     const cleanText=v=>String(v??'').trim(); const firstText=(...v)=>v.map(cleanText).find(Boolean)||'';
-    const esc=v=>String(v??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    // Trims, like the portal's escapeHtml (it cleans the text): the email preview must not lose its spaces to it.
+    const esc=v=>String(v??'').trim().replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     const projectContacts=()=>[{name:'Customer',email:'customer@example.test',role:'customer'}];
     const orgId=()=> 'org'; const state={}; const loadDocs=()=>{}; const errorMessage=e=>e.message;
     const showToast=(title,message)=>{window.lastError=message;}; const renderSendSuccess=()=>{window.sent=true;};
@@ -96,7 +97,7 @@ test("send dialog previews the email as it will be sent: from the company's addr
   assert.match(await mail.locator('.fmdx-send-mail-head').innerText(), /acme@firstmatemail\.com/);
   assert.match(await mail.locator('.fmdx-send-mail-head').innerText(), /customer@example\.test/);
   assert.equal(await mail.locator('.fmdx-send-subject').innerText(),'Proposal: Smith roof');
-  assert.match(await mail.locator('.fmdx-send-mail-body').innerText(), /^Hi Customer,\s+Your proposal is ready to review\.\s+Review and respond here: their own link/);
+  assert.equal(await mail.locator('.fmdx-send-mail-body').textContent(), 'Hi Customer,\n\nYour proposal is ready to review.\n\nReview and respond here: their own link to view it online');
   await page.locator('[data-send-message]').fill('Thanks for meeting with us today.');
   assert.match(await mail.locator('.fmdx-send-mail-body').innerText(), /Thanks for meeting with us today\./);
   assert.equal(await mail.locator('.fmdx-send-attach').innerText(),'Smith roof.pdf');

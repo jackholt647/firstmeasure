@@ -6012,12 +6012,14 @@
         const withLink = $('[data-send-portal]')?.checked !== false;
         const withPdf = $('[data-send-pdf]')?.checked !== false;
         const template = cleanText(preview.text) ? String(preview.text) : 'Hi {name},\n\n{message}\n\nReview and respond here: {link}';
+        // The body keeps its spaces and line breaks: esc() trims (the runtime's escapeHtml cleans the text).
+        const raw = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         // The server's own words, with the recipient's name, the note and their link put in; without the link, no link line.
         const body = template.split('\n').filter((line) => withLink || !line.includes('{link}')).join('\n').replace(/\n{3,}/g, '\n\n').trim()
           .split(/(\{name\}|\{message\}|\{link\})/).map((part) => part === '{name}' ? esc(first ? first.name : 'there')
-            : part === '{message}' ? (message ? esc(message) : `<span class="fmdx-send-default">${esc(firstText(preview.default_message, 'Your document is ready to review.'))}</span>`)
+            : part === '{message}' ? (message ? raw(message) : `<span class="fmdx-send-default">${esc(firstText(preview.default_message, 'Your document is ready to review.'))}</span>`)
               : part === '{link}' ? `<span class="fmdx-send-link">${esc(signerRoles.length ? 'their own link to read, sign and pay' : 'their own link to view it online')}</span>`
-                : esc(part)).join('');
+                : raw(part)).join('');
         const sender = `<span>${from.address ? `${esc(from.name || from.address)} <span class="fmdx-send-addr">&lt;${esc(from.address)}&gt;</span>` : `${esc(firstText(from.name, 'Your company'))} <span class="fmdx-send-addr">${esc('· FirstMate Mail')}</span>`}</span>`;
         const to = people.length
           ? people.map((person) => `<span class="fmdx-send-to">${esc(person.name)}${person.name !== person.email ? ` <span class="fmdx-send-addr">&lt;${esc(person.email)}&gt;</span>` : ''}${person.signs ? ` <em>${esc('signs')}</em>` : ''}</span>`).join('')
