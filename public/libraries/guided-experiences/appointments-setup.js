@@ -12,7 +12,9 @@
 // before scheduling, where it can play. A company with no sales appointments sees no sales/production badges.
 // GP-137: the texting offer lists the texts waiting on it, and the setup's intro leads only the first page.
 // GP-136: nobody going is an answer too (a delivery dropped off): the last one picked can be taken off.
-import { commsAction, setUpTexting, textingReady } from './texting-setup.js?v=20261116-fm515';
+// GP-138: the offer is the business phone (texts and calls, one registration), and its registration is more pages of
+// this step: Back on its first page returns to the offer, and the phone's back walks its pages first.
+import { commsAction, setUpTexting, textingReady } from './texting-setup.js?v=20261120-gp138';
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
@@ -95,7 +97,7 @@ export function mount(el, ctx){
   const { esc } = ctx;
   const L = (key, fallback, values) => { let text = ctx.L(key, fallback); for (const [name, value] of Object.entries(values || {})) text = text.split(`{${name}}`).join(String(value)); return text; };
   const orgId = String(window.__APP?.userOrgId || window.Portal?.currentUser?.orgId || ctx.orgId || '');
-  let alive = true, busy = false, page = 0, kinds = [], every = [], labels = {}, categories = {}, comms = null, textingOffered = false, noSales = false;
+  let alive = true, busy = false, page = 0, kinds = [], every = [], labels = {}, categories = {}, comms = null, textingOffered = false, noSales = false, registration = null;
   // Crews and subcontractors are named by the terminology system ("crew" is not a platform word).
   const word = (path, fallback) => clean(window.PlatformTerminology?.get?.(path, fallback) || window.Portal?.terminology?.get?.(path, fallback)) || fallback;
   const crewsWord = word('workforce.resource_group_plural', 'Crews'), subsWord = word('workforce.organization_connection_plural', 'Subcontractors');
@@ -115,7 +117,7 @@ export function mount(el, ctx){
   function go(to){ page = Math.max(0, Math.min(to, pages().length - 1)); draw(); ctx.syncBack?.(); el.closest('.gxs-step')?.scrollTo?.({ top: 0 }); }
   // Back on the first page leaves this step for the one before it (the kinds of appointments), as the sheet's Back would.
   const canLeaveBack = () => ctx.canBack?.() === true;
-  function back(){ if (busy) return true; if (page > 0) { go(page - 1); return true; } return false; }
+  function back(){ if (registration) return registration.back(); if (busy) return true; if (page > 0) { go(page - 1); return true; } return false; }
   const texts = (kind) => kind.reminder && kind.on_my_way ? L('gx_appt_done_texts_both', 'Reminder and on-my-way texts') : kind.reminder ? L('gx_appt_done_texts_reminder', 'Reminder text') : kind.on_my_way ? L('gx_appt_done_texts_way', 'On-my-way text') : L('gx_appt_done_texts_none', 'No texts');
   const category = (id) => noSales ? '' : `<span class="gxa-cat" data-category="${esc(id)}">${esc(categories[id] || id)}</span>`;
   const who = (id) => id === 'crews' ? crewsWord : id === 'subcontractors' ? subsWord : labels[id] || id;
@@ -172,10 +174,10 @@ export function mount(el, ctx){
   }
 
   function drawTexting(){
-    title(L('gx_appt_texting_title', 'Set up texting'));
+    title(L('gx_appt_phone_title', 'Set up your business phone'));
     el.innerHTML = `<div class="gxa">
-      <p>${esc(L('gx_appt_texting_lead', 'To text your customers, FirstMate needs your business number, registered with the carriers. It takes a few minutes, or do it later in Settings.'))}</p>
-      <div class="gxa-rows"><div class="gxa-row">${icon('fa-comment-sms')}<div><strong>${esc(L('gx_appt_texting_row', 'Texts from your business number'))}</strong><small>${esc(L('gx_appt_texting_row_hint', 'Replies come back to the customer’s project.'))}</small></div></div></div>
+      <p>${esc(L('gx_appt_phone_lead', 'To text your customers, FirstMate needs a business number registered with the carriers. The same number makes and takes calls. It takes a few minutes, or do it later in Settings › Phone.'))}</p>
+      <div class="gxa-rows"><div class="gxa-row">${icon('fa-phone')}<div><strong>${esc(L('gx_appt_phone_row', 'Texts and calls from your business number'))}</strong><small>${esc(L('gx_appt_texting_row_hint', 'Replies come back to the customer’s project.'))}</small></div></div></div>
       <div class="gxa-q"><span class="gxa-label">${esc(L('gx_appt_texts_label', 'Texts to the customer'))}</span>
         <div class="gxa-texts">${kinds.filter((kind) => kind.reminder || kind.on_my_way).map((kind) => `<div class="gxa-text"><strong>${esc(kind.label)}</strong><small>${esc(texts(kind))}</small></div>`).join('')}</div>
       </div>
@@ -184,7 +186,7 @@ export function mount(el, ctx){
         <button type="button" class="gxa-btn" data-gxa-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>
         <span class="gxa-spacer"></span>
         <button type="button" class="gxa-btn" data-gxa-skip>${esc(L('gx_appt_texting_skip', 'Skip for now'))}</button>
-        <button type="button" class="gxa-btn primary" data-gxa-texting>${esc(L('gx_appt_texting_start', 'Set up texting'))}</button>
+        <button type="button" class="gxa-btn primary" data-gxa-texting>${esc(L('gx_appt_phone_start', 'Set up phone'))}</button>
       </div>
     </div>`;
     el.querySelector('[data-gxa-back]').addEventListener('click', () => go(page - 1));
@@ -194,11 +196,16 @@ export function mount(el, ctx){
   async function startTexting(button){
     if (busy) return; busy = true; button.disabled = true;
     try {
-      await setUpTexting({ orgId, status: comms || {}, sheet: el.closest('.gxs'), alive: () => alive,
+      const { left } = await setUpTexting({ orgId, status: comms || {}, host: el, setTitle: title, alive: () => alive,
+        onStep: () => { ctx.syncBack?.(); el.closest('.gxs-step')?.scrollTo?.({ top: 0 }); },
         onStatus: (value) => { comms = value; },
-        onRegistering: (on) => { if (on) { title(L('gx_comms_registering_title', 'Register your business')); el.innerHTML = `<div class="gxa"><div class="gxa-busy" role="status"><span class="gxs-spin" aria-hidden="true"></span><span>${esc(L('gx_comms_registering', 'Registering your business with the carriers…'))}</span></div>${errorLine}</div>`; } } });
-      if (alive) go(pages().indexOf('done'));
-    } catch (error) { if (alive) { draw(); fail(error); } }
+        onRegistering: (handle) => {
+          registration = handle || null;
+          if (!handle && alive) { title(L('gx_comms_registering_title', 'Register your business')); el.innerHTML = `<div class="gxa"><div class="gxa-busy" role="status"><span class="gxs-spin" aria-hidden="true"></span><span>${esc(L('gx_comms_registering', 'Registering your business with the carriers…'))}</span></div>${errorLine}</div>`; }
+        } });
+      // Back out of registration's first page is back on the offer; anything else goes on to the finish.
+      if (alive) { if (left === 'back') { draw(); ctx.syncBack?.(); } else go(pages().indexOf('done')); }
+    } catch (error) { registration = null; if (alive) { draw(); fail(error); } }
     finally { busy = false; if (button.isConnected) button.disabled = false; }
   }
 
@@ -207,7 +214,7 @@ export function mount(el, ctx){
     const goes = (kind) => !kind.attendees.length ? L('gx_appt_done_nobody', 'Nobody goes') : kind.attendees.map(who).map((text, at) => at ? text.charAt(0).toLowerCase() + text.slice(1) : text).join(L('gx_appt_done_or', ' or '));
     // Before scheduling, an optional detour: set up who does the work, when any kind sends crews or subcontractors.
     const offerTeams = workforceSetup() && kinds.some((kind) => kind.attendees.includes('crews') || kind.attendees.includes('subcontractors') || kind.attendees.includes('technician'));
-    const textingNote = wantsTexts() && textingOffered && !textingReady(comms) ? `<p>${esc(L('gx_appt_done_texting_later', 'Texts start once texting is set up in Settings › Phone.'))}</p>` : '';
+    const textingNote = wantsTexts() && textingOffered && !textingReady(comms) ? `<p>${esc(L('gx_appt_done_phone_later', 'Texts start once your business phone is set up in Settings › Phone.'))}</p>` : '';
     el.innerHTML = `<div class="gxa">
       <div class="gxa-rows">${kinds.map((kind) => `<div class="gxa-row" data-gxa-type="${esc(kind.id)}">${icon('fa-calendar-check')}<div><strong>${esc(kind.label)} ${category(kind.category)}</strong><small>${esc(goes(kind))} · ${esc(texts(kind))}</small></div></div>`).join('')}</div>
       ${textingNote}
@@ -266,6 +273,6 @@ export function mount(el, ctx){
     if (!kinds.length) { el.innerHTML = `<div class="gxa"><p class="gxa-error" role="alert">${esc(L('gx_appt_no_kinds', 'Choose the kinds of appointments you schedule first. Close the setup and try again.'))}</p></div>`; return; }
     report(); draw();
   }).catch((error) => { if (alive) { el.innerHTML = `<div class="gxa">${errorLine}</div>`; fail(error); } });
-  return { valid: () => true, escape: () => busy, back, backDepth: () => page, destroy(){ alive = false; } };
+  return { valid: () => true, escape: () => busy && !registration, back, backDepth: () => page + (registration ? registration.depth() : 0), destroy(){ alive = false; registration?.close?.(); } };
 }
 export default mount;

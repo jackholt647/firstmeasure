@@ -41,9 +41,17 @@
  *   statusNote    string   Initial footer status text.
  *   onBeforeStep  fn(fromId, toId, ctx)  Runs before any step change (capture drafts).
  *   onStepChange  fn(toId, fromId, ctx)  Runs after any step change, before render.
+ *   container     Element  Inline (GP-138): the workflow is more steps of the page that holds it (a guided setup's
+ *                 tray) instead of a dialog over the page: drawn into `container` with no head, step rail, modal,
+ *                 route or Escape of its own, and the host names the step (`onTitle`). Back on the first step
+ *                 leaves it (closes with reason 'back') when `backOut` is set.
+ *   onTitle       fn(label, ctx)  Inline: the step on screen (its label), each time a step is drawn.
+ *   backOut       bool     Inline: Back on the first step closes the workflow (reason 'back'), back to the host.
  *
  * controller: { id, el, ctx, goTo(stepId), refresh(), close(options),
- *               setLocked(value), getState() }
+ *               setLocked(value), getState(), back() -> bool, depth() }
+ *   back()  Back one step (inline: from the first step, leaves when `backOut`); false when there was nowhere to go.
+ *   depth() How many Backs lead out of the workflow from the step on screen (the host's phone back history).
  */
 (function(){
   'use strict';
@@ -98,6 +106,18 @@
       .fm-wizard-issues{display:flex;align-items:flex-start;gap:9px;margin:0 0 16px;border:1px solid #fecdca;border-radius:10px;background:#fef3f2;padding:11px 12px;color:#912018;font-size:10px;font-weight:800;line-height:1.5}
       .fm-wizard-issues i{margin-top:2px}
       .fm-wizard-issues ul{margin:4px 0 0;padding-left:16px;display:grid;gap:3px}
+      /* Inline (GP-138): more steps of the setup tray that holds it, in its look; the tray scrolls and names the step. */
+      .fm-wizard-inline{display:flex;flex-direction:column;flex:1 0 auto;min-width:0}
+      .fm-wizard-inline .fm-wizard.fm-wizard-embedded{display:flex;flex-direction:column;flex:1 0 auto;width:auto;overflow:visible;border:0;border-radius:0;background:transparent;box-shadow:none}
+      .fm-wizard-inline[data-fm-wizard] .fm-wizard-pane{height:auto;overflow:visible;padding:0 0 4px;background:transparent}
+      .fm-wizard-inline[data-fm-wizard] .fm-wizard-foot{flex-wrap:nowrap;gap:8px;min-height:0;margin-top:auto;padding:14px 0 2px;border:0;background:transparent}
+      .fm-wizard-inline[data-fm-wizard] .fm-wizard-foot-note:empty{display:none}
+      .fm-wizard-inline[data-fm-wizard] .fm-wizard-foot-actions{flex:1 1 auto;flex-wrap:wrap;gap:8px;margin-left:0}
+      .fm-wizard-inline[data-fm-wizard] .fm-wizard-foot-actions>button{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;min-height:0;padding:0 18px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;color:#344054;box-shadow:none;font:inherit;font-size:14px;font-weight:650;cursor:pointer}
+      .fm-wizard-inline[data-fm-wizard] .fm-wizard-foot-actions>button.primary{margin-left:auto;border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff)}
+      .fm-wizard-inline[data-fm-wizard] .fm-wizard-foot-actions>button:disabled{opacity:.55;cursor:default}
+      .fm-wizard-inline[data-fm-wizard] .fm-wizard-foot-actions>button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+      @media(max-width:560px){.fm-wizard-inline[data-fm-wizard] .fm-wizard-foot-actions>button{flex:1 1 0;min-width:0;height:46px;padding:0 12px}.fm-wizard-inline[data-fm-wizard] .fm-wizard-foot-actions>button.primary{flex-grow:2}.fm-wizard-inline[data-fm-wizard] .fm-wizard-foot-actions:has(>button:nth-of-type(3))>button.primary{order:1;flex-basis:100%}}
       @media(max-width:860px){.fm-wizard-backdrop{padding:0}.fm-wizard{border-radius:0}.fm-wizard-body{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}.fm-wizard-rail{border-right:0;border-bottom:1px solid #eaecf0;padding:8px 10px}.fm-wizard-rail-foot{display:none}.fm-wizard-steps{display:flex;overflow-x:auto}.fm-wizard-step{min-width:150px;padding:8px 10px}.fm-wizard-step-status{display:none}.fm-wizard-head{height:auto;min-height:66px}.fm-wizard-foot{height:auto;min-height:62px}}
     `;
     document.head.appendChild(style);
@@ -106,7 +126,9 @@
   function open(config = {}){
     ensureCss();
     const id = clean(config.id) || 'setup-wizard';
-    const workflowKey = clean(config.workflowKey);
+    const host = config.container instanceof Element ? config.container : null;
+    const inline = !!host;
+    const workflowKey = inline ? '' : clean(config.workflowKey);
     const state = config.state && typeof config.state === 'object' ? config.state : {};
     const debounceMs = Number(config.autosave?.debounceMs) > 0 ? Number(config.autosave.debounceMs) : 900;
     let lockedOverride = null;
@@ -126,7 +148,7 @@
     };
 
     const overlay = document.createElement('div');
-    overlay.className = 'fm-wizard-backdrop';
+    overlay.className = inline ? 'fm-wizard-inline' : 'fm-wizard-backdrop';
     overlay.dataset.fmWizard = id;
 
     /* ---- autosave ---------------------------------------------------- */
@@ -311,7 +333,10 @@
       if (closed || pending) return;
       const steps = stepsList();
       const index = currentIndex();
-      if (index <= 0) return;
+      if (index <= 0) {
+        if (inline && config.backOut) await doClose({ reason:'back' });
+        return;
+      }
       if (!(await leaveStep(steps[index - 1].id))) { render(); return; }
       if (closed) return;
       applyStepChange(steps[index - 1].id);
@@ -377,7 +402,15 @@
       refresh: () => render(),
       close: (options) => doClose(options || {}),
       setLocked: (value) => { lockedOverride = value === undefined ? true : value === true; render(); },
-      getState: () => state
+      getState: () => state,
+      back: () => {
+        if (closed) return false;
+        if (pending) return true;
+        if (currentIndex() <= 0 && !(inline && config.backOut)) return false;
+        void backStep();
+        return true;
+      },
+      depth: () => closed ? 0 : currentIndex() + (inline && config.backOut ? 1 : 0)
     };
 
     /* ---- rendering --------------------------------------------------- */
@@ -410,7 +443,7 @@
       const isLast = index >= steps.length - 1;
       const rawNext = typeof step.nextLabel === 'function' ? step.nextLabel(ctx) : step.nextLabel;
       const nextLabel = clean(rawNext) || (isLast ? (clean(config.submitLabel) || 'Submit') : 'Continue');
-      const back = index > 0 ? `<button class="fm-wizard-btn" type="button" data-fm-back>${(globalThis.PlatformLanguage?.htmlText("setup-wizard","m_121372231b5699","Back") ?? "Back")}</button>` : '';
+      const back = index > 0 || (inline && config.backOut) ? `<button class="fm-wizard-btn" type="button" data-fm-back>${(globalThis.PlatformLanguage?.htmlText("setup-wizard","m_121372231b5699","Back") ?? "Back")}</button>` : '';
       const disabled = isLast && isLocked() ? 'disabled' : '';
       return `${back}<button class="fm-wizard-btn primary" type="button" data-fm-next ${disabled}>${esc(nextLabel)} <i class="fas fa-arrow-right"></i></button>`;
     }
@@ -426,7 +459,14 @@
       try { subtitle = clean(typeof config.subtitle === 'function' ? config.subtitle(ctx) : config.subtitle); } catch (error) { subtitle = ''; }
       let railNote = '';
       try { railNote = String((typeof config.railNote === 'function' ? config.railNote(ctx) : config.railNote) ?? ''); } catch (error) { railNote = ''; }
-      overlay.innerHTML = `
+      if (inline) {
+        overlay.innerHTML = `
+        <div class="fm-wizard fm-wizard-embedded" role="group" aria-label="${String(esc(config.title || (globalThis.PlatformLanguage?.text("setup-wizard","m_b06faf127e1505","Setup") ?? "Setup")))}">
+          <div class="fm-wizard-pane"><div data-fm-alerts>${String(issues.length ? `<div class="fm-wizard-issues" role="alert"><i class="fas fa-circle-exclamation"></i><div><strong>${(globalThis.PlatformLanguage?.htmlText("setup-wizard","m_db664f55e13784","Finish this step:") ?? "Finish this step:")}</strong><ul>${issues.map((issue) => `<li>${esc(issue)}</li>`).join('')}</ul></div></div>` : '')}</div><div data-fm-step-body></div></div>
+          <footer class="fm-wizard-foot"><span class="fm-wizard-foot-note" data-fm-note>${String(esc(statusText))}</span><div class="fm-wizard-foot-actions" data-fm-actions></div></footer>
+        </div>`;
+        try { config.onTitle?.(clean(step.label || step.id), ctx); } catch (error) { console.warn(`FirstMate setup wizard onTitle failed: ${id}`, error); }
+      } else overlay.innerHTML = `
         <div class="fm-wizard" role="dialog" aria-modal="true" aria-label="${String(esc(config.title || (globalThis.PlatformLanguage?.text("setup-wizard","m_b06faf127e1505","Setup") ?? "Setup")))}">
           <header class="fm-wizard-head">
             <div class="fm-wizard-title"><span class="fm-wizard-title-icon"><i class="fas ${String(esc(clean(config.icon) || 'fa-wand-magic-sparkles'))}"></i></span><div><strong>${String(esc(config.title || (globalThis.PlatformLanguage?.text("setup-wizard","m_b06faf127e1505","Setup") ?? "Setup")))}</strong>${String(subtitle ? `<span class="fm-wizard-subtitle">${esc(subtitle)}</span>` : '')}</div></div>
@@ -465,11 +505,13 @@
     }
 
     /* ---- modal + route registration ----------------------------------- */
-    document.body.appendChild(overlay);
+    (host || document.body).appendChild(overlay);
     render();
 
     let modalHandle = null;
     const registerModal = () => {
+      // Inline, the page that holds it owns Escape and closing.
+      if (inline) return;
       modalHandle = window.Portal?.modals?.register?.(overlay, {
         id,
         closeOnEscape: config.closeOnEscape !== false,
@@ -486,7 +528,7 @@
     // Standalone fallback (no Portal.modals): still honor escape + backdrop.
     let fallbackKeydown = null;
     let fallbackBackdrop = null;
-    if (!modalHandle) {
+    if (!modalHandle && !inline) {
       if (config.closeOnEscape !== false) {
         fallbackKeydown = (event) => {
           if (event.key !== 'Escape' || event.defaultPrevented) return;

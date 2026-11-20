@@ -1,7 +1,9 @@
 // The Communications setup (guided experience `comms.setup`, docs/architecture/guided-experiences.md, FM-491, FM-510).
 // One step that keeps its own pages, as few as it can: the start (texts, calls and email in a row, each explained in its
-// tooltip, and where to start), then one done page. Choosing texts and calls turns them on and goes straight into carrier
-// registration (10DLC): the same workflow as Phone Settings (settings/sms-registration.js), simulated on development.
+// tooltip, and where to start), then one done page. Choosing the business phone (texts and calls, one registration, GP-138)
+// turns them on and goes straight into carrier registration (10DLC): the same workflow as Phone Settings
+// (settings/sms-registration.js), simulated on development, as more pages of this step: Back on its first page returns
+// to the page it was started from, and the phone's back walks its pages first.
 // Choosing email asks how it starts (FM-513, FM-590): FirstMate Mail, on at once (the default), the company's own domain,
 // or one bought through FirstMate (the Domains workflow, settings/domains.js, full screen like registration). The done page says where each
 // channel stands and offers the other one there; the
@@ -11,7 +13,7 @@
 // Texts and calls are set up by texting-setup.js, shared with the appointment setup (FM-515), so both work the same.
 // GP-27: an entry may set up email alone (`only: 'email'`, the document Send dialog's first use): it opens on the email
 // page, offers nothing else, finishes as soon as FirstMate Mail is on, and its last button says `finish`.
-import { commsAction, isRegistered, loadScript, registrationOf, setUpTexting, syncSessions, workflowWindow } from './texting-setup.js?v=20261118-gp7';
+import { commsAction, isRegistered, loadScript, registrationOf, setUpTexting, syncSessions, workflowWindow } from './texting-setup.js?v=20261120-gp138';
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
@@ -105,7 +107,7 @@ export function mount(el, ctx){
   const first = options.first === 'email' || options.only === 'email' ? 'email' : 'phone';
   const only = options.only === 'email' ? 'email' : '';
   const finishLabel = () => text(options.finish, L('gx_comms_go', 'Go to Communications'));
-  let alive = true, busy = false, watcher = null, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, domains = null, registering = false;
+  let alive = true, busy = false, watcher = null, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, domains = null, registering = false, registration = null;
 
   const invoke = (action, input = {}) => commsAction(orgId, action, input);
   const icon = (name, more = '') => `<span class="gxc-icon${more ? ` ${more}` : ''}" aria-hidden="true"><i class="fas ${name}"></i></span>`;
@@ -141,7 +143,7 @@ export function mount(el, ctx){
     ];
     const chosen = { phone: phoneState, email: emailState };
     const choices = {
-      phone: [L('gx_comms_choice_phone_title', 'Texts and calls'), L('gx_comms_choice_phone', 'Your business number'), 'fa-comment-sms'],
+      phone: [L('gx_comms_choice_business_phone', 'Business phone'), L('gx_comms_choice_business_phone_body', 'Texts and calls on your number'), 'fa-phone'],
       email: [L('gx_comms_choice_email_title', 'Email'), L('gx_comms_choice_email', 'Your company inbox'), 'fa-envelope-open-text']
     };
     const choice = (id) => { const [name, body, iconName] = choices[id]; return `<button type="button" class="gxc-choice" data-gxc-start="${id}" ${id === first && !done[id] ? 'data-first' : ''}>${icon(iconName)}<span><strong>${esc(name)}</strong><small>${esc(!chosen[id] ? body : chosen[id][0] === 'done' ? L('gx_comms_choice_on', 'On · review') : chosen[id][2])}</small></span></button>`; };
@@ -191,9 +193,9 @@ export function mount(el, ctx){
     title(done.phone && !registered() ? L('gx_comms_done_title_register', 'Finish registering your business') : L('gx_comms_done_title', 'You’re set up'));
     const row = (rowState, markIcon, name, body, action = '', extra = '') => `<div class="gxc-row" data-state="${rowState}">${mark(markIcon)}<div><strong>${esc(name)}</strong>${body ? `<p>${esc(body)}</p>` : ''}${extra}</div>${action}</div>`;
     const button = (attr, label, primary = false) => `<button type="button" class="gxc-btn small ${primary ? 'primary' : ''}" ${attr}>${esc(label)}</button>`;
-    const phoneName = L('gx_comms_phone_name', 'Texts and calls');
+    const phoneName = L('gx_comms_business_phone_name', 'Business phone');
     const phoneRow = !done.phone
-      ? row('offer', 'fa-plus', L('gx_comms_offer_phone', 'Add texts and calls'), L('gx_comms_offer_phone_body', 'Your business number for texting and calling customers.'), button('data-gxc-phone', L('gx_comms_set_up', 'Set up'), true))
+      ? row('offer', 'fa-plus', L('gx_comms_offer_business_phone', 'Add a business phone'), L('gx_comms_offer_business_phone_body', 'One number, registered once, for texting and calling customers.'), button('data-gxc-phone', L('gx_comms_set_up', 'Set up'), true))
       : state === 'approved'
         ? row('done', 'fa-check', phoneName, number ? L('gx_comms_phone_ready_number', 'Ready on {number}.', { number }) : L('gx_comms_phone_ready', 'Ready to text and call.'))
         : state === 'submitted'
@@ -335,7 +337,7 @@ export function mount(el, ctx){
     }));
   }
 
-  function report(channel){ ctx.change({ comms_setup: ['phone', 'email'].filter((id) => object(status.done)[id]) }, channel === 'email' ? L('gx_comms_email_name', 'Email') : L('gx_comms_phone_name', 'Texts and calls')); }
+  function report(channel){ ctx.change({ comms_setup: ['phone', 'email'].filter((id) => object(status.done)[id]) }, channel === 'email' ? L('gx_comms_email_name', 'Email') : L('gx_comms_business_phone_name', 'Business phone')); }
   async function turnOn(channel){
     status = await invoke('comms.setup.start', { channel });
     report(channel);
@@ -350,26 +352,29 @@ export function mount(el, ctx){
     // Email alone: FirstMate Mail is ready at once, so there is nothing more to say here; back to what asked.
     if (alive && only && object(status.done).email) await finish();
   }
-  // Texts and calls: on at once, then straight into carrier registration. When it closes having just been submitted
-  // (GP-7), the setup goes on to what is left: email when it is not on yet, else it is finished and closes, and
-  // Communications shows texts and calls pending approval. Closed without submitting, the done page.
+  // The business phone: on at once, then straight into carrier registration, drawn here as more pages (GP-138). When it
+  // is left having just been submitted (GP-7), the setup goes on to what is left: email when it is not on yet, else it
+  // is finished and closes, and Communications shows texts and calls pending approval. Back out of its first page
+  // returns to the page it was started from; left any other way without submitting, the done page.
   async function startPhone(button){
     if (busy) return; busy = true; if (button) button.disabled = true;
-    const wasRegistered = registered();
+    const wasRegistered = registered(), from = page;
     let next = '';
     try {
-      await setUpTexting({ orgId, status, sheet: el.closest('.gxs'), alive: () => alive,
+      const result = await setUpTexting({ orgId, status, host: el, setTitle: title, alive: () => alive,
+        onStep: () => { ctx.syncBack?.(); el.closest('.gxs-step')?.scrollTo?.({ top: 0 }); },
         onStatus: (value) => { status = value; report('phone'); },
-        onRegistering: (on) => {
-          registering = on;
-          if (on) { title(L('gx_comms_registering_title', 'Register your business')); drawBusy(L('gx_comms_registering', 'Registering your business with the carriers…')); }
+        onRegistering: (handle) => {
+          registration = handle || null;
+          if (!handle && alive) { title(L('gx_comms_registering_title', 'Register your business')); drawBusy(L('gx_comms_registering', 'Registering your business with the carriers…')); }
         } });
-      next = !wasRegistered && registered() ? object(status.done).email ? 'finish' : 'email' : 'done';
+      status = result.status;
+      next = result.left === 'back' ? from : !wasRegistered && registered() ? object(status.done).email ? 'finish' : 'email' : 'done';
       if (alive && next !== 'finish') show(next);
     } catch (error) {
-      registering = false;
+      registration = null;
       if (alive) { show(object(status.done).phone ? 'done' : 'intro'); fail(error); }
-    } finally { busy = false; if (button?.isConnected) button.disabled = false; }
+    } finally { busy = false; if (button?.isConnected) button.disabled = false; ctx.syncBack?.(); }
     if (alive && next === 'finish') { show('done'); await finish(); }
   }
   async function finish(){
@@ -398,6 +403,8 @@ export function mount(el, ctx){
     if (start === 'email') show(object(status.done).email ? 'done' : 'email');
     else if (start === 'phone') void (object(status.done).phone && registered() ? show('done') : startPhone());
   }).catch((error) => { draw(); fail(error); });
-  return { valid: () => true, escape: () => registering, destroy(){ alive = false; watcher?.disconnect(); } };
+  // While registration shows, Back and the phone's back walk its pages, and its first page's Back returns here.
+  return { valid: () => true, escape: () => registering, back: () => registration?.back?.() === true, backDepth: () => registration ? registration.depth() : 0,
+    destroy(){ alive = false; watcher?.disconnect(); registration?.close?.(); } };
 }
 export default mount;
