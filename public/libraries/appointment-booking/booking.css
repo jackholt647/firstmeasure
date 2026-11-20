@@ -101,8 +101,9 @@
 .fm-booking-options .fm-ap-type[aria-pressed=true] .fm-ap-type-go{border-color:var(--fm-ap-type-color);transform:translateX(2px) rotate(45deg)}
 /* A type nobody can go to yet: Add users beside it, before its chevron (GP-144). */
 .fm-ap-type-row{position:relative;display:grid;animation:fmBkRise .34s var(--fm-bk-ease,ease) both}
-.fm-booking-options .fm-ap-type-row>.fm-ap-type{padding-right:128px;animation:none}
-.fm-ap-type-staff{position:absolute;top:50%;right:32px;transform:translateY(-50%);display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border:1px solid var(--primary,#d93025);border-radius:999px;background:#fff;color:var(--primary,#d93025);font:inherit;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer}
+.fm-booking-options .fm-ap-type-row>.fm-ap-type{animation:none}
+.fm-ap-type-row>.fm-ap-type .fm-ap-type-text{margin-right:112px}
+.fm-ap-type-staff{position:absolute;top:50%;right:40px;transform:translateY(-50%);display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border:1px solid var(--primary,#d93025);border-radius:999px;background:#fff;color:var(--primary,#d93025);font:inherit;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer}
 .fm-ap-type-staff i{font-size:11px}
 .fm-ap-type-staff:hover{background:var(--primary,#d93025);color:var(--on-primary,#fff)}
 .fm-ap-type-staff:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
