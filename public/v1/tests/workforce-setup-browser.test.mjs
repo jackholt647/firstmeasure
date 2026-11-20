@@ -266,3 +266,24 @@ test('nobody to invite, or no right to: pay is the last page and adding someone 
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
+
+// GP-143: from Scheduling's New appointment, before Operations is on. The setup starts at how many, there is no pay page
+// (pay sheets are Operations'), the naming page saves, and no pay is sent.
+test('without Operations: how many, then naming saves, with no pay page and no pay sent',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const {page,errors}=await open(browser,'crews',{width:390,status:{can:{add_people:false,invite:false,pay:false}}});
+    await page.locator('[data-gxw-page="count"]').waitFor();
+    await page.locator('[data-gxw-next]').click();
+    await page.locator('[data-gxw-page="work"]').waitFor();
+    assert.equal(await page.locator('[data-gxw-page="work"] [data-gxw-next]').textContent(),'Save');
+    await page.locator('[data-gxw-next]').click();
+    await page.locator('[data-gxw-page="done"]').waitFor();
+    const apply=await page.evaluate(()=>saved.find(entry=>entry.action==='operations.workforce.setup.apply')?.input);
+    assert.equal(apply.labor.assignees.length,1);
+    assert.equal(apply.labor.assignees[0].pay,undefined);
+    assert.match(await page.locator('[data-gxw-page="done"] .gxw-done').textContent(),/change any of it in People/);
+    assert.doesNotMatch(await page.locator('[data-gxw-page="done"] .gxw-rows').textContent(),/Pay not set/);
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});

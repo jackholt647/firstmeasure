@@ -245,7 +245,10 @@ export function appsFor(choices, chosen){
   }
   return apps;
 }
-/** What the setup sends to operations.workforce.setup.apply for the cards it shows. Someone not added yet is left out. */
+/**
+ * What the setup sends to operations.workforce.setup.apply for the cards it shows. Someone not added yet is left out, and
+ * pay too where the setup has no pay page (`extra.pay` false: Operations is off, GP-143).
+ */
 export function applyInput(rows, extra = {}){
   return {
     include_labor: true,
@@ -261,7 +264,7 @@ export function applyInput(rows, extra = {}){
         ...(members.length ? { member_user_ids: members } : {}),
         ...(lead && lead !== row.saved_lead ? { lead_user_id: lead } : {}),
         ...(apps ? { apps } : {}),
-        ...(pay && Number(pay.rate) > 0 && !row.locked && !row.sheet ? { pay: { method: pay.method, rate: Number(pay.rate), ...(pay.method === 'per_measurement' ? { measurement: pay.measurement || 'roof.squares' } : {}) } } : {})
+        ...(extra.pay !== false && pay && Number(pay.rate) > 0 && !row.locked && !row.sheet ? { pay: { method: pay.method, rate: Number(pay.rate), ...(pay.method === 'per_measurement' ? { measurement: pay.measurement || 'roof.squares' } : {}) } } : {})
       };
     }) }
   };
@@ -327,11 +330,14 @@ export function mount(el, ctx){
     const apps = [...array(choice.apps), object(choice.option).app].filter(Boolean);
     return apps.length && !apps.every((id) => array(status.apps_off).includes(id));
   });
+  // Pay sheets are Operations': without it (crews set up from Scheduling, GP-143) there is no pay page.
+  const payable = () => can().pay !== false;
   const skip = (name) => (name === 'count' && workforce === 'just_me')
+    || (name === 'pay' && !payable())
     || ((name === 'invite' || name === 'see') && (!can().invite || !invitees().length))
     || (name === 'see' && (invite !== 'yes' || !crewChoices().length));
   const nextPage = (from) => { let at = from + 1; while (at < pages.length - 1 && skip(pages[at])) at += 1; return pages[at]; };
-  function report(){ ctx.change?.({ workforce, ...applyInput(shown(), { apps: invite === 'yes' && seen ? appsFor(crewChoices(), seen) : null }) }, shown().map((row) => clean(row.name)).join(', ')); }
+  function report(){ ctx.change?.({ workforce, ...applyInput(shown(), { pay: payable(), apps: invite === 'yes' && seen ? appsFor(crewChoices(), seen) : null }) }, shown().map((row) => clean(row.name)).join(', ')); }
   function go(to){
     const step = to < page ? -1 : 1;
     let next = Math.max(0, Math.min(to, pages.length - 1));
@@ -560,13 +566,14 @@ export function mount(el, ctx){
   }
   function drawWork(focus){
     title(L('gx_wfs_work_title', 'Name each one and say what they do'));
-    const list = shown();
+    // The last page when there is no pay page (no Operations) and nobody to invite: it saves.
+    const list = shown(), last = nextPage(page) === 'done';
     const left = el.querySelector('[data-gxw-page="work"] .gxw-track')?.scrollLeft || 0;
     el.innerHTML = `<div class="gxw" data-gxw-page="work">
       <p>${esc(services().length ? L('gx_wfs_work_lead', 'Give each one a name your team uses and pick the work they do. You can add who is on a {crew_lower} now or later.', { crew_lower: crew.toLowerCase() }) : L('gx_wfs_work_lead_plain', 'Give each one a name your team uses.'))}</p>
       ${deck(list.map(workCard))}
       ${errorLine}
-      <div class="gxw-actions">${backButton()}<span class="gxw-spacer"></span>${nextButton()}</div>
+      <div class="gxw-actions">${backButton()}<span class="gxw-spacer"></span>${last ? saveButton().replace('data-gxw-apply', 'data-gxw-next') : nextButton()}</div>
     </div>`;
     const track = el.querySelector('.gxw-track'); if (track && focus !== undefined) track.scrollLeft = left;
     const rowOf = (node) => rows.find((row) => row.key === node.closest('[data-gxw-card]')?.dataset.gxwCard);
@@ -676,14 +683,14 @@ export function mount(el, ctx){
       report(); redraw(row, '[data-gxw-pick]');
     }));
     el.querySelector('[data-gxw-back]').addEventListener('click', () => go(page - 1));
-    el.querySelector('[data-gxw-next]').addEventListener('click', () => {
+    el.querySelector('[data-gxw-next]').addEventListener('click', (event) => {
       const unnamed = list.findIndex((row) => !clean(row.name));
       if (unnamed >= 0) { fail({ message: L('gx_wfs_name_required', 'Give each one a name.') }); el.querySelectorAll('[data-gxw-name]')[unnamed]?.focus(); return; }
       const names = list.map((row) => `${row.kind}:${clean(row.name).toLowerCase()}`);
       if (new Set(names).size !== names.length) { fail({ message: L('gx_wfs_name_unique', 'Give each one its own name.') }); return; }
       const idle = list.find((row) => services().length && !row.service_ids.length);
       if (idle) { fail({ message: L('gx_wfs_does_required', 'Pick at least one kind of work for {name}.', { name: clean(idle.name) }) }); return; }
-      go(page + 1);
+      if (last) apply(event.currentTarget); else go(page + 1);
     });
     wireDeck();
     if (focus) {
@@ -829,7 +836,7 @@ export function mount(el, ctx){
   }
   async function save(list){
     const target = { scope: 'organization', organizationId: orgId };
-    const response = await window.PlatformAPI.publication.invoke(orgId, 'operations.workforce.setup.apply', target, applyInput(list, { apps: invite === 'yes' && seen ? appsFor(crewChoices(), seen) : null }), { idempotencyKey: `operations.workforce.setup:${orgId}:${crypto.randomUUID()}` });
+    const response = await window.PlatformAPI.publication.invoke(orgId, 'operations.workforce.setup.apply', target, applyInput(list, { pay: payable(), apps: invite === 'yes' && seen ? appsFor(crewChoices(), seen) : null }), { idempotencyKey: `operations.workforce.setup:${orgId}:${crypto.randomUUID()}` });
     return object(response?.value ?? response?.result ?? response);
   }
   async function apply(button){
@@ -869,7 +876,7 @@ export function mount(el, ctx){
     const list = shown(), both = list.some((row) => row.kind === GROUP) && list.some((row) => row.kind === COMPANY);
     title(both ? L('gx_wfs_done_title_both', 'Your {crews_lower} and {subs_lower} are set up', { crews_lower: crews.toLowerCase(), subs_lower: subs.toLowerCase() }) : L('gx_wfs_done_title', 'Who does the work is set up'));
     el.innerHTML = `<div class="gxw" data-gxw-page="done">
-      <div class="gxw-done" role="status"><i class="fas fa-circle-check" aria-hidden="true"></i><p>${esc(L('gx_wfs_done_body', 'Work orders use their pay, and you can change any of it in Operations settings or People.'))}${invited?.sent ? ` ${esc(invited.sent === 1 ? L('gx_wfs_done_invited_one', 'We emailed 1 invite to the app.') : L('gx_wfs_done_invited', 'We emailed {n} invites to the app.', { n: invited.sent }))}` : ''}</p></div>
+      <div class="gxw-done" role="status"><i class="fas fa-circle-check" aria-hidden="true"></i><p>${esc(payable() ? L('gx_wfs_done_body', 'Work orders use their pay, and you can change any of it in Operations settings or People.') : L('gx_wfs_done_body_people', 'You can assign them to work now, and change any of it in People.'))}${invited?.sent ? ` ${esc(invited.sent === 1 ? L('gx_wfs_done_invited_one', 'We emailed 1 invite to the app.') : L('gx_wfs_done_invited', 'We emailed {n} invites to the app.', { n: invited.sent }))}` : ''}</p></div>
       ${invited?.failed?.length ? `<p class="gxw-error" role="alert">${esc(L('gx_wfs_done_invite_failed', 'These invites didn’t go out: {names}. Send them from People.', { names: invited.failed.join(', ') }))}</p>` : ''}
       <div class="gxw-rows">${list.map((row) => {
         const pay = payOf(list, row), same = row.same ? list.find((other) => other.key === row.same) : null;
@@ -877,7 +884,7 @@ export function mount(el, ctx){
         const parts = [row.service_ids.map((id) => `${serviceLabel(id)}${kinds[id] ? ` (${kinds[id].join(', ')})` : ''}`).join(', '),
           row.kind === GROUP && row.member_user_ids.length ? L('gx_wfs_done_people', '{n} on it', { n: row.member_user_ids.length }) : '',
           row.kind === GROUP && row.lead_user_id ? L('gx_wfs_done_lead', '{name} in charge', { name: personName(row.lead_user_id) }) : '',
-          row.locked ? L('gx_lab_locked', 'Paid by its own pay sheet') : row.sheet ? L('gx_wfs_done_sheet', 'Pay from their sheet') : same ? L('gx_wfs_same_as', 'Paid the same as {name}', { name: clean(same.name) }) : payText(pay) || L('gx_wfs_done_no_pay', 'Pay not set yet')].filter(Boolean);
+          !payable() ? '' : row.locked ? L('gx_lab_locked', 'Paid by its own pay sheet') : row.sheet ? L('gx_wfs_done_sheet', 'Pay from their sheet') : same ? L('gx_wfs_same_as', 'Paid the same as {name}', { name: clean(same.name) }) : payText(pay) || L('gx_wfs_done_no_pay', 'Pay not set yet')].filter(Boolean);
         return `<div class="gxw-row" data-gxw-done="${esc(row.key)}">${icon(row.kind === GROUP ? 'fa-users' : 'fa-handshake')}<div><strong>${esc(row.name)}</strong><small>${esc(parts.join(' · '))}</small></div></div>`;
       }).join('')}</div>
       ${errorLine}

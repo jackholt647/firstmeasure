@@ -200,7 +200,7 @@ test("specialties, the lead, the crew's apps and a service found under Other are
   assert.deepEqual(value.service_tags_used.roof_replacement, ["Metal roofs", "Flat roofs"]);
   // Siding was found under Other: the company does it too now.
   assert.ok(value.profile.services.some((entry: any) => entry.id === "siding"), "the company profile gained the service");
-  assert.deepEqual(value.can, { add_people: true, invite: true });
+  assert.deepEqual(value.can, { add_people: true, invite: true, pay: true });
   // The group's App experience settings, on every device each app exists on.
   const group = await (await import("../workforce/storage.js")).readResourceGroup(ORG, crewA.ref.id);
   assert.ok(Object.values((group.attributes as any).app_defaults["portal.crew_payouts"].visible).every((shown) => shown === false));
@@ -235,7 +235,7 @@ test("someone new is added to the organization from the setup, joins a crew and 
   // People's permission: someone who only sets up the company can't add or invite people.
   const settingsOnly = person("settings", { role: "member", permissions: { manage_company_settings: true, manage_projects: true }, applicationAccess: { management: { enabled: true, permissions: { manage_company_settings: true, manage_projects: true } } } });
   await assert.rejects(() => invoke(settingsOnly, "workforce.users.add", { name: "Dan", email: "dan@example.com" }, "add-dan"));
-  assert.deepEqual((await status(settingsOnly)).can, { add_people: false, invite: false });
+  assert.deepEqual((await status(settingsOnly)).can, { add_people: false, invite: false, pay: true });
 });
 
 test("the browser module sends the kinds, the lead and the apps, and leaves out someone not added yet", async () => {
@@ -262,4 +262,44 @@ test("the browser module sends the kinds, the lead and the apps, and leaves out 
   for (const service of Object.keys(options.service_tags)) assert.ok(serviceOf(service), service);
   assert.ok(module.matchService({ terms: ["gutter", "downspouts"] }, "Gutters", "downsp") > 0);
   assert.equal(module.matchService({ terms: [] }, "Gutters", "solar"), 0);
+});
+
+// GP-143: Scheduling's New appointment sets up crews before Operations is on. The setup plays with the crew app alone;
+// pay sheets are Operations', so it has no pay page there and the save leaves pay (and the work-order column) for then.
+test("crews and subcontractors are set up with the crew app alone; pay waits for Operations", async () => {
+  const service = await setup();
+  const ORG2 = "org_workforce_no_ops";
+  const off = { ...flags, "platform.materials": false };
+  const storage = await import("../platform/storage.js");
+  await storage.createOrganization({ id: ORG2, name: "No Operations yet" }).catch(() => {});
+  await enableExpandedPlatformFixture(ORG2, off);
+  const scheduler = person("owner", { orgId: ORG2, capabilities: { effectiveByKey: off } });
+  const target = { scope: "organization", organizationId: ORG2 } as const;
+  const { invokeAction } = await import("../platform/publication/actions.js"), { userPublicationContext } = await import("../platform/publication/context.js");
+  const run = async (action: string, input: Record<string, unknown>, key: string) => ((await invokeAction(userPublicationContext(scheduler, { mode: "command" }), { action, target }, input, { idempotencyKey: key })) as any).value;
+  await run("company-profile.save", { company_type: "roofing_contractor", services: ["roof_replacement", "gutters"], workforce: "crews_and_subs" }, "no-ops-profile");
+  const offered = (await service.availableExperiences(scheduler, {})).experiences.find((entry: any) => entry.id === "operations.workforce.setup");
+  assert.deepEqual(offered?.steps.map((step: any) => step.id), ["workforce"], "it plays, starting past who does the work");
+  const { readPublishedData } = await import("../platform/publication/providers.js");
+  const read = await (readPublishedData(userPublicationContext(scheduler), { provider: "workforce-setup", export: "status", target }) as any);
+  const value = read.value ?? read;
+  assert.equal(value.profile.workforce, "crews_and_subs");
+  assert.equal(value.can.pay, false, "no pay page without Operations");
+  assert.equal((await status()).can.pay, true, "with Operations, pay is asked");
+  const done = await run("operations.workforce.setup.apply", { include_labor: true, labor: { assignees: [
+    { kind: "resource_group", name: "North Crew", service_ids: ["roof_replacement"], pay: { method: "hourly", rate: 30 } },
+    { kind: "organization_connection", name: "Rain Gutters Co", service_ids: ["gutters"] }
+  ] } }, "no-ops-apply");
+  assert.deepEqual(done.assignees.map((row: any) => [row.name, row.created, row.pay]), [["North Crew", true, "none"], ["Rain Gutters Co", true, "none"]]);
+  const { capabilitiesFor } = await import("../labor/capabilities.js");
+  const crew = done.assignees[0].ref;
+  assert.deepEqual((await capabilitiesFor(ORG2, [crew])).get(`resource_group:${crew.id}`)?.service_ids, ["roof_replacement"], "what each does is saved");
+  const { listPaySheets } = await import("../labor/pay-sheets.js");
+  assert.equal((await listPaySheets(ORG2)).length, 0);
+  // The browser module sends no pay when the setup has no pay page.
+  const browserModule: string = "../../libraries/guided-experiences/workforce-setup.js";
+  const module = await import(browserModule);
+  const rows = [{ key: "a", kind: "resource_group", name: "Crew A", service_ids: [], member_user_ids: [], saved_members: [], pay: { method: "hourly", rate: 30 }, same: "" }];
+  assert.deepEqual(module.applyInput(rows).labor.assignees[0].pay, { method: "hourly", rate: 30 });
+  assert.equal(module.applyInput(rows, { pay: false }).labor.assignees[0].pay, undefined);
 });
