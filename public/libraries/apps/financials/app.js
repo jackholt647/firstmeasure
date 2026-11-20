@@ -94,6 +94,16 @@
     }).format(cents / 100);
   }
 
+  // GP-134: a phone figure in a tile or a list: whole dollars under $1,000, then $1.2K, $12K, $1.2M.
+  function moneyShort(value){
+    const dollars = number(value) / 100;
+    return new Intl.NumberFormat((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), {
+      style:'currency', currency:'USD',
+      notation:Math.abs(dollars) >= 1000 ? 'compact' : 'standard',
+      minimumFractionDigits:0, maximumFractionDigits:Math.abs(dollars) >= 1000 ? 1 : 0
+    }).format(dollars);
+  }
+
   function percent(value){
     return `${Math.round(Number(value || 0))}%`;
   }
@@ -124,6 +134,18 @@
     if (grain === 'day') return range.start.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric', year:'numeric' });
     return `${dateLabel(range.start)} – ${dateLabel(range.endInclusive)}`;
   }
+
+  // GP-134: the period as a phone's period control names it (Nov 2026, Nov 16 – Nov 22, Fri, Nov 20).
+  function rangeTitleShort(grain, range){
+    if (grain === 'month') return range.start.toLocaleDateString(undefined, { month:'short', year:'numeric' });
+    if (grain === 'day') return range.start.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
+    return `${dateLabel(range.start, { year:false })} – ${dateLabel(range.endInclusive, { year:false })}`;
+  }
+
+  // GP-134: a phone gets its own layout (the shared tab strip, one row of figures, lists instead of tables), at the
+  // width app-chrome.js switches its strip to the phone row. A desktop renders exactly as before.
+  const phoneQuery = window.matchMedia?.('(max-width:800px)');
+  const isPhone = () => !!phoneQuery?.matches;
 
   function injectCss(){
     if (document.getElementById('firstmate-financials-css')) return;
@@ -198,6 +220,82 @@
       @media(max-width:1200px){.fn-metrics.cash{grid-template-columns:repeat(3,minmax(0,1fr))}.fn-metrics.payouts{grid-template-columns:repeat(3,minmax(0,1fr))}.fn-cash-workspace{grid-template-columns:minmax(240px,280px) minmax(0,1fr)}}
       @media(max-width:900px){.fn-content.fn-content-cash{overflow:auto}.fn-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.fn-history-grid{grid-template-columns:repeat(3,minmax(150px,1fr))}.fn-cash-workspace{flex:none;grid-template-columns:1fr}.fn-transaction-rail{height:280px}.fn-chart-card{min-height:458px}.fn-chart-wrap{min-height:370px}.fn-chart,.fn-chart-empty{min-height:360px}.fn-chart-head-actions{justify-content:flex-start}.fn-cash-chart-head{flex-direction:column}}
       @media(max-width:720px){.fn-top{padding:12px 14px}.fn-heading p{display:none}.fn-btn span{display:none}.fn-content{padding:12px}.fn-tabs-toolbar,.fn-range-tools{align-items:stretch}.fn-range-tools{width:100%}.fn-date-nav{flex:1}.fn-date-label{min-width:0;flex:1}.fn-segment{margin-left:auto}.fn-metrics,.fn-metrics.cash,.fn-metrics.payouts{grid-template-columns:1fr 1fr}.fn-modal-stats{grid-template-columns:1fr 1fr}.fn-metric{padding:11px}.fn-metric strong{font-size:18px}.fn-card-head{align-items:flex-start}.fn-cash-settings{flex-wrap:wrap}.fn-history-grid{grid-template-columns:repeat(6,150px)}}
+      /* GP-134: the phone layout. The portal's top bar names the app, so the header is only the shared tab strip;
+         one row holds the period (or the receipt search) and the filters; figures sit in one row; lists are cards. */
+      @media(max-width:800px){
+        .fn-shell>[data-app-header="shared"]{padding:0!important;min-height:0;gap:0!important;background:var(--panel,#fff)}
+        .fn-shell>[data-app-header="shared"] .app-heading,.fn-shell>[data-app-header="shared"]>.app-header-tools:empty{display:none}
+        .fn-shell>[data-app-header="shared"]:not(:has(app-tab-strip)){display:none!important}
+        .fn-shell>[data-app-header="shared"]>.app-header-strip{flex-basis:100%;margin:0}
+        .fn-shell>[data-app-header="shared"] app-tab-strip{border-top:0}
+        .fn-pbar{position:relative;flex:none;display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--panel,#fff);border-bottom:1px solid #e4e7ec}
+        .fn-pbar>.fn-filter-btn,.fn-pbar>.fn-icon-btn{flex:none;width:40px;height:40px;min-height:0;padding:0;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#475467;display:inline-grid;place-items:center;font-size:14px}
+        .fn-pbar>.fn-filter-btn b{position:absolute;top:-5px;right:-5px}
+        .fn-pperiod{flex:1;min-width:0;display:flex;align-items:center;height:40px;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:10px;background:#fff;overflow:hidden}
+        .fn-pperiod>button{flex:none;height:100%;min-width:38px;border:0;background:transparent;color:#475467;font:inherit;font-size:13px;cursor:pointer}
+        .fn-pperiod>button:active{background:#f2f4f7}
+        .fn-pperiod-label{flex:1;min-width:0;text-align:center;font-size:13px;font-weight:800;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .fn-pperiod>.fn-ptoday{min-width:0;height:28px;margin:0 2px;padding:0 9px;border-radius:999px;background:rgba(var(--primary-rgb,217,48,37),.10);color:var(--primary-readable,var(--primary,#d93025));font-size:11px;font-weight:900}
+        .fn-pgrain{flex:none;height:40px;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font:inherit;font-size:13px;font-weight:800;padding:0 8px}
+        .fn-psearch{position:relative;flex:1;min-width:0;display:flex;align-items:center;gap:9px;height:40px;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:999px;background:#f9fafb;color:#667085;padding:0 14px;font:inherit;font-size:13px;font-weight:650;text-align:left;cursor:pointer}
+        .fn-psearch>span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .fn-psearch>b{min-width:18px;height:18px;border-radius:999px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font-size:10px;display:inline-grid;place-items:center;padding:0 5px}
+        .fn-pbar .fn-filter-panel{left:12px;right:12px;top:calc(100% + 4px);width:auto}
+        .fn-filter-panel input,.fn-filter-panel select{min-height:42px;font-size:14px}
+        .fn-content,.fn-content.fn-content-cash{overflow:auto;padding:12px 12px calc(24px + env(safe-area-inset-bottom));gap:12px}
+        .fn-content>*{flex-shrink:0}
+        .fn-active-filters{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.fn-active-filters>*{flex:none}
+        .fn-metrics,.fn-metrics.cash{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);grid-template-columns:none;gap:6px}
+        .fn-metric{padding:9px 8px 10px;border-radius:10px}
+        .fn-metric-label{display:block;min-height:2.3em;font-size:9.5px;letter-spacing:.02em;line-height:1.15}
+        .fn-metric strong{margin-top:5px;font-size:15px;letter-spacing:-.02em}
+        .fn-metric small{margin-top:3px;font-size:10px;font-weight:800;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .fn-card-head{padding:12px 14px}.fn-card-head h2{font-size:14px}
+        .fn-plist{display:flex;flex-direction:column}
+        .fn-prow{display:block;padding:12px 14px;border-bottom:1px solid #f0f2f5;background:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent}
+        .fn-prow:last-child{border-bottom:0}.fn-prow:active{background:#f9fafb}
+        .fn-prow:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:-2px}
+        .fn-prow-top{display:flex;align-items:flex-start;gap:12px}
+        .fn-prow-name{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+        .fn-prow-name>strong,.fn-prow-name>.fn-link{font-size:13.5px;font-weight:800;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .fn-prow-name>.fn-link{color:#175cd3}
+        .fn-prow-name>small{font-size:11.5px;font-weight:650;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .fn-prow-when{display:inline-flex;align-items:center;gap:5px;margin-top:3px;font-size:11px;font-weight:800;color:#067647}.fn-prow-when.unscheduled{color:#b54708}
+        .fn-prow-figure{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right}
+        .fn-prow-figure>strong{font-size:16px;letter-spacing:-.02em}.fn-prow-figure>small{font-size:11px;font-weight:750;color:#667085}
+        .fn-prow-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 0;padding:9px 0 0;border-top:1px dashed #eaecf0}
+        .fn-prow-facts>div{min-width:0}.fn-prow-facts dt{font-size:9.5px;font-weight:900;color:#667085;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fn-prow-facts dd{margin:2px 0 0;font-size:13px;font-weight:800}
+        .fn-pcycles{display:flex;flex-direction:column;padding:4px 0}
+        .fn-pcycle{display:grid;grid-template-columns:62px minmax(0,1fr) auto;align-items:center;gap:2px 10px;padding:9px 14px}
+        .fn-pcycle.current{background:#f6fef9}
+        .fn-pcycle-label{grid-row:span 2;font-size:12px;font-weight:850;color:#344054}.fn-pcycle-label small{display:block;margin-top:1px;font-size:9.5px;font-weight:800;color:#067647}
+        .fn-pcycle-bar{height:6px;border-radius:999px;background:#f2f4f7;overflow:hidden}.fn-pcycle-bar>span{display:block;height:100%;border-radius:999px}
+        .fn-pcycle>strong{font-size:14px;text-align:right}
+        .fn-pcycle-sub{grid-column:2/4;font-size:10.5px;font-weight:700;color:#667085}
+        .fn-ppay{display:grid;grid-template-columns:30px minmax(0,1fr) auto;align-items:center;gap:8px 10px;cursor:default}
+        .fn-ppay>.fn-tx-icon{width:30px;height:30px;border-radius:9px;font-size:11px}
+        .fn-ppay-amount{justify-self:end;font-size:14px;white-space:nowrap}
+        .fn-ppay-state{grid-column:2;font-size:11px;font-weight:750;color:#667085}
+        .fn-ppay>.fn-btn{grid-column:3;min-height:36px;font-size:12px}
+        .fn-preceipt{display:flex;align-items:center;gap:12px}
+        .fn-preceipt>.fn-receipt-mark{width:42px;height:42px;border-radius:10px}
+        .fn-cash-workspace{display:flex;flex-direction:column;gap:12px}
+        .fn-cash-workspace>.fn-chart-card{order:-1;min-height:0}
+        .fn-cash-chart-head{flex-direction:column;align-items:stretch;gap:8px}.fn-chart-head-actions{justify-content:flex-start}.fn-legend{flex-wrap:wrap;gap:6px 12px}
+        .fn-chart-wrap{min-height:0;padding:6px 4px 2px}.fn-chart{height:auto;min-height:0;aspect-ratio:400/240}.fn-chart-empty{min-height:160px}
+        .fn-axis-label{font-size:10px}
+        .fn-transaction-rail{height:auto}.fn-transaction-list{overflow:visible}
+        .fn-transaction{grid-template-columns:30px minmax(0,1fr) auto;gap:10px;padding:11px 14px}
+        .fn-tx-icon{width:30px;height:30px;font-size:11px}.fn-tx-title{font-size:13px}.fn-tx-meta{font-size:11px}.fn-tx-state{font-size:9px;padding:2px 6px}.fn-tx-amount{font-size:13px}
+        .fn-tx-popover{display:none!important}
+        .fn-tooltip{width:240px}
+        .fn-empty{padding:26px 16px}
+        .fn-state{padding:24px 16px}
+        .fn-shade{place-items:end stretch;padding:0}
+        .fn-modal,.fn-modal.fn-modal-small{width:100%;max-height:90vh;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+        .fn-settings label{flex-direction:column;align-items:stretch;gap:8px}.fn-settings input{width:100%;box-sizing:border-box;min-height:42px;font-size:14px;text-align:left}
+        .fn-modal-foot .fn-btn{flex:1;min-height:42px;font-size:13px}
+      }
     `;
     document.head.appendChild(style);
   }
@@ -613,9 +711,12 @@
       return tip ? `<span class="fn-tip" tabindex="0" role="img" aria-label="${esc(tip)}" data-fm-tooltip="${esc(tip)}"><i class="fas fa-circle-info" aria-hidden="true"></i></span>` : '';
     }
 
-    function metricHtml({ label, icon, value, tone = '', tooltip:tip = '', filter = '' }){
+    // On a phone a tile shows its short label and figure (`phone`, `phoneNote`); the tooltip keeps the full words.
+    function metricHtml({ label, icon, value, tone = '', tooltip:tip = '', filter = '', short = '', phone = '', phoneNote = '' }){
       const attrs = `${tip ? ` data-fm-tooltip="${esc(tip)}" aria-label="${esc(`${label}: ${value}. ${tip}`)}"` : ''}`;
-      const body = `<span class="fn-metric-label">${esc(label)}<i class="fas ${esc(icon)}"></i></span><strong class="${esc(tone)}">${esc(value)}</strong>`;
+      const body = isPhone()
+        ? `<span class="fn-metric-label">${esc(short || label)}</span><strong class="${esc(tone)}">${esc(phone || value)}</strong>${phoneNote ? `<small>${esc(phoneNote)}</small>` : ''}`
+        : `<span class="fn-metric-label">${esc(label)}<i class="fas ${esc(icon)}"></i></span><strong class="${esc(tone)}">${esc(value)}</strong>`;
       if (filter) return `<button type="button" class="fn-metric${state.filters.review === filter ? ' active' : ''}" data-fn-review-filter="${esc(filter)}" aria-pressed="${state.filters.review === filter}"${attrs}>${body}</button>`;
       return `<div class="fn-metric" tabindex="0"${attrs}>${body}</div>`;
     }
@@ -674,7 +775,30 @@
       return `<div class="fn-active-filters" role="status"><span>${(globalThis.PlatformLanguage?.htmlText("financials","m_d8cca9660fd93a","Filtered by") ?? "Filtered by")}</span>${active.map((item) => `<button type="button" class="fn-filter-chip" data-fn-filter-remove="${esc(item.name)}" aria-label="Remove ${esc(item.label)}">${esc(item.label)}<i class="fas fa-xmark" aria-hidden="true"></i></button>`).join('')}<button type="button" class="fn-filter-clear" data-fn-filters-clear>${(globalThis.PlatformLanguage?.htmlText("financials","m_df4c9025f9cc03","Clear all") ?? "Clear all")}</button></div>`;
     }
 
+    // GP-134: on a phone the portal's top bar already names the app, so the header is only the shared tab strip
+    // (Settings at its end, as in Communications), and one row under it holds the period and the filters.
+    function phoneHeaderHtml(){
+      const standalone = context.params?.standalone;
+      const dated = DATED_VIEWS.includes(state.view);
+      const settingsTab = { id:'settings', title:'Settings', icon:'fa-gear', attribute:'data-fn-settings' };
+      const strip = standalone ? '' : window.AppChrome.tabs('financials', state.view, 'data-fn-view', context, { strip:true, extra:[settingsTab] });
+      const selectedRange = range();
+      const current = selectedRange.key === rangeFor(state.grain, new Date()).key;
+      const period = dated ? `<div class="fn-pperiod" role="group" aria-label="${esc(rangeTitle(state.grain, selectedRange))}">
+          <button type="button" data-fn-action="previous" aria-label="Previous ${esc(state.grain)}"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
+          <span class="fn-pperiod-label">${esc(rangeTitleShort(state.grain, selectedRange))}</span>
+          ${current ? '' : `<button type="button" class="fn-ptoday" data-fn-action="today">${(globalThis.PlatformLanguage?.htmlText("financials","m_23929ba4ba84dd","Today") ?? "Today")}</button>`}
+          <button type="button" data-fn-action="next" aria-label="Next ${esc(state.grain)}"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+        </div><select class="fn-pgrain" data-fn-grain-select aria-label="${(globalThis.PlatformLanguage?.htmlText("financials","m_179cb3b2ebc4a4","Financial period") ?? "Financial period")}">${[['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([grain, label]) => `<option value="${grain}" ${state.grain === grain ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select>` : '';
+      // Receipts have no period: their row is the search, which opens the filters.
+      const search = !dated && viewFilters().includes('q') ? `<button type="button" class="fn-psearch" data-fn-filters-toggle aria-expanded="${state.filtersOpen}" aria-controls="fnFilterPanel"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span>${esc(clean(state.filters.q) || 'Search and filter receipts')}</span>${activeFilters().length ? `<b>${activeFilters().length}</b>` : ''}</button>` : '';
+      const settings = standalone ? `<button type="button" class="fn-btn fn-icon-btn" data-fn-settings aria-label="${(globalThis.PlatformLanguage?.htmlText("financials","m_44392902abcd78","Financials settings") ?? "Financials settings")}"><i class="fas fa-gear"></i></button>` : '';
+      const bar = period || search || settings ? `<div class="fn-pbar">${period}${search || filterButtonHtml()}${settings}${filterPanelHtml()}</div>` : '';
+      return `${window.AppChrome.header({ title:standalone ? viewTitle(state.view) : 'Financials', icon:'fa-chart-line', strip })}${bar}<div class="fn-content${state.view === 'cashflow' ? ' fn-content-cash' : ''}">${activeFiltersHtml()}`;
+    }
+
     function headerHtml(){
+      if (isPhone()) return phoneHeaderHtml();
       const standalone = context.params?.standalone;
       const dated = DATED_VIEWS.includes(state.view);
       const settings = `<button type="button" class="fn-btn" data-fn-settings aria-label="${(globalThis.PlatformLanguage?.htmlText("financials","m_44392902abcd78","Financials settings") ?? "Financials settings")}" data-fm-tooltip="Financials settings"><i class="fas fa-gear"></i></button>`;
@@ -711,13 +835,13 @@
       const maxProfit = Math.max(1, ...cycles.map((item) => Math.abs(item.profit)));
       const listed = clean(state.filters.status) === 'closed' ? 'closed' : clean(state.filters.status) === 'all' ? 'listed' : 'active';
       return `<section class="fn-metrics">
-          ${metricHtml({ label:'Projected profit', icon:'fa-chart-line', value:money(projectedProfit), tone:projectedProfit >= 0 ? 'fn-positive' : 'fn-negative', tooltip:`Projected profit of the ${activeCount} ${listed} project${activeCount === 1 ? '' : 's'} below.` })}
-          ${metricHtml({ label:'Profit to date', icon:'fa-coins', value:money(profitToDate), tone:profitToDate >= 0 ? 'fn-positive' : 'fn-negative', tooltip:'Collected revenue less paid project costs.' })}
-          ${metricHtml({ label:'Owed by period end', icon:'fa-file-invoice-dollar', value:money(owed), tooltip:`Scheduled customer payments due by ${dateLabel(selectedRange.endInclusive)} and not yet paid.` })}
-          ${metricHtml({ label:'Revenue in period', icon:'fa-arrow-trend-up', value:money(revenueInRange), tooltip:`Customer money that cleared in this ${state.grain}.` })}
+          ${metricHtml({ label:'Projected profit', icon:'fa-chart-line', value:money(projectedProfit), short:'Projected profit', phone:moneyShort(projectedProfit), tone:projectedProfit >= 0 ? 'fn-positive' : 'fn-negative', tooltip:`Projected profit of the ${activeCount} ${listed} project${activeCount === 1 ? '' : 's'} below.` })}
+          ${metricHtml({ label:'Profit to date', icon:'fa-coins', value:money(profitToDate), short:'Profit to date', phone:moneyShort(profitToDate), tone:profitToDate >= 0 ? 'fn-positive' : 'fn-negative', tooltip:'Collected revenue less paid project costs.' })}
+          ${metricHtml({ label:'Owed by period end', icon:'fa-file-invoice-dollar', value:money(owed), short:'Owed', phone:moneyShort(owed), tooltip:`Scheduled customer payments due by ${dateLabel(selectedRange.endInclusive)} and not yet paid.` })}
+          ${metricHtml({ label:'Revenue in period', icon:'fa-arrow-trend-up', value:money(revenueInRange), short:'Revenue', phone:moneyShort(revenueInRange), tooltip:`Customer money that cleared in this ${state.grain}.` })}
         </section>
         <section class="fn-card"><div class="fn-card-head"><div><h2>${esc(listed === 'active' ? 'Active project profitability' : 'Project profitability')}${tipHtml(`Projected totals beside each project's position at the end of the selected ${state.grain}. Use Filters to choose which projects are counted.`)}</h2></div><span class="fn-count">${esc(`${activeCount} ${listed}`)}</span></div>
-          ${activeRows.length ? `<div class="fn-table-wrap"><table class="fn-table"><thead><tr><th>Project</th><th>Schedule</th><th>Status</th><th class="fn-right">Projected revenue</th><th class="fn-right">Projected profit</th><th class="fn-right">Profit by period end</th><th class="fn-right">Customer owed</th><th class="fn-right">Margin</th><th><span class="fn-sr">Open</span></th></tr></thead><tbody>${activeRows.map((row) => {
+          ${activeRows.length && isPhone() ? `${projectListHtml(activeRows)}${state.data?.hasMore ? `<div class="fn-page-actions"><button class="fn-btn" data-fn-action="load-more" ${state.loading ? 'disabled' : ''}><i class="fas fa-plus"></i> Load more projects</button></div>` : ''}` : activeRows.length ? `<div class="fn-table-wrap"><table class="fn-table"><thead><tr><th>Project</th><th>Schedule</th><th>Status</th><th class="fn-right">Projected revenue</th><th class="fn-right">Projected profit</th><th class="fn-right">Profit by period end</th><th class="fn-right">Customer owed</th><th class="fn-right">Margin</th><th><span class="fn-sr">Open</span></th></tr></thead><tbody>${activeRows.map((row) => {
             const projectedRevenue = number(row.projected_revenue_cents);
             const projectedProfitRow = number(row.projected_profit_cents);
             const margin = projectedRevenue ? projectedProfitRow / projectedRevenue * 100 : 0;
@@ -727,7 +851,32 @@
             return `<tr data-project-id="${esc(row.project.id)}" tabindex="0"><td><div class="fn-project"><span class="fn-project-mark"><i class="fas fa-house-chimney"></i></span><span><strong>${esc(names.primary)}</strong>${names.secondary ? `<small>${esc(names.secondary)}</small>` : ''}</span></div></td><td><div class="fn-schedule"><strong>${scheduled && row.window.start ? esc(dateLabel(row.window.start)) : 'Not scheduled'}</strong><span>${scheduled && row.window.end ? `Expected completion ${esc(dateLabel(row.window.end))}` : 'Completion date needed'}</span></div></td><td><span class="fn-status ${scheduled ? '' : 'unscheduled'}"><i class="fas ${scheduled ? 'fa-calendar-check' : 'fa-calendar-xmark'}"></i>${scheduled ? 'Scheduled' : 'Unscheduled'}</span></td><td class="fn-right">${money(projectedRevenue)}</td><td class="fn-right ${projectedProfitRow >= 0 ? 'fn-positive' : 'fn-negative'}"><strong>${money(projectedProfitRow)}</strong></td><td class="fn-right ${profitAtEnd >= 0 ? 'fn-positive' : 'fn-negative'}">${money(profitAtEnd)}</td><td class="fn-right">${money(row.customer_owed_cents)}</td><td class="fn-right"><div class="fn-margin"><span>${percent(margin)}</span><span class="fn-margin-bar"><span style="width:${Math.max(0, Math.min(100, margin))}%"></span></span></div></td><td class="fn-actions"><button type="button" class="fn-btn fn-open-project" data-fn-open-project="${esc(row.project.id)}" aria-label="Open ${esc(names.primary)}"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>Open project</button></td></tr>`;
           }).join('')}</tbody></table></div>${state.data?.hasMore ? `<div class="fn-page-actions"><button class="fn-btn" data-fn-action="load-more" ${state.loading ? 'disabled' : ''}><i class="fas fa-plus"></i> Load more projects</button></div>` : ''}` : `<div class="fn-empty"><i class="fas fa-folder-open"></i><strong>${activeFilters().length ? 'No projects match these filters' : 'No active financial projects yet'}</strong><span>${activeFilters().length ? 'Change or clear the filters to see more.' : 'Signed project revenue and costs will appear here.'}</span></div>`}
         </section>
-        <section class="fn-card"><div class="fn-card-head"><div><h2>${((v8) => globalThis.PlatformLanguage?.text("financials","m_8bf1727c2d9fd8",`Revenue and profitability by cycle${v8}`,{v8}) ?? `Revenue and profitability by cycle${v8}`)(tipHtml(`Previous ${state.grain} cycles, from cleared customer payments and actual outgoing payments.`))}</h2></div></div><div class="fn-history-grid">${cycles.map((cycle) => `<article class="fn-cycle ${cycle.current ? 'current' : ''}"><span class="fn-cycle-label">${esc(cycle.label)}${cycle.current ? ' · Current' : ''}</span><strong class="fn-cycle-profit ${cycle.profit >= 0 ? 'fn-positive' : 'fn-negative'}">${money(cycle.profit, true)}</strong><div class="fn-cycle-row"><span>Revenue</span><b>${money(cycle.revenue, true)}</b></div><div class="fn-cycle-row"><span>Expenses</span><b>${money(cycle.expenses, true)}</b></div><div class="fn-cycle-bar"><span style="width:${Math.round(Math.abs(cycle.profit) / maxProfit * 100)}%;background:${cycle.profit >= 0 ? '#12b76a' : '#f04438'}"></span></div></article>`).join('')}</div></section>`;
+        <section class="fn-card"><div class="fn-card-head"><div><h2>${((v8) => globalThis.PlatformLanguage?.text("financials","m_8bf1727c2d9fd8",`Revenue and profitability by cycle${v8}`,{v8}) ?? `Revenue and profitability by cycle${v8}`)(tipHtml(`Previous ${state.grain} cycles, from cleared customer payments and actual outgoing payments.`))}</h2></div></div>${isPhone() ? cycleListHtml(cycles, maxProfit) : `<div class="fn-history-grid">${cycles.map((cycle) => `<article class="fn-cycle ${cycle.current ? 'current' : ''}"><span class="fn-cycle-label">${esc(cycle.label)}${cycle.current ? ' · Current' : ''}</span><strong class="fn-cycle-profit ${cycle.profit >= 0 ? 'fn-positive' : 'fn-negative'}">${money(cycle.profit, true)}</strong><div class="fn-cycle-row"><span>Revenue</span><b>${money(cycle.revenue, true)}</b></div><div class="fn-cycle-row"><span>Expenses</span><b>${money(cycle.expenses, true)}</b></div><div class="fn-cycle-bar"><span style="width:${Math.round(Math.abs(cycle.profit) / maxProfit * 100)}%;background:${cycle.profit >= 0 ? '#12b76a' : '#f04438'}"></span></div></article>`).join('')}</div>`}</section>`;
+    }
+
+    // GP-134: a phone lists each project as a card: who and where, its schedule, its projected profit and margin, then
+    // revenue, profit by the period's end and what the customer owes. The whole card opens the project.
+    function projectListHtml(rows){
+      return `<div class="fn-plist">${rows.map((row) => {
+        const projectedRevenue = number(row.projected_revenue_cents);
+        const projectedProfitRow = number(row.projected_profit_cents);
+        const margin = projectedRevenue ? projectedProfitRow / projectedRevenue * 100 : 0;
+        const profitAtEnd = number(row.profit_by_period_end_cents);
+        const names = projectNames(row.project);
+        const scheduled = row.window?.scheduled ?? !!row.window?.start;
+        const schedule = scheduled && row.window.start ? `${dateLabel(row.window.start, { year:false })}${row.window.end ? ` – ${dateLabel(row.window.end, { year:false })}` : ''}` : 'Not scheduled';
+        return `<article class="fn-prow" data-project-id="${esc(row.project.id)}" tabindex="0" role="button" aria-label="Open ${esc(names.primary)}">
+          <div class="fn-prow-top"><span class="fn-prow-name"><strong>${esc(names.primary)}</strong>${names.secondary ? `<small>${esc(names.secondary)}</small>` : ''}<span class="fn-prow-when ${scheduled ? '' : 'unscheduled'}"><i class="fas ${scheduled ? 'fa-calendar-check' : 'fa-calendar-xmark'}" aria-hidden="true"></i>${esc(schedule)}</span></span>
+          <span class="fn-prow-figure"><strong class="${projectedProfitRow >= 0 ? 'fn-positive' : 'fn-negative'}">${esc(moneyShort(projectedProfitRow))}</strong><small>${esc(percent(margin))} margin</small></span></div>
+          <dl class="fn-prow-facts"><div><dt>Revenue</dt><dd>${esc(moneyShort(projectedRevenue))}</dd></div><div><dt>By ${esc(state.grain)} end</dt><dd class="${profitAtEnd >= 0 ? 'fn-positive' : 'fn-negative'}">${esc(moneyShort(profitAtEnd))}</dd></div><div><dt>Owed</dt><dd>${esc(moneyShort(row.customer_owed_cents))}</dd></div></dl>
+        </article>`;
+      }).join('')}</div>`;
+    }
+
+    // GP-134: the cycles as one row each on a phone: the cycle, a bar for its profit, the profit, and revenue and
+    // expenses under it.
+    function cycleListHtml(cycles, maxProfit){
+      return `<div class="fn-pcycles">${cycles.map((cycle) => `<div class="fn-pcycle${cycle.current ? ' current' : ''}"><span class="fn-pcycle-label">${esc(cycle.label)}${cycle.current ? '<small>Current</small>' : ''}</span><span class="fn-pcycle-bar"><span style="width:${Math.round(Math.abs(cycle.profit) / maxProfit * 100)}%;background:${cycle.profit >= 0 ? '#12b76a' : '#f04438'}"></span></span><strong class="${cycle.profit >= 0 ? 'fn-positive' : 'fn-negative'}">${esc(moneyShort(cycle.profit))}</strong><small class="fn-pcycle-sub">Revenue ${esc(moneyShort(cycle.revenue))} · Expenses ${esc(moneyShort(cycle.expenses))}</small></div>`).join('')}</div>`;
     }
 
     function reconcileRowHtml(payment, cleared){
@@ -748,6 +897,27 @@
       </tr>`;
     }
 
+    // GP-134: on a phone each payment is a card: which way it went, its project, method and date, the amount, and
+    // whether the bank has it with the button that changes that.
+    function reconcileListHtml(payments, cleared){
+      return `<div class="fn-plist">${payments.map((payment) => {
+        const id = clean(payment.id);
+        const projectId = clean(payment.project_id);
+        const inbound = clean(payment.direction || 'inbound') !== 'outbound';
+        const at = payment.settled_at || payment.received_at || payment.created_at;
+        const method = clean(payment.method?.label || payment.method?.type || payment.kind).replace(/_/g, ' ') || (inbound ? 'payment' : 'payment out');
+        return `<article class="fn-prow fn-ppay">
+          <span class="fn-tx-icon ${inbound ? 'in' : 'out'}"><i class="fas ${inbound ? 'fa-arrow-down' : 'fa-arrow-up'}" aria-hidden="true"></i></span>
+          <span class="fn-prow-name">${projectId ? `<button type="button" class="fn-link" data-fn-open-project="${esc(projectId)}">${esc(clean(payment.project_title) || 'Open project')}</button>` : `<strong>${(globalThis.PlatformLanguage?.htmlText("financials","m_500872d3c049f6","Company") ?? "Company")}</strong>`}<small>${esc(method)} · ${esc(dateLabel(at, { year:false }))}</small></span>
+          <strong class="fn-ppay-amount ${inbound ? 'fn-positive' : 'fn-negative'}">${inbound ? '+' : '−'}${esc(moneyFine(Math.abs(number(payment.amount_cents))))}</strong>
+          <span class="fn-ppay-state">${cleared ? `Cleared ${esc(dateLabel(payment.cleared_at, { year:false }))}` : (globalThis.PlatformLanguage?.htmlText("financials","m_df2a233dc044ae","Awaiting bank") ?? "Awaiting bank")}</span>
+          ${cleared
+            ? `<button type="button" class="fn-btn" data-fn-unclear-payment="${esc(id)}" ${state.loading ? 'disabled' : ''}><i class="fas fa-ban"></i>${(globalThis.PlatformLanguage?.htmlText("financials","m_121bd1ce330c8e"," Unclear") ?? " Unclear")}</button>`
+            : `<button type="button" class="fn-btn primary" data-fn-clear-payment="${esc(id)}" ${state.loading ? 'disabled' : ''}><i class="fas fa-check-double"></i>${(globalThis.PlatformLanguage?.htmlText("financials","m_040ce86d2436e1"," Mark cleared") ?? " Mark cleared")}</button>`}
+        </article>`;
+      }).join('')}</div>`;
+    }
+
     // GP-113: Payouts is one tab for "has the money arrived": the processor's payouts (when the organization takes
     // card and bank payments here) and the payments recorded by hand that still need confirming at the bank.
     function payoutsHtml(){
@@ -758,10 +928,10 @@
       const head = ['Date', 'Project', 'Payment'].map((label) => `<th>${esc(label)}</th>`).join('') + `<th class="fn-right">${(globalThis.PlatformLanguage?.htmlText("financials","m_2b8c3448fa87a1","Amount") ?? "Amount")}</th><th>${(globalThis.PlatformLanguage?.htmlText("financials","m_376b722115b602","Cleared") ?? "Cleared")}</th><th></th>`;
       return `${merchantProcessingEnabled() ? widgetHtml() : ''}
         <section class="fn-card"><div class="fn-card-head"><div><h2>${((v1) => globalThis.PlatformLanguage?.text("financials","m_1653d78ad46232",`Payments to confirm${v1}`,{v1}) ?? `Payments to confirm${v1}`)(tipHtml('Settled payments, refunds and disbursements not yet confirmed against your bank statement. Confirming one moves the cash-flow forecast from estimated to actual.'))}</h2></div><span class="fn-count" data-fm-tooltip="${esc(`${money(totals.uncleared_inbound_cents)} in · ${money(totals.uncleared_outbound_cents)} out`)}">${esc(`${uncleared.length} · ${unclearedNet >= 0 ? '+' : '−'}${money(Math.abs(unclearedNet))}`)}</span></div>
-          ${uncleared.length ? `<div class="fn-table-wrap"><table class="fn-table"><thead><tr>${head}</tr></thead><tbody>${uncleared.map((payment) => reconcileRowHtml(payment, false)).join('')}</tbody></table></div>` : `<div class="fn-empty compact"><i class="fas fa-check-double"></i><strong>Everything is confirmed</strong><span>New settled payments appear here until they are confirmed at the bank.</span></div>`}
+          ${uncleared.length && isPhone() ? reconcileListHtml(uncleared, false) : uncleared.length ? `<div class="fn-table-wrap"><table class="fn-table"><thead><tr>${head}</tr></thead><tbody>${uncleared.map((payment) => reconcileRowHtml(payment, false)).join('')}</tbody></table></div>` : `<div class="fn-empty compact"><i class="fas fa-check-double"></i><strong>Everything is confirmed</strong><span>New settled payments appear here until they are confirmed at the bank.</span></div>`}
         </section>
         <section class="fn-card"><div class="fn-card-head"><div><h2>${((v5) => globalThis.PlatformLanguage?.text("financials","m_525a8def75c84b",`Recently confirmed${v5}`,{v5}) ?? `Recently confirmed${v5}`)(tipHtml(`${number(totals.cleared_count)} confirmed · ${money(totals.cleared_inbound_cents)} in · ${money(totals.cleared_outbound_cents)} out`))}</h2></div></div>
-          ${cleared.length ? `<div class="fn-table-wrap"><table class="fn-table"><thead><tr>${head}</tr></thead><tbody>${cleared.slice(0, 25).map((payment) => reconcileRowHtml(payment, true)).join('')}</tbody></table></div>` : `<div class="fn-empty compact"><i class="fas fa-building-columns"></i><strong>Nothing confirmed yet</strong><span>Payments you confirm collect here.</span></div>`}
+          ${cleared.length && isPhone() ? reconcileListHtml(cleared.slice(0, 25), true) : cleared.length ? `<div class="fn-table-wrap"><table class="fn-table"><thead><tr>${head}</tr></thead><tbody>${cleared.slice(0, 25).map((payment) => reconcileRowHtml(payment, true)).join('')}</tbody></table></div>` : `<div class="fn-empty compact"><i class="fas fa-building-columns"></i><strong>Nothing confirmed yet</strong><span>Payments you confirm collect here.</span></div>`}
         </section>`;
     }
 
@@ -795,13 +965,13 @@
       const unassigned = all.filter((receipt) => !clean(receipt.project_id));
       const total = (list) => list.reduce((sum, receipt) => sum + receiptAmount(receipt), 0);
       return `<section class="fn-metrics">
-          ${metricHtml({ label:'Needs review', icon:'fa-hourglass-half', value:`${needs.length} · ${money(total(needs))}`, tone:needs.length ? 'fn-negative' : '', tooltip:'Receipts not yet filed under an expense. Select to list only these.', filter:'needs_review' })}
-          ${metricHtml({ label:'Reviewed', icon:'fa-check-double', value:`${all.length - needs.length} · ${money(total(all) - total(needs))}`, tone:'fn-positive', tooltip:'Receipts already filed under a project expense. Select to list only these.', filter:'reviewed' })}
-          ${metricHtml({ label:'No project', icon:'fa-folder-open', value:String(unassigned.length), tooltip:'Receipts uploaded without a project. Select to list only these.', filter:'unassigned' })}
-          ${metricHtml({ label:'All receipts', icon:'fa-receipt', value:`${all.length} · ${money(total(all))}`, tooltip:'Every receipt your organization has uploaded. Select to list them all.', filter:'' })}
+          ${metricHtml({ label:'Needs review', icon:'fa-hourglass-half', value:`${needs.length} · ${money(total(needs))}`, short:'To review', phone:String(needs.length), phoneNote:moneyShort(total(needs)), tone:needs.length ? 'fn-negative' : '', tooltip:'Receipts not yet filed under an expense. Select to list only these.', filter:'needs_review' })}
+          ${metricHtml({ label:'Reviewed', icon:'fa-check-double', value:`${all.length - needs.length} · ${money(total(all) - total(needs))}`, short:'Reviewed', phone:String(all.length - needs.length), phoneNote:moneyShort(total(all) - total(needs)), tone:'fn-positive', tooltip:'Receipts already filed under a project expense. Select to list only these.', filter:'reviewed' })}
+          ${metricHtml({ label:'No project', icon:'fa-folder-open', value:String(unassigned.length), short:'No project', phoneNote:moneyShort(total(unassigned)), tooltip:'Receipts uploaded without a project. Select to list only these.', filter:'unassigned' })}
+          ${metricHtml({ label:'All receipts', icon:'fa-receipt', value:`${all.length} · ${money(total(all))}`, short:'All', phone:String(all.length), phoneNote:moneyShort(total(all)), tooltip:'Every receipt your organization has uploaded. Select to list them all.', filter:'' })}
         </section>
         <section class="fn-card"><div class="fn-card-head"><div><h2>${((v4) => globalThis.PlatformLanguage?.text("financials","m_9920ef9e94207d",`Receipts${v4}`,{v4}) ?? `Receipts${v4}`)(tipHtml('Every uploaded receipt, newest first. Review one here or in its project’s Finances: both open the same review form.'))}</h2></div><span class="fn-count">${esc(rows.length === all.length ? `${all.length}` : `${rows.length} of ${all.length}`)}</span></div>
-          ${rows.length ? `<div class="fn-table-wrap"><table class="fn-table"><thead><tr><th>Date</th><th>Receipt</th><th>Project</th><th>Uploaded by</th><th class="fn-right">Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((receipt) => {
+          ${rows.length && isPhone() ? receiptListHtml(rows) : rows.length ? `<div class="fn-table-wrap"><table class="fn-table"><thead><tr><th>Date</th><th>Receipt</th><th>Project</th><th>Uploaded by</th><th class="fn-right">Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((receipt) => {
             const projectId = clean(receipt.project_id);
             const project = object(state.data?.projectsById?.[projectId]);
             const names = projectId ? projectNames({ id:projectId, ...project }) : null;
@@ -820,6 +990,24 @@
             </tr>`;
           }).join('')}</tbody></table></div>` : `<div class="fn-empty"><i class="fas fa-receipt"></i><strong>${all.length ? 'No receipts match these filters' : 'No receipts yet'}</strong><span>${all.length ? 'Change or clear the filters to see more.' : 'Receipts uploaded from a project or the phone app appear here.'}</span></div>`}
         </section>`;
+    }
+
+    // GP-134: a phone lists each receipt as a card: its picture, what it is, its project and date, who uploaded it,
+    // the amount and whether it still needs review. The card opens the review.
+    function receiptListHtml(rows){
+      return `<div class="fn-plist">${rows.map((receipt) => {
+        const projectId = clean(receipt.project_id);
+        const project = object(state.data?.projectsById?.[projectId]);
+        const names = projectId ? projectNames({ id:projectId, ...project }) : null;
+        const reviewed = receiptReviewed(receipt);
+        const image = /^image\//.test(clean(receipt.file?.content_type)) && window.PaymentsAPI?.receipts?.fileUrl ? window.PaymentsAPI.receipts.fileUrl(state.orgId, receipt.id, { inline:true }) : '';
+        const title = clean(receipt.title || receipt.extraction?.vendor_name || receipt.file?.file_name) || 'Receipt';
+        return `<article class="fn-prow fn-preceipt" data-fn-receipt="${esc(receipt.id)}" tabindex="0" role="button" aria-label="${esc(`${reviewed ? 'Open' : 'Review'} ${title}`)}">
+          <span class="fn-receipt-mark">${image ? `<img src="${esc(image)}" alt="" loading="lazy">` : '<i class="fas fa-receipt"></i>'}</span>
+          <span class="fn-prow-name"><strong>${esc(title)}</strong><small>${names ? esc(names.primary) : 'No project'} · ${esc(dateLabel(receiptDate(receipt), { year:false }))}</small><small>${esc(clean(receipt.uploaded_by?.name) || 'Unknown')}</small></span>
+          <span class="fn-prow-figure"><strong>${receiptAmount(receipt) ? esc(moneyFine(receiptAmount(receipt))) : '<span class="fn-muted">Not read</span>'}</strong><span class="fn-badge ${reviewed ? 'good' : 'warn'}">${reviewed ? 'Reviewed' : 'Needs review'}</span></span>
+        </article>`;
+      }).join('')}</div>`;
     }
 
     function settingsModalHtml(){
@@ -850,8 +1038,8 @@
         state.widget?.instance?.destroy?.();
         const element = document.createElement('div');
         const instance = state.view === 'disputes'
-          ? widgets.mountDisputes(element, { orgId:state.orgId, onOpenProject:openProject })
-          : widgets.mountPayouts(element, { orgId:state.orgId, onOpenProject:openProject, onOpenInvoice:openInvoice, onOpenDisputes:() => switchView('disputes') });
+          ? widgets.mountDisputes(element, { orgId:state.orgId, onOpenProject:openProject, phoneCards:true })
+          : widgets.mountPayouts(element, { orgId:state.orgId, onOpenProject:openProject, onOpenInvoice:openInvoice, onOpenDisputes:() => switchView('disputes'), phoneCards:true });
         state.widget = { view:state.view, orgId:state.orgId, element, instance };
       }
       host.replaceWith(state.widget.element);
@@ -879,9 +1067,11 @@
 
     function chartHtml(series){
       if (!series.length) return `<div class="fn-chart-empty">${(globalThis.PlatformLanguage?.htmlText("financials","m_b5bf39bc056d36","No days are available in this period.") ?? "No days are available in this period.")}</div>`;
-      const width = 1080;
-      const height = 360;
-      const pad = { left:76, right:24, top:20, bottom:40 };
+      // GP-134: a phone draws the chart at its own size, so its axis labels stay readable.
+      const compact = isPhone();
+      const width = compact ? 400 : 1080;
+      const height = compact ? 240 : 360;
+      const pad = compact ? { left:50, right:20, top:12, bottom:30 } : { left:76, right:24, top:20, bottom:40 };
       const values = series.flatMap((item) => [item.available, item.expected, item.safe, 0]);
       let min = Math.min(...values);
       let max = Math.max(...values);
@@ -893,10 +1083,10 @@
       const y = (value) => pad.top + (max - value) / (max - min) * (height - pad.top - pad.bottom);
       const path = (key) => series.map((item, index) => `${index ? 'L' : 'M'}${x(index).toFixed(1)},${y(item[key]).toFixed(1)}`).join(' ');
       const ticks = Array.from({ length:5 }, (_, index) => max - (max - min) * index / 4);
-      const xEvery = Math.max(1, Math.ceil(series.length / 8));
+      const xEvery = Math.max(1, Math.ceil(series.length / (compact ? 4 : 8)));
       const nodes = (key, cssClass, eventsForDay, exposure = false) => series.map((item, index) => {
         const related = exposure ? item.safeExposureTransactions : eventsForDay(item);
-        return `<circle class="fn-node ${cssClass}" tabindex="0" data-fn-node="${index}" data-fn-line="${key}" data-fn-transaction-ids="${esc(transactionIds(related))}" cx="${x(index)}" cy="${y(item[key])}" r="4"><title>${esc(dateLabel(item.date))}: ${esc(key.replace(/_/g, ' '))} ${money(item[key])}</title></circle>`;
+        return `<circle class="fn-node ${cssClass}" tabindex="0" data-fn-node="${index}" data-fn-line="${key}" data-fn-transaction-ids="${esc(transactionIds(related))}" cx="${x(index)}" cy="${y(item[key])}" r="${compact ? 3 : 4}"><title>${esc(dateLabel(item.date))}: ${esc(key.replace(/_/g, ' '))} ${money(item[key])}</title></circle>`;
       }).join('');
       return ("<svg class=\"fn-chart\" viewBox=\"0 0 " + String(width) + " " + String(height) + "\" role=\"img\" aria-label=\"" + ((v2) => globalThis.PlatformLanguage?.text("financials","m_e39427244e8681",`Available, expected, and safe-to-spend cash for ${v2}`,{v2}) ?? `Available, expected, and safe-to-spend cash for ${v2}`)(esc(rangeTitle(state.grain, range()))) + "\">\n        " + String(ticks.map((tick) => `<line class="fn-grid-line" x1="${pad.left}" x2="${width - pad.right}" y1="${y(tick)}" y2="${y(tick)}"></line><text class="fn-axis-label" x="${pad.left - 10}" y="${y(tick) + 3}" text-anchor="end">${esc(money(tick, true))}</text>`).join('')) + "\n        " + String(min < 0 && max > 0 ? `<line class="fn-zero-line" x1="${pad.left}" x2="${width - pad.right}" y1="${y(0)}" y2="${y(0)}"></line>` : '') + "\n        <path class=\"fn-line available\" d=\"" + String(path('available')) + "\"></path><path class=\"fn-line expected\" d=\"" + String(path('expected')) + "\"></path><path class=\"fn-line safe\" d=\"" + String(path('safe')) + "\"></path>\n        " + String(nodes('available', 'available', (item) => item.availableEvents)) + String(nodes('expected', 'expected', (item) => item.expectedEvents)) + String(nodes('safe', 'safe', () => [], true)) + "\n        " + String(series.map((item, index) => index % xEvery === 0 || index === series.length - 1 ? `<text class="fn-axis-label" x="${x(index)}" y="${height - 10}" text-anchor="middle">${esc(item.date.toLocaleDateString(undefined, { month:'short', day:'numeric' }))}</text>` : '').join('')) + "\n      </svg>");
     }
@@ -917,11 +1107,11 @@
       const expectedIn = number(totals.expected_in_cents);
       const expectedOut = number(totals.expected_out_cents);
       return `<section class="fn-metrics cash">
-        ${metricHtml({ label:(globalThis.PlatformLanguage?.text("financials","m_26a99e83a3505b","Available cash") ?? "Available cash"), icon:'fa-building-columns', value:money(end.available), tone:'fn-available', tooltip:state.openingBalance ? 'Cleared cash plus your opening balance.' : 'Cleared cash: net movement from zero. Set an opening balance in Financials settings.' })}
-        ${metricHtml({ label:(globalThis.PlatformLanguage?.text("financials","m_ad21d839382e4a","Expected available") ?? "Expected available"), icon:'fa-chart-line', value:money(end.expected), tone:'fn-expected', tooltip:((v0,v1) => globalThis.PlatformLanguage?.text("financials","m_f6f19f6351ec46",`${v0} in and ${v1} out this period.`,{v0,v1}) ?? `${v0} in and ${v1} out this period.`)(money(expectedIn),money(expectedOut)) })}
-        ${metricHtml({ label:(globalThis.PlatformLanguage?.text("financials","m_e4218fdc8067e4","Safe to spend") ?? "Safe to spend"), icon:'fa-shield-heart', value:money(end.safe), tone:end.safe >= 0 ? 'fn-positive' : 'fn-negative', tooltip:(globalThis.PlatformLanguage?.text("financials","m_71627a3bc42ab8","Expected cash less unpaid commitments.") ?? "Expected cash less unpaid commitments.") })}
-        ${metricHtml({ label:(globalThis.PlatformLanguage?.text("financials","m_2a64ec2d1a192c","Pending incoming") ?? "Pending incoming"), icon:'fa-hourglass-half', value:money(end.pendingIncomingCents), tooltip:(globalThis.PlatformLanguage?.text("financials","m_0916c3264f05b5","Collected but not yet available.") ?? "Collected but not yet available.") })}
-        ${metricHtml({ label:(globalThis.PlatformLanguage?.text("financials","m_438be42c1b6cb3","Undated exposure") ?? "Undated exposure"), icon:'fa-calendar-xmark', value:money(end.undatedExposureCents), tone:end.undatedExposureCents ? 'fn-negative' : '', tooltip:(globalThis.PlatformLanguage?.text("financials","m_12d68f7ced0b3b","Money reserved for commitments that have no clearing date.") ?? "Money reserved for commitments that have no clearing date.") })}
+        ${metricHtml({ label:(globalThis.PlatformLanguage?.text("financials","m_26a99e83a3505b","Available cash") ?? "Available cash"), icon:'fa-building-columns', value:money(end.available), short:'Available', phone:moneyShort(end.available), tone:'fn-available', tooltip:state.openingBalance ? 'Cleared cash plus your opening balance.' : 'Cleared cash: net movement from zero. Set an opening balance in Financials settings.' })}
+        ${metricHtml({ label:(globalThis.PlatformLanguage?.text("financials","m_ad21d839382e4a","Expected available") ?? "Expected available"), icon:'fa-chart-line', value:money(end.expected), short:'Expected', phone:moneyShort(end.expected), tone:'fn-expected', tooltip:((v0,v1) => globalThis.PlatformLanguage?.text("financials","m_f6f19f6351ec46",`${v0} in and ${v1} out this period.`,{v0,v1}) ?? `${v0} in and ${v1} out this period.`)(money(expectedIn),money(expectedOut)) })}
+        ${metricHtml({ label:(globalThis.PlatformLanguage?.text("financials","m_e4218fdc8067e4","Safe to spend") ?? "Safe to spend"), icon:'fa-shield-heart', value:money(end.safe), short:'Safe to spend', phone:moneyShort(end.safe), tone:end.safe >= 0 ? 'fn-positive' : 'fn-negative', tooltip:(globalThis.PlatformLanguage?.text("financials","m_71627a3bc42ab8","Expected cash less unpaid commitments.") ?? "Expected cash less unpaid commitments.") })}
+        ${metricHtml({ label:(globalThis.PlatformLanguage?.text("financials","m_2a64ec2d1a192c","Pending incoming") ?? "Pending incoming"), icon:'fa-hourglass-half', value:money(end.pendingIncomingCents), short:'Pending', phone:moneyShort(end.pendingIncomingCents), tooltip:(globalThis.PlatformLanguage?.text("financials","m_0916c3264f05b5","Collected but not yet available.") ?? "Collected but not yet available.") })}
+        ${metricHtml({ label:(globalThis.PlatformLanguage?.text("financials","m_438be42c1b6cb3","Undated exposure") ?? "Undated exposure"), icon:'fa-calendar-xmark', value:money(end.undatedExposureCents), short:'Undated', phone:moneyShort(end.undatedExposureCents), tone:end.undatedExposureCents ? 'fn-negative' : '', tooltip:(globalThis.PlatformLanguage?.text("financials","m_12d68f7ced0b3b","Money reserved for commitments that have no clearing date.") ?? "Money reserved for commitments that have no clearing date.") })}
       </section>
       <div class="fn-cash-workspace">${String(transactionRailHtml(transactions, selectedRange))}<section class="fn-card fn-chart-card"><div class="fn-card-head fn-cash-chart-head"><div><h2>${String(state.openingBalance ? 'Forecast cash position' : 'Net cash movement')}${tipHtml('Hover a line node or transaction to trace its effect. Safe to spend reserves future and undated outgoing commitments.')}</h2></div><div class="fn-chart-head-actions"><div class="fn-legend"><span><i style="background:#2e90fa"></i>${(globalThis.PlatformLanguage?.htmlText("financials","m_f326bdcd77881a","Available") ?? "Available")}</span><span><i style="background:#7f56d9"></i>${(globalThis.PlatformLanguage?.htmlText("financials","m_ad21d839382e4a","Expected available") ?? "Expected available")}</span><span><i style="background:#12b76a"></i>${(globalThis.PlatformLanguage?.htmlText("financials","m_e4218fdc8067e4","Safe to spend") ?? "Safe to spend")}</span></div></div></div><div class="fn-chart-wrap">${String(chartHtml(series))}</div></section><div class="fn-tooltip" data-fn-tooltip role="tooltip"></div><div class="fn-tx-popover" data-fn-transaction-tooltip role="tooltip"></div></div>`;
     }
@@ -965,7 +1155,8 @@
       const labels = { available:'Available cash', expected:'Expected available', safe:'Safe to spend' };
       const dayEvents = line === 'available' ? item.availableEvents : item.expectedEvents;
       const related = line === 'safe' ? item.safeExposureTransactions : dayEvents;
-      highlightTransactions(related.map((transaction) => transaction.id), { reveal:true });
+      // On a phone the list is below the chart: scrolling to it would take the tooltip off the screen.
+      highlightTransactions(related.map((transaction) => transaction.id), { reveal:!isPhone() });
       const delta = line === 'available' ? item.availableDelta : line === 'expected' ? item.expectedDelta : item.safeDelta;
       tooltip.innerHTML = `<strong>${String(esc(dateLabel(item.date)))} · ${String(esc(labels[line] || line))}</strong><div class="fn-tooltip-total"><span>${(globalThis.PlatformLanguage?.htmlText("financials","m_78ff1aaef0c389","Position") ?? "Position")}</span><b>${String(money(item[line]))}</b></div><div class="fn-tooltip-total"><span>${(globalThis.PlatformLanguage?.htmlText("financials","m_9964885fff7421","Daily change") ?? "Daily change")}</span><b>${String(delta >= 0 ? '+' : '−')}${String(money(Math.abs(delta)))}</b></div><div class="fn-tooltip-exposure"><span><i class="fas fa-calendar-days"></i>${(globalThis.PlatformLanguage?.htmlText("financials","m_854e8e12743170","Dated future exposure ") ?? "Dated future exposure ")}<b>${String(money(item.datedExposureCents))}</b></span><span class="${String(item.undatedExposureCents ? 'warn' : '')}"><i class="fas fa-calendar-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("financials","m_644de3ea02521d","Undated exposure reserved ") ?? "Undated exposure reserved ")}<b>${String(money(item.undatedExposureCents))}</b></span><span><i class="fas fa-hourglass-half"></i>${(globalThis.PlatformLanguage?.htmlText("financials","m_17c29efbe23853","Pending incoming ") ?? "Pending incoming ")}<b>${String(money(item.pendingIncomingCents))}</b></span></div>${String(dayEvents.length ? `<div class="fn-tooltip-list">${dayEvents.slice(0, 6).map((event) => `<div class="fn-tooltip-item"><span>${esc(event.label)}</span><b>${event.amount >= 0 ? '+' : '−'}${money(Math.abs(event.amount))}</b></div>`).join('')}</div>` : `<div class="fn-tooltip-list">${(globalThis.PlatformLanguage?.htmlText("financials","m_039ac323d0b72f","No new movement on this day.") ?? "No new movement on this day.")}</div>`)}`;
       const nodeRect = node.getBoundingClientRect();
@@ -1054,7 +1245,7 @@
     function openSettings(open){
       state.settingsOpen = !!open;
       render();
-      if (open) root.querySelector('[data-fn-settings-form] input')?.focus();
+      if (open) root.querySelector(isPhone() ? '[data-fn-settings-form]' : '[data-fn-settings-form] input')?.focus();
       else root.querySelector('[data-fn-settings]')?.focus();
     }
 
@@ -1063,7 +1254,8 @@
       root.querySelector('[data-fn-filters-toggle]')?.addEventListener('click', () => {
         state.filtersOpen = !state.filtersOpen;
         render();
-        if (state.filtersOpen) root.querySelector('[data-fn-filter-panel] input, [data-fn-filter-panel] select')?.focus();
+        // A phone's keyboard would cover the panel; only the receipt search row opens straight into typing.
+        if (state.filtersOpen && (!isPhone() || state.view === 'receipts')) root.querySelector('[data-fn-filter-panel] input, [data-fn-filter-panel] select')?.focus();
       });
       const panel = root.querySelector('[data-fn-filter-panel]');
       panel?.addEventListener('change', (event) => { if (event.target.name && event.target.name !== 'q') setFilters({ [event.target.name]:event.target.value }); });
@@ -1086,7 +1278,7 @@
       root.querySelectorAll('[data-fn-filter-remove]').forEach((button) => button.addEventListener('click', () => setFilters({ [button.dataset.fnFilterRemove]:'' })));
       root.querySelectorAll('[data-fn-review-filter]').forEach((button) => button.addEventListener('click', () => setFilters({ review:button.dataset.fnReviewFilter })));
       root.querySelectorAll('[data-fn-open-receipt]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); openReceipt(button.dataset.fnOpenReceipt); }));
-      root.querySelectorAll('tr[data-fn-receipt]').forEach((row) => {
+      root.querySelectorAll('[data-fn-receipt]').forEach((row) => {
         row.addEventListener('click', () => openReceipt(row.dataset.fnReceipt));
         row.addEventListener('keydown', (event) => { if (event.target === row && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openReceipt(row.dataset.fnReceipt); } });
       });
@@ -1118,13 +1310,14 @@
       root.querySelectorAll('[data-fn-open-invoice]').forEach((button) => {
         button.addEventListener('click', (event) => { event.stopPropagation(); openInvoice(button.dataset.fnOpenInvoice); });
       });
-      root.querySelectorAll('[data-fn-grain]').forEach((button) => button.addEventListener('click', () => {
-        const grain = button.dataset.fnGrain;
+      const setGrain = (grain) => {
         if (!['day','week','month'].includes(grain) || grain === state.grain) return;
         state.grain = grain;
         routePatch({ financialGrain:grain, financialDate:dateKey(state.anchor) });
         load({ silent:true });
-      }));
+      };
+      root.querySelectorAll('[data-fn-grain]').forEach((button) => button.addEventListener('click', () => setGrain(button.dataset.fnGrain)));
+      root.querySelector('[data-fn-grain-select]')?.addEventListener('change', (event) => setGrain(event.target.value));
       root.querySelector('[data-fn-action="previous"]')?.addEventListener('click', () => { state.anchor = shiftAnchor(state.grain, state.anchor, -1); routePatch({ financialDate:dateKey(state.anchor) }); load({ silent:true }); });
       root.querySelector('[data-fn-action="next"]')?.addEventListener('click', () => { state.anchor = shiftAnchor(state.grain, state.anchor, 1); routePatch({ financialDate:dateKey(state.anchor) }); load({ silent:true }); });
       root.querySelector('[data-fn-action="today"]')?.addEventListener('click', () => { state.anchor = dayStart(new Date()); routePatch({ financialDate:dateKey(state.anchor) }); load({ silent:true }); });
@@ -1160,12 +1353,16 @@
       });
       const transactions = modelTransactions();
       const byId = new Map(transactions.map((item) => [item.id, item]));
+      // A phone row already shows its state and date; a tap opens the project rather than a hover card.
+      const phone = isPhone();
       root.querySelectorAll('[data-fn-transaction]').forEach((row) => {
         const transaction = byId.get(row.dataset.fnTransaction);
-        row.addEventListener('mouseenter', () => showTransactionDetail(row, transaction));
-        row.addEventListener('mouseleave', hideTransactionDetail);
-        row.addEventListener('focus', () => showTransactionDetail(row, transaction));
-        row.addEventListener('blur', hideTransactionDetail);
+        if (!phone) {
+          row.addEventListener('mouseenter', () => showTransactionDetail(row, transaction));
+          row.addEventListener('mouseleave', hideTransactionDetail);
+          row.addEventListener('focus', () => showTransactionDetail(row, transaction));
+          row.addEventListener('blur', hideTransactionDetail);
+        }
         row.addEventListener('click', () => { if (transaction?.projectId) openProject(transaction.projectId); });
       });
     }
@@ -1299,10 +1496,13 @@
       root.querySelector('[data-fn-filters-toggle]')?.setAttribute('aria-expanded', 'false');
     };
     document.addEventListener('pointerdown', onPointerDown, true);
+    // Crossing the phone width swaps layouts (a rotated tablet, a resized window).
+    const onPhoneChange = () => { if (!state.destroyed && state.data) render(); };
+    phoneQuery?.addEventListener?.('change', onPhoneChange);
     load();
 
     return {
-      destroy(){ state.widget?.instance?.destroy?.(); state.widget = null; window.removeEventListener('fm:app-placements:updated',onLayout); clearInterval(refreshTimer); state.destroyed = true; state.loadToken++; unregisterRoute?.(); refreshEvents.forEach((name) => window.removeEventListener(name, scheduleRefresh)); window.removeEventListener('fm:capabilities:updated', onCapabilitiesUpdated); document.removeEventListener('pointerdown', onPointerDown, true); root.innerHTML = ''; },
+      destroy(){ state.widget?.instance?.destroy?.(); state.widget = null; window.removeEventListener('fm:app-placements:updated',onLayout); clearInterval(refreshTimer); state.destroyed = true; state.loadToken++; unregisterRoute?.(); refreshEvents.forEach((name) => window.removeEventListener(name, scheduleRefresh)); window.removeEventListener('fm:capabilities:updated', onCapabilitiesUpdated); document.removeEventListener('pointerdown', onPointerDown, true); phoneQuery?.removeEventListener?.('change', onPhoneChange); root.innerHTML = ''; },
       setActive(active){ state.active = !!active; if (active && Date.now() - state.loadedAt > 60_000 && !state.loading) load({ silent:!!state.data }); },
       update(nextContext = {}){ const nextOrg = clean(nextContext.orgId || nextContext.currentUser?.organization_id); if (nextOrg && nextOrg !== state.orgId) { state.orgId = nextOrg; state.data = null; load(); } },
       refresh(){ return load(); }
@@ -1327,7 +1527,7 @@
   const merchantProcessing = (context) => (context.capabilities?.current?.() || window.Portal?.capabilities?.current?.())?.effective_by_key?.['money.merchant_processing'] === true;
   const moneyOn = () => (window.Portal?.appFlags || window.PlatformAPI?.appFlags)?.value?.('platform', 'money', true) !== false;
   window.AppChrome.registerGroup({id:'financials',parent:'portal.financials',routeParam:'financialView',title:(globalThis.PlatformLanguage?.text("financials","m_187b087cb700ce","Financials") ?? "Financials"),icon:'fa-chart-line',default:'projects',
-    members:[{id:'projects',title:(globalThis.PlatformLanguage?.text("financials","m_b25e412b4ffbc5","Profitability") ?? "Profitability"),icon:'fa-chart-line'},{id:'cashflow',title:(globalThis.PlatformLanguage?.text("financials","m_805ee16e5f3952","Cash flow") ?? "Cash flow"),icon:'fa-chart-area'},
+    members:[{id:'projects',title:(globalThis.PlatformLanguage?.text("financials","m_b25e412b4ffbc5","Profitability") ?? "Profitability"),short:'Profit',icon:'fa-chart-line'},{id:'cashflow',title:(globalThis.PlatformLanguage?.text("financials","m_805ee16e5f3952","Cash flow") ?? "Cash flow"),icon:'fa-chart-area'},
       {id:'payouts',title:(globalThis.PlatformLanguage?.text("financials","m_e06874e8b912d9","Payouts") ?? "Payouts"),icon:'fa-building-columns'},
       {id:'receipts',title:(globalThis.PlatformLanguage?.text("financials","m_fc54001a0cc000","Receipts") ?? "Receipts"),icon:'fa-receipt',available:moneyOn},
       {id:'disputes',title:(globalThis.PlatformLanguage?.text("financials","m_9b7a2edd995dfe","Disputes") ?? "Disputes"),icon:'fa-scale-balanced',available:merchantProcessing}],
