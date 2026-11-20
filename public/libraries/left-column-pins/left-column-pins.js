@@ -2,7 +2,9 @@
  * Pinnable app subviews and drag-to-pin for the left column.
  *
  * An app declares the views a person may pin on their own as `subviews` on its
- * manifest entry ({ id, label, icon, route, requires: { appFlags } }). A pinned
+ * manifest entry ({ id, label, icon, route, requires: { appFlags } }) or as its
+ * sub-tabs (AppChrome.registerGroup with `routeParam`, or
+ * AppChrome.registerSubtabs; GP-113). A pinned
  * subview is a personal preference (`left_column_pins`, "<app id>:<subview id>")
  * and opens the app with the subview's route params. Whole apps keep their
  * organization placement (`app_placements`); dragging an app onto the left
@@ -58,11 +60,16 @@
     return appFlags.every((pair) => Array.isArray(pair) && flags?.value?.(clean(pair[0]), clean(pair[1]), false) === true);
   }
 
-  // The subviews an app declares that are available to this organization now.
+  // The subviews an app declares that are available to this organization now: its manifest `subviews` (My Projects'
+  // views), then the sub-tabs it declares with AppChrome (an app group's members, or its own view strip; GP-113).
   function subviews(appId){
     const manifest = manifestFor(appId);
-    const declared = Array.isArray(manifest?.subviews) ? manifest.subviews : [];
     const id = clean(manifest?.id).toLowerCase();
+    const listed = Array.isArray(manifest?.subviews) ? manifest.subviews : [];
+    const listedIds = new Set(listed.map((subview) => clean(subview?.id).toLowerCase()));
+    let subtabs = [];
+    try { subtabs = id ? (root.AppChrome?.subtabs?.(id) || []) : []; } catch (_) { subtabs = []; }
+    const declared = [...listed, ...subtabs.filter((subview) => !listedIds.has(clean(subview?.id).toLowerCase()))];
     const tabId = clean(manifest?.portalTabId, manifest?.tabId) || (id.startsWith('portal.') ? id.slice(7) : id);
     return declared.map((subview) => {
       const subviewId = clean(subview?.id).toLowerCase();

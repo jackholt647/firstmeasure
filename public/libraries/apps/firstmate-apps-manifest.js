@@ -355,7 +355,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'), versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261119-gp81-center-cache'), versionedBundle('comms/phone-tray.js', '20261119-gp64-loading'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'), versionedBundle('comms/workspace.js', '20261119-gp81-center-cache'), versionedBundle('comms/project.js', '20261119-gp12-instant')]
+      bundles: [versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'), versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261119-gp81-center-cache'), versionedBundle('comms/phone-tray.js', '20261119-gp64-loading'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'), versionedBundle('comms/workspace.js', '20261120-gp113'), versionedBundle('comms/project.js', '20261119-gp12-instant')]
     },
     {
       id: 'project.measurements',
@@ -494,7 +494,7 @@
         versionedBundle('../financials-api/financials-api.js', '20260715-financial-read-model'),
         versionedBundle('../payments-api/payments-api.js', '20261119-gp69'),
         versionedBundle('../payments-widgets/payments-widgets.js', '20261119-gp76b'),
-        versionedBundle('financials/app.js', '20261120-gp113')
+        versionedBundle('financials/app.js', '20261120-gp113b')
       ]
     },
     {
@@ -527,7 +527,7 @@
       portalTabId: 'payroll',
       settingsTabId: 'payroll',
       order: 55,
-      bundles: [versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('settings/payroll.js', '20261019-payroll-closeout-v1'), versionedBundle('people/people-kit.js', '20261021-account-fixes-v1'), versionedBundle('people/list-page.js', '20261019-people-gaps-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('payroll/my-pay.js', '20261019-people-gaps-v1'), versionedBundle('payroll/app.js', '20261019-payroll-closeout-v1')]
+      bundles: [versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('settings/payroll.js', '20261019-payroll-closeout-v1'), versionedBundle('people/people-kit.js', '20261021-account-fixes-v1'), versionedBundle('people/list-page.js', '20261019-people-gaps-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('payroll/my-pay.js', '20261019-people-gaps-v1'), versionedBundle('payroll/app.js', '20261120-gp113')]
     },
     {
       id: 'portal.chat',
@@ -545,8 +545,8 @@
         versionedBundle('comms/communications-ui.js', '20261119-gp81-center-cache'),
         versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'),
         versionedBundle('comms/phone-tray.js', '20261119-gp64-loading'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'),
-        versionedBundle('comms/workspace.js', '20261119-gp81-center-cache'),
-        versionedBundle('chat/app.js', '20261119-gp87')
+        versionedBundle('comms/workspace.js', '20261120-gp113'),
+        versionedBundle('chat/app.js', '20261120-gp113')
       ]
     },
     {
@@ -1103,7 +1103,7 @@
   };
 
   apps.forEach((app) => {
-    app.bundles = [versionedBundle('../app-runtime/app-chrome.js', '20261119-gp87'), ...(app.bundles || [])];
+    app.bundles = [versionedBundle('../app-runtime/app-chrome.js', '20261120-gp113'), ...(app.bundles || [])];
     app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260930-scheduling-qa-v2'), ...(app.bundles || [])];
     const capability = appCapabilities[app.id];
     if (capability) app.access = { ...(app.access || {}), capability };

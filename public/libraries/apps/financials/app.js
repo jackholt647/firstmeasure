@@ -1326,7 +1326,7 @@
   // GP-113: Reconcile is part of Payouts (old links to it land there); Receipts lists every receipt.
   const merchantProcessing = (context) => (context.capabilities?.current?.() || window.Portal?.capabilities?.current?.())?.effective_by_key?.['money.merchant_processing'] === true;
   const moneyOn = () => (window.Portal?.appFlags || window.PlatformAPI?.appFlags)?.value?.('platform', 'money', true) !== false;
-  window.AppChrome.registerGroup({id:'financials',parent:'portal.financials',title:(globalThis.PlatformLanguage?.text("financials","m_187b087cb700ce","Financials") ?? "Financials"),icon:'fa-chart-line',default:'projects',
+  window.AppChrome.registerGroup({id:'financials',parent:'portal.financials',routeParam:'financialView',title:(globalThis.PlatformLanguage?.text("financials","m_187b087cb700ce","Financials") ?? "Financials"),icon:'fa-chart-line',default:'projects',
     members:[{id:'projects',title:(globalThis.PlatformLanguage?.text("financials","m_b25e412b4ffbc5","Profitability") ?? "Profitability"),icon:'fa-chart-line'},{id:'cashflow',title:(globalThis.PlatformLanguage?.text("financials","m_805ee16e5f3952","Cash flow") ?? "Cash flow"),icon:'fa-chart-area'},
       {id:'payouts',title:(globalThis.PlatformLanguage?.text("financials","m_e06874e8b912d9","Payouts") ?? "Payouts"),icon:'fa-building-columns'},
       {id:'receipts',title:(globalThis.PlatformLanguage?.text("financials","m_fc54001a0cc000","Receipts") ?? "Receipts"),icon:'fa-receipt',available:moneyOn},

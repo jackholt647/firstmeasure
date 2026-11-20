@@ -1436,7 +1436,7 @@
       if (on && !registered) {
         registered = true;
         window.Portal.apps.registerPortalApp({ id: 'portal.chat', tabId: 'chat', title: (globalThis.PlatformLanguage?.text("chat","m_643fa01aa77d59","Communications") ?? "Communications"), terminologyKey: 'chat.portal_tab', icon: 'fa-inbox', order: 23, fullBleed: true, mount });
-        window.AppChrome.registerGroup({id:'communications',parent:'portal.chat',title:'Communications',icon:'fa-comments',default:'inbox',
+        window.AppChrome.registerGroup({id:'communications',parent:'portal.chat',routeParam:'communicationsView',title:'Communications',icon:'fa-comments',default:'inbox',
           settings:[{id:'setup',title:'Phone setup'},{id:'layout',title:'App layout'}],
           // FM-550: the short name is what the tab strip shows when the full names do not fit.
           members:[['inbox','Inbox','fa-inbox','Inbox'],['lists','Call lists','fa-list-check','Lists'],['followups','Follow-ups','fa-calendar-check','Follow'],['history','History','fa-clock-rotate-left','History'],['center','Call center','fa-headset','Center'],['scripts','Call scripts','fa-file-lines','Scripts']].map(([id,title,icon,short])=>({id,title,icon,short,...(id==='center'?{defaultPlacement:'standalone'}:{})})),

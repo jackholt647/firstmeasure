@@ -14,10 +14,22 @@
   Portal.navigation?.registerSchema?.('communicationsView',{history:'push',values:[...views.map(v=>v[0]),'setup','layout','scripts'],scopes:[{tab:'chat'}]});
   Portal.navigation?.registerSchema?.('communicationsFilter',{history:'replace',scopes:[{tab:'chat'}]});
   Portal.navigation?.registerSchema?.('communicationsEntry',{history:'push',scopes:[{tab:'chat'}]});
+  // GP-113: the Call Center's views are its sub-tabs: the route's centerMode opens one, and the Apps menu lists them
+  // under the Call Center to open or pin (AppChrome.registerSubtabs). Manager view is listed once this person is known
+  // to have it (their phone status says so, remembered for the session).
+  const CENTER_MODES=['personal','call','manager'];
+  Portal.navigation?.registerSchema?.('centerMode',{history:'push',values:CENTER_MODES,scopes:[{tab:'chat.center'}]});
+  const managerKey=()=>`firstmate:call-center-manager:${ui.org()}:${ui.user()}`;
+  function rememberManager(status){if(!status?.permissions)return;try{sessionStorage.setItem(managerKey(),canManage(status)?'1':'0');}catch{}}
+  function knownManager(){if(phone?.status?.permissions)return canManage(phone.status);try{return sessionStorage.getItem(managerKey())==='1';}catch{return false;}}
+  window.AppChrome?.registerSubtabs?.('portal.chat.center',{param:'centerMode',icon:'fa-headset',items:()=>[
+    {id:'personal',title:'Personal',icon:'fa-user'},{id:'call',title:'Call center',icon:'fa-headset'},
+    ...(knownManager()?[{id:'manager',title:'Manager view',icon:'fa-user-tie'}]:[])]});
   function mount(root,options={}){
     const state={root,options,view:options.projectId?'history':options.standalone || (['setup','layout'].includes(route().communicationsView)?route().communicationsView:window.AppChrome.resolve('communications',route().communicationsView)),columns:[],calls:[],personalCalls:[],tasks:[],agents:[],scripts:[],status:null,query:'',filter:route().communicationsFilter||'all',error:'',sequence:0,disposed:false,skipped:new Set(),cursor:'',nextCursor:'',lastEntry:'',inboxHandle:null,callId:'',callView:null,callTicket:0,callViews:0,
       centerMode:'call',centerQuery:'',centerDirection:'all',centerPeriod:'30',centerWrap:'all',centerList:'all',centerDialMode:'manual',centerSeen:new Set(),centerExpandedList:'',centerCursor:'',centerNextCursor:'',centerTotal:0,centerToday:0};
     try{state.centerMode=sessionStorage.getItem(`firstmate:call-center-mode:${ui.org()}:${ui.user()}`)||'call';}catch{}
+    if(options.standalone==='center'&&!options.projectId&&CENTER_MODES.includes(route().centerMode))state.centerMode=route().centerMode;
     const listScroll=new Map();
     function rememberListScroll(){root.querySelectorAll('[data-list-scroll]').forEach(el=>listScroll.set(el.dataset.listScroll,el.scrollTop));}
     instances.add(state);
@@ -58,7 +70,7 @@
     function onChange(event){if(event.target.dataset.centerDirection!==undefined){state.centerDirection=event.target.value;state.centerCursor='';void load();return;}if(event.target.dataset.centerPeriod!==undefined){state.centerPeriod=event.target.value;state.centerCursor='';void load();return;}if(event.target.dataset.centerWrap!==undefined){state.centerWrap=event.target.value;state.centerCursor='';void load();return;}if(event.target.dataset.centerList!==undefined){state.centerList=event.target.value;render();return;}if(event.target.dataset.centerDialMode!==undefined){state.centerDialMode=event.target.value;render();return;}if(event.target.dataset.department!==undefined){state.departmentId=event.target.value;state.cursor='';state.centerCursor='';void load();return;}if(event.target.dataset.filter!==undefined){state.filter=event.target.value;if(!options.projectId&&!Portal.navigation?.applying)Portal.navigation?.replace?.({communicationsFilter:state.filter});void load();}}
     async function onClick(event){
       const target=event.target.closest('button');if(!target||!root.contains(target))return;
-      if(target.dataset.centerMode){state.centerMode=target.dataset.centerMode;state.centerCursor='';try{sessionStorage.setItem(`firstmate:call-center-mode:${ui.org()}:${ui.user()}`,state.centerMode);}catch{}void load();return;}
+      if(target.dataset.centerMode){state.centerMode=target.dataset.centerMode;state.centerCursor='';try{sessionStorage.setItem(`firstmate:call-center-mode:${ui.org()}:${ui.user()}`,state.centerMode);}catch{}if(centerAlone&&!Portal.navigation?.applying)Portal.navigation?.push?.({centerMode:state.centerMode},{source:'call-center-mode',ownedKeys:['centerMode']});void load();return;}
       if(target.dataset.view){nav(target.dataset.view);return;}
       const action=target.dataset.action;if(!action)return;
       // GP-12: the button gives at once, and shows a spinner if what it starts takes more than a moment.
@@ -145,6 +157,7 @@
       if(reuseLists)render();
       if(center&&!append&&!silent){
         state.status=state.status||phone.status||null;
+        rememberManager(state.status);
         if(state.centerMode==='manager'&&state.status?.permissions&&!canManage(state.status))state.centerMode='call';
         const cached=!state.centerCursor&&centerCache.get(centerKey());
         if(cached)Object.assign(state,cached);state.centerPending=!cached;render();
@@ -487,6 +500,9 @@
     function search(query){query=String(query||'');if(query===state.query)return;state.query=query;state.cursor='';clearTimeout(state.searchTimer);state.searchTimer=setTimeout(()=>{if(!state.disposed)void load(false,true);},240);}
     return {refresh:load,search,setActive(value){active=!!value;if(active&&state.view==='inbox')state.inboxHandle?.activate?.();},destroy(){if(phone.dialer?.active)phone.pauseDialer('Automatic dialing paused when you left the workspace.');window.removeEventListener('fm:app-placements:updated',onLayout);state.disposed=true;state.sequence++;state.phoneSettings?.destroy?.();clearInterval(timer);clearTimeout(state.searchTimer);clearTimeout(state.changeTimer);state.inboxHandle?.destroy?.();instances.delete(state);root.removeEventListener('click',onClick);root.removeEventListener('input',onInput);root.removeEventListener('change',onChange);window.removeEventListener('fm:platform-session:updated',onSession);window.removeEventListener('fm:customer-calls:next',onNext);window.removeEventListener('fm:customer-calls:changed',updatePhone);}};
   }
-  Portal.navigation?.registerHandler?.('communications-workspace',{priority:420,apply:route=>{for(const state of instances){if(state.options.projectId||state.options.standalone)continue;if(route.tab!=='chat')continue;const target=route.communicationsView||window.AppChrome.resolve('communications');if(target!==state.view)state.nav(target,true);else if(target==='lists'&&route.communicationsEntry&&route.communicationsEntry!==phone.currentEntry)void state.load();}}});
+  Portal.navigation?.registerHandler?.('communications-workspace',{priority:420,apply:route=>{for(const state of instances){
+    // A Call Center sub-tab (pinned, or from the Apps menu) switches the open Call Center's view.
+    if(state.options.standalone==='center'&&!state.options.projectId&&route.tab==='chat.center'&&CENTER_MODES.includes(route.centerMode)&&route.centerMode!==state.centerMode){state.centerMode=route.centerMode;state.centerCursor='';void state.load();continue;}
+    if(state.options.projectId||state.options.standalone)continue;if(route.tab!=='chat')continue;const target=route.communicationsView||window.AppChrome.resolve('communications');if(target!==state.view)state.nav(target,true);else if(target==='lists'&&route.communicationsEntry&&route.communicationsEntry!==phone.currentEntry)void state.load();}}});
   Portal.CommunicationsWorkspace={mount};
 })();
