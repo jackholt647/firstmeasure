@@ -5467,6 +5467,12 @@
         if (mySubmit !== submitSeq) return;
         if (!inQAView) return;
         btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Submitting...`;
+      } else {
+        setQaSubmitBlocking(true, 'Saving your editor changes...');
+        await saveEmbeddedEditorBeforeSendBack();
+        if (mySubmit !== submitSeq) return;
+        if (!inQAView) return;
+        setQaSubmitBlocking(true, 'Sending back to tech...');
       }
       const res = await fmPost(`projects/${encodeURIComponent(currentId)}/qa/decision`, {
         status: apiStatus,
@@ -5659,6 +5665,12 @@
         if (!inQAView) return;
         btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Processing...`;
         setQaSubmitBlocking(true, 'Sending report...');
+      } else {
+        setQaSubmitBlocking(true, 'Saving your editor changes...');
+        await saveEmbeddedEditorBeforeSendBack();
+        if (mySubmit !== submitSeq) return;
+        if (!inQAView) return;
+        setQaSubmitBlocking(true, 'Sending back to tech...');
       }
       const res = await fmPost(`projects/${encodeURIComponent(currentId)}/manager/decision`, {
         status: status,
@@ -7858,6 +7870,22 @@
     qaPdfLastSyncJobId = '';
     qaPdfLastSyncRevision = '';
     setPdfHint('Saved');
+  }
+
+  // A send-back carries the reviewer's own corrections to the technician (FM-626). Unsaved editor work otherwise
+  // stays only in this browser's local backup, which the editor shows this reviewer on every reopen, so the
+  // reviewer sees the fix while the technician opens the last Save. Nothing is sent back unless the save works.
+  async function saveEmbeddedEditorBeforeSendBack(){
+    if (!currentId) return;
+    const frame = getActiveQaEditorFrame();
+    let src = '';
+    try { src = String(frame?.getAttribute('src') || ''); } catch (e) {}
+    if (!frame || !src || src === 'about:blank') return;
+    const editorWin = await waitForQaEmbeddedEditorWindow();
+    const saved = await editorWin.saveProjectData(true, true);
+    if (saved !== true) {
+      throw new Error('The embedded editor did not save, so the report was not sent back. Your changes are still in the editor: save it, then send back again.');
+    }
   }
 
   function resolveQaReviewedPdfSync(requestedPdfSync){
