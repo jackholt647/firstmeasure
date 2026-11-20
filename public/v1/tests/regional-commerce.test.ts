@@ -86,6 +86,12 @@ test("credit checkout locks integration currency, preserves presentment details 
       const fields=calls.filter(c=>c.url==="/v1/checkout/sessions").at(-1).fields;
       assert.equal(fields.get("line_items[0][price_data][currency]"),"eur");
       assert.equal(fields.get("adaptive_pricing[enabled]"),"false");
+      // FM-622: Stripe's page, its receipt email and our text on the receipt are in the organization's language.
+      const stripeLanguage=country==="FR"?"fr":"ja",french=country==="FR";
+      assert.equal(fields.get("locale"),stripeLanguage);
+      assert.match(fields.get("payment_intent_data[description]"),french?/de crédit ajoutés à votre solde FirstMate/:/FirstMate の残高に/);
+      assert.match(fields.get("line_items[0][price_data][product_data][name]"),french?/^Crédits de métré de toiture$/:/^屋根計測クレジット$/);
+      assert.equal(calls.filter(c=>c.url==="/v1/customers").at(-1).fields.get("preferred_locales[0]"),stripeLanguage);
       const session=sessions.get(created.session.id),currency=session.currency;session.currency="gbp";
       assert.equal((await c.request("POST","/v1/platform/portal-action",{action:"stripe_fulfill_session",session_id:session.id})).success,false);
       session.currency=currency;
@@ -97,6 +103,8 @@ test("credit checkout locks integration currency, preserves presentment details 
       const charge=await c.request("POST",`/v1/platform/organizations/${c.org}/credits/charge`,{amount:7,reason:"order_submitted",meta:{charge_token:"regional-topup"}});
       assert.equal(charge.auto_topup.success,true,JSON.stringify(charge));
       const pi=calls.filter(c=>c.url==="/v1/payment_intents").at(-1).fields;assert.equal(pi.get("currency"),currency);assert.equal(pi.get("amount"),"5000");
+      assert.match(pi.get("description"),french?/^50\s€ de crédit ajoutés/:/^FirstMate の残高に €50 分/);
+      assert.equal(calls.filter(c=>c.url==="/v1/customers/cus_regional").at(-1).fields.get("preferred_locales[0]"),stripeLanguage);
     }
   }finally{globalThis.fetch=original;}
 });

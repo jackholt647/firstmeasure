@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "請求情報を読み込めませんでした。もう一度お試しください。",
-    "full_exterior": "外装全体"
+    "full_exterior": "外装全体",
+    "stripe_receipt_credits_currency": {
+      "message": "FirstMate の残高に {amount} 分のクレジットが追加されました。屋根レポートの料金はこの残高から差し引かれます。再度チャージするまで追加の請求はありません。",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "FirstMate の残高に {amount} クレジットが追加されました。屋根レポートの料金はこの残高から差し引かれます。再度チャージするまで追加の請求はありません。",
+      "format": "icu"
+    },
+    "stripe_line_credits": "屋根計測クレジット",
+    "stripe_line_credits_bonus": "期間限定ボーナス付き屋根計測クレジット",
+    "stripe_line_added": {
+      "message": "FirstMate アカウントに {amount} を追加しました",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "{paid} 購入 + 期間限定ボーナス {bonus}（{percent}% ボーナス）= アカウントに {total} を追加",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}（税込）",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "すべて",

@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Nie udało się wczytać danych rozliczeniowych. Spróbuj ponownie.",
-    "full_exterior": "Cały budynek z zewnątrz"
+    "full_exterior": "Cały budynek z zewnątrz",
+    "stripe_receipt_credits_currency": {
+      "message": "Do Twojego salda FirstMate dodano środki: {amount}. Raporty dachowe są opłacane z tego salda; nie zostaniesz ponownie obciążony, dopóki nie doładujesz konta.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "Do Twojego salda FirstMate dodano kredyty: {amount}. Raporty dachowe są opłacane z tego salda; nie zostaniesz ponownie obciążony, dopóki nie doładujesz konta.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Środki na pomiary dachów",
+    "stripe_line_credits_bonus": "Środki na pomiary dachów z bonusem ograniczonym czasowo",
+    "stripe_line_added": {
+      "message": "Dodano do Twojego konta FirstMate: {amount}",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "Zakupiono {paid} + bonus ograniczony czasowo {bonus} (bonus {percent}%) = do Twojego konta dodano {total}",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. Zawiera VAT.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "Wszystkie",

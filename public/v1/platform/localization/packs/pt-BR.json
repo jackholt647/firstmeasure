@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Não foi possível carregar as informações de cobrança. Tente novamente.",
-    "full_exterior": "Exterior completo"
+    "full_exterior": "Exterior completo",
+    "stripe_receipt_credits_currency": {
+      "message": "{amount} em créditos adicionados ao seu saldo FirstMate. Os relatórios de telhado são descontados deste saldo; você não será cobrado novamente até recarregar.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "{amount} créditos adicionados ao seu saldo FirstMate. Os relatórios de telhado são descontados deste saldo; você não será cobrado novamente até recarregar.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Créditos de medição de telhado",
+    "stripe_line_credits_bonus": "Créditos de medição de telhado com bônus por tempo limitado",
+    "stripe_line_added": {
+      "message": "{amount} adicionados à sua conta FirstMate",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "{paid} comprados + {bonus} de bônus por tempo limitado ({percent}% de bônus) = {total} adicionados à sua conta",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. Impostos incluídos.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "Todos",

@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Kunne ikke laste inn betalingsinformasjonen. Prøv igjen.",
-    "full_exterior": "Hele utsiden"
+    "full_exterior": "Hele utsiden",
+    "stripe_receipt_credits_currency": {
+      "message": "{amount} i kreditt er lagt til i FirstMate-saldoen din. Takrapporter trekkes fra denne saldoen; du blir ikke belastet igjen før du fyller på.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "{amount} kreditter er lagt til i FirstMate-saldoen din. Takrapporter trekkes fra denne saldoen; du blir ikke belastet igjen før du fyller på.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Kreditter for takmåling",
+    "stripe_line_credits_bonus": "Kreditter for takmåling med tidsbegrenset bonus",
+    "stripe_line_added": {
+      "message": "{amount} lagt til i FirstMate-kontoen din",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "{paid} kjøpt + {bonus} tidsbegrenset bonus ({percent} % bonus) = {total} lagt til i kontoen din",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. Inkl. mva.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "Alle",

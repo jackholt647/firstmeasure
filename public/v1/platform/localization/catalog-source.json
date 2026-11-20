@@ -116,7 +116,29 @@
       "format": "icu"
     },
     "catalog_load_failed": "Could not load billing. Please try again.",
-    "full_exterior": "Full Exterior"
+    "full_exterior": "Full Exterior",
+    "stripe_receipt_credits_currency": {
+      "message": "{amount} in credits added to your FirstMate balance. Roof reports come out of this balance; you won't be charged again until you reload.",
+      "format": "icu"
+    },
+    "stripe_receipt_credits_units": {
+      "message": "{amount} credits added to your FirstMate balance. Roof reports come out of this balance; you won't be charged again until you reload.",
+      "format": "icu"
+    },
+    "stripe_line_credits": "Roof Measurement Credits",
+    "stripe_line_credits_bonus": "Roof Measurement Credits With Limited-Time Bonus",
+    "stripe_line_added": {
+      "message": "{amount} added to your FirstMate account",
+      "format": "icu"
+    },
+    "stripe_line_bonus": {
+      "message": "{paid} purchased + {bonus} limited-time bonus ({percent}% bonus) = {total} added to your account",
+      "format": "icu"
+    },
+    "stripe_line_with_vat": {
+      "message": "{description}. VAT included.",
+      "format": "icu"
+    }
   },
   "canvassing": {
     "m_61df468d92e238": "All",
