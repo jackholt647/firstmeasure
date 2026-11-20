@@ -96,9 +96,9 @@
       .inv-btn.subtle{border-color:transparent;background:transparent}
       .inv-cards{flex:0 0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;padding:14px 22px 0}
       .inv-card{border:1px solid #e4e7ec;border-radius:13px;background:#fff;padding:13px 15px}
-      .inv-card span{display:block;color:#667085;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.06em}
+      .inv-card span{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#667085;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.06em}
+      .inv-card-n{flex:0 0 auto;min-width:18px;padding:1px 6px;border-radius:999px;background:#eef2f6;color:#344054;font-size:10px;font-weight:1000;line-height:16px;letter-spacing:0;text-align:center}
       .inv-card strong{display:block;margin-top:6px;font-size:21px}
-      .inv-card em{display:block;margin-top:3px;color:#667085;font-size:11px;font-style:normal;font-weight:800}
       .inv-card.alert strong{color:#b42318}
       .inv-card.hold strong{color:#93370d}
       .inv-filters-row{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:14px 22px 0}
@@ -188,7 +188,7 @@
         .inv-card{flex:0 0 auto;min-width:118px;max-width:62%;padding:9px 11px;border-radius:12px;scroll-snap-align:start}
         .inv-card span{font-size:9.5px;letter-spacing:.04em;white-space:nowrap}
         .inv-card strong{margin-top:3px;font-size:17px;white-space:nowrap}
-        .inv-card em{font-size:10.5px;white-space:nowrap}
+        .inv-card-n{min-width:16px;padding:0 5px;font-size:9.5px;line-height:15px}
         .inv-filters-row{padding:10px 12px 0}
         .inv-filters{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -12px;padding:0 12px}
         .inv-filters::-webkit-scrollbar{display:none}
@@ -425,15 +425,14 @@
 
     function summaryCardsHtml(){
       const summary = state.summary;
-      const aging = object(summary.aging);
-      const late = (Number(object(aging.days_1_30).cents) || 0) + (Number(object(aging.days_31_60).cents) || 0)
-        + (Number(object(aging.days_61_90).cents) || 0) + (Number(object(aging.days_over_90).cents) || 0);
+      // GP-133: each card is its label with a count beside it and the dollar value; no explanatory third line.
+      const card = (label, cents, count, tone) => `<div class="inv-card ${tone || ''}"><span>${label}<b class="inv-card-n">${String(Number(count) || 0)}</b></span><strong>${esc(money(cents))}</strong></div>`;
       return `<div class="inv-cards">
-        <div class="inv-card"><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_4dbdd1ef75b232","Outstanding") ?? "Outstanding")}</span><strong>${String(esc(money(summary.outstanding_cents)))}</strong><em>${((v1,v2) => globalThis.PlatformLanguage?.htmlText("invoices","m_53e5c09c00d9bc",`${v1} open invoice${v2}`,{v1,v2}) ?? `${v1} open invoice${v2}`)(Number(summary.outstanding_count) || 0,(Number(summary.outstanding_count) || 0) === 1 ? '' : 's')}</em></div>
-        <div class="inv-card ${String(Number(summary.overdue_cents) > 0 ? 'alert' : '')}"><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_cda60f7c71e465","Overdue") ?? "Overdue")}</span><strong>${String(esc(money(summary.overdue_cents)))}</strong><em>${((v5) => globalThis.PlatformLanguage?.htmlText("invoices","m_8908f4d6b3d1e0",`${v5} past due in aging`,{v5}) ?? `${v5} past due in aging`)(esc(money(late)))}</em></div>
-        <div class="inv-card"><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_2d68d3be56a5d5","Needs invoicing") ?? "Needs invoicing")}</span><strong>${String(esc(money(readyCents())))}</strong><em>${((v7,v8) => globalThis.PlatformLanguage?.htmlText("invoices","m_25c52b780ffec9",`${v7} project${v8} ready to bill`,{v7,v8}) ?? `${v7} project${v8} ready to bill`)(readyProjects(),readyProjects() === 1 ? '' : 's')}</em></div>
-        <div class="inv-card"><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_e342ad7e70d797","Drafts") ?? "Drafts")}</span><strong>${String(esc(money(summary.draft_cents)))}</strong><em>${((v10) => globalThis.PlatformLanguage?.htmlText("invoices","m_653c1089db6e76",`${v10} not sent yet`,{v10}) ?? `${v10} not sent yet`)(Number(summary.draft_count) || 0)}</em></div>
-        <div class="inv-card ${String(Number(summary.production_hold_count) > 0 ? 'hold' : '')}"><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_4dd806ab820ee7","Production holds") ?? "Production holds")}</span><strong>${String(Number(summary.production_hold_count) || 0)}</strong><em>${((v13) => globalThis.PlatformLanguage?.htmlText("invoices","m_a56978a610b31e",`${v13} blocking work`,{v13}) ?? `${v13} blocking work`)(esc(money(summary.production_hold_cents)))}</em></div>
+        ${card((globalThis.PlatformLanguage?.htmlText("invoices","m_4dbdd1ef75b232","Outstanding") ?? "Outstanding"), summary.outstanding_cents, summary.outstanding_count)}
+        ${card((globalThis.PlatformLanguage?.htmlText("invoices","m_cda60f7c71e465","Overdue") ?? "Overdue"), summary.overdue_cents, summary.overdue_count, Number(summary.overdue_cents) > 0 ? 'alert' : '')}
+        ${card((globalThis.PlatformLanguage?.htmlText("invoices","m_2d68d3be56a5d5","Needs invoicing") ?? "Needs invoicing"), readyCents(), readyProjects())}
+        ${card((globalThis.PlatformLanguage?.htmlText("invoices","m_e342ad7e70d797","Drafts") ?? "Drafts"), summary.draft_cents, summary.draft_count)}
+        ${card((globalThis.PlatformLanguage?.htmlText("invoices","m_4dd806ab820ee7","Production holds") ?? "Production holds"), summary.production_hold_cents, summary.production_hold_count, Number(summary.production_hold_count) > 0 ? 'hold' : '')}
       </div>`;
     }
 
