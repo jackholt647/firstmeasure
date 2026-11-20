@@ -107,6 +107,7 @@ test("the kinds become appointment types; the finish sets texts and who goes, an
   assert.deepEqual(catalog.kinds.find((kind: any) => kind.id === "installation").offer, ["crews", "subcontractors", "me"]);
   assert.deepEqual(catalog.kinds.find((kind: any) => kind.id === "repair").offer, ["technician", "crews", "subcontractors", "me", "sales_team"]);
   assert.deepEqual(catalog.categories.map((entry: any) => entry.id), ["sales", "production", "other"]);
+  assert.deepEqual(catalog.kinds.filter((kind: any) => kind.retired).map((kind: any) => kind.id), ["inspection", "service_call"], "inspections and service calls are kept for those who picked them, and not offered (GP-135)");
   const { readAppointmentCatalog } = await import("../appointments/planning.js");
   assert.deepEqual((await readAppointmentCatalog(owner)).catalog.presets.map((preset: any) => preset.id), ["sales", "production"], "before: the built-in types");
 
@@ -175,7 +176,7 @@ test("defaults follow who sells and who works", async () => {
   assert.equal(defaultAttendee("production", { sales_team: null, workforce: "subcontractors" }), "subcontractors");
   assert.equal(defaultAttendee("other", { sales_team: "small_team", workforce: "crews" }), "anyone");
   assert.deepEqual(offeredAttendees({ sales_team: "just_me", workforce: "just_me" }), ["me", "anyone"]);
-  assert.deepEqual(suggestedKinds({ industry: "hvac", crm_pack: "home_services", sales_team: "no_sales" }), ["installation", "repair", "delivery", "service_call", "maintenance"], "no sales appointments when there are none");
+  assert.deepEqual(suggestedKinds({ industry: "hvac", crm_pack: "home_services", sales_team: "no_sales" }), ["installation", "repair", "delivery", "maintenance"], "no sales appointments when there are none; never a service call, which is a repair appointment (GP-135)");
   assert.deepEqual(suggestedKinds({ industry: "roofing", crm_pack: null, sales_team: "small_team" } as any), ["sales", "installation", "repair", "delivery"], "an inspection is never picked to start with (GP-85)");
 });
 
