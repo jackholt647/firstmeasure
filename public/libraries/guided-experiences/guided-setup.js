@@ -116,6 +116,9 @@
     .gxs-info:focus-within .gxs-info-tip{pointer-events:auto;cursor:text}
     .gxs-step>p.gxs-sub{margin:0 0 18px;color:#667085;max-width:60ch}
     .gxs-module-loading{display:grid;place-items:center;min-height:160px;color:var(--primary,#d93025)}
+    /* A workflow drawn as more pages of a step (carrier registration, GP-138) fills it, its buttons along the bottom. */
+    .gxs-step:has(>.gxs-body>.fm-wizard-inline){justify-content:flex-start}
+    .gxs-body:has(>.fm-wizard-inline){display:flex;flex-direction:column;flex:1 0 auto}
     .gxs-module-error{margin:24px 0;color:#b42318}
     .gxs-foot{display:flex;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid #f2f4f7;background:#fff}
     /* A step that marks itself data-float-foot (the document setup's styles, FM-608) has Back and Continue float over its
@@ -905,16 +908,17 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
       return {valid:()=>handle?.valid?.()!==false,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
     }
   });
-  // The Communications setup (FM-491, FM-510): one step with its own pages (start, done, plan); registration opens over it.
+  // The Communications setup (FM-491, FM-510): one step with its own pages (start, done, plan); carrier registration is
+  // more of its pages (GP-138), walked by Back and the phone's back.
   registerWidget('comms-setup', {
     handlesNavigation:true,
     render(el,ctx){
       let disposed=false, handle=null;
       el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      import(new URL('./comms-setup.js?v=20261119-gp46',scriptUrl).href).then(module=>{
+      import(new URL('./comms-setup.js?v=20261120-gp138',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mount(el,ctx);
       }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
-      return {valid:()=>true,destroy(){disposed=true;handle?.destroy?.();}};
+      return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
     }
   });
   // The appointment setup (FM-515): one step with its own pages (each kind of appointment, texting, the finish); Back
@@ -924,7 +928,7 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
     render(el,ctx){
       let disposed=false, handle=null;
       el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      import(new URL('./appointments-setup.js?v=20261120-gp136',scriptUrl).href).then(module=>{
+      import(new URL('./appointments-setup.js?v=20261120-gp138',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mount(el,ctx);
       }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
       return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};

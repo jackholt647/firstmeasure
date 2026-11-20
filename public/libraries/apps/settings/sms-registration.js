@@ -3,6 +3,8 @@
  * (business, contact, consent, messages, number, review and submit). Moved out of settings/company.js (FM-510) so the
  * Communications setup runs the same workflow: company.js makes one with `create(env)` for its page, and
  * `open({ orgId })` opens the workflow on its own over any page, resolving with the registration when it closes.
+ * GP-138: `open({ orgId, container })` draws it as more steps of a guided setup's tray instead (texting-setup.js): no
+ * head or step rail, the tray names each step (`setTitle`), and Back on the first step returns to the setup.
  */
 (function(){
   'use strict';
@@ -1113,7 +1115,7 @@
         return `<li><button type="button" data-sms-fix-step="${target.step}" data-sms-fix-selector="${escapeHtml(target.selector || '')}">${escapeHtml(smsSummaryIssueText(issue))}<span aria-hidden="true"> →</span></button></li>`;
       }).join('');
     }
-    function smsStepHeading(step){
+    function smsStepHeading(step, inline = null){
       const copy = {
         business: ['Tell us about your business', 'Make sure these details exactly match your tax records.'],
         contact: ['Who should we contact?', ''],
@@ -1124,6 +1126,8 @@
         summary: ['Review and Submit', '']
       }[step];
       if (!copy) return '';
+      // In a setup's tray the tray names the step, with no step count (setups show none): only the line under it stays.
+      if (inline) { inline.setTitle?.(copy[0]); return copy[1] ? `<header class="sms-step-heading"><p>${copy[1]}</p></header>` : ''; }
       return `<header class="sms-step-heading"><span class="sms-eyebrow">STEP ${smsVisibleSteps().findIndex(item => item.id === step) + 1} OF ${smsVisibleSteps().length}</span><h2>${copy[0]}</h2>${copy[1] ? `<p>${copy[1]}</p>` : ''}</header>`;
     }
     function smsSummaryMissingFields(profile){
@@ -2234,9 +2238,9 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       };
       const renderStepBody = (container, shellCtx, stepId) => {
         ctxRef = shellCtx;
-        if(developmentStatus?.onboarded){container.innerHTML=`<div class="sms-workspace"><h3>Fully onboarded for development</h3><p>Brand registration: mock approved</p><p>10DLC campaign: mock approved</p><p>Call center: test transport connected</p><p>All test calls route to ${escapeHtml(developmentStatus.destination)}. These are simulated registrations, not carrier approvals.</p></div>`;return;}
+        if(developmentStatus?.onboarded){options.inline?.setTitle?.('Fully onboarded for development');container.innerHTML=`<div class="sms-workspace">${options.inline ? '' : '<h3>Fully onboarded for development</h3>'}<p>Brand registration: mock approved</p><p>10DLC campaign: mock approved</p><p>Call center: test transport connected</p><p>All test calls route to ${escapeHtml(developmentStatus.destination)}. These are simulated registrations, not carrier approvals.</p></div>`;return;}
         const stepIssues = attemptedSteps.has(stepId) ? smsStepIssues(stepId, profile) : [];
-        container.innerHTML = `<div class="sms-workspace">${smsStepHeading(stepId)}
+        container.innerHTML = `<div class="sms-workspace">${smsStepHeading(stepId, options.inline)}
           ${submissionError ? `<div class="sms-api-error" role="alert"><strong>We couldn’t complete that step</strong><p>${escapeHtml(submissionError)}</p>${/privacy|polic|terms|consent|opt.in/i.test(submissionError) ? '<button class="sms-text-button" type="button" data-sms-fix-step="consent">Review consent & policy links →</button>' : '<span>Your saved details are still here. Review the message and try again.</span>'}</div>` : ''}
           <p class="sms-muted sms-auto-status" data-sms-auto-status role="status">${escapeHtml(automaticStatusError)}</p>
           ${smsStepContent(stepId, profile, { numberSearch })}
@@ -2294,7 +2298,11 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         }
       };
       const renderStepFooter = (container, shellCtx, stepId) => {
-        if(developmentStatus?.onboarded){container.textContent='Development setup complete';return;}
+        if(developmentStatus?.onboarded){
+          // In a setup's tray there is no X of its own: Continue goes on with the setup.
+          if (options.inline) { container.innerHTML = `<button class="cs-btn" type="button" data-sms-dev-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_206d31a7c795c4"," Back") ?? " Back")}</button><button class="cs-btn primary" type="button" data-sms-dev-done>Continue <i class="fas fa-arrow-right"></i></button>`; container.querySelector('[data-sms-dev-back]').addEventListener('click', () => { void shellCtx.back(); }); container.querySelector('[data-sms-dev-done]').addEventListener('click', () => { void wizard?.close?.({ reason: 'done' }); }); return; }
+          container.textContent='Development setup complete';return;
+        }
         ctxRef = shellCtx;
         const steps = smsVisibleSteps(profile);
         const index = Math.max(0, steps.findIndex((item) => item.id === stepId));
@@ -2311,9 +2319,10 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
             ? `<button class="cs-btn" type="button" id="smsRefreshStatus"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_8ff6bc351de08b"," Refresh Status") ?? " Refresh Status")}</button>`
           : stepId === 'summary' && smsRegistrationSubmitted(profile)
             ? smsHasProviderCampaign(profile) ? '' : submissionError ? '<button class="cs-btn primary" type="button" id="smsRetrySubmission">Retry submission</button>' : profile.campaign?.autoSubmitCampaign === true ? '' : '<button class="cs-btn primary" type="button" id="smsContinueSetup">Submit campaign</button>'
-            : `<button class="cs-btn" type="button" id="smsPrev" ${String(index <= 0 ? 'disabled' : '')}><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_206d31a7c795c4"," Back") ?? " Back")}</button>
+            : `<button class="cs-btn" type="button" id="smsPrev" ${String(index <= 0 && !options.inline ? 'disabled' : '')}><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_206d31a7c795c4"," Back") ?? " Back")}</button>
                   ${String(index < steps.length - 1 ? `<button class="cs-btn primary" type="button" id="smsNext">${(globalThis.PlatformLanguage?.htmlText("settings","m_dc6a60d7bb3581","Next ") ?? "Next ")}<i class="fas fa-arrow-right"></i></button>` : `<button class="cs-btn primary" type="button" id="smsSubmitMock" ${stepIssues.length || locked ? 'disabled' : ''} title="${stepIssues.length ? escapeHtml(`Finish: ${stepIssues.join(', ')}`) : ''}"><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a50e2076d26969"," Submit Registration") ?? " Submit Registration")}</button>`)}`;
-        container.innerHTML = footerActions;
+        // In a setup's tray every page has a Back (the tray has no other way back to the setup); Settings keeps its X.
+        container.innerHTML = options.inline && !footerActions.includes('id="smsPrev"') ? `<button class="cs-btn" type="button" id="smsPrev"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_206d31a7c795c4"," Back") ?? " Back")}</button>${footerActions}` : footerActions;
         if (operationBusy) {
           container.innerHTML = `<button class="cs-btn" type="button" disabled aria-live="polite"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> ${escapeHtml(operationMessage || 'Saving…')}</button>`;
           return;
@@ -2367,9 +2376,12 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       wizard = window.FirstMateSetupWizard.open({
         id: 'sms-workflow',
         workflowKey: options.standalone || env.embedded ? '' : '10dlc',
-        title: 'Set up business texting',
-        subtitle: 'SMS registration',
-        icon: 'fa-message',
+        // Texts and calls are one business phone, registered once (GP-138).
+        title: 'Set up your business phone',
+        subtitle: 'Texts and calls · carrier registration',
+        icon: 'fa-phone',
+        // GP-138: inline, more steps of the setup that opened it; Back on the first step goes back to that setup.
+        ...(options.inline ? { container: options.inline.container, backOut: true, onStepChange: () => options.inline.onStep?.() } : {}),
         initialStepId: requestedStep || smsResumeStep(profile),
         statusNote: 'Draft autosaves as you move through the workflow.',
         locked: () => developmentStatus?.onboarded || smsRegistrationLocked(profile),
@@ -2391,14 +2403,14 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         },
         writeRoute: (patch, routeOptions) => { if (!options.standalone && !env.embedded) writeSettingsRoute({ sub: 'sms', ...patch }, routeOptions); },
         ...(options.standalone || env.embedded ? { closeRoute: () => {} } : { routeMatch: (route) => String(route?.tab || '') === 'company_settings' && String(route?.sub || '') === 'sms' }),
-        onClose: () => {
+        onClose: (info) => {
           closeAdvanced();
           stopStatusUpdates?.();
           if (numberSearchTimer) {
             clearTimeout(numberSearchTimer);
             numberSearchTimer = null;
           }
-          if (options.standalone) options.onClose?.(profile);
+          if (options.standalone) options.onClose?.(profile, info);
           else renderSmsSettings();
         }
       });
@@ -2416,9 +2428,14 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           if (note) note.textContent = message;
         }
       });
+      return wizard;
     }
-    /** The workflow on its own (the Communications setup, FM-510): the saved registration, or a new one filled in from the company. */
-    async function openRegistration(){
+    /**
+     * The workflow on its own (the Communications setup, FM-510): the saved registration, or a new one filled in from the
+     * company. `inline` ({ container, setTitle, onStep, onOpen(controller) }, GP-138) draws it in a setup's tray and resolves
+     * { profile, reason } ('submitted', 'back', 'done' or how it was closed).
+     */
+    async function openRegistration(inline = null){
       if (!window.FirstMateSetupWizard?.open) throw new Error('The setup wizard library did not load.');
       const orgId = currentOrgId();
       const setup = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
@@ -2426,7 +2443,9 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       const profiles = Array.isArray(setup.profiles) ? setup.profiles.map((item) => smsPrefillProfile(item, setup)) : [];
       const eligibleProfiles = smsRegistrationLiveMode ? profiles.filter((item) => !(item.events || []).some((event) => ['brand_submitted','brand_updated','campaign_submitted'].includes(event.type) && event.mock === true)) : profiles;
       const profile = eligibleProfiles[0] || smsPrefillProfile({}, setup);
-      return new Promise((resolve) => openSmsWizard(profile, { standalone: true, initialStep: smsHasProviderBrand(profile) || smsHasProviderCampaign(profile) ? 'summary' : smsResumeStep(profile), onClose: resolve }));
+      const initialStep = smsHasProviderBrand(profile) || smsHasProviderCampaign(profile) ? 'summary' : smsResumeStep(profile);
+      if (inline?.container) return new Promise((resolve) => { const wizard = openSmsWizard(profile, { standalone: true, inline, initialStep, onClose: (latest, info) => resolve({ profile: latest, reason: String(info?.reason || '') }) }); inline.onOpen?.(wizard); });
+      return new Promise((resolve) => openSmsWizard(profile, { standalone: true, initialStep, onClose: resolve }));
     }
     return { formatPhoneUS, renderSmsSettings, renderSmsRegistration, openRegistration, destroy };
   }
@@ -2448,9 +2467,13 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
     };
   }
 
-  /** Opens the registration workflow outside Settings. Resolves with the registration (profile) when it closes. */
+  /**
+   * Opens the registration workflow outside Settings. Resolves with the registration (profile) when it closes; with
+   * `container` (GP-138) it is drawn there as more steps of a setup and resolves { profile, reason }.
+   */
   function open(options = {}){
-    return create(outsideSettings(options)).openRegistration();
+    const inline = options.container ? { container: options.container, setTitle: options.setTitle, onStep: options.onStep, onOpen: options.onOpen } : null;
+    return create(outsideSettings(options)).openRegistration(inline);
   }
 
   /**
