@@ -665,6 +665,17 @@
       .fm-advanced-app-tile.has-subviews:hover,.fm-advanced-app-tile.has-subviews:focus-within,.fm-advanced-app-tile.has-subviews.is-expanded{z-index:6}
       .fm-advanced-app-subviews-toggle{position:absolute;z-index:4;right:var(--fm-advanced-control-inset,7px);bottom:var(--fm-advanced-control-inset,7px);display:grid;place-items:center;width:var(--fm-advanced-control-size,24px);height:var(--fm-advanced-control-size,24px);padding:0;border:0;border-radius:var(--fm-advanced-control-radius,7px);background:transparent;color:#98a2b3;font-size:var(--fm-advanced-control-font,10px);cursor:pointer;transition:transform .22s cubic-bezier(.2,.9,.2,1),background .16s ease,color .16s ease}
       .fm-advanced-app-subviews-toggle:hover,.fm-advanced-app-subviews-toggle:focus-visible{background:#f2f4f7;color:#344054;outline:none}
+      /* Phones: the chevron sits beside the app's name, not in a row of its own (GP-130) */
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-app-tile.has-subviews{flex-flow:row wrap;justify-content:center;align-content:flex-end;column-gap:0}
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-app-tile.has-subviews>.fm-advanced-app-icon-wrap{margin-inline:calc((100% - var(--fm-advanced-icon-size,65px)) / 2)}
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-app-tile.has-subviews>.fm-advanced-app-open{max-width:calc(100% - 12px);padding-inline:1px}
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-app-subviews-toggle{position:relative;right:auto;bottom:auto;align-self:flex-start;flex:0 0 18px;width:18px;height:calc(var(--fm-advanced-label-size,12px) * 1.15 + 8px);margin:-4px -6px -4px 0;border-radius:6px;font-size:11px}
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-app-subviews-toggle:after{position:absolute;inset:-10px -4px -12px -2px;content:""}
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-app-tile.has-subviews.is-long-label>.fm-advanced-app-open{max-width:100%}
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-app-tile.is-long-label .fm-advanced-app-subviews-toggle{position:absolute;right:2px;bottom:2px;margin:0}
+      /* A closed list waits inside its tile, so it adds no blank space to scroll into under the last row */
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-app-subviews{transition:visibility 0s linear .2s,top 0s linear .2s,bottom 0s linear .2s,opacity .16s ease,transform .24s cubic-bezier(.2,.9,.2,1)}
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-app-tile.has-subviews:not(.is-expanded):not(:has(:focus-visible)) .fm-advanced-app-subviews{top:auto;bottom:0}
       .fm-advanced-app-subviews{position:absolute;z-index:7;left:50%;top:calc(100% + 8px);width:max(190px,min(250px,var(--fm-advanced-tile-size,120px)));visibility:hidden;opacity:0;pointer-events:none;transform:translate(-50%,-8px) scale(.96);transform-origin:50% 0;transition:visibility 0s linear .2s,opacity .16s ease,transform .24s cubic-bezier(.2,.9,.2,1)}
       .fm-advanced-app-subviews:before{position:absolute;left:0;right:0;top:-10px;height:10px;content:""}
       .fm-advanced-app-tile.subviews-above .fm-advanced-app-subviews{top:auto;bottom:calc(100% + 8px);transform:translate(-50%,8px) scale(.96);transform-origin:50% 100%}
