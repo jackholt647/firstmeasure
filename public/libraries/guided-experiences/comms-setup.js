@@ -107,7 +107,7 @@ export function mount(el, ctx){
   const first = options.first === 'email' || options.only === 'email' ? 'email' : 'phone';
   const only = options.only === 'email' ? 'email' : '';
   const finishLabel = () => text(options.finish, L('gx_comms_go', 'Go to Communications'));
-  let alive = true, busy = false, watcher = null, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, domains = null, registering = false, registration = null;
+  let alive = true, busy = false, watcher = null, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, domains = null, registering = false, phoneFlow = null;
 
   const invoke = (action, input = {}) => commsAction(orgId, action, input);
   const icon = (name, more = '') => `<span class="gxc-icon${more ? ` ${more}` : ''}" aria-hidden="true"><i class="fas ${name}"></i></span>`;
@@ -365,14 +365,14 @@ export function mount(el, ctx){
         onStep: () => { ctx.syncBack?.(); el.closest('.gxs-step')?.scrollTo?.({ top: 0 }); },
         onStatus: (value) => { status = value; report('phone'); },
         onRegistering: (handle) => {
-          registration = handle || null;
+          phoneFlow = handle || null;
           if (!handle && alive) { title(L('gx_comms_registering_title', 'Register your business')); drawBusy(L('gx_comms_registering', 'Registering your business with the carriers…')); }
         } });
       status = result.status;
       next = result.left === 'back' ? from : !wasRegistered && registered() ? object(status.done).email ? 'finish' : 'email' : 'done';
       if (alive && next !== 'finish') show(next);
     } catch (error) {
-      registration = null;
+      phoneFlow = null;
       if (alive) { show(object(status.done).phone ? 'done' : 'intro'); fail(error); }
     } finally { busy = false; if (button?.isConnected) button.disabled = false; ctx.syncBack?.(); }
     if (alive && next === 'finish') { show('done'); await finish(); }
@@ -404,7 +404,7 @@ export function mount(el, ctx){
     else if (start === 'phone') void (object(status.done).phone && registered() ? show('done') : startPhone());
   }).catch((error) => { draw(); fail(error); });
   // While registration shows, Back and the phone's back walk its pages, and its first page's Back returns here.
-  return { valid: () => true, escape: () => registering, back: () => registration?.back?.() === true, backDepth: () => registration ? registration.depth() : 0,
-    destroy(){ alive = false; watcher?.disconnect(); registration?.close?.(); } };
+  return { valid: () => true, escape: () => registering, back: () => phoneFlow?.back?.() === true, backDepth: () => phoneFlow ? phoneFlow.depth() : 0,
+    destroy(){ alive = false; watcher?.disconnect(); phoneFlow?.close?.(); } };
 }
 export default mount;
