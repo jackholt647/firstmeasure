@@ -160,14 +160,36 @@ test("the kinds become appointment types; the finish sets texts and who goes, an
   const crew = await createResourceGroup(ORG, { name: "Crew A" });
   assert.deepEqual(departmentIdsForSubject(await resolveOrganizationStructure(ORG), "resource_group", String(crew.id)), ["production"], "a crew added later is in Production");
 
-  // Asked again (a replay), it keeps what each kind was answered; a saved catalog keeps the types it has.
+  // Asked again (a replay), it keeps what each kind was answered; the kinds picked then are the types (GP-140).
   const again = await value(owner, "appointment-setup", "status");
   assert.deepEqual(again.kinds.map((kind: any) => [kind.id, kind.attendee, kind.reminder]), [["sales", "me", true], ["repair", "crews", false], ["custom_estimate_b", "subcontractors", false]]);
   await invoke(owner, "appointments.kinds.save", { kinds: [{ id: "installation" }] }, "kinds-2");
-  assert.deepEqual((await readAppointmentCatalog(owner)).catalog.presets.map((preset: any) => preset.id), ["sales", "repair", "custom_estimate_b", "installation"]);
+  assert.deepEqual((await readAppointmentCatalog(owner)).catalog.presets.map((preset: any) => preset.id), ["installation"]);
   await assert.rejects(() => invoke(owner, "appointments.kinds.save", { kinds: [{ id: "nonsense" }] }, "kinds-bad"), /not a kind of appointment/);
   const member = person("member", { role: "member", permissions: { view_projects: true } });
   await assert.rejects(() => invoke(member, "appointments.kinds.save", { kinds: [{ id: "sales" }] }, "kinds-member"));
+});
+
+test("the kinds picked are the organization's types: built-in and unpicked ones go, Settings' and a form's stay (GP-140)", async () => {
+  await setup();
+  const { readAppointmentCatalog, saveAppointmentCatalog } = await import("../appointments/planning.js");
+  const { defaultAppointmentCatalog } = await import("../appointments/defaults.js");
+  const { FORMS, saveRecord, removeRecord } = await import("../forms/storage.js");
+  const type = (id: string, label: string) => ({ id, label, configuration: { title: label, duration_minutes: 60, window_minutes: 60 } });
+  // A catalog saved in Settings: the built-in Production type is there (as in Jack's organization), beside a type the
+  // person made, and two the instant organization starts with, one of them booked by a website form.
+  const bundle = await readAppointmentCatalog(owner);
+  await saveAppointmentCatalog(owner, { catalog: { ...bundle.catalog, presets: [...bundle.catalog.presets, defaultAppointmentCatalog().presets.find((preset) => preset.id === "production")!, type("0b5f3c2e-6f1a-4d6b-9f57-3f2a8f0f1c11", "Roof check"), type("maintenance", "Maintenance appointments"), type("company-meeting", "Company meeting")] }, revision: bundle.revision });
+  await saveRecord(ORG, FORMS, "form_gp140", { name: "Book a meeting", branch_id: "default", definition: { steps: [{ id: "s1", items: [{ id: "i1", kind: "appointment", preset_id: "company-meeting" }] }] }, published: null });
+  const presets = async () => (await readAppointmentCatalog(owner)).catalog.presets.map((preset: any) => preset.id);
+
+  await invoke(owner, "appointments.kinds.save", { kinds: [{ id: "sales" }, { id: "installation" }, { id: "repair" }, { id: "delivery" }] }, "kinds-gp140");
+  assert.deepEqual(await presets(), ["installation", "0b5f3c2e-6f1a-4d6b-9f57-3f2a8f0f1c11", "company-meeting", "sales", "repair", "delivery"], "four kinds picked: no Production beside Installation, no unpicked maintenance; the person's own type and the form's stay");
+  await invoke(owner, "appointments.setup.apply", {}, "apply-gp140");
+  assert.deepEqual(await presets(), ["installation", "0b5f3c2e-6f1a-4d6b-9f57-3f2a8f0f1c11", "company-meeting", "sales", "repair", "delivery"], "the finish brings nothing back");
+  await removeRecord(ORG, FORMS, "form_gp140");
+  await invoke(owner, "appointments.kinds.save", { kinds: [{ id: "sales" }, { id: "installation" }] }, "kinds-gp140-2");
+  assert.deepEqual(await presets(), ["installation", "0b5f3c2e-6f1a-4d6b-9f57-3f2a8f0f1c11", "sales"], "a kind no longer picked goes, and so does a built-in type no form books");
 });
 
 test("defaults follow who sells and who works", async () => {
