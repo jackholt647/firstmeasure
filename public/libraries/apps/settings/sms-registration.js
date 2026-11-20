@@ -99,6 +99,8 @@
       [data-fm-wizard="sms-workflow"] .fm-wizard-step strong{font-weight:650}
       [data-fm-wizard="sms-workflow"] .fm-wizard-step-status{font-weight:400}
       [data-fm-wizard="sms-workflow"] .sms-workspace{gap:22px;max-width:880px;margin:auto;padding-bottom:10px;font-weight:400}
+      /* In a setup's tray (GP-138) the step is the width; its buttons line up with it. */
+      .fm-wizard-inline[data-fm-wizard="sms-workflow"] .sms-workspace{max-width:none;margin:0}
       .sms-step-heading{display:grid;gap:9px}.sms-step-heading h2{font-size:26px;letter-spacing:-.65px;line-height:1.2;margin:0;color:#101828;font-weight:700}.sms-step-heading p{max-width:660px;margin:0;color:#667085;font-size:14px;line-height:1.55}
       .sms-eyebrow{font-size:10px;letter-spacing:1.2px;color:#8a4b40;font-weight:700}
       .sms-section,.sms-message-card{border:1px solid #e4e7ec;border-radius:14px;background:white;padding:22px;display:grid;gap:20px;min-width:0}
