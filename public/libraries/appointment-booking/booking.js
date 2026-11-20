@@ -126,19 +126,21 @@
       // A type that sends crews, or one that leaves who goes to whoever books it (a subcontractor), in a company with none.
       const groups = gaps.some((entry) => entry.subject_type !== 'organization_user') || (noTeams && !config.requirements.length && config.requires_project === true && config.event_type_id !== 'sales_appointment');
       const people = !groups && gaps.some((entry) => entry.subject_type === 'organization_user');
-      const key = groups ? 'groups' : people ? 'people' : '';
+      // A company with no crews or subcontractors at all is told they are not added yet, not that none is free (GP-142).
+      const key = groups ? (noTeams ? 'none' : 'groups') : people ? 'people' : '';
       if (key === shown && (!key || target.querySelector('[data-staffing-note]'))) return;
       shown = key;
       target.querySelector('[data-staffing-note]')?.remove();
       if (!key) return;
       const crews = term('workforce.resource_group_plural', 'Crews'), subs = term('workforce.organization_connection_plural', 'Subcontractors');
-      const text = groups ? `No ${crews.toLowerCase()} or ${subs.toLowerCase()} available` : 'No one is set up to go to these yet';
+      const text = key === 'none' ? `No ${crews.toLowerCase()} or ${subs.toLowerCase()} yet` : groups ? `No ${crews.toLowerCase()} or ${subs.toLowerCase()} available` : 'No one is set up to go to these yet';
+      const blurb = key === 'none' ? 'Appointment will be unassigned until you add them.' : 'It is booked unassigned. Assign someone later from the calendar.';
       // Scheduling sets them up its own way (the workforce setup, else its Crew settings); elsewhere, the setup where it plays.
       const teamsSetup = typeof window.FirstMateTeamsSetup === 'function' ? window.FirstMateTeamsSetup : guides()?.experience?.('operations.workforce.setup') ? () => guides().play('operations.workforce.setup', { replay: true, force: true }) : null;
       const canSetUp = groups && !!teamsSetup;
       const note = document.createElement('div');
       note.className = 'fm-booking-staffing'; note.dataset.staffingNote = key; note.setAttribute('role', 'note');
-      note.innerHTML = `<span><strong>${esc(text)}</strong><small>${esc('It is booked unassigned. Assign someone later from the calendar.')}</small></span>${canSetUp ? `<button type="button" class="fm-booking-staffing-setup" data-staffing-setup><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>${esc('Set up')}</button>` : ''}`;
+      note.innerHTML = `<span><strong>${esc(text)}</strong><small>${esc(blurb)}</small></span>${canSetUp ? `<button type="button" class="fm-booking-staffing-setup" data-staffing-setup><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>${esc('Set up')}</button>` : ''}`;
       host.after(note);
       note.querySelector('[data-staffing-setup]')?.addEventListener('click', async () => {
         dialog.close();
