@@ -126,4 +126,35 @@ test("financial read API aggregates the full population before paginating detail
   assert.equal(cash.transactions.has_more, true);
   assert.equal(cash.series.length, 31);
   assert.ok(cash.totals.expected_in_cents > 0);
+
+  // GP-113: the header filters narrow the list and the figures it adds up.
+  await upsertDocument(orgId, "projects", {
+    id: "financial_project_closed",
+    data: { id: "financial_project_closed", title: "Closed roof", address: "9 Finished Lane", status: "completed", branch_id: "default", created_at: "2026-06-01T00:00:00.000Z" },
+    metadata: { kind: "platform_project" }
+  }, { replace: true });
+  const period = "from=2026-07-01&through=2026-08-01";
+  const searched = await client.request("GET", `/v1/financials/organizations/${orgId}/projects?${period}&q=${encodeURIComponent("project 2")}`);
+  assert.equal(searched.totals.matching_project_count, 1);
+  assert.equal(searched.totals.projected_revenue_cents, 20_000);
+  assert.equal(searched.projects.items[0].project.id, "financial_project_2");
+  assert.equal(searched.totals.revenue_in_period_cents, 2_000);
+  const open = await client.request("GET", `/v1/financials/organizations/${orgId}/projects?${period}`);
+  assert.equal(open.totals.matching_project_count, 3, "closed projects stay out of the default list");
+  const closed = await client.request("GET", `/v1/financials/organizations/${orgId}/projects?${period}&status=closed`);
+  assert.deepEqual(closed.projects.items.map((item: any) => item.project.id), ["financial_project_closed"]);
+  assert.equal(closed.totals.revenue_in_period_cents, 0);
+  const all = await client.request("GET", `/v1/financials/organizations/${orgId}/projects?${period}&status=all`);
+  assert.equal(all.totals.matching_project_count, 4);
+  const unscheduled = await client.request("GET", `/v1/financials/organizations/${orgId}/projects?${period}&schedule=unscheduled`);
+  assert.equal(unscheduled.totals.matching_project_count, 3);
+  assert.equal(unscheduled.projects.items[0].window.scheduled, false);
+  const scheduled = await client.request("GET", `/v1/financials/organizations/${orgId}/projects?${period}&schedule=scheduled`);
+  assert.equal(scheduled.totals.matching_project_count, 0);
+  const losing = await client.request("GET", `/v1/financials/organizations/${orgId}/projects?${period}&result=loss`);
+  assert.equal(losing.totals.matching_project_count, 0);
+  const cashSearched = await client.request("GET", `/v1/financials/organizations/${orgId}/cash-flow?${period}&q=${encodeURIComponent("project 3")}&payroll=exclude`);
+  assert.equal(cashSearched.payroll_included, false);
+  assert.ok(cashSearched.transactions.items.every((item: any) => item.project_id === "financial_project_3"));
+  await assert.rejects(() => client.request("GET", `/v1/financials/organizations/${orgId}/projects?${period}&status=bogus`));
 });

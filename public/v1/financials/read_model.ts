@@ -27,6 +27,12 @@ export type FinancialReadOptions = {
   clearingHours?: number;
   openingBalance?: number;
   includePayroll?: boolean;
+  // GP-113: the Financials header filters. Status "" is the default: open projects in the list and its projections,
+  // every project for cash that cleared; "open", "closed" or "all" applies to everything.
+  search?: string;
+  status?: string;
+  schedule?: string;
+  result?: string;
 };
 
 type CashTransaction = {
@@ -174,11 +180,12 @@ function projectWindow(project: JsonObject) {
   const start = starts[0] || date(project.start_at || project.start_date || project.scheduled_start_at || project.created_at);
   const end = ends.at(-1) || date(project.end_at || project.end_date || project.scheduled_end_at || project.completed_at) || start;
   const deliveries = scheduled.filter(isMaterialEvent).map(eventStart).filter((item): item is Date => !!item).sort((a, b) => a.getTime() - b.getTime());
-  return { start, end, deliveries };
+  // A start from the calendar, not the creation-date fallback (GP-113).
+  return { start, end, deliveries, scheduled: starts.length > 0 };
 }
 
 function publicWindow(window: ReturnType<typeof projectWindow>) {
-  return { start: iso(window.start), end: iso(window.end), deliveries: window.deliveries.map(iso) };
+  return { start: iso(window.start), end: iso(window.end), deliveries: window.deliveries.map(iso), scheduled: window.scheduled };
 }
 
 function dueDate(obligation: JsonObject, window: ReturnType<typeof projectWindow>) {
@@ -533,7 +540,30 @@ function snapshotId(orgId: string, scope: string) {
 }
 
 function snapshotScope(options: FinancialReadOptions, kind: string) {
-  return JSON.stringify({ kind, branchId: cleanText(options.branchId), from: options.from, through: options.through, clearingHours: options.clearingHours || 0, openingBalance: options.openingBalance || 0, includePayroll: options.includePayroll !== false });
+  return JSON.stringify({ kind, branchId: cleanText(options.branchId), from: options.from, through: options.through, clearingHours: options.clearingHours || 0, openingBalance: options.openingBalance || 0, includePayroll: options.includePayroll !== false, search: cleanText(options.search).toLowerCase(), status: cleanText(options.status), schedule: cleanText(options.schedule), result: cleanText(options.result) });
+}
+
+type FinancialRow = { project: JsonObject; summary: JsonObject; window: ReturnType<typeof publicWindow> };
+
+// GP-113: the header filters. `status` falls back to `fallback` when the caller left it at its default.
+function rowMatches(row: FinancialRow, options: FinancialReadOptions, fallback: "open" | "all") {
+  const project = asObject(row.project);
+  const status = cleanText(options.status) || fallback;
+  if (status === "open" && !isActiveProject(project)) return false;
+  if (status === "closed" && isActiveProject(project)) return false;
+  const schedule = cleanText(options.schedule);
+  if (schedule === "scheduled" && !row.window.scheduled) return false;
+  if (schedule === "unscheduled" && row.window.scheduled) return false;
+  const result = cleanText(options.result);
+  const profit = cents(asObject(row.summary).projected_profit_cents);
+  if (result === "profit" && profit < 0) return false;
+  if (result === "loss" && profit >= 0) return false;
+  const search = cleanText(options.search).toLowerCase();
+  if (search) {
+    const text = [project.id, project.title, project.project_title, project.project_name, project.address, project.customer_name].map(cleanText).join(" ").toLowerCase();
+    if (!search.split(/\s+/).every((word) => text.includes(word))) return false;
+  }
+  return true;
 }
 
 function storeSnapshot<T extends ProjectSnapshot | CashSnapshot>(cache: Map<string, T>, id: string, snapshot: T) {
@@ -641,8 +671,8 @@ export async function projectFinancials(orgId: string, options: FinancialReadOpt
     return projectSnapshotPage(cursor.snapshot, cached, cursor.offset, limit);
   }
   const rows = await loadRows(orgId, options);
-  const allTransactions = rows.flatMap((row) => projectTransactions(row, Math.max(0, Number(options.clearingHours || 0))));
-  const activeRows = rows.filter((row) => isActiveProject(asObject(row.project)));
+  const allTransactions = rows.filter((row) => rowMatches(row, options, "all")).flatMap((row) => projectTransactions(row, Math.max(0, Number(options.clearingHours || 0))));
+  const activeRows = rows.filter((row) => rowMatches(row, options, "open"));
   const points = activeRows.map((row) => ({ row, point: projectPoint(row, allTransactions, through) }));
   const actual = actualCashEvents(allTransactions);
   const periodActual = actual.filter((item) => item.at >= from && item.at < through);
@@ -754,7 +784,7 @@ export async function cashFlowFinancials(orgId: string, options: FinancialReadOp
       transactions: { items: page, count: cached.items.length, limit, has_more: cursor.offset + page.length < cached.items.length, next_cursor: cursor.offset + page.length < cached.items.length ? encodeCursor(cursor.offset + page.length, cursor.snapshot) : "" }
     };
   }
-  const rows = await loadRows(orgId, options);
+  const rows = (await loadRows(orgId, options)).filter((row) => rowMatches(row, options, "all"));
   const projectCash = rows.flatMap((row) => projectTransactions(row, clearingHours));
   const payrollFrom = `${from.getUTCFullYear() - 1}-01-01`;
   const payrollThrough = `${through.getUTCFullYear() + 1}-12-31`;

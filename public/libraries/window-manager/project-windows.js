@@ -74,11 +74,11 @@
   // screen (and its own loading state); a leftover skeleton would sit over the
   // page, blocking clicks, as soon as the window closes or stops being modal.
   function clearRoutePrecover(){ document.getElementById('fmProjectRoutePrecover')?.remove(); }
-  const PROJECT_SCOPED_ROUTE_KEYS=['projectScheduleView','projectScheduleTarget','projectScheduleDate','moneyView'];
+  const PROJECT_SCOPED_ROUTE_KEYS=['projectScheduleView','projectScheduleTarget','projectScheduleDate','moneyView','receipt'];
   // Route keys a window's own navigation mirrors to the browser address while
   // it is the routed project (the portal already mirrors project/projectTab
   // on focus; the Schedule tab's view, target and date and the Finance tab's
-  // view (GP-60: the Invoices tab's New invoice) live in the window).
+  // view (GP-60: the Invoices tab's New invoice) and its open receipt (GP-113: Financials › Receipts) live in the window).
   function mirrorRouteFromWindow(record, detail = {}){
     const route = detail?.route || {};
     const changed = Array.isArray(detail?.changedKeys) ? detail.changedKeys : [];
@@ -110,7 +110,7 @@
     try{
       navigation.replace?.(params,{source:'project-window-deep-link'});
       navigation.applyCurrent?.({source:'project-window-deep-link',only:'project-schedule-route'});
-      if(params.moneyView)navigation.applyCurrent?.({source:'project-window-deep-link',only:'project-money-route',force:true});
+      if(params.moneyView || params.receipt)navigation.applyCurrent?.({source:'project-window-deep-link',only:'project-money-route',force:true});
     }catch(_){}
   }
   // Schedule changes in one surface refresh the others: a window's changes are

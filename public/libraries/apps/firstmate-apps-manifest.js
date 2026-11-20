@@ -305,7 +305,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261119-gp60-money-view'), versionedBundle('project-request/app.js', '20261119-gp100-tray-flow')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261120-gp113-receipt'), versionedBundle('project-request/app.js', '20261119-gp100-tray-flow')]
     },
     {
       id: 'firstmeasure.order',
@@ -494,7 +494,7 @@
         versionedBundle('../financials-api/financials-api.js', '20260715-financial-read-model'),
         versionedBundle('../payments-api/payments-api.js', '20261119-gp69'),
         versionedBundle('../payments-widgets/payments-widgets.js', '20261119-gp76b'),
-        versionedBundle('financials/app.js', '20261119-gp76b')
+        versionedBundle('financials/app.js', '20261120-gp113')
       ]
     },
     {

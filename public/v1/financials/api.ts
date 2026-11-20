@@ -12,7 +12,13 @@ const querySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
   cursor: z.string().optional(),
   clearing_hours: z.coerce.number().int().min(0).max(336).optional(),
-  opening_balance_cents: z.coerce.number().int().optional()
+  opening_balance_cents: z.coerce.number().int().optional(),
+  // GP-113: the header filters.
+  q: z.string().max(200).optional(),
+  status: z.enum(["open", "closed", "all"]).optional(),
+  schedule: z.enum(["scheduled", "unscheduled"]).optional(),
+  result: z.enum(["profit", "loss"]).optional(),
+  payroll: z.enum(["exclude"]).optional()
 }).passthrough();
 
 function cleanText(value: unknown) {
@@ -56,7 +62,12 @@ function readOptions(request: FastifyRequest, options: { cashFlow?: boolean } = 
     limit: query.limit,
     cursor: cleanText(query.cursor),
     clearingHours: query.clearing_hours,
-    openingBalance: query.opening_balance_cents
+    openingBalance: query.opening_balance_cents,
+    search: cleanText(query.q),
+    status: query.status || "",
+    schedule: query.schedule || "",
+    result: query.result || "",
+    ...(query.payroll === "exclude" ? { includePayroll: false } : {})
   };
 }
 
@@ -102,6 +113,7 @@ export const registerFinancialsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, permission: "view_projects|manage_projects|manage_company_settings" });
     const includePayroll = hasPermission(ctx, "manage_payroll|manage_company_settings");
-    return { ok: true, ...(await cashFlowFinancials(orgId, { ...readOptions(request, { cashFlow: true }), includePayroll })) };
+    const options = readOptions(request, { cashFlow: true });
+    return { ok: true, ...(await cashFlowFinancials(orgId, { ...options, includePayroll: includePayroll && options.includePayroll !== false })) };
   });
 };
