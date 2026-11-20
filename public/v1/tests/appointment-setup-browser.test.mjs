@@ -87,7 +87,7 @@ test('the kinds: two columns; a company with no sales gets no sales kinds and no
     },L);
     await page.getByText('Team meeting').waitFor();
     assert.deepEqual((await page.evaluate(()=>handle.answer())).kinds.map(kind=>kind.id),['sales','installation','repair','delivery'],'an inspection starts off; a delivery starts on');
-    const first=await page.locator('[data-gxk-kind="sales"]').boundingBox(),second=await page.locator('[data-gxk-kind="inspection"]').boundingBox();
+    const first=await page.locator('[data-gxk-kind="sales"]').boundingBox(),second=await page.locator('[data-gxk-kind="installation"]').boundingBox();
     assert.ok(Math.abs(first.y-second.y)<1&&second.x>first.x+first.width,'two columns side by side');
     // Back to "who sells" and "no sales appointments": the list starts again, without the sales kinds or the pills.
     await page.evaluate(()=>mountKinds({kinds:[],no_sales:true}));
@@ -99,6 +99,34 @@ test('the kinds: two columns; a company with no sales gets no sales kinds and no
     await page.evaluate(()=>mountKinds({kinds:[{id:'installation',category:'production'}],no_sales:false}));
     await page.locator('[data-gxk-kind="sales"]').waitFor();
     assert.deepEqual((await page.evaluate(()=>handle.answer())).kinds.map(kind=>kind.id),['sales','installation','repair','delivery']);
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+test('the kinds: the picked ones first, kept in place while tapping; retired kinds only for who picked them (GP-135)',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const {page,errors}=await open(browser,433);
+    await page.evaluate(async L=>{
+      const copy=(key,text)=>({key,text});
+      const kinds=[['sales','Sales appointment','sales'],['inspection','Inspection','sales',true],['installation','Installation','production'],['repair','Repair appointment','production'],['service_call','Service call','production',true],['maintenance','Maintenance visit','production'],['delivery','Material delivery','production'],['walkthrough','Final walkthrough','production'],['meeting','Team meeting','other']];
+      window.catalog={kinds:kinds.map(([id,text,category,retired])=>({id,label:copy('gx_appt_kind_'+id,text),category,...(retired?{retired:true}:{})})),
+        categories:[{id:'sales',label:copy('a','Sales')},{id:'production',label:copy('b','Production')},{id:'other',label:copy('c','Other')}],suggested:['sales','installation','repair','delivery']};
+      window.module=await import('/libraries/setup-steps/appointment-kinds.js');
+      window.mountKinds=(status,answer={})=>{window.handle?.destroy();document.querySelector('#step').innerHTML='';window.handle=module.mount(document.querySelector('#step'),{options:{},answer,L:eval(L),esc,read:async(provider,name)=>name==='catalog'?catalog:status,change(){},advance(){}});};
+      mountKinds({kinds:[],no_sales:false});
+    },L);
+    await page.getByText('Team meeting').waitFor();
+    const order=()=>page.evaluate(()=>[...document.querySelectorAll('[data-gxk-kind]')].map(node=>node.dataset.gxkKind));
+    assert.deepEqual(await order(),['sales','installation','repair','delivery','maintenance','walkthrough','meeting'],'the suggestions first; no inspection or service call');
+    await page.locator('[data-gxk-kind="meeting"] .gxk-pick').click();
+    await page.locator('[data-gxk-kind="repair"] .gxk-pick').click();
+    assert.deepEqual(await order(),['sales','installation','repair','delivery','maintenance','walkthrough','meeting'],'rows do not jump while the person taps');
+    // An organization that picked a retired kind before keeps it, first with its other picks.
+    await page.evaluate(()=>mountKinds({kinds:[{id:'service_call',label:'Service call',category:'production'},{id:'walkthrough',label:'Final walkthrough',category:'production'}],no_sales:false}));
+    await page.locator('[data-gxk-kind="service_call"]').waitFor();
+    assert.deepEqual(await order(),['service_call','walkthrough','sales','installation','repair','maintenance','delivery','meeting']);
+    assert.deepEqual((await page.evaluate(()=>handle.answer())).kinds.map(kind=>kind.id),['service_call','walkthrough']);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

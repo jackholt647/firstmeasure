@@ -43,20 +43,21 @@ const OTHER_OFFER: AppointmentAttendee[] = ["anyone", "me"];
 const CATEGORY_OFFER: Record<AppointmentCategory, AppointmentAttendee[]> = { sales: SALES_OFFER, production: WORK_OFFER, other: OTHER_OFFER };
 
 type KindDefaults = Partial<z.input<typeof appointmentConfigurationSchema>>;
-export type AppointmentKind = { id: string; label: Copy; category: AppointmentCategory; configuration: KindDefaults; offer: AppointmentAttendee[]; industries?: string[]; packs?: string[] };
-const kind = (id: string, text: string, category: AppointmentCategory, configuration: KindDefaults, where: { industries?: string[]; packs?: string[]; offer?: AppointmentAttendee[] } = {}): AppointmentKind => ({ id, label: c(`kind_${id}`, text), category, configuration, offer: where.offer || CATEGORY_OFFER[category], ...(where.industries ? { industries: where.industries } : {}), ...(where.packs ? { packs: where.packs } : {}) });
+export type AppointmentKind = { id: string; label: Copy; category: AppointmentCategory; configuration: KindDefaults; offer: AppointmentAttendee[]; industries?: string[]; packs?: string[]; retired?: boolean };
+const kind = (id: string, text: string, category: AppointmentCategory, configuration: KindDefaults, where: { industries?: string[]; packs?: string[]; offer?: AppointmentAttendee[]; retired?: boolean } = {}): AppointmentKind => ({ id, label: c(`kind_${id}`, text), category, configuration, offer: where.offer || CATEGORY_OFFER[category], ...(where.industries ? { industries: where.industries } : {}), ...(where.packs ? { packs: where.packs } : {}), ...(where.retired ? { retired: true } : {}) });
 
 /**
- * The kinds of appointment the setup suggests. Data that only grows: never change an id or its meaning. An inspection is
- * much the same as a sales appointment, so it is in the list but never picked to start with (GP-85); a material
- * delivery is.
+ * The kinds of appointment the setup suggests. Data that only grows: never change an id or its meaning. A `retired` kind
+ * stays so the types and answers that name it keep working, but it is never suggested and the setup offers it only to an
+ * organization that already picked it: an inspection is much the same as a sales appointment, and a service call as a
+ * repair appointment (GP-85, GP-135). A material delivery is picked to start with.
  */
 export const APPOINTMENT_KINDS: readonly AppointmentKind[] = Object.freeze([
   kind("sales", "Sales appointment", "sales", { duration_minutes: 60, window_minutes: 60 }),
-  kind("inspection", "Inspection", "sales", { duration_minutes: 60, window_minutes: 60 }),
+  kind("inspection", "Inspection", "sales", { duration_minutes: 60, window_minutes: 60 }, { retired: true }),
   kind("installation", "Installation", "production", { timing_mode: "days", duration_days: 1 }),
   kind("repair", "Repair appointment", "production", { duration_minutes: 60, window_minutes: 240 }, { offer: SERVICE_OFFER }),
-  kind("service_call", "Service call", "production", { duration_minutes: 60, window_minutes: 240 }, { packs: ["home_services"], offer: SERVICE_OFFER }),
+  kind("service_call", "Service call", "production", { duration_minutes: 60, window_minutes: 240 }, { packs: ["home_services"], offer: SERVICE_OFFER, retired: true }),
   kind("maintenance", "Maintenance visit", "production", { duration_minutes: 60, window_minutes: 240 }, { industries: ["hvac", "plumbing", "landscaping"], offer: SERVICE_OFFER }),
   kind("delivery", "Material delivery", "production", { duration_minutes: 60, window_minutes: 240, delivery: true }),
   kind("walkthrough", "Final walkthrough", "production", { duration_minutes: 60, window_minutes: 60 }),
@@ -85,11 +86,11 @@ const slug = (value: string) => value.toLowerCase().normalize("NFKD").replace(/[
 
 /** Whether the company said it does no sales appointments: then there are no sales kinds and no sales department. */
 export const noSales = (profile: Pick<CompanyProfile, "sales_team">) => profile.sales_team === "no_sales";
-/** The kinds suggested for this company: the common ones, and those its kind of company usually has. */
+/** The kinds suggested for this company: the common ones, and those its kind of company usually has (never a retired one). */
 export function suggestedKinds(profile: Pick<CompanyProfile, "industry" | "crm_pack" | "sales_team">) {
   const ids = COMMON_KINDS.filter((id) => !noSales(profile) || kindById.get(id)?.category !== "sales");
   for (const entry of APPOINTMENT_KINDS) {
-    if (ids.includes(entry.id) || (noSales(profile) && entry.category === "sales")) continue;
+    if (entry.retired || ids.includes(entry.id) || (noSales(profile) && entry.category === "sales")) continue;
     if ((profile.industry && entry.industries?.includes(profile.industry)) || (profile.crm_pack && entry.packs?.includes(profile.crm_pack))) ids.push(entry.id);
   }
   return ids;
@@ -161,7 +162,7 @@ export async function readAppointmentSetup(orgId: string) {
 }
 export function publishedAppointmentCatalog(profile: CompanyProfile) {
   return {
-    kinds: APPOINTMENT_KINDS.map((entry) => ({ id: entry.id, label: entry.label, category: entry.category, offer: entry.offer })),
+    kinds: APPOINTMENT_KINDS.map((entry) => ({ id: entry.id, label: entry.label, category: entry.category, offer: entry.offer, ...(entry.retired ? { retired: true } : {}) })),
     categories: APPOINTMENT_CATEGORIES.map((id) => ({ id, label: CATEGORY_COPY[id] })),
     attendees: APPOINTMENT_ATTENDEES.map((id) => ({ id, label: ATTENDEE_COPY[id] })),
     suggested: suggestedKinds(profile)
@@ -352,7 +353,7 @@ const setupSchema = z.object({
   applied_at: z.string().nullable(), revision: z.number().int()
 });
 const catalogSchema = z.object({
-  kinds: z.array(z.object({ id: z.string(), label: copy, category: z.enum(APPOINTMENT_CATEGORIES), offer: z.array(z.enum(APPOINTMENT_ATTENDEES)) }).strict()),
+  kinds: z.array(z.object({ id: z.string(), label: copy, category: z.enum(APPOINTMENT_CATEGORIES), offer: z.array(z.enum(APPOINTMENT_ATTENDEES)), retired: z.boolean().optional() }).strict()),
   categories: z.array(z.object({ id: z.enum(APPOINTMENT_CATEGORIES), label: copy }).strict()),
   attendees: z.array(z.object({ id: z.enum(APPOINTMENT_ATTENDEES), label: copy }).strict()),
   suggested: z.array(z.string())
@@ -369,7 +370,7 @@ export function registerAppointmentSetupPublication() {
     status: { description: "What the organization said about its appointments: the kinds it schedules (sales, production or other), and for each whether the customer is texted before it and when someone is on the way, and who goes (`attendees`, one or more; `attendee` is the first; `offered` is who that kind offers first). `no_sales` is a company that does no sales appointments: it has no sales kinds and no departments on its types. `answered` says which parts have been answered.",
       schema: json(setupSchema), schemaVersion: "1", access: readAccess,
       read: async (ctx) => { const value = await readAppointmentSetup(ctx.organizationId); return { value, revision: String(value.revision) }; } },
-    catalog: { description: "The kinds of appointment the setup suggests, with their category and copy, the suggestions for this company, and who can go. Data that only grows.",
+    catalog: { description: "The kinds of appointment the setup suggests, with their category and copy, the suggestions for this company, and who can go. Data that only grows: a `retired` kind is kept for those who picked it and is not offered to anyone else.",
       schema: json(catalogSchema), schemaVersion: "1", access: readAccess,
       read: async (ctx) => ({ value: publishedAppointmentCatalog(await readCompanyProfile(ctx.organizationId)) }) }
   } });

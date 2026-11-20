@@ -61,11 +61,12 @@ export function mount(el, ctx){
   el.innerHTML = '<div class="gxk-loading"><span class="gxs-spin" aria-hidden="true"></span></div>';
 
   // One row per kind: the catalog's (suggested ones picked), then what was answered before, then the person's own.
-  // With no sales appointments, the sales kinds are not offered and nothing is a sales appointment (GP-85).
+  // With no sales appointments, the sales kinds are not offered and nothing is a sales appointment (GP-85). A retired
+  // kind is shown only while it is picked to start with (GP-135). The kinds picked to start with come first, in the
+  // catalog's order; rows keep their place while the person taps.
   function build(catalog, status){
     noSales = object(status).no_sales === true;
     const salesKind = new Set(array(catalog.kinds).filter((entry) => entry.category === 'sales').map((entry) => entry.id));
-    const known = array(catalog.kinds).filter((entry) => !noSales || !salesKind.has(entry.id));
     const before = array(object(status).kinds);
     // Who sells changed since the list was last built (the person went Back): no sales drops the sales kinds; a sales
     // team gets the suggested sales kinds back.
@@ -75,9 +76,11 @@ export function mount(el, ctx){
     const suggested = array(catalog.suggested).map((id) => ({ id }));
     const startFrom = (given.length ? given : changed ? [...previous, ...suggested.filter((entry) => salesKind.has(entry.id))] : before.length ? before : suggested).filter((entry) => !noSales || !salesKind.has(clean(entry.id)));
     const picked = new Map(startFrom.map((entry) => [clean(entry.id) || `custom_${fold(entry.label)}`, entry]));
+    const known = array(catalog.kinds).filter((entry) => (!noSales || !salesKind.has(entry.id)) && (entry.retired !== true || picked.has(entry.id)));
     const category = (value, fallback) => noSales && value === 'sales' ? 'production' : CATEGORIES.includes(value) ? value : fallback;
     rows = known.map((entry) => ({ id: entry.id, label: L(entry.label), category: category(clean(picked.get(entry.id)?.category), entry.category), on: picked.has(entry.id), custom: false }));
     for (const [id, entry] of picked) if (!rows.some((row) => row.id === id) && clean(entry.label)) rows.push({ id, label: clean(entry.label), category: category(entry.category, 'other'), on: true, custom: true });
+    rows = [...rows.filter((row) => row.on), ...rows.filter((row) => !row.on)];
     categories = array(catalog.categories);
     builtFor.set(answer, noSales);
   }
