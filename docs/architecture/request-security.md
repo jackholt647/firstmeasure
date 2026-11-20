@@ -209,6 +209,16 @@ session shows (the homeowner portal) use a signed link:
 one project file for 7 days. Without a valid link the caller needs a session
 that may read the project.
 
+**A report is the customer's once it is delivered.** The editor writes
+`Report.pdf`, `Summary.pdf`, `model_data.xml` and its state when a technician
+submits, before QA approves. A customer session reads those files (artifacts,
+`/pdf`, `/pdfs/report`), sees them in the project's file list and its
+portal-card flags only when `customerMayReadReport` allows it: completed and
+not held for its release window, or while changes the customer asked of a
+delivered report are made. In QA or sent back (requeue) they answer 404
+`report_not_ready` (FM-625). Run `tests/customer-report-access.test.ts` for
+changes here.
+
 ## Browser protections
 
 - **CORS** allows credentials only for `CORS_ALLOWED_ORIGINS`

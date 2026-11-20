@@ -3804,13 +3804,15 @@ window.PlatformCommerce.onReady(function(){
         activeRaw.status
       );
       const terminalWithoutReport = releaseHeld || rejected || cancelled;
-      const reportReturned = isFirstMeasureReturnedReportStatus(status) && !terminalWithoutReport;
+      // The report's files exist from the technician's submission on, before QA approves them; a report in QA or
+      // sent back (requeue) shows none of them, whatever an older copy of the order says (FM-625).
+      const reportReturned = (isFirstMeasureReturnedReportStatus(status) || manifest.customer_rework_in_qa === true) && !terminalWithoutReport;
       const known = activeMeasurementProjectId() === projectId ? reportOrderKnownAssetUrls() : {};
       const assets = {
         ...cached,
-        reportUrl: terminalWithoutReport ? '' : (cached?.reportUrl || known.reportUrl || (reportReturned && (lowerNames.has('report.pdf') || !files.length) ? fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/Report.pdf`) : '')),
-        summaryUrl: terminalWithoutReport ? '' : (cached?.summaryUrl || known.summaryUrl || (reportReturned && (lowerNames.has('summary.pdf') || !files.length) ? fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/Summary.pdf`) : '')),
-        xmlUrl: terminalWithoutReport ? '' : (cached?.xmlUrl || known.xmlUrl || (lowerNames.has('model_data.xml') ? fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/model_data.xml`) : '')),
+        reportUrl: !reportReturned ? '' : (cached?.reportUrl || known.reportUrl || ((lowerNames.has('report.pdf') || !files.length) ? fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/Report.pdf`) : '')),
+        summaryUrl: !reportReturned ? '' : (cached?.summaryUrl || known.summaryUrl || ((lowerNames.has('summary.pdf') || !files.length) ? fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/Summary.pdf`) : '')),
+        xmlUrl: !reportReturned ? '' : (cached?.xmlUrl || known.xmlUrl || (lowerNames.has('model_data.xml') ? fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/model_data.xml`) : '')),
         instantPdfUrl: cached?.instantPdfUrl || known.instantPdfUrl || (lowerNames.has('instant report.pdf') ? fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/Instant%20Report.pdf`) : ''),
         hasInstantPayload: names.has('instant-structures.json') || names.has('insights.json') || names.has('dsm.tif'),
         media: terminalWithoutReport ? [] : [

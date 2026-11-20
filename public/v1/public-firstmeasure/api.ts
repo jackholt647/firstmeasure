@@ -447,6 +447,7 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
       reply.header("Content-Disposition", `attachment; filename="${record.report_id}-test-report.pdf"`);
       return reply.send(testReportPdf(record));
     }
+    await assertPublicReportDelivered(record.firstmeasure_project_id);
     const query = asObject(request.query);
     const slot = cleanText(query.slot) || "main";
     const response = await serviceInject(app, PUBLIC_API_PRINCIPAL, {
@@ -512,6 +513,7 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
         measurements: parseRoofplanMeasurementXml(xml)
       };
     }
+    await assertPublicReportDelivered(record.firstmeasure_project_id);
     const xmlFormat = format === "json" ? "roofplan" : format;
     const response = await serviceInject(app, PUBLIC_API_PRINCIPAL, {
       method: "GET",
@@ -547,7 +549,9 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
       };
     }
     const project = await injectFirstMeasureJson(app, "GET", `/projects/${encodeURIComponent(record.firstmeasure_project_id)}`).then((result) => asObject(result.payload.project));
-    const files = Array.isArray(project.files) ? project.files : [];
+    const delivered = await publicReportDelivered(record.firstmeasure_project_id);
+    const { isCustomerReportFileName } = await import("../firstmeasure/api.js");
+    const files = (Array.isArray(project.files) ? project.files : []).filter((file) => delivered || !isCustomerReportFileName(cleanText(asObject(file).name)));
     return {
       ok: true,
       report_id: record.report_id,
@@ -570,6 +574,8 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
       reply.header("Content-Disposition", `attachment; filename="${file.name}"`);
       return reply.send(file.body);
     }
+    const { isCustomerReportFileName } = await import("../firstmeasure/api.js");
+    if (isCustomerReportFileName(name)) await assertPublicReportDelivered(record.firstmeasure_project_id);
     const response = await serviceInject(app, PUBLIC_API_PRINCIPAL, {
       method: "GET",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}/artifacts/${encodeURIComponent(name)}`
@@ -734,6 +740,17 @@ function assertPublicFirstMeasureOrderCoordinates(body: PublicReportOrderBody) {
 
 function getPublicReportId(params: unknown) {
   return cleanText(asObject(params).id);
+}
+
+// An integrator gets a report's PDF, measurements and files on the rules a customer does: only once QA has delivered
+// it, never the technician's submission while it is in QA or sent back (FM-625).
+async function publicReportDelivered(firstMeasureProjectId: string) {
+  const [{ customerMayReadReport }, { readManifest }] = await Promise.all([import("../firstmeasure/api.js"), import("../firstmeasure/storage.js")]);
+  return customerMayReadReport(await readManifest(firstMeasureProjectId));
+}
+
+async function assertPublicReportDelivered(firstMeasureProjectId: string) {
+  if (!await publicReportDelivered(firstMeasureProjectId)) throw notFound("report_not_ready", "This report is not ready yet.");
 }
 
 async function reportForRequest(request: FastifyRequest, ctx: PublicFirstMeasureAuthContext) {
