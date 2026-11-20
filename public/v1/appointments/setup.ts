@@ -191,19 +191,37 @@ const CATEGORY_DEPARTMENT: Record<AppointmentCategory, string | null> = { sales:
 const SETUP_DEPARTMENTS = new Set(Object.values(CATEGORY_DEPARTMENT).filter(Boolean));
 
 /**
- * Puts the setup's kinds into the person's branch's appointment types, through the catalog's own writer. A catalog
- * nobody has saved (the built-in Sales and Production types) becomes exactly the kinds picked; a saved one keeps every
- * type it has and gains the kinds it lacks. `answers` (by kind id) also sets each type's texts and who goes. A new sales
- * or production type needs a project (FM-557); an other one (a team meeting) does not.
+ * The types the setup answers for (GP-140): the built-in ones (the default Sales and Production, the instant
+ * organization's), the kinds of the setup's list, and the person's own kinds it made (`custom_`). A type someone made in Settings
+ * has an id of its own and is never one of these. A type a website form books is kept all the same, so the form goes on
+ * working; a booking keeps its own copy of its type and needs nothing.
+ */
+async function setupMadeTypes(orgId: string) {
+  const [{ defaultAppointmentCatalog, instantFullAppointmentCatalog }, { FORMS, listRecords }] = await Promise.all([import("./defaults.js"), import("../forms/storage.js")]);
+  const ids = new Set([...defaultAppointmentCatalog().presets, ...instantFullAppointmentCatalog().presets, ...APPOINTMENT_KINDS].map((entry) => entry.id));
+  const booked = new Set<string>();
+  for (const form of await listRecords(orgId, FORMS)) {
+    for (const definition of [object(form.definition), object(object(form.published).definition)]) {
+      for (const item of list(definition.steps).flatMap((step) => list(step.items))) if (item.kind === "appointment" && text(item.preset_id)) booked.add(text(item.preset_id));
+    }
+  }
+  return (id: string) => (ids.has(id) || id.startsWith("custom_")) && !booked.has(id);
+}
+
+/**
+ * Puts the setup's kinds into the person's branch's appointment types, through the catalog's own writer. The kinds
+ * picked become the organization's types (GP-140): the built-in types and the setup's own that were not picked are
+ * dropped, and a type someone made in Settings is kept. `answers` (by kind id) also sets each type's texts and who goes.
+ * A new sales or production type needs a project (FM-557); an other one (a team meeting) does not.
  */
 async function writeTypes(auth: PlatformAuthContext, kinds: StoredKind[], answers: Map<string, StoredType> | null, profile: Pick<CompanyProfile, "sales_team">, departments: Partial<Record<AppointmentCategory, string>> = {}) {
-  const bundle = await readAppointmentCatalog(auth);
-  const saved = bundle.revision > 0;
+  const [bundle, setupMade] = await Promise.all([readAppointmentCatalog(auth), setupMadeTypes(auth.orgId)]);
+  const picked = new Set(kinds.map((entry) => entry.id));
   // A company with no sales appointments makes no distinction between sales and production (GP-85): its types name no
   // department.
   const activeDepartments = new Set(noSales(profile) ? [] : bundle.catalog.departments.filter((entry) => entry.status === "active").map((entry) => entry.id));
   const departmentOf = (category: AppointmentCategory) => [departments[category], CATEGORY_DEPARTMENT[category]].find((id) => !!id && activeDepartments.has(id)) || undefined;
-  const presets = saved ? [...bundle.catalog.presets] : [];
+  const presets = bundle.revision > 0 ? bundle.catalog.presets.filter((preset) => picked.has(preset.id) || !setupMade(preset.id)) : [];
   for (const entry of kinds) {
     const known = kindById.get(entry.id);
     const departmentId = departmentOf(entry.category);
@@ -376,7 +394,7 @@ export function registerAppointmentSetupPublication() {
   } });
   const policy = { scopes: ["organization" as const], permissions: ["manage_company_settings"], capabilities: ["platform.scheduling"] };
   registerAction({ id: "appointments.kinds.save", version: "1", domain: "scheduling", implementation: backendImplementationDigest(),
-    description: "Save the kinds of appointments the organization schedules (ids from the appointment-setup catalog, or custom ones with a name and a category: sales, production or other). Each becomes an appointment type; existing types are kept.",
+    description: "Save the kinds of appointments the organization schedules (ids from the appointment-setup catalog, or custom ones with a name and a category: sales, production or other). Each becomes an appointment type, and they are the organization's types: built-in types and kinds that were not picked are dropped, while types made in Settings (and any a website form books) are kept.",
     inputSchema: json(kindsInputSchema) as Record<string, unknown>, outputSchema: json(setupSchema) as Record<string, unknown>,
     effect: "write", idempotency: "required", executionKinds: ["api", "agent", "module"], policy,
     validateInput: (value) => { kindsInputSchema.parse(value); },

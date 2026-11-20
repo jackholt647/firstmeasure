@@ -189,8 +189,9 @@ proposal's questions):
   makes no distinction between sales and production. Going Back to change who sells starts the list again. It requires
   `company.services` and `company.sales_team` (the suggestions read them). `appointments.kinds.save` makes each kind
   an appointment type (a scheduling catalog preset, written with `saveAppointmentCatalog` in the person's branch): a
-  catalog nobody saved (the built-in Sales and Production) becomes exactly the kinds picked; a saved one keeps
-  every type it has and gains the kinds it lacks. Answered is `appointment-setup.status` `/answered/kinds`.
+  the kinds picked are the organization's types (GP-140): the built-in ones (Sales and Production, the instant
+  organization's) and the setup's kinds that were not picked are dropped, while a type made in Settings is kept, and
+  so is one a website form books. Answered is `appointment-setup.status` `/answered/kinds`.
 
 What was answered about appointments is kept in the default branch's `appointment_setup` module, apart from the
 catalog: the catalog says what can be booked, this what the organization told us.
