@@ -65,6 +65,9 @@ test('desktop: title only, the view switch in the primary colour, New invoice an
     assert.equal(active[1], 'rgb(217, 48, 37)');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.inv-chip.active')).backgroundColor), 'rgba(217, 48, 37, 0.1)', 'aging filter chips are not black either');
     assert.equal(await shown(page, '[data-inv-new]'), true);
+    // GP-133: each summary card is its label, a count and a dollar value, with no explanatory third line.
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('.inv-card')].map((c) => [c.querySelector('span').firstChild.textContent, c.querySelector('.inv-card-n')?.textContent, c.querySelector('strong')?.textContent, c.querySelectorAll('em').length])),
+      [['Outstanding', '1', '$3,750', 0], ['Overdue', '0', '$0', 0], ['Needs invoicing', '0', '$0', 0], ['Drafts', '0', '$0', 0], ['Production holds', '0', '$0', 0]]);
     await page.click('[data-inv-setup]');
     assert.equal(await page.evaluate(() => window.__setup), 1, 'Set up payments opens the payment setup');
     await page.click('[data-inv-view="history"]');
@@ -112,6 +115,7 @@ test('phone: no second header, one control row, the summary in one row, invoices
     const tops = await page.evaluate(() => [...document.querySelectorAll('.inv-card')].map((c) => Math.round(c.getBoundingClientRect().top)));
     assert.equal(tops.length, 5);
     assert.equal(new Set(tops).size, 1, 'the five summary cards are one row');
+    assert.ok(await page.evaluate(() => [...document.querySelectorAll('.inv-card')].every((c) => { const a = c.querySelector('span').getBoundingClientRect(); const b = c.querySelector('.inv-card-n').getBoundingClientRect(); return b.top >= a.top - 1 && b.bottom <= a.bottom + 1; })), 'each count sits on its label line');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 390, 'nothing widens the page');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.inv-table thead')).display), 'none');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('tr[data-invoice]')).display), 'grid', 'each invoice is a card');
