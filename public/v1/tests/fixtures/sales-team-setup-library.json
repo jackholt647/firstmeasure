@@ -1,0 +1,33 @@
+{
+  "guided_experience": [
+    {
+      "id": "sales.team.setup",
+      "version": 1,
+      "kind": "modal",
+      "scope": "organization",
+      "salt": "sales-team-v1",
+      "title": { "key": "gx_sales_setup_title", "text": "Set up your salespeople" },
+      "description": { "key": "gx_sales_setup_description", "text": "Who goes to your sales appointments, and which of your work each of them sells." },
+      "eligibility": { "capabilities": ["platform.scheduling"], "permissions": ["manage_company_settings"] },
+      "triggers": [{ "kind": "manual" }],
+      "variants": [{ "id": "default", "weight": 1, "content": {} }],
+      "requires": ["company.type", "company.services"],
+      "steps": [
+        {
+          "id": "salespeople",
+          "widget": "sales-team-setup",
+          "requires": [],
+          "title": { "key": "gx_sales_step_title", "text": "Who sells for you?" },
+          "subtitle": { "key": "gx_sales_step_subtitle", "text": "Your salespeople, and the kinds of work each one sells." },
+          "say": [],
+          "options": {},
+          "selects": ["salespeople"],
+          "required": true
+        }
+      ],
+      "completion": { "screen": "none", "say": [], "then": [] },
+      "replayable": true,
+      "reveal": []
+    }
+  ]
+}

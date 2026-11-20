@@ -113,6 +113,8 @@
    * subcontractors, no one of its department) is booked unassigned, and a note above the times says so, with a Setup
    * pill that plays the workforce setup where it can play (the dialog closes for it and opens again after). The preview
    * says which requirements nobody can meet (`staffing[].unstaffed`) and how many crews and outside companies exist.
+   * GP-144: a sales type with nobody to go (no one in its Sales department, `sales_department_ids`) offers the
+   * salesperson setup (`sales.team.setup`) the same way, and so does the type step's Add users.
    */
   const guides = () => window.FirstMateGuides || (() => { try { return window.top?.FirstMateGuides; } catch (_) { return null; } })();
   /*
@@ -129,6 +131,23 @@
   // does the work is answered (a phone tray, a modal on a wider screen); Scheduling's own Crew settings are not it.
   const workforceSetup = () => guides()?.experience?.('operations.workforce.setup') ? 'operations.workforce.setup' : '';
   const term = (path, fallback) => clean(window.PlatformTerminology?.get?.(path, fallback) || window.Portal?.terminology?.get?.(path, fallback)) || fallback;
+  /** The setup that adds who a type needs, where it can play (a function that plays it), or null. */
+  function staffSetup(need){
+    if (need === 'sales') return guides()?.experience?.('sales.team.setup') ? () => guides().play('sales.team.setup', { replay: true, force: true }) : null;
+    if (need !== 'teams') return null;
+    // The workforce setup where it can play: Scheduling plays it through its own hook, which reloads the schedule after.
+    const setupId = workforceSetup();
+    return !setupId ? null : typeof window.FirstMateTeamsSetup === 'function' ? window.FirstMateTeamsSetup : () => guides().play(setupId, { replay: true, force: true });
+  }
+  /** Closes the dialog, plays the setup, and opens the dialog again for the booking once it is over (book again with whoever it added). */
+  async function runStaffSetup(dialog, options, setup){
+    // Gone before the setup opens (its close takes its history entries off), so it can open again after.
+    await new Promise((resolve) => { dialog.addEventListener('close', resolve, { once:true }); dialog.close(); });
+    await Promise.resolve(setup()).catch(() => null);
+    open(options).catch(() => {});
+  }
+  /** The type step's Add users (configuration.js): which setup a type nobody can go to needs. */
+  const typeSetup = (entry) => staffSetup(entry?.sales ? 'sales' : entry?.teams ? 'teams' : '');
   function staffingNote(target, configuration, {dialog, options}){
     let shown = '', workforce = null;
     const draw = (data) => {
@@ -140,30 +159,24 @@
       // A type that sends crews, or one that leaves who goes to whoever books it (a subcontractor), in a company with none.
       const groups = gaps.some((entry) => entry.subject_type !== 'organization_user') || (noTeams && !config.requirements.length && config.requires_project === true && config.event_type_id !== 'sales_appointment');
       const people = !groups && gaps.some((entry) => entry.subject_type === 'organization_user');
+      // A person of a Sales department (or for a sales appointment): a salesperson (GP-144).
+      const salesIds = Array.isArray(data?.sales_department_ids) ? data.sales_department_ids : [];
+      const sales = people && gaps.some((entry) => entry.subject_type === 'organization_user' && (config.event_type_id === 'sales_appointment' || salesIds.includes(entry.department_id)));
       // A company with no crews or subcontractors at all is told they are not added yet, not that none is free (GP-142).
-      const key = groups ? (workforce === 'just_me' ? '' : noTeams ? 'none' : 'groups') : people ? 'people' : '';
+      const key = groups ? (workforce === 'just_me' ? '' : noTeams ? 'none' : 'groups') : sales ? 'sales' : people ? 'people' : '';
       if (key === shown && (!key || target.querySelector('[data-staffing-note]'))) return;
       shown = key;
       target.querySelector('[data-staffing-note]')?.remove();
       if (!key) return;
       const crews = term('workforce.resource_group_plural', 'Crews'), subs = term('workforce.organization_connection_plural', 'Subcontractors');
       const text = key === 'none' ? `No ${crews.toLowerCase()} or ${subs.toLowerCase()} yet` : groups ? `No ${crews.toLowerCase()} or ${subs.toLowerCase()} available` : 'No one is set up to go to these yet';
-      const blurb = key === 'none' ? 'Appointment will be unassigned until you add them.' : 'It is booked unassigned. Assign someone later from the calendar.';
-      // The workforce setup where it can play: Scheduling plays it through its own hook, which reloads the schedule after.
-      const setupId = workforceSetup();
-      const teamsSetup = !setupId ? null : typeof window.FirstMateTeamsSetup === 'function' ? window.FirstMateTeamsSetup : () => guides().play(setupId, { replay: true, force: true });
-      const canSetUp = groups && !!teamsSetup;
+      const blurb = key === 'none' ? 'Appointment will be unassigned until you add them.' : key === 'sales' ? 'It is booked unassigned. Set up your salespeople, or assign someone later from the calendar.' : 'It is booked unassigned. Assign someone later from the calendar.';
+      const setup = staffSetup(groups ? 'teams' : sales ? 'sales' : '');
       const note = document.createElement('div');
       note.className = 'fm-booking-staffing'; note.dataset.staffingNote = key; note.setAttribute('role', 'note');
-      note.innerHTML = `<span><strong>${esc(text)}</strong><small>${esc(blurb)}</small></span>${canSetUp ? `<button type="button" class="fm-booking-staffing-setup" data-staffing-setup><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>${esc('Set up')}</button>` : ''}`;
+      note.innerHTML = `<span><strong>${esc(text)}</strong><small>${esc(blurb)}</small></span>${setup ? `<button type="button" class="fm-booking-staffing-setup" data-staffing-setup><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>${esc('Set up')}</button>` : ''}`;
       host.after(note);
-      note.querySelector('[data-staffing-setup]')?.addEventListener('click', async () => {
-        // Gone before the setup opens (its close takes its history entries off), so it can open again after.
-        await new Promise((resolve) => { dialog.addEventListener('close', resolve, { once:true }); dialog.close(); });
-        await Promise.resolve(teamsSetup()).catch(() => null);
-        // The workforce setup is over: book again with whoever it added.
-        open(options).catch(() => {});
-      });
+      note.querySelector('[data-staffing-setup]')?.addEventListener('click', () => runStaffSetup(dialog, options, setup));
     };
     // The note waits for who does the work, so a company that does it itself never sees it come and go.
     let latest = null;
@@ -574,6 +587,8 @@ ${lockedProject ? '' : `<section class="fm-booking-step" data-step="project" ari
         slots:{type:$('[data-slot-type]'), quick:$('[data-slot-quick]'), advanced:$('[data-slot-advanced]')},
         onChange:() => { dropProjectless(); changed(); },
         onNewType:() => void openTypeSheet(),
+        staffSetup:(entry) => !!typeSetup(entry),
+        onAddUsers:(entry) => { const setup = typeSetup(entry); if (setup) runStaffSetup(dialog, options, setup); },
         onPreset:id => {
           if (!id) { sheetAdvances = step === 'type'; openSheet(); return; }
           advanceFromType();

@@ -99,6 +99,13 @@
 .fm-ap-type-text{flex:1;min-width:0;display:grid;gap:2px}.fm-ap-type-text b{font-weight:600;color:#101828;font-size:15px;overflow:hidden;text-overflow:ellipsis}.fm-ap-type-text small{color:#667085;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fm-ap-type-go{flex:none;width:8px;height:8px;border-top:2px solid #98a2b3;border-right:2px solid #98a2b3;transform:rotate(45deg);margin-right:4px;transition:transform .18s,border-color .18s}
 .fm-booking-options .fm-ap-type[aria-pressed=true] .fm-ap-type-go{border-color:var(--fm-ap-type-color);transform:translateX(2px) rotate(45deg)}
+/* A type nobody can go to yet: Add users beside it, before its chevron (GP-144). */
+.fm-ap-type-row{position:relative;display:grid;animation:fmBkRise .34s var(--fm-bk-ease,ease) both}
+.fm-booking-options .fm-ap-type-row>.fm-ap-type{padding-right:128px;animation:none}
+.fm-ap-type-staff{position:absolute;top:50%;right:32px;transform:translateY(-50%);display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border:1px solid var(--primary,#d93025);border-radius:999px;background:#fff;color:var(--primary,#d93025);font:inherit;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer}
+.fm-ap-type-staff i{font-size:11px}
+.fm-ap-type-staff:hover{background:var(--primary,#d93025);color:var(--on-primary,#fff)}
+.fm-ap-type-staff:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
 .fm-ap-types-own{margin-top:6px}.fm-booking-options .fm-ap-type-custom,.fm-booking-options .fm-ap-type-new{--fm-ap-type-color:#475467;min-height:58px;box-shadow:none}.fm-booking-options .fm-ap-type-new{border-style:dashed}
 .fm-ap-type-custom .fm-ap-type-mark,.fm-ap-type-new .fm-ap-type-mark{background:#f2f4f7;color:#475467;font-size:18px;font-weight:500}
 .fm-ap-more-types{border:1px solid #e4e7ec;border-radius:14px;background:#fff;overflow:hidden;animation:fmBkRise .34s .15s var(--fm-bk-ease,ease) both}

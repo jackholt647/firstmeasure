@@ -14,7 +14,7 @@
   /* slots:{type,quick,advanced} renders the phone steps: a type list, the duration row and the Advanced sheet.
      typeMode renders the New appointment type editor: a type name and the type's settings, saved with saveType() (FM-558).
      A type says whether it needs a project (FM-557); the catalog gives every type the value the server enforces. */
-  async function mount(host,{orgId,onChange,onPreset,onNewType,initialValue,settingsMode=false,typeMode=false,projectControl,projectId,slots}={}){
+  async function mount(host,{orgId,onChange,onPreset,onNewType,staffSetup,onAddUsers,initialValue,settingsMode=false,typeMode=false,projectControl,projectId,slots}={}){
     ensureStyle();
     let response=await window.PlatformAPI.appointments.catalog(orgId),catalog=response.catalog;
     const steps=!!slots&&!settingsMode&&!typeMode,hosts=steps?[slots.type,slots.quick,slots.advanced]:[host];
@@ -36,7 +36,10 @@
       return `<details class="fm-ap-picker" data-people-picker="${index}-${quick}"><summary aria-label="Choose people or groups">${esc(names.length?names.length>1?`${names[0]} +${names.length-1}`:names[0]:'Choose people or groups')}<span class="fm-ap-chevron"></span></summary><div class="fm-ap-popover"><input type="search" data-filter-people placeholder="Search people or groups" aria-label="Search people or groups"><div class="fm-ap-people">${resources.map(r=>`<label data-person-row><input type="checkbox" data-specific="${index}" value="${esc(r.key)}" ${keys.includes(r.key)?'checked':''}><span>${esc(r.name)}${r.subject_type==='resource_group'?'<small>Group</small>':''}</span></label>`).join('')}</div></div></details>`;
     }
     function typeMeta(c){c={...empty(),...c};return [durationText(c),...(c.department_ids||[]).map(id=>catalog.departments.find(d=>d.id===id)?.label).filter(Boolean)].join(' · ');}
-    function typeCard(p){const dept=catalog.departments.find(d=>p.configuration?.department_ids?.includes(d.id)),color=/^#[0-9a-f]{3,8}$/i.test(dept?.color||'')?dept.color:'var(--primary,#d93025)';return `<button type="button" class="fm-ap-type" data-preset-button="${esc(p.id)}" aria-pressed="${p.id===config.preset_id}" style="--fm-ap-type-color:${color}"><span class="fm-ap-type-mark" aria-hidden="true">${esc(p.label.trim().slice(0,1).toUpperCase())}</span><span class="fm-ap-type-text"><b>${esc(p.label)}</b><small>${esc(typeMeta(p.configuration))}</small></span><span class="fm-ap-type-go" aria-hidden="true"></span></button>`;}
+    /* A type nobody can go to yet (no salespeople, no crews) has an Add users pill beside it, when the setup that adds them
+       can play here (staffSetup); a type that needs nobody never does (GP-144). The pill is the card's sibling, not in it. */
+    const unstaffed=id=>(response.unstaffed||[]).find(entry=>entry.id===id&&staffSetup?.(entry));
+    function typeCard(p){const dept=catalog.departments.find(d=>p.configuration?.department_ids?.includes(d.id)),color=/^#[0-9a-f]{3,8}$/i.test(dept?.color||'')?dept.color:'var(--primary,#d93025)',needs=unstaffed(p.id);const card=`<button type="button" class="fm-ap-type" data-preset-button="${esc(p.id)}" aria-pressed="${p.id===config.preset_id}" style="--fm-ap-type-color:${color}"><span class="fm-ap-type-mark" aria-hidden="true">${esc(p.label.trim().slice(0,1).toUpperCase())}</span><span class="fm-ap-type-text"><b>${esc(p.label)}</b><small>${esc(typeMeta(p.configuration))}</small></span><span class="fm-ap-type-go" aria-hidden="true"></span></button>`;return needs?`<div class="fm-ap-type-row">${card}<button type="button" class="fm-ap-type-staff" data-add-users="${esc(p.id)}" aria-label="${esc(`Add users for ${p.label}`)}"><i class="fas fa-user-plus" aria-hidden="true"></i>Add users</button></div>`:card;}
     function locationValue(){return config.location?.mode==='company_office'?response.company_office?.address||'':config.location?.mode==='project'?projectAddress:config.location?.mode==='custom'?config.location.address:'';}
     function locationRows(){
       const rows=[{label:'Project address',mode:'project',address:projectAddress},{label:'Company office',mode:'company_office',address:response.company_office?.address||''},{label:'No location',mode:'none',address:''}];
@@ -89,6 +92,7 @@
       all('details.fm-ap-picker').forEach(details=>details.ontoggle=()=>{if(details.open){all('details.fm-ap-picker').forEach(other=>{if(other!==details&&!other.contains(details))other.open=false;});details.querySelector('input:not([type=checkbox])')?.focus();}});
       all('[data-preset-button]').forEach(button=>button.onclick=()=>choosePreset(button.dataset.presetButton));
       $('[data-new-type]')?.addEventListener('click',()=>onNewType?.());
+      all('[data-add-users]').forEach(button=>button.onclick=event=>{event.stopPropagation();const needs=unstaffed(button.dataset.addUsers);if(needs)onAddUsers?.(needs);});
       $('[data-type-name]')?.addEventListener('input',event=>{typeName=event.target.value;});
       $('[data-filter-presets]')?.addEventListener('input',event=>{const q=event.target.value.toLowerCase();all('.fm-ap-menu [data-preset-button]').forEach(b=>b.hidden=!b.textContent.toLowerCase().includes(q));});
       all('[data-filter-people]').forEach(input=>input.oninput=()=>input.closest('.fm-ap-popover').querySelectorAll('[data-person-row]').forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(input.value.toLowerCase())));

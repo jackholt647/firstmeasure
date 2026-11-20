@@ -5,7 +5,7 @@
   if (!window.Portal) return;
 
   // The portal can load Scheduling directly, without the app-manifest bundles.
-  const bookingScriptUrl = new URL('../../appointment-booking/booking.js?v=20261120-gp143', document.currentScript?.src || new URL('/libraries/apps/scheduling/app.js', location.href)).href;
+  const bookingScriptUrl = new URL('../../appointment-booking/booking.js?v=20261120-gp144', document.currentScript?.src || new URL('/libraries/apps/scheduling/app.js', location.href)).href;
   let bookingScriptLoading;
   async function openBookingWidget(){
     if (!window.FirstMateBooking) await (bookingScriptLoading ||= new Promise((resolve, reject) => {
@@ -537,7 +537,7 @@
     .dash-equipment-option.down,.dash-event-equipment-chip.down{color:#b42318;background:#fef3f2}.dash-equipment-option.down small{color:#b42318}.dash-equipment-option.down strong,.dash-event-equipment-chip.down .dash-equipment-name{text-decoration:line-through}
     .dash-equipment-confirm{padding:10px;border:1px solid #fda29b;border-radius:8px;background:#fef3f2;color:#b42318;font-size:12px}.dash-equipment-confirm p{margin:0 0 8px}.dash-equipment-confirm button{padding:7px 10px;border:1px solid #fda29b;border-radius:6px;background:#fff;color:#b42318;font:inherit;cursor:pointer}.dash-equipment-confirm button+button{margin-left:6px}.dash-equipment-confirm [data-equipment-confirm]{background:#b42318;color:#fff}
     .dash-event-equipment-require{display:grid;grid-template-columns:minmax(0,1fr) 72px 34px;gap:6px;align-items:end}.dash-event-equipment-require input{height:34px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:8px;padding:0 8px;font:850 11px/1 inherit}.dash-event-equipment-require button{height:34px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#475467;cursor:pointer}.dash-event-advanced-note{font-size:10px;font-weight:800;color:#667085;line-height:1.4}.dash-event-advanced-toggle{width:36px;height:34px;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;color:#667085;display:inline-grid;place-items:center;cursor:pointer}.dash-event-advanced-toggle.active{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb),.07);color:var(--primary,#d93025)}
-    .dash-event-equipment-allocation{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding:7px;border-radius:9px;background:#f8fafc}.dash-event-equipment-allocation strong{grid-column:1/-1;font-size:10px;color:#475467}.dash-event-equipment-allocation label{display:grid;gap:3px;font-size:8px;font-weight:950;color:#667085;text-transform:uppercase}.dash-event-equipment-allocation input{width:100%;min-width:0;height:30px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:7px;padding:0 6px;font:800 11px/1 inherit;color:#344054}.dash-event-requirement-alert{display:flex;gap:8px;align-items:flex-start;border:1px solid #fda29b;border-radius:10px;background:#fef3f2;color:#b42318;padding:9px 10px;font-size:11px;font-weight:850;line-height:1.35}.dash-event-requirement-alert ul{margin:0;padding-left:16px}.dash-event-teams-setup{margin-left:6px;height:22px;padding:0 9px;border:1px solid #b42318;border-radius:999px;background:#fff;color:#b42318;font:inherit;font-size:11px;font-weight:700;cursor:pointer}.dash-event-teams-setup:hover{background:#b42318;color:#fff}.dash-event-teams-setup:disabled{opacity:.55;cursor:default}.dash-routing-vehicles{height:30px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#667085;padding:0 9px;cursor:pointer}.dash-routing-vehicles.active{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb),.07);color:var(--primary,#d93025)}.dash-vehicle-bank{display:grid;gap:7px;padding:10px 12px;border-top:1px solid rgba(15,23,42,.08)}.dash-vehicle-bank-title{font-size:10px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;color:#667085}.dash-vehicle-bank-items{display:grid;gap:6px}.dash-vehicle-bank-item{display:flex;align-items:center;gap:8px;text-align:left;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;padding:8px;color:#344054;font-size:11px;font-weight:900;cursor:pointer}.dash-vehicle-bank-item>span{min-width:0;display:grid;gap:1px}.dash-vehicle-bank-item small{font-size:10px;font-weight:800;color:#667085}.dash-vehicle-bank-item.reserved{border-style:dashed;background:#fffbeb}.dash-vehicle-bank-flag{margin-left:auto;flex:0 0 auto;border-radius:999px;padding:2px 6px;background:#fef3c7;color:#b45309;font-size:9.5px;font-weight:1000}.dash-routing-vehicles{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:10px;font-weight:1000;text-transform:none;letter-spacing:0}.dash-vehicle-bank-item.active{border-color:var(--primary,#d93025);box-shadow:0 0 0 2px rgba(var(--primary-rgb),.08)}
+    .dash-event-equipment-allocation{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding:7px;border-radius:9px;background:#f8fafc}.dash-event-equipment-allocation strong{grid-column:1/-1;font-size:10px;color:#475467}.dash-event-equipment-allocation label{display:grid;gap:3px;font-size:8px;font-weight:950;color:#667085;text-transform:uppercase}.dash-event-equipment-allocation input{width:100%;min-width:0;height:30px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:7px;padding:0 6px;font:800 11px/1 inherit;color:#344054}.dash-event-requirement-alert{display:flex;gap:8px;align-items:flex-start;border:1px solid #fda29b;border-radius:10px;background:#fef3f2;color:#b42318;padding:9px 10px;font-size:11px;font-weight:850;line-height:1.35}.dash-event-requirement-lines{display:grid;gap:4px;min-width:0}.dash-event-requirement-lines p{margin:0}.dash-event-teams-setup{margin-left:6px;height:22px;padding:0 9px;border:1px solid #b42318;border-radius:999px;background:#fff;color:#b42318;font:inherit;font-size:11px;font-weight:700;cursor:pointer}.dash-event-teams-setup:hover{background:#b42318;color:#fff}.dash-event-teams-setup:disabled{opacity:.55;cursor:default}.dash-routing-vehicles{height:30px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#667085;padding:0 9px;cursor:pointer}.dash-routing-vehicles.active{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb),.07);color:var(--primary,#d93025)}.dash-vehicle-bank{display:grid;gap:7px;padding:10px 12px;border-top:1px solid rgba(15,23,42,.08)}.dash-vehicle-bank-title{font-size:10px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;color:#667085}.dash-vehicle-bank-items{display:grid;gap:6px}.dash-vehicle-bank-item{display:flex;align-items:center;gap:8px;text-align:left;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;padding:8px;color:#344054;font-size:11px;font-weight:900;cursor:pointer}.dash-vehicle-bank-item>span{min-width:0;display:grid;gap:1px}.dash-vehicle-bank-item small{font-size:10px;font-weight:800;color:#667085}.dash-vehicle-bank-item.reserved{border-style:dashed;background:#fffbeb}.dash-vehicle-bank-flag{margin-left:auto;flex:0 0 auto;border-radius:999px;padding:2px 6px;background:#fef3c7;color:#b45309;font-size:9.5px;font-weight:1000}.dash-routing-vehicles{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:10px;font-weight:1000;text-transform:none;letter-spacing:0}.dash-vehicle-bank-item.active{border-color:var(--primary,#d93025);box-shadow:0 0 0 2px rgba(var(--primary-rgb),.08)}
     .dash-event-customer-panel{display:grid;border:1px solid rgba(15,23,42,.10);border-radius:11px;background:#f8fafc;overflow:hidden}.dash-event-customer-head{display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:center}.dash-event-customer-share{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;align-items:center;padding:11px;cursor:pointer}
     .dash-event-customer-details-toggle{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:#667085;cursor:pointer}.dash-event-customer-details-toggle:hover{background:#eaecf0;color:#344054}
     .dash-event-customer-share input{position:absolute;opacity:0;pointer-events:none}.dash-event-share-switch{position:relative;width:34px;height:20px;border-radius:999px;background:#d0d5dd;transition:.18s ease}.dash-event-share-switch:after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.22);transition:.18s ease}.dash-event-customer-share input:checked+.dash-event-share-switch{background:var(--primary,#d93025)}.dash-event-customer-share input:checked+.dash-event-share-switch:after{transform:translateX(14px)}.dash-event-customer-share strong{display:block;color:#344054;font-size:12px;font-weight:1000}.dash-event-customer-share small{display:block;margin-top:2px;color:#667085;font-size:10px;font-weight:800;line-height:1.35}
@@ -870,6 +870,46 @@
     void loadAppointmentSetupStatus(true);
     void loadAppointmentTypes(true);
   });
+  /* GP-144: who sells. A sales appointment nobody is assigned to offers the salesperson setup (sales.team.setup) while
+   * the organization has no salespeople at all, as a work item offers the workforce setup with no crews. Read once
+   * from the published sales-team-setup status where that setup can play; null while unknown (no Set up). */
+  const SALES_TEAM_SETUP_GUIDE = 'sales.team.setup';
+  const salesTeamState = { org:'', none:null, departmentIds:[], loading:null };
+  function loadSalesTeam(force = false){
+    const org = orgId();
+    if (!org || !guidesLibrary()?.experience?.(SALES_TEAM_SETUP_GUIDE) || !window.PlatformAPI?.publication?.read) return Promise.resolve(null);
+    if (!force && salesTeamState.org === org && (salesTeamState.none !== null || salesTeamState.loading)) return salesTeamState.loading || Promise.resolve(salesTeamState.none);
+    if (salesTeamState.org !== org) Object.assign(salesTeamState, { org, none:null, departmentIds:[] });
+    const loading = Promise.resolve()
+      .then(() => window.PlatformAPI.publication.read(org, { provider:'sales-team-setup', export:'status', target:{ scope:'organization', organizationId:org } }))
+      .then((result) => { const value = result?.result ?? result; return value?.status === 'ready' ? value.value : null; }, () => null)
+      .then((value) => {
+        if (salesTeamState.loading !== loading) return salesTeamState.none;
+        salesTeamState.loading = null;
+        const before = salesTeamState.none;
+        if (value && salesTeamState.org === org) Object.assign(salesTeamState, { none:!(Array.isArray(value.salespeople) && value.salespeople.length), departmentIds:value.department?.id ? [String(value.department.id)] : [] });
+        if (rootEl && salesTeamState.none !== before) render();
+        return salesTeamState.none;
+      });
+    salesTeamState.loading = loading;
+    return loading;
+  }
+  function noSalespeople(){
+    return salesTeamState.org === orgId() && salesTeamState.none === true;
+  }
+  async function playSalesTeamSetup(button){
+    const guides = guidesLibrary();
+    if (!guides?.experience?.(SALES_TEAM_SETUP_GUIDE) || !guides?.play) return;
+    if (button) button.disabled = true;
+    try {
+      await guides.play(SALES_TEAM_SETUP_GUIDE, { replay:true, force:true });
+    } catch (error) {
+      console.warn('The salesperson setup could not play.', error);
+    } finally {
+      if (button?.isConnected) button.disabled = false;
+      void loadSalesTeam(true);
+    }
+  }
   /* GP-91: the event editor's type buttons are the organization's appointment types (the scheduling catalog's
    * presets, written by the appointment setup and edited in Settings › Scheduling), not a fixed list. presets is null
    * until read and empty when they cannot be read (no appointment slots, or the read failed): then the editor offers
@@ -1428,7 +1468,9 @@
       equipmentUnits,
       includeEquipment:equipmentSchedulingOn(),
       noTeams:hasNoTeams(),
-      noTeamsLabel:noTeamsLabel()
+      noTeamsLabel:noTeamsLabel(),
+      noSalespeople:noSalespeople(),
+      salesDepartmentIds:salesTeamState.departmentIds
     }) || [];
   }
   function guidesLibrary(){
@@ -4913,8 +4955,12 @@
   function requirementAlertHtml(event = {}){
     const warnings = requirementWarningsForEvent(event);
     if (!warnings.length) return '';
-    const canSetUp = (warning) => !!warning?.setup;
-    return `<div class="dash-event-requirement-alert" role="alert"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><ul>${warnings.map((warning) => `<li>${escapeHtml(warning.label || warning)}${canSetUp(warning) ? ` <button type="button" class="dash-event-teams-setup" data-event-teams-setup>${escapeHtml('Set up')}</button>` : ''}</li>`).join('')}</ul></div>`;
+    // A warning names the setup that fixes it (`setup`): crews and subcontractors, or salespeople (GP-144).
+    const setupButton = (warning) => warning?.setup === SALES_TEAM_SETUP_GUIDE
+      ? ` <button type="button" class="dash-event-teams-setup" data-event-sales-setup>${escapeHtml('Set up')}</button>`
+      : warning?.setup ? ` <button type="button" class="dash-event-teams-setup" data-event-teams-setup>${escapeHtml('Set up')}</button>` : '';
+    // The triangle marks it: one line each, no bullets (GP-144).
+    return `<div class="dash-event-requirement-alert" role="alert"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><div class="dash-event-requirement-lines">${warnings.map((warning) => `<p>${escapeHtml(warning.label || warning)}${setupButton(warning)}</p>`).join('')}</div></div>`;
   }
   function eventEquipRefs(event = {}){
     return window.PlatformScheduling?.eventEquipment?.(event) || [];
@@ -11930,6 +11976,7 @@
       schedulingConfig = loadedSchedulingConfig;
       void loadAppointmentSetupStatus();
       void loadAppointmentTypes();
+      void loadSalesTeam();
       if (confirmationSettings) Scheduling.setConfirmationSettings(confirmationSettings);
       dashboardConfig = loadedDashboardConfig;
       branchProjectConfig = normalizeProjectConfig(loadedProjectConfig?.data || loadedProjectConfig || {});
@@ -12297,6 +12344,13 @@
     event.preventDefault(); event.stopPropagation();
     playTeamsSetup(button);
   });
+  document.addEventListener('click', (event) => {
+    const button = event.target?.closest?.('[data-event-sales-setup]');
+    if (!button) return;
+    event.preventDefault(); event.stopPropagation();
+    playSalesTeamSetup(button);
+  });
+  window.addEventListener('fm:guides:ended', (event) => { if (event.detail?.id === SALES_TEAM_SETUP_GUIDE) void loadSalesTeam(true); });
   window.addEventListener('fm:organization-connections:updated', () => scheduleLoad());
   window.addEventListener('resize', () => {
     const nextMobileLayout = isMobileScheduleLayout();

@@ -960,6 +960,19 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
       return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
     }
   });
+  // The salesperson setup (GP-144): one step with its own pages (the salespeople and what each sells, the finish); Back
+  // and the phone's back walk its pages.
+  registerWidget('sales-team-setup', {
+    handlesNavigation:true,
+    render(el,ctx){
+      let disposed=false, handle=null;
+      el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
+      import(new URL('./sales-team-setup.js?v=20261120-gp144',scriptUrl).href).then(module=>{
+        if(!disposed)handle=module.mount(el,ctx);
+      }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
+      return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
+    }
+  });
   const widgetCss = `
     /* The grid takes the step's height from the top; its rows stay a tile's shape and leftover space falls below. */
     .gxs-logos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(108px,150px);align-content:start;gap:12px;flex:1 1 auto;min-height:0;padding-bottom:24px}

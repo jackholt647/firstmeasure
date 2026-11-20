@@ -6,6 +6,7 @@ import { registerPaymentsSetupPublication } from '../../payments/setup.js';
 import { registerCompanyProfilePublication } from '../../company-profile/publication.js';
 import { registerAutomationsSetupPublication } from '../../scopes/flow-setup.js';
 import { registerAppointmentSetupPublication } from '../../appointments/setup.js';
+import { registerSalesTeamSetupPublication } from '../../appointments/sales-team.js';
 import { registerEquipmentSetupPublication } from '../../equipment/setup.js';
 import { registerDocumentSetupPublication } from '../../documents/setup.js';
 import { registerSetupStepPublication } from '../../guided-experiences/publication.js';
@@ -99,6 +100,7 @@ export function initializePublication() {
   registerCompanyProfilePublication();
   registerAutomationsSetupPublication();
   registerAppointmentSetupPublication();
+  registerSalesTeamSetupPublication();
   registerEquipmentSetupPublication();
   registerDocumentSetupPublication();
   registerSetupStepPublication();

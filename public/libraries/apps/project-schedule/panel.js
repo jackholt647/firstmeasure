@@ -149,7 +149,7 @@
       .r-schedule-panel.work-mode.scheduling-mode{padding:0;gap:0}
       .r-schedule-panel.work-mode.scheduling-mode .r-schedule-head{padding:14px 16px;margin:0;background:#f8fafc;border-bottom:1px solid rgba(15,23,42,.08)}
       .r-schedule-card .r-schedule-advanced{display:grid;gap:12px;margin-top:14px;padding:14px;border:1px solid rgba(15,23,42,.10);border-radius:14px;background:#f8fafc}.r-schedule-card .r-schedule-advanced[hidden]{display:none}.r-schedule-equipment-requirements{display:grid;gap:7px;grid-column:1/-1}.r-schedule-equipment-requirement{display:grid;grid-template-columns:22px minmax(0,1fr) 76px;gap:8px;align-items:center;font-size:12px;font-weight:850;color:#344054}.r-schedule-equipment-requirement input[type="number"]{height:36px}.r-schedule-advanced-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:18px}.r-schedule-advanced-toggle{width:42px;height:42px;border:1px solid rgba(15,23,42,.14);border-radius:13px;background:#fff;color:#667085;cursor:pointer}.r-schedule-advanced-toggle.active{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary,#d93025)}.r-schedule-advanced-actions .r-schedule-actions{display:flex;margin:0}.r-schedule-card select[multiple]{height:auto;min-height:94px;padding:7px 10px}
-      .r-schedule-requirement-alert{display:flex;gap:8px;align-items:flex-start;margin:8px 0;border:1px solid #fda29b;border-radius:10px;background:#fef3f2;color:#b42318;padding:9px 10px;font-size:11px;font-weight:850}.r-schedule-requirement-alert ul{margin:0;padding-left:16px}
+      .r-schedule-requirement-alert{display:flex;gap:8px;align-items:flex-start;margin:8px 0;border:1px solid #fda29b;border-radius:10px;background:#fef3f2;color:#b42318;padding:9px 10px;font-size:11px;font-weight:850}.r-schedule-requirement-lines{display:grid;gap:4px;min-width:0}.r-schedule-requirement-lines p{margin:0}
       .r-schedule-panel.work-mode .r-schedule-calendar.work-calendar{flex:1;height:auto;min-height:0}
 .r-schedule-range-label{margin-left:10px;font-size:13px;font-weight:900;color:#667085;letter-spacing:0;vertical-align:middle}
       .r-schedule-panel .r-schedule-head{flex-wrap:wrap;align-items:flex-start;row-gap:10px}.r-schedule-panel .r-schedule-head>div:first-child{flex:1 1 220px;min-width:0}.r-schedule-panel .r-schedule-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.r-schedule-panel .r-schedule-head-actions{flex:0 1 auto;min-width:0;max-width:100%}
@@ -2566,7 +2566,7 @@
       includeEquipment:equipmentSchedulingEnabled()
     }) || [];
     const requirementAlert = requirementWarnings.length
-      ? `<div class="r-schedule-requirement-alert" role="alert"><i class="fas fa-triangle-exclamation"></i><ul>${requirementWarnings.map((warning) => `<li>${escapeHtml(warning.label || warning)}</li>`).join('')}</ul></div>`
+      ? `<div class="r-schedule-requirement-alert" role="alert"><i class="fas fa-triangle-exclamation"></i><div class="r-schedule-requirement-lines">${requirementWarnings.map((warning) => `<p>${escapeHtml(warning.label || warning)}</p>`).join('')}</div></div>`
       : '';
     // Sections get their own popover (name, Rename, Delete), not a work item's.
     const sectionPopover = scheduleEventIsSpan(storedEvent) ? openScheduleSectionPopover(storedEvent, anchor) : null;

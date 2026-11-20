@@ -370,6 +370,15 @@ async function ensureDepartments(auth: PlatformAuthContext, kinds: StoredKind[],
   return result;
 }
 const kindCategory = (kinds: StoredKind[], id: string) => kinds.find((entry) => entry.id === id)?.category;
+/**
+ * The Sales department the salesperson setup (GP-144) puts salespeople in, made as the appointment setup makes it when
+ * the branch has none yet. Null for a company that said it does no sales appointments.
+ */
+export async function ensureSalesDepartment(auth: PlatformAuthContext): Promise<string | null> {
+  const profile = await readCompanyProfile(auth.orgId);
+  const sales = kindById.get("sales")!;
+  return (await ensureDepartments(auth, [{ id: sales.id, label: sales.label.text, category: "sales", custom: false }], [], profile)).sales || null;
+}
 
 export const kindsInputSchema = z.object({
   kinds: z.array(z.object({
