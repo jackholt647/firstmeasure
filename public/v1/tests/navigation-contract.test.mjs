@@ -612,7 +612,7 @@ test('photo thumbnails prefer regenerated markup renditions while preserving ori
   const customerPortal = await readFile(path.join(publicRoot, 'customer_portal/customer_portal.js'), 'utf8');
   assert.match(platformApi, /markupThumbnailUrl\(orgId, mediaId, size = 320, revision = ''\)/);
   assert.match(platformApi, /`thumb_\$\{parseInt\(size, 10\) \|\| 320\}_markup`/);
-  assert.match(photoFeed, /media\.markupThumbnailUrl\(orgId\(\), item\.photo\.media_id, 320/);
+  assert.match(photoFeed, /media\.markupThumbnailUrl\(orgId\(\), item\.photo\.media_id, width/);
   assert.match(photoFeed, /fm:media-markup-saved/);
   assert.match(markup, /scheduleMarkupSave\(photo, items\)/);
   assert.match(markup, /new CustomEvent\('fm:media-markup-saved'/);

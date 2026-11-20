@@ -1719,6 +1719,38 @@
     tile?.classList.toggle('selected', !!active);
     tile?.setAttribute('aria-pressed', active ? 'true' : 'false');
   }
+  // GP-127: a tile shows the smallest rendition that fills it at the screen's pixel density, so a photo filling a
+  // whole column is never a stretched 320 px thumbnail. Measured once the tile is laid out (a ResizeObserver reports
+  // before a lazy image starts loading), again when it grows, and again when the photo has loaded and its shape is
+  // known: the tile crops the photo to cover it, which needs more than the tile's longest side (until then the photo
+  // is taken as 4:3, turned like the tile). Density counts up to 2x: a 3x phone shows no difference. Which rendition
+  // is photoSourceFor's choice. A loaded image is only ever traded for a larger one. The choice is kept per photo
+  // (thumbChoices) and written into the next render, which would otherwise fetch it again while it is still loading.
+  const thumbPhotos = new Map();
+  const thumbChoices = new Map();
+  const observedThumbs = new Set();
+  let thumbSizer = null;
+  function fitThumbSource(img, box = img.getBoundingClientRect()){
+    const photo = thumbPhotos.get(img.dataset.thumbMediaId || '');
+    if (!photo || !box.width || !box.height || img.dataset.fallbackStarted === 'true') return;
+    const cover = (ratio) => { const width = Math.max(box.width, box.height * ratio); return Math.max(width, width / ratio); };
+    const loaded = img.complete && img.naturalWidth && img.naturalHeight;
+    const longest = cover(loaded ? img.naturalWidth / img.naturalHeight : (box.width >= box.height ? 4 / 3 : 3 / 4));
+    const next = photoSourceFor({ photo }, Math.ceil(longest * Math.min(Math.max(window.devicePixelRatio || 1, 1), 2)));
+    if (!next.src || next.src === img.getAttribute('src')) return;
+    if (img.complete && next.px <= (Number(img.dataset.thumbPx) || Infinity)) return;
+    img.dataset.thumbPx = String(next.px);
+    img.src = next.src;
+    thumbChoices.set(img.dataset.thumbMediaId, { ...next, base:photoThumb({ photo }) });
+  }
+  function observeThumbSize(img){
+    if (!img.dataset.thumbMediaId) return;
+    if (typeof ResizeObserver !== 'function') { fitThumbSource(img); return; }
+    thumbSizer ||= new ResizeObserver((entries) => entries.forEach((entry) => fitThumbSource(entry.target, entry.contentRect)));
+    observedThumbs.forEach((seen) => { if (!seen.isConnected) { thumbSizer.unobserve(seen); observedThumbs.delete(seen); } });
+    observedThumbs.add(img);
+    thumbSizer.observe(img);
+  }
   function bindThumbLoading(root = document){
     root.querySelectorAll?.('.pf-thumb img').forEach((img) => {
       const tile = img.closest('.pf-thumb');
@@ -1727,6 +1759,7 @@
       img.dataset.baseSrc = baseSrc;
       const cached = state.thumbnailStatus.get(baseSrc);
       if (cached?.src && cached.src !== baseSrc) { img.dataset.fallbackStarted='true'; img.src=cached.src; }
+      observeThumbSize(img);
       if (cached === 'loaded' || cached?.src) tile.classList.add('loaded');
       if (cached === 'error') { tile.classList.add('error'); return; }
       const retry = () => {
@@ -1760,6 +1793,7 @@
         tile.classList.add('loaded');
         tile.classList.remove('error');
         state.thumbnailStatus.set(baseSrc, {src:img.currentSrc || img.src});
+        if (img.dataset.thumbMediaId && img.isConnected) fitThumbSource(img);
       };
       const markError = () => {
         window.setTimeout(retry, 450);
@@ -2243,14 +2277,48 @@
     });
     return [...days.entries()];
   }
-  function photoThumb(item){
+  // The variant names a photo lists (`thumb_320`, `display_2400`, ...), or null when it lists none.
+  function photoVariantNames(photo){
+    const variants = photo?.variants;
+    if (!variants || typeof variants !== 'object') return null;
+    return Array.isArray(variants) ? variants.map(String) : Object.keys(variants);
+  }
+  // Thumbnail sizes (longest side) the server rendered for a photo. Thumbnails are only made for large images;
+  // a photo that lists none has none. Without a list, the media settings' default sizes (a size an image lacks is
+  // served from its original); a video without a list only ever had the 320 one asked for.
+  function photoThumbSizes(photo){
+    const names = photoVariantNames(photo);
+    if (!names) return isVideoMedia(photo) ? [320] : [160, 320, 640];
+    return names.map((name) => Number(name.match(/^thumb_(\d+)$/)?.[1])).filter(Boolean).sort((a, b) => a - b);
+  }
+  // The smallest thumbnail at least `size` px on its longest side (the largest there is when none is).
+  function photoThumb(item, size = 320){
+    const sizes = photoThumbSizes(item.photo);
+    const width = sizes.find((entry) => entry >= size) || sizes[sizes.length - 1] || 320;
     if (item.photo?.media_id && !isVideoMedia(item.photo) && markupThumbnailRevisions.has(item.photo.media_id) && window.PlatformAPI?.media?.markupThumbnailUrl) {
-      return window.PlatformAPI.media.markupThumbnailUrl(orgId(), item.photo.media_id, 320, markupThumbnailRevisions.get(item.photo.media_id) || '');
+      return window.PlatformAPI.media.markupThumbnailUrl(orgId(), item.photo.media_id, width, markupThumbnailRevisions.get(item.photo.media_id) || '');
     }
-    const variants=item.photo?.variants;
-    if (variants && !(Array.isArray(variants) ? variants.includes('thumb_320') : Object.hasOwn(variants,'thumb_320'))) return photoOriginal(item);
-    if (item.photo?.media_id && window.PlatformAPI?.media?.thumbnailUrl) return window.PlatformAPI.media.thumbnailUrl(orgId(), item.photo.media_id, 320);
+    if (photoVariantNames(item.photo) && !sizes.length) return photoOriginal(item);
+    if (item.photo?.media_id && window.PlatformAPI?.media?.thumbnailUrl) return window.PlatformAPI.media.thumbnailUrl(orgId(), item.photo.media_id, width);
     return item.photo?.thumb || item.photo?.src || '';
+  }
+  // GP-127: what fills a tile `needed` device pixels on its longest side, and the size it was picked for: the
+  // smallest thumbnail within 15% of it; else the largest thumbnail when within 25%, because the next rendition
+  // (the screen-sized `display_*` copy, else the original) is many times the bytes; else that rendition. A
+  // marked-up photo, a video, a photo that lists no variants and a device offline (which saved the thumbnails, not
+  // the rest) stay on their largest thumbnail.
+  function photoSourceFor(item, needed){
+    const photo = item.photo || {};
+    const sizes = photoThumbSizes(photo);
+    const largest = sizes[sizes.length - 1] || 0;
+    const fits = sizes.find((size) => size >= needed * 0.85) || (largest >= needed * 0.75 ? largest : 0);
+    const names = photoVariantNames(photo);
+    if (fits || !sizes.length || !names || isVideoMedia(photo) || markupThumbnailRevisions.has(photo.media_id) || navigator.onLine === false) {
+      return { src:photoThumb(item, fits || needed), px:fits || largest || Infinity };
+    }
+    const display = names.find((name) => /^display_\d+$/.test(name));
+    if (display && photo.media_id && window.PlatformAPI?.media?.variantUrl) return { src:window.PlatformAPI.media.variantUrl(orgId(), photo.media_id, display), px:Infinity };
+    return { src:photoOriginal(item), px:Infinity };
   }
   function photoOriginal(item){
     const photo = item?.photo || item || {};
@@ -2275,11 +2343,20 @@
     const isVideo = isVideoMedia(item.photo);
     const alt = escapeHtml(item.photo?.alt || item.projectTitle || (isVideo ? 'Video' : 'Photo'));
     const originalAttr = original ? ` data-original-src="${escapeHtml(original)}"` : '';
-    if (isVideo) {
-      return `${thumb ? `<img ${loading} draggable="false" data-media-kind="video" src="${escapeHtml(thumb)}" alt="${alt}"${originalAttr}>` : (original ? `<video muted playsinline preload="metadata" src="${escapeHtml(original)}"></video>` : '<span class="pf-video-placeholder"><i class="fas fa-video"></i></span>')}<span class="pf-video-badge"><i class="fas fa-play"></i></span>`;
-    }
     const mediaId = cleanText(item.photo?.media_id);
-    return `<img ${loading} draggable="false"${mediaId ? ` data-markup-thumbnail-media-id="${escapeHtml(mediaId)}"` : ''} src="${escapeHtml(thumb)}" alt="${alt}"${originalAttr}>`;
+    // GP-127: bindThumbLoading swaps in the size the laid-out tile needs (fitThumbSource). A lazy tile starts from
+    // the size chosen for the photo last time; an eager one (List rows) loads at once, so it starts small.
+    const sized = !!(mediaId && thumb && !item.photo?.uploading);
+    if (sized) thumbPhotos.set(mediaId, item.photo);
+    const sizes = photoThumbSizes(item.photo);
+    const chosen = sized && !options.eager && thumbChoices.get(mediaId)?.base === thumb ? thumbChoices.get(mediaId) : null;
+    const thumbPx = chosen?.px || sizes.find((size) => size >= 320) || sizes[sizes.length - 1] || Infinity;
+    const sizeAttr = sized ? ` data-thumb-media-id="${escapeHtml(mediaId)}" data-thumb-px="${thumbPx}"` : '';
+    const src = chosen?.src || thumb;
+    if (isVideo) {
+      return `${thumb ? `<img ${loading} draggable="false" data-media-kind="video"${sizeAttr} src="${escapeHtml(src)}" alt="${alt}"${originalAttr}>` : (original ? `<video muted playsinline preload="metadata" src="${escapeHtml(original)}"></video>` : '<span class="pf-video-placeholder"><i class="fas fa-video"></i></span>')}<span class="pf-video-badge"><i class="fas fa-play"></i></span>`;
+    }
+    return `<img ${loading} draggable="false"${mediaId ? ` data-markup-thumbnail-media-id="${escapeHtml(mediaId)}"` : ''}${sizeAttr} src="${escapeHtml(src)}" alt="${alt}"${originalAttr}>`;
   }
   // Library records carry their media id as `id` and no URL; project photo
   // references carry `media_id`. Without this every library tile was blank.
@@ -5741,6 +5818,7 @@
       img.dataset.thumbRetries = '0';
       img.closest('.pf-thumb')?.classList.remove('error');
       img.src = src;
+      if (img.dataset.thumbMediaId) { img.dataset.thumbPx = '320'; fitThumbSource(img); }
     });
   });
   window.Portal?.navigation?.registerHandler?.('photo-feed-viewer', {
