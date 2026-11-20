@@ -1026,6 +1026,25 @@ subcontractors" with a Setup button (`appointment-booking/README.md`). A type wi
 `reminder` is recorded on the type but no reminder is sent yet. Tests: `tests/appointment-setup.test.ts`,
 `tests/appointment-setup-browser.test.mjs`.
 
+### Who sells (salesperson setup)
+
+`sales.team.setup` (GP-144, one step `salespeople`, widget `sales-team-setup`, `guided-experiences/sales-team-setup.js`;
+definition and copy in the config library) adds the company's salespeople and which of its work each may sell. It
+`requires` `company.type` and `company.services`, so what work the company does is asked first, only while unanswered.
+Its page is one card per salesperson: someone already in the organization picked from a list, or someone new added by
+name and email (`workforce.users.add` when it is saved, and invited with `workforce.users.invite` when asked), with the
+company's kinds of work as chips, every one on to start with. Someone in Sales through a role or a group is shown and
+kept. It adds no list of its own: `sales.team.setup.apply` makes the people the **direct members of the Sales
+department** a sales type asks for (`appointments/sales-team.ts`, making the department as the appointment setup does
+when the branch has none), so bookings find them at once, and saves what each sells as the company profile services in
+their **assignee capabilities** (`labor/capabilities.ts`, where the workforce setup keeps what each crew does). Read
+through `sales-team-setup.status`. Where it plays from: the New appointment dialog's "No one is set up to go to these
+yet" on a sales type (its Set up, with the preview's `sales_department_ids`), the type step's **Add users** pill on a
+type nobody can go to (the catalog's `unstaffed`: `sales` plays this setup, `teams` the workforce setup; a type that
+needs nobody never has it), and the calendar's "Salesperson is not assigned" (Set up while the organization has no
+salespeople; a type booked for someone of the Sales department counts as a sales appointment). Requirement warnings are
+one line each beside their triangle, never a bulleted list. Test: `tests/sales-team-setup.test.ts`.
+
 ## Equipment setup
 
 `equipment.setup` (GP-15, a modal, organization scope) sets up the fleet by asking about the company rather than

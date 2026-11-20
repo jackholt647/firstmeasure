@@ -62,7 +62,24 @@ export async function readAppointmentCatalog(ctx:PlatformAuthContext){
   const catalog={...branchCatalog,presets,departments:branchDepartments,groups:[]};
   const branchDepartmentIds=new Set(branchDepartments.map(d=>d.id));
   const resources=await resolveAssignableSubjects(ctx.orgId,ctx.branchId||'default',{allow_unassigned:true,rules:[]});
-  return {catalog,department_context:relevantDepartmentContext({...ctx,organizationStructure:structure}),company_office:await companyOffice(ctx.orgId,ctx.branchId||'default'),revision:Number(branch?.revision||0),can_manage:hasPermission(ctx,'manage_company_settings'),resources:resources.subjects.map((r:JsonObject)=>({id:r.id,key:key(r),name:r.name||r.label||r.id,subject_type:r.subject_type,role_ids:r.role_ids,group_kind_id:r.group_kind_id,department_ids:departmentIdsForSubject(structure,String(r.subject_type),String(r.id)).filter(id=>branchDepartmentIds.has(id)),member_user_ids:subjectMemberIds(r)})).filter(r=>hasResourcePermission({...ctx,organizationStructure:structure},SCHEDULE_VIEW,{department_ids:r.department_ids,branch_id:ctx.branchId})&&matchesDepartmentFilter({...ctx,organizationStructure:structure},{department_ids:r.department_ids}))};
+  const visible=resources.subjects.map((r:JsonObject)=>({id:r.id,key:key(r),name:r.name||r.label||r.id,subject_type:r.subject_type,role_ids:r.role_ids,group_kind_id:r.group_kind_id,department_ids:departmentIdsForSubject(structure,String(r.subject_type),String(r.id)).filter(id=>branchDepartmentIds.has(id)),member_user_ids:subjectMemberIds(r)})).filter(r=>hasResourcePermission({...ctx,organizationStructure:structure},SCHEDULE_VIEW,{department_ids:r.department_ids,branch_id:ctx.branchId})&&matchesDepartmentFilter({...ctx,organizationStructure:structure},{department_ids:r.department_ids}));
+  return {catalog,department_context:relevantDepartmentContext({...ctx,organizationStructure:structure}),company_office:await companyOffice(ctx.orgId,ctx.branchId||'default'),revision:Number(branch?.revision||0),can_manage:hasPermission(ctx,'manage_company_settings'),resources:visible,unstaffed:await unstaffedPresets(presets,branchDepartments,visible),sales_department_ids:await salesDepartments(branchDepartments,presets)};
+}
+const salesDepartments=async(departments:ReturnType<typeof defaults>['departments'],presets:{id:string;configuration:AppointmentConfiguration}[])=>(await import('./sales-team.js')).salesDepartmentIds(departments,presets);
+/**
+ * The types nobody can go to yet (GP-144): a requirement nobody could ever meet, with whether it wants a salesperson
+ * (`sales`, a requirement of a Sales department or a sales appointment) or a group (`teams`), so the New appointment
+ * dialog's type step offers to add people. A type that needs nobody, or whose people are only busy, is not one.
+ */
+async function unstaffedPresets(presets:{id:string;configuration:AppointmentConfiguration}[],departments:ReturnType<typeof defaults>['departments'],resources:JsonObject[]){
+  const sales=new Set(await salesDepartments(departments,presets)),out:{id:string;sales:boolean;teams:boolean}[]=[];
+  for(const preset of presets){
+    let gaps:ReturnType<typeof appointmentStaffing>=[];
+    try{gaps=appointmentStaffing(preset.configuration,departments,resources).filter(r=>r.unstaffed);}catch{continue;}
+    if(!gaps.length)continue;
+    out.push({id:preset.id,sales:gaps.some(r=>r.subject_type==='organization_user'&&(preset.configuration.event_type_id==='sales_appointment'||(!!r.department_id&&sales.has(r.department_id)))),teams:gaps.some(r=>r.subject_type!=='organization_user')});
+  }
+  return out;
 }
 export async function saveAppointmentCatalog(ctx:PlatformAuthContext,input:unknown){
   if(!hasPermission(ctx,'manage_company_settings'))throw forbidden('appointment_catalog_denied','Company settings permission is required.');
@@ -194,7 +211,7 @@ export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<t
     }
     const assigned=valid?selectAppointmentResources(config,catalog.departments,resources,available||new Set(),options):null;
     const end=zonedInstant(y!,m!,d!+config.duration_days,0,0,zone);
-    return {ok:true,timezone:zone,staffing:appointmentStaffing(config,catalog.departments,resources),teams,slots:[{start_at:anchor.toISOString(),window_end_at:end.toISOString(),available:!!assigned,free:valid?freeCount(config,catalog.departments,resources,available||new Set()):0,label:`${config.duration_days} full day${config.duration_days===1?'':'s'} · ${input.date}`,plan:assigned?{start_at:anchor.toISOString(),end_at:end.toISOString(),resources:assigned}:null}]};
+    return {ok:true,timezone:zone,staffing:appointmentStaffing(config,catalog.departments,resources),teams,sales_department_ids:await salesDepartments(catalog.departments,catalog.presets),slots:[{start_at:anchor.toISOString(),window_end_at:end.toISOString(),available:!!assigned,free:valid?freeCount(config,catalog.departments,resources,available||new Set()):0,label:`${config.duration_days} full day${config.duration_days===1?'':'s'} · ${input.date}`,plan:assigned?{start_at:anchor.toISOString(),end_at:end.toISOString(),resources:assigned}:null}]};
   }
   for(const raw of day.slots){
     const anchor=new Date(String(raw.start_at)),windowEnd=new Date(anchor.getTime()+config.window_minutes*60000);
@@ -221,7 +238,7 @@ export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<t
     const label=new Intl.DateTimeFormat('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
     slots.push({start_at:anchor.toISOString(),available:!!plan,free,label:config.window_minutes>config.duration_minutes?`${label.format(anchor)} – ${label.format(windowEnd)} arrival`:`${label.format(anchor)}`,window_end_at:windowEnd.toISOString(),plan});
   }
-  return {ok:true,timezone:zone,staffing:appointmentStaffing(config,catalog.departments,resources),teams,slots};
+  return {ok:true,timezone:zone,staffing:appointmentStaffing(config,catalog.departments,resources),teams,sales_department_ids:await salesDepartments(catalog.departments,catalog.presets),slots};
 }
 /** A type that needs a project (FM-557) is never booked without one, whatever the booking's copy of it says; a custom
  *  appointment needs one only when it says so. */

@@ -1423,15 +1423,20 @@
     const assignedResourceId = cleanText(eventAssignees(value)[0]?.id);
     const requiredRoleIds = arrayValue(value.required_role_ids || value.role_ids).filter(Boolean);
     const assignmentRequired = objectValue(value.assignment_policy).allow_unassigned === false || requiredRoleIds.length > 0;
-    if (kind === 'sales_appointment' && !assignedUserId && !assignedUsers.length && !assignedResourceId) {
-      warnings.push({ code:'salesperson_unassigned', label:(globalThis.PlatformLanguage?.text("platform-scheduling","m_fea338f4e06ef3","Salesperson is not assigned") ?? "Salesperson is not assigned") });
+    // A sales appointment: placed on the calendar as one, or booked from a type that asks for someone of a Sales
+    // department (GP-144). With no salespeople at all, the caller offers to set them up (`setup`).
+    const appointment = objectValue(value.appointment_configuration);
+    const appointmentRequirements = arrayValue(appointment.requirements).map(objectValue);
+    const salesDepartments = arrayValue(options.salesDepartmentIds).map(cleanText).filter(Boolean);
+    const salesAppointment = kind === 'sales_appointment' || (kind === 'appointment' && appointmentRequirements.some((requirement) => cleanText(requirement.subject_type) === 'organization_user'
+      && (cleanText(appointment.event_type_id) === 'sales_appointment' || salesDepartments.includes(cleanText(requirement.department_id)))));
+    if (salesAppointment && !assignedUserId && !assignedUsers.length && !assignedResourceId) {
+      warnings.push({ code:'salesperson_unassigned', ...(options.noSalespeople ? { no_salespeople:true, setup:'sales.team.setup' } : {}), label:(globalThis.PlatformLanguage?.text("platform-scheduling","m_fea338f4e06ef3","Salesperson is not assigned") ?? "Salesperson is not assigned") });
     } else if (assignmentRequired && kind !== 'project_work' && !assignedUserId && !assignedUsers.length && !assignedResourceId) {
       warnings.push({ code:'assignment_unassigned', label:(globalThis.PlatformLanguage?.text("platform-scheduling","m_5df5da02403b40","Required person or team is not assigned") ?? "Required person or team is not assigned") });
     }
     // An appointment booked before anyone of the kind it needs was set up is left unassigned (GP-85): one whose type
     // sends crews, or leaves who goes to whoever books it (subcontractors), needs a crew like project work does.
-    const appointment = objectValue(value.appointment_configuration);
-    const appointmentRequirements = arrayValue(appointment.requirements).map(objectValue);
     const appointmentNeedsTeam = kind === 'appointment' && Object.keys(appointment).length > 0 && (appointmentRequirements.some((requirement) => cleanText(requirement.subject_type) && requirement.subject_type !== 'organization_user')
       || (!appointmentRequirements.length && appointment.requires_project === true && cleanText(appointment.event_type_id) !== 'sales_appointment' && objectValue(appointment.location).mode !== 'company_office'));
     if ((kind === 'project_work' || appointmentNeedsTeam) && !assignedResourceId && !assignedUserId && !assignedUsers.length) {
