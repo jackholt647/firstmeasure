@@ -190,7 +190,7 @@ test('the overlay pins without waiting: edit mode, tap to pin, long press, stabl
   assert.match(render, /"m_e29e003014f22e","Edit pins"/);
   assert.match(render, /"m_03ae7f7f0d0d32","Tap apps to pin or unpin them\."/);
   assert.match(render, /if \(advancedAppMenuEditing && entry\?\.pinnable\) toggleAppPin\(entry\.appId\);/);
-  assert.match(render, /event\.pointerType !== 'touch'[\s\S]{0,600}setEditing\(true\)/, 'touch and hold starts edit mode');
+  assert.match(render, /event\.pointerType !== 'touch'[\s\S]{0,1200}setEditing\(true\)/, 'touch and hold starts edit mode');
   assert.match(render, /if \(advancedAppMenuEditing\) setEditing\(false\);\s+else closeAdvancedAppMenu\(\);/, 'Escape leaves edit mode first');
   assert.match(render, /if \(!advancedAppMenuOrder\) advancedAppMenuOrder = sorted\.map/, 'tiles keep their places while the overlay is open');
   assert.match(render, /firstRender && !window\.matchMedia\?\.\('\(pointer: coarse\)'\)\.matches/, 'a phone does not light up the first tile');

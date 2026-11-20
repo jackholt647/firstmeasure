@@ -3658,7 +3658,11 @@
           : `<i class="fas fa-thumbtack" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_e29e003014f22e","Edit pins") ?? "Edit pins")}`;
       }
       const hint = overlay.querySelector('.fm-advanced-apps-edit-hint');
-      if (hint) hint.textContent = editing ? (globalThis.PlatformLanguage?.text("platform","m_03ae7f7f0d0d32","Tap apps to pin or unpin them.") ?? "Tap apps to pin or unpin them.") : '';
+      // A finger also moves the pinned apps here (GP-126); a mouse moves them in the left column.
+      const touch = window.matchMedia?.('(pointer: coarse)').matches === true;
+      if (hint) hint.textContent = !editing ? '' : touch
+        ? (globalThis.PlatformLanguage?.text("platform","m_3fde6ba70e6b09","Tap apps to pin or unpin them. Hold a pinned app and drag it to change the order.") ?? "Tap apps to pin or unpin them. Hold a pinned app and drag it to change the order.")
+        : (globalThis.PlatformLanguage?.text("platform","m_03ae7f7f0d0d32","Tap apps to pin or unpin them.") ?? "Tap apps to pin or unpin them.");
     };
     setEditing(advancedAppMenuEditing);
     // The tile changes before the save: the left column moves with it at
@@ -3693,28 +3697,148 @@
       else if (!advancedAppMenuEditing) openLauncherEntry(entry);
     }, { signal }));
     // Touching and holding a tile starts pin edit mode, as on a phone's home
-    // screen; the tap that ends the hold does nothing.
+    // screen; the tap that ends the hold does nothing. Holding a pinned app
+    // picks it up: dragging it puts the left column in a new order, the first
+    // being the home app (GP-126). That is how touch orders the left column; a
+    // mouse drags the column itself. A drag lets go of nothing until the save.
     let press = null;
+    let lift = null;
     const endPress = () => {
       window.clearTimeout(press?.timer);
       press = null;
     };
+    const gridTiles = () => [...overlay.querySelectorAll('.fm-advanced-apps-grid > .fm-advanced-app-tile')];
+    const placeLifted = () => {
+      if (!lift) return;
+      lift.tile.style.translate = 'none';
+      const rect = lift.tile.getBoundingClientRect();
+      lift.tile.style.translate = `${Math.round(lift.x - lift.grabX - rect.left)}px ${Math.round(lift.y - lift.grabY - rect.top)}px`;
+    };
+    // The pinned app under the finger takes the lifted one's place, and the
+    // tiles between slide to theirs.
+    const reorderUnder = () => {
+      const target = gridTiles().find((tile) => {
+        if (tile === lift.tile || !tile.classList.contains('is-pinned')) return false;
+        const rect = tile.getBoundingClientRect();
+        return lift.x >= rect.left && lift.x <= rect.right && lift.y >= rect.top && lift.y <= rect.bottom;
+      }) || null;
+      if (target === lift.over) return;
+      lift.over = target;
+      if (!target) return;
+      const before = new Map(gridTiles().map((tile) => [tile, tile.getBoundingClientRect()]));
+      if (lift.tile.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING) target.after(lift.tile);
+      else target.before(lift.tile);
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+      before.forEach((from, tile) => {
+        if (tile === lift.tile) return;
+        tile.style.transition = 'none';
+        tile.style.translate = 'none';
+        const to = tile.getBoundingClientRect();
+        if (Math.abs(from.left - to.left) < 1 && Math.abs(from.top - to.top) < 1) { tile.style.removeProperty('transition'); tile.style.removeProperty('translate'); return; }
+        tile.style.translate = `${Math.round(from.left - to.left)}px ${Math.round(from.top - to.top)}px`;
+        void tile.offsetWidth;
+        tile.style.transition = 'translate .2s cubic-bezier(.2,.8,.2,1)';
+        tile.style.translate = '0px 0px';
+        window.setTimeout(() => { tile.style.removeProperty('transition'); tile.style.removeProperty('translate'); }, 220);
+      });
+    };
+    // Near the top or bottom of the apps the grid scrolls under the finger.
+    const scrollWhileLifted = () => {
+      if (!lift) return;
+      const scroller = overlay.querySelector('.fm-advanced-apps-scroll');
+      const rect = scroller?.getBoundingClientRect();
+      const edge = 56;
+      const speed = !rect ? 0 : lift.y < rect.top + edge ? -Math.ceil((rect.top + edge - lift.y) / 5)
+        : lift.y > rect.bottom - edge ? Math.ceil((lift.y - rect.bottom + edge) / 5) : 0;
+      if (speed && scroller.scrollHeight > scroller.clientHeight) {
+        const top = scroller.scrollTop;
+        scroller.scrollTop = top + speed;
+        if (scroller.scrollTop !== top) { reorderUnder(); placeLifted(); }
+      }
+      lift.frame = window.requestAnimationFrame(scrollWhileLifted);
+    };
+    const dropApp = (cancel = false) => {
+      const drop = lift;
+      lift = null;
+      if (!drop) return;
+      window.cancelAnimationFrame(drop.frame);
+      ['pointermove', 'pointerup', 'pointercancel', 'keydown'].forEach((type) => window.removeEventListener(type, drop.listener, true));
+      drop.tile.classList.remove('is-lifted');
+      drop.tile.style.removeProperty('translate');
+      overlay.classList.remove('is-reordering');
+      advancedAppMenuQuietClicksUntil = Date.now() + 600;
+      const pinnedIds = pinnedAppIds();
+      const shown = gridTiles().filter((tile) => tile.classList.contains('is-pinned'))
+        .map((tile) => cleanText(tile.dataset.pinDragApp).toLowerCase()).filter((id) => pinnedIds.includes(id));
+      const ids = [...shown, ...pinnedIds.filter((id) => !shown.includes(id))];
+      if (ids.join('|') === pinnedIds.join('|')) return;
+      if (cancel || signal.aborted) {
+        if (!signal.aborted && advancedAppMenuOpen) renderAdvancedAppMenu();
+        return;
+      }
+      navigator.vibrate?.(8);
+      Promise.resolve(saveSidebarAppOrder(ids)).catch((error) => {
+        window.PlatformUI?.showToast?.(error?.message || 'Could not update the sidebar.');
+        if (advancedAppMenuOpen) renderAdvancedAppMenu();
+      });
+    };
+    const liftApp = (tile, x, y, pointerId) => {
+      if (lift || !tile?.isConnected || !tile.classList.contains('is-pinned')) return;
+      if (gridTiles().filter((node) => node.classList.contains('is-pinned')).length < 2) return;
+      const rect = tile.getBoundingClientRect();
+      lift = { tile, pointerId, x, y, grabX:x - rect.left, grabY:y - rect.top, over:null, frame:0 };
+      lift.listener = (event) => {
+        if (event.type === 'keydown') {
+          if (event.key !== 'Escape') return;
+          event.preventDefault();
+          event.stopPropagation();
+          dropApp(true);
+          return;
+        }
+        if (!lift || event.pointerId !== lift.pointerId) return;
+        if (event.type === 'pointermove') {
+          lift.x = event.clientX;
+          lift.y = event.clientY;
+          reorderUnder();
+          placeLifted();
+        } else dropApp(event.type === 'pointercancel');
+      };
+      ['pointermove', 'pointerup', 'pointercancel', 'keydown'].forEach((type) => window.addEventListener(type, lift.listener, true));
+      tile.classList.add('is-lifted');
+      overlay.classList.add('is-reordering');
+      placeLifted();
+      lift.frame = window.requestAnimationFrame(scrollWhileLifted);
+      navigator.vibrate?.(12);
+    };
+    signal.addEventListener('abort', () => dropApp(true), { once:true });
     overlay.addEventListener('pointerdown', (event) => {
       endPress();
-      if (advancedAppMenuEditing || event.pointerType !== 'touch' || !event.target.closest?.('[data-pin-drag-app]')) return;
-      if (event.target.closest('.fm-advanced-app-subviews,[data-advanced-subviews-toggle]')) return;
+      if (lift || event.pointerType !== 'touch' || event.isPrimary === false) return;
+      const tile = event.target.closest?.('[data-pin-drag-app]');
+      if (!tile || event.target.closest('.fm-advanced-app-subviews,[data-advanced-subviews-toggle]')) return;
+      if (advancedAppMenuEditing && !tile.classList.contains('is-pinned')) return;
+      const pointerId = event.pointerId;
       press = { x:event.clientX, y:event.clientY, timer:window.setTimeout(() => {
+        const { x, y } = press || { x:event.clientX, y:event.clientY };
         press = null;
         advancedAppMenuQuietClicksUntil = Date.now() + 800;
-        setEditing(true);
-        navigator.vibrate?.(12);
-      }, 480) };
+        if (!advancedAppMenuEditing) {
+          setEditing(true);
+          navigator.vibrate?.(12);
+        }
+        liftApp(tile, x, y, pointerId);
+      }, advancedAppMenuEditing ? 260 : 480) };
     }, { signal });
     overlay.addEventListener('pointermove', (event) => {
       if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 10) endPress();
     }, { signal });
     ['pointerup', 'pointercancel'].forEach((type) => overlay.addEventListener(type, endPress, { signal }));
-    overlay.querySelector('.fm-advanced-apps-scroll')?.addEventListener('scroll', endPress, { signal, passive:true });
+    overlay.querySelector('.fm-advanced-apps-scroll')?.addEventListener('scroll', () => { if (!lift) endPress(); }, { signal, passive:true });
+    // A lifted app is moved, not the page: the touch that carries it does not
+    // scroll (this listener is there from the touch's start, so it may say so).
+    overlay.addEventListener('touchmove', (event) => {
+      if (lift && event.cancelable) event.preventDefault();
+    }, { signal, passive:false });
     overlay.addEventListener('click', (event) => {
       if (Date.now() >= advancedAppMenuQuietClicksUntil) return;
       advancedAppMenuQuietClicksUntil = 0;
@@ -4545,6 +4669,7 @@
       .fm-advanced-apps-edit-hint{color:rgba(255,255,255,.88);font-size:11px;font-weight:800}.fm-advanced-apps-edit-hint:empty{display:none}.fm-advanced-apps-edit i{margin-right:6px}.fm-advanced-apps-overlay.is-editing .fm-advanced-apps-edit,.fm-advanced-apps-overlay.is-editing .fm-advanced-apps-edit:hover{border-color:#fff;background:#fff;color:#101828}.fm-advanced-app-tile{-webkit-touch-callout:none}
       @keyframes fmAdvancedAppWobble{from{transform:rotate(-1.5deg)}to{transform:rotate(1.5deg)}}@keyframes fmAdvancedAppPinPop{0%{transform:rotate(-12deg) scale(.55)}60%{transform:rotate(-12deg) scale(1.22)}100%{transform:rotate(-12deg) scale(1)}}
       .fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile{-webkit-user-select:none;user-select:none;animation:fmAdvancedAppWobble .26s ease-in-out infinite alternate;animation-delay:calc(var(--i,0) * -.11s)}.fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile:nth-child(2n){animation-direction:alternate-reverse}.fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile.is-unpinned .fm-advanced-app-icon-wrap,.fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile.is-unpinned .fm-advanced-app-open{opacity:.62}
+      .fm-advanced-apps-overlay .fm-advanced-app-tile.is-lifted{z-index:5;animation:none;scale:1.07;border-color:#fff;background:#fff;box-shadow:0 18px 38px rgba(0,0,0,.34);transition:scale .14s ease,box-shadow .14s ease}.fm-advanced-apps-overlay.is-reordering .fm-advanced-app-tile.is-unpinned{opacity:.55}
       .fm-advanced-apps-overlay.is-editing .fm-advanced-app-pin{visibility:visible;opacity:1;pointer-events:auto;background:#fff;color:#667085;box-shadow:inset 0 0 0 1.5px #d0d5dd,0 3px 8px rgba(15,23,42,.14);transform:rotate(-12deg);transition-delay:0s}.fm-advanced-apps-overlay.is-editing .fm-advanced-app-pin.is-pinned{background:#344054;color:#fff;box-shadow:0 4px 10px rgba(15,23,42,.22)}.fm-advanced-app-pin.is-pop{animation:fmAdvancedAppPinPop .26s cubic-bezier(.2,.9,.2,1)}
       .fm-advanced-apps-overlay.is-compact{padding:14px 14px calc(12px + env(safe-area-inset-bottom,0px))}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-panel{display:flex;flex-direction:column}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-close{top:0;right:0;width:44px;height:44px}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-scroll{flex:1 1 auto;height:auto;min-height:0;margin-top:52px;padding:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-scroll::-webkit-scrollbar{display:none}
       .fm-advanced-apps-overlay.is-compact .fm-advanced-apps-grid{height:auto;min-height:100%;grid-template-columns:repeat(var(--fm-advanced-columns,3),minmax(0,1fr));grid-auto-rows:var(--fm-advanced-tile-height,128px);padding:6px 0 14px}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-tile{width:100%;height:var(--fm-advanced-tile-height,128px);justify-content:flex-end;padding-top:var(--fm-advanced-tile-top,34px);padding-bottom:8px}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-open{max-width:100%;min-height:2.5em;align-items:start}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-open strong{font-weight:800;overflow-wrap:normal;word-break:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-open strong.is-squeezed{overflow-wrap:anywhere}
