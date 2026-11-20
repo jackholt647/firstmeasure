@@ -175,6 +175,17 @@ const css = `
 .gxw-error:empty{display:none}
 /* A phone: one card at a time with the cards either side peeking in (the choices stack as every setup's do: .gxs-choices). */
 @media(max-width:560px){.gxw-track,.gxw-track[data-more]{grid-auto-columns:86%;gap:12px}.gxw-card{padding:16px;gap:16px}.gxw-kinds{grid-template-columns:minmax(0,1fr)}.gxw-nav{display:none}.gxw-actions .gxw-btn{flex:1 1 auto}.gxw-sees{grid-template-columns:minmax(0,1fr)}}
+/* A phone (GP-143, as the appointment setup's pages, GP-137): a page fills the tray, what it says at the top and its
+   buttons along the bottom in reach of the thumb, never floating in the middle of a short page (how many, done). */
+@media(max-width:560px){
+  .gxs-step:has(>.gxs-body>.gxw){justify-content:flex-start}
+  .gxs-body:has(>.gxw){display:flex;flex-direction:column;flex:1 0 auto}
+  .gxs-body>.gxw{flex:1 0 auto}
+  .gxs-body>.gxw>.gxw-actions{margin-top:auto;padding-top:8px}
+  .gxs-body>.gxw>.gxw-actions .gxw-spacer{display:none}
+  .gxs-body>.gxw>.gxw-actions .gxw-btn{flex:1 1 0;min-width:0;height:46px}
+  .gxs-body>.gxw>.gxw-actions .gxw-btn.primary{flex-grow:2}
+}
 @media(prefers-reduced-motion:reduce){.gxw *{transition:none!important}.gxw-track{scroll-behavior:auto}}
 `;
 function installStyle(){
