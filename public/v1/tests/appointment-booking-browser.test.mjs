@@ -508,3 +508,33 @@ test('the phone back control is Previous: each step, the Advanced sheet, then cl
   assert.ok(await page.evaluate(()=>history.length)>=before);
  }finally{await browser.close();}
 });
+
+test('a company with no crews or subcontractors is told they are not added yet, not that none is free (GP-142)',async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:390,height:844},hasTouch:true});page.setDefaultTimeout(5000);
+  await page.route('http://localhost/**',r=>r.fulfill({body:'<html><body></body></html>',contentType:'text/html'}));await page.goto('http://localhost/');await page.addStyleTag({content:styles});
+  for(const content of [picker,selector,configuration,booking])await page.addScriptTag({content});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.evaluate(()=>{
+   const base={department_ids:[],delivery:false,timing_mode:'timed',duration_days:2,location:{mode:'project',address:''},window_minutes:90,slot_minutes:30,requirements:[],recurrence:null};
+   const catalog={departments:[],groups:[],presets:[{id:'install',label:'Production appointment',configuration:{...base,title:'Production appointment',duration_minutes:60,requirements:[{id:'crew'}]}}]};
+   window.teams={groups:0,companies:0};window.previews=0;
+   window.PlatformAPI={projects:{get:async(o,id)=>({document:{id,data:{title:'Smith residence',address:'123 Maple Street'}}})},
+    search:{projectsAndContacts:async()=>({results:[{id:'p1',title:'Smith residence',subtitle:'123 Maple Street'}]})},
+    appointments:{catalog:async()=>({can_manage:true,revision:4,resources:[],catalog}),saveCatalog:async()=>({}),
+     preview:async()=>{window.previews++;return {slots:[{available:true,start_at:'2026-11-17T15:00:00Z',label:'10:00 AM'}],staffing:[{requirement_id:'crew',subject_type:'organization_group',unstaffed:true}],teams:window.teams};},book:async()=>({ok:true})}};
+   return FirstMateBooking.open({orgId:'org',projectId:'p1',lockProject:true});
+  });
+  await page.locator('.fm-ap-type[data-preset-button=install]').click();
+  const note=page.locator('[data-staffing-note]');await note.waitFor();
+  assert.equal(await note.locator('strong').innerText(),'No crews or subcontractors yet');
+  assert.equal(await note.locator('small').innerText(),'Appointment will be unassigned until you add them.');
+  // Once there are crews but none can go, the note says none is available.
+  await page.evaluate(()=>{window.teams={groups:2,companies:0};});const seen=await page.evaluate(()=>window.previews);
+  await page.locator('[data-step=when] [data-duration-preset="30"]').first().click();
+  await page.waitForFunction(n=>window.previews>n&&document.querySelector('[data-staffing-note]')?.dataset.staffingNote==='groups',seen);
+  assert.equal(await note.locator('strong').innerText(),'No crews or subcontractors available');
+  assert.equal(await note.locator('small').innerText(),'It is booked unassigned. Assign someone later from the calendar.');
+ }finally{await browser.close();}
+});
