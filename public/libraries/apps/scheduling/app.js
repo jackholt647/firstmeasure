@@ -6838,7 +6838,6 @@
         eventDraftProjectQuery = '';
         render();
         await loadData({ force: true });
-        showToast('Recurring item created', (globalThis.PlatformLanguage?.text("scheduling","m_bd00f676f7e893","Its upcoming calendar occurrences are ready.") ?? "Its upcoming calendar occurrences are ready."), true);
       } catch (error) {
         showToast((globalThis.PlatformLanguage?.text("scheduling","m_0c17d9fba77f09","Could not save recurring item") ?? "Could not save recurring item"), scheduleSaveErrorMessage(error, 'Try again.'), false);
         setTimeout(() => renderEventDraftPopover(editorAnchorFor(ctx.event.id)), 0);
@@ -6890,13 +6889,9 @@
           __activeDraft: false,
           status: 'scheduled'
         });
+        // No success toast: the event is on the calendar, and on a phone a
+        // toast covers the calendar it just landed on (GP-146).
         render();
-        const savedTitle = clean(next.title) || 'The event';
-        showToast(
-          disposable ? ((globalThis.PlatformLanguage?.text("scheduling","m_event_added","Event added") ?? "Event added")) : ((globalThis.PlatformLanguage?.text("scheduling","m_13c761fb4b644a","Event updated") ?? "Event updated")),
-          disposable ? `${savedTitle} is on the calendar.` : 'Your changes are saved.',
-          true
-        );
       } catch (error) {
         // A failed save reopens its editor only if no other item was opened
         // in the meantime.
@@ -6990,7 +6985,12 @@
         const savedNote = sharingChanged
           ? (next.customer_visible === true ? 'This event is now shared with the customer.' : 'This event is no longer shared with the customer.')
           : 'Your changes are saved.';
-        showToast((globalThis.PlatformLanguage?.text("scheduling","m_13c761fb4b644a","Event updated") ?? "Event updated"), `${savedNote}${movedNote}${outOfOrderNote(related.leftOutOfOrder)}${reportNote}`, !reportNote);
+        // A plain save shows nothing (GP-146); a toast is only for what the
+        // calendar does not show: linked moves, sharing, order and conflicts.
+        const outOfOrder = outOfOrderNote(related.leftOutOfOrder);
+        if (sharingChanged || movedNote || outOfOrder || reportNote) {
+          showToast((globalThis.PlatformLanguage?.text("scheduling","m_13c761fb4b644a","Event updated") ?? "Event updated"), `${savedNote}${movedNote}${outOfOrder}${reportNote}`, !reportNote);
+        }
       } catch (error) {
         if (isStaleSaveError(error)) { await handleStaleEditorSave(next.id, error); return; }
         if (error?.relatedFailures) {
