@@ -14,6 +14,8 @@ const FILES = {
   'texting-setup.js': '../public/libraries/guided-experiences/texting-setup.js',
   'setup-wizard.js': '../public/libraries/setup-wizard/setup-wizard.js',
   'sms-registration.js': '../public/libraries/apps/settings/sms-registration.js',
+  'comms-setup.js': '../public/libraries/guided-experiences/comms-setup.js',
+  'appointments-setup.js': '../public/libraries/guided-experiences/appointments-setup.js',
 };
 const file = (name) => readFileSync(new URL(FILES[name], import.meta.url), 'utf8');
 const ORIGIN = 'http://fm.test';
@@ -54,6 +56,17 @@ const start = (page) => page.evaluate(() => {
   window.__run = window.texting.setUpTexting({ orgId: 'org_1', status: { done: { phone: true }, phone: { registration: 'none' } }, host,
     setTitle: (text) => window.__titles.push(text), onStep: () => { window.__steps += 1; },
     onRegistering: (handle) => { window.__handle = handle || null; } }).then((result) => { window.__left = result.left; return result; });
+});
+
+test('both setups that offer the business phone load (the step shows "didn’t load" otherwise)', async () => {
+  const { browser, page } = await open({ width: 800, height: 600 });
+  try {
+    const loaded = await page.evaluate(() => Promise.all(['comms-setup.js', 'appointments-setup.js'].map((name) =>
+      import(`/libraries/guided-experiences/${name}`).then((module) => typeof module.mount, (error) => error.message))));
+    assert.deepEqual(loaded, ['function', 'function']);
+  } finally {
+    await browser.close();
+  }
 });
 
 test('carrier registration from a setup is more steps of its tray, and Back returns to the setup', async () => {
