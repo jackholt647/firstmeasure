@@ -964,9 +964,12 @@ terminology system. Operations settings (`apps/materials/settings.js`) shows the
 company settings opens a project's Comms tab (`project.comms`) or the Communications page (`portal.chat`, whose variant
 starts with texts and calls). One step, widget `comms-setup` (`guided-experiences/comms-setup.js`, its own pages and
 buttons like Operations): what Communications does (texts, calls, email), where to start, then a simple page per
-channel. **Texts and calls** runs `comms.setup.start { channel: phone }`: Texts (`comms.sms`) and SMS settings
-(`apps.messaging`, `platform.sms_settings`) on; carrier registration and the number stay the 10DLC workflow in Phone
-Settings ("Register my business" finishes the setup and opens it). Turning texts on and registration are `texting-setup.js`, shared with the appointment setup. On development the shared test line stands in, as
+channel. **Business phone** (texts and calls are one phone: one 10DLC registration, GP-138) runs `comms.setup.start { channel: phone }`: Texts (`comms.sms`) and SMS settings
+(`apps.messaging`, `platform.sms_settings`) on; carrier registration and the number stay the 10DLC workflow of Phone
+Settings (`settings/sms-registration.js`), drawn **inline as more pages of the setup's step** (`FirstMateSmsRegistration.open({ container })`
+on the setup wizard shell's inline mode: no head, step rail or step count, the tray names each step, Back on its first
+step returns to the page it was started from, the phone's back walks its steps through the module's `back()`/`backDepth()`).
+Settings › Phone still opens it full screen. Turning texts on and registration are `texting-setup.js`, shared with the appointment setup. On development the shared test line stands in, as
 Phone Settings' "Skip to fully onboarded". Then the **texting plan**: platform billing's `comms.sms` prices, bought with
 `FirstMatePlatformBilling.review` (the card on file, else Stripe Checkout); no page where platform billing is off or
 nothing is for sale. **Email** runs `comms.setup.start { channel: email }`: the Email inbox (`comms.email`) on and the
@@ -1001,7 +1004,8 @@ before it (the module's `back()`/`backDepth()`, and `ctx.canBack()` says whether
 appointments sees no sales/production badges. When a
 text was asked for and texting is not set up (`comms.setup.status`; not offered where Communications is off), it
 offers to set it up or skip: **the same flow as the Communications setup**, `guided-experiences/texting-setup.js`
-(`setUpTexting`: texts and calls on with `comms.setup.start`, then carrier registration over the page). Both setups
+(`setUpTexting`: texts and calls on with `comms.setup.start`, then carrier registration as more pages of the step,
+GP-138; test `tests/phone-setup-inline-browser.test.mjs`). Both setups
 call it; do not copy it. The finish runs `appointments.setup.apply` with `appointment_types`: each type's
 `customer_texts` (`{ reminder, on_my_way }` on the appointment configuration) and one staffing requirement wide enough
 for every answer (`requirementsFor`: me alone, that person; a crew alone, one group with all its members; a crew with
