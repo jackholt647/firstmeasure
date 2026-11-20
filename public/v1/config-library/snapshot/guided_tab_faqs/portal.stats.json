@@ -1,0 +1,23 @@
+{
+  "kind": "guided_tab_faqs",
+  "id": "portal.stats",
+  "revision": 1,
+  "sha256": "fc5fdd3dc164f5cb41f787fc35af13ae2917847f133835e8902cf9941b169f42",
+  "title": "Questions on portal.stats",
+  "updated_at": "2026-11-20T01:44:31.088Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
+  "data": {
+    "tab": "portal.stats",
+    "questions": [
+      {
+        "id": "stats.tour",
+        "text": {
+          "key": "gx_st_faq_tour",
+          "text": "Show me the stats tutorial again"
+        },
+        "action": "play",
+        "experience": "stats.tab_tutorial"
+      }
+    ]
+  }
+}

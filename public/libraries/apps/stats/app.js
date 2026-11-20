@@ -15,6 +15,8 @@
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
 
   const AGENT_TIMEOUT_MS = 150000;
+  // The tab's tour (config library guided_experience/stats.tab_tutorial): plays the first time Stats opens.
+  const STATS_TOUR = 'stats.tab_tutorial';
   const SERIES_COLORS = ['#2e90fa', '#12b76a', '#7f56d9', '#f79009', '#f04438', '#0e7090', '#c11574', '#344054'];
   const VIEW_ICONS = ['fa-chart-line', 'fa-chart-column', 'fa-chart-pie', 'fa-coins', 'fa-trophy', 'fa-helmet-safety', 'fa-bullseye', 'fa-users', 'fa-phone', 'fa-calendar-days', 'fa-truck-fast', 'fa-star'];
   // The portal loads Font Awesome 6.0, which has no fa-sack-dollar (GP-131): views saved with it show this instead.
@@ -71,26 +73,36 @@
     style.id = 'fm-stats-css';
     style.textContent = `
       .st-shell{height:100%;min-height:0;display:flex;flex-direction:column;background:#f5f7fa;color:#101828;font-size:14px;}
-      .st-top{flex:0 0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px 10px;background:#fff;border-bottom:1px solid #e4e7ec;}
-      .st-views{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;}
-      .st-view-pill{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;border:1px solid #e4e7ec;background:#fff;cursor:pointer;font-weight:600;color:#344054;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .12s ease;}
-      .st-view-pill i{font-size:12px;}
-      .st-view-pill:hover{border-color:#98a2b3;background:#f9fafb;}
-      .st-view-pill:active{transform:scale(.97);}
-      .st-view-pill.active{color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(16,24,40,.16);}
-      .st-view-pill.active:hover{filter:brightness(1.06);}
-      .st-view-add{padding:7px 11px;border-radius:999px;border:1px dashed #98a2b3;background:transparent;color:#475467;cursor:pointer;font-weight:600;transition:background .15s ease,border-color .15s ease,color .15s ease;}
-      .st-view-add:hover{border-color:#475467;color:#101828;background:#f9fafb;}
+      /* One row (GP-132): the views dropdown, then the period, the view's settings and the assistant. */
+      .st-top{position:relative;z-index:20;flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:12px 18px;background:#fff;border-bottom:1px solid #e4e7ec;}
+      .st-views{position:relative;flex:0 1 auto;min-width:0;display:flex;}
+      .st-view-pick{flex:1 1 auto;min-width:0;max-width:360px;height:40px;box-sizing:border-box;display:flex;align-items:center;gap:9px;padding:0 11px 0 4px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#101828;font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .15s ease,border-color .15s ease;}
+      .st-view-pick:hover{border-color:#98a2b3;background:#f9fafb;}
+      .st-pick-icon{flex:none;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:#fff;font-size:13px;}
+      .st-pick-name{flex:1;min-width:0;font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .st-pick-caret{flex:none;color:#667085;font-size:11px;transition:transform .15s ease;}
+      .st-view-pick[aria-expanded="true"] .st-pick-caret{transform:rotate(180deg);}
+      .st-menu-pop.st-views-pop{left:0;right:auto;width:300px;max-width:calc(100vw - 24px);max-height:min(70vh,520px);overflow:auto;overscroll-behavior:contain;transform-origin:top left;}
+      .st-menu-label{padding:8px 10px 4px;font-size:11.5px;font-weight:800;color:#98a2b3;text-transform:uppercase;letter-spacing:.03em;}
+      .st-menu-sep{height:1px;background:#eaecf0;margin:5px 2px;flex:none;}
+      .st-menu-item .st-vi{flex:none;width:24px;height:24px;border-radius:7px;display:grid;place-items:center;color:#fff;font-size:11px;}
+      .st-menu-item .st-vi i{width:auto;color:inherit;}
+      .st-menu-item .st-mi-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .st-menu-item[aria-current="true"]{background:#f2f4f7;color:#101828;}
+      .st-menu-item .st-mi-check{margin-left:auto;color:var(--primary-readable, var(--primary, #175cd3));}
       .st-spacer{flex:1;}
-      .st-controls{display:flex;align-items:center;gap:8px;}
+      .st-controls{flex:none;display:flex;align-items:center;gap:8px;}
       .st-select{padding:7px 10px;border-radius:8px;border:1px solid #d0d5dd;background:#fff;color:#344054;font-weight:600;cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease;}
       .st-select:hover{border-color:#98a2b3;}
+      .st-controls .st-select,.st-controls .st-btn{height:40px;box-sizing:border-box;}
+      .st-controls .st-select{padding:0 8px;}
       .st-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:8px;border:1px solid #d0d5dd;background:#fff;color:#344054;font-weight:600;cursor:pointer;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .12s ease;}
       .st-btn:hover{background:#f9fafb;border-color:#98a2b3;}
       .st-btn:active{transform:scale(.96);}
       .st-btn.primary{background:var(--primary-readable, var(--primary, #175cd3));border-color:transparent;color:#fff;}
       .st-btn.primary:hover{filter:brightness(1.07);background:var(--primary-readable, var(--primary, #175cd3));}
       .st-btn.icon{padding:8px 10px;}
+      .st-controls .st-btn.icon{width:40px;padding:0;justify-content:center;}
       .st-body{flex:1;min-height:0;display:flex;}
       .st-main{flex:1;min-width:0;overflow:auto;padding:16px 18px 28px;}
       .st-banner{display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:14px;border:1px solid #fedf89;background:#fffaeb;color:#93370d;border-radius:10px;font-weight:600;}
@@ -213,6 +225,21 @@
       .st-preset-item .desc{font-size:12px;color:#667085;}
       @media (max-width:900px){.st-body{flex-direction:column;}.st-chat{flex:1;flex-basis:auto !important;max-width:none;border-left:none;border-top:1px solid #e4e7ec;transition:none;}.st-chat.st-closed{display:none;}.st-chat-grip{display:none;}}
       @media (max-width:640px){.st-row-sm{grid-template-columns:repeat(2,1fr);}.st-row-sm > .st-card:only-child{max-width:none;}}
+      /* Phone: the dropdown takes what the controls leave; the assistant is just its icon; the list spans the row. */
+      @media (max-width:640px){
+        .st-top{position:relative;gap:6px;padding:10px 12px;}
+        .st-views{position:static;flex:1 1 auto;}
+        .st-view-pick{max-width:none;height:44px;border-radius:12px;padding:0 10px 0 4px;}
+        .st-pick-icon{width:34px;height:34px;border-radius:9px;font-size:14px;}
+        .st-pick-name{font-size:15px;}
+        .st-controls{gap:6px;}
+        .st-controls .st-select,.st-controls .st-btn{height:44px;border-radius:12px;}
+        .st-controls .st-btn.icon{width:44px;font-size:15px;}
+        .st-controls .st-select{field-sizing:content;max-width:124px;padding:0 2px 0 8px;font-size:13.5px;}
+        .st-menu-pop.st-views-pop{left:12px;right:12px;width:auto;max-width:none;}
+        .st-menu-pop.st-views-pop .st-menu-item{min-height:44px;font-size:15px;}
+      }
+      @media (max-width:380px){.st-pick-icon{display:none;}.st-view-pick{padding-left:11px;}}
     `;
     document.head.appendChild(style);
   }
@@ -493,6 +520,7 @@
       chat: { mode: 'chat', menuOpen: false, threadId: '', messages: [], sending: false, viewId: null, threads: [] },
       pendingThreadId: routeThreadId.startsWith('stats_thread_') ? routeThreadId : '',
       modal: null,
+      viewsOpen: false,
       syncPollTimer: null
     };
 
@@ -583,9 +611,9 @@
             <div class="st-views" data-st="views"></div>
             <span class="st-spacer"></span>
             <div class="st-controls">
-              <select class="st-select" data-st="range"></select>
-              <button class="st-btn icon" data-st="edit-view" title="${(globalThis.PlatformLanguage?.htmlText("stats","m_551e1ad0a3a732","View settings") ?? "View settings")}"><i class="fas fa-pen"></i></button>
-              <button class="st-btn ${String(state.chatOpen ? '' : 'primary')}" data-st="chat-toggle"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("stats","m_be03b42e0b7fe3"," Assistant") ?? " Assistant")}</button>
+              <select class="st-select" data-st="range" aria-label="${(globalThis.PlatformLanguage?.htmlText("stats","m_7bae24f08527ba","Time period") ?? "Time period")}"></select>
+              <button class="st-btn icon" data-st="edit-view" title="${(globalThis.PlatformLanguage?.htmlText("stats","m_551e1ad0a3a732","View settings") ?? "View settings")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("stats","m_551e1ad0a3a732","View settings") ?? "View settings")}"><i class="fas fa-pen"></i></button>
+              <button class="st-btn icon ${String(state.chatOpen ? '' : 'primary')}" data-st="chat-toggle" title="${(globalThis.PlatformLanguage?.htmlText("stats","m_8a1a2ff14a50f1","Assistant") ?? "Assistant")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("stats","m_8a1a2ff14a50f1","Assistant") ?? "Assistant")}" aria-pressed="${String(state.chatOpen)}"><i class="fas fa-wand-magic-sparkles"></i></button>
             </div>
           </div>
           <div class="st-body">
@@ -593,7 +621,7 @@
             <div class="st-chat ${String(state.chatOpen ? '' : 'st-closed')}" data-st="chat" style="flex-basis:${String(state.chatWidth)}px;"></div>
           </div>
         </div>`;
-      renderViewPills();
+      renderViewPicker();
       renderRangeSelect();
       renderMain();
       renderChat();
@@ -603,6 +631,7 @@
         localStorage.setItem('fm_stats_chat', state.chatOpen ? '1' : '0');
         root.querySelector('[data-st="chat"]')?.classList.toggle('st-closed', !state.chatOpen);
         event.currentTarget?.classList.toggle('primary', !state.chatOpen);
+        event.currentTarget?.setAttribute('aria-pressed', String(state.chatOpen));
         if (state.chatOpen) ensureChatThread();
         else if (state.chat.menuOpen) { state.chat.menuOpen = false; renderChat(); }
       });
@@ -614,27 +643,110 @@
       });
     }
 
-    function renderViewPills(){
+    function selectView(id){
+      state.activeViewId = clean(id);
+      state.range = '';
+      localStorage.setItem('fm_stats_view', state.activeViewId);
+      try { host.setRoute && host.setRoute({ statsView: state.activeViewId }); } catch (_) {}
+      renderShell();
+      loadWidgetData();
+      if (state.chatOpen) ensureChatThread(true);
+    }
+
+    // The views dropdown (GP-132, as the CRM's view picker): the active view's icon and name; its list holds every
+    // view, the presets to add one from, a new blank view, and the tour.
+    function renderViewPicker(){
       const holder = root.querySelector('[data-st="views"]');
       if (!holder) return;
       const active = activeView();
-      holder.innerHTML = state.views.map((view) => {
-        const isActive = active && view.id === active.id;
-        const color = clean(view.color) || '#175cd3';
-        return `<button class="st-view-pill ${isActive ? 'active' : ''}" data-view="${esc(view.id)}"`
-          + ` style="${isActive ? `background:${esc(color)};` : ''}">`
-          + `<i class="fas ${esc(viewIcon(view.icon))}"></i>${esc(view.title || (globalThis.PlatformLanguage?.text("stats","m_05017f54f07448","Untitled") ?? "Untitled"))}</button>`;
-      }).join('') + `<button class="st-view-add" data-st="add-view"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("stats","m_5fb7c1bfee1406"," New view") ?? " New view")}</button>`;
-      holder.querySelectorAll('[data-view]').forEach((el) => el.addEventListener('click', () => {
-        state.activeViewId = clean(el.getAttribute('data-view'));
-        state.range = '';
+      const swatch = (view, cls) => `<span class="${cls}" style="background:${esc(clean(view?.color) || '#175cd3')}"><i class="fas ${esc(viewIcon(view?.icon))}"></i></span>`;
+      const name = active ? (active.title || (globalThis.PlatformLanguage?.text("stats","m_05017f54f07448","Untitled") ?? "Untitled")) : (globalThis.PlatformLanguage?.text("stats","m_cd4d9d5b397b33","No stats views yet") ?? "No stats views yet");
+      holder.innerHTML = `<button type="button" class="st-view-pick" data-st="view-pick" aria-haspopup="menu" aria-expanded="${String(state.viewsOpen)}" title="${esc(name)}">`
+        + `${swatch(active, 'st-pick-icon')}<span class="st-pick-name">${esc(name)}</span><i class="fas fa-chevron-down st-pick-caret" aria-hidden="true"></i></button>`
+        + (state.viewsOpen ? viewsMenuHtml(active, swatch) : '');
+      holder.querySelector('[data-st="view-pick"]')?.addEventListener('click', () => setViewsOpen(!state.viewsOpen));
+      const menu = holder.querySelector('[data-st="views-menu"]');
+      if (!menu) return;
+      menu.querySelectorAll('[data-view]').forEach((el) => el.addEventListener('click', () => {
+        state.viewsOpen = false;
+        selectView(el.getAttribute('data-view'));
+      }));
+      menu.querySelectorAll('[data-preset]').forEach((el) => el.addEventListener('click', () => {
+        setViewsOpen(false);
+        createView(clean(el.getAttribute('data-preset')));
+      }));
+      menu.querySelector('[data-st="add-view"]')?.addEventListener('click', () => { setViewsOpen(false); openViewModal(null); });
+      menu.querySelector('[data-st="tour"]')?.addEventListener('click', () => {
+        setViewsOpen(false);
+        Promise.resolve(window.FirstMateGuides?.play?.(STATS_TOUR, { replay:true })).catch(() => {});
+      });
+    }
+
+    function viewsMenuHtml(active, swatch){
+      const presets = array(object(state.schema).view_presets);
+      const views = state.views.map((view) => {
+        const current = active && view.id === active.id;
+        return `<button type="button" class="st-menu-item" role="menuitem" data-view="${esc(view.id)}" aria-current="${String(!!current)}">${swatch(view, 'st-vi')}`
+          + `<span class="st-mi-name">${esc(view.title || (globalThis.PlatformLanguage?.text("stats","m_05017f54f07448","Untitled") ?? "Untitled"))}</span>${current ? '<i class="fas fa-check st-mi-check"></i>' : ''}</button>`;
+      }).join('');
+      // A preset already added is one of the views above; New view… still offers every preset.
+      const added = new Set(state.views.map((view) => clean(view.preset_id)).filter(Boolean));
+      const fromPresets = presets.filter((preset) => !added.has(clean(preset.id))).map((preset) =>
+        `<button type="button" class="st-menu-item" role="menuitem" data-preset="${esc(preset.id)}" title="${esc(preset.description || '')}"><i class="fas ${esc(viewIcon(preset.icon))}"></i><span class="st-mi-name">${esc(preset.title)}</span></button>`).join('');
+      const tour = typeof window.FirstMateGuides?.play === 'function'
+        ? `<div class="st-menu-sep"></div><button type="button" class="st-menu-item" role="menuitem" data-st="tour"><i class="fas fa-circle-question"></i><span class="st-mi-name">${(globalThis.PlatformLanguage?.htmlText("stats","m_f7ea21584677a4","Show me around Stats") ?? "Show me around Stats")}</span></button>`
+        : '';
+      return `<div class="st-menu-pop st-views-pop" role="menu" data-st="views-menu">`
+        + (views ? `<div class="st-menu-label">${(globalThis.PlatformLanguage?.htmlText("stats","m_7fafc54bd306ae","Views") ?? "Views")}</div>${views}<div class="st-menu-sep"></div>` : '')
+        + `<div class="st-menu-label">${(globalThis.PlatformLanguage?.htmlText("stats","m_f66119d9db579e","Add a view") ?? "Add a view")}</div>${fromPresets}`
+        + `<button type="button" class="st-menu-item" role="menuitem" data-st="add-view"><i class="fas fa-plus"></i><span class="st-mi-name">${(globalThis.PlatformLanguage?.htmlText("stats","m_3f24a2b5f81e1b","New view…") ?? "New view…")}</span></button>`
+        + `${tour}</div>`;
+    }
+
+    function setViewsOpen(open){
+      if (state.viewsOpen === !!open) return;
+      state.viewsOpen = !!open;
+      renderViewPicker();
+      if (open) root.querySelector('[data-st="views-menu"] [aria-current="true"]')?.scrollIntoView?.({ block:'nearest' });
+    }
+
+    // A view from a preset (presetId) or a blank one the assistant builds; `form` names, iconises and colours it.
+    async function createView(presetId, form = {}){
+      try {
+        let created;
+        if (presetId) {
+          created = await api.views.fromPreset(state.orgId, presetId);
+          if (form.title || (form.icon && form.icon !== 'fa-chart-line') || (form.color && form.color !== '#175cd3')) {
+            const view = object(created.view);
+            created = await api.views.save(state.orgId, clean(view.id), {
+              title: form.title || view.title, description: form.description || view.description,
+              icon: form.icon || view.icon, color: form.color || view.color, definition: object(view.definition)
+            });
+          }
+        } else {
+          created = await api.views.create(state.orgId, {
+            title: form.title || (globalThis.PlatformLanguage?.text("stats","m_0ab8ca16f3e9a0","New view") ?? "New view"), description: form.description, icon: form.icon, color: form.color,
+            definition: { title: form.title || (globalThis.PlatformLanguage?.text("stats","m_0ab8ca16f3e9a0","New view") ?? "New view"), time_default: 'this_month', widgets: [] }
+          });
+        }
+        closeModal();
+        state.activeViewId = clean(object(created.view).id);
         localStorage.setItem('fm_stats_view', state.activeViewId);
         try { host.setRoute && host.setRoute({ statsView: state.activeViewId }); } catch (_) {}
+        await loadViews();
         renderShell();
-        loadWidgetData();
-        if (state.chatOpen) ensureChatThread(true);
-      }));
-      holder.querySelector('[data-st="add-view"]')?.addEventListener('click', () => openViewModal(null));
+        await loadWidgetData();
+        if (!presetId) {
+          state.chatOpen = true;
+          localStorage.setItem('fm_stats_chat', '1');
+          renderShell();
+          ensureChatThread(true);
+        }
+        return true;
+      } catch (error) {
+        showToast(clean(error && error.message) || 'Could not create the view.', (globalThis.PlatformLanguage?.text("stats","m_7e784f9b5540ab","error") ?? "error"));
+        return false;
+      }
     }
 
     function renderRangeSelect(){
@@ -786,41 +898,8 @@
       });
 
       if (isNew) {
-        overlay.querySelectorAll('[data-m="presets"] .st-preset-item').forEach((el) => el.addEventListener('click', async () => {
-          const presetId = clean(el.getAttribute('data-preset'));
-          const form = readForm();
-          try {
-            let created;
-            if (presetId) {
-              created = await api.views.fromPreset(state.orgId, presetId);
-              if (form.title || form.icon !== 'fa-chart-line' || form.color !== '#175cd3') {
-                const view = object(created.view);
-                created = await api.views.save(state.orgId, clean(view.id), {
-                  title: form.title || view.title, description: form.description || view.description,
-                  icon: form.icon, color: form.color, definition: object(view.definition)
-                });
-              }
-            } else {
-              created = await api.views.create(state.orgId, {
-                title: form.title || (globalThis.PlatformLanguage?.text("stats","m_0ab8ca16f3e9a0","New view") ?? "New view"), description: form.description, icon: form.icon, color: form.color,
-                definition: { title: form.title || (globalThis.PlatformLanguage?.text("stats","m_0ab8ca16f3e9a0","New view") ?? "New view"), time_default: 'this_month', widgets: [] }
-              });
-            }
-            closeModal();
-            state.activeViewId = clean(object(created.view).id);
-            localStorage.setItem('fm_stats_view', state.activeViewId);
-            await loadViews();
-            renderShell();
-            await loadWidgetData();
-            if (!presetId) {
-              state.chatOpen = true;
-              localStorage.setItem('fm_stats_chat', '1');
-              renderShell();
-              ensureChatThread(true);
-            }
-          } catch (error) {
-            showToast(clean(error && error.message) || 'Could not create the view.', (globalThis.PlatformLanguage?.text("stats","m_7e784f9b5540ab","error") ?? "error"));
-          }
+        overlay.querySelectorAll('[data-m="presets"] .st-preset-item').forEach((el) => el.addEventListener('click', () => {
+          createView(clean(el.getAttribute('data-preset')), readForm());
         }));
       } else {
         overlay.querySelector('[data-m="save"]')?.addEventListener('click', async () => {
@@ -1229,12 +1308,21 @@
     refreshEvents.forEach((name) => window.addEventListener(name, onExternalRefresh));
 
     const onDocumentClick = (event) => {
+      // The path as dispatched: the picker redraws on its own click, which detaches the target.
+      if (state.viewsOpen && !event.composedPath().some((el) => el?.dataset?.st === 'views')) setViewsOpen(false);
       if (!state.chat.menuOpen) return;
       if (event.target && typeof event.target.closest === 'function' && event.target.closest('.st-menu')) return;
       state.chat.menuOpen = false;
       renderChat();
     };
     document.addEventListener('click', onDocumentClick);
+    const onKeyDown = (event) => {
+      if (event.key !== 'Escape' || !state.viewsOpen) return;
+      event.stopPropagation();
+      setViewsOpen(false);
+      root.querySelector('[data-st="view-pick"]')?.focus?.();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
 
     state.active = true;
     reloadAll().then(() => {
@@ -1257,6 +1345,7 @@
         if (refreshTimer) clearTimeout(refreshTimer);
         refreshEvents.forEach((name) => window.removeEventListener(name, onExternalRefresh));
         document.removeEventListener('click', onDocumentClick);
+        document.removeEventListener('keydown', onKeyDown, true);
         closeModal();
         root.innerHTML = '';
       },
