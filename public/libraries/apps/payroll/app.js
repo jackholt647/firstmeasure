@@ -1708,7 +1708,7 @@
     // Which views open is decided inside by permission and app flag (ACTIONS); who has the tab is App experience.
     mount:createTab
   });
-  window.AppChrome.registerGroup({ id:'payroll', parent:'portal.payroll', title:t('payroll', 'Payroll'), icon:'fa-money-check-dollar', default:'upcoming',
+  window.AppChrome.registerGroup({ id:'payroll', parent:'portal.payroll', routeParam:'payrollView', title:t('payroll', 'Payroll'), icon:'fa-money-check-dollar', default:'upcoming',
     members:VIEWS.map(([id, title, needs, description]) => ({ id, title:t(`view_${id}`, title), description, available:(context) => allows(needs, context) })),
     mount:(view, context) => createTab({ ...context, params:{ ...context.params, standalone:view } }) });
 })();

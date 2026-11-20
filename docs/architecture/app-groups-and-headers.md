@@ -14,7 +14,19 @@ optional icons and availability checks. The group's mount adapter mounts the
 same member renderer in a standalone runtime instance. Children register in the
 existing embeddable runtime, with their own portal route, and inherit the parent
 access requirements. Both child and parent access are checked; placement never
-grants domain access. Payouts additionally retains its merchant-processing gate.
+grants domain access. Disputes additionally retains its merchant-processing gate;
+Payouts (which since GP-113 also holds the payments to confirm at the bank that
+Reconcile listed) and Receipts are always offered.
+
+A group that names its `routeParam` (`financialView`, `communicationsView`,
+`payrollView`) makes its members its parent app's **sub-tabs**. An app with its
+own view strip declares its sub-tabs with
+`AppChrome.registerSubtabs(appId, { param, icon, items })` (the Call Center:
+`centerMode` Personal, Call center, Manager view). `AppChrome.subtabs(appId)`
+answers the ones this person has now, each with the route that opens it, and the
+Apps menu lists them under the app to open or pin to the left column exactly as
+My Projects' views (`left-column-pins.js`, docs/architecture/app-experience.md
+"Left-column pins"). Declare a sub-tab there once; never add a launcher case.
 
 Organization layouts are stored in `global.data.app_groups`. Each member can be
 `group`, `standalone`, `both`, or `hidden`. Existing organizations default to all
@@ -32,7 +44,9 @@ owners/providers; they introduce no new data or business-action packages.
 
 Communications settings have a separate declared tab collection (Phone setup and
 App layout); settings do not need one-to-one correspondence with member apps.
-Financials exposes app layout through its header settings control. Payroll puts
+Financials' header gear opens Financials settings (cash-flow opening balance and
+clearing time, a link to Settings › Money); it no longer offers the app layout
+(GP-113). Payroll puts
 app layout inside its Settings tab (standalone Payroll apps also provide a layout
 control). Payroll configuration is a normal Payroll tab. New Call belongs to calling
 views; Off-cycle run belongs to Upcoming payroll. Routine refresh controls are

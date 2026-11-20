@@ -5,6 +5,10 @@
   const runtime = window.FirstMateEmbeddableApps;
   const esc = runtime.escapeHtml;
   const groups = new Map();
+  // GP-113: an app's sub-tabs, declared once: { param, items:[{ id, title, icon, available? }] }. A group's members
+  // are its parent's sub-tabs (registerGroup with `routeParam`); an app with its own view strip registers its own.
+  // The Apps menu lists them under the app, and a person can pin each to the left column (left-column-pins.js).
+  const subtabRegistry = new Map();
   let layouts = {}, loadedOrg = '', generation = 0;
   const org = () => String(window.__APP?.userOrgId || window.__APP?.orgId || '');
   const style = document.createElement('style');
@@ -139,10 +143,24 @@
   function settingsTabs(group,selected,attribute,back){
     return `<nav class="app-tabs" aria-label="${esc(groups.get(group)?.title)} settings"><button type="button" ${attribute}="${esc(back)}">Back</button>${(groups.get(group)?.settings || []).map(tab=>`<button type="button" ${attribute}="${esc(tab.id)}" aria-current="${selected===tab.id?'page':'false'}">${esc(tab.title)}</button>`).join('')}</nav>`;
   }
+  function registerSubtabs(appId, {param, items, icon=''}={}){
+    const id=String(appId || '').trim().toLowerCase();
+    if (!id || !param || (typeof items!=='function' && !Array.isArray(items))) throw new Error('Sub-tabs need an app, a route param and their items.');
+    subtabRegistry.set(id,{param:String(param),items,icon});
+  }
+  // The sub-tabs this person has now, each with the route that opens it.
+  function subtabs(appId, context={}){
+    const entry=subtabRegistry.get(String(appId || '').trim().toLowerCase());
+    if (!entry) return [];
+    const items=typeof entry.items==='function' ? entry.items(context) : entry.items;
+    return (Array.isArray(items) ? items : []).filter(item=>item?.id && (!item.available || item.available(context)))
+      .map(item=>({id:String(item.id),label:String(item.title || item.label || item.id),icon:item.icon || entry.icon || '',route:{[entry.param]:String(item.id)}}));
+  }
   function registerGroup(definition){
     if (!definition.members.some(m=>m.id===definition.default)) throw new Error('An app group needs a declared default member.');
     const group={...definition,members:definition.members.map(m=>({...m,appId:m.appId || `${definition.parent}.${m.id}`}))};
     groups.set(group.id,group);
+    if (group.routeParam) registerSubtabs(group.parent,{param:group.routeParam,icon:group.icon,items:context=>members(group.id,context)});
     const parent=runtime.getApp(group.parent);
     const originalVisible=parent?.visible;
     runtime.registerApp({...parent,visible:context=>(typeof originalVisible==='function'?originalVisible(context):originalVisible!==false) &&
@@ -195,7 +213,7 @@
       await load();status.textContent='Layout saved. Reopen the app to use the new layout.';
     }catch(error){status.textContent=error.message;}finally{button.disabled=false;}
   });
-  window.AppChrome={header,tabs,tabStrip,fitStrip,settingsTabs,registerGroup,members,resolve,settings,openSettings,load,placement};
+  window.AppChrome={header,tabs,tabStrip,fitStrip,settingsTabs,registerGroup,registerSubtabs,subtabs,members,resolve,settings,openSettings,load,placement};
   window.addEventListener('fm:platform-session:updated',()=>{void load().catch(()=>{});});
   void load().catch(()=>{});
 })();

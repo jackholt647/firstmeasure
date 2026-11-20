@@ -287,7 +287,11 @@ it). An app may also declare views a person can pin on their own as
 `subviews` on its manifest entry: `{ id, label, icon, route, requires }`,
 where `route` holds the app's route params (My Projects:
 `{ projectView: 'map' }`) and `requires.appFlags` lists the app flags the view
-needs. A pinned subview is a personal preference, `left_column_pins` on
+needs. An app's sub-tabs count as subviews too: an app group's members
+(`AppChrome.registerGroup` with a `routeParam`) or what it declares with
+`AppChrome.registerSubtabs` (GP-113: Financials, Communications, Payroll and the
+Call Center), listed after its manifest subviews
+(docs/architecture/app-groups-and-headers.md). A pinned subview is a personal preference, `left_column_pins` on
 `/me/preferences`, stored as `"<app id>:<subview id>"`, so it survives reloads
 and follows the person to their phone. It shows only while the person has the
 app and its flags are on, and opens the app with its route.
@@ -302,7 +306,7 @@ placement write as its pin, a subview as a personal pin. Every drag has a pin
 button that does the same thing from the keyboard. While the apps overlay is
 open, a collapsed column that stays collapsed widens slightly so each pin sits
 beside its icon. Never special-case an app in the launcher: declare subviews
-on the manifest entry.
+on the manifest entry or as the app's sub-tabs.
 
 ### Order, home app and sections (GP-52)
 
