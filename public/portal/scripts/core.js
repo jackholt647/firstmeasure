@@ -3869,18 +3869,26 @@
         const columns = Math.max(3, Math.min(6, Math.floor((width + gap) / (124 + gap))));
         const tile = Math.max(1, Math.floor(Math.min(156, (width - gap * (columns - 1)) / columns)));
         const controlSize = Math.max(26, Math.min(32, Math.round(tile * 0.24)));
+        // A tile is only as tall as its parts (GP-130): the icon's glyph
+        // starts just under a status pill (6px inset + 18px), then two lines
+        // of label (an app's sub-view chevron sits beside it, not under it).
+        const iconSize = Math.round(tile * 0.36);
+        const iconFont = Math.round(tile * 0.25);
+        const labelSize = tile < 112 ? 11 : 12;
+        const iconTop = Math.max(6, 26 - Math.round((iconSize - iconFont) / 2));
+        const tileHeight = iconTop + iconSize + 4 + Math.ceil(labelSize * 2.3) + 7;
         grid.style.setProperty('--fm-advanced-columns', String(columns));
         grid.style.setProperty('--fm-advanced-tile-size', `${tile}px`);
-        grid.style.setProperty('--fm-advanced-tile-height', `${Math.round(tile * 1.08)}px`);
+        grid.style.setProperty('--fm-advanced-tile-height', `${tileHeight}px`);
         grid.style.setProperty('--fm-advanced-grid-gap', `${gap}px`);
-        grid.style.setProperty('--fm-advanced-icon-size', `${Math.round(tile * 0.42)}px`);
-        grid.style.setProperty('--fm-advanced-icon-font', `${Math.round(tile * 0.25)}px`);
-        grid.style.setProperty('--fm-advanced-label-size', `${tile < 112 ? 11 : 12}px`);
+        grid.style.setProperty('--fm-advanced-icon-size', `${iconSize}px`);
+        grid.style.setProperty('--fm-advanced-icon-font', `${iconFont}px`);
+        grid.style.setProperty('--fm-advanced-label-size', `${labelSize}px`);
         grid.style.setProperty('--fm-advanced-control-size', `${controlSize}px`);
         grid.style.setProperty('--fm-advanced-tile-radius', `${Math.max(14, Math.round(tile * 0.14))}px`);
         grid.style.setProperty('--fm-advanced-icon-radius', '12px');
         grid.style.setProperty('--fm-advanced-tile-padding', '6px');
-        grid.style.setProperty('--fm-advanced-tile-top', `${controlSize + 6}px`);
+        grid.style.setProperty('--fm-advanced-tile-top', `${iconTop}px`);
         grid.style.setProperty('--fm-advanced-tile-gap', '4px');
         grid.style.setProperty('--fm-advanced-control-inset', '6px');
         grid.style.setProperty('--fm-advanced-control-radius', `${Math.round(controlSize * 0.32)}px`);
@@ -3889,12 +3897,23 @@
         grid.style.setProperty('--fm-advanced-pill-padding', '7px');
         grid.style.setProperty('--fm-advanced-pill-font', '10px');
         // A word wider than its tile ("Communications") gets a smaller font
-        // before it is ever broken mid-word.
-        grid.querySelectorAll('.fm-advanced-app-open strong').forEach((label) => {
+        // before it is ever broken mid-word. One that cannot fit beside its
+        // tile's sub-view chevron gives it back the corner instead.
+        const squeeze = (label) => {
           label.style.removeProperty('font-size');
           label.classList.remove('is-squeezed');
-          for (let size = tile < 112 ? 11 : 12; label.scrollWidth > label.clientWidth + 1 && size > 9.5; size -= 0.5) label.style.fontSize = `${size - 0.5}px`;
-          if (label.scrollWidth > label.clientWidth + 1) label.classList.add('is-squeezed');
+          for (let size = labelSize; label.scrollWidth > label.clientWidth + 1 && size > 9.5; size -= 0.5) label.style.fontSize = `${size - 0.5}px`;
+          return label.scrollWidth <= label.clientWidth + 1;
+        };
+        grid.querySelectorAll('.fm-advanced-app-open strong').forEach((label) => {
+          const tile = label.closest('.fm-advanced-app-tile');
+          tile?.classList.remove('is-long-label');
+          if (squeeze(label)) return;
+          if (tile?.querySelector('[data-advanced-subviews-toggle]')) {
+            tile.classList.add('is-long-label');
+            if (squeeze(label)) return;
+          }
+          label.classList.add('is-squeezed');
         });
         return;
       }
@@ -4671,9 +4690,9 @@
       .fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile{-webkit-user-select:none;user-select:none;animation:fmAdvancedAppWobble .26s ease-in-out infinite alternate;animation-delay:calc(var(--i,0) * -.11s)}.fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile:nth-child(2n){animation-direction:alternate-reverse}.fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile.is-unpinned .fm-advanced-app-icon-wrap,.fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile.is-unpinned .fm-advanced-app-open{opacity:.62}
       .fm-advanced-apps-overlay .fm-advanced-app-tile.is-lifted{z-index:5;animation:none;scale:1.07;border-color:#fff;background:#fff;box-shadow:0 18px 38px rgba(0,0,0,.34);transition:scale .14s ease,box-shadow .14s ease}.fm-advanced-apps-overlay.is-reordering .fm-advanced-app-tile.is-unpinned{opacity:.55}
       .fm-advanced-apps-overlay.is-editing .fm-advanced-app-pin{visibility:visible;opacity:1;pointer-events:auto;background:#fff;color:#667085;box-shadow:inset 0 0 0 1.5px #d0d5dd,0 3px 8px rgba(15,23,42,.14);transform:rotate(-12deg);transition-delay:0s}.fm-advanced-apps-overlay.is-editing .fm-advanced-app-pin.is-pinned{background:#344054;color:#fff;box-shadow:0 4px 10px rgba(15,23,42,.22)}.fm-advanced-app-pin.is-pop{animation:fmAdvancedAppPinPop .26s cubic-bezier(.2,.9,.2,1)}
-      .fm-advanced-apps-overlay.is-compact{padding:14px 14px calc(12px + env(safe-area-inset-bottom,0px))}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-panel{display:flex;flex-direction:column}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-close{top:0;right:0;width:44px;height:44px}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-scroll{flex:1 1 auto;height:auto;min-height:0;margin-top:52px;padding:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-scroll::-webkit-scrollbar{display:none}
-      .fm-advanced-apps-overlay.is-compact .fm-advanced-apps-grid{height:auto;min-height:100%;grid-template-columns:repeat(var(--fm-advanced-columns,3),minmax(0,1fr));grid-auto-rows:var(--fm-advanced-tile-height,128px);padding:6px 0 14px}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-tile{width:100%;height:var(--fm-advanced-tile-height,128px);justify-content:flex-end;padding-top:var(--fm-advanced-tile-top,34px);padding-bottom:8px}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-open{max-width:100%;min-height:2.5em;align-items:start}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-open strong{font-weight:800;overflow-wrap:normal;word-break:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-open strong.is-squeezed{overflow-wrap:anywhere}
-      .fm-advanced-apps-overlay.is-compact .fm-advanced-apps-panel>footer{position:static;flex:0 0 auto;flex-wrap:wrap;padding:12px 0 0}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-panel>footer button{flex:1 1 auto;min-height:44px;font-size:13px;white-space:nowrap}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-panel>footer .fm-advanced-apps-edit{flex:0 0 auto;padding:9px 16px}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-edit-hint{flex:1 0 100%;text-align:center;font-size:13px}.fm-advanced-apps-overlay.is-compact.is-editing [data-advanced-apps-manage]{display:none}.fm-advanced-apps-overlay.is-compact.is-editing .fm-advanced-apps-panel>footer .fm-advanced-apps-edit{flex:1 1 auto}
+      .fm-advanced-apps-overlay.is-compact{padding:10px 14px calc(10px + var(--fm-window-safe-bottom,env(safe-area-inset-bottom,0px)))}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-panel{display:flex;flex-direction:column}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-close{top:0;right:0;width:44px;height:44px}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-scroll{flex:1 1 auto;height:auto;min-height:0;margin-top:48px;padding:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-scroll::-webkit-scrollbar{display:none}
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-apps-grid{height:auto;min-height:100%;grid-template-columns:repeat(var(--fm-advanced-columns,3),minmax(0,1fr));grid-auto-rows:var(--fm-advanced-tile-height,128px);padding:4px 0 8px}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-tile{width:100%;height:var(--fm-advanced-tile-height,128px);justify-content:flex-end;padding-top:var(--fm-advanced-tile-top,34px);padding-bottom:7px}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-open{max-width:100%;min-height:calc(var(--fm-advanced-label-size,12px) * 2.3);padding-block:0;align-items:start}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-open strong{font-weight:800;overflow-wrap:normal;word-break:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.fm-advanced-apps-overlay.is-compact .fm-advanced-app-open strong.is-squeezed{overflow-wrap:anywhere}
+      .fm-advanced-apps-overlay.is-compact .fm-advanced-apps-panel>footer{position:static;flex:0 0 auto;flex-wrap:wrap;padding:10px 0 0}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-panel>footer button{flex:1 1 auto;min-height:44px;font-size:13px;white-space:nowrap}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-panel>footer .fm-advanced-apps-edit{flex:0 0 auto;padding:9px 16px}.fm-advanced-apps-overlay.is-compact .fm-advanced-apps-edit-hint{flex:1 0 100%;text-align:center;font-size:13px}.fm-advanced-apps-overlay.is-compact.is-editing [data-advanced-apps-manage]{display:none}.fm-advanced-apps-overlay.is-compact.is-editing .fm-advanced-apps-panel>footer .fm-advanced-apps-edit{flex:1 1 auto}
       @media(prefers-reduced-motion:reduce){.fm-advanced-apps-overlay,.fm-advanced-apps-panel,.sidebar-advanced-apps-open .fm-sidebar-app-pin,.fm-advanced-apps-overlay.is-editing .fm-advanced-app-tile,.fm-advanced-app-pin.is-pop{animation:none}.fm-advanced-app-tile,.fm-advanced-app-icon,.fm-advanced-app-pin{transition:none}}
       @keyframes fmMoreAppsOpen{from{opacity:0;transform:translateY(10px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
       @keyframes fmMoreAppsClose{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(8px) scale(.94)}}
