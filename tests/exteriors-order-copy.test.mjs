@@ -24,7 +24,8 @@
 // scrolls inside: it covers the tip when it must and shrinks the sample to fit above Start recording / Add photos.
 // FM-621: a phone held sideways (touch, landscape, at most 500px tall) keeps the desktop order, but the project window
 // fills the screen while the report order is open, and filming the walkaround fills the whole screen until it ends.
-// No other landscape view changes.
+// No other landscape view changes. The closed project tray waits 16px past the window's right edge; its column clips
+// it, or a focus scrolls the whole window 17px sideways (the order's left padding gone, header icon cut off).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -34,6 +35,7 @@ const root = path.resolve(import.meta.dirname, '..');
 const source = fs.readFileSync(path.join(root, 'public/libraries/apps/firstmeasure/order/exteriors.js'), 'utf8');
 const request = fs.readFileSync(path.join(root, 'public/libraries/apps/project-request/app.js'), 'utf8');
 const windows = fs.readFileSync(path.join(root, 'public/libraries/window-manager/window-manager.js'), 'utf8');
+const trays = fs.readFileSync(path.join(root, 'public/libraries/project-trays/project-trays.js'), 'utf8');
 const slice = (text, start, end = '\n  }\n') => {
   const at = text.indexOf(start);
   assert.ok(at >= 0, `missing ${start}`);
@@ -260,4 +262,9 @@ test('a phone held sideways fills the screen with the report order and with the 
   assert.match(fn('renderPhotoWorkspace'), /contains\('mobile-order'\)\)\{[^}]*\n[^}]*if\(deskShown\|\|deskNode\?\.isConnected\)closeDesk\(false\);/);
   // Turning the phone upright mid-order: the page request is the phone order, never a desktop render asking again.
   assert.match(source, /setMobilePage\(step\)\{if\(!active\(\)\)return;const wasDesk=!ctx\.mobileOrder;ctx\.mobileOrder=true;[^}]*if\(wasDesk\|\|/);
+});
+
+test('a closed project tray never makes the project window scroll sideways', () => {
+  assert.match(trays, /\.fm-project-tray\{[^}]*transform:translateX\(16px\)/, 'if the closed tray no longer waits off to the side, this clip may go');
+  assert.match(trays, /\.fm-project-content\{overflow-x:clip\}/, 'clip, not hidden: hidden can still be scrolled by a focus');
 });

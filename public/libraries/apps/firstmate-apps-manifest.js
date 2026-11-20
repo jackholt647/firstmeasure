@@ -44,7 +44,7 @@
     versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'),
     versionedBundle('../project-notes/project-notes.js', '20261111-offline-uploads'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-notes-separation-v1'),
-    versionedBundle('../project-trays/project-trays.js', '20261111-offline-messages')
+    versionedBundle('../project-trays/project-trays.js', '20261120-fm621-tray-clip')
   ];
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20261111-offline-uploads'),
