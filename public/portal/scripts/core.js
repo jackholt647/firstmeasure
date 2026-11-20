@@ -5651,21 +5651,22 @@
       return handler ? Promise.resolve(handler(context)) : Promise.resolve(null);
     }
   };
-  // Money setup workflow: adding Money from the catalog also switches on
-  // merchant processing (the person adding apps holds the org-admin
-  // capability write) and lands the user in the Money onboarding wizard at
-  // step 1 (Company Settings -> Payments). Registered here, next to the
-  // appSetup seam itself, because core.js is guaranteed to be parsed before
-  // any catalog surface can run a handler (payments-api.js loads earlier in
-  // the shell, before window.Portal exists).
+  // Money setup workflow: starting it switches on merchant processing
+  // (`payments.setup.start`, run as the person: the capabilities route is
+  // operator only, GP-128) and opens Forward's application, or else the Money
+  // onboarding wizard at step 1 (Company Settings -> Payments). Registered
+  // here, next to the appSetup seam itself, because core.js is guaranteed to
+  // be parsed before any catalog surface can run a handler (payments-api.js
+  // loads earlier in the shell, before window.Portal exists).
   window.Portal.appSetup.register('platform.money', async () => {
     try {
       if (window.Portal.capabilities.value('money.merchant_processing', false) !== true) {
-        await window.Portal.capabilities.update({ 'money.merchant_processing': true });
+        await window.PlatformAPI.publication.invoke(APP.userOrgId, 'payments.setup.start', { scope: 'organization', organizationId: APP.userOrgId }, {},
+          { idempotencyKey: `payments.setup.start:${APP.userOrgId}:${Date.now().toString(36)}${Math.random().toString(36).slice(2)}` });
+        // The wizard pane gates on the derived app flag; make sure both caches
+        // hold the write before opening anything.
+        await Promise.all([loadCapabilities({ refresh: true }), loadAppFlags({ refresh: true })].map((load) => Promise.resolve(load).catch(() => null)));
       }
-      // The wizard pane gates on the derived app flag; make sure the refresh
-      // triggered by the capability write has landed before navigating.
-      await loadAppFlags({ refresh: true }).catch(() => null);
     } catch (error) {
       console.warn('Money app setup could not enable merchant processing', error);
     }

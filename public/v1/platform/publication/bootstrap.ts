@@ -2,6 +2,7 @@ import { registerOperationsSetupPublication } from '../../operations/onboarding.
 import { registerChecklistsSetupPublication } from '../../workforce/checklists-setup.js';
 import { registerChecklistDefaultsPublication } from '../../workforce/checklist-defaults.js';
 import { registerCommsSetupPublication } from '../../comms/setup.js';
+import { registerPaymentsSetupPublication } from '../../payments/setup.js';
 import { registerCompanyProfilePublication } from '../../company-profile/publication.js';
 import { registerAutomationsSetupPublication } from '../../scopes/flow-setup.js';
 import { registerAppointmentSetupPublication } from '../../appointments/setup.js';
@@ -94,6 +95,7 @@ export function initializePublication() {
   registerChecklistsSetupPublication();
   registerChecklistDefaultsPublication();
   registerCommsSetupPublication();
+  registerPaymentsSetupPublication();
   registerCompanyProfilePublication();
   registerAutomationsSetupPublication();
   registerAppointmentSetupPublication();
