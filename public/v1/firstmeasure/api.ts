@@ -2497,15 +2497,22 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
         throw new FirstMeasureError('project_forbidden', 403, 'This project is not available to this account.');
       }
       const artifacts = await catalogState(projectId);
-      const revision = createHash('sha256').update(JSON.stringify([manifest, artifacts?.generation, artifacts?.ready])).digest('hex');
+      // A customer is not told of report files they may not read yet (FM-625).
+      const reportReadable = (await requestPrincipal(request)).kind !== "customer" || customerMayReadReport(manifest);
+      const revision = createHash('sha256').update(JSON.stringify([manifest, artifacts?.generation, artifacts?.ready, reportReadable])).digest('hex');
       if (asRecord(request.query).revision === revision) return { ok: true, unchanged: true, revision };
       return { ok: true, project: { manifest, revision, summary_only: true, artifact_flags: {
-        has_report_pdf: Boolean(legacy.has_report_pdf), has_summary_pdf: Boolean(legacy.has_summary_pdf),
-        has_model_data: Boolean(asRecord(manifest.artifacts).has_model_data)
+        has_report_pdf: reportReadable && Boolean(legacy.has_report_pdf), has_summary_pdf: reportReadable && Boolean(legacy.has_summary_pdf),
+        has_model_data: reportReadable && Boolean(asRecord(manifest.artifacts).has_model_data)
       } } };
     }
 
-    const project = await getProjectDetail(projectId);
+    const detail = await getProjectDetail(projectId);
+
+    // Until the report is theirs, a customer sees the order, not the technician's work on it (FM-625).
+    const project = (await requestPrincipal(request)).kind === "customer" && !customerMayReadReport(detail.manifest)
+      ? { ...detail, app_metadata: null, pdf_state: null, files: detail.files.filter((file) => !isCustomerReportFileName(file.name)) }
+      : detail;
 
     const manifest = buildLegacyManifest(project.manifest);
 
@@ -3708,6 +3715,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     const projectId = getProjectId(request.params);
 
     const requestedName = getFileName(request.params);
+
+    if (isCustomerReportFileName(requestedName)) await assertCustomerMayReadReport(request, projectId);
 
     const readNamed = async <T>(read: (name: string) => Promise<T>) => {
 
@@ -7875,6 +7884,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   app.get("/projects/:id/pdf", async (request, reply) => {
 
+    await assertCustomerMayReadReport(request, getProjectId(request.params));
     return sendStoredReport(getProjectId(request.params), getSourceQuery(request.query), getPdfSlotQuery(request.query), reply);
 
   });
@@ -7883,6 +7893,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   app.get("/projects/:id/pdfs/report", async (request, reply) => {
 
+    await assertCustomerMayReadReport(request, getProjectId(request.params));
     return sendStoredReport(getProjectId(request.params), getSourceQuery(request.query), getPdfSlotQuery(request.query), reply);
 
   });
@@ -13724,6 +13735,38 @@ function isReportReleaseHeld(manifest: Record<string, unknown>, nowMs = Date.now
 
   return Boolean(scheduledMs && scheduledMs > nowMs);
 
+}
+
+// The finished report and the editor state it is drawn from. A technician's submission writes them before QA has
+// approved anything, so a customer gets them only once the report is theirs (FM-625).
+const CUSTOMER_REPORT_FILE_NAMES = new Set([
+  PDF_FILE_NAMES.main, PDF_FILE_NAMES.summary, FIRSTMEASURE_FILE_NAMES.xmlStored, FIRSTMEASURE_FILE_NAMES.xmlGenerated,
+  FIRSTMEASURE_FILE_NAMES.pdfState, FIRSTMEASURE_FILE_NAMES.appMetadata
+].map((name) => name.toLowerCase()));
+
+const CUSTOMER_REWORK_STATUSES = new Set(["rework_requested", "reworking", "customer_rework_requested"]);
+
+/**
+ * Whether a customer may read the report's files: it was delivered (completed and not held for its release
+ * window), or the customer asked for changes to the report they have. A report in production, in QA or sent
+ * back (requeue) is not theirs yet, whatever files the editor has already written (FM-625).
+ */
+export function customerMayReadReport(manifest: Record<string, unknown>, nowMs = Date.now()) {
+  const legacy = buildLegacyManifest(manifest as ProjectManifest);
+  const status = String(legacy.status ?? "").trim().toLowerCase();
+  if (status === "completed" || status === "complete") return !isReportReleaseHeld(legacy, nowMs);
+  return CUSTOMER_REWORK_STATUSES.has(status) || Boolean(legacy.customer_rework_in_qa);
+}
+
+export function isCustomerReportFileName(name: string) {
+  return CUSTOMER_REPORT_FILE_NAMES.has(String(name || "").trim().toLowerCase());
+}
+
+async function assertCustomerMayReadReport(request: FastifyRequest, projectId: string) {
+  if ((await requestPrincipal(request)).kind !== "customer") return;
+  if (!customerMayReadReport(await readManifest(projectId))) {
+    throw new FirstMeasureError("report_not_ready", 404, "This report is not ready yet.");
+  }
 }
 
 
