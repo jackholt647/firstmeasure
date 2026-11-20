@@ -43,10 +43,10 @@
       }
     },
     "actions": {
-      "total": 356,
+      "total": 357,
       "by_kind": {
         "any:membership_only": 24,
-        "any:permission": 332
+        "any:permission": 333
       }
     },
     "tabs": {
@@ -2477,6 +2477,7 @@
     "payments.payment.refund@1": {"app":"any","permissions":["refund_payments"],"scopes":["organization"],"kind":"any:permission","effect":"external","execution_kinds":["api","module","agent","work"]},
     "payments.project.summary@1": {"app":"any","permissions":["view_financials"],"scopes":["project"],"kind":"any:permission","effect":"read","execution_kinds":["api","module","agent","work"]},
     "payments.reconcileRecognition.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"write","execution_kinds":["work"]},
+    "payments.setup.start@1": {"app":"any","permissions":["manage_company_settings"],"capabilities":["platform.money"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent"]},
     "payroll.approvals.mine@1": {"app":"any","permissions":[],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:membership_only","effect":"read","execution_kinds":["api","agent","module","work"]},
     "payroll.artifact.generate@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "payroll.artifact.read@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
