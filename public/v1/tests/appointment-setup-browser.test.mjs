@@ -7,13 +7,14 @@ import {chromium} from 'playwright-core';
 // appointments with their sales/production pills and one of the person's own, then each kind's texts and who goes,
 // the texting offer (the shared texting-setup.js flow, the same as the Communications setup) and the finish.
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function open(browser,width=960){
-  const page=await browser.newPage({viewport:{width,height:900}}),errors=[];
+const STEP='<div class="gxs" data-kind="modal"><div class="gxs-step"><div class="gxs-titlebar"><h2>Step</h2></div><main id="step"></main></div></div>';
+async function open(browser,width=960,{height=900,html=STEP}={}){
+  const page=await browser.newPage({viewport:{width,height}}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('https://appointment-setup.test/**',async route=>{
     const url=new URL(route.request().url());
     if(url.pathname.startsWith('/libraries/'))return route.fulfill({contentType:'text/javascript',body:await readFile(new URL('../..'+url.pathname,import.meta.url),'utf8')});
-    return route.fulfill({contentType:'text/html',body:'<div class="gxs" data-kind="modal"><div class="gxs-step"><div class="gxs-titlebar"><h2>Step</h2></div><main id="step"></main></div></div>'});
+    return route.fulfill({contentType:'text/html',body:html});
   });
   await page.goto('https://appointment-setup.test/');
   await page.addScriptTag({content:`window.esc=${esc.toString()};`});
@@ -188,6 +189,43 @@ test('each kind, texting through the shared flow, then the finish with the answe
     await page.waitForFunction(()=>completed===1);
     assert.deepEqual(await page.evaluate(()=>guidesRun),['operations.workforce.setup']);
     assert.deepEqual(await page.evaluate(()=>selections.appointment_types),[{id:'sales',reminder:false,on_my_way:true,attendees:['me']},{id:'repair',reminder:true,on_my_way:true,attendees:['crews','subcontractors']}]);
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+test('a phone: buttons along the sheet\'s bottom, the texting offer lists the texts waiting on it, the intro leads only the first page (GP-137)',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    // The player's frame on a phone: the step is the sheet's height and puts a short page in the middle of it.
+    const html='<style>body{margin:0}.gxs [hidden]{display:none!important}.gxs-step{position:absolute;inset:0;overflow:auto;padding:6px 16px 20px;display:flex;flex-direction:column;justify-content:safe center}.gxs-body{flex:0 0 auto}</style>'
+      +'<div class="gxs" data-kind="modal"><div class="gxs-step"><div class="gxs-titlebar"><h2>Step</h2></div><p class="gxs-intro">Why we ask</p><div class="gxs-body" id="step"></div></div></div>';
+    const {page,errors}=await open(browser,433,{height:580,html});
+    await page.evaluate(async L=>{
+      window.__APP={userOrgId:'org-test'};
+      window.PlatformAPI={publication:{invoke:async()=>({value:{phone:{registration:'none'},email:{},done:{phone:false,email:false}}})}};
+      const copy=(key,text)=>({key,text});
+      const catalog={kinds:[{id:'sales',label:copy('k1','Sales appointment'),category:'sales'},{id:'repair',label:copy('k2','Repair appointment'),category:'production'}],
+        categories:[{id:'sales',label:copy('a','Sales')},{id:'production',label:copy('b','Production')}],attendees:[{id:'me',label:copy('w1','Me')},{id:'crews',label:copy('w3','A crew')}]};
+      const setup={attendees:['me','crews'],kinds:[{id:'sales',label:'Sales appointment',category:'sales',reminder:true,on_my_way:false,attendees:['me'],offered:['me']},{id:'repair',label:'Repair appointment',category:'production',reminder:false,on_my_way:false,attendees:['crews'],offered:['crews']}]};
+      const module=await import('/libraries/guided-experiences/appointments-setup.js');
+      window.handle=module.mount(document.querySelector('#step'),{options:{},orgId:'org-test',L:eval(L),esc,read:async(provider,name)=>name==='catalog'?catalog:setup,change(){},canBack:()=>true,back(){},syncBack(){}});
+    },L);
+    await page.locator('[data-gxa-kind="sales"]').waitFor();
+    assert.equal(await page.locator('.gxs-intro').isVisible(),true,'the intro leads the first page');
+    await page.getByRole('button',{name:'Continue'}).click();
+    await page.getByRole('button',{name:'Continue'}).click();
+    await page.locator('[data-gxa-skip]').waitFor();
+    assert.equal(await page.locator('.gxs-intro').isVisible(),false,'and only the first');
+    assert.deepEqual(await page.locator('.gxa-text').evaluateAll(rows=>rows.map(row=>row.innerText.replace(/\s+/g,' ').trim())),['Sales appointment Reminder text'],'only the kinds that asked for a text');
+    const box=await page.evaluate(()=>{
+      const rect=selector=>document.querySelector(selector).getBoundingClientRect(),step=document.querySelector('.gxs-step');
+      return {step:step.getBoundingClientRect().bottom-parseFloat(getComputedStyle(step).paddingBottom),lead:rect('.gxa>p').top-rect('.gxs-titlebar').bottom,actions:rect('.gxa-actions'),back:rect('[data-gxa-back]'),skip:rect('[data-gxa-skip]'),start:rect('[data-gxa-texting]')};
+    });
+    assert.ok(box.lead<24,`the page starts at the top, not in the middle (${box.lead})`);
+    assert.ok(box.step-box.actions.bottom>=0&&box.step-box.actions.bottom<=10,`the buttons sit along the bottom (${box.actions.bottom} vs ${box.step})`);
+    assert.equal(Math.round(box.back.top),Math.round(box.skip.top),'Back and Skip share a row');
+    assert.ok(Math.abs(box.back.width-box.skip.width)<2,'evenly');
+    assert.ok(box.start.top>=box.back.bottom&&Math.abs(box.start.width-box.actions.width)<2,'the main button has the bottom row to itself');
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

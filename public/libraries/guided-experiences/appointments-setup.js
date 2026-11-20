@@ -10,6 +10,7 @@
 // salesperson; work: crews, subcontractors or me; repairs: a technician too) and + shows the rest. Back on the first
 // kind goes to the step before (ctx.back). The finish also offers the workforce setup (operations.workforce.setup)
 // before scheduling, where it can play. A company with no sales appointments sees no sales/production badges.
+// GP-137: the texting offer lists the texts waiting on it, and the setup's intro leads only the first page.
 import { commsAction, setUpTexting, textingReady } from './texting-setup.js?v=20261116-fm515';
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -52,6 +53,11 @@ const css = `
 .gxa-row div{flex:1 1 auto;min-width:0}
 .gxa-row strong{display:block;font-size:14px}
 .gxa-row small{display:block;font-size:12px;color:#667085;margin-top:2px}
+.gxa-texts{display:flex;flex-direction:column;border:1px solid #e4e7ec;border-radius:13px;background:#fff}
+.gxa-text{display:flex;align-items:baseline;justify-content:space-between;gap:4px 12px;flex-wrap:wrap;padding:10px 14px}
+.gxa-text+.gxa-text{border-top:1px solid #f2f4f7}
+.gxa-text strong{font-size:14px}
+.gxa-text small{font-size:12px;color:#667085}
 .gxa-icon{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary,#d93025);font-size:17px}
 .gxa-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
 .gxa-spacer{flex:1 1 auto}
@@ -62,7 +68,20 @@ const css = `
 .gxa-busy{display:flex;align-items:center;gap:10px;min-height:120px;justify-content:center;color:#475467}
 .gxa-error{color:#b42318;font-size:13px;margin:0}
 .gxa-error:empty{display:none}
-@media(max-width:560px){.gxa-actions .gxa-btn{flex:1 1 auto}}
+/* A phone (GP-137): a page fills the sheet, what it says at the top and its buttons along the bottom, in reach of the
+   thumb, never floating in the middle of a short page. Back and the main button share a row (Back a third); with a
+   third button the main one takes the bottom row on its own and the others share the row above. */
+@media(max-width:560px){
+  .gxs-step:has(>.gxs-body>.gxa){justify-content:flex-start}
+  .gxs-body:has(>.gxa){display:flex;flex-direction:column;flex:1 0 auto}
+  .gxa{flex:1 0 auto}
+  .gxa-actions{margin-top:auto;padding-top:8px}
+  .gxa-spacer{display:none}
+  .gxa-actions .gxa-btn{flex:1 1 0;min-width:0;height:46px;padding:0 12px}
+  .gxa-actions .gxa-btn.primary{flex-grow:2}
+  .gxa-actions:has(>button:nth-of-type(3)) .gxa-btn.primary{order:1;flex-basis:100%}
+  .gxa-text{flex-direction:column;align-items:flex-start;gap:2px}
+}
 @media(prefers-reduced-motion:reduce){.gxa *{transition:none!important}}
 `;
 function installStyle(){
@@ -96,6 +115,7 @@ export function mount(el, ctx){
   // Back on the first page leaves this step for the one before it (the kinds of appointments), as the sheet's Back would.
   const canLeaveBack = () => ctx.canBack?.() === true;
   function back(){ if (busy) return true; if (page > 0) { go(page - 1); return true; } return false; }
+  const texts = (kind) => kind.reminder && kind.on_my_way ? L('gx_appt_done_texts_both', 'Reminder and on-my-way texts') : kind.reminder ? L('gx_appt_done_texts_reminder', 'Reminder text') : kind.on_my_way ? L('gx_appt_done_texts_way', 'On-my-way text') : L('gx_appt_done_texts_none', 'No texts');
   const category = (id) => noSales ? '' : `<span class="gxa-cat" data-category="${esc(id)}">${esc(categories[id] || id)}</span>`;
   const who = (id) => id === 'crews' ? crewsWord : id === 'subcontractors' ? subsWord : labels[id] || id;
 
@@ -156,6 +176,9 @@ export function mount(el, ctx){
     el.innerHTML = `<div class="gxa">
       <p>${esc(L('gx_appt_texting_lead', 'To text your customers, FirstMate needs your business number, registered with the carriers. It takes a few minutes, or do it later in Settings.'))}</p>
       <div class="gxa-rows"><div class="gxa-row">${icon('fa-comment-sms')}<div><strong>${esc(L('gx_appt_texting_row', 'Texts from your business number'))}</strong><small>${esc(L('gx_appt_texting_row_hint', 'Replies come back to the customer’s project.'))}</small></div></div></div>
+      <div class="gxa-q"><span class="gxa-label">${esc(L('gx_appt_texts_label', 'Texts to the customer'))}</span>
+        <div class="gxa-texts">${kinds.filter((kind) => kind.reminder || kind.on_my_way).map((kind) => `<div class="gxa-text"><strong>${esc(kind.label)}</strong><small>${esc(texts(kind))}</small></div>`).join('')}</div>
+      </div>
       ${errorLine}
       <div class="gxa-actions">
         <button type="button" class="gxa-btn" data-gxa-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('gx_ui_back', 'Back'))}</button>
@@ -184,7 +207,6 @@ export function mount(el, ctx){
     const goes = (kind) => kind.attendees.map(who).map((text, at) => at ? text.charAt(0).toLowerCase() + text.slice(1) : text).join(L('gx_appt_done_or', ' or '));
     // Before scheduling, an optional detour: set up who does the work, when any kind sends crews or subcontractors.
     const offerTeams = workforceSetup() && kinds.some((kind) => kind.attendees.includes('crews') || kind.attendees.includes('subcontractors') || kind.attendees.includes('technician'));
-    const texts = (kind) => kind.reminder && kind.on_my_way ? L('gx_appt_done_texts_both', 'Reminder and on-my-way texts') : kind.reminder ? L('gx_appt_done_texts_reminder', 'Reminder text') : kind.on_my_way ? L('gx_appt_done_texts_way', 'On-my-way text') : L('gx_appt_done_texts_none', 'No texts');
     const textingNote = wantsTexts() && textingOffered && !textingReady(comms) ? `<p>${esc(L('gx_appt_done_texting_later', 'Texts start once texting is set up in Settings › Phone.'))}</p>` : '';
     el.innerHTML = `<div class="gxa">
       <div class="gxa-rows">${kinds.map((kind) => `<div class="gxa-row" data-gxa-type="${esc(kind.id)}">${icon('fa-calendar-check')}<div><strong>${esc(kind.label)} ${category(kind.category)}</strong><small>${esc(goes(kind))} · ${esc(texts(kind))}</small></div></div>`).join('')}</div>
@@ -212,8 +234,11 @@ export function mount(el, ctx){
     } catch (error) { fail(error); } finally { busy = false; if (button.isConnected) button.disabled = false; }
   }
 
+  // The setup's intro (why it asks) leads the first page only.
+  const intro = el.closest('.gxs-step')?.querySelector('.gxs-intro');
   function draw(){
     if (!alive) return;
+    if (intro) intro.hidden = page > 0;
     const name = pages()[page] || 'done';
     if (name.startsWith('kind:')) drawKind(Number(name.slice(5)));
     else if (name === 'texting') drawTexting();
