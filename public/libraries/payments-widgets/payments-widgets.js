@@ -181,6 +181,24 @@
       .pmw-actions .pmw-status{margin-right:auto;color:#667085;font-size:11px;font-weight:750}
       .pmw-history{display:grid;gap:4px;font-size:10.5px;color:#667085;font-weight:750}
       .pmw-filed-text{white-space:pre-wrap;font-size:11.5px;line-height:1.5;margin:0}
+      /* GP-134: a host that asks for phoneCards (Financials) gets cards instead of wide tables on a phone: three
+         labelled figures to a row, the first cell (what it is) across the top. Settings › Money keeps its tables. */
+      @media(max-width:800px){
+        .pmw-phone-cards .pmw-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+        .pmw-phone-cards .pmw-metric{padding:9px 9px 10px;border-radius:10px}
+        .pmw-phone-cards .pmw-metric-label{font-size:9px;letter-spacing:.02em;line-height:1.15}.pmw-phone-cards .pmw-metric-label i{display:none}
+        .pmw-phone-cards .pmw-metric strong{margin-top:6px;font-size:15px}
+        .pmw-phone-cards .pmw-card-head{padding:11px 12px}.pmw-phone-cards .pmw-chips{width:100%;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.pmw-phone-cards .pmw-chip{padding:8px 11px;font-size:11px}
+        .pmw-phone-cards .pmw-table-wrap{overflow:visible}
+        .pmw-phone-cards .pmw-table,.pmw-phone-cards .pmw-table tbody{display:block;min-width:0;width:100%}
+        .pmw-phone-cards .pmw-table thead{display:none}
+        .pmw-phone-cards .pmw-table tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 10px;padding:12px;border-bottom:1px solid #f0f2f5}
+        .pmw-phone-cards .pmw-table tr:last-child{border-bottom:0}
+        .pmw-phone-cards .pmw-table td{display:block;min-width:0;padding:0;border:0;text-align:left!important;font-size:12px;overflow-wrap:anywhere}
+        .pmw-phone-cards .pmw-table td[data-label]::before{content:attr(data-label);display:block;margin-bottom:3px;color:#667085;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
+        .pmw-phone-cards .pmw-table td.pmw-cell-main{grid-column:1/3}.pmw-phone-cards .pmw-table td.pmw-cell-end{justify-self:end}
+        .pmw-phone-cards .pmw-shade{align-items:end;padding:0}.pmw-phone-cards .pmw-modal{width:100%;max-height:90vh;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+      }
       @media(max-width:640px){.pmw-choice{grid-template-columns:1fr}.pmw-file{grid-template-columns:auto minmax(0,1fr) auto}.pmw-file input{grid-column:2/4}.pmw-metric strong{font-size:18px}}
     `;
     document.head.appendChild(style);
@@ -211,7 +229,7 @@
     injectCss();
     const state = { orgId:clean(options.orgId), filter:'all', data:null, loading:true, error:null, detail:null, destroyed:false, token:0 };
     const root = document.createElement('div');
-    root.className = 'pmw pmw-payouts';
+    root.className = `pmw pmw-payouts${options.phoneCards ? ' pmw-phone-cards' : ''}`;
     root.dataset.paymentsWidget = 'payouts';
     host.replaceChildren(root);
 
@@ -252,13 +270,13 @@
     function rowHtml(payout){
       const count = array(payout.transaction_ids).length || array(payout.provider_payment_ids).length;
       return `<tr data-pmw-row="${esc(payout.id)}" tabindex="0">
-        <td><span class="pmw-mono">${esc(clean(payout.provider_payout_id) || clean(payout.id))}</span><span class="pmw-sub">${esc(dateLabel(payout.created_at))}</span></td>
-        <td>${payoutBadge(payout.status)}</td>
-        <td class="pmw-right"><strong>${esc(money(payout.amount_cents, payout.currency))}</strong></td>
-        <td class="pmw-right">${esc(money(payout.fee_cents, payout.currency))}</td>
-        <td>${clean(payout.expected_arrival_at) ? esc(dateLabel(payout.expected_arrival_at)) : '<span class="pmw-muted">—</span>'}</td>
-        <td>${clean(payout.arrived_at) ? esc(dateLabel(payout.arrived_at)) : `<span class="pmw-muted">${h('m_8e048627901567', 'Not arrived')}</span>`}</td>
-        <td class="pmw-right">${count}</td>
+        <td class="pmw-cell-main"><span class="pmw-mono">${esc(clean(payout.provider_payout_id) || clean(payout.id))}</span><span class="pmw-sub">${esc(dateLabel(payout.created_at))}</span></td>
+        <td class="pmw-cell-end">${payoutBadge(payout.status)}</td>
+        <td class="pmw-right" data-label="${h('m_2b8c3448fa87a1', 'Amount')}"><strong>${esc(money(payout.amount_cents, payout.currency))}</strong></td>
+        <td class="pmw-right" data-label="${h('m_6c208c0cd6af0f', 'Fees')}">${esc(money(payout.fee_cents, payout.currency))}</td>
+        <td data-label="${h('m_c6aef2a3790870', 'Expected arrival')}">${clean(payout.expected_arrival_at) ? esc(dateLabel(payout.expected_arrival_at)) : '<span class="pmw-muted">—</span>'}</td>
+        <td data-label="${h('m_b7ee7c97c74f9b', 'Arrived')}">${clean(payout.arrived_at) ? esc(dateLabel(payout.arrived_at)) : `<span class="pmw-muted">${h('m_8e048627901567', 'Not arrived')}</span>`}</td>
+        <td class="pmw-right" data-label="${h('m_ad68f8741d9002', 'Transactions')}">${count}</td>
       </tr>`;
     }
 
@@ -295,10 +313,10 @@
               const projectId = clean(transaction.project_id);
               const invoiceId = clean(transaction.invoice_id);
               return `<tr>
-                <td>${esc(dateLabel(transaction.received_at || transaction.created_at))}</td>
-                <td>${projectId ? `<button type="button" class="pmw-link" data-pmw-project="${esc(projectId)}">${esc(clean(transaction.project_title) || projectId)}</button>` : `<span class="pmw-muted">${h('m_500872d3c049f6', 'Company')}</span>`}</td>
-                <td>${invoiceId && typeof options.onOpenInvoice === 'function' ? `<button type="button" class="pmw-link" data-pmw-invoice="${esc(invoiceId)}">${esc(invoiceId)}</button>` : invoiceId ? esc(invoiceId) : '<span class="pmw-muted">—</span>'}</td>
-                <td class="pmw-right">${esc(money(gross))}</td><td class="pmw-right">${esc(money(fee))}</td><td class="pmw-right"><strong>${esc(money(net))}</strong></td>
+                <td data-label="${h('m_2a0b11100c22a4', 'Date')}">${esc(dateLabel(transaction.received_at || transaction.created_at))}</td>
+                <td data-label="${h('m_aaebd7ccba0b30', 'Project')}">${projectId ? `<button type="button" class="pmw-link" data-pmw-project="${esc(projectId)}">${esc(clean(transaction.project_title) || projectId)}</button>` : `<span class="pmw-muted">${h('m_500872d3c049f6', 'Company')}</span>`}</td>
+                <td data-label="${h('m_1d5ea39cc421fc', 'Invoice')}">${invoiceId && typeof options.onOpenInvoice === 'function' ? `<button type="button" class="pmw-link" data-pmw-invoice="${esc(invoiceId)}">${esc(invoiceId)}</button>` : invoiceId ? esc(invoiceId) : '<span class="pmw-muted">—</span>'}</td>
+                <td class="pmw-right" data-label="${h('m_bd8c29e4635878', 'Gross')}">${esc(money(gross))}</td><td class="pmw-right" data-label="${h('m_6f891fbf3f7955', 'Fee')}">${esc(money(fee))}</td><td class="pmw-right" data-label="${h('m_8870b67246b7d9', 'Net')}"><strong>${esc(money(net))}</strong></td>
               </tr>`;
             }).join('')}</tbody></table></div>` : stateHtml('fa-receipt', t('m_45a12095bc0b48', 'No member transactions'), t('m_5dab4fe427ad02', 'This payout has no linked payment records.'))}`;
       return `<div class="pmw-shade" data-pmw-shade><div class="pmw-modal" role="dialog" aria-modal="true" aria-label="${h('m_335102d80b2040', 'Payout detail')}">
@@ -482,7 +500,7 @@
       destroyed:false, token:0
     };
     const root = document.createElement('div');
-    root.className = 'pmw pmw-disputes';
+    root.className = `pmw pmw-disputes${options.phoneCards ? ' pmw-phone-cards' : ''}`;
     root.dataset.paymentsWidget = 'disputes';
     // The response form has its own Save and Submit; Settings must not autosave it.
     root.dataset.settingsAutosave = 'off';
@@ -562,13 +580,13 @@
     function rowHtml(dispute, staffQueue = false){
       const response = object(dispute.response);
       return `<tr data-pmw-row="${esc(dispute.id)}" ${staffQueue ? `data-pmw-org="${esc(dispute.organization_id)}"` : ''} tabindex="0">
-        ${staffQueue ? `<td><strong>${esc(dispute.organization_name)}</strong></td>` : ''}
+        ${staffQueue ? `<td class="pmw-cell-main"><strong>${esc(dispute.organization_name)}</strong></td>` : ''}
         <td>${disputeBadge(dispute.status)}</td>
-        <td class="pmw-right"><strong>${esc(money(dispute.amount_cents, dispute.currency))}</strong></td>
-        <td><span>${esc(clean(dispute.reason).replace(/_/g, ' ') || '—')}</span>${clean(dispute.reason_code) ? `<span class="pmw-sub">${h('m_a6f3f2a6513bca', 'Code {code}', { code:dispute.reason_code })}</span>` : ''}</td>
-        <td>${esc(dateLabel(dispute.dispute_date || dispute.opened_at || dispute.created_at))}${clean(dispute.card_last4) ? `<span class="pmw-sub">•••• ${esc(dispute.card_last4)}</span>` : ''}</td>
-        <td>${dueHtml(dispute)}</td>
-        <td>${responseBadge(response.status)}</td>
+        <td class="pmw-right" data-label="${h('m_2b8c3448fa87a1', 'Amount')}"><strong>${esc(money(dispute.amount_cents, dispute.currency))}</strong></td>
+        <td data-label="${h('m_6480ed19528b5a', 'Reason')}"><span>${esc(clean(dispute.reason).replace(/_/g, ' ') || '—')}</span>${clean(dispute.reason_code) ? `<span class="pmw-sub">${h('m_a6f3f2a6513bca', 'Code {code}', { code:dispute.reason_code })}</span>` : ''}</td>
+        <td data-label="${h('m_7502deb3a808c4', 'Disputed')}">${esc(dateLabel(dispute.dispute_date || dispute.opened_at || dispute.created_at))}${clean(dispute.card_last4) ? `<span class="pmw-sub">•••• ${esc(dispute.card_last4)}</span>` : ''}</td>
+        <td data-label="${h('m_f3cd041a0e8054', 'Respond by')}">${dueHtml(dispute)}</td>
+        <td data-label="${h('m_053144b11a8523', 'Your response')}">${responseBadge(response.status)}</td>
       </tr>`;
     }
 
