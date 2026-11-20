@@ -1277,7 +1277,8 @@
   }
 
   // The phone's + menu (GP-2): what the toolbar offers on a desktop, as a tray of plain choices that say what
-  // each one does. Reports are there for everyone; the rest only for those who manage money.
+  // each one does. Reports are there for everyone; the rest only for those who manage money. Taking and recording
+  // a payment are two choices (GP-129): Take a Payment goes straight into payment setup while that is pending.
   function addMenuModalHtml(){
     const manage = canManageMoney();
     const busy = moneyMutationBusy();
@@ -1285,6 +1286,7 @@
     const setupPending = manage && paymentsSetupPending();
     const body = `<div class="mn-add-list">
       ${manage ? item('take_payment', 'fa-credit-card', term('take_collected_payment'), setupPending ? setUpPaymentsText() : 'Charge a card or bank account now', busy, setupPending ? paymentsSetupPillHtml() : '') : ''}
+      ${manage ? item('add_payment', 'fa-money-bill-wave', 'Record a Payment', 'Cash, a check or a payment taken elsewhere', busy) : ''}
       ${manage ? item('upload_receipts', 'fa-file-arrow-up', `Upload ${term('receipts').toLowerCase()}`, 'Receipts and bills; totals are read for you', busy || state.receiptUploadInFlight) : ''}
       ${manage ? item('invoice', 'fa-file-invoice-dollar', term('generate_invoice'), 'Bill scheduled payments or custom items', busy) : ''}
       ${item('reports', 'fa-chart-column', 'Generate report', manage ? 'From a template, or open a past one' : 'Open reports made for this project')}
@@ -1296,6 +1298,10 @@
     closeModal();
     if (action === 'upload_receipts') {
       if (canManageMoney() && !moneyMutationBusy() && !state.receiptUploadInFlight) rootNode()?.querySelector('[data-money-receipt-input]')?.click();
+      return;
+    }
+    if (action === 'take_payment' && paymentsSetupPending() && canSetUpPayments()) {
+      if (canManageMoney() && !moneyMutationBusy()) startPaymentSetup();
       return;
     }
     if (action === 'reports' || !moneyMutationBusy()) openModal({ type:action });
@@ -1736,10 +1742,7 @@
       if (button.hasAttribute('data-money-autopay-cancel')) state.autopayError = '';
       tray.dismiss();
     }));
-    layer.querySelectorAll('[data-money-add-action]').forEach((button) => button.addEventListener('click', (event) => {
-      if (event.target.closest?.('[data-money-payments-setup]') && canSetUpPayments() && !moneyMutationBusy()) { startPaymentSetup(); return; }
-      runAddAction(cleanText(button.dataset.moneyAddAction));
-    }));
+    layer.querySelectorAll('[data-money-add-action]').forEach((button) => button.addEventListener('click', () => runAddAction(cleanText(button.dataset.moneyAddAction))));
     layer.querySelector('[data-money-invoice-setup]')?.addEventListener('click', () => { if (canSetUpPayments() && !moneyMutationBusy()) startPaymentSetup(); });
     layer.querySelectorAll('[data-money-item-action]').forEach((button) => button.addEventListener('click', () => {
       if (!state.modal) return;
