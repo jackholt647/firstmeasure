@@ -114,8 +114,8 @@ test("the kinds become appointment types; the finish sets texts and who goes, an
   await assert.rejects(() => invoke(owner, "appointments.setup.apply", {}, "apply-early"), /kinds of appointments/);
   const saved = await invoke(owner, "appointments.kinds.save", { kinds: [{ id: "sales" }, { id: "repair", category: "production" }, { label: "Estimate <b>", category: "sales" }] }, "kinds-1");
   assert.equal(saved.answered.kinds, true);
-  assert.deepEqual(saved.kinds.map((kind: any) => [kind.id, kind.category, kind.attendee]), [["sales", "sales", "sales_team"], ["repair", "production", "crews"], ["custom_estimate_b", "sales", "sales_team"]]);
-  assert.deepEqual(saved.kinds[1].attendees, ["crews", "subcontractors"], "a company with crews and subcontractors sends either to its work (GP-85)");
+  assert.deepEqual(saved.kinds.map((kind: any) => [kind.id, kind.category, kind.attendee]), [["sales", "sales", "sales_team"], ["repair", "production", "technician"], ["custom_estimate_b", "sales", "sales_team"]]);
+  assert.deepEqual(saved.kinds[1].attendees, ["technician"], "a repair appointment goes to a repair technician, not the company's crews and subcontractors (GP-139)");
   assert.deepEqual(saved.kinds[2].offered, ["me", "sales_team"], "a kind of the person's own offers its category's answers");
   assert.equal(saved.no_sales, false);
   assert.equal(saved.kinds[2].label, "Estimate b", "the person's own words, as plain text");
@@ -213,6 +213,9 @@ test("several people can go to a kind: any one of them meets its one requirement
   assert.deepEqual(requirementsFor(["me"], "u1", "sales").map((r: any) => r.subject_keys), [["organization_user:u1"]]);
   assert.deepEqual(defaultAttendees("production", { sales_team: null, workforce: "crews_and_subs" }), ["crews", "subcontractors"]);
   assert.deepEqual(defaultAttendees("sales", { sales_team: "just_me", workforce: null }), ["me"]);
+  for (const id of ["repair", "service_call", "maintenance"]) assert.deepEqual(defaultAttendees("production", { sales_team: null, workforce: "crews_and_subs" }, id), ["technician"], `${id} goes to a repair technician (GP-139)`);
+  assert.deepEqual(defaultAttendees("production", { sales_team: null, workforce: "crews_and_subs" }, "installation"), ["crews", "subcontractors"], "the work goes to who does it");
+  assert.deepEqual(defaultAttendees("production", { sales_team: null, workforce: "just_me" }, "repair"), ["me"], "a company of one does its own repairs");
 });
 
 test("a company with no sales appointments gets no sales kinds and no departments on its types (GP-85)", async () => {

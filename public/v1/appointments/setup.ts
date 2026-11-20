@@ -43,8 +43,9 @@ const OTHER_OFFER: AppointmentAttendee[] = ["anyone", "me"];
 const CATEGORY_OFFER: Record<AppointmentCategory, AppointmentAttendee[]> = { sales: SALES_OFFER, production: WORK_OFFER, other: OTHER_OFFER };
 
 type KindDefaults = Partial<z.input<typeof appointmentConfigurationSchema>>;
-export type AppointmentKind = { id: string; label: Copy; category: AppointmentCategory; configuration: KindDefaults; offer: AppointmentAttendee[]; industries?: string[]; packs?: string[]; retired?: boolean };
-const kind = (id: string, text: string, category: AppointmentCategory, configuration: KindDefaults, where: { industries?: string[]; packs?: string[]; offer?: AppointmentAttendee[]; retired?: boolean } = {}): AppointmentKind => ({ id, label: c(`kind_${id}`, text), category, configuration, offer: where.offer || CATEGORY_OFFER[category], ...(where.industries ? { industries: where.industries } : {}), ...(where.packs ? { packs: where.packs } : {}), ...(where.retired ? { retired: true } : {}) });
+/** `goes` is who goes to the kind unless the person says otherwise, when it is not its category's default (GP-139). */
+export type AppointmentKind = { id: string; label: Copy; category: AppointmentCategory; configuration: KindDefaults; offer: AppointmentAttendee[]; goes?: AppointmentAttendee[]; industries?: string[]; packs?: string[]; retired?: boolean };
+const kind = (id: string, text: string, category: AppointmentCategory, configuration: KindDefaults, where: { industries?: string[]; packs?: string[]; offer?: AppointmentAttendee[]; goes?: AppointmentAttendee[]; retired?: boolean } = {}): AppointmentKind => ({ id, label: c(`kind_${id}`, text), category, configuration, offer: where.offer || CATEGORY_OFFER[category], ...(where.goes ? { goes: where.goes } : {}), ...(where.industries ? { industries: where.industries } : {}), ...(where.packs ? { packs: where.packs } : {}), ...(where.retired ? { retired: true } : {}) });
 
 /**
  * The kinds of appointment the setup suggests. Data that only grows: never change an id or its meaning. A `retired` kind
@@ -56,9 +57,9 @@ export const APPOINTMENT_KINDS: readonly AppointmentKind[] = Object.freeze([
   kind("sales", "Sales appointment", "sales", { duration_minutes: 60, window_minutes: 60 }),
   kind("inspection", "Inspection", "sales", { duration_minutes: 60, window_minutes: 60 }, { retired: true }),
   kind("installation", "Installation", "production", { timing_mode: "days", duration_days: 1 }),
-  kind("repair", "Repair appointment", "production", { duration_minutes: 60, window_minutes: 240 }, { offer: SERVICE_OFFER }),
-  kind("service_call", "Service call", "production", { duration_minutes: 60, window_minutes: 240 }, { packs: ["home_services"], offer: SERVICE_OFFER, retired: true }),
-  kind("maintenance", "Maintenance visit", "production", { duration_minutes: 60, window_minutes: 240 }, { industries: ["hvac", "plumbing", "landscaping"], offer: SERVICE_OFFER }),
+  kind("repair", "Repair appointment", "production", { duration_minutes: 60, window_minutes: 240 }, { offer: SERVICE_OFFER, goes: ["technician"] }),
+  kind("service_call", "Service call", "production", { duration_minutes: 60, window_minutes: 240 }, { packs: ["home_services"], offer: SERVICE_OFFER, goes: ["technician"], retired: true }),
+  kind("maintenance", "Maintenance visit", "production", { duration_minutes: 60, window_minutes: 240 }, { industries: ["hvac", "plumbing", "landscaping"], offer: SERVICE_OFFER, goes: ["technician"] }),
   kind("delivery", "Material delivery", "production", { duration_minutes: 60, window_minutes: 240, delivery: true }),
   kind("walkthrough", "Final walkthrough", "production", { duration_minutes: 60, window_minutes: 60 }),
   kind("meeting", "Team meeting", "other", { duration_minutes: 60, window_minutes: 60, location: { mode: "company_office", address: "" } })
@@ -105,9 +106,13 @@ export function defaultAttendee(category: AppointmentCategory, profile: Pick<Com
 }
 /**
  * Who goes to a kind unless the person says otherwise (GP-85: one or more): the sales answer for sales; for work, who
- * does it (both crews and subcontractors when the company has both); whoever is free for anything else.
+ * does it (both crews and subcontractors when the company has both); whoever is free for anything else. A kind with its
+ * own default has it (GP-139: a repair or service visit goes to a repair technician), except in a company where the
+ * person does the work themselves.
  */
-export function defaultAttendees(category: AppointmentCategory, profile: Pick<CompanyProfile, "sales_team" | "workforce">): AppointmentAttendee[] {
+export function defaultAttendees(category: AppointmentCategory, profile: Pick<CompanyProfile, "sales_team" | "workforce">, kindId?: string): AppointmentAttendee[] {
+  const goes = kindId ? kindById.get(kindId)?.goes : undefined;
+  if (goes?.length && profile.workforce !== "just_me") return [...goes];
   if (category === "production" && profile.workforce === "crews_and_subs") return ["crews", "subcontractors"];
   if (category === "sales" && !profile.sales_team) return ["sales_team"];
   return [defaultAttendee(category, profile)];
@@ -151,7 +156,7 @@ export async function readAppointmentSetup(orgId: string) {
     answered: { kinds: kinds.length > 0, types: !!text(data.applied_at) },
     kinds: kinds.map((entry) => {
       const answered = types.get(entry.id);
-      const attendees = answered?.attendees ?? defaultAttendees(entry.category, profile);
+      const attendees = answered?.attendees ?? defaultAttendees(entry.category, profile, entry.id);
       return { ...entry, reminder: answered?.reminder ?? entry.category !== "other", on_my_way: answered?.on_my_way ?? entry.category !== "other", attendee: attendees[0]!, attendees, offered: kindOffer(entry.id, entry.category), answered: !!answered };
     }),
     attendees: offeredAttendees(profile),

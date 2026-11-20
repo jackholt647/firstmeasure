@@ -995,7 +995,8 @@ text the customer before it starts, text them when we're on the way, and who goe
 (GP-85). Each kind offers its own answers first (catalog `offer`: sales, me or a salesperson; work, crews,
 subcontractors or me; repairs and service, a repair technician as well) and **+** shows the rest (whoever is free and
 the others); crews and subcontractors are named by the terminology system. The default comes from who sells and who
-does the work (both crews and subcontractors for a company that has both). Back on the first kind goes to the step
+does the work (both crews and subcontractors for a company that has both); a repair, service call or maintenance visit
+defaults to a repair technician (catalog `goes`, GP-139) unless the person does the work themselves. Back on the first kind goes to the step
 before it (the module's `back()`/`backDepth()`, and `ctx.canBack()` says whether there is one). A company with no sales
 appointments sees no sales/production badges. When a
 text was asked for and texting is not set up (`comms.setup.status`; not offered where Communications is off), it
