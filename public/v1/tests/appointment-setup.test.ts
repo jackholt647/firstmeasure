@@ -87,6 +87,11 @@ test("the setup asks only what is unanswered: company type, work, who sells, who
   assert.deepEqual(ids(await setupOf()), ["company.type", "company.services", "company.sales_team", "company.workforce", "appointments.kinds", "types"]);
   await invoke(owner, "company-profile.save", { company_type: "roofing_contractor", services: ["roof_replacement", "roof_repair"] }, "profile-1");
   assert.deepEqual(ids(await setupOf()), ["company.sales_team", "company.workforce", "appointments.kinds", "types"], "the company type and work, answered elsewhere, are not asked again");
+  // GP-141: the work answered is the production boards, one per kind of work, in the person's branch.
+  const { readScopeTemplate } = await import("../scopes/storage.js");
+  assert.equal((await readScopeTemplate(ORG, "default", "roof_replacement")).enabled, true);
+  const repairBoard = await readScopeTemplate(ORG, "default", "work_roof_repair") as any;
+  assert.deepEqual([repairBoard.name, repairBoard.enabled], ["Roof repairs", true]);
   await assert.rejects(() => invoke(owner, "company-profile.save", { sales_team: "everyone" }, "profile-bad"), /from the list/);
   await invoke(owner, "company-profile.save", { sales_team: "small_team", workforce: "crews_and_subs" }, "profile-2");
   const profile = await value(owner, "company-profile", "profile");
@@ -102,7 +107,8 @@ test("the setup asks only what is unanswered: company type, work, who sells, who
 test("the kinds become appointment types; the finish sets texts and who goes, and adds the team types", async () => {
   await setup();
   const catalog = await value(owner, "appointment-setup", "catalog");
-  assert.deepEqual(catalog.suggested, ["sales", "installation", "repair", "delivery"], "a roofer with a sales team: sales, the work, repairs and deliveries; never an inspection as well as a sales appointment (GP-85)");
+  assert.deepEqual(catalog.suggested, ["sales", "roof_installation", "roof_repair", "delivery"], "a roofer with a sales team that does re-roofs and repairs: sales, the work's own kinds (GP-141) and deliveries; never an inspection as well as a sales appointment (GP-85)");
+  assert.deepEqual(catalog.offered, ["sales", "delivery", "walkthrough", "meeting", "roof_installation", "roof_repair"], "only the work kinds for the work it does are offered (GP-141)");
   assert.deepEqual(catalog.kinds.find((kind: any) => kind.id === "sales").offer, ["me", "sales_team"], "sales offers me or a salesperson first (GP-85)");
   assert.deepEqual(catalog.kinds.find((kind: any) => kind.id === "installation").offer, ["crews", "subcontractors", "me"]);
   assert.deepEqual(catalog.kinds.find((kind: any) => kind.id === "repair").offer, ["technician", "crews", "subcontractors", "me", "sales_team"]);

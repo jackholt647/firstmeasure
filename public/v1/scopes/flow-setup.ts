@@ -210,8 +210,11 @@ export async function planAutomationsSetup(orgId: string, input: Answers) {
   if (production && (separate || turnedOn)) {
     const definition: JsonObject = { ...clone(object(production.definition)), id: PRODUCTION_TEMPLATE_ID, name: text(production.name) || text(object(production.definition).name) };
     if (separate) definition.category_ids = setupCategoryIds(templateCategoryIds(definition), [PRODUCTION_CATEGORY]);
-    // A production board the setup turned on is turned off again when nobody is handed the job any more.
-    templates.push(view(production, definition, separate || production.enabled !== false && !turnedOn));
+    // A production board the setup turned on is turned off again when nobody is handed the job any more, unless it is
+    // the board of a kind of work the company does (GP-141).
+    const { readWorkBoards } = await import("./work-boards.js");
+    const workBoard = Object.values(await readWorkBoards(orgId, branchId)).some((entry) => entry.template_id === PRODUCTION_TEMPLATE_ID);
+    templates.push(view(production, definition, separate || workBoard || production.enabled !== false && !turnedOn));
   }
   return {
     lead_flow: flow,
@@ -220,15 +223,19 @@ export async function planAutomationsSetup(orgId: string, input: Answers) {
   };
 }
 
-export async function applyAutomationsSetup(orgId: string, input: Answers, authorUserId: string) {
-  const branchId = text(input.branch_id) || "default";
-  const plan = await planAutomationsSetup(orgId, input);
-  // Production is an ordinary category: an organization that turned it off gets it back for the lane.
+/** Production is an ordinary category: an organization that turned it off gets it back for the lane. */
+export async function ensureProductionCategory(orgId: string) {
   const catalog = await readScopeCategories(orgId);
   const production = catalog.categories.find((category) => category.id === PRODUCTION_CATEGORY);
   if (!production || !production.enabled) {
     await saveScopeCategories(orgId, { categories: [...catalog.categories.filter((category) => category.id !== PRODUCTION_CATEGORY), { id: PRODUCTION_CATEGORY, label: production?.label || "Production", enabled: true }] });
   }
+}
+
+export async function applyAutomationsSetup(orgId: string, input: Answers, authorUserId: string) {
+  const branchId = text(input.branch_id) || "default";
+  const plan = await planAutomationsSetup(orgId, input);
+  await ensureProductionCategory(orgId);
   const changed: string[] = [];
   for (const template of plan.templates) {
     if (template.changed && (template.install || !sameDefinition(object((await readScopeTemplate(orgId, branchId, template.id)).definition), template.definition))) {
