@@ -23,7 +23,7 @@ const css = `
 .gxp-cards{display:flex;flex-direction:column;gap:10px}
 .gxp-card{display:flex;flex-direction:column;gap:12px;padding:14px 16px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.04)}
 .gxp-card>header{display:flex;align-items:center;gap:12px;min-width:0}
-.gxp-card>header>span{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
+.gxp-card>header>span:not(.gxp-avatar){flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
 .gxp-card>header strong{font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gxp-card>header small{font-size:12px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gxp-avatar{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary,#d93025);font-size:12.5px;font-weight:750}

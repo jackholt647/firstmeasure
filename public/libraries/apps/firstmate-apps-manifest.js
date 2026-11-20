@@ -24,7 +24,7 @@
       mobileFullscreenControl: false
     }
   };
-  const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261120-gp144');
+  const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261120-gp144b');
   const priorityFieldsBundle = versionedBundle('../priority-fields/priority-fields.js', '20261015-ready-event');
   const gifDisplayBundle=versionedBundle('../platform-widgets/gifs.js','20261012-composer-media-fixes-v1');
   const widgetBundles = [gifDisplayBundle,...['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js',name==='runtime'?'20261012-composer-media-fixes-v1':name==='project-widgets'?'20261118-hole-area':'20261003-project-widgets-v1'))];
@@ -390,7 +390,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
-      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261120-gp144')]
+      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261120-gp144b')]
     },
     {
       id: 'portal.training',
