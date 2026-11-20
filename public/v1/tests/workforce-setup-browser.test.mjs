@@ -15,7 +15,7 @@ async function open(browser,workforce,extra={}){
   await page.route('https://workforce-setup.test/**',async route=>{
     const url=new URL(route.request().url());
     if(url.pathname.startsWith('/libraries/'))return route.fulfill({contentType:'text/javascript',body:await readFile(new URL('../..'+url.pathname,import.meta.url),'utf8')});
-    return route.fulfill({contentType:'text/html',body:'<div class="gxs" data-kind="modal"><div class="gxs-step"><div class="gxs-titlebar"><h2>Step</h2></div><main id="step"></main></div></div>'});
+    return route.fulfill({contentType:'text/html',body:extra.html||'<div class="gxs" data-kind="modal"><div class="gxs-step"><div class="gxs-titlebar"><h2>Step</h2></div><main id="step"></main></div></div>'});
   });
   await page.goto('https://workforce-setup.test/');
   await page.addScriptTag({content:`window.esc=${esc.toString()};`});
@@ -284,6 +284,22 @@ test('without Operations: how many, then naming saves, with no pay page and no p
     assert.equal(apply.labor.assignees[0].pay,undefined);
     assert.match(await page.locator('[data-gxw-page="done"] .gxw-done').textContent(),/change any of it in People/);
     assert.doesNotMatch(await page.locator('[data-gxw-page="done"] .gxw-rows').textContent(),/Pay not set/);
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+// GP-143: on a phone the tray is at least two-thirds of the screen; a short page (how many) starts at the top with its
+// buttons along the bottom, never floating in the middle.
+test('on a phone a short page fills the tray: words at the top, buttons at the bottom',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    // The player's phone sheet: a step that centres what is shorter than it (guided-setup.js).
+    const html='<style>body{margin:0}.gxs-step{position:absolute;left:0;right:0;bottom:0;height:560px;overflow:auto;padding:6px 16px 20px;display:flex;flex-direction:column;justify-content:safe center;box-sizing:border-box}.gxs-body{flex:0 0 auto}</style><div class="gxs" data-kind="modal"><div class="gxs-step"><div class="gxs-body" id="step"></div></div></div>';
+    const {page,errors}=await open(browser,'crews',{width:390,html});
+    await page.locator('[data-gxw-page="count"]').waitFor();
+    const box=await page.evaluate(()=>{const step=document.querySelector('.gxs-step').getBoundingClientRect(),lead=document.querySelector('[data-gxw-page="count"]').getBoundingClientRect(),actions=document.querySelector('.gxw-actions').getBoundingClientRect();return {top:lead.top-step.top,gap:step.bottom-actions.bottom};});
+    assert.ok(box.top<20,`the page starts at the top (${box.top}px down)`);
+    assert.ok(box.gap<=32,`the buttons sit at the bottom (${box.gap}px above it)`);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
