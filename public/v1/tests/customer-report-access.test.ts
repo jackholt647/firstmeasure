@@ -34,6 +34,17 @@ test('customers read a report only once it is delivered', async () => {
     await storage.saveArtifact(id, 'customer-reference-0.jpg', Buffer.from('customer photo'));
 
     const asCustomer = (url: string) => app.inject({ method: 'GET', url, headers: customer.headers });
+    // An integrator reads the same order through the public API (as a service, past the customer session gate).
+    await (await import('../platform/storage.js')).saveGlobal(customer.orgId, { data: { credits_balance: 100 } });
+    const keys = await import('../public-firstmeasure/keys.js');
+    const publicReports = await import('../public-firstmeasure/reports.js');
+    const key = await keys.createPublicFirstMeasureApiKey({ orgId: customer.orgId, mode: 'live', requireBilling: false });
+    const publicId = publicReports.generatePublicReportId();
+    await publicReports.createPublicFirstMeasureReportRecord({
+      report_id: publicId, org_id: customer.orgId, firstmeasure_project_id: id, mode: 'live', external_id: null,
+      idempotency_key_hash: null, charge_token: null, amount_charged: 0, created_by_key_id: key.record.key_id, request: {}, metadata: {}
+    });
+    const asIntegrator = (suffix: string) => app.inject({ method: 'GET', url: `/v1/public/firstmeasure/reports/${publicId}${suffix}`, headers: { authorization: `Bearer ${key.key}` } });
     const reportFiles = ['Report.pdf', 'Summary.pdf', 'model_data.xml', 'report.pdf'];
     const expectWithheld = async (label: string) => {
       for (const name of reportFiles) {
@@ -49,6 +60,13 @@ test('customers read a report only once it is delivered', async () => {
       assert.equal(detail.pdf_state, null, `${label}: no editor state`);
       const card = (await asCustomer(`${base}?view=portal-card`)).json().project;
       assert.deepEqual(card.artifact_flags, { has_report_pdf: false, has_summary_pdf: false, has_model_data: false }, `${label}: portal card`);
+      for (const suffix of ['/pdf', '/files/Report.pdf', '/files/model_data.xml', '/measurements']) {
+        const response = await asIntegrator(suffix);
+        assert.equal(response.statusCode, 404, `${label}: public API ${suffix} ${response.body}`);
+        assert.equal(response.json().error, 'report_not_ready', `${label}: public API ${suffix}`);
+      }
+      const publicFiles = (await asIntegrator('/files')).json().files.map((file: { name: string }) => file.name.toLowerCase());
+      assert.deepEqual(publicFiles.filter((name: string) => /\.(pdf|xml)$/.test(name)), [], `${label}: public API file list`);
       // The customer's own files and staff access are unchanged.
       assert.equal((await asCustomer(`${base}/artifacts/customer-reference-0.jpg`)).statusCode, 200, `${label}: own photo`);
       assert.equal((await staff({ method: 'GET', url: `${base}/artifacts/Report.pdf` })).statusCode, 200, `${label}: staff`);
@@ -58,6 +76,8 @@ test('customers read a report only once it is delivered', async () => {
       assert.equal((await asCustomer(`${base}/artifacts/model_data.xml`)).statusCode, 200, `${label}: model`);
       const detail = (await asCustomer(base)).json().project;
       assert.ok(detail.files.some((file: { name: string }) => file.name === 'Report.pdf'), `${label}: detail lists the report`);
+      assert.equal((await asIntegrator('/files/Report.pdf')).body, '%PDF-1.4 unapproved report', `${label}: public API Report.pdf`);
+      assert.ok((await asIntegrator('/files')).json().files.some((file: { name: string }) => file.name === 'Report.pdf'), `${label}: public API lists the report`);
     };
 
     await expectWithheld('in QA');
