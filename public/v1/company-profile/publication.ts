@@ -51,13 +51,19 @@ export function registerCompanyProfilePublication() {
   } });
   const input = companyProfilePatchSchema;
   registerAction({ id: "company-profile.save", version: "1", domain: "organization", implementation: backendImplementationDigest(),
-    description: "Save part of the company profile: the kind of company (an id from the catalog, or other with the person's words), the kinds of work it does, who does its sales (sales_team), who does most of its work (workforce), how many locations it works out of (locations, 1 to 20) and how new leads become jobs (lead_flow: any of job_known yes|mostly|no, first_call yes|no, visit yes|no, handoff same|separate; the Automations Hub setup saves it and builds the flow from it with automations.setup.apply). Parts not given are kept.",
+    description: "Save part of the company profile: the kind of company (an id from the catalog, or other with the person's words), the kinds of work it does (each gets its own production board, on and in the Production lane, GP-141), who does its sales (sales_team), who does most of its work (workforce), how many locations it works out of (locations, 1 to 20) and how new leads become jobs (lead_flow: any of job_known yes|mostly|no, first_call yes|no, visit yes|no, handoff same|separate; the Automations Hub setup saves it and builds the flow from it with automations.setup.apply). Parts not given are kept.",
     inputSchema: json(input) as Record<string, unknown>, outputSchema: json(profileSchema) as Record<string, unknown>,
     effect: "write", idempotency: "required", executionKinds: ["api", "agent", "module"],
     policy: { scopes: ["organization"], permissions: ["manage_company_settings"] },
     validateInput: (value) => { input.parse(value); },
     execute: async (ctx, _target, value) => {
       if (!ctx.auth) throw forbidden("company_profile_person", "The company profile is saved by a person.");
-      return saveCompanyProfile(ctx.organizationId, value, ctx.auth.userId);
+      const profile = await saveCompanyProfile(ctx.organizationId, value, ctx.auth.userId);
+      // The kinds of work are the production boards (GP-141): each one picked gets its board in the person's branch.
+      if (input.parse(value).services !== undefined) {
+        const { syncWorkBoards } = await import("../scopes/work-boards.js");
+        await syncWorkBoards(ctx.organizationId, ctx.auth.branchId || "default", profile, ctx.auth.userId);
+      }
+      return profile;
     } });
 }

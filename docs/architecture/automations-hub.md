@@ -71,6 +71,20 @@ handle for this is `window.FirstMateAutomationsHub.active`.
 **No small print on the chart.** What explains a name (New leads, the Sales lane, "Any new lead", "No board yet", a
 rule's conditions) is a tooltip: an (i) beside the name, or the box's own; nothing is printed under it all the time.
 
+## A board per kind of work (GP-141)
+
+The answer to "What kind of work do you do?" (`company.services`, multi-select, [setup steps](setup-steps.md)) is the
+organization's production boards: when `company-profile.save` saves the kinds of work, `syncWorkBoards`
+(`scopes/work-boards.ts`) gives each one picked its board in the person's branch, on and in the Production lane, so
+Settings › Project Scopes, Projects and this chart show it. Re-roofs, gutters, siding and kitchens use the
+organization's own copy of the library board (`roof_replacement`, `gutters`, `siding_replacement`,
+`kitchen_remodel`); any other kind of work gets a board of its own, `work_<service>`, named after it and copied once
+from the library board closest to it (`repairs` for repairs, `maintenance` for inspections, cleaning and upkeep,
+`roof_replacement` for storm and commercial roofing, `manual` for anything else), with `metadata.work_board` saying
+which. Nothing is deleted or rewritten: a board already there is only turned on, and a board this turned on is turned
+off again when its work is no longer picked (the branch's `work_boards` module records which). The hand-off setup above
+never turns off a production board that is the board of work the company does.
+
 ## Not yet
 
 - Conditions on a board-to-board wire are shown, not edited here (Settings > Project Scopes edits them).
@@ -81,4 +95,5 @@ rule's conditions) is a tooltip: an (i) beside the name, or the box's own; nothi
 ## Tests
 
 `tests/automations-hub-model.test.mjs` (what the chart draws and what a drag writes), `tests/automations-setup.test.ts`
-(what the answers make and the setup action) and `tests/lead-receive.test.ts` (the arrival time stamp).
+(what the answers make and the setup action), `tests/work-boards.test.ts` (a board per kind of work, and the
+appointment kinds offered for it) and `tests/lead-receive.test.ts` (the arrival time stamp).

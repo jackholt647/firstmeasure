@@ -186,7 +186,14 @@ proposal's questions):
   which is much the same as a sales appointment, GP-85), in two columns, each with pills that say sales, production or
   other, and the person's own kinds by name. A company that answered "We don't do sales appointments"
   (`appointment-setup.status` `no_sales`) is shown no sales kinds and no pills, and its kinds name no department: it
-  makes no distinction between sales and production. Going Back to change who sells starts the list again. It requires
+  makes no distinction between sales and production. Going Back to change who sells starts the list again. The work
+  kinds follow the work the company said it does (GP-141): a kind's `work` names the kinds of work it is for (roof
+  installation for re-roofs, storm and commercial roofing; roof repair; gutter, siding, window, door and solar
+  installation; siding repair; the repair appointment for other trades' repairs; the maintenance visit for inspections,
+  cleaning and upkeep), and installation is for work no kind names. The catalog's `offered` lists only those and the
+  kinds for any work (sales, delivery, walkthrough, meeting), and `suggested` picks a sales appointment, the work's own
+  kinds and a delivery; a company that has not answered its work is offered every kind. Each kind of work also gets its
+  own production board ([Automations Hub](automations-hub.md#a-board-per-kind-of-work-gp-141)). It requires
   `company.services` and `company.sales_team` (the suggestions read them). `appointments.kinds.save` makes each kind
   an appointment type (a scheduling catalog preset, written with `saveAppointmentCatalog` in the person's branch): a
   the kinds picked are the organization's types (GP-140): the built-in ones (Sales and Production, the instant

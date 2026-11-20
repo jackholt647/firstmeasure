@@ -5,7 +5,8 @@
 // sales or a production appointment (or other), and the person can add their own. It reads through the publication
 // layer only and writes nothing itself. The list is two columns where there is room (GP-85). A company that does no sales
 // appointments (`appointment-setup.status` `no_sales`) is shown no sales kinds and no sales/production pills: it makes
-// no such distinction.
+// no such distinction. GP-141: the work kinds listed are those for the work the company said it does (the catalog's
+// `offered`): a roof installation and a roof repair for a roofer that does both, never a gutter installation it doesn't.
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
@@ -76,7 +77,9 @@ export function mount(el, ctx){
     const suggested = array(catalog.suggested).map((id) => ({ id }));
     const startFrom = (given.length ? given : changed ? [...previous, ...suggested.filter((entry) => salesKind.has(entry.id))] : before.length ? before : suggested).filter((entry) => !noSales || !salesKind.has(clean(entry.id)));
     const picked = new Map(startFrom.map((entry) => [clean(entry.id) || `custom_${fold(entry.label)}`, entry]));
-    const known = array(catalog.kinds).filter((entry) => (!noSales || !salesKind.has(entry.id)) && (entry.retired !== true || picked.has(entry.id)));
+    // GP-141: only the kinds offered for the work the company does (and any picked already); no `offered` is every kind.
+    const offered = Array.isArray(catalog.offered) ? new Set(catalog.offered) : null;
+    const known = array(catalog.kinds).filter((entry) => (!noSales || !salesKind.has(entry.id)) && (picked.has(entry.id) || (entry.retired !== true && (!offered || offered.has(entry.id)))));
     const category = (value, fallback) => noSales && value === 'sales' ? 'production' : CATEGORIES.includes(value) ? value : fallback;
     rows = known.map((entry) => ({ id: entry.id, label: L(entry.label), category: category(clean(picked.get(entry.id)?.category), entry.category), on: picked.has(entry.id), custom: false }));
     for (const [id, entry] of picked) if (!rows.some((row) => row.id === id) && clean(entry.label)) rows.push({ id, label: clean(entry.label), category: category(entry.category, 'other'), on: true, custom: true });

@@ -124,4 +124,13 @@ test("the setup saves the answers and builds the flow in the organization", asyn
   assert.deepEqual(resolveIntakeEntry(await readIntakeRouting(ORG, "default"), { lead_source: { kind: "web_form" } }), { entry: "unscoped" });
   assert.equal((await readScopeTemplate(ORG, "default", "roof_replacement")).enabled, production, "a production board is left as it was found");
   assert.equal((await readCompanyProfile(ORG)).lead_flow.answered, true, "first_call is not asked of them");
+
+  // GP-141: a production board the setup turned on stays on when it is the board of work the company does.
+  const { patchScopeFlags } = await import("../scopes/storage.js");
+  const { syncWorkBoards } = await import("../scopes/work-boards.js");
+  await patchScopeFlags(ORG, { expected_revision: (await readScopeFlagState(ORG, "default")).revision, flags: { roof_replacement: false } }, "default");
+  await applyAutomationsSetup(ORG, { handoff: "separate" }, "user_owner");
+  await syncWorkBoards(ORG, "default", { services: [{ id: "roof_replacement", label: "Re-roofs", work_kind: "roofing" }], lead_flow: (await readCompanyProfile(ORG)).lead_flow }, "user_owner");
+  await applyAutomationsSetup(ORG, { handoff: "same" }, "user_owner");
+  assert.equal((await readScopeTemplate(ORG, "default", "roof_replacement")).enabled, true, "re-roofs are still its work");
 });
