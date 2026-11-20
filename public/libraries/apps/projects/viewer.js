@@ -4179,6 +4179,9 @@
       .map((value) => identityText(value).toLowerCase())
       .some((status) => status === 'completed' || status === 'complete');
   }
+  function isCustomerReworkStatus(status, inQa){
+    return !!inQa || ['rework_requested', 'reworking', 'customer_rework_requested'].includes(identityText(status).toLowerCase());
+  }
   function parseReleaseHoldDate(value){
     const text = identityText(value);
     if (!text) return null;
@@ -6946,9 +6949,13 @@
         if (project.artifact_flags?.has_model_data) names.add('model_data.xml');
       }
       const releaseHeld = projectReleaseHoldIsActive(manifest, project, p);
-      const isComplete = !releaseHeld && isFirstMeasureCompleteStatus(project.status, manifest.status, p.status);
-      const hasReportPdf = !releaseHeld && (names.has('Report.pdf') || names.has('report.pdf'));
-      const hasSummaryPdf = !releaseHeld && names.has('Summary.pdf');
+      // The order's own status decides; the list's copy can be older (a report sent back after it was listed).
+      const isComplete = !releaseHeld && isFirstMeasureCompleteStatus(project.status || manifest.status || p.status);
+      // The editor writes the report's files when a technician submits it, before QA approves it: they are the
+      // customer's only once the report is returned (completed, or changes asked of a delivered one), FM-625.
+      const reportReturned = isComplete || (!releaseHeld && isCustomerReworkStatus(project.status || manifest.status, manifest.customer_rework_in_qa));
+      const hasReportPdf = reportReturned && (names.has('Report.pdf') || names.has('report.pdf'));
+      const hasSummaryPdf = reportReturned && names.has('Summary.pdf');
       const merged = {
         ...p,
         ...manifest,
@@ -6974,12 +6981,12 @@
         pins: Array.isArray(manifest.pins) ? manifest.pins : (Array.isArray(p.pins) ? p.pins : []),
         include_gutter_measurements: projectIncludesGutters(manifest) || projectIncludesGutters(p),
         tech_notes: manifest.tech_notes ?? p.tech_notes ?? '',
-        has_report: !releaseHeld && !!(p.has_report || manifest.has_report || hasReportPdf || isComplete),
+        has_report: reportReturned && !!(p.has_report || manifest.has_report || hasReportPdf || isComplete),
         id: p.platform_project_id || (isPlatformProjectId(p.id) ? p.id : '') || p.id || measurementId,
         platform_project_id: p.platform_project_id || (isPlatformProjectId(p.id) ? p.id : ''),
-        report_url: releaseHeld ? null : (p.report_url || p.pdf_url || manifest.report_url || manifest.pdf_url || (hasReportPdf ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/Report.pdf`) : null)),
-        summary_url: releaseHeld ? null : (p.summary_url || manifest.summary_url || (hasSummaryPdf ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/Summary.pdf`) : null)),
-        xml_url: p.xml_url || (names.has('model_data.xml') ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/model_data.xml`) : null),
+        report_url: !reportReturned ? null : (p.report_url || p.pdf_url || manifest.report_url || manifest.pdf_url || (hasReportPdf ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/Report.pdf`) : null)),
+        summary_url: !reportReturned ? null : (p.summary_url || manifest.summary_url || (hasSummaryPdf ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/Summary.pdf`) : null)),
+        xml_url: !reportReturned ? null : (p.xml_url || (names.has('model_data.xml') ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/model_data.xml`) : null)),
         _summaryHydrated: project.summary_only === true,
         _detailHydrated: project.summary_only !== true
       };
