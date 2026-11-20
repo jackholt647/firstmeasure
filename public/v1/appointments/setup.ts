@@ -43,15 +43,20 @@ const OTHER_OFFER: AppointmentAttendee[] = ["anyone", "me"];
 const CATEGORY_OFFER: Record<AppointmentCategory, AppointmentAttendee[]> = { sales: SALES_OFFER, production: WORK_OFFER, other: OTHER_OFFER };
 
 type KindDefaults = Partial<z.input<typeof appointmentConfigurationSchema>>;
-/** `goes` is who goes to the kind unless the person says otherwise, when it is not its category's default (GP-139). */
-export type AppointmentKind = { id: string; label: Copy; category: AppointmentCategory; configuration: KindDefaults; offer: AppointmentAttendee[]; goes?: AppointmentAttendee[]; industries?: string[]; packs?: string[]; retired?: boolean };
-const kind = (id: string, text: string, category: AppointmentCategory, configuration: KindDefaults, where: { industries?: string[]; packs?: string[]; offer?: AppointmentAttendee[]; goes?: AppointmentAttendee[]; retired?: boolean } = {}): AppointmentKind => ({ id, label: c(`kind_${id}`, text), category, configuration, offer: where.offer || CATEGORY_OFFER[category], ...(where.goes ? { goes: where.goes } : {}), ...(where.industries ? { industries: where.industries } : {}), ...(where.packs ? { packs: where.packs } : {}), ...(where.retired ? { retired: true } : {}) });
+/**
+ * `goes` is who goes to the kind unless the person says otherwise, when it is not its category's default (GP-139; none
+ * for a delivery, GP-136), and `texts` the customer texts it starts with, when not its category's.
+ */
+type KindTexts = { reminder: boolean; on_my_way: boolean };
+export type AppointmentKind = { id: string; label: Copy; category: AppointmentCategory; configuration: KindDefaults; offer: AppointmentAttendee[]; goes?: AppointmentAttendee[]; texts?: KindTexts; industries?: string[]; packs?: string[]; retired?: boolean };
+const kind = (id: string, text: string, category: AppointmentCategory, configuration: KindDefaults, where: { industries?: string[]; packs?: string[]; offer?: AppointmentAttendee[]; goes?: AppointmentAttendee[]; texts?: KindTexts; retired?: boolean } = {}): AppointmentKind => ({ id, label: c(`kind_${id}`, text), category, configuration, offer: where.offer || CATEGORY_OFFER[category], ...(where.goes ? { goes: where.goes } : {}), ...(where.texts ? { texts: where.texts } : {}), ...(where.industries ? { industries: where.industries } : {}), ...(where.packs ? { packs: where.packs } : {}), ...(where.retired ? { retired: true } : {}) });
 
 /**
  * The kinds of appointment the setup suggests. Data that only grows: never change an id or its meaning. A `retired` kind
  * stays so the types and answers that name it keep working, but it is never suggested and the setup offers it only to an
  * organization that already picked it: an inspection is much the same as a sales appointment, and a service call as a
- * repair appointment (GP-85, GP-135). A material delivery is picked to start with.
+ * repair appointment (GP-85, GP-135). A material delivery is picked to start with; it is on the calendar, but usually
+ * nobody goes and the customer is not texted, so it starts with nobody going and both texts off (GP-136).
  */
 export const APPOINTMENT_KINDS: readonly AppointmentKind[] = Object.freeze([
   kind("sales", "Sales appointment", "sales", { duration_minutes: 60, window_minutes: 60 }),
@@ -60,7 +65,7 @@ export const APPOINTMENT_KINDS: readonly AppointmentKind[] = Object.freeze([
   kind("repair", "Repair appointment", "production", { duration_minutes: 60, window_minutes: 240 }, { offer: SERVICE_OFFER, goes: ["technician"] }),
   kind("service_call", "Service call", "production", { duration_minutes: 60, window_minutes: 240 }, { packs: ["home_services"], offer: SERVICE_OFFER, goes: ["technician"], retired: true }),
   kind("maintenance", "Maintenance visit", "production", { duration_minutes: 60, window_minutes: 240 }, { industries: ["hvac", "plumbing", "landscaping"], offer: SERVICE_OFFER, goes: ["technician"] }),
-  kind("delivery", "Material delivery", "production", { duration_minutes: 60, window_minutes: 240, delivery: true }),
+  kind("delivery", "Material delivery", "production", { duration_minutes: 60, window_minutes: 240, delivery: true }, { goes: [], texts: { reminder: false, on_my_way: false } }),
   kind("walkthrough", "Final walkthrough", "production", { duration_minutes: 60, window_minutes: 60 }),
   kind("meeting", "Team meeting", "other", { duration_minutes: 60, window_minutes: 60, location: { mode: "company_office", address: "" } })
 ]);
@@ -98,25 +103,29 @@ export function suggestedKinds(profile: Pick<CompanyProfile, "industry" | "crm_p
 }
 /** Who a kind offers first: its own list, or its category's for a kind of the person's own. */
 export const kindOffer = (id: string, category: AppointmentCategory): AppointmentAttendee[] => kindById.get(id)?.offer || CATEGORY_OFFER[category];
-/** Who goes to a kind of appointment unless the person says otherwise, from who sells and who does the work. */
+/**
+ * Who goes to a kind of appointment unless the person says otherwise: a salesperson to a sales appointment, whoever
+ * sells (GP-136); for work, from who does it.
+ */
 export function defaultAttendee(category: AppointmentCategory, profile: Pick<CompanyProfile, "sales_team" | "workforce">): AppointmentAttendee {
-  if (category === "sales") return profile.sales_team === "just_me" ? "me" : profile.sales_team === "small_team" || profile.sales_team === "managed_team" ? "sales_team" : "anyone";
+  if (category === "sales") return "sales_team";
   if (category === "production") return profile.workforce === "just_me" ? "me" : profile.workforce === "crews" || profile.workforce === "crews_and_subs" ? "crews" : profile.workforce === "subcontractors" ? "subcontractors" : "anyone";
   return "anyone";
 }
 /**
- * Who goes to a kind unless the person says otherwise (GP-85: one or more): the sales answer for sales; for work, who
+ * Who goes to a kind unless the person says otherwise (GP-85: one or more): a salesperson for sales; for work, who
  * does it (both crews and subcontractors when the company has both); whoever is free for anything else. A kind with its
  * own default has it (GP-139: a repair or service visit goes to a repair technician), except in a company where the
- * person does the work themselves.
+ * person does the work themselves. Nobody goes to a delivery (GP-136), whoever the company is.
  */
 export function defaultAttendees(category: AppointmentCategory, profile: Pick<CompanyProfile, "sales_team" | "workforce">, kindId?: string): AppointmentAttendee[] {
   const goes = kindId ? kindById.get(kindId)?.goes : undefined;
-  if (goes?.length && profile.workforce !== "just_me") return [...goes];
+  if (goes && (!goes.length || profile.workforce !== "just_me")) return [...goes];
   if (category === "production" && profile.workforce === "crews_and_subs") return ["crews", "subcontractors"];
-  if (category === "sales" && !profile.sales_team) return ["sales_team"];
   return [defaultAttendee(category, profile)];
 }
+/** A kind's texts until the person says otherwise: its own (a delivery sends none), or every text but for other kinds. */
+export const defaultTexts = (id: string, category: AppointmentCategory): KindTexts => kindById.get(id)?.texts || { reminder: category !== "other", on_my_way: category !== "other" };
 /** The answers offered for who goes: always me and whoever is free, and the teams this company said it has. */
 export function offeredAttendees(profile: Pick<CompanyProfile, "sales_team" | "workforce">): AppointmentAttendee[] {
   const offered: AppointmentAttendee[] = ["me"];
@@ -129,12 +138,15 @@ export function offeredAttendees(profile: Pick<CompanyProfile, "sales_team" | "w
 
 // ── What was answered ───────────────────────────────────────────────────
 const storedKindSchema = z.object({ id: z.string(), label: z.string(), category: z.enum(APPOINTMENT_CATEGORIES), custom: z.boolean().default(false) }).strict();
-/** One kind's answers. Who goes is `attendees` (GP-85: one or more); `attendee`, the first, is what was saved before. */
-const storedTypeSchema = z.object({ id: z.string(), reminder: z.boolean(), on_my_way: z.boolean(), attendee: z.enum(APPOINTMENT_ATTENDEES).optional(), attendees: z.array(z.enum(APPOINTMENT_ATTENDEES)).min(1).max(APPOINTMENT_ATTENDEES.length).optional() }).strict()
-  .refine((value) => !!value.attendee || !!value.attendees?.length, { message: "Say who goes to it.", path: ["attendees"] });
+/**
+ * One kind's answers. Who goes is `attendees` (GP-85: any one of them goes; GP-136: none, when nobody goes, as to a
+ * delivery dropped off); `attendee`, the first, is what was saved before.
+ */
+const storedTypeSchema = z.object({ id: z.string(), reminder: z.boolean(), on_my_way: z.boolean(), attendee: z.enum(APPOINTMENT_ATTENDEES).optional(), attendees: z.array(z.enum(APPOINTMENT_ATTENDEES)).max(APPOINTMENT_ATTENDEES.length).optional() }).strict()
+  .refine((value) => !!value.attendee || !!value.attendees, { message: "Say who goes to it.", path: ["attendees"] });
 type StoredKind = z.infer<typeof storedKindSchema>;
 type StoredType = { id: string; reminder: boolean; on_my_way: boolean; attendees: AppointmentAttendee[] };
-const typeAnswer = (value: z.infer<typeof storedTypeSchema>): StoredType => ({ id: value.id, reminder: value.reminder, on_my_way: value.on_my_way, attendees: [...new Set(value.attendees?.length ? value.attendees : [value.attendee!])] });
+const typeAnswer = (value: z.infer<typeof storedTypeSchema>): StoredType => ({ id: value.id, reminder: value.reminder, on_my_way: value.on_my_way, attendees: [...new Set(value.attendees ?? [value.attendee!])] });
 
 async function stored(orgId: string) {
   try { return await readBranchModule(orgId, "default", APPOINTMENT_SETUP_MODULE); }
@@ -156,8 +168,8 @@ export async function readAppointmentSetup(orgId: string) {
     answered: { kinds: kinds.length > 0, types: !!text(data.applied_at) },
     kinds: kinds.map((entry) => {
       const answered = types.get(entry.id);
-      const attendees = answered?.attendees ?? defaultAttendees(entry.category, profile, entry.id);
-      return { ...entry, reminder: answered?.reminder ?? entry.category !== "other", on_my_way: answered?.on_my_way ?? entry.category !== "other", attendee: attendees[0]!, attendees, offered: kindOffer(entry.id, entry.category), answered: !!answered };
+      const attendees = answered?.attendees ?? defaultAttendees(entry.category, profile, entry.id), texts = answered || defaultTexts(entry.id, entry.category);
+      return { ...entry, reminder: texts.reminder, on_my_way: texts.on_my_way, attendee: attendees[0] ?? null, attendees, offered: kindOffer(entry.id, entry.category), answered: !!answered };
     }),
     attendees: offeredAttendees(profile),
     sales_team: profile.sales_team, workforce: profile.workforce, no_sales: noSales(profile),
@@ -180,13 +192,13 @@ export function publishedAppointmentCatalog(profile: CompanyProfile) {
  * all have to be met, so they become one requirement wide enough for each: one person (me, a salesperson, a technician,
  * whoever is free), or one person or group when a crew is among them. An outside company is not booked by the planner,
  * so a type a subcontractor may go to requires nothing: whoever books it says who goes. The department narrows it only
- * when every answer is someone of that department.
+ * when every answer is someone of that department. Nobody going (GP-136) requires nothing either.
  */
 export function requirementsFor(attendees: AppointmentAttendee | AppointmentAttendee[], userId: string, departmentId: string | undefined) {
   const set = new Set(Array.isArray(attendees) ? attendees : [attendees]);
   const ofDepartment = [...set].every((entry) => entry === "sales_team" || entry === "crews" || entry === "technician");
   const department = departmentId && ofDepartment ? { department_id: departmentId } : {};
-  if (set.has("subcontractors")) return [];
+  if (!set.size || set.has("subcontractors")) return [];
   if (set.size === 1 && set.has("me")) return userId ? [{ subject_type: "organization_user", mode: "specific", subject_keys: [`organization_user:${userId}`] }] : [{ subject_type: "organization_user", mode: "count", count: 1 }];
   if (set.size === 1 && set.has("crews")) return [{ ...department, subject_type: "resource_group", mode: "count", count: 1, crew_member_percent: 100 }];
   if (set.has("crews")) return [{ ...department, subject_type: "any", mode: "count", count: 1 }];
@@ -241,6 +253,7 @@ async function writeTypes(auth: PlatformAuthContext, kinds: StoredKind[], answer
       : departmentId && !base.department_ids.includes(departmentId) ? [...base.department_ids, departmentId] : base.department_ids;
     const configuration = answer
       ? appointmentConfigurationSchema.parse({ ...base, department_ids: departmentIds, requirements: requirementsFor(answer.attendees, auth.userId, departmentId), customer_texts: { reminder: answer.reminder, on_my_way: answer.on_my_way } })
+      : known?.texts ? appointmentConfigurationSchema.parse({ ...base, requirements: requirementsFor(known.goes ?? "anyone", auth.userId, departmentId), customer_texts: known.texts })
       : appointmentConfigurationSchema.parse({ ...base, requirements: requirementsFor("anyone", auth.userId, departmentId) });
     const preset = { id: entry.id, label: at >= 0 ? presets[at]!.label : entry.label, configuration };
     if (at >= 0) presets[at] = preset; else presets.push(preset);
@@ -360,7 +373,7 @@ export async function applyAppointmentSetup(auth: PlatformAuthContext, input: un
   const added = await ensureTeamTypes(auth, profile, [...answers.values()]);
   const departments = await ensureDepartments(auth, kinds, [...answers.values()], profile);
   await writeTypes(auth, kinds, answers, profile, departments);
-  await writeRecord(auth.orgId, { types: [...answers.values()].map((entry) => ({ ...entry, attendee: entry.attendees[0]! })) as unknown as JsonObject[], applied_at: new Date().toISOString() }, auth.userId);
+  await writeRecord(auth.orgId, { types: [...answers.values()].map((entry) => ({ ...entry, ...(entry.attendees.length ? { attendee: entry.attendees[0]! } : {}) })) as unknown as JsonObject[], applied_at: new Date().toISOString() }, auth.userId);
   const { listResourceGroups } = await import("../workforce/storage.js");
   const crews = (await listResourceGroups(auth.orgId)).filter((group: JsonObject) => text(group.kind_id) === "crew" && text(group.status || "active") === "active").length;
   return { ...(await readAppointmentSetup(auth.orgId)), types_added: added, departments, crews };
@@ -370,7 +383,7 @@ export async function applyAppointmentSetup(auth: PlatformAuthContext, input: un
 const copy = z.object({ key: z.string(), text: z.string() }).strict();
 const setupSchema = z.object({
   answered: z.object({ kinds: z.boolean(), types: z.boolean() }).strict(),
-  kinds: z.array(storedKindSchema.extend({ reminder: z.boolean(), on_my_way: z.boolean(), attendee: z.enum(APPOINTMENT_ATTENDEES), attendees: z.array(z.enum(APPOINTMENT_ATTENDEES)), offered: z.array(z.enum(APPOINTMENT_ATTENDEES)), answered: z.boolean() })),
+  kinds: z.array(storedKindSchema.extend({ reminder: z.boolean(), on_my_way: z.boolean(), attendee: z.enum(APPOINTMENT_ATTENDEES).nullable(), attendees: z.array(z.enum(APPOINTMENT_ATTENDEES)), offered: z.array(z.enum(APPOINTMENT_ATTENDEES)), answered: z.boolean() })),
   attendees: z.array(z.enum(APPOINTMENT_ATTENDEES)),
   sales_team: z.string().nullable(), workforce: z.string().nullable(), no_sales: z.boolean(),
   applied_at: z.string().nullable(), revision: z.number().int()
@@ -390,7 +403,7 @@ export function registerAppointmentSetupPublication() {
   if (registered) return;
   registered = true;
   registerDataProvider({ id: "appointment-setup", version: "1", apps: ["scheduling"], exports: {
-    status: { description: "What the organization said about its appointments: the kinds it schedules (sales, production or other), and for each whether the customer is texted before it and when someone is on the way, and who goes (`attendees`, one or more; `attendee` is the first; `offered` is who that kind offers first). `no_sales` is a company that does no sales appointments: it has no sales kinds and no departments on its types. `answered` says which parts have been answered.",
+    status: { description: "What the organization said about its appointments: the kinds it schedules (sales, production or other), and for each whether the customer is texted before it and when someone is on the way, and who goes (`attendees`, any one of whom goes, or none when nobody goes; `attendee` is the first, or null; `offered` is who that kind offers first). `no_sales` is a company that does no sales appointments: it has no sales kinds and no departments on its types. `answered` says which parts have been answered.",
       schema: json(setupSchema), schemaVersion: "1", access: readAccess,
       read: async (ctx) => { const value = await readAppointmentSetup(ctx.organizationId); return { value, revision: String(value.revision) }; } },
     catalog: { description: "The kinds of appointment the setup suggests, with their category and copy, the suggestions for this company, and who can go. Data that only grows: a `retired` kind is kept for those who picked it and is not offered to anyone else.",
@@ -405,7 +418,7 @@ export function registerAppointmentSetupPublication() {
     validateInput: (value) => { kindsInputSchema.parse(value); },
     execute: (ctx, _target, value) => saveAppointmentKinds(person(ctx), value) });
   registerAction({ id: "appointments.setup.apply", version: "1", domain: "scheduling", implementation: backendImplementationDigest(),
-    description: "Finish the appointment setup: for each kind of appointment chosen, whether the customer gets a text before it starts (reminder) and when someone is on the way (on_my_way), and who goes (`attendees`, one or more of me, sales_team (a salesperson), crews, subcontractors, technician, anyone; any one of them goes). Writes the appointment types and adds the group and company types the team answers need.",
+    description: "Finish the appointment setup: for each kind of appointment chosen, whether the customer gets a text before it starts (reminder) and when someone is on the way (on_my_way), and who goes (`attendees`: none when nobody goes, or one or more of me, sales_team (a salesperson), crews, subcontractors, technician, anyone; any one of them goes). Writes the appointment types and adds the group and company types the team answers need.",
     inputSchema: json(applyInputSchema) as Record<string, unknown>, outputSchema: { type: "object" },
     effect: "write", idempotency: "required", executionKinds: ["api", "agent", "module"], policy,
     validateInput: (value) => { applyInputSchema.parse(value); },

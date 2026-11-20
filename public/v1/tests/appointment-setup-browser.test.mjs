@@ -161,12 +161,14 @@ test('each kind, texting through the shared flow, then the finish with the answe
     await page.locator('[data-gxa-back]').click();
     assert.equal(await page.evaluate(()=>backs),1);
     assert.equal(await page.evaluate(()=>handle.back()),false,'the first page leaves the step to the player');
-    // Sales offers me or a salesperson; + shows everyone else. Several can go; the last one picked stays.
+    // Sales offers me or a salesperson; + shows everyone else. Several can go, or nobody (GP-136).
     assert.deepEqual(await page.locator('[data-gxa-who]').evaluateAll(nodes=>nodes.map(node=>node.dataset.gxaWho)),['me','sales_team']);
     await page.getByRole('checkbox',{name:'Me'}).click();
     await page.getByRole('checkbox',{name:'A salesperson'}).click();
     await page.getByRole('checkbox',{name:'Me'}).click();
-    assert.equal(await page.getByRole('checkbox',{name:'Me'}).getAttribute('aria-checked'),'true','someone has to go');
+    assert.equal(await page.locator('[data-gxa-who][aria-checked=true]').count(),0,'the last one picked can be taken off: nobody goes (GP-136)');
+    assert.deepEqual(await page.evaluate(()=>selections.appointment_types[0].attendees),[]);
+    await page.getByRole('checkbox',{name:'Me'}).click();
     await page.locator('[data-gxa-more]').click();
     assert.deepEqual(await page.locator('[data-gxa-who]').evaluateAll(nodes=>nodes.map(node=>node.dataset.gxaWho)),['me','sales_team','crews','subcontractors','anyone','technician']);
     await page.getByRole('switch',{name:/before it starts/}).click();
@@ -226,6 +228,30 @@ test('a phone: buttons along the sheet\'s bottom, the texting offer lists the te
     assert.equal(Math.round(box.back.top),Math.round(box.skip.top),'Back and Skip share a row');
     assert.ok(Math.abs(box.back.width-box.skip.width)<2,'evenly');
     assert.ok(box.start.top>=box.back.bottom&&Math.abs(box.start.width-box.actions.width)<2,'the main button has the bottom row to itself');
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+test('nobody goes: a kind saved with nobody comes back with nobody, and the finish says so (GP-136)',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const {page,errors}=await open(browser);
+    await page.evaluate(async L=>{
+      window.__APP={userOrgId:'org-test'};window.selections={};
+      window.PlatformAPI={publication:{invoke:async()=>({value:{phone:{registration:'none'},email:{},done:{phone:false,email:false}}})}};
+      const copy=(key,text)=>({key,text});
+      const catalog={kinds:[{id:'delivery',label:copy('k1','Material delivery'),category:'production'}],categories:[{id:'production',label:copy('b','Production')}],
+        attendees:[{id:'me',label:copy('w1','Me')},{id:'crews',label:copy('w3','A crew')},{id:'subcontractors',label:copy('w5','A subcontractor')}]};
+      const setup={attendees:['me','crews'],kinds:[{id:'delivery',label:'Material delivery',category:'production',reminder:false,on_my_way:false,attendee:null,attendees:[],offered:['crews','subcontractors','me']}]};
+      const module=await import('/libraries/guided-experiences/appointments-setup.js');
+      window.handle=module.mount(document.querySelector('#step'),{options:{},orgId:'org-test',L:eval(L),esc,read:async(provider,name)=>name==='catalog'?catalog:setup,change:patch=>Object.assign(selections,patch),canBack:()=>false,back(){},syncBack(){}});
+    },L);
+    await page.locator('[data-gxa-kind="delivery"]').waitFor();
+    assert.equal(await page.locator('[data-gxa-who][aria-checked=true]').count(),0,'not turned into whoever is free');
+    assert.deepEqual(await page.locator('[role=switch]').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('aria-checked'))),['false','false']);
+    await page.getByRole('button',{name:'Continue'}).click();
+    assert.equal((await page.locator('[data-gxa-type="delivery"] small').innerText()).trim(),'Nobody goes · No texts');
+    assert.deepEqual(await page.evaluate(()=>selections.appointment_types),[{id:'delivery',reminder:false,on_my_way:false,attendees:[]}]);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

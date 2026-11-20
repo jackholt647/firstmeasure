@@ -11,6 +11,7 @@
 // kind goes to the step before (ctx.back). The finish also offers the workforce setup (operations.workforce.setup)
 // before scheduling, where it can play. A company with no sales appointments sees no sales/production badges.
 // GP-137: the texting offer lists the texts waiting on it, and the setup's intro leads only the first page.
+// GP-136: nobody going is an answer too (a delivery dropped off): the last one picked can be taken off.
 import { commsAction, setUpTexting, textingReady } from './texting-setup.js?v=20261116-fm515';
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -133,7 +134,7 @@ export function mount(el, ctx){
       </div>
       <div class="gxa-q"><span class="gxa-label" id="gxa-who-label">${esc(L('gx_appt_who', 'Who goes to these?'))}</span>
         <div class="gxa-who" role="group" aria-labelledby="gxa-who-label" data-gxa-who-list>${whoButtons(kind)}</div>
-        <small class="gxa-who-hint">${esc(L('gx_appt_who_hint', 'Pick everyone who can go. Any one of them goes.'))}</small>
+        <small class="gxa-who-hint">${esc(L('gx_appt_who_hint_none', 'Pick everyone who can go; any one of them goes. Leave them all off when nobody goes.'))}</small>
       </div>
       ${errorLine}
       <div class="gxa-actions">
@@ -146,13 +147,12 @@ export function mount(el, ctx){
     el.querySelectorAll('[data-gxa-toggle]').forEach((button) => button.addEventListener('click', () => {
       const name = button.dataset.gxaToggle; kind[name] = !kind[name]; button.setAttribute('aria-checked', String(kind[name])); report();
     }));
-    // Several can be picked; the last one picked stays (someone has to go). + shows everyone else who could go.
+    // Several can be picked, or none when nobody goes (GP-136). + shows everyone else who could go.
     el.querySelector('[data-gxa-who-list]').addEventListener('click', (event) => {
       const more = event.target.closest('[data-gxa-more]');
       if (more) { kind.more = true; const list = el.querySelector('[data-gxa-who-list]'); list.innerHTML = whoButtons(kind); list.querySelector(`[data-gxa-who="${CSS.escape(more.dataset.gxaMore)}"]`)?.focus(); return; }
       const button = event.target.closest('[data-gxa-who]'); if (!button) return;
       const id = button.dataset.gxaWho, on = kind.attendees.includes(id);
-      if (on && kind.attendees.length === 1) return;
       kind.attendees = on ? kind.attendees.filter((entry) => entry !== id) : [...kind.attendees, id];
       button.setAttribute('aria-checked', String(!on));
       report();
@@ -204,7 +204,7 @@ export function mount(el, ctx){
 
   function drawDone(){
     title(L('gx_appt_done_title', 'Your appointment types are ready'));
-    const goes = (kind) => kind.attendees.map(who).map((text, at) => at ? text.charAt(0).toLowerCase() + text.slice(1) : text).join(L('gx_appt_done_or', ' or '));
+    const goes = (kind) => !kind.attendees.length ? L('gx_appt_done_nobody', 'Nobody goes') : kind.attendees.map(who).map((text, at) => at ? text.charAt(0).toLowerCase() + text.slice(1) : text).join(L('gx_appt_done_or', ' or '));
     // Before scheduling, an optional detour: set up who does the work, when any kind sends crews or subcontractors.
     const offerTeams = workforceSetup() && kinds.some((kind) => kind.attendees.includes('crews') || kind.attendees.includes('subcontractors') || kind.attendees.includes('technician'));
     const textingNote = wantsTexts() && textingOffered && !textingReady(comms) ? `<p>${esc(L('gx_appt_done_texting_later', 'Texts start once texting is set up in Settings › Phone.'))}</p>` : '';
@@ -258,9 +258,10 @@ export function mount(el, ctx){
     noSales = status.no_sales === true;
     const offerOf = new Map(array(catalog.kinds).map((entry) => [entry.id, array(entry.offer)]));
     kinds = array(status.kinds).map((kind) => {
+      // An empty list is nobody going (GP-136), not a missing answer.
       const picked = array(kind.attendees).filter((id) => every.includes(id));
       const offered = array(kind.offered).length ? array(kind.offered) : offerOf.get(kind.id) || [];
-      return { id: kind.id, label: kind.custom ? clean(kind.label) : names.get(kind.id) || clean(kind.label), category: kind.category, reminder: !!kind.reminder, on_my_way: !!kind.on_my_way, offered: offered.filter((id) => every.includes(id)), attendees: picked.length ? picked : [clean(kind.attendee) || 'anyone'], more: false };
+      return { id: kind.id, label: kind.custom ? clean(kind.label) : names.get(kind.id) || clean(kind.label), category: kind.category, reminder: !!kind.reminder, on_my_way: !!kind.on_my_way, offered: offered.filter((id) => every.includes(id)), attendees: picked, more: false };
     });
     if (!kinds.length) { el.innerHTML = `<div class="gxa"><p class="gxa-error" role="alert">${esc(L('gx_appt_no_kinds', 'Choose the kinds of appointments you schedule first. Close the setup and try again.'))}</p></div>`; return; }
     report(); draw();

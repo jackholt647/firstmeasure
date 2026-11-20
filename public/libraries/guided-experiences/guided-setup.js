@@ -924,7 +924,7 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
     render(el,ctx){
       let disposed=false, handle=null;
       el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      import(new URL('./appointments-setup.js?v=20261120-gp137',scriptUrl).href).then(module=>{
+      import(new URL('./appointments-setup.js?v=20261120-gp136',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mount(el,ctx);
       }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
       return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};

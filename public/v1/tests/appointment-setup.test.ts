@@ -194,7 +194,7 @@ test("the kinds picked are the organization's types: built-in and unpicked ones 
 
 test("defaults follow who sells and who works", async () => {
   const { defaultAttendee, offeredAttendees, suggestedKinds } = await import("../appointments/setup.js");
-  assert.equal(defaultAttendee("sales", { sales_team: "just_me", workforce: null }), "me");
+  assert.equal(defaultAttendee("sales", { sales_team: "just_me", workforce: null }), "sales_team", "a salesperson goes to sales appointments, never me by default (GP-136)");
   assert.equal(defaultAttendee("production", { sales_team: null, workforce: "subcontractors" }), "subcontractors");
   assert.equal(defaultAttendee("other", { sales_team: "small_team", workforce: "crews" }), "anyone");
   assert.deepEqual(offeredAttendees({ sales_team: "just_me", workforce: "just_me" }), ["me", "anyone"]);
@@ -212,10 +212,30 @@ test("several people can go to a kind: any one of them meets its one requirement
   assert.deepEqual(shape(requirementsFor(["sales_team"], "u1", "sales")), [["organization_user", "sales", 0]]);
   assert.deepEqual(requirementsFor(["me"], "u1", "sales").map((r: any) => r.subject_keys), [["organization_user:u1"]]);
   assert.deepEqual(defaultAttendees("production", { sales_team: null, workforce: "crews_and_subs" }), ["crews", "subcontractors"]);
-  assert.deepEqual(defaultAttendees("sales", { sales_team: "just_me", workforce: null }), ["me"]);
+  assert.deepEqual(defaultAttendees("sales", { sales_team: "just_me", workforce: null }), ["sales_team"]);
+  assert.deepEqual(defaultAttendees("production", { sales_team: null, workforce: "just_me" }, "delivery"), [], "nobody goes to a delivery, even in a company of one (GP-136)");
+  assert.deepEqual(requirementsFor([], "u1", "production"), [], "nobody goes: nobody is required (GP-136)");
   for (const id of ["repair", "service_call", "maintenance"]) assert.deepEqual(defaultAttendees("production", { sales_team: null, workforce: "crews_and_subs" }, id), ["technician"], `${id} goes to a repair technician (GP-139)`);
   assert.deepEqual(defaultAttendees("production", { sales_team: null, workforce: "crews_and_subs" }, "installation"), ["crews", "subcontractors"], "the work goes to who does it");
   assert.deepEqual(defaultAttendees("production", { sales_team: null, workforce: "just_me" }, "repair"), ["me"], "a company of one does its own repairs");
+});
+
+test("a delivery starts with nobody going and no texts, and nobody going is an answer that is kept (GP-136)", async () => {
+  await setup();
+  const { readAppointmentCatalog } = await import("../appointments/planning.js");
+  await invoke(owner, "company-profile.save", { sales_team: "just_me" }, "profile-gp136");
+  const saved = await invoke(owner, "appointments.kinds.save", { kinds: [{ id: "sales" }, { id: "delivery" }] }, "kinds-gp136");
+  const kind = (status: any, id: string) => status.kinds.find((entry: any) => entry.id === id);
+  assert.deepEqual([kind(saved, "delivery").attendees, kind(saved, "delivery").attendee, kind(saved, "delivery").reminder, kind(saved, "delivery").on_my_way], [[], null, false, false]);
+  const delivery = async () => (await readAppointmentCatalog(owner)).catalog.presets.find((preset: any) => preset.id === "delivery")!.configuration;
+  assert.deepEqual([(await delivery()).requirements, (await delivery()).customer_texts], [[], { reminder: false, on_my_way: false }], "its type, before the setup is finished, already texts nobody and needs nobody");
+  await invoke(owner, "appointments.setup.apply", { appointment_types: [{ id: "sales", reminder: true, on_my_way: true, attendees: [] }] }, "apply-gp136");
+  const status = await value(owner, "appointment-setup", "status");
+  assert.deepEqual([kind(status, "sales").attendees, kind(status, "sales").attendee, kind(status, "sales").answered], [[], null, true], "nobody going is kept, not turned back into someone");
+  assert.deepEqual(kind(status, "delivery").attendees, [], "a kind not given keeps its defaults");
+  const sales = (await readAppointmentCatalog(owner)).catalog.presets.find((preset: any) => preset.id === "sales")!.configuration;
+  assert.deepEqual([sales.requirements, sales.customer_texts], [[], { reminder: true, on_my_way: true }]);
+  await invoke(owner, "company-profile.save", { sales_team: "small_team" }, "profile-gp136-back");
 });
 
 test("a company with no sales appointments gets no sales kinds and no departments on its types (GP-85)", async () => {
