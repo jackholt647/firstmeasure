@@ -256,7 +256,7 @@ export const VIEW_PRESETS: ViewPreset[] = [
   {
     id: "financial_snapshot",
     title: "Financial Snapshot",
-    icon: "fa-sack-dollar",
+    icon: "fa-coins",
     color: "#6941c6",
     description: "Collected cash, outstanding balances, and margins.",
     definition: {

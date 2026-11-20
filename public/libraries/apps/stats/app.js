@@ -16,7 +16,10 @@
 
   const AGENT_TIMEOUT_MS = 150000;
   const SERIES_COLORS = ['#2e90fa', '#12b76a', '#7f56d9', '#f79009', '#f04438', '#0e7090', '#c11574', '#344054'];
-  const VIEW_ICONS = ['fa-chart-line', 'fa-chart-column', 'fa-chart-pie', 'fa-sack-dollar', 'fa-trophy', 'fa-helmet-safety', 'fa-bullseye', 'fa-users', 'fa-phone', 'fa-calendar-days', 'fa-truck-fast', 'fa-star'];
+  const VIEW_ICONS = ['fa-chart-line', 'fa-chart-column', 'fa-chart-pie', 'fa-coins', 'fa-trophy', 'fa-helmet-safety', 'fa-bullseye', 'fa-users', 'fa-phone', 'fa-calendar-days', 'fa-truck-fast', 'fa-star'];
+  // The portal loads Font Awesome 6.0, which has no fa-sack-dollar (GP-131): views saved with it show this instead.
+  const RETIRED_ICONS = { 'fa-sack-dollar': 'fa-coins' };
+  const viewIcon = (icon) => { const name = clean(icon) || 'fa-chart-line'; return RETIRED_ICONS[name] || name; };
   const VIEW_COLORS = ['#175cd3', '#067647', '#6941c6', '#b42318', '#b54708', '#0e7090', '#344054', '#c11574'];
   const TIME_RANGES = [
     ['this_week', 'This week'], ['this_month', 'This month'], ['last_month', 'Last month'],
@@ -189,6 +192,10 @@
       .st-overlay{position:fixed;inset:0;background:rgba(16,24,40,.45);z-index:1200;display:flex;align-items:center;justify-content:center;padding:18px;animation:stFadeIn .18s ease both;}
       .st-modal{background:#fff;border-radius:14px;width:min(480px,100%);max-height:92vh;overflow:auto;padding:20px;animation:stPop .2s ease both;transform-origin:center;}
       .st-modal h3{margin:0 0 14px;}
+      .st-sheet{background:#fff;color:#101828;}
+      .st-sheet .st-sheet-title{margin:0;font-size:16px;font-weight:700;line-height:1.3;}
+      .st-sheet .st-sheet-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:16px 16px 18px;}
+      .st-sheet .st-swatch{width:36px;height:36px;}
       .st-field{margin-bottom:13px;}
       .st-field label{display:block;font-size:12px;font-weight:700;color:#475467;margin-bottom:5px;}
       .st-field input,.st-field textarea{width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;font:inherit;box-sizing:border-box;}
@@ -201,6 +208,7 @@
       .st-preset-list{display:flex;flex-direction:column;gap:8px;}
       .st-preset-item{display:flex;align-items:center;gap:10px;border:1px solid #e4e7ec;border-radius:10px;padding:10px 12px;cursor:pointer;}
       .st-preset-item:hover{background:#f9fafb;}
+      .st-preset-item > i{flex:0 0 20px;text-align:center;}
       .st-preset-item .name{font-weight:700;color:#101828;}
       .st-preset-item .desc{font-size:12px;color:#667085;}
       @media (max-width:900px){.st-body{flex-direction:column;}.st-chat{flex:1;flex-basis:auto !important;max-width:none;border-left:none;border-top:1px solid #e4e7ec;transition:none;}.st-chat.st-closed{display:none;}.st-chat-grip{display:none;}}
@@ -615,7 +623,7 @@
         const color = clean(view.color) || '#175cd3';
         return `<button class="st-view-pill ${isActive ? 'active' : ''}" data-view="${esc(view.id)}"`
           + ` style="${isActive ? `background:${esc(color)};` : ''}">`
-          + `<i class="fas ${esc(clean(view.icon) || 'fa-chart-line')}"></i>${esc(view.title || (globalThis.PlatformLanguage?.text("stats","m_05017f54f07448","Untitled") ?? "Untitled"))}</button>`;
+          + `<i class="fas ${esc(viewIcon(view.icon))}"></i>${esc(view.title || (globalThis.PlatformLanguage?.text("stats","m_05017f54f07448","Untitled") ?? "Untitled"))}</button>`;
       }).join('') + `<button class="st-view-add" data-st="add-view"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("stats","m_5fb7c1bfee1406"," New view") ?? " New view")}</button>`;
       holder.querySelectorAll('[data-view]').forEach((el) => el.addEventListener('click', () => {
         state.activeViewId = clean(el.getAttribute('data-view'));
@@ -687,22 +695,48 @@
     // ── View modal ─────────────────────────────────────────────────────────
 
     function closeModal(){
-      if (state.modal) state.modal.remove();
+      const modal = state.modal;
       state.modal = null;
+      if (modal) modal.remove();
+    }
+
+    // On a phone the view dialog is the platform's phone sheet, rising from the bottom (GP-131); dragging its top
+    // down, tapping the page above it or its close button puts it away. Elsewhere it is a centred dialog.
+    function openSheet(title, content){
+      const element = document.createElement('aside');
+      element.className = 'st-sheet';
+      element.hidden = true;
+      element.innerHTML = `<header class="st-sheet-head"><h3 class="st-sheet-title"></h3></header><div class="st-sheet-main"><div class="st-sheet-scroll">${content}</div></div>`;
+      element.querySelector('.st-sheet-title').textContent = title;
+      document.body.append(element);
+      const win = window.FirstMateWindows.attach({
+        element,
+        header:element.querySelector('.st-sheet-head'),
+        title:element.querySelector('.st-sheet-title'),
+        body:element.querySelector('.st-sheet-main'),
+        host:document.body,
+        name:'stats-view',
+        label:title,
+        mode:'fullscreen',
+        mobileSheet:true,
+        titleMenu:false,
+        onClose:() => { if (state.modal?.element === element) closeModal(); }
+      });
+      win.setVisible(true);
+      return { element, remove(){ win.destroy(); } };
     }
 
     function openViewModal(view){
       closeModal();
       const isNew = !view;
       const selected = {
-        icon: clean(view?.icon) || 'fa-chart-line',
+        icon: viewIcon(view?.icon),
         color: clean(view?.color) || '#175cd3'
       };
-      const overlay = document.createElement('div');
-      overlay.className = 'st-overlay';
-      overlay.innerHTML = `
-        <div class="st-modal">
-          <h3>${String(isNew ? 'New stats view' : 'View settings')}</h3>
+      const heading = isNew
+        ? (globalThis.PlatformLanguage?.text("stats","m_e8c6320181f800","New stats view") ?? "New stats view")
+        : (globalThis.PlatformLanguage?.text("stats","m_551e1ad0a3a732","View settings") ?? "View settings");
+      const content = `
           <div class="st-field"><label>${(globalThis.PlatformLanguage?.htmlText("stats","m_29dbd3d8b69f55","Title") ?? "Title")}</label><input data-m="title" maxlength="60" value="${String(esc(view?.title || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("stats","m_94556c446164c0","e.g. Sales Overview") ?? "e.g. Sales Overview")}"></div>
           <div class="st-field"><label>${(globalThis.PlatformLanguage?.htmlText("stats","m_aa136ecb65672f","Description") ?? "Description")}</label><input data-m="description" maxlength="140" value="${String(esc(view?.description || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("stats","m_a3f9a6b065b2d8","Optional") ?? "Optional")}"></div>
           <div class="st-field"><label>${(globalThis.PlatformLanguage?.htmlText("stats","m_3e4ee0ace818e7","Icon") ?? "Icon")}</label><div class="st-swatches" data-m="icons">${String(VIEW_ICONS.map((icon) =>
@@ -710,18 +744,29 @@
           <div class="st-field"><label>${(globalThis.PlatformLanguage?.htmlText("stats","m_db7002926d9977","Color") ?? "Color")}</label><div class="st-swatches" data-m="colors">${String(VIEW_COLORS.map((color) =>
             `<span class="st-swatch color ${color === selected.color ? 'selected' : ''}" data-color="${esc(color)}" style="background:${esc(color)}"></span>`).join(''))}</div></div>
           ${String(isNew ? `<div class="st-field"><label>${(globalThis.PlatformLanguage?.htmlText("stats","m_1ceddb8b63f512","Start from") ?? "Start from")}</label><div class="st-preset-list" data-m="presets">
-            <div class="st-preset-item" data-preset=""><i class="fas fa-wand-magic-sparkles"></i><div><div class="name">${(globalThis.PlatformLanguage?.htmlText("stats","m_10c61184707116","Blank — build it with the assistant") ?? "Blank — build it with the assistant")}</div><div class="desc">${(globalThis.PlatformLanguage?.htmlText("stats","m_8ec95914a0006b","Create an empty view, then describe what you want to see.") ?? "Create an empty view, then describe what you want to see.")}</div></div></div>
+            <div class="st-preset-item" data-preset=""><i class="fas fa-wand-magic-sparkles"></i><div><div class="name">${(globalThis.PlatformLanguage?.htmlText("stats","m_7860b2aaae1cb5","Blank") ?? "Blank")}</div><div class="desc">${(globalThis.PlatformLanguage?.htmlText("stats","m_21bf131164f9a0","Create an empty view, then tell the assistant what you want to see.") ?? "Create an empty view, then tell the assistant what you want to see.")}</div></div></div>
             ${array(object(state.schema).view_presets).map((preset) =>
-              `<div class="st-preset-item" data-preset="${esc(preset.id)}"><i class="fas ${esc(preset.icon || 'fa-chart-line')}"></i><div><div class="name">${esc(preset.title)}</div><div class="desc">${esc(preset.description)}</div></div></div>`).join('')}
+              `<div class="st-preset-item" data-preset="${esc(preset.id)}"><i class="fas ${esc(viewIcon(preset.icon))}"></i><div><div class="name">${esc(preset.title)}</div><div class="desc">${esc(preset.description)}</div></div></div>`).join('')}
           </div></div>` : '')}
           <div class="st-modal-actions">
             ${String(!isNew ? `<button class="st-btn danger" data-m="delete">${(globalThis.PlatformLanguage?.htmlText("stats","m_5934f6da3456df","Delete view") ?? "Delete view")}</button>` : '')}
             <button class="st-btn" data-m="cancel">${(globalThis.PlatformLanguage?.htmlText("stats","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
             ${String(!isNew ? `<button class="st-btn primary" data-m="save">${(globalThis.PlatformLanguage?.htmlText("stats","m_5bab3e72de1ebf","Save") ?? "Save")}</button>` : '')}
-          </div>
-        </div>`;
-      document.body.appendChild(overlay);
-      state.modal = overlay;
+          </div>`;
+      const phone = typeof window.FirstMateWindows?.attach === 'function' && window.matchMedia?.('(max-width: 760px)').matches;
+      let overlay;
+      if (phone) {
+        state.modal = openSheet(heading, content);
+        overlay = state.modal.element;
+      } else {
+        overlay = document.createElement('div');
+        overlay.className = 'st-overlay';
+        overlay.innerHTML = `<div class="st-modal"><h3></h3>${content}</div>`;
+        overlay.querySelector('h3').textContent = heading;
+        overlay.addEventListener('click', (event) => { if (event.target === overlay) closeModal(); });
+        document.body.appendChild(overlay);
+        state.modal = overlay;
+      }
       const pick = (holder, attr) => {
         overlay.querySelectorAll(`[data-m="${holder}"] .st-swatch`).forEach((el) => el.addEventListener('click', () => {
           overlay.querySelectorAll(`[data-m="${holder}"] .st-swatch`).forEach((s) => s.classList.remove('selected'));
@@ -731,7 +776,6 @@
       };
       pick('icons', 'data-icon');
       pick('colors', 'data-color');
-      overlay.addEventListener('click', (event) => { if (event.target === overlay) closeModal(); });
       overlay.querySelector('[data-m="cancel"]')?.addEventListener('click', closeModal);
 
       const readForm = () => ({
