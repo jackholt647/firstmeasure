@@ -1,0 +1,135 @@
+{
+  "kind": "guided_experience",
+  "id": "stats.tab_tutorial",
+  "revision": 1,
+  "sha256": "13b486f697b056684916b04a1528764a5343ac6322864711e0055ee8a7d87a75",
+  "title": "Stats tour",
+  "updated_at": "2026-11-20T01:44:25.732Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
+  "data": {
+    "id": "stats.tab_tutorial",
+    "version": 1,
+    "kind": "overlay",
+    "scope": "person",
+    "salt": "2026-11",
+    "title": {
+      "key": "gx_st_tour_title",
+      "text": "Stats tour"
+    },
+    "tab": "portal.stats",
+    "eligibility": {
+      "capabilities": [
+        "apps.stats"
+      ],
+      "permissions": []
+    },
+    "triggers": [
+      {
+        "kind": "tab_opened",
+        "tab": "portal.stats",
+        "once": true,
+        "delay_ms": 0
+      }
+    ],
+    "variants": [
+      {
+        "id": "tour",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "intro",
+        "title": {
+          "key": "gx_st_intro_title",
+          "text": "Stats, your way"
+        },
+        "body": {
+          "key": "gx_st_intro_body",
+          "text": "See how sales, jobs and your team are doing. Each page of stats is a view you can change or make new."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "views",
+        "title": {
+          "key": "gx_st_views_title",
+          "text": "Your views"
+        },
+        "body": {
+          "key": "gx_st_views_body",
+          "text": "Switch views here. The list also adds new ones from presets, like Team Leaderboard, in one tap."
+        },
+        "targets": [
+          "[data-st=\"view-pick\"]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "period",
+        "title": {
+          "key": "gx_st_period_title",
+          "text": "Pick the period"
+        },
+        "body": {
+          "key": "gx_st_period_body",
+          "text": "Every card on the page follows the time period you choose here."
+        },
+        "targets": [
+          "[data-st=\"range\"]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "assistant",
+        "title": {
+          "key": "gx_st_assistant_title",
+          "text": "Ask for any stats page"
+        },
+        "body": {
+          "key": "gx_st_assistant_body",
+          "text": "Tell the assistant what you want to see, like “revenue by salesperson this quarter”, and it builds the page for you."
+        },
+        "targets": [
+          "[data-st=\"chat-toggle\"]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "outro",
+        "title": {
+          "key": "gx_st_outro_title",
+          "text": "Make it yours"
+        },
+        "body": {
+          "key": "gx_st_outro_body",
+          "text": "The pen renames a view or changes its icon and colour. To see this again, choose “Show me around Stats” in the views list."
+        },
+        "targets": [
+          "[data-st=\"edit-view\"]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      }
+    ],
+    "completion": {
+      "screen": "none",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}
