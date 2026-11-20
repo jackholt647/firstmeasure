@@ -36,6 +36,16 @@ the default then. A percentage may turn those on. A stored `true` stays on and
 is never removed by a percentage. To keep an organization out of a rollout, set
 it off explicitly: that is the only way, and it is what the console's Off does.
 
+**Turning a default on does not reach organizations that already stored it.**
+The default (config library `capability_defaults/platform`) applies only where
+nothing is stored. Every organization that signed up while the default was off
+has `false` stamped in `app_flags` and keeps it. To give everyone the new
+default, also set the flag to 100% in each environment's console
+(`cli.mjs percent <flag> 100`); explicit offs stay off. FM-624: the
+`firstmeasure.holiday_lights` default went on at about 23:45 UTC on 2026-11-03,
+and the 119 production organizations that signed up that day from 02:42 UTC
+kept it off: their customers never saw the Holiday Lights option.
+
 A writer that saves through `saveCapabilityValues` (a preset, a sandbox setup)
 replaces the explicit value for the flags it sets: the latest deliberate write
 wins. `app_flag_overrides` is refused from customers on every path that refuses
