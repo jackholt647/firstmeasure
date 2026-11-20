@@ -103,6 +103,7 @@
     dialog.id='fm-booking-dialog';
     window.FirstMateAppointmentConfiguration.ensureStyle();
     const stepped = options.steps ?? !!window.matchMedia?.('(max-width:720px)').matches;
+    workforceAnswer = readWorkforce(api, orgId);
     dialog.addEventListener('close', () => { dialog.remove(); if (active === dialog) active = null; previousFocus?.focus?.(); }, {once:true});
     return (stepped ? openSteps : openForm)(dialog, {api, orgId, options});
   }
@@ -114,10 +115,23 @@
    * says which requirements nobody can meet (`staffing[].unstaffed`) and how many crews and outside companies exist.
    */
   const guides = () => window.FirstMateGuides || (() => { try { return window.top?.FirstMateGuides; } catch (_) { return null; } })();
+  /*
+   * Who does the company's work (GP-143): the company profile's `workforce` answer, read once each time the dialog opens.
+   * A company that does the work itself ("just me") is never told about crews or subcontractors: nobody is assigned.
+   */
+  let workforceAnswer = Promise.resolve('');
+  function readWorkforce(api, orgId){
+    if (!api?.publication?.read) return Promise.resolve('');
+    return Promise.resolve(api.publication.read(orgId, { provider:'company-profile', export:'profile', target:{ scope:'organization', organizationId:orgId } }))
+      .then((result) => { const read = result?.result ?? result; return clean((read?.value ?? read)?.workforce); }).catch(() => '');
+  }
+  // Crews and subcontractors are set up with the Operations workforce setup, which starts at how many there are when who
+  // does the work is answered (a phone tray, a modal on a wider screen); Scheduling's own Crew settings are not it.
+  const workforceSetup = () => guides()?.experience?.('operations.workforce.setup') ? 'operations.workforce.setup' : '';
   const term = (path, fallback) => clean(window.PlatformTerminology?.get?.(path, fallback) || window.Portal?.terminology?.get?.(path, fallback)) || fallback;
   function staffingNote(target, configuration, {dialog, options}){
-    let shown = '';
-    return (data) => {
+    let shown = '', workforce = null;
+    const draw = (data) => {
       const host = target.querySelector('.fmle-time-panel [data-selected-day]') || target.querySelector('.fm-range-head');
       if (!host) return;
       const config = configuration.value, staffing = Array.isArray(data?.staffing) ? data.staffing : [], teams = data?.teams || {};
@@ -127,7 +141,7 @@
       const groups = gaps.some((entry) => entry.subject_type !== 'organization_user') || (noTeams && !config.requirements.length && config.requires_project === true && config.event_type_id !== 'sales_appointment');
       const people = !groups && gaps.some((entry) => entry.subject_type === 'organization_user');
       // A company with no crews or subcontractors at all is told they are not added yet, not that none is free (GP-142).
-      const key = groups ? (noTeams ? 'none' : 'groups') : people ? 'people' : '';
+      const key = groups ? (workforce === 'just_me' ? '' : noTeams ? 'none' : 'groups') : people ? 'people' : '';
       if (key === shown && (!key || target.querySelector('[data-staffing-note]'))) return;
       shown = key;
       target.querySelector('[data-staffing-note]')?.remove();
@@ -135,19 +149,28 @@
       const crews = term('workforce.resource_group_plural', 'Crews'), subs = term('workforce.organization_connection_plural', 'Subcontractors');
       const text = key === 'none' ? `No ${crews.toLowerCase()} or ${subs.toLowerCase()} yet` : groups ? `No ${crews.toLowerCase()} or ${subs.toLowerCase()} available` : 'No one is set up to go to these yet';
       const blurb = key === 'none' ? 'Appointment will be unassigned until you add them.' : 'It is booked unassigned. Assign someone later from the calendar.';
-      // Scheduling sets them up its own way (the workforce setup, else its Crew settings); elsewhere, the setup where it plays.
-      const teamsSetup = typeof window.FirstMateTeamsSetup === 'function' ? window.FirstMateTeamsSetup : guides()?.experience?.('operations.workforce.setup') ? () => guides().play('operations.workforce.setup', { replay: true, force: true }) : null;
+      // The workforce setup where it can play: Scheduling plays it through its own hook, which reloads the schedule after.
+      const setupId = workforceSetup();
+      const teamsSetup = !setupId ? null : typeof window.FirstMateTeamsSetup === 'function' ? window.FirstMateTeamsSetup : () => guides().play(setupId, { replay: true, force: true });
       const canSetUp = groups && !!teamsSetup;
       const note = document.createElement('div');
       note.className = 'fm-booking-staffing'; note.dataset.staffingNote = key; note.setAttribute('role', 'note');
       note.innerHTML = `<span><strong>${esc(text)}</strong><small>${esc(blurb)}</small></span>${canSetUp ? `<button type="button" class="fm-booking-staffing-setup" data-staffing-setup><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>${esc('Set up')}</button>` : ''}`;
       host.after(note);
       note.querySelector('[data-staffing-setup]')?.addEventListener('click', async () => {
-        dialog.close();
+        // Gone before the setup opens (its close takes its history entries off), so it can open again after.
+        await new Promise((resolve) => { dialog.addEventListener('close', resolve, { once:true }); dialog.close(); });
         await Promise.resolve(teamsSetup()).catch(() => null);
-        // The workforce setup is over: book again with whoever it added. Crew settings stay open over Scheduling.
-        if (window.FirstMateTeamsSetup !== teamsSetup || guides()?.experience?.('operations.workforce.setup')) open(options).catch(() => {});
+        // The workforce setup is over: book again with whoever it added.
+        open(options).catch(() => {});
       });
+    };
+    // The note waits for who does the work, so a company that does it itself never sees it come and go.
+    let latest = null;
+    return (data) => {
+      latest = data;
+      if (workforce !== null) { draw(data); return; }
+      workforceAnswer.then((answer) => { workforce = answer; if (latest === data && dialog.isConnected) draw(data); });
     };
   }
 

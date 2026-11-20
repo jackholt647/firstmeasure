@@ -538,3 +538,47 @@ test('a company with no crews or subcontractors is told they are not added yet, 
   assert.equal(await note.locator('small').innerText(),'It is booked unassigned. Assign someone later from the calendar.');
  }finally{await browser.close();}
 });
+
+test('the crews note plays the workforce setup, never Crew settings, and a company that does the work itself never sees it (GP-143)',async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:390,height:844},hasTouch:true});page.setDefaultTimeout(5000);
+  await page.route('http://localhost/**',r=>r.fulfill({body:'<html><body></body></html>',contentType:'text/html'}));await page.goto('http://localhost/');await page.addStyleTag({content:styles});
+  for(const content of [picker,selector,configuration,booking])await page.addScriptTag({content});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  const book=(workforce,{eligible=true}={})=>page.evaluate(({workforce,eligible})=>{
+   const base={department_ids:[],delivery:false,timing_mode:'timed',duration_days:2,location:{mode:'project',address:''},window_minutes:90,slot_minutes:30,requirements:[],recurrence:null};
+   const catalog={departments:[],groups:[],presets:[{id:'install',label:'Production appointment',configuration:{...base,title:'Production appointment',duration_minutes:60,requirements:[{id:'crew'}]}}]};
+   window.previews=0;window.played=[];window.crewSettings=0;
+   // Scheduling's hook falls back to Crew settings where the setup can't play: the dialog must never take that path.
+   window.FirstMateTeamsSetup=()=>{if(!window.FirstMateGuides.experience('operations.workforce.setup')){window.crewSettings++;return;}return window.FirstMateGuides.play('operations.workforce.setup',{replay:true,force:true});};
+   window.FirstMateGuides={experience:id=>eligible&&id==='operations.workforce.setup'?{id}:null,play:async(id,opts)=>{window.played.push([id,opts.force===true]);return {status:'completed'};}};
+   window.PlatformAPI={projects:{get:async(o,id)=>({document:{id,data:{title:'Smith residence',address:'123 Maple Street'}}})},
+    search:{projectsAndContacts:async()=>({results:[{id:'p1',title:'Smith residence',subtitle:'123 Maple Street'}]})},
+    publication:{read:async(org,request)=>{window.profileReads=(window.profileReads||0)+1;if(request.provider!=='company-profile'||request.export!=='profile')throw new Error('unexpected read');return {result:{status:'ready',value:{workforce}}};}},
+    appointments:{catalog:async()=>({can_manage:true,revision:4,resources:[],catalog}),saveCatalog:async()=>({}),
+     preview:async()=>{window.previews++;return {slots:[{available:true,start_at:'2026-11-17T15:00:00Z',label:'10:00 AM'}],staffing:[{requirement_id:'crew',subject_type:'organization_group',unstaffed:true}],teams:{groups:0,companies:0}};},book:async()=>({ok:true})}};
+   return FirstMateBooking.open({orgId:'org',projectId:'p1',lockProject:true});
+  },{workforce,eligible});
+  const close=async()=>{await page.getByRole('button',{name:'Close appointment booking'}).click();await page.locator('dialog').waitFor({state:'detached'});};
+  // "Just me": nobody is assigned, so nothing is said about crews or subcontractors.
+  await book('just_me');await page.locator('.fm-ap-type[data-preset-button=install]').click();
+  await page.waitForFunction(()=>window.previews>0&&document.querySelector('.fmle-time-panel [data-selected-day]'));await page.waitForTimeout(150);
+  assert.equal(await page.locator('[data-staffing-note]').count(),0);
+  await close();
+  // Crews: the note's Set up closes the dialog, plays the workforce setup and books again after.
+  await book('crews');await page.locator('.fm-ap-type[data-preset-button=install]').click();
+  const note=page.locator('[data-staffing-note]');await note.waitFor();
+  await note.locator('[data-staffing-setup]').click();
+  await page.waitForFunction(()=>window.played.length===1);
+  assert.deepEqual(await page.evaluate(()=>window.played),[['operations.workforce.setup',true]]);
+  await page.locator('dialog.fm-booking-steps').waitFor();
+  assert.equal(await page.evaluate(()=>window.crewSettings),0);
+  await close();
+  // Where the setup can't play, there is no Set up pill (Crew settings opened blank on a phone).
+  await book('crews',{eligible:false});await page.locator('.fm-ap-type[data-preset-button=install]').click();
+  await note.waitFor();
+  assert.equal(await note.locator('[data-staffing-setup]').count(),0);
+  assert.equal(await page.evaluate(()=>window.crewSettings),0);
+ }finally{await browser.close();}
+});

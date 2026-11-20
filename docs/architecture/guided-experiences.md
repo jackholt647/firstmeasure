@@ -913,7 +913,11 @@ in the [optimization backlog](../optimization-backlog.md#the-labor-column-reads-
 ### Who does the work (workforce setup)
 
 `operations.workforce.setup` (GP-28; modal, organization, replayable; library entry with its copy) is the Workforce card
-of the hub, the Labor Setup tag of the Operations tab and the button of Operations settings' Workforce sub-tab. It
+of the hub, the Labor Setup tag of the Operations tab, the button of Operations settings' Workforce sub-tab and the
+Set up pill of the New appointment dialog's "No crews or subcontractors" note (GP-143; a sheet from the bottom on a
+phone, a modal on a wider screen). It needs the crew app (`apps.crew`), not Operations: a company that schedules crews
+before Operations is on sets them up the same way, with no pay page (pay sheets are Operations'; the status's
+`can.pay` is false, `labor.setup.apply` saves no pay and the work-order column is left for Operations). It
 `requires` `company.type`, `company.services` and `company.workforce`, so what kind of company it is, what work it does
 and who does most of it are asked first while unanswered. "Who does most of the work?" is one question for every setup
 (GP-65): the `company.workforce` [setup step](setup-steps.md), which the appointment setup requires too, asked once.
@@ -1013,10 +1017,11 @@ people, one person or group; people only, one person; any answer a subcontractor
 department narrows it only when every answer is someone of that department), and the group and company types the
 answers name (`sales_team`, `crew`, `subcontractor`, through `saveAssigneeType`; groups and their members are added in
 People). Its finish page offers, besides **Book an appointment**, **Set up crews and subcontractors** where the
-workforce setup (`operations.workforce.setup`, under [Operations setup](#operations-setup)) can play (it needs Operations and the crew app): that setup plays over it, then the
+workforce setup (`operations.workforce.setup`, under [Operations setup](#operations-setup)) can play (it needs the crew app): that setup plays over it, then the
 appointment setup finishes and goes on to scheduling as usual (GP-85). A work appointment booked while the company has
 no crews or subcontractors is booked unassigned: the New appointment dialog says "No crews or subcontractors
-available" with a Setup pill and shows how many are free beside each time, and the calendar item says "No crews or
+available" with a Setup pill (the workforce setup, never Scheduling's Crew settings; none where the setup can't play,
+and no note at all for a company whose `company.workforce` answer is "just me", GP-143) and shows how many are free beside each time, and the calendar item says "No crews or
 subcontractors" with a Setup button (`appointment-booking/README.md`). A type with `on_my_way: false` drops the text from the visit's "On my way" step (`workforce/crew_api.ts`);
 `reminder` is recorded on the type but no reminder is sent yet. Tests: `tests/appointment-setup.test.ts`,
 `tests/appointment-setup-browser.test.mjs`.

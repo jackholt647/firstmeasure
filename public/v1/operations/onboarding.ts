@@ -116,14 +116,14 @@ export function registerOperationsSetupPublication() {
     } });
   registerAction({ ...base, id: 'operations.workforce.setup.apply', description: 'Save the assignees and pay sheets, then enable their work-order column.',
     inputSchema: zodToJsonSchema(workforceInput, { $refStrategy: 'none' }) as Record<string, unknown>,
-    policy: { scopes: ['organization'], permissions: ['manage_company_settings', 'manage_projects'], capabilities: ['platform.materials', 'apps.crew'] }, effect: 'write', idempotency: 'required',
+    // The crew app alone (GP-143): Scheduling sets up crews before Operations is on; the work-order column waits for it.
+    policy: { scopes: ['organization'], permissions: ['manage_company_settings', 'manage_projects'], capabilities: ['apps.crew'] }, effect: 'write', idempotency: 'required',
     validateInput: input => { const parsed = workforceInput.parse(input); if (!parsed.labor.assignees.length) throw badRequest('operations_workforce_required', 'Add someone who will do the work, or return to setup.'); },
     execute: async (ctx, target, input, execution) => {
       if (!ctx.auth || !hasPermission(ctx.auth, 'manage_projects')) throw forbidden('operations_workforce_denied', 'Project management access is required.');
       const result = await invokeAction({ ...ctx, mode: 'command' }, { action: 'labor.setup.apply', target }, workforceInput.parse(input).labor, { idempotencyKey: `${execution.receiptId}:labor` });
-      const labor = (await listResourceTypes(ctx.organizationId, { includeHidden: true })).find(row => row.id === 'labor')!;
-      const { revision, ...fields } = labor;
-      await saveResourceType(ctx.organizationId, { ...fields, shown: 'always', expected_revision: revision }, ctx.auth!);
+      const labor = await isCapabilityEnabled(ctx.organizationId, 'platform.materials') ? (await listResourceTypes(ctx.organizationId, { includeHidden: true })).find(row => row.id === 'labor') : null;
+      if (labor) { const { revision, ...fields } = labor; await saveResourceType(ctx.organizationId, { ...fields, shown: 'always', expected_revision: revision }, ctx.auth!); }
       // What labor.setup.apply wrote (each assignee's reference, GP-28), not the receipt around it.
       return (result as { value?: unknown })?.value ?? result;
     } });

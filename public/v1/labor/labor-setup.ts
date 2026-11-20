@@ -2,7 +2,7 @@ import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { badRequest, forbidden } from "../platform/errors.js";
 import { hasPermission, type PlatformAuthContext } from "../platform/auth.js";
-import { effectiveCapabilities } from "../platform/capabilities.js";
+import { effectiveCapabilities, isCapabilityEnabled } from "../platform/capabilities.js";
 import { appDefinition, appDefinitions, canonicalAppId } from "../platform/app-experience/registry.js";
 import { invokeAction, registerAction } from "../platform/publication/actions.js";
 import { registerDataProvider } from "../platform/publication/providers.js";
@@ -175,8 +175,9 @@ export async function laborSetupOptions(orgId: string, auth?: PlatformAuthContex
     people,
     service_tags_used: used,
     apps_off: appsOff,
-    // What the person may do from the setup beyond it: add people to the organization and invite them (People's permission).
-    can: { add_people: !!auth && hasPermission(auth, "manage_company_users|manage_users"), invite: !!auth && hasPermission(auth, "manage_company_users|manage_users") },
+    // What the person may do from the setup beyond it: add people to the organization and invite them (People's permission),
+    // and say how each is paid: pay sheets are Operations', so without it the setup has no pay page (GP-143).
+    can: { add_people: !!auth && hasPermission(auth, "manage_company_users|manage_users"), invite: !!auth && hasPermission(auth, "manage_company_users|manage_users"), pay: !capabilities || on["platform.materials"] === true },
     group_types: types(configuration.resource_group_kinds),
     company_types: types(configuration.organization_connection_types),
     measurements: payMeasurements(),
@@ -199,6 +200,9 @@ export async function applyLaborSetup(ctx: PublicationContext, value: unknown) {
   const command = { ...ctx, mode: "command" as const };
   const target = { scope: "organization" as const, organizationId: orgId };
   const declared = await listDeclaredCapabilities(orgId);
+  // Crews and subcontractors are set up with the crew app alone (GP-143: from Scheduling's New appointment, before
+  // Operations is on); how they are paid is a pay sheet, which only Operations keeps, so pay is left for then.
+  const payable = await isCapabilityEnabled(orgId, "platform.materials");
   // Apps and options are checked before anything is written.
   for (const entry of input.assignees) {
     if (entry.apps && Object.keys(entry.apps).length && entry.kind !== "resource_group") throw badRequest("labor_setup_apps_group", "Only a group's members are shown apps from here.");
@@ -237,7 +241,7 @@ export async function applyLaborSetup(ctx: PublicationContext, value: unknown) {
       if (row && current !== entry.type_id) await invokeAction(command, { action: "assignees.profile.set", target }, { assignee: ref, type_ids: [entry.type_id] }, { idempotencyKey: `labor-setup:type:${ref.type}:${ref.id}:${entry.type_id}:${Date.now()}` });
     }
     let pay: "saved" | "kept" | "none" = "none";
-    if (entry.pay) {
+    if (entry.pay && payable) {
       const existing = sheets.find((sheet) => sheet.subject.type === ref!.type && sheet.subject.id === ref!.id && sheet.schema_ids.includes(SCHEMA_ID));
       if (existing && !simplePay(existing)) pay = "kept";
       else {
@@ -310,14 +314,14 @@ export function registerLaborSetupPublication() {
   // and how each is paid. Pay is commercial, so it is read with the permission that sets it.
   registerDataProvider({ id: "workforce-setup", version: "1", apps: ["materials", "crew"], exports: {
     status: { description: "Who does the organization's work: its groups of users (crews) and outside companies (subcontractors), each with the company profile services it does and the kinds of each in the company's words (service_tags), a group's members, who is in charge of it (lead_user_id) and which apps its members are shown or not (apps), and how it is paid for roofing (a one-line pay sheet's method and rate, or how many lines a fuller sheet has); with the company profile it starts from (kind of company, industry sets, services, who does most of the work), the people who can be put in a group (with their email, and `invited` while they have not joined), the kinds of each service any of them does (service_tags_used), the apps the organization has off (apps_off), whether the person may add and invite people (can), the types each kind can have and the measurements a piece rate can read.",
-      schema: setupStatusSchema, schemaVersion: "1", access: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.materials"], systemKinds: ["agent"] },
+      schema: setupStatusSchema, schemaVersion: "1", access: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["apps.crew"], systemKinds: ["agent"] },
       read: async (ctx) => { const value = await laborSetupOptions(ctx.organizationId, ctx.auth); return { value, revision: `sha256:${contentHash(value)}` }; } }
   } });
   registerAction({
     id: "labor.setup.apply", version: "1", domain: "materials", implementation: backendImplementationDigest(),
     description: "Set up who does the labor: add groups of users (employees) and outside companies (subcontractors) by name, change their type, say which of the company's services each does (service_ids, from the company profile catalog; one the company profile lacks is added to it) and the kinds of each in the company's words (service_tags), add people of the organization to a group (member_user_ids; none are removed) and say which member is in charge (lead_user_id), choose which apps a group's members see (apps: { \"portal.crew_payouts\": { visible: true } }, its App experience settings), and save how each is paid for roofing as a one-line pay sheet (piece rate on a roofing measurement, hourly, or per job; rates in dollars). An assignee whose pay sheet has more than one line is left alone. To write a fuller pay sheet from a document, use pay-sheets.try then pay-sheets.sheet.save.",
     inputSchema: zodToJsonSchema(laborSetupInputSchema, { $refStrategy: "none" }) as Record<string, unknown>, outputSchema: { type: "object" },
-    policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.materials", "apps.crew"] },
+    policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["apps.crew"] },
     effect: "write", executionKinds: ["api", "agent", "module"], idempotency: "required",
     validateInput: (value) => { laborSetupInputSchema.parse(value); },
     execute: async (ctx, _target, value) => applyLaborSetup(ctx, value)
