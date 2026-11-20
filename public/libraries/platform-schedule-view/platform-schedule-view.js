@@ -1240,7 +1240,7 @@
       .prs-work-chip:not(.timed) .prs-touch-handle.end{right:0}
       .prs-work-chip:not(.timed) .prs-touch-handle:after{top:2px;bottom:2px;width:5px;left:4px}
       .prs-touch-tray-space{flex:none;pointer-events:none}
-      .prs-event-tray.prs-event-tray{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:auto!important;max-width:none!important;height:auto!important;min-height:0!important;max-height:min(58dvh,520px)!important;overflow:auto!important;overscroll-behavior:contain;box-sizing:border-box;margin:0!important;border:0!important;border-top:1px solid rgba(15,23,42,.10)!important;border-radius:18px 18px 0 0!important;box-shadow:0 -14px 36px rgba(15,23,42,.18)!important;padding-top:18px!important;padding-bottom:max(14px,env(safe-area-inset-bottom))!important;z-index:2147483100!important}
+      .prs-event-tray.prs-event-tray{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:auto!important;max-width:none!important;height:auto!important;min-height:0!important;max-height:calc(100dvh - 160px)!important;overflow:auto!important;overscroll-behavior:contain;box-sizing:border-box;margin:0!important;border:0!important;border-top:1px solid rgba(15,23,42,.10)!important;border-radius:18px 18px 0 0!important;box-shadow:0 -14px 36px rgba(15,23,42,.18)!important;padding-top:18px!important;padding-bottom:max(14px,env(safe-area-inset-bottom))!important;z-index:2147483100!important}
       .prs-event-tray.prs-event-tray:before{content:"";position:absolute;top:7px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:2px;background:rgba(15,23,42,.18)}
       .prs-event-tray.prs-event-tray-enter{animation:prs-event-tray-up .26s cubic-bezier(.2,.8,.2,1)}
       @keyframes prs-event-tray-up{from{transform:translateY(100%)}to{transform:none}}
@@ -8387,13 +8387,14 @@
     const reopened = !!previous && (previous.panel?.isConnected || !previous.goneAt || Date.now() - previous.goneAt < 600);
     if (previous?.panel && previous.panel !== panel && previous.panel.isConnected) previous.panel.remove();
     panel.classList.add('prs-event-tray');
-    // The tray never covers the room the event needs below the sticky day
-    // header (its height, up to two rows, and the gap): on a short screen it
-    // is shorter and scrolls inside.
+    // The tray is as tall as its panel, up to the room the event needs below
+    // the sticky day header (its height, up to two rows, and the gap), so a
+    // phone with the room shows the whole editor without scrolling (GP-145);
+    // on a short screen it is shorter and scrolls inside.
     const view = doc.defaultView || root;
     const chipHeight = Math.min(96, Math.max(24, chip.getBoundingClientRect().height));
     const roomForTray = Math.floor(Number(view.innerHeight || 0) - calendarVisibleTop(container) - chipHeight - EVENT_TRAY_GAP_PX - 6);
-    if (roomForTray > 0) panel.style.setProperty('max-height', `${Math.max(180, Math.min(roomForTray, Math.round(Number(view.innerHeight || 0) * 0.58), 520))}px`, 'important');
+    if (roomForTray > 0) panel.style.setProperty('max-height', `${Math.max(180, roomForTray)}px`, 'important');
     // Measured before the slide-in starts (a transform would move it).
     const trayTop = panel.getBoundingClientRect().top;
     const surface = container.querySelector('.prs-surface');

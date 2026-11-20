@@ -390,7 +390,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
-      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261119-gp120')]
+      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261120-gp145')]
     },
     {
       id: 'portal.training',

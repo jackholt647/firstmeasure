@@ -576,6 +576,10 @@
     .dash-event-project-option strong{font-size:12px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .dash-event-project-option span{font-size:10px;font-weight:850;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .dash-event-pop-actions{position:sticky;bottom:-16px;z-index:6;display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:auto;padding:10px 0 2px;background:#fff;border-top:1px solid rgba(15,23,42,.07)}
+    /* The phone tray grows to fit the editor, so its footer is the last row
+       of the form, not a sticky strip over it; a tray too short for the form
+       scrolls to it without covering anything (GP-145). */
+    .prs-event-tray .dash-event-pop-actions{position:static;background:none;border-top:0;padding:2px 0 0}
     .dash-event-view-btn{height:34px;border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#fff;color:#344054;padding:0 11px;font-size:12px;font-weight:950;cursor:pointer}
     .dash-event-delete{height:34px;border:1px solid #fecdca;border-radius:10px;background:#fff;color:#b42318;padding:0 11px;font-size:12px;font-weight:950;cursor:pointer}.dash-event-delete:hover{background:#fef3f2}.dash-event-delete:disabled{opacity:.55;cursor:wait}
     .dash-event-save{height:34px;border:0;border-radius:10px;background:var(--primary,#d93025);color:var(--on-primary,#fff);padding:0 13px;font-size:12px;font-weight:1000;cursor:pointer}
@@ -5281,16 +5285,18 @@
       setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.id)), 0);
     }));
     const picker = section.querySelector('[data-equipment-picker]');
-    // The opened list scrolls into view above the editor's sticky footer.
+    // The opened list scrolls into view above the editor's sticky footer (a
+    // phone tray's footer is not sticky).
     picker?.addEventListener('toggle', () => {
       if (!picker.open) return;
       requestAnimationFrame(() => {
         const pop = picker.closest('.dash-event-popover');
         if (!pop) return;
         const footer = pop.querySelector('.dash-event-pop-actions');
+        const footerHeight = footer && getComputedStyle(footer).position === 'sticky' ? footer.offsetHeight : 0;
         const popRect = pop.getBoundingClientRect();
         const rect = picker.getBoundingClientRect();
-        const visibleBottom = popRect.bottom - (footer?.offsetHeight || 0) - 8;
+        const visibleBottom = popRect.bottom - footerHeight - 8;
         const overflow = rect.bottom - visibleBottom;
         if (overflow > 0) pop.scrollTop += Math.min(overflow, Math.max(0, rect.top - popRect.top - 8));
       });
@@ -6704,8 +6710,10 @@
     actions.style.flexWrap = 'wrap';
     actions.insertBefore(box, actions.firstChild);
     // The choice sits in the sticky footer; keep the title and time (what is
-    // being saved) in view above it.
-    pop.scrollTop = 0;
+    // being saved) in view above it. A phone tray's footer is not sticky: the
+    // choice is scrolled into view instead.
+    if (getComputedStyle(actions).position === 'sticky') pop.scrollTop = 0;
+    else box.scrollIntoView({ block:'nearest' });
     box.querySelectorAll('[data-event-scope]').forEach((button) => button.addEventListener('click', () => {
       const scope = button.getAttribute('data-event-scope');
       box.remove();
