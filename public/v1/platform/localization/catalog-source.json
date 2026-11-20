@@ -14476,8 +14476,6 @@
     "m_3742924668fb10": "Close",
     "m_bd451534def6c4": "Stats",
     "m_1ceddb8b63f512": "Start from",
-    "m_10c61184707116": "Blank — build it with the assistant",
-    "m_8ec95914a0006b": "Create an empty view, then describe what you want to see.",
     "m_5934f6da3456df": "Delete view",
     "m_5bab3e72de1ebf": "Save",
     "m_df7920138f71f7": "General",
@@ -14522,7 +14520,10 @@
     "m_125610f2e7ebc8": "Latest",
     "m_de0ac9c050cea9": "Advanced definition",
     "m_0d2a59816d1c94": "Save new version",
-    "m_b7f4bb65f889c3": "Dataset definition"
+    "m_b7f4bb65f889c3": "Dataset definition",
+    "m_7860b2aaae1cb5": "Blank",
+    "m_21bf131164f9a0": "Create an empty view, then tell the assistant what you want to see.",
+    "m_e8c6320181f800": "New stats view"
   },
   "tab-promos": {
     "m_5c4fb8df281140": "FirstMate",

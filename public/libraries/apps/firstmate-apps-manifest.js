@@ -513,7 +513,7 @@
       },
       bundles: [
         versionedBundle('../stats-api/stats-api.js', '20260722-stats-v10'),
-        versionedBundle('stats/app.js', '20260722-stats-v10')
+        versionedBundle('stats/app.js', '20261120-gp131-view-sheet')
       ]
     },
     {
