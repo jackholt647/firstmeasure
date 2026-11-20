@@ -13,7 +13,7 @@
 // Texts and calls are set up by texting-setup.js, shared with the appointment setup (FM-515), so both work the same.
 // GP-27: an entry may set up email alone (`only: 'email'`, the document Send dialog's first use): it opens on the email
 // page, offers nothing else, finishes as soon as FirstMate Mail is on, and its last button says `finish`.
-import { commsAction, isRegistered, loadScript, registrationOf, setUpTexting, syncSessions, workflowWindow } from './texting-setup.js?v=20261120-gp138';
+import { commsAction, isRegistered, loadScript, registrationOf, setUpTexting, syncSessions, workflowWindow } from './texting-setup.js?v=20261120-gp138b';
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
