@@ -400,6 +400,24 @@ test('draft face deletion retains its graph and persists, Shift+F restores it fr
  const loaded=fixture({state:JSON.parse(JSON.stringify(f.state))});for(const [i,id]of ids.entries()){const p=loaded.d().sketch.nodes.find(n=>n.id===id);loaded.editor.down(loaded.e(p.x,p.y,i>0));loaded.listeners.pointerup(loaded.e(p.x,p.y,i>0));}loaded.editor.key({key:'f',shiftKey:true});assert.equal(loaded.d().deletedFaces.length,0);
 });
 
+// FM-628: a roof follow split wall b off the a|b merge draft and a later follow brought b back with the same merge group.
+// Every click on b reached that draft, which no longer owns b, so b could never be selected or deleted.
+test('a wall its merge group draft no longer owns gets its own draft, so Delete removes it',()=>{
+ // Surveyed roof walls whose tops meet at an angle: the group's straight bottom has no vertex where a meets b.
+ const wall=(id,x,z0,z1)=>({id,mergeGroup:'a|b',sourceId:id,kind:'perimeter',bottom:[{x,y:0,z:0},{x:x+4,y:0,z:0}],top:[{x,y:0,z:z0},{x:x+4,y:0,z:z1}]}),a=wall('a',0,5,4),b=wall('b',4,4,3.5);
+ const projectPoint=(d,e)=>({x:(e.clientX/100-d.origin.x)*d.u.x-d.origin.y*d.u.y,y:e.clientY/100,z:0});
+ const first=fixture({walls:[a],selectedId:'a',projectPoint});first.editor.beginFace(first.e(2,2),a);first.listeners.pointerup(first.e(2,2));
+ assert.deepEqual(JSON.parse(JSON.stringify(first.state.wallEdits.$drafts['a|b'].members)),['a']);
+ const state=JSON.parse(JSON.stringify(first.state)),walls=[a,b],f=fixture({state,walls,selectedId:'b',projectPoint}),M=require('../public/measure/internal/editor_scripts/exterior_model.js');
+ assert.ok(M.collect(state,walls).some(x=>x.id==='wall:b'));
+ f.editor.beginFace(f.e(6,2),b);f.listeners.pointerup(f.e(6,2));
+ assert.deepEqual(JSON.parse(JSON.stringify(state.wallEdits.$drafts.b.members)),['b']);assert.equal(state.wallEdits.$drafts.b.faces[0].points.length,4,'b keeps all four corners');
+ f.editor.key({key:'Delete'});
+ assert.equal(f.history.length,1,f.message());
+ const left=M.collect(state,walls).filter(x=>x.points.some(p=>p.x>4.001));assert.deepEqual(left.map(x=>x.id),[],'b is gone');
+ assert.deepEqual(JSON.parse(JSON.stringify(state.wallEdits.$drafts['a|b'].members)),['a'],'a keeps its draft');
+ assert.ok(M.collect(state,walls).some(x=>x.draftKey==='a|b'),'a is still drawn');
+});
 test('blank-space box selects recess points without any highlighted face, and Delete uses that selection',()=>{
  const state={wallEdits:{$surfaces:[{id:'left',points:[{x:1,y:0,z:1},{x:2,y:0,z:1},{x:2,y:0,z:2},{x:1,y:0,z:2}]},{id:'right',points:[{x:5,y:0,z:1},{x:6,y:0,z:1},{x:6,y:0,z:2},{x:5,y:0,z:2}]}]}},f=fixture({state,selected:null});
  f.editor.down(f.e(.8,.8));f.listeners.pointermove(f.e(6.2,2.2));f.listeners.pointerup(f.e(6.2,2.2));assert.equal(f.message(),'8 points selected');f.editor.key({key:'Delete'});assert.ok(state.wallEdits.$surfaces.every(f=>f.deleted));assert.deepEqual(state.wallEdits.$removedSurfacePoints,[]);assert.equal(require('../public/measure/internal/editor_scripts/wall_solid_geometry.js').surfaceWire(state.wallEdits).nodes.length,0,'all eight points are gone and nothing is left drawn');
