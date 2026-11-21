@@ -529,9 +529,11 @@ window.createWallFaceDraft=function(host){
  const wire=()=>renderDerived('wire',buildWire);
 
  const walls=()=>renderWalls||host.walls();
- const all=()=>host.state()?.wallEdits?.$drafts||{},selected=()=>walls().find(w=>w.id===host.selected()),id=w=>Object.entries(all()).filter(([,d])=>!d.frame&&G.draftOwnsWall(d,w)).sort((a,b)=>b[1].members.length-a[1].members.length)[0]?.[0]||(w.mergeGroup&&!all()[w.mergeGroup]?w.mergeGroup:w.id);
- // A merge group's draft that does not own the wall (a roof follow split it off, a later one brought it back) never
- // reaches it: every pick and Delete would edit that draft, so the wall gets a draft of its own (FM-628).
+ const all=()=>host.state()?.wallEdits?.$drafts||{},selected=()=>walls().find(w=>w.id===host.selected()),id=w=>Object.entries(all()).filter(([,d])=>!d.frame&&G.draftOwnsWall(d,w)).sort((a,b)=>b[1].members.length-a[1].members.length)[0]?.[0]||(w.mergeGroup&&(!all()[w.mergeGroup]||draftCovers(all()[w.mergeGroup],w))?w.mergeGroup:w.id);
+ // A wall its merge group's draft neither owns nor covers (a roof follow split it off, a later one brought it back
+ // elsewhere) is drawn on its own, and every pick and Delete on it would edit that draft instead: it gets a draft
+ // of its own (FM-628). One inside the draft's outline (a deduplicated strip) is drawn by that draft and stays with it.
+ const draftCovers=(d,w)=>{if(!d.origin||!d.u)return true;const ps=[...w.bottom,...w.top],c={x:ps.reduce((s,p)=>s+(p.x-d.origin.x)*d.u.x+(p.y-d.origin.y)*d.u.y,0)/ps.length,y:ps.reduce((s,p)=>s+p.z,0)/ps.length};return (d.sketch?.outlines||[]).some(points=>G.contains({points},c));};
  // Chimney pieces of a drafted wall belong to that draft (WallGeometry.draftOwnsWall).
  const draftClaimed=w=>Object.values(all()).some(d=>G.draftOwnsWall(d,w));
  const draftKey=d=>Object.keys(all()).find(key=>all()[key]===d),isPicked=(d,nodeId)=>(draftSelection[draftKey(d)]||(current()===d?picked:[])).includes(nodeId);
