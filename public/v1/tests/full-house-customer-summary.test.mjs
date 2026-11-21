@@ -92,3 +92,16 @@ test('a customer summary takes its line totals from the delivered report, not an
  for(let i=0;i<20&&!plain.measurementSummaryMetricCache.has('exteriors_x');i++)await new Promise(r=>setImmediate(r));
  assert.deepEqual(JSON.parse(JSON.stringify(plain.measurementSummaryMetricCache.get('exteriors_x'))),xmlRows);
 });
+
+test('the summary and its CSV carry the parapet wall the PDF prints (FM-629)',async()=>{
+ // 2524 S Sepulveda Blvd (production 1cd1981f…): 612.4 ft of parapet in the PDF, the model key and the XML; the CSV had none.
+ const sepulveda={roofSquares:24.1467,rakesLf:8.5963,eavesLf:3.9299,sideWallLf:8.5963,ridgesLf:1.965,parapetLf:612.3753,chimneyApronLf:14.7848};
+ const context=summaryContext('roof');
+ const rows=context.reportSummaryRowsFromRoofMeasurements(sepulveda);
+ assert.deepEqual(JSON.parse(JSON.stringify(rows.find(r=>r.label==='Parapet wall'))),{label:'Parapet wall',value:'612.4',unit:'ft',amount:612.3753});
+ assert.match(context.reportSummaryMeasurementsCsv(rows),/\r\nParapet wall,612\.4,ft(\r\n|$)/);
+ assert.ok(!context.reportSummaryRowsFromRoofMeasurements({...sepulveda,parapetLf:0}).some(r=>r.label==='Parapet wall'),'no parapet, no row');
+ // A customer's rows come from roof-lines (dictionary entries); parapet survives that path too.
+ const customer=context.reportSummaryRowsFromRoofMeasurements(context.reportMeasurementValues({parapetLf:{value:612.3753,unit:'ft'},rakesLf:{value:8.5963,unit:'ft'}}));
+ assert.deepEqual(JSON.parse(JSON.stringify(customer.map(r=>[r.label,r.value]))),[['Rakes','8.6'],['Parapet wall','612.4']]);
+});
