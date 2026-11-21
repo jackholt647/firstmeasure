@@ -2209,6 +2209,8 @@ window.PlatformCommerce.onReady(function(){
     add("Eaves", measurements.eavesLf, 'ft', 1);
     add("Sidewalls", measurements.sideWallLf, 'ft', 1);
     add("Headwalls", measurements.headWallLf, 'ft', 1);
+    // The PDF, the model key and the XML all carry parapet; the summary and its CSV left it out (FM-629).
+    add("Parapet wall", measurements.parapetLf, 'ft', 1);
     return rows;
   }
 
