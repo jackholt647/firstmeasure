@@ -98,3 +98,16 @@ test('every PDF state save of a submitted report rewrites model_data.xml from th
  assert.match(pdf,/window\.lastSavedStandalonePdfSnapshot = snapshot;\s+await syncSubmittedModelXml\(state, snapshot\.folderId\);/);
  assert.match(pdf,/function syncSubmittedModelXml\(state, folderId\) \{[\s\S]{0,400}generateRoofXML\(state\)[\s\S]{0,300}firstMeasureUploadArtifact\(folderId, new Blob\(\[xmlString\], \{ type: 'text\/xml' \}\), 'model_data\.xml'\)/);
 });
+
+test('the summary and its CSV carry the parapet wall the PDF prints (FM-629)',async()=>{
+ // 2524 S Sepulveda Blvd (production 1cd1981f…): 612.4 ft of parapet in the PDF, the model key and the XML; the CSV had none.
+ const sepulveda={roofSquares:24.1467,rakesLf:8.5963,eavesLf:3.9299,sideWallLf:8.5963,ridgesLf:1.965,parapetLf:612.3753,chimneyApronLf:14.7848};
+ const context=summaryContext('roof');
+ const rows=context.reportSummaryRowsFromRoofMeasurements(sepulveda);
+ assert.deepEqual(JSON.parse(JSON.stringify(rows.find(r=>r.label==='Parapet wall'))),{label:'Parapet wall',value:'612.4',unit:'ft',amount:612.3753});
+ assert.match(context.reportSummaryMeasurementsCsv(rows),/\r\nParapet wall,612\.4,ft(\r\n|$)/);
+ assert.ok(!context.reportSummaryRowsFromRoofMeasurements({...sepulveda,parapetLf:0}).some(r=>r.label==='Parapet wall'),'no parapet, no row');
+ // A customer's rows come from roof-lines (dictionary entries); parapet survives that path too.
+ const customer=context.reportSummaryRowsFromRoofMeasurements(context.reportMeasurementValues({parapetLf:{value:612.3753,unit:'ft'},rakesLf:{value:8.5963,unit:'ft'}}));
+ assert.deepEqual(JSON.parse(JSON.stringify(customer.map(r=>[r.label,r.value]))),[['Rakes','8.6'],['Parapet wall','612.4']]);
+});
