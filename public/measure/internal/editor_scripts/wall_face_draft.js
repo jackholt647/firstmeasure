@@ -529,7 +529,11 @@ window.createWallFaceDraft=function(host){
  const wire=()=>renderDerived('wire',buildWire);
 
  const walls=()=>renderWalls||host.walls();
- const all=()=>host.state()?.wallEdits?.$drafts||{},selected=()=>walls().find(w=>w.id===host.selected()),id=w=>Object.entries(all()).filter(([,d])=>!d.frame&&G.draftOwnsWall(d,w)).sort((a,b)=>b[1].members.length-a[1].members.length)[0]?.[0]||w.mergeGroup||w.id;
+ const all=()=>host.state()?.wallEdits?.$drafts||{},selected=()=>walls().find(w=>w.id===host.selected()),id=w=>Object.entries(all()).filter(([,d])=>!d.frame&&G.draftOwnsWall(d,w)).sort((a,b)=>b[1].members.length-a[1].members.length)[0]?.[0]||(w.mergeGroup&&(!all()[w.mergeGroup]||draftCovers(all()[w.mergeGroup],w))?w.mergeGroup:w.id);
+ // A wall its merge group's draft neither owns nor covers (a roof follow split it off, a later one brought it back
+ // elsewhere) is drawn on its own, and every pick and Delete on it would edit that draft instead: it gets a draft
+ // of its own (FM-628). One inside the draft's outline (a deduplicated strip) is drawn by that draft and stays with it.
+ const draftCovers=(d,w)=>{if(!d.origin||!d.u)return true;const ps=[...w.bottom,...w.top],c={x:ps.reduce((s,p)=>s+(p.x-d.origin.x)*d.u.x+(p.y-d.origin.y)*d.u.y,0)/ps.length,y:ps.reduce((s,p)=>s+p.z,0)/ps.length};return (d.sketch?.outlines||[]).some(points=>G.contains({points},c));};
  // Chimney pieces of a drafted wall belong to that draft (WallGeometry.draftOwnsWall).
  const draftClaimed=w=>Object.values(all()).some(d=>G.draftOwnsWall(d,w));
  const draftKey=d=>Object.keys(all()).find(key=>all()[key]===d),isPicked=(d,nodeId)=>(draftSelection[draftKey(d)]||(current()===d?picked:[])).includes(nodeId);
@@ -696,7 +700,8 @@ window.createWallFaceDraft=function(host){
    // Start from the outline the undrafted preview draws (the shared survey
    // clean-up in G.topology), keeping only vertices of these strips: a point
    // where a neighbouring run merely continues straight is not a wall point.
-   const outline=G.generatedGroupOutline(walls(),members),own=members.flatMap(v=>[...v.bottom,...v.top]),strip=p=>own.some(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=.0011);
+   // Walls of the group another draft owns are not in the preview either (FM-628).
+   const outline=G.generatedGroupOutline(walls().filter(v=>members.includes(v)||v.mergeGroup!==w.mergeGroup||!draftClaimed(v)),members),own=members.flatMap(v=>[...v.bottom,...v.top]),strip=p=>own.some(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=.0011);
    const ring=r=>r.filter(strip).map(local).filter((p,i,a)=>{const q=a[(i+a.length-1)%a.length];return a.length<2||Math.hypot(p.x-q.x,p.y-q.y)>=.0001;}),signed=r=>r.reduce((s,p,i)=>{const q=r[(i+1)%r.length];return s+p.x*q.y-q.x*p.y;},0)/2;
    const faces=outline?.map(f=>({points:ring(f.points),holes:f.holes.map(ring)}));
    // The clean-up can move a run's real corner a little past the strip
