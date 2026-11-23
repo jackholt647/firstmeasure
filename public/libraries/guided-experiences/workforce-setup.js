@@ -310,6 +310,8 @@ export function mount(el, ctx){
   // The services whose specialties are open for picking, by card.
   const kindsOpen = new Set();
   const pages = ['who', 'count', 'work', 'pay', 'invite', 'see', 'done'];
+  // Where this setup is, for a live redraw and for an issue filed from it (guided-setup.js ctx.place).
+  ctx.place?.keep?.(() => ({ page: pages[page], workforce, rows, counts, result, newPeople, extraServices, typedTags, invite, seen, invited, kindsOpen: [...kindsOpen] }));
 
   const errorLine = '<p class="gxw-error" role="alert" data-gxw-error></p>';
   const fail = (error) => { const node = el.querySelector('[data-gxw-error]'); if (node) node.textContent = clean(error?.message) || L('gx_wfs_error', 'That didn’t work. Try again.'); };
@@ -361,7 +363,7 @@ export function mount(el, ctx){
 
   // ── Who does the work at your company? ─────────────────────────────────
   // The shared setup step's own part (GP-65): the same question, tiles and copy as the appointment setup asks.
-  const STEP = new URL('../setup-steps/company-profile.js?v=20261123-gp54', import.meta.url).href;
+  const STEP = new URL('../setup-steps/company-profile.js?v=20261123-places', import.meta.url).href;
   let whoStep = null;
   function drawWho(){
     title(L('gx_step_company_workforce_title_v2', 'Who does the hands-on work on your jobs?'));
@@ -371,15 +373,19 @@ export function mount(el, ctx){
       <div class="gxw-actions"><span class="gxw-spacer"></span>${nextButton()}</div>
     </div>`;
     const holder = el.querySelector('[data-gxw-who]');
-    import(STEP).then((module) => {
+    // The step's own context: its answer and changes are this page's, and the place stays this setup's.
+    const stepCtx = { ...ctx, place: null, options: { part: 'workforce' }, answer: workforce ? { workforce } : {},
+      change(patch){
+        const next = clean(patch?.workforce);
+        if (!next || next === workforce) return;
+        workforce = next; el.querySelector('[data-gxw-error]').textContent = ''; fitRows(); report();
+      },
+      advance: () => el.querySelector('[data-gxw-next]')?.click() };
+    // Through the player's loader (ctx.mountStep), so a live edit to the step redraws this page too.
+    if (ctx.mountStep) whoStep = ctx.mountStep(holder, STEP, stepCtx);
+    else import(STEP).then((module) => {
       if (!alive || !holder.isConnected) return;
-      whoStep = module.mount(holder, { ...ctx, options: { part: 'workforce' }, answer: workforce ? { workforce } : {},
-        change(patch){
-          const next = clean(patch?.workforce);
-          if (!next || next === workforce) return;
-          workforce = next; el.querySelector('[data-gxw-error]').textContent = ''; fitRows(); report();
-        },
-        advance: () => el.querySelector('[data-gxw-next]')?.click() });
+      whoStep = module.mount(holder, stepCtx);
     }).catch(fail);
     el.querySelector('[data-gxw-next]').addEventListener('click', async (event) => {
       const button = event.currentTarget;
@@ -952,6 +958,15 @@ export function mount(el, ctx){
     // Who does the work was answered (the setup step before this one, or another setup): start after it; Back still
     // reaches it to change the answer.
     if (workforce) page = pages.indexOf(workforce === 'just_me' ? 'work' : 'count');
+    // Redrawn after a live edit (guided-setup.js ctx.place): the page it was on and everything entered so far.
+    const was = object(ctx.place?.restored);
+    if (pages.includes(was.page)) {
+      workforce = clean(was.workforce); rows = array(was.rows); counts = object(was.counts); result = was.result ?? null;
+      newPeople = array(was.newPeople); extraServices = array(was.extraServices); typedTags = object(was.typedTags);
+      invite = clean(was.invite); seen = was.seen ?? null; invited = was.invited ?? null;
+      kindsOpen.clear(); for (const id of array(was.kindsOpen)) kindsOpen.add(id);
+      page = pages.indexOf(was.page);
+    }
     report(); draw(); ctx.syncBack?.();
   }).catch((error) => { if (alive) { el.innerHTML = `<div class="gxw">${errorLine}</div>`; fail(error); } });
   return {

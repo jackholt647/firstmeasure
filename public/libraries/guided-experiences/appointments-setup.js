@@ -97,6 +97,8 @@ export function mount(el, ctx){
   const { esc } = ctx;
   const L = (key, fallback, values) => { let text = ctx.L(key, fallback); for (const [name, value] of Object.entries(values || {})) text = text.split(`{${name}}`).join(String(value)); return text; };
   const orgId = String(window.__APP?.userOrgId || window.Portal?.currentUser?.orgId || ctx.orgId || '');
+  // Where this setup is, for a live redraw and for an issue filed from it (guided-setup.js ctx.place).
+  ctx.place?.keep?.(() => ({ page: pages()[page], kinds }));
   let alive = true, busy = false, page = 0, kinds = [], every = [], labels = {}, categories = {}, comms = null, textingOffered = false, noSales = false, registration = null;
   // Crews and subcontractors are named by the terminology system ("crew" is not a platform word).
   const word = (path, fallback) => clean(window.PlatformTerminology?.get?.(path, fallback) || window.Portal?.terminology?.get?.(path, fallback)) || fallback;
@@ -271,12 +273,12 @@ export function mount(el, ctx){
       return { id: kind.id, label: kind.custom ? clean(kind.label) : names.get(kind.id) || clean(kind.label), category: kind.category, reminder: !!kind.reminder, on_my_way: !!kind.on_my_way, offered: offered.filter((id) => every.includes(id)), attendees: picked, more: false };
     });
     if (!kinds.length) { el.innerHTML = `<div class="gxa"><p class="gxa-error" role="alert">${esc(L('gx_appt_no_kinds', 'Choose the kinds of appointments you schedule first. Close the setup and try again.'))}</p></div>`; return; }
-    // Redrawn after a live edit (guided-setup.js, "Editing a setup live"): the answers so far and the page it was on.
-    const was = object(ctx.hot);
+    // Redrawn after a live edit (guided-setup.js ctx.place): the answers so far and the page it was on.
+    const was = object(ctx.place?.restored);
     if (array(was.kinds).length === kinds.length && was.kinds.every((kind, at) => kind?.id === kinds[at].id)) kinds = was.kinds.map((kind) => ({ ...kind }));
-    if (Number(was.page) > 0) page = Math.min(Number(was.page), pages().length - 1);
+    if (pages().includes(was.page)) page = pages().indexOf(was.page);
     report(); draw();
   }).catch((error) => { if (alive) { el.innerHTML = `<div class="gxa">${errorLine}</div>`; fail(error); } });
-  return { valid: () => true, escape: () => busy && !registration, back, backDepth: () => page + (registration ? registration.depth() : 0), hotState: () => ({ page, kinds }), destroy(){ alive = false; registration?.close?.(); } };
+  return { valid: () => true, escape: () => busy && !registration, back, backDepth: () => page + (registration ? registration.depth() : 0), destroy(){ alive = false; registration?.close?.(); } };
 }
 export default mount;

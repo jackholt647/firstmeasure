@@ -207,7 +207,7 @@ function documentWidget(el,ctx){
   open().catch(startupError);
   // The phone's back control walks the workflow's steps first, then leaves it for the choice (the sheet's Back).
   const stepsBehind=()=>Math.max(0,Number(handle?.position?.().index)||0);
-  return {valid:()=>ctx.selections.operations_scope_ready===true,backDepth:stepsBehind,back(){if(busy)return true;if(!stepsBehind())return false;handle.back();return true;},destroy(){alive=false;clearTimeout(timer);handle?.destroy?.();documentEngine?.destroy?.();documentEngineHost?.remove();void flush().catch(()=>{});}};
+  return {workflow:()=>handle,valid:()=>ctx.selections.operations_scope_ready===true,backDepth:stepsBehind,back(){if(busy)return true;if(!stepsBehind())return false;handle.back();return true;},destroy(){alive=false;clearTimeout(timer);handle?.destroy?.();documentEngine?.destroy?.();documentEngineHost?.remove();void flush().catch(()=>{});}};
 }
 function readyWidget(el,ctx){
   const env=environment(ctx);let alive=true,busy=false;
@@ -256,4 +256,6 @@ function readyWidget(el,ctx){
   else refresh().catch(error=>{el.innerHTML='<p class="ops-error" role="alert"></p>';showError(error);});
   return {backDepth:()=>0,back:()=>false,destroy(){alive=false;}};
 }
-export function mountWidget(id,el,ctx){installStyle();if(id==='operations-path')return pathWidget(el,ctx);if(id==='operations-document')return documentWidget(el,ctx);return readyWidget(el,ctx);}
+// Where the setup is, for a live redraw and for an issue filed from it (guided-setup.js ctx.place). The workflow keeps
+// its own step on the server (onStepState), so a redraw opens on it again; the place only names it.
+export function mountWidget(id,el,ctx){installStyle();let handleOf=()=>null;ctx.place?.keep?.(()=>({page:id==='operations-document'?`workflow:${Number(handleOf()?.position?.().index)||0}`:id.replace('operations-','')}));if(id==='operations-document'){const widget=documentWidget(el,ctx);handleOf=()=>widget.workflow?.();return widget;}if(id==='operations-path')return pathWidget(el,ctx);if(id==='operations-document')return documentWidget(el,ctx);return readyWidget(el,ctx);}

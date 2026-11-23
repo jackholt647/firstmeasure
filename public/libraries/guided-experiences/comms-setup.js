@@ -119,6 +119,11 @@ export function mount(el, ctx){
   const first = only || (options.first === 'email' ? 'email' : 'phone');
   const finishLabel = () => text(options.finish, L('gx_comms_go', 'Go to Communications'));
   let alive = true, busy = false, watcher = null, page = 'intro', status = { phone: {}, email: {}, done: {} }, billing = null, domains = null, registering = false, phoneFlow = null, openedReady = false;
+  // Where this setup is, for a live redraw and for an issue filed from it (guided-setup.js ctx.place). Carrier
+  // registration is its own flow: a redraw comes back to the page that opened it.
+  ctx.place?.keep?.(() => ({ page: registering ? `${page}:registration` : page, openedReady }));
+  const was = object(ctx.place?.restored);
+  const PAGES = ['intro', 'email', 'billing', 'phones', 'done'];
 
   const invoke = (action, input = {}) => commsAction(orgId, action, input);
   const icon = (name, more = '') => `<span class="gxc-icon${more ? ` ${more}` : ''}" aria-hidden="true"><i class="fas ${name}"></i></span>`;
@@ -454,7 +459,9 @@ export function mount(el, ctx){
   window.__fmCommsSetupStart = ''; try { top.__fmCommsSetupStart = ''; } catch {}
   invoke('comms.setup.status').then((value) => {
     status = value; draw();
-    if (start === 'email') show(object(status.done).email ? 'done' : 'email');
+    const back = clean(was.page).split(':')[0];
+    if (PAGES.includes(back)) { openedReady = was.openedReady === true; show(back); }
+    else if (start === 'email') show(object(status.done).email ? 'done' : 'email');
     else if (start === 'phone') void (object(status.done).phone && registered() ? show('done') : startPhone());
     else if (phonesReady()) { openedReady = true; show('phones'); }
     // The Call center's setup where the business phone is already set up: it says so, and Go to the Call center.

@@ -112,6 +112,8 @@ export function mount(el, ctx){
   const invoke = async (action, input, key) => { const response = await window.PlatformAPI.publication.invoke(orgId, action, target, input, { idempotencyKey: `sales.team.setup:${key}:${orgId}:${crypto.randomUUID()}` }); return object(response?.value ?? response?.result ?? response); };
   // page: 'people' or 'done'. menu: the add list open ('list'), its new-person form ('new'), or closed ('').
   let alive = true, busy = false, page = 'people', status = {}, services = [], people = [], rows = [], menu = '', query = '', invite = true, invited = null;
+  // Where this setup is, for a live redraw and for an issue filed from it (guided-setup.js ctx.place).
+  ctx.place?.keep?.(() => ({ page, rows, menu, query, invite, invited }));
 
   const errorLine = '<p class="gxp-error" role="alert" data-gxp-error></p>';
   const fail = (error) => { const node = el.querySelector('[data-gxp-error]'); if (node) node.textContent = clean(error?.message) || L('gx_sales_error', 'That didn’t work. Try again.'); };
@@ -276,6 +278,9 @@ export function mount(el, ctx){
       const saved = array(entry.service_ids).filter((id) => all.includes(id));
       return { user_id: clean(entry.user_id), name: clean(entry.name), email: clean(personOf(entry.user_id)?.email), via: clean(entry.via) || 'direct', service_ids: entry.service_ids === null || !saved.length ? [...all] : saved };
     });
+    // Redrawn after a live edit (guided-setup.js ctx.place): the page it was on and the rows as they were.
+    const was = object(ctx.place?.restored);
+    if (['people', 'done'].includes(was.page)) ({ page, rows, menu, query, invite, invited } = { ...was, rows: array(was.rows), menu: clean(was.menu), query: clean(was.query), invite: was.invite !== false, invited: was.invited ?? null });
     report(); draw();
   }).catch((error) => { if (alive) { el.innerHTML = `<div class="gxp">${errorLine}</div>`; fail(error); } });
   return {

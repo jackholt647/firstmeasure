@@ -58,6 +58,9 @@ export function mount(el, ctx){
   installStyle();
   const L = ctx.L, esc = ctx.esc;
   const answer = object(ctx.answer);
+  // Where this step is, for a live redraw and for an issue filed from it (guided-setup.js ctx.place). Its answer is
+  // kept by the player, so the place only names the page.
+  ctx.place?.keep?.(() => ({ page: 'kinds' }));
   let alive = true, rows = [], categories = [], noSales = false;
   el.innerHTML = '<div class="gxk-loading"><span class="gxs-spin" aria-hidden="true"></span></div>';
 

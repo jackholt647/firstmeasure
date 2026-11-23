@@ -113,6 +113,9 @@ export function mount(el, ctx){
   const label = (entry) => L(entry.label);
   const part = ['services', 'sales_team', 'workforce', 'locations'].includes(ctx.options.part) ? ctx.options.part : 'type';
   const answer = object(ctx.answer);
+  // Where this step is, for a live redraw and for an issue filed from it (guided-setup.js ctx.place). Its answer is
+  // kept by the player, so the place only names the part.
+  ctx.place?.keep?.(() => ({ page: part }));
   let alive = true, catalog = null, profile = null, ui = null;
   el.innerHTML = '<div class="gxc-loading"><span class="gxs-spin" aria-hidden="true"></span></div>';
 

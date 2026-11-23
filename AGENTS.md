@@ -602,8 +602,10 @@ changing one, run `node tools/live-layer/hot-edit.mjs start <experience id>[/<st
 (the open setup shows a spinner beside its X), save the module through
 `live-sync.mjs` and the definition through the config library (both land in the
 open setup in place, no refresh), then `hot-edit.mjs done <experience id>` and
-submit the module once. Never add a per-setup widget or loader. Run
-`tests/guided-setup-hot-edit-browser.test.mjs` for changes to that path.
+submit the module once. Never add a per-setup widget, loader or inline setup
+code: every setup module says where it is with `ctx.place.keep` and reopens
+there from `ctx.place.restored`. Run `tests/setup-modules-contract.test.mjs`
+and `tests/guided-setup-hot-edit-browser.test.mjs` for changes to that path.
 Run `tests/setup-steps.test.ts`, `tests/setup-steps-browser.test.mjs`,
 `tests/guided-experiences.test.ts`, `tests/guided-experiences-dev.test.ts`,
 `tests/pricebook-roofing-setup.test.ts` and

@@ -9,10 +9,10 @@
 const NS = 'dev-console';
 const T = (key, fallback) => window.PlatformLanguage?.text?.(NS, key, fallback) ?? fallback;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-import { trackerClient, composeIssue, groupIssues, DEFAULT_WORKSPACE, TRACKER } from './tracker-client.js?v=20261123-hot';
+import { trackerClient, composeIssue, groupIssues, DEFAULT_WORKSPACE, TRACKER } from './tracker-client.js?v=20261123-places';
 import { watchShake, requestMotionPermission } from './shake.js?v=20261112-tray3';
 
-const VERSION = '20261123-hot';
+const VERSION = '20261123-places';
 const DRAFT = 'fm-dev-tray-draft';
 const REFRESH_MS = 20000;
 const tracker = trackerClient();
@@ -113,6 +113,8 @@ function close() {
 
 /** The setup open on this page and the step it shows (guided-setup.js marks them), for the agent that takes the issue. */
 function openSetup() {
+  // The player knows the page inside the step (ctx.place); the page markup is the fallback.
+  try { const here = window.FirstMateGuidedSetup?.where?.(); if (here?.experience) return { id: here.experience, step: here.step || '', page: here.page || '' }; } catch (_) {}
   const host = [...document.querySelectorAll('.gxs[data-gx-setup]')].filter((el) => !el.hidden).pop();
   if (!host) return null;
   const step = [...host.querySelectorAll('.gxs-step[data-gx-step]')].filter((el) => el.getAttribute('aria-hidden') !== 'true').pop();

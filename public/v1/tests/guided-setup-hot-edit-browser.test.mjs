@@ -16,10 +16,10 @@ const setup=(title)=>({id:'test.hot_setup',version:1,kind:'modal',scope:'organiz
 const MODULE=(version)=>`
   export function mount(el,ctx){
     if(!document.getElementById('hot-step-css')){const s=document.createElement('style');s.id='hot-step-css';s.textContent='.hot-v{color:${version===1?'rgb(1, 1, 1)':'rgb(2, 2, 2)'}}';document.head.append(s);}
-    let n=Number(ctx.hot?.n)||0;
+    let n=Number(ctx.place?.restored?.n)||0;ctx.place?.keep?.(()=>({page:'taps',n}));
     el.innerHTML='<p class="hot-v" data-version="${version}">v${version} n='+n+'</p><button type="button" id="tap">tap</button>';
     el.querySelector('#tap').onclick=()=>{n+=1;el.querySelector('.hot-v').textContent='v${version} n='+n;};
-    return {valid:()=>true,hotState:()=>({n})};
+    return {valid:()=>true};
   }`;
 
 function server(){
@@ -57,6 +57,7 @@ test('a live edit shows the spinner, swaps the step module in place keeping its 
     await tab.waitForSelector('.hot-v[data-version="1"]');
     await tab.click('#tap'); await tab.click('#tap');
     assert.equal(await tab.textContent('.hot-v'),'v1 n=2');
+    assert.deepEqual(await tab.evaluate(()=>FirstMateGuidedSetup.where()),{experience:'test.hot_setup',step:'flow',page:'taps'},'the setup says where it is (the dev tray puts it in an issue)');
     assert.equal(await tab.isHidden('[data-gxs-hot]'),true,'no spinner until an agent starts');
 
     // An agent starts editing: the spinner shows beside the X.
