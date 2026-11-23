@@ -126,7 +126,8 @@ status` shows it. A failure is fixed forward with a new submission. Before
 this, one submission's suites (2-8 minutes) held every submission queued
 behind it, which then shipped together in one batch. The measure-internal lane
 still gates on regression when asked (its submissions are FirstMeasure fixes
-headed for production).
+headed for production). Measured on 2026-11-23: the router change itself shipped in
+20 s end to end (checks 0.3 s, deploy 19 s).
 
 Measured on the droplet (2 vCPU, 2026-10-27):
 
