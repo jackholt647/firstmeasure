@@ -7,6 +7,9 @@
  * dragged onto the line between two lanes is in both. Everything drawn is the real configuration and every change is
  * saved through the routes Settings > Project Scopes uses. The setup (`automations.setup`, a guided experience) plays
  * in the panel on the right, embedded, so the flowchart stays in view while it asks its questions.
+ * Flows (call scripts and workflows, docs/architecture/flows.md) sit in a row under New leads: what starts each one on
+ * its left, its outcomes wired to the board each starts or to Lost; click one to see it whole, drag an outcome's dot to
+ * send it elsewhere (a new flow version).
  * It is in More apps and not pinned by default; Checklist settings' "See Advanced Controls" (apps/checklists/app.js)
  * brings people here from a project window.
  */
@@ -252,7 +255,127 @@
     return next;
   }
 
-  const model = { lanesOf, categoryIdsOf, stagesOf, linksOf, boardsOf, dropCategories, dropRows, placeBoards, leadsOf, conditionSummary, splitRule, withLink, withoutLink, SOURCE_KINDS };
+  // ── Flows (docs/architecture/flows.md): a script or workflow drawn between what starts it and where it leads ────────
+
+  const START_BOARD = 'scopes.activateTemplate.v1', MARK_LOST = 'sales.markLost.v1';
+  const FOLLOW_UPS = new Set(['work.createTodo.v1', 'communications.sendSms.v1', 'communications.sendEmail.v1']);
+  /** The events an organization rule can start a flow on, and what the chart calls them. */
+  const FLOW_EVENTS = { 'lead.received':['m_b71569e0651789', 'New leads', 'fa-inbox'] };
+
+  /**
+   * What starts each flow: an organization automation rule (on, with `input.flow_id` naming the flow; the leads setup
+   * adds one on `lead.received` for the new-lead flow), and the New menu (`entry.new_menu.enabled`).
+   */
+  function flowStartsOf(flow, rules){
+    const id = clean(flow.id);
+    const starts = array(rules).map(object).filter((rule) => rule.enabled !== false && clean(object(rule.input).flow_id) === id)
+      .map((rule) => ({ kind:'rule', id:`rule:${clean(rule.id)}`, rule_id:clean(rule.id), event:clean(rule.event), title:clean(rule.title) }));
+    const menu = object(object(object(flow.definition).entry || flow.entry).new_menu);
+    if (menu.enabled === true) starts.push({ kind:'new_menu', id:'new_menu', label:clean(menu.label) });
+    return starts;
+  }
+
+  /**
+   * Where one outcome leads, read from its effects: a board (`scopes.activateTemplate.v1`), lost (`sales.markLost.v1`),
+   * or nowhere: the project stays where it is (a new lead stays a new lead), with a follow-up when the step that ends
+   * with this outcome leaves one (a to-do, a text or an email).
+   */
+  function outcomeTarget(outcome, definition = {}){
+    const effects = array(object(outcome).effects).map(object);
+    const board = effects.find((effect) => clean(effect.automation) === START_BOARD && clean(object(effect.input).template_id));
+    if (board) return { kind:'board', to:clean(object(board.input).template_id) };
+    if (effects.some((effect) => clean(effect.automation) === MARK_LOST)) return { kind:'lost', to:'lost' };
+    const id = clean(object(outcome).id);
+    const followUp = array(object(definition).steps).map(object).some((step) => {
+      const blocks = array(step.blocks).map(object);
+      const ends = blocks.some((block) => block.kind === 'outcome' && clean(block.outcome) === id);
+      return ends && blocks.some((block) => block.kind === 'action' && FOLLOW_UPS.has(clean(block.automation)));
+    }) || effects.some((effect) => FOLLOW_UPS.has(clean(effect.automation)));
+    return { kind:'stay', to:'', follow_up:followUp };
+  }
+
+  /** The flows on the chart: those something starts, each with its starts and its outcomes' targets. */
+  function flowsOf(flows, rules){
+    return array(flows).map(object).filter((flow) => clean(flow.id) && flow.archived !== true && object(flow.definition).steps).map((flow) => {
+      const definition = object(flow.definition);
+      const starts = flowStartsOf(flow, rules);
+      if (!starts.length) return null;
+      return { id:clean(flow.id), name:clean(definition.name || flow.name) || clean(flow.id), icon:clean(definition.icon || flow.icon) || 'fa-diagram-project',
+        color:clean(definition.color || flow.color) || '#2563eb', kind:clean(definition.kind || flow.kind) || 'workflow',
+        version:Number(flow.latest_version || flow.version || 0), published_version:Number(flow.published_version || 0), starts,
+        outcomes:array(definition.outcomes).map(object).map((outcome) => ({ id:clean(outcome.id), label:clean(outcome.label) || clean(outcome.id), color:clean(outcome.color) || '#667085', ...outcomeTarget(outcome, definition) })),
+        flow };
+    }).filter(Boolean);
+  }
+
+  /**
+   * The definition with one outcome sent somewhere else: a board id (starts that board), `lost` (marks it lost) or
+   * `unscoped` (stays where it is). Its other effects (a text, a to-do) stay; the board it started before keeps its
+   * instance key, so runs that already started it are not started twice.
+   */
+  function withOutcomeTarget(definition, outcomeId, target, flowId = ''){
+    const next = JSON.parse(JSON.stringify(object(definition)));
+    const outcome = array(next.outcomes).find((item) => clean(object(item).id) === outcomeId);
+    if (!outcome) return null;
+    const effects = array(outcome.effects).map(object);
+    const previous = effects.find((effect) => clean(effect.automation) === START_BOARD);
+    const kept = effects.filter((effect) => ![START_BOARD, MARK_LOST].includes(clean(effect.automation)));
+    if (target === 'lost') kept.unshift({ automation:MARK_LOST, input:{ reason:outcomeId }, explainer:'Set in the Automations Hub: marks the lead lost.' });
+    else if (target && target !== 'unscoped') {
+      kept.unshift({ automation:START_BOARD, input:{ ...object(previous?.input), template_id:target, instance_key:clean(object(previous?.input).instance_key) || `flow_${clean(flowId) || 'hub'}` },
+        explainer:'Set in the Automations Hub: starts this board.' });
+    }
+    outcome.effects = kept;
+    return next;
+  }
+
+  /**
+   * The whole flow, step by step from its start (then any step nothing reaches): what is said and asked, and where each
+   * answer goes (`to` a step or `outcome` an outcome). What the fallback modal shows when the flow editor is not here.
+   */
+  function outlineOf(definition){
+    const flow = object(definition);
+    const steps = array(flow.steps).map(object);
+    const byId = new Map(steps.map((step) => [clean(step.id), step]));
+    const outcomes = new Map(array(flow.outcomes).map(object).map((outcome) => [clean(outcome.id), outcome]));
+    const order = [], seen = new Set();
+    const exitsOf = (step) => {
+      const exits = [];
+      for (const block of array(step.blocks).map(object)) {
+        if (block.kind === 'choice' || (block.kind === 'ask' && array(block.options).some((option) => option.to || option.outcome))) {
+          for (const option of array(block.options).map(object)) if (option.to || option.outcome) exits.push({ label:clean(option.label), to:clean(option.to), outcome:clean(option.outcome) });
+        }
+        if (block.kind === 'outcome') exits.push({ label:'', to:'', outcome:clean(block.outcome) });
+      }
+      const next = step.next;
+      if (typeof next === 'string' && next) exits.push({ label:'', to:next, outcome:'' });
+      else if (next && typeof next === 'object') {
+        array(next.branches).map(object).forEach((branch) => exits.push({ label:'', to:clean(branch.to), outcome:'', conditional:true }));
+        if (next.otherwise) exits.push({ label:'', to:clean(next.otherwise), outcome:'', otherwise:true });
+      }
+      return exits;
+    };
+    const visit = (id) => {
+      if (!id || seen.has(id) || !byId.has(id)) return;
+      seen.add(id); order.push(id);
+      exitsOf(byId.get(id)).forEach((exit) => visit(exit.to));
+    };
+    visit(clean(flow.start));
+    steps.forEach((step) => visit(clean(step.id)));
+    return order.map((id) => {
+      const step = byId.get(id);
+      return {
+        id, title:clean(step.title) || id,
+        lines:array(step.blocks).map(object).filter((block) => block.kind !== 'outcome').map((block) => ({ kind:clean(block.kind),
+          text:clean(block.text || block.label || block.preview || (block.kind === 'contact' ? 'Finds or makes the contact' : block.kind === 'project' ? 'Makes the lead' : '')),
+          options:block.kind === 'ask' ? array(block.options).map((option) => clean(object(option).label)).filter(Boolean) : [] })).filter((line) => line.text),
+        exits:exitsOf(step).map((exit) => ({ ...exit, step_title:exit.to ? clean(byId.get(exit.to)?.title) || exit.to : '', outcome_label:exit.outcome ? clean(outcomes.get(exit.outcome)?.label) || exit.outcome : '' }))
+      };
+    });
+  }
+
+  const model = { lanesOf, categoryIdsOf, stagesOf, linksOf, boardsOf, dropCategories, dropRows, placeBoards, leadsOf, conditionSummary, splitRule, withLink, withoutLink,
+    flowStartsOf, outcomeTarget, flowsOf, withOutcomeTarget, outlineOf, SOURCE_KINDS, FLOW_EVENTS };
   window.FirstMateAutomationsHub = Object.assign(window.FirstMateAutomationsHub || {}, { model });
   if (!runtime?.registerApp) return;
 
@@ -367,6 +490,60 @@
     .fmah-checks{display:grid;grid-template-columns:1fr 1fr;gap:6px}
     .fmah-checks label{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:750;color:#344054;padding:6px 8px;border:1px solid #eaecf0;border-radius:8px;cursor:pointer}
     .fmah-checks input{height:auto}
+    .fmah-flows{background:#f5f7fa}
+    .fmah-flow-list{display:flex;align-items:flex-start;gap:28px;flex-wrap:nowrap;padding:4px 0 30px}
+    .fmah-flow-group{position:relative;z-index:2;display:flex;align-items:flex-start;gap:34px}
+    .fmah-starts{display:grid;gap:8px;padding-top:6px}
+    .fmah-start{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid rgba(var(--primary-rgb,217,48,37),.35);border-radius:12px;background:#fff;font-size:12px;font-weight:900;white-space:nowrap;box-shadow:0 4px 12px rgba(15,23,42,.05)}
+    .fmah-start i{color:var(--primary-readable,var(--primary,#d93025))}
+    .fmah-flow{position:relative;width:270px;border:1px solid #e4e7ec;border-left:4px solid var(--c,#2563eb);border-radius:14px;background:#fff;box-shadow:0 10px 24px rgba(15,23,42,.07)}
+    .fmah-flow-head{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;padding:11px 12px 8px;cursor:pointer;border-radius:12px 12px 0 0;outline:none}
+    .fmah-flow-head:hover,.fmah-flow-head:focus-visible{background:#f9fafb}
+    .fmah-flow-head>i:first-child{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:color-mix(in srgb,var(--c,#2563eb) 14%,#fff);color:var(--c,#2563eb);font-size:13px}
+    .fmah-flow-head strong{display:block;font-size:13.5px;font-weight:950;line-height:1.2}
+    .fmah-flow-head small{display:block;color:#667085;font-size:11px;font-weight:750;margin-top:1px}
+    .fmah-flow-open{color:#98a2b3;font-size:11px}
+    .fmah-outcomes{list-style:none;margin:0;padding:2px 12px 12px;display:grid;gap:5px}
+    .fmah-outcome{position:relative;display:grid;grid-template-columns:auto 1fr;gap:1px 8px;align-items:center;padding:6px 18px 6px 9px;border-radius:9px;background:#f9fafb;font-size:12px;font-weight:800;color:#344054;cursor:pointer}
+    .fmah-outcome::before{content:'';grid-row:span 2;width:8px;height:8px;border-radius:50%;background:var(--oc,#667085)}
+    .fmah-outcome em{grid-column:2;font-style:normal;color:#667085;font-size:11px;font-weight:700}
+    .fmah-oport{position:absolute;right:-19px;top:50%;width:24px;height:24px;transform:translateY(-50%);display:grid;place-items:center;cursor:crosshair;touch-action:none;z-index:3}
+    .fmah-oport::after{content:'';width:11px;height:11px;border-radius:50%;background:#fff;border:2px solid var(--oc,#667085);box-shadow:0 0 0 3px rgba(15,23,42,.06);transition:transform .15s}
+    .fmah-outcome:hover .fmah-oport::after,.fmah-oport:hover::after{transform:scale(1.3)}
+    .fmah-wires path.outcome{stroke-opacity:.75}
+    .fmah-lost{align-self:flex-start;min-width:110px;border-color:#fda29b;color:#b42318}
+    .fmah-lost strong{color:#b42318}
+    .fmah-arming .fmah-flow,.fmah-arming .fmah-lost{cursor:copy}
+    .fmah-modal{position:fixed;inset:0;z-index:2147483300;display:grid;place-items:center;padding:24px;background:rgba(16,24,40,.45)}
+    .fmah-modal-shell{width:min(760px,100%);max-height:min(860px,calc(100vh - 48px));display:flex;flex-direction:column;border-radius:16px;background:#fff;box-shadow:0 30px 70px rgba(15,23,42,.3);overflow:hidden;font-size:13px;color:#101828}
+    .fmah-modal-shell>header{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid #eaecf0}
+    .fmah-modal-shell>header>i{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:color-mix(in srgb,var(--c,#2563eb) 14%,#fff);color:var(--c,#2563eb)}
+    .fmah-modal-shell>header strong{font-size:16px;font-weight:950}
+    .fmah-modal-shell nav{display:flex;gap:4px;margin-left:auto}
+    .fmah-modal-shell nav button{height:30px;padding:0 12px;border:0;border-radius:8px;background:transparent;font:inherit;font-weight:850;color:#475467;cursor:pointer}
+    .fmah-modal-shell nav button[aria-selected=true]{background:#f2f4f7;color:#101828}
+    .fmah-modal-close{width:32px;height:32px;border:0;border-radius:8px;background:transparent;color:#667085;cursor:pointer}
+    .fmah-modal-close:hover{background:#f2f4f7}
+    .fmah-modal-body{flex:1;min-height:0;overflow:auto;padding:16px}
+    .fmah-steps{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+    .fmah-step{border:1px solid #eaecf0;border-radius:12px;padding:12px 14px;display:grid;gap:8px;scroll-margin-top:12px}
+    .fmah-step h4{margin:0;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:950}
+    .fmah-step h4 span{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--c,#2563eb);color:#fff;font-size:11px}
+    .fmah-step-lines,.fmah-exits,.fmah-modal-ends ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+    .fmah-step-lines li{display:grid;grid-template-columns:18px 1fr;gap:8px;align-items:start;line-height:1.45;color:#344054;font-weight:650}
+    .fmah-step-lines li i{color:#98a2b3;margin-top:3px}
+    .fmah-step-lines li.k-say span{font-weight:750;color:#101828}
+    .fmah-step-lines li.k-note span{color:#667085}
+    .fmah-step-lines small{display:block;color:#667085;font-size:11.5px}
+    .fmah-exits{padding-top:8px;border-top:1px dashed #eaecf0}
+    .fmah-exits li,.fmah-modal-ends li{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
+    .fmah-exits li>i{color:#98a2b3;font-size:11px}
+    .fmah-exits button{border:0;padding:2px 8px;border-radius:999px;background:#eef4ff;color:#1849a9;font:inherit;font-weight:850;cursor:pointer}
+    .fmah-end{display:inline-flex;align-items:center;gap:6px;font-weight:900}
+    .fmah-end::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--oc,#667085)}
+    .fmah-exits em,.fmah-modal-ends em{font-style:normal;color:#667085;font-weight:700}
+    .fmah-modal-ends{margin-top:16px}
+    .fmah-modal-ends h5{margin:0 0 8px;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.05em;color:#667085}
     .fmah-panel{position:relative;min-width:0;min-height:0;border-left:1px solid #eaecf0;background:#fff;display:flex;flex-direction:column;overflow:hidden}
     .fmah-panel-off .fmah-panel{display:none}
     .fmah-panel-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #eaecf0}
@@ -429,12 +606,34 @@
         canEdit ? api().routing(orgId, branchId).catch(() => null) : Promise.resolve(null)
       ]);
       if (destroyed) return;
+      const flowData = await loadFlows().catch((error) => { console.warn('The flows could not be read.', error); return { flows:[], rules:[] }; });
+      if (destroyed) return;
       state = {
+        flows:flowData.flows,
+        rules:flowData.rules,
         templates:array(templates?.templates),
         categories:array(categories?.categories).length ? array(categories.categories) : [{ id:SALES, label:'Sales', enabled:true, builtin:true }, { id:'production', label:'Production', enabled:true }],
         routing:routing?.routing || null
       };
       draw();
+    }
+
+    const flowsRequest = (path, options) => window.PlatformAPI.request(`/v1/flows/organizations/${encodeURIComponent(orgId)}${path}`, options);
+    /**
+     * The flows something starts (an organization rule naming the flow, or the New menu), each read whole: its newest
+     * version for people who may change it (what a drag edits), the published one otherwise.
+     */
+    async function loadFlows(){
+      if (!window.PlatformAPI?.request) return { flows:[], rules:[] };
+      const [list, rules] = await Promise.all([
+        flowsRequest('/flows'),
+        canEdit ? window.PlatformAPI.request(`/v1/work/organizations/${encodeURIComponent(orgId)}/branches/${branchId}/automation-rules`).catch(() => null) : Promise.resolve(null)
+      ]);
+      const ruleList = array(rules?.rules);
+      const named = new Set(ruleList.filter((rule) => rule?.enabled !== false).map((rule) => clean(object(rule?.input).flow_id)).filter(Boolean));
+      const wanted = array(list?.flows).map(object).filter((flow) => flow.archived !== true && (named.has(clean(flow.id)) || object(object(flow.entry).new_menu).enabled === true));
+      const read = await Promise.all(wanted.map((flow) => flowsRequest(`/flows/${encodeURIComponent(flow.id)}${canEdit ? '?latest=1' : ''}`).then((result) => result?.flow ? { ...flow, ...result.flow } : null).catch(() => null)));
+      return { flows:read.filter(Boolean), rules:ruleList };
     }
 
     /** What is drawn: the saved state, with the setup's answers on top while it plays (nothing saved until it does). */
@@ -451,8 +650,10 @@
       const boards = boardsOf(templates, lanes);
       const links = boards.flatMap((board) => linksOf(board.template)).filter((link) => link.proposal || boards.some((board) => board.id === link.to));
       const leads = leadsOf(routing);
-      const place = placeBoards(boards, links, leads.map((lead) => lead.to).filter(Boolean));
-      return { lanes, boards, links, leads, place, routing };
+      const flows = flowsOf(state.flows, state.rules);
+      const flowBoards = flows.flatMap((flow) => flow.outcomes.filter((outcome) => outcome.kind === 'board').map((outcome) => outcome.to));
+      const place = placeBoards(boards, links, [...leads.map((lead) => lead.to).filter(Boolean), ...flowBoards]);
+      return { lanes, boards, links, leads, flows, place, routing };
     }
 
     let drawLater = false;
@@ -464,7 +665,7 @@
       closePop();
       const v = view();
       const columns = Math.max(1, ...Object.values(v.place).map((column) => column + 1));
-      const entryIds = new Set(v.leads.map((lead) => lead.to).filter(Boolean));
+      const entryIds = new Set([...v.leads.map((lead) => lead.to), ...v.flows.flatMap((flow) => flow.outcomes.filter((outcome) => outcome.kind === 'board').map((outcome) => outcome.to))].filter(Boolean));
       const boardHtml = (board, small = false) => {
         const lanesText = board.rows.map((row) => v.lanes[row]?.label).filter(Boolean).join(' · ') || t('m_3419ed73cdd5ed', 'Not in a lane');
         const isCollapsed = collapsed.has(board.id) || small;
@@ -485,6 +686,33 @@
         const summary = lead.fallback ? (canEdit ? t('m_5bdf13d84119e4', 'Click to split by source, time or place') : '') : lead.summary;
         return `<div class="fmah-lead${lead.off ? ' off' : ''}" data-lead="${esc(lead.id)}" role="button" tabindex="0" aria-label="${esc(title)}"${summary ? ` title="${esc(summary)}"` : ''}><i class="fas ${esc(icon)}" aria-hidden="true"></i><strong>${esc(title)}</strong>${canEdit ? `<div class="fmah-port" data-port="lead:${esc(lead.id)}"></div>` : ''}</div>`;
       };
+      const boardName = (id) => v.boards.find((board) => board.id === id)?.name || id;
+      const startHtml = (flow, start) => {
+        const event = FLOW_EVENTS[start.event];
+        const [icon, name, tip] = start.kind === 'new_menu'
+          ? ['fa-plus', t('m_8220db4bd909cf', 'New menu'), t('m_42c76fab8a12ce', 'Someone picks {label} in the New menu', { label:start.label || flow.name })]
+          : [event?.[2] || 'fa-bolt', event ? t(event[0], event[1]) : (start.title || start.event || t('m_b9072d5e6fc522', 'A rule')), start.title || ''];
+        return `<div class="fmah-start" data-start="${esc(`${flow.id}:${start.id}`)}" title="${esc(tip)}"><i class="fas ${esc(icon)}" aria-hidden="true"></i><strong>${esc(name)}</strong></div>`;
+      };
+      const outcomeWhere = (outcome) => outcome.kind === 'board' ? '' : outcome.kind === 'lost' ? '' : outcome.follow_up
+        ? t('m_d986ab184a6b97', 'Stays a new lead, with a follow-up') : t('m_af88d1a980d683', 'Stays a new lead');
+      const flowHtml = (flow) => `<div class="fmah-flow-group" data-flow-group="${esc(flow.id)}">
+          <div class="fmah-starts">${flow.starts.map((start) => startHtml(flow, start)).join('')}</div>
+          <article class="fmah-flow" data-flow="${esc(flow.id)}" style="--c:${esc(flow.color)}">
+            <header class="fmah-flow-head" data-flow-open="${esc(flow.id)}" role="button" tabindex="0" title="${esc(t('m_b1d8873e04e4d9', 'Open it to see the whole flow and where each answer goes'))}">
+              <i class="fas ${esc(flow.icon)}" aria-hidden="true"></i><span><strong>${esc(flow.name)}</strong><small>${esc(flow.kind === 'call' ? t('m_367d2e17d4488b', 'Call script') : t('m_7dbbeae35a4717', 'Workflow'))}</small></span>
+              <i class="fas fa-up-right-and-down-left-from-center fmah-flow-open" aria-hidden="true"></i>
+            </header>
+            <ol class="fmah-outcomes">${flow.outcomes.map((outcome) => `<li class="fmah-outcome" data-outcome="${esc(`${flow.id}:${outcome.id}`)}" data-flow-open="${esc(flow.id)}" style="--oc:${esc(outcome.color)}" title="${esc(outcome.kind === 'board' ? t('m_a51016711dc8eb', 'Goes to {board}', { board:boardName(outcome.to) }) : outcome.kind === 'lost' ? t('m_36726f5581d815', 'Marks the lead lost') : outcomeWhere(outcome))}">
+                <span>${esc(outcome.label)}</span>${outcomeWhere(outcome) ? `<em>${esc(outcomeWhere(outcome))}</em>` : ''}
+                ${canEdit ? `<div class="fmah-oport" data-port="outcome:${esc(`${flow.id}:${outcome.id}`)}" title="${esc(t('m_ee470074854347', 'Drag onto a board to send this outcome there, or click here and then click the board.'))}"></div>` : ''}</li>`).join('')}</ol>
+          </article></div>`;
+      // Lost sits right after the flows that can end there, so their wires do not cross the others.
+      const losing = v.flows.filter((flow) => flow.outcomes.some((outcome) => outcome.kind === 'lost'));
+      const keeping = v.flows.filter((flow) => !losing.includes(flow));
+      const anyLost = losing.length > 0;
+      const flowRow = v.flows.length ? `<div class="fmah-row fmah-flows" data-flows-row><div class="fmah-gutter"><span class="fmah-named"><strong>${esc(t('m_a871acc86bb086', 'Flows'))}</strong>${info(t('m_cb4773671737ca', 'Call scripts and workflows. What starts each one is on its left; each way it can end goes to a board, to lost, or leaves the lead where it is.'))}</span></div>
+          <div class="fmah-flow-list">${losing.map(flowHtml).join('')}${anyLost || canEdit ? `<div class="fmah-sink fmah-lost" data-sink="lost" title="${esc(t('m_36726f5581d815', 'Marks the lead lost'))}"><strong><i class="fas fa-circle-xmark" aria-hidden="true"></i> ${esc(t('m_235d86f4916a45', 'Lost'))}</strong></div>` : ''}${keeping.map(flowHtml).join('')}</div></div>` : '';
       const placed = v.boards.filter((board) => v.place[board.id] !== undefined);
       const other = v.boards.filter((board) => v.place[board.id] === undefined);
       const routingNote = !canEdit ? t('m_a50323b27b6a50', 'Only people who manage company settings can see and change where new leads go.')
@@ -496,6 +724,7 @@
         ${armed ? `<div class="fmah-hint" data-hint><i class="fas fa-link" aria-hidden="true"></i>${esc(t('m_84763d916c71bc', 'Now click the board it goes to. Esc cancels.'))}</div>` : ''}
         <div class="fmah-row fmah-leads" data-leads-row><div class="fmah-gutter"><span class="fmah-named"><strong>${esc(t('m_b71569e0651789', 'New leads'))}</strong>${info(routingNote)}</span>${routingError ? `<small role="alert">${esc(routingError)}</small>` : ''}${ignored ? `<button type="button" class="fmah-btn" data-use-rules>${esc(t('m_055dc73aca32e9', 'Use the saved rules'))}</button>` : ''}</div>
           <div class="fmah-lead-list">${v.leads.map(leadHtml).join('')}${v.routing ? `<div class="fmah-sink" data-sink="unscoped" title="${esc(t('m_e68aec92ca9c47', 'Stays a new lead until someone picks a board'))}"><strong>${esc(t('m_e7ee25698227ac', 'No board yet'))}</strong></div>` : ''}</div></div>
+        ${flowRow}
         <div class="fmah-grid" data-grid style="grid-template-columns:var(--fmah-gutter) repeat(${columns}, auto)">
           ${v.lanes.map((lane, index) => `<div class="fmah-lane" data-lane="${index}" style="grid-row:${index + 1}"></div>
             <div class="fmah-lane-label" data-lane-label="${index}" style="grid-row:${index + 1}"><span class="fmah-named"><strong ${canEdit ? `data-rename="${esc(lane.id)}" tabindex="0" role="button" title="${esc(t('m_e32e6dab52dcf9', 'Rename'))}"` : ''}>${esc(lane.label)}</strong>${lane.id === SALES ? info(t('m_cad3474c3275e4', 'A project on a Sales board is an open opportunity.')) : ''}</span>
@@ -569,6 +798,28 @@
         const mid = { x:(a2.x + b2.x) / 2, y:(a2.y + b2.y) / 2 };
         label(`${link.conditional ? '<i class="fas fa-code-branch" aria-hidden="true"></i>' : ''}${esc(when ? t('m_6fb1959f81939c', 'When {step} is done', { step:when }) : t('m_520bc1518069a5', 'Then'))}`, mid, { 'data-link':link.id }, link.conditional);
       }
+      for (const flow of v.flows) {
+        const card = canvas.querySelector(`[data-flow="${CSS.escape(flow.id)}"]`);
+        if (!card) continue;
+        const c = box(card);
+        for (const start of flow.starts) {
+          const el = canvas.querySelector(`[data-start="${CSS.escape(`${flow.id}:${start.id}`)}"]`);
+          if (!el) continue;
+          const a = box(el), from = { x:a.x + a.w, y:a.y + a.h / 2 }, to = { x:c.x, y:c.y + 24 };
+          const dx = Math.max(16, (to.x - from.x) / 2);
+          paths.push(`<path class="lead" d="M${from.x},${from.y} C${from.x + dx},${from.y} ${to.x - dx},${to.y} ${to.x},${to.y}"/>`);
+        }
+        for (const outcome of flow.outcomes) {
+          if (outcome.kind === 'stay') continue;
+          const row = canvas.querySelector(`[data-outcome="${CSS.escape(`${flow.id}:${outcome.id}`)}"]`);
+          const target = outcome.kind === 'lost' ? canvas.querySelector('[data-sink="lost"]') : boardEl(outcome.to);
+          if (!row || !target) continue;
+          const a = box(row), b = box(target), from = { x:a.x + a.w, y:a.y + a.h / 2 };
+          const d = b.y > a.y + a.h ? (() => { const to = { x:b.x + b.w / 2, y:b.y }; const dy = Math.max(30, (to.y - from.y) / 2); return `M${from.x},${from.y} C${from.x + 40},${from.y} ${to.x},${to.y - dy} ${to.x},${to.y}`; })()
+            : (() => { const to = { x:b.x, y:b.y + b.h / 2 }; const dx = Math.max(30, Math.abs(to.x - from.x) / 2); return `M${from.x},${from.y} C${from.x + dx},${from.y} ${to.x - dx},${to.y} ${to.x},${to.y}`; })();
+          paths.push(`<path class="outcome" data-outcome-wire="${esc(`${flow.id}:${outcome.id}`)}" style="stroke:${esc(outcome.color)}" d="${d}"/>`);
+        }
+      }
       if (gesture?.draft) paths.push(`<path class="draft" d="${curve(gesture.draft.from, gesture.draft.to)}"/>`);
       svg.innerHTML = paths.join('');
     }
@@ -615,6 +866,75 @@
       }, done);
     }
 
+    /** An outcome sent to a board, to lost, or left where it is: a new version of the flow (`expected_version`). */
+    async function saveFlowOutcome(flow, outcome, targetId){
+      const definition = withOutcomeTarget(flow.flow.definition, outcome.id, targetId, flow.id);
+      if (!definition) return;
+      // Someone's unpublished changes are not published by a drag: the change is saved on top of them, as a draft.
+      const publish = !flow.published_version || flow.published_version === flow.version;
+      const where = targetId === 'lost' ? t('m_29e1064066e223', 'lost') : targetId === 'unscoped' ? t('m_facaf5d1ca1ae8', 'where it is') : (view().boards.find((board) => board.id === targetId)?.name || targetId);
+      await saving(async () => {
+        const result = await flowsRequest(`/flows/${encodeURIComponent(flow.id)}`, { method:'PUT', body:{ definition, expected_version:flow.version, publish } });
+        const saved = object(result?.flow);
+        state.flows = state.flows.map((item) => clean(item.id) === flow.id ? { ...item, ...saved, definition:saved.definition || definition } : item);
+        window.dispatchEvent?.(new CustomEvent('fm:flows:changed', { detail:{ id:flow.id } }));
+        draw();
+      }, publish ? t('m_7480ebd4ad9df0', '{outcome} now goes to {where}', { outcome:outcome.label, where })
+        : t('m_7a9ec00ab56f26', '{outcome} now goes to {where}. Saved as a draft: the flow has changes nobody published yet.', { outcome:outcome.label, where }));
+    }
+
+    // ── A flow, whole: the flow editor when it is here, otherwise every step and where each answer goes ─────────────
+    function openFlow(flowId){
+      const v = view();
+      const flow = v.flows.find((item) => item.id === flowId);
+      if (!flow) return;
+      closePop();
+      const editor = window.FirstMateFlowEditor;
+      if (typeof editor?.open === 'function') return editor.open(flowId, { readOnly:true, orgId });
+      const outline = outlineOf(flow.flow.definition);
+      const outcomeText = (id) => {
+        const outcome = flow.outcomes.find((item) => item.id === id);
+        if (!outcome) return esc(id);
+        const where = outcome.kind === 'board' ? t('m_a51016711dc8eb', 'Goes to {board}', { board:v.boards.find((board) => board.id === outcome.to)?.name || outcome.to })
+          : outcome.kind === 'lost' ? t('m_36726f5581d815', 'Marks the lead lost') : (outcome.follow_up ? t('m_d986ab184a6b97', 'Stays a new lead, with a follow-up') : t('m_af88d1a980d683', 'Stays a new lead'));
+        return `<span class="fmah-end" style="--oc:${esc(outcome.color)}">${esc(outcome.label)}</span><em>${esc(where)}</em>`;
+      };
+      const LINE_ICONS = { say:'fa-quote-left', note:'fa-circle-info', ask:'fa-circle-question', choice:'fa-code-branch', action:'fa-bolt', contact:'fa-address-book', project:'fa-folder-plus', buttons:'fa-hand-pointer' };
+      const exitHtml = (exit) => `<li>${exit.label ? `<b>${esc(exit.label)}</b>` : exit.conditional ? `<b>${esc(t('m_a4ca4f38778489', 'When its conditions match'))}</b>` : exit.otherwise ? `<b>${esc(t('m_9328dad13cec13', 'Otherwise'))}</b>` : ''}<i class="fas fa-arrow-right" aria-hidden="true"></i>${exit.outcome ? outcomeText(exit.outcome)
+        : `<button type="button" data-goto="${esc(exit.to)}">${esc(exit.step_title)}</button>`}</li>`;
+      const stepsHtml = outline.map((step, index) => `<li class="fmah-step" data-step-id="${esc(step.id)}">
+          <h4><span>${index + 1}</span>${esc(step.title)}</h4>
+          <ul class="fmah-step-lines">${step.lines.map((line) => `<li class="k-${esc(line.kind)}"><i class="fas ${LINE_ICONS[line.kind] || 'fa-circle'}" aria-hidden="true"></i><span>${esc(line.text)}${line.options.length ? `<small>${esc(line.options.join(' · '))}</small>` : ''}</span></li>`).join('')}</ul>
+          ${step.exits.length ? `<ul class="fmah-exits">${step.exits.map(exitHtml).join('')}</ul>` : ''}
+        </li>`).join('');
+      const modal = document.createElement('div');
+      modal.className = 'fmah-modal'; modal.setAttribute('data-fmr-ignore', '');
+      modal.innerHTML = `<div class="fmah-modal-shell" role="dialog" aria-modal="true" aria-label="${esc(flow.name)}" style="--c:${esc(flow.color)}">
+          <header><i class="fas ${esc(flow.icon)}" aria-hidden="true"></i><strong>${esc(flow.name)}</strong>
+            <nav role="tablist"><button type="button" role="tab" aria-selected="true" data-tab="whole">${esc(t('m_c2d2597fc4c554', 'The whole flow'))}</button>${window.FirstMateFlows?.preview ? `<button type="button" role="tab" aria-selected="false" data-tab="try">${esc(t('m_24600df12493dc', 'Try it'))}</button>` : ''}</nav>
+            <button type="button" class="fmah-modal-close" data-close aria-label="${esc(t('m_3742924668fb10', 'Close'))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></header>
+          <div class="fmah-modal-body" data-body="whole"><ol class="fmah-steps">${stepsHtml}</ol>
+            <section class="fmah-modal-ends"><h5>${esc(t('m_31b2a4dd1ef6ad', 'How it can end'))}</h5><ul>${flow.outcomes.map((outcome) => `<li>${outcomeText(outcome.id)}</li>`).join('')}</ul></section></div>
+          <div class="fmah-modal-body" data-body="try" hidden></div></div>`;
+      document.body.appendChild(modal);
+      let player = null;
+      const remove = () => { player?.destroy?.(); modal.remove(); };
+      const handle = window.Portal?.modals?.register?.(modal, { id:`automations-hub-flow-${flowId}`, closeOnBackdrop:true, onClose:remove });
+      const close = () => (handle?.close ? handle.close('close') : remove());
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal || event.target.closest('[data-close]')) return close();
+        const go = event.target.closest('[data-goto]');
+        if (go) return [...modal.querySelectorAll('[data-step-id]')].find((el) => el.dataset.stepId === go.dataset.goto)?.scrollIntoView({ block:'start', behavior:'smooth' });
+        const tab = event.target.closest('[data-tab]');
+        if (!tab) return;
+        modal.querySelectorAll('[data-tab]').forEach((el) => el.setAttribute('aria-selected', String(el === tab)));
+        modal.querySelectorAll('[data-body]').forEach((el) => { el.hidden = el.dataset.body !== tab.dataset.tab; });
+        if (tab.dataset.tab === 'try' && !player) player = window.FirstMateFlows.preview(modal.querySelector('[data-body="try"]'), flow.flow.definition);
+      });
+      if (!handle) modal.addEventListener('keydown', (event) => { if (event.key === 'Escape') { event.stopPropagation(); close(); } });
+      modal.querySelector('[data-close]').focus({ preventScroll:true });
+    }
+
     async function saveCategories(categories){
       await saving(async () => {
         const result = await api().saveCategories(orgId, { categories:categories.map((category) => ({ id:category.id, label:category.label, enabled:category.enabled !== false })) });
@@ -627,6 +947,15 @@
     function connect(source, targetId){
       if (!state || !canEdit) return;
       const v = view();
+      if (source.startsWith('outcome:')) {
+        const [flowId, outcomeId] = source.slice(8).split(':');
+        const flow = v.flows.find((item) => item.id === flowId);
+        const outcome = flow?.outcomes.find((item) => item.id === outcomeId);
+        if (!flow || !outcome || !targetId) return;
+        if ((outcome.kind === 'board' && outcome.to === targetId) || (outcome.kind === 'lost' && targetId === 'lost') || (outcome.kind === 'stay' && targetId === 'unscoped')) return draw();
+        return saveFlowOutcome(flow, outcome, targetId);
+      }
+      if (targetId === 'lost') return draw();
       if (source.startsWith('lead:')) {
         const lead = v.leads.find((item) => item.id === source.slice(5));
         if (!lead || !v.routing) return;
@@ -826,7 +1155,7 @@
     const targetAt = (event) => {
       const el = document.elementFromPoint(event.clientX, event.clientY);
       const board = el?.closest?.('[data-board]'); if (board && scroll.contains(board)) return { id:board.dataset.board, el:board };
-      const sink = el?.closest?.('[data-sink]'); if (sink && scroll.contains(sink)) return { id:'unscoped', el:sink };
+      const sink = el?.closest?.('[data-sink]'); if (sink && scroll.contains(sink)) return { id:sink.dataset.sink || 'unscoped', el:sink };
       return null;
     };
     function onDown(event){
@@ -839,7 +1168,9 @@
         const source = port ? port.dataset.port : `lead:${lead.dataset.lead}`;
         const from = port || lead;
         const r = from.getBoundingClientRect(), base = scroll.querySelector('[data-canvas]').getBoundingClientRect();
-        gesture = { kind:'wire', source, start:{ x:event.clientX, y:event.clientY }, from:{ x:r.left + r.width / 2 - base.left, y:r.bottom - base.top }, moved:false, port:!!port, lead };
+        // An outcome's dot is on the right edge of its row: the wire leaves from the dot's middle.
+        const fromY = source.startsWith('outcome:') ? r.top + r.height / 2 : r.bottom;
+        gesture = { kind:'wire', source, start:{ x:event.clientX, y:event.clientY }, from:{ x:r.left + r.width / 2 - base.left, y:fromY - base.top }, moved:false, port:!!port, lead };
       } else if (head) {
         const board = head.closest('[data-board]');
         gesture = { kind:'board', id:head.dataset.boardHead, el:board, start:{ x:event.clientX, y:event.clientY }, moved:false };
@@ -920,6 +1251,8 @@
       }
       const link = event.target.closest('[data-link]');
       if (link) return openLink(link, link.dataset.link);
+      const flowOpen = event.target.closest('[data-flow-open]');
+      if (flowOpen && !event.target.closest('[data-port]')) return openFlow(flowOpen.dataset.flowOpen);
       const rename = event.target.closest('[data-rename]');
       if (rename) return renameLane(rename);
       const remove = event.target.closest('[data-lane-remove]');
@@ -933,6 +1266,8 @@
       if (lead && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openLead(lead, lead.dataset.lead); }
       const rename = event.target.closest?.('[data-rename]');
       if (rename && event.key === 'Enter') { event.preventDefault(); renameLane(rename); }
+      const flowOpen = event.target.closest?.('[data-flow-open]');
+      if (flowOpen && scroll.contains(flowOpen) && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openFlow(flowOpen.dataset.flowOpen); }
     }
     const onOutside = (event) => { if (pop && !pop.contains(event.target) && !event.target.closest?.('[data-lead],[data-link],[data-lane-add]')) closePop(); };
     scroll.addEventListener('pointerdown', onDown);
