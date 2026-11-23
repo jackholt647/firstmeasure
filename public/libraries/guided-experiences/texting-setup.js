@@ -7,7 +7,7 @@
 // page of its own.
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
-const REGISTRATION_SRC = '/libraries/apps/settings/sms-registration.js?v=20261123-gp149b';
+const REGISTRATION_SRC = '/libraries/apps/settings/sms-registration.js?v=20261123-gp150';
 const WIZARD_SRC = '/libraries/setup-wizard/setup-wizard.js?v=20261120-gp138';
 
 export function loadScript(src, win = window){
