@@ -273,7 +273,11 @@ export function mount(el, ctx){
     hint: () => part === 'new_menu' ? L('gx_leads_menu_hint', 'Keep at least one thing in the New menu.') : L('gx_leads_pick_hint', 'Pick one to continue.'),
     answer,
     escape: () => false,
-    destroy(){ alive = false; player?.destroy?.(); el.removeEventListener('click', onClick); el.removeEventListener('change', onChange); el.removeEventListener('keydown', onKey); }
+    destroy(){
+      alive = false; player?.destroy?.(); el.removeEventListener('click', onClick); el.removeEventListener('change', onChange); el.removeEventListener('keydown', onKey);
+      // What this step saved changes the page around it: the New menu reads its items and flows again.
+      if (part === 'new_menu' || part === 'script') { window.dispatchEvent(new CustomEvent('fm:flows:changed')); window.Portal?.appFlags?.load?.({ refresh: true }); }
+    }
   };
 }
 export default mount;

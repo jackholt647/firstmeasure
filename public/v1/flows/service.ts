@@ -400,10 +400,14 @@ export async function runsFor(auth: PlatformAuthContext, filter: { flow_id?: str
  * A preview plays a definition without a run or any writes (setups, the editor): the step a set of answers reaches, and
  * where each step goes. Records and actions are only described.
  */
-export function previewStep(definitionValue: unknown, input: { step_id?: string; answers?: unknown }) {
+export function previewStep(definitionValue: unknown, input: { step_id?: string; answers?: unknown }, auth?: PlatformAuthContext) {
   const definition = parseFlow(definitionValue);
   const answers = object(input.answers);
-  const context = { answers, contact: {}, project: {}, run: { kind: definition.kind }, user: {}, organization: {} };
+  // A sample lead, and the person and company playing it, so the words read the way they will on a real call.
+  const user = object(auth?.user), organization = object(auth?.organization);
+  const context = { answers, contact: { name: "Alex Rivera", first_name: "Alex", phone: "(555) 010-0100", email: "alex@example.com" }, project: { title: "12 Main St", address: "12 Main St" },
+    run: { kind: definition.kind }, user: { first_name: text(user.first_name) || text(user.name).split(" ")[0] || "you", name: text(user.name) },
+    organization: { name: text(organization.name || organization.company_name) || "your company" } };
   const step = stepOf(definition, text(input.step_id) || definition.start);
   return { step: stepView(step, context), next: resolveNext(step, context) };
 }
