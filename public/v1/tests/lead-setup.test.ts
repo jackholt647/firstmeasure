@@ -25,13 +25,13 @@ test("the leads setup makes new leads arrive as new leads, saves the new-lead fl
   await (await import("./helpers/platform-fixture.js")).enableExpandedPlatformFixture(ORG);
   const auth = { orgId: ORG, userId: "u_owner", role: "member", branchId: "default", permissions: { manage_company_settings: true, manage_projects: true, view_projects: true },
     user: { first_name: "Jo" }, organization: { name: "Setup Roofing" }, appEntitlements: [] } as unknown as PlatformAuthContext;
-  const ctx = { organizationId: ORG, auth, branchId: "default" } as never;
+  const ctx = { organizationId: ORG, auth, branchId: "default" } as Record<string, unknown> as never;
   const rep = { ...auth, userId: "u_rep", permissions: { manage_projects: true, view_projects: true } } as unknown as PlatformAuthContext;
 
   let status = await setup.leadSetupStatus(ctx);
   assert.deepEqual(status.answered, { sources: false, contact: false, no_answer: false, questions: false, script: false, new_menu: false });
   assert.equal(status.flow?.kind, "call", "unanswered, the flow is the call script");
-  await assert.rejects(() => setup.saveLeadSetup({ ...ctx, auth: rep } as never, { part: "contact", method: "call" }), /Company settings/);
+  await assert.rejects(() => setup.saveLeadSetup({ ...(ctx as Record<string, unknown>), auth: rep } as never, { part: "contact", method: "call" }), /Company settings/);
 
   status = await setup.saveLeadSetup(ctx, { part: "sources", sources: ["email", "website"] });
   assert.ok(status.sources.lead_inbox.on && status.sources.lead_inbox.address.includes("@"), "the lead inbox is on with its address");
