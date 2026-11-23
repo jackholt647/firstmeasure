@@ -4849,8 +4849,10 @@ window.PlatformCommerce.onReady(async function(){
     if(portal?.appFlags?.has?.('apps','comms') && phone){
       const status=await phone.refreshStatus();
       if(status?.settings?.enabled){
-        const opened=await phone.open({contact_id:contact.id,customer_name:contact.name,customer_number:contact.phone,project_id:projectOpenId()});
-        if(opened!==false){
+        // GP-155: the call opens in this window's Call tray (comms/project-call-tray.js).
+        const callTray=window.Portal?.ProjectCallTray,input={contact_id:contact.id,customer_name:contact.name,customer_number:contact.phone,project_id:projectOpenId()};
+        const opened=await (callTray?callTray.open(input):phone.open(input));
+        if(opened!==false && !callTray){
           if(['modal','fullscreen'].includes(projectModalWindow?.state?.mode))projectModalWindow.setMode('full');
           portal.PhoneTray?.showDocked?.();
         }

@@ -75,8 +75,10 @@
       const action=target.dataset.action;if(!action)return;
       // GP-12: the button gives at once, and shows a spinner if what it starts takes more than a moment.
       target.disabled=true;const slow=setTimeout(()=>target.setAttribute('aria-busy','true'),120);
+      // GP-155: in a project window a call opens in that window's Call tray (comms/project-call-tray.js).
+      const dial=input=>options.projectId&&Portal.ProjectCallTray?Portal.ProjectCallTray.open(input):phone.open(input);
       try{
-        if(action==='new-call')await phone.open({project_id:options.projectId||''});
+        if(action==='new-call')await dial({project_id:options.projectId||''});
         else if(action==='center-record')await phone.open({call_id:target.dataset.id},{artifacts:true});
         else if(action==='center-more'){state.centerCursor=state.centerNextCursor;await load(true);}
         else if(action==='center-next')await callCenterNext();
@@ -99,7 +101,7 @@
         else if(action==='open-call')await phone.open({call_id:target.dataset.id});
         else if(action==='select-call'){state.callId=target.dataset.id;render();await openCall(state.callId);}
         else if(action==='close-call'){state.callId='';state.callView=null;state.callTicket++;render();}
-        else if(action==='call-back'){const call=state.callView?.detail?.call||state.calls.find(c=>c.id===state.callId);if(call)await phone.open({project_id:options.projectId||call.project_id||'',customer_number:call.customer_number||'',contact_id:call.contact_id||''});}
+        else if(action==='call-back'){const call=state.callView?.detail?.call||state.calls.find(c=>c.id===state.callId);if(call)await dial({project_id:options.projectId||call.project_id||'',customer_number:call.customer_number||'',contact_id:call.contact_id||''});}
         else if(action==='auto-list'){const column=state.columns.find(c=>c.id===target.dataset.id);if(column)await phone.startDialer({...column,departmentId:state.departmentId});}
         else if(action==='start-list'){const column=state.columns.find(c=>c.id===target.dataset.id);const entry=column?.tasks.find(t=>t.ready&&!state.skipped.has(t.id));if(entry)await openEntry(entry);}
         else if(action==='open-entry'){const entry=state.columns.flatMap(c=>c.tasks).find(t=>t.id===target.dataset.id);if(entry)await openEntry(entry);}
@@ -109,7 +111,7 @@
         else if(action==='workflow-settings')ui.navigate({tab:'company_settings',sub:'calls',settingsEntity:target.dataset.id?`call-list:${target.dataset.id}`:null});
         else if(action==='add-entry')addEntry(target.dataset.id);
         else if(action==='new-followup')newFollowUp();
-        else if(action==='task-call'){const task=state.tasks.find(t=>t.id===target.dataset.id);const followup=task?.metadata?.follow_up||{};await phone.open({project_id:task.project_id||'',customer_number:followup.phone||'',contact_id:followup.contact_id||'',purpose:task.title,source_node_ids:[task.id]});}
+        else if(action==='task-call'){const task=state.tasks.find(t=>t.id===target.dataset.id);const followup=task?.metadata?.follow_up||{};await dial({project_id:task.project_id||'',customer_number:followup.phone||'',contact_id:followup.contact_id||'',purpose:task.title,source_node_ids:[task.id]});}
         else if(action==='task-complete'){await request(`follow-ups/${encodeURIComponent(target.dataset.id)}/actions`,{action:'complete'});await load();}
         else if(action==='task-snooze')snooze(target.dataset.id);
         else if(action==='reload')await load();

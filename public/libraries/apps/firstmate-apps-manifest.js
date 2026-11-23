@@ -44,7 +44,7 @@
     versionedBundle('../channels-ui/channels-ui.js', '20261116-directory-topic'),
     versionedBundle('../project-notes/project-notes.js', '20261111-offline-uploads'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-notes-separation-v1'),
-    versionedBundle('../project-trays/project-trays.js', '20261120-fm621-tray-clip')
+    versionedBundle('../project-trays/project-trays.js', '20261123-gp155-call-tray')
   ];
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20261111-offline-uploads'),
@@ -305,7 +305,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261123-gp153-minimized-bars'), versionedBundle('project-request/app.js', '20261119-gp100-tray-flow')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261123-gp153-minimized-bars'), versionedBundle('project-request/app.js', '20261123-gp155-call-tray')]
     },
     {
       id: 'firstmeasure.order',
@@ -355,7 +355,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'), versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261119-gp81-center-cache'), versionedBundle('comms/phone-tray.js', '20261123-gp147'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'), versionedBundle('comms/workspace.js', '20261123-gp147'), versionedBundle('comms/project.js', '20261119-gp12-instant')]
+      bundles: [versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'), versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261119-gp81-center-cache'), versionedBundle('comms/phone-tray.js', '20261123-gp155-call-tray'), versionedBundle('comms/calling-runtime.js', '20261123-gp155-call-tray'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'), versionedBundle('comms/workspace.js', '20261123-gp155-call-tray'), versionedBundle('comms/project-call-tray.js', '20261123-gp155-call-tray'), versionedBundle('comms/project.js', '20261119-gp12-instant')]
     },
     {
       id: 'project.measurements',
@@ -544,8 +544,8 @@
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('comms/communications-ui.js', '20261119-gp81-center-cache'),
         versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'),
-        versionedBundle('comms/phone-tray.js', '20261123-gp147'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'),
-        versionedBundle('comms/workspace.js', '20261123-gp147'),
+        versionedBundle('comms/phone-tray.js', '20261123-gp155-call-tray'), versionedBundle('comms/calling-runtime.js', '20261123-gp155-call-tray'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'),
+        versionedBundle('comms/workspace.js', '20261123-gp155-call-tray'), versionedBundle('comms/project-call-tray.js', '20261123-gp155-call-tray'),
         versionedBundle('chat/app.js', '20261120-gp113')
       ]
     },

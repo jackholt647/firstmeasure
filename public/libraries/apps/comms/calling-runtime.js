@@ -41,7 +41,9 @@
   }
   const identityReady=ownIdentity();
   const callPath=suffix=>`calls/${encodeURIComponent(state.call.id)}${suffix||''}`;
-  function changed(){queueMicrotask(()=>void advanceDialer());idleCheck();window.dispatchEvent(new CustomEvent('fm:customer-calls:changed',{detail:{call:state.call,registered:state.registered,available:state.available}}));}
+  // GP-155: project windows are frames that use this page's phone (ownerPhone below); its events reach them too.
+  function broadcast(name,detail){window.dispatchEvent(new CustomEvent(name,{detail}));for(const frame of document.querySelectorAll('iframe')){try{const child=frame.contentWindow;if(child&&child.Portal?.CustomerPhone)child.dispatchEvent(new child.CustomEvent(name,{detail}));}catch{}}}
+  function changed(){queueMicrotask(()=>void advanceDialer());idleCheck();broadcast('fm:customer-calls:changed',{call:state.call,registered:state.registered,available:state.available});}
   // A document-lifetime lock prevents two tabs from running a list for this caller.
   // Each call still uses the server's atomic entry/phone claim and operation ID.
   const dialer={active:false,listId:'',listIds:[],fast:false,title:'',seen:new Set(),timer:0,deadline:0,working:false,generation:0,release:null,message:''};
@@ -137,7 +139,7 @@
     el.addEventListener('change',event=>{
       if(event.target.name==='flow_choice')state.flowChoice=event.target.value;
       if(event.target.name==='next_action'){const appointments=el.querySelector('[data-appointments]');if(appointments)appointments.hidden=event.target.value!=='scheduled';}
-      if(event.target.name==='contact_choice'){const contact=state.contacts?.find(c=>c.id===event.target.value);if(contact){el.querySelector('[name=customer_name]').value=contact.name;el.querySelector('[name=customer_number]').value=contact.phone;state.prepared.contact_id=contact.id;}}
+      if(event.target.name==='contact_choice'){const contact=state.contacts?.find(c=>c.id===event.target.value);if(contact){const name=el.querySelector('[name=customer_name]'),number=el.querySelector('[name=customer_number]');if(name)name.value=contact.name;if(number)number.value=contact.phone;state.prepared.contact_id=contact.id;}}
     });
     return el;
   }
@@ -213,7 +215,7 @@
     state.detail=await request(callPath()).catch(()=>state.detail);render();changed();
   }
   function render(){
-    const focused=state.panel?.contains(document.activeElement)?document.activeElement:null;
+    const current=(state.panel?.ownerDocument||document).activeElement,focused=state.panel?.contains(current)?current:null;
     const inFlow=!!focused?.closest?.('.fmf'),focusName=inFlow?'':focused?.name,caret=focused?.selectionStart,caretEnd=focused?.selectionEnd;
     if(state.panel?.querySelector('.fmcp-analysis'))state.analysisOpen=state.panel.querySelector('.fmcp-analysis').open;
     const checked=new Set([...state.panel?.querySelectorAll('[data-source]:checked')||[]].map(e=>e.dataset.source));
@@ -280,7 +282,7 @@
     await identityReady;
     if(!state.deviceChecked&&checkValid())state.deviceChecked=true;
     if(state.diagnosing)throw new Error('Wait for the audio check to finish before opening a call.');
-    if(state.call&&!terminal.has(state.call.state)&&state.call.id!==input.call_id){state.minimized=false;if(input.call_id||input.entry_id)state.error='Finish the active call before opening another contact.';render();return false;}
+    if(state.call&&!terminal.has(state.call.state)&&state.call.id!==input.call_id){state.minimized=false;if(input.call_id||input.entry_id||input.customer_number||input.contact_id||input.project_id)state.error='Finish the active call before opening another contact.';render();return false;}
     if(state.call&&state.call.wrap_up_state!=='saved'&&terminal.has(state.call.state)&&state.status?.settings?.require_disposition&&state.call.id!==input.call_id){state.minimized=false;state.error='Save this call outcome before starting another call.';render();return false;}
     if(state.call&&(!Object.keys(input).length||input.call_id===state.call.id)){state.minimized=false;if(options.artifacts&&callPermission('recordings'))await artifacts();render();autoConnect();void Portal.PhoneTray?.selectTab('call');return true;}
     if(!input.call_id&&!input.entry&&!options.fromRoute){await Portal.PhoneTray?.beforeNewCall?.();if(state.call&&!terminal.has(state.call.state))return false;}
@@ -307,7 +309,7 @@
   }
   async function refreshContext(){const project=state.call?.project_id||state.prepared.project_id;if(!project)return;
     const ticket=state.openSequence,result=await request(`call-context?project_id=${encodeURIComponent(project)}`),context=result.projects?.[0];if(ticket!==state.openSequence)return;state.contacts=context?.contacts||[];state.appointments=context?.appointments||[];
-    if(!state.call&&!state.prepared.customer_number&&!state.entry){const contact=state.contacts.find(c=>c.primary&&c.phone)||state.contacts.find(c=>c.phone);if(contact){Object.assign(state.prepared,{contact_id:contact.id,customer_name:contact.name,customer_number:contact.phone});const form=state.panel;if(form?.querySelector('[name=customer_number]')?.value===''){form.querySelector('[name=customer_name]').value=contact.name;form.querySelector('[name=customer_number]').value=contact.phone;}}}
+    if(!state.call&&!state.prepared.customer_number&&!state.entry){const contact=state.contacts.find(c=>c.primary&&c.phone)||state.contacts.find(c=>c.phone);if(contact){Object.assign(state.prepared,{contact_id:contact.id,customer_name:contact.name,customer_number:contact.phone});const form=state.panel,number=form?.querySelector('[name=customer_number]');if(number?.value===''){const name=form.querySelector('[name=customer_name]');if(name)name.value=contact.name;number.value=contact.phone;}}}
   }
   async function start(){
     if(dialer.active){clearInterval(dialer.timer);dialer.timer=0;dialer.deadline=0;if(state.entry?.id)dialer.seen.add(state.entry.id);}
@@ -446,7 +448,7 @@
   async function next(skip=false){
     if(skip&&state.entry)await request(`call-list-entries/${encodeURIComponent(state.entry.id)}/skip`,{session_id:deviceId});
     const entryId=state.entry?.id;state.call=null;state.entry=null;ensurePanel().hidden=true;changed();
-    window.dispatchEvent(new CustomEvent('fm:customer-calls:next',{detail:{entry_id:entryId,skip}}));
+    broadcast('fm:customer-calls:next',{entry_id:entryId,skip});
   }
   async function handle(name,button){
     if(name==='pause-dialer'){pauseDialer();render();return;}
@@ -699,10 +701,14 @@
     if(!link||event.defaultPrevented||event.button||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
     const data=link.dataset,number=data.fmCustomerCall||(link.getAttribute('href')||'').replace(/^tel:/i,'');if(!number)return;
     event.preventDefault();
-    void call({contact_id:data.contactId,project_id:data.projectId,customer_name:data.customerName,customer_number:number}).catch(error=>{Portal.ui?.showToast?.('Call',error.message,false);});
+    const input={contact_id:data.contactId,project_id:data.projectId,customer_name:data.customerName,customer_number:number};
+    void (Portal.ProjectCallTray?.call?Portal.ProjectCallTray.call(input):call(input)).catch(error=>{Portal.ui?.showToast?.('Call',error.message,false);});
   });
-  Portal.CustomerPhone={startDialer,pauseDialer,supervise,get dialer(){return dialer;},open,call,deviceCall,connect,disconnect,availability,diagnose,devices,refreshStatus,saveNotes,get state(){return state;},get deviceId(){return deviceId;},
+  const local={startDialer,pauseDialer,supervise,get dialer(){return dialer;},open,call,deviceCall,connect,disconnect,availability,diagnose,devices,refreshStatus,saveNotes,get state(){return state;},get deviceId(){return deviceId;},
     get diagnostic(){return state.diagnostic;},
     get connecting(){return state.connecting;},get status(){return state.status;},get connected(){return state.registered;},get available(){return state.available;},get takingCalls(){return state.takingCalls;},get currentCall(){return state.call;},get currentEntry(){return state.panel&&!state.panel.hidden?state.entry?.id:null;}};
-  Portal.Communications=Portal.Communications||{};Portal.Communications.open=open;
+  // GP-155: a project window frame has one phone, the portal's: everything asked of its CustomerPhone (New call in its
+  // Comms tab, the call's state) goes to the page that owns the phone tray. Its own copy only serves when there is none.
+  Portal.CustomerPhone=window.parent===window?local:new Proxy(local,{get(target,key){const owner=ownerPhone();return Reflect.get(owner&&owner!==Portal.CustomerPhone?owner:target,key);}});
+  Portal.Communications=Portal.Communications||{};Portal.Communications.open=(...args)=>Portal.CustomerPhone.open(...args);
 })();
