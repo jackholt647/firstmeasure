@@ -49,6 +49,10 @@ export const registerFlowsApi: FastifyPluginAsync = async (app) => {
     const input = saveBody.parse(request.body ?? {});
     return { ok: true, flow: await saveFlow(await auth(request), { ...input, id: param(request, "flowId") }) };
   });
+  app.post("/organizations/:orgId/flows/:flowId/conversation", async (request) => {
+    const { ensureFlowConversation } = await import("./assistant.js");
+    return { ok: true, thread: await ensureFlowConversation(await auth(request), param(request, "flowId")) };
+  });
   app.post("/organizations/:orgId/flows/:flowId/archive", async (request) => {
     const input = z.object({ archived: z.boolean().default(true) }).strict().parse(request.body ?? {});
     return { ok: true, ...(await archiveFlow(await auth(request), param(request, "flowId"), input.archived)) };

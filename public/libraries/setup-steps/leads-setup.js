@@ -141,9 +141,21 @@ export function mount(el, ctx){
   function drawScript(){
     const flow = object(state.definition);
     if (!flow.steps) { el.innerHTML = `<div class="gxl"><p class="gxl-lead">${T('script_none', 'You treat new leads like any project, so there’s no script to set up.')}</p></div>`; return; }
+    // The script editor (a prototype beside the map editor): the flow as the script itself, in the wide sheet. What the
+    // step is about is its title's tooltip, so nothing above the editor takes height.
+    const onChange = (definition) => { state.definition = definition; report(); };
+    if (window.FirstMateFlowScriptEditor?.mount && !state.map) {
+      ctx.setWide?.(true);
+      el.innerHTML = '<div class="gxl-editor" data-editor style="height:min(720px,calc(var(--gx-vh,100vh) - 230px));min-height:480px;border:1px solid #eaecf0;border-radius:14px;overflow:hidden"></div>';
+      player = window.FirstMateFlowScriptEditor.mount(el.querySelector('[data-editor]'), { definition: flow, embedded: true, onChange,
+        onSwitchToMap: window.FirstMateFlowEditor?.mount ? (definition) => { state.definition = definition; state.map = true; player?.destroy?.(); drawScript(); } : undefined });
+      return;
+    }
     if (window.FirstMateFlowEditor?.mount) {
-      el.innerHTML = `<div class="gxl"><p class="gxl-lead">${T('script_lead', 'This is your new lead call script, made from your answers. Change anything; try it below.')}</p><div data-editor></div>${tip()}</div>`;
-      player = window.FirstMateFlowEditor.mount(el.querySelector('[data-editor]'), { definition: flow, embedded: true, onChange: (definition) => { state.definition = definition; report(); } });
+      ctx.setWide?.(true);
+      el.innerHTML = `<div class="gxl">${window.FirstMateFlowScriptEditor ? `<button type="button" class="gxl-btn" data-script-view style="align-self:flex-start"><i class="fas fa-align-left"></i> ${T('script_view', 'Script view')}</button>` : ''}<div data-editor></div></div>`;
+      player = window.FirstMateFlowEditor.mount(el.querySelector('[data-editor]'), { definition: flow, embedded: true, onChange });
+      el.querySelector('[data-script-view]')?.addEventListener('click', () => { player?.destroy?.(); state.map = false; drawScript(); });
       return;
     }
     const outcomes = new Map(array(flow.outcomes).map((entry) => [entry.id, entry]));
@@ -276,6 +288,7 @@ export function mount(el, ctx){
     destroy(){
       alive = false; player?.destroy?.(); el.removeEventListener('click', onClick); el.removeEventListener('change', onChange); el.removeEventListener('keydown', onKey);
       // What this step saved changes the page around it: the New menu reads its items and flows again.
+      if (part === 'script') ctx.setWide?.(false);
       if (part === 'new_menu' || part === 'script') { window.dispatchEvent(new CustomEvent('fm:flows:changed')); window.Portal?.appFlags?.load?.({ refresh: true }); }
     }
   };
