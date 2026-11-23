@@ -744,7 +744,7 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
         const el = document.createElement('div');
         el.className = 'gxs-step gxs-welcome-step'; el.dataset.gxStep = 'welcome';
         const points = array(welcome.points).map((point) => `<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><span>${H(point)}</span></li>`).join('');
-        el.innerHTML = `<div class="gxs-titlebar"><h2>${H(welcome.title)}</h2></div><div class="gxs-body"><div class="gxs-welcome"><p>${H(welcome.body)}</p>${points ? `<ul>${points}</ul>` : ''}${welcome.note ? `<p class="gxs-welcome-note">${H(welcome.note)}</p>` : ''}</div></div>`;
+        el.innerHTML = `<div class="gxs-titlebar"><h2>${H(welcome.title)}</h2><div class="gxs-title-actions"></div></div><div class="gxs-body"><div class="gxs-welcome"><p>${H(welcome.body)}</p>${points ? `<ul>${points}</ul>` : ''}${welcome.note ? `<p class="gxs-welcome-note">${H(welcome.note)}</p>` : ''}</div></div>`;
         stage.appendChild(el);
         currentPane = el;
         setHeadTitle(H(welcome.title));
