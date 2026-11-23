@@ -379,8 +379,8 @@ test('Domains workflow: buy a cart of domains with one payment',async()=>{
   }finally{await browser.close();}
 });
 
-// GP-147: the Call center's own setup (comms.call_center_setup, `only: 'phone'`): the same start with texts and calls and no
-// email, the same registration, and it finishes once registration is submitted. Opened where the phone is already set up,
+// GP-147: the Call center's own setup (comms.call_center_setup, `only: 'phone'`): its start explains carrier registration
+// (10DLC) with one button into the same registration, no email, and it finishes once registration is submitted. Opened where the phone is already set up,
 // it says so. Communications opened where the phone is set up and email is not: "Your phones are already set up", email
 // next, or skip it (the setup finishes, and its tour follows).
 async function phoneOnlyPage(browser,{status,options}){
@@ -415,13 +415,14 @@ test('Call center setup: texts and calls without email, registration, finished o
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try{
     const {page,errors}=await phoneOnlyPage(browser,{status:none(),options:{only:'phone',finish:'Go to the Call center'}});
-    await page.getByText('Every conversation with your customers in one place.').waitFor();
-    assert.deepEqual(await page.locator('[data-gxc-way]').evaluateAll(ways=>ways.map(way=>way.dataset.gxcWay)),['texts','calls'],'no email on the start');
-    assert.deepEqual(await page.locator('[data-gxc-start]').evaluateAll(buttons=>buttons.map(button=>button.dataset.gxcStart)),['phone'],'one way to start: the business phone');
-    assert.equal(await page.getByText('Where do you want to start?').count(),0);
-    const tops=await page.locator('.gxc-way').evaluateAll(ways=>ways.map(way=>way.offsetTop));
-    assert.equal(new Set(tops).size,1,'texts and calls side by side');
-    await page.getByRole('button',{name:/^Business phone/}).click();
+    // Nothing to choose: the start says what carrier registration is and how it goes, and one button starts it.
+    await page.locator('[data-gxc-register]').waitFor();
+    await page.getByText('This is called 10DLC registration.',{exact:false}).waitFor();
+    assert.deepEqual(await page.locator('.gxc-steps strong').allTextContents(),['Tell us about your business','Carriers review it','Text and call customers']);
+    assert.equal(await page.locator('[data-gxc-way]').count(),0,'no channel cards');
+    assert.equal(await page.getByText(/email/i).count(),0,'no email anywhere');
+    assert.equal(await page.locator('.gxc-choice').count(),0,'nothing that looks like a choice');
+    await page.getByRole('button',{name:'Register for texting'}).click();
     await page.waitForFunction(()=>typeof window.submitRegistration==='function');
     await page.evaluate(()=>submitRegistration());
     await page.waitForFunction(()=>completed===1);
@@ -429,6 +430,10 @@ test('Call center setup: texts and calls without email, registration, finished o
     assert.deepEqual(await page.evaluate(()=>calls.filter(c=>c.action==='comms.setup.start').map(c=>c.input.channel)),['phone','phone'],'email is never turned on');
     assert.deepEqual(errors,[]);
     await page.close();
+    // A registration already started is continued from the same button.
+    const draft=await phoneOnlyPage(browser,{status:{phone:{texts:true,registration:'draft'},email:{on:false,address:''},done:{phone:true,email:false}},options:{only:'phone'}});
+    await draft.page.getByRole('button',{name:'Continue registration'}).waitFor();
+    await draft.page.close();
     // Already set up (in Communications or Phone Settings): the done page says so, phone only, and goes to the Call center.
     const ready=await phoneOnlyPage(browser,{status:{phone:{texts:true,calls:true,numbers:['+12025550100'],registration:'approved'},email:{on:false,address:''},done:{phone:true,email:false}},options:{only:'phone',finish:'Go to the Call center'}});
     await ready.page.getByText('Ready on +12025550100.').waitFor();
