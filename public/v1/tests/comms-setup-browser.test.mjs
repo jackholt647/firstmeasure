@@ -49,11 +49,11 @@ test('Communications setup: start, carrier registration, one done page with emai
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('#gxc-tip-calls')).opacity==='1');
     for(const choice of ['phone','email'])assert.equal(await page.locator(`[data-gxc-start="${choice}"] .gxc-icon i`).evaluate(i=>getComputedStyle(i).getPropertyValue('content')!==''||i.className.includes('fa-')),true,choice+' has an icon');
     // Texts and calls: on at once and straight into registration, with no page in between.
-    await page.getByRole('button',{name:/^Texts and calls/}).click();
+    await page.getByRole('button',{name:/^Business phone/}).click();
     await page.waitForFunction(()=>calls.some(c=>c.action==='registration.open'));
     assert.deepEqual(await page.evaluate(()=>calls.map(c=>c.action)),['comms.setup.status','comms.setup.start','registration.open']);
     assert.equal(await page.getByText('Turn on texts and calls').count(),0);
-    assert.equal(await page.locator('.gxs').evaluate(sheet=>getComputedStyle(sheet).visibility+(sheet.inert?' inert':'')),'hidden inert','the setup steps aside while the workflow is open');
+    assert.equal(await page.evaluate(()=>calls.find(c=>c.action==='registration.open').input.container===document.querySelector('#step')),true,'registration is drawn in the setup\'s own step (GP-138)');
     await page.evaluate(()=>submitRegistration());
     // GP-7: registration submitted, the setup goes on to what is left: email. Back is the done page.
     await page.getByRole('button',{name:/^FirstMate Mail/}).waitFor();
@@ -86,7 +86,7 @@ test('Communications setup: start, carrier registration, one done page with emai
     assert.deepEqual(calls.filter(c=>c.action==='comms.setup.start').map(c=>c.input.channel),['phone','phone','email'],'phone again after registration reads where it stands');
     assert.equal(calls.filter(c=>c.action==='domains.open').length,0);
     assert.ok(calls.filter(c=>c.action==='comms.setup.start').every(c=>c.options.idempotencyKey&&c.target.scope==='organization'));
-    assert.deepEqual(calls.find(c=>c.action==='registration.open').input,{orgId:'org-test'});
+    assert.equal(calls.find(c=>c.action==='registration.open').input.orgId,'org-test');
     assert.deepEqual(calls.find(c=>c.action==='billing.review').input,{orgId:'org-test',priceId:'sms-basic'});
     assert.equal(await page.evaluate(()=>events.length),3,'each change tells Communications to redraw');
     await page.setViewportSize({width:390,height:844});
@@ -124,7 +124,7 @@ test('Communications setup: submitting registration with email on finishes the s
       window.completed=0;
       module.mount(document.querySelector('#step'),{options:{},orgId:'org-test',L:(key,fallback)=>fallback,esc:value=>String(value??''),change(){},complete:async()=>{completed++;}});
     });
-    await page.getByRole('button',{name:/^Texts and calls/}).click();
+    await page.getByRole('button',{name:/^Business phone/}).click();
     await page.waitForFunction(()=>typeof window.submitRegistration==='function');
     await page.evaluate(()=>submitRegistration());
     await page.waitForFunction(()=>completed===1);
@@ -376,5 +376,100 @@ test('Domains workflow: buy a cart of domains with one payment',async()=>{
     await wizard.getByRole('button',{name:'Check payment'}).click();
     await wizard.locator('[data-purchased]').getByText('acmeroofing.com, acmeroofing.co are yours').waitFor();
     assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+// GP-147: the Call center's own setup (comms.call_center_setup, `only: 'phone'`): the same start with texts and calls and no
+// email, the same registration, and it finishes once registration is submitted. Opened where the phone is already set up,
+// it says so. Communications opened where the phone is set up and email is not: "Your phones are already set up", email
+// next, or skip it (the setup finishes, and its tour follows).
+async function phoneOnlyPage(browser,{status,options}){
+  const page=await browser.newPage({viewport:{width:960,height:900}}),errors=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.route('https://comms-setup.test/**',async route=>{
+    const url=new URL(route.request().url());
+    if(url.pathname.startsWith('/libraries/'))return route.fulfill({contentType:'text/javascript',body:await readFile(new URL('../..'+url.pathname,import.meta.url),'utf8')});
+    return route.fulfill({contentType:'text/html',body:'<div class="gxs"><main id="step"></main></div>'});
+  });
+  await page.goto('https://comms-setup.test/');
+  await page.evaluate(({status,options})=>{
+    window.__APP={userOrgId:'org-test'};window.calls=[];window.registration='none';window.completed=0;window.changes=[];
+    window.PlatformAPI={baseUrl:()=>'/v1/platform',publication:{invoke:async(org,action,target,input)=>{calls.push({action,input});
+      if(action==='comms.setup.start'){if(input.channel==='phone'){status.phone={texts:true,registration};status.done.phone=true;}else{status.email={on:true,address:'acme@mail.test'};status.done.email=true;}}
+      return {value:structuredClone(status)};}}};
+    window.FirstMatePlatformBilling={isEnabled:()=>false};
+    window.FirstMateSetupWizard={open(){}};
+    window.FirstMateSmsRegistration={open:()=>new Promise(resolve=>{calls.push({action:'registration.open'});window.submitRegistration=()=>{registration='submitted';resolve({id:'profile'});};})};
+    window.DomainsAPI={config:async()=>({configured:false})};
+    window.__options=options;
+  },{status,options});
+  await page.evaluate(async()=>{
+    const module=await import('/libraries/guided-experiences/comms-setup.js');
+    module.mount(document.querySelector('#step'),{options:window.__options,orgId:'org-test',L:(key,fallback)=>fallback,esc:value=>String(value??''),change(value){changes.push(value);},setTitle(){},complete:async()=>{completed++;}});
+  });
+  return {page,errors};
+}
+const none=()=>({phone:{texts:false,registration:'none'},email:{on:false,address:''},done:{phone:false,email:false}});
+
+test('Call center setup: texts and calls without email, registration, finished once submitted',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const {page,errors}=await phoneOnlyPage(browser,{status:none(),options:{only:'phone',finish:'Go to the Call center'}});
+    await page.getByText('Every conversation with your customers in one place.').waitFor();
+    assert.deepEqual(await page.locator('[data-gxc-way]').evaluateAll(ways=>ways.map(way=>way.dataset.gxcWay)),['texts','calls'],'no email on the start');
+    assert.deepEqual(await page.locator('[data-gxc-start]').evaluateAll(buttons=>buttons.map(button=>button.dataset.gxcStart)),['phone'],'one way to start: the business phone');
+    assert.equal(await page.getByText('Where do you want to start?').count(),0);
+    const tops=await page.locator('.gxc-way').evaluateAll(ways=>ways.map(way=>way.offsetTop));
+    assert.equal(new Set(tops).size,1,'texts and calls side by side');
+    await page.getByRole('button',{name:/^Business phone/}).click();
+    await page.waitForFunction(()=>typeof window.submitRegistration==='function');
+    await page.evaluate(()=>submitRegistration());
+    await page.waitForFunction(()=>completed===1);
+    assert.equal(await page.getByRole('button',{name:/^FirstMate Mail/}).count(),0,'no email page after registration');
+    assert.deepEqual(await page.evaluate(()=>calls.filter(c=>c.action==='comms.setup.start').map(c=>c.input.channel)),['phone','phone'],'email is never turned on');
+    assert.deepEqual(errors,[]);
+    await page.close();
+    // Already set up (in Communications or Phone Settings): the done page says so, phone only, and goes to the Call center.
+    const ready=await phoneOnlyPage(browser,{status:{phone:{texts:true,calls:true,numbers:['+12025550100'],registration:'approved'},email:{on:false,address:''},done:{phone:true,email:false}},options:{only:'phone',finish:'Go to the Call center'}});
+    await ready.page.getByText('Ready on +12025550100.').waitFor();
+    assert.equal(await ready.page.getByText('Add email').count(),0,'email is not offered');
+    await ready.page.getByRole('button',{name:'Go to the Call center'}).click();
+    await ready.page.waitForFunction(()=>completed===1);
+    assert.deepEqual(await ready.page.evaluate(()=>calls.map(c=>c.action)),['comms.setup.status'],'nothing is turned on');
+    assert.deepEqual(ready.errors,[]);
+  }finally{await browser.close();}
+});
+
+test('Communications setup: phones already set up, email next or skip it',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  const phonesSet=()=>({phone:{texts:true,calls:false,registration:'submitted'},email:{on:false,address:''},done:{phone:true,email:false}});
+  try{
+    const {page,errors}=await phoneOnlyPage(browser,{status:phonesSet(),options:{}});
+    await page.locator('[data-gxc-phones-ready]').waitFor();
+    await page.getByText('Let’s set up your email next, or skip it and use Communications with texts and calls.').waitFor();
+    assert.deepEqual(await page.locator('[data-gxc-way] .gxc-way-on').allTextContents(),['Awaiting approval','Awaiting approval'],'texts and calls say where they stand');
+    // Email next: the email page, and Back returns here.
+    await page.getByRole('button',{name:/^Set up your email/}).click();
+    await page.getByRole('button',{name:/^FirstMate Mail/}).waitFor();
+    await page.getByRole('button',{name:'Back'}).click();
+    await page.locator('[data-gxc-phones-ready]').waitFor();
+    await page.getByRole('button',{name:/^Set up your email/}).click();
+    await page.getByRole('button',{name:/^FirstMate Mail/}).click();
+    await page.locator('[data-gxc-address]',{hasText:'acme@mail.test'}).waitFor();
+    assert.deepEqual(await page.evaluate(()=>calls.filter(c=>c.action==='comms.setup.start').map(c=>c.input.channel)),['email']);
+    assert.deepEqual(errors,[]);
+    await page.close();
+    // Skip: Communications with texts and calls; the setup finishes (its tour follows) and nothing is turned on.
+    const skip=await phoneOnlyPage(browser,{status:phonesSet(),options:{}});
+    await skip.page.getByRole('button',{name:'Skip, use texts and calls'}).click();
+    await skip.page.waitForFunction(()=>completed===1);
+    assert.deepEqual(await skip.page.evaluate(()=>calls.map(c=>c.action)),['comms.setup.status']);
+    assert.deepEqual(skip.errors,[]);
+    await skip.page.close();
+    // Phone on but registration not submitted: not "set up", so the usual start.
+    const draft=await phoneOnlyPage(browser,{status:{...phonesSet(),phone:{texts:true,registration:'draft'}},options:{}});
+    await draft.page.getByText('Where do you want to start?').waitFor();
+    assert.equal(await draft.page.locator('[data-gxc-phones-ready]').count(),0);
+    assert.deepEqual(draft.errors,[]);
   }finally{await browser.close();}
 });
