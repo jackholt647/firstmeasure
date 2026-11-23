@@ -263,12 +263,17 @@
   const FLOW_EVENTS = { 'lead.received':['m_b71569e0651789', 'New leads', 'fa-inbox'] };
 
   /**
-   * What starts each flow: an organization automation rule (on, with `input.flow_id` naming the flow; the leads setup
-   * adds one on `lead.received` for the new-lead flow), and the New menu (`entry.new_menu.enabled`).
+   * What starts each flow: an organization automation rule that names it (`input.flow_id`, or the call list it adds the
+   * lead to, `input.list.metadata.flow_id`: the leads setup names the new-lead flow on the New Leads call list's rule
+   * on `lead.received`), and the New menu (`entry.new_menu.enabled`).
    */
+  function ruleFlowId(rule){
+    const input = object(object(rule).input);
+    return clean(input.flow_id) || clean(object(object(input.list).metadata).flow_id);
+  }
   function flowStartsOf(flow, rules){
     const id = clean(flow.id);
-    const starts = array(rules).map(object).filter((rule) => rule.enabled !== false && clean(object(rule.input).flow_id) === id)
+    const starts = array(rules).map(object).filter((rule) => rule.enabled !== false && ruleFlowId(rule) === id)
       .map((rule) => ({ kind:'rule', id:`rule:${clean(rule.id)}`, rule_id:clean(rule.id), event:clean(rule.event), title:clean(rule.title) }));
     const menu = object(object(object(flow.definition).entry || flow.entry).new_menu);
     if (menu.enabled === true) starts.push({ kind:'new_menu', id:'new_menu', label:clean(menu.label) });
@@ -618,7 +623,8 @@
       draw();
     }
 
-    const flowsRequest = (path, options) => window.PlatformAPI.request(`/v1/flows/organizations/${encodeURIComponent(orgId)}${path}`, options);
+    // Full addresses: PlatformAPI.request puts relative paths under /v1/platform.
+    const flowsRequest = (path, options) => window.PlatformAPI.request(`${location.origin}/v1/flows/organizations/${encodeURIComponent(orgId)}${path}`, options);
     /**
      * The flows something starts (an organization rule naming the flow, or the New menu), each read whole: its newest
      * version for people who may change it (what a drag edits), the published one otherwise.
@@ -627,10 +633,10 @@
       if (!window.PlatformAPI?.request) return { flows:[], rules:[] };
       const [list, rules] = await Promise.all([
         flowsRequest('/flows'),
-        canEdit ? window.PlatformAPI.request(`/v1/work/organizations/${encodeURIComponent(orgId)}/branches/${branchId}/automation-rules`).catch(() => null) : Promise.resolve(null)
+        canEdit ? window.PlatformAPI.request(`${location.origin}/v1/work/organizations/${encodeURIComponent(orgId)}/branches/${branchId}/automation-rules`).catch(() => null) : Promise.resolve(null)
       ]);
       const ruleList = array(rules?.rules);
-      const named = new Set(ruleList.filter((rule) => rule?.enabled !== false).map((rule) => clean(object(rule?.input).flow_id)).filter(Boolean));
+      const named = new Set(ruleList.filter((rule) => rule?.enabled !== false).map((rule) => ruleFlowId(rule)).filter(Boolean));
       const wanted = array(list?.flows).map(object).filter((flow) => flow.archived !== true && (named.has(clean(flow.id)) || object(object(flow.entry).new_menu).enabled === true));
       const read = await Promise.all(wanted.map((flow) => flowsRequest(`/flows/${encodeURIComponent(flow.id)}${canEdit ? '?latest=1' : ''}`).then((result) => result?.flow ? { ...flow, ...result.flow } : null).catch(() => null)));
       return { flows:read.filter(Boolean), rules:ruleList };
