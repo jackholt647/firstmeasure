@@ -283,6 +283,40 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
   const placements = ['left','right','top-left','top-right','bottom-left','bottom-right','top','bottom'];
   let order = 0;
   let menu = null, menuTitle = null;
+  // Reload continuity (GP-148): a refresh keeps where each open window was (mode, dock, size, position). It belongs to
+  // this browser tab and only to a reload. A window takes part by naming itself with `restoreKey`; when the app
+  // reopens it after the reload, attach() puts it back. Only the top page saves: frames share its sessionStorage.
+  const placementsKey = 'fm-window-placements-reload-v1';
+  let ownsPlacements = false, reloadPlacementsSaved = [];
+  try { ownsPlacements = root === root.top; } catch (_) {}
+  function placementOrgId(){ return String(root.Portal?.cfg?.userOrgId || root.Portal?.cfg?.orgId || root.__APP?.userOrgId || ''); }
+  function restoreKeyOf(win){ try { return String(win.restoreKey?.() || ''); } catch (_) { return ''; } }
+  try {
+    if (ownsPlacements && root.performance?.getEntriesByType('navigation')[0]?.type === 'reload') {
+      const saved = JSON.parse(root.sessionStorage.getItem(placementsKey) || 'null');
+      if (Array.isArray(saved?.windows)) reloadPlacementsSaved = saved.windows.filter(item => item && typeof item.key === 'string' && item.key).map(item => ({...item, orgId:String(saved.orgId || '')}));
+    }
+    if (ownsPlacements) root.sessionStorage.removeItem(placementsKey);
+  } catch (_) {}
+  function savePlacementsForReload(){
+    try {
+      const saved = [...windows].filter(win => win.visible && restoreKeyOf(win)).sort((a,b)=>(a.stackOrder||0)-(b.stackOrder||0)).map(win => ({key:restoreKeyOf(win), ...win.placement()}));
+      if (saved.length) root.sessionStorage.setItem(placementsKey, JSON.stringify({orgId:placementOrgId(), windows:saved}));
+      else root.sessionStorage.removeItem(placementsKey);
+    } catch (_) {}
+  }
+  if (ownsPlacements) { root.addEventListener('pagehide', savePlacementsForReload); root.addEventListener('beforeunload', savePlacementsForReload); }
+  // Placements saved before the reload that no window has taken yet, bottom of the stack first. take() removes it.
+  function reloadPlacements(prefix = ''){
+    const org = placementOrgId();
+    return reloadPlacementsSaved.filter(item => item.key.startsWith(prefix) && (!item.orgId || !org || item.orgId === org)).map(item => ({...item}));
+  }
+  function takeReloadPlacement(key){
+    const index = key ? reloadPlacementsSaved.findIndex(item => item.key === key) : -1;
+    if (index < 0) return null;
+    const [item] = reloadPlacementsSaved.splice(index, 1), org = placementOrgId();
+    return !item.orgId || !org || item.orgId === org ? item : null;
+  }
   function styles(){
     if (document.getElementById('fm-window-styles')) return;
     const style = document.createElement('style'); style.id = 'fm-window-styles';
@@ -482,7 +516,7 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       mobileFullDock:options.mobileFullDock === true, sheet:() => options.mobileSheet === true && mobileFullscreen(),
       mode:modes.includes(options.mode) ? options.mode : 'floating', previous:'floating',
       pinned:false, visible:!element.hidden, dockWidth:options.dockWidth || 440, dockHeight:options.dockHeight || 360, dockSide:'right',
-      topInset:() => Math.max(0,Number(options.topInset?.(win.host) || 0)),
+      topInset:() => Math.max(0,Number(options.topInset?.(win.host) || 0)), restoreKey:() => typeof options.restoreKey === 'function' ? options.restoreKey() : options.restoreKey,
       rect:{left:Math.max(0,host.clientWidth-(options.width || 640)-24),top:72,width:options.width || 640,height:options.height || 520}
     };
     if (!win.stackElement) {
@@ -570,7 +604,7 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
     }
     function notify(reason){ options.onChange?.({mode:win.mode,dockSide:win.dockSide,pinned:win.pinned,reason}); }
     // allowFullscreen lets the app fill the screen with a window that offers no Fullscreen control (a phone held sideways, FM-621).
-    function setMode(mode,{silent=false,allowFullscreen=false}={}){
+    function setMode(mode,{silent=false,allowFullscreen=false,animate=true}={}){
       if (mobileFullscreen() && modes.includes(mode) && !(mode === 'minimized' && win.sheet())) mode = 'fullscreen';
       if (!modes.includes(mode) || (options.compactCall && !mobileFullscreen() && !['floating','docked','minimized'].includes(mode)) || (mode==='fullscreen' && options.allowFullscreen===false && !allowFullscreen && !mobileFullscreen())) return;
       if (mode !== win.mode) {
@@ -580,7 +614,7 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
         if(mode==='floating' && options.compactCall && !win.floated){win.floated=true;const bars=[...windows].filter(w=>w!==win&&w.visible&&w.mode==='minimized'&&w.host===win.host);win.rect.top=Math.max(win.topInset(),win.host.clientHeight-win.rect.height-8-(bars.length?44:0));win.rect.left=Math.max(0,win.host.clientWidth-win.rect.width-8);}
         win.mode=mode;
       }
-      const motion = options.animateGeometry && !root.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const motion = animate && options.animateGeometry && !root.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const before = motion ? element.getBoundingClientRect() : null;
       if (motion) { win.animation?.cancel(); element.style.transition='none'; }
       chrome(); layout(win.host); restack(); if (!silent) notify('mode');
@@ -619,6 +653,21 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
     buttons.place.onclick=()=>dock(win.mode==='docked' && win.dockSide==='right' ? 'left' : 'right');
     buttons.place.oncontextmenu=event=>{event.stopPropagation();showMenu(event,true);};
     function restore(){if(win.mode === 'minimized'){closeMenu();setMode(win.previous);focus();slideIn();}}
+    // Everything a reload needs to put the window back where it was (GP-148).
+    win.placement=()=>({mode:win.mode,previous:win.previous,dockSide:win.dockSide,pinned:win.pinned,rect:{...win.rect},dockWidth:win.dockWidth,dockHeight:win.dockHeight});
+    function applyPlacement(saved,{silent=false}={}){
+      if(!saved || typeof saved!=='object')return false;
+      const rect=saved.rect,finite=value=>Number.isFinite(value) && value>=0;
+      if(rect && ['left','top','width','height'].every(key=>finite(rect[key])))win.rect={left:rect.left,top:rect.top,width:rect.width,height:rect.height};
+      if(finite(saved.dockWidth))win.dockWidth=saved.dockWidth;
+      if(finite(saved.dockHeight))win.dockHeight=saved.dockHeight;
+      if(placements.includes(saved.dockSide)){win.dockSide=saved.dockSide;element.dataset.dock=saved.dockSide;}
+      win.pinned=saved.pinned===true;
+      setMode(modes.includes(saved.mode) ? saved.mode : win.mode,{silent,animate:false});
+      if(win.mode==='minimized' && modes.includes(saved.previous) && saved.previous!=='minimized')win.previous=saved.previous;
+      chrome();layout(win.host);
+      return true;
+    }
     buttons.minimize.onclick=() => win.mode === 'minimized' ? restore() : setMode('minimized');
     buttons.maximize.onclick=() => setMode(options.presentationModes ? 'full' : win.mode === 'full' ? 'floating' : 'full');
     buttons.close.onclick=requestClose;
@@ -782,8 +831,11 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       chrome(); layout(win.host);
     }; window.addEventListener('resize',refreshViewport);
     chrome();layout(host);focus();
+    // A window the app reopened after a reload comes back as it was.
+    const reloadPlacement=takeReloadPlacement(restoreKeyOf(win));
+    if(reloadPlacement)applyPlacement(reloadPlacement);
     return {
-      element, setMode, setPinned, focus, dock,
+      element, setMode, setPinned, focus, dock, applyPlacement,
       // Keep placement, gestures and minimized restore state when a loading
       // shell hands its chrome to the ready, isolated document.
       rebindChrome(next){
@@ -800,12 +852,13 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       },
       setMinimizedWidth(width){if(win.minimizedWidth!==width){win.minimizedWidth=width;layout(win.host);}},
       restore,
-      get state(){return {mode:win.mode,dockSide:win.dockSide,pinned:win.pinned,visible:win.visible};},
+      get state(){return {mode:win.mode,dockSide:win.dockSide,pinned:win.pinned,visible:win.visible,restored:!!reloadPlacement};},
+      get placement(){return win.placement();},
       setVisible,
       rehost(nextHost,contentTarget){if(nextHost===win.host)return;const old=win.host;registerHost(nextHost);win.host=nextHost;win.contentTarget=contentTarget;nextHost.append(element);if(win.ownedBackdrop)nextHost.append(win.ownedBackdrop);layout(old);releaseHost(old);layout(nextHost);},
       refresh(){layout(win.host);},
       destroy(){win.animation?.cancel();if(headerDocument!==document){headerDocument.removeEventListener('keydown',keydown);headerDocument.removeEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.removeEventListener('keydown',dismissMenuOnKey,true);}window.removeEventListener('resize',refreshViewport);endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('pointerdown',sheetDrag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);win.ownedBackdrop?.remove();win.stackElement?.removeAttribute('data-fm-window-backdrop');element.remove();layout(win.host);releaseHost(win.host);}
     };
   }
-  root.FirstMateWindows={attach, ensureStyles:styles, backdrops, opening};
+  root.FirstMateWindows={attach, ensureStyles:styles, backdrops, opening, reloadPlacements, takeReloadPlacement, savePlacementsForReload};
 })(window);
