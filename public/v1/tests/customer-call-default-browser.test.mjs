@@ -23,7 +23,6 @@ test('a customer phone link opens the FirstMate phone, with a subtle call from t
         if(path==='voice/status'){window.statusRequests++;return {settings:{enabled:window.voiceEnabled,allowed_destination_countries:['US'],allowed_country_prefixes:['+1']},permissions:{manage:true},numbers:[{phone_number:'+12065550199',label:'Development test line',status:'active'}],sms_numbers:[],default_number:'+12065550199'};}
         if(path==='voice/endpoint/token')return {token:'fixture',expires_at:new Date(Date.now()+3600000).toISOString()};
         if(path==='voice/endpoint/presence')return {availability:'unavailable'};
-        if(path==='call-scripts')return {scripts:[]};
         if(path.startsWith('call-context'))return {projects:[{contacts:[]}]};
         if(path.startsWith('voice/calls')||path.startsWith('calls'))return {calls:[],items:[]};
         return {};

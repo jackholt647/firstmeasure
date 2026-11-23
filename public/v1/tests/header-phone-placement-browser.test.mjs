@@ -25,7 +25,6 @@ test('header phone resets floating and minimized placement after close',async()=
         if(path==='voice/endpoint/presence')return {availability:'unavailable'};
         if(path==='voice/diagnostics')return {result:{verdict:'blocked',reason:'Allow microphone access and try again.'}};
         if(path==='voice/status')return {settings:{require_disposition:true,allowed_destination_countries:['US','CA'],allowed_country_prefixes:['+1'],...window.voiceSettings},permissions:{manage:true,recordings:true,record:true},numbers:[{phone_number:'+12065550199',label:'Main',status:'active'}],sms_numbers:[{phone_number:'+12065550199'}],default_number:'+12065550199'};
-        if(path==='call-scripts')return {scripts:[]};
         if(path==='call-context')return {contacts:[]};
         if(path==='call-lists/queue')return {columns:[]};
         if(path.startsWith('voice/contacts'))return {contacts:[{id:'contact-one',name:'Jane Test',phone:'+12025550124'}]};

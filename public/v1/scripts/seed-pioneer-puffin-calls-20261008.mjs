@@ -24,6 +24,9 @@ const calls=await load('comms/calls/storage.js');
 const callLists=await load('internal/crm/call_lists.js');
 const followUps=await load('work/followups.js');
 const work=await load('work/storage.js');
+const flowStorage=await load('flows/storage.js');
+const scriptFlows=await load('comms/calls/script-migration.js');
+const flowService=await load('flows/service.js');
 const org=await platform.readOrganization(ORG_ID);
 if(!String(org.name||'').startsWith('Pioneer Puffin Test Co')||org.metadata?.sandbox_test_org!==true)throw new Error('Unexpected target organization.');
 
@@ -103,18 +106,18 @@ const listSpecs=[
 ];
 
 const scriptByKey=new Map(scriptSpecs.map(spec=>[spec.key,spec]));
-const scriptSnapshot=key=>{const spec=scriptByKey.get(key);if(!spec)throw new Error(`Missing script: ${key}`);
-  return {id:id('script',key),version:1,title:spec.title,status:'published',data:{sections:spec.sections.map(([title,body])=>({title,body})),questions:spec.questions,department_ids:[]}};};
+// Call scripts are `call` flows since 2026-11-23 (comms/calls/script-migration.ts uses the same ids).
+const flowIdOf=key=>`call_script_${id('script',key)}`;
+const scriptSnapshot=key=>{const spec=scriptByKey.get(key);if(!spec)throw new Error(`Missing script: ${key}`);return {id:flowIdOf(key),version:1,name:spec.title};};
 const stats={mode:apply?'applied':'dry-run',org_id:ORG_ID,calls:0,script_links:0,scripts:0,followups:0,lists:0,entries:0,existing:0};
 const db=calls.database();
 const author=byStaff.get('Sam Rivera').id;
 for(const spec of scriptSpecs){
-  const scriptId=id('script',spec.key);
-  const existing=await db.prepare('SELECT id FROM customer_call_scripts WHERE organization_id=? AND id=? LIMIT 1').get(ORG_ID,scriptId);
-  if(existing){stats.existing++;continue;}
+  const flowId=flowIdOf(spec.key);
+  if(await flowStorage.readHead(ORG_ID,flowId)){stats.existing++;continue;}
   stats.scripts++;
-  if(apply)await db.prepare('INSERT INTO customer_call_scripts(organization_id,id,version,title,status,data_json,created_at,author_id) VALUES(?,?,?,?,?,?,?,?)').run(
-    ORG_ID,scriptId,1,spec.title,'published',JSON.stringify({sections:spec.sections.map(([title,body])=>({title,body})),questions:spec.questions,department_ids:[]}),at('2026-10-08T08:00:00-04:00'),author);
+  const definition=flowService.parseFlow(scriptFlows.callScriptFlow({title:spec.title,sections:spec.sections.map(([title,body])=>({title,body})),questions:spec.questions},id('script',spec.key)));
+  if(apply)await flowStorage.writeVersion(ORG_ID,flowId,{name:definition.name,kind:definition.kind,definition,publish:true,authorId:author});
 }
 
 const followUpIds=new Map();
@@ -140,10 +143,10 @@ for(const spec of callSpecs){
   const callId=id('call',spec.key);
   let existing;try{existing=await calls.readCall(ORG_ID,callId);}catch(error){if(error.statusCode!==404)throw error;}
   if(existing){
-    if(existing.metadata?.source===SOURCE&&!existing.metadata?.script){
+    if(existing.metadata?.source===SOURCE&&!existing.metadata?.flow){
       stats.script_links++;
       if(apply)await db.prepare('UPDATE customer_calls SET metadata_json=? WHERE organization_id=? AND id=?').run(
-        JSON.stringify({...existing.metadata,script:scriptSnapshot(spec.script)}),ORG_ID,callId);
+        JSON.stringify({...existing.metadata,flow:scriptSnapshot(spec.script)}),ORG_ID,callId);
     }else stats.existing++;
     continue;
   }
@@ -156,8 +159,8 @@ for(const spec of callSpecs){
     customer_number,business_number,customer_name,entry_id,created_at,updated_at,connected_at,ended_at,revision,notes,result_json,metadata_json)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(callId,ORG_ID,'default',target.project.id,target.contact.id,staff.id,'external',spec.direction,'ended','saved',
     `+1${target.contact.phone.replace(/\D/g,'')}`,'',spec.customer,'',start,end,connected,end,1,spec.notes,JSON.stringify(result),
-    JSON.stringify({synthetic:true,source:SOURCE,purpose:spec.purpose,actor_name:spec.owner,script_id:id('script',spec.script),
-      script:scriptSnapshot(spec.script),recording_available:false}));
+    JSON.stringify({synthetic:true,source:SOURCE,purpose:spec.purpose,actor_name:spec.owner,
+      flow:scriptSnapshot(spec.script),recording_available:false}));
   for(const [kind,when] of [['communication.call.created',start],['communication.call.ended',end],['communication.call.wrap_up_saved',end]]){
     await db.prepare('INSERT INTO customer_call_events(id,organization_id,call_id,type,created_at,data_json) VALUES(?,?,?,?,?,?) ON CONFLICT DO NOTHING')
       .run(id('ce',`${spec.key}:${kind}`),ORG_ID,callId,kind,when,JSON.stringify({synthetic:true,source:SOURCE}));

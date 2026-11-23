@@ -181,6 +181,47 @@ Where it is embedded:
   shown or migrated here (the call surface's migration does that).
 - The setup's script step and the hub's flow box (their own sessions) mount it the same way.
 
+## The call surface
+
+Built 2026-11-23. A call's script is a run of a `call` flow, linked both ways:
+the call keeps `metadata.flow_run_id` and `metadata.flow` (`{id, version, name}`),
+the run keeps `call_id`. `comms/calls/flow-runs.ts` owns the link.
+
+- **Starting.** `POST /v1/comms/.../calls` with `flow_id` (refused before dialing
+  when it is not published) or `flow_run_id` (carry on the lead's open run), or
+  during the call `POST calls/:id/flow` `{ flow_id | run_id }`. A run started
+  through `POST /v1/flows/.../runs` with `source.call_id` is checked the same way
+  (only someone who may change the call, and not after its outcome is saved) and
+  linked. A carried-on run must be for the call's project or contact; a run
+  waiting on a lead (`source.kind` `automation` or `call_list_entry`) is anyone's
+  to carry on, a person's own run only theirs.
+- **Playing.** The call's owner plays it (`FirstMateFlows.mount(el, { runId,
+  surface: 'call' })`), including after a transfer or takeover: `load` lets
+  whoever has the call now play its run. Observers read `flow_run` from
+  `GET calls/:id` (`runSummary`: step, labelled answers, outcome).
+- **Ending.** The run's outcome is the call's result: `result.flow_outcome`
+  `{run_id, flow_id, outcome_id, label, color, disposition, next_action}`. The
+  wrap-up is pre-filled from it and the saved wrap-up keeps it;
+  `require_disposition` is unchanged. The outcome's effects run in the work engine
+  like any flow's. An outcome says which wrap-up it means with
+  `call: { disposition, next_action }`; without it, common ids read as usual
+  (`ready`/`booked` answered, `call_back` callback, `no_answer`, `voicemail`,
+  `busy`, `not_a_lead`/`wrong_number` wrong number, `do_not_call`) and anything
+  else pre-fills nothing (`callResultForOutcome`, `flows/contracts.ts`).
+- **Without a call.** The CRM worklist plays the lead's open run (from a rule, a
+  call list entry, the CRM or a call) or the published flow its call list entry
+  names (`metadata.flow_id`, on the row as `flow_id`) in the panel instead of the
+  fixed result form, which stays for leads with neither ("Record a result
+  instead" switches). A run played for a call list entry with no call completes
+  the entry with its outcome.
+- **Migration.** `comms/calls/script-migration.ts` copied `customer_call_scripts`
+  into flows `call_script_<id>` once at startup (each section a step of `say`
+  lines, the questions a last step of `ask` blocks `q_<n>`; the newest published
+  version stays what plays, a newer draft follows as a draft; archived scripts are
+  dropped) and dropped the table. `script_answers`, the `call-scripts` routes and
+  the Comms Scripts editor are gone; Comms › Scripts lists call flows and opens
+  them in the flow editor (`FirstMateFlowEditor.open`) or a preview.
+
 ## The New menu
 
 Any flow with `entry.new_menu.enabled` is a New menu item, `flow:<id>`, beside the
@@ -222,7 +263,7 @@ goes straight to the default board.
 1. Contract, store, runs, published reads and actions, the player (modal, preview, panel),
    the default `new_lead_call` flow, New menu `flow:<id>` items.
 2. The leads setup steps; CRM settings › Flows; the editor; the hub's flow box; the call
-   surface (call scripts become flows; `customer_call_scripts` is migrated and dropped).
+   surface (call scripts become flows; `customer_call_scripts` is migrated and dropped; built, see "The call surface").
 3. Website forms rebuilt as public flows (blocks for appointments, measurement and
    pricing in the evaluate-only sandbox, `page` surface); staff forms become flows.
 4. Comparing a call's transcript with its script.
@@ -241,9 +282,9 @@ goes straight to the default board.
   `leads.script` → `leads.new_menu`, required by the experience `leads.setup`, which plays on the first visit to
   the CRM or the Automations Hub. Saving the script publishes the flow `new_lead_call` and names it on the New Leads
   call list (`platform_queue_new_lead_calls` list metadata `flow_id`); New › Lead is the flow `new_lead`.
-- Not yet: the editor, the hub's flow boxes, the call surface and call-script migration, CRM settings › Flows,
-  forms on flows. Until the hub's autoplay knows about `leads.setup`, an organization whose intake routing was never
-  saved can see both setups on its first hub visit.
+- Then (same day): the flow editor and CRM settings › Flows, the hub's flow boxes, and calls playing flows with
+  `customer_call_scripts` migrated (see their sections). Not yet: forms on flows. Until the hub's autoplay knows about
+  `leads.setup`, an organization whose intake routing was never saved can see both setups on its first hub visit.
 
 ## Tests
 
@@ -251,4 +292,6 @@ goes straight to the default board.
 access, the editor's action list), `tests/flow-editor-browser.test.mjs` (CRM settings › Flows, the
 map and its lines, in-place edits, preview, save with `expected_version`, server issues beside
 their field, a conflict, a new flow in the New menu, archive, read-only and narrow),
-`tests/lead-setup.test.ts` (the leads setup's effects).
+`tests/lead-setup.test.ts` (the leads setup's effects), `tests/customer-calls.test.ts`
+(flows on calls, outcome to wrap-up, the script migration), `tests/call-flow-script-browser.test.mjs` (the call panel),
+`tests/automations-hub-model.test.mjs` (flow boxes and their wires).

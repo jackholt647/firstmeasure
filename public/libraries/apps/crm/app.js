@@ -1138,6 +1138,32 @@
     }
 
     // ---- Worklists -------------------------------------------------------------------
+    /**
+     * The flow a worklist row is worked with (docs/architecture/flows.md, "The call surface"): the lead's open run that is
+     * waiting on it (started by a rule, a call list entry, the CRM or a call), else the published flow its call list entry
+     * names. None means the fixed result form.
+     */
+    async function worklistFlow(row, project){
+      const flows = window.FirstMateFlows; if (!flows?.api || !flows.mount) return null;
+      const projectId = text(project?.id || row.project_id);
+      try {
+        if (projectId) {
+          const open = arr((await flows.api(`/runs?project_id=${encodeURIComponent(projectId)}`)).runs)
+            .find((run) => run.status === 'open' && ['automation', 'call_list_entry', 'crm', 'call'].includes(text(run.source?.kind)));
+          if (open) return { runId: open.id };
+        }
+        const flowId = text(row.flow_id);
+        if (flowId && (await flows.api(`/flows/${encodeURIComponent(flowId)}`)).flow) return { flowId };
+      } catch { /* no flow to play: the fixed form */ }
+      return null;
+    }
+    function mountWorklistFlow(slot, row, project, contact, flow, options = {}){
+      slot.innerHTML = `<div data-wl-flow></div><div style="display:flex;justify-content:flex-end;margin-top:10px"><button type="button" class="crm-btn small ghost" data-wl-fixed>${esc(L('record_result_instead', 'Record a result instead'))}</button></div>`;
+      const source = { kind: 'crm', ...Object.fromEntries([['project_id', text(project?.id || row.project_id)], ['contact_id', text(contact?.id || row.contact_id)], ['entry_id', text(row.entry_id)]].filter(([, value]) => value)) };
+      const player = window.FirstMateFlows.mount(slot.querySelector('[data-wl-flow]'), flow.runId ? { runId: flow.runId, surface: 'panel', onClose: options.onDone } : { flowId: flow.flowId, surface: 'panel', source, onClose: options.onDone });
+      slot.querySelector('[data-wl-fixed]').addEventListener('click', () => { player?.destroy?.(); slot.onclick = null; mountResultForm(slot, row, project, contact, options); });
+    }
+
     async function openWorklist(rows){
       if (!rows) {
         const total = state.result?.total || 0;
@@ -1198,7 +1224,14 @@
       body.querySelector('[data-wl-text]')?.addEventListener('click', () => openProjectWindow(project, 'comms'));
       body.querySelector('[data-wl-open]')?.addEventListener('click', () => openProjectWindow(project));
       body.querySelector('[data-wl-book]')?.addEventListener('click', () => window.FirstMateBooking.open({ orgId, projectId: project.id, lockProject: true, onBooked: () => toast(L('booked', 'Booked')) }));
-      if (project || row.entry_id || row.node_id) mountResultForm(body.querySelector('[data-wl-result]'), row, project, contact, { inline: true, saveLabel: L('save_and_next', 'Save and next'), onDone: () => { wl.worked.add(row.id); advance(); } });
+      if (project || row.entry_id || row.node_id) {
+        const slot = body.querySelector('[data-wl-result]'), resultOptions = { inline: true, saveLabel: L('save_and_next', 'Save and next'), onDone: () => { wl.worked.add(row.id); advance(); } };
+        // A lead with a flow (its open new-lead run, or the flow its call list entry names) is worked by playing it.
+        const flow = await worklistFlow(row, project);
+        if (state.worklist !== wl || wl.index !== index) return;
+        if (flow) mountWorklistFlow(slot, row, project, contact, flow, resultOptions);
+        else mountResultForm(slot, row, project, contact, resultOptions);
+      }
       else body.querySelector('[data-wl-result]').innerHTML = `<p class="crm-dim">${esc(L('no_result_target', 'This row has no project to record a result on.'))}</p>`;
     }
     function advance(){

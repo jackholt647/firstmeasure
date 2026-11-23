@@ -8,8 +8,8 @@
   const participantActive=p=>['ringing','connecting','connected','held','holding','resuming','uncertain','leaving'].includes(p.state);
   const ourParticipant=()=>state.detail?.participants?.find(p=>p.user_id===ui.user()&&participantActive(p));
   const formatPhone=value=>Portal.PhoneTray?.formatPhone(value)||value;
-  const state={call:null,detail:null,entry:null,scripts:[],status:null,client:null,sdkCall:null,registered:false,available:false,
-    busy:false,error:'',dirty:false,notes:'',answers:{},panel:null,minimized:false,muted:false,localId:uid(),prepared:{},poll:0,saveTimer:0,tokenTimer:0,heartbeat:0,readyPromise:null,connectionSequence:0,connecting:false,disconnectPromise:null,openSequence:0,takingCalls:false,idleTimer:0};
+  const state={call:null,detail:null,entry:null,flows:[],leadRuns:[],flowPlayer:null,status:null,client:null,sdkCall:null,registered:false,available:false,
+    busy:false,error:'',dirty:false,notes:'',panel:null,minimized:false,muted:false,localId:uid(),prepared:{},poll:0,saveTimer:0,tokenTimer:0,heartbeat:0,readyPromise:null,connectionSequence:0,connecting:false,disconnectPromise:null,openSequence:0,takingCalls:false,idleTimer:0};
   // FM-536: the phone connects when a call needs it and disconnects once it has been idle this long,
   // unless the person chose to take incoming calls (routing only offers calls to a connected, available phone).
   const idleDisconnectMs=2*60_000;
@@ -133,9 +133,9 @@
       if(event.target.name==='analysis_question')state.analysisQuestion=event.target.value;
       if(event.target.name==='due_at'){state.policyDate='';state.usePolicy=false;}
       if(event.target.name==='notes'){state.notes=event.target.value;state.dirty=true;persistLocal();scheduleSave();}
-      if(event.target.dataset.question!==undefined){state.answers[event.target.dataset.question]=event.target.value;state.dirty=true;persistLocal();scheduleSave();}
     });
     el.addEventListener('change',event=>{
+      if(event.target.name==='flow_choice')state.flowChoice=event.target.value;
       if(event.target.name==='next_action'){const appointments=el.querySelector('[data-appointments]');if(appointments)appointments.hidden=event.target.value!=='scheduled';}
       if(event.target.name==='contact_choice'){const contact=state.contacts?.find(c=>c.id===event.target.value);if(contact){el.querySelector('[name=customer_name]').value=contact.name;el.querySelector('[name=customer_number]').value=contact.phone;state.prepared.contact_id=contact.id;}}
     });
@@ -143,15 +143,78 @@
   }
   function scope(){return `${ui.org()}:${ui.user()}`;}
   function localKey(){return `fm-call-draft:${state.boundScope||scope()}:${state.call?.id||state.localId}`;}
-  function persistLocal(){try{sessionStorage.setItem(localKey(),JSON.stringify({notes:state.notes,answers:state.answers,at:Date.now()}));}catch{/* Server autosave remains authoritative. */}}
-  function restoreLocal(){try{const draft=JSON.parse(sessionStorage.getItem(localKey())||'null');if(draft&&Date.now()-draft.at<86400000&&draft.notes!==state.call?.notes){state.notes=draft.notes;state.answers=draft.answers||{};state.dirty=true;}}catch{}}
+  function persistLocal(){try{sessionStorage.setItem(localKey(),JSON.stringify({notes:state.notes,at:Date.now()}));}catch{/* Server autosave remains authoritative. */}}
+  function restoreLocal(){try{const draft=JSON.parse(sessionStorage.getItem(localKey())||'null');if(draft&&Date.now()-draft.at<86400000&&draft.notes!==state.call?.notes){state.notes=draft.notes;state.dirty=true;}}catch{}}
   function readForm(){
     const el=state.panel;if(!el)return {};
-    return Object.fromEntries([...el.querySelectorAll('[name]')].map(e=>[e.name,e.value]));
+    return Object.fromEntries([...el.querySelectorAll('[name]')].filter(e=>!e.closest('.fmf')).map(e=>[e.name,e.value]));
+  }
+  // ── The call's script: a `call` flow played by the flow player (docs/architecture/flows.md, "The call surface").
+  // The run lives on the server and on the call (metadata.flow_run_id); its outcome is the call's result and pre-fills
+  // the wrap-up. The player keeps its own element across this panel's redraws; observers get a read-only summary.
+  const flowText=(key,fallback,values)=>globalThis.PlatformLanguage?.text?.('comms',key,fallback,values)??fallback.replace(/\{(\w+)\}/g,(_,k)=>values?.[k]??'');
+  async function loadFlows(projectId,ticket){
+    const flows=window.FirstMateFlows;if(!flows?.api){state.flows=[];state.leadRuns=[];return;}
+    const [list,runs]=await Promise.all([flows.api('/flows').catch(()=>({flows:[]})),projectId?flows.api(`/runs?project_id=${encodeURIComponent(projectId)}`).catch(()=>({runs:[]})):{runs:[]}]);
+    if(ticket!==undefined&&ticket!==state.openSequence)return;
+    state.flows=(list.flows||[]).filter(f=>f.kind==='call'&&f.published_version>0&&!f.archived);
+    // A lead's open run of a call flow (the new-lead flow waiting on them) is carried on rather than started again.
+    state.leadRuns=(runs.runs||[]).filter(r=>r.status==='open'&&state.flows.some(f=>f.id===r.flow_id));
+  }
+  const flowName=id=>state.flows.find(f=>f.id===id)?.name||flowText('flow_script','Script');
+  function flowChoices(none=true){
+    return [...(none?[['',flowText('no_script','No script')]]:[]),...state.leadRuns.map(r=>[`run:${r.id}`,flowText('continue_script','Continue: {name}',{name:flowName(r.flow_id)})]),...state.flows.map(f=>[`flow:${f.id}`,f.name])];
+  }
+  function defaultFlowChoice(){
+    if(state.leadRuns[0])return `run:${state.leadRuns[0].id}`;
+    const named=String(state.entry?.metadata?.flow_id||state.prepared?.flow_id||'');
+    return named&&state.flows.some(f=>f.id===named)?`flow:${named}`:'';
+  }
+  function flowChoiceBody(choice){
+    const value=String(choice||'');
+    return value.startsWith('run:')?{flow_run_id:value.slice(4)}:value.startsWith('flow:')?{flow_id:value.slice(5)}:{};
+  }
+  function flowMarkup(c,readOnly,saved){
+    const runId=c.metadata?.flow_run_id;
+    if(runId&&!readOnly)return `<section class="fmcp-script fmcp-flow" data-flow-slot aria-label="${esc(flowText('call_script','Call script'))}"></section>`;
+    if(runId){
+      const run=state.detail?.flow_run;if(!run)return '';
+      const status=run.outcome?.label||(run.status==='open'?flowText('script_open','In progress'):label(run.status));
+      return `<details class="fmcp-script" data-flow-summary open><summary>${esc(run.name)} <span class="fmcm-pill">${esc(status)}</span></summary>${run.status==='open'&&run.step?.title?`<p class="fmcm-help">${esc(flowText('script_now','Now: {step}',{step:run.step.title}))}</p>`:''}${(run.answers||[]).map(a=>`<p><b>${esc(a.label)}</b> ${esc(a.value)}</p>`).join('')}</details>`;
+    }
+    if(readOnly||saved||!state.flows.length)return '';
+    return `<div class="fmcm-form-grid" data-flow-picker>${select(flowText('call_script','Call script'),'flow_pick',flowChoices(false),defaultFlowChoice()||flowChoices(false)[0]?.[0]||'')}<button data-phone="flow-start">${esc(flowText('start_script','Start script'))}</button></div>`;
+  }
+  function closeFlow(){state.flowPlayer?.player?.destroy?.();state.flowPlayer=null;}
+  function attachFlow(el,c,readOnly){
+    const runId=c?.metadata?.flow_run_id,slot=el.querySelector('[data-flow-slot]');
+    if(!runId||readOnly){closeFlow();return;}
+    if(!slot)return;
+    if(!window.FirstMateFlows?.mount){slot.innerHTML=`<p class="fmcm-help">${esc(flowText('script_unavailable','The script cannot be shown here.'))}</p>`;return;}
+    if(state.flowPlayer?.runId!==runId){
+      closeFlow();const host=document.createElement('div');host.className='fmcp-flow-host';
+      state.flowPlayer={runId,host,player:window.FirstMateFlows.mount(host,{runId,surface:'call',onDone:()=>void flowFinished(runId)})};
+    }
+    slot.append(state.flowPlayer.host);
+  }
+  /** The run ended: its outcome is on the call now. Take the call as the server has it so the wrap-up is pre-filled. */
+  async function flowFinished(runId){
+    if(state.flowDone===runId||state.call?.metadata?.flow_run_id!==runId)return;state.flowDone=runId;
+    await saveNotes().catch(()=>{});
+    const result=await request(callPath()).catch(()=>null);
+    if(!result||state.call?.id!==result.call.id||state.dirty)return;
+    state.call=result.call;state.detail=result;render();changed();
+  }
+  async function startFlow(){
+    const choice=state.panel?.querySelector('[name=flow_pick]')?.value||'';const body=flowChoiceBody(choice);
+    if(!body.flow_id&&!body.flow_run_id)throw new Error(flowText('choose_script','Choose a script.'));
+    await saveNotes();
+    const result=await request(callPath('/flow'),body);state.call=result.call;
+    state.detail=await request(callPath()).catch(()=>state.detail);render();changed();
   }
   function render(){
     const focused=state.panel?.contains(document.activeElement)?document.activeElement:null;
-    const focusName=focused?.name,focusQuestion=focused?.dataset?.question,caret=focused?.selectionStart,caretEnd=focused?.selectionEnd;
+    const inFlow=!!focused?.closest?.('.fmf'),focusName=inFlow?'':focused?.name,caret=focused?.selectionStart,caretEnd=focused?.selectionEnd;
     if(state.panel?.querySelector('.fmcp-analysis'))state.analysisOpen=state.panel.querySelector('.fmcp-analysis').open;
     const checked=new Set([...state.panel?.querySelectorAll('[data-source]:checked')||[]].map(e=>e.dataset.source));
     const el=ensurePanel(),c=state.call,p=state.prepared,values=readForm();el.hidden=false;el.classList.toggle('minimized',state.minimized);
@@ -161,8 +224,8 @@
     const observer=c?.owner_user_id&&c.owner_user_id!==ui.user();
     const supervising=state.detail?.supervision?.session&&!['ended','failed','taken_over'].includes(state.detail.supervision.session.state);
     const active=c?.mode==='browser'&&!terminal.has(c.state),saved=c?.wrap_up_state==='saved',processing=c?.wrap_up_state==='processing_effects';
-    const connected=['connected','held'].includes(c?.state),incoming=state.sdkCall?.state==='ringing',script=c?.metadata?.script;
-    const scriptData=script?.data||{};
+    const connected=['connected','held'].includes(c?.state),incoming=state.sdkCall?.state==='ringing';
+    const flowOutcome=c?.result?.flow_outcome,outcomeKey=flowOutcome?.outcome_id?`${flowOutcome.run_id}:${flowOutcome.outcome_id}`:'',prefill=!!outcomeKey&&state.prefilledOutcome!==outcomeKey;
     const title=c?.customer_name||p.customer_name||state.entry?.name||'New call';
     const number=c?.customer_number||p.customer_number||state.entry?.phone||'';
     const capture=c?.metadata?.capture?.state;
@@ -181,30 +244,32 @@
       ${c.project_id?`<button data-phone="project">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_d29bbd8b50abe3",`${v0} Project`,{v0}) ?? `${v0} Project`)(icon('folder-open'))}</button><button data-phone="schedule">${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_1ba8da8140fc77",`${v1} Schedule`,{v1}) ?? `${v1} Schedule`)(icon('calendar-plus'))}</button><button data-phone="message">${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_b1ce44f713880b",`${v2} Message`,{v2}) ?? `${v2} Message`)(icon('comment'))}</button>`:`<button data-phone="link">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_d6f0ce6293e8d9",`${v0} Link project`,{v0}) ?? `${v0} Link project`)(icon('link'))}</button>`}
       ${connected&&(state.status?.settings?.recording_enabled||['recording','paused'].includes(capture))?`<button data-phone="record">${icon('circle-dot')} ${capture==='recording'?'Pause recording':capture==='paused'?'Resume recording':'Record with consent'}</button>${['recording','paused'].includes(capture)?`<button data-phone="record_stop">${(globalThis.PlatformLanguage?.htmlText("comms","m_71ef1099bbe0fc","Stop recording") ?? "Stop recording")}</button>`:''}`:''}</div>`:
       `${field('Phone number or contact','customer_number',values.customer_number??number,'text','required autocomplete="off"')}
-      <div class="fmcm-form-grid">${select('Call method','mode',state.status?.settings?.enabled?[['browser','FirstMate phone'],['external','My external phone']]:[['external','My external phone']],values.mode||(state.status?.settings?.enabled?'browser':'external'))}${select('Call script','script_id',[['','No script'],...state.scripts.filter(s=>s.status==='published').map(s=>[s.id,s.title])],values.script_id||'')}</div>
+      <div class="fmcm-form-grid">${select('Call method','mode',state.status?.settings?.enabled?[['browser','FirstMate phone'],['external','My external phone']]:[['external','My external phone']],values.mode||(state.status?.settings?.enabled?'browser':'external'))}${select('Call script','flow_choice',flowChoices(),state.flowChoice??defaultFlowChoice())}</div>
       <p class="fmcm-help">External phone lets you record call notes without browser audio.</p><button data-phone="start" class="fmcm-primary">${icon('phone')} ${state.waitingToCall?'Calling…':(values.mode|| (state.status?.settings?.enabled?'browser':'external'))==='browser'?'Start call':'Start call notes'}</button>`)}
       ${c?conferenceMarkup(observer||!!guest):''}
-      ${String(script?.title?`<details class="fmcp-script" open><summary>${esc(script.title)} <span class="fmcm-pill">v${esc(script.version)}</span></summary>${(scriptData.sections||[]).map(s=>`<h4>${esc(s.title)}</h4><p>${esc(s.body)}</p>`).join('')}${(scriptData.questions||[]).map((q,i)=>`<label class="fmcm-field">${esc(q)}<input data-question="${i}" value="${esc(state.answers[i]||'')}"></label>`).join('')}</details>`:'')}
+      ${c?flowMarkup(c,observer||!!guest,saved):''}
       ${String(c?.mode==='external'?`<p class="fmcm-help"><a href="tel:${esc(number)}">${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_4b023574d976a1",`Open ${v1} in your phone app`,{v1}) ?? `Open ${v1} in your phone app`)(esc(number))}</a></p>`:'')}
       ${String(c?`<label class="fmcm-field">${(globalThis.PlatformLanguage?.htmlText("comms","m_d885eb7f0cdaa0","Call notes ") ?? "Call notes ")}<textarea class="fmcp-notes" name="notes" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_d59c66e54984e5","What happened? Capture decisions, concerns, and next steps.") ?? "What happened? Capture decisions, concerns, and next steps.")}">${esc(state.notes)}</textarea></label><p class="fmcm-help" data-save-state>${state.dirty?'Saving notes…':'Notes saved'}</p>`:'')}
-      ${String(c&&!active&&!saved&&!processing&&state.status?.settings?.require_disposition?`<div class="fmcm-form-grid">${select('Call outcome','disposition',['answered','voicemail','no_answer','busy','wrong_number','callback','do_not_call','technical_failure'],values.disposition||((c.connected_at||c.mode==='external')?'answered':'no_answer'))}${select('Next step','next_action',nextSteps,values.next_action||'none')}</div>
-      <div data-appointments ${values.next_action==='scheduled'?'':'hidden'}>${select('Booked appointment','appointment_id',[['','Choose an appointment'],...(state.appointments||[]).map(a=>[a.id,`${a.title||(globalThis.PlatformLanguage?.htmlText("comms","m_5a654ad9b6d2e3","Appointment") ?? "Appointment")} · ${a.start||a.id}`])],values.appointment_id||'')}<button data-phone="refresh-context">${(globalThis.PlatformLanguage?.htmlText("comms","m_8b5406d39b44c7","Refresh appointments") ?? "Refresh appointments")}</button></div>
+      ${String(c&&!active&&!saved&&!processing&&state.status?.settings?.require_disposition?`<div class="fmcm-form-grid">${select('Call outcome','disposition',['answered','voicemail','no_answer','busy','wrong_number','callback','do_not_call','technical_failure'],(prefill&&flowOutcome.disposition)||values.disposition||flowOutcome?.disposition||((c.connected_at||c.mode==='external')?'answered':'no_answer'))}${select('Next step','next_action',nextSteps,(prefill&&flowOutcome.next_action)||values.next_action||flowOutcome?.next_action||'none')}</div>
+      ${flowOutcome?.label?`<p class="fmcm-help" data-flow-outcome>${esc(globalThis.PlatformLanguage?.text('comms','flow_outcome_prefill','From the script: {outcome}',{outcome:flowOutcome.label})??`From the script: ${flowOutcome.label}`)}</p>`:''}
+      <div data-appointments ${((prefill&&flowOutcome.next_action)||values.next_action)==='scheduled'?'':'hidden'}>${select('Booked appointment','appointment_id',[['','Choose an appointment'],...(state.appointments||[]).map(a=>[a.id,`${a.title||(globalThis.PlatformLanguage?.htmlText("comms","m_5a654ad9b6d2e3","Appointment") ?? "Appointment")} · ${a.start||a.id}`])],values.appointment_id||'')}<button data-phone="refresh-context">${(globalThis.PlatformLanguage?.htmlText("comms","m_8b5406d39b44c7","Refresh appointments") ?? "Refresh appointments")}</button></div>
       ${(c.metadata?.source_node_ids||[]).length?`<details class="fmcp-script" open><summary>${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_465e01a14d53fd",`Linked work (${v0})`,{v0}) ?? `Linked work (${v0})`)(c.metadata.source_node_ids.length)}</summary><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_759c2a8bdbdc02","Select only the obligations this call resolves.") ?? "Select only the obligations this call resolves.")}</p>${c.metadata.source_node_ids.map(id=>`<label class="fmcm-check"><input type="checkbox" data-source="${esc(id)}">${esc(state.detail?.work?.find(node=>node.id===id)?.title||state.entry?.title||(globalThis.PlatformLanguage?.text("comms","m_5c4af3e82b50ff","Linked follow-up") ?? "Linked follow-up"))}</label>`).join('')}</details>`:''}`:'')}
-      ${String(saved?`<p><span class="fmcm-pill good">${icon('check')} ${esc(label(c.result?.disposition))}</span> <span class="fmcm-help">${esc(date(c.ended_at))}</span></p>`:'')}
+      ${String(saved?`<p><span class="fmcm-pill good">${icon('check')} ${esc(label(c.result?.disposition))}</span>${flowOutcome?.label?` <span class="fmcm-pill">${esc(flowOutcome.label)}</span>`:''} <span class="fmcm-help">${esc(date(c.ended_at))}</span></p>`:'')}
       ${String(processing?`<p class="fmcm-help" role="status">${(globalThis.PlatformLanguage?.htmlText("comms","m_aa5c78e69f24d8","Saving the outcome and updating linked work…") ?? "Saving the outcome and updating linked work…")}</p>`:'')}
       ${String(c?`<div data-artifacts>${mediaMarkup()}</div>${analysisMarkup()}`:'')}</div>
       <footer class="fmcp-footer"><span class="fmcm-help">${String(c?`${c.direction==='inbound'?'Incoming':'Outgoing'} call`:'Communications')}</span><div class="fmcm-actions">${String(!c&&state.entry?`<button data-phone="skip">${(globalThis.PlatformLanguage?.htmlText("comms","m_80ad5d823ed757","Skip for now") ?? "Skip for now")}</button>`:'')}${String(c&&!active&&!saved&&!processing&&state.status?.settings?.require_disposition?`<button class="fmcm-primary" data-phone="wrap">${(globalThis.PlatformLanguage?.htmlText("comms","m_6b7aea73ef8d46","Save outcome") ?? "Save outcome")}</button>`:'')}${String(saved&&state.entry?`<button class="fmcm-primary" data-phone="next">${(globalThis.PlatformLanguage?.htmlText("comms","m_db479b7b19a749","Next contact") ?? "Next contact")}</button>`:'')}${String(c&&!active?`<button data-phone="artifacts">${(globalThis.PlatformLanguage?.htmlText("comms","m_f15ce71ba3db6f","Recording & transcript") ?? "Recording & transcript")}</button>`:'')}</div></footer>`;
     el.querySelectorAll('[data-phone]').forEach(b=>{if(state.busy&&!['minimize','close','pause-dialer'].includes(b.dataset.phone))b.disabled=true;});
-    if(observer||guest){el.querySelectorAll('[name], [data-question], [data-source]').forEach(e=>e.disabled=true);el.querySelectorAll('[data-phone]').forEach(b=>{if(!['minimize','close','project','schedule','message','artifacts','supervise','analysis-generate','analysis-load','analysis-ask',...(consultation||supervising?['answer','decline']:[]),...(guest?['answer','decline','mute','hangup']:[])].includes(b.dataset.phone))b.disabled=true;});}
+    if(observer||guest){el.querySelectorAll('[name], [data-source]').forEach(e=>e.disabled=true);el.querySelectorAll('[data-phone]').forEach(b=>{if(!['minimize','close','project','schedule','message','artifacts','supervise','analysis-generate','analysis-load','analysis-ask',...(consultation||supervising?['answer','decline']:[]),...(guest?['answer','decline','mute','hangup']:[])].includes(b.dataset.phone))b.disabled=true;});}
     if(!callPermission('record'))el.querySelectorAll('[data-phone^="record"]').forEach(b=>b.hidden=true);
     if(!callPermission('recordings'))el.querySelectorAll('[data-phone="artifacts"]').forEach(b=>b.hidden=true);
     el.querySelectorAll('[name=analysis_prompt],[name=analysis_question]').forEach(e=>e.disabled=state.analysisBusy);
     if(state.busy)el.querySelectorAll('input,textarea,select').forEach(e=>e.disabled=true);
     if(state.saveError){const message=el.querySelector('[data-save-state]');if(message){message.textContent=(globalThis.PlatformLanguage?.text("comms","m_cb41039283b180","Notes are kept in this tab. ") ?? "Notes are kept in this tab. ");const retry=document.createElement('button');retry.dataset.phone='save-notes';retry.textContent=(globalThis.PlatformLanguage?.text("comms","m_5ede774dc3f22a","Retry saving") ?? "Retry saving");message.append(retry);}}
     el.querySelectorAll('[data-source]').forEach(e=>{e.checked=checked.has(e.dataset.source);});
-    const focusTarget=focusQuestion!==undefined?el.querySelector(`[data-question="${CSS.escape(focusQuestion)}"]`):focusName?el.querySelector(`[name="${CSS.escape(focusName)}"]`):null;
+    const focusTarget=focusName?el.querySelector(`[name="${CSS.escape(focusName)}"]`):null;
     if(state.busy)el.querySelectorAll('input,textarea,select,[data-phone]').forEach(e=>{if(!['minimize','close','pause-dialer'].includes(e.dataset.phone))e.disabled=true;});
     if(!state.status)el.querySelector('[data-phone=start]')?.setAttribute('disabled','');
+    attachFlow(el,c,observer||!!guest);if(outcomeKey)state.prefilledOutcome=outcomeKey;
     Portal.PhoneTray?.update(state);
     if(focusTarget){focusTarget.focus({preventScroll:true});try{focusTarget.setSelectionRange(caret,caretEnd);}catch{}}
     if(state.outcomeRequested&&!active&&!saved&&!processing){const outcome=el.querySelector('[name=disposition]');outcome?.scrollIntoView({block:'nearest'});outcome?.focus({preventScroll:true});}
@@ -223,19 +288,18 @@
     clearTimeout(state.saveTimer);if(state.dirty&&state.call)await saveNotes();
     if(ticket!==state.openSequence)return false;
     if(state.panel)state.panel.innerHTML='';
-    state.error='';state.minimized=false;state.outcomeRequested=false;state.deviceCheckRequired=false;state.checkMessage='';state.entry=input.entry||null;state.prepared=input;state.notes='';state.answers={};state.contacts=[];state.appointments=[];state.media=null;state.analysis=null;state.analysisPrompt='';state.analysisQuestion='';state.analysisError='';state.analysisBusy=false;state.analysisRequest=null;state.analysisOpen=false;state.followupOptions=null;state.policyDate='';state.usePolicy=false;state.wrapId='';state.wrapPayload=null;state.dirty=false;state.localId=uid();
+    state.error='';state.minimized=false;state.outcomeRequested=false;state.deviceCheckRequired=false;state.checkMessage='';state.entry=input.entry||null;state.prepared=input;state.notes='';state.leadRuns=[];state.flowChoice=undefined;state.prefilledOutcome='';state.flowDone='';closeFlow();state.contacts=[];state.appointments=[];state.media=null;state.analysis=null;state.analysisPrompt='';state.analysisQuestion='';state.analysisError='';state.analysisBusy=false;state.analysisRequest=null;state.analysisOpen=false;state.followupOptions=null;state.policyDate='';state.usePolicy=false;state.wrapId='';state.wrapPayload=null;state.dirty=false;state.localId=uid();
     if(input.call_id){
       // Synchronous shell during browser-history restoration.
       state.call=null;state.loadingCall=true;render();let detail;
       try{detail=await request(`calls/${encodeURIComponent(input.call_id)}`);}finally{if(ticket===state.openSequence)state.loadingCall=false;}
-      if(ticket!==state.openSequence)return false;state.detail=detail;state.call=state.detail.call;state.notes=state.call.notes||'';state.answers=state.call.metadata?.script_answers||{};restoreLocal();
+      if(ticket!==state.openSequence)return false;state.detail=detail;state.call=state.detail.call;state.notes=state.call.notes||'';restoreLocal();
       if(!options.fromRoute&&!Portal.navigation?.applying)Portal.navigation?.push?.({customerCall:state.call.id});
     }else{state.call=null;state.detail=null;}
     render();
-    const results=await Promise.allSettled([refreshStatus(),request('call-scripts?published=true')]);
+    const results=await Promise.allSettled([refreshStatus(),loadFlows(input.project_id||state.call?.project_id||'',ticket)]);
     if(ticket!==state.openSequence)return false;
     autoConnect();
-    if(results[1].status==='fulfilled')state.scripts=results[1].value.scripts||[];
     await refreshContext().catch(error=>{if(ticket===state.openSequence)state.error=error.message;});if(ticket!==state.openSequence)return false;
     if(state.call)state.followupOptions=await request(callPath('/follow-up-options')).catch(()=>null);if(ticket!==state.openSequence)return false;
     if(state.call&&options.artifacts&&callPermission('recordings'))await artifacts();
@@ -253,8 +317,8 @@
     if(values.mode==='browser'){const ticket=state.openSequence;state.waitingToCall=true;render();try{await connect();}finally{state.waitingToCall=false;}if(ticket!==state.openSequence||state.panel?.hidden)return;}
     state.deviceCheckRequired=false;
     const body={...state.prepared,entry_id:state.entry?.id||state.prepared.entry_id||'',customer_name:state.prepared.customer_name||'',customer_number:dialed,
-      power_dial:!!(dialer.active&&dialer.fast),purpose:state.prepared.purpose||'',business_number:values.business_number||'',mode:values.mode,script_id:values.script_id,device_id:deviceId,operation_id:state.localId};delete body.entry;delete body.call_id;
-    const result=await request('calls',body);state.call=result.call;state.notes=result.call.notes||'';state.answers={};
+      power_dial:!!(dialer.active&&dialer.fast),purpose:state.prepared.purpose||'',business_number:values.business_number||'',mode:values.mode,...flowChoiceBody(values.flow_choice),device_id:deviceId,operation_id:state.localId};delete body.entry;delete body.call_id;
+    const result=await request('calls',body);state.call=result.call;state.notes=result.call.notes||'';
     state.detail=await request(callPath()).catch(()=>null);
     state.followupOptions=await request(callPath('/follow-up-options')).catch(()=>null);
     if(!Portal.navigation?.applying)Portal.navigation?.push?.({customerCall:state.call.id});changed();schedulePoll();
@@ -267,8 +331,8 @@
     try{await state.saving;state.saveError=false;}catch(error){state.saveError=true;throw error;}finally{state.saving=null;}
   }
   async function performSaveNotes(){
-    if(!state.call||!state.dirty)return;const callId=state.call.id,notes=state.notes,answers={...state.answers};
-    try{const result=await request(`calls/${encodeURIComponent(callId)}/draft`,{revision:state.call.revision,notes,script_answers:answers},'PATCH');if(state.call?.id===callId){state.call=result.call;state.dirty=state.notes!==notes||JSON.stringify(state.answers)!==JSON.stringify(answers);}}
+    if(!state.call||!state.dirty)return;const callId=state.call.id,notes=state.notes;
+    try{const result=await request(`calls/${encodeURIComponent(callId)}/draft`,{revision:state.call.revision,notes},'PATCH');if(state.call?.id===callId){state.call=result.call;state.dirty=state.notes!==notes;}}
     catch(error){if(error.status===409){const result=await request(`calls/${encodeURIComponent(callId)}`);if(state.call?.id===callId)state.call=result.call;throw new Error('This call changed while you were editing. Your notes are kept here; save again to apply them.');}throw error;}
     const message=state.panel?.querySelector('[data-save-state]');if(message)message.textContent=state.dirty?'Saving notes…':'Notes saved';
     if(state.dirty)scheduleSave();else try{sessionStorage.removeItem(localKey());}catch{}
@@ -276,6 +340,8 @@
   async function action(action,extra={}){const result=await request(callPath('/actions'),{operation_id:uid(),action,...extra});state.call=result.call||state.call;if(result.participants)state.detail={...state.detail,participants:result.participants};changed();return result;}
   async function wrap(){
     const values=readForm();await saveNotes();
+    // A script that ended moved the call on the server (its outcome): take the current revision before saving the wrap-up.
+    if(state.call.metadata?.flow_run_id&&!state.dirty){const fresh=await request(callPath());if(state.call?.id===fresh.call.id){state.call=fresh.call;state.detail=fresh;}}
     const due=values.due_at?new Date(values.due_at).toISOString():'';
     const sources=[...state.panel.querySelectorAll('[data-source]:checked')].map(e=>e.dataset.source);
     const payload={operation_id:state.wrapId||(state.wrapId=uid()),revision:state.call.revision,disposition:values.disposition,notes:state.notes,next_action:values.next_action.startsWith('outcome:')?'complete':values.next_action,outcome_id:values.next_action.startsWith('outcome:')?values.next_action.slice(8):'',
@@ -290,10 +356,10 @@
     const result=await request(`calls/${encodeURIComponent(id)}`);if(state.call?.id!==id)return;
     if(result.call.owner_user_id===ui.user()&&!terminal.has(result.call.state)&&(!state.lastLease||Date.now()-state.lastLease>30000)){await request(`calls/${encodeURIComponent(id)}/lease`,{});state.lastLease=Date.now();}
     const prior=state.call,priorPermissions=state.detail?.permissions,priorParticipants=JSON.stringify(state.detail?.participants),wasGuest=!!ourParticipant();state.call=result.call;state.detail=result;
-    if(wasGuest&&!ourParticipant()||state.call.metadata?.host_left_user_id===ui.user()&&!terminal.has(state.call.state)){state.call=null;state.detail=null;state.notes='';state.answers={};state.dirty=false;state.prepared={};render();changed();return;}
-    if(!state.dirty){state.notes=state.call.notes||'';state.answers=state.call.metadata?.script_answers||{};}
+    if(wasGuest&&!ourParticipant()||state.call.metadata?.host_left_user_id===ui.user()&&!terminal.has(state.call.state)){state.call=null;state.detail=null;state.notes='';state.dirty=false;state.prepared={};closeFlow();render();changed();return;}
+    if(!state.dirty)state.notes=state.call.notes||'';
     // Preserve the user's caret and unsaved form values; redraw only a call-state transition.
-    if(prior.state!==state.call.state||prior.wrap_up_state!==state.call.wrap_up_state||JSON.stringify(prior.metadata?.capture)!==JSON.stringify(state.call.metadata?.capture)||JSON.stringify(prior.metadata?.transfer)!==JSON.stringify(state.call.metadata?.transfer)||JSON.stringify(prior.metadata?.customer_hold_state)!==JSON.stringify(state.call.metadata?.customer_hold_state)||priorParticipants!==JSON.stringify(state.detail?.participants)||JSON.stringify(priorPermissions)!==JSON.stringify(state.detail?.permissions)||JSON.stringify(state.lastSupervision)!==JSON.stringify(state.detail?.supervision))render();
+    if(prior.state!==state.call.state||prior.wrap_up_state!==state.call.wrap_up_state||prior.metadata?.flow_run_id!==state.call.metadata?.flow_run_id||JSON.stringify(prior.result?.flow_outcome)!==JSON.stringify(state.call.result?.flow_outcome)||JSON.stringify(prior.metadata?.capture)!==JSON.stringify(state.call.metadata?.capture)||JSON.stringify(prior.metadata?.transfer)!==JSON.stringify(state.call.metadata?.transfer)||JSON.stringify(prior.metadata?.customer_hold_state)!==JSON.stringify(state.call.metadata?.customer_hold_state)||priorParticipants!==JSON.stringify(state.detail?.participants)||JSON.stringify(priorPermissions)!==JSON.stringify(state.detail?.permissions)||JSON.stringify(state.lastSupervision)!==JSON.stringify(state.detail?.supervision))render();
     state.lastSupervision=state.detail?.supervision;
     if((callPermission('analyze')||callPermission('analysis_read'))&&state.analysis&&(state.analysisOpen||state.analysis.notes?.some(n=>['pending','running'].includes(n.state)))){const analysis=await request(`calls/${encodeURIComponent(id)}/analysis`);if(state.call?.id!==id)return;state.analysis=analysis;render();}
     changed();updateTransferDialog();
@@ -389,6 +455,7 @@
     if(name==='connect'){try{await connect();state.panel?.querySelector('[name=mode]')?.remove();render();}catch(error){state.error=error.message;render();}return;}
     if(name==='dismiss-check'&&!state.busy){state.deviceCheckRequired=false;state.checkMessage='';state.error='';render();return;}
     if(name==='minimize'){state.minimized=!state.minimized;render();return;}
+    if(name==='flow-start'){try{state.error='';await startFlow();}catch(error){state.error=error.message;render();}return;}
     if(name==='close'){
       if(ourParticipant()){state.minimized=true;render();return;}
       if(dialer.active)pauseDialer();
@@ -421,7 +488,7 @@
       else if(name==='answer'){await state.sdkCall?.answer();}
       else if(name==='decline'||name==='hangup'&&ourParticipant()){
         const guest=!!ourParticipant();await action(name);await state.sdkCall?.hangup();
-        if(guest){state.call=null;state.detail=null;state.notes='';state.answers={};state.dirty=false;state.prepared={};changed();}
+        if(guest){state.call=null;state.detail=null;state.notes='';state.dirty=false;state.prepared={};closeFlow();changed();}
       }
       else if(name==='mute'){if(!state.sdkCall)throw new Error('This tab does not own the phone audio.');state.muted=!state.muted;if(state.muted)state.sdkCall.muteAudio();else state.sdkCall.unmuteAudio();}
       else if(['project','schedule','message'].includes(name)){state.minimized=true;ui.project(state.call.project_id,name==='schedule'?'schedule':'comms',name==='message'?{commsView:'sms'}:{});}
@@ -431,7 +498,7 @@
       else if(name==='remove-person')await action('remove_participant',{participant_id:button.dataset.participant});
       else if(name==='hold-person'||name==='resume-person')await action(name==='hold-person'?'hold_participant':'resume_participant',{participant_id:button.dataset.participant});
       else if(name==='reinvite-person'){const p=button.dataset.participant==='customer'?{phone:state.call.customer_number,name:state.call.customer_name}:state.detail?.participants?.find(p=>p.id===button.dataset.participant);if(p)await action('add_participant',p.user_id?{target_user_id:p.user_id}:{target_phone:p.phone,target_name:p.name});}
-      else if(name==='leave-conference'){if(state.dirty)await saveNotes();await action('leave_conference');const sdk=state.sdkCall;state.call=null;state.detail=null;state.notes='';state.answers={};state.prepared={};state.dirty=false;await sdk?.hangup();changed();}
+      else if(name==='leave-conference'){if(state.dirty)await saveNotes();await action('leave_conference');const sdk=state.sdkCall;state.call=null;state.detail=null;state.notes='';state.prepared={};state.dirty=false;closeFlow();await sdk?.hangup();changed();}
       else if(name==='link')await linkProject();else if(name==='keypad')keypad();else if(name==='transfer')await transfer();else if(name==='record')await record();
       else if(name==='artifacts')await artifacts();
       else if(name==='delete-artifact')removeArtifact(button.dataset.artifact);
@@ -609,7 +676,7 @@
       pauseDialer();dialer.listId='';state.openSequence++;state.loadingCall=false;
       if(state.dirty)persistLocal();stopConnection();clearTimeout(state.idleTimer);state.idleTimer=0;state.takingCalls=false;state.deviceChecked=false;state.deviceCheckRequired=false;state.client=null;state.sdkCall=null;state.registered=false;state.available=false;
       clearInterval(state.heartbeat);clearTimeout(state.poll);clearTimeout(state.tokenTimer);clearTimeout(state.saveTimer);
-      if(state.panel)state.panel.hidden=true;state.call=null;state.status=null;Portal.PhoneTray?.reset?.();state.dirty=false;state.notes='';state.answers={};state.boundScope='';changed();
+      if(state.panel)state.panel.hidden=true;state.call=null;state.status=null;Portal.PhoneTray?.reset?.();state.dirty=false;state.notes='';closeFlow();state.boundScope='';changed();
     }
     if(ui.org()&&ui.user())void Portal.navigation?.applyCurrent?.({source:'phone-session-ready',only:'customer-call-workspace'});
   });

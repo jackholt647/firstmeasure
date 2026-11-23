@@ -82,7 +82,7 @@
         else if(action==='center-next')await callCenterNext();
         else if(action==='center-power')await phone.startDialer({id:state.centerList,title:state.centerList==='all'?'All selected call lists':state.columns.find(c=>c.id===state.centerList)?.title||'Call list',listIds:state.centerList==='all'?state.columns.map(c=>c.id):[state.centerList],departmentId:state.departmentId||'',power:true});
         else if(action==='center-pause'){phone.pauseDialer('Power dialing paused.');render();}
-        else if(action==='center-script')scriptEditor(state.scripts.find(s=>s.id===target.dataset.id));
+        else if(action==='center-script')openScript(target.dataset.id);
         else if(action==='center-supervise')await managerSupervise(target.dataset.id,target.dataset.mode);
         else if(action==='center-list-toggle'){state.centerExpandedList=state.centerExpandedList===target.dataset.id?'':target.dataset.id;render();}
         else if(action==='center-remove-lead')dialog('Remove lead',`<p>Remove ${esc(target.dataset.name||'this lead')} from this call list?</p>`,async()=>{await request(`call-list-entries/${encodeURIComponent(target.dataset.id)}`,undefined,'DELETE');await load();},{submit:'Remove lead'});
@@ -114,8 +114,8 @@
         else if(action==='task-snooze')snooze(target.dataset.id);
         else if(action==='reload')await load();
         else if(action==='more'){state.cursor=state.nextCursor;await load(true);}
-        else if(action==='new-script')callFlowEditor(null);
-        else if(action==='edit-script')callFlowEditor(target.dataset.id);
+        else if(action==='new-script')await newScript();
+        else if(action==='edit-script')openScript(target.dataset.id);
         else if(action==='development-onboard'){await request('voice/development/onboard',{});await window.AppChrome?.load?.();await load();}
         else if(action==='provision'){await request('voice/provision',{});await load();}
         else if(action==='bind-number')bindNumber();
@@ -191,15 +191,15 @@
             const [live,lists,today]=await Promise.all([request(`voice/center${department?'?'+department:''}`),request(`call-lists/queue${department?'?'+department:''}`),request(`calls?created_after=${encodeURIComponent(new Date(Date.now()-86400000).toISOString())}&limit=1${department?'&'+department:''}`)]);
             result={...live,columns:lists.columns||[],can_manage_departments:lists.can_manage_departments,center_today:today.total||0};
           }else{
-            const [lists,scripts]=await Promise.all([request(`call-lists/queue${department?'?'+department:''}`),request(`call-scripts?published=true${department?'&'+department:''}`)]);
-            result={...lists,scripts:scripts.scripts||[]};
+            const [lists,scripts]=await Promise.all([request(`call-lists/queue${department?'?'+department:''}`),callScripts()]);
+            result={...lists,scripts:scripts.scripts.filter(s=>s.published_version>0)};state.canEditScripts=scripts.can_edit;
           }
           const status=await statusRun;
           if(sequence!==state.sequence||state.disposed)return;
           state.status=status;
           if(state.centerMode==='manager'&&!canManage(status)){state.centerMode='call';return load(false,silent);}
         }
-        else if(view==='scripts'){const flowsBase=new URL((String(window.PlatformAPI?.baseUrl?.()||'').trim()||`${location.origin}/v1/platform`).replace(/\/platform\/?$/,'/flows'),location.href).href.replace(/\/$/,'');result=await window.PlatformAPI.request(`${flowsBase}/organizations/${encodeURIComponent(ui.org())}/flows`);}
+        else if(view==='scripts'){result=await callScripts();state.canEditScripts=result.can_edit;}
         if(sequence!==state.sequence||state.disposed)return;
         if(result.department_context)state.departmentContext=result.department_context;
         state.canManageDepartments=!!result.can_manage_departments;
@@ -213,7 +213,6 @@
           if(!append&&!state.centerCursor)rememberCenter();
           state.centerPending=false;
         }
-        else if(view==='scripts'){state.callFlows=(result.flows||[]).filter(f=>f.kind==='call');state.canEditFlows=result.can_edit===true;}
         state.host.setAttribute('aria-busy','false');render();
         if(state.arrive){state.arrive=false;const host=state.host;host.classList.remove('fmcm-arrive');void host.offsetWidth;host.classList.add('fmcm-arrive');setTimeout(()=>host.classList.remove('fmcm-arrive'),500);}// GP-12: rows move in over "Loading…"
         if(view==='center')updatePhone();else void phone.refreshStatus().then(updatePhone).catch(()=>{});
@@ -237,7 +236,7 @@
     function updatePhone(){if(phone.diagnostic&&state.diagnostic!==phone.diagnostic){state.diagnostic=phone.diagnostic;render();}
       if(options.projectId&&state.view==='history'&&state.callsSetup!==undefined&&state.callsSetup!==callsState())render();const button=root.querySelector('[data-phone-status]');if(button)button.outerHTML=phoneButton();
 
-      if(phone.status?.permissions)root.querySelectorAll('[data-action="new-list"],[data-action="list-settings"],[data-action="new-script"],[data-action="edit-script"]').forEach(b=>b.hidden=!(phone.status.permissions.manage||state.canManageDepartments));
+      if(phone.status?.permissions)root.querySelectorAll('[data-action="new-list"],[data-action="list-settings"]').forEach(b=>b.hidden=!(phone.status.permissions.manage||state.canManageDepartments));
       const call=phone.currentCall,signature=call?`${call.id}:${call.revision}`:'';
       if(signature&&state.lastCallChange!==signature){state.lastCallChange=signature;if(['history','followups','lists','center'].includes(state.view)&&(!options.projectId||call.project_id===options.projectId)){clearTimeout(state.changeTimer);state.changeTimer=setTimeout(()=>{if(state.disposed)return;void load(false,true);if(options.projectId&&state.callId===call.id)void openCall(call.id,true);},250);}}
     }
@@ -301,7 +300,7 @@
       const canAdvance=!current||(['ended','canceled','failed','busy','no_answer','rejected'].includes(current.state)&&(!phone.status?.settings?.require_disposition||current.wrap_up_state==='saved'));
       const controls=`<div class="fmcc-dial-controls"><label>Lead list<select data-center-list><option value="all">All call lists</option>${columns.map(c=>`<option value="${esc(c.id)}" ${state.centerList===c.id?'selected':''}>${esc(c.title)}</option>`).join('')}</select></label><label>Dialing<select data-center-dial-mode><option value="manual" ${state.centerDialMode==='manual'?'selected':''}>Manual · Call Next</option><option value="power" ${state.centerDialMode==='power'?'selected':''}>Power dial</option></select></label>${state.centerDialMode==='power'?(dialer.active?'<button data-action="center-pause">Pause dialing</button>':`<button class="fmcm-primary" data-action="center-power" ${selected.length?'':'disabled'}>Start power dialing</button>`):`<button class="fmcm-primary" data-action="center-next" ${ready.some(t=>!state.centerSeen.has(t.id))&&canAdvance?'':'disabled'}>Call Next</button>`}<button class="fmcc-new-call" data-action="new-call">${icon('phone')} New call</button></div>`;
       const queue=ready.slice(0,30).map((e,i)=>`<div class="fmcc-lead"><span class="fmcc-position">${i+1}</span><div><strong>${esc(e.name||e.title||e.phone)}</strong><small>${esc(e.listTitle)} · ${esc(e.phone||'No number')}${e.title&&e.title!==e.name?' · '+esc(e.title):''}</small></div><button data-action="open-entry" data-id="${esc(e.id)}" aria-label="Open ${esc(e.name||e.title||'lead')}">${icon('arrow-right')}</button></div>`).join('');
-      const scripts=state.scripts.map(s=>`<article class="fmcc-script"><div><strong>${esc(s.title)}</strong><small>Published version ${esc(s.version)}</small></div>${(s.data?.sections||[]).slice(0,2).map(section=>`<p><b>${esc(section.title)}</b> ${esc(String(section.body||'').slice(0,180))}</p>`).join('')}${state.status?.permissions?.manage||state.canManageDepartments?`<button data-action="center-script" data-id="${esc(s.id)}">Edit script</button>`:''}</article>`).join('');
+      const scripts=state.scripts.map(s=>`<article class="fmcc-script"><div><strong>${esc(s.name)}</strong><small>${esc(s.description||'')}</small></div><button data-action="center-script" data-id="${esc(s.id)}">${esc(state.canEditScripts?'Open script':'Preview')}</button></article>`).join('');
       return `<section class="fmcc-section">${state.status&&!state.status.settings?.enabled?`<p class="fmcc-notice">Browser calling is off. You can still review leads and log calls with an external phone.${state.status?.permissions?.manage&&window.FirstMateGuides?.play?' <button data-action="comms-setup">Set up texts and calls</button>':''}</p>`:''}${controls}<div class="fmcc-columns"><div class="fmcc-stack"><section class="fmcc-card"><header><h4>Next leads</h4><span>${pending?'':`${ready.length} ready`}</span></header>${pending?placeholder('Loading leads…'):queue||empty('No leads ready','New leads from the selected lists will appear here.')}</section></div><div class="fmcc-stack">${current?`<section class="fmcc-card fmcc-current"><header><h4>Current call</h4><span>${esc(label(current.state))}</span></header><strong>${esc(current.customer_name||current.customer_number)}</strong><p>${esc(current.customer_number||'')}</p><button data-action="open-call" data-id="${esc(current.id)}">Open phone and notes</button></section>`:''}<section class="fmcc-card"><header><h4>Call scripts</h4><span>${pending?'':`${state.scripts.length} published`}</span></header>${pending?placeholder():scripts||empty('No published scripts','Published scripts will appear here and in the phone workspace.')}</section></div></div></section>`;
     }
     function renderManager(){
@@ -343,12 +342,10 @@
         if(options.projectId&&!alone){projectCalls(setup);}else
         state.host.innerHTML=(alone?'':toolbar(options.projectId?'':'Call history','',true))+setup+(setup&&!state.calls.length?'':historyTable(state.calls))+(state.nextCursor?`<div style="text-align:center;margin-top:20px"><button data-action="more">${(globalThis.PlatformLanguage?.htmlText("comms","m_167eca98b30dd7","Load more calls") ?? "Load more calls")}</button></div>`:'');
       }else if(state.view==='scripts'){
-        // Call scripts are flows of kind `call` (docs/architecture/flows.md), edited in the one flow editor.
-        const flows=state.callFlows||[],can=state.canEditFlows,t=(key,fallback)=>globalThis.PlatformLanguage?.htmlText?.("comms",key,fallback) ?? fallback;
-        state.host.innerHTML=toolbar(t('flows_scripts_title','Call scripts'),can?'<button class="fmcm-primary" data-action="new-script">'+icon('plus')+' '+t('flows_new_script','New script')+'</button>':'')+
-          `<p class="fmcm-help">${t('flows_scripts_help','A call script is a flow: what to say, what to ask, and how the call ends. Every call keeps the version it used. The same scripts are in CRM settings › Flows.')}</p>`+
-          (flows.length?`<div class="fmcm-grid">${flows.map(f=>`<section class="fmcm-card" data-call-flow="${esc(f.id)}"><header class="fmcm-card-head"><h3>${esc(f.name)}</h3><span class="fmcm-pill">v${esc(f.latest_version)}</span></header><div style="padding:18px"><p>${esc(String(f.description||'').slice(0,220))}</p><button data-action="edit-script" data-id="${esc(f.id)}">${can?t('flows_edit_script','Edit script'):t('flows_open_script','Open script')}</button></div></section>`).join('')}</div>`
-            :empty(t('flows_scripts_empty','No call scripts yet'),t('flows_scripts_empty_hint','A script says what to say, what to ask and where the call goes from each answer.'),can?`<button data-action="new-script">${t('flows_create_script','Create a script')}</button>`:''));
+        // Call scripts are flows of kind `call` (docs/architecture/flows.md): edited in the flow editor, played in calls.
+        state.host.innerHTML=toolbar('Call scripts',state.canEditScripts?'<button class="fmcm-primary" data-action="new-script">'+icon('plus')+' New script</button>':'')+
+          `<p class="fmcm-help">${esc(globalThis.PlatformLanguage?.text("comms","call_scripts_are_flows","Call scripts are flows: published ones can be picked in a call, and a call's outcome comes from where its script ends. Every call keeps the version it started on.") ?? "Call scripts are flows: published ones can be picked in a call, and a call's outcome comes from where its script ends. Every call keeps the version it started on.")}</p>`+
+          ((state.scripts||[]).length?`<div class="fmcm-grid">${state.scripts.map(s=>`<section class="fmcm-card"><header class="fmcm-card-head"><h3>${String(esc(s.name))}</h3><span class="fmcm-pill">${s.published_version?`v${String(s.published_version)}`:'Draft'}${s.latest_version>s.published_version&&s.published_version?' · unpublished changes':''}</span></header><div style="padding:18px"><p>${String(esc(s.description||''))}</p><button data-action="edit-script" data-id="${String(esc(s.id))}">${esc(state.canEditScripts?'Edit script':'Preview')}</button></div></section>`).join('')}</div>`:empty('Support a natural conversation','Create a script with what to say, what to ask and how the call can end.',state.canEditScripts?`<button data-action="new-script">${(globalThis.PlatformLanguage?.htmlText("comms","m_933c94351d5ffc","Create a script") ?? "Create a script")}</button>`:''));
       }
       root.querySelectorAll('[data-list-scroll]').forEach(el=>{el.scrollTop=listScroll.get(el.dataset.listScroll)||0;});
       if(searchActive){const input=root.querySelector('[data-search]');input?.focus();try{input?.setSelectionRange(cursor,cursor);}catch{}}
@@ -430,18 +427,27 @@
     function addEntry(key){const operation=uid();const el=dialog('Add a contact to this list',field('Name','name','','text','required')+field('Phone number','phone','','tel','required')+field('Reason for calling','title','','text','required')+ui.projectField(),async data=>{await request(`call-lists/${encodeURIComponent(key)}/entries`,{...data,operation_id:operation});await load();},{submit:'Add to list'});ui.bindProjectPicker(el);}
     function newFollowUp(){const operation=uid();const el=dialog('Create follow-up',field('What needs to happen?','title','','text','required')+field('Due at (your local time)','due_at','','datetime-local','required')+select('Channel','channel',['call','email','sms'])+field('Phone number','phone','','tel')+ui.projectField(options.projectId||'')+departmentFields(),async data=>{await request('follow-ups',{...data,department_ids:selectedDepartments(el),due_at:new Date(data.due_at).toISOString(),timezone:Intl.DateTimeFormat(globalThis.PlatformLanguage?.formatLocale?.()).resolvedOptions().timeZone,operation_id:operation});await load();},{submit:'Create follow-up'});ui.bindProjectPicker(el,options.projectId||'');}
     function snooze(id){dialog('Reschedule follow-up',field('New due date (your local time)','due_at','','datetime-local','required'),async data=>{await request(`follow-ups/${encodeURIComponent(id)}/actions`,{action:'snooze',due_at:new Date(data.due_at).toISOString()});await load();});}
-    /** Call scripts open in the flow editor (libraries/flows/flow-editor.js); a new one starts as a blank call flow. */
-    function callFlowEditor(flowId){
-      const editor=window.FirstMateFlowEditor;
-      if(!editor){window.Portal?.ui?.showToast?.(globalThis.PlatformLanguage?.text?.('comms','flows_editor_missing','The script editor is not loaded on this page.') ?? 'The script editor is not loaded on this page.','error');return;}
-      editor.open(flowId||null,{readOnly:!state.canEditFlows,...(flowId?{}:{definition:editor.blankFlow('call')}),onSave:()=>load()});
+    /** Call scripts are the organization's `call` flows. */
+    async function callScripts(){
+      const flows=window.FirstMateFlows;if(!flows?.api)return {scripts:[],can_edit:false};
+      const result=await flows.api('/flows');
+      return {scripts:(result.flows||[]).filter(f=>f.kind==='call'&&!f.archived),can_edit:!!result.can_edit};
     }
-    function scriptEditor(script){
-      const sections=script?.data?.sections||[{title:(globalThis.PlatformLanguage?.text("comms","m_6e92fd00c625f7","Opening") ?? "Opening"),body:''}];
-      const el=dialog(script?'Edit call script':'Create call script',field('Script name','title',script?.title||'','text','required')+select('Status','status',['draft','published','archived'],script?.status||'draft')+departmentFields(script?.data?.department_ids||[])+
-        `<div data-script-sections>${String(sections.map((s,i)=>`<div data-script-section>${field('Section title',`section_title_${i}`,s.title,'text','required')}${area('Talking points',`section_body_${i}`,s.body,'required')}</div>`).join(''))}</div><button type="button" data-add-section>${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_5876eb21ef5887",`${v1} Add section`,{v1}) ?? `${v1} Add section`)(icon('plus'))}</button>`+area('Questions (one per line)','questions',(script?.data?.questions||[]).join('\n')),
-        async data=>{const sections=[...el.querySelectorAll('[data-script-section]')].map((_,i)=>({title:data[`section_title_${i}`],body:data[`section_body_${i}`]}));await request('call-scripts',{...(script?{id:script.id}:{}),title:data.title,status:data.status,department_ids:selectedDepartments(el,script?.data?.department_ids||[]),sections,questions:data.questions.split('\n').map(q=>q.trim()).filter(Boolean)});await load();},{submit:script?'Save new version':'Save script'});
-      el.querySelector('[data-add-section]').onclick=()=>{const host=el.querySelector('[data-script-sections]'),i=host.children.length;host.insertAdjacentHTML('beforeend',`<div data-script-section>${field('Section title',`section_title_${i}`,'','text','required')}${area('Talking points',`section_body_${i}`,'','required')}</div>`);};
+    /** Opens a script in the flow editor when it is on the page, else plays its published version in preview. */
+    async function openScript(id){
+      if(!id)return;
+      if(window.FirstMateFlowEditor?.open){window.FirstMateFlowEditor.open(id,{orgId:ui.org(),readOnly:!state.canEditScripts});return;}
+      const result=await window.FirstMateFlows.api(`/flows/${encodeURIComponent(id)}${state.canEditScripts?'?latest=1':''}`);
+      const el=dialog(result.flow.name,'<div data-flow-preview></div>',async()=>{},{submit:'Close'});
+      window.FirstMateFlows.preview(el.querySelector('[data-flow-preview]'),result.flow.definition);
+    }
+    /** A new call script starts as a short draft flow (an opening line and one question), then opens for editing. */
+    async function newScript(){
+      const definition={name:'New call script',kind:'call',start:'opening',steps:[{id:'opening',title:'Opening',blocks:[
+        {id:'hello',kind:'say',text:'Hi {{contact.first_name}}, this is {{user.first_name}} with {{organization.name}}.'},
+        {id:'q_1',kind:'ask',key:'q_1',label:'What can we help you with?',input:'paragraph'}],next:null}]};
+      const result=await window.FirstMateFlows.api('/flows',{method:'POST',body:{definition,publish:false}});
+      await load();await openScript(result.flow.id);
     }
     function phoneMenu(){
       const el=dialog('Your phone',`<p>Calls connect when you place them. Take incoming calls to have customers' calls ring here while this page is open.</p><div class="fmcm-actions"><button type="button" data-menu="open">Open phone</button><button type="button" data-menu="availability">${phone.takingCalls?'Stop taking calls':'Take incoming calls'}</button><button type="button" data-menu="devices">Audio devices</button><button type="button" data-menu="setup">Phone setup</button></div><p data-menu-error role="alert"></p>`,null);

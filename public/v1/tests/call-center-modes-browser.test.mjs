@@ -24,10 +24,11 @@ async function fixture(browser,{manager=true,mount={standalone:'center'}}={}){
       pauseDialer:message=>{phoneActions.push({kind:'pause',message});},
       supervise:async mode=>{phoneActions.push({kind:'supervise',mode});}
     }};
+    // Call scripts are `call` flows, listed by the flows API (docs/architecture/flows.md).
+    window.FirstMateFlows={api:async path=>{requests.push(`flows:${path}`);return path==='/flows'?{can_edit:manager,flows:[{id:'script-one',name:'Sales opening',kind:'call',description:'Ask about their project.',published_version:2,latest_version:2,archived:false},{id:'draft-one',name:'Unpublished draft',kind:'call',published_version:0,latest_version:1,archived:false},{id:'workflow-one',name:'Not a script',kind:'workflow',published_version:1,latest_version:1,archived:false}]}:{};}};
     window.CommsAPI={customer:async(_org,path)=>{
       requests.push(path);
       if(path.startsWith('call-lists/queue'))return {department_context:context,can_manage_departments:manager,columns:listColumns};
-      if(path.startsWith('call-scripts'))return {scripts:[{id:'script-one',title:'Sales opening',version:2,status:'published',data:{sections:[{title:'Opening',body:'Ask about their project.'}]}}]};
       if(path.startsWith('voice/center'))return {department_context:context,calls:[liveCall],agents:[{user_id:'rep-two',name:'Bea Rep',availability:'busy'},{user_id:'rep-one',name:'Ada Rep',availability:'available'}]};
       if(path.startsWith('calls?'))return path.includes('owner_user_id=')?{department_context:context,calls:ownCalls,total:1,next_cursor:null}:{department_context:context,calls:[],total:4};
       return {};
@@ -46,6 +47,8 @@ test('three Call Center screens wire personal history, queue controls and depart
     const {page,errors}=await fixture(browser);
     assert.equal(await page.locator('[role=tab]').count(),3);
     assert.equal(await page.getByText('Sales opening').count(),1);
+    assert.equal(await page.getByText('Unpublished draft').count(),0,'only published call flows are offered in a call');
+    assert.equal(await page.getByText('Not a script').count(),0);
     await page.getByRole('button',{name:'Call Next'}).click();
     assert.equal(await page.evaluate(()=>phoneActions.at(-1).input.entry.id),'lead-one');
     await page.locator('[data-center-dial-mode]').selectOption('power');

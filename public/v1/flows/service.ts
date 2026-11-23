@@ -29,8 +29,9 @@ function requireEditor(auth: PlatformAuthContext) {
   if (!canEditFlows(auth)) throw forbidden("flows_edit_denied", "Editing flows needs company settings or communications access.");
 }
 /** Playing a flow can find and create contacts and leads, so it needs the same access as making a project. */
+const canPlayFlows = (auth: PlatformAuthContext) => hasPermission(auth, "manage_projects") || hasPermission(auth, "view_projects");
 function requirePlayer(auth: PlatformAuthContext) {
-  if (!hasPermission(auth, "manage_projects") && !hasPermission(auth, "view_projects")) throw forbidden("flows_play_denied", "Playing a flow needs project access.");
+  if (!canPlayFlows(auth)) throw forbidden("flows_play_denied", "Playing a flow needs project access.");
 }
 
 export function parseFlow(value: unknown): FlowDefinition {
@@ -122,7 +123,11 @@ async function projectRecord(org: string, id: string) {
 async function load(auth: PlatformAuthContext, runId: string): Promise<Loaded> {
   const run = await readRun(auth.orgId, runId);
   if (!run) throw notFound("flow_run_not_found", "This run does not exist.");
-  if (run.started_by !== auth.userId && !canEditFlows(auth)) throw forbidden("flow_run_denied", "This run belongs to someone else.");
+  // A call's script is played by whoever has the call now (a transfer or takeover hands it on with the call).
+  // A run waiting on a lead (started by a rule, or for a call list entry) is anyone's to play who may play flows.
+  const waiting = ["automation", "call_list_entry"].includes(text(object(run.source).kind));
+  if (run.started_by !== auth.userId && !canEditFlows(auth) && !(waiting && canPlayFlows(auth)) && !(run.call_id && await (await import("../comms/calls/flow-runs.js")).ownsCallRun(auth, run)))
+    throw forbidden("flow_run_denied", "This run belongs to someone else.");
   const version = await readVersion(auth.orgId, run.flow_id, run.flow_version);
   if (!version) throw notFound("flow_version_not_found", "The version of the flow this run started on is gone.");
   return { run, definition: parseFlow(version.definition), contact: await contactRecord(auth.orgId, run.contact_id), project: await projectRecord(auth.orgId, run.project_id) };
@@ -206,11 +211,15 @@ export async function startRun(auth: PlatformAuthContext, input: { flow_id: stri
   const flow = await readFlow(auth.orgId, text(input.flow_id));
   const source = runSourceSchema.parse(input.source || {});
   if (source.project_id) await readDocument(auth.orgId, "projects", source.project_id);
+  // A run on a call is the call's script: only someone who may change the call starts one, and the call keeps its id.
+  const calls = source.call_id ? await import("../comms/calls/flow-runs.js") : null;
+  if (calls) await calls.authorizeCallRun(auth, text(source.call_id));
   const time = now();
   const run: FlowRun = { id: `flowrun_${randomUUID().replace(/-/g, "")}`, flow_id: flow.id, flow_version: flow.version, status: "open", step_id: flow.definition.start, path: [], answers: {},
     contact_id: text(source.contact_id), project_id: text(source.project_id), call_id: text(source.call_id), outcome_id: "", source, started_by: auth.userId,
     started_at: time, updated_at: time, finished_at: "", revision: 1 };
   await insertRun(auth.orgId, run);
+  if (calls) await calls.linkCallRun(auth.orgId, run.call_id, { id: run.id, flow_id: flow.id, flow_version: flow.version, name: flow.definition.name });
   return runView(auth, { run, definition: flow.definition, contact: await contactRecord(auth.orgId, run.contact_id), project: await projectRecord(auth.orgId, run.project_id) });
 }
 
@@ -351,6 +360,10 @@ export async function advanceRun(auth: PlatformAuthContext, runId: string, input
   run.revision = revision + 1;
   if (run.status === "done") {
     await emit(auth, loaded, "flow.run.completed", { outcome_id: run.outcome_id, answers: run.answers });
+    // The run's outcome is its call's result: the wrap-up is pre-filled from it (comms/calls/flow-runs.ts).
+    if (run.call_id) await (await import("../comms/calls/flow-runs.js")).callRunFinished(auth.orgId, run, definition);
+    // Played from a call list entry without a call (the CRM worklist): the run is how the entry was worked.
+    else if (text(object(run.source).entry_id)) await (await import("../comms/calls/flow-runs.js")).entryRunFinished(auth.orgId, run);
   }
   return runView(auth, loaded);
 }
@@ -420,4 +433,27 @@ export function previewStep(definitionValue: unknown, input: { step_id?: string;
     organization: { name: text(organization.name || organization.company_name) || "your company" } };
   const step = stepOf(definition, text(input.step_id) || definition.start);
   return { step: stepView(step, context), next: resolveNext(step, context) };
+}
+
+/**
+ * A run as someone who may see its call reads it (the call detail, observers and supervisors): the flow, where it is,
+ * what was answered (labelled) and the outcome. Read-only and unauthorized here: the caller has authorized the call.
+ */
+export async function runSummary(org: string, runId: string) {
+  const run = await readRun(org, runId);
+  if (!run) return null;
+  const version = await readVersion(org, run.flow_id, run.flow_version);
+  if (!version) return null;
+  const definition = parseFlow(version.definition);
+  const asked = definition.steps.flatMap((step) => step.blocks).filter((block): block is Extract<FlowBlock, { kind: "ask" | "choice" }> => block.kind === "ask" || block.kind === "choice");
+  const answers = asked.filter((block) => Object.hasOwn(run.answers, block.key)).map((block) => {
+    const value = run.answers[block.key];
+    const named = (id: unknown) => block.options.find((option) => option.id === text(id))?.label || text(id);
+    const shown = Array.isArray(value) ? value.map(named).join(", ") : typeof value === "boolean" ? (value ? "Yes" : "No") : block.options.length ? named(value) : text(value);
+    return { key: block.key, label: block.label || block.key, value: shown };
+  });
+  const step = definition.steps.find((entry) => entry.id === run.step_id);
+  const outcome = definition.outcomes.find((entry) => entry.id === run.outcome_id);
+  return { id: run.id, flow_id: run.flow_id, flow_version: run.flow_version, name: definition.name, kind: definition.kind, status: run.status, started_by: run.started_by,
+    step: step ? { id: step.id, title: step.title } : null, answers, outcome: outcome ? { id: outcome.id, label: outcome.label, color: outcome.color } : null, finished_at: run.finished_at };
 }
