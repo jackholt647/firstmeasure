@@ -78,7 +78,11 @@ export function mount(el, ctx){
   const T = (key, fallback) => esc(L(`gx_leads_${key}`, fallback));
   const part = clean(object(ctx.options).part) || 'contact';
   ctx.place?.keep?.(() => ({ page: part }));
-  let alive = true, status = null, state = object(ctx.answer), player = null;
+  // The working state is this step's own copy: the frame writes each change() into ctx.answer, which holds answer()'s
+  // shape (ids, not rows), so it is only read back here to start from what was answered before (going Back).
+  const given = object(ctx.answer);
+  let alive = true, status = null, player = null;
+  const state = {};
   el.innerHTML = '<div class="gxl"><span class="gxs-spin" aria-hidden="true"></span></div>';
 
   const report = (summary = '') => ctx.change(answer(), summary);
@@ -193,20 +197,20 @@ export function mount(el, ctx){
 
   function start(){
     const answers = object(status.answers);
-    if (part === 'sources') state.sources = array(state.sources).length ? state.sources : array(answers.sources).length ? answers.sources : ['website', 'email'];
-    if (part === 'contact') state.method = clean(state.method) || clean(answers.contact) || 'call';
-    if (part === 'no_answer') state.actions = state.actions || (Array.isArray(answers.no_answer) ? answers.no_answer : ['text', 'retry']);
+    if (part === 'sources') state.sources = Array.isArray(given.sources) ? given.sources : array(answers.sources).length ? answers.sources : ['website', 'email'];
+    if (part === 'contact') state.method = clean(given.method) || clean(answers.contact) || 'call';
+    if (part === 'no_answer') state.actions = Array.isArray(given.actions) ? given.actions : Array.isArray(answers.no_answer) ? answers.no_answer : ['text', 'retry'];
     if (part === 'questions') {
-      const chosen = Array.isArray(answers.questions) ? answers.questions : null;
+      const chosen = Array.isArray(given.questions) ? given.questions : Array.isArray(answers.questions) ? answers.questions : null;
       const suggested = array(status.suggested_questions);
-      state.questions = state.questions || (chosen ? [...chosen.map((entry) => ({ ...entry, on: true })), ...suggested.filter((entry) => !chosen.some((have) => have.key === entry.key)).map((entry) => ({ ...entry, on: false }))]
+      state.questions = (chosen ? [...chosen.map((entry) => ({ ...entry, on: true })), ...suggested.filter((entry) => !chosen.some((have) => have.key === entry.key)).map((entry) => ({ ...entry, on: false }))]
         : suggested.map((entry) => ({ ...entry, on: true })));
     }
-    if (part === 'script') state.definition = state.definition || status.flow;
+    if (part === 'script') state.definition = given.definition || status.flow;
     if (part === 'new_menu') {
-      const saved = Array.isArray(answers.new_menu) ? answers.new_menu : null;
+      const saved = Array.isArray(given.items) ? given.items : Array.isArray(answers.new_menu) ? answers.new_menu : null;
       const order = saved || ['lead', 'project', 'contact', 'report'];
-      state.items = state.items || [...order.filter((id) => MENU[id]).map((id) => ({ id, on: true })), ...Object.keys(MENU).filter((id) => !order.includes(id)).map((id) => ({ id, on: false }))];
+      state.items = [...order.filter((id) => MENU[id]).map((id) => ({ id, on: true })), ...Object.keys(MENU).filter((id) => !order.includes(id)).map((id) => ({ id, on: false }))];
     }
     draw(); report();
   }
