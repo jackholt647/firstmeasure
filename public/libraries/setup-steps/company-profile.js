@@ -337,3 +337,5 @@ export function mount(el, ctx){
     destroy(){ alive = false; ui?.destroy(); }
   };
 }
+
+export const hotProof = 1;
