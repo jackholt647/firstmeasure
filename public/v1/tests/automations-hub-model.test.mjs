@@ -106,3 +106,71 @@ test("the setup asks business questions, never where leads go", async () => {
   const text = await readFile(new URL("../../libraries/guided-experiences/automations-setup.js", import.meta.url), "utf8");
   assert.equal(/Where do (your )?new leads go/i.test(text), false);
 });
+
+// Flows (docs/architecture/flows.md): a flow is drawn between what starts it and where each of its outcomes leads.
+const newLeadCall = {
+  id: "new_lead_call", latest_version: 3, published_version: 3,
+  definition: { name: "New lead call", kind: "call", icon: "fa-phone-volume", color: "#2563eb", start: "dial",
+    outcomes: [
+      { id: "ready", label: "Ready for an appointment", color: "#16a34a", effects: [{ automation: "scopes.activateTemplate.v1", input: { template_id: "sales_pipeline", instance_key: "new_lead_flow" } }] },
+      { id: "call_back", label: "Call back later", effects: [] },
+      { id: "no_answer", label: "No answer", effects: [] },
+      { id: "not_interested", label: "Not interested", effects: [{ automation: "sales.markLost.v1", input: { reason: "not_interested" } }] }
+    ],
+    steps: [
+      { id: "dial", title: "Call the lead", blocks: [{ id: "n", kind: "note", text: "Call {{contact.name}}." },
+        { id: "answered", kind: "choice", key: "answered", label: "Did they answer?", options: [{ id: "yes", label: "They answered", to: "greet" }, { id: "no", label: "No answer", to: "no_answer" }, { id: "wrong", label: "Wrong number", outcome: "not_interested" }] }], next: null },
+      { id: "no_answer", title: "No answer", blocks: [{ id: "retry", kind: "action", label: "Try the lead again", automation: "work.createTodo.v1", input: {} }, { id: "end", kind: "outcome", outcome: "no_answer" }], next: null },
+      { id: "greet", title: "They answered", blocks: [{ id: "hi", kind: "say", text: "Hi, is this {{contact.first_name}}?" },
+        { id: "q", kind: "ask", key: "need", label: "What do you need done?", input: "select", options: [{ id: "a", label: "A replacement" }, { id: "b", label: "A repair" }] }], next: "next" },
+      { id: "next", title: "What's next?", blocks: [{ id: "result", kind: "choice", key: "result", label: "How did it go?", options: [{ id: "ready", label: "They want an appointment", outcome: "ready" }, { id: "later", label: "Call them back later", outcome: "call_back" }] }], next: null },
+      { id: "orphan", title: "Nothing reaches this", blocks: [], next: null }
+    ],
+    entry: { new_menu: { enabled: false, label: "Lead" } } }
+};
+const manualLead = { id: "new_lead", latest_version: 1, published_version: 1, definition: { name: "New lead", start: "who", outcomes: [], steps: [{ id: "who", title: "Who is it?", blocks: [], next: null }], entry: { new_menu: { enabled: true, label: "Lead" } } } };
+const unused = { id: "tshirts", latest_version: 1, published_version: 1, definition: { name: "T-shirt order", start: "a", outcomes: [], steps: [{ id: "a", blocks: [], next: null }], entry: {} } };
+const rules = [
+  { id: "start_new_lead_call", enabled: true, event: "lead.received", automation: "flows.start.v1", input: { flow_id: "new_lead_call" }, title: "Call each new lead" },
+  { id: "old", enabled: false, event: "lead.received", automation: "flows.start.v1", input: { flow_id: "tshirts" } }
+];
+
+test("a flow is drawn when a rule or the New menu starts it, with each outcome's destination read from its effects", () => {
+  const flows = model.flowsOf([newLeadCall, manualLead, unused], rules);
+  assert.deepEqual(flows.map((flow) => [flow.id, flow.starts.map((start) => start.kind === "rule" ? `${start.event}:${start.rule_id}` : start.kind)]),
+    [["new_lead_call", ["lead.received:start_new_lead_call"]], ["new_lead", ["new_menu"]]], "a rule that is off starts nothing; a flow nothing starts is not drawn");
+  assert.deepEqual(flows[0].outcomes.map((outcome) => [outcome.id, outcome.kind, outcome.to, outcome.follow_up === true]), [
+    ["ready", "board", "sales_pipeline", false],
+    ["call_back", "stay", "", false],
+    ["no_answer", "stay", "", true],
+    ["not_interested", "lost", "lost", false]
+  ], "no answer stays a new lead with the follow-up its step leaves");
+  assert.equal(flows[0].version, 3);
+});
+
+test("dropping an outcome's dot on a board makes that outcome start the board; on lost it marks the lead lost", () => {
+  const definition = newLeadCall.definition;
+  const toRoof = model.withOutcomeTarget(definition, "ready", "roof_replacement", "new_lead_call");
+  assert.deepEqual(toRoof.outcomes[0].effects.map((effect) => [effect.automation, effect.input.template_id, effect.input.instance_key]),
+    [["scopes.activateTemplate.v1", "roof_replacement", "new_lead_flow"]], "the board it started before keeps its instance key");
+  const callBack = model.withOutcomeTarget(definition, "call_back", "sales_pipeline", "new_lead_call").outcomes[1];
+  assert.deepEqual(callBack.effects.map((effect) => [effect.automation, effect.input.template_id, effect.input.instance_key]), [["scopes.activateTemplate.v1", "sales_pipeline", "flow_new_lead_call"]]);
+  const lostToBoard = model.withOutcomeTarget(definition, "not_interested", "sales_pipeline").outcomes[3];
+  assert.deepEqual(lostToBoard.effects.map((effect) => effect.automation), ["scopes.activateTemplate.v1"], "an outcome that goes to a board is no longer lost");
+  const readyLost = model.withOutcomeTarget(definition, "ready", "lost").outcomes[0];
+  assert.deepEqual(readyLost.effects.map((effect) => effect.automation), ["sales.markLost.v1"]);
+  assert.deepEqual(model.withOutcomeTarget(definition, "ready", "unscoped").outcomes[0].effects, [], "no board yet: it stays where it is");
+  assert.equal(model.outcomeTarget(toRoof.outcomes[0], toRoof).to, "roof_replacement");
+  assert.equal(definition.outcomes[0].effects[0].input.template_id, "sales_pipeline", "the original is not changed");
+  assert.equal(model.withOutcomeTarget(definition, "missing", "x"), null);
+});
+
+test("the whole flow: steps from the start in the order they are reached, with where each answer goes", () => {
+  const outline = model.outlineOf(newLeadCall.definition);
+  assert.deepEqual(outline.map((step) => step.id), ["dial", "greet", "next", "no_answer", "orphan"], "reached depth first from the start, then anything nothing reaches");
+  assert.deepEqual(outline[0].exits.map((exit) => [exit.label, exit.step_title || exit.outcome_label]),
+    [["They answered", "They answered"], ["No answer", "No answer"], ["Wrong number", "Not interested"]]);
+  assert.deepEqual(outline[1].lines.map((line) => [line.kind, line.text, line.options]), [["say", "Hi, is this {{contact.first_name}}?", []], ["ask", "What do you need done?", ["A replacement", "A repair"]]]);
+  assert.deepEqual(outline[1].exits.map((exit) => exit.to), ["next"]);
+  assert.deepEqual(outline[3].exits.map((exit) => exit.outcome_label), ["No answer"]);
+});

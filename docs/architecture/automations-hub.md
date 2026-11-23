@@ -12,6 +12,9 @@ through the routes Settings > Project Scopes uses.
 | The **lanes** down the left | The organization's scope categories (`scopes/categories.ts`), enabled, except `intake`. Sales and Production by default; Sales is built in. |
 | A **board** with its stages | A scope template that is on and not intake, with the groups under its top phase as stages. It sits in the lanes of its categories, so a board in Sales and Production spans both. A board in no lane is listed under "Boards not in a lane". |
 | A wire from a board | A `scopes.activateTemplate.v1` binding in that board (the stage it is in is the label). `scopes.activateFromProposal.v1` is drawn as a logic block, "Starts the boards for the work sold", whose dashed wires to the production boards show on hover. A binding with conditions is drawn as a logic block too. |
+| The **Flows** row, under New leads | Each [flow](flows.md) something starts (a call script or workflow), drawn between what starts it and where it leads. Not drawn when nothing starts it. |
+| A box on a flow's left | What starts it: an organization automation rule that is on and whose `input.flow_id` names the flow (the leads setup's rule on `lead.received` is drawn as "New leads"; another event by the rule's title), or "New menu" when `entry.new_menu.enabled`. |
+| A flow's outcomes and their wires | One row per outcome, read from its effects: `scopes.activateTemplate.v1` wires to the board (`input.template_id`), `sales.markLost.v1` wires to **Lost** (placed right after the flows that can end there), anything else stays where it is ("Stays a new lead", "with a follow-up" when the step that ends with it leaves a to-do, a text or an email). |
 
 ## What people can do
 
@@ -24,6 +27,16 @@ through the routes Settings > Project Scopes uses.
   and then click the board. A lead box sets its rule's entry. Board to board adds an `onCompleted`
   `scopes.activateTemplate.v1` binding to the source board's last stage (a template save: new instances only, as
   always). Clicking a board wire shows what it does and can remove it.
+- **Open a flow**: click its box (or an outcome) to see the whole flow. With the flow editor on the page,
+  `FirstMateFlowEditor.open(flowId, { readOnly: true })`; without it, the hub's own modal lists every step from the
+  start (what is said, asked and done) and where each answer goes, a step or an outcome and that outcome's
+  destination, with a "Try it" tab that plays it through `FirstMateFlows.preview` (nothing saved).
+- **Send an outcome somewhere**: drag its dot (or click it, then click) onto a board, onto Lost, or onto "No board
+  yet" (stays where it is). Its `scopes.activateTemplate.v1` / `sales.markLost.v1` effects are replaced and its other
+  effects kept; a board it started before keeps its `instance_key`. Saved as a new flow version with
+  `PUT /v1/flows/organizations/:orgId/flows/:id` and `expected_version` (the version read; a conflict reloads). The
+  flow is read at its newest version for editors; when that has unpublished changes the save is a draft, so a drag
+  never publishes someone else's work.
 - **Lanes**: drag a board by its title into another lane; onto the line between two lanes to put it in both (its lane
   categories are replaced, other categories stay). Add a lane (a new category), rename one by clicking its name, or
   remove one (the category is turned off; Sales cannot be).
@@ -91,9 +104,13 @@ never turns off a production board that is the board of work the company does.
 - Where boards sit left to right is computed (entry boards first, a board next to the one that starts it); it is not
   saved.
 - The CRM source catalog (`lead_source.source_id`) can be named as a field, but the split menu offers the lead kinds.
+- What starts a flow is shown, not edited here (the leads setup and the rules editor make the rules). Flows started by
+  a board's binding are not drawn yet. An outcome's wire to a lower lane can pass behind a board.
+- The flow modal's copy is not yet in the language catalog (`catalog-source.json`); the inline English shows.
 
 ## Tests
 
-`tests/automations-hub-model.test.mjs` (what the chart draws and what a drag writes), `tests/automations-setup.test.ts`
+`tests/automations-hub-model.test.mjs` (what the chart draws and what a drag writes, flows included: their starts,
+outcome destinations, an outcome sent to a board or lost, and the whole-flow outline), `tests/automations-setup.test.ts`
 (what the answers make and the setup action), `tests/work-boards.test.ts` (a board per kind of work, and the
 appointment kinds offered for it) and `tests/lead-receive.test.ts` (the arrival time stamp).
