@@ -268,6 +268,30 @@ goes straight to the default board.
    pricing in the evaluate-only sandbox, `page` surface); staff forms become flows.
 4. Comparing a call's transcript with its script.
 
+## Editing as a script (prototype, 2026-11-23)
+
+`public/libraries/flows/flow-script-editor.js` (`FirstMateFlowScriptEditor.mount/open`) edits a flow the way it is
+read, beside the map editor (`flow-editor.js`) until Jack picks one; each has a switch to the other. CRM settings ›
+Flows and the leads setup's script step open it first.
+
+- **Left:** the steps as a thin tree. Branches indent; a step reached twice is listed once and linked. Hovering a
+  step lights every step that can come before it (all branches into it, merged ones too). ⚠ marks a button with no
+  label; a purple ? marks a choice on the current path not made yet.
+- **Middle:** the path, one step at a time: the step you are on, the bottom of the one before fading in above, the top
+  of the next below, once the next is known (one way on, or a button already chosen; choices are remembered when you
+  go back). Wheel, arrow keys or a click on a peeking step move along it, animated; a step taller than the screen
+  scrolls through first. Edit mode (the default) edits in place: titles and lines as plain text with [first name]
+  style words for templates, + Line / Note / Input / Send a text, + beside the buttons adds a parallel step and a
+  button for it (a one-way step becomes a choice), + between two steps inserts one. View mode plays it.
+- **Floating box:** to the right of what is selected, centered on it: an input's label, variable, type, range (`min`,
+  `max` on number and money inputs) or choices and where it is saved; a button's label and where it goes (a step, a
+  new step, an outcome, the end); a line's said / not said and words to insert; a step's title and what comes next.
+- **Right:** the shared assistant in a private `flow:<id>` conversation (`flows/assistant.ts`, `flows_*` tools,
+  `POST /flows/:id/conversation`); the editor reloads the flow after the assistant saves.
+
+Not yet: rich formatting in lines (plain text with line breaks), branches by condition (`next.branches`) are shown but
+edited in the map editor, and undo.
+
 ## Built so far (2026-11-23, on dev)
 
 - Server: `public/v1/flows/` (contract, versions and runs in `flows.sqlite`/Postgres, routes at `/v1/flows`,
