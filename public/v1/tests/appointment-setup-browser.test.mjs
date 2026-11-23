@@ -143,7 +143,7 @@ test('each kind, texting through the shared flow, then the finish with the answe
         if(action==='comms.setup.start'){status.done.phone=true;status.phone.registration=window.registered?'approved':'none';}
         return {value:structuredClone(status)};}}};
       window.FirstMateSetupWizard={open(){}};
-      window.FirstMateSmsRegistration={open:()=>new Promise(resolve=>{calls.push('registration.open');window.submit=()=>{window.registered=true;resolve({});};})};
+      window.FirstMateSmsRegistration={open:(opts)=>new Promise(resolve=>{calls.push('registration.open');window.registrationInside=!!opts?.container?.closest?.('#step');window.submit=()=>{window.registered=true;resolve({});};})};
       const copy=(key,text)=>({key,text});
       const catalog={kinds:[{id:'sales',label:copy('k1','Sales appointment'),category:'sales'},{id:'repair',label:copy('k2','Repair appointment'),category:'production'}],
         categories:[{id:'sales',label:copy('a','Sales')},{id:'production',label:copy('b','Production')},{id:'other',label:copy('c','Other')}],
@@ -178,9 +178,11 @@ test('each kind, texting through the shared flow, then the finish with the answe
     assert.deepEqual(await page.locator('[data-gxa-who][aria-checked=true]').evaluateAll(nodes=>nodes.map(node=>node.textContent.trim())),['Crews','Subcontractors'],'who goes starts from who does the work, named by the terminology');
     await page.getByRole('button',{name:'Continue'}).click();
     // A text was asked for and texting is not set up: offered, the same flow as the Communications setup.
-    await page.getByRole('button',{name:'Set up texting'}).click();
+    await page.getByRole('button',{name:'Set up phone'}).click();
     await page.waitForFunction(()=>calls.includes('registration.open'));
-    assert.equal(await page.locator('.gxs').evaluate(sheet=>getComputedStyle(sheet).visibility+(sheet.inert?' inert':'')),'hidden inert','the setup steps aside while registration is open');
+    // Registration is more pages of the setup (GP-138): it opens inside the step, and the sheet stays.
+    assert.equal(await page.evaluate(()=>window.registrationInside),true,'registration opens inside the setup step');
+    assert.equal(await page.locator('.gxs').evaluate(sheet=>getComputedStyle(sheet).visibility+(sheet.inert?' inert':'')),'visible');
     await page.evaluate(()=>submit());
     await page.getByText('Your appointment types are ready').or(page.locator('[data-gxa-finish]')).first().waitFor();
     assert.deepEqual(await page.evaluate(()=>calls),['comms.setup.status','comms.setup.start','registration.open','comms.setup.start']);

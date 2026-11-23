@@ -158,7 +158,7 @@ test('the shingle path: roof types, manufacturers in the order picked, defaults 
     assert.equal(await page.locator('.gxs-step h2 [data-gxs-info]').getAttribute('aria-label'),'Pick every kind you install.');
     await page.waitForTimeout(600);
     await page.hover('.gxs-step h2 [data-gxs-info]');
-    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.gxs-info-tip')).opacity==='1');
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.gxs-step h2 .gxs-info-tip')).opacity==='1');
     assert.equal(await page.locator('[data-gxs=close]').count(),1,'one close, top right of the whole sheet');
     // Nine kinds of roof, PVC apart from TPO, each a drawing and a name; all in view without scrolling.
     const types=await page.evaluate(()=>{const stage=document.querySelector('.gxs-step:not(.gxs-above)');const all=[...document.querySelectorAll('.gxs-type')];return {names:all.map(t=>t.querySelector('.gxs-type-name').textContent),fits:stage.scrollHeight<=stage.clientHeight+1,drawings:all.every(t=>t.querySelector('svg.gxs-swatch')),columns:new Set(all.map(t=>Math.round(t.getBoundingClientRect().left))).size,heights:new Set(all.map(t=>Math.round(t.getBoundingClientRect().height))).size,tip:all[2].title};});
