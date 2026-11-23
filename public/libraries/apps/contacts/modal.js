@@ -4,7 +4,7 @@
 (function(){
   if (!window.Portal) return;
 
-  const shellReady=window.FirstMateWindowShell?Promise.resolve():import(new URL('../../window-manager/window-shell.js?v=20261118-fm547-contact-header',document.currentScript?.src||location.origin+'/libraries/apps/contacts/modal.js').href);
+  const shellReady=window.FirstMateWindowShell?Promise.resolve():import(new URL('../../window-manager/window-shell.js?v=20261123-gp152-details-toggle',document.currentScript?.src||location.origin+'/libraries/apps/contacts/modal.js').href);
   const cfg = window.Portal.cfg || {};
   const state = {
     open: false,
@@ -551,7 +551,9 @@
     }});
     const header=element.querySelector('.fm-contact-window-header');
     contactTrays=window.FirstMateWindowShell.trayHost({container:element.querySelector('.fm-contact-content'),header,getContext:()=>({contact:state.contact,orgId:orgId()})});
-    contactShell=window.FirstMateWindowShell.mount({element,header,identity:element.querySelector('.fm-contact-window-identity'),tabs:element.querySelector('.fm-contact-tabs'),sidebar:element.querySelector('.fm-contact-left'),panes:contactPanes,trays:contactTrays,headerRows:2});
+    contactShell=window.FirstMateWindowShell.mount({element,header,identity:element.querySelector('.fm-contact-window-identity'),tabs:element.querySelector('.fm-contact-tabs'),sidebar:element.querySelector('.fm-contact-left'),panes:contactPanes,trays:contactTrays,headerRows:2,
+      // The title opens and closes the details column, as the project window's title does its details tray (GP-152).
+      sidebarToggle:{open:detailsStartOpen(),onChange:rememberDetailsOpen}});
   }
   /** The tabs' selected state. On a phone Details is selected in place of the open view. */
   function syncContactTabs(){
@@ -574,8 +576,16 @@
     syncContactTabs();
     if(changed&&isPhone()){const content=overlay?.querySelector('.fm-contact-content');if(content)content.scrollTop=0;}
   }
-  /** A field that needs attention is in Details; a phone switches there before focusing it. */
-  function revealDetails(){ if(state.phoneView!=='details')setPhoneView('details'); }
+  /** A field that needs attention is in Details; a phone switches there before focusing it, a desktop opens the column. */
+  function revealDetails(){ if(state.phoneView!=='details')setPhoneView('details'); if(!isPhone()&&contactShell&&!contactShell.sidebarOpen)contactShell.setSidebarOpen?.(true); }
+  // Desktop details column (GP-152): a new contact opens with it, since its name is the work; otherwise the person's
+  // last choice in this browser, open until they close it.
+  const DETAILS_OPEN_KEY='fm.contacts.detailsOpen';
+  function detailsStartOpen(contact){
+    if(contact&&!contact.id)return true;
+    try{return localStorage.getItem(DETAILS_OPEN_KEY)!=='false';}catch(error){return true;}
+  }
+  function rememberDetailsOpen(open){ try{localStorage.setItem(DETAILS_OPEN_KEY,String(!!open));}catch(error){/* private mode keeps the default */} }
   function ensureUI(){
     injectCSS();
     let overlay = $('#fmContactOverlay');
@@ -1352,7 +1362,7 @@
     clearTimeout(saveTimer);revision=0;savedRevision=0;draftMedia=[];
     state.secondaryPhoneOpen=!!cleanText(nextContact.custom_field_values?.secondary_phone);
     state.relationshipMode='';state.relationshipNames={};state.relationshipContacts={};state.returnToContact=options.returnToContact||null;
-    contactTrays.reset();contactShell.reset();
+    contactTrays.reset();contactShell.reset();contactShell.setSidebarOpen?.(detailsStartOpen(nextContact));
     state.contact = nextContact;
     state.originalContact = { ...state.contact };
     const initialProjects = dedupeProjects(options.projects || (contact?.project ? [contact.project] : []));

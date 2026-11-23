@@ -228,3 +228,60 @@ test('only the owning portal restores an order on reload; close and reopen clear
   assert.equal((await open()).workflow,undefined);
  }finally{await browser.close();}
 });
+
+// GP-152: the contact window's title opens and closes its details column, as the project window's title does its
+// details tray; open, the column starts under the title row and pushes the tabs and panes right. A phone keeps Details.
+test('contact title toggles the details column and moves the tabs with it',async()=>{
+  const browser=await launch();
+  try{
+    const page=await browser.newPage({viewport:{width:1400,height:900},reducedMotion:'reduce'}),errors=[];
+    page.on('pageerror',e=>errors.push(e.message));
+    await page.route('https://contact.test/**',route=>route.fulfill({contentType:'text/html',body:'<style>body{margin:0;font:14px Arial}main{position:relative;width:100vw;height:100vh}</style><main class="main"><div id="mainPanels"></div></main>'}));
+    await page.goto('https://contact.test/');
+    await page.evaluate(()=>{
+      window.Portal={cfg:{orgId:'org'},modules:{},ProjectStore:{list:()=>[],getAll:()=>[],saveRemote:async p=>p},PhotoFeed:{mountProjectGallery:node=>{node.innerHTML='';}}};
+      window.PlatformAPI={contacts:{settings:async()=>({settings:{tags:[]}}),projects:async()=>({projects:[]})}};
+    });
+    for(const file of ['window-manager/window-manager.js','window-manager/window-shell.js','apps/contacts/modal.js'])await load(page,file);
+    await page.evaluate(()=>Portal.modules.contacts.open({id:'c1',name:'Pat Doe'},{projects:[],projectsComplete:true}));
+    const toggle=page.locator('.fm-contact-window-identity .fm-shell-sidebar-toggle');
+    const geometry=()=>page.evaluate(()=>{
+      const box=s=>document.querySelector(s).getBoundingClientRect();
+      const left=document.querySelector('.fm-contact-left');
+      return {win:box('.fm-contact-win'),tab:box('#fmContactProjectsTab'),left:box('.fm-contact-left'),right:box('.fm-contact-right'),title:box('.fm-contact-window-identity'),shown:getComputedStyle(left).visibility==='visible'};
+    });
+    assert.equal(await toggle.getAttribute('aria-expanded'),'true','an existing contact opens with its details by default');
+    let g=await geometry();
+    assert.ok(g.shown&&g.left.left-g.win.left<=2,'the column is at the window\'s left');
+    assert.ok(Math.abs(g.left.top-g.title.bottom)<2,'the column starts under the title row');
+    assert.ok(g.tab.left>=g.left.right-1,'the tabs sit right of the open column');
+    assert.ok(g.right.left>=g.left.right-1,'the panes sit right of the open column');
+    await toggle.click();
+    g=await geometry();
+    assert.equal(await toggle.getAttribute('aria-expanded'),'false');
+    assert.equal(g.shown,false,'the column is closed');
+    assert.ok(g.tab.left-g.win.left<40,'the tabs move back to the left');
+    assert.ok(g.right.left-g.win.left<=2,'the panes take the whole width');
+    assert.equal(await page.evaluate(()=>localStorage.getItem('fm.contacts.detailsOpen')),'false','the choice is kept in this browser');
+    await page.evaluate(async()=>{await Portal.modules.contacts.close({skipHistory:true});await Portal.modules.contacts.open({id:'c2',name:'Sam Roe'},{projects:[],projectsComplete:true});});
+    assert.equal(await toggle.getAttribute('aria-expanded'),'false','the next contact keeps the closed column');
+    await page.evaluate(async()=>{await Portal.modules.contacts.close({skipHistory:true});await Portal.modules.contacts.open({});});
+    assert.equal(await toggle.getAttribute('aria-expanded'),'true','a new contact opens with its details: the name is the work');
+    await toggle.press('Enter');
+    assert.equal(await toggle.getAttribute('aria-expanded'),'false','the title is a keyboard control');
+    await page.evaluate(()=>{document.querySelector('#fmContactFirstName').value='';return document.querySelector('#fmContactFirstName').dispatchEvent(new Event('input'));});
+    await page.evaluate(()=>Portal.modules.contacts.setLayout({sidebar:false}));
+    assert.equal((await geometry()).tab.left<(await geometry()).win.left+40,true,'a layout-hidden column moves nothing');
+    await page.evaluate(()=>Portal.modules.contacts.setLayout({sidebar:true}));
+    // Phone: no toggle behaviour; Details stays a tab of its own.
+    await page.setViewportSize({width:390,height:844});
+    await page.waitForTimeout(100);
+    await page.evaluate(()=>Portal.modules.contacts.open({id:'c3',name:'Lee Poe'},{projects:[],projectsComplete:true}));
+    assert.equal(await toggle.getAttribute('aria-expanded'),null);
+    await toggle.click();
+    assert.equal(await page.locator('#fmContactFirstName').isVisible(),true,'the phone shows Details');
+    const phone=await geometry();
+    assert.ok(phone.left.width>=phone.win.width-2,'the phone details use the full width');
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});

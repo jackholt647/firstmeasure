@@ -3,7 +3,7 @@
 (function(root){
   'use strict';
   if(root.FirstMateWindowShell)return;
-  let trayTabSequence=0;
+  let trayTabSequence=0,sidebarSequence=0;
   function styles(){
     if(document.getElementById('fm-window-shell-style'))return;
     const style=document.createElement('style');style.id='fm-window-shell-style';
@@ -94,6 +94,30 @@
 .fm-entity-window .fm-project-loading-header[data-window-mobile=true]>.fm-project-tray-tabs>button::after{content:attr(aria-label);display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;line-height:13px;font-weight:600}
 .fm-project-tray-tabs .fm-tray-label{display:none}
 @media(max-width:760px){.fm-shell-tray{position:absolute;right:0;top:36px;bottom:0;width:min(380px,100%);background:white;z-index:5}}
+/* A collapsible sidebar (sidebarToggle, GP-152) works as the project window's details tray: the title opens and closes it,
+   with arrows beside it pointing the way it will go. Open, it starts under the title row, joins the header into one white
+   column and pushes the tabs and the content right. A phone keeps the owner's own layout. */
+.fm-shell-sidebar-toggle{display:flex;align-items:center;gap:8px;min-width:0;max-width:100%;margin:0;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.fm-shell-sidebar-toggle>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fm-shell-sidebar-toggle::after{content:'\\f101';flex:none;font-family:'Font Awesome 6 Free','Font Awesome 5 Free';font-weight:900;font-size:12px;line-height:1;color:#98a2b3;transition:color .16s ease}
+.fm-shell-sidebar-toggle[aria-expanded=true]::after{content:'\\f100'}
+@media(hover:hover){.fm-shell-sidebar-toggle:hover::after{color:var(--primary-readable,var(--primary,#d93025))}}
+.fm-shell-sidebar-toggle:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px;border-radius:4px}
+.fm-entity-window:is([data-window-mobile=true],[data-window=minimized]) .fm-shell-sidebar-toggle{cursor:inherit}
+.fm-entity-window:is([data-window-mobile=true],[data-window=minimized]) .fm-shell-sidebar-toggle::after{display:none}
+.fm-entity-window[data-window=minimized] .fm-shell-sidebar-toggle{flex:1;gap:7px;pointer-events:none}
+.fm-entity-window[data-window=minimized] .fm-shell-sidebar-toggle>i{display:grid;place-items:center;flex:none;width:20px;height:20px;font-size:15px}
+@media(min-width:761px){
+.fm-entity-window.fm-shell-collapsible:not([data-window-mobile=true]) .fm-shell-sidebar{position:absolute!important;z-index:6;left:0;top:36px;bottom:0;width:var(--fm-shell-sidebar-w,420px)!important;height:auto!important;max-width:none!important;border-right:0!important;transform:translateX(-101%);visibility:hidden;transition:transform .34s var(--fm-shell-sidebar-ease),visibility 0s linear .34s}
+.fm-entity-window.fm-shell-collapsible:not([data-window-mobile=true]) .fm-shell-sidebar::after{content:'';position:absolute;right:0;top:33px;bottom:0;width:1px;background:#e4e7ec;pointer-events:none}
+.fm-entity-window.fm-shell-collapsible.fm-sidebar-open:not([data-window-mobile=true]) .fm-shell-sidebar{transform:none;visibility:visible;transition:transform .34s var(--fm-shell-sidebar-ease),visibility 0s}
+.fm-entity-window.fm-shell-collapsible:not([data-window-mobile=true]) .fm-shell-tabs{transition:margin-left .34s var(--fm-shell-sidebar-ease)}
+.fm-entity-window.fm-shell-collapsible.fm-sidebar-open:not([data-window-mobile=true]) .fm-shell-tabs{margin-left:var(--fm-shell-sidebar-w,420px)!important}
+.fm-entity-window.fm-shell-collapsible:not([data-window-mobile=true]) .fm-shell-sidebar-host{transition:padding-left .34s var(--fm-shell-sidebar-ease)}
+.fm-entity-window.fm-shell-collapsible.fm-sidebar-open:not([data-window-mobile=true]) .fm-shell-sidebar-host{padding-left:var(--fm-shell-sidebar-w,420px)}
+}
+.fm-entity-window.fm-shell-collapsible{--fm-shell-sidebar-ease:cubic-bezier(.22,1,.36,1)}
+@media(prefers-reduced-motion:reduce){.fm-entity-window.fm-shell-collapsible :is(.fm-shell-sidebar,.fm-shell-tabs,.fm-shell-sidebar-host){transition:none!important}}
 `;document.head.append(style);
   }
   function trayStyles(){
@@ -167,9 +191,41 @@
     if(result.some(p=>p.weight/total===0))throw Error('Pane weights differ too much.');
     return result.map(p=>({...p,weight:p.weight/total}));
   }
-  function mount({element,header,identity,tabs=null,sidebar=null,panes,trays=null,tabStyle='underline',headerRows=1}){
+  // sidebarToggle: {open, onChange(open)} makes the sidebar collapsible behind the window's title (GP-152), as the project
+  // window's details tray is. open is where it starts; onChange hears a person's toggle, so the owner can remember it.
+  function collapsibleSidebar({element,header,identity,sidebar,open=true,onChange}){
+    element.classList.add('fm-shell-collapsible');sidebar.parentElement?.classList.add('fm-shell-sidebar-host');
+    if(!sidebar.id)sidebar.id='fm-shell-sidebar-'+(++sidebarSequence);
+    // A button, so the header's drag gesture leaves the press to it (window-manager.js, GP-90).
+    const toggle=document.createElement('button');toggle.type='button';toggle.className='fm-shell-sidebar-toggle';toggle.setAttribute('aria-controls',sidebar.id);
+    toggle.append(...identity.childNodes);identity.append(toggle);
+    let isOpen=!!open;
+    const covers=()=>element.dataset.windowMobile==='true'||root.matchMedia?.('(max-width:760px)').matches;
+    function sync(){
+      const shown=isOpen&&!sidebar.hidden;
+      element.classList.toggle('fm-sidebar-open',shown);
+      if(covers())toggle.removeAttribute('aria-expanded');else toggle.setAttribute('aria-expanded',String(shown));
+    }
+    function set(next,{user=false}={}){
+      isOpen=!!next;sync();if(user)onChange?.(isOpen);
+      // Panes that size themselves (maps, galleries) measure again once the slide has finished.
+      root.setTimeout(()=>root.dispatchEvent(new Event('resize')),360);
+    }
+    toggle.addEventListener('click',event=>{
+      if(element.dataset.window==='minimized'||covers())return;
+      event.stopPropagation();set(!isOpen,{user:true});
+    });
+    // The column is the project tray's width: 30% of the window, from 300px to 420px, and never more than half of it.
+    const width=()=>{const w=element.clientWidth;if(w)element.style.setProperty('--fm-shell-sidebar-w',Math.round(Math.min(420,Math.max(300,w*.3),w*.5))+'px');};
+    if(root.ResizeObserver)new ResizeObserver(width).observe(element);width();
+    new MutationObserver(sync).observe(element,{attributes:true,attributeFilter:['data-window-mobile']});
+    sync();
+    return {set,sync,toggle,get open(){return isOpen;}};
+  }
+  function mount({element,header,identity,tabs=null,sidebar=null,panes,trays=null,tabStyle='underline',headerRows=1,sidebarToggle=null}){
     styles();header.dataset.headerRows=String(headerRows);element.classList.add('fm-entity-window');header.classList.add('fm-shell-header');identity?.classList.add('fm-shell-identity');
     tabs?.classList.add('fm-shell-tabs');sidebar?.classList.add('fm-shell-sidebar');
+    const collapse=sidebar&&identity&&sidebarToggle?collapsibleSidebar({element,header,identity,sidebar,...sidebarToggle}):null;
     function validate(layout={}){
       if(!layout||typeof layout!=='object'||Array.isArray(layout))throw Error('Window layout must be an object.');
       const next={...layout};
@@ -186,11 +242,14 @@
       const next=validate(layout);
       if(next.panes)panes.apply(next.panes);
       if(tabs){if(next.tabs!==undefined)tabs.hidden=!next.tabs;if(next.tabStyle!==undefined)tabs.dataset.tabStyle=next.tabStyle;}
-      if(sidebar&&next.sidebar!==undefined)sidebar.hidden=!next.sidebar;
+      if(sidebar&&next.sidebar!==undefined){sidebar.hidden=!next.sidebar;collapse?.sync();}
       if(next.tray!==undefined)return trays?.select(next.tray);
     }
     if(tabs)tabs.dataset.tabStyle=tabStyle;
-    return {apply,validate,reset(){return apply({tabs:!!tabs,sidebar:!!sidebar,tabStyle,tray:null});}};
+    return {apply,validate,reset(){return apply({tabs:!!tabs,sidebar:!!sidebar,tabStyle,tray:null});},
+      // A collapsible sidebar's open state (sidebarToggle); a sidebar the layout hides stays hidden while open.
+      get sidebarOpen(){return collapse?collapse.open:!!sidebar&&!sidebar.hidden;},
+      setSidebarOpen(open){if(!collapse)throw Error('This window has no collapsible sidebar.');collapse.set(open);}};
   }
   // In-document apps (e.g. Contacts) retain exactly one mounted node per tab.
   function localPanes({container,definitions,onChange}){
