@@ -156,13 +156,13 @@ const css = `
 .gxw-pp>header{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
 .gxw-pp>header>b{flex:1 1 auto;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#475467}
 .gxw-pp>header .gxw-seg{flex:none;padding:2px}
-.gxw-pp>header .gxw-seg button{height:26px;padding:0 10px;font-size:12px}
+.gxw-pp>header .gxw-seg button{flex:none;height:26px;padding:0 10px;font-size:12px}
 .gxw-pp-hint{display:flex;gap:7px;align-items:flex-start;font-size:12px!important;line-height:1.4!important;color:#667085!important}
 .gxw-pp-hint i{margin-top:2px;font-size:11px;color:#98a2b3}
 .gxw-pr{display:flex;align-items:center;gap:8px;min-width:0;min-height:38px}
 .gxw-pr-name{flex:1 1 auto;min-width:0;font-size:13.5px;font-weight:600;color:#101828;line-height:1.3}
 .gxw-pr-name small{display:block;font-size:11.5px;font-weight:500;color:#667085}
-.gxw-pr-name select{height:30px;margin-left:4px;padding:0 6px;font-size:12.5px}
+.gxw-pr-name select{height:30px;margin:0 0 0 6px;padding:0 4px;font-size:12.5px;vertical-align:middle}
 .gxw-pr .gxw-money{flex:none;height:34px}
 .gxw-pr .gxw-money input{width:64px;font-size:13.5px}
 .gxw-pr .gxw-unit{flex:none;min-width:38px}
@@ -887,7 +887,7 @@ export function mount(el, ctx){
     const addable = measurements().filter((entry) => entry.id !== SQUARES && entry.id !== 'roof.area' && !used.has(entry.id));
     const areaish = (entry) => entry.unit === 'roofing_square' || entry.unit === 'ft2';
     const extraRow = ({ item, at }) => item.type === 'pitch_bonus'
-      ? `<div class="gxw-pr" data-gxw-extra="${at}"><span class="gxw-plus" aria-hidden="true">+</span><span class="gxw-pr-name">${esc(L('gx_wfs_pp_bonus', 'Bonus, squares'))}<select class="gxw-select" data-gxw-bonus="${at}" aria-label="${esc(L('gx_wfs_pp_bonus_from', 'Paid for squares steeper than'))}">${edges.map((edge) => `<option value="${edge}" ${edge === item.above ? 'selected' : ''}>${esc(L('gx_wfs_pp_over', 'Over {from}', { from: twelfths(edge) }))}</option>`).join('')}</select>${item.up_to !== null && item.up_to !== undefined ? `<small>${esc(L('gx_wfs_pp_up_to', 'Up to {to}', { to: twelfths(item.up_to) }))}</small>` : ''}<small data-gxw-example>${esc(bonusExample(items, item))}</small></span>${money(item, at)}<button type="button" class="gxw-x" data-gxw-remove="${at}" aria-label="${esc(L('gx_wfs_pp_remove', 'Remove'))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>`
+      ? `<div class="gxw-pr" data-gxw-extra="${at}"><span class="gxw-plus" aria-hidden="true">+</span><span class="gxw-pr-name">${esc(L('gx_wfs_pp_bonus_short', 'Bonus'))}<select class="gxw-select" data-gxw-bonus="${at}" aria-label="${esc(L('gx_wfs_pp_bonus_from', 'Paid for squares steeper than'))}">${edges.map((edge) => `<option value="${edge}" ${edge === item.above ? 'selected' : ''}>${esc(L('gx_wfs_pp_over_lower', 'over {from}', { from: twelfths(edge) }))}</option>`).join('')}</select>${item.up_to !== null && item.up_to !== undefined ? `<small>${esc(L('gx_wfs_pp_up_to', 'Up to {to}', { to: twelfths(item.up_to) }))}</small>` : ''}<small data-gxw-example>${esc(bonusExample(items, item))}</small></span>${money(item, at)}<button type="button" class="gxw-x" data-gxw-remove="${at}" aria-label="${esc(L('gx_wfs_pp_remove', 'Remove'))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>`
       : `<div class="gxw-pr" data-gxw-extra="${at}"><span class="gxw-plus" aria-hidden="true">+</span><span class="gxw-pr-name">${esc(itemName(item))}</span>${money(item, at)}<button type="button" class="gxw-x" data-gxw-remove="${at}" aria-label="${esc(L('gx_wfs_pp_remove', 'Remove'))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>`;
     return `<div class="gxw-piece">
       <section class="gxw-pp" data-gxw-squares-part>
