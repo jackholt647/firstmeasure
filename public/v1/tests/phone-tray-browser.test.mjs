@@ -29,7 +29,6 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
         if(path==='voice/endpoint/presence')return {availability:'unavailable'};
         if(path==='voice/diagnostics')return {result:{verdict:'blocked',reason:'Allow microphone access and try again.'}};
         if(path==='voice/status')return {settings:{enabled:true,require_disposition:true,allowed_destination_countries:['US','CA','GB','DE','JP','MX'],allowed_country_prefixes:['+1','+44','+49','+81','+52']},permissions:{manage:true},numbers:[{phone_number:'+12065550199',label:'Development test line',status:'active'}],sms_numbers:[{phone_number:'+12065550199'}],default_number:'+12065550199'};
-        if(path==='call-scripts')return {scripts:[]};
         if(path==='call-context')return {contacts:[]};
         if(path==='call-lists/queue')return {columns:[]};
         if(path.startsWith('voice/contacts'))return {contacts:[{id:'contact-one',project_id:'project-one',name:'Jane Test',phone:'+12025550124',tags:['customer']},{id:'contact-two',project_id:'project-two',name:'Avery Demo',phone:'+12025550125',tags:['lead']}]};
@@ -287,7 +286,6 @@ test('phone tray shows only set-up tabs, sends the rest into the Communications 
         if(path==='voice/endpoint/token')return {token:'fixture',expires_at:new Date(Date.now()+3600000).toISOString()};
         if(path==='voice/endpoint/presence')return {availability:'unavailable'};
         if(path==='voice/status')return {settings:{...window.voice},permissions:{manage:window.manage},numbers:[{phone_number:'+12065550199',label:'Line',status:'active'}],sms_numbers:[],default_number:''};
-        if(path==='call-scripts')return {scripts:[]};
         if(path==='voice/voicemails')return {voicemails:[]};
         if(path.startsWith('voice/contacts'))return {contacts:[]};
         if(path.startsWith('calls'))return {calls:[]};

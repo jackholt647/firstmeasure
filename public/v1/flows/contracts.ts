@@ -49,8 +49,24 @@ export type FlowBlock = z.infer<typeof blockSchema>;
 const next = z.union([id, z.null(), z.object({ branches: z.array(z.object({ when: conditions, to: id }).strict()).max(20), otherwise: id.nullable().default(null) }).strict()]);
 export const stepSchema = z.object({ id, title: label(200), blocks: z.array(blockSchema).max(40).default([]), next: next.default(null) }).strict();
 export type FlowStep = z.infer<typeof stepSchema>;
-export const outcomeSchema = z.object({ id, label: label(120), color: z.string().trim().max(20).default("#667085"), effects: z.array(automation).max(12).default([]) }).strict();
+/** A call's wrap-up results (comms/calls wrap-up). A `call` flow's outcome names the one it means; see `callResultForOutcome`. */
+export const CALL_DISPOSITIONS = ["answered", "voicemail", "no_answer", "busy", "wrong_number", "callback", "do_not_call", "technical_failure"] as const;
+export const CALL_NEXT_ACTIONS = ["none", "complete", "follow_up", "scheduled"] as const;
+export const outcomeSchema = z.object({ id, label: label(120), color: z.string().trim().max(20).default("#667085"), effects: z.array(automation).max(12).default([]),
+  /** On the call surface: the wrap-up this outcome pre-fills. Unset falls back to the outcome id's usual meaning. */
+  call: z.object({ disposition: z.enum(CALL_DISPOSITIONS).optional(), next_action: z.enum(["none", "complete"]).optional() }).strict().optional() }).strict();
 export type FlowOutcome = z.infer<typeof outcomeSchema>;
+
+/** The industry-default reading of common outcome ids, used when an outcome does not say which call result it is. */
+const DISPOSITION_BY_OUTCOME: Record<string, (typeof CALL_DISPOSITIONS)[number]> = {
+  ready: "answered", booked: "answered", appointment: "answered", interested: "answered", answered: "answered", not_interested: "answered",
+  call_back: "callback", callback: "callback", no_answer: "no_answer", voicemail: "voicemail", busy: "busy",
+  not_a_lead: "wrong_number", wrong_number: "wrong_number", do_not_call: "do_not_call"
+};
+/** The call wrap-up an outcome pre-fills: its own `call` mapping, else the default for its id; no disposition when neither says. */
+export function callResultForOutcome(outcome: Pick<FlowOutcome, "id"> & { call?: FlowOutcome["call"] }) {
+  return { disposition: outcome.call?.disposition || DISPOSITION_BY_OUTCOME[outcome.id] || "", next_action: outcome.call?.next_action || "none" };
+}
 
 const entry = z.object({ enabled: z.boolean().default(false), label: label(60), icon: z.string().trim().max(60).default(""), role_ids: z.array(z.string().trim().max(120)).max(40).default([]), sort_order: z.number().int().default(0) }).strict();
 export const flowDefinitionSchema = z.object({

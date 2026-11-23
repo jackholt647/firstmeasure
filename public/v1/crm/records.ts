@@ -345,7 +345,9 @@ export async function followUpRows(src: CrmSources, ctx: PlatformAuthContext | n
       due_at: text(entry.due_at), overdue: Number.isFinite(time(entry.due_at)) && time(entry.due_at) < now, attempts: Number(entry.attempt_count || entry.attempts || 0),
       project_id: text(entry.project_id), project_title: text(project.title || project.address),
       contact_name: text(payload.name || project.primary_contact_name || project.customer_name), phone: text(payload.phone || project.primary_contact_phone || project.customer_phone),
-      branch_id: text(project.branch_id) || "default", assigned_user_ids: [], list_key: text(entry.list_key), list_title: text(entry.list_title)
+      branch_id: text(project.branch_id) || "default", assigned_user_ids: [], list_key: text(entry.list_key), list_title: text(entry.list_title),
+      // The flow the entry is worked with (docs/architecture/flows.md): the worklist plays it instead of the fixed result form.
+      flow_id: text(object((() => { try { return JSON.parse(text(entry.metadata_json) || "{}"); } catch { return {}; } })()).flow_id)
     });
   }
   const listOptions = [...new Map(rows.map(r => [text(r.list_key), text(r.list_title)])).entries()].map(([value, label]) => ({ value, label }));

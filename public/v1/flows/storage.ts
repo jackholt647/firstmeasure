@@ -95,3 +95,8 @@ export async function listRuns(org: string, filter: { flowId?: string; projectId
     .all(org, filter.flowId || "", filter.flowId || "", filter.projectId || "", filter.projectId || "", Math.min(200, Math.max(1, filter.limit || 50)));
   return rows.map((row) => runOf(row as JsonObject));
 }
+/** Moves an open run onto a call (a run waiting on a lead is played on the call that reaches them). */
+export async function attachRunToCall(org: string, id: string, callId: string) {
+  const result = await flowStore().prepare("UPDATE flow_runs SET call_id=?,updated_at=?,revision=revision+1 WHERE organization_id=? AND id=? AND status='open'").run(callId, new Date().toISOString(), org, id);
+  return Number(result.changes || 0) > 0;
+}

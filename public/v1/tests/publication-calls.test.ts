@@ -26,8 +26,8 @@ before(async()=>{
   (await import('../comms/calls/publication.js')).registerCallPublication();
   for(const [id,project,owner,contact,branch] of [['call-a','project-a','manager','contact-a','default'],['call-b','project-a','other','contact-b','default'],['call-c','project-b','other','contact-a','east'],['diagnostic','','manager','','default']] as const){
     await store.insertCall({id,organization_id:orgId,branch_id:branch,project_id:project,contact_id:contact,owner_user_id:owner,mode:id==='diagnostic'?'diagnostic':'browser',direction:'outbound',state:'ended',notes:`Notes ${id}`,connected_at:'2026-10-01T12:00:00.000Z',ended_at:'2026-10-01T12:01:00.000Z',
-      result:{disposition:'answered',next_action:'none',private_provider_token:'secret'},metadata:{purpose:'Follow up',device_id:'private-device',conference_id:'private-conference',policy:{recording_enabled:true,transcription_enabled:true},script_answers:{0:'Yes'},capture:{state:'stopped'}}});
-    await store.patchCall(orgId,id,{notes:`Notes ${id}`,connected_at:'2026-10-01T12:00:00.000Z',ended_at:'2026-10-01T12:01:00.000Z',result:{disposition:'answered',next_action:'none',private_provider_token:'secret'}});
+      result:{disposition:'answered',next_action:'none',private_provider_token:'secret',flow_outcome:{run_id:'flowrun_a',outcome_id:'ready',label:'Ready for an appointment'}},metadata:{purpose:'Follow up',device_id:'private-device',conference_id:'private-conference',policy:{recording_enabled:true,transcription_enabled:true},flow_run_id:'flowrun_a',flow:{id:'new_lead_call',version:2,name:'New lead call'},capture:{state:'stopped'}}});
+    await store.patchCall(orgId,id,{notes:`Notes ${id}`,connected_at:'2026-10-01T12:00:00.000Z',ended_at:'2026-10-01T12:01:00.000Z',result:{disposition:'answered',next_action:'none',private_provider_token:'secret',flow_outcome:{run_id:'flowrun_a',outcome_id:'ready',label:'Ready for an appointment'}}});
   }
   await store.saveArtifact(orgId,'call-a','transcript','transcript-a',{text:'Customer wants an estimate.',recording_id:'private-provider',download_url:'secret-url'});
   await store.saveArtifact(orgId,'call-a','recording','recording-a',{file_path:'private-path',provider_urls:['secret-url']});
@@ -45,7 +45,7 @@ test('calls publish typed details and safe retained transcripts without mutating
   const read=await providers.readPublishedData(ctx(),source('record','call-a'));
   assert.equal(read.status,'ready',JSON.stringify(read));if(read.status!=='ready')return;
   assert.equal((read.value as any).notes,'Notes call-a');assert.equal((read.value as any).duration_seconds,60);
-  assert.equal((read.value as any).result.disposition,'answered');assert.deepEqual((read.value as any).script.answers,{0:'Yes'});
+  assert.equal((read.value as any).result.disposition,'answered');assert.deepEqual((read.value as any).flow,{run_id:'flowrun_a',flow_id:'new_lead_call',name:'New lead call',version:2,outcome_id:'ready',outcome_label:'Ready for an appointment'});
   assert.doesNotMatch(JSON.stringify(read.value),/private|secret|conference_id|device_id/);
   const transcript=await providers.readPublishedData(ctx(),source('transcripts','call-a'));
   assert.equal(transcript.status,'ready',JSON.stringify(transcript));if(transcript.status==='ready'){

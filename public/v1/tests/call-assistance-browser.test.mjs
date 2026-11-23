@@ -20,7 +20,6 @@ async function setup(context,{supervisor=false}={}){
       if(path==='voice/endpoint/token')return {token:'fixture',expires_at:new Date(Date.now()+3600000).toISOString()};
       if(path==='voice/endpoint/presence')return {availability:'unavailable'};
       if(path==='voice/status')return {settings:{enabled:true,require_disposition:true,wrap_up_seconds:0,recording_enabled:true,recording_policy_confirmed:true},permissions:{manage:false,record:true,recordings:true,analyze:true}};
-      if(path.startsWith('call-scripts'))return {scripts:[]};
       if(path.startsWith('call-lists/queue'))return {columns:window.queueColumns||[{id:'sales',title:'Inside sales',tasks:[{id:'one',name:'Jamie Cooper',phone:'+12025550123',ready:true},{id:'two',name:'Morgan Lee',phone:'+12025550124',ready:true}]}]};
       if(path==='calls'&&data){callsSent.push(data);if(failDial)throw new Error('Provider status is uncertain');testCall={...testCall,id:'call-'+data.entry_id,entry_id:data.entry_id,owner_user_id:'user-test',state:'connected',wrap_up_state:'draft',metadata:{},notes:''};return {call:testCall};}
       if(path.endsWith('/analysis')){

@@ -15,6 +15,7 @@ import { normalizePhone, voiceSettings } from "./settings.js";
 import { canUseLine } from '../phone/service.js';
 import { followUpOptions } from './follow-up-policy.js';
 import { activeConferenceForUser } from './conference.js';
+import { CALL_DISPOSITIONS, CALL_NEXT_ACTIONS } from "../../flows/contracts.js";
 import * as store from "./storage.js";
 import { text, object, strings, type Json, type CustomerCall } from "./storage.js";
 
@@ -84,7 +85,7 @@ export const createCallSchema=z.object({
   power_dial:z.boolean().default(false),operation_id:z.string().min(8).max(180),mode:z.enum(["external","browser"]).default("external"),direction:z.enum(["outbound","inbound"]).default("outbound"),
   project_id:z.string().max(180).default(""),contact_id:z.string().max(180).default(""),entry_id:z.string().max(180).default(""),
   customer_number:z.string().max(40).default(""),customer_name:z.string().max(250).default(""),business_number:z.string().max(40).default(""),
-  purpose:z.string().max(500).default(""),script_id:z.string().max(180).default(""),device_id:z.string().max(180).default(""),
+  purpose:z.string().max(500).default(""),flow_id:z.string().max(80).default(""),flow_run_id:z.string().max(120).default(""),device_id:z.string().max(180).default(""),
   source_node_ids:z.array(z.string().min(1).max(180)).max(30).default([]),
   entity:z.object({type:z.string().max(80),id:z.string().max(180)}).optional()
 });
@@ -111,6 +112,8 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
   const phone=normalizePhone(body.customer_number||linked?.entry.phone||contact.phone||contact.phone_number||contact.mobile);
   const suppression=(await store.resource(ctx.orgId,"suppression",phone));
   if(body.direction==="outbound"&&suppression)throw conflict("number_suppressed","This contact has requested no phone calls.");
+  // The call's script is a `call` flow (comms/calls/flow-runs.ts): an unpublished or missing one is refused before dialing.
+  if(body.flow_id&&!body.flow_run_id)await (await import('../../flows/service.js')).readFlow(ctx.orgId,body.flow_id);
   const settings=(await voiceSettings(ctx.orgId));let line:Json|undefined;
   if(body.mode==="browser"){
     if(body.direction!=="outbound")throw badRequest("inbound_provider_owned","Incoming phone calls are created by the provider.");
@@ -128,7 +131,7 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
     if(!endpoint||endpoint.session_id!==ctx.sessionId||endpoint.device_id!==body.device_id||text(endpoint.heartbeat_at)<new Date(Date.now()-45_000).toISOString()||endpoint.registered!==true)throw conflict("phone_not_ready","Connect this browser's phone before calling.");
     if(Date.parse(text(endpoint.credential_expires_at))<Date.now()+settings.max_call_minutes*60000+60000)throw conflict('phone_refresh_required','Reconnect your phone so its credential lasts through the call.');
   }
-  return (await store.transaction(async ()=>{
+  const created=(await store.transaction(async ()=>{
     if(settings.require_disposition){
       const pending=await store.database().prepare("SELECT id FROM customer_calls WHERE organization_id=? AND owner_user_id=? AND mode<>'diagnostic' AND (mode='external' OR state IN ('ended','canceled','failed','no_answer','busy','rejected')) AND wrap_up_state NOT IN ('saved','processing_effects') LIMIT 1").get(ctx.orgId,ctx.userId);
       if(pending)throw conflict('call_disposition_required','Save your previous call outcome before starting another call.',{call_id:object(pending).id});
@@ -147,13 +150,11 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
     if(body.mode==='browser'&&body.power_dial)line=await selectPowerDialLine(ctx,text(project?.branch_id||ctx.branchId||'default'))||line;
     if(body.entry_id)(await store.claimResource(ctx.orgId,`entry:${body.entry_id}`,ctx.userId,callId));
     (await store.claimResource(ctx.orgId,`phone:${phone}`,ctx.userId,callId));
-    const script=body.script_id?(await publishedScript(ctx.orgId,body.script_id)):null;
-    if(script&&!hasResourcePermission(ctx,callViewPermission,object(script.data)))throw forbidden('script_department_denied','This script is unavailable.');
     const call=(await store.insertCall({id:callId,organization_id:ctx.orgId,branch_id:text(project?.branch_id)||ctx.branchId||"default",project_id:projectId,
       contact_id:body.contact_id||text(contact.id||contact.contact_id),owner_user_id:ctx.userId,mode:body.mode,direction:body.direction,
       customer_number:phone,customer_name:body.customer_name||linked?.entry.name||text(contact.name)||phone,business_number:text(line?.phone_number),entry_id:body.entry_id,
       state:body.mode==="browser"?"agent_connecting":"created",metadata:{...(body.department_ids?{department_ids:body.department_ids}:{}),purpose:body.purpose||linked?.entry.title||"Customer call",entity:body.entity,
-        script:script||{},list_settings:linked?.column.settings||{},device_id:body.device_id,source_node_ids:[...new Set([...body.source_node_ids,...(linked?(strings(linked.entry.work_node_ids).length?strings(linked.entry.work_node_ids):linked.entry.work_node_id?[linked.entry.work_node_id]:[]):[])])],entry_updated_at:linked?.entry.updated_at,
+        list_settings:linked?.column.settings||{},device_id:body.device_id,source_node_ids:[...new Set([...body.source_node_ids,...(linked?(strings(linked.entry.work_node_ids).length?strings(linked.entry.work_node_ids):linked.entry.work_node_id?[linked.entry.work_node_id]:[]):[])])],entry_updated_at:linked?.entry.updated_at,
         policy:{recording_enabled:settings.recording_enabled,transcription_enabled:settings.transcription_enabled,disclosure:settings.disclosure,retention_days:settings.recording_retention_days},
         voicemail_drop:body.mode==='browser'?await outgoingDrop(ctx.orgId,ctx.userId,body.power_dial):{},power_dial:body.power_dial,consent:{state:"not_requested"},actor_email:text(ctx.identity.email),actor_name:text(ctx.user.name||ctx.identity.name)}}));
     (await store.appendEvent(ctx.orgId,call.id,"communication.call.created",{},`${call.id}:created`));
@@ -165,18 +166,19 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
     }
     (await store.finishOperation(ctx.orgId,op.id,{call_id:call.id}));return call;
   }));
+  if((body.flow_id||body.flow_run_id)&&!text(created.metadata.flow_run_id))return (await import('./flow-runs.js')).playFlowOnCall(ctx,created.id,body.flow_run_id?{run_id:body.flow_run_id}:{flow_id:body.flow_id});
+  return created;
 }
 
-export const draftSchema=z.object({revision:z.number().int().positive(),notes:z.string().max(100000),script_answers:z.record(z.string(),z.unknown()).optional(),script_id:z.string().max(180).optional()});
+/** Notes autosave. The script's answers live on its flow run, not here. */
+export const draftSchema=z.object({revision:z.number().int().positive(),notes:z.string().max(100000)});
 export async function saveDraft(ctx:PlatformAuthContext,callId:string,input:unknown){
-  const body=draftSchema.parse(input);const call=requireCallAccess(ctx,(await store.readCall(ctx.orgId,callId)),true);
-  const script=body.script_id?(await publishedScript(ctx.orgId,body.script_id)):call.metadata.script;
-  if(body.script_id&&!hasResourcePermission(ctx,callViewPermission,object(object(script).data)))throw forbidden('script_department_denied','This script is unavailable.');
-  return (await store.patchCall(ctx.orgId,callId,{notes:body.notes,metadata:{...call.metadata,script,script_answers:body.script_answers||call.metadata.script_answers}},body.revision));
+  const body=draftSchema.parse(input);requireCallAccess(ctx,(await store.readCall(ctx.orgId,callId)),true);
+  return (await store.patchCall(ctx.orgId,callId,{notes:body.notes},body.revision));
 }
 export const wrapUpSchema=z.object({operation_id:z.string().min(8).max(180),revision:z.number().int().positive(),
-  disposition:z.enum(["answered","voicemail","no_answer","busy","wrong_number","callback","do_not_call","technical_failure"]),
-  notes:z.string().max(100000).default(""),next_action:z.enum(["none","complete","follow_up","scheduled"]).default("none"),
+  disposition:z.enum(CALL_DISPOSITIONS),
+  notes:z.string().max(100000).default(""),next_action:z.enum(CALL_NEXT_ACTIONS).default("none"),
   due_at:z.string().max(100).default(""),timezone:z.string().max(100).default(""),channel:z.enum(["call","email","sms"]).default("call"),
   assigned_user_id:z.string().max(180).default(""),appointment_id:z.string().max(180).default(""),source_node_ids:z.array(z.string().max(180)).max(30).default([]),
   title:z.string().max(500).default(""),use_policy:z.boolean().default(false),outcome_id:z.string().max(180).default('')});
@@ -210,7 +212,7 @@ export async function saveWrapUp(ctx:PlatformAuthContext,callId:string,input:unk
     if(op.existing)return {call:(await store.readCall(ctx.orgId,call.id)),operation_id:op.id};
     if(call.wrap_up_state!=="draft"&&call.wrap_up_state!=="needs_wrap_up")throw conflict("call_already_saved","This call already has a saved outcome. Edit its note without submitting another outcome.");
     const updated=(await store.patchCall(ctx.orgId,call.id,{notes:body.notes,state:call.mode==="external"?"ended":call.state,ended_at:call.ended_at||store.now(),wrap_up_state:"processing_effects",
-      result:{...body,actor_user_id:ctx.userId},metadata:{...call.metadata,wrap_operation_id:op.id}},body.revision));
+      result:{...body,actor_user_id:ctx.userId,...(call.result.flow_outcome?{flow_outcome:call.result.flow_outcome}:{})},metadata:{...call.metadata,wrap_operation_id:op.id}},body.revision));
     if(body.disposition==="do_not_call")(await store.saveResource(ctx.orgId,"suppression",call.customer_number,{reason:"customer_request",actor_user_id:ctx.userId,call_id:call.id}));
     (await store.enqueue(ctx.orgId,call.id,"wrap_up",{...body,policy,configured_outcome:configuredOutcome,operation_id:op.id,actor_user_id:ctx.userId},`${op.id}:effects`));
     (await store.releaseClaims(ctx.orgId,call.id));return {call:updated,operation_id:op.id};
@@ -282,32 +284,6 @@ export async function changeFollowUp(ctx:PlatformAuthContext,nodeId:string,input
     return patchWorkNode(ctx.orgId,nodeId,{due_at:input.due_at});
   }
   throw badRequest("follow_up_action_invalid","Choose complete, cancel, or snooze.");
-}
-export async function publishedScript(orgId:string,scriptId:string){
-  const latest=object((await store.database().prepare('SELECT status FROM customer_call_scripts WHERE organization_id=? AND id=? ORDER BY version DESC LIMIT 1').get(orgId,scriptId)));
-  if(latest.status==='archived')throw notFound('script_archived','This script has been archived.');
-  const row=object((await store.database().prepare("SELECT * FROM customer_call_scripts WHERE organization_id=? AND id=? AND status='published' ORDER BY version DESC LIMIT 1").get(orgId,scriptId)));
-  if(!row.id)throw notFound("script_not_found","This script is unavailable.");
-  return {...row,data:JSON.parse(text(row.data_json)),data_json:undefined};
-}
-export async function scripts(orgId:string,publishedOnly=false){
-  const rows=(await store.database().prepare("SELECT s.* FROM customer_call_scripts s WHERE organization_id=? AND version=(SELECT max(version) FROM customer_call_scripts WHERE organization_id=s.organization_id AND id=s.id) ORDER BY title")
-    .all(orgId)).map(row=>({...object(row),data:JSON.parse(text(object(row).data_json)),data_json:undefined}));
-  if(!publishedOnly)return rows;
-  return (await Promise.all(rows.filter(row=>object(row).status!=='archived').map(async row=>{try{return [(await publishedScript(orgId,text(object(row).id)))];}catch{return [];}}))).flat();
-}
-export const scriptSchema=z.object({id:z.string().max(180).optional(),title:z.string().trim().min(1).max(250),status:z.enum(["draft","published","archived"]),
-  department_ids:z.array(z.string().min(1).max(120)).max(200).default([]),
-  sections:z.array(z.object({title:z.string().max(250),body:z.string().max(10000)})).min(1).max(30),questions:z.array(z.string().max(500)).max(50).default([])});
-export async function saveScript(ctx:PlatformAuthContext,input:unknown){
-  const body=scriptSchema.parse(input);
-  if(body.department_ids.some(id=>!ctx.organizationStructure?.catalog.departments.some(d=>d.id===id&&d.status==='active')))throw badRequest('unknown_department','Choose an active department.');
-  if(!hasResourcePermission(ctx,'manage_communications|manage_company_settings',body))throw forbidden('script_department_denied','You cannot manage scripts for this department.');
-  const previous=body.id?(await scripts(ctx.orgId)).find(row=>text(object(row).id)===body.id):null;
-  if(previous&&!hasResourcePermission(ctx,'manage_communications|manage_company_settings',object(object(previous).data)))throw forbidden('script_department_denied','You cannot change this script.');
-  return (await store.transaction(async db=>{const scriptId=body.id||store.id("script");const row=object((await db.prepare("SELECT max(version) AS version FROM customer_call_scripts WHERE organization_id=? AND id=?").get(ctx.orgId,scriptId)));
-    const version=Number(row.version||0)+1;(await db.prepare("INSERT INTO customer_call_scripts(organization_id,id,version,title,status,data_json,created_at,author_id) VALUES(?,?,?,?,?,?,?,?)")
-      .run(ctx.orgId,scriptId,version,body.title,body.status,JSON.stringify({department_ids:body.department_ids,sections:body.sections,questions:body.questions}),store.now(),ctx.userId));return {id:scriptId,version,...body};}));
 }
 export async function people(ctx:PlatformAuthContext){
   return (await listDocuments(ctx.orgId,"users")).map(d=>({id:d.id,...object(d.data)} as Json)).filter(d=>!d.disabled).map(d=>({id:text(d.id),name:text(d.name||d.email),branch_id:text(d.branch_id||"default")}));
