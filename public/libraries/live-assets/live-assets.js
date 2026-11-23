@@ -407,7 +407,12 @@ async function applyChanges(changes) {
     const urls = loadedUrls(win);
     let reload = false;
     for (const { path, sha } of changes) {
-      if (!urls.has(path)) continue;
+      if (!urls.has(path)) {
+        // A busy page's resource timing buffer fills up, so a module imported later may be missing from it: code
+        // that knows it loaded the module (a setup step) still takes the change.
+        if (/\.m?js$/i.test(path) && state.applied.get(path) !== sha && await hotApply(win, path, sha)) { state.applied.set(path, sha); done.swapped.push(path); record(win, path, 'hot-swapped'); }
+        continue;
+      }
       if (state.applied.has(path) && state.applied.get(path) === sha) { record(win, path, 'already-applied'); continue; }
       const links = [...win.document.querySelectorAll('link[rel~="stylesheet"][href]')].filter((link) => pathOf(link.href, win.location.href) === path);
       const images = IMAGE.test(path) ? [...win.document.querySelectorAll('img[src]')].filter((img) => pathOf(img.src, win.location.href) === path) : [];
