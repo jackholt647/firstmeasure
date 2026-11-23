@@ -43,7 +43,10 @@ function server(){
     if(url.pathname.endsWith('/experiences'))return json({experiences:list(),reveals:[],faqs:null});
     const id=decodeURIComponent(url.pathname.split('/experiences/')[1]?.split('/')[0]||'');
     if(url.pathname.endsWith('/events')){
-      state.events.push({id,type:body.type});
+      // As service.ts: an event names a step of the experience or none (guided_step_unknown).
+      const own=[SETUP,TOUR].find(entry=>entry.id===id);
+      if(body.step_id&&own&&!own.steps.some(step=>step.id===body.step_id))return route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({ok:false,error:'guided_step_unknown'})});
+      state.events.push({id,type:body.type,step_id:body.step_id||'',properties:body.properties||{}});
       if(['start','exposure','replay'].includes(body.type)&&(!finished(id)||body.type==='replay'))state.progress[id]='started';
       if(body.type==='complete')state.progress[id]='completed';
       if(body.type==='dismiss')state.progress[id]='dismissed';
@@ -183,8 +186,14 @@ test('a welcome comes first: Set up now goes to the questions, Back puts it off 
     await other.page.waitForFunction(()=>activated.length===1);
     assert.deepEqual(await other.page.evaluate(()=>activated),[['projects','guided-welcome-back']]);
     await other.page.waitForTimeout(300);
-    assert.ok(second.state.events.some(event=>event.id===SETUP.id&&event.type==='defer'));
+    assert.ok(second.state.events.some(event=>event.id===SETUP.id&&event.type==='defer'&&event.properties.welcome==='back'));
     assert.equal(second.state.events.some(event=>event.id===SETUP.id&&event.type==='dismiss'),false);
+    // Scheduling again in this session: put off, so nothing plays.
+    await other.page.evaluate(()=>{FirstMateTabGuides.opened({appId:'portal.projects',tabId:'projects',container:document.body,isActive:()=>true});});
+    await other.page.waitForTimeout(200);
+    await other.page.evaluate(()=>{FirstMateTabGuides.opened({appId:'portal.scheduling',tabId:'scheduling',container:document.body,isActive:()=>true});});
+    await other.page.waitForTimeout(1200);
+    assert.equal(await other.page.locator('.gxs').count(),0,'not asked again in the session it was put off in');
     assert.equal(second.state.progress[SETUP.id],'started');
     assert.equal(await other.page.locator('.gx-pop').count(),0,'no tour after Back');
     assert.deepEqual(other.errors,[]);
