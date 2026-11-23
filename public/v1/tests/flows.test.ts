@@ -31,6 +31,25 @@ test("a flow plays step by step: branches, records, saved answers, actions and o
   assert.throws(() => flows.parseFlow({ name: "Broken", start: "a", steps: [{ id: "a", next: "missing" }] }), /not a step/);
   assert.throws(() => flows.parseFlow({ name: "Twice", start: "a", steps: [{ id: "a", blocks: [{ id: "x", kind: "ask", key: "k" }, { id: "y", kind: "ask", key: "k" }] }] }), /asked twice/);
   await assert.rejects(() => flows.saveFlow(rep, { definition: manualLeadFlow(SUGGESTED_QUESTIONS) }), /company settings or communications/, "only editors save flows");
+  // Every issue names where it is, so the editor draws it next to the step, block or option it is about.
+  const issuesOf = (definition: unknown) => { try { flows.parseFlow(definition); return []; } catch (error) { return ((error as { details?: { issues?: Array<{ path: string; message: string }> } }).details?.issues || []).map((issue) => [issue.path, issue.message]); } };
+  assert.deepEqual(issuesOf({ name: "Paths", start: "nowhere", outcomes: [{ id: "o" }, { id: "o" }], steps: [
+    { id: "a", next: "gone", blocks: [{ id: "c", kind: "choice", key: "k", options: [{ id: "x", to: "lost" }, { id: "y", outcome: "missing" }] }] },
+    { id: "b", blocks: [{ id: "q", kind: "ask", key: "k" }, { id: "q", kind: "outcome", outcome: "nope" }] }] }), [
+    ["outcomes.1.id", 'Outcome "o" is used twice.'],
+    ["start", 'The flow starts at "nowhere", which is not a step.'],
+    ["steps.0.next", 'Step "a" goes to "gone", which is not a step.'],
+    ["steps.0.blocks.0.options.0.to", '"k" goes to "lost", which is not a step.'],
+    ["steps.0.blocks.0.options.1.outcome", '"k" ends with "missing", which is not an outcome.'],
+    ["steps.1.blocks.0.key", 'The answer "k" is asked twice.'],
+    ["steps.1.blocks.1.id", 'Step "b" uses block id "q" twice.'],
+    ["steps.1.blocks.1.outcome", 'Step "b" ends with "nope", which is not an outcome.']
+  ]);
+  // The editor's action picker: the catalog's actions with their input schemas, without internal machinery.
+  const actions = flows.flowActions();
+  const sms = actions.find((action) => action.id === "communications.sendSms.v1");
+  assert.ok(sms?.title && (sms.input_schema as { properties?: Record<string, unknown> }).properties?.text, "texts are offered with their fields");
+  assert.ok(actions.some((action) => action.id === "work.createTodo.v1") && actions.length > 5);
 
   // New › Lead: find or create the contact, make the lead through intake, ask, then open it.
   const manual = await flows.saveFlow(owner, { id: "new_lead", definition: manualLeadFlow(SUGGESTED_QUESTIONS) });
@@ -41,13 +60,13 @@ test("a flow plays step by step: branches, records, saved answers, actions and o
   await assert.rejects(() => flows.advanceRun(rep, view.run.id, { step_id: "who", answers: { name: "Ada", email: "nope" } }), /email address/);
   view = await flows.advanceRun(rep, view.run.id, { step_id: "who", answers: { name: "Ada Stone", phone: "555-010-2000", email: "ada@example.com", address: "4 Oak Ln" } });
   assert.ok(view.contact?.id && view.project?.id, "the contact and the lead were made");
-  const lead = await storage.readDocument(ORG, "projects", view.project!.id);
+  const lead = await storage.readDocument(ORG, "projects", String(view.project!.id));
   assert.deepEqual([(lead.data.lead_source as Record<string, unknown>).kind, (lead.data.lead_source as Record<string, unknown>).entered_by_user_id, lead.data.address], ["manual_lead", "u_rep", "4 Oak Ln"]);
   assert.equal((await listEventRecords(ORG, { project_id: lead.id, type: "lead.received" })).length, 1, "intake ran");
   await assert.rejects(() => flows.advanceRun(viewer, view.run.id, { step_id: "details", answers: {} }), /belongs to someone else/, "a run is its player's");
   view = await flows.advanceRun(rep, view.run.id, { step_id: "details", answers: { need: "repair", timeline: "asap" } });
   assert.equal(view.step.id, "done");
-  assert.equal(view.step.blocks.find((block: { kind: string }) => block.kind === "note")?.text, "Ada Stone is in your new leads.", "notes are filled from the run");
+  assert.equal((view.step.blocks as Array<{ kind: string; text?: string }>).find((block) => block.kind === "note")?.text, "Ada Stone is in your new leads.", "notes are filled from the run");
   view = await flows.backRun(rep, view.run.id);
   assert.deepEqual([view.step.id, view.run.answers.need], ["details", "repair"], "back keeps the answers");
   view = await flows.advanceRun(rep, view.run.id, { step_id: "details", answers: { need: "repair", timeline: "asap" } });
@@ -58,13 +77,13 @@ test("a flow plays step by step: branches, records, saved answers, actions and o
   const again = await flows.startRun(rep, { flow_id: "new_lead" });
   const second = await flows.advanceRun(rep, again.run.id, { step_id: "who", answers: { name: "A. Stone", phone: "(555) 010-2000" } });
   assert.equal(second.contact?.id, view.contact?.id);
-  assert.equal((await contacts.readContact(ORG, view.contact!.id)).name, "Ada Stone", "finding a contact never rewrites it");
+  assert.equal((await contacts.readContact(ORG, String(view.contact!.id))).name, "Ada Stone", "finding a contact never rewrites it");
 
   // The new-lead call: no answer sends the text it shows and ends as no answer; answered routes by the choice.
   const call = await flows.saveFlow(owner, { id: "new_lead_call", definition: newLeadFlow({ contact: "call", no_answer: ["text", "retry"], questions: SUGGESTED_QUESTIONS.slice(0, 2), board_id: "" }) });
   assert.equal(call.kind, "call");
   let run = await flows.startRun(rep, { flow_id: "new_lead_call", source: { kind: "crm", project_id: lead.id, contact_id: view.contact!.id } });
-  assert.match(String(run.step.blocks[0]!.text), /Call Ada Stone at/);
+  assert.match(String((run.step.blocks[0] as { text?: string }).text), /Call Ada Stone at/);
   run = await flows.advanceRun(rep, run.run.id, { step_id: "dial", answers: { answered: "no" } });
   assert.equal(run.step.id, "no_answer");
   const text = run.step.blocks.find((block: { id: string }) => block.id === "no_answer_text") as { preview: string };

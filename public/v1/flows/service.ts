@@ -5,6 +5,7 @@ import { readDocument, type JsonObject } from "../platform/storage.js";
 import { evaluateConditions } from "../work/conditions.js";
 import { emitWorkEvent } from "../work/engine.js";
 import { libraryEntries } from "../config-library/library.js";
+import { automationCatalog } from "../work/catalog.js";
 import { flowDefinitionSchema, runSourceSchema, type FlowBlock, type FlowDefinition, type FlowStep } from "./contracts.js";
 import { archiveHead, insertRun, listHeads, listRuns, readHead, readRun, readVersion, updateRun, writeVersion, type FlowRun, type FlowVersion } from "./storage.js";
 
@@ -82,6 +83,15 @@ export async function archiveFlow(auth: PlatformAuthContext, id: string, archive
 /** Library flow templates (config library kind `flow_template`): starting points an organization copies. */
 export function flowTemplates() {
   return libraryEntries<JsonObject>(FLOW_TEMPLATE_KIND).map((entry) => ({ id: entry.id, title: text(entry.title), definition: object(entry.data.definition), description: text(entry.data.description) }));
+}
+
+/**
+ * The automations an `action` block or an outcome's effect may name, for the editor's picker: the catalog's actions an
+ * organization rule may use (not internal machinery), with their input schemas so the editor draws their fields.
+ */
+export function flowActions() {
+  return automationCatalog().actions.filter((action) => !action.internal)
+    .map((action) => ({ id: action.id, title: action.title, category: action.category, description: action.description, input_schema: action.input_schema }));
 }
 
 /** The flows offered in the New menu for this person: published, not archived, `entry.new_menu.enabled`, their roles. */

@@ -499,3 +499,31 @@ details[data-rt-custom][open]>summary{margin-bottom:10px}
 .crm .crm-intro .crm-hint{width:32px;height:32px;margin:0;font-size:15px}
 .crm-intro .crm-hint-tip{left:auto;right:0;max-width:min(360px,calc(100vw - 24px))}
 @media (max-width:820px){.crm .crm-intro .crm-hint{width:40px;height:40px;font-size:17px}}
+
+/* CRM settings subtabs and Flows (docs/architecture/flows.md) */
+.crm-subtabs{display:flex;gap:4px;padding:12px 20px 0;border-bottom:1px solid var(--crm-line);max-width:1280px}
+.crm-subtabs button{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 12px;border:0;border-bottom:2px solid transparent;background:none;cursor:pointer;font:inherit;font-weight:700;color:var(--crm-muted);margin-bottom:-1px}
+.crm-subtabs button[aria-selected="true"]{color:var(--crm-text);border-bottom-color:var(--crm-accent)}
+.crm-subtabs button:hover{color:var(--crm-text)}
+.crm-flow-new{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:14px}
+.crm-flow-new[hidden]{display:none}
+.crm-flow-start{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;text-align:left;padding:12px;border:1px solid var(--crm-line-strong);border-radius:12px;background:#fff;cursor:pointer;font:inherit;color:var(--crm-text)}
+.crm-flow-start:hover{border-color:var(--crm-accent);background:var(--crm-hover)}
+.crm-flow-start i{grid-row:span 2;color:var(--crm-accent);margin-top:2px}
+.crm-flow-start span{color:var(--crm-muted);font-size:12px}
+.crm-flow-list{display:flex;flex-direction:column;container-type:inline-size}
+.crm-flow-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;gap:12px;align-items:center;padding:10px 4px;border-top:1px solid var(--crm-line)}
+.crm-flow-row:first-child{border-top:0}
+.crm-flow-row.archived{opacity:.65}
+.crm-flow-icon{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:#fff;flex:none}
+.crm-flow-name{display:flex;flex-direction:column;min-width:0}
+.crm-flow-name strong,.crm-flow-name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crm-flow-name span{font-size:12px}
+.crm-flow-tags{display:flex;gap:6px;flex-wrap:wrap}
+.crm-flow-when{font-size:12px;white-space:nowrap}
+.crm-flow-actions{display:flex;gap:4px}
+@container (max-width:640px){
+  .crm-flow-row{grid-template-columns:auto minmax(0,1fr) auto;row-gap:6px}
+  .crm-flow-tags{grid-column:2/-1;grid-row:2}
+  .crm-flow-when{display:none}
+}
