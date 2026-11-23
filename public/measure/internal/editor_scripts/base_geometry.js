@@ -13,6 +13,12 @@ function validate(f,minArea=.001){
  if(f.points.length<3||f.points.some(p=>![p.x,p.y,p.z].every(Number.isFinite))||Math.abs(area(f.points))<minArea)throw Error('A base face needs a nonzero, finite area.');
  triangles(f.points);return f;
 }
+// A face whose corners span no area (fewer than three points, or all on one line) is nothing to stand on, and
+// terrain() cannot triangulate it: wall mode could not open at all. An earlier point weld saved such faces (FM-630).
+function dropEmptyFaces(base){
+ const empty=f=>{const ps=f.points||[];if(ps.length<3)return true;let x=0,y=0,z=0;for(let i=0;i<ps.length;i++){const a=ps[i],b=ps[(i+1)%ps.length];x+=(a.y-b.y)*(a.z+b.z);y+=(a.z-b.z)*(a.x+b.x);z+=(a.x-b.x)*(a.y+b.y);}return !(Math.hypot(x,y,z)/2>1e-10);};
+ if(!base?.faces?.some(empty)||base.faces.every(empty))return false;base.faces=base.faces.filter(f=>!empty(f));return true;
+}
 function terrain(base){
  const points=[],faces=[];
  for(const f of base.faces){const n=points.length;points.push(...f.points);faces.push(...triangles(f.points).map(t=>t.map(i=>i+n)));}
@@ -596,6 +602,6 @@ function boundaryAxis(face,direction,tolerance=5*Math.PI/180){
   }
  }return best;
 }
-const api={foldAxis,repairStoredRoofContacts,usesRoofEnvelope,reconcileRoofWalls,boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,levelPivot,center,triangles,terrain,fromRoof,repairInitial,fitGrade,reground,followCuts,simplePieces,split,transform,validate,boundary,followWalls};
+const api={foldAxis,repairStoredRoofContacts,usesRoofEnvelope,reconcileRoofWalls,boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,levelPivot,center,triangles,dropEmptyFaces,terrain,fromRoof,repairInitial,fitGrade,reground,followCuts,simplePieces,split,transform,validate,boundary,followWalls};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.BaseGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

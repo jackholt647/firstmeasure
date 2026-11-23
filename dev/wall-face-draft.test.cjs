@@ -4533,6 +4533,19 @@ test('point weld removes a sliver: two corners of one outline within the weld di
  const fine=JSON.parse(JSON.stringify({...state,pointWeldInches:.125,wallEdits:{$surfaces:[{id:'wall',points:[A,Q,B,p(3,0,3),p(0,0,3)],holes:[]},{id:'sliver',points:[A,P,Q],holes:[]}],$loose:{points:[],edges:[]}}}));
  const g=fixture({state:fine,walls:[],selected:null});g.editor.weldPoints();assert.equal(fine.wallEdits.$surfaces.length,2);
 });
+test('point weld removes a base face it leaves without area, so the base can still be drawn (FM-630)',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),p=(x,y,z)=>({x,y,z});
+ // A line drawn across the base passed 17 microns from a corner: the corner and the crossing point beside it made a
+ // sliver triangle. The weld joins the two points; the triangle kept its two other corners and was saved as a
+ // two-point face that no open of wall mode could draw.
+ const P=p(0,0,0),I=p(.000012,-.000012,0);
+ const state={pointWeldInches:.25,base:{faces:[{id:'base-1',points:[P,p(4,0,0),p(4,3,0),p(0,3,0)]},{id:'base-2',points:[P,I,p(4,0,0)]},{id:'base-3',points:[I,p(0,-2,0),p(4,-2,0),p(4,0,0)]}].map(f=>JSON.parse(JSON.stringify(f)))},wallEdits:{$surfaces:[]}};
+ const f=fixture({state,walls:[],selected:null});assert.ok(f.editor.weldPoints()>0,f.message());
+ const base=state.wallEdits.$base||state.base;
+ assert.equal(base.faces.map(face=>face.id).sort().join(),'base-1,base-3','the sliver is gone');
+ for(const face of base.faces)K.triangles(face.points,face.holes||[]);
+ assert.equal(f.editor.weldPoints(),0,'and it settles');
+});
 test('a line drawn where another line was deleted earlier can be clicked: an old deletion record does not hide it',()=>{
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),f=drawDraftLines([0,1],[[4,1]]),pair=[{x:0,y:0,z:1},{x:4,y:0,z:1}];
  const pick=()=>{f.editor.clear();const hit=f.e(2,1),picked=f.editor.pickLine3D(hit);if(picked===true)f.listeners.pointerup(hit);return f.editor.selectionSnapshot().lineSelection.length;};
