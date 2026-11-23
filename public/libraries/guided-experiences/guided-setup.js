@@ -118,7 +118,7 @@
     /* The tip opens over the step under it: above a step's own layers (the document setup's style cards are 10, their
        arrows 12, GP-29) and below the sheet's "close?" ask (20). */
     .gxs-info{position:relative;flex:none;width:20px;height:20px;border-radius:50%;border:1px solid #d0d5dd;background:#fff;color:#667085;font:italic 700 11px/1 Georgia,serif;cursor:help;display:inline-grid;place-items:center;padding:0}
-    .gxs-info-tip{position:absolute;left:50%;top:calc(100% + 8px);transform:translate(-50%,4px);width:max-content;max-width:min(320px,70vw);background:#101828;color:#fff;font:400 12.5px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:0;text-align:left;border-radius:9px;padding:8px 10px;opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;z-index:15}
+    .gxs-info-tip{position:absolute;left:50%;top:calc(100% + 8px);transform:translate(-50%,4px);width:max-content;max-width:min(320px,70vw);background:#101828;color:#fff;font:400 12.5px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:0;text-align:left;border-radius:9px;padding:8px 10px;white-space:pre-line;opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;z-index:15}
     .gxs-info:hover .gxs-info-tip,.gxs-info:focus-visible .gxs-info-tip,.gxs-info:focus-within .gxs-info-tip{opacity:1;transform:translate(-50%,0)}
     .gxs-info:focus-within .gxs-info-tip{pointer-events:auto;cursor:text}
     .gxs-step>p.gxs-sub{margin:0 0 18px;color:#667085;max-width:60ch}
