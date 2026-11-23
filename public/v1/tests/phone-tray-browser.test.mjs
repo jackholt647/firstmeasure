@@ -299,7 +299,7 @@ test('phone tray shows only set-up tabs, sends the rest into the Communications 
     const tray=page.locator('.fm-phone-tray');
     // Nothing set up: the first new call is the setup (on its texts and calls page); after it the call opens with no tabs.
     await page.evaluate(()=>Portal.CustomerPhone.open({project_id:''}));
-    assert.deepEqual(await page.evaluate(()=>setups),[{id:'comms.setup',options:{replay:true},start:'phone'}]);
+    assert.deepEqual(await page.evaluate(()=>setups),[{id:'comms.call_center_setup',options:{replay:true},start:'phone'}]);
     await tray.waitFor();
     assert.deepEqual(await tabs(),[]);
     // Phone header: no workspace or move button, the close button, the call-center icon and a centred title.

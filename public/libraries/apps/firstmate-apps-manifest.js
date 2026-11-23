@@ -355,7 +355,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'), versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261119-gp81-center-cache'), versionedBundle('comms/phone-tray.js', '20261119-gp64-loading'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'), versionedBundle('comms/workspace.js', '20261120-gp113'), versionedBundle('comms/project.js', '20261119-gp12-instant')]
+      bundles: [versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'), versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261119-gp81-center-cache'), versionedBundle('comms/phone-tray.js', '20261123-gp147'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'), versionedBundle('comms/workspace.js', '20261123-gp147'), versionedBundle('comms/project.js', '20261119-gp12-instant')]
     },
     {
       id: 'project.measurements',
@@ -544,8 +544,8 @@
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('comms/communications-ui.js', '20261119-gp81-center-cache'),
         versionedBundle('../window-manager/window-shell.js', '20261116-fm-509-phone-setup'),
-        versionedBundle('comms/phone-tray.js', '20261119-gp64-loading'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'),
-        versionedBundle('comms/workspace.js', '20261120-gp113'),
+        versionedBundle('comms/phone-tray.js', '20261123-gp147'), versionedBundle('comms/calling-runtime.js', '20261118-fm546-call-default'), versionedBundle('comms/phone-modal.js', '20261119-gp64-loading'),
+        versionedBundle('comms/workspace.js', '20261123-gp147'),
         versionedBundle('chat/app.js', '20261120-gp113')
       ]
     },

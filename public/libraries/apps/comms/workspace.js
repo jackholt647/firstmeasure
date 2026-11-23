@@ -90,7 +90,9 @@
         else if(action==='comms-setup'){
           const windows=[window];try{if(window.top!==window&&window.top.location.origin===window.location.origin)windows.push(window.top);}catch{}
           windows.forEach(win=>{win.__fmCommsSetupStart='phone';});target.disabled=true;
-          try{const outcome=await window.FirstMateGuides?.play?.('comms.setup',{replay:true});const note=target.parentElement?.querySelector('[data-setup-note]');if(outcome?.status==='unavailable'&&note)note.textContent=(globalThis.PlatformLanguage?.text("comms","m_4ead439d2495be","Ask someone who manages company settings to set this up.") ?? "Ask someone who manages company settings to set this up.");}
+          // GP-147: the Call center has its own setup (texts and calls, no email); Communications' views play comms.setup.
+          const setupId=options.standalone==='center'||state.view==='center'?'comms.call_center_setup':'comms.setup';
+          try{const outcome=await window.FirstMateGuides?.play?.(setupId,{replay:true});const note=target.parentElement?.querySelector('[data-setup-note]');if(outcome?.status==='unavailable'&&note)note.textContent=(globalThis.PlatformLanguage?.text("comms","m_4ead439d2495be","Ask someone who manages company settings to set this up.") ?? "Ask someone who manages company settings to set this up.");}
           catch{/* the setup reports its own errors */}
           finally{windows.forEach(win=>{win.__fmCommsSetupStart='';});if(target.isConnected)target.disabled=false;}
           void load();}
