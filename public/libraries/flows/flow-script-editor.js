@@ -72,6 +72,7 @@
 .fse-main{position:relative;overflow:hidden;outline:none}
 .fse-viewport{position:absolute;inset:0;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 120px,#000 calc(100% - 110px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 120px,#000 calc(100% - 110px),transparent 100%)}
 .fse-track{position:absolute;left:0;right:0;top:0;display:flex;flex-direction:column;align-items:center;gap:0;transition:transform .42s cubic-bezier(.2,.8,.2,1);padding:0 24px}
+.fse[data-mode="edit"] .fse-track{padding-right:min(280px,24%)}
 .fse-gap{height:34px;width:min(640px,100%);display:flex;align-items:center;justify-content:center;position:relative}
 .fse-gap::before{content:"";position:absolute;top:0;bottom:0;left:50%;border-left:2px dashed #d0d5dd}
 .fse-gap button{position:relative;z-index:1;width:24px;height:24px;border-radius:50%;border:1px solid #d0d5dd;background:#fff;color:#475467;cursor:pointer;opacity:0;transition:opacity .15s}
