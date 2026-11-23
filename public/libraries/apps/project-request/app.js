@@ -5066,16 +5066,17 @@ window.PlatformCommerce.onReady(async function(){
   // Operations (project.materials, tab `materials`) shows the project's measurements itself, so once Operations is set
   // up it is a flow while that tab shows (FM-611): the tray steps aside, and opens again on leaving the tab if
   // Operations closed it. Each visit is one run of the flow.
-  // Set up: Operations is on (an app only offered shows its welcome) and the organization finished its setup
-  // (`operations.setup`, organization-wide), or the setup is not offered to this person, who then has nothing to set up
-  // first. A skipped or unfinished setup is not set up.
+  // Set up: Operations is on (an app only offered shows its welcome) and the organization is past its setup
+  // (`operations.setup`, organization-wide): finished, or skipped (GP-163: a skipped setup leaves the tab in use, with
+  // the measurements it shows), or the setup is not offered to this person, who then has nothing to set up first. A setup
+  // still to come or unfinished plays on the tab, so the tray stays until it ends (fm:guides:ended below).
   async function operationsSetUp(){
     const guides=window.FirstMateGuides;
     if(typeof guides?.preload!=='function' || window.PlatformAPI?.capabilities?.can?.('platform.materials')!==true)return false;
     const snapshot=await Promise.resolve(guides.preload(projectOpenId() || '')).catch(()=>null);
     if(!snapshot?.experiences?.get)return false;
     const setup=snapshot.experiences.get('operations.setup');
-    return !setup || setup.progress?.status==='completed';
+    return !setup || ['completed','dismissed'].includes(setup.progress?.status);
   }
   let detailsTrayOperationsVisit=0;
   function syncDetailsTrayOperations(){
@@ -5086,7 +5087,8 @@ window.PlatformCommerce.onReady(async function(){
     if(!closes())return;
     operationsSetUp().then(ready=>{if(ready && closes())holdDetailsTray('operations');});
   }
-  // Finishing Operations setup the first time, on the Operations tab, closes the tray as an Operations visit would.
+  // Finishing (or skipping) Operations setup the first time, on the Operations tab, closes the tray as an Operations
+  // visit would.
   window.addEventListener('fm:guides:ended',event=>{if(event?.detail?.id==='operations.setup' && activePreviewTab==='materials')syncDetailsTrayOperations();});
 
   // Measurements under the address: the Operations Measurements view in its measurements-only form (the 3D
