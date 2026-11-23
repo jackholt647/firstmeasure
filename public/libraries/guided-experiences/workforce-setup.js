@@ -12,7 +12,9 @@
 //           each it does in the company's own words (metal roofs, flat roofs: the step's `service_tags` to start from,
 //           library data), and (a crew) who is in it, someone new added on the spot, and who is in charge, optionally.
 //   pay     how each is paid: piece rate, hourly or per job, defaulted by industry (the step's `pay_defaults`, library
-//           data); "same as" another one; or their pay sheet handed to the agent.
+//           data); "same as" another one; or their pay sheet handed to the agent. A piece rate is items (GP-162): squares
+//           at one rate for each pitch range (the default, instead of each other) or one rate for every square, and
+//           extras added on top (a bonus for steeper squares, a rate per unit of any roofing measurement).
 //   invite  whether to invite the crews' people who have not joined yet to the app (skippable; only when someone can
 //           be invited and the person may invite).
 //   see     having said yes: what the crews' members see in the app (the step's `crew_apps`, library data), saved as
@@ -148,6 +150,35 @@ const css = `
 /* What a piece rate is paid on stays beside the rate when the card has the room, and goes under it only when it would
    be cut short (GP-161). */
 .gxw-rate .gxw-select{flex:1 1 140px;min-width:0;max-width:240px}
+/* A piece rate (GP-162): squares by pitch range, each instead of the others, then what is added on top. */
+.gxw-piece{display:flex;flex-direction:column;gap:12px;min-width:0}
+.gxw-pp{display:flex;flex-direction:column;gap:8px;min-width:0;padding:12px;border:1px solid #eaecf0;border-radius:14px;background:#fcfcfd}
+.gxw-pp>header{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.gxw-pp>header>b{flex:1 1 auto;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#475467}
+.gxw-pp>header .gxw-seg{flex:none;padding:2px}
+.gxw-pp>header .gxw-seg button{height:26px;padding:0 10px;font-size:12px}
+.gxw-pp-hint{display:flex;gap:7px;align-items:flex-start;font-size:12px!important;line-height:1.4!important;color:#667085!important}
+.gxw-pp-hint i{margin-top:2px;font-size:11px;color:#98a2b3}
+.gxw-pr{display:flex;align-items:center;gap:8px;min-width:0;min-height:38px}
+.gxw-pr-name{flex:1 1 auto;min-width:0;font-size:13.5px;font-weight:600;color:#101828;line-height:1.3}
+.gxw-pr-name small{display:block;font-size:11.5px;font-weight:500;color:#667085}
+.gxw-pr-name select{height:30px;margin-left:4px;padding:0 6px;font-size:12.5px}
+.gxw-pr .gxw-money{flex:none;height:34px}
+.gxw-pr .gxw-money input{width:64px;font-size:13.5px}
+.gxw-pr .gxw-unit{flex:none;min-width:38px}
+.gxw-plus{flex:none;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#ecfdf3;color:#067647;font-size:13px;font-weight:800;line-height:1}
+.gxw-x{flex:none;width:26px;height:26px;border:0;border-radius:8px;background:transparent;color:#98a2b3;cursor:pointer;font-size:13px}
+.gxw-x:hover{background:#f2f4f7;color:#475467}
+.gxw-breaks{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:4px;border-top:1px dashed #eaecf0}
+.gxw-breaks>span{font-size:11.5px;font-weight:650;color:#667085;margin-right:2px}
+.gxw-break{height:26px;padding:0 9px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;font:inherit;font-size:12px;font-weight:650;color:#475467;cursor:pointer}
+.gxw-break[aria-pressed=true]{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary,#d93025)}
+.gxw-pp.extra{background:#fff}
+.gxw-pp.extra>header small{font-size:11.5px;color:#98a2b3;font-weight:500}
+.gxw-pp-none{font-size:12.5px!important;color:#98a2b3!important}
+.gxw-add{align-self:flex-start;height:32px;max-width:100%;padding:0 10px;border:1px dashed #d0d5dd;border-radius:10px;background:#fff;font:inherit;font-size:12.5px;font-weight:650;color:#344054;cursor:pointer}
+.gxw-add:hover{background:#f9fafb}
+.gxw-pr input:invalid,.gxw-pr[data-missing] .gxw-money{border-color:#f04438}
 .gxw-same{font-size:12.5px;color:#475467;background:#f9fafb;border-radius:10px;padding:9px 11px}
 .gxw-note{font-size:12.5px!important;color:#667085!important}
 .gxw-sheet{align-self:flex-start;display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 11px;border:1px dashed #d0d5dd;border-radius:10px;background:#fff;font:inherit;font-size:12.5px;font-weight:650;color:#344054;cursor:pointer}
@@ -213,9 +244,9 @@ const css = `
 @media(prefers-reduced-motion:reduce){.gxw *{transition:none!important}.gxw-track{scroll-behavior:auto}}
 `;
 function installStyle(){
-  if (document.getElementById('gxw-css-gp66')) return;
-  document.getElementById('gxw-css')?.remove();
-  const style = document.createElement('style'); style.id = 'gxw-css-gp66'; style.textContent = css; document.head.append(style);
+  if (document.getElementById('gxw-css-gp162')) return;
+  document.getElementById('gxw-css')?.remove(); document.getElementById('gxw-css-gp66')?.remove();
+  const style = document.createElement('style'); style.id = 'gxw-css-gp162'; style.textContent = css; document.head.append(style);
 }
 
 /**
@@ -240,14 +271,77 @@ export function kindsFor(workforce){
  * in, or one with none), as long as the company can be paid that way (a piece rate needs roofing work); else hourly.
  */
 export function defaultPay(options, profile, kind){
-  const sets = array(object(profile).industry_sets), roofing = array(object(profile).work_kinds).includes('roofing');
-  const rules = array(object(options).pay_defaults);
-  const fits = (rule) => (!array(rule.industry_sets).length || array(rule.industry_sets).some((id) => sets.includes(id))) && (!array(rule.kinds).length || array(rule.kinds).includes(kind));
-  const rule = rules.find(fits) || {};
+  const roofing = array(object(profile).work_kinds).includes('roofing');
+  const rule = payRules(options, profile, kind)[0] || {};
   const method = clean(rule.method);
-  if (method === 'per_measurement' && roofing) return { method, rate: 0, measurement: clean(rule.measurement) || 'roof.squares' };
+  if (method === 'per_measurement' && roofing) return piecePay(rule);
   if (method === 'per_job') return { method, rate: 0 };
   return { method: 'hourly', rate: 0 };
+}
+/** The step's `pay_defaults` that fit the company and the kind, in order. */
+function payRules(options, profile, kind){
+  const sets = array(object(profile).industry_sets);
+  const fits = (rule) => (!array(rule.industry_sets).length || array(rule.industry_sets).some((id) => sets.includes(id))) && (!array(rule.kinds).length || array(rule.kinds).includes(kind));
+  return array(object(options).pay_defaults).filter(fits);
+}
+/**
+ * A piece rate to start from, when someone picks Piece rate: the first piece rate the step's `pay_defaults` give the
+ * company, else the first they give anyone (its items, no rates yet).
+ */
+export function defaultPiece(options, profile, kind){
+  const piece = (rule) => clean(rule.method) === 'per_measurement';
+  return piecePay(payRules(options, profile, kind).find(piece) || array(object(options).pay_defaults).find(piece) || {});
+}
+const piecePay = (rule) => ({ method: 'per_measurement', rate: 0, items: pieceItems({ items: array(rule.items).map((item) => ({ ...object(item), rate: 0 })), measurement: rule.measurement }) });
+
+// ── A piece rate's items (GP-162) ────────────────────────────────────────
+// Pitch ranges are instead of each other: each square is paid the rate of the one range its pitch is in, and the
+// ranges take in every pitch between them. Everything else is added on top: a bonus for each square over a pitch, a
+// rate per unit of another roofing measurement. One rate for every square is the item for roof squares.
+const SQUARES = 'roof.squares';
+/** A piece rate's items, from what was saved or chosen: a one-line rate on a measurement is that one item. */
+export function pieceItems(pay){
+  if (array(pay?.items).length) return array(pay.items).map((item) => ({ ...object(item) }));
+  return [{ type: 'measurement', measurement: clean(pay?.measurement) || SQUARES, rate: Number(pay?.rate) || 0 }];
+}
+/**
+ * Pitch ranges split at these pitches (twelfths). Each keeps the rate of the range it was: both halves of a split
+ * one, and two joined ranges when they had the same rate.
+ */
+export function rangesAt(breaks, items = []){
+  const edges = [0, ...[...new Set(array(breaks).map(Number))].filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => a - b), null];
+  const before = array(items).filter((item) => item.type === 'pitch_range');
+  const ends = (item) => item.up_to ?? Infinity;
+  return edges.slice(0, -1).map((above, at) => {
+    const up_to = edges[at + 1], top = up_to ?? Infinity;
+    const within = before.find((item) => item.above <= above && ends(item) >= top);
+    const joined = before.filter((item) => item.above >= above && ends(item) <= top);
+    const rate = within ? within.rate : joined.length && joined.every((item) => Number(item.rate) === Number(joined[0].rate)) ? joined[0].rate : 0;
+    return { type: 'pitch_range', above, up_to, rate };
+  });
+}
+/** How a piece rate pays for squares: one rate for each pitch range (`pitch`), one rate for every square (`one`), or not by the square. */
+export function squaresMode(items){
+  return array(items).some((item) => item.type === 'pitch_range') ? 'pitch' : array(items).some((item) => item.type === 'measurement' && item.measurement === SQUARES) ? 'one' : '';
+}
+/** Some pitch ranges have a rate and some don't: the squares in the others would be paid nothing. */
+export function rangesUnfinished(pay){
+  const ranges = pieceItems(pay).filter((item) => item.type === 'pitch_range');
+  return ranges.some((item) => Number(item.rate) > 0) && !ranges.every((item) => Number(item.rate) > 0);
+}
+/**
+ * What a card's pay sends to the setup, or null when no rate is set yet. A piece rate sends the items with a rate, and
+ * its pitch ranges only once every one has a rate; one rate on one measurement is sent as the one-line rate it always was.
+ */
+export function payInput(pay){
+  if (!pay) return null;
+  if (pay.method !== 'per_measurement') return Number(pay.rate) > 0 ? { method: pay.method, rate: Number(pay.rate) } : null;
+  const items = pieceItems(pay), ranges = items.filter((item) => item.type === 'pitch_range');
+  const rated = (item) => Number(item.rate) > 0;
+  const keep = items.filter((item) => item.type === 'pitch_range' ? ranges.every(rated) : rated(item)).map((item) => ({ ...item, rate: Number(item.rate) }));
+  if (!keep.length) return null;
+  if (keep.length === 1 && keep[0].type === 'measurement') return { method: 'per_measurement', rate: keep[0].rate, measurement: keep[0].measurement };
+  return { method: 'per_measurement', items: keep };
 }
 /** A card's pay, following "same as" to the one it copies (never round in a circle). */
 export function payOf(rows, row, seen = new Set()){
@@ -299,7 +393,7 @@ export function applyInput(rows, extra = {}){
         ...(members.length ? { member_user_ids: members } : {}),
         ...(lead && lead !== row.saved_lead ? { lead_user_id: lead } : {}),
         ...(apps ? { apps } : {}),
-        ...(extra.pay !== false && pay && Number(pay.rate) > 0 && !row.locked && !row.sheet ? { pay: { method: pay.method, rate: Number(pay.rate), ...(pay.method === 'per_measurement' ? { measurement: pay.measurement || 'roof.squares' } : {}) } } : {})
+        ...(extra.pay !== false && !row.locked && !row.sheet && payInput(pay) ? { pay: payInput(pay) } : {})
       };
     }) }
   };
@@ -742,8 +836,75 @@ export function mount(el, ctx){
   }
 
   // ── How do you pay them? ───────────────────────────────────────────────
-  const unitOf = (pay) => pay?.method === 'hourly' ? L('gx_lab_per_hour', 'per hour') : pay?.method === 'per_job' ? L('gx_lab_per_job', 'per job') : String(pay?.measurement || 'roof.squares').startsWith('roof.squares') || pay?.measurement === 'roof.flat_squares' ? L('gx_lab_per_square', 'per square') : L('gx_lab_per_foot', 'per foot');
-  const payText = (pay) => pay && Number(pay.rate) > 0 ? `$${Number(pay.rate).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${unitOf(pay)}` : '';
+  const unitOf = (pay) => pay?.method === 'hourly' ? L('gx_lab_per_hour', 'per hour') : L('gx_lab_per_job', 'per job');
+  const dollars = (value) => `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  const measurementOf = (id) => measurements().find((entry) => entry.id === id);
+  // What a piece rate item is paid per, said short (the rate's unit) and in full (the summary).
+  const perShort = (item) => { const unit = item.type === 'measurement' ? clean(measurementOf(item.measurement)?.unit) : 'roofing_square'; return unit === 'roofing_square' ? L('gx_wfs_pp_per_sq', '/ sq') : unit === 'ft2' ? L('gx_wfs_pp_per_sqft', '/ sq ft') : L('gx_wfs_pp_per_ft', '/ ft'); };
+  const perLong = (item) => { const unit = item.type === 'measurement' ? clean(measurementOf(item.measurement)?.unit) : 'roofing_square'; return unit === 'roofing_square' ? L('gx_lab_per_square', 'per square') : unit === 'ft2' ? L('gx_wfs_pp_per_square_foot', 'per square foot') : L('gx_lab_per_foot', 'per foot'); };
+  const twelfths = (value) => `${value}/12`;
+  const rangeName = (above, upTo) => !above && upTo === null ? L('gx_wfs_pp_every_pitch', 'Every pitch') : !above ? L('gx_wfs_pp_up_to', 'Up to {to}', { to: twelfths(upTo) }) : upTo === null ? L('gx_wfs_pp_over', 'Over {from}', { from: twelfths(above) }) : L('gx_wfs_pp_between', 'Over {from} up to {to}', { from: twelfths(above), to: twelfths(upTo) });
+  // Where pitch ranges can start and end: the dictionary's pitch bands (workforce-setup.status pitch_bands).
+  const pitchEdges = () => array(status.pitch_bands).map((band) => band.up_to).filter((value) => Number.isFinite(value) && value > 0);
+  const itemName = (item) => item.type === 'measurement' ? clean(measurementOf(item.measurement)?.label) || item.measurement : rangeName(item.above, item.up_to ?? null);
+  function pieceText(pay){
+    const items = pieceItems(pay).filter((item) => Number(item.rate) > 0), parts = [];
+    const ranges = rangesUnfinished(pay) ? [] : items.filter((item) => item.type === 'pitch_range').map((item) => Number(item.rate));
+    if (ranges.length) { const low = Math.min(...ranges), high = Math.max(...ranges); parts.push(L('gx_wfs_pp_text_pitch', '{rates} per square by pitch', { rates: low === high ? dollars(low) : `${dollars(low)}–${dollars(high)}` })); }
+    const rest = items.filter((item) => item.type !== 'pitch_range');
+    const lead = !parts.length ? rest.find((item) => item.type === 'measurement' && item.measurement === SQUARES) || (rest.length === 1 ? rest[0] : null) : null;
+    if (lead) parts.push(`${dollars(lead.rate)} ${perLong(lead)}${lead.measurement && lead.measurement !== SQUARES ? ` (${itemName(lead)})` : ''}`);
+    const extra = rest.filter((item) => item !== lead).length;
+    if (extra) parts.push(L('gx_wfs_pp_text_extras', '+ {n} on top', { n: extra }));
+    return parts.join(' ');
+  }
+  const payText = (pay) => !pay ? '' : pay.method === 'per_measurement' ? pieceText(pay) : Number(pay.rate) > 0 ? `${dollars(pay.rate)} ${unitOf(pay)}` : '';
+  /**
+   * A bonus said as what a square at that pitch earns: "A 9/12 square: $65 + $2 = $67". It is what makes plain that a
+   * bonus is added to the square's own rate, where a pitch range replaces it.
+   */
+  function bonusExample(items, bonus){
+    const pitch = Number(bonus.above) + 1, own = items.find((item) => item.type === 'pitch_range' && item.above < pitch && (item.up_to === null || item.up_to >= pitch)) || items.find((item) => item.type === 'measurement' && item.measurement === SQUARES);
+    if (!own || !(Number(own.rate) > 0) || !(Number(bonus.rate) > 0)) return L('gx_wfs_pp_bonus_hint', 'Paid on top of the square’s own rate.');
+    return L('gx_wfs_pp_bonus_example', 'A {pitch} square: {own} + {bonus} = {total}', { pitch: twelfths(pitch), own: dollars(own.rate), bonus: dollars(bonus.rate), total: dollars(Number(own.rate) + Number(bonus.rate)) });
+  }
+  function pieceBody(row){
+    const items = pieceItems(row.pay), mode = squaresMode(items), edges = pitchEdges();
+    const money = (item, at) => `<label class="gxw-money">$<input type="number" min="0" step="0.01" inputmode="decimal" data-gxw-item="${at}" value="${Number(item.rate) > 0 ? esc(item.rate) : ''}" placeholder="0.00" aria-label="${esc(`${itemName(item)}: ${L('gx_lab_rate', 'Rate')}`)}"></label><span class="gxw-unit">${esc(perShort(item))}</span>`;
+    const modeButton = (id, label) => `<button type="button" role="radio" data-gxw-squares="${id}" aria-checked="${mode === id}">${esc(label)}</button>`;
+    const ranges = items.map((item, at) => ({ item, at })).filter(({ item }) => item.type === 'pitch_range');
+    const one = items.findIndex((item) => item.type === 'measurement' && item.measurement === SQUARES);
+    const breaks = ranges.map(({ item }) => item.up_to).filter((value) => value !== null);
+    const squares = mode === 'pitch' ? `${ranges.map(({ item, at }) => `<div class="gxw-pr" data-gxw-range="${at}"><span class="gxw-pr-name">${esc(rangeName(item.above, item.up_to ?? null))}${!item.above && item.up_to !== null && item.up_to <= 2 ? `<small>${esc(L('gx_wfs_pp_flat', 'Flat and low slope'))}</small>` : ''}</span>${money(item, at)}</div>`).join('')}
+        ${edges.length ? `<div class="gxw-breaks" role="group" aria-label="${esc(L('gx_wfs_pp_split', 'Split the ranges at'))}"><span>${esc(L('gx_wfs_pp_split', 'Split the ranges at'))}</span>${edges.map((edge) => `<button type="button" class="gxw-break" data-gxw-break="${edge}" aria-pressed="${breaks.includes(edge)}">${esc(twelfths(edge))}</button>`).join('')}</div>` : ''}
+        <p class="gxw-pp-hint"><i class="fas fa-circle-info" aria-hidden="true"></i><span>${esc(L('gx_wfs_pp_pitch_hint', 'Each square is paid the rate of the one range its pitch falls in. These rates replace each other; they never add up.'))}</span></p>`
+      : mode === 'one' ? `<div class="gxw-pr" data-gxw-range="${one}"><span class="gxw-pr-name">${esc(L('gx_wfs_pp_all_squares', 'Every square'))}</span>${money(items[one], one)}</div>
+        <p class="gxw-pp-hint"><i class="fas fa-circle-info" aria-hidden="true"></i><span>${esc(L('gx_wfs_pp_one_hint', 'The same rate whatever the pitch. Add a bonus below to pay more for steeper squares.'))}</span></p>`
+      : `<p class="gxw-pp-none">${esc(L('gx_wfs_pp_no_squares', 'Not paid by the square.'))}</p>`;
+    const extras = items.map((item, at) => ({ item, at })).filter(({ item }) => item.type === 'pitch_bonus' || (item.type === 'measurement' && item.measurement !== SQUARES));
+    const used = new Set(items.filter((item) => item.type === 'measurement').map((item) => item.measurement));
+    // Roof squares and roof area are what the squares above are paid on; added again they would be paid twice.
+    const addable = measurements().filter((entry) => entry.id !== SQUARES && entry.id !== 'roof.area' && !used.has(entry.id));
+    const areaish = (entry) => entry.unit === 'roofing_square' || entry.unit === 'ft2';
+    const extraRow = ({ item, at }) => item.type === 'pitch_bonus'
+      ? `<div class="gxw-pr" data-gxw-extra="${at}"><span class="gxw-plus" aria-hidden="true">+</span><span class="gxw-pr-name">${esc(L('gx_wfs_pp_bonus', 'Bonus, squares'))}<select class="gxw-select" data-gxw-bonus="${at}" aria-label="${esc(L('gx_wfs_pp_bonus_from', 'Paid for squares steeper than'))}">${edges.map((edge) => `<option value="${edge}" ${edge === item.above ? 'selected' : ''}>${esc(L('gx_wfs_pp_over', 'Over {from}', { from: twelfths(edge) }))}</option>`).join('')}</select>${item.up_to !== null && item.up_to !== undefined ? `<small>${esc(L('gx_wfs_pp_up_to', 'Up to {to}', { to: twelfths(item.up_to) }))}</small>` : ''}<small data-gxw-example>${esc(bonusExample(items, item))}</small></span>${money(item, at)}<button type="button" class="gxw-x" data-gxw-remove="${at}" aria-label="${esc(L('gx_wfs_pp_remove', 'Remove'))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>`
+      : `<div class="gxw-pr" data-gxw-extra="${at}"><span class="gxw-plus" aria-hidden="true">+</span><span class="gxw-pr-name">${esc(itemName(item))}</span>${money(item, at)}<button type="button" class="gxw-x" data-gxw-remove="${at}" aria-label="${esc(L('gx_wfs_pp_remove', 'Remove'))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>`;
+    return `<div class="gxw-piece">
+      <section class="gxw-pp" data-gxw-squares-part>
+        <header><b>${esc(L('gx_wfs_pp_squares', 'Squares'))}</b><div class="gxw-seg" role="radiogroup" aria-label="${esc(L('gx_wfs_pp_squares_how', 'How squares are paid'))}">${edges.length || mode === 'pitch' ? modeButton('pitch', L('gx_wfs_pp_by_pitch', 'By pitch')) : ''}${modeButton('one', L('gx_wfs_pp_one_rate', 'One rate'))}</div></header>
+        ${squares}
+      </section>
+      <section class="gxw-pp extra" data-gxw-extras>
+        <header><b>${esc(L('gx_wfs_pp_on_top', 'Added on top'))}</b><small>${esc(L('gx_wfs_pp_on_top_hint', 'Each is paid as well as the squares'))}</small></header>
+        ${extras.length ? extras.map(extraRow).join('') : `<p class="gxw-pp-none">${esc(L('gx_wfs_pp_no_extras', 'Nothing yet. Add a bonus for steep squares, or pay for ridges, valleys or anything else measured.'))}</p>`}
+        <select class="gxw-add" data-gxw-add aria-label="${esc(L('gx_wfs_pp_add', 'Add something paid on top'))}"><option value="">${esc(`+ ${L('gx_wfs_pp_add', 'Add something paid on top')}`)}</option>
+          ${edges.length ? `<optgroup label="${esc(L('gx_wfs_pp_add_bonus_group', 'Bonus'))}"><option value="bonus">${esc(L('gx_wfs_pp_add_bonus', 'Bonus for steeper squares'))}</option></optgroup>` : ''}
+          ${addable.some(areaish) ? `<optgroup label="${esc(L('gx_wfs_pp_add_squares', 'Squares'))}">${addable.filter(areaish).map((entry) => `<option value="${esc(entry.id)}">${esc(entry.label)}</option>`).join('')}</optgroup>` : ''}
+          ${addable.some((entry) => !areaish(entry)) ? `<optgroup label="${esc(L('gx_wfs_pp_add_lines', 'Lines, per foot'))}">${addable.filter((entry) => !areaish(entry)).map((entry) => `<option value="${esc(entry.id)}">${esc(entry.label)}</option>`).join('')}</optgroup>` : ''}
+        </select>
+      </section>
+    </div>`;
+  }
   function payCard(row, list){
     const pay = row.pay, others = list.filter((other) => other !== row && !other.locked && !other.sheet && other.same !== row.key);
     const method = (id, label) => `<button type="button" role="radio" data-gxw-method="${id}" aria-checked="${pay?.method === id}">${esc(label)}</button>`;
@@ -753,8 +914,7 @@ export function mount(el, ctx){
     else if (row.sheet) body = `<p class="gxw-same"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i> ${esc(L('gx_wfs_sheet_sent', 'The agent is setting up their pay from the sheet you sent.'))}</p>`;
     else if (same) body = `<p class="gxw-same">${esc(L('gx_wfs_same_as', 'Paid the same as {name}', { name: clean(same.name) }))}${payText(payOf(list, row)) ? ` · ${esc(payText(payOf(list, row)))}` : ''}</p>`;
     else body = `<div class="gxw-seg" role="radiogroup" aria-label="${esc(L('gx_lab_how_paid', 'How they are paid'))}">${roofing() || pay?.method === 'per_measurement' ? method('per_measurement', L('gx_lab_piece', 'Piece rate')) : ''}${method('hourly', L('gx_lab_hourly', 'Hourly'))}${method('per_job', L('gx_lab_job', 'Per job'))}</div>
-      <div class="gxw-rate"><label class="gxw-money">$<input type="number" min="0" step="0.01" inputmode="decimal" data-gxw-rate value="${Number(pay?.rate) > 0 ? esc(pay.rate) : ''}" placeholder="0.00" aria-label="${esc(L('gx_lab_rate', 'Rate'))}"></label>
-      ${pay?.method === 'per_measurement' ? `<span class="gxw-unit">${esc(L('gx_wfs_per', 'per'))}</span><select class="gxw-select" data-gxw-measurement aria-label="${esc(L('gx_lab_paid_on', 'Paid on'))}">${measurements().map((entry) => `<option value="${esc(entry.id)}" ${entry.id === (pay.measurement || 'roof.squares') ? 'selected' : ''}>${esc(entry.label)}</option>`).join('')}</select>` : `<span class="gxw-unit">${esc(unitOf(pay))}</span>`}</div>`;
+      ${pay?.method === 'per_measurement' ? pieceBody(row) : `<div class="gxw-rate"><label class="gxw-money">$<input type="number" min="0" step="0.01" inputmode="decimal" data-gxw-rate value="${Number(pay?.rate) > 0 ? esc(pay.rate) : ''}" placeholder="0.00" aria-label="${esc(L('gx_lab_rate', 'Rate'))}"></label><span class="gxw-unit">${esc(unitOf(pay))}</span></div>`}`;
     return `<article class="gxw-card" data-gxw-card="${esc(row.key)}">${head(row)}
       ${body}
       ${!row.locked && !row.sheet && (others.length || same) ? `<label class="gxw-field"><b>${esc(L('gx_wfs_same', 'Same pay as'))}</b><select class="gxw-select" data-gxw-same><option value="">${esc(L('gx_wfs_same_none', 'Nobody: their own rates'))}</option>${list.filter((other) => other !== row && !other.locked && !other.sheet && other.same !== row.key).map((other) => `<option value="${esc(other.key)}" ${other.key === row.same ? 'selected' : ''}>${esc(other.name)}</option>`).join('')}</select></label>` : ''}
@@ -772,9 +932,62 @@ export function mount(el, ctx){
     const rowOf = (node) => rows.find((row) => row.key === node.closest('[data-gxw-card]')?.dataset.gxwCard);
     const redraw = (focus) => { const left = el.querySelector('.gxw-track')?.scrollLeft || 0; drawPay(); const track = el.querySelector('.gxw-track'); if (track) track.scrollLeft = left; if (focus) el.querySelector(focus)?.focus({ preventScroll: true }); };
     el.querySelectorAll('[data-gxw-method]').forEach((button) => button.addEventListener('click', () => {
-      const row = rowOf(button), method = button.dataset.gxwMethod; if (!row) return;
-      row.pay = { method, rate: row.pay?.method === method ? row.pay.rate : 0, ...(method === 'per_measurement' ? { measurement: row.pay?.measurement || 'roof.squares' } : {}) };
-      report(); redraw(`[data-gxw-card="${CSS.escape(row.key)}"] [data-gxw-rate]`);
+      const row = rowOf(button), method = button.dataset.gxwMethod; if (!row || row.pay?.method === method) return;
+      // A piece rate starts from the step's default items (library data): one rate for each pitch range.
+      row.pay = method === 'per_measurement' ? defaultPiece(options, profile, row.kind) : { method, rate: 0 };
+      report(); redraw(`[data-gxw-card="${CSS.escape(row.key)}"] ${method === 'per_measurement' ? '[data-gxw-item]' : '[data-gxw-rate]'}`);
+    }));
+    // A piece rate's items: everything changes row.pay.items, and the cards that copy this one say it.
+    const sameNotes = (row) => list.filter((other) => other.same === row.key).forEach((other) => { const note = el.querySelector(`[data-gxw-card="${CSS.escape(other.key)}"] .gxw-same`); if (note) note.textContent = `${L('gx_wfs_same_as', 'Paid the same as {name}', { name: clean(row.name) })}${payText(payOf(list, other)) ? ` · ${payText(payOf(list, other))}` : ''}`; });
+    const setItems = (row, items, focus) => { row.pay = { ...row.pay, method: 'per_measurement', rate: 0, items }; delete row.pay.measurement; report(); redraw(focus && `[data-gxw-card="${CSS.escape(row.key)}"] ${focus}`); };
+    el.querySelectorAll('[data-gxw-squares]').forEach((button) => button.addEventListener('click', () => {
+      const row = rowOf(button), mode = button.dataset.gxwSquares; if (!row) return;
+      const items = pieceItems(row.pay); if (squaresMode(items) === mode) return;
+      const rest = items.filter((item) => item.type !== 'pitch_range' && !(item.type === 'measurement' && item.measurement === SQUARES));
+      const ranges = items.filter((item) => item.type === 'pitch_range'), single = items.find((item) => item.type === 'measurement' && item.measurement === SQUARES);
+      // One rate carries over where it is the same for every range, and the other way round.
+      const carried = mode === 'one' ? (ranges.length && ranges.every((item) => Number(item.rate) === Number(ranges[0].rate)) ? Number(ranges[0].rate) || 0 : 0) : Number(single?.rate) || 0;
+      const fresh = mode === 'one' ? [{ type: 'measurement', measurement: SQUARES, rate: carried }]
+        : (() => { const start = pieceItems(defaultPiece(options, profile, row.kind)).filter((item) => item.type === 'pitch_range'); const breaks = start.length ? start.map((item) => item.up_to).filter((value) => value !== null) : pitchEdges().slice(0, 1); return rangesAt(breaks).map((item) => ({ ...item, rate: carried })); })();
+      setItems(row, [...fresh, ...rest], '[data-gxw-item]');
+    }));
+    el.querySelectorAll('[data-gxw-break]').forEach((button) => button.addEventListener('click', () => {
+      const row = rowOf(button), edge = Number(button.dataset.gxwBreak); if (!row) return;
+      const items = pieceItems(row.pay), ranges = items.filter((item) => item.type === 'pitch_range');
+      const breaks = ranges.map((item) => item.up_to).filter((value) => value !== null);
+      const next = breaks.includes(edge) ? breaks.filter((value) => value !== edge) : [...breaks, edge];
+      // With no break left it is one rate for every pitch: say it as that.
+      if (!next.length) { setItems(row, [{ type: 'measurement', measurement: SQUARES, rate: Number(ranges[0]?.rate) || 0 }, ...items.filter((item) => item.type !== 'pitch_range')], '[data-gxw-squares="pitch"]'); return; }
+      setItems(row, [...rangesAt(next, ranges), ...items.filter((item) => item.type !== 'pitch_range')], `[data-gxw-break="${edge}"]`);
+    }));
+    el.querySelectorAll('[data-gxw-item]').forEach((input) => input.addEventListener('input', () => {
+      const row = rowOf(input); if (!row?.pay) return;
+      const items = pieceItems(row.pay), at = Number(input.dataset.gxwItem), value = Number(input.value);
+      if (!items[at]) return;
+      items[at] = { ...items[at], rate: Number.isFinite(value) && value >= 0 ? value : 0 };
+      row.pay = { ...row.pay, items }; delete row.pay.measurement;
+      input.closest('.gxw-pr')?.removeAttribute('data-missing');
+      // Bonus examples follow the rates as they are typed.
+      el.querySelectorAll(`[data-gxw-card="${CSS.escape(row.key)}"] [data-gxw-extra]`).forEach((node) => { const item = items[Number(node.dataset.gxwExtra)], example = node.querySelector('[data-gxw-example]'); if (item?.type === 'pitch_bonus' && example) example.textContent = bonusExample(items, item); });
+      report(); sameNotes(row);
+    }));
+    el.querySelectorAll('[data-gxw-bonus]').forEach((select) => select.addEventListener('change', () => {
+      const row = rowOf(select); if (!row) return;
+      const items = pieceItems(row.pay), at = Number(select.dataset.gxwBonus);
+      items[at] = { ...items[at], above: Number(select.value), up_to: null };
+      setItems(row, items, `[data-gxw-bonus="${at}"]`);
+    }));
+    el.querySelectorAll('[data-gxw-remove]').forEach((button) => button.addEventListener('click', () => {
+      const row = rowOf(button); if (!row) return;
+      setItems(row, pieceItems(row.pay).filter((item, at) => at !== Number(button.dataset.gxwRemove)), '[data-gxw-add]');
+    }));
+    el.querySelectorAll('[data-gxw-add]').forEach((select) => select.addEventListener('change', () => {
+      const row = rowOf(select), value = select.value; if (!row || !value) return;
+      const items = pieceItems(row.pay), edges = pitchEdges();
+      // A bonus starts over 8/12, where roofs usually start to count as steep; its pitch is picked on the line.
+      const above = edges.includes(8) ? 8 : edges[edges.length - 1];
+      items.push(value === 'bonus' ? { type: 'pitch_bonus', above, up_to: null, rate: 0 } : { type: 'measurement', measurement: value, rate: 0 });
+      setItems(row, items, `[data-gxw-item="${items.length - 1}"]`);
     }));
     el.querySelectorAll('[data-gxw-rate]').forEach((input) => input.addEventListener('input', () => {
       const row = rowOf(input); if (!row?.pay) return;
@@ -783,12 +996,21 @@ export function mount(el, ctx){
       // Cards that copy this one say the new rate.
       list.filter((other) => other.same === row.key).forEach((other) => { const note = el.querySelector(`[data-gxw-card="${CSS.escape(other.key)}"] .gxw-same`); if (note) note.textContent = `${L('gx_wfs_same_as', 'Paid the same as {name}', { name: clean(row.name) })}${payText(payOf(list, other)) ? ` · ${payText(payOf(list, other))}` : ''}`; });
     }));
-    el.querySelectorAll('[data-gxw-measurement]').forEach((select) => select.addEventListener('change', () => { const row = rowOf(select); if (row?.pay) { row.pay = { ...row.pay, measurement: select.value }; report(); } }));
     el.querySelectorAll('[data-gxw-same]').forEach((select) => select.addEventListener('change', () => { const row = rowOf(select); if (!row) return; row.same = select.value; report(); redraw(`[data-gxw-card="${CSS.escape(row.key)}"] [data-gxw-same]`); }));
     el.querySelectorAll('[data-gxw-sheet]').forEach((button) => button.addEventListener('click', () => uploadSheet(rowOf(button), button)));
     el.querySelector('[data-gxw-back]').addEventListener('click', () => go(page - 1));
-    el.querySelector('[data-gxw-apply]')?.addEventListener('click', (event) => apply(event.currentTarget));
-    el.querySelector('[data-gxw-next]')?.addEventListener('click', () => go(page + 1));
+    // Pitch ranges are all paid or none yet: a range left empty beside the others would pay its squares nothing.
+    const finished = () => {
+      const open = list.filter((row) => !row.locked && !row.sheet && !row.same && row.pay?.method === 'per_measurement' && rangesUnfinished(row.pay));
+      if (!open.length) return true;
+      for (const row of open) pieceItems(row.pay).forEach((item, at) => { if (item.type === 'pitch_range' && !(Number(item.rate) > 0)) el.querySelector(`[data-gxw-card="${CSS.escape(row.key)}"] [data-gxw-range="${at}"]`)?.setAttribute('data-missing', ''); });
+      fail({ message: L('gx_wfs_pp_ranges_required', 'Give every pitch range of {name} a rate, or leave them all empty to set later.', { name: clean(open[0].name) }) });
+      const input = el.querySelector(`[data-gxw-card="${CSS.escape(open[0].key)}"] [data-gxw-range][data-missing] input`);
+      if (input) { input.focus({ preventScroll: true }); bringIn(el.querySelector('.gxw-track'), input.closest('.gxw-card')); }
+      return false;
+    };
+    el.querySelector('[data-gxw-apply]')?.addEventListener('click', (event) => { if (finished()) apply(event.currentTarget); });
+    el.querySelector('[data-gxw-next]')?.addEventListener('click', () => { if (finished()) go(page + 1); });
     wireDeck();
   }
 
@@ -969,7 +1191,9 @@ export function mount(el, ctx){
         // Nothing said yet about what it does: everything the company does, until the person says otherwise.
         service_ids: saved.length ? saved : [...known], service_tags: object(entry.service_tags), member_user_ids: array(entry.member_user_ids), saved_members: array(entry.member_user_ids),
         lead_user_id: clean(entry.lead_user_id), saved_lead: clean(entry.lead_user_id), apps: object(entry.apps),
-        locked: !!entry.pay && !simple, lines: Number(entry.pay?.lines || 0), pay: simple ? { ...simple } : defaultPay(options, profile, entry.kind), same: '' };
+        // A piece rate the setup can show item by item (GP-162), else a one-line sheet, else one left to People.
+        locked: !!entry.pay && !simple && !array(entry.pay?.items).length, lines: Number(entry.pay?.lines || 0),
+        pay: array(entry.pay?.items).length ? { method: 'per_measurement', rate: 0, items: array(entry.pay.items).map((item) => ({ ...item })) } : simple ? { ...simple } : defaultPay(options, profile, entry.kind), same: '' };
     });
     for (const kind of [GROUP, COMPANY]) counts[kind] = Math.max(1, existingOf(kind).length);
     if (workforce) fitRows();

@@ -17,7 +17,10 @@ and has:
 - **inputs** — everything it reads, each named, each `required` or optional
   with a `default`. A source is one of:
   - `measurement`: a dictionary definition such as `roof.squares`, optionally
-    `per_structure`;
+    `per_structure`. `also` adds more parts of the same partition to it, read
+    as one amount: a pitch range such as "over 2/12 up to 8/12" is three pitch
+    bands (GP-162). Only parts of one partition are read together, because parts
+    of different partitions may count the same squares;
   - `material`: the quantity on the project's material lists of one price book
     item, or of every item of a type ("Hip & Ridge");
   - `field`: a numeric project field production fills in (pack-out distance);
@@ -76,7 +79,19 @@ gives the same lines every time. It never invents a quantity:
 Measurements are read through `measurementAmount` in
 `platform/publication/measurement-schemas.ts`, the same reading the assessment
 uses, so the two never disagree. A pitch band with no key of its own is summed
-from the exact pitches a producer recorded.
+from the exact pitches a producer recorded. A part of a complete partition with
+nothing recorded is none of it (zero), not missing, once any part of that
+partition was recorded on the job: a 6/12 roof has no squares over 12/12. With
+no part recorded at all, the breakdown was never made and the input is missing.
+
+**Instead of each other, or on top.** A sheet pays more for steep squares one of
+two ways, which come to the same money. One rate for each pitch range: lines
+whose inputs are parts that add up to the whole (every pitch band once) each pay
+for their own squares and replace each other. Or a rate for every square plus a
+bonus on the steep ones: the bonus reads a part of the squares, so it only
+adjusts the price and is added on top (`role: "adjusts"`, or worked out as
+below). The editor labels the first **One rate per range** and the second
+**Added on top**.
 
 **Structures.** The project total is what gets paid, because it carries manual
 corrections. A `per_structure` input is priced structure by structure only when

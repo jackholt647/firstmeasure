@@ -320,15 +320,16 @@
       groups.push({ label:kind() ? t('ps_per_measurements', '{kind} measurements', { kind:kind().title }) : t('ps_per_measurements_plain', 'Measurements'), options:offered.map((entry) => ({ value:`m:${entry.definition}`, label:entry.label })) });
       const current = inputNamed(entry.input);
       // A measurement this kind of work no longer selects is still shown, so the problem can be seen and fixed.
-      if (current?.source?.kind === 'measurement' && !offered.some((entry) => entry.definition === current.source.definition)) groups[0].options.unshift({ value:`m:${current.source.definition}`, label:vocab.definition(current.source.definition)?.label || current.source.definition });
-      groups.push({ label:t('ps_per_on_sheet', 'On this sheet'), options:draft.inputs.filter((input) => input.source?.kind !== 'measurement').map((input) => ({ value:`i:${input.name}`, label:input.source.kind === 'material' ? t('ps_per_material_named', '{label} (on the lists)', { label:input.label || input.name }) : input.source.kind === 'field' ? t('ps_per_field_named', '{label} (project field)', { label:input.label || input.name }) : input.source.kind === 'work_hours' ? t('ps_per_hours_estimate_named', '{label} (estimated from the work)', { label:input.label || input.name }) : t('ps_per_typed_named', '{label} (typed for each job)', { label:input.label || input.name }) })) });
+      if (current?.source?.kind === 'measurement' && !arr(current.source.also).length && !offered.some((entry) => entry.definition === current.source.definition)) groups[0].options.unshift({ value:`m:${current.source.definition}`, label:vocab.definition(current.source.definition)?.label || current.source.definition });
+      groups.push({ label:t('ps_per_on_sheet', 'On this sheet'), options:draft.inputs.filter((input) => input.source?.kind !== 'measurement' || arr(input.source.also).length).map((input) => ({ value:`i:${input.name}`, label:input.source.kind === 'measurement' ? t('ps_per_range_named', '{label} (measurements added together)', { label:model.sourceWords(input.source, vocab, input) }) : input.source.kind === 'material' ? t('ps_per_material_named', '{label} (on the lists)', { label:input.label || input.name }) : input.source.kind === 'field' ? t('ps_per_field_named', '{label} (project field)', { label:input.label || input.name }) : input.source.kind === 'work_hours' ? t('ps_per_hours_estimate_named', '{label} (estimated from the work)', { label:input.label || input.name }) : t('ps_per_typed_named', '{label} (typed for each job)', { label:input.label || input.name }) })) });
       groups.push({ label:t('ps_per_new', 'New'), options:[{ value:'new:material', label:t('ps_per_new_material', 'Material on the lists…') }, { value:'new:field', label:t('ps_per_new_field', 'A project field…') }, { value:'new:manual', label:t('ps_per_new_manual', 'A number typed for each job…') }] });
       return groups;
     }
     function perValue(entry){
       const input = inputNamed(entry.input);
       if (!input) return '';
-      return input.source?.kind === 'measurement' ? `m:${input.source.definition}` : `i:${input.name}`;
+      // A pitch range reads several measurements as one, so it is chosen as the input it is, not as its first band.
+      return input.source?.kind === 'measurement' && !arr(input.source.also).length ? `m:${input.source.definition}` : `i:${input.name}`;
     }
     function lineFacts(entry){
       const facts = [];
@@ -337,7 +338,10 @@
       // A line that only changes the price of work another line pays for says so first, with why in its tooltip.
       const reason = model.adjustReason(entry, draft, vocab);
       const onlyAdjusts = !!reason && arr(entry.covers).every((item) => roles.get(item) === 'adjusts');
-      if (reason) facts.push(kit.pill({ label:onlyAdjusts ? t('ps_adjusts_of', 'Adjusts the price of') : t('ps_adjusts', 'Adjusts the price'), tone:'role', icon:'fa-sliders', tooltip:reason }));
+      // GP-162: what adds to the pay and what replaces another line, said plainly on every line it applies to.
+      if (reason) facts.push(kit.pill({ label:onlyAdjusts ? t('ps_on_top_of', 'Added on top of') : t('ps_on_top', 'Added on top'), tone:'role', icon:'fa-plus', tooltip:reason }));
+      const part = reason ? '' : model.partReason(entry, draft, vocab);
+      if (part) facts.push(kit.pill({ label:t('ps_one_of_ranges', 'One rate per range'), tone:'role', icon:'fa-layer-group', tooltip:part }));
       if (arr(entry.covers).length) {
         if (!onlyAdjusts) facts.push(`<span class="ps-fact-label">${esc(t('ps_pays_for', 'Pays for'))}</span>`);
         entry.covers.forEach((item) => { const found = items.find((row) => row.item === item); facts.push(kit.chip({ label:found?.label || item, tone:roles.get(item) === 'adjusts' ? 'muted' : 'group', tooltip:found?.description || '' })); });
@@ -905,7 +909,7 @@
       ], onSelect:(item) => {
         const add = (source, values) => { draft.inputs.push({ name:uniqueName(values.label), label:values.label, source, required:values.required !== false }); changed(true); };
         const uniqueName = (label) => { const probe = { inputs:draft.inputs }; model.ensureInput(probe, { kind:'manual' }, { label }); const made = probe.inputs.pop(); return made.name; };
-        if (item.id.startsWith('m:')) { const entry = measures.find((row) => row.definition === item.id.slice(2)); if (!draft.inputs.some((input) => input.source?.kind === 'measurement' && input.source.definition === entry.definition)) add({ kind:'measurement', definition:entry.definition }, { label:entry.label, required:entry.required && !entry.part_of }); return; }
+        if (item.id.startsWith('m:')) { const entry = measures.find((row) => row.definition === item.id.slice(2)); if (!draft.inputs.some((input) => input.source?.kind === 'measurement' && input.source.definition === entry.definition && !arr(input.source.also).length)) add({ kind:'measurement', definition:entry.definition }, { label:entry.label, required:entry.required && !entry.part_of }); return; }
         if (item.id === 'work_hours') { add({ kind:'work_hours' }, { label:t('hours', 'Hours') }); return; }
         const fields = item.id === 'material' ? [{ id:'label', label:t('ps_item_type_label', 'Item type on the lists'), required:true }] : item.id === 'field' ? [{ id:'key', label:t('ps_field_key', 'Project field'), required:true }, { id:'label', label:t('ps_called', 'Called') }] : [{ id:'label', label:t('ps_what_typed', 'What is typed'), required:true }];
         window.setTimeout(() => kit.form(anchor, { title:item.label.replace(/…$/, ''), fields, submitLabel:t('ps_add_input', 'Add') }).then((values) => {

@@ -346,3 +346,78 @@ test('Back and Continue stay pinned to the bottom of the sheet, whatever the pag
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
+
+// GP-162: a piece rate is items. Squares start as one rate for each pitch range (library data); the ranges replace each
+// other and are all given a rate or none; a bonus over a pitch and a rate per foot of a roof line are added on top, and
+// the bonus says what a square at that pitch earns.
+const pitchBands=[[0,2],[2,4],[4,6],[6,8],[8,12],[12,null]].map(([above,up_to])=>({id:`band_${above}`,label:'',above,up_to}));
+const roofMeasurements=[{id:'roof.squares',label:'Roof squares',unit:'roofing_square'},{id:'roof.area',label:'Roof area',unit:'ft2'},{id:'roof.squares_hand_carried',label:'Hand-carried squares',unit:'roofing_square',part_of:'roof.squares'},{id:'roof.ridge_length',label:'Ridges',unit:'ft'},{id:'roof.valley_length',label:'Valleys',unit:'ft'}];
+test('a piece rate: one rate for each pitch range by default, split where you like, with a bonus and extras on top',async()=>{
+  const browser=await launch();
+  try{
+    const {page,errors}=await open(browser,'crews',{options,status:{people,can:{add_people:false,invite:false},measurements:roofMeasurements,pitch_bands:pitchBands}});
+    await page.locator('[data-gxw-page="count"]').waitFor();
+    await page.locator('[data-gxw-next]').click();
+    await page.locator('[data-gxw-page="work"] [data-gxw-next]').click();
+    const card=page.locator('[data-gxw-page="pay"] .gxw-card').first();
+    await card.waitFor();
+    await card.locator('[data-gxw-method="per_measurement"]').click();
+    assert.equal(await card.locator('[data-gxw-squares="pitch"]').getAttribute('aria-checked'),'true','by pitch range is the default');
+    const names=async()=>(await card.locator('[data-gxw-range] .gxw-pr-name').allInnerTexts()).map(text=>text.split('\n')[0]);
+    assert.deepEqual(await names(),['Up to 2/12','Over 2/12 up to 8/12','Over 8/12 up to 12/12','Over 12/12']);
+    assert.match(await card.locator('[data-gxw-squares-part] .gxw-pp-hint').innerText(),/replace each other/);
+    // Some ranges rated and not the others: the squares in those would be paid nothing, so it says so.
+    await card.locator('[data-gxw-range] input').nth(1).fill('65');
+    await page.locator('[data-gxw-apply]').click();
+    assert.match(await page.locator('[data-gxw-error]').innerText(),/every pitch range/);
+    assert.equal(await card.locator('[data-gxw-range][data-missing]').count(),3);
+    // Split at 6/12 too: both halves start at the rate of the range they were; joined again, they are that range.
+    const rates=()=>card.locator('[data-gxw-range] input').evaluateAll(inputs=>inputs.map(input=>input.value));
+    await card.locator('[data-gxw-break="6"]').click();
+    assert.deepEqual(await names(),['Up to 2/12','Over 2/12 up to 6/12','Over 6/12 up to 8/12','Over 8/12 up to 12/12','Over 12/12']);
+    assert.deepEqual(await rates(),['','65','65','','']);
+    await card.locator('[data-gxw-break="6"]').click();
+    assert.deepEqual(await rates(),['','65','','']);
+    for (const [at,rate] of [[0,'90'],[2,'80'],[3,'100']]) await card.locator('[data-gxw-range] input').nth(at).fill(rate);
+    // On top: a bonus over 8/12, said as what a 9/12 square earns, and ridges per foot. Roof squares are not offered again.
+    const add=card.locator('[data-gxw-add]');
+    assert.equal(await add.locator('option[value="roof.squares"]').count(),0);
+    assert.equal(await add.locator('option[value="roof.area"]').count(),0);
+    await add.selectOption('bonus');
+    const bonus=card.locator('[data-gxw-extra]').first();
+    await bonus.locator('input').fill('2');
+    assert.equal(await bonus.locator('[data-gxw-example]').innerText(),'A 9/12 square: $80 + $2 = $82');
+    await card.locator('[data-gxw-add]').selectOption('roof.ridge_length');
+    await card.locator('[data-gxw-extra]').nth(1).locator('input').fill('1.5');
+    assert.equal(await card.locator('[data-gxw-add] option[value="roof.ridge_length"]').count(),0,'an extra is paid once');
+    await page.locator('[data-gxw-apply]').click();
+    await page.waitForFunction(()=>saved.some(entry=>entry.action==='operations.workforce.setup.apply'));
+    const apply=await page.evaluate(()=>saved.find(entry=>entry.action==='operations.workforce.setup.apply').input);
+    assert.deepEqual(apply.labor.assignees[0].pay,{method:'per_measurement',items:[
+      {type:'pitch_range',above:0,up_to:2,rate:90},{type:'pitch_range',above:2,up_to:8,rate:65},{type:'pitch_range',above:8,up_to:12,rate:80},{type:'pitch_range',above:12,up_to:null,rate:100},
+      {type:'pitch_bonus',above:8,up_to:null,rate:2},{type:'measurement',measurement:'roof.ridge_length',rate:1.5}]});
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+test('one rate for every square carries over, and a saved piece rate comes back item by item',async()=>{
+  const browser=await launch();
+  try{
+    const saved={method:'per_measurement',rate:0,items:[{type:'measurement',measurement:'roof.squares',rate:70},{type:'pitch_bonus',above:12,up_to:null,rate:5}]};
+    const {page,errors}=await open(browser,'crews',{options,status:{people,can:{add_people:false,invite:false},measurements:roofMeasurements,pitch_bands:pitchBands,assignees:[{ref:{type:'resource_group',id:'g1'},kind:'resource_group',name:'North crew',type_ids:['crew'],member_user_ids:[],service_ids:['roof_replacement'],pay:{sheet_id:'s1',name:'North',lines:2,simple:null,items:saved.items}}]}});
+    await page.locator('[data-gxw-page="count"]').waitFor();
+    await page.locator('[data-gxw-next]').click();
+    await page.locator('[data-gxw-page="work"] [data-gxw-next]').click();
+    const card=page.locator('[data-gxw-page="pay"] .gxw-card').first();
+    assert.equal(await card.locator('[data-gxw-squares="one"]').getAttribute('aria-checked'),'true');
+    assert.equal(await card.locator('[data-gxw-range] input').inputValue(),'70');
+    assert.equal(await card.locator('[data-gxw-example]').innerText(),'A 13/12 square: $70 + $5 = $75');
+    // To ranges and back: one rate fills every range, and the same rate on every range is one rate again.
+    await card.locator('[data-gxw-squares="pitch"]').click();
+    assert.deepEqual(await card.locator('[data-gxw-range] input').evaluateAll(inputs=>inputs.map(input=>input.value)),['70','70','70','70']);
+    await card.locator('[data-gxw-squares="one"]').click();
+    assert.equal(await card.locator('[data-gxw-range] input').inputValue(),'70');
+    assert.equal(await card.locator('[data-gxw-extra]').count(),1,'the bonus stays');
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});

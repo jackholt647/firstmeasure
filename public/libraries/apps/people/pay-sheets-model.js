@@ -190,7 +190,7 @@
     for (let index = 2; draft.inputs.some((input) => input.name === name); index += 1) name = `${base}_${index}`.slice(0, 60);
     return name;
   }
-  const sameSource = (a, b) => a && b && a.kind === b.kind && (a.kind === 'measurement' ? a.definition === b.definition : a.kind === 'material' ? text(a.item_id) === text(b.item_id) && text(a.item_type).toLowerCase() === text(b.item_type).toLowerCase() : a.kind === 'field' ? a.key === b.key : a.kind === 'work_hours');
+  const sameSource = (a, b) => a && b && a.kind === b.kind && (a.kind === 'measurement' ? a.definition === b.definition && arr(a.also).join() === arr(b.also).join() : a.kind === 'material' ? text(a.item_id) === text(b.item_id) && text(a.item_type).toLowerCase() === text(b.item_type).toLowerCase() : a.kind === 'field' ? a.key === b.key : a.kind === 'work_hours');
   /*
    * The input a pay line reads. A measurement, a material, a field or estimated hours is one input however many lines
    * read it; a number typed per job is its own input. Made here when a line first picks it, and marked so that it goes
@@ -244,17 +244,19 @@
   }
 
   /* ---- Counting and adjusting: the same rule as labor/pay-sheets.ts ---- */
+  // The measurements an input reads: its definition and the parts of the same partition added to it (a pitch range, GP-162).
+  const measurementsRead = (source) => source?.kind === 'measurement' ? [source.definition, ...arr(source.also)].filter(Boolean) : [];
   function coverRoles(draft, vocab){
-    const reads = (entry) => { const source = inputNamed(draft, entry.input)?.source; return source?.kind === 'measurement' ? source.definition : ''; };
+    const reads = (entry) => measurementsRead(inputNamed(draft, entry.input)?.source);
     const roles = new Map();
     for (const item of new Set(draft.entries.flatMap((entry) => arr(entry.covers)))) {
       const measure = measureOf(vocab, draft.schema_ids, item);
       const covering = draft.entries.filter((entry) => arr(entry.covers).includes(item));
-      const whole = measure ? wholeOf(vocab, measure, covering.filter((entry) => !entry.role).map(reads).filter(Boolean)) : [];
+      const whole = measure ? wholeOf(vocab, measure, covering.filter((entry) => !entry.role).flatMap(reads)) : [];
       for (const entry of covering) {
-        const definition = reads(entry);
-        const partOfMeasure = !!measure && !!definition && baseOf(vocab, definition) === measure;
-        const role = entry.role || (partOfMeasure && !whole.includes(definition) ? 'adjusts' : 'counts');
+        const definitions = reads(entry);
+        const partOfMeasure = !!measure && definitions.length > 0 && definitions.every((definition) => baseOf(vocab, definition) === measure);
+        const role = entry.role || (partOfMeasure && !definitions.every((definition) => whole.includes(definition)) ? 'adjusts' : 'counts');
         if (!roles.has(entry)) roles.set(entry, new Map());
         roles.get(entry).set(item, role);
       }
@@ -269,16 +271,28 @@
     for (const item of draft.equipment) for (const entry of arr(item.provides)) if (entry.item && (!states.has(entry.item) || states.get(entry.item) === 'adjusted')) states.set(entry.item, 'provided');
     return states;
   }
+  /*
+   * A line that pays for its part of the work, beside lines for the other parts (one rate for each pitch range): each
+   * unit is paid by one of them only, so they replace each other. Why, in words, or '' for any other line.
+   */
+  function partReason(entry, draft, vocab){
+    const paid = [...(coverRoles(draft, vocab).get(entry) || [])].filter(([, role]) => role === 'counts').map(([item]) => item);
+    const read = measurementsRead(inputNamed(draft, entry.input)?.source);
+    const measure = paid.length ? measureOf(vocab, draft.schema_ids, paid[0]) : '';
+    if (!measure || !read.length || !read.every((id) => id !== measure && baseOf(vocab, id) === measure)) return '';
+    return t('part_reason', 'Each of {whole} is paid by one line only: the one for its part, such as its pitch range. These lines replace each other; they never add up.', { whole:lowerFirst(vocab.definition(measure)?.label || measure) });
+  }
+  /* What an input's measurements are called: one definition's label, or a pitch range's own label. */
+  const measurementWords = (source, vocab, input) => arr(source?.also).length ? (input?.label || measurementsRead(source).map((id) => vocab.definition(id)?.label || id).join(' + ')) : (vocab.definition(source?.definition)?.label || source?.definition || '');
   /* Why a line adjusts rather than pays, in words, or '' when it pays. */
   function adjustReason(entry, draft, vocab){
     const roles = coverRoles(draft, vocab).get(entry);
     const adjusted = [...(roles || [])].filter(([, role]) => role === 'adjusts').map(([item]) => item);
     if (!adjusted.length) return '';
     if (entry.role === 'adjusts') return t('adjusts_declared', 'Set to only change the price of {work}. Another line has to pay for it.', { work:joinWords(adjusted.map((item) => lowerFirst(vocab.item(item)?.label || item))) });
-    const source = inputNamed(draft, entry.input)?.source;
-    const part = vocab.definition(source?.definition);
+    const input = inputNamed(draft, entry.input);
     const measure = measureOf(vocab, draft.schema_ids, adjusted[0]);
-    return t('adjusts_reason', '{part} are part of {whole}, which is what {work} is measured in. So this line changes the price of that work instead of paying for it a second time. Another line has to pay for it.', { part:part?.label || source?.definition || '', whole:lowerFirst(vocab.definition(measure)?.label || measure), work:joinWords(adjusted.map((item) => lowerFirst(vocab.item(item)?.label || item))) });
+    return t('adjusts_reason', '{part} are part of {whole}, which is what {work} is measured in. So this line changes the price of that work instead of paying for it a second time. Another line has to pay for it.', { part:measurementWords(input?.source, vocab, input), whole:lowerFirst(vocab.definition(measure)?.label || measure), work:joinWords(adjusted.map((item) => lowerFirst(vocab.item(item)?.label || item))) });
   }
   function coverage(draft, vocab){
     const states = workStates(draft, vocab);
@@ -297,7 +311,7 @@
   }
   function sourceWords(source, vocab, input){
     if (!source) return '';
-    if (source.kind === 'measurement') return vocab.definition(source.definition)?.label || source.definition;
+    if (source.kind === 'measurement') return measurementWords(source, vocab, input);
     if (source.kind === 'material') return source.item_type ? t('source_material_type', '{type} on the lists', { type:source.item_type }) : t('source_material_item', '{label} on the lists (one price book item)', { label:input?.label || t('ps_an_item', 'An item') });
     if (source.kind === 'field') return t('source_field', 'Project field {field}', { field:input?.label && input.label !== source.key ? `${input.label}` : source.key });
     if (source.kind === 'work_hours') return t('source_work_hours', 'Hours estimated from the work');
@@ -319,9 +333,9 @@
       const when = gate ? t('summary_when', ' when there is {what}', { what:lowerFirst(gate.label || gate.name) }) : '';
       const adjusts = [...(roles.get(entry) || [])].some(([, role]) => role === 'adjusts') && ![...(roles.get(entry) || [])].some(([, role]) => role === 'counts');
       if (adjusts) {
-        const source = inputNamed(draft, entry.input)?.source;
-        const part = vocab.definition(source?.definition);
-        adjustments.push(`${lowerFirst(entry.label)} ${rate}${part ? t('summary_on', ' on {what}', { what:lowerFirst(part.label) }) : ''}${minimum}${when}`);
+        const input = inputNamed(draft, entry.input);
+        const part = input?.source?.kind === 'measurement' ? measurementWords(input.source, vocab, input) : '';
+        adjustments.push(`${lowerFirst(entry.label)} ${rate}${part ? t('summary_on', ' on {what}', { what:lowerFirst(part) }) : ''}${minimum}${when}`);
         continue;
       }
       const bucket = arr(entry.covers).length ? parts : extras;
@@ -425,7 +439,7 @@
 
   People.paySheetModel = {
     api, request, vocabulary, draftOf, starter, mainMeasure, payload, ensureInput, inputNamed, referenced, sameSource, newKey,
-    coverRoles, workStates, coverage, adjustReason, summary, typicalDays, localIssues, issueText, perUnit, sourceWords,
+    coverRoles, workStates, coverage, adjustReason, partReason, measurementsRead, summary, typicalDays, localIssues, issueText, perUnit, sourceWords,
     offeredItems, offeredMeasurements, measureOf, baseOf,
     money, amount, unitWord, lowerFirst, joinWords, dayWords, PAY_KINDS, STATES, UNITS
   };
