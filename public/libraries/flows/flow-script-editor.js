@@ -140,7 +140,7 @@
 .fse-box .fse-tokens button{border:1px solid #e4e7ec;background:#f9fafb;border-radius:6px;padding:2px 6px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
 .fse-chat{border-left:1px solid #eaecf0;background:#fff;min-width:0;overflow:hidden;display:flex;flex-direction:column}
 .fse[data-chat="off"] .fse-chat{display:none}
-.fse-chat-body{flex:1;min-height:0}
+.fse-chat-body{flex:1;min-height:0;display:flex;flex-direction:column}
 .fse-chat-off{padding:16px;color:#667085;font-size:12.5px;font-weight:650;line-height:1.5}
 .fse-loading{display:grid;place-items:center;height:100%;color:#98a2b3}
 .fse-modal{position:fixed;inset:0;z-index:2147483300;background:rgba(16,24,40,.45);display:flex;padding:12px}
@@ -224,7 +224,7 @@
         <div class="fse-top" data-top></div>
         <nav class="fse-tree" data-tree aria-label="${esc(L('steps', 'Steps'))}"></nav>
         <div class="fse-main" data-main tabindex="0"><div class="fse-viewport"><div class="fse-track" data-track></div></div><div class="fse-hint" data-hint hidden></div></div>
-        <aside class="fse-chat"><div class="fse-chat-body" data-chat></div></aside>
+        <aside class="fse-chat"><div class="fse-chat-body" data-chat-host></div></aside>
       </div>`;
       bind();
       if (chat) mountChat();
@@ -628,7 +628,7 @@
       def = clone(result.flow.definition); version = result.flow.version; draw();
     }
     function mountChat(){
-      const host = $('[data-chat]'); if (!host || assistant) return;
+      const host = $('[data-chat-host]'); if (!host || assistant) return;
       if (!root.PlatformAssistant?.mountSurface || !flowId) { host.innerHTML = `<p class="fse-chat-off">${esc(L('chat_off', 'Save the flow to edit it with the assistant.'))}</p>`; return; }
       assistant = root.PlatformAssistant.mountSurface(host, {
         orgId: org,
