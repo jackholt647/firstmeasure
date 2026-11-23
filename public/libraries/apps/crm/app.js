@@ -128,6 +128,7 @@
       }
       const route = navigation?.read?.() || {};
       const initial = viewById(text(route.crmView)) || state.views.find((v) => v.pinned) || state.views[0];
+      if (text(route.crmSettings)) state.settingsTab = text(route.crmSettings);
       if (['reports', 'duplicates', 'sources', 'settings'].includes(text(route.crmPanel))) { state.panel = text(route.crmPanel); renderShell(); renderPanel(); }
       else if (initial) openView(initial.id, { history:false });
       else { state.panel = 'view'; state.saved = null; state.draft = blankDraft('opportunities'); renderShell(); query(); }
@@ -1404,7 +1405,101 @@
       });
     }
 
-    async function renderSettings(content){
+    /** CRM settings has subtabs: General (funnel, routing, rules, cancellation windows) and Flows. */
+    function renderSettings(content){
+      const tab = state.settingsTab === 'flows' ? 'flows' : 'general';
+      content.innerHTML = `<div class="crm-subtabs" role="tablist" aria-label="${esc(L('crm_settings', 'CRM settings'))}">${[['general', 'fa-sliders', L('settings_general', 'General')], ['flows', 'fa-diagram-project', L('settings_flows', 'Flows')]].map(([id, icon, label]) => `<button type="button" role="tab" data-settings-tab="${id}" aria-selected="${tab === id}"><i class="fas ${icon}" aria-hidden="true"></i>${esc(label)}</button>`).join('')}</div><div data-settings-body><div class="crm-loading"></div></div>`;
+      content.onclick = content.oninput = content.onchange = null;
+      content.querySelector('.crm-subtabs').addEventListener('click', (event) => {
+        const button = event.target.closest('[data-settings-tab]'); if (!button || button.dataset.settingsTab === tab) return;
+        state.settingsTab = button.dataset.settingsTab;
+        if (!navigation?.applying) navigation?.replace?.({ tab:'crm', crmPanel:'settings', crmSettings: state.settingsTab }, { source:'crm-settings-tab', ownedKeys:['crmSettings'] });
+        renderSettings(content);
+      });
+      const body = content.querySelector('[data-settings-body]');
+      return tab === 'flows' ? renderFlows(body) : renderGeneralSettings(body);
+    }
+
+    /**
+     * CRM settings › Flows (docs/architecture/flows.md): the organization's call scripts and workflows. New makes one
+     * blank or from a library template; Edit opens it in the flow editor; Archive takes it out of use.
+     */
+    let flowLibraryPending = null;
+    function flowEditor(){
+      if (window.FirstMateFlowEditor) return Promise.resolve(window.FirstMateFlowEditor);
+      if (!flowLibraryPending) {
+        const base = SCRIPT_SRC ? SCRIPT_SRC.replace(/apps\/crm\/app\.js(\?.*)?$/, '') : '../libraries/';
+        const load = (src) => new Promise((resolve, reject) => { const tag = document.createElement('script'); tag.src = src; tag.onload = resolve; tag.onerror = () => reject(new Error(L('flows_editor_missing', 'The flow editor could not be loaded.'))); document.head.appendChild(tag); });
+        flowLibraryPending = (window.FirstMateFlows ? Promise.resolve() : load(`${base}flows/flow-player.js`)).then(() => load(`${base}flows/flow-editor.js`)).then(() => window.FirstMateFlowEditor)
+          .catch((error) => { flowLibraryPending = null; throw error; });
+      }
+      return flowLibraryPending;
+    }
+    async function renderFlows(content){
+      const flowsBase = new URL((text(window.PlatformAPI?.baseUrl?.()) || `${location.origin}/v1/platform`).replace(/\/platform\/?$/, '/flows'), location.href).href.replace(/\/$/, '');
+      const flowsApi = (path, options) => window.PlatformAPI.request(`${flowsBase}/organizations/${encodeURIComponent(orgId)}${path}`, options);
+      const archived = state.flowsArchived === true;
+      let data;
+      try { data = await flowsApi(`/flows${archived ? '?archived=1' : ''}`); }
+      catch (error) { content.innerHTML = `<div class="crm-empty"><h3>${esc(L('flows_failed', 'Flows could not be loaded'))}</h3><p>${esc(error?.message || '')}</p></div>`; return; }
+      const canEdit = data.can_edit === true, list = arr(data.flows), templates = arr(data.templates);
+      const kindLabel = (kind) => kind === 'call' ? L('flow_kind_call', 'Call script') : L('flow_kind_workflow', 'Workflow');
+      const when = (iso) => { const d = new Date(iso); return Number.isFinite(d.getTime()) ? d.toLocaleDateString(globalThis.PlatformLanguage?.formatLocale?.(), { month:'short', day:'numeric', year:'numeric' }) : ''; };
+      content.innerHTML = `<div class="crm-page"><section class="crm-panel">
+        <div class="crm-toolbar"><h3 class="crm-h crm-tip-host" style="margin:0">${esc(L('flows', 'Flows'))}${infoTip(L('flows_intro', 'Call scripts and workflows: the steps someone goes through to say things, ask things and do things, with branches and outcomes. A flow in the New menu starts from there; a call script plays beside a call.'))}</h3>
+          <span style="flex:1"></span>
+          <label class="crm-option"><input type="checkbox" data-flows-archived ${archived ? 'checked' : ''}>${esc(L('show_archived', 'Show archived'))}</label>
+          ${canEdit ? `<button type="button" class="crm-btn primary" data-flow-new aria-expanded="false"><i class="fas fa-plus" aria-hidden="true"></i>${esc(L('new_flow', 'New flow'))}</button>` : ''}</div>
+        <div class="crm-flow-new" data-flow-picker hidden>
+          <button type="button" class="crm-flow-start" data-flow-blank="call"><i class="fas fa-phone-volume" aria-hidden="true"></i><strong>${esc(L('blank_call', 'Blank call script'))}</strong><span>${esc(L('blank_call_hint', 'Lines to say, questions to ask, and how the call ends.'))}</span></button>
+          <button type="button" class="crm-flow-start" data-flow-blank="workflow"><i class="fas fa-list-check" aria-hidden="true"></i><strong>${esc(L('blank_workflow', 'Blank workflow'))}</strong><span>${esc(L('blank_workflow_hint', 'Steps someone fills in, with actions that run as they go.'))}</span></button>
+          ${templates.map((template) => `<button type="button" class="crm-flow-start" data-flow-template="${esc(template.id)}"><i class="fas ${esc(obj(template.definition).icon || 'fa-diagram-project')}" aria-hidden="true"></i><strong>${esc(template.title)}</strong><span>${esc(template.description || obj(template.definition).description || '')}</span></button>`).join('')}
+        </div>
+        ${list.length ? `<div class="crm-flow-list" role="list">${list.map((flow) => `<div class="crm-flow-row ${flow.archived ? 'archived' : ''}" role="listitem" data-flow="${esc(flow.id)}">
+            <span class="crm-flow-icon" style="background:${esc(flow.color || '#2563eb')}"><i class="fas ${esc(flow.icon || 'fa-diagram-project')}" aria-hidden="true"></i></span>
+            <div class="crm-flow-name"><strong>${esc(flow.name || flow.id)}</strong><span class="crm-dim">${esc(flow.description || '')}</span></div>
+            <span class="crm-flow-tags"><span class="crm-pill">${esc(kindLabel(flow.kind))}</span>
+            ${obj(obj(flow.entry).new_menu).enabled ? `<span class="crm-pill" title="${esc(L('in_new_menu', 'In the New menu'))}"><i class="fas fa-plus" aria-hidden="true"></i>${esc(L('new_menu', 'New menu'))}</span>` : ''}
+            ${flow.archived ? `<span class="crm-pill">${esc(L('archived', 'Archived'))}</span>` : ''}</span>
+            <span class="crm-dim crm-flow-when">${esc(L('flow_version', 'v{n} · {date}', { n: flow.latest_version, date: when(flow.updated_at) }))}</span>
+            <span class="crm-flow-actions"><button type="button" class="crm-btn small" data-flow-open="${esc(flow.id)}">${esc(canEdit ? L('edit', 'Edit') : L('open', 'Open'))}</button>
+            ${canEdit ? `<button type="button" class="crm-btn small ghost" data-flow-archive="${esc(flow.id)}" data-archived="${flow.archived ? '1' : ''}">${esc(flow.archived ? L('restore', 'Restore') : L('archive', 'Archive'))}</button>` : ''}</span>
+          </div>`).join('')}</div>`
+          : `<div class="crm-empty"><h3>${esc(archived ? L('no_flows_archived', 'No flows') : L('no_flows', 'No flows yet'))}</h3><p>${esc(canEdit ? L('no_flows_hint', 'Make a call script or a workflow with New flow.') : L('no_flows_view', 'Someone who manages company settings or communications makes them.'))}</p></div>`}
+      </section></div>`;
+      const reload = () => renderFlows(content);
+      const edit = async (flowId, options = {}) => {
+        try { (await flowEditor()).open(flowId, { readOnly: !canEdit, ...options, onSave: reload }); }
+        catch (error) { toast(error?.message || L('failed', 'That did not work.'), false); }
+      };
+      content.onchange = (event) => { if (event.target.matches('[data-flows-archived]')) { state.flowsArchived = event.target.checked; reload(); } };
+      content.onclick = async (event) => {
+        const button = event.target.closest('button'); if (!button) return;
+        if (button.hasAttribute('data-flow-new')) { const picker = content.querySelector('[data-flow-picker]'); picker.hidden = !picker.hidden; button.setAttribute('aria-expanded', String(!picker.hidden)); return; }
+        if (button.dataset.flowBlank) {
+          try { const editor = await flowEditor(); edit(null, { definition: editor.blankFlow(button.dataset.flowBlank) }); }
+          catch (error) { toast(error?.message || L('failed', 'That did not work.'), false); }
+          return;
+        }
+        if (button.dataset.flowTemplate) {
+          const template = templates.find((entry) => entry.id === button.dataset.flowTemplate); if (!template) return;
+          const definition = JSON.parse(JSON.stringify(obj(template.definition)));
+          definition.metadata = { ...obj(definition.metadata), template_id: template.id, created_from: template.id };
+          return edit(null, { definition });
+        }
+        if (button.dataset.flowOpen) return edit(button.dataset.flowOpen);
+        if (button.dataset.flowArchive) {
+          const restoring = button.dataset.archived === '1';
+          const name = list.find((flow) => flow.id === button.dataset.flowArchive)?.name || '';
+          if (!restoring && !(await confirmDialog(L('archive_flow_confirm', 'Archive "{name}"? It leaves the New menu and is no longer offered; runs already made keep it.', { name })))) return;
+          button.disabled = true;
+          try { await flowsApi(`/flows/${encodeURIComponent(button.dataset.flowArchive)}/archive`, { method:'POST', body:{ archived: !restoring } }); window.dispatchEvent(new CustomEvent('fm:flows:changed')); toast(restoring ? L('restored', 'Restored') : L('archived_done', 'Archived')); reload(); }
+          catch (error) { button.disabled = false; toast(error?.message || L('failed', 'That did not work.'), false); }
+        }
+      };
+    }
+
+    async function renderGeneralSettings(content){
       let funnel = null, rescission = null;
       try { [funnel, rescission] = await Promise.all([feature('funnel') ? api().funnel(orgId).then((r) => r.funnel) : null, feature('rescission') ? api().rescission(orgId).then((r) => r.rescission) : null]); }
       catch (error) { content.innerHTML = `<div class="crm-empty"><h3>${esc(L('settings_failed', 'Settings could not be loaded'))}</h3><p>${esc(error?.message || '')}</p></div>`; return; }

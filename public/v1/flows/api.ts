@@ -2,7 +2,7 @@ import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { PlatformError } from "../platform/errors.js";
-import { abandonRun, advanceRun, archiveFlow, backRun, canEditFlows, flowTemplates, listFlows, newMenuFlows, previewStep, readFlow, readRunView, runsFor, saveFlow, startRun } from "./service.js";
+import { abandonRun, advanceRun, archiveFlow, backRun, canEditFlows, flowActions, flowTemplates, listFlows, newMenuFlows, previewStep, readFlow, readRunView, runsFor, saveFlow, startRun } from "./service.js";
 
 /**
  * Flow routes (docs/architecture/flows.md). Every route needs a signed-in person of the organization; what they may do
@@ -26,7 +26,7 @@ export const registerFlowsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/flows", async (request) => {
     const ctx = await auth(request);
-    return { ok: true, flows: await listFlows(ctx, { includeArchived: query(request, "archived") === "1" }), can_edit: canEditFlows(ctx), templates: canEditFlows(ctx) ? flowTemplates() : [] };
+    return { ok: true, flows: await listFlows(ctx, { includeArchived: query(request, "archived") === "1" }), can_edit: canEditFlows(ctx), templates: canEditFlows(ctx) ? flowTemplates() : [], actions: canEditFlows(ctx) ? flowActions() : [] };
   });
   app.get("/organizations/:orgId/flows/new-menu", async (request) => ({ ok: true, flows: await newMenuFlows(await auth(request)) }));
   app.post("/organizations/:orgId/flows/preview", async (request) => {

@@ -109,9 +109,9 @@
       fullBleed: true,
       // Its "Search ..." field searches the open view; on a phone the header search folds into an icon (topbar.js).
       presentation: { phoneSearch: 'icon' },
-      params: { crmView: { history:'push' }, crmPanel: { values:['reports','duplicates','sources','settings'], history:'push' } },
+      params: { crmView: { history:'push' }, crmPanel: { values:['reports','duplicates','sources','settings'], history:'push' }, crmSettings: { values:['general','flows'], history:'replace' } },
       access: { capability: 'apps.crm' },
-      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261118-fm546-call-default')]
+      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261123-crm-flows')]
     },
     {
       id: 'portal.contacts',
