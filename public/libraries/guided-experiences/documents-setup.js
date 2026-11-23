@@ -817,9 +817,9 @@ export function mount(el, ctx){
     // that went, and more can be added. Continue puts them all into the lines at once.
     let estimates = [], estimateCount = 0, uploadsFrom = 'start', mergedKey = '', uploadsMin = 0;
     function openUploads(from){
-      // From the two ways in the page is at least as tall as they were, so the sheet keeps its size until estimates are
-      // read (GP-164); from the lines it fills the wide sheet it is on.
-      uploadsMin = from === 'start' ? el.querySelector('.gxd')?.offsetHeight || 0 : 0;
+      // From the two ways in the page is at least as tall as they and the sheet's footer it hides were, so the sheet
+      // keeps its size until estimates are read (GP-164); from the lines it fills the wide sheet it is on.
+      uploadsMin = from === 'start' ? (el.querySelector('.gxd')?.offsetHeight || 0) + (sheetEl?.querySelector('.gxs-foot')?.offsetHeight || 0) : 0;
       uploadsFrom = from; phase = 'uploads';
       if (from === 'list') pane?.setAttribute('data-fill', '');
       draw();
