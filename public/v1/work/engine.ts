@@ -283,6 +283,25 @@ async function executeEvent(event: JsonObject) {
     if (result.executed) { project = await projectForEvent(event, plan); if (contact) contact = null; }
   }
 
+  // 1b. A flow step's actions or a flow outcome's effects (docs/architecture/flows.md), read from the stored flow
+  //     version the run plays, run like rules so flows add no second automation runtime.
+  if (type === "flow.step.completed" || type === "flow.run.completed") {
+    const { flowAutomationsForEvent } = await import("../flows/service.js");
+    const payload = asObject(event.payload);
+    for (const entry of await flowAutomationsForEvent(event)) {
+      const flowContact = await contactFor(entry.conditions, entry.input, entry.automation);
+      const conditionContext = { event, payload, answers: asObject(payload.answers), context: asObject(event.context), project, plan, node, contact: flowContact };
+      if (!conditionMatches(asObject(entry.conditions), conditionContext)) continue;
+      const result = await executeBinding(event, {
+        binding: { id: entry.id, automation: entry.automation, input: entry.input, continue_on_error: true },
+        bindingId: `flow:${cleanText(payload.run_id)}:${entry.id}`,
+        plan,
+        node
+      }, project, flowContact);
+      if (result.executed) { project = await projectForEvent(event, plan); if (contact) contact = null; }
+    }
+  }
+
   // 2. Declarative node transitions (external triggers) across the project.
   await applyExternalTriggers(event, project);
 

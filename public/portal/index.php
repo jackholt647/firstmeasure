@@ -2361,6 +2361,7 @@ session_write_close();
   <?php endif; ?>
   <script src="../libraries/forms-api/forms-api.js?v=<?= portalAssetVersion('../libraries/forms-api/forms-api.js') ?>"></script>
   <script src="../libraries/forms-staff/forms-staff.js?v=<?= portalAssetVersion('../libraries/forms-staff/forms-staff.js') ?>"></script>
+  <script src="../libraries/flows/flow-player.js?v=<?= portalAssetVersion('../libraries/flows/flow-player.js') ?>"></script>
   <script src="../libraries/canvassing-api/canvassing-api.js?v=<?= portalAssetVersion('../libraries/canvassing-api/canvassing-api.js') ?>"></script>
   <script src="../libraries/platform-celebrations/platform-celebrations.js?v=<?= portalAssetVersion('../libraries/platform-celebrations/platform-celebrations.js') ?>"></script>
   <script src="../libraries/platform-notifications/platform-notifications.js?v=<?= portalAssetVersion('../libraries/platform-notifications/platform-notifications.js') ?>"></script>
@@ -2684,8 +2685,27 @@ session_write_close();
           setButtonMode();
         }).catch(() => null);
       };
+      /* Flows (docs/architecture/flows.md): every published flow with entry.new_menu is a "flow:<flow_id>" mode, labelled
+         by the flow; choosing one plays it in its own window. A T-shirt order is a flow like any other. */
+      let menuFlows = [];
+      const menuFlow = (mode) => String(mode || '').startsWith('flow:') ? menuFlows.find((flow) => flow.id === String(mode).slice(5)) || null : null;
+      const loadMenuFlows = (fresh = false) => {
+        if (!window.FirstMateFlows?.newMenu || isAssignedOnlyUser()) return;
+        window.FirstMateFlows.newMenu({ fresh }).then((flows) => {
+          const next = Array.isArray(flows) ? flows : [];
+          if (JSON.stringify(next.map((flow) => [flow.id, flow.label, flow.icon])) === JSON.stringify(menuFlows.map((flow) => [flow.id, flow.label, flow.icon]))) return;
+          menuFlows = next;
+          renderMenuItems();
+          setButtonMode();
+        }).catch(() => null);
+      };
+      window.addEventListener('fm:flows:changed', () => loadMenuFlows(true));
       const modeConfig = (mode) => {
         const raw = String(mode || '');
+        if (raw.startsWith('flow:')) {
+          const flow = menuFlow(raw);
+          return flow ? { label: `New ${flow.label}`, icon: flow.icon || 'fa-diagram-project', workflow: 'flow', flowId: flow.id } : null;
+        }
         if (raw.startsWith('form:')) {
           const form = staffForm(raw);
           return form ? { label: `New ${form.label || form.name}`, icon: 'fa-user-plus', workflow: 'form', formId: form.id } : null;
@@ -2725,13 +2745,14 @@ session_write_close();
         if (raw === 'proposal' || raw === 'new_proposal') return 'doc:proposal';
         if (raw === 'new_document') return 'document';
         if (raw.startsWith('doc:')) return raw;
-        if (raw.startsWith('form:')) return String(value || '').trim();
+        if (raw.startsWith('form:') || raw.startsWith('flow:')) return String(value || '').trim();
         if (raw === 'new_payment' || raw === 'payment') return 'payment';
         if (raw === 'new_appointment' || raw === 'schedule' || raw === 'scheduling') return 'appointment';
         if (raw === 'off' || raw === 'none' || raw === 'hidden' || raw === 'disabled') return 'off';
         return modes[raw] ? raw : 'report';
       };
-      const DEFAULT_MENU_ITEMS = ['project', 'contact', 'report', 'document', 'payment', 'appointment'];
+      // The default New menu: Project, Contact, Report (leads setup and Settings › Company reorder it; flows join below).
+      const DEFAULT_MENU_ITEMS = ['project', 'contact', 'report'];
       /* Ordering a report needs order_reports (1M8-227). Until the session's permissions arrive nothing is hidden. */
       const cannotOrderReports = () => {
         const permissions = window.Portal?.currentUser?.permissions;
@@ -2741,6 +2762,7 @@ session_write_close();
         if (id === 'report' && cannotOrderReports()) return false;
         if (isDocMode(id)) return documentsEnabled();
         if (String(id).startsWith('form:')) return !!staffForm(id);
+        if (String(id).startsWith('flow:')) return !!menuFlow(id);
         return !!modes[id] && id !== 'selector';
       };
       const configuredMenuItems = () => {
@@ -2749,10 +2771,11 @@ session_write_close();
         const ids = raw
           ? raw.split(',').map((part) => normalizeMode(part)).filter(Boolean)
           : DEFAULT_MENU_ITEMS;
-        // Offered staff forms not placed in the list come right after Project (or first).
+        // Offered flows and staff forms not placed in the list come first (a New lead flow leads the menu).
+        const flows = menuFlows.map((flow) => `flow:${flow.id}`).filter((id) => !ids.includes(id));
         const forms = staffForms.map((form) => `form:${form.id}`).filter((id) => !ids.includes(id));
         const at = ids.indexOf('project');
-        const ordered = at >= 0 ? [...ids.slice(0, at + 1), ...forms, ...ids.slice(at + 1)] : [...forms, ...ids];
+        const ordered = [...flows, ...(at >= 0 ? [...ids.slice(0, at + 1), ...forms, ...ids.slice(at + 1)] : [...forms, ...ids])];
         return [...new Set(ordered)].filter(itemAvailable);
       };
       const renderMenuItems = () => {
@@ -2810,6 +2833,7 @@ session_write_close();
         renderMenuItems();
         loadDocTypes();
         loadStaffForms();
+        loadMenuFlows();
       };
       const closeMenu = () => {
         wrap.classList.remove('open');
@@ -3072,6 +3096,11 @@ session_write_close();
         if (sidebar?.classList.contains('mob-open')) closeSidebar();
         if (mode === 'payment') {
           openNewPaymentModal();
+          return;
+        }
+        if (String(mode).startsWith('flow:')) {
+          const flow = menuFlow(mode);
+          if (flow && window.FirstMateFlows?.open) window.FirstMateFlows.open(flow.id, { label: `New ${flow.label}`, source: { kind: 'new_menu' } });
           return;
         }
         if (String(mode).startsWith('form:')) {
