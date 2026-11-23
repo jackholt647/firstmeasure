@@ -755,7 +755,8 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
         fitTo(el);
         syncBack();
         setTimeout(() => { if (currentPane === el && !closed) start.focus({ preventScroll: true }); }, reduced() ? 0 : 300);
-        track('step_view', { step_id: 'welcome' });
+        // Events name a step of the setup (the server refuses any other): the one the welcome leads to, marked as the welcome.
+        track('step_view', { step_id: steps[index]?.id, properties: { welcome: true } });
       }
       function startFromWelcome(){
         if (!welcome || closed) return;
@@ -766,7 +767,7 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
       async function leaveWelcome(returnToTab){
         if (!welcome || closed || host.dataset.dismissing) return;
         host.dataset.dismissing = 'true';
-        await track('dismiss', { step_id: 'welcome', selections });
+        await track('dismiss', { step_id: steps[index]?.id, selections, properties: { welcome: returnToTab ? 'back' : 'close' } });
         await close('plain');
         // The tab before this one, when the setup belongs to a portal tab and the portal can say which (core.js).
         const tabs = root.Portal?.tabs;
