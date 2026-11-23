@@ -224,12 +224,42 @@
     return (Array.isArray(keys) ? keys : [keys]).some((key) => owned.has(clean(key)));
   }
 
-  function backOrClose(keys = [], fallbackPatch = {}, options = {}){
-    const scopeDepths = object(root.history.state?.fmNavigation?.scopeDepths);
-    const steps = Math.max(0, ...(Array.isArray(keys) ? keys : [keys]).map((key) => Number(scopeDepths[clean(key)] || 0)));
-    if (steps > 0) {
+  /*
+   * Goes back `steps` of this page's own entries. A frame on the page (a project window) adds its entries to the same
+   * tab history, so history.go(-steps) can stop on a frame's entry and leave this page's route as it was (GP-165).
+   * The Navigation API lists this page's entries alone, so it goes to the right one where the browser has it.
+   * Resolves once the move is done (or has had time to be).
+   */
+  function traverseBack(steps){
+    const navigation = root.navigation;
+    const at = Number(navigation?.currentEntry?.index);
+    const target = Number.isInteger(at) && at >= steps && typeof navigation.traverseTo === 'function' ? navigation.entries?.()?.[at - steps] : null;
+    if (target?.key) {
+      try { return Promise.resolve(navigation.traverseTo(target.key).finished).catch(() => {}); } catch (_) {}
+    }
+    return new Promise((resolve) => {
+      const done = () => { root.removeEventListener('popstate', done); clearTimeout(timer); resolve(); };
+      const timer = setTimeout(done, 600);
+      root.addEventListener('popstate', done);
       if (typeof root.history.go === 'function') root.history.go(-steps);
       else root.history.back();
+    });
+  }
+
+  function backOrClose(keys = [], fallbackPatch = {}, options = {}){
+    const keyList = (Array.isArray(keys) ? keys : [keys]).map(clean).filter(Boolean);
+    const scopeDepths = object(root.history.state?.fmNavigation?.scopeDepths);
+    const steps = Math.max(0, ...keyList.map((key) => Number(scopeDepths[key] || 0)));
+    if (steps > 0) {
+      const before = read();
+      // A close always leaves the route: if going back still shows what was closed (a frame's entry was in the
+      // way), the route is cleared instead, so it cannot open again.
+      void traverseBack(steps).then(() => {
+        const now = read();
+        if (!keyList.some((key) => before[key] && clean(now[key]) === clean(before[key]))) return;
+        replace(fallbackPatch, { ...options, source: options.source || 'close' });
+        void applyCurrent({ source: options.source || 'close', force: true });
+      });
       return { backed: true, steps, route: read() };
     }
     return { backed: false, route: replace(fallbackPatch, { ...options, source: options.source || 'close' }) };
