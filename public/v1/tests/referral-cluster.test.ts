@@ -83,4 +83,27 @@ test("cross-node campaign signup retains the advertised bonus and appears in the
     const historical = await referrals.acquisitionCampaignReport({ start: "2026-08-01", end: "2026-08-01" });
     assert.equal(historical.summary.views, 20001);
   });
+
+  await t.test("a returning visitor keeps their bonus offer without sorting every view of the campaign (FM-631)", async () => {
+    const db = new DatabaseSync(path.join(root, "compatibility-crm", "databases", "referrals.sqlite"));
+    const plan = db.prepare(`EXPLAIN QUERY PLAN ${referrals.STICKY_BONUS_VIEWS_SQL}`).all({ partner_id: "p", code_id: "c" }).map((step) => String(step.detail));
+    db.close();
+    assert.ok(plan.some((step) => /USING (COVERING )?INDEX/.test(step)), plan.join("; "));
+    assert.ok(!plan.some((step) => /TEMP B-TREE/.test(step)), `the lookup must not sort the campaign's views: ${plan.join("; ")}`);
+
+    await referrals.saveAcquisitionCampaign({
+      code: "sticky", display_name: "Sticky campaign",
+      bonus_offer_sets: {
+        "set-a": { id: "set-a", token: "token-a", label: "A", status: "active", tiers: [{ customer_pays: 100, match_percent: 10 }] },
+        "set-b": { id: "set-b", token: "token-b", label: "B", status: "active", tiers: [{ customer_pays: 100, match_percent: 20 }] }
+      }
+    });
+    const first = referrals.publicAcquisitionLookup({ cid: "sticky", client_ip: "203.0.113.7" });
+    const firstToken = first.bonus_offer?.token;
+    assert.ok(firstToken);
+    // Least-used would now give the other set; only the visitor's earlier view keeps theirs.
+    assert.equal(referrals.publicAcquisitionLookup({ cid: "sticky", client_ip: "203.0.113.7" }).bonus_offer?.token, firstToken);
+    for (let i = 0; i < 5; i++) referrals.publicAcquisitionLookup({ cid: "sticky", client_ip: `198.51.100.${i + 1}` });
+    assert.equal(referrals.publicAcquisitionLookup({ cid: "sticky", client_ip: "203.0.113.7" }).bonus_offer?.token, firstToken);
+  });
 });

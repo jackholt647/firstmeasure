@@ -1710,28 +1710,41 @@ function assignBonusOfferSet(partner: JsonObject, code: JsonObject, input: JsonO
   return bonusSetPublicView({ ...chosen, assigned_count: Number(nextState[token] ?? 0) }, partner);
 }
 
+/** The link's latest 1,000 views, newest first. A busy campaign has 100,000s of views of ~7 KB each, and this runs
+ * on every landing view in compat's event loop: sorting them by created_at read every one (~1 GB) and stalled compat
+ * past its watchdog (FM-631). Insertion order walks the partner index backwards with no sort and stops early.
+ * Exported for the query plan test. */
+export const STICKY_BONUS_VIEWS_SQL = `
+  SELECT id, metadata_json FROM referral_attributions
+  WHERE partner_id = :partner_id
+    AND code_id = :code_id
+    AND status = 'viewed'
+  ORDER BY rowid DESC
+  LIMIT 1000
+`;
+
 function stickyBonusSetForVisitor(partner: JsonObject, code: JsonObject, input: JsonObject, sets: JsonObject[]) {
   const visitorKey = uniqueViewKey({ id: "", metadata: attributionMetadata(input) });
   if (!visitorKey || visitorKey.startsWith("row:")) return null;
   const activeTokens = new Set(sets.map((set) => String(set.token ?? "")).filter(Boolean));
-  const attributionRows = rows(`
-    SELECT * FROM referral_attributions
-    WHERE partner_id = :partner_id
-      AND code_id = :code_id
-      AND status = 'viewed'
-    ORDER BY created_at DESC
-    LIMIT 1000
-  `, {
-    partner_id: String(partner.id ?? ""),
-    code_id: String(code.id ?? "")
-  });
-  for (const rowEntry of attributionRows) {
-    if (uniqueViewKey(rowEntry) !== visitorKey) continue;
-    const token = String(asObject(rowEntry.metadata).acquisition_bonus_token ?? "").trim();
-    if (!token || !activeTokens.has(token)) continue;
-    return sets.find((set) => String(set.token ?? "") === token) || null;
+  try {
+    return withReferralDb((db) => {
+      const views = db.prepare(STICKY_BONUS_VIEWS_SQL).iterate({
+        partner_id: String(partner.id ?? ""),
+        code_id: String(code.id ?? "")
+      } as any);
+      for (const entry of views) {
+        const view = normalizeRow(entry as JsonObject);
+        if (uniqueViewKey(view) !== visitorKey) continue;
+        const token = String(asObject(view.metadata).acquisition_bonus_token ?? "").trim();
+        if (!token || !activeTokens.has(token)) continue;
+        return sets.find((set) => String(set.token ?? "") === token) || null;
+      }
+      return null;
+    });
+  } catch {
+    return null;
   }
-  return null;
 }
 
 function chooseLeastUsedBonusSet(sets: JsonObject[], state: JsonObject) {
