@@ -1050,8 +1050,8 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
     'operations-path': { path: './operations-setup.js?v=20261119-gp46', fill: false },
     'operations-document': { path: './operations-setup.js?v=20261119-gp46', fill: true },
     'operations-ready': { path: './operations-setup.js?v=20261119-gp46', fill: true },
-    'comms-setup': { path: './comms-setup.js?v=20261123-gp149' },
-    'appointments-setup': { path: './appointments-setup.js?v=20261123-gp149' },
+    'comms-setup': { path: './comms-setup.js?v=20261123-gp149b' },
+    'appointments-setup': { path: './appointments-setup.js?v=20261123-gp149b' },
     'equipment-setup': { path: './equipment-setup.js?v=20261119-gp57' },
     'workforce-setup': { path: './workforce-setup.js?v=20261123-gp54' },
     'sales-team-setup': { path: './sales-team-setup.js?v=20261120-gp144b' }
