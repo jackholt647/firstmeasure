@@ -1379,8 +1379,9 @@ const definitions: CapabilityDefinition[] = [
     category: "Platform & Appearance",
     type: "multi_select",
     label: "New Button Menu Items",
-    description: "Which actions the New button's selector menu offers. Document actions come from the document type registry; leave empty for the default menu.",
-    options: NEW_BUTTON_ITEM_OPTIONS
+    description: "Which actions the New button's selector menu offers, in order. Document actions come from the document type registry; flow:<id> is a flow (docs/architecture/flows.md) and form:<id> a staff form. Leave empty for the default menu (Project, Contact, Report).",
+    options: NEW_BUTTON_ITEM_OPTIONS,
+    option_pattern: "^(flow|form):[a-z0-9_.-]{1,80}$"
   },
   {
     key: "platform.configuration",
