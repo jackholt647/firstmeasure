@@ -2996,13 +2996,20 @@
         const guides = typeof guidesRuntime === 'function' ? guidesRuntime() : null;
         return guides && guides.experience?.('documents.setup') ? guides : null;
       }
-      /** Opens the documents setup at its proposal questions; false when it cannot be played here. */
+      /**
+       * Opens the documents setup at its proposal questions; false when it cannot be played here. The setup makes the
+       * first proposal itself, so a host's return (Ops' quick start) belongs to the setup: it runs once the setup ends.
+       */
       function startProposalSetup(){
         const guides = setupGuides();
         if (!guides) return false;
+        const back = ret && state.returnTo === ret ? ret : null;
+        // Closing the wizard hands the person on without returning them (its close drops the unarmed return).
         modal.close();
         // A proposal, asked afresh: an earlier run's kinds of proposal (insurance only) are not carried in.
-        guides.play('documents.setup', { replay: true, start: 'proposal_kinds', selections: { document_kind: 'proposal', proposal_kinds: undefined } }).catch(() => null);
+        guides.play('documents.setup', { replay: true, start: 'proposal_kinds', selections: { document_kind: 'proposal', proposal_kinds: undefined } })
+          .catch(() => null)
+          .then(() => { try { back?.onFinish(null); } catch (error) { console.warn('Returning from the documents setup failed', error); } });
         return true;
       }
       /** The library's one Proposal, standing for its proposals until the organization sets up its own. */
@@ -3395,6 +3402,9 @@
       if (wizard.type) {
         const ofType = activeTemplates().filter((tpl) => cleanText(tpl.document_type) === wizard.type && !isUploadTemplate(tpl));
         wizard.template = ofType.find((tpl) => objectValue(tpl.metadata).default === true) || ofType[0] || null;
+        // A proposal asked for by type (Ops' Create proposal, a doc-first New Proposal) goes through the same gate as the
+        // picker's Proposal (GP-159): while the organization has none of its own, how they write proposals comes first.
+        if (wizard.template && isLibraryProposal(wizard.template) && proposalsUnused() && startProposalSetup()) return;
         proceed();
       } else renderStepOne();
       // The fresh copy redraws the first step if it changed anything, keeping what the person picked, searched and saved.
