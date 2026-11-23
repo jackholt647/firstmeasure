@@ -169,6 +169,16 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       schedule();
     }};
   }
+  // A minimized bar's tooltip (GP-153): its name, and under a divider what else identifies it (a project's
+  // address; `detail` may be a list), so the bar itself shows only the name. Without a name it clears only what it set.
+  function minimizedTooltip(node, tip){
+    if (!node) return;
+    const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const name = String(tip?.name || '').trim(), detail = [tip?.detail].flat().map(value => String(value || '').trim()).filter(value => value && value !== name);
+    if (!name) { if (node.dataset.fmMinimizedTip) { delete node.dataset.fmMinimizedTip; node.removeAttribute('data-fm-tooltip-html'); } return; }
+    node.dataset.fmMinimizedTip = '1';
+    node.setAttribute('data-fm-tooltip-html', `<div class="fm-window-tip-name">${esc(name)}</div>` + (detail.length ? `<div class="fm-window-tip-detail">${detail.map(esc).join('<br>')}</div>` : ''));
+  }
   const backdrops = createBackdrops();
   function createOpeningLifecycle(){
     const owners = new WeakMap(), pending = new Set();
@@ -345,8 +355,12 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
 .fm-window-title[role=button]:not(.fm-window-title-plain){cursor:pointer}.fm-window-title[role=button]:not(.fm-window-title-plain):is(:hover,[aria-expanded=true]):after{opacity:1}.fm-window-title[role=button]:not(.fm-window-title-plain):active{opacity:.7}
 .fm-window-controls{display:flex;flex:0 0 auto;gap:2px;margin-left:auto}.fm-window-controls button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;background:none;border:0;border-radius:6px;color:inherit;cursor:pointer;font-size:12px}
 .fm-window-controls button:hover{background:#66708520}.fm-window-controls button[data-window-action=close]:hover{background:#d92d20;color:#fff}
-.fm-window[data-window=minimized]{border-radius:7px}.fm-window[data-window=minimized] .fm-window-header{height:30px;min-height:30px;padding:0 6px}.fm-window[data-window=minimized] .fm-window-controls button{height:28px!important;min-height:28px!important;width:24px!important}.fm-window[data-window=minimized] .fm-window-controls button:not([data-window-action=minimize]):not([data-window-action=close]):not([data-minimized-visible]){display:none!important}
-.fm-window[data-window=minimized] .fm-window-minimized-identity{display:flex;align-items:center;gap:7px;min-width:0;font-size:12px;font-weight:400;line-height:normal}.fm-window[data-window=minimized] .fm-window-minimized-identity>i{display:grid;place-items:center;flex:none;width:20px;height:20px;padding:0;border-radius:0;background:none;color:var(--primary,#d93025);font-size:15px}.fm-window[data-window=minimized] .fm-window-minimized-identity strong{font:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* One look for every minimized bar (GP-153): its icon and name, then restore and close. Windows whose own header rules
+   would win (window-shell.js, the project bar in project-windows.js) read these variables rather than sizes of their own. */
+.fm-window[data-window=minimized]{--fm-min-font-size:13px;--fm-min-font-weight:400;--fm-min-color:#344054;--fm-min-icon-size:14px;--fm-min-gap:7px;--fm-min-button-width:26px;border:1px solid #d0d5dd;border-radius:7px;box-shadow:0 14px 42px #10182826}.fm-window[data-window=minimized] .fm-window-header{height:30px;min-height:30px;padding:0 2px 0 8px;border-bottom:0}.fm-window[data-window=minimized] .fm-window-controls button{height:28px!important;min-height:28px!important;width:var(--fm-min-button-width)!important;color:var(--fm-min-color)}.fm-window[data-window=minimized] .fm-window-controls button:not([data-window-action=minimize]):not([data-window-action=close]):not([data-minimized-visible]){display:none!important}
+.fm-window[data-window=minimized] .fm-window-title{cursor:pointer}.fm-window[data-window=minimized] .fm-window-minimized-identity{display:flex;align-items:center;gap:var(--fm-min-gap);min-width:0;font-size:var(--fm-min-font-size);font-weight:var(--fm-min-font-weight);color:var(--fm-min-color);line-height:normal}.fm-window[data-window=minimized] .fm-window-minimized-identity>i{display:grid;place-items:center;flex:none;width:18px;height:18px;padding:0;border-radius:0;background:none;color:var(--primary,#d93025);font-size:var(--fm-min-icon-size)}
+/* A minimized bar's tooltip: the name, then what else identifies it (a project's address) under a divider. */
+.fm-tooltip .fm-window-tip-detail{margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.16);font-weight:500;color:rgba(255,255,255,.86)}.fm-window[data-window=minimized] .fm-window-minimized-identity strong{font:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fm-window[data-window-mobile=true]{border:0!important;border-radius:0!important;transition:none!important}
 .fm-window[data-window-mobile=true] .fm-window-resize{display:none!important}
 .fm-window-controls[data-window-mobile=true]{align-items:center;padding:8px;gap:0!important;height:60px!important}
@@ -593,6 +607,8 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
         title.setAttribute('aria-label', minimized ? labels.minimize : name);
         title.title = minimized ? labels.minimize : '';
       } else if (title && options.titleMenu !== false) { title.tabIndex=0; title.setAttribute('role','button'); }
+      // A title that opens the window menu says Restore when minimized; a plain one names the window (GP-153).
+      if (title && options.titleMenu === false) minimizedTooltip(title, win.mode === 'minimized' && !mobile ? (options.minimizedTooltip?.() || {name:title.textContent}) : null);
       for (const [key,button] of Object.entries(buttons)) { button.title=labels[key]; button.setAttribute('aria-label',labels[key]); }
       buttons.place.innerHTML=`<i class="fas fa-${dock ? 'table-columns' : 'window-restore'}" aria-hidden="true"></i>`;
       buttons.maximize.hidden=options.compactCall===true;
@@ -860,5 +876,5 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       destroy(){win.animation?.cancel();if(headerDocument!==document){headerDocument.removeEventListener('keydown',keydown);headerDocument.removeEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.removeEventListener('keydown',dismissMenuOnKey,true);}window.removeEventListener('resize',refreshViewport);endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('pointerdown',sheetDrag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);win.ownedBackdrop?.remove();win.stackElement?.removeAttribute('data-fm-window-backdrop');element.remove();layout(win.host);releaseHost(win.host);}
     };
   }
-  root.FirstMateWindows={attach, ensureStyles:styles, backdrops, opening, reloadPlacements, takeReloadPlacement, savePlacementsForReload};
+  root.FirstMateWindows={attach, ensureStyles:styles, minimizedTooltip, backdrops, opening, reloadPlacements, takeReloadPlacement, savePlacementsForReload};
 })(window);

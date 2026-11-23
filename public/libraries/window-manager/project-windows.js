@@ -67,7 +67,7 @@
     `;
     // A spare is laid out like a window (its document boots at a real size) but nobody can see or reach it.
     style.textContent += `.fm-project-window-layer.fm-project-spare{visibility:hidden!important;pointer-events:none!important;background:none!important}.fm-project-spare .fm-project-frame{animation:none!important}`;
-    style.textContent += `.fm-project-minimized-bar{position:absolute;inset:0;display:flex;align-items:center;gap:3px;padding:0 4px;background:#fff;font:12px Arial,sans-serif}.fm-project-minimized-bar[hidden]{display:none}.fm-project-minimized-bar button{height:28px;border:0;background:none;color:#344054;cursor:pointer}.fm-project-minimized-bar .fm-project-minimized-title{display:flex;align-items:center;gap:6px;min-width:0;flex:1;text-align:left}.fm-project-minimized-title span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.fm-project-minimized-title i{color:var(--primary,#d93025)}.fm-project-minimized-bar button:last-child:hover{background:#d92d20;color:white}`;
+    style.textContent += `/* The minimized project is a bar of its own over the hidden frame; it reads the shared minimized look (window-manager.js, GP-153). */.fm-project-minimized-bar{position:absolute;inset:0;display:flex;align-items:center;gap:0;padding:0 2px 0 4px;background:#fff;font-family:inherit}.fm-project-minimized-bar[hidden]{display:none}.fm-project-minimized-bar button{height:28px;padding:0;border:0;border-radius:6px;background:none;color:var(--fm-min-color,#344054);font:inherit;font-size:12px;cursor:pointer}.fm-project-minimized-bar>button:not(.fm-project-minimized-title){display:inline-flex;align-items:center;justify-content:center;flex:none;width:var(--fm-min-button-width,26px)}.fm-project-minimized-bar>button:not(.fm-project-minimized-title):hover{background:#66708520}.fm-project-minimized-bar .fm-project-minimized-title{display:flex;align-items:center;gap:var(--fm-min-gap,7px);min-width:0;flex:1;padding:0 4px;font-size:var(--fm-min-font-size,13px);font-weight:var(--fm-min-font-weight,400);text-align:left}.fm-project-minimized-title span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.fm-project-minimized-title i{display:grid;place-items:center;flex:none;width:18px;height:18px;color:var(--primary,#d93025);font-size:var(--fm-min-icon-size,14px)}.fm-project-minimized-bar button:last-child:hover{background:#d92d20;color:white}`;
   }
   // The portal paints a project-shaped skeleton (#fmProjectRoutePrecover) on a
   // direct ?project= load. Once a project window layer exists it owns the
@@ -517,12 +517,17 @@
     const restore=document.createElement('button');restore.type='button';restore.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","restore_project","Restore project") ?? "Restore project"));restore.innerHTML='<i class="fas fa-window-restore" aria-hidden="true"></i>';
     const dismiss=document.createElement('button');dismiss.type='button';dismiss.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","close_project","Close project") ?? "Close project"));dismiss.innerHTML='<i class="fas fa-xmark" aria-hidden="true"></i>';
     title.onclick=restore.onclick=()=>{active=record;record.background=false;record.controller.restore();publishRoute(record);};dismiss.onclick=()=>close(token);bar.append(title,restore,dismiss);record.element.append(bar);record.minimizedBar=bar;
+    // The bar shows the project's name; its contact and address are in the tooltip, under a divider (GP-153).
+    record.paintMinimizedLabel=()=>{
+      const source=options.title,name=(source?.querySelector('strong')?.textContent || source?.textContent || record.frame.getAttribute('aria-label') || '').trim();
+      bar.querySelector('span').textContent=name;
+      root.FirstMateWindows?.minimizedTooltip?.(title,{name,detail:[...(source?.querySelectorAll('.r-project-identity-secondary') || [])].map(node=>node.textContent)});
+    };
     function placement(state,notify=true){
       const minimized=state.mode==='minimized';bar.hidden=!minimized;
       record.loading.hidden=minimized;
       if(loadingShell && notify)record.userPlacement=true;
-      bar.querySelector('span').textContent=options.title?.textContent || record.frame.getAttribute('aria-label') || '';
-      title.title=bar.querySelector('span').textContent;
+      record.paintMinimizedLabel();
       if(!minimized){record.frame.style.width='100%';record.frame.style.height='100%';}
       clearRoutePrecover();
       record.frame.style.visibility=minimized || !record.shellVisible?'hidden':'visible';
@@ -563,7 +568,7 @@
       refresh(){record.controller.refresh();},focus(){active=record;record.controller.focus();},restore(){record.controller.restore();}
     };
   }
-  function update(token, data){const record=records.get(token);if(!record)return;if(data.projectId)record.projectId=data.projectId;if(data.title){record.frame.setAttribute('aria-label',data.title);record.element.setAttribute('aria-label',data.title);const label=record.minimizedBar?.querySelector('span');if(label)label.textContent=data.title;const loadingTitle=record.loading.querySelector('.fm-project-loading-title');if(loadingTitle && !loadingTitle.querySelector('strong'))loadingTitle.textContent=data.title;}}
+  function update(token, data){const record=records.get(token);if(!record)return;if(data.projectId)record.projectId=data.projectId;if(data.title){record.frame.setAttribute('aria-label',data.title);record.element.setAttribute('aria-label',data.title);record.paintMinimizedLabel?.();const loadingTitle=record.loading.querySelector('.fm-project-loading-title');if(loadingTitle && !loadingTitle.querySelector('strong'))loadingTitle.textContent=data.title;}}
   function headerState(token,child){return accepts(token,child) ? root.Portal?.modules?.request?.headerState?.() : null;}
   async function openContact(token,child,contact,options={}){
     if(!accepts(token,child))throw Error('Unknown project window');

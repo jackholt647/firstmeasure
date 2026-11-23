@@ -305,7 +305,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261120-gp113-receipt'), versionedBundle('project-request/app.js', '20261119-gp100-tray-flow')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261123-gp153-minimized-bars'), versionedBundle('project-request/app.js', '20261119-gp100-tray-flow')]
     },
     {
       id: 'firstmeasure.order',
