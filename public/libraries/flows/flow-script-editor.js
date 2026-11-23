@@ -196,7 +196,7 @@
     let flowId = clean(options.flowId), version = 0, dirty = false, saving = false, error = '', alive = true;
     let mode = options.readOnly ? 'view' : 'edit';
     const choices = new Map();           // step id -> the button last chosen there (kept when going back)
-    let index = 0, selected = null, lit = null, answers = {}, assistant = null, wheelLock = 0, wasPending = false;
+    let index = 0, selected = null, lit = null, answers = {}, assistant = null, wheelLock = 0, wasPending = false, within = 0;
     const org = orgOf(options);
     const api = (path, init) => root.FirstMateFlows?.api ? root.FirstMateFlows.api(path, init) : Promise.reject(new Error(L('unavailable', 'Flows are not available here.')));
 
@@ -343,7 +343,7 @@
     function place(){
       const track = $('[data-track]'), card = track?.querySelector(`[data-card="${CSS.escape(path()[index] || '')}"]`);
       if (!card) return;
-      track.style.transform = `translateY(${Math.round(130 - card.offsetTop)}px)`;
+      track.style.transform = `translateY(${Math.round(130 - card.offsetTop - within)}px)`;
     }
     function hint(){
       const node = $('[data-hint]'), p = path(), step = stepOf(def, p[index]);
@@ -355,7 +355,10 @@
     function go(to){
       const p = path();
       if (to < 0 || to >= p.length || to === index) return;
-      index = to;
+      // Coming back up to a long step lands on its bottom; going down to one starts at its top.
+      const back = to < index;
+      index = to; within = 0;
+      if (back) within = Math.max(0, overflow());
       el.querySelectorAll('[data-card]').forEach((card, i) => { const d = i - index; card.dataset.dist = d === 0 ? '0' : Math.abs(d) === 1 ? '1' : 'far'; });
       place(); drawTree(); hint();
       selected = null; drawBox();
@@ -536,7 +539,8 @@
       root_.addEventListener('mouseover', (event) => { const node = event.target.closest('.fse-node[data-go]'); const next = node ? node.dataset.go : null; if (next !== lit) { lit = next; drawTree(); } });
       root_.addEventListener('mouseleave', () => { if (lit) { lit = null; drawTree(); } });
       $('[data-main]').addEventListener('wheel', onWheel, { passive: false });
-      root_.addEventListener('keydown', onKey);
+      // The arrows move along the script wherever focus is, while this editor is on screen and nothing is typed in.
+      document.addEventListener('keydown', onDocKey);
     }
     const editing = (node) => !!node?.closest?.('[contenteditable], input, textarea, select');
     function onFocus(event){
@@ -593,18 +597,39 @@
       if (button.matches('[data-save]')) return save();
       if (button.matches('[data-close]')) return options.onClose?.({ dirty });
     }
+    /** How much of the current step is below the fade at the bottom (a step taller than the screen). */
+    function overflow(){
+      const main = $('[data-main]'), card = el.querySelector(`[data-card="${CSS.escape(path()[index] || '')}"]`);
+      if (!main || !card) return 0;
+      return Math.max(0, 130 + card.offsetHeight - (main.clientHeight - 120));
+    }
+    /** Down: through a long step first, then to the next one. Up: back to the step's top, then the one before. */
+    function move(down){
+      const more = overflow();
+      if (down && within < more) { within = Math.min(more, within + 160); place(); return; }
+      if (!down && within > 0) { within = Math.max(0, within - 160); place(); return; }
+      go(index + (down ? 1 : -1));
+    }
     function onWheel(event){
       if (editing(event.target) && event.target.scrollHeight > event.target.clientHeight) return;
       event.preventDefault();
       const now = Date.now();
       if (now < wheelLock || Math.abs(event.deltaY) < 18) return;
-      wheelLock = now + 480;
-      go(index + (event.deltaY > 0 ? 1 : -1));
+      const inner = (event.deltaY > 0 && within < overflow()) || (event.deltaY < 0 && within > 0);
+      wheelLock = now + (inner ? 120 : 480);
+      move(event.deltaY > 0);
+    }
+    function onDocKey(event){
+      if (!alive || !el.isConnected || !el.offsetParent) return;
+      if (event.target !== document.body && !el.contains(event.target)) return;
+      onKey(event);
     }
     function onKey(event){
       if (editing(event.target)) { if (event.key === 'Escape') { event.target.blur(); selected = null; drawBox(); } return; }
-      if (['ArrowDown', 'ArrowRight', 'PageDown'].includes(event.key)) { event.preventDefault(); go(index + 1); }
-      else if (['ArrowUp', 'ArrowLeft', 'PageUp'].includes(event.key)) { event.preventDefault(); go(index - 1); }
+      if (['ArrowDown', 'PageDown'].includes(event.key)) { event.preventDefault(); move(true); }
+      else if (['ArrowUp', 'PageUp'].includes(event.key)) { event.preventDefault(); move(false); }
+      else if (event.key === 'ArrowRight') { event.preventDefault(); within = 0; go(index + 1); }
+      else if (event.key === 'ArrowLeft') { event.preventDefault(); within = 0; go(index - 1); }
       else if (event.key === 'Escape' && selected) { selected = null; draw(); }
     }
 
@@ -657,7 +682,7 @@
       get definition(){ return def ? clone(def) : null; },
       get dirty(){ return dirty; },
       save,
-      destroy(){ alive = false; assistant?.destroy?.(); el.innerHTML = ''; }
+      destroy(){ alive = false; document.removeEventListener('keydown', onDocKey); assistant?.destroy?.(); el.innerHTML = ''; }
     };
   }
 
