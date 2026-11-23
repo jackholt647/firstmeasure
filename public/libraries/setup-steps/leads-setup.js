@@ -134,11 +134,29 @@ export function mount(el, ctx){
         <div class="gxl-list" data-list>${array(state.questions).map((entry, index) => `<div class="gxl-row" data-on="${entry.on !== false}"><input type="checkbox" id="gxlq_${index}" data-question="${index}" ${entry.on !== false ? 'checked' : ''}><label for="gxlq_${index}">${esc(entry.label)}</label>
           <button type="button" class="gxl-icon" data-move="${index}:-1" aria-label="${T('move_up', 'Move up')}" ${index === 0 ? 'disabled' : ''}><i class="fas fa-arrow-up"></i></button><button type="button" class="gxl-icon" data-move="${index}:1" aria-label="${T('move_down', 'Move down')}" ${index === state.questions.length - 1 ? 'disabled' : ''}><i class="fas fa-arrow-down"></i></button></div>`).join('')}</div>
         <div class="gxl-add"><input type="text" data-new placeholder="${T('question_placeholder', 'Your own question, e.g. How old is the roof?')}" maxlength="200"><button type="button" data-add>${T('add', 'Add')}</button></div></div>`;
-    } else if (part === 'script') drawScript();
+    } else if (part === 'script') {
+      // The editors may not be on this page (a setup can play outside the portal page): load them first.
+      if (!window.FirstMateFlowScriptEditor && !state.loadingEditors) {
+        state.loadingEditors = true;
+        el.innerHTML = '<div class="gxl"><span class="gxs-spin" aria-hidden="true"></span></div>';
+        flowLibraries().catch((error) => console.warn('The flow editors did not load; showing the simple list.', error)).finally(() => { if (alive) drawScript(); });
+        return;
+      }
+      drawScript();
+    }
     else drawMenu();
   }
 
   /** The new-lead flow as a map of its steps: what you say (editable), what you ask, what's sent (editable), where it goes. */
+  /** The flow player and both editors, from the same /libraries/ this module came from, each once per page. */
+  function flowLibraries(){
+    const base = new URL('../flows/', import.meta.url).href.replace(/[?#].*$/, '');
+    const version = new URL(import.meta.url).search;
+    const load = (file, global) => window[global] ? Promise.resolve() : (window.__fmFlowLoads ||= {})[file] ||= new Promise((resolve, reject) => {
+      const tag = document.createElement('script'); tag.src = `${base}${file}${version}`; tag.onload = resolve; tag.onerror = () => reject(new Error(`${file} did not load`)); document.head.appendChild(tag);
+    });
+    return load('flow-player.js', 'FirstMateFlows').then(() => Promise.all([load('flow-editor.js', 'FirstMateFlowEditor'), load('flow-script-editor.js', 'FirstMateFlowScriptEditor')]));
+  }
   function drawScript(){
     const flow = object(state.definition);
     if (!flow.steps) { el.innerHTML = `<div class="gxl"><p class="gxl-lead">${T('script_none', 'You treat new leads like any project, so there’s no script to set up.')}</p></div>`; return; }
