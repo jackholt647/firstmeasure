@@ -289,6 +289,9 @@
     if (!host() || !root.FirstMateWindows) return null;
     const camera = options.camera;
     if (camera) { options = {...options, tab:'photos'}; delete options.camera; }
+    // A window put back after a reload beside the routed one opens behind it and leaves the address alone.
+    const background = options.background === true;
+    if ('background' in options) { options = {...options}; delete options.background; }
     const cameraProjectId = identity(project);
     const cameraWindow = camera && cameraProjectId ? [...records.values()].find(record=>record.projectId === cameraProjectId) : null;
     let cameraRecord = cameraWindow || null;
@@ -342,7 +345,7 @@
     }
     const status=document.createElement('span');status.textContent=(globalThis.PlatformLanguage?.text("window-manager","opening_project","Opening project…") ?? "Opening project…");status.setAttribute('role','status');
     header.append(identityNode,tabs,controls,trays);loading.append(header,status);
-    const record={token,projectId,project,options,layer,element,frame,loading,controller:null,api:null,modal:null,camera:quickCamera?.session || null};
+    const record={token,projectId,project,options,layer,element,frame,loading,controller:null,api:null,modal:null,camera:quickCamera?.session || null,background};
     cameraRecord = record;
     const selectOpeningTab=id=>{
       record.options={...record.options,tab:id,...(id!=='photos' ? {photo:''} : {}),...(record.options.layout?.panes ? {layout:{...record.options.layout,panes:[{tab:id}]}} : {})};
@@ -389,7 +392,7 @@
     record.openingTabIds=[...tabs.querySelectorAll('[data-tab]')].map(button=>button.dataset.tab);
     record.ready = new Promise((resolve,reject)=>{record.resolveReady=resolve;record.rejectReady=reject;});
     record.ready.catch(()=>{});
-    records.set(token,record);active=record;
+    records.set(token,record);if(!background)active=record;
     record.priorityHeaderAbort=new AbortController();
     root.addEventListener('fm:priority-fields:resolved',event=>{if(event.detail?.projectId===record.projectId)paintHeader();},{signal:record.priorityHeaderAbort.signal});
     paintHeader();
@@ -426,11 +429,36 @@
     };
     if(quickCamera)quickCamera.live.then(boot);else boot();
     record.timer=setTimeout(()=>{if(!record.api)status.textContent='Project is still loading. You can close this window and try again.';},30000);
-    publishRoute(record);
+    if(background)active?.controller?.focus();
+    else publishRoute(record);
+    if(options.fromRoute)record.ready.catch(()=>{}).then(reopenAfterReload);
     // Once this window has loaded (not while it loads: the downloads would compete with it), the project is kept
     // on the device and the next open gets a spare too.
     record.ready.catch(()=>{}).then(()=>{record.loaded=true;keepOnDevice(record.projectId || projectId);scheduleSpare(1500);});
     return record;
+  }
+  // After a reload (GP-148) the route reopens only its own project; the other project windows that were open come
+  // back too, where they were, behind it and one at a time once it has loaded (each is a whole portal document).
+  let reopenPending = ownsProjectWindows;
+  function reopenAfterReload(){
+    if (!reopenPending) return;
+    reopenPending = false;
+    const routed = String(root.Portal?.routeState?.get?.().project || '');
+    const queue = (root.FirstMateWindows?.reloadPlacements?.('project:') || []).map(item => item.key.slice(8)).filter(id => id && id !== routed);
+    const next = () => {
+      while (queue.length) {
+        const projectId = queue.shift();
+        if ([...records.values()].some(record => record.projectId === projectId)) continue;
+        const record = open(root.Portal?.ProjectStore?.get?.(projectId) || {id:projectId}, {background:true});
+        if (record?.ready) { record.ready.catch(() => {}).then(next); return; }
+      }
+    };
+    next();
+  }
+  if (ownsProjectWindows && root.FirstMateWindows?.reloadPlacements?.('project:').length) {
+    // A routed window starts them once it has loaded (open() above); this covers no route, or one that never opens.
+    const later = () => afterPageLoad(() => setTimeout(reopenAfterReload, root.Portal?.routeState?.get?.().project ? 20000 : 1500));
+    if (typeof root.PlatformCommerce?.onReady === 'function') root.PlatformCommerce.onReady(later); else later();
   }
   function accepts(token, child){
     if(spare && spare.token===token && spare.frame.contentWindow===child)return true;
@@ -453,7 +481,7 @@
     child.addEventListener('fm:projects:refresh',relayUp('fm:projects:refresh'));
     child.addEventListener('fm:calendar:refresh',relayUp('fm:calendar:refresh'));
     child.addEventListener('fm:project-schedule:changed',relayUp('fm:calendar:refresh'));
-    child.document.addEventListener('pointerdown',()=>{active=record;record.controller?.focus();publishRoute(record);},true);
+    child.document.addEventListener('pointerdown',()=>{active=record;record.background=false;record.controller?.focus();publishRoute(record);},true);
     child.addEventListener('fm:route-state:updated',event=>mirrorRouteFromWindow(record,event.detail));
     const openedTab=record.options.tab || '';
     Promise.resolve(record.project ? api.openProject(record.project,{...record.options,fromRoute:false}) : api.open(null,record.options)).then(result=>{
@@ -488,7 +516,7 @@
     const title=document.createElement('button');title.type='button';title.className='fm-project-minimized-title';title.innerHTML='<i class="fas fa-folder-open" aria-hidden="true"></i><span></span>';
     const restore=document.createElement('button');restore.type='button';restore.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","restore_project","Restore project") ?? "Restore project"));restore.innerHTML='<i class="fas fa-window-restore" aria-hidden="true"></i>';
     const dismiss=document.createElement('button');dismiss.type='button';dismiss.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","close_project","Close project") ?? "Close project"));dismiss.innerHTML='<i class="fas fa-xmark" aria-hidden="true"></i>';
-    title.onclick=restore.onclick=()=>{active=record;record.controller.restore();publishRoute(record);};dismiss.onclick=()=>close(token);bar.append(title,restore,dismiss);record.element.append(bar);record.minimizedBar=bar;
+    title.onclick=restore.onclick=()=>{active=record;record.background=false;record.controller.restore();publishRoute(record);};dismiss.onclick=()=>close(token);bar.append(title,restore,dismiss);record.element.append(bar);record.minimizedBar=bar;
     function placement(state,notify=true){
       const minimized=state.mode==='minimized';bar.hidden=!minimized;
       record.loading.hidden=minimized;
@@ -504,10 +532,16 @@
     const controllerOptions={...options,element:record.element,host:host(),stackElement:record.layer,contentTarget:document.getElementById('mainPanels'),nativeModalLayout:false,titleMenu:false,animateGeometry:true,
       topInset:()=>document.getElementById('platformTopbar')?.offsetHeight || 0,
       onBeforeModeChange:({mode})=>{if(mode==='minimized'){record.frame.style.width=record.frame.clientWidth+'px';record.frame.style.height=record.frame.clientHeight+'px';}},
-      onClose:()=>close(token),onChange:placement
+      onClose:()=>close(token),onChange:placement,
+      // A reload puts the window back where it was (GP-148).
+      restoreKey:()=>record.projectId ? 'project:'+record.projectId : ''
     };
     if(record.controller)record.controller.rebindChrome(controllerOptions);
-    else record.controller=root.FirstMateWindows.attach(controllerOptions);
+    else{
+      record.controller=root.FirstMateWindows.attach(controllerOptions);
+      // The document's own opening mode must not undo it.
+      if(record.controller.state.restored)record.userPlacement=true;
+    }
     placement(record.controller.state,false);
     // attach() runs while the child is still building its shell and CSS.
     // Only setVisible(true), at the end of open(), may expose that document.
@@ -524,6 +558,7 @@
           child.FirstMateWindowShell?.revealTabs?.(child.document.getElementById('rProjectViewerTabs'),record.openingTabIds);
         }
         record.controller.setVisible(value);placement(record.controller.state);
+        if(value && record.background && active && active!==record && records.has(active.token))active.controller?.focus();
       },
       refresh(){record.controller.refresh();},focus(){active=record;record.controller.focus();},restore(){record.controller.restore();}
     };

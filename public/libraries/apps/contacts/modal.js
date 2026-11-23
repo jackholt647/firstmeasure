@@ -139,6 +139,7 @@
     }
     return '';
   }
+  function contactRouteId(){ return firstText(state.contact?.id, state.contact?.contact_id); }
   function escapeHtml(value){
     return cleanText(value)
       .replaceAll('&', '&amp;')
@@ -520,6 +521,8 @@
       dockWidth:760, minWidth:360, minimizedHeight:32,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
       onClose:() => close(),
+      // A reload keeps the open contact's window where it was (GP-148).
+      restoreKey:() => state.open && contactRouteId() ? 'contact:' + contactRouteId() : '',
       onChange:({mode}) => {
         overlay.dataset.windowMode = mode;
         syncContactWindowModalRegistration();
@@ -1361,7 +1364,11 @@
     state.open = true;
     overlay.classList.add('active');
     contactWindow?.setVisible(true);
-    const routeContactId = firstText(state.contact.id, state.contact.contact_id);
+    const routeContactId = contactRouteId();
+    if (options.fromRoute && routeContactId) {
+      const placement = window.FirstMateWindows?.takeReloadPlacement?.('contact:' + routeContactId);
+      if (placement) contactWindow?.applyPlacement?.(placement);
+    }
     if (routeContactId && !options.fromRoute && !window.Portal?.navigation?.applying) {
       window.Portal?.navigation?.push?.({
         tab:'contacts',
