@@ -172,7 +172,25 @@ goes straight to the default board.
    pricing in the evaluate-only sandbox, `page` surface); staff forms become flows.
 4. Comparing a call's transcript with its script.
 
+## Built so far (2026-11-23, on dev)
+
+- Server: `public/v1/flows/` (contract, versions and runs in `flows.sqlite`/Postgres, routes at `/v1/flows`,
+  `previewStep` with a sample lead), the work-engine hook (`work/engine.ts` 1b), events `flow.step.completed` and
+  `flow.run.completed`, the `flow_template` library kind (no entries yet).
+- Player: `public/libraries/flows/flow-player.js`, loaded by `portal/index.php`; New menu `flow:<id>` items (the
+  capability `platform.new_button_items` accepts `flow:`/`form:` values through its `option_pattern`). The default
+  New menu, before any setup, is Project, Contact, Report.
+- Leads setup: `public/v1/leads/setup.ts` (`lead-setup.status`, `leads.setup.save`), the step module
+  `public/libraries/setup-steps/leads-setup.js`, and its library entries (`tests/fixtures/leads-setup-library.json`,
+  as put on dev): setup steps `leads.sources` → `leads.contact` → `leads.no_answer` → `leads.questions` →
+  `leads.script` → `leads.new_menu`, required by the experience `leads.setup`, which plays on the first visit to
+  the CRM or the Automations Hub. Saving the script publishes the flow `new_lead_call` and names it on the New Leads
+  call list (`platform_queue_new_lead_calls` list metadata `flow_id`); New › Lead is the flow `new_lead`.
+- Not yet: the editor, the hub's flow boxes, the call surface and call-script migration, CRM settings › Flows,
+  forms on flows. Until the hub's autoplay knows about `leads.setup`, an organization whose intake routing was never
+  saved can see both setups on its first hub visit.
+
 ## Tests
 
 `tests/flows.test.ts` (contract, runs, branches, saves_to, actions, outcomes, access),
-`tests/flow-player-browser.test.mjs` (the player in each surface).
+`tests/lead-setup.test.ts` (the leads setup's effects), `tests/flow-player-browser.test.mjs` (the player in each surface, to write).
