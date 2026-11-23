@@ -1,0 +1,312 @@
+{
+  "setup_step": [
+    {
+      "id": "leads.sources",
+      "version": 1,
+      "scope": "organization",
+      "title": {
+        "key": "gx_step_leads_sources_title",
+        "text": "Where do your leads come from?"
+      },
+      "subtitle": {
+        "key": "gx_step_leads_sources_subtitle",
+        "text": "We'll turn each one on so its leads land in your new leads."
+      },
+      "description": {
+        "key": "gx_step_leads_sources_description",
+        "text": "Where the organization's leads come in: website forms, lead emails, lead services, phone calls."
+      },
+      "ui": {
+        "widget": "module",
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-1"
+      },
+      "options": {
+        "part": "sources"
+      },
+      "requires": [],
+      "eligibility": {
+        "capabilities": [],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "satisfied": {
+        "provider": "lead-setup",
+        "export": "status",
+        "path": "/answered/sources"
+      },
+      "writes": {
+        "action": "leads.setup.save",
+        "target": "organization"
+      }
+    },
+    {
+      "id": "leads.contact",
+      "version": 1,
+      "scope": "organization",
+      "title": {
+        "key": "gx_step_leads_contact_title",
+        "text": "When a new lead comes in, how do you usually contact them?"
+      },
+      "subtitle": {
+        "key": "gx_step_leads_contact_subtitle",
+        "text": "Most companies call first. This sets up your new lead script."
+      },
+      "description": {
+        "key": "gx_step_leads_contact_description",
+        "text": "How the organization first contacts a new lead: call, text, email, or treat it like any project."
+      },
+      "ui": {
+        "widget": "module",
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-1"
+      },
+      "options": {
+        "part": "contact"
+      },
+      "requires": [
+        "leads.sources"
+      ],
+      "eligibility": {
+        "capabilities": [],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "satisfied": {
+        "provider": "lead-setup",
+        "export": "status",
+        "path": "/answered/contact"
+      },
+      "writes": {
+        "action": "leads.setup.save",
+        "target": "organization"
+      }
+    },
+    {
+      "id": "leads.no_answer",
+      "version": 1,
+      "scope": "organization",
+      "title": {
+        "key": "gx_step_leads_no_answer_title",
+        "text": "If they don't answer, what do we do?"
+      },
+      "subtitle": {
+        "key": "gx_step_leads_no_answer_subtitle",
+        "text": "Pick any of them."
+      },
+      "description": {
+        "key": "gx_step_leads_no_answer_description",
+        "text": "What happens when a new lead does not answer the first call: a text, an email, try again later."
+      },
+      "ui": {
+        "widget": "module",
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-1"
+      },
+      "options": {
+        "part": "no_answer"
+      },
+      "requires": [
+        "leads.contact"
+      ],
+      "eligibility": {
+        "capabilities": [],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "satisfied": {
+        "provider": "lead-setup",
+        "export": "status",
+        "path": "/answered/no_answer"
+      },
+      "writes": {
+        "action": "leads.setup.save",
+        "target": "organization"
+      }
+    },
+    {
+      "id": "leads.questions",
+      "version": 1,
+      "scope": "organization",
+      "title": {
+        "key": "gx_step_leads_questions_title",
+        "text": "If they do answer, what do you want to find out?"
+      },
+      "subtitle": {
+        "key": "gx_step_leads_questions_subtitle",
+        "text": "These become the questions in your script."
+      },
+      "description": {
+        "key": "gx_step_leads_questions_description",
+        "text": "What the organization asks a new lead on the first call."
+      },
+      "ui": {
+        "widget": "module",
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-1"
+      },
+      "options": {
+        "part": "questions"
+      },
+      "requires": [
+        "leads.no_answer"
+      ],
+      "eligibility": {
+        "capabilities": [],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "satisfied": {
+        "provider": "lead-setup",
+        "export": "status",
+        "path": "/answered/questions"
+      },
+      "writes": {
+        "action": "leads.setup.save",
+        "target": "organization"
+      }
+    },
+    {
+      "id": "leads.script",
+      "version": 1,
+      "scope": "organization",
+      "title": {
+        "key": "gx_step_leads_script_title",
+        "text": "Here's your new lead script"
+      },
+      "subtitle": {
+        "key": "gx_step_leads_script_subtitle",
+        "text": "Made from your answers. Change the words, then try it."
+      },
+      "description": {
+        "key": "gx_step_leads_script_description",
+        "text": "The new-lead flow (call script or first message) made from the answers, editable."
+      },
+      "ui": {
+        "widget": "module",
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-1"
+      },
+      "options": {
+        "part": "script"
+      },
+      "requires": [
+        "leads.questions"
+      ],
+      "eligibility": {
+        "capabilities": [],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "satisfied": {
+        "provider": "lead-setup",
+        "export": "status",
+        "path": "/answered/script"
+      },
+      "writes": {
+        "action": "leads.setup.save",
+        "target": "organization"
+      }
+    },
+    {
+      "id": "leads.new_menu",
+      "version": 1,
+      "scope": "organization",
+      "title": {
+        "key": "gx_step_leads_new_menu_title",
+        "text": "How do you add a lead by hand?"
+      },
+      "subtitle": {
+        "key": "gx_step_leads_new_menu_subtitle",
+        "text": "This is your New button. Choose what it offers."
+      },
+      "description": {
+        "key": "gx_step_leads_new_menu_description",
+        "text": "The New menu's items and order; New > Lead plays the lead questions in a window."
+      },
+      "ui": {
+        "widget": "module",
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-1"
+      },
+      "options": {
+        "part": "new_menu"
+      },
+      "requires": [
+        "leads.script"
+      ],
+      "eligibility": {
+        "capabilities": [],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "satisfied": {
+        "provider": "lead-setup",
+        "export": "status",
+        "path": "/answered/new_menu"
+      },
+      "writes": {
+        "action": "leads.setup.save",
+        "target": "organization"
+      }
+    }
+  ],
+  "guided_experience": [
+    {
+      "id": "leads.setup",
+      "version": 1,
+      "kind": "modal",
+      "scope": "organization",
+      "salt": "leads-v1",
+      "title": {
+        "key": "gx_leads_setup_title",
+        "text": "Set up your new leads"
+      },
+      "description": {
+        "key": "gx_leads_setup_description",
+        "text": "How new leads come in, how you reach them, and what you ask."
+      },
+      "eligibility": {
+        "capabilities": [],
+        "permissions": [
+          "manage_company_settings"
+        ]
+      },
+      "triggers": [
+        {
+          "kind": "tab_opened",
+          "tab": "portal.crm",
+          "once": true,
+          "delay_ms": 600
+        },
+        {
+          "kind": "tab_opened",
+          "tab": "portal.automations_hub",
+          "once": true,
+          "delay_ms": 600
+        },
+        {
+          "kind": "manual"
+        }
+      ],
+      "variants": [
+        {
+          "id": "default",
+          "weight": 1,
+          "content": {}
+        }
+      ],
+      "requires": [
+        "leads.new_menu"
+      ],
+      "steps": [],
+      "completion": {
+        "screen": "none",
+        "say": [],
+        "then": []
+      },
+      "replayable": true,
+      "reveal": []
+    }
+  ]
+}
