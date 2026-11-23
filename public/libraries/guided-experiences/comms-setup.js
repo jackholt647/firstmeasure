@@ -13,8 +13,9 @@
 // Texts and calls are set up by texting-setup.js, shared with the appointment setup (FM-515), so both work the same.
 // GP-27: an entry may set up email alone (`only: 'email'`, the document Send dialog's first use): it opens on the email
 // page, offers nothing else, finishes as soon as FirstMate Mail is on, and its last button says `finish`.
-// GP-147: the Call center has its own setup (`only: 'phone'`, guided experience comms.call_center_setup): the same start
-// with texts and calls and no email, then the same registration; it finishes once registration is submitted. Where the
+// GP-147: the Call center has its own setup (`only: 'phone'`, guided experience comms.call_center_setup): nothing to choose,
+// so its start says what carrier registration (10DLC) is, its steps and how long it takes, with one button into the same
+// registration; it finishes once registration is submitted. Where the
 // business phone is already set up (there, in Phone Settings or another setup) and email is not, Communications opens on
 // "Your phones are already set up": set up email, or skip it and use Communications with texts and calls.
 import { commsAction, isRegistered, loadScript, registrationOf, setUpTexting, syncSessions, workflowWindow } from './texting-setup.js?v=20261120-gp138b';
@@ -61,6 +62,11 @@ const css = `
 .gxc-tag{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:#ecfdf3;color:#067647;font-size:11px;font-weight:750;line-height:18px;vertical-align:1px}
 .gxc-tag[data-paid]{background:#f2f4f7;color:#475467}
 .gxc-label{font-size:13px;font-weight:750;color:#344054}
+.gxc-steps{list-style:none;margin:0;padding:0;display:grid;gap:10px;counter-reset:gxc-step}
+.gxc-steps li{display:flex;gap:14px;align-items:flex-start;padding:14px 16px;border:1px solid #e4e7ec;border-radius:16px;background:#fff;counter-increment:gxc-step}
+.gxc-steps li::before{content:counter(gxc-step);flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:750;background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary,#d93025)}
+.gxc-steps strong{display:block;font-size:15px;line-height:28px}.gxc-steps p{font-size:13px}
+.gxc-notice{padding:12px 14px;border-radius:12px;background:#fef3f2;color:#b42318;font-size:13px;line-height:1.45}
 .gxc-rows{display:grid;gap:10px}
 .gxc-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid #e4e7ec;border-radius:16px;background:#fff}
 .gxc-row>div{flex:1;min-width:0}
@@ -132,7 +138,29 @@ export function mount(el, ctx){
   }
   function show(next){ page = next; draw(); el.closest('.gxs-step')?.scrollTo?.({ top: 0 }); }
 
+  // The Call center's start (GP-147): the one thing to do is register the business with the carriers, so it says what that
+  // is and how it goes, and one button starts it (or picks up a draft, or fixes what the carriers turned down).
+  function drawRegister(){
+    title(text(options.headline, L('gx_comms_register_title', 'Register your business for texting')));
+    const state = object(status.done).phone ? registration() : 'none';
+    const step = (name, body) => `<li><div><strong>${esc(name)}</strong><p>${esc(body)}</p></div></li>`;
+    const label = state === 'attention' ? L('gx_comms_register_fix', 'Fix your registration') : state === 'draft' ? L('gx_comms_register_continue', 'Continue registration') : L('gx_comms_register_start', 'Register for texting');
+    el.innerHTML = `<div class="gxc" data-gxc-register>
+      <p class="gxc-lead">${esc(text(options.subtitle || options.body, L('gx_comms_register_lead', 'Phone carriers require every business that texts customers to register first. This is called 10DLC registration. You do it once, and it keeps your texts from being blocked as spam.')))}</p>
+      ${state === 'attention' ? `<p class="gxc-notice" role="status">${esc(L('gx_comms_phone_attention', 'Your registration needs changes before you can text.'))}</p>` : ''}
+      <ol class="gxc-steps">
+        ${step(L('gx_comms_register_step_business', 'Tell us about your business'), L('gx_comms_register_step_business_body', 'Your legal business name, EIN, a contact and your business number. About 5 minutes.'))}
+        ${step(L('gx_comms_register_step_review', 'Carriers review it'), L('gx_comms_register_step_review_body', 'This usually takes a few days. There’s nothing else to do while you wait.'))}
+        ${step(L('gx_comms_register_step_ready', 'Text and call customers'), L('gx_comms_register_step_ready_body', 'From your business number, with every text and call saved on the customer’s project.'))}
+      </ol>
+      ${errorLine}
+      <div class="gxc-actions"><span class="gxc-spacer"></span><button type="button" class="gxc-btn primary" data-gxc-start="phone">${esc(label)}</button></div>
+    </div>`;
+    el.querySelector('[data-gxc-start]').addEventListener('click', (event) => { void startPhone(event.currentTarget); });
+  }
+
   function drawIntro(){
+    if (only === 'phone') return drawRegister();
     title(text(options.headline));
     const done = object(status.done);
     // Texts and calls are on only once carrier registration is approved (FM-586); until then the card says where it stands.
@@ -147,7 +175,7 @@ export function mount(el, ctx){
       ['texts', 'fa-comment-sms', L('gx_comms_way_texts', 'Texts'), L('gx_comms_way_texts_tip', 'Text customers from their project. Replies come back to the same project.'), phoneState],
       ['calls', 'fa-phone', L('gx_comms_way_calls', 'Calls'), L('gx_comms_way_calls_tip', 'Call with the customer’s details beside you. Notes, outcomes and recordings are saved.'), phoneState],
       ['email', 'fa-envelope', L('gx_comms_way_email', 'Email'), L('gx_comms_way_email_tip', 'A company inbox. Every email with a customer lands on their project.'), emailState]
-    ].filter(([id]) => only !== 'phone' || id !== 'email');
+    ];
     const chosen = { phone: phoneState, email: emailState };
     const choices = {
       phone: [L('gx_comms_choice_business_phone', 'Business phone'), L('gx_comms_choice_business_phone_body', 'Texts and calls on your number'), 'fa-phone'],
@@ -156,9 +184,9 @@ export function mount(el, ctx){
     const choice = (id) => { const [name, body, iconName] = choices[id]; return `<button type="button" class="gxc-choice" data-gxc-start="${id}" ${id === first && !done[id] ? 'data-first' : ''}>${icon(iconName)}<span><strong>${esc(name)}</strong><small>${esc(!chosen[id] ? body : chosen[id][0] === 'done' ? L('gx_comms_choice_on', 'On · review') : chosen[id][2])}</small></span></button>`; };
     el.innerHTML = `<div class="gxc">
       <p class="gxc-lead">${esc(text(options.subtitle || options.body, L('gx_comms_subtitle', 'Every conversation with your customers in one place.')))}</p>
-      <div class="gxc-ways" style="grid-template-columns:repeat(${ways.length},minmax(0,1fr))">${ways.map(([id, iconName, name, tip, on], index) => `<button type="button" class="gxc-way" data-gxc-way="${id}" aria-describedby="gxc-tip-${id}" style="animation-delay:${index * 50}ms">${icon(iconName)}<span class="gxc-way-name"><strong>${esc(name)}</strong><span class="gxc-i" aria-hidden="true">i</span></span>${on ? `<span class="gxc-way-on" data-state="${on[0]}"><i class="fas ${on[1]}" aria-hidden="true"></i>${esc(on[2])}</span>` : ''}<span class="gxc-tip" role="tooltip" id="gxc-tip-${id}">${esc(tip)}</span></button>`).join('')}</div>
-      ${only === 'phone' ? `<div class="gxc-choose gxc-one">${choice('phone')}</div>` : `<span class="gxc-label">${esc(L('gx_comms_where_start', 'Where do you want to start?'))}</span>
-      <div class="gxc-choose">${(first === 'email' ? ['email', 'phone'] : ['phone', 'email']).map(choice).join('')}</div>`}
+      <div class="gxc-ways">${ways.map(([id, iconName, name, tip, on], index) => `<button type="button" class="gxc-way" data-gxc-way="${id}" aria-describedby="gxc-tip-${id}" style="animation-delay:${index * 50}ms">${icon(iconName)}<span class="gxc-way-name"><strong>${esc(name)}</strong><span class="gxc-i" aria-hidden="true">i</span></span>${on ? `<span class="gxc-way-on" data-state="${on[0]}"><i class="fas ${on[1]}" aria-hidden="true"></i>${esc(on[2])}</span>` : ''}<span class="gxc-tip" role="tooltip" id="gxc-tip-${id}">${esc(tip)}</span></button>`).join('')}</div>
+      <span class="gxc-label">${esc(L('gx_comms_where_start', 'Where do you want to start?'))}</span>
+      <div class="gxc-choose">${(first === 'email' ? ['email', 'phone'] : ['phone', 'email']).map(choice).join('')}</div>
       ${done.phone && done.email ? `<div class="gxc-actions"><span class="gxc-spacer"></span><button type="button" class="gxc-btn primary" data-gxc-finish>${esc(L('gx_comms_go', 'Go to Communications'))}</button></div>` : ''}
       ${errorLine}
     </div>`;
