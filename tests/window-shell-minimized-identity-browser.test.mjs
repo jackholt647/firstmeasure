@@ -76,3 +76,54 @@ for (const rows of [2, 1]) {
     assert.ok(bar.right - Math.max(...controls.map((button) => button.right)) <= 8, 'the controls end at the bar edge');
   });
 }
+
+// Every minimized bar is the same bar (GP-153): the contact window (a two-row shell header with the GP-152 title toggle),
+// a tray window (phone, to do, assistant) and a plain window put their icon, name and controls in the same places, in
+// the same type. The contact's header kept the open header's 36px min-height, so its name sat below the bar's middle.
+const BARS = () => {
+  const host = document.querySelector('main');
+  const make = (html) => { const element = document.createElement('section'); element.innerHTML = html; host.append(element); return element; };
+  const base = { host, contentTarget: document.getElementById('mainPanels'), viewportCoordinates: true, mode: 'floating', width: 900, height: 600, minimizedHeight: 32 };
+  const contact = make(`<div class="fm-contact-window-header"><div class="identity"><i class="fas fa-address-card"></i><span>Bill Testo</span></div>
+    <div class="r-window-bar-actions"></div><div class="tabs"><button type="button" data-tab="projects">Projects</button><button type="button" data-tab="media">Photos</button></div></div>
+    <div class="sidebar">Details</div><div class="body"></div>`);
+  const contactHeader = contact.querySelector('.fm-contact-window-header');
+  const panes = FirstMateWindowShell.localPanes({ container: contact.querySelector('.body'), definitions: [{ tab: 'projects', element: document.createElement('section') }, { tab: 'media', element: document.createElement('section') }] });
+  const contactWin = FirstMateWindows.attach({ ...base, element: contact, header: contactHeader, controlsHost: contact.querySelector('.r-window-bar-actions'), title: contact.querySelector('.identity'),
+    customChrome: true, titleMenu: false, presentationModes: true, name: 'contact', label: 'Contact', minimizedTooltip: () => ({ name: 'Bill Testo', detail: '1 Main St' }) });
+  FirstMateWindowShell.mount({ element: contact, header: contactHeader, identity: contact.querySelector('.identity'), tabs: contact.querySelector('.tabs'), sidebar: contact.querySelector('.sidebar'), panes, headerRows: 2, sidebarToggle: { open: true } });
+  const tray = make(`<header><div class="identity"><i class="fas fa-phone"></i><span>Phone</span></div></header><div class="body"></div>`);
+  const trayBody = FirstMateWindowShell.trayWindow({ element: tray, header: tray.querySelector('header'), title: tray.querySelector('.identity'), body: tray.querySelector('.body'), tabs: [{ id: 'calls', label: 'Calls', element: tray.querySelector('.body') }] }).body;
+  const trayWin = FirstMateWindows.attach({ ...base, element: tray, header: tray.querySelector('header'), title: tray.querySelector('.identity'), body: trayBody, name: 'phone', label: 'Phone' });
+  const plain = make(`<header><div class="identity fm-window-minimized-identity"><i class="fas fa-list-check"></i><span>To Do</span></div></header><div class="body"></div>`);
+  const plainWin = FirstMateWindows.attach({ ...base, element: plain, header: plain.querySelector('header'), title: plain.querySelector('.identity'), body: plain.querySelector('.body'), name: 'todo', label: 'To Do' });
+  for (const win of [contactWin, trayWin, plainWin]) win.setMode('minimized');
+  const tip = contact.querySelector('.identity').getAttribute('data-fm-tooltip-html');
+  const bars = [contact, tray, plain].map((element) => {
+    const bar = element.getBoundingClientRect(), name = element.querySelector('.identity span'), box = name.getBoundingClientRect(), icon = element.querySelector('.identity i').getBoundingClientRect();
+    const close = element.querySelector('[data-window-action=close]').getBoundingClientRect(), style = getComputedStyle(name);
+    return { name: name.textContent, height: bar.height, icon: icon.left - bar.left, text: box.left - bar.left, middle: box.top + box.height / 2 - bar.top, close: bar.right - close.right, closeWidth: close.width,
+      font: `${style.fontSize} ${style.fontWeight}`, border: getComputedStyle(element).borderTopColor, shadow: getComputedStyle(element).boxShadow };
+  });
+  contactWin.setMode('floating');
+  return { bars, tip, restoredTip: contact.querySelector('.identity').getAttribute('data-fm-tooltip-html') };
+};
+
+test('the contact, tray and plain windows minimize to the same bar, the name in its middle', async (t) => {
+  const page = await open(t);
+  const { bars } = await page.evaluate(BARS);
+  const [first] = bars;
+  for (const bar of bars) {
+    assert.ok(Math.abs(bar.middle - bar.height / 2) <= 1, `${bar.name}: the name is in the bar's middle: ${JSON.stringify(bar)}`);
+    for (const key of ['height', 'icon', 'text', 'close', 'closeWidth', 'font', 'border', 'shadow']) {
+      assert.equal(bar[key], first[key], `${bar.name} ${key} matches ${first.name}: ${JSON.stringify(bars)}`);
+    }
+  }
+});
+
+test('a minimized bar names its window in a tooltip, the address under a divider, and drops it when restored', async (t) => {
+  const page = await open(t);
+  const { tip, restoredTip } = await page.evaluate(BARS);
+  assert.equal(tip, '<div class="fm-window-tip-name">Bill Testo</div><div class="fm-window-tip-detail">1 Main St</div>');
+  assert.equal(restoredTip, null);
+});
