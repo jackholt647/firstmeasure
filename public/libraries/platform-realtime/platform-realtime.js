@@ -440,8 +440,10 @@
   function startLiveAssets(orgId){
     orgId=cleanText(orgId);if(root.location?.hostname!=='dev.1m8.ai'||orgId===liveOrg)return;
     liveStop?.();liveOrg=orgId;root.__fmLiveAssets=true;
+    // The live layer finds what a page loaded in its resource timing; the default 250 entries fill on a busy page.
+    try{root.performance?.setResourceTimingBufferSize?.(5000);}catch(_){}
     liveStop=orgId?watchChannel(orgId,'live-assets',{onEvent(event,data){
-      import('/libraries/live-assets/live-assets.js?v=20261123-hot').then(module=>module.receive(event,data)).catch(error=>console.warn('[PlatformRealtime] live assets',error));
+      import('/libraries/live-assets/live-assets.js?v=20261123-hot2').then(module=>module.receive(event,data)).catch(error=>console.warn('[PlatformRealtime] live assets',error));
     }}):null;
   }
   const api = { configure, subscribe, watchChannel, diagnostics, watchPresence, startPresence, recordActivity };
