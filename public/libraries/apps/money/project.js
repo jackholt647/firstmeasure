@@ -373,6 +373,9 @@
       .mn-modal-foot .mn-spacer{margin-right:auto}
       .mn-intake-modal{width:min(940px,100%);padding:18px;overflow:auto}
       .mn-intake-modal>.mn-btn.icon{position:absolute;right:14px;top:14px;z-index:2}
+      /* Leading to payment setup, the close is a guided setup's (.gxs-close, GP-156). */
+      .mn-intake-modal:has([data-fmpi-setup-badge])>.mn-btn.icon{width:36px;height:36px;top:12px;right:12px;border-color:transparent;border-radius:10px;background:rgba(255,255,255,.9);color:#475467;font-size:16px}
+      .mn-intake-modal:has([data-fmpi-setup-badge])>.mn-btn.icon:hover{background:#f2f4f7;color:#101828}
       .mn-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
       .mn-form label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:#344054;min-width:0}
       .mn-form .wide{grid-column:1/-1}
@@ -2711,6 +2714,8 @@
     const reason = cleanText(config?.not_ready_reason);
     const record = { label: (globalThis.PlatformLanguage?.text("money","m_e28623b06e54fa","Record a cash or check payment") ?? "Record a cash or check payment"), onClick: () => { closeModal(); openModal({ type:'add_payment' }); } };
     const setUp = canSetUpPayments();
+    // The tag a guided setup has at its top left, the same as payment setup's own (GP-156).
+    const setupBadge = (globalThis.PlatformLanguage?.text("money","m_95c81d9a92d972","Set up payments") ?? "Set up payments");
     if (!config) {
       return {
         notReadyTitle: (globalThis.PlatformLanguage?.text("money","m_ee79dc11b89d27","Online payments could not be checked") ?? "Online payments could not be checked"),
@@ -2724,14 +2729,16 @@
         notReadyMessage: setUp
           ? (globalThis.PlatformLanguage?.text("money","m_a228986f574138","To take card and bank payments here, set up your payment account first. You only do this once.") ?? "To take card and bank payments here, set up your payment account first. You only do this once.")
           : (globalThis.PlatformLanguage?.text("money","m_ed20a1fba9e02d","Online payments are not set up yet. Ask an administrator to set them up in Settings, Payments.") ?? "Online payments are not set up yet. Ask an administrator to set them up in Settings, Payments."),
-        notReadyActions: setUp ? [{ label: (globalThis.PlatformLanguage?.text("money","m_95c81d9a92d972","Set up payments") ?? "Set up payments"), primary: true, onClick: startPaymentSetup }, record] : [record]
+        notReadyActions: setUp ? [{ label: (globalThis.PlatformLanguage?.text("money","m_95c81d9a92d972","Set up payments") ?? "Set up payments"), primary: true, onClick: startPaymentSetup }, record] : [record],
+        notReadyBadge: setUp ? setupBadge : ''
       };
     }
     if (['not_approved', 'processing_disabled'].includes(reason)) {
       return {
         notReadyTitle: reason === 'not_approved' ? (globalThis.PlatformLanguage?.text("money","m_bd23780eab3341","Payment setup is in review") ?? "Payment setup is in review") : (globalThis.PlatformLanguage?.text("money","m_e688d7fb796e90","Payments are paused") ?? "Payments are paused"),
         notReadyMessage: cleanText(config.message) || (globalThis.PlatformLanguage?.text("money","m_b752fc50bd294b","Online payments are not available yet.") ?? "Online payments are not available yet."),
-        notReadyActions: setUp ? [{ label: (globalThis.PlatformLanguage?.text("money","m_6a00152380cdc8","View payment setup") ?? "View payment setup"), primary: true, onClick: openPaymentSettings }, record] : [record]
+        notReadyActions: setUp ? [{ label: (globalThis.PlatformLanguage?.text("money","m_6a00152380cdc8","View payment setup") ?? "View payment setup"), primary: true, onClick: openPaymentSettings }, record] : [record],
+        notReadyBadge: setUp ? setupBadge : ''
       };
     }
     return {
