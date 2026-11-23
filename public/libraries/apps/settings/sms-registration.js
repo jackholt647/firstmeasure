@@ -677,6 +677,17 @@
       const orgContact = org.contact && typeof org.contact === 'object' ? org.contact : {};
       // FM-595: the website the company gave (onboarding, `/sms/setup`), live or not; still the business's to change.
       next.brand.website = next.brand.website || String(orgContact.website || env.state()?.company_website || '').trim();
+      // GP-149: so are the phone and business address the company saved (Settings › Company). Submitting fills the
+      // company's own only where it has none; a different one typed here stays this registration's.
+      next.brand.phone = next.brand.phone || orgContact.phone || env.state()?.company_phone || '';
+      const setupAddress = normalizeOrganizationBusinessAddress(orgContact.business_address || orgContact.businessAddress || orgContact.address);
+      const businessAddress = Object.values(setupAddress).some(Boolean) ? setupAddress : organizationBusinessAddressFromState();
+      next.brand.street = next.brand.street || businessAddress.address1 || '';
+      next.brand.address2 = next.brand.address2 || businessAddress.address2 || '';
+      next.brand.city = next.brand.city || businessAddress.city || '';
+      next.brand.state = next.brand.state || businessAddress.state || '';
+      next.brand.postalCode = next.brand.postalCode || businessAddress.postal_code || '';
+      next.brand.formattedAddress = next.brand.formattedAddress || formatOrganizationBusinessAddress(businessAddress);
       if (smsRegistrationLiveMode && !profile.id) return prepareSmsProfileForSave(next);
       const currentUser = window.Portal?.currentUser || {};
       const company = String(next.brand.companyName || next.brand.displayName || org.name || window.__APP?.userCompany || '').trim();
@@ -688,15 +699,6 @@
       // address that cannot receive mail, such as a sandbox login at signup-sandbox.test; a draft holding one gets it.
       if (smsUndeliverableEmail(next.brand.email) && !smsHasProviderBrand(profile)) next.brand.email = '';
       next.brand.email = next.brand.email || [orgContact.email, env.state()?.company_email, currentUser.email, window.__APP?.userEmail].map((value) => String(value || '').trim()).find(smsValidEmail) || '';
-      next.brand.phone = next.brand.phone || orgContact.phone || env.state()?.company_phone || '';
-      const setupAddress = normalizeOrganizationBusinessAddress(orgContact.business_address || orgContact.businessAddress || orgContact.address);
-      const businessAddress = Object.values(setupAddress).some(Boolean) ? setupAddress : organizationBusinessAddressFromState();
-      next.brand.street = next.brand.street || businessAddress.address1 || '';
-      next.brand.address2 = next.brand.address2 || businessAddress.address2 || '';
-      next.brand.city = next.brand.city || businessAddress.city || '';
-      next.brand.state = next.brand.state || businessAddress.state || '';
-      next.brand.postalCode = next.brand.postalCode || businessAddress.postal_code || '';
-      next.brand.formattedAddress = next.brand.formattedAddress || formatOrganizationBusinessAddress(businessAddress);
       const fullName = String(currentUser.name || window.__APP?.userName || '').trim();
       if (fullName && (!next.brand.firstName || !next.brand.lastName)) {
         const parts = fullName.split(/\s+/);
@@ -1790,6 +1792,8 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           if (!smsHasProviderBrand(profile) || /failed|rejected|unverified/.test(String(profile?.brand_status || '').toLowerCase())) {
             const brand = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/compliance-profiles/${encodeURIComponent(profile.id)}/submit-brand`, { method: 'POST', body: { submit: true } });
             profile = mergeSmsProfile(brand.profile || profile);
+            // GP-149: the server gave the company this phone or address because it had none.
+            if (Object.keys(brand.organization_contact || {}).length) env.organizationContactFilled?.(brand.organization_contact);
           }
           if (smsHasProviderBrand(profile)) {
             try {
