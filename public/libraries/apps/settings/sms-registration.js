@@ -162,6 +162,8 @@
       .sms-advanced .cs-btn{min-height:40px;border-radius:9px;font-size:13px;font-weight:600;padding:9px 14px;cursor:pointer}
       .sms-advanced .cs-btn.primary{background:var(--primary,#d93025);color:var(--on-primary,#fff);border:0}.sms-advanced .cs-btn.ghost{background:#fff;border:1px solid #d0d5dd;color:#344054}
       .sms-program .sms-ack{margin-top:10px}
+      .sms-review-split{display:grid;grid-template-columns:minmax(180px,240px) minmax(0,1fr);gap:12px;align-items:stretch}.sms-review-number .sms-final-row strong{font-size:15px}.sms-review-number .sms-final-row small{font-size:12px;color:#667085}.sms-review-number .sms-text-button{justify-self:start}
+      @media(max-width:860px){.sms-review-split{grid-template-columns:minmax(0,1fr)}}
       .sms-advanced .sms-feature-grid{gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))}.sms-advanced .sms-feature-tile{min-height:0;padding:12px;border-radius:9px;gap:0;transform:none}.sms-advanced .sms-feature-tile input{width:16px;height:16px;right:10px;top:12px}.sms-advanced .sms-feature-copy strong{font-size:13px;padding-right:20px}.sms-advanced .sms-feature-copy span{font-size:12px;line-height:1.4;margin-top:4px}
       @media(max-width:640px){.sms-advanced .sms-feature-grid{grid-template-columns:1fr}}
       .sms-advanced .sms-field label{font-size:13px;font-weight:600;text-transform:none;letter-spacing:0}.sms-advanced .sms-field input,.sms-advanced .sms-field select,.sms-advanced .sms-field textarea{font-size:14px;font-weight:400}
@@ -1218,14 +1220,16 @@
             <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5d2b9327181e33","Email") ?? "Email")}</span><strong>${String(escapeHtml(brand.email || 'Not set'))}</strong></div>
             <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_53d803cdbe9ab1","Address") ?? "Address")}</span><strong>${String(escapeHtml([brand.street, brand.address2, brand.city, brand.state, brand.postalCode].filter(Boolean).join(', ') || 'Not set'))}</strong></div>
           </div>
-        </div>
-        <div class="sms-final-summary-grid">
-          <div class="sms-final-panel">
-            <h4><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_0912bf5a2cd0ef"," Phone number") ?? " Phone number")}</h4>
-            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_7ed66a4e107033","Phone number") ?? "Phone number")}</span><strong>${String(escapeHtml(smsFormatSelectedNumber(profile) || 'Not set'))}</strong></div>
-            ${smsAdditionalNumbers(profile).map(number => `<div class="sms-final-row"><span>${escapeHtml(`Additional number · ${smsAdditionalNumberStatus(profile, number)}`)}</span><strong>${escapeHtml(smsFormatE164ForDisplay(number.phone_number) || number.phone_number)}</strong></div>`).join('')}
-          </div>
         </div>`;
+    }
+    // GP-151: the Review step's narrow number column: one heading, the numbers, and adding another, beside Texting program.
+    function smsReviewNumberPanel(profile){
+      return `<div class="sms-final-panel sms-review-number">
+            <h4><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_0912bf5a2cd0ef"," Phone number") ?? " Phone number")}</h4>
+            <div class="sms-final-row"><strong>${String(escapeHtml(smsFormatSelectedNumber(profile) || 'Not set'))}</strong></div>
+            ${smsAdditionalNumbers(profile).map(number => `<div class="sms-final-row"><strong>${escapeHtml(smsFormatE164ForDisplay(number.phone_number) || number.phone_number)}</strong><small>${escapeHtml(`Additional · ${smsAdditionalNumberStatus(profile, number)}`)}</small></div>`).join('')}
+            ${smsCanAddNumber(profile) ? '<button type="button" class="sms-text-button" data-sms-fix-step="number">Add another number</button>' : ''}
+          </div>`;
     }
     function smsLogEventsToConsole(profile){
       const events = Array.isArray(profile?.events) ? profile.events : [];
@@ -1430,7 +1434,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           ${smsField('campaign.termsAndConditionsLink', 'Texting terms link', c.termsAndConditionsLink, { required: true, disabled: submitted, inputmode: 'url', placeholder: (websiteNormalized ? websiteNormalized.replace(/^https?:\/\//, '') : 'example.com') + '/sms-terms' })}
         </div>${smsExample('What carriers need on these pages', `Both pages must be public and on your website. Privacy policy: what you collect and how customers reach you, and that mobile numbers and texting consent are never shared with third parties for marketing. Texting terms: your business name, what you text about, that message frequency varies and message and data rates may apply, reply STOP to opt out and HELP for help, and a link to your privacy policy.`)}`;
     }
-    function smsSummaryContent(profile){
+    function smsSummaryContent(profile, options = {}){
       const submitted = smsHasProviderCampaign(profile) && smsRegistrationLocked(profile);
       const campaign = profile.campaign || {};
       const edit = (step, label) => submitted ? '' : `<button type="button" class="sms-text-button" data-sms-fix-step="${step}">${label}<span aria-hidden="true"> →</span></button>`;
@@ -1438,11 +1442,11 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       return `${status ? `<p class="sms-review-status" role="status">${status}</p>` : ''}
         ${smsSoleProprietorOtpPanel(profile)}
         ${smsReviewRows(profile)}
-        ${smsCanAddNumber(profile) ? '<button type="button" class="sms-text-button" data-sms-fix-step="number">Add another number to this campaign</button>' : ''}
+        <div class="sms-review-split">${smsReviewNumberPanel(profile)}
         <section class="sms-section sms-review-section sms-program"><div class="sms-section-title"><div><h3>Texting program</h3><p>${escapeHtml(smsProgramSummary(profile))}</p></div><button type="button" class="sms-text-button" data-sms-advanced>${submitted ? 'View details' : 'Advanced'}<span aria-hidden="true"> →</span></button></div>
           <div class="sms-review-links">${[['Privacy policy', campaign.privacyPolicyLink, 'privacyPolicyLink'], ['Texting terms', campaign.termsAndConditionsLink, 'termsAndConditionsLink']].map(([label, url, field]) => smsValidHttpsUrl(url) ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${label} <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a>` : `<button type="button" class="sms-review-missing" data-sms-fix-step="business" data-sms-fix-selector='[data-sms-field="campaign.${field}"]'>Add ${label}</button>`).join('')}</div>
-          <label class="sms-ack ${submitted ? 'locked' : ''}"><input type="checkbox" data-sms-flow-ack ${campaign.messageFlowConfirmed ? 'checked' : ''} ${submitted ? 'disabled' : ''}><span>${escapeHtml(smsConsentAttestation(profile))}</span></label></section>
-        ${submitted ? '' : `<div class="sms-summary-checklist ${smsStepIssues('summary', profile).length ? '' : 'ready'}" data-sms-summary-checklist aria-live="polite">${smsSummaryChecklistHtml(profile)}</div>`}`;
+          <label class="sms-ack ${submitted ? 'locked' : ''}"><input type="checkbox" data-sms-flow-ack ${campaign.messageFlowConfirmed ? 'checked' : ''} ${submitted ? 'disabled' : ''}><span>${escapeHtml(smsConsentAttestation(profile))}</span></label></section></div>
+        ${submitted || !options.attempted ? '' : `<div class="sms-summary-checklist ${smsStepIssues('summary', profile).length ? '' : 'ready'}" data-sms-summary-checklist aria-live="polite">${smsSummaryChecklistHtml(profile)}</div>`}`;
     }
     function smsStepContent(step, profile, options = {}){
       const brand = profile.brand || {};
@@ -1501,7 +1505,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       if (step === 'consent') return smsConsentContent(profile);
       if (step === 'messages') return smsMessagesContent(profile);
       if (step === 'number') return smsNumberSelection(profile, options.numberSearch || {});
-      return smsSummaryContent(profile);
+      return smsSummaryContent(profile, options);
     }
     function smsRegistrationHome(profile, profiles = [], setup = {}){
       const started = !!profile.id;
@@ -1746,7 +1750,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         const evidenceRoom = rootEl()?.querySelector('[data-sms-evidence-room]');
         if (evidenceRoom) evidenceRoom.textContent = 2048 - smsReviewerFlow(profile.campaign || {}).length < 240 ? 'Maximum screenshots submitted' : '';
         const stepErrors = rootEl()?.querySelector('[data-sms-step-errors]');
-        if (stepErrors && attemptedSteps.has(ctxRef?.stepId)) {
+        if (stepErrors && attemptedSteps.has(ctxRef?.stepId) && ctxRef?.stepId !== 'summary') {
           const currentIssues = smsStepIssues(ctxRef.stepId, profile);
           stepErrors.innerHTML = currentIssues.length ? `<strong>Finish these details to continue</strong><ul>${smsIssueLinks(currentIssues)}</ul>` : '';
         }
@@ -1773,7 +1777,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           submit.title = '';
         }
         const note = rootEl()?.querySelector('[data-fm-note]');
-        if (note && ctxRef?.stepId === 'summary') note.textContent = operationBusy ? operationMessage || 'Saving…' : smsHasProviderCampaign(profile) ? smsCustomerRegistrationStatus(profile).label : issues.length ? 'Missing fields are listed below.' : 'Ready for submission.';
+        if (note && ctxRef?.stepId === 'summary') note.textContent = operationBusy ? operationMessage || 'Saving…' : smsHasProviderCampaign(profile) ? smsCustomerRegistrationStatus(profile).label : !issues.length ? 'Ready for submission.' : attemptedSteps.has('summary') ? 'Missing fields are listed below.' : '';
       };
       const submitMock = async (submitOptions = {}) => {
         if (numberSearch.choice) { await ctxRef?.goTo?.('number'); submissionError = 'Reserve your new number choice before submitting.'; refresh(); return; }
@@ -2271,11 +2275,11 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       const renderStepBody = (container, shellCtx, stepId) => {
         ctxRef = shellCtx;
         if(developmentStatus?.onboarded){options.inline?.setTitle?.('Fully onboarded for development');container.innerHTML=`<div class="sms-workspace">${options.inline ? '' : '<h3>Fully onboarded for development</h3>'}<p>Brand registration: mock approved</p><p>10DLC campaign: mock approved</p><p>Call center: test transport connected</p><p>All test calls route to ${escapeHtml(developmentStatus.destination)}. These are simulated registrations, not carrier approvals.</p></div>`;return;}
-        const stepIssues = attemptedSteps.has(stepId) ? smsStepIssues(stepId, profile) : [];
+        const stepIssues = attemptedSteps.has(stepId) && stepId !== 'summary' ? smsStepIssues(stepId, profile) : [];
         container.innerHTML = `<div class="sms-workspace">${smsStepHeading(stepId, options.inline)}
           ${submissionError ? `<div class="sms-api-error" role="alert"><strong>We couldn’t complete that step</strong><p>${escapeHtml(submissionError)}</p>${/privacy|polic|terms|consent|opt.in/i.test(submissionError) ? '<button class="sms-text-button" type="button" data-sms-fix-step="consent">Review consent & policy links →</button>' : '<span>Your saved details are still here. Review the message and try again.</span>'}</div>` : ''}
           <p class="sms-muted sms-auto-status" data-sms-auto-status role="status">${escapeHtml(automaticStatusError)}</p>
-          ${smsStepContent(stepId, profile, { numberSearch })}
+          ${smsStepContent(stepId, profile, { numberSearch, attempted: attemptedSteps.has(stepId) })}
           <div class="sms-step-errors" data-sms-step-errors role="alert">${stepIssues.length ? `<strong>Finish these details to continue</strong><ul>${smsIssueLinks(stepIssues)}</ul>` : ''}</div></div>`;
         container.onclick = async (event) => {
           if (event.target.closest('[data-sms-advanced]')) { openAdvanced(); return; }
@@ -2365,7 +2369,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         if (continueButton) continueButton.innerHTML = '<i class="fas fa-paper-plane" aria-hidden="true"></i> Submit campaign';
         const nextButton = container.querySelector('#smsNext');
         if (nextButton) nextButton.innerHTML = `${stepId === 'number' && numberSearch.choice ? 'Reserve number & continue' : `Continue to ${escapeHtml(steps[index + 1]?.label || 'review')}`} <i class="fas fa-arrow-right" aria-hidden="true"></i>`;
-        if (stepId === 'summary' && stepIssues.length && !smsRegistrationSubmitted(profile)) {
+        if (stepId === 'summary' && stepIssues.length && attemptedSteps.has('summary') && !smsRegistrationSubmitted(profile)) {
           const note = shellCtx.root.querySelector('[data-fm-note]');
           if (note) note.textContent = `Finish before submitting: ${stepIssues.slice(0, 3).join(', ')}${stepIssues.length > 3 ? '...' : ''}`;
         }
