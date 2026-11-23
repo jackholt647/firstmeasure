@@ -1375,7 +1375,21 @@
     "m_8dbaca717e8966": {
       "message": "{v4} New list",
       "format": "icu"
-    }
+    },
+    "m_0a24888f7bd132": "This customer",
+    "m_02e85d80532125": "Call: on a live call",
+    "m_a949e18476d681": {
+      "message": "Call: {v0} is not a customer on this project",
+      "format": "icu"
+    },
+    "m_d0c9664c696c05": {
+      "message": "{v0} is not a customer on this project.",
+      "format": "icu"
+    },
+    "m_86f1c669a4feed": "This call is showing in another window.",
+    "m_00954ab71dd9e0": "Show it here",
+    "m_76dbe358f51c1f": "The phone is not available here.",
+    "m_6d11754e227adb": "What can we help you with?"
   },
   "contacts": {
     "m_bdd2018a2c9640": {

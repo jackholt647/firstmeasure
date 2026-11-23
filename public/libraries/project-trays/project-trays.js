@@ -39,7 +39,7 @@
     const widgets = root.FirstMateWidgets;
     if (!widgets) return;
     for (const item of registry.values()) {
-      if (registeredWidgets.has(item.id)) continue;
+      if (registeredWidgets.has(item.id) || item.widget === false) continue;
       registeredWidgets.add(item.id);
       widgets.register({id:'project.'+item.id,version:'1',title:item.label,
         description:item.label+' workspace for a project',app:item.id==='agent'?'assistant':item.id==='todo'?'action_items':'projects',
@@ -56,7 +56,7 @@
   }
   async function mountWidget(node,key,options) {
     registerWidgets();
-    if (!root.FirstMateWidgets) return mountContent(node,key,options);
+    if (!root.FirstMateWidgets || registry.get(key)?.widget === false) return mountContent(node,key,options);
     let contentHandle,renderRoot;
     const widget=root.FirstMateWidgets.mount(node,{id:'project.'+key,version:'1',target:{organizationId:options.orgId,projectId:options.projectId}},
       {...options,surface:'project',onMount:(handle,element)=>{contentHandle=handle;renderRoot=element;}});
@@ -381,10 +381,15 @@ ${C} [data-fma=closeSurface]{width:34px;height:34px;border-radius:10px}
       }
       panels.forEach((node,key)=>node.hidden=key!==lingering); renderTabs(); syncAgentPin();
     }
+    // A tray that comes and goes (GP-155: Call) can say how it stands on its button: `state(project)` is the
+    // button's data-tray-state, `title(project)` its name.
     function renderTabs() {
-      const allowed = definitions().map(item=>[item.id,item.label,item.icon]);
+      const project = getProject();
+      const allowed = definitions().map(item=>[item.id,clean(item.title?.(project)) || item.label,item.icon,clean(item.state?.(project))]);
       if (selected && !allowed.some(([key]) => key === selected)) close();
-      tabs.innerHTML = allowed.map(([key,title,icon]) => `<button type="button" role="tab" data-tray="${key}" aria-label="${title}" title="${title}" aria-selected="${selected === key}"><i class="fas ${icon}" aria-hidden="true"></i><span class="fm-tray-label" aria-hidden="true">${esc(title)}</span></button>`).join('');
+      const focused = tabs.contains(document.activeElement) ? document.activeElement.dataset.tray : '';
+      tabs.innerHTML = allowed.map(([key,title,icon,state]) => `<button type="button" role="tab" data-tray="${key}" aria-label="${esc(title)}" title="${esc(title)}" aria-selected="${selected === key}"${state ? ` data-tray-state="${esc(state)}"` : ''}><i class="fas ${icon}" aria-hidden="true"></i><span class="fm-tray-label" aria-hidden="true">${esc(registry.get(key).label)}</span></button>`).join('');
+      if (focused) tabs.querySelector(`[data-tray="${focused}"]`)?.focus({preventScroll:true});
     }
     // A phone (the window manager's data-window-mobile, else a 760px top-window query) has no
     // header room for the trays: the same buttons, from the same list, become a footer bar
@@ -619,9 +624,10 @@ ${agentBarCss({host:'.fm-project-content',bar:'.fm-project-tray',panel:'.fm-proj
     root.addEventListener('fm:route-state:updated',contextChanged);root.addEventListener('fm:project-window:placement',contextChanged);
     const changed = () => {renderTabs(); handles.get('notes')?.refresh?.();};
     const activityChanged = () => {clearTimeout(activityTimer); activityTimer = setTimeout(() => {if (selected === 'activity') handles.get('activity')?.refresh?.();},400);};
-    root.addEventListener('fm:project-trays:updated',changed); root.addEventListener('fm:capabilities:updated',changed); root.addEventListener('fm:project-notes:refreshed',activityChanged); root.addEventListener('fm:projects:refresh',activityChanged);
+    const selectRequested = event => {const key = clean(event.detail?.key); if (key && available().includes(key) && selected !== key) {interactionVersion++; void open(key);}};
+    root.addEventListener('fm:project-trays:updated',changed); root.addEventListener('fm:project-trays:tabs',renderTabs); root.addEventListener('fm:project-trays:select',selectRequested); root.addEventListener('fm:capabilities:updated',changed); root.addEventListener('fm:project-notes:refreshed',activityChanged); root.addEventListener('fm:projects:refresh',activityChanged);
     update();
-    return {requestClose,update,close,open,available,interactionVersion:()=>interactionVersion,select(key){if(key===null){close();return;}if(!available().includes(key))throw Error('Unavailable project tray: '+key);update();return selected===key?Promise.resolve():open(key);},destroy() {disposed = true;agentCleanup();root.removeEventListener('fm:route-state:updated',contextChanged);root.removeEventListener('fm:project-window:placement',contextChanged);closeMenu?.remove();pinStyle.remove();clearTimeout(activityTimer);handles.forEach(handle => handle.destroy?.());root.removeEventListener('fm:project-trays:updated',changed); root.removeEventListener('fm:capabilities:updated',changed);root.removeEventListener('fm:project-notes:refreshed',activityChanged);root.removeEventListener('fm:projects:refresh',activityChanged);content.before(preview);content.remove();tabs.remove();tabsAnchor.remove();style.remove();}};
+    return {requestClose,update,close,open,available,interactionVersion:()=>interactionVersion,select(key){if(key===null){close();return;}if(!available().includes(key))throw Error('Unavailable project tray: '+key);update();return selected===key?Promise.resolve():open(key);},destroy() {disposed = true;agentCleanup();root.removeEventListener('fm:route-state:updated',contextChanged);root.removeEventListener('fm:project-window:placement',contextChanged);closeMenu?.remove();pinStyle.remove();clearTimeout(activityTimer);handles.forEach(handle => handle.destroy?.());root.removeEventListener('fm:project-trays:updated',changed); root.removeEventListener('fm:project-trays:tabs',renderTabs); root.removeEventListener('fm:project-trays:select',selectRequested); root.removeEventListener('fm:capabilities:updated',changed);root.removeEventListener('fm:project-notes:refreshed',activityChanged);root.removeEventListener('fm:projects:refresh',activityChanged);content.before(preview);content.remove();tabs.remove();tabsAnchor.remove();style.remove();}};
   }
   root.FirstMateProjectTrays = {mount,definitions,register,mountWidget,registerWidgets};
   root.FirstMateAgentBar = {css:agentBarCss,create:createAgentBar};
