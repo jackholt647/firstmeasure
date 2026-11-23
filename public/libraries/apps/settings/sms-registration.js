@@ -67,6 +67,11 @@
       .sms-number-option.selected{border-color:#86efac;background:#f0fdf4;box-shadow:0 0 0 3px rgba(22,101,52,.08)}
       .sms-number-option strong{font-size:17px;font-weight:1000;color:#101828}.sms-number-option span{font-size:11px;font-weight:850;color:#667085}
       .sms-number-option input{position:absolute;opacity:0;pointer-events:none}
+      .sms-number-results{display:grid;gap:12px}.sms-number-searching{display:flex;align-items:center;gap:8px}.sms-number-searching i{color:rgb(var(--primary-rgb,217,48,37))}
+      .sms-number-skeleton{cursor:default;border-color:#eaecf0;min-height:64px;align-content:center}.sms-number-skeleton i{display:block;height:15px;width:64%;border-radius:6px;background:linear-gradient(90deg,#f2f4f7 25%,#e4e7ec 50%,#f2f4f7 75%);background-size:200% 100%;animation:smsSkeleton 1.1s ease-in-out infinite}.sms-number-skeleton i+i{height:10px;width:38%}
+      .sms-number-search.is-loading #sms-number-search{border-color:rgba(var(--primary-rgb,217,48,37),.42)}
+      @keyframes smsSkeleton{0%{background-position:100% 0}100%{background-position:-100% 0}}
+      @media (prefers-reduced-motion:reduce){.sms-number-skeleton i{animation:none}}
       .sms-consent-box{border:1px solid #d0d5dd;background:#fff;border-radius:12px;padding:14px;display:grid;gap:10px}
       .sms-consent-box h4{margin:0;font-size:14px;font-weight:1000;color:#101828}.sms-consent-box p{margin:0;font-size:12px;font-weight:800;color:#667085;line-height:1.5}
       .sms-summary-checklist{border:1px solid #f5c2b8;background:#fff7f5;border-radius:12px;padding:14px;color:#7a271a;font-size:12px;line-height:1.5}
@@ -1250,6 +1255,14 @@
       `).join(''))}</div>
       `;
     }
+    // GP-150: while numbers are being looked up (the draft save, then the provider search) the step shows a spinner and
+    // placeholder cards, so it never looks frozen. paintNumberSearch redraws just this part while the person types.
+    function smsNumberResults(profile, numberSearch = {}){
+      const c = profile.campaign || {}, adding = !!numberSearch.adding && smsCanAddNumber(profile), locked = smsRegistrationLocked(profile) && !adding, choice = numberSearch.choice;
+      if (numberSearch.loading) return `<div class="sms-number-results" data-sms-number-results aria-busy="true"><p class="sms-muted sms-number-searching" role="status"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> ${escapeHtml(globalThis.PlatformLanguage?.text("settings","m_1868baee889a75","Searching...") ?? "Searching...")}</p><div class="sms-number-grid" aria-hidden="true">${'<div class="sms-number-option sms-number-skeleton"><i></i><i></i></div>'.repeat(4)}</div></div>`;
+      const results = numberSearch.results || [];
+      return `<div class="sms-number-results" data-sms-number-results><p class="sms-muted" role="status">${escapeHtml(numberSearch.message || '')}</p><div class="sms-number-grid">${results.filter(number => number.phone_number !== c.selectedNumber && !smsAdditionalNumbers(profile).some(item => item.phone_number === number.phone_number)).map(number=>{const value=number.phone_number;return `<button class="sms-number-option ${value===choice?.phone_number?'selected':''}" type="button" data-sms-choose-number="${escapeHtml(value)}" ${locked?'disabled':''}><strong>${escapeHtml(smsFormatE164ForDisplay(value)||value)}</strong><span>${escapeHtml([number.locality,number.region].filter(Boolean).join(', ') || 'US local number')}</span></button>`;}).join('')}</div></div>`;
+    }
     function smsNumberSelection(profile, numberSearch = {}){
       const c = profile.campaign || {}, adding = !!numberSearch.adding && smsCanAddNumber(profile), locked = smsRegistrationLocked(profile) && !adding, choice = numberSearch.choice;
       const selected = choice?.phone_number || c.selectedNumber || '', purchased = !!profile.provider_refs?.telnyx_number_order_id;
@@ -1262,9 +1275,8 @@
       const extrasHtml = selected && (extras.length || canAdd || soleProprietor) ? `<section class="sms-section sms-extra-numbers" data-sms-extra-numbers><div class="sms-section-title"><div><span class="sms-number-role">Additional numbers</span><p>${soleProprietor ? 'Sole proprietor registrations include one number.' : 'Optional. Each one sends under the same registration.'}</p></div>${canAdd ? '<button type="button" class="sms-text-button" data-sms-add-number><i class="fas fa-plus" aria-hidden="true"></i> Add another number</button>' : ''}</div>${extras.map(number => `<div class="sms-final-row" data-sms-extra-number="${escapeHtml(number.phone_number)}"><strong>${escapeHtml(smsFormatE164ForDisplay(number.phone_number) || number.phone_number)}</strong><span>${escapeHtml([[number.locality, number.region].filter(Boolean).join(', '), smsAdditionalNumberStatus(profile, number)].filter(Boolean).join(' · '))}</span></div>`).join('')}</section>` : '';
       const selectedHtml = selected ? `<section class="sms-section"><div class="sms-section-title"><div><span class="sms-number-role">Primary number</span><h3>${escapeHtml(smsFormatE164ForDisplay(selected) || selected)}</h3><p>${escapeHtml([choice?.locality || c.selectedNumberLocality, choice?.region || c.selectedNumberRegion].filter(Boolean).join(', '))}</p></div>${canChange ? '<button type="button" class="sms-text-button" data-sms-change-number>Choose a different number</button>' : ''}</div></section>${extrasHtml}` : '';
       if (selected && !numberSearch.choosing && !adding) return selectedHtml + (choice ? '<p class="sms-muted">Provider charges apply when you reserve this number.</p>' : '');
-      const results = numberSearch.results || [];
-      return `${selectedHtml}<div class="sms-number-search"><div class="sms-number-search-row"><div class="sms-field wide"><label for="sms-number-search">${adding ? 'Area code for the additional number' : 'Enter desired area code'}</label><input id="sms-number-search" data-sms-field="campaign.selectedNumberAreaCode" inputmode="numeric" placeholder="e.g. 206" maxlength="6" value="${escapeHtml(query)}" ${locked?'disabled':''}></div></div>
-        <p class="sms-muted" role="status">${escapeHtml(numberSearch.message || '')}</p><div class="sms-number-grid">${results.filter(number => number.phone_number !== c.selectedNumber && !smsAdditionalNumbers(profile).some(item => item.phone_number === number.phone_number)).map(number=>{const value=number.phone_number;return `<button class="sms-number-option ${value===choice?.phone_number?'selected':''}" type="button" data-sms-choose-number="${escapeHtml(value)}" ${locked?'disabled':''}><strong>${escapeHtml(smsFormatE164ForDisplay(value)||value)}</strong><span>${escapeHtml([number.locality,number.region].filter(Boolean).join(', ') || 'US local number')}</span></button>`;}).join('')}</div>${adding ? `<div class="sms-evidence-actions"><button type="button" class="cs-btn primary" data-sms-reserve-additional ${choice?'':'disabled'}>Reserve additional number</button><button type="button" class="cs-btn" data-sms-cancel-additional>Cancel</button></div>` : ''}</div>`;
+      return `${selectedHtml}<div class="sms-number-search${numberSearch.loading ? ' is-loading' : ''}"><div class="sms-number-search-row"><div class="sms-field wide"><label for="sms-number-search">${adding ? 'Area code for the additional number' : 'Enter desired area code'}</label><input id="sms-number-search" data-sms-field="campaign.selectedNumberAreaCode" inputmode="numeric" placeholder="e.g. 206" maxlength="6" value="${escapeHtml(query)}" ${numberSearch.loading?'aria-busy="true"':''} ${locked?'disabled':''}></div></div>
+        ${smsNumberResults(profile, numberSearch)}${adding ? `<div class="sms-evidence-actions"><button type="button" class="cs-btn primary" data-sms-reserve-additional ${choice?'':'disabled'}>Reserve additional number</button><button type="button" class="cs-btn" data-sms-cancel-additional>Cancel</button></div>` : ''}</div>`;
     }
     function smsSubmissionBanner(profile){
       const status = smsCustomerRegistrationStatus(profile);
@@ -1834,36 +1846,47 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           } else refresh();
         }
       };
+      // GP-150: redraw only the results under the area code field, so typing keeps focus and caret.
+      const paintNumberSearch = () => {
+        const results = rootEl()?.querySelector('[data-sms-number-results]');
+        if (!results) return;
+        results.outerHTML = smsNumberResults(profile, numberSearch);
+        const search = rootEl()?.querySelector('.sms-number-search');
+        search?.classList.toggle('is-loading', !!numberSearch.loading);
+        const input = search?.querySelector('#sms-number-search');
+        if (numberSearch.loading) input?.setAttribute('aria-busy', 'true'); else input?.removeAttribute('aria-busy');
+      };
       const searchSmsNumbers = async (queryInput) => {
         const revision = ++numberSearchRevision;
         const areaInput = rootEl()?.querySelector('[data-sms-field="campaign.selectedNumberAreaCode"]');
         const query = String(queryInput ?? areaInput?.value ?? numberSearch.query ?? '').replace(/\D/g, '').slice(0, 6);
         const areaCode = query.slice(0, 3);
         if (query.length < 3) {
-          numberSearch = { ...numberSearch, query, areaCode, results: [], searched: false, message: '' };
+          numberSearch = { ...numberSearch, query, areaCode, results: [], searched: false, loading: false, message: '' };
           profile = prepareSmsProfileForSave({ ...smsCollect(rootEl(), profile), campaign: { ...smsCollect(rootEl(), profile).campaign, selectedNumberSearch: query, selectedNumberAreaCode: areaCode } });
           refocusNumberSearch = true;
           refresh();
           return;
         }
         if (!smsValidAreaCode(areaCode)) {
-          numberSearch = { ...numberSearch, query, areaCode, results: [], searched: true, message: (globalThis.PlatformLanguage?.text("settings","m_79ec023f394f16","Enter a valid three digit area code.") ?? "Enter a valid three digit area code.") };
+          numberSearch = { ...numberSearch, query, areaCode, results: [], searched: true, loading: false, message: (globalThis.PlatformLanguage?.text("settings","m_79ec023f394f16","Enter a valid three digit area code.") ?? "Enter a valid three digit area code.") };
           refocusNumberSearch = true;
           refresh();
           return;
         }
         profile = prepareSmsProfileForSave({ ...smsCollect(rootEl(), profile), campaign: { ...smsCollect(rootEl(), profile).campaign, selectedNumberSearch: query, selectedNumberAreaCode: areaCode } });
         setStatus('Searching numbers...');
-        numberSearch = { ...numberSearch, query, areaCode, results: [], searched: true, message: (globalThis.PlatformLanguage?.text("settings","m_1868baee889a75","Searching...") ?? "Searching...") };
+        numberSearch = { ...numberSearch, query, areaCode, results: [], searched: true, loading: true, message: (globalThis.PlatformLanguage?.text("settings","m_1868baee889a75","Searching...") ?? "Searching...") };
+        paintNumberSearch();
         const saved = await flushDraft();
         if (revision !== numberSearchRevision) return;
         if (!saved) {
-          numberSearch = { ...numberSearch, message: (globalThis.PlatformLanguage?.text("settings","m_2bb1ea5a2c0f54","Save the registration before searching numbers.") ?? "Save the registration before searching numbers.") };
+          numberSearch = { ...numberSearch, loading: false, message: (globalThis.PlatformLanguage?.text("settings","m_2bb1ea5a2c0f54","Save the registration before searching numbers.") ?? "Save the registration before searching numbers.") };
           refresh();
           return;
         }
         if (!profile.id) {
-          numberSearch = { ...numberSearch, query, areaCode, message: (globalThis.PlatformLanguage?.text("settings","m_2bb1ea5a2c0f54","Save the registration before searching numbers.") ?? "Save the registration before searching numbers.") };
+          numberSearch = { ...numberSearch, query, areaCode, loading: false, message: (globalThis.PlatformLanguage?.text("settings","m_2bb1ea5a2c0f54","Save the registration before searching numbers.") ?? "Save the registration before searching numbers.") };
           refocusNumberSearch = true;
           refresh();
           return;
@@ -1879,6 +1902,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
             areaCode,
             results: filtered,
             searched: true,
+            loading: false,
             message: filtered.length === 0 ? 'No numbers found.' : ((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_022bb1598621d6",`${v0} number${v1} found.`,{v0,v1}) ?? `${v0} number${v1} found.`)(filtered.length,filtered.length === 1 ? '' : 's')
           };
           setStatus('Choose a number.');
@@ -1886,7 +1910,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           refresh();
         } catch (error) {
           if (revision !== numberSearchRevision) return;
-          numberSearch = { ...numberSearch, query, areaCode, results: [], searched: true, message: error?.message || 'Could not search numbers.' };
+          numberSearch = { ...numberSearch, query, areaCode, results: [], searched: true, loading: false, message: error?.message || 'Could not search numbers.' };
           setStatus(numberSearch.message);
           showToast((globalThis.PlatformLanguage?.text("settings","m_8fa5b8f8f0f191","Number search failed") ?? "Number search failed"), numberSearch.message, false);
           refocusNumberSearch = true;
@@ -1897,7 +1921,9 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         ++numberSearchRevision;
         const query = String(input?.value || '').replace(/\D/g, '').slice(0, 6);
         if (input && input.value !== query) input.value = query;
-        numberSearch = { ...numberSearch, query, areaCode: query.slice(0, 3), message: query.length < 3 ? '' : 'Searching...' };
+        const loading = query.length >= 3 && smsValidAreaCode(query.slice(0, 3));
+        numberSearch = { ...numberSearch, query, areaCode: query.slice(0, 3), loading, ...(loading ? { results: [] } : {}), message: query.length < 3 ? '' : 'Searching...' };
+        if (loading) paintNumberSearch();
         profile = prepareSmsProfileForSave({ ...smsCollect(rootEl(), profile), campaign: { ...smsCollect(rootEl(), profile).campaign, selectedNumberSearch: query, selectedNumberAreaCode: query.slice(0, 3) } });
         if (numberSearchTimer) clearTimeout(numberSearchTimer);
         numberSearchTimer = setTimeout(() => {
@@ -1911,7 +1937,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         if (!choice) return;
         ++numberSearchRevision;
         if (numberSearchTimer) { clearTimeout(numberSearchTimer); numberSearchTimer = null; }
-        numberSearch = { ...numberSearch, choice, choosing: false }; refresh();
+        numberSearch = { ...numberSearch, choice, choosing: false, loading: false }; refresh();
       };
       const reserveSmsNumber = async () => {
         const choice = numberSearch.choice; if (!choice) return true;
@@ -2268,14 +2294,14 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           input.disabled = true;
         });
         if (!carrierRegistration) void window.Portal?.PhoneTray?.developmentSetup(container,status=>{if(!developmentStatus?.onboarded){developmentStatus=status;refresh();}});
-        container.querySelector('[data-sms-change-number]')?.addEventListener('click', () => { numberSearchRevision++; if (numberSearchTimer) clearTimeout(numberSearchTimer); numberSearch = { ...numberSearch, choice: null, choosing: true, query: '', areaCode: '', results: [], searched: false, message: '' }; profile.campaign = { ...profile.campaign, selectedNumberAreaCode: '', selectedNumberSearch: '' }; refresh(); });
+        container.querySelector('[data-sms-change-number]')?.addEventListener('click', () => { numberSearchRevision++; if (numberSearchTimer) clearTimeout(numberSearchTimer); numberSearch = { ...numberSearch, choice: null, choosing: true, query: '', areaCode: '', results: [], searched: false, loading: false, message: '' }; profile.campaign = { ...profile.campaign, selectedNumberAreaCode: '', selectedNumberSearch: '' }; refresh(); });
         container.querySelector('[data-sms-add-number]')?.addEventListener('click', async () => {
           if (operationBusy) return;
           if (numberSearch.choice && !numberSearch.adding && (await reserveSmsNumber()) !== true) return;
-          numberSearch = { ...numberSearch, adding: true, choice: null, query: '', areaCode: '', results: [], searched: false, message: '' }; refresh();
+          numberSearch = { ...numberSearch, adding: true, choice: null, query: '', areaCode: '', results: [], searched: false, loading: false, message: '' }; refresh();
           rootEl()?.querySelector('#sms-number-search')?.focus();
         });
-        container.querySelector('[data-sms-cancel-additional]')?.addEventListener('click', () => { numberSearch = { ...numberSearch, adding: false, choice: null, query: '', areaCode: '', results: [], searched: false, message: '' }; refresh(); });
+        container.querySelector('[data-sms-cancel-additional]')?.addEventListener('click', () => { numberSearch = { ...numberSearch, adding: false, choice: null, query: '', areaCode: '', results: [], searched: false, loading: false, message: '' }; refresh(); });
         container.querySelector('[data-sms-reserve-additional]')?.addEventListener('click', () => { void reserveSmsNumber(); });
         container.querySelectorAll('[data-sms-choose-number]').forEach((button) => {
           button.addEventListener('click', () => chooseSmsNumber(button));
