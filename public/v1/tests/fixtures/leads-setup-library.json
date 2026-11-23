@@ -18,7 +18,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-3"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-4"
       },
       "options": {
         "part": "sources"
@@ -58,7 +58,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-3"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-4"
       },
       "options": {
         "part": "contact"
@@ -100,7 +100,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-3"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-4"
       },
       "options": {
         "part": "no_answer"
@@ -142,7 +142,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-3"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-4"
       },
       "options": {
         "part": "questions"
@@ -184,7 +184,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-3"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-4"
       },
       "options": {
         "part": "script"
@@ -226,7 +226,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-3"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-4"
       },
       "options": {
         "part": "new_menu"
