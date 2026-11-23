@@ -1,0 +1,73 @@
+import type { JsonObject } from "../../platform/storage.js";
+import type { FlowDefinition } from "../../flows/contracts.js";
+import * as store from "./storage.js";
+import { text, object, strings } from "./storage.js";
+
+/**
+ * Call scripts became flows on 2026-11-23 (docs/architecture/flows.md, "The call surface"). The flat platform scripts
+ * (`customer_call_scripts`: sections of text plus untyped questions keyed by position) are copied once into `call`
+ * flows: each section is a step of `say` lines, the questions are one last step of `ask` blocks keyed `q_<n>`, and a
+ * published script stays published. Then the table is dropped. No customer used these scripts, so nothing else is kept.
+ */
+export type LegacyScript = { title: string; sections: Array<{ title?: string; body?: string }>; questions: string[]; department_ids?: string[] };
+
+const chunks = (value: string, size: number) => { const out: string[] = []; for (let at = 0; at < value.length; at += size) out.push(value.slice(at, at + size)); return out; };
+
+export function callScriptFlow(script: LegacyScript, legacyId = ""): FlowDefinition {
+  const sections = script.sections.map((section) => ({ title: text(section.title), body: text(section.body) })).filter((section) => section.title || section.body);
+  const questions = script.questions.map(text).filter(Boolean);
+  const steps: FlowDefinition["steps"] = sections.map((section, index) => ({
+    id: `section_${index + 1}`, title: section.title.slice(0, 200),
+    blocks: chunks(section.body, 4000).map((part, line) => ({ id: `say_${line + 1}`, kind: "say" as const, label: "", text: part })),
+    next: null
+  }));
+  if (questions.length) steps.push({ id: "questions", title: "Questions", next: null,
+    blocks: questions.map((question, index) => ({ id: `q_${index + 1}`, kind: "ask" as const, key: `q_${index + 1}`, label: question.slice(0, 300), input: "text" as const, options: [], required: false, placeholder: "" })) });
+  if (!steps.length) steps.push({ id: "section_1", title: "", blocks: [], next: null });
+  steps.forEach((step, index) => { step.next = steps[index + 1]?.id ?? null; });
+  return {
+    name: text(script.title).slice(0, 120) || "Call script", description: "", icon: "fa-phone-volume", color: "#2563eb", kind: "call", audience: "staff",
+    start: steps[0]!.id, steps, outcomes: [], entry: {},
+    metadata: { created_from: "customer_call_scripts", ...(legacyId ? { legacy_script_id: legacyId } : {}), ...(script.department_ids?.length ? { department_ids: script.department_ids } : {}) }
+  } as FlowDefinition;
+}
+
+async function legacyTableExists() {
+  const db = store.database();
+  const row = await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='customer_call_scripts'",
+    "SELECT table_name AS name FROM information_schema.tables WHERE table_schema=current_schema() AND table_name='customer_call_scripts'").get();
+  return !!row;
+}
+
+/** Copies every organization's call scripts into flows (newest version of each), then drops the old table. Safe to run again. */
+export async function migrateCallScriptsToFlows() {
+  if (!(await legacyTableExists())) return { migrated: 0, dropped: false };
+  const db = store.database();
+  const rows = (await db.prepare("SELECT * FROM customer_call_scripts ORDER BY organization_id, id, version").all()).map(object);
+  const scripts = new Map<string, Array<Record<string, unknown>>>();
+  for (const row of rows) { const key = `${text(row.organization_id)} ${text(row.id)}`; scripts.set(key, [...(scripts.get(key) || []), row]); }
+  const { parseFlow } = await import("../../flows/service.js");
+  const { readHead, writeVersion } = await import("../../flows/storage.js");
+  const definitionOf = (row: Record<string, unknown>) => {
+    let data: JsonObject = {};
+    try { data = object(JSON.parse(text(row.data_json) || "{}")) as JsonObject; } catch { /* an unreadable script becomes an empty one */ }
+    return parseFlow(callScriptFlow({ title: text(row.title), sections: (Array.isArray(data.sections) ? data.sections : []).map(object), questions: Array.isArray(data.questions) ? data.questions.map(text) : [],
+      department_ids: strings(data.department_ids) }, text(row.id)));
+  };
+  let migrated = 0;
+  for (const versions of scripts.values()) {
+    const latest = versions[versions.length - 1]!, org = text(latest.organization_id);
+    if (text(latest.status) === "archived") continue;
+    const flowId = `call_script_${text(latest.id).replace(/[^A-Za-z0-9_.-]/g, "_")}`.slice(0, 80);
+    if (await readHead(org, flowId)) continue;
+    // What calls played (the newest published version) stays what plays; a newer unpublished draft follows it as a draft.
+    const published = [...versions].reverse().find((row) => text(row.status) === "published");
+    for (const row of published && published !== latest ? [published, latest] : [latest]) {
+      const definition = definitionOf(row);
+      await writeVersion(org, flowId, { name: definition.name, kind: definition.kind, definition: definition as unknown as JsonObject, publish: text(row.status) === "published", authorId: text(row.author_id) });
+    }
+    migrated++;
+  }
+  await db.exec("DROP TABLE IF EXISTS customer_call_scripts");
+  return { migrated, dropped: true };
+}

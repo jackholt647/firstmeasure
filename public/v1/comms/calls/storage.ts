@@ -89,11 +89,6 @@ export async function initializeCustomerCallsSchema(db: SqlStore) {
       organization_id TEXT NOT NULL, resource TEXT NOT NULL, owner_user_id TEXT NOT NULL, call_id TEXT NOT NULL DEFAULT '',
       expires_at TEXT NOT NULL, PRIMARY KEY(organization_id,resource)
     );
-    CREATE TABLE IF NOT EXISTS customer_call_scripts (
-      organization_id TEXT NOT NULL, id TEXT NOT NULL, version INTEGER NOT NULL, title TEXT NOT NULL,
-      status TEXT NOT NULL, data_json TEXT NOT NULL, created_at TEXT NOT NULL, author_id TEXT NOT NULL,
-      PRIMARY KEY(organization_id,id,version)
-    );
     CREATE TABLE IF NOT EXISTS customer_call_artifacts (
       id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, call_id TEXT NOT NULL REFERENCES customer_calls(id),
       kind TEXT NOT NULL, state TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL,

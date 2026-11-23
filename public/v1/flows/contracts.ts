@@ -49,8 +49,24 @@ export type FlowBlock = z.infer<typeof blockSchema>;
 const next = z.union([id, z.null(), z.object({ branches: z.array(z.object({ when: conditions, to: id }).strict()).max(20), otherwise: id.nullable().default(null) }).strict()]);
 export const stepSchema = z.object({ id, title: label(200), blocks: z.array(blockSchema).max(40).default([]), next: next.default(null) }).strict();
 export type FlowStep = z.infer<typeof stepSchema>;
-export const outcomeSchema = z.object({ id, label: label(120), color: z.string().trim().max(20).default("#667085"), effects: z.array(automation).max(12).default([]) }).strict();
+/** A call's wrap-up results (comms/calls wrap-up). A `call` flow's outcome names the one it means; see `callResultForOutcome`. */
+export const CALL_DISPOSITIONS = ["answered", "voicemail", "no_answer", "busy", "wrong_number", "callback", "do_not_call", "technical_failure"] as const;
+export const CALL_NEXT_ACTIONS = ["none", "complete", "follow_up", "scheduled"] as const;
+export const outcomeSchema = z.object({ id, label: label(120), color: z.string().trim().max(20).default("#667085"), effects: z.array(automation).max(12).default([]),
+  /** On the call surface: the wrap-up this outcome pre-fills. Unset falls back to the outcome id's usual meaning. */
+  call: z.object({ disposition: z.enum(CALL_DISPOSITIONS).optional(), next_action: z.enum(["none", "complete"]).optional() }).strict().optional() }).strict();
 export type FlowOutcome = z.infer<typeof outcomeSchema>;
+
+/** The industry-default reading of common outcome ids, used when an outcome does not say which call result it is. */
+const DISPOSITION_BY_OUTCOME: Record<string, (typeof CALL_DISPOSITIONS)[number]> = {
+  ready: "answered", booked: "answered", appointment: "answered", interested: "answered", answered: "answered", not_interested: "answered",
+  call_back: "callback", callback: "callback", no_answer: "no_answer", voicemail: "voicemail", busy: "busy",
+  not_a_lead: "wrong_number", wrong_number: "wrong_number", do_not_call: "do_not_call"
+};
+/** The call wrap-up an outcome pre-fills: its own `call` mapping, else the default for its id; no disposition when neither says. */
+export function callResultForOutcome(outcome: Pick<FlowOutcome, "id"> & { call?: FlowOutcome["call"] }) {
+  return { disposition: outcome.call?.disposition || DISPOSITION_BY_OUTCOME[outcome.id] || "", next_action: outcome.call?.next_action || "none" };
+}
 
 const entry = z.object({ enabled: z.boolean().default(false), label: label(60), icon: z.string().trim().max(60).default(""), role_ids: z.array(z.string().trim().max(120)).max(40).default([]), sort_order: z.number().int().default(0) }).strict();
 export const flowDefinitionSchema = z.object({
@@ -66,33 +82,38 @@ export const flowDefinitionSchema = z.object({
   entry: z.object({ new_menu: entry.optional(), project: entry.optional(), contact: entry.optional() }).strict().default({}),
   metadata: z.record(z.unknown()).default({})
 }).strict().superRefine((flow, ctx) => {
+  // Every issue names where it is (`path`), so the editor shows it next to the step, block or option it is about.
+  const issue = (message: string, path: Array<string | number>) => ctx.addIssue({ code: z.ZodIssueCode.custom, message, path });
   const steps = new Set<string>(), outcomes = new Set(flow.outcomes.map((outcome) => outcome.id));
-  for (const step of flow.steps) {
-    if (steps.has(step.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Step "${step.id}" is used twice.` });
+  flow.steps.forEach((step, s) => {
+    if (steps.has(step.id)) issue(`Step "${step.id}" is used twice.`, ["steps", s, "id"]);
     steps.add(step.id);
-  }
-  if (!steps.has(flow.start)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `The flow starts at "${flow.start}", which is not a step.` });
-  const step = (to: string | null | undefined, where: string) => { if (to && !steps.has(to)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${where} goes to "${to}", which is not a step.` }); };
-  const outcome = (to: string | undefined, where: string) => { if (to && !outcomes.has(to)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${where} ends with "${to}", which is not an outcome.` }); };
+  });
+  const outcomeIds = new Set<string>();
+  flow.outcomes.forEach((outcome, o) => { if (outcomeIds.has(outcome.id)) issue(`Outcome "${outcome.id}" is used twice.`, ["outcomes", o, "id"]); outcomeIds.add(outcome.id); });
+  if (!steps.has(flow.start)) issue(`The flow starts at "${flow.start}", which is not a step.`, ["start"]);
+  const step = (to: string | null | undefined, where: string, path: Array<string | number>) => { if (to && !steps.has(to)) issue(`${where} goes to "${to}", which is not a step.`, path); };
+  const outcome = (to: string | undefined, where: string, path: Array<string | number>) => { if (to && !outcomes.has(to)) issue(`${where} ends with "${to}", which is not an outcome.`, path); };
   const keys = new Set<string>();
-  for (const entry of flow.steps) {
+  flow.steps.forEach((entry, s) => {
     const next = entry.next;
-    if (typeof next === "string") step(next, `Step "${entry.id}"`);
-    else if (next) { next.branches.forEach((branch) => step(branch.to, `Step "${entry.id}"`)); step(next.otherwise, `Step "${entry.id}"`); }
+    if (typeof next === "string") step(next, `Step "${entry.id}"`, ["steps", s, "next"]);
+    else if (next) { next.branches.forEach((branch, b) => step(branch.to, `Step "${entry.id}"`, ["steps", s, "next", "branches", b, "to"])); step(next.otherwise, `Step "${entry.id}"`, ["steps", s, "next", "otherwise"]); }
     const blocks = new Set<string>();
-    for (const block of entry.blocks) {
-      if (blocks.has(block.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Step "${entry.id}" uses block id "${block.id}" twice.` });
+    entry.blocks.forEach((block, b) => {
+      const at = ["steps", s, "blocks", b];
+      if (blocks.has(block.id)) issue(`Step "${entry.id}" uses block id "${block.id}" twice.`, [...at, "id"]);
       blocks.add(block.id);
       if (block.kind === "ask" || block.kind === "choice") {
-        if (keys.has(block.key)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `The answer "${block.key}" is asked twice.` });
+        if (keys.has(block.key)) issue(`The answer "${block.key}" is asked twice.`, [...at, "key"]);
         keys.add(block.key);
-        block.options.forEach((choice) => { step(choice.to, `"${block.label || block.key}"`); outcome(choice.outcome, `"${block.label || block.key}"`); });
+        block.options.forEach((choice, o) => { step(choice.to, `"${block.label || block.key}"`, [...at, "options", o, "to"]); outcome(choice.outcome, `"${block.label || block.key}"`, [...at, "options", o, "outcome"]); });
       }
-      if (block.kind === "outcome") outcome(block.outcome, `Step "${entry.id}"`);
-    }
-  }
+      if (block.kind === "outcome") outcome(block.outcome, `Step "${entry.id}"`, [...at, "outcome"]);
+    });
+  });
   if (flow.audience === "public" && flow.steps.some((entry) => entry.blocks.some((block) => ["contact", "project", "action", "outcome"].includes(block.kind))))
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A public flow cannot find, create or run actions yet (phase 3)." });
+    issue("A public flow cannot find, create or run actions yet (phase 3).", ["audience"]);
 });
 export type FlowDefinition = z.infer<typeof flowDefinitionSchema>;
 

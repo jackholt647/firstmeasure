@@ -64,13 +64,13 @@ test('the Call Center draws each mode at once and fills it in as its data arrive
     assert.equal(now.blank, false, 'no full-view loading message');
     assert.ok(now.placeholders >= 1);
     assert.doesNotMatch(now.text, /Browser calling is off/, 'no setup notice before the status is known');
-    assert.deepEqual((await page.evaluate(() => window.__waiting())).sort(), ['call-lists/queue', 'call-scripts', 'voice/status'], 'leads are asked for with the status, not after it');
+    assert.deepEqual((await page.evaluate(() => window.__waiting())).sort(), ['call-lists/queue', 'voice/status'], 'leads are asked for with the status, not after it');
     // The 5-second refresh does not start the view over while it is still on its way (a slow answer was dropped every time).
     await page.evaluate(() => document.activeElement?.blur());
     await page.clock.runFor(16000);
-    assert.equal((await page.evaluate(() => window.__waiting())).length, 3, 'no refresh over a load in flight');
+    assert.equal((await page.evaluate(() => window.__waiting())).length, 2, 'no refresh over a load in flight');
     await page.evaluate((status) => window.__release('voice/status', status), STATUS);
-    await page.evaluate((queue) => { window.__release('call-lists/queue', queue); window.__release('call-scripts', { scripts: [] }); }, QUEUE);
+    await page.evaluate((queue) => { window.__release('call-lists/queue', queue); }, QUEUE);
     await page.waitForFunction(() => document.querySelector('.fmcc-lead'));
     assert.equal((await shown(page)).placeholders, 0);
     await page.waitForFunction(() => window.__held.length === 0);
@@ -99,7 +99,6 @@ test('the Call Center draws each mode at once and fills it in as its data arrive
     await page.evaluate((status) => {
       window.__release('voice/status', status);
       window.__release('call-lists/queue', { columns: [{ id: 'list_1', key: 'list_1', title: 'Storm leads', tasks: [{ id: 'entry_2', name: 'Priya Raman', phone: '+13035550111', ready: true }] }] });
-      window.__release('call-scripts', { scripts: [] });
     }, STATUS);
     await page.waitForFunction(() => /Priya Raman/.test(document.querySelector('.fmcm-view').textContent));
     await page.evaluate(() => window.__handle.destroy());

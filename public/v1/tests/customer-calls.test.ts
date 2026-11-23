@@ -508,17 +508,75 @@ test('calendar follow-up dates honor the organization timezone and daylight savi
   assert.equal(policyDueAt('America/Los_Angeles',1,'months','',new Date('2026-01-31T18:00:00Z')),'2026-02-28');
 });
 
-test('published scripts remain usable while a later draft is being edited, and archive stops new use',async()=>{
-  const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}`;
-  const body={title:'Opening',status:'published',sections:[{title:'Hello',body:'Original opening'}],questions:['Next step?']};
-  const {script}=await c.request('POST',`${base}/call-scripts`,body);
-  await c.request('POST',`${base}/call-scripts`,{...body,id:script.id,status:'draft',sections:[{title:'Hello',body:'Unpublished change'}]});
-  const published=await c.request('GET',`${base}/call-scripts?published=true`);assert.equal(published.scripts[0].version,1);
-  const {call}=await c.request('POST',`${base}/calls`,{operation_id:'script-version-call',script_id:script.id,customer_number:'+12065550160'});
-  assert.equal(call.metadata.script.data.sections[0].body,'Original opening');
-  await c.request('POST',`${base}/call-scripts`,{...body,id:script.id,status:'archived'});
-  assert.equal((await c.raw('POST',`${base}/calls`,{operation_id:'archived-script-call',script_id:script.id,customer_number:'+12065550161'})).status,404);
-  assert.equal((await store.readCall(orgId,call.id)).metadata.script&&((await store.readCall(orgId,call.id)).metadata.script as any).version,1);
+const callFlow={name:'Inbound script',kind:'call',start:'hello',steps:[
+  {id:'hello',title:'Hello',blocks:[{id:'say',kind:'say',text:'Thanks for calling {{organization.name}}.'},{id:'need',kind:'ask',key:'need',label:'What do you need?',input:'select',options:[{id:'repair',label:'A repair'},{id:'new',label:'A new roof'}]}],next:'result'},
+  {id:'result',title:'How did it go?',blocks:[{id:'r',kind:'choice',key:'result',label:'Result',options:[{id:'book',label:'Booked',outcome:'ready'},{id:'later',label:'Call back',outcome:'later'}]}],next:null}],
+  outcomes:[{id:'ready',label:'Ready for an appointment',effects:[]},{id:'later',label:'Call back later',call:{disposition:'callback'},effects:[]}]};
+
+test('a call plays its script as a flow run whose outcome pre-fills and stays on the wrap-up',async()=>{
+  const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}`,flows=`/v1/flows/organizations/${orgId}`;
+  const {flow}=await c.request('POST',`${flows}/flows`,{definition:callFlow});
+  const draft=(await c.request('POST',`${flows}/flows`,{definition:{...callFlow,name:'Unpublished'},publish:false})).flow;
+  assert.equal((await c.raw('POST',`${base}/calls`,{operation_id:'unpublished-flow-call',flow_id:draft.id,customer_number:'+12065550161'})).status,404,'an unpublished script is refused before dialing');
+  const {call}=await c.request('POST',`${base}/calls`,{operation_id:'flow-script-call',flow_id:flow.id,customer_number:'+12065550160'});
+  const runId=call.metadata.flow_run_id;assert.match(runId,/^flowrun_/);assert.equal(call.metadata.flow.id,flow.id);assert.equal(call.metadata.flow.version,1);
+  const view=await c.request('GET',`${flows}/runs/${runId}`);assert.equal(view.run.call_id,call.id);assert.equal(view.flow.kind,'call');
+  assert.equal(view.step.blocks[0].text,'Thanks for calling Calls Test.');
+  await c.request('POST',`${flows}/runs/${runId}/steps/hello`,{answers:{need:'repair'}});
+  let detail=await c.request('GET',`${base}/calls/${call.id}`);
+  assert.equal(detail.flow_run.status,'open');assert.equal(detail.flow_run.step.title,'How did it go?');assert.deepEqual(detail.flow_run.answers,[{key:'need',label:'What do you need?',value:'A repair'}]);
+  await c.request('POST',`${flows}/runs/${runId}/steps/result`,{answers:{result:'later'}});
+  detail=await c.request('GET',`${base}/calls/${call.id}`);
+  assert.equal(detail.flow_run.outcome.label,'Call back later');
+  assert.deepEqual(detail.call.result.flow_outcome,{run_id:runId,flow_id:flow.id,outcome_id:'later',label:'Call back later',color:'#667085',disposition:'callback',next_action:'none'});
+  const saved=await c.request('POST',`${base}/calls/${call.id}/wrap-up`,{operation_id:'flow-script-wrap',revision:detail.call.revision,disposition:'callback',next_action:'none'});
+  assert.equal(saved.call.result.disposition,'callback');assert.equal(saved.call.result.flow_outcome.outcome_id,'later','the saved wrap-up keeps the script outcome');
+  await worker.processOneJob('flow-script-worker','background',call.id);
+  assert.equal((await c.raw('POST',`${base}/calls/${call.id}/flow`,{flow_id:flow.id})).status,409,'no new script once the outcome is saved');
+});
+
+test('a script can be started during a call, and outcome ids map to dispositions when the outcome does not say',async()=>{
+  const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}`,flows=`/v1/flows/organizations/${orgId}`;
+  const {flow}=await c.request('POST',`${flows}/flows`,{definition:callFlow});
+  const {call}=await c.request('POST',`${base}/calls`,{operation_id:'in-call-script',customer_number:'+12065550162'});
+  assert.equal(call.metadata.flow_run_id,undefined);
+  assert.equal((await c.raw('POST',`${base}/calls/${call.id}/flow`,{})).status,400);
+  const started=await c.request('POST',`${base}/calls/${call.id}/flow`,{flow_id:flow.id});
+  const runId=started.call.metadata.flow_run_id;assert.match(runId,/^flowrun_/);
+  const again=await c.request('POST',`${base}/calls/${call.id}/flow`,{run_id:runId});assert.equal(again.call.metadata.flow_run_id,runId,'carrying on the same run is a no-op');
+  await c.request('POST',`${flows}/runs/${runId}/steps/hello`,{answers:{}});
+  await c.request('POST',`${flows}/runs/${runId}/steps/result`,{answers:{result:'book'}});
+  const outcome=(await store.readCall(orgId,call.id)).result.flow_outcome as any;
+  assert.equal(outcome.disposition,'answered');assert.equal(outcome.outcome_id,'ready');
+  // A run that names a call of another organization is refused.
+  const other=await owner();
+  const {flow:otherFlow}=await other.c.request('POST',`/v1/flows/organizations/${other.orgId}/flows`,{definition:callFlow});
+  assert.equal((await other.c.raw('POST',`/v1/flows/organizations/${other.orgId}/runs`,{flow_id:otherFlow.id,source:{kind:'call',call_id:call.id}})).status,404);
+});
+
+test('platform call scripts move into published call flows once and the old table is dropped',async()=>{
+  const {orgId}=await owner();
+  const db=store.database();
+  await db.exec(`CREATE TABLE IF NOT EXISTS customer_call_scripts (organization_id TEXT NOT NULL, id TEXT NOT NULL, version INTEGER NOT NULL, title TEXT NOT NULL,
+    status TEXT NOT NULL, data_json TEXT NOT NULL, created_at TEXT NOT NULL, author_id TEXT NOT NULL, PRIMARY KEY(organization_id,id,version))`);
+  const insert=(id:string,version:number,status:string,data:unknown,title='Opening')=>db.prepare('INSERT INTO customer_call_scripts(organization_id,id,version,title,status,data_json,created_at,author_id) VALUES(?,?,?,?,?,?,?,?)')
+    .run(orgId,id,version,title,status,JSON.stringify(data),new Date().toISOString(),'author');
+  await insert('script_open',1,'published',{sections:[{title:'Hello',body:'Original opening'},{title:'Close',body:'Thanks!'}],questions:['Next step?','Budget?'],department_ids:['sales']});
+  await insert('script_open',2,'draft',{sections:[{title:'Hello',body:'Unpublished change'}],questions:[]});
+  await insert('script_gone',1,'published',{sections:[{title:'Old',body:'Old'}],questions:[]},'Gone');
+  await insert('script_gone',2,'archived',{sections:[{title:'Old',body:'Old'}],questions:[]},'Gone');
+  const {migrateCallScriptsToFlows}=await import('../comms/calls/script-migration.js');
+  const result=await migrateCallScriptsToFlows();assert.equal(result.dropped,true);assert.ok(result.migrated>=1);
+  const {readFlow}=await import('../flows/service.js');
+  const playing=await readFlow(orgId,'call_script_script_open');
+  assert.equal(playing.kind,'call');assert.equal(playing.version,1);assert.equal(playing.latest_version,2);
+  assert.deepEqual(playing.definition.steps.map(step=>[step.id,step.title,step.next]),[['section_1','Hello','section_2'],['section_2','Close','questions'],['questions','Questions',null]]);
+  assert.equal((playing.definition.steps[0]!.blocks[0] as any).text,'Original opening');
+  assert.deepEqual(playing.definition.steps[2]!.blocks.map((block:any)=>[block.kind,block.key,block.label]),[['ask','q_1','Next step?'],['ask','q_2','Budget?']]);
+  assert.deepEqual(playing.definition.metadata,{created_from:'customer_call_scripts',legacy_script_id:'script_open',department_ids:['sales']});
+  assert.equal((await readFlow(orgId,'call_script_script_open',{latest:true})).status,'draft');
+  await assert.rejects(readFlow(orgId,'call_script_script_gone'),/does not exist/);
+  assert.deepEqual(await migrateCallScriptsToFlows(),{migrated:0,dropped:false},'the table is gone, so a second run does nothing');
 });
 
 test('keeping work open leaves a manual entry queued and a retry with a newer revision cannot duplicate a follow-up',async()=>{

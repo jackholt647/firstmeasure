@@ -17,11 +17,11 @@
   const L = (key, fallback, values) => root.PlatformLanguage?.text?.('flows', key, fallback, values) ?? fallback;
   const orgId = () => clean(root.__APP?.userOrgId || root.__APP?.orgId);
   const toast = (message, kind = 'success') => root.Portal?.ui?.showToast?.(message, kind);
+  /** `/v1/flows`, beside the platform API's base (`/v1/platform`), absolute so PlatformAPI does not prefix it. */
+  const flowsBase = () => new URL((clean(root.PlatformAPI?.baseUrl?.()) || `${location.origin}/v1/platform`).replace(/\/platform\/?$/, '/flows'), location.href).href.replace(/\/$/, '');
   const api = (path, options = {}) => {
     if (!root.PlatformAPI?.request) return Promise.reject(new Error(L('unavailable', 'Flows are not available here.')));
-    // An absolute address: PlatformAPI.request puts relative paths under /v1/platform.
-    const base = clean(root.__APP?.flowsApiBase || `${location.origin}/v1/flows`).replace(/\/+$/, '');
-    return root.PlatformAPI.request(`${base}/organizations/${encodeURIComponent(orgId())}${path}`, options);
+    return root.PlatformAPI.request(`${flowsBase()}/organizations/${encodeURIComponent(orgId())}${path}`, options);
   };
 
   const css = `

@@ -14,7 +14,7 @@ import { readNodeRecord } from '../../work/storage.js';
 import { ensureCallList, upsertCallListEntry, removeCallListEntry,readCallList } from "../call-lists.js";
 import { verifyTelnyxWebhook } from "../../messaging/telnyx_webhooks.js";
 import { voiceSettings, updateVoiceSettings } from "./settings.js";
-import { phoneContacts, createCall, saveDraft, saveWrapUp, requireCallAccess, queues, readEntry, followUps, changeFollowUp, scripts, saveScript, people, projectContext, callContext, manageCalls } from "./service.js";
+import { phoneContacts, createCall, saveDraft, saveWrapUp, requireCallAccess, queues, readEntry, followUps, changeFollowUp, people, projectContext, callContext, manageCalls } from "./service.js";
 import { voiceStatus, provisionVoice, configureVoice, bindNumber, disconnectNumber, endpointToken, disconnectEndpoint, presence, saveDiagnostic, startDiagnostic, callAction } from "./voice.js";
 import { startCallWorker } from "./worker.js";
 import { streamRecording, deleteArtifact } from "./media.js";
@@ -23,6 +23,7 @@ import { reconcileCall } from "./recovery.js";
 import { voiceHealth } from './operations.js';
 import { followUpOptions } from './follow-up-policy.js';
 import { participants, publicParticipants } from './conference.js';
+import { playFlowOnCall, callFlowSummary } from "./flow-runs.js";
 import * as s from "./storage.js";
 import { text, object, type Json } from "./storage.js";
 
@@ -58,6 +59,8 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   s.database();
   registerPhoneSettingsApi(app);
   startCallWorker(app);
+  // Call scripts are flows since 2026-11-23: copy any left in the old table, once, then drop it.
+  void import('./script-migration.js').then(m=>m.migrateCallScriptsToFlows()).then(r=>{if(r.dropped)app.log.info({call_scripts_migrated:r.migrated},'call scripts moved to flows');}).catch(error=>app.log.error({err:error},'call script migration failed'));
   app.addHook('onSend',async(_req,reply,payload)=>{reply.header('Cache-Control','private, no-store');return payload;});
   app.setErrorHandler((error,_req,reply)=>{
     if(error instanceof ZodError)return reply.code(400).send({ok:false,error:"validation_error",message:"Check the highlighted values and try again.",issues:error.issues});
@@ -92,7 +95,12 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
     const ctx=await auth(req);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,"callId"))));
     const artifacts=hasResourcePermission(ctx,"view_call_recordings|manage_communications|manage_company_settings",callDepartmentResource(call))
       ?(await s.artifacts(ctx.orgId,call.id)).filter(a=>text(a.expires_at)>s.now()).map(a=>({id:a.id,kind:a.kind,state:a.state,expires_at:a.expires_at})):[];
-    return {ok:true,call,participants:publicParticipants(await participants(ctx.orgId,call.id)),artifacts,permissions:{record:hasResourcePermission(ctx,'record_calls|manage_communications|manage_company_settings',callDepartmentResource(call)),recordings:hasResourcePermission(ctx,'view_call_recordings|manage_communications|manage_company_settings',callDepartmentResource(call)),analysis_read:hasResourcePermission(ctx,'view_call_recordings',callDepartmentResource(call)),analyze:hasResourcePermission(ctx,'analyze_call_recordings',callDepartmentResource(call))&&hasResourcePermission(ctx,'view_call_recordings',callDepartmentResource(call))},supervision:await supervisionView(ctx,call),work:(await Promise.all(s.strings(call.metadata.source_node_ids).map(async id=>(await readNodeRecord(ctx.orgId,id))))).filter(Boolean).map(node=>({id:node!.id,title:node!.title,status:node!.status})),legs:(await s.legs(ctx.orgId,call.id)).map(l=>({id:l.id,role:l.role,state:l.state})),events:(await s.callEvents(ctx.orgId,call.id)),operations:(await s.jobs(ctx.orgId,call.id))};
+    return {ok:true,call,participants:publicParticipants(await participants(ctx.orgId,call.id)),artifacts,permissions:{record:hasResourcePermission(ctx,'record_calls|manage_communications|manage_company_settings',callDepartmentResource(call)),recordings:hasResourcePermission(ctx,'view_call_recordings|manage_communications|manage_company_settings',callDepartmentResource(call)),analysis_read:hasResourcePermission(ctx,'view_call_recordings',callDepartmentResource(call)),analyze:hasResourcePermission(ctx,'analyze_call_recordings',callDepartmentResource(call))&&hasResourcePermission(ctx,'view_call_recordings',callDepartmentResource(call))},supervision:await supervisionView(ctx,call),work:(await Promise.all(s.strings(call.metadata.source_node_ids).map(async id=>(await readNodeRecord(ctx.orgId,id))))).filter(Boolean).map(node=>({id:node!.id,title:node!.title,status:node!.status})),legs:(await s.legs(ctx.orgId,call.id)).map(l=>({id:l.id,role:l.role,state:l.state})),events:(await s.callEvents(ctx.orgId,call.id)),operations:(await s.jobs(ctx.orgId,call.id)),flow_run:await callFlowSummary(ctx.orgId,call.metadata)};
+  });
+  // The call's script: start a `call` flow on it, or carry on the lead's open run (comms/calls/flow-runs.ts).
+  app.post("/organizations/:orgId/calls/:callId/flow",async req=>{
+    const input=z.object({flow_id:z.string().max(80).optional(),run_id:z.string().max(120).optional()}).strict().parse(body(req));
+    return {ok:true,call:await playFlowOnCall(await auth(req,true),param(req,"callId"),input)};
   });
   app.get('/organizations/:orgId/calls/:callId/follow-up-options',async req=>{const ctx=await auth(req);return {ok:true,...await followUpOptions(requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,'callId')))))};});
   app.patch("/organizations/:orgId/calls/:callId/draft",async req=>({ok:true,call:(await saveDraft(await auth(req,true),param(req,"callId"),body(req)))}));
@@ -178,8 +186,6 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
     return {ok:true,task:result.node};
   });
   app.post("/organizations/:orgId/follow-ups/:nodeId/actions",async req=>({ok:true,task:await changeFollowUp(await auth(req,true),param(req,"nodeId"),body(req))}));
-  app.get("/organizations/:orgId/call-scripts",async req=>{const ctx=await auth(req);return {ok:true,can_manage_departments:canUseScopedPermission(ctx,'manage_communications|manage_company_settings'),department_context:relevantDepartmentContext(ctx),scripts:(await scripts(ctx.orgId,query(req).published==='true')).filter(row=>matchesDepartmentFilter(ctx,object(object(row).data),text(query(req).department_id))&&hasResourcePermission(ctx,'view_comms|manage_communications|manage_company_settings',object(object(row).data)))};});
-  app.post("/organizations/:orgId/call-scripts",async req=>({ok:true,script:(await saveScript(await auth(req,true),body(req)))}));
   app.get("/organizations/:orgId/voice/status",async req=>({ok:true,...(await voiceStatus(await auth(req)))}));
   app.put('/organizations/:orgId/voice/default-number',async req=>{
     const ctx=await auth(req,true),phone=z.string().max(40).parse(body(req).phone_number);

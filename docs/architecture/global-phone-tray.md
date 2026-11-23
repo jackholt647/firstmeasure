@@ -43,6 +43,29 @@ they do not acquire a second microphone or generate simulated activity.
 and inbound agent selection while that caller has an unfinished outcome. Notes
 continue to autosave. Optional outcomes can be skipped without inventing a result.
 
+### The call's script (a flow)
+
+A call script is a `call` flow (`docs/architecture/flows.md`, "The call surface").
+Before dialing, the tray offers the lead's open run of a call flow first
+("Continue: New lead call"), then the organization's published call flows; a
+call list entry's `metadata.flow_id` preselects one. `POST calls` takes
+`flow_id` or `flow_run_id`; during a call, `POST calls/:id/flow` starts or
+carries on one. The call keeps `metadata.flow_run_id` and `metadata.flow`
+(`{id, version, name}`); the owner plays the run with
+`FirstMateFlows.mount(el, { runId, surface: 'call' })` in place of the old
+sections and questions, on an element the panel keeps across its redraws.
+Observers, guests and supervisors see `flow_run` from `GET calls/:id`, a
+read-only summary (step, labelled answers, outcome). The run's answers live on
+the run; notes autosave no longer carries `script_answers`.
+
+When the run ends, its outcome lands on the call as `result.flow_outcome`
+(`{run_id, flow_id, outcome_id, label, color, disposition, next_action}`), and
+its effects run in the work engine. The wrap-up is pre-filled from it
+("From the script: Call back later") and the person can change it;
+`require_disposition` still requires saving it, and the saved wrap-up keeps
+`flow_outcome`. The old platform script tables, routes and Scripts editor are
+gone (`comms/calls/script-migration.ts` copied them into flows once).
+
 Keypad sounds default on. Number typing and keypad clicks synthesize short local
 DTMF frequency pairs; the saved per-account/per-organization browser preference
 is available in Call details & options and beside the active-call keypad. Turning

@@ -2362,6 +2362,7 @@ session_write_close();
   <script src="../libraries/forms-api/forms-api.js?v=<?= portalAssetVersion('../libraries/forms-api/forms-api.js') ?>"></script>
   <script src="../libraries/forms-staff/forms-staff.js?v=<?= portalAssetVersion('../libraries/forms-staff/forms-staff.js') ?>"></script>
   <script src="../libraries/flows/flow-player.js?v=<?= portalAssetVersion('../libraries/flows/flow-player.js') ?>"></script>
+  <script src="../libraries/flows/flow-editor.js?v=<?= portalAssetVersion('../libraries/flows/flow-editor.js') ?>"></script>
   <script src="../libraries/canvassing-api/canvassing-api.js?v=<?= portalAssetVersion('../libraries/canvassing-api/canvassing-api.js') ?>"></script>
   <script src="../libraries/platform-celebrations/platform-celebrations.js?v=<?= portalAssetVersion('../libraries/platform-celebrations/platform-celebrations.js') ?>"></script>
   <script src="../libraries/platform-notifications/platform-notifications.js?v=<?= portalAssetVersion('../libraries/platform-notifications/platform-notifications.js') ?>"></script>
