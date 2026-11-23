@@ -9,13 +9,13 @@ import { registerDataProvider } from "../platform/publication/providers.js";
 import { contentHash } from "../platform/publication/validation.js";
 import type { PublicationContext } from "../platform/publication/contracts.js";
 import { backendImplementationDigest } from "../platform/publication/implementation.js";
-import { listMeasurementDefinitions, listMeasurementSchemas } from "../platform/publication/measurement-schemas.js";
+import { listMeasurementDefinitions, listMeasurementSchemas, measurementBase } from "../platform/publication/measurement-schemas.js";
 import { createOrganizationConnection, listOrganizationConnections } from "../connections/storage.js";
 import { createResourceGroup, listResourceGroups, patchResourceGroup, putResourceGroupMember, readResourceGroup, readWorkforceConfiguration } from "../workforce/storage.js";
 import { listDocuments } from "../platform/storage.js";
 import { readCompanyProfile } from "../company-profile/profile.js";
 import { WORKFORCES, industrySetsFor } from "../company-profile/catalog.js";
-import { listPaySheets, type PaySheet } from "./pay-sheets.js";
+import { listPaySheets, measurementsRead, paySheetCoverRoles, type PaySheet } from "./pay-sheets.js";
 import { listDeclaredCapabilities, serviceTags } from "./capabilities.js";
 import { assigneeTypeIds } from "../assignees/base.js";
 
@@ -45,12 +45,28 @@ const TRIM = ["roofing.edge_metal", "roofing.ridge_cap", "roofing.valleys", "roo
 export const LABOR_PAY_METHODS = ["per_measurement", "hourly", "per_job"] as const;
 
 const assigneeRef = z.object({ type: z.enum(["resource_group", "organization_connection"]), id: z.string().trim().min(1).max(200) }).strict();
+const dollars = z.number().finite().min(0).max(1_000_000);
+/** A pitch in twelfths: 0 is flat, null is no upper end. Ranges start and end where the dictionary's pitch bands do. */
+const pitch = z.number().finite().min(0).max(24);
+/**
+ * One piece rate item (GP-162). Pitch ranges are instead of each other: every square is paid at the rate of the one
+ * range its pitch falls in, and together the ranges take in every pitch. Everything else is added on top: a bonus for
+ * each square in a range of pitches (over 8/12, two dollars more), or a rate per unit of another roofing measurement.
+ */
+const pieceItem = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("pitch_range"), above: pitch, up_to: pitch.nullable(), rate: dollars }).strict(),
+  z.object({ type: z.literal("pitch_bonus"), above: pitch, up_to: pitch.nullable().default(null), rate: dollars }).strict(),
+  z.object({ type: z.literal("measurement"), measurement: z.string().trim().min(1).max(120), rate: dollars }).strict()
+]);
+export type PieceItem = z.infer<typeof pieceItem>;
 const payInput = z.object({
   method: z.enum(LABOR_PAY_METHODS),
-  /** Dollars per unit (per square, per foot, per hour) or per job. */
-  rate: z.number().finite().min(0).max(1_000_000),
-  /** For a piece rate: the roofing measurement it is paid on. Defaults to roof squares. */
-  measurement: z.string().trim().max(120).optional()
+  /** Dollars per unit (per square, per foot, per hour) or per job. A piece rate with `items` has its rates there. */
+  rate: dollars.default(0),
+  /** For a one-line piece rate: the roofing measurement it is paid on. Defaults to roof squares. */
+  measurement: z.string().trim().max(120).optional(),
+  /** For a piece rate: its items, each a line of the pay sheet. Given, they replace `rate` and `measurement`. */
+  items: z.array(pieceItem).min(1).max(30).optional()
 }).strict();
 export const laborSetupInputSchema = z.object({
   assignees: z.array(z.object({
@@ -75,14 +91,90 @@ export const laborSetupInputSchema = z.object({
 }).strict();
 export type LaborSetupInput = z.infer<typeof laborSetupInputSchema>;
 
-/** The roofing measurements a piece rate can be paid on, with their labels and units. */
+const PITCH_BANDS = "roof.pitch_bands";
+/**
+ * The roofing measurements a piece rate can be paid on, with their labels and units: every one the roofing kind of
+ * work measures (GP-162), squares first, then lines. The pitch bands are not listed one by one: a piece rate reads
+ * them as pitch ranges and bonuses (`pitchBands`), and squares at each exact pitch only add up to the roof's squares.
+ */
 export function payMeasurements() {
   const schema = listMeasurementSchemas().find((entry) => entry.id === SCHEMA_ID);
-  const ids = (schema?.measurements || []).map((entry) => entry.definition);
-  const wanted = ["roof.squares", "roof.flat_squares", "roof.squares_9_to_12", "roof.squares_13_plus", "roof.eave_length", "roof.rake_length", "roof.ridge_length", "roof.hip_length", "roof.valley_length"];
-  // By the definition's id (definitionForKey looks up a producer's key, so every label read as its id).
-  const definitions = new Map(listMeasurementDefinitions().map((definition) => [text((definition as { id?: unknown }).id), definition as { label?: unknown; unit?: unknown }]));
-  return wanted.filter((id) => ids.includes(id)).map((id) => { const definition = definitions.get(id); return { id, label: text(definition?.label) || id, unit: text(definition?.unit) }; });
+  const definitions = new Map(listMeasurementDefinitions().map((definition) => [definition.id, definition]));
+  const offered = (schema?.measurements || []).map((entry) => definitions.get(entry.definition)).filter((definition): definition is NonNullable<typeof definition> => !!definition && definition.slice?.partition !== PITCH_BANDS && !definition.keyPattern);
+  const squares = (unit: string) => unit === "roofing_square" || unit === "ft2" ? 0 : 1;
+  return offered.sort((a, b) => squares(a.unit) - squares(b.unit)).map((definition) => ({ id: definition.id, label: text(definition.label) || definition.id, unit: text(definition.unit), ...(definition.slice ? { part_of: measurementBase(definition.id) } : {}) }));
+}
+/**
+ * The dictionary's pitch bands of roof squares, flattest first, each with the pitches it takes in (over `above`, up to
+ * `up_to`; the first starts at 0). A pitch range or bonus starts and ends where these do.
+ */
+export function pitchBands() {
+  return listMeasurementDefinitions().filter((definition) => definition.slice?.partition === PITCH_BANDS && definition.derive)
+    .map((definition) => ({ id: definition.id, label: definition.label, above: Math.max(0, definition.derive!.above), up_to: definition.derive!.upTo }))
+    .sort((a, b) => a.above - b.above);
+}
+const twelfths = (value: number) => `${value}/12`;
+/** What a range of pitches is called on a pay sheet: "Squares over 2/12 up to 8/12". */
+export function pitchRangeLabel(above: number, upTo: number | null) {
+  if (!above && upTo === null) return "All roof squares";
+  if (!above) return `Squares up to ${twelfths(upTo!)}`;
+  return upTo === null ? `Squares over ${twelfths(above)}` : `Squares over ${twelfths(above)} up to ${twelfths(upTo)}`;
+}
+/** The bands a range of pitches takes in, or null when it does not start and end where bands do. */
+function bandsFor(above: number, upTo: number | null) {
+  const bands = pitchBands();
+  const inside = bands.filter((band) => band.above >= above && (upTo === null ? true : band.up_to !== null && band.up_to <= upTo));
+  if (!inside.length || inside[0]!.above !== above || (upTo === null ? inside.at(-1)!.up_to !== null : inside.at(-1)!.up_to !== upTo)) return null;
+  return inside.map((band) => band.id);
+}
+// The trim a line of the roof is the work of, so a rate per foot of it pays for that work.
+const LINE_WORK: Record<string, string> = {
+  "roof.eave_length": "roofing.edge_metal", "roof.rake_length": "roofing.edge_metal", "roof.ridge_length": "roofing.ridge_cap", "roof.hip_length": "roofing.ridge_cap", "roof.valley_length": "roofing.valleys",
+  "roof.head_wall_length": "roofing.wall_flashing", "roof.side_wall_length": "roofing.wall_flashing", "roof.chimney_back_length": "roofing.wall_flashing", "roof.chimney_step_length": "roofing.wall_flashing", "roof.chimney_apron_length": "roofing.wall_flashing", "roof.skylight_length": "roofing.wall_flashing"
+};
+const money = (value: number) => Math.round(value * 100);
+
+/**
+ * A piece rate's items as pay sheet lines. Pitch ranges must take in every pitch once between them; each reads its
+ * bands as one input. A bonus is marked as adjusting the price, so it never counts as paying for the roof a second time.
+ */
+function pieceSheet(items: PieceItem[]) {
+  const offered = new Map(payMeasurements().map((entry) => [entry.id, entry]));
+  const inputs: { name: string; label: string; source: { kind: "measurement"; definition: string; also?: string[]; per_structure?: boolean }; required: boolean }[] = [];
+  const entries: { label: string; kind: "piece_rate"; unit: string; rate_cents: number; input: string; covers: string[]; role?: "adjusts" }[] = [];
+  const read = (name: string, label: string, bands: string[]) => { inputs.push({ name, label, source: { kind: "measurement", definition: bands[0]!, ...(bands.length > 1 ? { also: bands.slice(1) } : {}), per_structure: true }, required: true }); return name; };
+  const ranges = items.filter((item): item is Extract<PieceItem, { type: "pitch_range" }> => item.type === "pitch_range").sort((a, b) => a.above - b.above);
+  if (ranges.length) {
+    // One rate for each range: together they take in every pitch, each once.
+    let from = 0;
+    for (const range of ranges) {
+      if (range.above !== from || (range.up_to !== null && range.up_to <= range.above)) throw badRequest("labor_setup_pitch_ranges", "Pitch ranges must follow on from each other, from flat to the steepest, with no gaps.");
+      from = range.up_to ?? Infinity;
+    }
+    if (from !== Infinity) throw badRequest("labor_setup_pitch_ranges", "The steepest pitch range must take in every pitch above it.");
+  }
+  const used = new Set<string>();
+  for (const item of items) {
+    if (item.type === "measurement") {
+      const measurement = offered.get(item.measurement);
+      if (!measurement) throw badRequest("labor_setup_measurement", `${item.measurement} is not a roofing measurement a piece rate can be paid on.`);
+      if (used.has(item.measurement)) throw badRequest("labor_setup_measurement_twice", `${measurement.label} is paid twice.`);
+      used.add(item.measurement);
+      const area = measurement.unit === "roofing_square" || measurement.unit === "ft2";
+      const name = item.measurement.replace(/^roof\./, "").replace(/[^a-z0-9_]/g, "_");
+      inputs.push({ name, label: measurement.label, source: { kind: "measurement", definition: measurement.id, ...(area ? { per_structure: true } : {}) }, required: !measurement.part_of });
+      entries.push({ label: measurement.label, kind: "piece_rate", unit: measurement.unit === "roofing_square" ? "sq" : measurement.unit === "ft2" ? "sq ft" : "ft", rate_cents: money(item.rate), input: name, covers: area ? ROOF_WORK : LINE_WORK[measurement.id] ? [LINE_WORK[measurement.id]!] : [] });
+      continue;
+    }
+    const bands = bandsFor(item.above, item.up_to);
+    if (!bands) throw badRequest("labor_setup_pitch", `Pitches go over ${pitchBands().map((band) => twelfths(band.above)).join(", ")}; a range starts and ends at one of them.`);
+    const label = pitchRangeLabel(item.above, item.up_to);
+    if (item.type === "pitch_range") entries.push({ label, kind: "piece_rate", unit: "sq", rate_cents: money(item.rate), input: read(`pitch_${item.above}_${item.up_to ?? "up"}`, label, bands), covers: ROOF_WORK });
+    else entries.push({ label: `Bonus: ${label.charAt(0).toLowerCase()}${label.slice(1)}`, kind: "piece_rate", unit: "sq", rate_cents: money(item.rate), input: read(`bonus_${item.above}_${item.up_to ?? "up"}`, label, bands), covers: ROOF_WORK, role: "adjusts" });
+  }
+  // Trim nobody is paid for by the foot is part of the price.
+  const paid = new Set(entries.flatMap((entry) => entry.covers));
+  return { inputs, entries, work: TRIM.filter((item) => !paid.has(item)).map((item) => ({ item, included: true })) };
 }
 
 /** A one-line pay sheet as this setup writes it, for one assignee. */
@@ -92,6 +184,7 @@ export function laborPaySheet(subject: { type: "resource_group" | "organization_
   const base = { subject, name: `${name} roofing pay`, schema_ids: [SCHEMA_ID], equipment: [] as unknown[] };
   if (pay.method === "hourly") return { ...base, inputs: [{ name: "hours", label: "Hours", source: { kind: "manual" as const }, required: true }], entries: [{ label: "Hourly labor", kind: "hourly" as const, unit: "hour", rate_cents: cents, input: "hours", covers }], work: [] };
   if (pay.method === "per_job") return { ...base, inputs: [], entries: [{ label: "Price per job", kind: "flat" as const, rate_cents: cents, covers }], work: [] };
+  if (pay.items?.length) return { ...base, ...pieceSheet(pay.items) };
   const measurement = payMeasurements().find((entry) => entry.id === (pay.measurement || "roof.squares")) || payMeasurements()[0]!;
   const squares = measurement.id.startsWith("roof.squares") || measurement.id === "roof.flat_squares";
   return {
@@ -103,16 +196,51 @@ export function laborPaySheet(subject: { type: "resource_group" | "organization_
   };
 }
 
-/** How a sheet pays, when it is one this setup could have written (one line, a piece rate, hourly or flat). */
-export function simplePay(sheet: Pick<PaySheet, "entries" | "inputs" | "schema_ids">) {
-  if (sheet.entries.length !== 1) return null;
+/**
+ * How a sheet pays, when it is one this setup could have written: one hourly or flat line, or piece rates that each
+ * read one roofing measurement, a pitch range or a bonus over a range of pitches. A piece rate comes back as its items.
+ */
+export function simplePay(sheet: Pick<PaySheet, "entries" | "inputs" | "schema_ids"> & Partial<Pick<PaySheet, "equipment" | "duration">>) {
+  if (!sheet.entries.length) return null;
   const entry = sheet.entries[0]!;
-  const input = sheet.inputs.find((row) => row.name === entry.input);
-  const rate = entry.rate_cents / 100;
-  if (entry.kind === "hourly") return { method: "hourly" as const, rate };
-  if (entry.kind === "flat") return { method: "per_job" as const, rate };
-  if (entry.kind === "piece_rate" && input?.source.kind === "measurement") return { method: "per_measurement" as const, rate, measurement: input.source.definition };
-  return null;
+  if (sheet.entries.length === 1 && entry.kind === "hourly") return { method: "hourly" as const, rate: entry.rate_cents / 100 };
+  if (sheet.entries.length === 1 && entry.kind === "flat" && !entry.input) return { method: "per_job" as const, rate: entry.rate_cents / 100 };
+  // More than one line, with equipment or a duration besides, is more than this setup writes: saving it here would lose them.
+  if (sheet.entries.length > 1 && (sheet.equipment?.length || sheet.duration)) return null;
+  const bands = pitchBands(), offered = new Set(payMeasurements().map((row) => row.id)), roles = paySheetCoverRoles(sheet);
+  const items: PieceItem[] = [];
+  for (const line of sheet.entries) {
+    const source = sheet.inputs.find((row) => row.name === line.input)?.source;
+    if (line.kind !== "piece_rate" || source?.kind !== "measurement" || line.when || line.minimum_cents || (line.multiplier ?? 1) !== 1) return null;
+    const rate = line.rate_cents / 100, read = measurementsRead(source);
+    const run = read.map((id) => bands.find((band) => band.id === id));
+    if (run.every(Boolean)) {
+      // Bands read together are a range only when they follow on from each other.
+      const sorted = run.map((band) => band!).sort((a, b) => a.above - b.above);
+      if (sorted.some((band, at) => at > 0 && sorted[at - 1]!.up_to !== band.above)) return null;
+      // A range that only adjusts the price of the roof (over 8/12, on top of every square) is a bonus.
+      const adjusts = line.role === "adjusts" || [...(roles.get(line)?.values() || [])].includes("adjusts");
+      items.push({ type: adjusts ? "pitch_bonus" : "pitch_range", above: sorted[0]!.above, up_to: sorted.at(-1)!.up_to, rate });
+    } else if (read.length === 1 && offered.has(source.definition)) items.push({ type: "measurement", measurement: source.definition, rate });
+    else return null;
+  }
+  // Only a sheet this setup would write again line for line: anything else (pitch ranges that leave pitches out, a
+  // measurement paid twice, a line that pays for other work) is People's to edit, and saving it here would change it.
+  const one = items.length === 1 && items[0]!.type === "measurement" ? items[0] : null;
+  let again: Pick<PaySheet, "schema_ids" | "inputs" | "entries">;
+  try { again = one ? laborPaySheet({ type: "resource_group", id: "-" }, "-", { method: "per_measurement", rate: one.rate, measurement: one.measurement }) as never : { schema_ids: [SCHEMA_ID], ...pieceSheet(items) } as never; } catch { return null; }
+  if (JSON.stringify(payLines(sheet)) !== JSON.stringify(payLines(again))) return null;
+  if (one) return { method: "per_measurement" as const, rate: one.rate, measurement: one.measurement, items };
+  return { method: "per_measurement" as const, rate: 0, items };
+}
+
+/** A sheet's lines as what they pay: rate, what they read, what they pay for and whether they only adjust its price. */
+function payLines(sheet: Pick<PaySheet, "schema_ids" | "inputs" | "entries">) {
+  const roles = paySheetCoverRoles(sheet);
+  return sheet.entries.map((entry) => {
+    const source = sheet.inputs.find((row) => row.name === entry.input)?.source;
+    return JSON.stringify([entry.kind, entry.rate_cents, source?.kind === "measurement" ? [...measurementsRead(source)].sort() : [], [...(entry.covers || [])].sort(), [...(roles.get(entry)?.values() || [])].includes("adjusts")]);
+  }).sort();
 }
 
 /** The organization's people who can be put in a group, by name, with their email and whether they have joined yet (`invited`). */
@@ -156,7 +284,14 @@ export async function laborSetupOptions(orgId: string, auth?: PlatformAuthContex
   const appsOff = capabilities ? appDefinitions().filter((app) => app.capabilities.length && !app.capabilities.some((key) => on[key] === true)).map((app) => app.id) : [];
   const membersOf = (group: Record<string, unknown>) => (Array.isArray(group.members) ? group.members as Record<string, unknown>[] : []).filter((member) => text(member.status || "active") === "active").map((member) => text(member.user_id)).filter(Boolean);
   const sheetFor = (type: string, id: string) => sheets.find((sheet) => sheet.subject.type === type && sheet.subject.id === id && (sheet.schema_ids.includes(SCHEMA_ID) || !sheet.schema_ids.length));
-  const pay = (type: string, id: string) => { const sheet = sheetFor(type, id); return sheet ? { sheet_id: sheet.id, name: sheet.name, lines: sheet.entries.length, simple: simplePay(sheet) } : null; };
+  // `simple` is a one-line sheet as the price book setup's labor step edits it; `items` is a piece rate the workforce
+  // setup edits item by item (GP-162). A sheet with neither is edited in People.
+  const pay = (type: string, id: string) => {
+    const sheet = sheetFor(type, id); if (!sheet) return null;
+    const read = simplePay(sheet);
+    const simple = read && (read.method !== "per_measurement" || read.items.length === 1) ? { method: read.method, rate: read.rate, ...(read.method === "per_measurement" ? { measurement: read.measurement } : {}) } : null;
+    return { sheet_id: sheet.id, name: sheet.name, lines: sheet.entries.length, simple, ...(read?.method === "per_measurement" ? { items: read.items } : {}) };
+  };
   const types = (rows: unknown) => (Array.isArray(rows) ? rows : []).filter((row) => text((row as { status?: unknown }).status || "active") !== "archived").map((row) => ({ id: text((row as { id?: unknown }).id), name: text((row as { name?: unknown }).name) || text((row as { id?: unknown }).id) }));
   // Each one's types as the assignee base keeps them (a company's types are not its relationship types).
   const typeIds = async (type: "resource_group" | "organization_connection", id: string, fallback: string[]) => { const found = await assigneeTypeIds(orgId, { type, id }).catch(() => [] as string[]); return found.length ? found : fallback; };
@@ -181,6 +316,8 @@ export async function laborSetupOptions(orgId: string, auth?: PlatformAuthContex
     group_types: types(configuration.resource_group_kinds),
     company_types: types(configuration.organization_connection_types),
     measurements: payMeasurements(),
+    // Where a piece rate's pitch ranges and bonuses can start and end.
+    pitch_bands: pitchBands(),
     methods: [...LABOR_PAY_METHODS]
   };
 }
@@ -306,20 +443,20 @@ const setupStatusSchema = { type: "object", required: ["assignees", "profile", "
   assignees: { type: "array", items: { type: "object", required: ["ref", "kind", "name", "service_ids", "member_user_ids"], properties: { ref: { type: "object" }, kind: { enum: ["resource_group", "organization_connection"] }, name: { type: "string" }, type_id: { type: "string" }, type_ids: strings, members: { type: "integer" }, member_user_ids: strings, lead_user_id: { type: "string" }, service_ids: strings, service_tags: { type: "object" }, apps: { type: "object" }, pay: { type: ["object", "null"] } } } },
   profile: { type: "object" }, workforces: { type: "array", items: { type: "object" } }, people: { type: "array", items: { ...named, properties: { ...named.properties, email: { type: "string" }, status: { enum: ["active", "invited"] } } } },
   service_tags_used: { type: "object" }, apps_off: strings, can: { type: "object" },
-  group_types: { type: "array", items: named }, company_types: { type: "array", items: named }, measurements: { type: "array", items: { type: "object" } }, methods: strings
+  group_types: { type: "array", items: named }, company_types: { type: "array", items: named }, measurements: { type: "array", items: { type: "object" } }, pitch_bands: { type: "array", items: { type: "object" } }, methods: strings
 } };
 
 export function registerLaborSetupPublication() {
   // What the workforce setup and Operations settings show (GP-28): who does the work, what each does, who is in a group
   // and how each is paid. Pay is commercial, so it is read with the permission that sets it.
   registerDataProvider({ id: "workforce-setup", version: "1", apps: ["materials", "crew"], exports: {
-    status: { description: "Who does the organization's work: its groups of users (crews) and outside companies (subcontractors), each with the company profile services it does and the kinds of each in the company's words (service_tags), a group's members, who is in charge of it (lead_user_id) and which apps its members are shown or not (apps), and how it is paid for roofing (a one-line pay sheet's method and rate, or how many lines a fuller sheet has); with the company profile it starts from (kind of company, industry sets, services, who does most of the work), the people who can be put in a group (with their email, and `invited` while they have not joined), the kinds of each service any of them does (service_tags_used), the apps the organization has off (apps_off), whether the person may add and invite people (can), the types each kind can have and the measurements a piece rate can read.",
+    status: { description: "Who does the organization's work: its groups of users (crews) and outside companies (subcontractors), each with the company profile services it does and the kinds of each in the company's words (service_tags), a group's members, who is in charge of it (lead_user_id) and which apps its members are shown or not (apps), and how it is paid for roofing (a one-line pay sheet's method and rate; a piece rate's items, its pitch ranges, bonuses and rates per measurement; or how many lines a fuller sheet has); with the company profile it starts from (kind of company, industry sets, services, who does most of the work), the people who can be put in a group (with their email, and `invited` while they have not joined), the kinds of each service any of them does (service_tags_used), the apps the organization has off (apps_off), whether the person may add and invite people (can), the types each kind can have, the measurements a piece rate can read and the pitch bands its ranges start and end at.",
       schema: setupStatusSchema, schemaVersion: "1", access: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["apps.crew"], systemKinds: ["agent"] },
       read: async (ctx) => { const value = await laborSetupOptions(ctx.organizationId, ctx.auth); return { value, revision: `sha256:${contentHash(value)}` }; } }
   } });
   registerAction({
     id: "labor.setup.apply", version: "1", domain: "materials", implementation: backendImplementationDigest(),
-    description: "Set up who does the labor: add groups of users (employees) and outside companies (subcontractors) by name, change their type, say which of the company's services each does (service_ids, from the company profile catalog; one the company profile lacks is added to it) and the kinds of each in the company's words (service_tags), add people of the organization to a group (member_user_ids; none are removed) and say which member is in charge (lead_user_id), choose which apps a group's members see (apps: { \"portal.crew_payouts\": { visible: true } }, its App experience settings), and save how each is paid for roofing as a one-line pay sheet (piece rate on a roofing measurement, hourly, or per job; rates in dollars). An assignee whose pay sheet has more than one line is left alone. To write a fuller pay sheet from a document, use pay-sheets.try then pay-sheets.sheet.save.",
+    description: "Set up who does the labor: add groups of users (employees) and outside companies (subcontractors) by name, change their type, say which of the company's services each does (service_ids, from the company profile catalog; one the company profile lacks is added to it) and the kinds of each in the company's words (service_tags), add people of the organization to a group (member_user_ids; none are removed) and say which member is in charge (lead_user_id), choose which apps a group's members see (apps: { \"portal.crew_payouts\": { visible: true } }, its App experience settings), and save how each is paid for roofing as a pay sheet (hourly, per job, or a piece rate; rates in dollars). A piece rate is either one rate on a roofing measurement (measurement, rate) or its items: pitch ranges ({ type: \"pitch_range\", above, up_to, rate }, one rate per range, instead of each other, which together take in every pitch from 0 to up_to null), bonuses added on top for squares in a range of pitches ({ type: \"pitch_bonus\", above, up_to, rate }) and rates per unit of any roofing measurement added on top ({ type: \"measurement\", measurement, rate }). Pitches are in twelfths and start and end where the status's pitch_bands do. An assignee whose pay sheet is more than this setup writes is left alone. To write a fuller pay sheet from a document, use pay-sheets.try then pay-sheets.sheet.save.",
     inputSchema: zodToJsonSchema(laborSetupInputSchema, { $refStrategy: "none" }) as Record<string, unknown>, outputSchema: { type: "object" },
     policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["apps.crew"] },
     effect: "write", executionKinds: ["api", "agent", "module"], idempotency: "required",

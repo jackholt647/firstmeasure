@@ -113,3 +113,72 @@ test("where groups are off, labor is plain lines: the column always shows and th
   assert.deepEqual(await stepsFor(owner(org, { ...flags, "apps.crew": false })), ["roof_types", "brands", "defaults", "material", "suppliers"]);
   assert.deepEqual(await stepsFor(owner(ORG)), ["roof_types", "brands", "defaults", "material", "suppliers", "labor"]);
 });
+
+// GP-162: a piece rate is items. Pitch ranges are one rate for each range, instead of each other, and between them take
+// in every pitch; a bonus over a pitch and a rate per foot of a roof line are added on top.
+test("a piece rate is one rate for each pitch range with bonuses on top, read back item by item and priced", async () => {
+  const { invokeAction } = await import("../platform/publication/actions.js"), { userPublicationContext } = await import("../platform/publication/context.js");
+  const sheets = await import("../labor/pay-sheets.js"), labor = await import("../labor/labor-setup.js");
+  const target = { scope: "organization" as const, organizationId: ORG };
+  const run = (assignees: unknown[], key: string) => invokeAction(userPublicationContext(owner(), { mode: "command" }), { action: "labor.setup.apply", target }, { assignees }, { idempotencyKey: key }) as Promise<any>;
+  const ranges = [[0, 2, 90], [2, 8, 65], [8, 12, 80], [12, null, 100]].map(([above, up_to, rate]) => ({ type: "pitch_range", above, up_to, rate }));
+  const items = [...ranges, { type: "pitch_bonus", above: 8, up_to: null, rate: 2 }, { type: "measurement", measurement: "roof.ridge_length", rate: 1.5 }];
+  // The status offers every roofing measurement and the pitch bands ranges start and end at.
+  const options = await labor.laborSetupOptions(ORG);
+  assert.deepEqual(options.pitch_bands.map((band) => [band.above, band.up_to]), [[0, 2], [2, 4], [4, 6], [6, 8], [8, 12], [12, null]]);
+  for (const id of ["roof.squares", "roof.ridge_length", "roof.chimney_step_length", "roof.squares_hand_carried"]) assert.ok(options.measurements.some((entry) => entry.id === id), id);
+  assert.ok(!options.measurements.some((entry) => entry.id === "roof.squares_9_to_12"), "pitch bands are read as ranges, not listed one by one");
+
+  // Ranges that leave pitches out, or overlap, are refused: a square at a pitch no range takes in would be paid nothing.
+  await assert.rejects(run([{ kind: "resource_group", name: "Gap crew", pay: { method: "per_measurement", items: [ranges[0], ranges[2], ranges[3]] } }], "gap"), /follow on from each other/);
+  await assert.rejects(run([{ kind: "resource_group", name: "Gap crew", pay: { method: "per_measurement", items: [ranges[0], ranges[1]] } }], "open"), /every pitch above it/);
+  await assert.rejects(run([{ kind: "resource_group", name: "Gap crew", pay: { method: "per_measurement", items: [{ type: "pitch_bonus", above: 7, up_to: null, rate: 2 }] } }], "edge"), /starts and ends/);
+
+  const done = await run([{ kind: "resource_group", name: "Pitch crew", pay: { method: "per_measurement", items } }], "pitch");
+  assert.equal(done.value.assignees[0].pay, "saved");
+  const sheet = (await sheets.listPaySheets(ORG)).find((row) => row.subject.id === done.value.assignees[0].ref.id)!;
+  assert.deepEqual(sheet.entries.map((entry) => [entry.label, entry.rate_cents, entry.role ?? ""]), [
+    ["Squares up to 2/12", 9000, ""], ["Squares over 2/12 up to 8/12", 6500, ""], ["Squares over 8/12 up to 12/12", 8000, ""], ["Squares over 12/12", 10000, ""],
+    ["Bonus: squares over 8/12", 200, "adjusts"], ["Ridges", 150, ""]
+  ]);
+  // A range is its pitch bands read as one input.
+  assert.deepEqual(sheet.inputs.find((input) => input.name === "pitch_2_8")!.source, { kind: "measurement", definition: "roof.squares_2_to_4", also: ["roof.squares_4_to_6", "roof.squares_6_to_8"], per_structure: true });
+  // The ranges are all of the roof's squares, so they pay for it; the bonus only adjusts that price; ridges pay for ridge cap.
+  assert.deepEqual(Object.fromEntries(sheets.paySheetWork(sheet)), { "roofing.tear_off": "paid", "roofing.dry_in": "paid", "roofing.install": "paid", "roofing.ridge_cap": "paid", "roofing.edge_metal": "included", "roofing.valleys": "included", "roofing.wall_flashing": "included", "roofing.cleanup": "included" });
+
+  // A 6/12 and 10/12 roof: each square at its range's rate, the steep ones $2 more, ridges on top. Nothing over 12/12.
+  const v = (value: number, unit = "roofing_square") => ({ value, unit });
+  const priced = sheets.evaluatePaySheet(sheet, { measurements: { measurements: { roofSquares: v(30), pitch6Squares: v(20), pitch10Squares: v(10), ridgesLf: v(40, "ft") } } });
+  assert.deepEqual(priced.lines.map((line) => [line.label, line.quantity, line.total_cents]), [["Squares over 2/12 up to 8/12", 20, 130000], ["Squares over 8/12 up to 12/12", 10, 80000], ["Bonus: squares over 8/12", 10, 2000], ["Ridges", 40, 6000]]);
+  assert.equal(priced.complete, true);
+  // The issue's two ways of paying more for steep squares come to the same: $65 and $80 by range, or $65 for every
+  // square and a $15 bonus on the steep ones. One replaces the rate, the other adds to it.
+  const sheetOf = (pay: unknown) => ({ ...sheets.paySheetInputSchema.parse(labor.laborPaySheet({ type: "resource_group", id: "x" }, "x", pay as never)), id: "x", revision: 1 });
+  const roof = { measurements: { measurements: { roofSquares: v(30), pitch6Squares: v(20), pitch10Squares: v(10) } } };
+  const byRange = sheets.evaluatePaySheet(sheetOf({ method: "per_measurement", items: [{ type: "pitch_range", above: 0, up_to: 8, rate: 65 }, { type: "pitch_range", above: 8, up_to: null, rate: 80 }] }), roof);
+  const withBonus = sheets.evaluatePaySheet(sheetOf({ method: "per_measurement", items: [{ type: "measurement", measurement: "roof.squares", rate: 65 }, { type: "pitch_bonus", above: 8, up_to: null, rate: 15 }] }), roof);
+  assert.equal(byRange.total_cents, 210000);
+  assert.equal(withBonus.total_cents, byRange.total_cents);
+  // A roof measured with no pitches at all cannot be priced by pitch: unresolved, never paid as nothing.
+  const unpitched = sheets.evaluatePaySheet(sheet, { measurements: { measurements: { roofSquares: v(30), ridgesLf: v(40, "ft") } } });
+  assert.equal(unpitched.complete, false);
+  assert.deepEqual(unpitched.unresolved.map((row) => row.label).slice(0, 2), ["Squares up to 2/12", "Squares over 2/12 up to 8/12"]);
+
+  // The status gives the setup its items back, so it shows the same ranges; the price book's one-line view does not.
+  const shown = (await labor.laborSetupOptions(ORG)).assignees.find((row) => row.name === "Pitch crew")!;
+  assert.deepEqual(shown.pay?.items, items);
+  assert.equal(shown.pay?.simple, null);
+  // Saved again with new rates, it is the same sheet.
+  await run([{ ref: done.value.assignees[0].ref, kind: "resource_group", name: "Pitch crew", pay: { method: "per_measurement", items: items.map((item) => ({ ...item, rate: item.rate + 1 })) } }], "pitch-2");
+  const again = (await sheets.listPaySheets(ORG)).filter((row) => row.subject.id === done.value.assignees[0].ref.id);
+  assert.equal(again.length, 1);
+  assert.equal(again[0]!.entries[0]!.rate_cents, 9100);
+
+  // A sheet with more than the setup writes (a truck it brings, a line that pays for other work) is left to People.
+  const truck = { ...again[0]!, equipment: [{ name: "Dump truck", included: true, provides: [] }], expected_revision: again[0]!.revision } as any;
+  delete truck.revision;
+  await invokeAction(userPublicationContext(owner(), { mode: "command" }), { action: "pay-sheets.sheet.save", target }, truck, { idempotencyKey: "truck" });
+  assert.equal(labor.simplePay((await sheets.listPaySheets(ORG)).find((row) => row.id === again[0]!.id)!), null);
+  const kept = await run([{ ref: done.value.assignees[0].ref, kind: "resource_group", name: "Pitch crew", pay: { method: "per_measurement", items } }], "pitch-3");
+  assert.equal(kept.value.assignees[0].pay, "kept");
+});

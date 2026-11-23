@@ -1015,8 +1015,13 @@ and reads `workforce-setup.status` when it shows (the steps before it may have j
    (name and email; added with `workforce.users.add` when the setup is saved, only for someone with People's
    permission) and, with two or more on it, a flag for the one in charge (the group's lead).
 4. **How do you pay them?** Piece rate, hourly or per job, defaulted by the step's `pay_defaults` (library data: the first
-   rule whose `industry_sets` the company is in; roofing and exteriors are paid per square, everyone else hourly; a
-   piece rate needs roofing work); "Same pay as" another card copies its pay; **Upload pay sheet** saves the card and
+   rule whose `industry_sets` the company is in; roofing and exteriors are paid by piece rate, everyone else hourly; a
+   piece rate needs roofing work). A piece rate is items (GP-162, `labor/labor-setup.ts` `pieceSheet`): **Squares**
+   are one rate for each pitch range (the rule's `items`, library data; by default up to 2/12, to 8/12, to 12/12 and
+   over), split or joined at the dictionary's pitch bands, and said to replace each other; or **One rate** for every
+   square. **Added on top** are a bonus for squares over a pitch (shown as what such a square earns: "$65 + $2 = $67")
+   and a rate per unit of any other roofing measurement. Pitch ranges are all rated or none; a sheet the setup did not
+   write line for line stays People's. "Same pay as" another card copies its pay; **Upload pay sheet** saves the card and
    hands the file to the agent, which the modal setup calls in beside itself (the player's `ensureAgent`).
 5. **Invite your crews to the app?** (GP-66) Only when a crew has someone who has not joined yet and the person may
    invite (People's permission). **Not now** saves the setup; **Yes** goes on to

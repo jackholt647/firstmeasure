@@ -69,7 +69,8 @@ test("the library entry parses and its checks pass; it ends in no price book", a
   assert.equal(step.options.part, "workforce");
   assert.match(step.ui.module, /^\/libraries\/setup-steps\/company-profile\.js/);
   // Pay defaults are library data: roofing and exteriors are paid by the square, everyone else hourly.
-  assert.deepEqual(experience.steps[0].options.pay_defaults[0], { industry_sets: ["roofing_exteriors"], method: "per_measurement", measurement: "roof.squares" });
+  // A roofer's piece rate starts as one rate for each pitch range (GP-162), not one rate for every square.
+  assert.deepEqual(experience.steps[0].options.pay_defaults[0], { industry_sets: ["roofing_exteriors"], method: "per_measurement", measurement: "roof.squares", items: [[0, 2], [2, 8], [8, 12], [12, null]].map(([above, up_to]) => ({ type: "pitch_range", above, up_to })) });
 });
 
 test("what kind of company, what work it does and who does it are asked first, only while unanswered", async () => {
@@ -154,7 +155,9 @@ test("the setup's browser module defaults pay by industry, copies pay and sends 
   const browserModule: string = "../../libraries/guided-experiences/workforce-setup.js";
   const module = await import(browserModule);
   const options = experience.steps[0].options;
-  assert.deepEqual(module.defaultPay(options, { industry_sets: ["roofing_exteriors"], work_kinds: ["roofing"] }, "resource_group"), { method: "per_measurement", rate: 0, measurement: "roof.squares" });
+  // GP-162: a roofer's piece rate starts as one rate for each pitch range (library data), no rates yet.
+  const ranges = [[0, 2], [2, 8], [8, 12], [12, null]].map(([above, up_to]) => ({ type: "pitch_range", above, up_to, rate: 0 }));
+  assert.deepEqual(module.defaultPay(options, { industry_sets: ["roofing_exteriors"], work_kinds: ["roofing"] }, "resource_group"), { method: "per_measurement", rate: 0, items: ranges });
   assert.deepEqual(module.defaultPay(options, { industry_sets: [], work_kinds: [] }, "resource_group"), { method: "hourly", rate: 0 });
   // A piece rate is on a roofing measurement: a company with no roofing work is paid hourly by default.
   assert.deepEqual(module.defaultPay(options, { industry_sets: ["roofing_exteriors"], work_kinds: ["siding"] }, "resource_group"), { method: "hourly", rate: 0 });
@@ -175,6 +178,24 @@ test("the setup's browser module defaults pay by industry, copies pay and sends 
   assert.deepEqual(sent[0].member_user_ids, ["ana"]);
   assert.equal(sent[2].pay, undefined, "no rate, no pay sheet");
   assert.deepEqual(sent[2].ref, { type: "organization_connection", id: "c1" });
+  // GP-162: a piece rate's items. Pitch ranges are sent only once every one has a rate; extras with a rate go on top.
+  assert.deepEqual(module.rangesAt([8, 2, 12]).map((item: any) => [item.above, item.up_to]), [[0, 2], [2, 8], [8, 12], [12, null]]);
+  assert.deepEqual(module.rangesAt([8], [{ type: "pitch_range", above: 0, up_to: 8, rate: 65 }, { type: "pitch_range", above: 8, up_to: 12, rate: 80 }]).map((item: any) => item.rate), [65, 80], "a range keeps its rate, and one that grows keeps the rate of what it takes in");
+  assert.deepEqual(module.rangesAt([4, 8], [{ type: "pitch_range", above: 0, up_to: 8, rate: 65 }, { type: "pitch_range", above: 8, up_to: null, rate: 80 }]).map((item: any) => item.rate), [65, 65, 80], "both halves of a split range keep its rate");
+  assert.deepEqual(module.rangesAt([], [{ type: "pitch_range", above: 0, up_to: 8, rate: 65 }, { type: "pitch_range", above: 8, up_to: null, rate: 80 }]).map((item: any) => item.rate), [0], "joined ranges with different rates have none yet");
+  const piece = (items: any[]) => ({ method: "per_measurement", rate: 0, items });
+  const bonus = { type: "pitch_bonus", above: 8, up_to: null, rate: 2 }, ridge = { type: "measurement", measurement: "roof.ridge_length", rate: 0 };
+  const half = piece([{ ...ranges[0], rate: 90 }, { ...ranges[1], rate: 65 }, ranges[2], ranges[3], bonus, ridge]);
+  assert.equal(module.rangesUnfinished(half), true);
+  assert.deepEqual(module.payInput(half), { method: "per_measurement", items: [bonus] }, "half the ranges are not sent; the rated bonus is");
+  const full = piece([90, 65, 80, 100].map((rate, at) => ({ ...ranges[at], rate })).concat([bonus]));
+  assert.equal(module.rangesUnfinished(full), false);
+  assert.deepEqual(module.payInput(full)?.items.map((item: any) => [item.type, item.rate]), [["pitch_range", 90], ["pitch_range", 65], ["pitch_range", 80], ["pitch_range", 100], ["pitch_bonus", 2]]);
+  assert.equal(module.squaresMode(full.items), "pitch");
+  assert.equal(module.payInput(piece([ranges[0], ranges[1], ranges[2], ranges[3]])), null, "no rate yet, no pay sheet");
+  // One rate on one measurement is still the one-line rate it always was.
+  assert.deepEqual(module.payInput(piece([{ type: "measurement", measurement: "roof.squares", rate: 70 }])), { method: "per_measurement", rate: 70, measurement: "roof.squares" });
+  assert.equal(module.squaresMode(module.pieceItems({ method: "per_measurement", rate: 70, measurement: "roof.squares" })), "one");
   // "Same as" never goes round in a circle.
   assert.equal(module.payOf([{ key: "x", same: "y" }, { key: "y", same: "x" }], { key: "x", same: "y" }), null);
 });

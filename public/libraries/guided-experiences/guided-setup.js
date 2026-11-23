@@ -1065,7 +1065,7 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
     'comms-setup': { path: './comms-setup.js?v=20261123-places' },
     'appointments-setup': { path: './appointments-setup.js?v=20261123-places' },
     'equipment-setup': { path: './equipment-setup.js?v=20261123-places' },
-    'workforce-setup': { path: './workforce-setup.js?v=20261123-gp161' },
+    'workforce-setup': { path: './workforce-setup.js?v=20261123-gp162' },
     'sales-team-setup': { path: './sales-team-setup.js?v=20261123-places' },
     // The price book setup: one page per step, its answers the player's selections.
     'roof-types': { path: './pricebook-setup.js?v=20261123-places', fill: true, pages: false },

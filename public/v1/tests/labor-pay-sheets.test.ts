@@ -271,3 +271,30 @@ test("pay sheets are stored per organization, published with their requirements 
     assert.deepEqual(await sheets.listPaySheets("org_pay"), []);
   } finally { await closePlatformFixtureStores(); await rm(dir, { recursive: true, force: true }).catch(() => {}); }
 });
+
+// GP-162: a pitch range is several pitch bands read as one input. Only parts of one partition are read together, and a
+// band with nothing in it is none of it once the roof's pitches were recorded, but missing when they never were.
+test("an input reads several parts of one partition as one, by structure too, and an empty part is none of it", async () => {
+  const { paySheetInputSchema, evaluatePaySheet, resolvePaySheetInputs } = await import("../labor/pay-sheets.js");
+  const subject = { type: "organization_connection", id: "conn_pitch" };
+  const read = (definition: string, also?: string[], extra: Record<string, unknown> = {}) => ({ subject, name: "Pitch", schema_ids: ["roofing"], inputs: [{ name: "steep", source: { kind: "measurement", definition, ...(also ? { also } : {}), ...extra }, required: true }], entries: [{ label: "Steep", kind: "piece_rate", unit: "sq", rate_cents: 8000, input: "steep" }] });
+  const problems = (sheet: unknown) => { const parsed = paySheetInputSchema.safeParse(sheet); return parsed.success ? [] : parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`); };
+  assert.deepEqual(problems(read("roof.squares_9_to_12", ["roof.squares_13_plus"])), []);
+  assert.match(problems(read("roof.squares_9_to_12", ["roof.squares_hand_carried"]))[0]!, /^inputs\.0\.source\.also\.0: .*only parts of one partition/, "hand-carried squares may be the same squares again");
+  assert.match(problems(read("roof.squares", ["roof.squares_13_plus"]))[0]!, /only parts of one partition/, "the whole is not added to a part of it");
+  assert.match(problems(read("roof.squares_9_to_12", ["roof.squares_9_to_12"]))[0]!, /twice/);
+
+  const sheet = { ...paySheetInputSchema.parse(read("roof.squares_9_to_12", ["roof.squares_13_plus"], { per_structure: true })), id: "ps_pitch", revision: 1 };
+  const sq = (value: number) => ({ value, unit: "roofing_square" });
+  // Band keys and exact pitches both count; each structure is priced on its own when they add up to the total.
+  const both = { measurements: { roofSquares: sq(30), pitch9to12Squares: sq(4), pitch14Squares: sq(2) }, structures: [{ id: "house", name: "House", measurements: { pitch10Squares: sq(4), pitch14Squares: sq(2) } }, { id: "garage", name: "Garage", measurements: { pitch6Squares: sq(4) } }] };
+  const priced = evaluatePaySheet(sheet, { measurements: both });
+  assert.deepEqual(priced.lines.map((line) => [line.structure_name, line.quantity, line.total_cents]), [["House", 6, 48000]], "the garage was measured, and has no steep squares");
+  // A 6/12 roof has no steep squares: nothing to pay, and nothing missing.
+  const flat = evaluatePaySheet(sheet, { measurements: { measurements: { roofSquares: sq(20), pitch6Squares: sq(20) } } });
+  assert.deepEqual([flat.lines.length, flat.complete], [0, true]);
+  assert.deepEqual(resolvePaySheetInputs(sheet, { measurements: { measurements: { pitch6Squares: sq(20) } } }).map((input) => [input.value, input.from]), [[0, "job"]]);
+  // A roof whose pitches were never recorded cannot say how many are steep.
+  const unknown = evaluatePaySheet(sheet, { measurements: { measurements: { roofSquares: sq(20) } } });
+  assert.deepEqual([unknown.complete, unknown.unresolved.map((row) => row.label)], [false, ["Steep"]]);
+});
