@@ -14,7 +14,7 @@
 // GP-136: nobody going is an answer too (a delivery dropped off): the last one picked can be taken off.
 // GP-138: the offer is the business phone (texts and calls, one registration), and its registration is more pages of
 // this step: Back on its first page returns to the offer, and the phone's back walks its pages first.
-import { commsAction, setUpTexting, textingReady } from './texting-setup.js?v=20261123-gp149';
+import { commsAction, setUpTexting, textingReady } from './texting-setup.js?v=20261123-gp149b';
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();

@@ -1471,7 +1471,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           ${!soleProprietor ? smsField('brand.lastName', 'Contact last name', brand.lastName, { disabled: locked }) : ''}
           ${smsField('brand.email', 'Support Email', brand.email, { type: 'email', required: true, disabled: locked, error: !brand.email ? 'Support email is required.' : smsUndeliverableEmail(brand.email) ? 'Use an email address that receives mail.' : !emailValid ? 'Enter a valid support email.' : '', ok: emailValid })}
           ${publicCompany ? smsField('brand.businessContactEmail', 'Business Contact Email', brand.businessContactEmail, { type: 'email', required: true, disabled: locked, error: !smsValidEmail(brand.businessContactEmail) ? 'A valid business contact email is required.' : '' }) : ''}
-          ${smsField('brand.phone', 'Business Phone', brand.phone, {
+          ${smsField('brand.phone', 'Business Phone', phoneDisplay || brand.phone, {
             required: true,
             disabled: locked,
             error: !brand.phone ? 'Business phone is required.' : brand.phone && !phoneNormalized ? 'Enter a valid US/Canada phone number.' : '',
