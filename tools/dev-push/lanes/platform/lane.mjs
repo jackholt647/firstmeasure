@@ -122,6 +122,8 @@ export default {
   name: "platform",
   branch: LANES.platform.branch,
   batchMax: 6,
+  // Ship on the quick checks; a submission's --regression runs after its release is live and never holds the lane.
+  testsAfterShip: true,
   owns: (file) => laneOf(file) === "platform",
 
   async gates({ dir, sha, changed, tests = [], regression = null, only, log }) {

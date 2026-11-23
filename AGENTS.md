@@ -41,15 +41,24 @@ code), **live** is a browser file you are tuning (live layer below),
 editor changes ship with `node tools/dev-push/lanes/measure-internal/ship.mjs`,
 which builds the lane commit itself (reverts included) and submits it.
 
+**Fastest channel first; small things never wait.** Config library saves
+(signup sandbox configurations, setup steps and guided setups, templates,
+flags) and live-layer saves (CSS, images, browser libraries and apps, signup
+pages, setup-step screens) are on dev in about a second and never queue behind
+anyone's push. Iterate there, then submit once to make browser files
+permanent. Split work so those parts go first; only server code, PHP, HTML and
+language catalogs need the platform lane. Dev lanes, "What runs in parallel".
+
 **Tests are opt-in.** Every submission gets only checks that take a second or
 two (JavaScript parse, per-file transpile, PHP lint, the few suites under two
 seconds). The type check (`npm run check`, about a minute) and every suite
-named below under "Run ... for changes here" are **regression**: add
-`--regression` (or run `submit.mjs regression` to test without shipping) only
-when you suspect a bug, when Jack asks, or after about 20 minutes or more of
-work. They run once, on the server; do not run them on this PC first. Browser
-files, templates and live saves get no tests. Measured times are in dev lanes,
-"Checks".
+named below under "Run ... for changes here" are **regression**. Run the ones
+your change touches yourself before you submit; add `--regression` only when
+you suspect a bug or Jack asks, never for small or visual changes. On the
+platform lane regression runs after your release is live and never holds
+anyone else's ship (`submit.mjs wait <slug> --tests-after` waits for its
+result). Browser files, templates and live saves get no tests. Measured times
+are in dev lanes, "Checks".
 
 Never write or copy per-task rollout scripts (`output/<task>/rollout.py`,
 `deploy.py`, `ship.sh`, `integrate.py`, ...), never SSH to a dev host to stage

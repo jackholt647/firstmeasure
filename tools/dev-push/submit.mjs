@@ -5,7 +5,7 @@
 //   node tools/dev-push/submit.mjs regression [--all] [--wait]       run the regression suites on the server; ships nothing
 //   node tools/dev-push/submit.mjs --gates-only [--regression] [--wait]   only the checks (quick, or with the suites); ships nothing
 //   node tools/dev-push/submit.mjs status [--lane L] [--mine] [--json]
-//   node tools/dev-push/submit.mjs wait [<slug>|<queue ref>]
+//   node tools/dev-push/submit.mjs wait [<slug>|<queue ref>] [--tests-after]   (--tests-after: also the regression run after ship)
 //   node tools/dev-push/submit.mjs withdraw [<slug>]
 //
 // Commit first. submit pushes HEAD, wrapped in a submission commit that carries the manifest (same tree, one
@@ -25,7 +25,7 @@ const REMOTE = ROUTER_REMOTE;
 const WAIT_MS = Number(process.env.DEV_PUSH_WAIT_MINUTES || 90) * 60_000;
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-const REGRESSION_HELP = "Regression suites are opt-in: add --regression (or run `submit.mjs regression`) only when you suspect a bug, when Jack asks, or after ~20+ minutes of work. They run once, on the server; do not run them locally first.";
+const REGRESSION_HELP = "Regression suites are opt-in and rare: run the tests your change touches yourself; add --regression only when you suspect a bug or Jack asks. On the platform lane they run after your release is live and never hold anyone's ship (`submit.mjs wait <slug> --tests-after` waits for them).";
 
 /** Points the checkout's `devpush` remote at the router's repository. */
 async function ensureRemote(root) {
@@ -109,7 +109,8 @@ async function submit(args, { regressionOnly = false } = {}) {
   else if (!regression) console.log(REGRESSION_HELP);
   console.log(`status: node tools/dev-push/submit.mjs status --mine   wait: node tools/dev-push/submit.mjs wait ${slug}`);
   mirrorInBackground(root);
-  if (args.wait) return wait({ submission, ref: ref.replace("refs/heads/", ""), lane });
+  if (regression && !regressionOnly && lane === "platform") console.log(`Your release goes live on the quick checks; the regression suites run after it (wait for them: submit.mjs wait ${slug} --tests-after).`);
+  if (args.wait) return wait({ submission, ref: ref.replace("refs/heads/", ""), lane, testsAfter: Boolean(args["tests-after"]) });
   return 0;
 }
 
@@ -128,12 +129,13 @@ export async function readStatus() {
 
 function describe(entry) {
   const what = entry.state === "live" ? `live ${entry.release || ""}` : entry.state === "rejected" ? `rejected (${entry.reason || "?"})` : entry.state;
-  return `${what.padEnd(28)} ${entry.ref}  ${entry.title || ""}`;
+  const after = entry.tests_after ? `  [tests after ship: ${entry.tests_after.state}]` : "";
+  return `${what.padEnd(28)} ${entry.ref}  ${entry.title || ""}${after}`;
 }
 
 const formatMs = (ms) => (ms >= 60_000 ? `${(ms / 60_000).toFixed(1)} min` : `${(ms / 1000).toFixed(1)} s`);
 
-async function wait({ submission, ref, lane }) {
+async function wait({ submission, ref, lane, testsAfter = false }) {
   const started = Date.now();
   let last = "";
   while (Date.now() - started < WAIT_MS) {
@@ -144,8 +146,15 @@ async function wait({ submission, ref, lane }) {
       const line = describe(entry);
       if (line !== last) console.log(`${new Date().toISOString().slice(11, 19)}  ${line}`);
       last = line;
-      if (TERMINAL.has(entry.state)) {
+      // --tests-after: a live release whose regression runs after it is finished only when those tests are.
+      const testsPending = testsAfter && entry.state === "live" && entry.regression && (!entry.tests_after || ["queued", "testing"].includes(entry.tests_after.state));
+      if (TERMINAL.has(entry.state) && !testsPending) {
         if (entry.details) console.log(entry.details);
+        if (entry.tests_after && !["queued", "testing"].includes(entry.tests_after.state)) {
+          console.log(`tests after ship (${entry.tests_after.release}): ${entry.tests_after.state}`);
+          if (entry.tests_after.details) console.log(entry.tests_after.details);
+          if (testsAfter && entry.tests_after.state !== "passed") return 1;
+        }
         if (entry.timings) console.log(`timings: ${Object.entries(entry.timings).map(([stage, ms]) => `${stage} ${formatMs(ms)}`).join(", ")}`);
         if (entry.state === "rejected") {
           const branch = LANES[entry.target || lane || entry.lane]?.branch || LANES.platform.branch;
@@ -206,7 +215,7 @@ if (isMain) {
   const args = parseArgs(process.argv.slice(2));
   const command = args._[0];
   const job = command === "status" ? status(args)
-    : command === "wait" ? (async () => wait({ ref: await resolveRef((await git(process.cwd(), ["rev-parse", "--show-toplevel"])).trim(), args._[1]) }))()
+    : command === "wait" ? (async () => wait({ ref: await resolveRef((await git(process.cwd(), ["rev-parse", "--show-toplevel"])).trim(), args._[1]), testsAfter: Boolean(args["tests-after"]) }))()
     : command === "withdraw" ? withdraw(args)
     : command === "regression" ? submit(args, { regressionOnly: true })
     : submit(args, { regressionOnly: Boolean(args["gates-only"]) }); // --gates-only: check the merged commit, ship nothing

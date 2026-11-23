@@ -23,11 +23,32 @@ release pointer. Lanes never wait on each other.
 | `config` | defaults and libraries: flags, presets, tab/app media, guided setups and tutorials, document/workflow/presentation/form templates, scope library, measurement and work dictionaries, rule and terminology defaults, price book setups, sandbox configurations | the platform config library store on dev (data, no git) | read live by every dev web/worker process | instant |
 | `live` | browser files under `public/` except `public/v1`, `.php`, `.html` | the saving checkout, shadowed to git (below) | dev web live folder | ~1 s |
 | `measure-internal` | `public/measure/internal/**` and its own tests (the editor's `dev/*.test.cjs`) | branch `lane/measure-internal` on origin | dev legacy host only (dev web proxies `/measure/internal/` there) | ~1 min |
-| `platform` | everything else | branch `codex/consolidated-firstmeasure-20260923` on origin ("canonical") | all dev roles (web, worker, legacy, pool) | batched, minutes |
+| `platform` | everything else | branch `codex/consolidated-firstmeasure-20260923` on origin ("canonical") | all dev roles (web, worker, legacy, pool) | batched: ~15 s browser-only, ~40 s with server code (tests never gate it) |
 
 Rule of thumb for agents: data that differs per organization is `config`, a
 browser file you are tuning is `live`, the measure editor is `measure-internal`,
 anything else is `platform`.
+
+### What runs in parallel (fast iteration)
+
+Only the `platform` and `measure-internal` lanes queue, and each releases one
+batch at a time. `config` and `live` never queue: an entry save or a live save
+is on dev at once, alongside anything any other agent is shipping, and no
+release, batch or test run holds it. So pick the fastest channel that can carry
+the change, and split a change so its fast parts go first:
+
+| Change | Channel | On dev in | Waits for anyone? |
+|---|---|---|---|
+| A signup sandbox configuration (`sandbox_configuration`), a setup step or guided setup's order, prerequisites, options or copy (`setup_step`, `guided_experience`, `guided_copy`), templates, flags, presets | `config` (`tools/config-library/cli.mjs put`) | ~1 s | never |
+| CSS, images, a browser library or app (`public/libraries/**`, `public/portal/**/*.js`), signup pages (`public/portal/signup-sandbox/pages/**`), setup-step modules (`public/libraries/setup-steps/**`, `public/libraries/guided-experiences/**`) | `live` (`tools/live-layer/live-sync.mjs`), then submit to bake it into a release | ~1 s | never (the later submit is a browser-only release: no Node restart, ~15 s) |
+| Server code, PHP, HTML, language catalogs | `platform` | ~15-40 s after the batch ahead | the batch ahead of it (seconds of checks + one deploy) |
+
+A browser-file tweak never waits for a server change: it is live from the save,
+and its submission only makes it permanent. Iterate on the live layer, and
+submit once when it looks right. Signup and setup flows are built to iterate
+the same way: their structure is config data and their screens are browser
+files; only the domain writer a step calls (`public/v1/**`) needs the
+platform lane, and that changes rarely.
 
 ## Submitting code (platform and measure-internal)
 
@@ -59,8 +80,8 @@ droplet holds no GitHub credential.
    `unrelated-history`) with the conflicting files or the failing check's
    output, what to do next, and the time each stage took. `--wait` blocks until
    `live` or `rejected` (exit 0 / 1). `submit.mjs status [--mine]`,
-   `submit.mjs wait [<slug>]` and `submit.mjs withdraw [<slug>]` do what they
-   say.
+   `submit.mjs wait [<slug>] [--tests-after]` and `submit.mjs withdraw [<slug>]`
+   do what they say.
 
 The repository's hook accepts only queue refs from agents; everything else is
 moved by the router (locally, `DEV_PUSH_ROUTER=1`). A push of canonical or a
@@ -83,14 +104,29 @@ Jack's rule: a check runs on every submission only if its whole run takes a
 second or two. Anything with a real time or CPU cost is **opt-in regression**:
 `submit.mjs --regression` (the suites the changed areas map to;
 `--regression=all` for every suite) or `submit.mjs regression [--all]`, which
-runs them on the server without shipping. It runs once, on the server, never on
-a PC; agents do not run suites locally first. With a runner configured (`config.json` `runner`,
-the agent droplet fm-agents-1), regression (type check and suites, browser
-suites included) runs there (`tools/dev-push/runner/regress.sh`). Ask for it only when you suspect
-a bug, when Jack asks, or when the work behind the submission took about 20
-minutes or more. Browser files (`public/` outside `public/v1`, not PHP or HTML),
-templates and live overlays get no checks beyond a syntax parse of changed
-JavaScript; a live save gets none at all.
+runs them on the server without shipping. Run the tests your change touches
+yourself before you submit (behind the heavy lock on Jack's PC); ask for
+regression only when you suspect a bug or Jack asks, never for a small or
+visual change. With a runner configured (`config.json` `runner`, the agent
+droplet fm-agents-1), regression (type check and suites, browser suites
+included) runs there (`tools/dev-push/runner/regress.sh`). Browser files
+(`public/` outside `public/v1`, not PHP or HTML), templates and live overlays
+get no checks beyond a syntax parse of changed JavaScript; a live save gets
+none at all.
+
+**Platform: tests after ship (2026-11-23).** On the platform lane regression
+never gates a release. A batch ships on the quick checks alone; the suites a
+submission asked for run afterwards on the released tree, on the router's
+regression loop, while the lane goes on shipping (`testsAfterShip` in the lane
+module, `processPostShip` in the router). The result lands on the submission
+as `tests_after` (`queued`, `testing`, `passed`, `failed`, `error`), with
+failures the release's base already had listed as known. `submit.mjs wait
+<slug> --tests-after` waits for it (exit 1 when it failed); `submit.mjs
+status` shows it. A failure is fixed forward with a new submission. Before
+this, one submission's suites (2-8 minutes) held every submission queued
+behind it, which then shipped together in one batch. The measure-internal lane
+still gates on regression when asked (its submissions are FirstMeasure fixes
+headed for production).
 
 Measured on the droplet (2 vCPU, 2026-10-27):
 
