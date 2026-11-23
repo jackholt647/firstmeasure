@@ -168,18 +168,23 @@ test('a crew: Other, specialties, a picked and a new member, who is in charge; i
     await card.locator('[data-gxw-service-add="gutters"]').click();
     assert.equal(await card.locator('[data-gxw-service="gutters"]').getAttribute('aria-pressed'),'true');
     // Specialties: the library's to pick from, and one typed in.
-    // Each service is its own panel, a few suggestions in view at once, the rest behind "more".
+    // GP-161: a short row per service; its suggestions open under the row on "+ Specialties", one row at a time, and
+    // what was picked stays on the row once it is closed.
     const roofs=card.locator('[data-gxw-kinds="roof_replacement"]');
-    assert.deepEqual(await roofs.locator('[data-gxw-tag]').allTextContents(),['Asphalt shingles','Metal roofs','Flat roofs','Tile roofs']);
-    assert.equal(await roofs.locator('[data-gxw-kinds-open]').textContent(),'2 more');
+    assert.equal(await roofs.locator('[data-gxw-tag]').count(),0,'nothing picked: no suggestions in the way');
+    await roofs.locator('[data-gxw-kinds-open]').click();
+    assert.deepEqual(await roofs.locator('.gxw-suggest [data-gxw-tag]').allTextContents(),['Asphalt shingles','Metal roofs','Flat roofs','Tile roofs','Cedar shakes','Slate']);
     await roofs.locator('[data-gxw-tag="Metal roofs"]').click();
     await roofs.locator('[data-gxw-tag-new]').fill('Steep slope');
     await roofs.locator('[data-gxw-tag-new]').press('Enter');
     assert.equal(await roofs.locator('[data-gxw-tag="Steep slope"]').getAttribute('aria-pressed'),'true');
-    assert.deepEqual((await roofs.locator('[data-gxw-tag]').allTextContents()).slice(0,2),['Metal roofs','Steep slope'],'what was picked comes first');
-    await roofs.locator('[data-gxw-kinds-open]').click();
-    assert.ok((await roofs.locator('[data-gxw-tag]').allTextContents()).includes('Slate'),'more shows the rest');
-    assert.equal(await card.locator('[data-gxw-kinds="gutters"] [data-gxw-tag="Seamless"]').count(),1,'gutters has its own kinds, in view at once');
+    assert.deepEqual(await roofs.locator('.gxw-do-tags [data-gxw-tag]').allTextContents(),['Metal roofs','Steep slope'],'what was picked is on the row');
+    assert.ok(!(await roofs.locator('.gxw-suggest [data-gxw-tag]').allTextContents()).includes('Metal roofs'),'and no longer offered');
+    await card.locator('[data-gxw-kinds="gutters"] [data-gxw-kinds-open]').click();
+    assert.equal(await card.locator('.gxw-suggest').count(),1,'one row open at a time');
+    assert.equal(await card.locator('[data-gxw-kinds="gutters"] [data-gxw-tag="Seamless"]').count(),1,'gutters has its own kinds');
+    await card.locator('[data-gxw-kinds="gutters"] [data-gxw-kinds-open]').click();
+    assert.deepEqual(await roofs.locator('[data-gxw-tag]').allTextContents(),['Metal roofs','Steep slope'],'closed, only what was picked shows');
     // Who's on it: our own dropdown, then someone new from its bottom.
     assert.equal(await card.locator('select').count(),0,'no browser dropdown');
     await card.locator('[data-gxw-pick]').click();
@@ -302,6 +307,42 @@ test('on a phone a short page fills the tray: words at the top, buttons at the b
     const box=await page.evaluate(()=>{const step=document.querySelector('.gxs-step').getBoundingClientRect(),lead=document.querySelector('[data-gxw-page="count"]').getBoundingClientRect(),actions=document.querySelector('.gxw-actions').getBoundingClientRect();return {top:lead.top-step.top,gap:step.bottom-actions.bottom};});
     assert.ok(box.top<20,`the page starts at the top (${box.top}px down)`);
     assert.ok(box.gap<=32,`the buttons sit at the bottom (${box.gap}px above it)`);
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+// GP-161: Back, Continue and Save are on a bar pinned to the bottom of the sheet on every page: a long page scrolls
+// under it, a short one (pay on the large sheet) has it at the bottom, not under the cards.
+test('Back and Continue stay pinned to the bottom of the sheet, whatever the page\'s height',async()=>{
+  const browser=await launch();
+  try{
+    const html='<style>body{margin:0}.gxs-step{position:absolute;left:0;top:0;width:1100px;height:520px;overflow:auto;padding:8px 28px 24px;display:flex;flex-direction:column;box-sizing:border-box}.gxs-body{flex:0 0 auto}</style><div class="gxs" data-kind="modal"><div class="gxs-step"><div class="gxs-titlebar"><h2>Step</h2></div><div class="gxs-body" id="step"></div></div></div>';
+    const {page,errors}=await open(browser,'crews',{options,html,status:{people,can:{add_people:true,invite:true}}});
+    await page.locator('[data-gxw-page="count"]').waitFor();
+    await page.locator('[data-gxw-count="resource_group"] [data-gxw-plus]').click();
+    await page.locator('[data-gxw-next]').click();
+    await page.locator('[data-gxw-page="work"]').waitFor();
+    // Make the page longer than the sheet: a row's suggestions open and two people on the crew.
+    const card=page.locator('.gxw-card').first();
+    await card.locator('[data-gxw-kinds="roof_replacement"] [data-gxw-kinds-open]').click();
+    await card.locator('[data-gxw-pick]').click();
+    await card.locator('[data-gxw-member="ana"]').click();
+    await card.locator('[data-gxw-pick]').click();
+    const where=()=>page.evaluate(()=>{const step=document.querySelector('.gxs-step'),box=step.getBoundingClientRect(),bar=document.querySelector('[data-gxw-page] > .gxw-actions').getBoundingClientRect(),back=document.querySelector('[data-gxw-back]').getBoundingClientRect();return {long:step.scrollHeight>step.clientHeight+20,gap:Math.round(box.bottom-bar.bottom),backGap:Math.round(box.bottom-back.bottom),top:document.elementFromPoint(back.left+back.width/2,back.top+back.height/2)?.closest('[data-gxw-back]')!==null};});
+    const long=await where();
+    assert.equal(long.long,true,'the page is longer than the sheet');
+    assert.equal(long.gap,0,'the bar sits on the bottom edge');
+    assert.ok(long.backGap>=16&&long.backGap<=32,`Back is in reach, not under the content (${long.backGap}px up)`);
+    assert.equal(long.top,true,'nothing covers Back');
+    await page.evaluate(()=>document.querySelector('.gxs-step').scrollTo({top:120}));
+    assert.deepEqual(await where(),long,'scrolling moves the cards, not the buttons');
+    await page.evaluate(()=>handle.escape());
+    await page.locator('[data-gxw-next]').click();
+    await page.locator('[data-gxw-page="pay"]').waitFor();
+    const short=await where();
+    assert.equal(short.long,false);
+    assert.equal(short.gap,0,'a short page has its buttons at the bottom of the sheet too');
+    assert.equal(short.top,true);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
