@@ -599,10 +599,14 @@ export function mount(el, ctx){
   // columns of the wide sheet (FM-610). It starts with two ways in: go through the prices by hand, or upload estimates
   // they already send, as many as they have, on a page of its own (GP-51), which are read into the same lines to check. A line can be added from the rest of the price book
   // by name, or made new with its quantity from the measurements. The finish writes it all (documents.setup.apply).
+  // The sheet widens only for the lines (GP-164): the two ways in and the estimates page before anything is read keep
+  // the setup's own size.
   function pricesPart(){
     let alive = true, sheet = null, lines = [], editor = null, banner = null, picker = null, newCount = 0;
     const sheetEl = el.closest('.gxs'), wasWide = !!sheetEl?.classList.contains('gxs-wide');
-    sheetEl?.classList.add('gxs-wide');
+    const fit = (wide) => sheetEl?.classList.toggle('gxs-wide', wasWide || wide);
+    // Back from a later step goes straight to the lines: wide while they load, so the sheet does not jump.
+    fit(!!(selections.lines || array(selections.prices).length || array(was.lines).length));
     const pane = el.closest('.gxs-step'), wasFill = !!pane?.hasAttribute('data-fill');
     const given = new Map(array(selections.prices).map((entry) => [clean(entry.item_id), Number(entry.unit_price)]));
     const givenLines = selections.lines && typeof selections.lines === 'object' ? selections.lines : null;
@@ -673,10 +677,9 @@ export function mount(el, ctx){
       </div>`;
     function startHtml(){
       return `<div class="gxd">
-        <p>${esc(t('prices_start_lead', 'Your proposals are priced from these lines. Start from an estimate you already send, or go through them yourself.'))}</p>
         <div class="gxs-choices" style="--gxs-n:2" role="group" aria-label="${esc(ctx.L(ctx.step.title))}">
           <button type="button" class="gxd-tile gxs-choice" data-start="estimate"><span class="gxd-icon gxs-choice-icon" aria-hidden="true"><i class="fas fa-file-arrow-up"></i></span><span class="gxs-choice-text"><em class="gxd-badge">${esc(t('prices_start_fastest', 'Fastest'))}</em><strong>${esc(t('prices_start_estimates', 'Upload existing estimates'))}</strong><small>${esc(t('prices_start_estimates_hint', 'We’ll read through these to set up your prices.'))}</small></span></button>
-          <button type="button" class="gxd-tile gxs-choice" data-start="manual"><span class="gxd-icon gxs-choice-icon" aria-hidden="true"><i class="fas fa-list-check"></i></span><span class="gxs-choice-text"><strong>${esc(t('prices_start_manual', 'Review my prices manually'))}</strong><small>${esc(t('prices_start_manual_hint', 'Go through the usual lines of a roof and set what you charge for each.'))}</small></span></button>
+          <button type="button" class="gxd-tile gxs-choice" data-start="manual"><span class="gxd-icon gxs-choice-icon" aria-hidden="true"><i class="fas fa-list-check"></i></span><span class="gxs-choice-text"><strong>${esc(t('prices_start_manual_2', 'Build my prices manually'))}</strong><small>${esc(t('prices_start_manual_hint', 'Go through the usual lines of a roof and set what you charge for each.'))}</small></span></button>
         </div>
         <p class="gxd-error" role="alert" data-error></p>
       </div>`;
@@ -779,6 +782,8 @@ export function mount(el, ctx){
     placeOf = () => ({ phase: phase === 'uploads' ? 'list' : phase, lines });
     function draw(focus){
       if (!alive) return;
+      // The lines are wide; the estimates page stays as it was opened from (narrow from the start, wide from the lines).
+      fit(phase === 'list' || (phase === 'uploads' && uploadsFrom === 'list'));
       el.innerHTML = phase === 'uploads' ? uploadsHtml() : phase === 'start' ? startHtml() : listHtml();
       if (focus) el.querySelector(focus)?.focus({ preventScroll: false });
     }
