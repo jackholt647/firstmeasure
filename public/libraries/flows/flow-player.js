@@ -19,7 +19,9 @@
   const toast = (message, kind = 'success') => root.Portal?.ui?.showToast?.(message, kind);
   const api = (path, options = {}) => {
     if (!root.PlatformAPI?.request) return Promise.reject(new Error(L('unavailable', 'Flows are not available here.')));
-    return root.PlatformAPI.request(`/v1/flows/organizations/${encodeURIComponent(orgId())}${path}`, options);
+    // An absolute address: PlatformAPI.request puts relative paths under /v1/platform.
+    const base = clean(root.__APP?.flowsApiBase || `${location.origin}/v1/flows`).replace(/\/+$/, '');
+    return root.PlatformAPI.request(`${base}/organizations/${encodeURIComponent(orgId())}${path}`, options);
   };
 
   const css = `

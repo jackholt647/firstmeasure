@@ -66,6 +66,10 @@ const MENU = {
   payment: ['fa-money-check-dollar', 'menu_payment', 'Payment', 'menu_payment_hint', 'Take a payment'],
   appointment: ['fa-calendar-plus', 'menu_appointment', 'Appointment', 'menu_appointment_hint', 'Book a visit']
 };
+// What a person reads and types in place of templates: [first name] stands for {{contact.first_name}}.
+const TOKENS = [['{{contact.first_name}}', 'first name'], ['{{contact.name}}', 'name'], ['{{contact.phone}}', 'phone'], ['{{contact.email}}', 'email'], ['{{user.first_name}}', 'your name'], ['{{organization.name}}', 'company name']];
+export const friendly = (value) => TOKENS.reduce((out, [template, word]) => out.split(template).join(`[${word}]`), String(value ?? ''));
+export const templated = (value) => TOKENS.reduce((out, [template, word]) => out.split(`[${word}]`).join(template), String(value ?? ''));
 const BLOCK_ICONS = { say: 'fa-quote-left', note: 'fa-circle-info', ask: 'fa-circle-question', choice: 'fa-code-branch', action: 'fa-bolt', contact: 'fa-address-book', project: 'fa-folder-plus', outcome: 'fa-flag-checkered', buttons: 'fa-arrow-pointer' };
 
 export function mount(el, ctx){
@@ -140,22 +144,26 @@ export function mount(el, ctx){
     }
     const outcomes = new Map(array(flow.outcomes).map((entry) => [entry.id, entry]));
     const steps = new Map(array(flow.steps).map((entry) => [entry.id, entry]));
+    const order = new Map(array(flow.steps).map((entry, index) => [entry.id, index + 1]));
     const goes = (step) => {
       const out = [];
       for (const block of array(step.blocks)) {
         if (block.kind === 'choice') for (const option of array(block.options)) {
           const target = option.outcome ? outcomes.get(option.outcome) : steps.get(option.to);
-          if (target) out.push(`<span class="${option.outcome ? 'out' : ''}" ${option.outcome ? `style="background:${esc(target.color || '#667085')}"` : ''}>${esc(option.label)} → ${esc(target.label || target.title)}</span>`);
+          if (!target) continue;
+          // A choice that goes to a step names its number; an ending names the ending when it says more than the choice.
+          const where = option.outcome ? (clean(target.label).toLowerCase() === clean(option.label).toLowerCase() ? '' : ` → ${esc(target.label)}`) : ` → ${L('gx_leads_step_n', 'step')} ${order.get(option.to)}`;
+          out.push(`<span class="${option.outcome ? 'out' : ''}" ${option.outcome ? `style="background:${esc(target.color || '#667085')}"` : ''}>${esc(option.label)}${where}</span>`);
         }
         if (block.kind === 'outcome' && outcomes.get(block.outcome)) out.push(`<span class="out" style="background:${esc(outcomes.get(block.outcome).color)}">${esc(outcomes.get(block.outcome).label)}</span>`);
       }
-      if (typeof step.next === 'string' && steps.get(step.next)) out.push(`<span>→ ${esc(steps.get(step.next).title)}</span>`);
+      if (typeof step.next === 'string' && steps.get(step.next)) out.push(`<span>→ ${L('gx_leads_step_n', 'step')} ${order.get(step.next)}: ${esc(steps.get(step.next).title)}</span>`);
       return out.length ? `<div class="gxl-goes">${out.join('')}</div>` : '';
     };
     const line = (step, block) => {
       const icon = `<i class="fas ${BLOCK_ICONS[block.kind] || 'fa-circle'}" aria-hidden="true"></i>`;
-      if (block.kind === 'say' || block.kind === 'note') return `<div class="gxl-line">${icon}<textarea data-edit="${esc(step.id)}|${esc(block.id)}|text" rows="2">${esc(block.text)}</textarea></div>`;
-      if (block.kind === 'action' && object(block.input).text !== undefined) return `<div class="gxl-line">${icon}<textarea data-edit="${esc(step.id)}|${esc(block.id)}|copy" rows="3" aria-label="${esc(block.label)}">${esc(object(block.input).text)}</textarea></div>`;
+      if (block.kind === 'say' || block.kind === 'note') return `<div class="gxl-line">${icon}<textarea data-edit="${esc(step.id)}|${esc(block.id)}|text" rows="2">${esc(friendly(block.text))}</textarea></div>`;
+      if (block.kind === 'action' && object(block.input).text !== undefined) return `<div class="gxl-line">${icon}<textarea data-edit="${esc(step.id)}|${esc(block.id)}|copy" rows="3" aria-label="${esc(block.label)}">${esc(friendly(object(block.input).text))}</textarea></div>`;
       if (block.kind === 'action') return `<div class="gxl-line">${icon}<span class="gxl-q">${esc(block.preview || block.label)}</span></div>`;
       if (block.kind === 'ask' || block.kind === 'choice') return `<div class="gxl-line">${icon}<span class="gxl-q">${esc(block.label)}</span></div>`;
       return '';
@@ -165,7 +173,7 @@ export function mount(el, ctx){
       <div class="gxl-try"><div data-try></div></div>${tip()}</div>`;
     try_();
   }
-  const tip = () => `<div class="gxl-tip"><i class="fas fa-pen-to-square" aria-hidden="true"></i><span>${T('script_later', 'To edit your scripts later, go to CRM settings › Flows or call center settings.')}</span></div>`;
+  const tip = () => `<div class="gxl-tip"><i class="fas fa-pen-to-square" aria-hidden="true"></i><span>${T('script_words', 'Words in [brackets] are filled in for each lead: [first name], [your name], [company name].')} ${T('script_later', 'To edit your scripts later, go to CRM settings › Flows or call center settings.')}</span></div>`;
   function try_(){
     const target = el.querySelector('[data-try]');
     if (!target || !window.FirstMateFlows?.preview) return;
@@ -231,7 +239,8 @@ export function mount(el, ctx){
       const flow = JSON.parse(JSON.stringify(state.definition));
       const block = array(array(flow.steps).find((step) => step.id === stepId)?.blocks).find((entry) => entry.id === blockId);
       if (!block) return;
-      if (field === 'copy') { block.input = { ...object(block.input), text: event.target.value }; block.preview = event.target.value; } else block.text = event.target.value;
+      const value = templated(event.target.value);
+      if (field === 'copy') { block.input = { ...object(block.input), text: value }; block.preview = value; } else block.text = value;
       state.definition = flow; report(); try_();
     }
   };
