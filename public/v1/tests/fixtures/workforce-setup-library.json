@@ -5,16 +5,16 @@
       "version": 1,
       "scope": "organization",
       "title": {
-        "key": "gx_step_company_workforce_title",
-        "text": "Who does most of the work?"
+        "key": "gx_step_company_workforce_title_v2",
+        "text": "Who does the hands-on work on your jobs?"
       },
       "subtitle": {
-        "key": "gx_step_company_workforce_subtitle",
-        "text": "This decides who goes to the work itself, and which teams FirstMate sets up for you."
+        "key": "gx_step_company_workforce_subtitle_v2",
+        "text": "The people who go out and do the jobs, not sales or the office. This decides who goes to the work itself, and which teams FirstMate sets up for you."
       },
       "description": {
-        "key": "gx_step_company_workforce_description",
-        "text": "Who does most of the organization's work: the owner, its own crews, subcontractors, or both."
+        "key": "gx_step_company_workforce_description_v2",
+        "text": "Who does the hands-on work on the organization's jobs (not sales or office work): the owner, its own crews, subcontractors, or both."
       },
       "ui": {
         "widget": "module",

@@ -158,18 +158,20 @@ export function industrySetsFor(industry: string | null | undefined) {
  * `team` says the answer is a group of people (a sales team, crews), which the appointment setup gives a group type.
  */
 export type TeamAnswer = { id: string; label: CatalogCopy; hint: CatalogCopy; team: boolean };
-const answer = (prefix: string, id: string, text: string, hint: string, team: boolean): TeamAnswer => ({ id, label: c(prefix, id, text), hint: c(prefix, `${id}_hint`, hint), team });
+// `hintKey` names a reworded hint's new key, so its translations are redone (GP-54).
+const answer = (prefix: string, id: string, text: string, hint: string, team: boolean, hintKey = `${id}_hint`): TeamAnswer => ({ id, label: c(prefix, id, text), hint: c(prefix, hintKey, hint), team });
 export const SALES_TEAMS: readonly TeamAnswer[] = Object.freeze([
   answer("sales_team", "just_me", "Just me", "I meet the customers and sell the work myself.", false),
   answer("sales_team", "small_team", "A small sales team", "A few salespeople run the appointments.", true),
   answer("sales_team", "managed_team", "A sales team with managers", "Salespeople, and managers who oversee them.", true),
   answer("sales_team", "no_sales", "We don’t do sales appointments", "Work comes to us already sold, or by phone.", false)
 ]);
+// Who does the hands-on work on the jobs, not sales or the office (GP-54): the hints say "jobs".
 export const WORKFORCES: readonly TeamAnswer[] = Object.freeze([
-  answer("workforce", "just_me", "Just me", "I do the work myself.", false),
-  answer("workforce", "crews", "Our own crews", "Teams of our own people do the work.", true),
-  answer("workforce", "subcontractors", "Subcontractors", "Outside companies do the work for us.", false),
-  answer("workforce", "crews_and_subs", "Crews and subcontractors", "Some work is ours, some goes to outside companies.", true)
+  answer("workforce", "just_me", "Just me", "I do the jobs myself.", false, "just_me_hint_v2"),
+  answer("workforce", "crews", "Our own crews", "Teams of our own people do the jobs.", true, "crews_hint_v2"),
+  answer("workforce", "subcontractors", "Subcontractors", "Outside companies do the jobs for us.", false, "subcontractors_hint_v2"),
+  answer("workforce", "crews_and_subs", "Crews and subcontractors", "We do some jobs; outside companies do the rest.", true, "crews_and_subs_hint_v2")
 ]);
 /**
  * How new leads become jobs (GP-119): four questions about how the company runs, in its own words, which the

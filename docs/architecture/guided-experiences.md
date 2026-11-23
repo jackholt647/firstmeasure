@@ -46,7 +46,8 @@ An **experience** (`experienceSchema`):
 - `triggers`: `before_action` (a selector; the click is held, the experience
   plays, then the click goes through), `tab_opened` (a project tab app id, or a
   portal tab's such as `portal.scheduling`; with `skip: "later"` a skip only puts
-  it off, below, and its `skip_note` says when it is asked again),
+  it off, below, and its `skip_note` says when it is asked again; with `welcome`, a
+  setup it starts first shows that page, below),
   `after_experience`, `app_loaded`, `workflow_opened` (a `document_type`: a document
   workflow opened for that kind of document), `panel_opened` and `panel_closed` (a
   project window `panel` that is not a tab, `project.details` for the details tray,
@@ -133,7 +134,19 @@ still in the same platform session and within an hour of the skip, the
 experience's other triggers are not armed either (they have just said "not
 now"); after that the first of them plays it as usual, and a skip there is an
 ordinary `dismiss`. Setup steps answered before the skip stay answered, so it
-asks only what is still unknown. This is the one other place events are read to
+asks only what is still unknown.
+
+**A welcome before the questions** (GP-54). A `tab_opened` trigger can carry a
+`welcome` (`title`, `body`, up to four `points`, a `note`, and the labels of its
+`start` and `back` buttons, all copy). A modal setup that trigger starts shows it
+as its first page, before any question (`guided-setup.js` `showWelcome`; never on a
+replay or a nested start): someone who opened the tab by accident is not dropped
+into a setup. Set up now goes on to the first question. Back puts the setup off as
+a skip does (`dismiss`, which `skip: "later"` records as `defer`) and returns to the
+portal tab they were on before (`Portal.tabs.previous()`, else the first tab in the
+sidebar); the X, Escape and the phone's back control put it off too, and only Back
+changes tab. The appointment setup's tab trigger has one ("Welcome to Scheduling").
+Tests: `tests/guided-scheduling-first-view-browser.test.mjs`. This is the one other place events are read to
 decide behavior (`lastEvent`), besides counting an exposure once. Every event carries the
 experience version, variant, bucket and unit. Administrators read them at
 `GET /v1/guided-experiences/organizations/:org/experiences/:id/events`. The
@@ -919,12 +932,12 @@ phone, a modal on a wider screen). It needs the crew app (`apps.crew`), not Oper
 before Operations is on sets them up the same way, with no pay page (pay sheets are Operations'; the status's
 `can.pay` is false, `labor.setup.apply` saves no pay and the work-order column is left for Operations). It
 `requires` `company.type`, `company.services` and `company.workforce`, so what kind of company it is, what work it does
-and who does most of it are asked first while unanswered. "Who does most of the work?" is one question for every setup
+and who does the jobs are asked first while unanswered. "Who does the hands-on work on your jobs?" is one question for every setup
 (GP-65): the `company.workforce` [setup step](setup-steps.md), which the appointment setup requires too, asked once.
 Its one step (widget `workforce-setup`, `public/libraries/guided-experiences/workforce-setup.js`) keeps its own pages
 and reads `workforce-setup.status` when it shows (the steps before it may have just answered the profile):
 
-1. **Who does most of the work?** Only when it is still unanswered, or when someone goes Back to change it: the shared
+1. **Who does the hands-on work on your jobs?** Only when it is still unanswered, or when someone goes Back to change it: the shared
    step's own part (`setup-steps/company-profile.js`, part `workforce`, the same tiles as everywhere), shown chosen and
    saved with `company-profile.save` when it changes. Answered, the setup starts at the next page. The setup never
    draws a question of its own for it.

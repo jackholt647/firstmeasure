@@ -361,10 +361,10 @@ export function mount(el, ctx){
 
   // ── Who does the work at your company? ─────────────────────────────────
   // The shared setup step's own part (GP-65): the same question, tiles and copy as the appointment setup asks.
-  const STEP = new URL('../setup-steps/company-profile.js?v=20261119-gp65', import.meta.url).href;
+  const STEP = new URL('../setup-steps/company-profile.js?v=20261123-gp54', import.meta.url).href;
   let whoStep = null;
   function drawWho(){
-    title(L('gx_step_company_workforce_title', 'Who does most of the work?'));
+    title(L('gx_step_company_workforce_title_v2', 'Who does the hands-on work on your jobs?'));
     el.innerHTML = `<div class="gxw" data-gxw-page="who">
       <div data-gxw-who></div>
       ${errorLine}

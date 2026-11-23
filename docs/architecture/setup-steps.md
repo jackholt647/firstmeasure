@@ -171,7 +171,8 @@ else that needs the answer (the [document setup](guided-experiences.md#document-
 proposal's questions):
 
 - `company.sales_team`, "Who does the sales in your company?": just me, a small sales team, a sales team with
-  managers, or no sales appointments. `company.workforce`, "Who does most of the work?": just me, our own crews,
+  managers, or no sales appointments. `company.workforce`, "Who does the hands-on work on your jobs?" (the jobs
+  themselves, not sales or the office; it said "most of the work" before GP-54): just me, our own crews,
   subcontractors, or crews and subcontractors. The appointment setup and the workforce setup (GP-28) both require it,
   so it is asked once (GP-65); the workforce setup mounts this same part when someone goes back to change the answer.
   Both are drawn as every setup's choice row (`.gxs-choices`, GP-46), a tile with an icon per answer. One choice each (parts `sales_team` and `workforce` of
