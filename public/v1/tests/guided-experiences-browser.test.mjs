@@ -80,7 +80,10 @@ async function load(browser,{width=SIZE_W,height=SIZE_H,reduced=false}={}){
   if(reduced)await page.emulateMedia({reducedMotion:'reduce'});
   page.on('pageerror',error=>errors.push(error.message));
   // A real origin, so the logo request and the assistant's storage behave as on the portal.
-  await page.route('https://fm.test/**',route=>{const url=route.request().url();
+  await page.route('https://fm.test/**',async route=>{const url=route.request().url();
+    // Step modules load through the player's loader (FLOW_MODULES): the price book setup is pricebook-setup.js.
+    const path=new URL(url).pathname;
+    if(path.startsWith('/libraries/')&&path.endsWith('.js'))return route.fulfill({contentType:'text/javascript',body:await read(path.slice(1))});
     if(url.endsWith('/gaf.svg'))return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#d71920"/></svg>'});
     if(url.includes('/images/'))return route.fulfill({status:404,body:''});
     return route.fulfill({contentType:'text/html',body:'<html></html>'});});

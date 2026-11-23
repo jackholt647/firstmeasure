@@ -127,6 +127,9 @@ async function audioReady(){
 export function mount(el, ctx){
   injectCss();
   const mode = clean(ctx.options?.mode) || 'pick';
+  // Where this setup is, for a live redraw and for an issue filed from it (guided-setup.js ctx.place). Every answer is
+  // the setup's selections (kept by the player), so the place only names the page.
+  ctx.place?.keep?.(() => ({ page: mode === 'edit' ? `edit:${clean(ctx.options?.use_case)}` : mode }));
   if (mode === 'edit') return mountEdit(el, ctx);
   if (mode === 'review') return mountReview(el, ctx);
   return mountPick(el, ctx);

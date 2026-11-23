@@ -548,6 +548,11 @@ export function mount(el, ctx){
   const t = (key, text) => ctx.L(`gx_docs_setup_${key}`, text);
   const part = clean(ctx.options.part);
   const selections = object(ctx.selections);
+  // Where this setup is, for a live redraw and for an issue filed from it (guided-setup.js ctx.place): the part (each
+  // is its own step; its answers are the setup's selections, kept by the player) and what a part keeps of its own.
+  let placeOf = () => ({});
+  ctx.place?.keep?.(() => ({ page: part || 'kind', ...placeOf() }));
+  const was = object(ctx.place?.restored);
   if (part === 'prices') return pricesPart();
   if (part === 'style') return stylePart();
   if (part === 'copy') return copyPart();
@@ -771,6 +776,7 @@ export function mount(el, ctx){
       </div>`;
     }
     let phase = 'start';
+    placeOf = () => ({ phase: phase === 'uploads' ? 'list' : phase, lines });
     function draw(focus){
       if (!alive) return;
       el.innerHTML = phase === 'uploads' ? uploadsHtml() : phase === 'start' ? startHtml() : listHtml();
@@ -1030,6 +1036,8 @@ export function mount(el, ctx){
         }
       }
       phase = givenLines || given.size ? 'list' : 'start';
+      // Redrawn after a live edit: the lines as they were being edited.
+      if (array(was.lines).length) { lines = was.lines; phase = was.phase === 'list' ? 'list' : phase; }
       draw();
       if (phase === 'list') report();
     }).catch((error) => { if (alive) el.innerHTML = `<div class="gxd"><p class="gxd-error" role="alert">${esc(clean(error?.message) || t('load_failed', 'This didn’t load. Skip this step or try again.'))}</p></div>`; });

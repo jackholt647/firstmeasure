@@ -74,6 +74,8 @@ export function mount(el, ctx){
   const orgId = clean(window.__APP?.userOrgId || window.__APP?.orgId || hub()?.orgId?.());
   let alive = true, page = 0, answers = {}, plan = null, saved = null, saving = false, error = '', asked = 0;
   const pages = () => pagesFor(answers);
+  // Where this setup is, for a live redraw and for an issue filed from it (guided-setup.js ctx.place).
+  ctx.place?.keep?.(() => ({ page: pages()[page], answers, saved }));
   const question = () => QUESTIONS.find((entry) => entry.id === pages()[page]) || null;
   const answersOf = () => Object.fromEntries(QUESTIONS.filter((entry) => answers[entry.id] && !entry.skip?.(answers)).map((entry) => [entry.id, answers[entry.id]]));
 
@@ -107,6 +109,9 @@ export function mount(el, ctx){
     // A replay starts from what the company said before; a first run asks everything.
     const flow = object(object(profile).lead_flow);
     for (const entry of QUESTIONS) if (clean(flow[entry.id])) answers[entry.id] = clean(flow[entry.id]);
+    // Redrawn after a live edit (guided-setup.js ctx.place): the answers so far and the page it was on.
+    const was = object(ctx.place?.restored);
+    if (was.page) { answers = { ...answers, ...object(was.answers) }; saved = was.saved ?? null; const at = pages().indexOf(was.page); if (at >= 0) page = at; }
     render();
     previewPlan();
   }).catch((failure) => { if (alive) el.innerHTML = `<p class="gxs-module-error" role="alert">${esc(clean(failure?.message) || L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`; });

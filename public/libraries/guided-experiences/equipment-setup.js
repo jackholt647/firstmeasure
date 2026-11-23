@@ -106,6 +106,8 @@ export function mount(el, ctx){
   const groups = array(options.groups);
   let alive = true, busy = false, page = 0, kinds = [], locations = [], picked = new Set(), counts = {}, own = [], result = null;
   const pages = ['locations', 'equipment', 'units', 'done'];
+  // Where this setup is, for a live redraw and for an issue filed from it (guided-setup.js ctx.place).
+  ctx.place?.keep?.(() => ({ page: pages[page], locations, own, picked: [...picked], counts, result }));
 
   const errorLine = '<p class="gxe-error" role="alert" data-gxe-error></p>';
   const fail = (error) => { const node = el.querySelector('[data-gxe-error]'); if (node) node.textContent = clean(error?.message) || L('gx_eqs_error', 'That didn’t work. Try again.'); };
@@ -310,6 +312,13 @@ export function mount(el, ctx){
     for (const kind of kinds) if (!counts[kind.id]) counts[kind.id] = Object.fromEntries(locations.map((loc, at) => [loc.key, at === 0 ? 1 : 0]));
     const answer = object(ctx.answer);
     if (array(answer.equipment).length) picked = new Set(array(answer.equipment).map((row) => clean(row.key)).filter((id) => all().some((kind) => kind.id === id)));
+    // Redrawn after a live edit (guided-setup.js ctx.place): the page it was on and what was chosen there.
+    const was = object(ctx.place?.restored);
+    if (pages.includes(was.page)) {
+      if (array(was.locations).length) locations = was.locations;
+      own = array(was.own); picked = new Set(array(was.picked)); counts = { ...counts, ...object(was.counts) }; result = was.result ?? null;
+      page = pages.indexOf(was.page);
+    }
     report(); draw();
   }).catch((error) => { if (alive) { el.innerHTML = `<div class="gxe">${errorLine}</div>`; fail(error); } });
   return {

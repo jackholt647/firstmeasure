@@ -80,7 +80,7 @@ export function composeIssue(text, { workspaceId, screenshotUrl = '', page = '',
   const context = [page && `Page: ${page}`, viewport && `Screen: ${viewport}`, app && `App: ${app}`].filter(Boolean).join(' · ');
   // The setup on screen, in the form the Tracker router reads to show the working spinner in it at once
   // (docs/architecture/guided-experiences.md, "Editing a setup live").
-  const setupLine = setup?.id ? `Setup: \`${setup.id}${setup.step ? `/${setup.step}` : ''}\`` : '';
+  const setupLine = setup?.id ? `Setup: \`${setup.id}${setup.step ? `/${setup.step}` : ''}\`${setup.page ? ` (page \`${setup.page}\`)` : ''}` : '';
   const parts = [short ? '' : body, setupLine, screenshotUrl ? `![Screenshot](${screenshotUrl})` : '', context ? `_Filed from the dev tray. ${context}_` : ''].filter(Boolean);
   return { project: workspaceId, status: 'Ready', ...(short ? { title: body } : {}), description: parts.join('\n\n') };
 }

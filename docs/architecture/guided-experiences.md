@@ -836,12 +836,28 @@ push router until the work is done.
 | A step's screens and their CSS | one ES module per setup under `public/libraries/guided-experiences/` (or `public/libraries/setup-steps/`), listed once in `FLOW_MODULES` in `guided-setup.js`, or named by a step's `module` path | save it with `live-sync.mjs` running: the player imports the new copy and redraws the step in place (`__fmHotHandlers` in `live-assets.js`); a change to only the module's CSS text is swapped without even a redraw |
 | What a step saves or reads (published actions and providers in `public/v1/**`) | server code | the platform lane (`submit.mjs`); rarely needed for a visual change |
 
-A setup is one module and its data, never its own widget, loader or `?v=` import line. Add a setup to
-`FLOW_MODULES` (or give its step `widget: 'module'` and a `module` path). A redraw keeps what the person chose
-(the player holds selections and answers); a module that has pages of its own returns `hotState()` from its handle
-and reads `ctx.hot` in `mount` to open where it was (`appointments-setup.js` keeps its page and answers). A change to
-a file a step module imports (a shared helper such as `texting-setup.js`) cannot be swapped into the running module:
-the live layer offers the usual refresh pill for it. Keep a setup's visual code in its own module.
+A setup is one module and its data, never its own widget, loader, `?v=` import line or inline code in
+`guided-setup.js`. Add a setup to `FLOW_MODULES` (or give its step `widget: 'module'` and a `module` path). Every
+setup module, whichever page or app it plays on, uses the same contract:
+
+- **`ctx.place.keep(() => ({ page, ... }))`**, called once in `mount`: a getter of a JSON-safe snapshot of where the
+  setup is. `page` names the page (`'kind:1'`, `'units'`, `'workflow:2'`); anything else is what the setup needs to
+  draw that page again (answers being typed, rows added). The player calls it when a live edit redraws the step and
+  when an issue is filed from the dev tray (`FirstMateGuidedSetup.where()` returns `{ experience, step, page }`).
+- **`ctx.place.restored`**: that snapshot, after a live redraw (null otherwise). A module with pages of its own reads
+  it once its data has loaded and opens on that page with that state. A one-page step needs nothing: its answers are
+  the player's selections, which a redraw keeps.
+- **`ctx.mountStep(el, path, context)`**: mounts another step module inside this one (the workforce setup's "who does
+  the work" page is the company profile step) through the same loader, so a live edit to it redraws too. Give the
+  inner step `place: null` so the outer setup keeps the place.
+
+Every setup is on it: the scheduling (appointments), communications, equipment, workforce, salesperson, Operations,
+document, checklist, Automations Hub and price book setups and the shared setup steps. Operations' workflow keeps its
+step on the server, so a redraw reopens there; its place only names it. `tests/setup-modules-contract.test.mjs`
+fails any setup module that does not keep its place, any page module that does not restore it, and any setup drawn
+outside the one loader. A change to a file a step module imports (a shared helper such as `texting-setup.js`) cannot
+be swapped into the running module: the live layer offers the usual refresh pill for it. Keep a setup's visual code
+in its own module.
 
 **The working spinner.** Before changing a setup, the agent says so:
 
