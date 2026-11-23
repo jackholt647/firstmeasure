@@ -18,7 +18,7 @@
 // registration; it finishes once registration is submitted. Where the
 // business phone is already set up (there, in Phone Settings or another setup) and email is not, Communications opens on
 // "Your phones are already set up": set up email, or skip it and use Communications with texts and calls.
-import { commsAction, isRegistered, loadScript, registrationOf, setUpTexting, syncSessions, workflowWindow } from './texting-setup.js?v=20261123-gp149b';
+import { commsAction, isRegistered, loadScript, registrationOf, setUpTexting, syncSessions, workflowWindow } from './texting-setup.js?v=20261123-gp150';
 const array = (value) => Array.isArray(value) ? value : [];
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const clean = (value) => String(value ?? '').trim();
