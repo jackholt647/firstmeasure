@@ -294,3 +294,5 @@ export function mount(el, ctx){
   };
 }
 export default mount;
+
+export const hotProof = 1795466894999;
