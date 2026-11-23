@@ -27,7 +27,7 @@ const harness=`
     // The window's tab change (setActivePreviewTab) and the guide runtime's list (FirstMateGuides.preload).
     tab(id){activePreviewTab=id;syncDetailsTrayOperations();},
     opsSetup(status,on=true){window.PlatformAPI={capabilities:{can:key=>key==='platform.materials' && on}};window.FirstMateGuides={preload:async()=>({experiences:new Map(status===undefined?[]:[['operations.setup',{id:'operations.setup',progress:status?{status}:null}]])})};},
-    setupFinished(){window.FirstMateGuides.preload=async()=>({experiences:new Map([['operations.setup',{progress:{status:'completed'}}]])});window.dispatchEvent(new CustomEvent('fm:guides:ended',{detail:{id:'operations.setup'}}));},
+    setupFinished(status='completed'){window.FirstMateGuides.preload=async()=>({experiences:new Map([['operations.setup',{progress:{status}}]])});window.dispatchEvent(new CustomEvent('fm:guides:ended',{detail:{id:'operations.setup'}}));},
     // A flow (GP-100): its start asks for the tray, its end calls the release it was given.
     hold(owner){(window.flowReleases||={})[owner]=holdDetailsTray(owner);},
     end(owner){window.flowReleases[owner]();},
@@ -218,22 +218,36 @@ test('the Operations tab closes the tray once Operations is set up and gives it 
   }finally{await browser.close();}
 });
 
-test('the tray stays put on Operations until its setup is finished, then closes when it finishes',async()=>{
+test('the tray stays put on Operations until its setup is finished or skipped, then closes when it ends',async()=>{
   const browser=await launch();
   try{
     const {run,isOpen,errors,page}=await mount(browser,1280);
     const settle=()=>page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,20)));
-    for(const status of [null,'started','dismissed','deferred']){
+    for(const status of [null,'started','deferred']){
       await run('opsSetup',status);
       await run('openProject','project_'+status);
       await run('tab','materials');await settle();
       assert.equal(await isOpen(),true,`setup ${status}`);
       await run('tab','map');await settle();
     }
+    // A skipped setup leaves Operations in use with its measurements: it is past its setup (GP-163).
+    await run('opsSetup','dismissed');
+    await run('openProject','project_dismissed');
+    await run('tab','materials');await settle();
+    assert.equal(await isOpen(),false,'setup skipped');
+    await run('tab','map');await settle();
+    assert.equal(await isOpen(),true,'and given back on leaving');
     await run('opsSetup',null);
     await run('tab','materials');await settle();
     await run('setupFinished');await settle();
     assert.equal(await isOpen(),false,'finishing the setup on Operations closes it');
+    await run('tab','map');await settle();
+    assert.equal(await isOpen(),true);
+    await run('opsSetup','started');
+    await run('tab','materials');await settle();
+    assert.equal(await isOpen(),true);
+    await run('setupFinished','dismissed');await settle();
+    assert.equal(await isOpen(),false,'skipping the setup on Operations closes it too');
     await run('tab','map');await settle();
     assert.equal(await isOpen(),true);
     // Not offered to this person (the list has no Operations setup): nothing to set up first.
