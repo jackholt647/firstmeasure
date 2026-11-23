@@ -9,7 +9,7 @@ import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
 import "./instructions.js";
-import { storeMediaUpload, readDocument, readMediaMetadata, readMediaFile, readGlobal, readOrganization } from "../platform/storage.js";
+import { storeMediaUpload, readDocument, readMediaMetadata, readMediaFile, readGlobal, readOrganization, upsertDocument } from "../platform/storage.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { badRequest, conflict, forbidden, notFound, PlatformError } from "../platform/errors.js";
@@ -207,7 +207,49 @@ async function smsOrganizationContact(orgId: string, branchId = "default") {
   // Settings › Company saves the company email on the branch.
   const saved = deliverableEmailAddress(asObject(asObject(branch?.data).contact).email) || contact.email;
   const { email } = await organizationContactEmail(orgId, saved).catch(() => ({ email: "" }));
-  return { ...(website ? { website } : {}), ...(email ? { email } : {}) };
+  // GP-149: and the phone and business address Settings › Company saved on the branch, wherever the wizard opens.
+  const branchContact = asObject(asObject(branch?.data).contact);
+  const phone = cleanText(branchContact.phone);
+  const businessAddress = asObject(branchContact.business_address);
+  const address = Object.values(businessAddress).some(nonEmpty) ? { business_address: businessAddress } : nonEmpty(branchContact.address) ? { address: cleanText(branchContact.address) } : {};
+  return { ...(website ? { website } : {}), ...(email ? { email } : {}), ...(phone ? { phone } : {}), ...address };
+}
+
+/**
+ * GP-149: a submitted registration's business phone and address become the company's (Settings › Company, the
+ * branch contact) only where the company has none saved. A saved phone or address is never replaced, since a
+ * registration may use a different one. Read and written at one revision, so a concurrent Company save wins.
+ */
+export async function fillOrganizationContactFromSmsBrand(orgId: string, branchId: string, brandValue: unknown) {
+  const brand = asObject(brandValue);
+  const phone = normalizePhone(brand.phone);
+  const address = {
+    address1: cleanText(brand.street), address2: cleanText(brand.address2), city: cleanText(brand.city),
+    state: cleanText(brand.state), postal_code: cleanText(brand.postalCode), country: cleanText(brand.country).toUpperCase() || "US"
+  };
+  const addressComplete = Boolean(address.address1 && address.city && address.state && address.postal_code);
+  if (!phone && !addressComplete) return {};
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const branch = await readDocument(orgId, "branch", branchId).catch(() => null);
+    const contact = asObject(asObject(branch?.data).contact);
+    const filled: JsonObject = {};
+    if (phone && !nonEmpty(contact.phone)) filled.phone = phone;
+    if (addressComplete && !nonEmpty(contact.address) && !Object.values(asObject(contact.business_address)).some(nonEmpty)) {
+      const locality = [address.city, [address.state, address.postal_code].join(" ")].join(", ");
+      filled.address = [address.address1, address.address2, locality, address.country !== "US" ? address.country : ""].filter(Boolean).join(", ");
+      filled.business_address = address;
+    }
+    if (!Object.keys(filled).length) return {};
+    try {
+      await upsertDocument(orgId, "branch", branch
+        ? { id: branchId, data: { contact: { ...contact, ...filled } }, expected_revision: branch.revision }
+        : { id: branchId, data: { contact: filled } }, branch ? { mustExist: true } : { createOnly: true });
+      return filled;
+    } catch (error) {
+      if (!(error instanceof PlatformError) || !["revision_conflict", "document_exists", "document_missing"].includes(error.code)) throw error;
+    }
+  }
+  return {};
 }
 
 function changesStoredFields(current: unknown, patch: JsonObject) {
@@ -2405,7 +2447,12 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
           if (!correctingExistingBrand) (await recordBrandRegistrationFee(orgId, telnyxBrandId, profile.id, cleanText(asObject(profile.brand).entityType)));
         }
       }));
-      return { ok: true, submitted: true, mock: isMock, provider_response: isMock ? response : { brandId: telnyxBrandId, status: brandStatus }, profile: publicSmsComplianceProfile(saved) };
+      // GP-149: the company keeps its own phone and address; it takes the registration's only where it has none.
+      const organizationContact = await fillOrganizationContactFromSmsBrand(orgId, ctx.branchId || "default", profile.brand).catch((error) => {
+        request.log.warn({ err: error, orgId }, "sms registration could not fill the organization contact");
+        return {};
+      });
+      return { ok: true, submitted: true, mock: isMock, provider_response: isMock ? response : { brandId: telnyxBrandId, status: brandStatus }, profile: publicSmsComplianceProfile(saved), organization_contact: organizationContact };
     } catch (error) {
       if (brandProviderAccepted) throw error;
       const unknown = error instanceof TelnyxError && asObject(error.details).submission_unknown === true;

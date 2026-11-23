@@ -1043,6 +1043,72 @@ test("10DLC compliance profile workflow saves drafts and builds dry-run provider
   assert.equal(status.validation.ready_for_brand_submission, true);
 });
 
+test("a submitted registration fills only the company's empty phone and address (GP-149)", async () => {
+  const { readDocument, upsertDocument } = await import("../platform/storage.js");
+  const object = (value: unknown) => value && typeof value === "object" ? value as Record<string, any> : {};
+  const companyContact = async (orgId: string) => object((await readDocument(orgId, "branch", "default").catch(() => null))?.data).contact ?? null;
+  const brand = (phone: string, street: string) => ({
+    country: "US", displayName: "Preserve Co", companyName: "Preserve Co LLC", entityType: "PRIVATE_PROFIT", vertical: "CONSTRUCTION",
+    email: "support@example.com", ein: "123456789", phone, street, city: "San Diego", state: "CA", postalCode: "92101", website: "example.test"
+  });
+  const submit = async (client: ReturnType<typeof createSessionClient>, orgId: string, value: ReturnType<typeof brand>) => {
+    const before = await companyContact(orgId);
+    const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, { brand: value, campaign: {} });
+    assert.deepEqual(await companyContact(orgId), before, "saving a draft never writes the company");
+    return await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/submit-brand`, { submit: true });
+  };
+  let brands = 0;
+  const server = createServer((request, response) => {
+    request.resume();
+    response.setHeader("content-type", "application/json");
+    if (request.method === "POST" && request.url === "/10dlc/brand") {
+      response.end(JSON.stringify({ brandId: `B_GP149_${++brands}`, identityStatus: "VERIFIED" }));
+      return;
+    }
+    response.statusCode = 404;
+    response.end(JSON.stringify({ error: "not_found" }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const { env } = await import("../src/config/env.js");
+  const previous = { key: env.telnyxApiKey, baseUrl: env.telnyxBaseUrl };
+  Object.assign(env, { telnyxApiKey: "KEY_TEST", telnyxBaseUrl: `http://127.0.0.1:${address.port}` });
+  try {
+    // A company with no phone or address takes the registration's.
+    const empty = createSessionClient();
+    const { orgId } = await register(empty, true);
+    const filled = await submit(empty, orgId, brand("(234) 567-8900", "815 J Street"));
+    assert.equal(filled.submitted, true);
+    assert.equal(filled.organization_contact.phone, "+12345678900");
+    const saved = await companyContact(orgId);
+    assert.equal(saved.phone, "+12345678900");
+    assert.deepEqual(saved.business_address, { address1: "815 J Street", address2: "", city: "San Diego", state: "CA", postal_code: "92101", country: "US" });
+    assert.equal(saved.address, "815 J Street, San Diego, CA 92101");
+    const setup = await empty.request("GET", `/v1/messaging/organizations/${orgId}/sms/setup`);
+    assert.equal(setup.organization.contact.phone, "+12345678900", "the next registration starts from the company's phone");
+    assert.equal(setup.organization.contact.business_address.address1, "815 J Street");
+
+    // A company that has them keeps its own, whatever the registration used; a missing one is still filled.
+    const kept = createSessionClient();
+    const { orgId: keptOrgId } = await register(kept, true);
+    const branch = await readDocument(keptOrgId, "branch", "default").catch(() => null);
+    await upsertDocument(keptOrgId, "branch", { id: "default", data: { ...object(branch?.data), contact: { ...object(object(branch?.data).contact), phone: "+1 208 555 0199", email: "office@example.com" } } });
+    const partial = await submit(kept, keptOrgId, brand("2065550100", "1 Other Street"));
+    assert.equal(partial.organization_contact.phone, undefined);
+    assert.equal(partial.organization_contact.business_address.address1, "1 Other Street");
+    const afterPartial = await companyContact(keptOrgId);
+    assert.equal(afterPartial.phone, "+1 208 555 0199");
+    assert.equal(afterPartial.email, "office@example.com");
+    const none = await submit(kept, keptOrgId, brand("2065550111", "2 Third Street"));
+    assert.deepEqual(none.organization_contact, {});
+    assert.deepEqual(await companyContact(keptOrgId), afterPartial);
+  } finally {
+    Object.assign(env, { telnyxApiKey: previous.key, telnyxBaseUrl: previous.baseUrl });
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 test("10DLC brand submit rejects invalid NANP phone numbers before Telnyx", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client, true);

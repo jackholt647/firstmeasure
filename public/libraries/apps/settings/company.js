@@ -4101,7 +4101,16 @@
     let smsKit = null;
     const smsRegistration = () => smsKit ||= window.FirstMateSmsRegistration.create({
       escapeHtml, showToast, appFlag, currentOrgId, canPlatformBilling, readSettingsRoute, writeSettingsRoute, organizationBusinessAddressFromState,
-      paneSms: () => paneSms, activeTab: () => activeTab, state: () => state
+      paneSms: () => paneSms, activeTab: () => activeTab, state: () => state,
+      // GP-149: a submitted registration filled the company's empty phone or address; show it, so a later save keeps it.
+      organizationContactFilled: (filled = {}) => {
+        if (filled.phone && !String(state.company_phone || '').trim()) state.company_phone = filled.phone;
+        if (filled.business_address && !Object.values(organizationBusinessAddressFromState()).some(Boolean)) {
+          state.company_business_address = normalizeOrganizationBusinessAddress(filled.business_address);
+          state.company_address = formatOrganizationBusinessAddress(state.company_business_address);
+        }
+        renderCompany({ writeInputs:true, forceLogo:false, publish:false });
+      }
     });
     function formatPhoneUS(raw){ return smsRegistration().formatPhoneUS(raw); }
     function renderSmsSettings(){ return smsRegistration().renderSmsSettings(); }
