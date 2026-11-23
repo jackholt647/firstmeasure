@@ -80,12 +80,10 @@ async function agreementTotalCents(orgId: string, document: JsonObject) {
   return Math.max(0, subtotal + Math.round(subtotal * (Number(params.tax_percent) || 0) / 100)) || cents(params.amount_cents);
 }
 
-const OWN_CHARGES_OPTION = { value: "custom", label: "Other charges only", description: "Bill only the charges you add below." };
-
 export async function projectAccount(orgId: string, projectId: string, options: AccountOptions = {}): Promise<JsonObject> {
   const empty: JsonObject = {
     has_contract: false, contract_title: "", contract_document_id: "", contract_cents: 0, change_orders_cents: 0,
-    total_cents: 0, paid_cents: 0, balance_cents: 0, schedule: [], bill_options: [OWN_CHARGES_OPTION]
+    total_cents: 0, paid_cents: 0, balance_cents: 0, schedule: [], bill_options: []
   };
   if (!projectId) return empty;
   const payments = await import("../payments/storage.js");
@@ -133,13 +131,12 @@ export async function projectAccount(orgId: string, projectId: string, options: 
     paid_cents: paid,
     balance_cents: total - paid,
     schedule: rows,
-    // What an invoice can bill: each open payment, everything that is open, a payment already paid (an invoice that
-    // reads paid in full, GP-104), or only its own charges.
+    // What an invoice can bill: each open payment, everything that is open, or a payment already paid (an invoice that
+    // reads paid in full, GP-104). Billing none of them bills only its own charges (GP-157).
     bill_options: [
       ...open.map((row) => ({ value: row.id, label: row.label, description: row.due_text, price_cents: row.balance_cents })),
       ...(open.length > 1 ? [{ value: "balance", label: "Remaining balance", description: `All ${open.length} open payments`, price_cents: total - paid }] : []),
-      ...rows.filter((row) => row.balance_cents <= 0 && row.amount_cents > 0).map((row) => ({ value: row.id, label: row.label, description: "Paid", price_cents: row.amount_cents })),
-      OWN_CHARGES_OPTION
+      ...rows.filter((row) => row.balance_cents <= 0 && row.amount_cents > 0).map((row) => ({ value: row.id, label: row.label, description: "Paid", price_cents: row.amount_cents }))
     ]
   };
 }
@@ -177,8 +174,9 @@ function invoiceFigures(params: JsonObject, account: JsonObject) {
     .map((line) => ({ label: cleanText(line.display_name || line.name || line.description) || "Charge", detail: cleanText(line.name || line.display_name) ? cleanText(line.description) : "", amount_cents: lineAmountCents(line) }))
     .filter((line) => line.amount_cents > 0);
   const chargesCents = charges.reduce((total, line) => total + line.amount_cents, 0);
-  // An invoice rendered for the Money app arrives with its amount already settled there.
-  const explicit = !bill && params.amount_due_cents !== undefined && params.amount_due_cents !== null && params.amount_due_cents !== "";
+  // An invoice rendered for the Money app arrives with its amount already settled there. An amount this derived itself
+  // (it wrote billing.lines beside it) is not settled: an invoice that bills only its charges recomputes it (GP-157).
+  const explicit = !bill && !Array.isArray(asObject(params.billing).lines) && params.amount_due_cents !== undefined && params.amount_due_cents !== null && params.amount_due_cents !== "";
   // Sales tax (GP-104): on the other charges, unless switched off; one the Money app settled is shown as it was.
   const settledTax = explicit && params.tax_cents !== undefined && params.tax_cents !== null && params.tax_cents !== "";
   const tax = settledTax ? cents(params.tax_cents) : (params.tax_enabled === false ? 0 : Math.round(chargesCents * (Number(params.tax_percent) || 0) / 100));

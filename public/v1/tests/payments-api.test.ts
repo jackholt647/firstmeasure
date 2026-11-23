@@ -635,6 +635,12 @@ test("project invoices generate PDFs, publish due payments to the portal, email 
   assert.deepEqual(drafted.resolved.scope.params.billing.obligation_ids, [finalObligation.id]);
   assert.ok(drafted.resolved.scope.params.billing.lines.some((line: any) => line.label === "Dump fee" && line.amount_cents === 5000));
   assert.ok(!drafted.resolved.scope.params.billing.lines.some((line: any) => /Sales tax/.test(line.label)), "no tax once switched off");
+  // GP-157: there is no "other charges only" choice; billing no payment bills the charges, and the amount due follows
+  // them although the draft started with an amount of its own.
+  assert.ok(!started.params.account.bill_options.some((option: any) => option.value === "custom"));
+  const chargesOnly = await client.request("POST", draftPath, { params: { ...started.params, tax_enabled: false, line_items: [{ id: "fee", name: "Dump fee", quantity: 1, unit: "ea", unit_price: 50 }] } });
+  assert.deepEqual(chargesOnly.resolved.scope.params.billing.obligation_ids, []);
+  assert.equal(chargesOnly.resolved.scope.params.amount_due_cents, 5000);
 });
 
 test("the legacy proposal page takes no payment: no Pay button, and the old deposit route is gone", async () => {
