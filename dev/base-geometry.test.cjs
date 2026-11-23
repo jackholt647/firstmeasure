@@ -137,3 +137,15 @@ test('pitch is square to a fold the face shares, so a move down brings both ends
  assert.ok(snap,'a snap is offered');assert.equal(snap.kind,'Edge / plane height snap');
  const landed=fold(B.transform(square,'move',snap.amount));assert.ok(landed.every(z=>Math.abs(z)<1e-9),'both ends of the fold are on the neighbour: '+landed);
 });
+test('a base face that spans no area is dropped on open, so the base can be drawn (FM-630)',()=>{
+ const p=(x,y,z=0)=>({x,y,z}),square={id:'a',points:[p(0,0),p(4,0),p(4,3),p(0,3)]};
+ // An older point weld saved a two-point face; a face of three points on one line spans no area either.
+ const base={faces:[square,{id:'b',points:[p(0,0),p(4,0)]},{id:'c',points:[p(0,0),p(2,0),p(4,0)]}]};
+ assert.throws(()=>B.terrain(base));
+ assert.equal(B.dropEmptyFaces(base),true);assert.deepEqual(base.faces.map(f=>f.id),['a']);
+ assert.equal(B.terrain(base).faces.length,2);
+ assert.equal(B.dropEmptyFaces(base),false,'nothing else to drop');
+ // A pitched face and a sliver of real area stay.
+ const kept={faces:[square,{id:'pitched',points:[p(0,3,0),p(4,3,0),p(4,4,1)]},{id:'sliver',points:[p(0,0),p(4,0),p(2,-.0001)]}]};
+ assert.equal(B.dropEmptyFaces(kept),false);assert.equal(kept.faces.length,3);
+});
