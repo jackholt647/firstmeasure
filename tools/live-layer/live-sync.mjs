@@ -88,7 +88,7 @@ export async function desiredFiles(root, baseRef) {
 }
 
 /** The receiver as a request/response channel over its stdin and stdout. */
-class Receiver {
+export class Receiver {
   constructor(command) { this.command = command; this.pending = new Map(); this.id = 0; this.child = null; }
   start() {
     const [file, ...args] = this.command;
@@ -116,7 +116,7 @@ class Receiver {
   stop() { this.child?.stdin.end(); }
 }
 
-function receiverCommand(args, target = args.target) {
+export function receiverCommand(args, target = args.target) {
   if (args.receiver) return String(args.receiver).split(" ").filter(Boolean);
   const jump = args.jump ? ["-J", String(args.jump)] : [];
   const hostKey = args.knownHosts ? ["-o", `UserKnownHostsFile=${args.knownHosts}`, "-o", "StrictHostKeyChecking=yes"] : ["-o", "StrictHostKeyChecking=accept-new"];
@@ -128,7 +128,7 @@ function receiverCommand(args, target = args.target) {
  * TLS, with each receiver's SSH host key, which are then the only keys accepted): `target` is the primary, `targets`
  * every web node. The old fixed address otherwise.
  */
-async function resolveReceiver(args) {
+export async function resolveReceiver(args) {
   if (args.target || args.receiver) return { ...args, targets: [args.target || DEFAULT_TARGET] };
   try {
     const response = await fetch(process.env.DEV_PUSH_STATUS_URL || "https://dev.1m8.ai/__dev-push/status.json", { signal: AbortSignal.timeout(8000) });

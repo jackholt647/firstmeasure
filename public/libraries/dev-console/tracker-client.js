@@ -74,11 +74,14 @@ export function trackerClient({ fetch: doFetch = (...a) => fetch(...a), storage 
  * What Go sends. A short single line is the title; anything longer goes in the description untitled, and Tracker's
  * titler names it (as when a paragraph is pasted in Tracker). The screenshot and where it was filed from follow.
  */
-export function composeIssue(text, { workspaceId, screenshotUrl = '', page = '', viewport = '', app = '' } = {}) {
+export function composeIssue(text, { workspaceId, screenshotUrl = '', page = '', viewport = '', app = '', setup = null } = {}) {
   const body = String(text || '').trim();
   const short = body.length <= 120 && !/\n/.test(body);
   const context = [page && `Page: ${page}`, viewport && `Screen: ${viewport}`, app && `App: ${app}`].filter(Boolean).join(' · ');
-  const parts = [short ? '' : body, screenshotUrl ? `![Screenshot](${screenshotUrl})` : '', context ? `_Filed from the dev tray. ${context}_` : ''].filter(Boolean);
+  // The setup on screen, in the form the Tracker router reads to show the working spinner in it at once
+  // (docs/architecture/guided-experiences.md, "Editing a setup live").
+  const setupLine = setup?.id ? `Setup: \`${setup.id}${setup.step ? `/${setup.step}` : ''}\`` : '';
+  const parts = [short ? '' : body, setupLine, screenshotUrl ? `![Screenshot](${screenshotUrl})` : '', context ? `_Filed from the dev tray. ${context}_` : ''].filter(Boolean);
   return { project: workspaceId, status: 'Ready', ...(short ? { title: body } : {}), description: parts.join('\n\n') };
 }
 

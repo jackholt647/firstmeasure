@@ -820,6 +820,52 @@ Materials tab audit (October 24), button to published action:
    library, history, revert, reset), and `tests/config-library-guided-kinds.test.ts`
    (the kinds' checks). Set `GX_SHOTS=<dir>` to save screenshots.
 
+## Editing a setup live
+
+Status: built 2026-11-23. Development (dev.1m8.ai) only; production has no live layer.
+
+A setup is changed while someone has it open, on any device, and the change appears in that open setup, at the step
+they are on, without a refresh. Most changes take seconds to write and a second to land. Nothing goes through the dev
+push router until the work is done.
+
+**What a setup is made of.** Each part goes live through its own instant channel:
+
+| Part | Where it lives | How a change gets to the open setup |
+|---|---|---|
+| Steps, their order and prerequisites, options, copy, which module a step runs | config library: `guided_experience`, `setup_step`, `guided_copy` entries | `tools/config-library/cli.mjs put`, then `hot-edit.mjs done`: the setup reads its definition again and redraws the step it is on |
+| A step's screens and their CSS | one ES module per setup under `public/libraries/guided-experiences/` (or `public/libraries/setup-steps/`), listed once in `FLOW_MODULES` in `guided-setup.js`, or named by a step's `module` path | save it with `live-sync.mjs` running: the player imports the new copy and redraws the step in place (`__fmHotHandlers` in `live-assets.js`); a change to only the module's CSS text is swapped without even a redraw |
+| What a step saves or reads (published actions and providers in `public/v1/**`) | server code | the platform lane (`submit.mjs`); rarely needed for a visual change |
+
+A setup is one module and its data, never its own widget, loader or `?v=` import line. Add a setup to
+`FLOW_MODULES` (or give its step `widget: 'module'` and a `module` path). A redraw keeps what the person chose
+(the player holds selections and answers); a module that has pages of its own returns `hotState()` from its handle
+and reads `ctx.hot` in `mount` to open where it was (`appointments-setup.js` keeps its page and answers). A change to
+a file a step module imports (a shared helper such as `texting-setup.js`) cannot be swapped into the running module:
+the live layer offers the usual refresh pill for it. Keep a setup's visual code in its own module.
+
+**The working spinner.** Before changing a setup, the agent says so:
+
+```bash
+node tools/live-layer/hot-edit.mjs start appointments.setup/kinds --note "Bigger kind tiles" --issue GP-160
+# ... save the module / CSS (live-sync running) and the config library entries ...
+node tools/live-layer/hot-edit.mjs done appointments.setup
+```
+
+`start` writes a signal file, `libraries/hot-edits/<experience id>.json`, on the live layer; every open dev page that
+shows that setup draws a small "Changing…" spinner beside its X within about a second (the note is its tooltip).
+Module saves land in place while it spins. `done` takes the signal off: the spinner goes, the definition is read
+again, the step redraws and a green "Updated" shows for a moment. Pages ignore a signal older than 15 minutes, so a
+forgotten `done` never leaves a spinner for good. Signals share one owner on the layer (any agent may start or end
+one) and the router never bakes them into a release (`router/live.mjs`). `hot-edit.mjs list` shows what is being
+edited.
+
+**From the phone.** The dev tray (a shake in the FirstMate app) opens above any setup, including one that opened a
+modal `<dialog>`: the tray is a top-layer dialog of its own. An issue filed while a setup is open carries
+``Setup: `<experience id>/<step id>` `` in its description. The Tracker router starts the spinner in that setup as soon
+as it picks the issue up, before triage, so the person sees within seconds that the change is under way; the worker
+then makes the change on the live layer and the config library, says `done`, and submits the module once so the
+next release carries it. Visual setup changes never wait for a platform release or a test run.
+
 ## Development: reset, replay and editing copy
 
 Development data environment only (`env.dataEnvironment === "development"`, never

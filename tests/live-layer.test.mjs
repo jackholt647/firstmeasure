@@ -216,6 +216,51 @@ test('a script change that cannot be swapped in place never reloads: it refetche
   }
 });
 
+test('a script a hot handler can swap in place (a setup step module) is applied without a refresh', async () => {
+  const live = await import('../public/libraries/live-assets/live-assets.js');
+  const realFetch = globalThis.fetch, realWindow = globalThis.window, realLocation = globalThis.location;
+  let version = 'export function mount(){ return 1; }\n';
+  globalThis.fetch = async (_url, { cache } = {}) => ({ ok: true, text: async () => (cache === 'force-cache' ? 'export function mount(){ return 0; }\n' : version) });
+  const url = 'https://dev.1m8.ai/libraries/guided-experiences/appointments-setup.js?v=1';
+  const appended = [];
+  const doc = { querySelectorAll: (sel) => (sel.startsWith('link[href]') ? [{ src: url }] : []), getElementById: () => null, createElement: () => ({ style: {}, setAttribute() {}, append() {}, addEventListener() {}, remove() {} }), body: { append: (node) => appended.push(node) } };
+  const calls = [];
+  const win = { document: doc, performance: { getEntriesByType: () => [] }, location: { href: 'https://dev.1m8.ai/portal/', pathname: '/portal/', reload: () => assert.fail('must not reload') },
+    __fmHotHandlers: [async (path) => { calls.push(path); return path === 'libraries/guided-experiences/appointments-setup.js'; }] };
+  win.top = win; win.parent = win;
+  globalThis.window = win;
+  globalThis.location = { origin: 'https://dev.1m8.ai', href: win.location.href };
+  try {
+    const done = await live.apply([{ path: 'libraries/guided-experiences/appointments-setup.js', sha: 'first' }]);
+    assert.deepEqual(calls, ['libraries/guided-experiences/appointments-setup.js']);
+    assert.deepEqual(done.swapped, ['libraries/guided-experiences/appointments-setup.js']);
+    assert.deepEqual(done.needsRefresh, [], 'no refresh is offered for a hot-swapped module');
+    assert.equal(appended.filter((node) => String(node.firstChild?.textContent || '').includes('appointments-setup.js')).length, 0);
+    // A handler that declines leaves the old behaviour: refresh offered.
+    win.__fmHotHandlers = [async () => false];
+    version = 'export function mount(){ return 2; }\n';
+    const again = await live.apply([{ path: 'libraries/guided-experiences/appointments-setup.js', sha: 'second' }]);
+    assert.deepEqual(again.needsRefresh, ['page']);
+  } finally {
+    globalThis.fetch = realFetch;
+    if (realWindow === undefined) delete globalThis.window; else globalThis.window = realWindow;
+    if (realLocation === undefined) delete globalThis.location; else globalThis.location = realLocation;
+  }
+});
+
+test('hot-edit signals: one file per setup, named as the page names it, never baked into a release', async () => {
+  const { hotFile, signalBytes } = await import('../tools/live-layer/hot-edit.mjs');
+  assert.equal(hotFile('appointments.setup'), 'libraries/hot-edits/appointments.setup.json');
+  assert.equal(hotFile('a b/c'), 'libraries/hot-edits/a_b_c.json');
+  const signal = JSON.parse(signalBytes({ id: 'appointments.setup', step: 'kinds', note: 'bigger tiles' }).toString());
+  assert.equal(signal.state, 'working'); assert.equal(signal.step, 'kinds'); assert.ok(Date.parse(signal.at));
+  const page = readFileSync(new URL('../public/libraries/guided-experiences/guided-setup.js', import.meta.url), 'utf8');
+  assert.match(page, /HOT_DIR = 'libraries\/hot-edits\/'/);
+  assert.match(page, /String\(id\)\.replace\(\/\[\^A-Za-z0-9\._-\]\/g, '_'\) \+ '\.json'/, 'the page names the file as hotFile does');
+  const router = readFileSync(new URL('../tools/dev-push/router/live.mjs', import.meta.url), 'utf8');
+  assert.match(router, /startsWith\("libraries\/hot-edits\/"\)/, 'the router leaves signals out of releases');
+});
+
 const hash = (rel, text) => liveHash(rel, Buffer.from(text));
 
 test('every accepted save is journaled by content; old unreferenced journal bytes are pruned', { skip: !python && 'needs Python 3' }, async () => {

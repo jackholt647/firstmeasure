@@ -4,6 +4,10 @@
 .fm-qt *,.fm-qt *::before,.fm-qt *::after{box-sizing:border-box}
 .fm-qt-backdrop{position:fixed;inset:0;z-index:2147483630;background:rgba(16,24,40,.16)}
 .fm-qt-backdrop[hidden],.fm-qt[hidden]{display:none!important}
+/* The top-layer dialog that holds the tray (quick-tray.js): no box of its own, the whole viewport, above any modal. */
+.fm-qt-layer{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:transparent;overflow:visible;color:inherit}
+.fm-qt-layer::backdrop{background:transparent}
+.fm-qt-layer:not([open]){display:none}
 .fm-qt{position:fixed;left:0;right:0;bottom:var(--qt-kb,0px);z-index:2147483635;margin:0 auto;width:100%;max-width:720px;height:min(56vh,560px);height:min(56dvh,560px);min-height:300px;display:flex;flex-direction:column;background:#fff;color:var(--qt-ink);border-radius:16px 16px 0 0;box-shadow:0 -10px 40px rgba(16,24,40,.22);font-size:14px;line-height:1.4;text-align:left;transform:translateY(100%);transition:transform .18s ease-out;container:fm-qt/inline-size;padding-bottom:env(safe-area-inset-bottom,0px)}
 .fm-qt.fm-qt-in{transform:none}
 .fm-qt button,.fm-qt input,.fm-qt select,.fm-qt textarea{font:inherit;color:inherit}

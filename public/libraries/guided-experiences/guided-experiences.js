@@ -1522,6 +1522,18 @@
     registerKind(kind, player){ kinds.set(kind, player); },
     experience: (id) => state.experiences.get(id) || null,
     experiences: () => [...state.experiences.values()],
+    /**
+     * The experience's definition as the server has it now (its steps, copy and order are config library data), for
+     * a setup redrawing itself after a live edit (guided-setup.js): this tab's list, else its preview.
+     */
+    async reloadExperience(id){
+      id = clean(id);
+      await refresh(true);
+      const listed = state.experiences.get(id);
+      if (listed?.steps) return listed;
+      const here = where();
+      return object((await api.preview(id, here.tab, here.projectId).catch(() => ({}))).experience) || null;
+    },
     isPlaying: () => { releaseGone(); return !!shared.active; },
     L, esc, api, injectCss, holdPage, reducedMotion
   };
