@@ -61,13 +61,27 @@ for changing the current window while retaining form and pane DOM state.
 ## Declaring a window
 
 `FirstMateWindowShell.mount({element, header, identity, tabs, sidebar, panes,
-trays, tabStyle, headerRows})` accepts application-owned DOM nodes. `tabs` and
+trays, tabStyle, headerRows, sidebarToggle})` accepts application-owned DOM nodes. `tabs` and
 `sidebar` can be null. The pane adapter supplies `available()` and `apply(panes)`;
 the optional tray adapter supplies `available()` and `select(idOrNull)`.
-The returned shell supplies `validate`, `apply` and `reset`.
+The returned shell supplies `validate`, `apply` and `reset`, and `sidebarOpen`
+and `setSidebarOpen(open)` for a collapsible sidebar.
+
+`sidebarToggle: {open, onChange(open)}` makes the sidebar collapsible the way the
+project window's details tray is ([project content ownership](project-content-layout.md)):
+the window's title becomes a button with arrows beside it pointing the way it
+will go, and opens and closes the sidebar. Open on a desktop, the sidebar starts
+under the title row, 30% of the window (300 to 420px, at most half), and pushes
+the tabs and the content right; closed, the tabs start at the window's left. A
+phone keeps the owner's own sidebar layout and the title does nothing. `open` is
+the starting state and `onChange` hears a person's toggle. The layout's
+`sidebar: false` still removes the sidebar entirely, whatever its open state.
 
 Contacts inject their details column as the persistent sidebar and use the same
-two-row title and tab header as Projects. Projects declare no persistent sidebar:
+two-row title and tab header as Projects. The contact's title opens and closes
+that column (GP-152): a new contact opens with it, since its name is the work;
+otherwise the person's last choice is kept in this browser
+(`fm.contacts.detailsOpen`), and a field that needs attention opens it. Projects declare no persistent sidebar:
 Overview and other apps retain their own content rails as described in
 [project content ownership](project-content-layout.md). This does not restore
 the removed project left-region override or module injection contracts.
