@@ -442,7 +442,6 @@ export function mount(el, ctx){
         <span class="gxw-step"><button type="button" data-gxw-minus aria-label="${esc(L('gx_wfs_fewer', 'One fewer'))}" ${value <= min ? 'disabled' : ''}>−</button><input type="number" inputmode="numeric" min="${min}" max="${MAX_EACH}" value="${value}" aria-label="${esc(label)}"><button type="button" data-gxw-plus aria-label="${esc(L('gx_wfs_more', 'One more'))}" ${value >= MAX_EACH ? 'disabled' : ''}>+</button></span></div>`;
     };
     el.innerHTML = `<div class="gxw" data-gxw-page="count">
-      <p>${esc(L('gx_wfs_count_lead', 'Count each team that goes out on its own. You’ll name them next.'))}</p>
       <div class="gxw-counts">
         ${wanted().groups ? line(GROUP, crews, L('gx_wfs_count_crews_hint', 'Teams of your own people')) : ''}
         ${wanted().companies ? line(COMPANY, subs, L('gx_wfs_count_subs_hint', 'Outside companies that do the work for you')) : ''}
