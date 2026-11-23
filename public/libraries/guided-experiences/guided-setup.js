@@ -103,6 +103,13 @@
     .gxs-titlebar h2{margin:0!important;padding-right:0!important;flex:1;min-width:0}
     .gxs-title-actions{display:flex;align-items:center;gap:8px;flex:none}
     .gxs-intro{margin:-4px 0 14px;font-size:14px;line-height:1.45;color:#475467;flex:none}
+    /* A setup's welcome (GP-54): what the tab is for, before any question. */
+    .gxs-welcome{display:flex;flex-direction:column;gap:14px;padding-bottom:6px}
+    .gxs-welcome p{margin:0;font-size:14.5px;line-height:1.5;color:#475467}
+    .gxs-welcome ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+    .gxs-welcome li{display:flex;align-items:flex-start;gap:10px;font-size:14px;line-height:1.45;font-weight:600;color:#101828}
+    .gxs-welcome li svg{flex:none;width:14px;height:14px;padding:4px;box-sizing:content-box;border-radius:50%;background:rgba(var(--primary-rgb,217,48,37),.1);stroke:var(--primary,#d93025);stroke-width:3;fill:none}
+    .gxs-welcome .gxs-welcome-note{font-size:13px;color:#667085}
     .gxs-title-actions:empty{display:none}
     .gxs-next-wrap{display:inline-flex}
     .gxs-step.gxs-below{transform:translateY(48px);opacity:0}
@@ -271,6 +278,8 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
       }
       // Setup steps saved in this run: going back to one and on again does not ask the steps before it again.
       const answered = new Set();
+      // A tab that started the setup may have it welcome the person first (GP-54); not on a replay or a nested start.
+      let welcome = !ctx.options?.replay && !ctx.options?.nested && ctx.options?.trigger?.kind === 'tab_opened' && ctx.options.trigger.welcome?.title ? ctx.options.trigger.welcome : null;
       const start = clean(ctx.options?.start) ? indexOf(clean(ctx.options.start)) : -1;
       if (start >= 0) index = start;
       index = entryOf(index);
@@ -726,8 +735,48 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
         ask.classList.add('gxs-ask-out');
         setTimeout(done, 120);
       }
+      /**
+       * The welcome (GP-54): started by a tab whose trigger has one, the setup first says what the tab is for. Set up now
+       * goes on to the first question; Back puts the setup off as a skip does (`dismiss`, which a `skip: "later"` trigger
+       * records as `defer`) and returns to the portal tab the person came from; the X and Escape put it off and stay.
+       */
+      function showWelcome(){
+        const el = document.createElement('div');
+        el.className = 'gxs-step gxs-welcome-step'; el.dataset.gxStep = 'welcome';
+        const points = array(welcome.points).map((point) => `<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><span>${H(point)}</span></li>`).join('');
+        el.innerHTML = `<div class="gxs-titlebar"><h2>${H(welcome.title)}</h2></div><div class="gxs-body"><div class="gxs-welcome"><p>${H(welcome.body)}</p>${points ? `<ul>${points}</ul>` : ''}${welcome.note ? `<p class="gxs-welcome-note">${H(welcome.note)}</p>` : ''}</div></div>`;
+        stage.appendChild(el);
+        currentPane = el;
+        setHeadTitle(H(welcome.title));
+        $('[data-gxs=skip]').hidden = true;
+        const backButton = $('[data-gxs=back]'), start = $('[data-gxs=next]');
+        backButton.hidden = false; backButton.innerHTML = welcome.back ? H(welcome.back) : H('gx_ui_back', 'Back');
+        start.disabled = false; start.innerHTML = welcome.start ? H(welcome.start) : H('gx_ui_set_up_now', 'Set up now');
+        fitTo(el);
+        syncBack();
+        setTimeout(() => { if (currentPane === el && !closed) start.focus({ preventScroll: true }); }, reduced() ? 0 : 300);
+        track('step_view', { step_id: 'welcome' });
+      }
+      function startFromWelcome(){
+        if (!welcome || closed) return;
+        welcome = null;
+        $('[data-gxs=back]').innerHTML = H('gx_ui_back', 'Back');
+        enter(index, 1, '');
+      }
+      async function leaveWelcome(returnToTab){
+        if (!welcome || closed || host.dataset.dismissing) return;
+        host.dataset.dismissing = 'true';
+        await track('dismiss', { step_id: 'welcome', selections });
+        await close('plain');
+        // The tab before this one, when the setup belongs to a portal tab and the portal can say which (core.js).
+        const tabs = root.Portal?.tabs;
+        const before = returnToTab && clean(ctx.options?.trigger?.tab).startsWith('portal.') ? clean(tabs?.previous?.()) : '';
+        if (before) { try { tabs.activateTab(before, false, { history: 'push', source: 'guided-welcome-back' }); } catch (error) { console.warn('Could not return to the previous tab.', error); } }
+        resolve({ status: 'dismissed', welcome: returnToTab ? 'back' : 'close' });
+      }
       host.addEventListener('click', (event) => {
         const action = event.target.closest?.('[data-gxs]')?.dataset.gxs;
+        if (welcome && ['next', 'back', 'close'].includes(action)) { if (action === 'next') startFromWelcome(); else leaveWelcome(action === 'back'); return; }
         if (action === 'next') next(false);
         else if (action === 'skip') next(true);
         else if (action === 'back' && !doneWaiter && (visited.length || index > first)) back();
@@ -746,7 +795,8 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
        */
       function pressBack(){
         if (host.hidden) return;
-        if (host.querySelector('.gxs-ask')) keepGoing();
+        if (welcome) leaveWelcome(true);
+        else if (host.querySelector('.gxs-ask')) keepGoing();
         else if (doneWaiter && bookPane) showPricebook(false);
         else if (doneWaiter) { const go = doneWaiter; doneWaiter = null; go(); }
         else if (busy || mounted?.escape?.() === true) return;
@@ -757,7 +807,7 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
       // Escape never reaches the page (the project window closes on it). A step that has something of its own open
       // (a dropdown, a full-screen preview) closes that first: its `escape()` returns true. On the window, ahead of the
       // portal's modal stack, which listens on the document and closed the project window first (FM-608).
-      const onKey = (event) => { if (event.key === 'Escape' && !closed) { event.preventDefault(); event.stopPropagation(); if (!doneWaiter && !host.querySelector('.gxs-ask') && mounted?.escape?.() === true) return; if (doneWaiter && bookPane) showPricebook(false); else if (doneWaiter) { const go = doneWaiter; doneWaiter = null; go(); } else if (host.querySelector('.gxs-ask')) keepGoing(); else confirmSkip(); } };
+      const onKey = (event) => { if (event.key === 'Escape' && !closed) { event.preventDefault(); event.stopPropagation(); if (welcome) { leaveWelcome(false); return; } if (!doneWaiter && !host.querySelector('.gxs-ask') && mounted?.escape?.() === true) return; if (doneWaiter && bookPane) showPricebook(false); else if (doneWaiter) { const go = doneWaiter; doneWaiter = null; go(); } else if (host.querySelector('.gxs-ask')) keepGoing(); else confirmSkip(); } };
       root.addEventListener('keydown', onKey, true);
 
       /** Closes the sheet. `handoff` flies the conversation to the project's agent tray, which opens with it. */
@@ -842,7 +892,8 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
       const abort = () => { if (closed) return; close('plain').then(() => resolve({ status: 'ended' }), () => resolve({ status: 'ended' })); };
       if (signal?.aborted) { abort(); return; }
       signal?.addEventListener?.('abort', abort, { once: true });
-      enter(index, 1, '');
+      if (welcome) showWelcome();
+      else enter(index, 1, '');
       // The very first time, the scripted greeting already ran in enter(); a resumed setup says where it left off.
     });
   }
@@ -954,7 +1005,7 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
     render(el,ctx){
       let disposed=false, handle=null;
       el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      import(new URL('./workforce-setup.js?v=20261120-gp143b',scriptUrl).href).then(module=>{
+      import(new URL('./workforce-setup.js?v=20261123-gp54',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mount(el,ctx);
       }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
       return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};

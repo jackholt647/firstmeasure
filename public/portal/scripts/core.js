@@ -2423,6 +2423,7 @@
   const TabRegistry = {
     tabs: new Map(),
     activeId: null,
+    previousId: null,
     mounted: new Set(),
     handles: new Map(),
     preferDefaultHome: false,
@@ -4907,6 +4908,8 @@
 
     const prevId = TabRegistry.activeId;
     if (prevId && prevId !== id){
+      // The tab before this one, for a Back that returns to it (a setup's welcome, GP-54).
+      TabRegistry.previousId = prevId;
       const prev = TabRegistry.tabs.get(prevId);
       if (!prev?.entitlement?.offered) prev?.onHide && prev.onHide();
       try { TabRegistry.handles.get(prevId)?.setActive?.(false); }
@@ -5580,7 +5583,17 @@
     unregisterPortalApp,
     syncPortalTabs: syncPortalTabsFromRuntime
   };
-  window.Portal.tabs = { renderTabs, activateTab };
+  /**
+   * The tab to go back to from the one showing (GP-54): the one open before it, else the first in the sidebar that is
+   * not this one; null when there is none.
+   */
+  function previousPortalTab(){
+    const usable = (tab) => tab && tab.id !== TabRegistry.activeId && tab.placement !== 'hidden' && (tab.placement !== 'settings' || tab.id === 'company_settings');
+    const before = TabRegistry.tabs.get(TabRegistry.previousId);
+    if (usable(before)) return before.id;
+    return sortPortalTabs([...TabRegistry.tabs.values()].filter(usable))[0]?.id || null;
+  }
+  window.Portal.tabs = { renderTabs, activateTab, previous: previousPortalTab };
   window.Portal.language = window.PlatformLanguage;
   window.Portal.terminology = {
     get: terminologyLabel,

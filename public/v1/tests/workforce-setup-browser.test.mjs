@@ -49,7 +49,7 @@ test('answered: the setup starts at how many; Back is the shared step, and a cha
     assert.equal(await page.locator('[data-gxw-page="who"] .gxs-choices>.gxc-choice.gxs-choice').count(),4);
     assert.deepEqual(await page.locator('[data-team] .gxs-choice-icon i').evaluateAll(nodes=>nodes.map(node=>[...node.classList].find(name=>name!=='fas'))),['fa-user','fa-users','fa-handshake','fa-users-gear']);
     assert.equal(await page.getByRole('radio',{name:/Our own crews/}).getAttribute('aria-checked'),'true');
-    assert.equal(await page.locator('.gxs-titlebar h2').textContent(),'Who does most of the work?');
+    assert.equal(await page.locator('.gxs-titlebar h2').textContent(),'Who does the hands-on work on your jobs?');
     await page.getByRole('radio',{name:/^Subcontractors/}).click();
     await page.locator('[data-gxw-next]').click();
     await page.locator('[data-gxw-page="count"]').waitFor();

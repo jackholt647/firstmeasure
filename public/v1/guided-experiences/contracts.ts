@@ -106,6 +106,19 @@ const setupStep = z.object({
   next: next.optional()
 }).strict();
 
+/**
+ * A setup's welcome (GP-54): the first page when a tab starts it, before any question. `title` and `body` say what the
+ * tab is for, `points` what it does, `note` what setting it up asks; `start` and `back` name its two buttons.
+ */
+const welcomeSchema = z.object({
+  title: copySchema,
+  body: copySchema,
+  points: z.array(copySchema).max(4).default([]),
+  note: copySchema.optional(),
+  start: copySchema.optional(),
+  back: copySchema.optional()
+}).strict();
+
 const trigger = z.discriminatedUnion("kind", [
   /** Runs before a button's own action: the click is held, the experience plays, then the click is let through. */
   z.object({ kind: z.literal("before_action"), action: id, selector, once: z.boolean().default(true), when: conditions.optional() }).strict(),
@@ -114,8 +127,10 @@ const trigger = z.discriminatedUnion("kind", [
    * `skip: "later"`, a skip of what this trigger started only puts it off (a `defer` event, FM-553): this trigger does
    * not play it again, and its other triggers wait while the person is still in the session they skipped it in.
    * `skip_note` is what the skip question says then (when it will be asked again), over the experience's own.
+   * `welcome` is a page a setup this trigger starts shows first (GP-54): what the tab is for, with Set up now and Back
+   * (Back puts the setup off as a skip does and returns to the tab the person was on).
    */
-  z.object({ kind: z.literal("tab_opened"), tab: id, once: z.boolean().default(true), delay_ms: z.number().int().min(0).max(10000).default(700), skip: z.literal("later").optional(), skip_note: copySchema.optional(), when: conditions.optional() }).strict(),
+  z.object({ kind: z.literal("tab_opened"), tab: id, once: z.boolean().default(true), delay_ms: z.number().int().min(0).max(10000).default(700), skip: z.literal("later").optional(), skip_note: copySchema.optional(), welcome: welcomeSchema.optional(), when: conditions.optional() }).strict(),
   /** Another experience finished (its `then` names this one) or code asked for it by name. */
   z.object({ kind: z.literal("after_experience"), experience: id, once: z.boolean().default(true), when: conditions.optional() }).strict(),
   /** The app loads: once per page load in the top window, whatever page it opens on. */

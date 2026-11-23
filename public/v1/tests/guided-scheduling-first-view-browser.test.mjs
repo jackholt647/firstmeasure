@@ -146,3 +146,59 @@ test('finished on first view, the Scheduling tour follows and points at New Appo
     assert.deepEqual(second.errors,[]);
   }finally{await browser.close();}
 });
+
+// GP-54: with a welcome on its tab trigger, the setup first says what Scheduling is for. Set up now goes on to the
+// questions; Back puts the setup off (as a skip there does) and returns to the portal tab the person came from.
+test('a welcome comes first: Set up now goes to the questions, Back puts it off and returns to the previous tab',async()=>{
+  const welcome={title:t('gx_appt_welcome_title','Welcome to Scheduling'),body:t('gx_appt_welcome_body','Every appointment on one calendar.'),
+    points:[t('gx_appt_welcome_p1','Book sales appointments')],note:t('gx_appt_welcome_note','A few questions.'),start:t('gx_appt_welcome_start','Set up now'),back:t('gx_appt_welcome_back','Back')};
+  const browser=await launch(),original={...TAB_TRIGGER};
+  Object.assign(TAB_TRIGGER,{welcome});
+  try{
+    const srv=server(),{page,errors}=await open(browser,srv);
+    await page.evaluate(()=>{window.activated=[];Portal.tabs={previous:()=>'projects',activateTab:(id,initial,options)=>activated.push([id,options?.source])};});
+    await page.locator('.gxs [data-gx-step=welcome]').waitFor();
+    assert.equal(await page.locator('[data-gx-step=welcome] h2').innerText(),'Welcome to Scheduling');
+    assert.match(await page.locator('.gxs-welcome').innerText(),/Every appointment on one calendar[\s\S]*Book sales appointments[\s\S]*A few questions/);
+    assert.equal(await page.locator('.gxs-intro').count(),0,'no question yet');
+    assert.equal(await page.locator('[data-gxs=next]').innerText(),'Set up now');
+    assert.equal(await page.locator('[data-gxs=back]').isVisible(),true);
+    assert.equal(await page.locator('[data-gxs=skip]').isVisible(),false);
+    // Set up now: the first question, with the setup's intro and the sheet's own Back hidden on it.
+    await page.locator('[data-gxs=next]').click();
+    await page.locator('.gxs [data-gx-step=types]').waitFor();
+    assert.match(await page.locator('[data-gx-step=types] .gxs-intro').innerText(),/how you manage your calendar/);
+    assert.equal(await page.locator('[data-gxs=back]').isVisible(),false);
+    assert.equal(await page.locator('[data-gxs=back]').innerText(),'Back');
+    assert.equal(await page.locator('[data-gxs=next]').innerText(),'Done');
+    assert.deepEqual(errors,[]);
+    await page.close();
+
+    // Back: put off (defer, never dismiss), and the previous tab opens.
+    const second=server(),other=await open(browser,second);
+    await other.page.evaluate(()=>{window.activated=[];Portal.tabs={previous:()=>'projects',activateTab:(id,initial,options)=>activated.push([id,options?.source])};});
+    await other.page.locator('.gxs [data-gx-step=welcome]').waitFor();
+    await other.page.locator('[data-gxs=back]').click();
+    await other.page.locator('.gxs').waitFor({state:'detached'});
+    await other.page.waitForFunction(()=>activated.length===1);
+    assert.deepEqual(await other.page.evaluate(()=>activated),[['projects','guided-welcome-back']]);
+    await other.page.waitForTimeout(300);
+    assert.ok(second.state.events.some(event=>event.id===SETUP.id&&event.type==='defer'));
+    assert.equal(second.state.events.some(event=>event.id===SETUP.id&&event.type==='dismiss'),false);
+    assert.equal(second.state.progress[SETUP.id],'started');
+    assert.equal(await other.page.locator('.gx-pop').count(),0,'no tour after Back');
+    assert.deepEqual(other.errors,[]);
+    await other.page.close();
+
+    // The X on the welcome puts it off too, and stays on Scheduling.
+    const third=server(),closed=await open(browser,third);
+    await closed.page.evaluate(()=>{window.activated=[];Portal.tabs={previous:()=>'projects',activateTab:(id)=>activated.push([id])};});
+    await closed.page.locator('.gxs [data-gx-step=welcome]').waitFor();
+    await closed.page.locator('[data-gxs=close]').click();
+    await closed.page.locator('.gxs').waitFor({state:'detached'});
+    await closed.page.waitForTimeout(300);
+    assert.deepEqual(await closed.page.evaluate(()=>activated),[]);
+    assert.ok(third.state.events.some(event=>event.id===SETUP.id&&event.type==='defer'));
+    assert.deepEqual(closed.errors,[]);
+  }finally{for(const key of Object.keys(TAB_TRIGGER))delete TAB_TRIGGER[key];Object.assign(TAB_TRIGGER,original);await browser.close();}
+});
