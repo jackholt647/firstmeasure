@@ -596,7 +596,15 @@ assistant answers only when the person types. A question asked once for the
 organization (what kind of company it is) is a [setup step](docs/architecture/setup-steps.md):
 declared once, answered through a published action, read as published data and
 `requires`d by any setup, which asks it only while unanswered; setups show no
-step count. Run `tests/setup-steps.test.ts`, `tests/setup-steps-browser.test.mjs`,
+step count. **Setups are edited live** ([editing a setup live](docs/architecture/guided-experiences.md#editing-a-setup-live)):
+a setup is config library data plus one module listed in `FLOW_MODULES`; before
+changing one, run `node tools/live-layer/hot-edit.mjs start <experience id>[/<step>]`
+(the open setup shows a spinner beside its X), save the module through
+`live-sync.mjs` and the definition through the config library (both land in the
+open setup in place, no refresh), then `hot-edit.mjs done <experience id>` and
+submit the module once. Never add a per-setup widget or loader. Run
+`tests/guided-setup-hot-edit-browser.test.mjs` for changes to that path.
+Run `tests/setup-steps.test.ts`, `tests/setup-steps-browser.test.mjs`,
 `tests/guided-experiences.test.ts`, `tests/guided-experiences-dev.test.ts`,
 `tests/pricebook-roofing-setup.test.ts` and
 `tests/guided-experiences-browser.test.mjs`,

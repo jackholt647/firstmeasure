@@ -53,10 +53,12 @@ export function liveOverlays({ home, log = () => {}, target = RECEIVER, request 
       const [exported] = await request([{ op: "export" }]);
       if (!exported.ok) throw new Error(`live export: ${exported.error}`);
       lastExport = exported;
+      // Hot-edit signals (libraries/hot-edits/, tools/live-layer/hot-edit.mjs) say an agent is editing a setup; they
+      // are not source and never go into a release.
       const entries = [
         ...Object.entries(exported.files || {}).map(([file, entry]) => ({ file, ...entry, parked: false })),
         ...Object.entries(exported.parked || {}).map(([file, entry]) => ({ file, ...entry, parked: true }))
-      ];
+      ].filter((entry) => !entry.file.startsWith("libraries/hot-edits/"));
       if (!entries.length) return [];
       const owners = new Map();
       for (const entry of entries) (owners.get(entry.source || "unknown") || owners.set(entry.source || "unknown", []).get(entry.source || "unknown")).push(entry);

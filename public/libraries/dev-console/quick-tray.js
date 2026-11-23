@@ -9,15 +9,15 @@
 const NS = 'dev-console';
 const T = (key, fallback) => window.PlatformLanguage?.text?.(NS, key, fallback) ?? fallback;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-import { trackerClient, composeIssue, groupIssues, DEFAULT_WORKSPACE, TRACKER } from './tracker-client.js?v=20261112-tray3';
+import { trackerClient, composeIssue, groupIssues, DEFAULT_WORKSPACE, TRACKER } from './tracker-client.js?v=20261123-hot';
 import { watchShake, requestMotionPermission } from './shake.js?v=20261112-tray3';
 
-const VERSION = '20261116-shot2';
+const VERSION = '20261123-hot';
 const DRAFT = 'fm-dev-tray-draft';
 const REFRESH_MS = 20000;
 const tracker = trackerClient();
 const state = { open: false, workspaces: [], workspace: null, view: 'open', issues: [], expanded: '', shot: null, busy: false, error: '', loading: false, loadedAt: 0 };
-let root, backdrop, timer = 0, ctx = {};
+let root, backdrop, layer = null, timer = 0, ctx = {};
 
 const draft = { get() { try { return localStorage.getItem(DRAFT) || ''; } catch (_) { return ''; } }, set(v) { try { v ? localStorage.setItem(DRAFT, v) : localStorage.removeItem(DRAFT); } catch (_) {} } };
 
@@ -53,7 +53,16 @@ export function mountQuickTray(options = {}) {
       <p class="fm-qt-error" role="alert" hidden></p>
     </form>
     <div class="fm-qt-list" aria-live="polite"></div>`;
-  document.documentElement.append(backdrop, root);
+  // The tray lives in the browser's top layer (a modal <dialog> of its own), so it opens over everything, a setup's
+  // or booking's modal dialog included: those sit in the top layer too and make the rest of the page inert, so a tray
+  // drawn with z-index alone was hidden and could not be tapped (2026-11-23).
+  if (typeof HTMLDialogElement === 'function' && typeof HTMLDialogElement.prototype.showModal === 'function') {
+    layer = document.createElement('dialog');
+    layer.className = 'fm-qt-layer'; layer.setAttribute('data-fmr-ignore', '');
+    layer.addEventListener('cancel', (event) => { event.preventDefault(); close(); });
+    layer.append(backdrop, root);
+    document.documentElement.append(layer);
+  } else document.documentElement.append(backdrop, root);
   root.style.fontFamily = getComputedStyle(document.body).fontFamily;
   const $ = (s) => root.querySelector(s);
   const text = $('.fm-qt-text');
@@ -83,6 +92,11 @@ async function open() {
   requestMotionPermission().catch(() => {});
   state.open = true; state.error = '';
   root.hidden = false; backdrop.hidden = false;
+  if (layer) {
+    // Shown after any dialog already open, so it is the top one (a later modal dialog stays above it until it closes).
+    if (layer.open) layer.close();
+    try { layer.showModal(); } catch (_) { layer.setAttribute('open', ''); }
+  }
   requestAnimationFrame(() => root.classList.add('fm-qt-in'));
   render();
   clearInterval(timer); timer = setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
@@ -94,7 +108,15 @@ function close() {
   root.classList.remove('fm-qt-in');
   root.querySelector('.fm-qt-text')?.blur();
   backdrop.hidden = true;
-  setTimeout(() => { if (!state.open) root.hidden = true; }, 200);
+  setTimeout(() => { if (!state.open) { root.hidden = true; if (layer?.open) layer.close(); } }, 200);
+}
+
+/** The setup open on this page and the step it shows (guided-setup.js marks them), for the agent that takes the issue. */
+function openSetup() {
+  const host = [...document.querySelectorAll('.gxs[data-gx-setup]')].filter((el) => !el.hidden).pop();
+  if (!host) return null;
+  const step = [...host.querySelectorAll('.gxs-step[data-gx-step]')].filter((el) => el.getAttribute('aria-hidden') !== 'true').pop();
+  return { id: host.getAttribute('data-gx-setup') || '', step: step?.getAttribute('data-gx-step') || '' };
 }
 
 async function refresh() {
@@ -127,6 +149,7 @@ async function submit() {
       workspaceId: state.workspace.id, screenshotUrl,
       page: location.pathname + location.search + location.hash,
       viewport: `${window.innerWidth}×${window.innerHeight}`,
+      setup: openSetup(),
       app: info ? `FirstMate ${info.platform} ${info.version}` : navigator.userAgent.slice(0, 160)
     }));
     text.value = ''; draft.set(''); setShot(null, { quiet: true });

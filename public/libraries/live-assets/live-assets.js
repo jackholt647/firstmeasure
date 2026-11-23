@@ -34,6 +34,19 @@ function record(win, path, action) {
   if (recent.length > 50) recent.shift();
 }
 function enqueue(run) { const next = work.then(run); work = next.catch(() => {}); return next; }
+
+/**
+ * Hot handlers: a frame's own code that can apply a changed script in place pushes `(path, sha) => boolean|Promise`
+ * onto `window.__fmHotHandlers` (it may load before or after this file). True means applied: no refresh is offered.
+ */
+export async function hotApply(win, path, sha) {
+  let handlers = [];
+  try { handlers = Array.isArray(win.__fmHotHandlers) ? [...win.__fmHotHandlers] : []; } catch { return false; }
+  for (const handler of handlers) {
+    try { if (await handler(path, sha)) return true; } catch (error) { console.warn('live: a hot handler failed', path, error); }
+  }
+  return false;
+}
 function documentState(doc) {
   if (!documents.has(doc)) documents.set(doc, { sources: new Map(), applied: new Map(), styles: new Map(), observer: null, reloading: false });
   return documents.get(doc);
@@ -424,6 +437,15 @@ async function applyChanges(changes) {
           state.applied.set(path, sha);
           done.swapped.push(path);
           record(win, path, before === fetched.after ? 'unchanged' : 'inline-style-applied');
+          continue;
+        }
+        // Code that can swap a module in place (the setup player re-imports a step's module and redraws the step,
+        // docs/architecture/guided-experiences.md "Editing a setup live") says so here, and nothing waits for a refresh.
+        if (await hotApply(win, path, sha)) {
+          state.sources.set(path, fetched.after);
+          state.applied.set(path, sha);
+          done.swapped.push(path);
+          record(win, path, 'hot-swapped');
           continue;
         }
         record(win, path, edit ? 'reload-style-not-matched' : 'reload-script-change');

@@ -48,7 +48,12 @@ and its submission only makes it permanent. Iterate on the live layer, and
 submit once when it looks right. Signup and setup flows are built to iterate
 the same way: their structure is config data and their screens are browser
 files; only the domain writer a step calls (`public/v1/**`) needs the
-platform lane, and that changes rarely.
+platform lane, and that changes rarely. An open setup even takes the change in
+place, at the step it is on, with a working spinner while the agent edits
+(`tools/live-layer/hot-edit.mjs`; guided experiences, "Editing a setup
+live"). The router does nothing for these: they never enter its queue until
+the module is submitted to be kept, and its hot-edit signal files are never
+baked into a release.
 
 ## Submitting code (platform and measure-internal)
 

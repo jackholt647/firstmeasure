@@ -162,6 +162,13 @@
     .gxs-chat-handle{display:none}
     .gxs-close{position:absolute;top:10px;right:10px;z-index:5;width:36px;height:36px;border:0;border-radius:10px;background:rgba(255,255,255,.9);color:#475467;cursor:pointer;display:inline-grid;place-items:center;font-size:18px;transition:background .15s,color .15s}
     .gxs-close:hover{background:#f2f4f7;color:#101828}
+    /* Editing a setup live (development): an agent is changing it; the step redraws in place when the change is ready. */
+    .gxs-hot{position:absolute;top:14px;right:52px;z-index:5;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px 0 8px;border-radius:999px;background:#101828;color:#fff;font:600 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;box-shadow:0 4px 14px rgba(16,24,40,.22);pointer-events:auto;animation:gxsHotIn .2s ease-out both}
+    .gxs-hot .gxs-spin{width:13px;height:13px;border-width:2px;border-color:rgba(255,255,255,.35);border-top-color:#fff}
+    .gxs-hot.gxs-hot-done{background:#067647}
+    .gxs-hot.gxs-hot-done .gxs-spin{display:none}
+    .gxs-hot.gxs-hot-done::before{content:"\\2713";font-size:12px}
+    @keyframes gxsHotIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
     .gxs-close:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
     .gxs-close .gxs-x{font-size:24px;line-height:1;font-weight:400}
     @keyframes gxsMsg{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -292,6 +299,7 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
       host.className = container ? 'gxs gxs-embedded' : 'gxs'; host.dataset.kind = agentic ? 'agentic' : 'modal'; host.setAttribute('data-fmr-ignore', ''); host.setAttribute('data-gx-setup', experience.id);
       host.innerHTML = `${container ? '' : '<div class="gxs-scrim"></div>'}
         <section class="gxs-sheet" ${container ? 'role="region"' : 'role="dialog" aria-modal="true"'} aria-label="${esc(L(experience.title))}">
+          <span class="gxs-hot" data-gxs-hot hidden role="status"><span class="gxs-spin" aria-hidden="true"></span><span class="gxs-hot-text"></span></span>
           <button type="button" class="gxs-close" data-gxs="close" aria-label="${esc(L('gx_ui_close_setup', 'Close setup'))}" title="${esc(L('gx_ui_close_setup', 'Close setup'))}"><span class="gxs-x" aria-hidden="true">&times;</span></button>
           <div class="gxs-widget">
             <header class="gxs-head"><span class="gxs-badge"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${H(experience.title)}</span></span><div class="gxs-head-title" role="heading" aria-level="2"></div></header>
@@ -504,12 +512,16 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
       const headTitle = $('.gxs-head-title');
       function infoHtml(step){ return step?.subtitle ? ` <span class="gxs-info" role="button" tabindex="0" data-gxs-info aria-label="${esc(L(step.subtitle))}"><span aria-hidden="true">i</span><span class="gxs-info-tip" role="tooltip">${H(step.subtitle)}</span></span>` : ''; }
       function setHeadTitle(html, info = ''){ headTitle.innerHTML = html ? `<span class="gxs-head-text">${html}</span>${info}` : ''; refit(); }
-      function show(to, direction = 1){
+      // A live edit redraws the step on screen where it was (redraw below): no slide, no focus move, no step_view.
+      let hotCarry;
+      function show(to, direction = 1, hot = false){
         const step = steps[to];
         const generation = ++paneGeneration;
         stage.querySelectorAll('.gxs-step').forEach((pane) => { if (pane !== currentPane) pane.remove(); });
-        const old = currentPane && currentPane.isConnected ? currentPane : null;
+        let old = currentPane && currentPane.isConnected ? currentPane : null;
+        const scrolled = hot && old ? old.scrollTop : 0;
         mounted?.destroy?.();
+        if (hot && old) { old.remove(); old = null; }
         const el = document.createElement('div');
         el.className = 'gxs-step' + (old && !reduced() ? (direction > 0 ? ' gxs-below' : ' gxs-above') : ''); el.dataset.gxStep = step.id;
         // A compact header: the title, and its explanation in a tooltip. A copy editor edits it in the tooltip, which
@@ -530,7 +542,8 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
         // goes into the selections the completion reads.
         const global = step.setup_step || null;
         if (global && !answers[step.id]) answers[step.id] = {};
-        mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, answer: global ? answers[step.id] : null, L, H, esc, money, where:here, orgId, read: readData, actions: el.querySelector('.gxs-title-actions'), priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant || canAgent ? laborPaySheet : null,
+        const carried = hot ? hotCarry : undefined; hotCarry = undefined;
+        mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, answer: global ? answers[step.id] : null, hot: carried, L, H, esc, money, where:here, orgId, read: readData, actions: el.querySelector('.gxs-title-actions'), priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant || canAgent ? laborPaySheet : null,
           advance:()=>next(false), complete:completeDirectly, nested:!!ctx.options?.nested,
           // A step that hides the sheet's footer (handlesNavigation) has its own Back: to the step before this one; and
           // says when its own steps change, so the phone's back walks them first (FM-604).
@@ -558,9 +571,58 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
         footer();
         fitTo(el);
         syncBack();
+        if (hot) { if (scrolled) requestAnimationFrame(() => { el.scrollTop = scrolled; }); return; }
         setTimeout(() => { if (generation === paneGeneration) el.querySelector('button,input')?.focus?.({ preventScroll: true }); }, reduced() ? 0 : 450);
         track('step_view', { step_id: step.id, selections });
       }
+      /** Redraws the step on screen in place after a live edit, handing the module its own `hotState()`. */
+      function redraw(){
+        if (closed || busy || !steps[index] || !currentPane?.isConnected) return;
+        hotCarry = mounted?.hotState?.();
+        show(index, 0, true);
+        hotFlash();
+      }
+      /**
+       * Reads the experience again (its steps, copy and order are config library data) and redraws in place, staying
+       * on the same step when it is still there. Used when an agent says its live edit is done.
+       */
+      async function reloadDefinition(){
+        const fresh = await G()?.reloadExperience?.(experience.id).catch?.(() => null);
+        if (closed || !fresh || !Array.isArray(fresh.steps) || !fresh.steps.length) return redraw();
+        const on = steps[index]?.id;
+        for (const key of ['title', 'intro', 'completion']) if (fresh[key] !== undefined) experience[key] = fresh[key];
+        steps.splice(0, steps.length, ...fresh.steps);
+        const at = indexOf(on);
+        index = at >= 0 ? at : Math.min(index, steps.length - 1);
+        redraw();
+      }
+      // The working spinner beside the X while an agent edits this setup live; "Updated" for a moment after each change.
+      const hotBadge = $('[data-gxs-hot]');
+      let hotWorking = null, hotTimer = 0;
+      function hotFlash(){
+        if (hotWorking || closed) return;
+        clearTimeout(hotTimer);
+        hotBadge.hidden = false; hotBadge.classList.add('gxs-hot-done');
+        hotBadge.querySelector('.gxs-hot-text').textContent = L('gx_ui_hot_updated', 'Updated');
+        hotTimer = setTimeout(() => { if (!hotWorking) { hotBadge.hidden = true; hotBadge.classList.remove('gxs-hot-done'); } }, 1600);
+      }
+      function hotSignal(signal){
+        const was = hotWorking;
+        hotWorking = signal;
+        clearTimeout(hotTimer);
+        if (signal) {
+          hotBadge.hidden = false; hotBadge.classList.remove('gxs-hot-done');
+          const note = clean(signal.note);
+          hotBadge.querySelector('.gxs-hot-text').textContent = L('gx_ui_hot_working', 'Changing…');
+          hotBadge.title = note || L('gx_ui_hot_working_title', 'This setup is being changed. It updates here when the change is ready.');
+          return;
+        }
+        hotBadge.hidden = true; hotBadge.removeAttribute('title');
+        if (was) reloadDefinition();
+      }
+      const hotPlayer = { id: experience.id, uses: (key) => !closed && currentPane?.querySelector?.('[data-gx-module]')?.dataset.gxModule === key, redraw };
+      livePlayers.add(hotPlayer);
+      const stopHotEdits = watchHotEdits(experience.id, hotSignal);
       async function enter(to, direction, choice){
         show(to, direction);
         if (direction > 0) {
@@ -814,6 +876,7 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
       /** Closes the sheet. `handoff` flies the conversation to the project's agent tray, which opens with it. */
       async function close(mode){
         closed = true;
+        livePlayers.delete(hotPlayer); stopHotEdits(); clearTimeout(hotTimer);
         // The sheet's history entries come off first, so whatever opens next adds its own after the page's.
         const unwound = backHistory?.release() || Promise.resolve();
         fitSize?.disconnect(); fitFill?.disconnect();
@@ -911,120 +974,151 @@ ${choiceCss}    @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none
    * the step shows something with a name of its own; empty restores the step's), `L`, `H`, `esc`, `actions`) plus `read(provider,
    * export, { path, args })`, a published data read as the person. The player saves `answer()` with the step's action.
    */
-  const stepModules = new Map();
-  function loadStepModule(path){
+  // Every step module, by its path (no query): the loaded module, and the <style> elements it put in the page, so a
+  // live change to the file can be imported again and drawn in place (hotModule below).
+  const stepModules = new Map(), moduleStyles = new Map();
+  const modulePath = (path) => { try { return new URL(clean(path), scriptUrl).pathname.replace(/^\//, ''); } catch (_) { return ''; } };
+  function loadStepModule(path, fresh){
     const url = new URL(clean(path), scriptUrl);
     if (url.origin !== new URL(scriptUrl).origin || !url.pathname.startsWith('/libraries/')) return Promise.reject(new Error(L('gx_ui_widget_missing', 'This step cannot be shown here.')));
-    if (!stepModules.has(url.href)) stepModules.set(url.href, import(url.href).catch((error) => { stepModules.delete(url.href); throw error; }));
-    return stepModules.get(url.href);
+    const key = url.pathname.replace(/^\//, '');
+    // A live change imports the file again under a new URL (the live layer serves it whatever the query).
+    if (fresh) url.searchParams.set('hot', String(fresh).slice(0, 12) + '-' + Date.now().toString(36));
+    if (fresh || !stepModules.has(key)) stepModules.set(key, import(url.href).catch((error) => { stepModules.delete(key); throw error; }));
+    return stepModules.get(key);
   }
-  registerWidget('module', {
-    render(el, ctx){
-      let disposed = false, handle = null;
-      el.innerHTML = `<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      loadStepModule(ctx.step.module).then((module) => {
-        if (disposed) return;
-        el.innerHTML = '';
-        handle = (module.mount || module.default)?.(el, ctx) || {};
-        ctx.change({});
-      }).catch((error) => {
-        if (disposed) return;
-        console.warn('A setup step could not load its module.', error);
-        el.innerHTML = `<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;
-      });
-      return {
-        // Continue waits for the step's code to say its answer is complete.
-        valid: () => !!handle && handle.valid?.() !== false,
-        hint: () => handle?.hint?.() || '',
-        summary: () => handle?.summary?.() || '',
-        answer: () => handle?.answer?.(),
-        escape: () => handle?.escape?.() === true,
-        // A module with steps of its own (the document setup's first proposal, FM-614) is its own navigation, as the
-        // Operations workflow is: the sheet's footer hides, and Back and the phone's back walk its steps first.
-        handlesNavigation: () => handle?.handlesNavigation === true,
-        back: () => handle?.back?.() === true,
-        backDepth: () => Math.max(0, Number(handle?.backDepth?.()) || 0),
-        destroy(){ disposed = true; handle?.destroy?.(); }
+  /**
+   * A flow's code: one ES module per setup (or setup step), declared once in FLOW_MODULES or by a step's `module`
+   * path. It exports `mount(el, ctx)` (or `mountWidget(id, el, ctx)`) and returns its handle. Mounting records the
+   * styles the module added, so a live edit takes them out before the new copy puts its own in. `ctx.hot` is what the
+   * handle's `hotState()` returned before a live edit redrew it (the page it was on), so it can open where it was.
+   */
+  function mountModule(el, ctx, path, { id = '' } = {}){
+    let disposed = false, handle = null;
+    const key = modulePath(path);
+    el.dataset.gxModule = key;
+    el.innerHTML = `<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
+    const before = new Set(document.querySelectorAll('style'));
+    loadStepModule(path).then((module) => {
+      if (disposed) return;
+      el.innerHTML = '';
+      const mount = id && typeof module.mountWidget === 'function' ? (target, context) => module.mountWidget(id, target, context) : (module.mount || module.default);
+      handle = mount?.(el, ctx) || {};
+      const added = [...document.querySelectorAll('style')].filter((style) => !before.has(style));
+      if (added.length) moduleStyles.set(key, added);
+      ctx.change({});
+    }).catch((error) => {
+      if (disposed) return;
+      console.warn('A setup step could not load its module.', error);
+      el.innerHTML = `<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;
+    });
+    return {
+      // Continue waits for the step's code to say its answer is complete.
+      valid: () => !!handle && handle.valid?.() !== false,
+      hint: () => handle?.hint?.() || '',
+      summary: () => handle?.summary?.() || '',
+      answer: () => handle?.answer?.(),
+      escape: () => handle?.escape?.() === true,
+      // A module with steps of its own (the document setup's first proposal, FM-614) is its own navigation, as the
+      // Operations workflow is: the sheet's footer hides, and Back and the phone's back walk its steps first.
+      handlesNavigation: () => handle?.handlesNavigation === true,
+      back: () => handle?.back?.() === true,
+      backDepth: () => Math.max(0, Number(handle?.backDepth?.()) || 0),
+      hotState: () => { try { return handle?.hotState?.(); } catch (_) { return undefined; } },
+      destroy(){ disposed = true; handle?.destroy?.(); }
+    };
+  }
+  /**
+   * A step with its own code (widget `module`, docs/architecture/setup-steps.md): a browser ES module under /libraries/
+   * on this site, loaded when the step first shows and mounted in the standard step frame. It exports
+   * `mount(el, ctx)` and returns `{ valid(), hint(), summary(), answer(), escape(), destroy() }`, and with steps of its own
+   * `handlesNavigation: true`, `back()` and `backDepth()` as the Operations workflow has them (`escape()` closes something
+   * of its own, such as a dropdown, and returns true; otherwise Escape asks to close the setup). `ctx` is what every widget gets
+   * (`step`, `options`, `answer`, `change(patch, summary)`, `advance()`, `setTitle(text)` (the title in the top bar while
+   * the step shows something with a name of its own; empty restores the step's), `L`, `H`, `esc`, `actions`) plus `read(provider,
+   * export, { path, args })`, a published data read as the person. The player saves `answer()` with the step's action.
+   */
+  registerWidget('module', { render(el, ctx){ return mountModule(el, ctx, ctx.step.module); } });
+  /**
+   * The setups with pages of their own, one module each: the ONE list of them (an experience's step names the widget
+   * id). Back and the phone's back walk a module's pages (`handlesNavigation`). Add a setup here, never as its own widget.
+   * - operations-*: the Operations workflow (its first page is as tall as it is; the workflow and the ready page fill).
+   * - comms-setup (FM-491, FM-510, GP-138), appointments-setup (FM-515, GP-85), equipment-setup (GP-15),
+   *   workforce-setup (GP-28; a pay sheet calls the agent in), sales-team-setup (GP-144).
+   */
+  const FLOW_MODULES = {
+    'operations-path': { path: './operations-setup.js?v=20261119-gp46', fill: false },
+    'operations-document': { path: './operations-setup.js?v=20261119-gp46', fill: true },
+    'operations-ready': { path: './operations-setup.js?v=20261119-gp46', fill: true },
+    'comms-setup': { path: './comms-setup.js?v=20261123-gp147b' },
+    'appointments-setup': { path: './appointments-setup.js?v=20261123-hot' },
+    'equipment-setup': { path: './equipment-setup.js?v=20261119-gp57' },
+    'workforce-setup': { path: './workforce-setup.js?v=20261123-gp54' },
+    'sales-team-setup': { path: './sales-team-setup.js?v=20261120-gp144b' }
+  };
+  for (const [id, flow] of Object.entries(FLOW_MODULES)) registerWidget(id, {
+    handlesNavigation: true, fill: !!flow.fill,
+    render(el, ctx){ return mountModule(el, ctx, flow.path, { id: id.startsWith('operations-') ? id : '' }); }
+  });
+
+  // ── Editing a setup live (docs/architecture/guided-experiences.md, "Editing a setup live") ──────────────────────
+  // Development only: the live layer (live-assets.js) hands every changed script to `__fmHotHandlers`. A step module
+  // an open setup shows is imported again and the step redrawn where it was; one not on screen is dropped from the
+  // cache, so the next step that needs it loads the new copy. A signal file an agent writes while it works
+  // (libraries/hot-edits/<experience id>.json, tools/live-layer/hot-edit.mjs) shows the working spinner beside the X;
+  // when the agent says done, the setup's definition is read again and the step redrawn.
+  const livePlayers = new Set();
+  async function hotModule(path){
+    const key = String(path || '').replace(/^\//, '');
+    if (!stepModules.has(key)) return false;
+    const showing = [...livePlayers].filter((player) => player.uses(key));
+    moduleStyles.get(key)?.forEach((style) => style.remove());
+    moduleStyles.delete(key);
+    if (!showing.length) { stepModules.delete(key); return true; }
+    await loadStepModule('/' + key, Date.now().toString(36)).catch(() => null);
+    for (const player of showing) player.redraw();
+    return true;
+  }
+  try { (root.__fmHotHandlers = root.__fmHotHandlers || []).push(hotModule); } catch (_) {}
+  const HOT_DIR = 'libraries/hot-edits/';
+  const HOT_MAX_AGE = 15 * 60 * 1000;
+  /** The windows whose live layer this frame hears: its own, and the top page's (the page that holds the stream). */
+  function liveWindows(){
+    const list = [root];
+    try { if (root.top && root.top !== root && root.top.document) list.push(root.top); } catch (_) {}
+    return list;
+  }
+  /** Calls onSignal(signal | null) whenever the experience's hot-edit file appears, changes or goes away. */
+  function watchHotEdits(id, onSignal){
+    const file = HOT_DIR + String(id).replace(/[^A-Za-z0-9._-]/g, '_') + '.json'; // as tools/live-layer/hot-edit.mjs hotFile
+    let last = null;
+    async function read(sha){
+      sha = sha || '';
+      if (sha === last) return;
+      const first = last === null;
+      last = sha;
+      if (!sha) { if (!first) onSignal(null); return; }
+      try {
+        const response = await fetch('/' + file + '?hot=' + sha.slice(0, 12), { cache: 'no-store', credentials: 'same-origin' });
+        const signal = response.ok ? await response.json() : null;
+        onSignal(signal && signal.state === 'working' && Date.now() - Date.parse(signal.at || 0) < HOT_MAX_AGE ? signal : null);
+      } catch (_) { onSignal(null); }
+    }
+    const filesOf = (win) => { try { return win.FirstMateLiveAssets?.files?.() || null; } catch (_) { return null; } };
+    const listeners = [];
+    for (const win of liveWindows()) {
+      const listener = (event) => {
+        const detail = event.detail || {};
+        if (detail.event === 'hello') read(filesOf(win)?.[file] || '');
+        else if (Array.isArray(detail.files)) { const hit = detail.files.find((entry) => entry.path === file); if (hit) read(hit.sha || ''); }
       };
+      try { win.addEventListener('fm:live-assets', listener); listeners.push([win, listener]); } catch (_) {}
+      const files = filesOf(win);
+      if (files) read(files[file] || '');
     }
-  });
-  // The first page (two choices) is as tall as it is (on a phone, at least two-thirds of the screen); the workflow and the ready page fill the sheet.
-  for (const id of ['operations-path','operations-document','operations-ready']) registerWidget(id, {
-    fill:id!=='operations-path', handlesNavigation:true,
-    render(el,ctx){
-      let disposed=false, handle=null;
-      el.textContent=L('gx_operations_loading','Opening Operations…');
-      import(new URL('./operations-setup.js?v=20261119-gp46',scriptUrl).href).then(module=>{
-        if(!disposed)handle=module.mountWidget(id,el,ctx);
-      }).catch(error=>{if(!disposed)el.textContent=error?.message||L('gx_operations_load_error','Could not open this step. Close and try again.');});
-      return {valid:()=>handle?.valid?.()!==false,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
-    }
-  });
-  // The Communications setup (FM-491, FM-510): one step with its own pages (start, done, plan); carrier registration is
-  // more of its pages (GP-138), walked by Back and the phone's back.
-  registerWidget('comms-setup', {
-    handlesNavigation:true,
-    render(el,ctx){
-      let disposed=false, handle=null;
-      el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      import(new URL('./comms-setup.js?v=20261123-gp147b',scriptUrl).href).then(module=>{
-        if(!disposed)handle=module.mount(el,ctx);
-      }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
-      return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
-    }
-  });
-  // The appointment setup (FM-515): one step with its own pages (each kind of appointment, texting, the finish); Back
-  // and the phone's back walk its pages, and from the first one go to the step before (GP-85).
-  registerWidget('appointments-setup', {
-    handlesNavigation:true,
-    render(el,ctx){
-      let disposed=false, handle=null;
-      el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      import(new URL('./appointments-setup.js?v=20261120-gp138b',scriptUrl).href).then(module=>{
-        if(!disposed)handle=module.mount(el,ctx);
-      }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
-      return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
-    }
-  });
-  // The equipment setup (GP-15): one step with its own pages (locations, equipment, how many, the finish); Back and the
-  // phone's back walk its pages.
-  registerWidget('equipment-setup', {
-    handlesNavigation:true,
-    render(el,ctx){
-      let disposed=false, handle=null;
-      el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      import(new URL('./equipment-setup.js?v=20261119-gp57',scriptUrl).href).then(module=>{
-        if(!disposed)handle=module.mount(el,ctx);
-      }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
-      return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
-    }
-  });
-  // The workforce setup (GP-28): one step with its own pages (who does the work, how many, what each does, how each is
-  // paid, the finish); Back and the phone's back walk its pages. A pay sheet it uploads calls the agent in beside it.
-  registerWidget('workforce-setup', {
-    handlesNavigation:true,
-    render(el,ctx){
-      let disposed=false, handle=null;
-      el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      import(new URL('./workforce-setup.js?v=20261123-gp54',scriptUrl).href).then(module=>{
-        if(!disposed)handle=module.mount(el,ctx);
-      }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
-      return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
-    }
-  });
-  // The salesperson setup (GP-144): one step with its own pages (the salespeople and what each sells, the finish); Back
-  // and the phone's back walk its pages.
-  registerWidget('sales-team-setup', {
-    handlesNavigation:true,
-    render(el,ctx){
-      let disposed=false, handle=null;
-      el.innerHTML=`<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
-      import(new URL('./sales-team-setup.js?v=20261120-gp144b',scriptUrl).href).then(module=>{
-        if(!disposed)handle=module.mount(el,ctx);
-      }).catch(()=>{if(!disposed)el.innerHTML=`<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;});
-      return {valid:()=>true,escape:()=>handle?.escape?.()===true,back:()=>handle?.back?.()===true,backDepth:()=>handle?.backDepth?.()||0,destroy(){disposed=true;handle?.destroy?.();}};
-    }
-  });
+    return () => listeners.forEach(([win, listener]) => { try { win.removeEventListener('fm:live-assets', listener); } catch (_) {} });
+  }
+
   const widgetCss = `
     /* The grid takes the step's height from the top; its rows stay a tile's shape and leftover space falls below. */
     .gxs-logos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(108px,150px);align-content:start;gap:12px;flex:1 1 auto;min-height:0;padding-bottom:24px}
