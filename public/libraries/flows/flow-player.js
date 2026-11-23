@@ -173,14 +173,15 @@
         options.onDone?.(view);
         return;
       }
-      const canBack = preview ? preview.path.length > 0 : view?.can_back;
+      // The last step (its buttons) is the end: there is nothing to go back and change once the run has saved it.
+      const canBack = !buttons && (preview ? preview.path.length > 0 : view?.can_back);
       const ends = buttons || finished;
       el.innerHTML = `<div class="fmf" data-kind="${esc(kind)}" data-surface="${esc(surface)}" data-step="${esc(step.id)}">${preview ? `<span class="fmf-preview-tag">${esc(L('preview', 'Preview: nothing is saved'))}</span>` : ''}${head}
         <div class="fmf-blocks">${blocksHtml(step, answers, kind, !!preview)}</div>
         <div class="fmf-foot">${error ? `<span class="fmf-err" role="alert">${esc(error)}</span>` : ''}
           ${canBack && !finished ? `<button type="button" class="fmf-btn" data-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(L('back', 'Back'))}</button>` : ''}
           ${ends ? (buttons?.buttons || []).map((button, index) => `<button type="button" class="fmf-btn ${index === 0 ? 'primary' : ''}" data-button="${esc(button.kind)}" data-target="${esc(button.target || '')}">${esc(button.label || L(button.kind, button.kind))}</button>`).join('')
-            : `<button type="button" class="fmf-btn primary" data-next ${busy ? 'disabled' : ''}>${esc(busy ? L('saving', 'Saving…') : L('continue', 'Continue'))}</button>`}
+            : `<button type="button" class="fmf-btn primary" data-next ${busy ? 'disabled' : ''}>${esc(busy ? L('saving', 'Saving…') : preview ? L('next', 'Next') : L('continue', 'Continue'))}</button>`}
         </div></div>`;
       if (buttons && view?.run?.status === 'open' && !preview) {
         // A step that only offers buttons ends the run as soon as it shows.

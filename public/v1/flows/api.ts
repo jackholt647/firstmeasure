@@ -30,9 +30,9 @@ export const registerFlowsApi: FastifyPluginAsync = async (app) => {
   });
   app.get("/organizations/:orgId/flows/new-menu", async (request) => ({ ok: true, flows: await newMenuFlows(await auth(request)) }));
   app.post("/organizations/:orgId/flows/preview", async (request) => {
-    await auth(request);
+    const ctx = await auth(request);
     const input = z.object({ definition: z.unknown(), step_id: z.string().optional(), answers: z.record(z.unknown()).optional() }).strict().parse(request.body ?? {});
-    return { ok: true, ...previewStep(input.definition, input) };
+    return { ok: true, ...previewStep(input.definition, input, ctx) };
   });
   app.get("/organizations/:orgId/flows/:flowId", async (request) => {
     const ctx = await auth(request);
