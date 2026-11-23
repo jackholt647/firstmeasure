@@ -33,7 +33,9 @@ export const blockSchema = z.discriminatedUnion("kind", [
   z.object({ ...base, kind: z.literal("say"), text: z.string().trim().max(4000) }).strict(),
   z.object({ ...base, kind: z.literal("note"), text: z.string().trim().max(4000) }).strict(),
   z.object({ ...base, kind: z.literal("ask"), key: id, input: z.enum(ASK_INPUTS).default("text"), options: z.array(option).max(60).default([]),
-    required: z.boolean().default(false), placeholder: label(200), saves_to: z.string().trim().regex(SAVES_TO).optional() }).strict(),
+    required: z.boolean().default(false), placeholder: label(200), saves_to: z.string().trim().regex(SAVES_TO).optional(),
+    /** number and money: the smallest and largest answer accepted. */
+    min: z.number().finite().optional(), max: z.number().finite().optional() }).strict(),
   z.object({ ...base, kind: z.literal("choice"), key: id, options: z.array(option).min(1).max(20), required: z.boolean().default(true) }).strict(),
   z.object({ ...base, kind: z.literal("contact"), mode: z.enum(["find", "create", "find_or_create"]).default("find_or_create"),
     from: z.record(z.string().trim().max(200)).default({}) }).strict(),

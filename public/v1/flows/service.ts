@@ -174,7 +174,14 @@ function answerFor(block: Extract<FlowBlock, { kind: "ask" | "choice" }>, raw: u
   }
   switch (block.input) {
     case "multi": { const list = (Array.isArray(raw) ? raw : [raw]).map(text); if (list.some((entry) => !ids.has(entry))) throw badRequest("flow_answer_invalid", `${name}: pick from the choices.`); return list; }
-    case "number": case "money": { const number = Number(raw); if (!Number.isFinite(number)) throw badRequest("flow_answer_invalid", `${name} needs a number.`); return number; }
+    case "number": case "money": {
+      const number = Number(raw);
+      if (!Number.isFinite(number)) throw badRequest("flow_answer_invalid", `${name} needs a number.`);
+      const { min, max } = block as { min?: number; max?: number };
+      if (min !== undefined && number < min) throw badRequest("flow_answer_invalid", `${name} must be at least ${min}.`);
+      if (max !== undefined && number > max) throw badRequest("flow_answer_invalid", `${name} must be at most ${max}.`);
+      return number;
+    }
     case "yes_no": return raw === true || raw === "yes" || raw === "true";
     case "email": { const value = text(raw).toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) throw badRequest("flow_answer_invalid", `${name} needs an email address.`); return value; }
     default: return text(raw).slice(0, 4000);

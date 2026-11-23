@@ -2,6 +2,7 @@ import { terminologyAssistantTools } from './terminology.js';
 import { connectionTools, connectionInstructions, connectionContext } from '../../integrations/assistant.js';
 import { leadTools } from '../../leads/assistant.js';
 import { formsTools, formsInstructions, formConversationContext } from '../../forms/assistant.js';
+import { flowsTools, flowsInstructions, flowConversationContext } from '../../flows/assistant.js';
 import { materialsSettingsConversationContext } from '../../materials/settings-assistant.js';
 import { crmTools, crmInstructions, crmConversationContext } from '../../crm/assistant.js';
 import { projectConversationContext } from '../project-context.js';
@@ -161,6 +162,7 @@ const TOOLS: AgentTool[] = [
   ...connectionTools,
   ...leadTools,
   ...formsTools,
+  ...flowsTools,
   ...crmTools,
   {
     name:'open_scheduling_widget',
@@ -699,6 +701,7 @@ registerAgent({
   async prepare(run) {
     run.scratch.connectionContext = await connectionContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.formContext = await formConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
+    run.scratch.flowContext = await flowConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.materialsSettingsContext = await materialsSettingsConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.crmContext = await crmConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.projectContext = await projectConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
@@ -738,6 +741,8 @@ ${connectionInstructions}
 ${run.scratch.connectionContext || ''}
 ${formsInstructions}
 ${run.scratch.formContext || ''}
+${flowsInstructions}
+${run.scratch.flowContext || ''}
 ${run.scratch.materialsSettingsContext || ''}
 ${crmInstructions}
 ${run.scratch.crmContext || ''}

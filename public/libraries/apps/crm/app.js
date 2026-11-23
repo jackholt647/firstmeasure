@@ -1459,11 +1459,11 @@
      */
     let flowLibraryPending = null;
     function flowEditor(){
-      if (window.FirstMateFlowEditor) return Promise.resolve(window.FirstMateFlowEditor);
+      if (window.FirstMateFlowEditor && window.FirstMateFlowScriptEditor) return Promise.resolve(window.FirstMateFlowEditor);
       if (!flowLibraryPending) {
         const base = SCRIPT_SRC ? SCRIPT_SRC.replace(/apps\/crm\/app\.js(\?.*)?$/, '') : '../libraries/';
         const load = (src) => new Promise((resolve, reject) => { const tag = document.createElement('script'); tag.src = src; tag.onload = resolve; tag.onerror = () => reject(new Error(L('flows_editor_missing', 'The flow editor could not be loaded.'))); document.head.appendChild(tag); });
-        flowLibraryPending = (window.FirstMateFlows ? Promise.resolve() : load(`${base}flows/flow-player.js`)).then(() => load(`${base}flows/flow-editor.js`)).then(() => window.FirstMateFlowEditor)
+        flowLibraryPending = (window.FirstMateFlows ? Promise.resolve() : load(`${base}flows/flow-player.js`)).then(() => window.FirstMateFlowEditor ? null : load(`${base}flows/flow-editor.js`)).then(() => window.FirstMateFlowScriptEditor ? null : load(`${base}flows/flow-script-editor.js`)).then(() => window.FirstMateFlowEditor)
           .catch((error) => { flowLibraryPending = null; throw error; });
       }
       return flowLibraryPending;
@@ -1502,7 +1502,14 @@
       </section></div>`;
       const reload = () => renderFlows(content);
       const edit = async (flowId, options = {}) => {
-        try { (await flowEditor()).open(flowId, { readOnly: !canEdit, ...options, onSave: reload }); }
+        // The script editor first (a prototype being tried, docs/architecture/flows.md); its Map view opens the flowchart editor.
+        try {
+          const map = await flowEditor();
+          const script = window.FirstMateFlowScriptEditor;
+          if (!script) return void map.open(flowId, { readOnly: !canEdit, ...options, onSave: reload });
+          script.open(flowId, { readOnly: !canEdit, ...options, orgId, onSave: reload,
+            onSwitchToMap: (definition, state) => map.open(state?.flowId || flowId, { readOnly: !canEdit, ...(state?.flowId || flowId ? {} : { definition }), onSave: reload }) });
+        }
         catch (error) { toast(error?.message || L('failed', 'That did not work.'), false); }
       };
       content.onchange = (event) => { if (event.target.matches('[data-flows-archived]')) { state.flowsArchived = event.target.checked; reload(); } };
