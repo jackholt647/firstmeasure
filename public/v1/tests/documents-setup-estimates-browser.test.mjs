@@ -74,6 +74,7 @@ const choose = async (tab, selector, names) => {
 const files = (tab) => tab.$$eval('[data-estimate]', (rows) => rows.map((row) => [row.querySelector('strong').textContent, row.dataset.state, row.querySelector('small').textContent]));
 const settled = (tab) => tab.waitForFunction(() => !document.querySelector('[data-estimate][data-state=waiting],[data-estimate][data-state=reading]'));
 const price = (tab, id) => tab.$eval(`[data-price="${id}"]`, (input) => input.value);
+const wide = (tab) => tab.evaluate(() => document.querySelector('.gxs').classList.contains('gxs-wide'));
 const on = (tab, name) => tab.$$eval('.gxd-line', (rows, wanted) => rows.find((row) => row.querySelector('strong').textContent === wanted)?.dataset.on, name);
 
 test('the price step reads as many estimates as they upload, on a page of its own (GP-51)', async () => {
@@ -84,6 +85,10 @@ test('the price step reads as many estimates as they upload, on a page of its ow
     assert.match(tile, /Upload existing estimates/);
     assert.match(tile, /We’ll read through these to set up your prices\./);
     assert.doesNotMatch(tile, /before anything is saved/, 'the long hint is gone');
+    // GP-164: the two ways in keep the setup's size and have no lead of their own (it is the step's tooltip).
+    assert.equal(await wide(tab), false, 'the two ways in are not wide');
+    assert.equal(await tab.$('[data-gx-step="prices"] .gxd > p:not(.gxd-error)'), null, 'no lead under the title');
+    assert.match(await tab.textContent('[data-start="manual"]'), /Build my prices manually/);
 
     // Four at once (it used to keep three): the page lists each, reading two at a time; Continue waits for them.
     await choose(tab, '[data-start="estimate"]', ['a.pdf', 'b.pdf', 'bad.pdf', 'c.pdf']);
@@ -91,6 +96,7 @@ test('the price step reads as many estimates as they upload, on a page of its ow
     assert.equal(await tab.isHidden('.gxs-foot'), true, 'the page has its own Back and Continue');
     assert.match(await tab.textContent('.gxd-uploads'), /The more estimates you upload, the better we can work out your prices\./);
     assert.equal(await tab.isDisabled('[data-uploads-done]'), true, 'nothing read yet');
+    assert.equal(await wide(tab), false, 'the estimates page keeps the setup\'s size until they are read into the lines');
     await settled(tab);
     assert.deepEqual(await files(tab), [['a.pdf', 'done', '2 priced lines'], ['b.pdf', 'done', '2 priced lines'], ['bad.pdf', 'failed', 'That one could not be read.'], ['c.pdf', 'done', '3 priced lines']]);
     assert.deepEqual(await tab.evaluate(() => window.__reads), [['a.pdf'], ['b.pdf'], ['bad.pdf'], ['c.pdf']], 'one estimate per read');
@@ -107,6 +113,7 @@ test('the price step reads as many estimates as they upload, on a page of its ow
     await tab.click('[data-uploads-done]');
     await tab.waitForSelector('.gxd-banner');
     assert.equal(await tab.isVisible('.gxs-foot'), true, 'the sheet’s footer is back');
+    assert.equal(await wide(tab), true, 'the lines are wide');
     const banner = await tab.textContent('.gxd-banner');
     assert.match(banner, /From 4 estimates: 2 lines matched your price book and 1 are new\./);
     assert.match(banner, /middle price/);
@@ -125,6 +132,7 @@ test('the price step reads as many estimates as they upload, on a page of its ow
     await tab.click('[data-upload]');
     await tab.waitForSelector('.gxd-uploads');
     assert.equal(picked, false, 'no picker when there are estimates to show');
+    assert.equal(await wide(tab), true, 'opened from the lines, the estimates page stays wide');
     assert.equal((await files(tab)).length, 4);
     await tab.click('[data-uploads-done]');
     await tab.waitForSelector('.gxd-banner');
@@ -139,10 +147,48 @@ test('the price step reads as many estimates as they upload, on a page of its ow
     await tab.click('[data-gxs=next]');
     await tab.waitForFunction(() => document.querySelector('[data-gx-step="presentation"]'));
     await tab.waitForTimeout(300);
+    assert.equal(await wide(tab), false, 'the next step has the setup\'s size again');
     const answer = events.filter((event) => event.type === 'step_done' && event.step_id === 'prices').at(-1)?.selections;
     assert.deepEqual(answer.prices, [{ item_id: 'tearoff', unit_price: 105 }, { item_id: 'drip', unit_price: 3.5 }]);
     assert.deepEqual(answer.lines.on.slice(0, 2), ['tearoff', answer.lines.new_items[0].key]);
     assert.deepEqual(answer.lines.new_items.map((item) => [item.name, item.unit, item.unit_price]), [['Gutter guard', 'lf', 8.5]]);
+    assert.deepEqual(errors, []);
+    await tab.close();
+  } finally { await browser.close(); }
+});
+
+test('the price step widens only for the lines (GP-164)', async () => {
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+  try {
+    const { tab, errors } = await open(browser);
+    assert.equal(await wide(tab), false);
+    // The estimates page, before anything is chosen: the sheet keeps the size of the two ways in.
+    const rect = () => tab.evaluate(() => { const r = document.querySelector('.gxs-sheet').getBoundingClientRect(); return [r.width, r.height].map(Math.round); });
+    await tab.waitForTimeout(700);
+    const before = await rect();
+    const [chooser] = await Promise.all([tab.waitForEvent('filechooser'), tab.click('[data-start="estimate"]')]);
+    await chooser.setFiles([]);
+    await tab.waitForSelector('.gxd-uploads');
+    await tab.waitForTimeout(700);
+    assert.deepEqual(await rect(), before, 'the same size as the two ways in');
+    assert.equal(await wide(tab), false);
+    await tab.click('[data-uploads-back]');
+    await tab.waitForSelector('[data-start="manual"]');
+    // Building them by hand: the lines, wide.
+    await tab.click('[data-start="manual"]');
+    await tab.waitForSelector('.gxd-line');
+    assert.equal(await wide(tab), true);
+    // Leaving the step with a price changed and coming back to the lines: wide from the start, not after they load.
+    await tab.fill('[data-price="tearoff"]', '95');
+    await tab.click('[data-gxs=next]');
+    await tab.waitForFunction(() => document.querySelector('[data-gx-step="presentation"]'));
+    assert.equal(await wide(tab), false);
+    await tab.click('[data-gxs=back]');
+    await tab.waitForSelector('[data-gx-step="prices"]');
+    assert.equal(await wide(tab), true, 'wide while the lines load');
+    await tab.waitForSelector('[data-gx-step="prices"] .gxd-line');
+    assert.equal(await wide(tab), true);
+    assert.equal(await tab.$eval('[data-price="tearoff"]', (input) => input.value), '95');
     assert.deepEqual(errors, []);
     await tab.close();
   } finally { await browser.close(); }
