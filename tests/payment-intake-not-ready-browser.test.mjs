@@ -1,6 +1,7 @@
 // The shared payment form (public/libraries/payment-intake/payment-intake.js) in headless Chrome when the
 // organization cannot take payments yet: a page that passes not-ready actions gets a way into payment setup
-// and no amount to type; a page that passes none keeps the plain notice (FM-577).
+// and no amount to type; a page that passes none keeps the plain notice (FM-577). The way into setup looks like a
+// guided setup: the setup tag at the top left and buttons in the organization's colour, never black (GP-156).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -35,7 +36,9 @@ test('not ready with actions: the form leads to setup and offers nothing to char
       title: 'Take a Payment',
       allowCustomAmount: true,
       details: [{ label: 'Project', value: '12 Main St' }],
+      primaryColor: '#d93025',
       notReadyTitle: 'Set up online payments',
+      notReadyBadge: 'Set up payments',
       notReadyMessage: 'To take card and bank payments here, set up your payment account first.',
       notReadyActions: [
         { label: 'Set up payments', primary: true, onClick: () => window.__clicked.push('setup') },
@@ -52,16 +55,24 @@ test('not ready with actions: the form leads to setup and offers nothing to char
       buttons: [...(setup?.querySelectorAll('[data-fmpi-not-ready-action]') || [])].map((button) => [button.textContent, button.className]),
       amount: !!document.querySelector('[data-fmpi-custom-amount]'),
       methods: !!document.querySelector('[data-fmpi-method]'),
-      details: !!document.querySelector('.fmpi-details')
+      details: !!document.querySelector('.fmpi-details'),
+      badge: document.querySelector('.fmpi-head [data-fmpi-setup-badge]')?.textContent,
+      badgeColor: getComputedStyle(document.querySelector('[data-fmpi-setup-badge]')).color,
+      headTitle: !!document.querySelector('.fmpi-head strong'),
+      primaryBackground: getComputedStyle(setup.querySelector('.fmpi-primary')).backgroundColor
     };
   });
   assert.equal(shown.title, 'Set up online payments');
+  assert.equal(shown.badge, 'Set up payments', 'the setup tag sits in the head, as in a guided setup');
+  assert.equal(shown.badgeColor, 'rgb(217, 48, 37)');
+  assert.equal(shown.headTitle, false, 'the tag takes the title\'s place');
+  assert.equal(shown.primaryBackground, 'rgb(217, 48, 37)', 'the setup button is the primary colour');
   assert.match(shown.text, /set up your payment account first/);
   assert.deepEqual(shown.buttons, [['Set up payments', 'fmpi-primary'], ['Record a cash or check payment', 'fmpi-secondary']]);
   assert.equal(shown.amount, false, 'no amount to type when nothing can be charged');
   assert.equal(shown.methods, false);
   assert.equal(shown.details, false);
-  await tab.click('text=Set up payments');
+  await tab.click('[data-fmpi-not-ready-action="0"]');
   await tab.click('text=Record a cash or check payment');
   assert.deepEqual(await tab.evaluate(() => window.__clicked), ['setup', 'record']);
 });
@@ -77,10 +88,12 @@ test('not ready without actions: the plain notice beside the amount, as before',
     return {
       notice: document.querySelector('.fmpi-notice[data-fmpi-not-ready]')?.textContent,
       setup: !!document.querySelector('[data-fmpi-setup]'),
+      badge: !!document.querySelector('[data-fmpi-setup-badge]'),
       amount: !!document.querySelector('[data-fmpi-custom-amount]')
     };
   });
   assert.equal(shown.notice, 'Online payment is not available for this document yet.');
   assert.equal(shown.setup, false);
+  assert.equal(shown.badge, false);
   assert.equal(shown.amount, true);
 });
