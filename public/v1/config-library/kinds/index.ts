@@ -7,6 +7,7 @@ import { tabPromoKind } from "./tab_promo.js";
 import { appWelcomeKind } from "./app_welcome.js";
 import { scopeTemplateKind } from "./scope_template.js";
 import { formTemplateKind } from "./form_template.js";
+import { flowTemplateKind } from "./flow_template.js";
 import { automationRuleDefaultKind } from "./automation_rule_default.js";
 import { terminologyNamespaceKind } from "./terminology_namespace.js";
 import { appFlagDefaultsKind } from "./app_flag_defaults.js";
@@ -45,6 +46,7 @@ export function registerAllLibraryKinds() {
   registerLibraryKind(appWelcomeKind);
   registerLibraryKind(scopeTemplateKind);
   registerLibraryKind(formTemplateKind);
+  registerLibraryKind(flowTemplateKind);
   registerLibraryKind(automationRuleDefaultKind);
   registerLibraryKind(terminologyNamespaceKind);
   registerLibraryKind(appFlagDefaultsKind);
