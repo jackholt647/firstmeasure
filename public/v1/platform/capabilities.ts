@@ -56,6 +56,8 @@ export type CapabilityDefinition = {
   parent?: string;
   requires?: string[];
   options?: Array<string | [string, string]>;
+  /** multi_select: values that are data rather than fixed options (`flow:<id>`, `form:<id>` New menu items) match this. */
+  option_pattern?: string;
   min?: number;
   step?: number;
   /** Named relevance predicate. Informational. */
@@ -96,6 +98,7 @@ export type NormalizedCapability = Required<Pick<CapabilityDefinition, "key" | "
   parent: string;
   requires: string[];
   options: Array<[string, string]>;
+  option_pattern: string;
   min?: number;
   step?: number;
   relevance: string;
@@ -229,6 +232,7 @@ export function registerCapabilities(definitions: CapabilityDefinition[]) {
       parent: cleanText(definition.parent),
       requires: (definition.requires || []).map(cleanText).filter(Boolean),
       options: (definition.options || []).map((option) => Array.isArray(option) ? [cleanText(option[0]), cleanText(option[1])] as [string, string] : [cleanText(option), cleanText(option)] as [string, string]),
+      option_pattern: cleanText(definition.option_pattern),
       ...(definition.min !== undefined ? { min: definition.min } : {}),
       ...(definition.step !== undefined ? { step: definition.step } : {}),
       relevance: cleanText(definition.relevance),
@@ -474,9 +478,10 @@ export function normalizeCapabilityValue(node: NormalizedCapability, value: unkn
   }
   if (node.type === "multi_select") {
     const allowed = new Set(node.options.map(([optionValue]) => optionValue));
+    const pattern = node.option_pattern ? new RegExp(node.option_pattern) : null;
     const parts = (Array.isArray(value) ? value : cleanText(value).split(","))
       .map((part) => cleanText(part).toLowerCase())
-      .filter((part) => part && allowed.has(part));
+      .filter((part) => part && (allowed.has(part) || !!pattern?.test(part)));
     return [...new Set(parts)].join(",");
   }
   return value !== false;
