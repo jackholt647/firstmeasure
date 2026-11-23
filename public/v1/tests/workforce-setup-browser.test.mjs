@@ -86,6 +86,8 @@ test('unanswered: the shared step is the first page, and Continue needs an answe
     await page.locator('[data-gxw-next]').click();
     await page.locator('[data-gxw-page="count"]').waitFor();
     assert.equal(await page.locator('[data-gxw-count]').count(),2);
+    // GP-160: how many is the title and the counts, with no lead paragraph under the title.
+    assert.equal(await page.locator('[data-gxw-page="count"] > p:not([data-gxw-error])').count(),0,'no lead under how many');
     assert.deepEqual(await page.evaluate(()=>saved),[{action:'company-profile.save',input:{workforce:'crews_and_subs'}}]);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
