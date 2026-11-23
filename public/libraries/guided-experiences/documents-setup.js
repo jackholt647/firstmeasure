@@ -140,7 +140,7 @@ const css = `
 .gxd-drop small{font-size:12px;font-weight:500;color:#667085}
 .gxd-drop.gxd-dragging{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.06)}
 .gxd-banner.gxd-more{margin:0}
-.gxd-uploads-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:auto;padding:12px 0 2px;border-top:1px solid #f2f4f7;background:#fff}
+.gxd-uploads-foot{position:sticky;bottom:0;display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:auto;padding:12px 0 2px;border-top:1px solid #f2f4f7;background:#fff}
 .gxs-choices .gxd-badge{align-self:auto}
 .gxd-note{font-size:12px!important;color:#667085!important}
 /* GP-94: the proposal kinds note sits centred under its two tiles. */
@@ -713,7 +713,7 @@ export function mount(el, ctx){
     }
     const uploadsDoneHtml = () => pendingEstimates() ? `<span class="gxs-spin" aria-hidden="true"></span>${esc(t('prices_estimate_reading', 'Reading…'))}` : esc(t('prices_uploads_continue', 'Continue'));
     function uploadsHtml(){
-      return `<div class="gxd gxd-uploads">
+      return `<div class="gxd gxd-uploads"${uploadsMin ? ` style="min-height:${uploadsMin}px"` : ''}>
         <p>${esc(t('prices_start_estimates_hint', 'We’ll read through these to set up your prices.'))}</p>
         <ul class="gxd-files" data-estimates aria-live="polite">${estimates.map(estimateHtml).join('')}</ul>
         <button type="button" class="gxd-add gxd-drop" data-add-estimates><i class="fas fa-file-arrow-up" aria-hidden="true"></i><span><strong>${esc(estimates.length ? t('prices_upload_more', 'Add more estimates') : t('prices_uploads_choose', 'Choose estimates'))}</strong><small>${esc(t('prices_uploads_kinds', 'PDFs or photos, up to 20 MB each'))}</small></span></button>
@@ -815,10 +815,13 @@ export function mount(el, ctx){
     // ── Estimates they already send (GP-51) ──
     // A page of their own: each file is read as it is added (one estimate per read, two at a time), listed with how
     // that went, and more can be added. Continue puts them all into the lines at once.
-    let estimates = [], estimateCount = 0, uploadsFrom = 'start', mergedKey = '';
+    let estimates = [], estimateCount = 0, uploadsFrom = 'start', mergedKey = '', uploadsMin = 0;
     function openUploads(from){
+      // From the two ways in the page is at least as tall as they were, so the sheet keeps its size until estimates are
+      // read (GP-164); from the lines it fills the wide sheet it is on.
+      uploadsMin = from === 'start' ? el.querySelector('.gxd')?.offsetHeight || 0 : 0;
       uploadsFrom = from; phase = 'uploads';
-      pane?.setAttribute('data-fill', '');
+      if (from === 'list') pane?.setAttribute('data-fill', '');
       draw();
       ctx.setTitle?.(t('prices_uploads_title', 'Upload existing estimates'));
       // The page has its own Back and Continue: the sheet's footer hides, and the phone's back comes back here.
