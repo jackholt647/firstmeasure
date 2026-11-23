@@ -59,7 +59,9 @@ test('not ready with actions: the form leads to setup and offers nothing to char
       badge: document.querySelector('.fmpi-head [data-fmpi-setup-badge]')?.textContent,
       badgeColor: getComputedStyle(document.querySelector('[data-fmpi-setup-badge]')).color,
       headTitle: !!document.querySelector('.fmpi-head strong'),
-      primaryBackground: getComputedStyle(setup.querySelector('.fmpi-primary')).backgroundColor
+      primaryBackground: getComputedStyle(setup.querySelector('.fmpi-primary')).backgroundColor,
+      aboveIcon: setup.querySelector('.fmpi-icon').getBoundingClientRect().top - document.querySelector('.fmpi-modal').getBoundingClientRect().top,
+      belowButtons: document.querySelector('.fmpi-modal').getBoundingClientRect().bottom - setup.querySelector('.fmpi-actions').getBoundingClientRect().bottom
     };
   });
   assert.equal(shown.title, 'Set up online payments');
@@ -67,6 +69,7 @@ test('not ready with actions: the form leads to setup and offers nothing to char
   assert.equal(shown.badgeColor, 'rgb(217, 48, 37)');
   assert.equal(shown.headTitle, false, 'the tag takes the title\'s place');
   assert.equal(shown.primaryBackground, 'rgb(217, 48, 37)', 'the setup button is the primary colour');
+  assert.ok(Math.abs(shown.aboveIcon - shown.belowButtons) <= 8, `as much space under the buttons as above the icon (${shown.aboveIcon} / ${shown.belowButtons})`);
   assert.match(shown.text, /set up your payment account first/);
   assert.deepEqual(shown.buttons, [['Set up payments', 'fmpi-primary'], ['Record a cash or check payment', 'fmpi-secondary']]);
   assert.equal(shown.amount, false, 'no amount to type when nothing can be charged');
