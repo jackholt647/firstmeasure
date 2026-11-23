@@ -22,9 +22,13 @@ SSH to a dev host to stage or activate, never push canonical or a lane branch, n
    and submits it). Defaults and
    templates are config (the config library), not code; a browser file you are still tuning belongs on the live
    layer first.
-3. **Tests are opt-in.** Without `--regression` only second-scale checks run. Add `--regression` (or run
-   `node tools/dev-push/submit.mjs regression --wait` to test without shipping) only when you suspect a bug, when
-   Jack asks, or after ~20+ minutes of work. They run once, on the server: do not run suites locally first.
+   **Small things never wait:** signup sandbox configurations, setup steps, guided setups and templates are config
+   library saves; CSS, images, browser libraries, signup pages and setup screens go live on the live layer first.
+   Both are on dev in ~1 s and never queue behind a push (dev lanes, "What runs in parallel").
+3. **Tests are opt-in and rare.** Without `--regression` only second-scale checks run. Run the tests your change
+   touches yourself; add `--regression` only when you suspect a bug or Jack asks, never for small or visual changes.
+   On the platform lane they run after the release is live and hold nobody: `submit.mjs wait <slug> --tests-after`
+   waits for the result (`node tools/dev-push/submit.mjs regression --wait` tests without shipping).
 4. **Rejected** (exit 1): the output names the conflicting files or the failing check and what to do next. Fix,
    commit, submit again with the same slug (it replaces the queued entry).
 5. **Live** (exit 0): the release id and the stage timings are printed; the work is on dev and in canonical (GitHub

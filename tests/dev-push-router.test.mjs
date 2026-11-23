@@ -71,7 +71,7 @@ function scratch() {
   const makeRouter = (extra = {}) => new Router({ repo: path.join(dir, 'router.git'), remote: origin, stateDir: path.join(dir, 'state'), lanes: { platform: lane }, quiet: true, ...extra });
   const originFile = (rel) => spawnSync('git', ['show', `${BRANCH}:${rel}`], { cwd: origin, encoding: 'utf8' }).stdout;
   const queueRefs = () => sh(origin, 'for-each-ref', '--format=%(refname)', 'refs/heads/queue/').split('\n').filter(Boolean);
-  return { dir, origin, clone, deployed, makeRouter, originFile, queueRefs, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  return { dir, origin, clone, deployed, lane, makeRouter, originFile, queueRefs, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
 const drain = async (router) => { await router.init(); while (await router.processLane('platform')) { /* until idle */ } };
@@ -338,6 +338,40 @@ test('regression runs on the server, ships nothing, and reports passed or failed
     assert.equal(byRef(router, 'bob-b').state, 'live');
     assert.ok(router.releases[0].timings.batch_total >= 0, 'stage timings recorded');
     assert.deepEqual(s.queueRefs(), []);
+  } finally { s.cleanup(); }
+});
+
+test('on a testsAfterShip lane a --regression submission ships on the quick checks; its suites run after and never hold the lane', async () => {
+  const s = scratch();
+  try {
+    const a = s.clone('alice'), b = s.clone('bob');
+    a.edit('slow-bug.txt', 'only the regression suites see this\n');
+    assert.equal(a.submit('--slug', 'big', '--regression').code, 0);
+    b.edit('b.css', 'small css\n');
+    assert.equal(b.submit('--slug', 'css').code, 0);
+    const router = s.makeRouter({ lanes: { platform: { ...s.lane, testsAfterShip: true } } });
+    await drain(router);
+    assert.equal(s.deployed.length, 1, 'both ship in one release without waiting for the suites');
+    assert.equal(byRef(router, 'alice-big').state, 'live');
+    assert.equal(byRef(router, 'bob-css').state, 'live');
+    assert.equal(byRef(router, 'alice-big').tests_after.state, 'queued');
+    assert.equal(byRef(router, 'bob-css').tests_after, undefined, 'only the submission that asked is tested');
+    assert.equal(router.postShip.length, 1);
+    // The regression loop picks it up separately and reports on the submission.
+    while (await router.processRegression()) { /* drain */ }
+    const after = byRef(router, 'alice-big').tests_after;
+    assert.equal(after.state, 'failed');
+    assert.equal(after.release, s.deployed[0].releaseId);
+    assert.match(after.details, /bad:slow-bug\.txt/);
+    assert.equal(router.postShip.length, 0);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(s.dir, 'state', 'post-ship.json'), 'utf8')), []);
+    assert.equal(a.submit('wait', 'big').code, 0, 'plain wait ends at live');
+    assert.equal(a.submit('wait', 'big', '--tests-after').code, 1, '--tests-after reports the failed suites');
+    // A router restart picks up a queued after-ship run.
+    const c = s.clone('carol');
+    c.edit('c.txt', 'c\n'); assert.equal(c.submit('--slug', 'c', '--regression').code, 0);
+    await drain(router);
+    assert.equal(s.makeRouter({ lanes: { platform: { ...s.lane, testsAfterShip: true } } }).postShip.length, 1);
   } finally { s.cleanup(); }
 });
 

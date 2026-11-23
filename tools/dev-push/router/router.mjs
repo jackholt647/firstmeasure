@@ -44,6 +44,9 @@ export class Router {
     this.failedOverlays = new Set(); // `${ref}@${sha}@${tip}`: overlays that could not be merged onto that tip
     // Submissions of a batch whose release did not come up: each deploys on its own until it ships or bounces.
     this.deployAlone = new Set(this.readJson("deploy-alone.json", []));
+    // Lanes with `testsAfterShip` ship on the quick checks alone; the regression a submission asked for runs here,
+    // after its release is live, on the regression loop, so it never holds the lane (docs: dev lanes, "Checks").
+    this.postShip = this.readJson("post-ship.json", []);
     for (const name of Object.keys(this.lanes)) {
       const last = this.releases.find((release) => release.lane === name);
       this.laneState[name] = { state: "idle", batch: [], release: last ? { id: last.id, sha: last.sha, name: last.name || last.sha, server: last.server || last.name || last.sha, at: last.at } : null, tip: null, note: null };
@@ -195,6 +198,7 @@ export class Router {
 
   /** One `submit.mjs regression` request: its work merged onto its lane's tip, the lane's gates with regression on. */
   async processRegression() {
+    if (this.postShip.length) return this.processPostShip(this.postShip[0]);
     await this.git(["fetch", "--quiet", "--prune", "--no-tags", "origin", "+refs/heads/queue/regression/*:refs/queue/regression/*"]);
     const [entry] = await this.pending("regression");
     if (!entry) return false;
@@ -209,7 +213,7 @@ export class Router {
       await this.retire(entry);
       return true;
     }
-    const gate = await this.runGates(target, dir, sha, tip, [entry]); // regression null = the quick checks only (--gates-only)
+    const gate = await this.runGates(target, dir, sha, tip, [entry], undefined, { regressionRun: true }); // regression null = the quick checks only (--gates-only)
     const report = [
       ...gate.failures.map((failure) => `## FAILED ${failure.id}\n${trim(failure.output, 4000)}`),
       ...(gate.notes || []).map((note) => `note: ${note}`)
@@ -217,6 +221,49 @@ export class Router {
     await this.update(entry, { state: gate.ok ? "passed" : "failed", reason: gate.ok ? null : "tests-failed", details: report || null, timings: { ...gate.timings, total: Date.now() - started } });
     this.log("regression", `${entry.ref} ${gate.ok ? "passed" : "failed"}`);
     await this.retire(entry);
+    return true;
+  }
+
+  /** Queues the regression the live release's submissions asked for (a `testsAfterShip` lane). */
+  queuePostShip(lane, release, entries) {
+    const asked = entries.filter((entry) => entry.regression);
+    if (!asked.length) return null;
+    const job = { lane, release: release.id, sha: release.sha, base: release.base, submissions: asked.map((entry) => entry.submission), queued_at: new Date().toISOString() };
+    this.postShip.push(job);
+    this.writeJson("post-ship.json", this.postShip);
+    this.log(lane, `${release.id}: regression for ${asked.length} submission(s) runs after the release (the lane does not wait)`);
+    this.wakeRegression?.();
+    return job;
+  }
+
+  /** Runs one queued after-ship regression on the released tree and records the result on its submissions. */
+  async processPostShip(job) {
+    const entries = job.submissions.map((id) => this.submissions[id]).filter(Boolean);
+    const done = async () => { this.postShip = this.postShip.filter((item) => item !== job); this.writeJson("post-ship.json", this.postShip); };
+    if (!entries.length || !this.lanes[job.lane]) { await done(); return true; }
+    const started = Date.now();
+    await this.update(entries, { tests_after: { state: "testing", release: job.release } });
+    let result;
+    try {
+      const dir = await this.worktree("regression", job.sha);
+      await this.git(["reset", "--quiet", "--hard", job.sha], { cwd: dir });
+      await this.git(["clean", "-fdq", "-e", "node_modules", "-e", "**/node_modules"], { cwd: dir });
+      const options = { regressionRun: true };
+      const gate = await this.runGates(job.lane, dir, job.sha, job.base, entries, undefined, options);
+      // Failures the release's base already had are nobody's in this release.
+      const own = gate.ok ? [] : await this.preexisting(job.lane, dir, job.base, entries, gate.failures, options);
+      const report = [
+        ...own.map((failure) => `## FAILED ${failure.id}\n${trim(failure.output, 4000)}`),
+        ...gate.failures.filter((failure) => !own.includes(failure)).map((failure) => `note: ${failure.id} also fails on ${job.base.slice(0, 10)} (known, not this release's)`),
+        ...(gate.notes || []).map((note) => `note: ${note}`)
+      ].join("\n\n");
+      result = { state: own.length ? "failed" : "passed", release: job.release, details: report ? trim(report) : null, timings: { ...gate.timings, total: Date.now() - started } };
+    } catch (error) {
+      result = { state: "error", release: job.release, details: trim(error.stack || error.message), timings: { total: Date.now() - started } };
+    }
+    await this.update(entries, { tests_after: result });
+    this.log(job.lane, `${job.release}: regression after ship ${result.state} (${Math.round((Date.now() - started) / 1000)} s)${result.state === "failed" ? ` — ${entries.map((entry) => entry.ref).join(", ")}` : ""}`);
+    await done();
     return true;
   }
 
@@ -294,24 +341,26 @@ export class Router {
 
   // ---------------------------------------------------------------- gates
 
-  async runGates(lane, dir, sha, tip, entries, only) {
+  async runGates(lane, dir, sha, tip, entries, only, { regressionRun = false } = {}) {
     const changed = [...new Set((await Promise.all(entries.map((entry) => this.changedBy(entry.work, tip, entry.base)))).flat().filter(Boolean))];
     const tests = [...new Set(entries.flatMap((entry) => entry.tests || []))];
-    // Regression suites run only when a submission asks (submit.mjs --regression): "all" beats "mapped".
+    // Regression suites run only when a submission asks (submit.mjs --regression): "all" beats "mapped". On a
+    // `testsAfterShip` lane they never gate a release: they run after it (processPostShip, regressionRun).
     const asked = entries.map((entry) => entry.regression).filter(Boolean);
-    const regression = asked.includes("all") ? "all" : asked.length ? "mapped" : null;
+    const deferred = Boolean(this.lanes[lane]?.testsAfterShip) && !regressionRun;
+    const regression = deferred ? null : asked.includes("all") ? "all" : asked.length ? "mapped" : null;
     const started = Date.now();
     const result = await this.lanes[lane].gates({ dir, sha, baseSha: tip, changed, tests, regression, only, log: (line) => this.log(lane, line) });
     return { ok: Boolean(result.ok), failures: result.failures || (result.ok ? [] : [{ id: result.gate || "gate", output: result.output || "" }]), changed, tests, notes: result.notes || [], timings: { ...(result.timings || {}), gates_total: Date.now() - started } };
   }
 
   /** Failures that the lane tip itself also has are not the submission's fault. */
-  async preexisting(lane, dir, tip, entries, failures) {
+  async preexisting(lane, dir, tip, entries, failures, options = {}) {
     const ids = failures.map((failure) => failure.id);
-    const key = `${tip}\0${ids.join(",")}`;
+    const key = `${tip}\0${ids.join(",")}\0${options.regressionRun ? "regression" : ""}`;
     if (!this.gateCache.has(key)) {
       await this.git(["reset", "--quiet", "--hard", tip], { cwd: dir });
-      const result = await this.runGates(lane, dir, tip, tip, entries, ids);
+      const result = await this.runGates(lane, dir, tip, tip, entries, ids, options);
       this.gateCache.set(key, new Set(result.failures.map((failure) => failure.id)));
     }
     const onTip = this.gateCache.get(key);
@@ -515,6 +564,10 @@ export class Router {
     this.releases.unshift(release);
     fs.writeFileSync(path.join(this.stateDir, "releases", `${releaseId}.json`), JSON.stringify(release, null, 1));
     await this.update(accepted, { state: "live", release: releaseId, details: null, timings });
+    if (module.testsAfterShip) {
+      const job = this.queuePostShip(lane, release, accepted);
+      if (job) await this.update(accepted.filter((entry) => entry.regression), { tests_after: { state: "queued", release: releaseId } });
+    }
     await this.setLane(lane, { state: "idle", batch: [], tip: push.code === 0 ? final.sha : tip, release: { id: releaseId, sha: final.sha, name: release.name, server: release.server, at: release.at }, note: final.overlayConflicts.length ? `${final.overlayConflicts.length} live overlay(s) need review` : null });
     for (const entry of accepted) await this.retire(entry);
     if (this.options.afterRelease) await this.options.afterRelease({ lane, release, overlays: final.overlaysMerged }).catch((error) => this.log(lane, `afterRelease: ${error.message}`));
@@ -592,7 +645,7 @@ export class Router {
           if (this.lanes[lane]) await this.setLane(lane, { state: "idle", batch: [], note: `router error: ${trim(error.message, 300)}` }).catch(() => {});
         }
       }
-      if (!busy) await new Promise((resolve) => { this.wake = resolve; setTimeout(resolve, intervalMs); });
+      if (!busy) await new Promise((resolve) => { if (lane === "regression") this.wakeRegression = resolve; else this.wake = resolve; setTimeout(resolve, intervalMs); });
     }
   }
 
