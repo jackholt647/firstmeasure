@@ -41,15 +41,17 @@
 .fm-shell-header[data-header-rows="2"]>.fm-shell-tabs{grid-row:2;grid-column:1;min-width:0;min-height:0;height:32px;box-sizing:border-box;border-bottom:0!important;overflow:hidden}
 .fm-shell-header[data-header-rows="2"]>.fm-project-tray-tabs{grid-row:2;grid-column:4;display:flex;align-items:center;gap:2px;padding:0 4px}
 .fm-shell-header[data-header-rows="2"]>.fm-project-tray-tabs button{position:static;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:30px;padding:0;border:0;border-radius:5px;background:none;color:#667085;font-family:inherit;font-size:13.3333px;font-weight:400;line-height:normal}
-/* Minimized, an entity window is one bar: its icon and name, then restore and close (GP-125). The open header's
-   second row (tabs, tray buttons) and the identity's room for the floating controls would leave the name no width. */
-.fm-entity-window[data-window=minimized]>.fm-shell-header{display:flex!important;align-items:center;gap:4px;padding:0 2px 0 8px!important;overflow:hidden}
+/* Minimized, an entity window is one bar: its icon and name, then restore and close (GP-125), in the shared minimized
+   look (window-manager.js variables, GP-153). The open header's
+   second row (tabs, tray buttons) and the identity's room for the floating controls would leave the name no width; its
+   36px min-height would push the name below the bar's middle. */
+.fm-entity-window[data-window=minimized]>.fm-shell-header{display:flex!important;align-items:center;gap:4px;box-sizing:border-box!important;height:30px!important;min-height:30px!important;padding:0 2px 0 8px!important;border-bottom:0!important;overflow:hidden}
 .fm-entity-window[data-window=minimized]>.fm-shell-header>:not(.fm-shell-identity,.r-window-bar-actions){display:none!important}
-.fm-entity-window[data-window=minimized]>.fm-shell-header>.fm-shell-identity{flex:1;gap:7px;padding:0!important;font-size:12px!important;font-weight:700!important}
-.fm-entity-window[data-window=minimized]>.fm-shell-header>.fm-shell-identity>i{display:grid;place-items:center;flex:none;width:20px;height:20px;font-size:15px}
+.fm-entity-window[data-window=minimized]>.fm-shell-header>.fm-shell-identity{flex:1;gap:var(--fm-min-gap);padding:0!important;font-size:var(--fm-min-font-size)!important;font-weight:var(--fm-min-font-weight)!important;color:var(--fm-min-color)}
+.fm-entity-window[data-window=minimized]>.fm-shell-header>.fm-shell-identity :is(i,.fm-contact-title-icon){display:grid;place-items:center;flex:none;width:18px;height:18px;padding:0;border-radius:0;background:none;color:var(--primary,#d93025);font-size:var(--fm-min-icon-size)}
 .fm-entity-window[data-window=minimized]>.fm-shell-header>.r-window-bar-actions{position:static!important;flex:none;height:28px}
 .fm-entity-window[data-window=minimized]>.fm-shell-header .fm-window-controls{height:28px!important}
-.fm-entity-window[data-window=minimized]>.fm-shell-header .fm-window-controls button{width:26px!important;height:28px!important;min-height:28px!important;border:0!important}
+.fm-entity-window[data-window=minimized]>.fm-shell-header .fm-window-controls button{width:var(--fm-min-button-width)!important;height:28px!important;min-height:28px!important;border:0!important;border-radius:6px!important;color:var(--fm-min-color)}
 .fm-shell-tabs.fm-tabs-revealing>button{position:relative}
 .fm-shell-tabs.fm-tabs-revealing>button:first-child{z-index:1;background:#fff!important}
 .fm-entity-window .fm-shell-header[data-window-mobile=true]{display:grid!important;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:60px auto;height:auto!important;min-height:60px!important;padding-top:var(--fm-window-safe-top,env(safe-area-inset-top,0px))!important}
@@ -105,8 +107,8 @@
 .fm-shell-sidebar-toggle:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px;border-radius:4px}
 .fm-entity-window:is([data-window-mobile=true],[data-window=minimized]) .fm-shell-sidebar-toggle{cursor:inherit}
 .fm-entity-window:is([data-window-mobile=true],[data-window=minimized]) .fm-shell-sidebar-toggle::after{display:none}
-.fm-entity-window[data-window=minimized] .fm-shell-sidebar-toggle{flex:1;gap:7px;pointer-events:none}
-.fm-entity-window[data-window=minimized] .fm-shell-sidebar-toggle>i{display:grid;place-items:center;flex:none;width:20px;height:20px;font-size:15px}
+.fm-entity-window[data-window=minimized] .fm-shell-sidebar-toggle{flex:1;gap:var(--fm-min-gap);pointer-events:none}
+.fm-entity-window[data-window=minimized] .fm-shell-sidebar-toggle>i{display:grid;place-items:center;flex:none;width:18px;height:18px;font-size:var(--fm-min-icon-size)}
 @media(min-width:761px){
 .fm-entity-window.fm-shell-collapsible:not([data-window-mobile=true]) .fm-shell-sidebar{position:absolute!important;z-index:6;left:0;top:36px;bottom:0;width:var(--fm-shell-sidebar-w,420px)!important;height:auto!important;max-width:none!important;border-right:0!important;transform:translateX(-101%);visibility:hidden;transition:transform .34s var(--fm-shell-sidebar-ease),visibility 0s linear .34s}
 .fm-entity-window.fm-shell-collapsible:not([data-window-mobile=true]) .fm-shell-sidebar::after{content:'';position:absolute;right:0;top:33px;bottom:0;width:1px;background:#e4e7ec;pointer-events:none}
@@ -133,14 +135,14 @@
 .fm-tray-content{display:flex;flex:1;min-width:0;min-height:0;flex-direction:column;overflow:hidden}.fm-tray-tabs{display:flex;align-items:center;flex:none;gap:4px;min-height:39px;padding:4px 8px;border-bottom:1px solid var(--fm-tray-line);background:var(--panel,#fff);overflow-x:auto;scrollbar-width:thin}
 .fm-tray-tabs[hidden]{display:none!important}.fm-tray-tabs button{display:inline-flex;align-items:center;justify-content:center;flex:1;min-width:0;min-height:30px;padding:5px 8px;border:0;border-radius:6px;background:transparent;color:#667085;font-family:inherit;font-size:11px;font-weight:600;white-space:nowrap;cursor:pointer}.fm-tray-tabs button:hover{background:#f2f4f7}.fm-tray-tabs button[aria-selected=true]{background:color-mix(in srgb,var(--primary,#d93025) 9%,white);color:var(--fm-tray-accent)}.fm-tray-tabs button:focus-visible{outline:2px solid var(--fm-tray-accent);outline-offset:-2px}
 .fm-tray-panes{display:flex;flex:1;min-width:0;min-height:0;flex-direction:column;overflow:hidden}.fm-tray-pane{display:flex;flex:1;min-width:0;min-height:0;flex-direction:column;overflow:auto}.fm-tray-pane[hidden]{display:none!important}
-.fm-tray-shell[data-window=minimized]>.fm-tray-content{display:none!important}.fm-tray-shell[data-window=minimized]>.fm-tray-header{min-height:30px;padding:0 6px}.fm-tray-shell[data-window-mobile=true]>.fm-tray-header{min-height:60px;padding-left:16px}
+.fm-tray-shell[data-window=minimized]>.fm-tray-content{display:none!important}.fm-tray-shell[data-window=minimized]>.fm-tray-header{height:30px;min-height:30px;padding:0 2px 0 8px;border-bottom:0}.fm-tray-shell[data-window=minimized]>.fm-tray-header .fm-window-controls button{color:var(--fm-min-color)}.fm-tray-shell[data-window-mobile=true]>.fm-tray-header{min-height:60px;padding-left:16px}
 `;document.head.append(style);
   }
   // A tray gets the same header and tab/panel contract regardless of its app.
   // Panels retain their nodes when selected so media and drafts are not recreated.
   function trayWindow({element,header,title,body,tabs=[],label='Tray tabs',onSelect}){
     if(!element||!header||!body||!Array.isArray(tabs)||!tabs.length)throw Error('Tray window needs a header, body, and at least one tab.');
-    trayStyles();element.classList.add('fm-tray-shell');header.classList.add('fm-tray-header');title?.classList.add('fm-tray-title');
+    trayStyles();element.classList.add('fm-tray-shell');header.classList.add('fm-tray-header');title?.classList.add('fm-tray-title','fm-window-minimized-identity');
     const content=document.createElement('div'),bar=document.createElement('nav'),panes=document.createElement('div'),entries=new Map();let selected='';
     content.className='fm-tray-content';bar.className='fm-tray-tabs';bar.setAttribute('role','tablist');bar.setAttribute('aria-label',label);panes.className='fm-tray-panes';content.append(bar,panes);element.replaceChild(content,body);
     function refresh(){bar.hidden=[...entries.values()].filter(entry=>!entry.button.hidden).length<2;for(const [id,entry] of entries){entry.button.setAttribute('aria-selected',String(id===selected));entry.button.tabIndex=id===selected?0:-1;entry.panel.hidden=id!==selected;entry.panel.inert=id!==selected;}}
