@@ -540,12 +540,38 @@
         const current = arr(ctx.value()).map((v) => cleanText(typeof v === 'object' ? obj(v).value : v));
         const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
         ctx.write(next);
+      } else if (obj(ctx.item.presentation).clearable === true && !ctx.item.required && selectedValues.includes(value)) {
+        // A choice that may be left unanswered (presentation.clearable): picking it again clears it (GP-157).
+        ctx.write(null);
       } else {
         ctx.write(value);
       }
       renderChoiceCards(el, ctx, options, multi);
       ctx.requestPreview();
     }));
+  }
+
+  /** A question's hint as an info tooltip beside its label (GP-157); it opens toward the side with room. */
+  function addItemTip(holder, text){
+    const label = holder.querySelector('.fmdw-field-label, .fmdw-toggle-copy strong');
+    if (!label) return;
+    const tip = document.createElement('button');
+    tip.type = 'button';
+    tip.className = 'fmdw-step-info fmdw-item-tip';
+    tip.setAttribute('aria-label', text);
+    tip.setAttribute('data-fmdw-tip', text);
+    tip.innerHTML = '<i class="fas fa-circle-info"></i>';
+    const place = () => {
+      const box = holder.closest('.fmdw-section') || holder.parentElement;
+      const area = box?.getBoundingClientRect?.();
+      const at = tip.getBoundingClientRect();
+      tip.classList.toggle('end', !!area && at.left > area.left + area.width / 2);
+    };
+    tip.addEventListener('mouseenter', place);
+    tip.addEventListener('focus', place);
+    // Inside a label: a tap shows the tip, it never works the label's control.
+    tip.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); tip.focus(); });
+    label.appendChild(tip);
   }
 
   registerKind('choice_group', (el, ctx) => {
@@ -4108,8 +4134,11 @@
       if (!items.length) {
         el.items.innerHTML = `<div class="fmdw-empty"><i class="fas fa-circle-info"></i><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8a8fecd55b2bdc","Nothing to answer on this step.") ?? "Nothing to answer on this step.")}</span></div>`;
       }
-      const renderItem = (item, parent) => {
+      const renderItem = (item, parent, section) => {
         const holder = document.createElement('div');
+        // A hint shown as an info tooltip beside the label rather than as text under it
+        // (presentation.hint "tooltip" on the item, or presentation.hints on its section; GP-157).
+        const tipText = firstText(obj(item.presentation).hint, obj(obj(section).presentation).hints) === 'tooltip' ? cleanText(item.description) : '';
         const itemTransition = obj(obj(item.presentation).transition);
         // Lists and grids need the full row; simple fields pair up.
         const wide = ['measurements', 'payment_schedule', 'line_items_review', 'line_item_editor', 'review', 'content_blocks', 'piece_select', 'piece_picker', 'choice_group'].includes(cleanText(item.kind))
@@ -4128,7 +4157,7 @@
         const renderer = kindRegistry.get(cleanText(item.kind));
         const readonly = item.disabled === true || opts.readonly === true || !allowedWrite(cleanText(item.writes) || 'params._');
         const ctx = {
-          item,
+          item: tipText ? { ...item, description: '' } : item,
           step,
           audience,
           readonly,
@@ -4160,18 +4189,22 @@
           console.warn('FMDocWorkflow kind renderer failed', item.kind, error);
           holder.innerHTML = `<div class="fmdw-card"><p class="fmdw-hint"><i class="fas fa-triangle-exclamation"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_63c83caf528f7c"," This question could not be displayed.") ?? " This question could not be displayed.")}</p></div>`;
         }
+        if (tipText) addItemTip(holder, tipText);
         st.itemHandles.push({ item, el: holder, ctx, handle });
       };
       sections.forEach((section) => {
         const sectionEl = document.createElement('section');
         const transition = obj(section.transition);
-        sectionEl.className = `fmdw-section fmdw-enter-${esc(inPlace ? 'none' : firstText(transition.type, section.legacy ? 'none' : 'grow'))}`;
+        const sectionLook = obj(section.presentation);
+        // presentation.columns (2 or 3) lays a section's questions out in that many columns; dense tightens it (GP-157).
+        const columns = [2, 3].includes(Number(sectionLook.columns)) ? Number(sectionLook.columns) : 0;
+        sectionEl.className = `fmdw-section${columns ? ' fmdw-section-cols' : ''}${sectionLook.dense === true ? ' fmdw-section-dense' : ''} fmdw-enter-${esc(inPlace ? 'none' : firstText(transition.type, section.legacy ? 'none' : 'grow'))}`;
         sectionEl.style.setProperty('--fmdw-enter-ms', `${Math.max(0, Number(transition.duration_ms || 220))}ms`);
         const background = firstText(obj(section.style).background);
         if (background) sectionEl.style.background = background;
         if (cleanText(section.title)) sectionEl.innerHTML = `<h3>${esc(section.title)}</h3>${cleanText(section.description) ? `<p>${esc(section.description)}</p>` : ''}`;
-        const body = document.createElement('div'); body.className = 'fmdw-section-items'; sectionEl.appendChild(body); el.items.appendChild(sectionEl);
-        arr(section.items).forEach((item) => renderItem(item, body));
+        const body = document.createElement('div'); body.className = `fmdw-section-items${columns ? ` fmdw-cols-${columns}` : ''}`; sectionEl.appendChild(body); el.items.appendChild(sectionEl);
+        arr(section.items).forEach((item) => renderItem(item, body, section));
       });
       // Footer
       const isLast = index >= steps.length - 1;
@@ -4628,6 +4661,29 @@
 .fmdw-step-info:hover,.fmdw-step-info:focus-visible{color:var(--fmdw-primary);outline:0}
 .fmdw-step-info::after{content:attr(data-fmdw-tip);position:absolute;left:-6px;top:calc(100% + 6px);z-index:30;width:min(360px,72vw);padding:10px 12px;border-radius:10px;background:#111827;color:#fff;font-size:12px;font-weight:700;line-height:1.45;text-align:left;white-space:normal;box-shadow:0 12px 30px rgba(16,24,40,.25);opacity:0;visibility:hidden;transform:translateY(-3px);transition:opacity .12s ease,transform .12s ease;pointer-events:none}
 .fmdw-step-info:hover::after,.fmdw-step-info:focus::after{opacity:1;visibility:visible;transform:none}
+.fmdw-item-tip{padding:0 3px;margin-left:3px;font-size:11px;line-height:1;text-transform:none;letter-spacing:0;vertical-align:baseline}
+.fmdw-item-tip::after{width:min(260px,70vw);font-size:11.5px}
+.fmdw-item-tip.end::after{left:auto;right:-6px}
+.fmdw-section-cols{container-type:inline-size}
+.fmdw-section-items.fmdw-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@container (max-width:360px){.fmdw-section-items.fmdw-cols-3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (max-width:300px){.fmdw-section-items.fmdw-cols-2,.fmdw-section-items.fmdw-cols-3{grid-template-columns:minmax(0,1fr)}}
+.fmdw-section-dense{padding:14px;gap:10px}
+.fmdw-section-dense>.fmdw-section-items{gap:12px}
+.fmdw-section-dense .fmdw-field{gap:5px}
+.fmdw-section-dense .fmdw-field input,.fmdw-section-dense .fmdw-field select{padding:8px 10px}
+.fmdw-section-dense .fmdw-field textarea{min-height:58px;padding:8px 10px}
+/* A switch reads like the fields beside it: its label above, the switch where their input is. */
+.fmdw-section-dense .fmdw-toggle-row{flex-direction:column;align-items:flex-start;gap:5px;border:0;border-radius:0;background:none;padding:0}
+.fmdw-section-dense .fmdw-toggle-copy{order:-1}
+.fmdw-section-dense .fmdw-toggle-copy strong{font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:var(--fmdw-muted);white-space:nowrap}
+.fmdw-section-dense .fmdw-toggle{margin:6px 0}
+.fmdw-section-dense .fmdw-choice-card{padding:10px 12px;gap:4px}
+.fmdw-section-dense .fmdw-card:has(>.fmdw-row-actions){display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;padding:10px}
+.fmdw-section-dense .fmdw-card>.fmdw-li-list{flex:1 1 100%}
+.fmdw-section-dense .fmdw-card>.fmdw-li-list:has(>.fmdw-hint:only-child){flex:1 1 0;order:1}
+.fmdw-section-dense .fmdw-card>.fmdw-li-list>.fmdw-hint{margin:0}
+.fmdw-section-dense .fmdw-card>.fmdw-li-total{flex:1 1 100%}
 .fmdw-step-actions{flex:none;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 .fmdw-step-actions:empty{display:none}
 .fmdw-step-actions .fmdw-btn{min-height:34px;padding:0 12px}
